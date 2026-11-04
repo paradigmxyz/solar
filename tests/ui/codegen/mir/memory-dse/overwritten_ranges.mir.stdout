@@ -1,10 +1,10 @@
-// === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.sol:OverwrittenRanges ===
+; === ROOT/tests/ui/codegen/mir/memory-dse/overwritten_ranges.sol:OverwrittenRanges ===
 @module OverwrittenRanges
 @types
   struct0: {i256, i256}
 
 ; function overwritten() external pure returns (uint256, uint256) [selector 0x5e97f278]
-fn @overwritten() [selector=0x5e97f278, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @overwritten() -> struct0 [selector=0x5e97f278, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     calldatacopy 257, 0, 64
     mstore 257, 7
@@ -13,7 +13,7 @@ fn @overwritten() [selector=0x5e97f278, pure, abi_params=[], abi_returns=[word, 
 }
 
 ; function partialOverwrite() external pure returns (uint256, uint256) [selector 0x9defb653]
-fn @partialOverwrite() [selector=0x9defb653, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @partialOverwrite() -> struct0 [selector=0x9defb653, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = calldatasize
     calldatacopy 256, v0, 64
@@ -33,7 +33,7 @@ fn @expansion() -> i256 [selector=0x7fce0203, pure, abi_params=[], abi_returns=[
 }
 
 ; function returndataBounds() external pure returns (uint256, uint256) [selector 0xa6a0e5ea]
-fn @returndataBounds() [selector=0xa6a0e5ea, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @returndataBounds() -> struct0 [selector=0xa6a0e5ea, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     returndatacopy 256, 0, 64
     mstore 256, 7
@@ -47,13 +47,13 @@ fn @allocated(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x6649a3b9, pure,
     v0 = alloc zeroed checked 96
     mstore v0, 2
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
     mstore v4, arg0
     v5 = mload v0
-    v6 = lt 1, v5
+    v6 = gt v5, 1
     v7 = eq v6, false
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64

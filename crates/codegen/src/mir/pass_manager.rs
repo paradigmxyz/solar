@@ -160,6 +160,8 @@ pub(crate) fn run_passes_inner(
 
         if enabled {
             assert_debug_info_handled(module, pass_name, "before");
+            let origins =
+                crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::mir(module));
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let key = pass.cache_key();
             let cached = key.is_some_and(|key| unchanged.contains(&key));
@@ -215,6 +217,17 @@ pub(crate) fn run_passes_inner(
                 return (changed, analyses.error);
             }
             assert_debug_info_handled(module, pass_name, "after");
+            if let Some(origins) = origins
+                && let Err(error) = origins.check(
+                    gcx,
+                    "MIR",
+                    module.name,
+                    pass_name,
+                    crate::debugify::Origins::mir(module),
+                )
+            {
+                return (changed, Some(error));
+            }
 
             if pass_changed && should_validate_ir(gcx.sess) {
                 validate_module_after_pass(module, pass_name);
@@ -224,7 +237,7 @@ pub(crate) fn run_passes_inner(
         if let Some(before) = before {
             print_pass_diff(&output_name, pass_name, before, module.to_text());
         } else if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
-            println!("// === {output_name} (after {pass_name}) ===");
+            println!("; === {output_name} (after {pass_name}) ===");
             print!("{}", module.to_text());
         }
     }
@@ -274,7 +287,7 @@ pub(crate) fn print_pass_diff(
     before: impl Display,
     after: impl Display,
 ) {
-    let before = format!("// === {name} (before {pass}) ===\n{before}");
-    let after = format!("// === {name} (after {pass}) ===\n{after}");
+    let before = format!("; === {name} (before {pass}) ===\n{before}");
+    let after = format!("; === {name} (after {pass}) ===\n{after}");
     print!("{}", line_diff(&before, &after));
 }

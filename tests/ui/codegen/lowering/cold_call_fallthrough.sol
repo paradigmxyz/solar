@@ -12,22 +12,22 @@ contract ColdCallFallthrough {
     // NONE: eq
     // NONE-NEXT: push [[WRAPPER:bb[0-9]+]]
     // NONE-NEXT: jumpi
-    // NONE: [[WRAPPER]]:
+    // NONE: [[WRAPPER]]{{( \[[a-z, ]+\])?}}:
     // NONE: iszero
     // NONE-NEXT: push [[NONE_CALL:bb[0-9]+]]
     // NONE-NEXT: jumpi
     // NONE: return
-    // NONE: [[NONE_CALL]]:
+    // NONE: [[NONE_CALL]]{{( \[[a-z, ]+\])?}}:
     // NONE-NOT: [cold]
 
     // SIZE-LABEL: @module ColdCallFallthrough_runtime
     // SIZE: eq
     // SIZE-NEXT: push [[SIZE_DISPATCH:bb[0-9]+]]
     // SIZE-NEXT: jumpi
-    // SIZE: [[SIZE_DISPATCH]]:
+    // SIZE: [[SIZE_DISPATCH]]{{( \[[a-z, ]+\])?}}:
     // SIZE: iszero
     // SIZE-NEXT: jump [[BRANCH:bb[0-9]+]]
-    // SIZE: [[BRANCH]]:
+    // SIZE: [[BRANCH]]{{( \[[a-z, ]+\])?}}:
     // SIZE-NEXT: push [[SIZE_COLD:bb[0-9]+]]
     // SIZE-NEXT: jumpi
     // SIZE-NOT: jump

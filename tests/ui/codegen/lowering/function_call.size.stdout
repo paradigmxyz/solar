@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/function_call.sol:FunctionCall (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/function_call.sol:FunctionCall (runtime) ===
 @module FunctionCall_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb4
   jumpi
@@ -23,7 +23,23 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5:  ; function quadruple(uint256 x) public pure returns (uint256) [selector 0x7fdb7587]
+bb8 [continuation]:
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb14 [cold]:
+  push 17
+  push 32
+  mstore
+  push 0x4e487b71
+  push 0
+  mstore
+  push 36
+  push 28
+  revert
+bb5 [entry]:                                      ; function quadruple(uint256 x) public pure returns (uint256) [selector 0x7fdb7587]
   push 36
   calldatasize
   lt
@@ -31,29 +47,22 @@ bb5:  ; function quadruple(uint256 x) public pure returns (uint256) [selector 0x
   jumpi
   push 4
   calldataload
-  dup 1
-  dup 1
+  push bb7
   jump bb16
-bb16:
-  add
-  swap 1
-  dup 2
-  lt
+bb16 [ret=0, inputs=2, outputs=1]:                ; function double(uint256 x) internal pure returns (uint256)
   dup 2
   dup 1
   add
   swap 2
   dup 3
   lt
-  or
-  push bb15
+  push bb14
   jumpi
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb10:  ; function sum_then_double(uint256 a, uint256 b) public pure returns (uint256) [selector 0xd386d5a2]
+  jump
+bb7 [continuation]:
+  push bb8
+  jump bb16
+bb10 [entry]:                                     ; function sum_then_double(uint256 a, uint256 b) public pure returns (uint256) [selector 0xd386d5a2]
   push 68
   calldatasize
   lt
@@ -64,14 +73,11 @@ bb10:  ; function sum_then_double(uint256 a, uint256 b) public pure returns (uin
   push 36
   calldataload
   dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb14
+  jumpi
+  push bb8
   jump bb16
-bb15 [cold]:  ; revert_stub (synthesized)
-  push 17
-  push 32
-  mstore
-  push 0x4e487b71
-  push 0
-  mstore
-  push 36
-  push 28
-  revert

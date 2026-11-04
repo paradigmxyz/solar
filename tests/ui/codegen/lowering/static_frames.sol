@@ -15,14 +15,14 @@ contract SF {
     // CHECK: push 0x86b714e2
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[GETTER:bb[0-9]+]]
-    // CHECK: [[GETTER]]:
+    // CHECK: [[GETTER]]{{( \[[a-z, ]+\])?}}:
     // CHECK-NEXT: push 0
     // CHECK-NEXT: sload
     // CHECK-NEXT: push 0
     // CHECK-NEXT: mstore
     // CHECK: return
     // The return word lives in scratch memory, so the entry's heap starts at `0x80`.
-    // CHECK: [[TOP]]:
+    // CHECK: [[TOP]]{{( \[[a-z, ]+\])?}}:
     // CHECK: push 128
     // CHECK-NEXT: push 64
     // CHECK-NEXT: mstore

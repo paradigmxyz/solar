@@ -174,10 +174,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             builder.set_return_type(MirType::MEMPTR);
             let size = builder.imm(64);
             let object = builder.alloc(size, AllocationSemantics::INTERNAL);
-            let Value::Inst(alloc) = *builder.func().value(object) else {
-                unreachable!("allocation result must reference its instruction")
-            };
-            builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+            builder.mark_preserves_fmp(object);
             builder.set_memory_len(object, length);
             let zero = builder.imm(0);
             builder.memory_store_word(object, zero, word);
@@ -241,8 +238,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !self.cx.bytecode_dependencies.contains(contract_id) {
             return Err(gcx
                 .dcx()
-                .err(format!("codegen is missing {} for `{name}`", kind.keyword()))
-                .span(span)
+                .err_at(span, format!("codegen is missing {} for `{name}`", kind.keyword()))
                 .note("the contract is not a bytecode dependency of the contract being compiled")
                 .emit());
         }
@@ -297,10 +293,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object = bytes(size) [!preserves_fmp]
         // mstore object, len
         let object = builder.alloc(size, semantics);
-        let Value::Inst(alloc) = *builder.func().value(object) else {
-            unreachable!("allocation result must reference its instruction")
-        };
-        builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(preserves_fmp);
+        if preserves_fmp {
+            builder.mark_preserves_fmp(object);
+        }
         builder.set_memory_len(object, len);
         object
     }
@@ -359,10 +354,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.imm(size);
         let object = self.builder.alloc(size, AllocationSemantics::INTERNAL);
         if preserve_fmp {
-            let Value::Inst(alloc) = *self.builder.func().value(object) else {
-                unreachable!("allocation result must reference its instruction")
-            };
-            self.builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
+            self.builder.mark_preserves_fmp(object);
         }
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)

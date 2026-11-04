@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget ===
+; === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget ===
 @module TryExternalCallEvaluationOrderTarget
 ; function ping(uint256) external payable returns (uint256) [selector 0x773acdef]
 fn @ping(arg0: i256) -> i256 [selector=0x773acdef, payable, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -6,7 +6,7 @@ fn @ping(arg0: i256) -> i256 [selector=0x773acdef, payable, abi_params=[uint256]
     ret 1
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrder ===
+; === ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrder ===
 @module TryExternalCallEvaluationOrder
 @data
   TryExternalCallEvaluationOrderTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/try_external_call_evaluation_order.sol:TryExternalCallEvaluationOrderTarget"
@@ -20,9 +20,9 @@ fn @constructor() [constructor] {
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = sload 1 !metadata(storage=slot(1))
     v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v6 = zext i160 v2 to i256
@@ -88,15 +88,15 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v5 = zext i160 v0 to i256
     v6 = call v2, v5, v3, 28, 36, 0, 32
     jumpi v6, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     v11 = sload 0 !metadata(storage=slot(0))
     ret v11
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v7 = returndatasize
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8

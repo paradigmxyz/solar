@@ -1054,7 +1054,7 @@ impl<'gcx> Gcx<'gcx> {
                 match array.size {
                     Some(size) => match self.early_const_eval().eval_array_len(size) {
                         Ok(size) => TyKind::Array(elem, size),
-                        Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
+                        Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::ONE),
                     },
                     None => TyKind::DynArray(elem),
                 }
@@ -1623,7 +1623,7 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Builds the error for a literal at `span` that is too large for any integer type.
     pub(crate) fn literal_too_large_err(self, span: Span) -> DiagBuilder<'gcx, ErrorGuaranteed> {
-        self.dcx().err(EvalErrorKind::LiteralTooLarge.msg()).span(span)
+        self.dcx().err_at(span, EvalErrorKind::LiteralTooLarge.msg())
     }
 
     /// Builds the error for a builtin binary operator that does not apply to its operands.
@@ -1638,9 +1638,7 @@ impl<'gcx> Gcx<'gcx> {
         let msg = format!("cannot apply builtin operator `{op}` to `{lhs}` and `{rhs}`");
         let code = if assign { error_code!(7366) } else { error_code!(2271) };
         self.dcx()
-            .err(msg)
-            .code(code)
-            .span(op.span)
+            .err_code_at(op.span, code, msg)
             .span_label(lhs_span, lhs)
             .span_label(rhs_span, rhs)
     }
@@ -1893,7 +1891,12 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 gcx.item_signature(f_id.into()),
                 gcx.item_signature(prev.into()),
             );
-            gcx.dcx().err(msg).span(c.name.span).span_note(f.span, "first function").span_note(f2.span, "second function").note(full_note).emit();
+            gcx.dcx()
+                .err_at(c.name.span, msg)
+                .span_note(f.span, "first function")
+                .span_note(f2.span, "second function")
+                .note(full_note)
+                .emit();
         }
 
         Some(InterfaceFunction { selector, id: f_id, ty })
@@ -1949,7 +1952,7 @@ pub(crate) fn natspec_contract_in_source(
 ) -> Option<hir::ContractId> {
     let (name, source_id) = key;
     gcx.symbol_resolver.source_scopes[source_id]
-        .resolve(solar_interface::Ident { name, span: Span::DUMMY })
+        .resolve(Ident { name, span: Span::DUMMY })
         .and_then(|decls| {
             decls.iter().find_map(|decl| match decl.res {
                 hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
@@ -2027,7 +2030,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
 
 /// Returns the types of the fields of the given struct.
 pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
-    gcx.mk_ty_iter(gcx.hir.strukt(id).fields.iter().map(|&f| gcx.type_of_item(f.into())))
+    gcx.mk_item_tys(gcx.hir.strukt(id).fields)
 }
 
 /// Returns the recursiveness of the given struct.
@@ -2041,7 +2044,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         Some(_) if chains.reaches_cycle => return Recursiveness::Recursive,
         Some(_) => return Recursiveness::None,
     };
-    Recursiveness::Infinite(gcx.dcx().err(msg).code(code).span(gcx.item_span(id)).emit())
+    Recursiveness::Infinite(gcx.dcx().emit_err_code(gcx.item_span(id), code, msg))
 }
 
 /// Returns the reference chains of every struct.
@@ -2210,7 +2213,12 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             } else {
                 "expected data location".to_string()
             };
-            let mut err = gcx.dcx().err(msg).span(var.span);
+            let mut err = gcx.dcx().err_at(var.span, msg);
+            // solc rejects a location on a state variable, and `transient` anywhere but on one,
+            // in its parser with a generic error, so those stay uncoded.
+            if !var.is_state_variable() && var_loc != Some(Transient) {
+                err = err.code(error_code!(6651));
+            }
             if has_reference_or_mapping_type() {
                 let note = format!(
                     "data location must be {expected} for {vis}{descr}{got}",
@@ -2274,11 +2282,11 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     // Only value types fit in a single transient storage slot.
     // Reference: <https://github.com/argotorg/solidity/blob/v0.8.36/libsolidity/analysis/DeclarationTypeChecker.cpp#L537-L538>
     if ty_loc == Transient && !ty.is_value_type() && !ty.references_error() {
-        gcx.dcx()
-            .err("transient data location is only supported for value types")
-            .code(error_code!(1834))
-            .span(var.span)
-            .emit();
+        gcx.dcx().emit_err_code(
+            var.span,
+            error_code!(1834),
+            "transient data location is only supported for value types",
+        );
     }
 
     // solc reports this as a fatal error, so the error type stops follow-up diagnostics. An array
@@ -2297,12 +2305,11 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
         && !matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
         && (!ty.references_error() || innermost_element_resolves())
     {
-        let guar = gcx
-            .dcx()
-            .err("only constants of value type and byte array type are implemented")
-            .code(error_code!(9259))
-            .span(var.span)
-            .emit();
+        let guar = gcx.dcx().emit_err_code(
+            var.span,
+            error_code!(9259),
+            "only constants of value type and byte array type are implemented",
+        );
         return gcx.mk_ty_err(guar);
     }
 

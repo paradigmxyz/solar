@@ -8,9 +8,11 @@
 //! Static helpers overlay when their activations cannot coexist. The conservative placement
 //! reserves a region above every external entry; a final call-graph relaxation can lower each
 //! helper above its actual callers instead. Shared helpers take the maximum caller end, and an
-//! entry's heap starts above all reachable frames. This refinement must converge, never increase
-//! a frame address, and preserves the separate recursive-frame prefix and heap-prefix guards.
-//! All decisions use executable references and are independent of debug metadata.
+//! entry's heap starts above all reachable frames. A tail call from one entry into another sets
+//! no bound: the caller's memory is dead there, so an entry's helpers start above its own spill
+//! area, not its dispatcher's. This refinement must converge, never increase a frame address,
+//! and preserves the separate recursive-frame prefix and heap-prefix guards. All decisions use
+//! executable references and are independent of debug metadata.
 
 use super::{
     ArgIdx, Body, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
@@ -141,10 +143,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         })
     }
 
-    pub(in crate::backend::evm::codegen) fn is_runtime_function(func: &Function) -> bool {
-        !func.attributes.is_constructor
-    }
-
     /// Returns whether every explicit frame address belongs to the local region above the frame
     /// header and signature slots.
     ///
@@ -154,18 +152,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(in crate::backend::evm::codegen) fn static_frame_offsets_are_local(
         func: &Function,
     ) -> bool {
-        let Some(signature_slots) = func.params.len().checked_add(func.return_components().len())
-        else {
-            return false;
-        };
-        let Some(signature_size) = u64::try_from(signature_slots)
-            .ok()
-            .and_then(|slots| slots.checked_mul(EvmMemoryLayout::WORD_SIZE))
-        else {
-            return false;
-        };
-        let Some(local_start) =
-            EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE.checked_add(signature_size)
+        let Some(local_start) = func
+            .params
+            .len()
+            .checked_add(func.return_components().len())
+            .and_then(EvmMemoryLayout::internal_frame_prefix)
         else {
             return false;
         };
@@ -228,16 +219,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.emit_constructor_args_size(arg_offset);
         }
         self.emit_constructor_heap_start();
-    }
-
-    pub(in crate::backend::evm::codegen) fn emit_constructor_arg_load(&mut self, index: ArgIdx) {
-        self.emit_constructor_args_base();
-        let offset = index.index() as u64 * EvmMemoryLayout::WORD_SIZE;
-        if offset != 0 {
-            self.asm.emit_push(U256::from(offset));
-            self.asm.emit_op(op::ADD);
-        }
-        self.asm.emit_op(op::MLOAD);
     }
 
     /// Address of `offset` within the current function's frame: a fixed frame for internal
@@ -375,7 +356,12 @@ impl<'gcx> EvmCodegen<'gcx> {
                 }
             }
             for block in func.blocks.iter() {
-                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                // An entry's tail call into another entry never returns and entries take no
+                // arguments in the lowered phase, so nothing the caller placed reaches the
+                // callee: its helpers start above its own spill area.
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator
+                    && !(runtime_entries.contains(&func_id) && runtime_entries.contains(function))
+                {
                     edges.push((func_id, *function));
                 }
             }
@@ -516,10 +502,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             if let Some(&guard) = reachable_heap_prefix_guards.get(&entry) {
                 floor = floor.checked_add(guard).unwrap_or_else(|| {
-                    gcx.dcx()
-                        .err("runtime heap prefix exceeds the addressable memory range")
-                        .span(module.functions[entry].name_span)
-                        .emit();
+                    gcx.dcx().emit_err(
+                        module.functions[entry].name_span,
+                        "runtime heap prefix exceeds the addressable memory range",
+                    );
                     floor
                 });
             }
@@ -858,41 +844,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         static_spans: &FxHashMap<FunctionId, u64>,
         prefix_guards: &FxHashMap<FunctionId, u64>,
     ) -> FxHashMap<FunctionId, u64> {
-        let mut function_ranges = index_vec![None; module.functions.len()];
-        let mut owns_low_memory = index_vec![None; module.functions.len()];
-        let ranges = entries
-            .iter()
-            .map(|&entry| {
-                let mut ranges = Vec::new();
-                for func_id in self.runtime_entry_reachability[&entry].iter() {
-                    ranges.extend_from_slice(function_ranges[func_id].get_or_insert_with(|| {
-                        Self::constant_memory_ranges(&module.functions[func_id])
-                    }));
-                }
-                // An entry that runs code writing memory at an address calldata computes owns
-                // the low memory it names until control passes to another entry. The
-                // dispatcher's tail calls into the external functions never return, so the
-                // routes it dispatches to do not count.
-                let own_reach = Self::entry_own_reach(module, entry, entries);
-                if own_reach.iter().any(|func_id| {
-                    *owns_low_memory[func_id].get_or_insert_with(|| {
-                        Self::writes_calldata_addressed_memory(&module.functions[func_id])
-                    })
-                }) {
-                    ranges.push((EvmMemoryLayout::HEAP_START, LOW_MEMORY_BOUND));
-                }
-                (entry, ranges)
-            })
-            .collect::<FxHashMap<_, _>>();
-        let mut bases = entries
-            .iter()
-            .map(|&entry| {
-                let func = &module.functions[entry];
-                let base = EvmMemoryLayout::HEAP_START
-                    + func.internal_frame_size.max(func.external_static_return_size);
-                (entry, base)
-            })
-            .collect::<FxHashMap<_, _>>();
         let allocations = entries
             .iter()
             .map(|&entry| {
@@ -907,6 +858,47 @@ impl<'gcx> EvmCodegen<'gcx> {
             .iter()
             .map(|&entry| {
                 (entry, self.function_spill_size(entry).saturating_add(allocations[&entry]))
+            })
+            .collect::<FxHashMap<_, _>>();
+        let mut function_ranges = index_vec![None; module.functions.len()];
+        let mut owns_low_memory = index_vec![None; module.functions.len()];
+        let ranges = entries
+            .iter()
+            .map(|&entry| {
+                let mut ranges = Vec::new();
+                for func_id in self.runtime_entry_reachability[&entry].iter() {
+                    ranges.extend_from_slice(function_ranges[func_id].get_or_insert_with(|| {
+                        Self::constant_memory_ranges(&module.functions[func_id])
+                    }));
+                }
+                // An entry that runs code writing memory at an address calldata computes owns
+                // the low memory it names until control passes to another entry. The
+                // dispatcher's tail calls into the external functions never return, so the
+                // routes it dispatches to do not count. Only what the compiler places for the
+                // entry has to stay clear of that memory: its spill area, static allocations and
+                // frames. An entry that places none of them keeps its base, so it neither raises
+                // the region that every other entry's frames start at nor moves its own heap
+                // above that memory.
+                let own_reach = Self::entry_own_reach(module, entry, entries);
+                if (sizes[&entry] != 0 || static_spans[&entry] != 0)
+                    && own_reach.iter().any(|func_id| {
+                        *owns_low_memory[func_id].get_or_insert_with(|| {
+                            Self::writes_calldata_addressed_memory(&module.functions[func_id])
+                        })
+                    })
+                {
+                    ranges.push((EvmMemoryLayout::HEAP_START, LOW_MEMORY_BOUND));
+                }
+                (entry, ranges)
+            })
+            .collect::<FxHashMap<_, _>>();
+        let mut bases = entries
+            .iter()
+            .map(|&entry| {
+                let func = &module.functions[entry];
+                let base = EvmMemoryLayout::HEAP_START
+                    + func.internal_frame_size.max(func.external_static_return_size);
+                (entry, base)
             })
             .collect::<FxHashMap<_, _>>();
         loop {
@@ -1217,11 +1209,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Shifts are the power-of-two forms of these unsigned operations.
     fn heap_prefix_alignment(func: &Function, value: ValueId) -> Option<(ValueId, u64)> {
         let constant = |value| u256_to_u64(Self::heap_prefix_constant(func, value, 0)?);
-        let instruction = |value| match func.value(value) {
-            Value::Inst(inst_id) => Some(&func.inst(*inst_id).kind),
-            _ => None,
-        };
-        let (quotient, factor) = match instruction(value)? {
+        let (quotient, factor) = match func.value_inst_kind(value)? {
             InstKind::Shl(shift, value) => {
                 (*value, 1_u64.checked_shl(constant(*shift)?.try_into().ok()?)?)
             }
@@ -1234,7 +1222,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             _ => return None,
         };
-        let (base, divisor) = match instruction(quotient)? {
+        let (base, divisor) = match func.value_inst_kind(quotient)? {
             InstKind::Shr(shift, value) => {
                 (*value, 1_u64.checked_shl(constant(*shift)?.try_into().ok()?)?)
             }
@@ -1618,9 +1606,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// The offset of an internal function's spill area in its frame, after its parameters,
     /// results, and frame objects.
     fn internal_spill_area_offset(func: &Function) -> u64 {
-        EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE
-            + (func.params.len() as u64) * EvmMemoryLayout::WORD_SIZE
-            + (func.return_components().len() as u64) * EvmMemoryLayout::WORD_SIZE
+        EvmMemoryLayout::internal_frame_prefix(func.params.len() + func.return_components().len())
+            .expect("MIR frame prefix overflow")
             + func.internal_frame_size
     }
 

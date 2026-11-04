@@ -191,6 +191,9 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             declaration.selector = None;
         }
         let mir_id = module.add_function(declaration);
+        if function.kind == hir::FunctionKind::Constructor {
+            module.set_constructor(mir_id);
+        }
         mir_ids.insert(function_id, mir_id);
     }
 
@@ -260,9 +263,9 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
         }
 
         if contract.ctor.is_none() && (has_state_initializers || has_implicit_base_constructors) {
-            let mir_id = context.module.add_function(Function::new(
-                solar_interface::Ident::with_dummy_span(solar_interface::kw::Constructor),
-            ));
+            let mir_id =
+                context.module.add_function(Function::new(Ident::with_dummy_span(kw::Constructor)));
+            context.module.set_constructor(mir_id);
             let errors_before = gcx.dcx().err_count();
             let Some(mut mir) =
                 function::lower_synthetic_constructor(context.reborrow(), contract_id)
@@ -290,12 +293,12 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     //     ret
     if let Some(immutable_id) = library_deploy_address {
         let mut constructor = Function::new(Ident::with_dummy_span(kw::Constructor));
-        constructor.attributes.is_constructor = true;
         let mut builder = FunctionBuilder::new_semantic(&mut constructor);
         let address = builder.address();
         builder.store_immutable(immutable_id, address);
         builder.ret(std::iter::empty());
-        module.add_function(constructor);
+        let constructor = module.add_function(constructor);
+        module.set_constructor(constructor);
     }
 
     function::generate_internal_function_pointer_dispatchers(gcx, &mut module, &mir_ids, &state);
@@ -375,7 +378,6 @@ pub(super) fn declaration(
         visibility: function.visibility,
         state_mutability: function.state_mutability,
         is_abi_wrapper: false,
-        is_constructor: function.kind == hir::FunctionKind::Constructor,
         is_fallback: function.kind == hir::FunctionKind::Fallback,
         is_receive: function.kind == hir::FunctionKind::Receive,
         may_return_memory: false,

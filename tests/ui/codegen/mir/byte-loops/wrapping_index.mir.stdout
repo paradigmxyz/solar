@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/byte-loops/wrapping_index.sol:Test ===
+; === ROOT/tests/ui/codegen/mir/byte-loops/wrapping_index.sol:Test ===
 @module Test
 ; function uncheckedDown(bytes calldata src, uint256 from, uint256 count) external pure returns (bytes memory out) [selector 0x0a3fd26a]
 fn @uncheckedDown(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x0a3fd26a, pure, abi_params=[bytes, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -11,7 +11,7 @@ fn @uncheckedDown(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> 
     v4 = alloc zeroed checked v2
     mstore v4, arg2
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: arg1], [bb3: v6]
     v7 = phi [bb0: arg2], [bb3: v7]
@@ -19,11 +19,11 @@ fn @uncheckedDown(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> 
     v9 = phi [bb0: arg2], [bb3: v30]
     v10 = gt v9, 0
     jumpi v10, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v8
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v11 = add v6, v9
     v12 = sub v11, 1
     v13 = extract_value slice<calldata>, v5, 1
@@ -47,9 +47,9 @@ fn @uncheckedDown(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> 
     v29 = ptradd v28, 32
     mstore8 v29, v27
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v30 = sub v9, 1
     jump bb1
 }
@@ -65,7 +65,7 @@ fn @checkedDown(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [s
     v4 = alloc zeroed checked v2
     mstore v4, arg2
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: arg1], [bb3: v6]
     v7 = phi [bb0: arg2], [bb3: v7]
@@ -73,11 +73,11 @@ fn @checkedDown(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [s
     v9 = phi [bb0: arg2], [bb3: v30]
     v10 = gt v9, 0
     jumpi v10, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v8
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v11 = checked_add uint256, v6, v9
     v12 = checked_sub uint256, v11, 1
     v13 = extract_value slice<calldata>, v5, 1
@@ -101,9 +101,9 @@ fn @checkedDown(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [s
     v29 = ptradd v28, 32
     mstore8 v29, v27
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v30 = checked_sub uint256, v9, 1
     jump bb1
 }
@@ -119,7 +119,7 @@ fn @mixedDown(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [sel
     v4 = alloc zeroed checked v2
     mstore v4, arg2
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: arg1], [bb3: v6]
     v7 = phi [bb0: arg2], [bb3: v7]
@@ -127,11 +127,11 @@ fn @mixedDown(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [sel
     v9 = phi [bb0: arg2], [bb3: v30]
     v10 = gt v9, 0
     jumpi v10, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v8
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v11 = add v6, v9
     v12 = checked_sub uint256, v11, 1
     v13 = extract_value slice<calldata>, v5, 1
@@ -155,9 +155,9 @@ fn @mixedDown(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [sel
     v29 = ptradd v28, 32
     mstore8 v29, v27
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v30 = checked_sub uint256, v9, 1
     jump bb1
 }
@@ -173,7 +173,7 @@ fn @sourceFirst(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> pt
     v4 = alloc zeroed checked v2
     mstore v4, arg3
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: arg1], [bb3: v6]
     v7 = phi [bb0: arg2], [bb3: v7]
@@ -182,11 +182,11 @@ fn @sourceFirst(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> pt
     v10 = phi [bb0: arg3], [bb3: v32]
     v11 = gt v10, 0
     jumpi v11, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v9
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v12 = add v6, v10
     v13 = sub v12, 1
     v14 = extract_value slice<calldata>, v5, 1
@@ -211,9 +211,9 @@ fn @sourceFirst(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> pt
     v31 = ptradd v30, 32
     mstore8 v31, v29
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v32 = checked_sub uint256, v10, 1
     jump bb1
 }
@@ -229,7 +229,7 @@ fn @destinationFirst(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) 
     v4 = alloc zeroed checked v2
     mstore v4, arg3
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v5 = phi [bb0: arg0], [bb3: v5]
     v6 = phi [bb0: arg1], [bb3: v6]
     v7 = phi [bb0: arg2], [bb3: v7]
@@ -238,11 +238,11 @@ fn @destinationFirst(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) 
     v10 = phi [bb0: arg3], [bb3: v32]
     v11 = gt v10, 0
     jumpi v11, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v9
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v12 = checked_add uint256, v7, v10
     v13 = checked_sub uint256, v12, 1
     v14 = checked_add uint256, v6, v10
@@ -267,9 +267,9 @@ fn @destinationFirst(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) 
     v31 = ptradd v30, 32
     mstore8 v31, v29
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v32 = checked_sub uint256, v10, 1
     jump bb1
 }
@@ -289,18 +289,18 @@ fn @wrappedCopy(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0xbd
     v8 = alloc zeroed checked v6
     mstore v8, arg1
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v9 = phi [bb0: v3], [bb3: v9]
     v10 = phi [bb0: arg1], [bb3: v10]
     v11 = phi [bb0: v8], [bb3: v11]
     v12 = phi [bb0: 0], [bb3: v30]
     v13 = lt v12, v10
     jumpi v13, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v11
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v14 = extract_value slice<calldata>, v9, 1
     v15 = lt v12, v14
     v16 = eq v15, false
@@ -321,9 +321,9 @@ fn @wrappedCopy(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0xbd
     v29 = ptradd v28, 32
     mstore8 v29, v27
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v30 = checked_add uint256, v12, 1
     jump bb1
 }
@@ -334,17 +334,17 @@ fn @wrappedWord(arg0: slice<calldata>) -> i256 [selector=0xc280cc68, pure, abi_p
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = make_calldata_slice ptr<calldata> 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v0
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v2 = phi [bb0: v1], [bb3: v2]
     v3 = phi [bb0: 0], [bb3: v18]
     v4 = phi [bb0: 0], [bb3: v19]
     v5 = lt v4, 32
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     ret v3
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v6 = extract_value slice<calldata>, v2, 1
     v7 = lt v4, v6
     v8 = eq v7, false
@@ -358,11 +358,11 @@ fn @wrappedWord(arg0: slice<calldata>) -> i256 [selector=0xc280cc68, pure, abi_p
     v15 = shl v14, 248
     v16 = checked_mul uint256, 8, v4
     v17 = shr v15, v16
-    v18 = or v3, v17
+    v18 = or v17, v3
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v19 = checked_add uint256, v4, 1
     jump bb1
 }
@@ -387,51 +387,49 @@ fn @wrappedArray(arg0: slice<calldata>, arg1: i256, arg2: i256, arg3: i256) -> p
     v13 = lt v12, v5
     icall panic_if<0x41>, v13
     v14 = mul v12, 32
-    v15 = shr v12, 251
-    v16 = ne v15, 0
-    icall panic_if<0x41>, v16
-    v17 = alloc zeroed checked v14
-    mstore v17, arg3
+    v15 = gt v12, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v15
+    v16 = alloc zeroed checked v14
+    mstore v16, arg3
     jump bb1
-  bb1:  ; preds = bb0, bb3
-    v18 = phi [bb0: v4], [bb3: v18]
-    v19 = phi [bb0: arg1], [bb3: v19]
-    v20 = phi [bb0: arg2], [bb3: v20]
-    v21 = phi [bb0: arg3], [bb3: v21]
-    v22 = phi [bb0: v17], [bb3: v22]
-    v23 = phi [bb0: 0], [bb3: v42]
-    v24 = lt v23, v21
-    jumpi v24, bb4, bb5
-  bb5:  ; preds = bb1
+  bb1:                                            ; preds = bb0, bb3
+    v17 = phi [bb0: v4], [bb3: v17]
+    v18 = phi [bb0: arg1], [bb3: v18]
+    v19 = phi [bb0: arg2], [bb3: v19]
+    v20 = phi [bb0: arg3], [bb3: v20]
+    v21 = phi [bb0: v16], [bb3: v21]
+    v22 = phi [bb0: 0], [bb3: v40]
+    v23 = lt v22, v20
+    jumpi v23, bb4, bb5
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
-    ret v22
-  bb4:  ; preds = bb1
-    v25 = checked_add uint256, v20, v23
-    v26 = extract_value slice<calldata>, v18, 1
-    v27 = lt v25, v26
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = extract_value slice<calldata>, v18, 0
-    v30 = mul v25, 32
-    v31 = shr v25, 251
-    v32 = ne v31, 0
-    icall panic_if<0x41>, v32
-    v33 = ptrtoint ptr<calldata> v29 to i256
-    v34 = add v33, v30
-    v35 = calldataload v34
-    v36 = mload v22
-    v37 = lt v23, v36
-    v38 = eq v37, false
-    icall panic_if<0x32>, v38
-    v39 = shl v23, 5
-    v40 = ptradd v22, v39
-    v41 = ptradd v40, 32
-    mstore v41, v35
+  bb2:                                            ; preds = bb5
+    ret v21
+  bb4:                                            ; preds = bb1
+    v24 = checked_add uint256, v19, v22
+    v25 = extract_value slice<calldata>, v17, 1
+    v26 = lt v24, v25
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = extract_value slice<calldata>, v17, 0
+    v29 = mul v24, 32
+    v30 = gt v24, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v30
+    v31 = ptrtoint ptr<calldata> v28 to i256
+    v32 = add v31, v29
+    v33 = calldataload v32
+    v34 = mload v21
+    v35 = lt v22, v34
+    v36 = eq v35, false
+    icall panic_if<0x32>, v36
+    v37 = shl v22, 5
+    v38 = ptradd v21, v37
+    v39 = ptradd v38, 32
+    mstore v39, v33
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
-    v42 = checked_add uint256, v23, 1
+  bb3:                                            ; preds = bb6
+    v40 = checked_add uint256, v22, 1
     jump bb1
 }

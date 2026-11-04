@@ -1,0 +1,75 @@
+- ; === ROOT/tests/ui/codegen/mir/lowering/packed_storage_bytes.mir (before lower-builtins) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/packed_storage_bytes.mir (after lower-builtins) ===
+  @module PackedStorageBytes
+  fn @encode(arg0: i256) -> ptr<memory> {
+    bb0:
+-     v0 = abi_encode_packed (storage_bytes arg0, data hex"01")
+-     ret v0
++     v1 = sload arg0 !metadata(storage=symbolic(arg0))
++     v2 = and v1, 1
++     v3 = eq v2, 1
++     v4 = sub 0, v2
++     v5 = or v4, 127
++     v6 = shr v1, 1
++     v7 = and v6, v5
++     v8 = lt v7, 32
++     v9 = eq v3, v8
++     jumpi v9, bb1, bb2
++   bb2:                                            ; preds = bb0
++     v10 = add v7, 0
++     v11 = add v10, 1
++     v12 = add v11, 31
++     v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
++     v14 = add v13, 32
++     v15 = lt v14, v11
++     jumpi v15, bb3, bb4
++   bb4:                                            ; preds = bb2
++     v16 = alloc v14 !metadata(preserves_fmp)
++     mstore v16, v11
++     v17 = add v7, 31
++     v18 = div v17, 32
++     jumpi v3, bb6, bb5
++   bb5:                                            ; preds = bb4
++     v19 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
++     v20 = ptradd v16, 32
++     mstore v20, v19
++     jump bb7
++   bb6:                                            ; preds = bb4
++     v21 = storage_array_data_slot arg0
++     jump bb8
++   bb8:                                            ; preds = bb6, bb9
++     v22 = phi [bb6: 0], [bb9: v30]
++     v23 = lt v22, v18
++     jumpi v23, bb9, bb10
++   bb10:                                           ; preds = bb8
++     jump bb7
++   bb7:                                            ; preds = bb5, bb10
++     v31 = add v7, 0
++     v32 = ptradd v16, v31
++     v33 = ptradd v32, 32
++     mstore v33, 0x100000000000000000000000000000000000000000000000000000000000000
++     v34 = add v31, 1
++     v35 = ptradd v16, v34
++     v36 = ptradd v35, 32
++     mstore v36, 0
++     ret v16
++   bb9:                                            ; preds = bb8
++     v24 = add v21, v22
++     v25 = sload v24 !metadata(storage=symbolic(v24))
++     v26 = mul v22, 32
++     v27 = add v26, 0
++     v28 = ptradd v16, v27
++     v29 = ptradd v28, 32
++     mstore v29, v25
++     v30 = add v22, 1
++     jump bb8
++   bb3 [cold]:                                     ; preds = bb2
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
++   bb1 [cold]:                                     ; preds = bb0
++     mstore 32, 34 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  

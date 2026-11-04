@@ -2,16 +2,6 @@
 
 use super::*;
 
-/// Builds the helper for decoding one storage `bytes`/`string` slot.
-fn build_storage_bytes_helper(function: &mut Function) {
-    // load_storage_bytes(slot) -> bytes_object
-    let mut builder = FunctionBuilder::new_semantic(function);
-    let slot = builder.add_param(MirType::I256);
-    builder.set_return_type(MirType::MEMPTR);
-    let object = builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(MirType::MEMPTR));
-    builder.ret([object]);
-}
-
 fn build_storage_array_helper(
     function: &mut Function,
     element: crate::mir::ValueLayout,
@@ -474,7 +464,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let (data, _, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
         let one = self.builder.imm(1);
         let new_length = self.builder.add(old_length, one);
-        let max_length = self.builder.imm(U256::from(1u64) << 64);
+        let max_length = self.builder.imm(U256::ONE << 64);
         let too_long = self.builder.gt(new_length, max_length);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
 
@@ -663,7 +653,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // old_length = extract_length(data)
         // if !(old_length < 2**64) { panic(MemoryAllocationOverflow) }
         let (data, _, old_length) = decode_storage_bytes_header(&mut self.builder, slot);
-        let max_length = self.builder.imm(U256::from(1u64) << 64);
+        let max_length = self.builder.imm(U256::ONE << 64);
         let in_range = self.builder.lt(old_length, max_length);
         let too_long = self.builder.eq_zero(in_range);
         self.builder.panic_if(too_long, PanicCode::MemoryAllocationOverflow);
@@ -1338,7 +1328,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn ensure_storage_bytes_helper(&mut self) -> FunctionId {
         self.lazy_helper(sym::load_storage_bytes, |_, function| {
-            build_storage_bytes_helper(function);
+            FunctionBuilder::build_load_storage_bytes_helper(function);
             Some(())
         })
         .expect("storage bytes helper construction cannot fail")
@@ -1519,7 +1509,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if remainder != 0 {
                     let slot_index = self.builder.imm(length / per_slot);
                     let used_bits = size.bits() * remainder;
-                    let mask = (U256::from(1) << used_bits) - U256::from(1);
+                    let mask = (U256::ONE << used_bits) - U256::ONE;
                     let mask = self.builder.imm(mask);
                     self.clear_unused_packed_array_elements(slot, slot_index, mask);
                 }

@@ -1,4 +1,4 @@
-// === raw_bytes (runtime) ===
+; === raw_bytes (runtime) ===
 PUSH1 0x03 ; bb0
 JUMP
 ; bb0

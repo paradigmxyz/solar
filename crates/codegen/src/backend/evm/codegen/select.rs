@@ -11,20 +11,17 @@ use crate::{
     backend::evm::op::*,
     mir::{EffectKind, Function, InstKind, LogTopics, Op, OpTraits, PtrLocation, Value, ValueId},
 };
+use smallvec::{SmallVec, smallvec};
 
 /// Stack shape of a MIR operation that lowers to one EVM opcode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum OpcodeLowering {
     /// No operands; the opcode pushes the result.
     Nullary { opcode: u8 },
-    /// One operand; the opcode pushes the result.
-    Unary { opcode: u8 },
-    /// Two operands in operand order; the opcode pushes the result.
-    Binary { opcode: u8 },
+    /// Every operand pushed last to first; the opcode pushes the result.
+    Valued { opcode: u8 },
     /// An address and a value; the opcode pushes nothing.
     Store { opcode: u8 },
-    /// Every operand pushed last to first; the opcode pushes the result.
-    Nary { opcode: u8 },
     /// Every operand pushed last to first; the opcode copies into memory.
     MemoryCopy { opcode: u8 },
     /// Every operand pushed last to first; the opcode emits a log.
@@ -36,10 +33,8 @@ impl OpcodeLowering {
     pub(crate) fn opcode(self) -> u8 {
         match self {
             Self::Nullary { opcode }
-            | Self::Unary { opcode }
-            | Self::Binary { opcode }
+            | Self::Valued { opcode }
             | Self::Store { opcode }
-            | Self::Nary { opcode }
             | Self::MemoryCopy { opcode }
             | Self::Log { opcode } => opcode,
         }
@@ -104,6 +99,19 @@ impl generated::Context for RuleContext {
 /// Returns the single-opcode lowering of `op`, when it has one.
 pub(crate) fn opcode_lowering(op: &Op) -> Option<OpcodeLowering> {
     generated::constructor_select_opcode(&mut RuleContext, op)
+}
+
+/// Returns the operands of `kind` in the order the backend pushes them: deepest stack input first.
+///
+/// Operands are pushed last to first, except where the emitter's recipe needs another layout.
+pub(crate) fn push_order(kind: &InstKind) -> SmallVec<[ValueId; 8]> {
+    match *kind {
+        // [f, c, t] -> [f, c, f, t] -> [f, c, t-f] -> [f, c*(t-f)] -> [f + c*(t-f)]
+        InstKind::Select(cond, true_value, false_value) => {
+            smallvec![false_value, cond, true_value]
+        }
+        _ => kind.operands().into_iter().rev().collect(),
+    }
 }
 
 /// The EVM opcode that implements an instruction.

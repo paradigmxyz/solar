@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol:AssemblyLowMemoryLayouts ===
+; === ROOT/tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol:AssemblyLowMemoryLayouts ===
 @module AssemblyLowMemoryLayouts
 @types
   struct0: {i256, i256}
@@ -46,14 +46,14 @@ fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_pa
     mstore 64, 128 !metadata(memory=scratch)
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = icall @_copy, 0x400
     v19 = mload v18
     v20 = shl v19, 0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v21 = phi [bb1: v20], [bb2: 0]
     v22 = xor v0, v1
     v23 = xor v22, v2
@@ -71,7 +71,7 @@ fn @resetHeap(arg0: i256, arg1: i256) -> i256 [selector=0x68dd8af4, pure, abi_pa
     v35 = xor v34, v14
     v36 = xor v35, v15
     v37 = xor v36, v16
-    v38 = xor v21, v37
+    v38 = xor v37, v21
     ret v38
 }
 
@@ -97,12 +97,12 @@ fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, pure, abi_param
     v16 = keccak256_packed (uint256 arg0, uint256 16)
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = icall @_lay, arg0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v19 = phi [bb1: v18], [bb2: 0]
     v20 = xor v0, v1
     v21 = xor v20, v2
@@ -120,7 +120,7 @@ fn @layout(arg0: i256, arg1: i256) -> i256 [selector=0x3dab18c6, pure, abi_param
     v33 = xor v32, v14
     v34 = xor v33, v15
     v35 = xor v34, v16
-    v36 = xor v19, v35
+    v36 = xor v35, v19
     ret v36
 }
 
@@ -146,12 +146,12 @@ fn @layoutAbove(arg0: i256, arg1: i256) -> i256 [selector=0x3eed32d9, pure, abi_
     v16 = keccak256_packed (uint256 arg0, uint256 16)
     v17 = ne arg1, 0
     jumpi v17, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v18 = icall @_lay, arg0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v19 = phi [bb1: v18], [bb2: 0]
     v20 = calldatasize
     calldatacopy 0x2080, v20, 0x400
@@ -171,7 +171,7 @@ fn @layoutAbove(arg0: i256, arg1: i256) -> i256 [selector=0x3eed32d9, pure, abi_
     v34 = xor v33, v14
     v35 = xor v34, v15
     v36 = xor v35, v16
-    v37 = xor v19, v36
+    v37 = xor v36, v19
     ret v37
 }
 
@@ -181,12 +181,12 @@ fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, 
     mstore 0x2400, arg0
     v0 = ne arg1, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = icall @_lay, arg0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v2 = alloc zeroed checked 0x420
     mstore v2, 0x400
     v3 = ptrtoint ptr<memory> v2 to i256
@@ -233,7 +233,7 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
     mstore 64, 128 !metadata(memory=scratch)
     v17 = mload 64 !metadata(memory=scratch)
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v18 = phi [bb0: arg0], [bb3: v18]
     v19 = phi [bb0: arg1], [bb3: v19]
     v20 = phi [bb0: 0], [bb3: v20]
@@ -260,11 +260,11 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
     v41 = zext i1 v40 to i256
     v42 = ne v41, 0
     jumpi v42, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v46 = shl v19, 5
-    v47 = add v38, v46
+    v47 = add v46, v38
     mstore 64, v47 !metadata(memory=scratch)
     v48 = xor v21, v22
     v49 = xor v48, v23
@@ -285,14 +285,14 @@ fn @resetLoop(arg0: i256, arg1: i256) -> i256 [selector=0x20fd52b5, pure, abi_pa
     v64 = shl v19, 0
     v65 = xor v63, v64
     ret v65
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v43 = shl v39, 5
-    v44 = add v38, v43
+    v44 = add v43, v38
     mstore v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v45 = add v39, 1
     jump bb1
 }
@@ -595,12 +595,12 @@ fn @revertAtLoadedOffset(arg0: i256, arg1: i256) [selector=0xf3970891, pure, abi
     mstore 64, v0 !metadata(memory=scratch)
     v1 = ne arg1, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v3 = mload 0x10000
     revert v3, 96
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = mload 64 !metadata(memory=scratch)
     mstore v2, 1
     returndata 0, 0
@@ -616,13 +616,13 @@ fn @revertBelowPointer(arg0: i256, arg1: i256) [selector=0x7f4c2912, pure, abi_p
     mstore 64, v2 !metadata(memory=scratch)
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v5 = mload 0 !metadata(memory=scratch)
     v6 = sub v0, v5
     revert v6, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v4 = mload 64 !metadata(memory=scratch)
     mstore v4, 1
     returndata 0, 0
@@ -638,13 +638,13 @@ fn @revertPastPointer(arg0: i256, arg1: i256) [selector=0x866f32cc, pure, abi_pa
     mstore 64, v2 !metadata(memory=scratch)
     v3 = ne arg1, 0
     jumpi v3, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v5 = mload 0 !metadata(memory=scratch)
     v6 = add v0, v5
     revert v6, 32
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v4 = mload 64 !metadata(memory=scratch)
     mstore v4, 1
     returndata 0, 0
@@ -743,13 +743,13 @@ fn @scratchArrayElement(arg0: i256) -> i256 [selector=0x79ae4290, pure, abi_para
     mstore v0, 1
     v1 = icall @_scratchWord
     v2 = mload v0
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v0, 32
     mstore v5, v1
     v6 = mload v0
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v0, 32
@@ -857,9 +857,9 @@ fn @_lay(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = calldataload 36
     v1 = shl v0, 5
-    v2 = add 160, v1
+    v2 = add v1, 160
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v3 = phi [bb0: arg0], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v4]
     v5 = phi [bb0: v2], [bb3: v5]
@@ -868,20 +868,20 @@ fn @_lay(arg0: i256) -> i256 [pure] {
     v8 = zext i1 v7 to i256
     v9 = ne v8, 0
     jumpi v9, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     mstore v5, v3
     v11 = sub v5, 160
     v12 = add v11, 32
     v13 = keccak256 160, v12
     ret v13
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     mstore v6, v3
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v10 = add v6, 32
     jump bb1
 }
@@ -931,14 +931,14 @@ fn @put(arg0: i256, arg1: i256) {
 fn @hashFrom(arg0: i256) -> i256 {
   bb0:
     switch arg0, default bb3, [0 => bb2]
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v0 = keccak256 0, 96 !metadata(memory=scratch)
     jump bb1
-  bb3:  ; preds = bb0
+  bb3:                                            ; preds = bb0
     v1 = sub arg0, 1
     v2 = icall @hashFrom, v1
     jump bb1
-  bb1:  ; preds = bb2, bb3
+  bb1:                                            ; preds = bb2, bb3
     v3 = phi [bb2: v0], [bb3: v2]
     ret v3
 }

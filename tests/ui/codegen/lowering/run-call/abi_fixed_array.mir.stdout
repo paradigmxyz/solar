@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:AbiFixedArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:AbiFixedArray ===
 @module AbiFixedArray
 @types
   struct0: {i256, i256}
@@ -33,13 +33,12 @@ fn @read(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x8f65cc66, pure, 
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = shr arg1, 251
-    v6 = ne v5, 0
-    icall panic_if<0x41>, v6
-    v7 = ptrtoint ptr<calldata> v3 to i256
-    v8 = add v7, v4
-    v9 = calldataload v8
-    ret v9
+    v5 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v5
+    v6 = ptrtoint ptr<calldata> v3 to i256
+    v7 = add v6, v4
+    v8 = calldataload v7
+    ret v8
 }
 
 ; function readDynamic(uint256[] memory values, uint256 index) external pure returns (uint256) [selector 0xcd97b1f2]
@@ -65,20 +64,19 @@ fn @readDynamicCalldata(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x5
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = shr arg1, 251
-    v6 = ne v5, 0
-    icall panic_if<0x41>, v6
-    v7 = ptrtoint ptr<calldata> v3 to i256
-    v8 = add v7, v4
-    v9 = calldataload v8
-    ret v9
+    v5 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v5
+    v6 = ptrtoint ptr<calldata> v3 to i256
+    v7 = add v6, v4
+    v8 = calldataload v7
+    ret v8
 }
 
 ; function readBytes(bytes memory values) external pure returns (bytes1) [selector 0x8b33268b]
 fn @readBytes(arg0: ptr<memory>) -> i256 [selector=0x8b33268b, pure, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = mload arg0
-    v1 = lt 1, v0
+    v1 = gt v0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 33
@@ -92,7 +90,7 @@ fn @readBytes(arg0: ptr<memory>) -> i256 [selector=0x8b33268b, pure, abi_params=
 fn @readBytesCalldata(arg0: slice<calldata>) -> i256 [selector=0x4bc2c5d5, pure, abi_params=[bytes], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 1, v0
+    v1 = gt v0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -153,7 +151,7 @@ fn @readNestedList(arg0: ptr<memory>) -> i256 [selector=0x2fc71376, pure, abi_pa
     v1 = mload v0
     v2 = mload arg0, ptr<memory>
     v3 = mload v2
-    v4 = lt 0, v3
+    v4 = gt v3, 0
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = ptradd v2, 32
@@ -246,7 +244,7 @@ fn @readMixed(arg0: i8, arg1: ptr<memory>) -> i256 [selector=0xa114c21b, pure, a
     ret v2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiFixedArray ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiFixedArray ===
 @module ConstructorAbiFixedArray
 ; constructor(uint256[2][2] memory values, int256 bias) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<2, array<2, uint256>>, int256]] {
@@ -272,13 +270,13 @@ fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[wor
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamic ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamic ===
 @module ConstructorAbiDynamic
 ; constructor(uint256[] memory values, bytes memory data) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>) [constructor, abi_params=[array<_, uint256>, bytes]] {
   bb0:
     v0 = mload arg0
-    v1 = lt 1, v0
+    v1 = gt v0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 64
@@ -296,13 +294,13 @@ fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[wor
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamicWords ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiDynamicWords ===
 @module ConstructorAbiDynamicWords
 ; constructor(uint256[] memory values) [creation entry]
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, uint256>]] {
   bb0:
     v0 = mload arg0
-    v1 = lt 1, v0
+    v1 = gt v0, 1
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = ptradd arg0, 64
@@ -318,7 +316,7 @@ fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[wor
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiBytes ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiBytes ===
 @module ConstructorAbiBytes
 ; constructor(bytes memory data) [creation entry]
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[bytes]] {
@@ -335,7 +333,7 @@ fn @result() -> i256 [selector=0x65372147, view, abi_params=[], abi_returns=[wor
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiStruct ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_fixed_array.sol:ConstructorAbiStruct ===
 @module ConstructorAbiStruct
 ; constructor(Value memory value) [creation entry]
 fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[tuple<uint256, bytes>]] {

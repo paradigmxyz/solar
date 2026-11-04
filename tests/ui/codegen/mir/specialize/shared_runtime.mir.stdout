@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/specialize/shared_runtime.sol:SharedConstants ===
+; === ROOT/tests/ui/codegen/mir/specialize/shared_runtime.sol:SharedConstants ===
 @module SharedConstants
 ; function first(uint256 x) external pure returns (uint256) [selector 0x0b3f62f5]
 fn @first(arg0: i256) -> i256 [selector=0x0b3f62f5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
@@ -32,12 +32,12 @@ fn @generic(arg0: i1, arg1: i256) -> i256 [selector=0x01213f39, pure, abi_params
 fn @helper(arg0: i1, arg1: i256) -> i256 [pure] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v3 = checked_add uint256, arg1, 7
     ret v3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = checked_mul uint256, arg1, arg1
     v1 = checked_mul uint256, v0, arg1
     v2 = checked_mul uint256, v1, arg1

@@ -65,7 +65,7 @@ mod tests {
                     &[op::PUSH3, op::PUSH3, op::JUMP, op::JUMPDEST, op::JUMP][..],
                 ),
             ] {
-                assert_eq!(cost, sequence.iter().map(|&opcode| target.opcode(opcode)).sum());
+                assert_eq!(cost, target.opcodes(sequence));
             }
         }
     }

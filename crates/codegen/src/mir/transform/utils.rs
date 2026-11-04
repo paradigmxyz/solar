@@ -1,10 +1,11 @@
 //! Shared utilities for MIR transforms.
 
 use crate::mir::{
-    BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Module, Terminator, ValueId,
+    BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Terminator, ValueId,
     memory::EvmMemoryLayout,
     utils::{IndexLists, replace_terminator},
 };
+use solar_data_structures::bit_set::DenseBitSet;
 use solar_sema::hir::StateMutability;
 
 /// Whether an external entry must reject nonzero callvalue.
@@ -50,7 +51,7 @@ pub(super) fn redirect_successor_predecessors(func: &mut Function, from: BlockId
 }
 
 /// Incremental form of the shared dispatch callvalue-hoisting predicate:
-/// every external entry (selector-bearing, receive, or fallback) rejects value.
+/// every dispatched function (selector-bearing, receive, or fallback) rejects value.
 ///
 /// `LowerAbi` and `LowerDispatch` both use this while performing their
 /// existing module scans, so they must observe every function and agree.
@@ -67,7 +68,7 @@ impl Default for DispatchCallvalue {
 
 impl DispatchCallvalue {
     pub(super) fn observe(&mut self, func: &Function) {
-        if !func.is_runtime_entry() {
+        if !func.is_dispatched() {
             return;
         }
         self.any = true;
@@ -85,8 +86,8 @@ pub(super) fn rebase_frame_offsets(func: &Function, slots: usize) -> Option<Vec<
     if old_slots == slots {
         return Some(Vec::new());
     }
-    let old_base = frame_prefix(old_slots)?;
-    let new_base = frame_prefix(slots)?;
+    let old_base = EvmMemoryLayout::internal_frame_prefix(old_slots)?;
+    let new_base = EvmMemoryLayout::internal_frame_prefix(slots)?;
     let mut offsets = Vec::new();
     for inst in func.instructions() {
         if let InstKind::InternalFrameAddr(offset) = func.inst(inst).kind {
@@ -100,7 +101,8 @@ pub(super) fn rebase_frame_offsets(func: &Function, slots: usize) -> Option<Vec<
 ///
 /// `expand` returns `false` to keep an instruction, which then moves to the builder's current
 /// block. When an expansion splits the block, the original terminator and its source context move
-/// to the final continuation and successor phis follow it.
+/// to the final continuation and successor phis follow it. Replacement instructions inherit the
+/// operation being expanded, rather than an empty or previous operation's builder context.
 pub(super) fn expand_block(
     builder: &mut FunctionBuilder<'_>,
     block: BlockId,
@@ -110,6 +112,8 @@ pub(super) fn expand_block(
     let (terminator, metadata) = builder.func_mut().blocks[block].take_terminator();
     builder.switch_to_block(block);
     for inst in instructions {
+        let context = builder.func().inst(inst).metadata.debug_context();
+        builder.set_debug_context(&context);
         if !expand(builder, inst) {
             // continuation: original instruction
             let current = builder.current_block();
@@ -149,18 +153,14 @@ pub(super) fn redirect_edge(
     true
 }
 
-/// Returns whether `func` has a private MIR signature that direct callers may rewrite.
-pub(super) fn is_internal_body(module: &Module, id: FunctionId, func: &Function) -> bool {
-    !func.is_external_entry() && !func.is_public() && module.dispatch_entry() != Some(id)
-}
-
-/// Returns the offset of the locals region of an internal frame whose signature has `slots`
-/// parameter and result words: the frame header plus one word per slot.
-pub(super) fn frame_prefix(slots: usize) -> Option<u64> {
-    u64::try_from(slots)
-        .ok()?
-        .checked_mul(EvmMemoryLayout::WORD_SIZE)?
-        .checked_add(EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE)
+/// Returns whether `func` has a private MIR signature that direct callers may rewrite, given the
+/// module's `Module::root_functions`.
+pub(super) fn is_internal_body(
+    roots: &DenseBitSet<FunctionId>,
+    id: FunctionId,
+    func: &Function,
+) -> bool {
+    !roots.contains(id) && !func.is_public()
 }
 
 /// A reader of a value: an instruction, or a block's terminator.

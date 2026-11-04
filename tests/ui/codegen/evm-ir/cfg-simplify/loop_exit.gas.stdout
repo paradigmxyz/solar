@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/loop_exit.evmir (before cfg-simplify) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/loop_exit.evmir (after cfg-simplify) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/loop_exit.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/loop_exit.evmir (after cfg-simplify) ===
   @module LoopExit
   bb0:
     push bb4

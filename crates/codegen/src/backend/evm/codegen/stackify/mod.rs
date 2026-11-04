@@ -20,9 +20,9 @@
 //! either and terminate the message call; their words below a tail call's arguments are never
 //! read again.
 //!
-//! External functions read their arguments from calldata. An argument read once is loaded at
-//! its use. One read more often, or inside a loop in gas mode, is loaded once in the nearest
-//! block outside every loop that dominates its reads and then stays on the stack.
+//! A calldata word at a constant offset, such as an ABI head word, is pushed again at each use,
+//! like an immediate, when the cost model prices that no dearer than keeping the word on the stack
+//! from its definition: a push and a copy at each later use. Otherwise it is an ordinary value.
 //!
 //! A caller that reads only some words of a multi-word result drops the others as junk. Where
 //! code still reads results through the callee's memory return area, the caller stores the
@@ -58,15 +58,17 @@
 //! permutation cycles through the top and pushing each copy where it displaces a word that has to
 //! move up; the cheapest strategy wins.
 //! A shuffle's cycle through the top that leaves the top in place, `SWAPa SWAPb ... SWAPa`,
-//! becomes one `EXCHANGE a, b` per inner swap when that is cheaper. Commutative and mirrored
-//! comparisons try both operand orders. Two short trials refine these local choices: before a chain
-//! of single-use instructions that feeds a consumer, the consumer's deeper operands may be copied
-//! first, or a deeper operand that single-use instructions compute may be computed after the pushes
-//! below it, as WebAssembly's register stackifier moves a single-use definition next to its use and
-//! solc's stack layout pass generates literals where an operation needs them; the plan that copies
-//! the operand wins ties. After an instruction, its result may be swapped into the slot of a word
-//! that dies within the next few instructions. Each is kept only when planning the affected
-//! instructions gets cheaper.
+//! becomes one `EXCHANGE a, b` per inner swap when that is cheaper. An operation tries both
+//! orders of its declared commutative pair, and a mirrored comparison tries both operand orders.
+//! When two orders tie on price but leave different words below the operands, the instructions
+//! that follow, up to the next call, are planned from each result, and the cheaper order wins.
+//! Two short trials refine these local choices: before a chain of single-use instructions that
+//! feeds a consumer, the consumer's deeper operands may be copied first, or a deeper operand that
+//! single-use instructions compute may be computed after the pushes below it, as WebAssembly's
+//! register stackifier moves a single-use definition next to its use and solc's stack layout pass
+//! generates literals where an operation needs them; the plan that copies the operand wins ties.
+//! After an instruction, its result may be swapped into the slot of a word that dies within the
+//! next few instructions. Each is kept only when planning the affected instructions gets cheaper.
 //!
 //! Loop headers are first laid out by their preheader. Later planning rounds lay each header
 //! out by the order of last use in the loop, and then in the order the best plan's latches
@@ -80,16 +82,17 @@
 //! Each replan costs time in proportion to the function's size, so a function takes at most
 //! [`HEADER_REPLAN_WORK`] divided by its instruction count replans.
 //!
-//! Optimized functions also try keeping their most expensive repeated immediates on the stack, one
-//! at a time, best first, up to [`MAX_CONSTANT_TRIALS`] trials, each on top of the ones kept.
-//! The trial materializes the immediate once in the nearest block outside loops that dominates its
+//! Optimized functions also try keeping their most expensive repeated immediates on the stack,
+//! one at a time, best first, up to [`MAX_CONSTANT_TRIALS`] trials, each on top of the ones kept.
+//! The trial materializes the word once in the nearest block outside loops that dominates its
 //! uses, then treats it like a live value from there through the blocks that block dominates, and
 //! as a fresh push elsewhere. An immediate whose uses sit in separate branches is also tried for
 //! the uses under each branch alone, so the paths that never use it do not carry it. A complete
 //! replan prices the resulting copies, shuffles, and edges. It keeps the original spill set and
 //! falls back if the constant makes a word unreachable. The trial must improve the target's
-//! runs-weighted objective without increasing estimated gas or bytes. Gas outside loops must not
-//! increase either, so estimated loop trips cannot fund more setup. Size mode reserves a jump's
+//! runs-weighted objective without increasing estimated gas or bytes. Gas outside loops may
+//! increase only when the bytes saved repay it under [`Target::deposit_repays_gas`], so estimated
+//! loop trips alone cannot fund more setup. Size mode reserves a jump's
 //! bytes as a margin: small local savings can disrupt later outlining. Within the defining block,
 //! materialization waits until the first use, or the terminator if only successors need it.
 //! Call-chain overflow retries omit this word.
@@ -254,7 +257,11 @@ enum Exit {
     /// Returns to the caller; the stack holds the results and the return address.
     Return,
     /// Transfers control to a function whose entry tuple is prepared.
-    TailCall(FunctionId),
+    TailCall {
+        callee: FunctionId,
+        /// The call folded into a return, or `None` for an explicit MIR tail call.
+        origin: Option<InstId>,
+    },
     /// Ends the message call through the block's own terminator.
     Terminal,
 }
@@ -377,6 +384,9 @@ struct Analysis {
     /// opcodes of doing so. A pinned one of them leaves the stack this way instead of through
     /// memory.
     recomputable: FxHashMap<ValueId, (Cost, u32)>,
+    /// Calldata words at constant offsets that the planner pushes at each use. Nothing changes
+    /// them during the call.
+    reads: DenseBitSet<ValueId>,
 }
 
 /// What a function moves to memory to shorten the stack it keeps below its calls, raised for
@@ -427,19 +437,18 @@ impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime(&mut self, module: &Module, call_graph: &CallGraphInfo) {
         let Some(entry) = module.dispatch_entry() else {
             assert!(
-                !module.functions.iter().any(Function::is_runtime_entry),
+                module.runtime_entries().is_empty(),
                 "evm-shaped module with a runtime interface must have a MIR `entry` function"
             );
             return;
         };
         let runtime = module.runtime_reachable_functions();
-        let emitting_entry = Liveness::is_block_local(&module.functions[entry]);
-        let bodies = module
-            .functions
-            .iter_enumerated()
-            .filter(|&(func_id, func)| Self::is_runtime_function(func) && runtime.contains(func_id))
-            .map(|(func_id, _)| func_id)
-            .collect();
+        let entry_func = &module.functions[entry];
+        let emitting_entry = Liveness::is_block_local(entry_func, |value| {
+            rematerializable_nullary_value(entry_func, value).is_some()
+        });
+        let bodies =
+            runtime.iter().filter(|&func_id| module.constructor() != Some(func_id)).collect();
         match self.plan_stackified(module, call_graph, entry, emitting_entry, bodies) {
             Ok((info, plans)) => self.emit_runtime_stackified(module, call_graph, &info, plans),
             Err(decline) => self.report_decline(module, decline),
@@ -475,11 +484,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             Decline::StackLimit => self.report_stack_limit_error(),
             Decline::Unsupported(func, reason) => {
                 let func = &module.functions[func];
-                self.gcx
-                    .dcx()
-                    .err(format!("codegen cannot lower `{}`: {reason}", func.name))
-                    .span(func.name_span)
-                    .emit();
+                self.gcx.dcx().emit_err(
+                    func.name_span,
+                    format!("codegen cannot lower `{}`: {reason}", func.name),
+                );
             }
         }
     }
@@ -495,10 +503,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         bodies: Vec<FunctionId>,
     ) -> Result<(ModuleInfo, IndexVec<FunctionId, Option<FunctionPlan>>), Decline> {
         let functions = module.functions.len();
+        let runtime_entries = module.runtime_entries();
         let mut internal = DenseBitSet::new_empty(functions);
         for &func_id in &bodies {
             let func = &module.functions[func_id];
-            if func_id != entry && !func.is_runtime_entry() {
+            if func_id != entry && !runtime_entries.contains(func_id) {
                 internal.insert(func_id);
                 if call_graph.is_recursive(func_id) {
                     // A recursive activation cannot own a fixed frame.
@@ -759,17 +768,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                 pinned.union(across);
             }
         }
+        let reads = priced_calldata_reads(func, &loops, &self.target(info, func_id));
         let recomputable = if pinned.is_empty() {
             FxHashMap::default()
         } else {
-            plan::recomputable(
-                func,
-                &cfg,
-                info.internal.contains(func_id),
-                &self.target(info, func_id),
-            )
+            plan::recomputable(func, &cfg, &reads, &self.target(info, func_id))
         };
-        Analysis { liveness, cfg, loops, saved, pinned, recomputable }
+        Analysis { liveness, cfg, loops, saved, pinned, recomputable, reads }
     }
 
     /// Plans a function, or takes the plan of an identical function planned before from `cache`.
@@ -795,11 +800,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         let analysis =
             analysis.get_or_insert_with(|| self.analyze(func, info, func_id, hazards, writers));
         let mut plan = self.plan_function_stackified(func, info, func_id, analysis, call_spill)?;
-        // A first plan that spills competes with one that computes cheap values again instead.
+        // A first plan competes with one that computes cheap values again instead.
         if call_spill == CallSpill::None
-            && plan.spill_words() != 0
-            && let Some(rebuilt) =
-                self.plan_rebuilt(func, info, func_id, analysis, hazards, writers)
+            && let Some(rebuilt) = self.plan_rebuilt(
+                func,
+                info,
+                func_id,
+                analysis,
+                hazards,
+                writers,
+                plan.spill_words() != 0,
+            )
             && self.prices_lower(info, func_id, &rebuilt, &plan)
         {
             plan = rebuilt;
@@ -816,7 +827,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         analysis: &Analysis,
         call_spill: CallSpill,
     ) -> Result<FunctionPlan, Decline> {
-        let internal = info.internal.contains(func_id);
         let target = self.target(info, func_id);
         let mut spilled = DenseBitSet::new_empty(func.num_values());
         if call_spill >= CallSpill::Values {
@@ -825,7 +835,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 icall(&func.inst(inst).kind).is_some() && !analysis.saved.contains_key(&inst)
             });
             for value in across.iter() {
-                if !materialized_at_use(func, internal, value) {
+                if !materialized_at_use(func, &analysis.reads, value) {
                     spilled.insert(value);
                 }
             }
@@ -835,7 +845,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // More live words than reach and the single spills can hold: spill in batches from the
         // start.
         let reach = self.gcx.sess.opts.evm_version.reachable_stack_depth();
-        let single_spills = if stack_pressure(func, internal, &analysis.liveness)
+        let single_spills = if stack_pressure(func, &analysis.reads, &analysis.liveness)
             > reach + SINGLE_SPILL_RESTARTS as usize
         {
             0
@@ -982,10 +992,15 @@ impl<'gcx> EvmCodegen<'gcx> {
                 plan::retention_liveness(func, &analysis.cfg, &analysis.liveness, &retained)
                 && let Ok(candidate) = planner.retain_constants(&retained, &liveness).plan()
                 // Creation code pays for every byte it leaves out, so a constant kept on the
-                // stack may cost gas, as long as the deployment gets cheaper.
+                // stack may cost gas, as long as the deployment gets cheaper. Elsewhere it may
+                // cost setup gas outside loops only when the bytes it saves repay that gas.
                 && (target.is_creation()
                     || (target.dominates(candidate.plan.cost, best.cost)
-                        && candidate.plan.non_loop_gas <= best.non_loop_gas))
+                        && (candidate.plan.non_loop_gas <= best.non_loop_gas
+                            || target.deposit_repays_gas(
+                                u64::from(best.cost.bytes - candidate.plan.cost.bytes),
+                                u64::from(candidate.plan.non_loop_gas - best.non_loop_gas),
+                            ))))
                 && target.cmp_lifetime(candidate.plan.cost, best.cost).is_lt()
                 && (!target.optimization().is_size()
                     || candidate.plan.cost.bytes.saturating_add(target.jump().bytes)
@@ -1047,8 +1062,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         Some(chain)
     }
 
-    /// Plans the copy of `func` that rebuilds cheap values past its crowded points, when it has
-    /// one; see [`rebuild`].
+    /// Plans the copy of `func` that computes cheap values again, when it has one; see [`rebuild`].
+    /// `spills` tells whether the first plan spills.
+    #[allow(clippy::too_many_arguments)]
     fn plan_rebuilt(
         &self,
         func: &Function,
@@ -1057,20 +1073,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         analysis: &Analysis,
         hazards: &FxHashSet<InstId>,
         writers: &DenseBitSet<FunctionId>,
+        spills: bool,
     ) -> Option<FunctionPlan> {
         let target = self.target(info, func_id);
         if !(target.optimization().is_gas() || target.optimization().is_size()) {
             return None;
         }
-        let internal = info.internal.contains(func_id);
-        let rebuilt = rebuild::rebuild_crowded_values(
+        let rebuilt = rebuild::rebuild_values(
             func,
-            internal,
+            &analysis.reads,
             &analysis.liveness,
             &analysis.cfg,
             &analysis.loops,
-            self.gcx.sess.opts.evm_version.reachable_stack_depth(),
-            usize::from(info.returning.contains(func_id)),
+            spills.then(|| {
+                (
+                    self.gcx.sess.opts.evm_version.reachable_stack_depth(),
+                    usize::from(info.returning.contains(func_id)),
+                )
+            }),
         )?;
         let analysis = self.analyze(&rebuilt, info, func_id, hazards, writers);
         let mut plan = self
@@ -1125,25 +1145,101 @@ fn argument_values(func: &Function) -> Result<IndexVec<ArgIdx, Option<ValueId>>,
 }
 
 /// Whether the planner pushes a fresh copy of `value` at each use instead of keeping it:
-/// immediates, stable reads, and an external entry's calldata arguments.
-fn materialized_at_use(func: &Function, internal: bool, value: ValueId) -> bool {
+/// immediates, stable reads, and the calldata words in `reads`.
+fn materialized_at_use(func: &Function, reads: &DenseBitSet<ValueId>, value: ValueId) -> bool {
     match func.value(value) {
         Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
-        Value::Arg(_) => !internal,
+        Value::Arg(_) => false,
         Value::Inst(inst) => {
             rematerializable_nullary_value(func, value).is_some()
                 || matches!(func.inst(*inst).kind, InstKind::DataSize(_))
+                || reads.contains(value)
         }
     }
 }
 
+/// The calldata words at constant offsets that the planner pushes at each use because that is no
+/// dearer than keeping the word. Keeping one pushes it where it is defined and copies it at every
+/// later read; pushing it again costs a push and a `calldataload` at each read. Reads in loops
+/// count once per expected iteration in gas mode.
+fn priced_calldata_reads(
+    func: &Function,
+    loops: &LoopInfo,
+    target: &Target,
+) -> DenseBitSet<ValueId> {
+    let mut reads = DenseBitSet::new_empty(func.num_values());
+    for inst in func.instructions() {
+        if let Some(result) = func.inst_result_value(inst)
+            && func.is_constant_calldata_load(result)
+        {
+            reads.insert(result);
+        }
+    }
+    if reads.is_empty() {
+        return reads;
+    }
+    let mut weights = index_vec![1u32; func.blocks.len()];
+    if target.optimization().is_gas() {
+        for lp in loops.all_loops() {
+            for block in lp.blocks.iter() {
+                weights[block] = Target::nested_block_weight(weights[block]);
+            }
+        }
+    }
+    let weigh =
+        |cost: Cost, block: BlockId| Cost::new(cost.gas.saturating_mul(weights[block]), cost.bytes);
+    // The block of each read; a phi reads its input on the edge from its predecessor.
+    let mut uses = FxHashMap::<ValueId, SmallVec<[BlockId; 2]>>::default();
+    let mut note = |value: ValueId, block: BlockId| {
+        if reads.contains(value) {
+            uses.entry(value).or_default().push(block);
+        }
+    };
+    for (block, data) in func.blocks.iter_enumerated() {
+        for &inst in &data.instructions {
+            match &func.inst(inst).kind {
+                InstKind::Phi(incoming) => {
+                    for &(pred, operand) in incoming {
+                        note(operand, pred);
+                    }
+                }
+                kind => kind.visit_operands(|operand| note(operand, block)),
+            }
+        }
+        if let Some(term) = &data.terminator {
+            term.visit_operands(|operand| note(operand, block));
+        }
+    }
+    let inst_blocks = func.inst_block_table();
+    let mut pushed = DenseBitSet::new_empty(func.num_values());
+    for (&value, blocks) in &uses {
+        let push = plan::materialize_cost(func, target, value);
+        let again = blocks.iter().map(|&block| weigh(push, block)).sum::<Cost>();
+        let Value::Inst(def) = *func.value(value) else { continue };
+        let Some(def_block) = inst_blocks[def] else { continue };
+        // The cheapest use takes the pushed word itself; every other use copies it.
+        let first = blocks.iter().enumerate().min_by_key(|&(_, &block)| weights[block]);
+        let copies = blocks
+            .iter()
+            .enumerate()
+            .filter(|&(index, _)| Some(index) != first.map(|(index, _)| index))
+            .map(|(_, &block)| weigh(target.dup(), block))
+            .sum::<Cost>();
+        let keep = weigh(push, def_block) + copies;
+        if target.cmp_lifetime(again, keep).is_le() {
+            pushed.insert(value);
+        }
+    }
+    pushed
+}
+
 /// The most words live into any block that the planner must keep on the stack or spill.
-fn stack_pressure(func: &Function, internal: bool, liveness: &Liveness) -> usize {
+fn stack_pressure(func: &Function, reads: &DenseBitSet<ValueId>, liveness: &Liveness) -> usize {
     func.blocks
         .indices()
         .map(|block| {
             let live = liveness.live_in(block);
-            live.iter().filter(|&value| !materialized_at_use(func, internal, value)).count()
+            live.iter().filter(|&value| !materialized_at_use(func, reads, value)).count()
         })
         .max()
         .unwrap_or(0)

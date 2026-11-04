@@ -14,6 +14,7 @@ use solar_data_structures::{
     fmt::FmtIteratorExt,
     map::{FxHashMap, FxHashSet},
 };
+use solar_ir::link::display_u256;
 use std::fmt;
 
 /// Displays a DOT format CFG for a function.
@@ -195,7 +196,10 @@ pub(crate) fn display_function_dot<'a>(
 pub(crate) fn display_function_text<'a>(
     func: &'a Function,
     module: Option<&'a Module>,
+    is_constructor: bool,
     is_dispatch_entry: bool,
+    is_receive: bool,
+    is_fallback: bool,
 ) -> impl fmt::Display + 'a {
     fn display_text_block<'a>(
         func: &'a Function,
@@ -204,26 +208,30 @@ pub(crate) fn display_function_text<'a>(
         block: &'a BasicBlock,
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
-            write!(f, "  bb{}", block_id.index())?;
-            match (block.hotness.is_cold(), block.cold_hint) {
-                (false, false) => {}
-                (true, false) => write!(f, " [cold]")?,
-                (false, true) => write!(f, " [cold_hint]")?,
-                (true, true) => write!(f, " [cold, cold_hint]")?,
-            }
-            write!(f, ":")?;
-            if !block.predecessors.is_empty() {
-                write!(
-                    f,
-                    "  ; preds = {}",
-                    block.predecessors.iter().format_with(", ", |f, pred| write!(
+            let label = fmt::from_fn(|f| {
+                write!(f, "  bb{}", block_id.index())?;
+                match (block.hotness.is_cold(), block.cold_hint) {
+                    (false, false) => {}
+                    (true, false) => write!(f, " [cold]")?,
+                    (false, true) => write!(f, " [cold_hint]")?,
+                    (true, true) => write!(f, " [cold, cold_hint]")?,
+                }
+                write!(f, ":")
+            });
+            let preds = (!block.predecessors.is_empty()).then(|| {
+                fmt::from_fn(|f| {
+                    write!(
                         f,
-                        "bb{}",
-                        pred.index()
-                    ))
-                )?;
-            }
-            writeln!(f)?;
+                        "preds = {}",
+                        block.predecessors.iter().format_with(", ", |f, pred| write!(
+                            f,
+                            "bb{}",
+                            pred.index()
+                        ))
+                    )
+                })
+            });
+            writeln!(f, "{}", solar_ir::comment::display_label_comment(label, preds))?;
 
             write!(
                 f,
@@ -278,7 +286,7 @@ pub(crate) fn display_function_text<'a>(
     }
 
     fmt::from_fn(move |f| {
-        if let Some(note) = func.entry_note(is_dispatch_entry) {
+        if let Some(note) = func.entry_note(is_dispatch_entry, is_constructor) {
             writeln!(f, "; {note}")?;
         }
         // Header: fn @name(params) -> returns
@@ -293,10 +301,20 @@ pub(crate) fn display_function_text<'a>(
             ))
         )?;
         write!(f, ")")?;
-        if function_prints_return_values(func) && func.return_type() != super::MirType::Void {
+        if func.return_type() != super::MirType::Void {
             write!(f, " -> {}", func.return_type())?;
         }
-        write!(f, "{}", display_function_attributes(func, is_dispatch_entry))?;
+        write!(
+            f,
+            "{}",
+            display_function_attributes(
+                func,
+                is_constructor,
+                is_dispatch_entry,
+                is_receive,
+                is_fallback
+            )
+        )?;
         writeln!(f, " {{")?;
 
         let cfg = CfgInfo::new(func);
@@ -313,7 +331,13 @@ pub(crate) fn display_function_text<'a>(
     })
 }
 
-fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl fmt::Display + '_ {
+fn display_function_attributes(
+    func: &Function,
+    is_constructor: bool,
+    is_dispatch_entry: bool,
+    is_receive: bool,
+    is_fallback: bool,
+) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
         let mut first = true;
         if let Some(selector) = func.selector {
@@ -326,7 +350,7 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if func.attributes.is_abi_wrapper {
             write_function_attribute(f, &mut first, "abi_wrapper")?;
         }
-        if func.attributes.is_constructor {
+        if is_constructor {
             write_function_attribute(f, &mut first, "constructor")?;
         }
         if is_dispatch_entry {
@@ -353,10 +377,10 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
         if let Some(optimization) = func.attributes.optimization {
             write_function_attribute(f, &mut first, format_args!("optimize={optimization}"))?;
         }
-        if func.attributes.is_receive {
+        if is_receive {
             write_function_attribute(f, &mut first, "receive")?;
         }
-        if func.attributes.is_fallback {
+        if is_fallback {
             write_function_attribute(f, &mut first, "fallback")?;
         }
         match func.attributes.state_mutability {
@@ -370,16 +394,6 @@ fn display_function_attributes(func: &Function, is_dispatch_entry: bool) -> impl
                 f,
                 &mut first,
                 format_args!("return_abi=[{}]", components.iter().format(", ")),
-            )?;
-        }
-        // ABI wrappers read calldata head words as arguments they do not declare.
-        if func.params.is_empty() && func.arg_indices().any(|arg| func.arg_ty(arg) != MirType::I256)
-        {
-            let types = func.arg_indices().map(|arg| func.arg_ty(arg));
-            write_function_attribute(
-                f,
-                &mut first,
-                format_args!("implicit_args=[{}]", types.format(", ")),
             )?;
         }
         if let Some(layout) = &func.abi_params {
@@ -410,14 +424,6 @@ fn write_function_attribute(
         f.write_str(", ")?;
     }
     attribute.fmt(f)
-}
-
-fn function_prints_return_values(func: &Function) -> bool {
-    func.selector.is_none()
-        || func
-            .blocks
-            .iter()
-            .any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
 }
 
 fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
@@ -578,11 +584,15 @@ fn display_inst_kind<'a>(
                     super::PackedPart::Scalar { value, ty } => {
                         write!(f, "{ty} {}", display_val(*value, func))?
                     }
-                    super::PackedPart::Bytes(value) => {
-                        write!(f, "bytes {}", display_val(*value, func))?
+                    super::PackedPart::Bytes { value, location } => {
+                        write!(f, "{location}_bytes {}", display_val(*value, func))?
                     }
-                    super::PackedPart::Array { value, element, source } => {
-                        write!(f, "array<{element}> ")?;
+                    super::PackedPart::Array { value, element, source, wordwise } => {
+                        write!(
+                            f,
+                            "array<{element}{}> ",
+                            if *wordwise { ", wordwise" } else { "" }
+                        )?;
                         match source {
                             super::PackedArraySource::Memory { layout } => write!(f, "{layout}")?,
                             super::PackedArraySource::Slice(location) => write!(f, "{location}")?,
@@ -638,12 +648,15 @@ fn display_inst_kind<'a>(
             }
             Ok(())
         }
-        InstKind::AbiEncode { mode, selector, args, layout } => {
+        InstKind::AbiEncode { mode, base, selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
             match mode {
                 super::AbiEncodeMode::Slice => {}
                 super::AbiEncodeMode::Bytes => write!(f, ", object")?,
                 super::AbiEncodeMode::Scratch => write!(f, ", scratch")?,
+            }
+            if let Some(base) = base {
+                write!(f, ", base {}", display_val(*base, func))?;
             }
             if let Some(selector) = selector {
                 write!(f, ", selector {}", display_val(*selector, func))?;
@@ -787,18 +800,6 @@ fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
         Value::Error(_) => write!(f, "err"),
         Value::Undef(ty) => write!(f, "undef {ty}"),
         Value::Immediate(_) => unreachable!("immediate has an integer payload"),
-    })
-}
-
-fn display_u256(value: alloy_primitives::U256) -> impl fmt::Display {
-    fmt::from_fn(move |f| {
-        if let Ok(x) = u64::try_from(value)
-            && x < 1000
-        {
-            write!(f, "{x}")
-        } else {
-            write!(f, "{value:#x}")
-        }
     })
 }
 

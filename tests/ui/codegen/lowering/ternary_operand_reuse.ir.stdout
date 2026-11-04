@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/ternary_operand_reuse.sol:TernaryOperandReuse (runtime) ===
 @module TernaryOperandReuse_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb4
   jumpi
@@ -23,7 +23,7 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5:  ; function addCaller(uint256 x, uint256 y) external view returns (uint256, address) [selector 0x0718ec94]
+bb5 [entry]:                                      ; function addCaller(uint256 x, uint256 y) external view returns (uint256, address) [selector 0x0718ec94]
   push 68
   calldatasize
   lt
@@ -43,7 +43,7 @@ bb5:  ; function addCaller(uint256 x, uint256 y) external view returns (uint256,
   push 64
   push 0
   return
-bb8:  ; function mulRepeated(uint256 modulus) external view returns (uint256, address) [selector 0xfd9e0caf]
+bb8 [entry]:                                      ; function mulRepeated(uint256 modulus) external view returns (uint256, address) [selector 0xfd9e0caf]
   push 36
   calldatasize
   lt

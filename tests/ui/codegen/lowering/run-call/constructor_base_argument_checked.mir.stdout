@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBase ===
 @module CheckedBase
 ; constructor(uint256 v) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -20,7 +20,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedSignedBase ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedSignedBase ===
 @module CheckedSignedBase
 ; constructor(int256 v) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[int256]] {
@@ -36,7 +36,7 @@ fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgAdd ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgAdd ===
 @module CheckedBaseArgAdd
 ; constructor(uint256 v) CheckedBase(v + 1) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -44,9 +44,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v0 = checked_add uint256, arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -63,7 +63,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgMul ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgMul ===
 @module CheckedBaseArgMul
 ; constructor(uint256 v) CheckedBase(v * 2) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -71,9 +71,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v0 = checked_mul uint256, arg0, 2
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -90,7 +90,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgList ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgList ===
 @module CheckedBaseArgList
 ; creation entry
 fn @constructor() [constructor] {
@@ -99,7 +99,7 @@ fn @constructor() [constructor] {
     v1 = checked_mul uint256, v0, 3
     sstore 0, v1 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret
 }
 
@@ -116,7 +116,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgNegate ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgNegate ===
 @module CheckedBaseArgNegate
 ; constructor(int256 v) CheckedSignedBase(-v) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[int256]] {
@@ -124,9 +124,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[int256]] {
     v0 = checked_sub int256, 0, arg0
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -137,7 +137,7 @@ fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], a
     ret v0
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgSub ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgSub ===
 @module CheckedBaseArgSub
 ; constructor(uint256 v) CheckedBase(v - 1) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -145,9 +145,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v0 = checked_sub uint256, arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -164,7 +164,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgExp ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgExp ===
 @module CheckedBaseArgExp
 ; constructor(uint256 v) CheckedBase(v ** 2) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -172,9 +172,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v0 = checked_pow uint256, arg0, 2
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -191,7 +191,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgShift ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgShift ===
 @module CheckedBaseArgShift
 ; constructor(uint256 v) CheckedBase(v << 1) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -199,9 +199,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v0 = shl arg0, 1
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -218,7 +218,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgElement ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgElement ===
 @module CheckedBaseArgElement
 ; constructor(uint256 i) CheckedBase(table()[i]) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
@@ -232,9 +232,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
     v5 = mload v4
     sstore 0, v5 !metadata(storage=slot(0))
     jump bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     ret
 }
 
@@ -268,7 +268,7 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
     ret 2
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgFactory ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgFactory ===
 @module CheckedBaseArgFactory
 @data
   CheckedBaseArgAdd_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/run-call/constructor_base_argument_checked.sol:CheckedBaseArgAdd"
@@ -282,230 +282,209 @@ fn @two() -> i256 [selector=0x5fdf05d7, pure, abi_params=[], abi_returns=[word],
 ; function deployAdd(uint256 v) external returns (uint256) [selector 0xec1495a8]
 fn @deployAdd(arg0: i256) -> i256 [selector=0xec1495a8, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode [word], args arg0
-    v1 = datasize CheckedBaseArgAdd_creation_code_0
-    v2 = datasize CheckedBaseArgAdd_creation_code_0, 32
-    v3 = fmp
-    datacopy CheckedBaseArgAdd_creation_code_0, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 32 !metadata(memory=heap)
-    v7 = create 0, v3, v2
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+    v0 = datasize CheckedBaseArgAdd_creation_code_0
+    v1 = fmp
+    datacopy CheckedBaseArgAdd_creation_code_0, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word], scratch, base v2, args arg0
+    v4 = datasize CheckedBaseArgAdd_creation_code_0, 32
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v9 = gas
+  bb2:                                            ; preds = bb0
+    v7 = gas
     mstore 0, 0xc55699c !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb4, bb3
-  bb3:  ; preds = bb2
+    v8 = zext i160 v5 to i256
+    v9 = staticcall v7, v8, 28, 4, 0, 32
+    jumpi v9, bb4, bb3
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = mload 0 !metadata(memory=scratch)
-    ret v14
+  bb4:                                            ; preds = bb2
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
 }
 
 ; function deployMul(uint256 v) external returns (uint256) [selector 0xcb7face2]
 fn @deployMul(arg0: i256) -> i256 [selector=0xcb7face2, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode [word], args arg0
-    v1 = datasize CheckedBaseArgMul_creation_code_1
-    v2 = datasize CheckedBaseArgMul_creation_code_1, 32
-    v3 = fmp
-    datacopy CheckedBaseArgMul_creation_code_1, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 32 !metadata(memory=heap)
-    v7 = create 0, v3, v2
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+    v0 = datasize CheckedBaseArgMul_creation_code_1
+    v1 = fmp
+    datacopy CheckedBaseArgMul_creation_code_1, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word], scratch, base v2, args arg0
+    v4 = datasize CheckedBaseArgMul_creation_code_1, 32
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v9 = gas
+  bb2:                                            ; preds = bb0
+    v7 = gas
     mstore 0, 0xc55699c !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb4, bb3
-  bb3:  ; preds = bb2
+    v8 = zext i160 v5 to i256
+    v9 = staticcall v7, v8, 28, 4, 0, 32
+    jumpi v9, bb4, bb3
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = mload 0 !metadata(memory=scratch)
-    ret v14
+  bb4:                                            ; preds = bb2
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
 }
 
 ; function deployNegate(int256 v) external returns (int256) [selector 0x8ee51801]
 fn @deployNegate(arg0: i256) -> i256 [selector=0x8ee51801, abi_params=[int256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = abi_encode [word], args arg0
-    v1 = datasize CheckedBaseArgNegate_creation_code_2
-    v2 = datasize CheckedBaseArgNegate_creation_code_2, 32
-    v3 = fmp
-    datacopy CheckedBaseArgNegate_creation_code_2, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 32 !metadata(memory=heap)
-    v7 = create 0, v3, v2
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+    v0 = datasize CheckedBaseArgNegate_creation_code_2
+    v1 = fmp
+    datacopy CheckedBaseArgNegate_creation_code_2, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word], scratch, base v2, args arg0
+    v4 = datasize CheckedBaseArgNegate_creation_code_2, 32
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v9 = gas
+  bb2:                                            ; preds = bb0
+    v7 = gas
     mstore 0, 0xa56dfe4a !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb4, bb3
-  bb3:  ; preds = bb2
+    v8 = zext i160 v5 to i256
+    v9 = staticcall v7, v8, 28, 4, 0, 32
+    jumpi v9, bb4, bb3
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = mload 0 !metadata(memory=scratch)
-    ret v14
+  bb4:                                            ; preds = bb2
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
 }
 
 ; function deployElement(uint256 i) external returns (uint256) [selector 0x178d3c81]
 fn @deployElement(arg0: i256) -> i256 [selector=0x178d3c81, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode [word], args arg0
-    v1 = datasize CheckedBaseArgElement_creation_code_3
-    v2 = datasize CheckedBaseArgElement_creation_code_3, 32
-    v3 = fmp
-    datacopy CheckedBaseArgElement_creation_code_3, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 32 !metadata(memory=heap)
-    v7 = create 0, v3, v2
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+    v0 = datasize CheckedBaseArgElement_creation_code_3
+    v1 = fmp
+    datacopy CheckedBaseArgElement_creation_code_3, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word], scratch, base v2, args arg0
+    v4 = datasize CheckedBaseArgElement_creation_code_3, 32
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v9 = gas
+  bb2:                                            ; preds = bb0
+    v7 = gas
     mstore 0, 0xc55699c !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb4, bb3
-  bb3:  ; preds = bb2
+    v8 = zext i160 v5 to i256
+    v9 = staticcall v7, v8, 28, 4, 0, 32
+    jumpi v9, bb4, bb3
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = mload 0 !metadata(memory=scratch)
-    ret v14
+  bb4:                                            ; preds = bb2
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
 }
 
 ; function deploySub(uint256 v) external returns (uint256) [selector 0xd5c4b324]
 fn @deploySub(arg0: i256) -> i256 [selector=0xd5c4b324, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode [word], args arg0
-    v1 = datasize CheckedBaseArgSub_creation_code_4
-    v2 = datasize CheckedBaseArgSub_creation_code_4, 32
-    v3 = fmp
-    datacopy CheckedBaseArgSub_creation_code_4, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 32 !metadata(memory=heap)
-    v7 = create 0, v3, v2
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+    v0 = datasize CheckedBaseArgSub_creation_code_4
+    v1 = fmp
+    datacopy CheckedBaseArgSub_creation_code_4, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word], scratch, base v2, args arg0
+    v4 = datasize CheckedBaseArgSub_creation_code_4, 32
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v9 = gas
+  bb2:                                            ; preds = bb0
+    v7 = gas
     mstore 0, 0xc55699c !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb4, bb3
-  bb3:  ; preds = bb2
+    v8 = zext i160 v5 to i256
+    v9 = staticcall v7, v8, 28, 4, 0, 32
+    jumpi v9, bb4, bb3
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = mload 0 !metadata(memory=scratch)
-    ret v14
+  bb4:                                            ; preds = bb2
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
 }
 
 ; function deployExp(uint256 v) external returns (uint256) [selector 0x2744a5b3]
 fn @deployExp(arg0: i256) -> i256 [selector=0x2744a5b3, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode [word], args arg0
-    v1 = datasize CheckedBaseArgExp_creation_code_5
-    v2 = datasize CheckedBaseArgExp_creation_code_5, 32
-    v3 = fmp
-    datacopy CheckedBaseArgExp_creation_code_5, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 32 !metadata(memory=heap)
-    v7 = create 0, v3, v2
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+    v0 = datasize CheckedBaseArgExp_creation_code_5
+    v1 = fmp
+    datacopy CheckedBaseArgExp_creation_code_5, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word], scratch, base v2, args arg0
+    v4 = datasize CheckedBaseArgExp_creation_code_5, 32
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v9 = gas
+  bb2:                                            ; preds = bb0
+    v7 = gas
     mstore 0, 0xc55699c !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb4, bb3
-  bb3:  ; preds = bb2
+    v8 = zext i160 v5 to i256
+    v9 = staticcall v7, v8, 28, 4, 0, 32
+    jumpi v9, bb4, bb3
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = mload 0 !metadata(memory=scratch)
-    ret v14
+  bb4:                                            ; preds = bb2
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
 }
 
 ; function deployShift(uint256 v) external returns (uint256) [selector 0xca2ccfdb]
 fn @deployShift(arg0: i256) -> i256 [selector=0xca2ccfdb, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = abi_encode [word], args arg0
-    v1 = datasize CheckedBaseArgShift_creation_code_6
-    v2 = datasize CheckedBaseArgShift_creation_code_6, 32
-    v3 = fmp
-    datacopy CheckedBaseArgShift_creation_code_6, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 32 !metadata(memory=heap)
-    v7 = create 0, v3, v2
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
-  bb1:  ; preds = bb0
+    v0 = datasize CheckedBaseArgShift_creation_code_6
+    v1 = fmp
+    datacopy CheckedBaseArgShift_creation_code_6, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word], scratch, base v2, args arg0
+    v4 = datasize CheckedBaseArgShift_creation_code_6, 32
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v9 = gas
+  bb2:                                            ; preds = bb0
+    v7 = gas
     mstore 0, 0xc55699c !metadata(memory=scratch)
-    v10 = zext i160 v7 to i256
-    v11 = staticcall v9, v10, 28, 4, 0, 32
-    jumpi v11, bb4, bb3
-  bb3:  ; preds = bb2
+    v8 = zext i160 v5 to i256
+    v9 = staticcall v7, v8, 28, 4, 0, 32
+    jumpi v9, bb4, bb3
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
-    v12 = returndatasize
-    v13 = lt v12, 32
-    icall revert_if<tuple_data_too_short>, v13
-    v14 = mload 0 !metadata(memory=scratch)
-    ret v14
+  bb4:                                            ; preds = bb2
+    v10 = returndatasize
+    v11 = lt v10, 32
+    icall revert_if<tuple_data_too_short>, v11
+    v12 = mload 0 !metadata(memory=scratch)
+    ret v12
 }

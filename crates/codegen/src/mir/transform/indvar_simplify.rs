@@ -105,7 +105,7 @@
 //! - recognize checked unsigned updates at every width and retain their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
-use super::egraph::max_bits_with_args;
+use super::{egraph::max_bits_with_args, loop_opt::LoopOptimizer};
 use crate::{
     mir::{
         ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
@@ -399,7 +399,12 @@ impl IndVarSimplifier {
                 });
             }
         }
-        let carried = Self::carried_words(func, loop_data, &self.in_loop, &mut self.seen);
+        let carried = LoopOptimizer::carried_words(
+            func,
+            loop_data,
+            |inst| self.in_loop.contains(inst),
+            &mut self.seen,
+        );
         let update_value = func.inst_result_value(iv.update_inst);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
         let mut offset_shared = FxHashSet::default();
@@ -614,7 +619,7 @@ impl IndVarSimplifier {
             if let Some(bound) = bound
                 && let Some(end) = self.pointer_at(func, preheader, key, bound)
             {
-                func.inst_mut(test.condition).kind = match (*exit, test.counter_first) {
+                let kind = match (*exit, test.counter_first) {
                     // exit: lt counter, bound  =>  lt ptr, end   with end = ptr's value at the
                     // bound
                     (PointerExit::Below, true) => InstKind::Lt(*pointer, end),
@@ -623,6 +628,7 @@ impl IndVarSimplifier {
                     // bound clamped to [start, 2^65]
                     (PointerExit::Reaches(_), _) => InstKind::Ne(*pointer, end),
                 };
+                func.inst_mut(test.condition).kind = func.canonical_kind(kind);
                 test_rewritten = true;
             }
         }
@@ -727,10 +733,7 @@ impl IndVarSimplifier {
         let Some(next) = func.inst_result_value(iv.update_inst) else { return false };
         let &[exit] = loop_data.exit_blocks.as_slice() else { return false };
         if cfg.predecessors(exit).iter().any(|&pred| !loop_data.blocks.contains(pred))
-            || func.blocks[exit]
-                .instructions
-                .iter()
-                .any(|&inst| matches!(func.inst(inst).kind, InstKind::Phi(_)))
+            || func.block_has_phi(exit)
             || func.value_ty(iv.value) != Some(MirType::I256)
         {
             return false;
@@ -848,7 +851,8 @@ impl IndVarSimplifier {
             let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
             for &value in values {
                 let Value::Inst(inst) = *func.value(value) else { continue };
-                func.inst_mut(inst).kind = offset_kind(stepped, magnitude, offset >= 0);
+                func.inst_mut(inst).kind =
+                    func.canonical_kind(offset_kind(stepped, magnitude, offset >= 0));
             }
         }
         func.replace_uses(&replacements);
@@ -861,20 +865,20 @@ impl IndVarSimplifier {
         let body = std::mem::take(&mut func.blocks[exit].instructions);
         let moved =
             if ascending { InstKind::Sub(stepped, start) } else { InstKind::Sub(start, stepped) };
-        let moved = self.append_inst_value(func, exit, moved, Some(MirType::I256));
+        let moved = mir_utils::append_value_inst(func, exit, moved, MirType::I256);
         let steps = self.append_steps(func, exit, moved, magnitude);
-        let last = self.append_inst_value(
+        let last = mir_utils::append_value_inst(
             func,
             exit,
             offset_kind(counter_start, steps, step > 0),
-            Some(MirType::I256),
+            MirType::I256,
         );
         // The counter itself is one step behind its update.
         let amount =
             func.alloc_value(Value::Immediate(Immediate::I256(U256::from(step.unsigned_abs()))));
         let previous = offset_kind(last, amount, step <= 0);
         let previous = reads_counter
-            .then(|| self.append_inst_value(func, exit, previous, Some(MirType::I256)));
+            .then(|| mir_utils::append_value_inst(func, exit, previous, MirType::I256));
         func.blocks[exit].instructions.extend(body);
         let mut rebuilt = FxHashMap::default();
         rebuilt.insert(next, last);
@@ -1172,21 +1176,21 @@ impl IndVarSimplifier {
         let Ok(magnitude) = u128::try_from(scale) else { return };
         // counter = init + (ptr - start) >> log2(scale)   or   / scale
         let rebuild = |this: &Self, func: &mut Function, block: BlockId| -> ValueId {
-            let delta = this.append_inst_value(
+            let delta = mir_utils::append_value_inst(
                 func,
                 block,
                 InstKind::Sub(pointer, start),
-                Some(MirType::I256),
+                MirType::I256,
             );
             let steps = this.append_steps(func, block, delta, magnitude);
             if func.value_u256(iv.init).is_some_and(|init| init.is_zero()) {
                 steps
             } else {
-                this.append_inst_value(
+                mir_utils::append_value_inst(
                     func,
                     block,
                     InstKind::Add(iv.init, steps),
-                    Some(MirType::I256),
+                    MirType::I256,
                 )
             }
         };
@@ -1203,11 +1207,7 @@ impl IndVarSimplifier {
         }
         for &block in &reads.blocks {
             // block: phis; counter = rebuild; ...reads of counter
-            let phis = func.blocks[block]
-                .instructions
-                .iter()
-                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .count();
+            let phis = func.block_phi_count(block);
             let body = func.blocks[block].instructions.split_off(phis);
             let counter = rebuild(self, func, block);
             func.blocks[block].instructions.extend_from_slice(&body);
@@ -1311,7 +1311,7 @@ impl IndVarSimplifier {
         start: U256,
         scale: i128,
     ) -> ValueId {
-        let limit = U256::from(1) << (Target::MAX_TRIP_COUNT_BITS + 1);
+        let limit = U256::ONE << (Target::MAX_TRIP_COUNT_BITS + 1);
         if let Some(value) = func.value_u256(bound) {
             let clamped = value.max(start).min(limit);
             return func.alloc_value(Value::Immediate(Immediate::I256(clamped)));
@@ -1322,28 +1322,28 @@ impl IndVarSimplifier {
             // above = gt bound, 2^65; bound = select above, 2^65, bound
             let limit = func.alloc_value(Value::Immediate(Immediate::I256(limit)));
             let above =
-                self.append_inst_value(func, block, InstKind::Gt(bound, limit), Some(MirType::I1));
-            clamped = self.append_inst_value(
+                mir_utils::append_value_inst(func, block, InstKind::Gt(bound, limit), MirType::I1);
+            clamped = mir_utils::append_value_inst(
                 func,
                 block,
                 InstKind::Select(above, limit, bound),
-                Some(MirType::I256),
+                MirType::I256,
             );
         }
         if !start.is_zero() {
             // below = lt bound, start; bound = select below, start, bound
             let start = func.alloc_value(Value::Immediate(Immediate::I256(start)));
-            let below = self.append_inst_value(
+            let below = mir_utils::append_value_inst(
                 func,
                 block,
                 InstKind::Lt(clamped, start),
-                Some(MirType::I1),
+                MirType::I1,
             );
-            clamped = self.append_inst_value(
+            clamped = mir_utils::append_value_inst(
                 func,
                 block,
                 InstKind::Select(below, start, clamped),
-                Some(MirType::I256),
+                MirType::I256,
             );
         }
         clamped
@@ -1360,7 +1360,7 @@ impl IndVarSimplifier {
         match acc {
             Some(acc) => {
                 let acc = self.word_value(func, block, acc);
-                self.append_inst_value(func, block, InstKind::Add(acc, value), Some(MirType::I256))
+                mir_utils::append_value_inst(func, block, InstKind::Add(acc, value), MirType::I256)
             }
             None => value,
         }
@@ -1382,7 +1382,7 @@ impl IndVarSimplifier {
     /// Operations a family's pointer costs per iteration: one duplication per
     /// primary use, an add per sibling use, the latch update, and the carried word.
     fn family_cost_after(members: &[(AddressKey, Vec<ValueId>)], carried: usize) -> usize {
-        let carry = 2 + carried.saturating_sub(4);
+        let carry = 2 + carried.saturating_sub(Target::SHALLOW_CARRIED_WORDS);
         let byte_pointer = if members[0].0.scale.abs() == 1 { 2 } else { 0 };
         members
             .iter()
@@ -1442,39 +1442,6 @@ impl IndVarSimplifier {
                 .operands()
                 .iter()
                 .any(|&operand| Self::depends_on(func, in_loop, operand, target, depth + 1))
-    }
-
-    /// The words the backend carries through the loop: the header's phis and
-    /// the instruction results defined outside that the loop reads.
-    fn carried_words(
-        func: &Function,
-        loop_data: &Loop,
-        in_loop: &DenseBitSet<InstId>,
-        seen: &mut DenseBitSet<ValueId>,
-    ) -> usize {
-        let header = &func.blocks[loop_data.header];
-        let mut count = header
-            .instructions
-            .iter()
-            .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-            .count();
-        seen.clear_to(func.num_values());
-        for block in loop_data.blocks.iter() {
-            let block = &func.blocks[block];
-            for operand in block
-                .instructions
-                .iter()
-                .filter(|&&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
-                .chain(block.terminator.iter().flat_map(Terminator::operands))
-            {
-                let Value::Inst(inst_id) = func.value(operand) else { continue };
-                if !in_loop.contains(*inst_id) && seen.insert(operand) {
-                    count += 1;
-                }
-            }
-        }
-        count
     }
 
     fn additive_step(
@@ -1769,7 +1736,8 @@ impl IndVarSimplifier {
         let Value::Inst(inst_id) = *func.value(value) else { return };
         let Some(magnitude) = offset.checked_abs() else { return };
         let Some(magnitude) = self.offset_value(func, magnitude) else { return };
-        func.inst_mut(inst_id).kind = offset_kind(pointer, magnitude, offset >= 0);
+        func.inst_mut(inst_id).kind =
+            func.canonical_kind(offset_kind(pointer, magnitude, offset >= 0));
     }
 
     /// Appends `delta / magnitude` to `block`: a shift for a power of two, a division otherwise.
@@ -1786,11 +1754,11 @@ impl IndVarSimplifier {
             let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(
                 magnitude.trailing_zeros(),
             ))));
-            self.append_inst_value(func, block, InstKind::Shr(shift, delta), Some(MirType::I256))
+            mir_utils::append_value_inst(func, block, InstKind::Shr(shift, delta), MirType::I256)
         } else {
             let divisor =
                 func.alloc_value(Value::Immediate(Immediate::I256(U256::from(magnitude))));
-            self.append_inst_value(func, block, InstKind::Div(delta, divisor), Some(MirType::I256))
+            mir_utils::append_value_inst(func, block, InstKind::Div(delta, divisor), MirType::I256)
         }
     }
 
@@ -1808,7 +1776,7 @@ impl IndVarSimplifier {
         }
         let magnitude = self.offset_value(func, offset.checked_abs()?)?;
         let kind = offset_kind(value, magnitude, offset > 0);
-        Some(self.append_inst_value(func, block, kind, Some(MirType::I256)))
+        Some(mir_utils::append_value_inst(func, block, kind, MirType::I256))
     }
 
     /// Appends `value * scale` to `block`: a shift for a power of two, a
@@ -1826,16 +1794,16 @@ impl IndVarSimplifier {
             value
         } else if magnitude.is_power_of_two() {
             let shift = self.offset_value(func, i128::from(magnitude.trailing_zeros()))?;
-            self.append_inst_value(func, block, InstKind::Shl(shift, value), Some(MirType::I256))
+            mir_utils::append_value_inst(func, block, InstKind::Shl(shift, value), MirType::I256)
         } else {
             let factor = self.offset_value(func, i128::try_from(magnitude).ok()?)?;
-            self.append_inst_value(func, block, InstKind::Mul(value, factor), Some(MirType::I256))
+            mir_utils::append_value_inst(func, block, InstKind::Mul(value, factor), MirType::I256)
         };
         if scale > 0 {
             return Some(scaled);
         }
         let zero = self.offset_value(func, 0)?;
-        Some(self.append_inst_value(func, block, InstKind::Sub(zero, scaled), Some(MirType::I256)))
+        Some(mir_utils::append_value_inst(func, block, InstKind::Sub(zero, scaled), MirType::I256))
     }
 
     fn word_value(&self, func: &mut Function, block: BlockId, value: ValueId) -> ValueId {
@@ -1851,25 +1819,8 @@ impl IndVarSimplifier {
         Some(func.alloc_value(Value::Immediate(Immediate::I256(U256::from(offset as u128)))))
     }
 
-    fn append_inst_value(
-        &self,
-        func: &mut Function,
-        block: BlockId,
-        kind: InstKind,
-        ty: Option<MirType>,
-    ) -> ValueId {
-        let (inst, value) =
-            func.alloc_value_inst(Instruction::new(kind, ty).with_debug_info_dropped());
-        func.blocks[block].instructions.push(inst);
-        value
-    }
-
     fn insert_header_phi(&self, func: &mut Function, header: BlockId, phi_inst: InstId) {
-        let insert_pos = func.blocks[header]
-            .instructions
-            .iter()
-            .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-            .count();
+        let insert_pos = func.block_phi_count(header);
         func.blocks[header].instructions.insert(insert_pos, phi_inst);
     }
 

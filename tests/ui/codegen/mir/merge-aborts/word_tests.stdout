@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/merge-aborts/word_tests.mir (before merge-aborts) ===
-+ // === ROOT/tests/ui/codegen/mir/merge-aborts/word_tests.mir (after merge-aborts) ===
+- ; === ROOT/tests/ui/codegen/mir/merge-aborts/word_tests.mir (before merge-aborts) ===
++ ; === ROOT/tests/ui/codegen/mir/merge-aborts/word_tests.mir (after merge-aborts) ===
   @module WordTests
   fn @entry_guards() -> i256 {
     bb0:
@@ -7,7 +7,7 @@
       v1 = ne v0, 0
 -     jumpi v1, bb3, bb1
 +     jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v2 = calldatasize
       v3 = lt v2, 36
 -     jumpi v3, bb3, bb2
@@ -15,11 +15,11 @@
 +     v6 = or v0, v5
 +     v7 = ne v6, 0
 +     jumpi v7, bb3, bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v4 = calldataload 4
       ret v4
--   bb3 [cold]:  ; preds = bb0, bb1
-+   bb3 [cold]:  ; preds = bb1
+-   bb3 [cold]:                                     ; preds = bb0, bb1
++   bb3 [cold]:                                     ; preds = bb1
       revert 0, 0
   }
   
@@ -29,24 +29,24 @@
       v1 = ne v0, 0
 -     jumpi v1, bb4, bb1
 +     jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v2 = shr arg1, 160
       v3 = eq v2, 0
 -     jumpi v3, bb2, bb4
 +     v6 = or v0, v2
 +     v7 = ne v6, 0
 +     jump bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       v4 = shr arg2, 160
       v5 = ne v4, 0
 -     jumpi v5, bb4, bb3
 +     v8 = or v6, v4
 +     v9 = ne v8, 0
 +     jumpi v9, bb4, bb3
-    bb3:  ; preds = bb2
+    bb3:                                            ; preds = bb2
       stop
--   bb4 [cold]:  ; preds = bb0, bb1, bb2
-+   bb4 [cold]:  ; preds = bb2
+-   bb4 [cold]:                                     ; preds = bb0, bb1, bb2
++   bb4 [cold]:                                     ; preds = bb2
       revert 0, 0
   }
   
@@ -56,18 +56,18 @@
       v1 = ne v0, 0
 -     jumpi v1, bb3, bb1
 +     jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v2 = signextend 2, arg1
       v3 = eq arg1, v2
 -     jumpi v3, bb2, bb3
-+     v4 = xor arg1, v2
++     v4 = xor v2, arg1
 +     v5 = or v0, v4
 +     v6 = ne v5, 0
 +     jumpi v6, bb3, bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       ret arg1
--   bb3 [cold]:  ; preds = bb0, bb1
-+   bb3 [cold]:  ; preds = bb1
+-   bb3 [cold]:                                     ; preds = bb0, bb1
++   bb3 [cold]:                                     ; preds = bb1
       revert 0, 0
   }
   
@@ -76,36 +76,36 @@
       v0 = lt arg0, 3
 -     jumpi v0, bb1, bb3
 +     jump bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = signextend 0, arg1
       v2 = eq arg1, v1
 -     jumpi v2, bb2, bb3
--   bb3 [cold]:  ; preds = bb0, bb1
+-   bb3 [cold]:                                     ; preds = bb0, bb1
 +     v3 = and v0, v2
 +     jumpi v3, bb2, bb3
-+   bb3 [cold]:  ; preds = bb1
++   bb3 [cold]:                                     ; preds = bb1
       revert 0, 0
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       stop
   }
   
   fn @range_loop(arg0: i256) [cold] {
     bb0 [cold]:
       jump bb1
-    bb1 [cold]:  ; preds = bb0, bb2
+    bb1 [cold]:                                     ; preds = bb0, bb2
       v0 = phi [bb0: arg0], [bb2: v3]
       v1 = lt v0, 4
 -     jumpi v1, bb2, bb3
 +     v4 = gt v0, 3
 +     jump bb2
-    bb2 [cold]:  ; preds = bb1
+    bb2 [cold]:                                     ; preds = bb1
       v2 = gt v0, 100
       v3 = add v0, 1
 -     jumpi v2, bb3, bb1
--   bb3 [cold]:  ; preds = bb1, bb2
+-   bb3 [cold]:                                     ; preds = bb1, bb2
 +     v5 = or v4, v2
 +     jumpi v5, bb3, bb1
-+   bb3 [cold]:  ; preds = bb2
++   bb3 [cold]:                                     ; preds = bb2
       revert 0, 0
   }
   
@@ -113,27 +113,58 @@
     bb0:
       v0 = eq arg0, 0
       jumpi v0, bb3, bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       v1 = lt arg1, 4
       jumpi v1, bb3, bb2
-    bb2:  ; preds = bb1
+    bb2:                                            ; preds = bb1
       stop
-    bb3 [cold]:  ; preds = bb0, bb1
+    bb3 [cold]:                                     ; preds = bb0, bb1
       revert 0, 0
   }
   
   fn @latch(arg0: i256) [cold] {
     bb0 [cold]:
       jump bb1
-    bb1 [cold]:  ; preds = bb0, bb2
+    bb1 [cold]:                                     ; preds = bb0, bb2
       v0 = phi [bb0: arg0], [bb2: v3]
       v1 = ne v0, 0
       jumpi v1, bb3, bb2
-    bb2 [cold]:  ; preds = bb1
+    bb2 [cold]:                                     ; preds = bb1
       v2 = lt v0, 4
       v3 = add v0, 1
       jumpi v2, bb3, bb1
-    bb3 [cold]:  ; preds = bb1, bb2
+    bb3 [cold]:                                     ; preds = bb1, bb2
+      revert 0, 0
+  }
+  
+  fn @width_tests(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = gt arg0, 0xffffffffffffffffffffffffffffffffffffffff
+-     jumpi v0, bb3, bb1
++     jump bb1
+    bb1:                                            ; preds = bb0
+      v1 = gt arg1, 0xffff
+-     jumpi v1, bb3, bb2
++     v2 = or v0, v1
++     jumpi v2, bb3, bb2
+    bb2:                                            ; preds = bb1
+      ret arg1
+-   bb3 [cold]:                                     ; preds = bb0, bb1
++   bb3 [cold]:                                     ; preds = bb1
+      revert 0, 0
+  }
+  
+  fn @signed_ne_after(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = signextend 0, arg1
+      v1 = ne arg1, v0
+      jumpi v1, bb3, bb1
+    bb1:                                            ; preds = bb0
+      v2 = lt arg0, 3
+      jumpi v2, bb2, bb3
+    bb2:                                            ; preds = bb1
+      stop
+    bb3 [cold]:                                     ; preds = bb0, bb1
       revert 0, 0
   }
   

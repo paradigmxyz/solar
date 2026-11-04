@@ -1,4 +1,4 @@
-// === cold_push_pricing (runtime) ===
+; === cold_push_pricing (runtime) ===
 PUSH32 0x1234343434343434343434343434343434343434343434343434345600000000
 PUSH0
 MSTORE

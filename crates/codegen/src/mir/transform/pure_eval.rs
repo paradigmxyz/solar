@@ -146,11 +146,9 @@ fn evaluate(func: &Function) -> Option<Vec<U256>> {
 }
 
 fn eval_inst(func: &Function, kind: &InstKind, env: &FxHashMap<ValueId, U256>) -> Option<U256> {
-    let get = |value| value_const(func, env, value);
-    if let InstKind::Select(condition, then_value, else_value) = *kind {
-        return if get(condition)?.is_zero() { get(else_value) } else { get(then_value) };
-    }
-    eval::eval_typed_inst(func, kind, |value| get(value).ok_or(())).ok().flatten()
+    eval::eval_typed_inst(func, kind, |value| value_const(func, env, value).ok_or(()))
+        .ok()
+        .flatten()
 }
 
 fn rewrite_to_return(func: &mut Function, values: &[U256]) {

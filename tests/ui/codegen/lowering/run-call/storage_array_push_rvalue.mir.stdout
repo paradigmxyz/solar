@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_rvalue.sol:StorageArrayPushRvalue ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_array_push_rvalue.sol:StorageArrayPushRvalue ===
 @module StorageArrayPushRvalue
 @types
   struct0: {i256, i256}
@@ -479,7 +479,7 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     v0 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v0, arg0 !metadata(storage=symbolic(v0))
     jumpi arg1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v9 = sload 4 !metadata(storage=slot(4))
     v10 = gt v9, 0xffffffffffffffff
     icall panic_if<0x41>, v10
@@ -491,7 +491,7 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     v16 = mul v15, 1
     sstore 4, v11 !metadata(storage=slot(4))
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v1 = sload 4 !metadata(storage=slot(4))
     v2 = gt v1, 0xffffffffffffffff
     icall panic_if<0x41>, v2
@@ -503,7 +503,7 @@ fn @enumTernaryBare(arg0: i256, arg1: i1) -> struct0 [selector=0x2209d499, abi_p
     v8 = mul v7, 1
     sstore 4, v3 !metadata(storage=slot(4))
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     mstore 0, 4 !metadata(memory=scratch)
     v17 = keccak256 0, 32 !metadata(memory=scratch)
     v18 = sload v17 !metadata(storage=symbolic(v17))
@@ -843,13 +843,13 @@ fn @structRvalue(arg0: i256) -> struct3 [selector=0xda0335a1, abi_params=[uint25
     sstore 8, v8 !metadata(storage=slot(8))
     sstore v10, v5 !metadata(storage=symbolic(v10))
     v11 = sload 8 !metadata(storage=slot(8))
-    v12 = lt 0, v11
+    v12 = gt v11, 0
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = storage_array_data_slot 8
     v15 = sload v14 !metadata(storage=symbolic(v14))
     v16 = sload 8 !metadata(storage=slot(8))
-    v17 = lt 1, v16
+    v17 = gt v16, 1
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 8
@@ -889,12 +889,12 @@ fn @nestedRvalue(arg0: i256) -> struct3 [selector=0x32226b25, abi_params=[uint25
     sstore v14, arg0 !metadata(storage=symbolic(v14))
     v15 = sload v4 !metadata(storage=symbolic(v4))
     v16 = sload 9 !metadata(storage=slot(9))
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 9
     v20 = sload v19 !metadata(storage=symbolic(v19))
-    v21 = lt 1, v20
+    v21 = gt v20, 1
     v22 = eq v21, false
     icall panic_if<0x32>, v22
     v23 = storage_array_data_slot v19

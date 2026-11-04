@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/array_copy_cleanup_uint40.sol:ArrayCopyCleanupUint40 ===
+; === ROOT/tests/ui/codegen/lowering/run-call/array_copy_cleanup_uint40.sol:ArrayCopyCleanupUint40 ===
 @module ArrayCopyCleanupUint40
 ; function f() public returns (bool) [selector 0x26121ff0]
 fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
@@ -366,36 +366,36 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v300 = alloc zeroed checked 64
     mstore v300, 1
     v301 = mload v300
-    v302 = lt 0, v301
+    v302 = gt v301, 0
     v303 = eq v302, false
     icall panic_if<0x32>, v303
     v304 = ptradd v300, 32
     mstore v304, 23
     v305 = mload v300
     v306 = sload 0 !metadata(storage=slot(0))
-    v307 = gt v306, v305
+    v307 = lt v305, v306
     jumpi v307, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v308 = phi [bb1: v305], [bb4: v322]
     v309 = lt v308, v306
     jumpi v309, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 0, v305 !metadata(storage=slot(0))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v323 = phi [bb2: 0], [bb7: v342]
     v324 = lt v323, v305
     jumpi v324, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     v343 = div v305, 6
     v344 = mod v305, 6
     v345 = eq v344, 0
     jumpi v345, bb10, bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     v346 = mul v344, 40
     v347 = shl 1, v346
     v348 = sub v347, 1
@@ -405,10 +405,10 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v352 = and v351, v348
     sstore v350, v352 !metadata(storage=symbolic(v350))
     jump bb10
-  bb10:  ; preds = bb8, bb9
+  bb10:                                           ; preds = bb8, bb9
     sstore 0, 20 !metadata(storage=slot(0))
     v353 = sload 0 !metadata(storage=slot(0))
-    v354 = lt 0, v353
+    v354 = gt v353, 0
     v355 = eq v354, false
     icall panic_if<0x32>, v355
     v356 = storage_array_data_slot 0
@@ -419,7 +419,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v361 = eq v360, false
     icall panic_if<0x1>, v361
     v362 = sload 0 !metadata(storage=slot(0))
-    v363 = lt 1, v362
+    v363 = gt v362, 1
     v364 = eq v363, false
     icall panic_if<0x32>, v364
     v365 = storage_array_data_slot 0
@@ -430,7 +430,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v370 = eq v369, false
     icall panic_if<0x1>, v370
     v371 = sload 0 !metadata(storage=slot(0))
-    v372 = lt 2, v371
+    v372 = gt v371, 2
     v373 = eq v372, false
     icall panic_if<0x32>, v373
     v374 = storage_array_data_slot 0
@@ -441,7 +441,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v379 = eq v378, false
     icall panic_if<0x1>, v379
     v380 = sload 0 !metadata(storage=slot(0))
-    v381 = lt 3, v380
+    v381 = gt v380, 3
     v382 = eq v381, false
     icall panic_if<0x32>, v382
     v383 = storage_array_data_slot 0
@@ -452,7 +452,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v388 = eq v387, false
     icall panic_if<0x1>, v388
     v389 = sload 0 !metadata(storage=slot(0))
-    v390 = lt 4, v389
+    v390 = gt v389, 4
     v391 = eq v390, false
     icall panic_if<0x32>, v391
     v392 = storage_array_data_slot 0
@@ -463,7 +463,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v397 = eq v396, false
     icall panic_if<0x1>, v397
     v398 = sload 0 !metadata(storage=slot(0))
-    v399 = lt 5, v398
+    v399 = gt v398, 5
     v400 = eq v399, false
     icall panic_if<0x32>, v400
     v401 = storage_array_data_slot 0
@@ -474,7 +474,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v406 = eq v405, false
     icall panic_if<0x1>, v406
     v407 = sload 0 !metadata(storage=slot(0))
-    v408 = lt 6, v407
+    v408 = gt v407, 6
     v409 = eq v408, false
     icall panic_if<0x32>, v409
     v410 = storage_array_data_slot 0
@@ -486,7 +486,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v416 = eq v415, false
     icall panic_if<0x1>, v416
     v417 = sload 0 !metadata(storage=slot(0))
-    v418 = lt 7, v417
+    v418 = gt v417, 7
     v419 = eq v418, false
     icall panic_if<0x32>, v419
     v420 = storage_array_data_slot 0
@@ -498,7 +498,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v426 = eq v425, false
     icall panic_if<0x1>, v426
     v427 = sload 0 !metadata(storage=slot(0))
-    v428 = lt 8, v427
+    v428 = gt v427, 8
     v429 = eq v428, false
     icall panic_if<0x32>, v429
     v430 = storage_array_data_slot 0
@@ -510,7 +510,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v436 = eq v435, false
     icall panic_if<0x1>, v436
     v437 = sload 0 !metadata(storage=slot(0))
-    v438 = lt 9, v437
+    v438 = gt v437, 9
     v439 = eq v438, false
     icall panic_if<0x32>, v439
     v440 = storage_array_data_slot 0
@@ -522,7 +522,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v446 = eq v445, false
     icall panic_if<0x1>, v446
     v447 = sload 0 !metadata(storage=slot(0))
-    v448 = lt 10, v447
+    v448 = gt v447, 10
     v449 = eq v448, false
     icall panic_if<0x32>, v449
     v450 = storage_array_data_slot 0
@@ -534,7 +534,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v456 = eq v455, false
     icall panic_if<0x1>, v456
     v457 = sload 0 !metadata(storage=slot(0))
-    v458 = lt 11, v457
+    v458 = gt v457, 11
     v459 = eq v458, false
     icall panic_if<0x32>, v459
     v460 = storage_array_data_slot 0
@@ -546,7 +546,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v466 = eq v465, false
     icall panic_if<0x1>, v466
     v467 = sload 0 !metadata(storage=slot(0))
-    v468 = lt 12, v467
+    v468 = gt v467, 12
     v469 = eq v468, false
     icall panic_if<0x32>, v469
     v470 = storage_array_data_slot 0
@@ -558,7 +558,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v476 = eq v475, false
     icall panic_if<0x1>, v476
     v477 = sload 0 !metadata(storage=slot(0))
-    v478 = lt 13, v477
+    v478 = gt v477, 13
     v479 = eq v478, false
     icall panic_if<0x32>, v479
     v480 = storage_array_data_slot 0
@@ -570,7 +570,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v486 = eq v485, false
     icall panic_if<0x1>, v486
     v487 = sload 0 !metadata(storage=slot(0))
-    v488 = lt 14, v487
+    v488 = gt v487, 14
     v489 = eq v488, false
     icall panic_if<0x32>, v489
     v490 = storage_array_data_slot 0
@@ -582,7 +582,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v496 = eq v495, false
     icall panic_if<0x1>, v496
     v497 = sload 0 !metadata(storage=slot(0))
-    v498 = lt 15, v497
+    v498 = gt v497, 15
     v499 = eq v498, false
     icall panic_if<0x32>, v499
     v500 = storage_array_data_slot 0
@@ -594,7 +594,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v506 = eq v505, false
     icall panic_if<0x1>, v506
     v507 = sload 0 !metadata(storage=slot(0))
-    v508 = lt 16, v507
+    v508 = gt v507, 16
     v509 = eq v508, false
     icall panic_if<0x32>, v509
     v510 = storage_array_data_slot 0
@@ -606,7 +606,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v516 = eq v515, false
     icall panic_if<0x1>, v516
     v517 = sload 0 !metadata(storage=slot(0))
-    v518 = lt 17, v517
+    v518 = gt v517, 17
     v519 = eq v518, false
     icall panic_if<0x32>, v519
     v520 = storage_array_data_slot 0
@@ -618,7 +618,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v526 = eq v525, false
     icall panic_if<0x1>, v526
     v527 = sload 0 !metadata(storage=slot(0))
-    v528 = lt 18, v527
+    v528 = gt v527, 18
     v529 = eq v528, false
     icall panic_if<0x32>, v529
     v530 = storage_array_data_slot 0
@@ -630,7 +630,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v536 = eq v535, false
     icall panic_if<0x1>, v536
     v537 = sload 0 !metadata(storage=slot(0))
-    v538 = lt 19, v537
+    v538 = gt v537, 19
     v539 = eq v538, false
     icall panic_if<0x32>, v539
     v540 = storage_array_data_slot 0
@@ -642,7 +642,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v546 = eq v545, false
     icall panic_if<0x1>, v546
     ret true
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v325 = shl v323, 5
     v326 = ptradd v300, v325
     v327 = ptradd v326, 32
@@ -663,7 +663,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     sstore v331, v341 !metadata(storage=symbolic(v331))
     v342 = add v323, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v310 = storage_array_data_slot 0
     v311 = div v308, 6
     v312 = add v310, v311

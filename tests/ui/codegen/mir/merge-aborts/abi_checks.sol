@@ -22,7 +22,7 @@
 // CHECK-LABEL: fn @check{{[( ]}}
 // CHECK: [[BOOL:v[0-9]+]] = shr {{v[0-9]+}}, 1
 // CHECK: [[SIGNED:v[0-9]+]] = xor {{v[0-9]+}}, [[EXTENDED:v[0-9]+]]
-// CHECK: [[REST:v[0-9]+]] = or {{v[0-9]+}}, [[SIGNED]]
+// CHECK: [[REST:v[0-9]+]] = or [[SIGNED]], {{v[0-9]+}}
 // CHECK-NEXT: [[ANY:v[0-9]+]] = ne [[REST]], 0
 // CHECK-NEXT: jumpi [[ANY]], [[REVERT:bb[0-9]+]], {{bb[0-9]+}}
 pragma solidity ^0.8.0;

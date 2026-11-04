@@ -180,8 +180,12 @@ impl Liveness {
     }
 
     /// Returns whether every computed value is consumed in its defining block and the
-    /// function reads no arguments.
-    pub(crate) fn is_block_local(func: &Function) -> bool {
+    /// function reads no arguments. A value that `rematerialized` accepts is recomputed at each
+    /// use, so it may cross blocks.
+    pub(crate) fn is_block_local(
+        func: &Function,
+        rematerialized: impl Fn(ValueId) -> bool,
+    ) -> bool {
         let mut defining_blocks = index_vec![None; func.num_insts()];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
@@ -189,7 +193,9 @@ impl Liveness {
             }
         }
         let is_local = |value, block_id| match func.value(value) {
-            Value::Inst(inst_id) => defining_blocks[*inst_id] == Some(block_id),
+            Value::Inst(inst_id) => {
+                defining_blocks[*inst_id] == Some(block_id) || rematerialized(value)
+            }
             Value::Arg(_) => false,
             Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
         };

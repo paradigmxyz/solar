@@ -108,14 +108,18 @@ impl<P: EvmPass> EvmPass for RunsAtNone<P> {
     }
 }
 
-/// All EVM IR passes exposed by `-Zevm-ir-pipeline`.
+/// All EVM IR passes exposed by `-Zevm-ir-pipeline`, one per name: a name resolves to its first
+/// pass, so every pass the canonical pipeline runs needs an entry under a name of its own for
+/// `-Zevm-ir-pipeline` to replay it.
 static ALL_PASSES: &[&dyn EvmPass] = &[
     &block_cse::BlockCse,
+    &peephole::Peephole::EARLY,
     &peephole::Peephole::FINAL,
     &peephole::LateWord,
     &dce::Dce,
     &tail_copy::InlineReturns,
     &reorder_pushes::REORDER_PUSHES,
+    &reorder_pushes::FINAL_REORDER_PUSHES,
     &reorder_pushes::REORDER_EXPRESSIONS,
     &share_reverts::ShareReverts,
     &stack_normalize::StackDedup,
@@ -126,6 +130,7 @@ static ALL_PASSES: &[&dyn EvmPass] = &[
     &coalesce_copies::CoalesceCopies,
     &data::PackData,
     &legalize_revert::LegalizeRevert,
+    &cfg_simplify::CfgSimplify::EARLY,
     &cfg_simplify::CfgSimplify::FINAL,
     &outline::Outline,
     &terminal_dedup::TerminalDedup,
@@ -250,6 +255,8 @@ fn run_passes(
 
         if enabled {
             assert_debug_info_handled(module, pass_name, "before");
+            let origins =
+                crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::evm(module));
             let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let cache_key = PassCacheKey::new(*pass);
@@ -267,6 +274,9 @@ fn run_passes(
             }
             timer.finish("EVM IR", module.name(), pass_name, pass_changed);
             changed |= pass_changed;
+            if module.debug_info_is_tracked() {
+                module.drop_invalid_entry_checkpoints();
+            }
             if gcx.dcx().err_count() != errors_before {
                 return changed;
             }
@@ -274,12 +284,25 @@ fn run_passes(
                 validate_module_after_pass(gcx, module, pass_name, &target_support_before);
             }
             assert_debug_info_handled(module, pass_name, "after");
+            if let Some(origins) = origins
+                && origins
+                    .check(
+                        gcx,
+                        "EVM IR",
+                        module.name(),
+                        pass_name,
+                        crate::debugify::Origins::evm(module),
+                    )
+                    .is_err()
+            {
+                return changed;
+            }
         }
 
         if let Some(before) = before {
             print_pass_diff(&output_name, pass_name, before, module.to_text());
         } else if gcx.sess.opts.unstable.print_after_each && !gcx.sess.opts.unstable.pass_diff {
-            println!("// === {output_name} (after {pass_name}) ===");
+            println!("; === {output_name} (after {pass_name}) ===");
             print!("{}", module.to_text());
         }
     }
@@ -356,9 +379,31 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
             let text = module.to_text();
             print_pass_diff(&name, "none", &text, &text);
         } else if gcx.sess.opts.unstable.print_after_each {
-            println!("// === {name} (after none) ===");
+            println!("; === {name} (after none) ===");
             print!("{}", module.to_text());
         }
     }
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_data_structures::map::FxHashSet;
+
+    #[test]
+    fn default_pipeline_passes_have_unique_names() {
+        let mut names = FxHashSet::default();
+        for pass in ALL_PASSES {
+            assert!(names.insert(pass.name()), "duplicate EVM IR pass name `{}`", pass.name());
+        }
+        for pass in DEFAULT_PIPELINE {
+            let exposed = lookup_pass(pass.name());
+            assert!(
+                exposed.is_some_and(|exposed| exposed.cache_config() == pass.cache_config()),
+                "`{}` names a different configuration of the pass",
+                pass.name(),
+            );
+        }
+    }
 }

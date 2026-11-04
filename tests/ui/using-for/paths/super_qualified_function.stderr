@@ -1,4 +1,4 @@
-error: `super` is a builtin, which cannot be indexed in type paths
+error[9589]: `super` is a builtin, which cannot be indexed in type paths
    ╭▸ ROOT/tests/ui/using-for/paths/super_qualified_function.sol:LL:CC
    │
 LL │     using {super.contractFunction} for uint256;

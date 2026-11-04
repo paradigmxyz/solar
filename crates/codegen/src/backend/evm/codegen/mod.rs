@@ -155,6 +155,7 @@ pub struct EvmCodegen<'gcx> {
     capture_evm_ir: bool,
     capture_scheduled_evm_ir: bool,
     capture_debug_info: bool,
+    display_debug_info: bool,
     /// Whether the MIR pipeline runs before code generation; MIR input has already run it.
     run_pipeline: bool,
     /// MIR sites of deferred runtime allocations, retained only when capturing MIR.
@@ -222,6 +223,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_evm_ir: false,
             capture_scheduled_evm_ir: false,
             capture_debug_info: false,
+            display_debug_info: false,
             run_pipeline: true,
             allocation_sites: FxHashMap::default(),
             return_buffer_sites: FxHashMap::default(),
@@ -299,26 +301,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Reports MIR constructs the backend cannot emit yet.
     ///
-    /// This includes argument-taking fallbacks and logical slices whose
-    /// aggregate use slice lowering could not fold.
+    /// This includes logical slices whose aggregate use slice lowering could not fold.
     ///
     /// Only live instructions — those still in a block — are checked, since the
     /// instruction arena retains folded-away slices the backend never emits.
     #[must_use]
     fn emit_unsupported(&self, module: &Module) -> bool {
-        if module
-            .functions
-            .iter()
-            .any(|func| func.attributes.is_fallback && !func.params.is_empty())
-        {
-            self.gcx
-                .dcx()
-                .err("codegen does not support `fallback(bytes) returns (bytes)` yet")
-                .span(module.name.span)
-                .emit();
-            return true;
-        }
-
         let mut emitted = false;
         'func: for func in module.functions.iter() {
             for inst_id in func.instructions() {
@@ -336,8 +324,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let span = inst.metadata.source_span().unwrap_or(module.name.span);
                 self.gcx
                     .dcx()
-                    .err(message)
-                    .span(span)
+                    .err_at(span, message)
                     .note(format!("remaining MIR slice is in function `{}`", func.name))
                     .emit();
                 emitted = true;
@@ -361,7 +348,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Controls whether generated artifacts include final instruction locations.
     pub fn set_capture_debug_info(&mut self, capture: bool) {
-        self.capture_debug_info = capture;
+        self.capture_debug_info = capture || crate::debugify::enabled(self.gcx);
+        self.display_debug_info = capture;
     }
 
     /// Controls whether modules without an external entry still run the MIR pipeline.

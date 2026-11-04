@@ -4,7 +4,7 @@
 //! local edge helpers below. New edges need explicit phi inputs; none of these helpers updates
 //! cached analyses or reconstructs SSA after moving definitions.
 
-use crate::{BlockId, Function, InstKind, Instruction, Terminator, ValueId};
+use crate::{BlockId, Function, InstKind, Instruction, MirType, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
 use solar_data_structures::{
@@ -64,32 +64,11 @@ fn remap_blocks(func: &mut Function, order: &[BlockId]) -> IndexVec<BlockId, Blo
 }
 
 fn remap_terminator_blocks(terminator: &mut Terminator, remap: &IndexVec<BlockId, BlockId>) {
-    let remap_block = |block: &mut BlockId| {
+    terminator.for_each_successor_mut(|block| {
         let remapped = remap[*block];
         assert_ne!(remapped, BlockId::MAX, "terminator target must be retained");
         *block = remapped;
-    };
-    match terminator {
-        Terminator::Jump(target) => remap_block(target),
-        Terminator::Branch { then_block, else_block, .. } => {
-            remap_block(then_block);
-            remap_block(else_block);
-        }
-        Terminator::Switch { default, cases, .. } => {
-            remap_block(default);
-            for (_, target) in cases {
-                remap_block(target);
-            }
-        }
-        Terminator::Return { .. }
-        | Terminator::Revert { .. }
-        | Terminator::RevertReturndata
-        | Terminator::ReturnData { .. }
-        | Terminator::Stop
-        | Terminator::SelfDestruct { .. }
-        | Terminator::TailCall { .. }
-        | Terminator::Invalid => {}
-    }
+    });
 }
 
 /// Which state-access instructions should receive storage-alias metadata.
@@ -99,6 +78,20 @@ pub enum StorageAliasScope {
     Storage,
     /// Annotate persistent and transient storage accesses.
     StorageAndTransient,
+}
+
+/// Appends a compiler-generated instruction with a result of type `ty` to the end of `block` and
+/// returns its result.
+pub fn append_value_inst(
+    func: &mut Function,
+    block: BlockId,
+    kind: InstKind,
+    ty: MirType,
+) -> ValueId {
+    let (inst, value) =
+        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped());
+    func.blocks[block].instructions.push(inst);
+    value
 }
 
 /// Splits the CFG edge from `pred` to `succ` by inserting a fresh block that

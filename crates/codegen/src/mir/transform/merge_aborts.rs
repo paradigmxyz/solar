@@ -47,15 +47,17 @@
 //!
 //! Profitability: every merge saves a conditional jump and its pushed label for an `and` or `or`,
 //! priced by the target. A zero test of a word that aborts when the word is nonzero, as a
-//! non-payable entry's `ne callvalue, 0` or an address check's `ne (shr 160, x), 0` does, joins
-//! outside loops as the word itself: `c = ne (or w, zext c2), 0`, which a branch reads for free as
-//! it read `w`, so the entry's value check and calldata size check branch once.
+//! non-payable entry's `ne callvalue, 0` does, joins outside loops as the word itself:
+//! `c = ne (or w, zext c2), 0`, which a branch reads for free as it read `w`, so the entry's value
+//! check and calldata size check branch once. The width tests of the ABI decoder, `x > 2^k - 1`
+//! for `uintN`, `address`, `bool`, and enum parameters, are comparisons that join as booleans with
+//! `or`; `spell-width-tests` later turns such a join into one shifted word where the target
+//! prices that lower.
 //!
-//! A signed `intN` parameter's check aborts when `eq x, signextend(b, x)` fails. Outside loops
-//! it joins as the word that is nonzero when it fails, `xor x, signextend(b, x)`, which replaces
-//! the comparison at the price the target gives the pair. The ABI decoder already tests `bool`,
-//! `uintN`, and power-of-two enum parameters as shifted words, which join as above; the e-graph
-//! turns the signed check's exclusive or back into `eq x, signextend(b, x)`, so it has no
+//! A signed `intN` parameter's check aborts when `eq x, signextend(b, x)` fails, or when
+//! `ne x, signextend(b, x)` holds. Outside loops it joins as the word that is nonzero when it
+//! fails, `xor x, signextend(b, x)`, which replaces the comparison at the price the target gives
+//! the pair; the e-graph turns the exclusive or back into the comparison, so it has no
 //! producer-side form. Next to a test that aborts on its false edge, the pair stays comparisons
 //! that combine with `and`, as merges go pair by pair; in loops the test turns
 //! around as above. Other zero tests of words stay apart: a branch reads the word for free, and a
@@ -72,11 +74,11 @@
 use crate::{
     backend::evm::op,
     mir::{
-        BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind, Instruction,
-        MirType, Module, Terminator, Value, ValueId,
+        BlockId, Callee, EffectKind, Function, FunctionId, Immediate, InstKind, MirType, Module,
+        Terminator, Value, ValueId,
         analysis::{CfgInfo, aborts},
         pass::{MirPass, run_function_pass},
-        utils::{rebuild_predecessors, replace_terminator},
+        utils::{append_value_inst, rebuild_predecessors, replace_terminator},
     },
     target::{Cost, Target},
 };
@@ -149,10 +151,12 @@ impl Test {
         self.word.is_none() && !self.aborts_when_true
     }
 
-    /// Turns a range word back into the comparison it came from, which aborts on its false edge.
+    /// Turns a range word back into the comparison it came from, which aborts as it did.
     fn restore_comparison(&mut self) {
+        if let Some(Word::Xor(_, _, aborts_when_true)) = self.word {
+            self.aborts_when_true = aborts_when_true;
+        }
         self.word = None;
-        self.aborts_when_true = false;
     }
 }
 
@@ -161,8 +165,9 @@ impl Test {
 enum Word {
     /// The test's condition, which already is the word.
     Itself,
-    /// `xor a, b`, for a test that `a == b` fails.
-    Xor(ValueId, ValueId),
+    /// `xor a, b`, for a test that `a == b` fails, or that `a != b` holds when the comparison
+    /// aborts when true.
+    Xor(ValueId, ValueId, bool),
 }
 
 impl Word {
@@ -249,19 +254,23 @@ fn test(
     }
     // A range check that aborts when it fails leaves a nonzero word: the same join as above.
     // Loops keep such a test whole, to turn around into its complement.
-    if !aborts_when_true
-        && !cyclic.contains(block)
-        && let Some(word) = range_word(func, condition)
+    if !cyclic.contains(block)
+        && let Some(word) = range_word(func, condition, aborts_when_true)
     {
         return Some(Test { condition, abort, next, aborts_when_true: true, word: Some(word) });
     }
     Some(Test { condition, abort, next, aborts_when_true, word: None })
 }
 
-/// The word that is nonzero exactly when `condition` fails, for a signed ABI range check:
-/// `x == signextend(b, x)` fails when their `xor` is nonzero.
-fn range_word(func: &Function, condition: ValueId) -> Option<Word> {
-    let &InstKind::Eq(a, b) = func.value_inst_kind(condition)? else { return None };
+/// The word that is nonzero exactly when a signed ABI range check fails, when the check aborts
+/// on it: `x != signextend(b, x)` holds, or `x == signextend(b, x)` fails, when their `xor` is
+/// nonzero.
+fn range_word(func: &Function, condition: ValueId, aborts_when_true: bool) -> Option<Word> {
+    let ((&InstKind::Ne(a, b), true) | (&InstKind::Eq(a, b), false)) =
+        (func.value_inst_kind(condition)?, aborts_when_true)
+    else {
+        return None;
+    };
     let extends = |extended: ValueId, word: ValueId| {
         matches!(
             func.value_inst_kind(extended),
@@ -271,7 +280,7 @@ fn range_word(func: &Function, condition: ValueId) -> Option<Word> {
     ((extends(a, b) || extends(b, a))
         && func.value_u256(a).is_none()
         && func.value_ty(a) == Some(MirType::I256))
-    .then_some(Word::Xor(a, b))
+    .then_some(Word::Xor(a, b, aborts_when_true))
 }
 
 /// The word a condition compares with zero, and whether the condition holds when it is nonzero.
@@ -420,15 +429,7 @@ fn complement(func: &Function, condition: ValueId) -> Option<Compare> {
 
 /// Appends a compiler-generated instruction to a block and returns its result.
 fn append(func: &mut Function, block: BlockId, kind: InstKind) -> ValueId {
-    append_typed(func, block, kind, MirType::I1)
-}
-
-/// Appends a compiler-generated instruction with a result of type `ty` to a block.
-fn append_typed(func: &mut Function, block: BlockId, kind: InstKind, ty: MirType) -> ValueId {
-    let (inst, value) =
-        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped());
-    func.blocks[block].instructions.push(inst);
-    value
+    append_value_inst(func, block, kind, MirType::I1)
 }
 
 fn merge(
@@ -467,11 +468,13 @@ fn merge(
         // jumpi c, abort, b3
         let mut as_word = |test: &Test| match test.word {
             Some(Word::Itself) => test.condition,
-            Some(Word::Xor(a, b)) => append_typed(func, block, InstKind::Xor(a, b), MirType::I256),
-            None => append_typed(func, block, InstKind::Zext(test.condition), MirType::I256),
+            Some(Word::Xor(a, b, _)) => {
+                append_value_inst(func, block, InstKind::Xor(a, b), MirType::I256)
+            }
+            None => append_value_inst(func, block, InstKind::Zext(test.condition), MirType::I256),
         };
         let (a, b) = (as_word(&first), as_word(&second));
-        let word = append_typed(func, block, InstKind::Or(a, b), MirType::I256);
+        let word = append_value_inst(func, block, InstKind::Or(a, b), MirType::I256);
         let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         append(func, block, InstKind::Ne(word, zero))
     } else if second.aborts_when_true
@@ -566,7 +569,7 @@ fn upper_bound(func: &Function, value: ValueId, depth: usize) -> Option<U256> {
         | InstKind::SLt(..)
         | InstKind::SGt(..)
         | InstKind::Eq(..)
-        | InstKind::Ne(..) => Some(U256::from(1)),
+        | InstKind::Ne(..) => Some(U256::ONE),
         InstKind::Zext(source, ..) => upper_bound(func, source, depth),
         InstKind::And(a, b) => match (upper_bound(func, a, depth), upper_bound(func, b, depth)) {
             (Some(a), Some(b)) => Some(a.min(b)),

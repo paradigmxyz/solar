@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicCallee ===
+; === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicCallee ===
 @module DynamicCallee
 @types
   struct0: {i256, ptr<memory>}
@@ -38,7 +38,7 @@ fn @mixed() -> struct0 [selector=0x354df1f9, pure, abi_params=[], abi_returns=[w
     ret v3
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicReturnUnused ===
+; === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_unused_evm_version.sol:DynamicReturnUnused ===
 @module DynamicReturnUnused
 @types
   struct0: {i256, i256}
@@ -55,9 +55,9 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
@@ -74,9 +74,9 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v17 = mload v8
     ret 1
 }
@@ -90,9 +90,9 @@ fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
@@ -109,9 +109,9 @@ fn @liveString() -> i256 [selector=0x86c92c52, abi_params=[], abi_returns=[word]
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v17 = mload v8
     ret 1
 }
@@ -125,9 +125,9 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
@@ -144,17 +144,17 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb3, bb4
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jumpi true, bb6, bb7
-  bb7 [cold_hint]:  ; preds = bb4
+  bb7 [cold_hint]:                                ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6 [cold_hint]:  ; preds = bb4
+  bb6 [cold_hint]:                                ; preds = bb4
     jump bb5
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v17 = mload v8
     jump bb5
-  bb5:  ; preds = bb3, bb6
+  bb5:                                            ; preds = bb3, bb6
     v18 = phi [bb3: 1], [bb6: 2]
     ret v18
 }
@@ -168,9 +168,9 @@ fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word],
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 64
@@ -187,9 +187,9 @@ fn @liveMixed() -> i256 [selector=0xaf1b6bff, abi_params=[], abi_returns=[word],
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 64
     jumpi v16, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v17 = mload v8
     v18 = ptrtoint ptr<memory> v8 to i256
     v19 = add v18, 32
@@ -210,9 +210,9 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = fmp
     v5 = ptrtoint ptr<memory> v4 to i256
     v6 = add v5, 32
@@ -229,9 +229,9 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
     v15 = zext i160 v2 to i256
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v17 = mload v8
     v18 = fmp
     v19 = ptrtoint ptr<memory> v18 to i256
@@ -249,9 +249,9 @@ fn @liveTuple() -> i256 [selector=0x04e1eee0, abi_params=[], abi_returns=[word],
     v29 = zext i160 v2 to i256
     v30 = call v28, v29, 0, v22, v23, v22, 32
     jumpi v30, bb6, bb5
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     v31 = mload v22
     ret 1
 }
@@ -265,9 +265,9 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = zext i160 v2 to i256
     v5 = shl v4, 32
     v6 = or v5, 0x7271bb2c
@@ -288,9 +288,9 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v19 = sub v18, 50
     v20 = call v19, v9, 0, v14, v15, v14, 32
     jumpi v20, bb4, bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v21 = mload v14
     ret 1
 }
@@ -304,21 +304,21 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2, bb5
+  bb3:                                            ; preds = bb2, bb5
     v4 = phi [bb2: 0], [bb5: v22]
     v5 = phi [bb2: v2], [bb5: v5]
     v6 = phi [bb2: 0], [bb5: v23]
     v7 = lt v6, 3
     jumpi v7, bb6, bb7
-  bb7:  ; preds = bb3
+  bb7:                                            ; preds = bb3
     jump bb4
-  bb4:  ; preds = bb7
+  bb4:                                            ; preds = bb7
     ret v4
-  bb6:  ; preds = bb3
+  bb6:                                            ; preds = bb3
     v8 = fmp
     v9 = ptrtoint ptr<memory> v8 to i256
     v10 = add v9, 32
@@ -335,15 +335,15 @@ fn @liveLoop() -> i256 [selector=0xcb9e3e0f, abi_params=[], abi_returns=[word], 
     v19 = zext i160 v5 to i256
     v20 = call v18, v19, 0, v12, v13, v12, 32
     jumpi v20, bb10, bb9
-  bb9:  ; preds = bb6
+  bb9:                                            ; preds = bb6
     revert_returndata
-  bb10:  ; preds = bb6
+  bb10:                                           ; preds = bb6
     v21 = mload v12
     v22 = checked_add uint256, v4, 1
     jump bb8
-  bb8:  ; preds = bb10
+  bb8:                                            ; preds = bb10
     jump bb5
-  bb5:  ; preds = bb8
+  bb5:                                            ; preds = bb8
     v23 = checked_add uint256, v6, 1
     jump bb3
 }
@@ -365,9 +365,9 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
     v9 = sub v8, 50
     v10 = call v9, 0, 0, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v11 = mload v4
     ret 1
 }
@@ -389,17 +389,17 @@ fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word],
     v9 = sub v8, 50
     v10 = call v9, 0, 0, v4, v5, v4, 32
     jumpi v10, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v11 = mload v4
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v12 = phi [bb1: 1], [bb4: 2]
     ret v12
 }

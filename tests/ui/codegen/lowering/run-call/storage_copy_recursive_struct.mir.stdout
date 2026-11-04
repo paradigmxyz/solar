@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/storage_copy_recursive_struct.sol:StorageCopyRecursiveStruct ===
+; === ROOT/tests/ui/codegen/lowering/run-call/storage_copy_recursive_struct.sol:StorageCopyRecursiveStruct ===
 @module StorageCopyRecursiveStruct
 @types
   struct0: {i256, i128, i256, i128, i256, i128, i256, i128, i256, i256}
@@ -20,7 +20,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v8 = add v6, v7
     sstore 2, v5 !metadata(storage=slot(2))
     v9 = sload 2 !metadata(storage=slot(2))
-    v10 = lt 0, v9
+    v10 = gt v9, 0
     v11 = eq v10, false
     icall panic_if<0x32>, v11
     v12 = storage_array_data_slot 2
@@ -29,7 +29,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v15 = or v14, 2
     sstore v12, v15 !metadata(storage=symbolic(v12))
     v16 = sload 2 !metadata(storage=slot(2))
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = storage_array_data_slot 2
@@ -43,13 +43,13 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v26 = add v24, v25
     sstore v20, v23 !metadata(storage=offset(v19, 2))
     v27 = sload 2 !metadata(storage=slot(2))
-    v28 = lt 0, v27
+    v28 = gt v27, 0
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = storage_array_data_slot 2
     v31 = add v30, 2
     v32 = sload v31 !metadata(storage=offset(v30, 2))
-    v33 = lt 0, v32
+    v33 = gt v32, 0
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = storage_array_data_slot v31
@@ -66,7 +66,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v44 = add v42, v43
     sstore 2, v41 !metadata(storage=slot(2))
     v45 = sload 2 !metadata(storage=slot(2))
-    v46 = lt 1, v45
+    v46 = gt v45, 1
     v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = storage_array_data_slot 2
@@ -111,7 +111,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v77 = add v75, v76
     icall @clear_recursive_storage_0, v77
     v78 = sload 2 !metadata(storage=slot(2))
-    v79 = lt 0, v78
+    v79 = gt v78, 0
     v80 = eq v79, false
     icall panic_if<0x32>, v80
     v81 = storage_array_data_slot 2
@@ -142,7 +142,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     icall @store_recursive_storage_0_0, v100, v85
     sstore 6, v97 !metadata(storage=slot(6))
     v101 = sload 2 !metadata(storage=slot(2))
-    v102 = lt 0, v101
+    v102 = gt v101, 0
     v103 = eq v102, false
     icall panic_if<0x32>, v103
     v104 = storage_array_data_slot 2
@@ -151,7 +151,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v107 = or v106, 8
     sstore v104, v107 !metadata(storage=symbolic(v104))
     v108 = sload 6 !metadata(storage=slot(6))
-    v109 = lt 0, v108
+    v109 = gt v108, 0
     v110 = eq v109, false
     icall panic_if<0x32>, v110
     v111 = storage_array_data_slot 6
@@ -194,66 +194,66 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     sstore 6, v135 !metadata(storage=slot(6))
     v139 = sload 6 !metadata(storage=slot(6))
     v140 = sload 6 !metadata(storage=slot(6))
-    v141 = lt 0, v140
+    v141 = gt v140, 0
     v142 = eq v141, false
     icall panic_if<0x32>, v142
     v143 = storage_array_data_slot 6
     v144 = sload v143 !metadata(storage=symbolic(v143))
     v145 = trunc i256 v144 to i128
     v146 = sload 6 !metadata(storage=slot(6))
-    v147 = lt 0, v146
+    v147 = gt v146, 0
     v148 = eq v147, false
     icall panic_if<0x32>, v148
     v149 = storage_array_data_slot 6
     v150 = add v149, 2
     v151 = sload v150 !metadata(storage=offset(v149, 2))
     v152 = sload 6 !metadata(storage=slot(6))
-    v153 = lt 0, v152
+    v153 = gt v152, 0
     v154 = eq v153, false
     icall panic_if<0x32>, v154
     v155 = storage_array_data_slot 6
     v156 = add v155, 2
     v157 = sload v156 !metadata(storage=offset(v155, 2))
-    v158 = lt 0, v157
+    v158 = gt v157, 0
     v159 = eq v158, false
     icall panic_if<0x32>, v159
     v160 = storage_array_data_slot v156
     v161 = sload v160 !metadata(storage=symbolic(v160))
     v162 = trunc i256 v161 to i128
     v163 = sload 6 !metadata(storage=slot(6))
-    v164 = lt 0, v163
+    v164 = gt v163, 0
     v165 = eq v164, false
     icall panic_if<0x32>, v165
     v166 = storage_array_data_slot 6
     v167 = add v166, 2
     v168 = sload v167 !metadata(storage=offset(v166, 2))
-    v169 = lt 0, v168
+    v169 = gt v168, 0
     v170 = eq v169, false
     icall panic_if<0x32>, v170
     v171 = storage_array_data_slot v167
     v172 = add v171, 2
     v173 = sload v172 !metadata(storage=offset(v171, 2))
     v174 = sload 6 !metadata(storage=slot(6))
-    v175 = lt 0, v174
+    v175 = gt v174, 0
     v176 = eq v175, false
     icall panic_if<0x32>, v176
     v177 = storage_array_data_slot 6
     v178 = add v177, 2
     v179 = sload v178 !metadata(storage=offset(v177, 2))
-    v180 = lt 0, v179
+    v180 = gt v179, 0
     v181 = eq v180, false
     icall panic_if<0x32>, v181
     v182 = storage_array_data_slot v178
     v183 = add v182, 2
     v184 = sload v183 !metadata(storage=offset(v182, 2))
-    v185 = lt 0, v184
+    v185 = gt v184, 0
     v186 = eq v185, false
     icall panic_if<0x32>, v186
     v187 = storage_array_data_slot v183
     v188 = sload v187 !metadata(storage=symbolic(v187))
     v189 = trunc i256 v188 to i128
     v190 = sload 6 !metadata(storage=slot(6))
-    v191 = lt 0, v190
+    v191 = gt v190, 0
     v192 = eq v191, false
     icall panic_if<0x32>, v192
     v193 = storage_array_data_slot 6
@@ -263,25 +263,25 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v196 = and v195, 1
     v197 = eq v196, 1
     v198 = sub 0, v196
-    v199 = or 127, v198
+    v199 = or v198, 127
     v200 = shr v195, 1
     v201 = and v200, v199
     v202 = sload 6 !metadata(storage=slot(6))
-    v203 = lt 1, v202
+    v203 = gt v202, 1
     v204 = eq v203, false
     icall panic_if<0x32>, v204
     v205 = storage_array_data_slot 6
     v206 = add v205, 3
     v207 = add v206, 2
     v208 = sload v207 !metadata(storage=offset(v205, 5))
-    v209 = lt 0, v208
+    v209 = gt v208, 0
     v210 = eq v209, false
     icall panic_if<0x32>, v210
     v211 = storage_array_data_slot v207
     v212 = sload v211 !metadata(storage=symbolic(v211))
     v213 = trunc i256 v212 to i128
     v214 = sload 6 !metadata(storage=slot(6))
-    v215 = lt 2, v214
+    v215 = gt v214, 2
     v216 = eq v215, false
     icall panic_if<0x32>, v216
     v217 = storage_array_data_slot 6
@@ -289,7 +289,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v219 = add v218, 2
     v220 = sload v219 !metadata(storage=offset(v217, 8))
     v221 = sload 6 !metadata(storage=slot(6))
-    v222 = lt 1, v221
+    v222 = gt v221, 1
     v223 = eq v222, false
     icall panic_if<0x32>, v223
     v224 = storage_array_data_slot 6
@@ -300,7 +300,7 @@ fn @exercise() -> struct0 [selector=0xd32cb0fe, abi_params=[], abi_returns=[word
     v228 = and v227, 1
     v229 = eq v228, 1
     v230 = sub 0, v228
-    v231 = or 127, v230
+    v231 = or v230, 127
     v232 = shr v227, 1
     v233 = and v232, v231
     v234 = insert_value struct0, undef struct0, 0, v139
@@ -325,7 +325,7 @@ fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
 fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    v1 = gt v0, 0x7fffffffffffffe
+    v1 = gt v0, 0x7ffffffffffffff
     icall panic_if<0x41>, v1
     v2 = add v0, 1
     v3 = mul v2, 32
@@ -333,14 +333,14 @@ fn @load_storage_struct_array_0(arg0: i256) -> ptr<memory> {
     mstore v4, v0
     v5 = storage_array_data_slot arg0
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v6 = phi [bb0: 0], [bb2: v25]
     v7 = phi [bb0: v5], [bb2: v26]
     v8 = lt v6, v0
     jumpi v8, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     ret v4
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v9 = alloc checked 96
     v10 = sload v7 !metadata(storage=symbolic(v7))
     v11 = trunc i256 v10 to i128
@@ -384,26 +384,26 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: ptr<memory>) {
     v11 = mload v10
     v12 = mload v11
     v13 = sload v9 !metadata(storage=offset(arg0, 2))
-    v14 = gt v13, v12
+    v14 = lt v12, v13
     jumpi v14, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v15 = phi [bb1: v12], [bb4: v20]
     v16 = lt v15, v13
     jumpi v16, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore v9, v12 !metadata(storage=offset(arg0, 2))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v21 = phi [bb2: 0], [bb7: v31]
     v22 = lt v21, v12
     jumpi v22, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     ret
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v23 = shl v21, 5
     v24 = inttoptr i256 v11 to ptr<memory>
     v25 = ptradd v24, v23
@@ -415,7 +415,7 @@ fn @store_recursive_storage_0_0(arg0: i256, arg1: ptr<memory>) {
     icall @store_recursive_storage_0_0, v30, v27
     v31 = add v21, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v17 = storage_array_data_slot v9
     v18 = mul v15, 3
     v19 = add v17, v18
@@ -439,28 +439,28 @@ fn @clear_recursive_storage_0(arg0: i256) {
     v2 = and v1, 1
     v3 = eq v2, 1
     v4 = sub 0, v2
-    v5 = or 127, v4
+    v5 = or v4, 127
     v6 = shr v1, 1
     v7 = and v6, v5
     v8 = add v7, 31
     v9 = div v8, 32
     jumpi v3, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     clear_storage_words v0, 0, v9
     jump bb2
-  bb2:  ; preds = bb0, bb1
+  bb2:                                            ; preds = bb0, bb1
     sstore v0, 0 !metadata(storage=offset(arg0, 1))
     v10 = add arg0, 2
     v11 = sload v10 !metadata(storage=offset(arg0, 2))
     sstore v10, 0 !metadata(storage=offset(arg0, 2))
     jump bb3
-  bb3:  ; preds = bb2, bb4
+  bb3:                                            ; preds = bb2, bb4
     v12 = phi [bb2: 0], [bb4: v17]
     v13 = lt v12, v11
     jumpi v13, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     ret
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v14 = storage_array_data_slot v10
     v15 = mul v12, 3
     v16 = add v14, v15

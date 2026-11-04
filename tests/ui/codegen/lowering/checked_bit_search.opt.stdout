@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/checked_bit_search.sol:LibBit ===
+; === ROOT/tests/ui/codegen/lowering/checked_bit_search.sol:LibBit ===
 @module LibBit
 @phase lowered
 @library
@@ -8,7 +8,7 @@ fn @entry() [entry, cold] {
     revert 0, 0
 }
 
-// === ROOT/tests/ui/codegen/lowering/checked_bit_search.sol:CheckedBitSearch ===
+; === ROOT/tests/ui/codegen/lowering/checked_bit_search.sol:CheckedBitSearch ===
 @module CheckedBitSearch
 @phase lowered
 ; runtime dispatch entry
@@ -21,108 +21,115 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0x2297890a => bb3, 0x27be8b2d => bb4, 0x30244f7a => bb5]
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     tail_call @clz.1
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     tail_call @fls.0
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     tail_call @ffs.2
-  bb1 [cold]:  ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
 
 ; function fls(uint256 x) external pure returns (uint256) [selector 0x27be8b2d]
-fn @fls.0() [selector=0x27be8b2d, abi_wrapper, pure] {
+fn @fls.0() {
   bb0:
-    v0 = icall @fls.3, arg0
+    v3 = calldataload 4
+    v0 = icall @fls.3, v3
     mstore 0, v0 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function clz(uint256 x) external pure returns (uint256) [selector 0x30244f7a]
-fn @clz.1() [selector=0x30244f7a, abi_wrapper, pure] {
+fn @clz.1() {
   bb0:
-    v1 = eq arg0, 0
+    v10 = calldataload 4
+    v1 = eq v10, 0
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb0
-    v2 = icall @fls.3, arg0
+  bb1:                                            ; preds = bb0
+    v11 = calldataload 4
+    v2 = icall @fls.3, v11
     v6 = sub 255, v2
     v7 = gt v2, 255
     jumpi v7, bb3, bb2
-  bb3 [cold]:  ; preds = bb1
+  bb3 [cold]:                                     ; preds = bb1
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb2:  ; preds = bb0, bb1
+  bb2:                                            ; preds = bb0, bb1
     v4 = phi [bb0: 256], [bb1: v6]
     mstore 0, v4 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function ffs(uint256 x) external pure returns (uint256) [selector 0x2297890a]
-fn @ffs.2() [selector=0x2297890a, abi_wrapper, pure] {
+fn @ffs.2() {
   bb0:
-    v1 = eq arg0, 0
+    v10 = calldataload 4
+    v1 = eq v10, 0
     jumpi v1, bb2, bb1
-  bb1:  ; preds = bb0
-    v2 = not arg0
+  bb1:                                            ; preds = bb0
+    v11 = calldataload 4
+    v2 = not v11
     v3 = add v2, 1
-    v4 = and arg0, v3
+    v4 = and v3, v11
     v5 = icall @fls.3, v4
     jump bb2
-  bb2:  ; preds = bb0, bb1
+  bb2:                                            ; preds = bb0, bb1
     v6 = phi [bb0: 256], [bb1: v5]
     mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
 }
 
 ; function fls(uint256 x) internal pure returns (uint256 r)
-fn @fls.3(arg0: i256) -> i256 [pure] {
+fn @fls.3(arg0: i256) -> i256 {
   bb0:
     v0 = eq arg0, 0
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
-    v2 = gt arg0, 0xffffffffffffffffffffffffffffffff
-    v44 = zext i1 v2 to i256
-    v45 = shl v44, 7
-    v46 = shr arg0, v45
-    v7 = gt v46, 0xffffffffffffffff
-    v49 = zext i1 v7 to i256
-    v50 = shl v49, 6
-    v51 = shr v46, v50
-    v54 = or v45, v50
-    v13 = gt v51, 0xffffffff
-    v55 = zext i1 v13 to i256
-    v56 = shl v55, 5
-    v57 = shr v51, v56
-    v60 = or v54, v56
-    v19 = gt v57, 0xffff
-    v61 = zext i1 v19 to i256
-    v62 = shl v61, 4
-    v63 = shr v57, v62
-    v66 = or v60, v62
-    v25 = gt v63, 255
-    v67 = zext i1 v25 to i256
-    v68 = shl v67, 3
-    v69 = shr v63, v68
-    v72 = or v66, v68
-    v31 = gt v69, 15
-    v73 = zext i1 v31 to i256
-    v74 = shl v73, 2
-    v75 = shr v69, v74
-    v78 = or v72, v74
-    v37 = gt v75, 3
-    v79 = zext i1 v37 to i256
-    v80 = add v79, v79
-    v81 = shr v75, v80
-    v84 = or v78, v80
-    v42 = shr v81, 1
-    v43 = or v84, v42
+  bb2:                                            ; preds = bb0
+    v92 = shr arg0, 128
+    v2 = ne v92, 0
+    v51 = zext i1 v2 to i256
+    v52 = shl v51, 7
+    v53 = shr arg0, v52
+    v94 = shr v53, 64
+    v7 = ne v94, 0
+    v56 = zext i1 v7 to i256
+    v57 = shl v56, 6
+    v58 = shr v53, v57
+    v61 = or v52, v57
+    v13 = gt v58, 0xffffffff
+    v62 = zext i1 v13 to i256
+    v63 = shl v62, 5
+    v64 = shr v58, v63
+    v67 = or v61, v63
+    v19 = gt v64, 0xffff
+    v68 = zext i1 v19 to i256
+    v69 = shl v68, 4
+    v70 = shr v64, v69
+    v73 = or v67, v69
+    v25 = gt v70, 255
+    v74 = zext i1 v25 to i256
+    v75 = shl v74, 3
+    v76 = shr v70, v75
+    v79 = or v73, v75
+    v31 = gt v76, 15
+    v80 = zext i1 v31 to i256
+    v81 = shl v80, 2
+    v82 = shr v76, v81
+    v85 = or v79, v81
+    v37 = gt v82, 3
+    v86 = zext i1 v37 to i256
+    v87 = add v86, v86
+    v91 = or v85, v87
+    v88 = shr v82, v87
+    v42 = shr v88, 1
+    v43 = or v42, v91
     ret v43
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret 256
 }

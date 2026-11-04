@@ -4,9 +4,9 @@
 //! instructions become nodes over the canonical values of their operands.
 //! Constants stay on the right of commutative operations and comparisons,
 //! reversing comparison predicates when needed. Matching, node insertion, and
-//! final materialization share this ordering; equal-rank operands retain theirs.
-//! Nodes are hash-consed within dominator scopes, so an expression that already
-//! has a dominating definition reuses it. The rules in `isle/mir/egraph` run
+//! final materialization share this ordering; equal-rank operands retain their written order, but
+//! two constants order by value. Nodes are hash-consed within dominator scopes, so an expression
+//! that already has a dominating definition reuses it. The rules in `isle/mir/egraph` run
 //! on every new node: `simplify` merges the node's class into an existing
 //! value and `rewrite` adds an equivalent node to the class. New nodes only
 //! reference classes that already exist, so no rebuild or fixpoint is needed.
@@ -132,15 +132,8 @@ impl MirPass for Egraph {
         let mut flat = DenseBitSet::new_empty(module.functions.len());
         let mut with_cfg = DenseBitSet::new_empty(module.functions.len());
         for (func_id, func) in module.functions.iter_enumerated() {
-            let empty_return = func.is_runtime_entry()
-                && func.blocks.iter().any(|block| {
-                    matches!(
-                        block.terminator,
-                        Some(Terminator::ReturnData { size, .. }) if is_zero(func, size)
-                    )
-                });
             if !fresh_mapping_entries.contains(func_id)
-                && (func.instructions().next().is_some() || empty_return)
+                && (func.instructions().next().is_some() || returns_zero_bytes(func))
             {
                 let has_edges = func
                     .blocks
@@ -184,9 +177,16 @@ impl MirPass for Egraph {
     }
 }
 
+/// Whether a block of `func` returns zero bytes, which the pass turns into `stop`.
+fn returns_zero_bytes(func: &Function) -> bool {
+    func.blocks.iter().any(|block| {
+        matches!(block.terminator, Some(Terminator::ReturnData { size, .. }) if is_zero(func, size))
+    })
+}
+
 /// Proves ABI-decoded keys remain below scratch and no code observes scratch writes.
 fn has_fresh_mapping_arguments(func: &Function) -> bool {
-    if func.selector.is_none() || func.attributes.is_constructor || func.attributes.is_abi_wrapper {
+    if func.selector.is_none() || func.attributes.is_abi_wrapper {
         return false;
     }
     let Some(abi_params) = &func.abi_params else { return false };
@@ -529,7 +529,7 @@ impl<'a> Builder<'a> {
         }
         let kind = inst.kind.op();
         let op = kind.map_values(|value| self.resolve(value));
-        let op = canonical_operands(self.func, op);
+        let op = self.func.canonical_op(op);
 
         // An equal expression with a dominating definition: reuse it.
         let key = (canonical(op), ty);
@@ -572,7 +572,7 @@ impl<'a> Builder<'a> {
                 }
                 for next in alternatives.drain(..) {
                     let next = next.map_values(|value| self.resolve(value));
-                    let next = canonical_operands(self.func, next);
+                    let next = self.func.canonical_op(next);
                     if !nodes.contains(&next)
                         && nodes.len() < node_limit
                         && next
@@ -665,7 +665,7 @@ impl<'a> Builder<'a> {
         limit: usize,
     ) -> (SmallVec<[(ValueId, Op); MAX_OPERAND_VIEWS]>, bool) {
         let mut views = SmallVec::new();
-        for operand in operands_of(node) {
+        for operand in node.operands() {
             if let Some(class) = self.classes.get(operand) {
                 for &alternative in class.nodes.iter().skip(1) {
                     let view = (operand, alternative);
@@ -758,7 +758,7 @@ impl<'a> Builder<'a> {
         let mut alternatives = mem::take(&mut self.alternatives);
         for _ in 0..self.max_nodes {
             alternatives.clear();
-            let canonical_op = canonical_operands(self.func, current);
+            let canonical_op = self.func.canonical_op(current);
             self.rule_context(block).rewrite(&canonical_op, &mut alternatives);
             let Some(next) = alternatives.iter().find_map(|next| {
                 let next = next.map_values(|value| self.resolve(value));
@@ -776,7 +776,11 @@ impl<'a> Builder<'a> {
             return;
         }
         // %r = <rewritten instruction over canonical operands>
-        let kind = current.into_kind().expect("rewrite rules produce complete instructions");
+        let kind = self
+            .func
+            .canonical_op(current)
+            .into_kind()
+            .expect("rewrite rules produce complete instructions");
         let inst = self.func.inst_mut(inst_id);
         tracing::trace!(
             target: TRACE_TARGET,
@@ -895,9 +899,8 @@ impl<'a> Builder<'a> {
         let name = self.func.name;
         for (home, best) in cheapest {
             let best = best.map_values(|value| resolve_replacement(value, &self.merged));
-            let kind = canonical_operands(self.func, best)
-                .into_kind()
-                .expect("nodes are complete instructions");
+            let kind =
+                self.func.canonical_op(best).into_kind().expect("nodes are complete instructions");
             let inst = self.func.inst_mut(home);
             if inst.kind != kind {
                 tracing::trace!(
@@ -934,11 +937,10 @@ impl<'a> Builder<'a> {
     }
 
     /// Branches on `eq x, false` swap their targets and branch on `x`, branches
-    /// on a nonzero test branch on the tested value, and an external return
+    /// on a nonzero test branch on the tested value, and a return
     /// of zero bytes stops.
     fn rewrite_terminators(&mut self) {
         let func = &mut *self.func;
-        let externally_terminating = func.is_runtime_entry();
         for block_id in func.blocks.indices() {
             loop {
                 let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
@@ -988,8 +990,7 @@ impl<'a> Builder<'a> {
                 self.changed += 1;
             }
 
-            if externally_terminating
-                && let Some(Terminator::ReturnData { size, .. }) = func.blocks[block_id].terminator
+            if let Some(Terminator::ReturnData { size, .. }) = func.blocks[block_id].terminator
                 && is_zero(func, resolve_replacement(size, &self.merged))
             {
                 func.blocks[block_id].terminator = Some(Terminator::Stop);
@@ -1257,11 +1258,9 @@ fn is_node(kind: &InstKind) -> bool {
     let pure = definition.effect == EffectKind::Pure
         && !definition.has_side_effects
         && !matches!(kind, InstKind::Phi(_));
-    // Stable context reads are rematerialized by the backend. Keep calldata size separate:
-    // merging it extends ABI-decoding live ranges and can introduce spills.
+    // Stable context reads are rematerialized by the backend.
     let frame_invariant = definition.effect == EffectKind::EnvironmentRead
-        && definition.traits.contains(OpTraits::REMATERIALIZABLE)
-        && !matches!(kind, InstKind::CalldataSize);
+        && definition.traits.contains(OpTraits::REMATERIALIZABLE);
     pure || frame_invariant
         || matches!(
             kind,
@@ -1271,33 +1270,10 @@ fn is_node(kind: &InstKind) -> bool {
         )
 }
 
-/// Keeps constants on the right without reassociating or adding nodes.
-fn canonical_operands(func: &Function, op: Op) -> Op {
-    let is_const = |value| func.value(value).as_immediate().is_some();
-    // op(constant, value, rest) => op(value, constant, rest)
-    let op = op.canonicalize_commutative_by_key(is_const);
-    let swap = |a, b| is_const(a) && !is_const(b);
-    match op {
-        // constant < value => value > constant
-        Op::Lt { a, b } if swap(a, b) => Op::Gt { a: b, b: a },
-        // constant > value => value < constant
-        Op::Gt { a, b } if swap(a, b) => Op::Lt { a: b, b: a },
-        // signed(constant) < signed(value) => signed(value) > signed(constant)
-        Op::SLt { a, b } if swap(a, b) => Op::SGt { a: b, b: a },
-        // signed(constant) > signed(value) => signed(value) < signed(constant)
-        Op::SGt { a, b } if swap(a, b) => Op::SLt { a: b, b: a },
-        other => other,
-    }
-}
-
 /// Orders commutative operands and flips reversed comparisons so equal
 /// expressions share one key, independently of emitted operand order.
 fn canonical(op: Op) -> Op {
-    match op.canonicalize_commutative() {
-        Op::Gt { a, b } => Op::Lt { a: b, b: a },
-        Op::SGt { a, b } => Op::SLt { a: b, b: a },
-        other => other,
-    }
+    op.canonicalize_commutative().less_than_form()
 }
 
 /// Folds an instruction over immediate operands to an immediate result.
@@ -1360,7 +1336,7 @@ pub(super) fn fold_constant(
     }
     let value = const_fold(func, kind, ty).or_else(|| {
         if is_node(kind) && kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
-            let op = canonical_operands(func, kind.op());
+            let op = func.canonical_op(kind.op());
             isle::RuleContext::new(func, evm).simplify(&op)
         } else {
             None
@@ -1467,20 +1443,17 @@ impl Costs<'_> {
 
     /// Cost of computing `node` in place of the instruction that roots `class`.
     fn node(&mut self, class: &Class, node: &Op) -> Cost {
-        let mut operands = operands_of(node);
+        let mut operands = node.operands();
         if let Some(value) = Target::zero_test_input(node, |value| self.func.value_u256(value)) {
             operands.clear();
             operands.push(value);
         }
-        let original = (node != &class.nodes[0]).then(|| operands_of(&class.nodes[0]));
+        let original = (node != &class.nodes[0]).then(|| class.nodes[0].operands());
         // An operand shared with other users is computed regardless of this
         // choice; an immediate is pushed at every use.
         let func = self.func;
         let target = self.target.priced_for_cold(class.cold);
-        let mut cost = target.op(node, |value| match func.value(value) {
-            Value::Immediate(immediate) => immediate.as_u256(),
-            _ => None,
-        });
+        let mut cost = target.op(node, |value| func.value_u256(value));
         for &operand in &operands {
             if matches!(self.func.value(operand), Value::Immediate(_))
                 || self.uses(operand) <= 1
@@ -1521,19 +1494,8 @@ impl Costs<'_> {
         original.iter().any(|&value| {
             self.shared_displaced(value, operands)
                 && self.classes.get(value).is_some_and(|class| {
-                    class.nodes.iter().all(|node| operands_of(node).contains(&input))
+                    class.nodes.iter().all(|node| node.operands().contains(&input))
                 })
         })
     }
-}
-
-/// Returns the value operands of a node.
-fn operands_of(node: &Op) -> SmallVec<[ValueId; 8]> {
-    let mut operands = SmallVec::new();
-    // Only the visit matters; the mapped copy is discarded.
-    let _ = node.map_values(|value| {
-        operands.push(value);
-        value
-    });
-    operands
 }

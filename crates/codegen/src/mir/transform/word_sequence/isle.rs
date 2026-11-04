@@ -4,12 +4,13 @@
 //! to earlier temporaries. They are resolved when a winning recipe is committed;
 //! rejected recipes leave the function and its metadata untouched.
 
-use super::{Recipe, Stage, Temporary, mask_uses::MaskUses, widest_int_operand};
+use super::{ConditionRead, Recipe, Stage, Temporary, mask_uses::MaskUses, widest_int_operand};
 use crate::{
     backend::evm::op,
     mir::{
         Function, InstId, InstKind, MirType, Op, Value as MirValue, ValueId,
         analysis::integers::integer_mask,
+        transform::commute::{Reading, Spellings, commutative_definition, swappable},
     },
     target::Target,
 };
@@ -42,6 +43,7 @@ mod generated {
     include!(concat!(env!("OUT_DIR"), "/word_sequence.isle.rs"));
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn alternatives(
     func: &Function,
     block: &[InstId],
@@ -50,24 +52,43 @@ pub(super) fn alternatives(
     op: &Op,
     target: &Target,
     stage: Stage,
+    read: ConditionRead,
 ) -> Vec<Recipe> {
+    let op = &func.canonical_op(*op);
     let mut result = Vec::new();
     let scalar_ty =
         op.into_kind().and_then(|kind| widest_int_operand(func, &kind)).unwrap_or(MirType::I256);
-    generated::constructor_sequence_rewrite(
-        &mut Context {
-            func,
-            block,
-            seen,
-            masks,
-            target,
-            scalar_ty,
-            stage,
-            temporaries: FxHashMap::default(),
-        },
-        op,
-        &mut result,
-    );
+    // The `and` or `or` of booleans that joins tests builds words from its operands' words, whose
+    // constants do not fit a bool. Both are bitwise, so a word of zeros and ones gives the same
+    // answer at any width; arithmetic on booleans wraps at one bit, so it keeps its type.
+    let scalar_ty = if scalar_ty == MirType::I1 && matches!(op, Op::And { .. } | Op::Or { .. }) {
+        MirType::I256
+    } else {
+        scalar_ty
+    };
+    let mut context = Context {
+        func,
+        block,
+        seen,
+        masks,
+        target,
+        scalar_ty,
+        stage,
+        read,
+        temporaries: FxHashMap::default(),
+        reading: Reading::default(),
+    };
+    generated::constructor_sequence_rewrite(&mut context, op, &mut result);
+    // The spellings after the written one.
+    if context.reading.read_commutative || swappable(func, op) {
+        let spellings = Spellings::new(func, op, |value| commutative_definition(func, value));
+        for (root, commuted) in spellings.rest(op) {
+            context.reading.commuted = commuted;
+            // Recipes of earlier spellings hold their own copy of the temporaries.
+            context.temporaries.clear();
+            generated::constructor_sequence_rewrite(&mut context, &root, &mut result);
+        }
+    }
     result
 }
 
@@ -81,7 +102,11 @@ struct Context<'a> {
     target: &'a Target,
     scalar_ty: MirType,
     stage: Stage,
+    /// How the root's result is read.
+    read: ConditionRead,
     temporaries: FxHashMap<ValueId, Temporary>,
+    /// The commuted spelling of the root being matched.
+    reading: Reading,
 }
 
 impl Context<'_> {
@@ -149,7 +174,7 @@ impl generated::Context for Context<'_> {
     fn inst_data(&mut self, value: Value) -> Option<Op> {
         let MirValue::Inst(inst) = self.func.value(value) else { return None };
         let kind = &self.func.inst(*inst).kind;
-        (self.seen.contains(inst)
+        let op = (self.seen.contains(inst)
             && (kind.op_def().result == crate::mir::ResultKind::I1
                 || matches!(kind, InstKind::Zext(_) | InstKind::Sext(..) | InstKind::Trunc(..))
                 || kind.operands().iter().all(|&operand| {
@@ -157,7 +182,8 @@ impl generated::Context for Context<'_> {
                         .value_ty(operand)
                         .is_none_or(|ty| ty == MirType::I1 || ty == self.scalar_ty)
                 })))
-        .then(|| kind.op())
+        .then(|| kind.op())?;
+        Some(self.reading.view(self.func, value, op))
     }
 
     fn make(&mut self, op: &Op) -> Option<Value> {
@@ -223,7 +249,31 @@ impl generated::Context for Context<'_> {
     }
 
     fn late_word_sequence(&mut self) -> bool {
-        self.stage != Stage::Early
+        matches!(self.stage, Stage::Late | Stage::LateLowered)
+    }
+
+    fn spelling_widths(&mut self) -> bool {
+        self.stage == Stage::Spelling
+    }
+
+    fn width_shifts(&mut self, bits: U256, fits: bool) -> bool {
+        u32::try_from(bits).is_ok_and(|bits| {
+            self.target.shifts_bits_test(bits, fits, self.read.branch, self.read.in_loop)
+        })
+    }
+
+    fn shared_shift(&mut self, bits: U256, value: Value) -> Option<Value> {
+        // The earliest such shift, so that the choice does not depend on the set's order.
+        let inst = self
+            .seen
+            .iter()
+            .copied()
+            .filter(|&inst| {
+                matches!(self.func.inst(inst).kind, InstKind::Shr(shift, shifted)
+                    if shifted == value && self.func.value_u256(shift) == Some(bits))
+            })
+            .min()?;
+        self.func.inst_result_value(inst)
     }
 
     fn unshared_mask(&mut self, mask: U256) -> bool {

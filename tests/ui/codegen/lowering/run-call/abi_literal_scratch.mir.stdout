@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_literal_scratch.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_literal_scratch.sol:C ===
 @module C
 @types
   struct0: {i256, ptr<memory>}
@@ -78,7 +78,7 @@ fn @observedRevert(arg0: i256) [selector=0x8cf17d01, pure, abi_params=[uint256],
     v9 = lt v8, 1
     v10 = zext i1 v9 to i256
     v11 = shl v10, 5
-    v12 = add 64, v11
+    v12 = add v11, 64
     revert v0, v12
 }
 
@@ -87,11 +87,11 @@ fn @fail(arg0: i256) [selector=0x132e4f3c, pure, abi_params=[uint256], abi_retur
   bb0:
     v0 = eq arg0, 7
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall require<long_string hex"73637261746368206c69746572616c2074686174207370616e732074776f20776f7264732c">, false
     invalid
 }

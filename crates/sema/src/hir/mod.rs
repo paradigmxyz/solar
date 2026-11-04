@@ -394,7 +394,7 @@ impl<'hir, 'id> HirBuilder<'hir, 'id> {
 
     /// Creates an allocated HIR expression.
     pub fn expr_alloc(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> &'hir Expr<'hir> {
-        self.arena.alloc(Expr { id, kind, span })
+        self.expr(id, kind, span)
     }
 
     /// Creates an allocated HIR statement.

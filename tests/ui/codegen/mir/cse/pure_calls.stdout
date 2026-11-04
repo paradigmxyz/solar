@@ -1,39 +1,42 @@
-- // === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (before cse) ===
-+ // === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (after cse) ===
+- ; === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (before cse) ===
++ ; === ROOT/tests/ui/codegen/mir/cse/pure_calls.mir (after cse) ===
   @module PureCalls
-  fn @to_u32(arg0: i256) -> i256 [pure] {
+  @immutables
+    small: uint256
+  
+  fn @to_u32(arg0: i256) -> i256 {
     bb0:
       v0 = gt arg0, 0xffffffff
       jumpi v0, bb2, bb1
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
       ret arg0
-    bb2 [cold]:  ; preds = bb0
+    bb2 [cold]:                                     ; preds = bb0
       mstore 32, 32
       mstore 64, arg0
       mstore 0, 0x6dfcc650
       revert 28, 68
   }
   
-  fn @read_word(arg0: i256) -> i256 [pure] {
+  fn @read_word(arg0: i256) -> i256 {
     bb0:
       v0 = mload arg0
       ret v0
   }
   
-  fn @returned_size(arg0: i256) -> i256 [pure] {
+  fn @returned_size(arg0: i256) -> i256 {
     bb0:
       v0 = returndatasize
       v1 = add v0, arg0
       ret v1
   }
   
-  fn @stored(arg0: i256) -> i256 [view] {
+  fn @stored(arg0: i256) -> i256 {
     bb0:
       v0 = sload arg0
       ret v0
   }
   
-  fn @hash_slot(arg0: i256) -> i256 [view] {
+  fn @hash_slot(arg0: i256) -> i256 {
     bb0:
       mstore 0, arg0
       v0 = keccak256 0, 32
@@ -55,9 +58,9 @@
     bb0:
       v0 = icall @to_u32, arg0
       jumpi arg1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret v0
-    bb1:  ; preds = bb0
+    bb1:                                            ; preds = bb0
 -     v1 = icall @to_u32, arg0
 -     ret v1
 +     ret v0
@@ -80,5 +83,33 @@
       v10 = add v2, v4
       v11 = add v9, v10
       ret v11
+  }
+  
+  fn @frame_word(arg0: i256) -> i256 {
+    bb0:
+      v0 = calldataload arg0
+      v1 = caller
+      v2 = zext i160 v1 to i256
+      v3 = add v0, v2
+      ret v3
+  }
+  
+  fn @immutable_word() -> i256 {
+    bb0:
+      v0 = loadimmutable small
+      ret v0
+  }
+  
+  fn @frame_words(arg0: i256) -> i256 {
+    bb0:
+      v0 = icall @frame_word, arg0
+-     v1 = icall @frame_word, arg0
+      v2 = icall @immutable_word
+      v3 = icall @immutable_word
+-     v4 = add v0, v1
++     v4 = add v0, v0
+      v5 = add v2, v3
+      v6 = add v4, v5
+      ret v6
   }
   

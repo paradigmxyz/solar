@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_assignment.sol:NestedTupleAssignment ===
+; === ROOT/tests/ui/codegen/lowering/run-call/nested_tuple_assignment.sol:NestedTupleAssignment ===
 @module NestedTupleAssignment
 @types
   struct0: {i16, i256}
@@ -13,12 +13,12 @@
 fn @signedChoice(arg0: i1) -> struct0 [selector=0x5f671a76, pure, abi_params=[bool], abi_returns=[word<int16>, word], abi_return_params=[int16, uint256]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = sext i8 255 to i16
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: v0], [bb2: i16 256]
     v2 = phi [bb1: 7], [bb2: 9]
     v3 = insert_value struct0, undef struct0, 0, v1
@@ -30,11 +30,11 @@ fn @signedChoice(arg0: i1) -> struct0 [selector=0x5f671a76, pure, abi_params=[bo
 fn @unsignedChoice(arg0: i1) -> struct1 [selector=0x77048b54, pure, abi_params=[bool], abi_returns=[word<uint16>, word<bool>], abi_return_params=[uint16, bool]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v0 = phi [bb1: i16 255], [bb2: i16 256]
     v1 = phi [bb1: true], [bb2: false]
     v2 = insert_value struct1, undef struct1, 0, v0
@@ -50,28 +50,28 @@ fn @arrayChoice(arg0: i1) -> struct2 [selector=0xce7c4148, pure, abi_params=[boo
     v1 = alloc zeroed checked 64
     mstore v1, 1
     v2 = mload v0
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v0, 32
     mstore v5, 7
     v6 = mload v1
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v1, 32
     mstore v9, 9
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v10 = sext i8 255 to i16
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v11 = phi [bb1: v0], [bb2: v1]
     v12 = phi [bb1: v10], [bb2: i16 256]
     v13 = mload v11
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v11, 32
@@ -95,50 +95,47 @@ fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[boo
     v5 = ptradd v4, 32
     mstore v5, 0x90a000000000000000000000000000000000000000000000000000000000000
     v6 = zext i1 arg0 to i256
-    v7 = abi_encode [word<bool>, memory_bytes, memory_bytes], selector 0xe745f2b200000000000000000000000000000000000000000000000000000000, args v6, v2, v4
+    v7 = abi_encode [word<bool>, memory_bytes, memory_bytes], scratch, selector 0xe745f2b200000000000000000000000000000000000000000000000000000000, args v6, v2, v4
     v8 = extract_value slice<memory>, v7, 0
     v9 = extract_value slice<memory>, v7, 1
     v10 = zext i160 v0 to i256
-    v11 = staticcall v1, v10, v8, v9, v8, 64
+    v11 = staticcall v1, v10, v8, v9, 0, 64
     jumpi v11, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v12 = returndatasize
     v13 = lt v12, 64
     icall revert_if<tuple_data_too_short>, v13
-    v14 = mload v8
-    v15 = ptrtoint ptr<memory> v8 to i256
-    v16 = add v15, 32
-    v17 = mload v16
-    v18 = signextend 1, v17
-    v19 = eq v17, v18
-    v20 = eq v19, false
-    icall revert_if<empty>, v20
-    v21 = trunc i256 v17 to i16
-    v22 = insert_value struct2, undef struct2, 0, v14
-    v23 = insert_value struct2, v22, 1, v21
-    v24 = extract_value struct2, v23, 0
-    v25 = extract_value struct2, v23, 1
-    v26 = insert_value struct2, undef struct2, 0, v24
-    v27 = insert_value struct2, v26, 1, v25
-    ret v27
+    v14 = mload 0 !metadata(memory=scratch)
+    v15 = mload 32 !metadata(memory=scratch)
+    v16 = signextend 1, v15
+    v17 = ne v15, v16
+    icall revert_if<empty>, v17
+    v18 = trunc i256 v15 to i16
+    v19 = insert_value struct2, undef struct2, 0, v14
+    v20 = insert_value struct2, v19, 1, v18
+    v21 = extract_value struct2, v20, 0
+    v22 = extract_value struct2, v20, 1
+    v23 = insert_value struct2, undef struct2, 0, v21
+    v24 = insert_value struct2, v23, 1, v22
+    ret v24
 }
 
 ; function slicePair(bool choose, bytes calldata first, bytes calldata second) external pure returns (uint256, int16) [selector 0xe745f2b2]
 fn @slicePair(arg0: i1, arg1: slice<calldata>, arg2: slice<calldata>) -> struct2 [selector=0xe745f2b2, pure, abi_params=[bool, bytes, bytes], abi_returns=[word, word<int16>], abi_return_params=[uint256, int16]] {
   bb0:
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = sext i8 255 to i16
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: arg1], [bb2: arg2]
     v2 = phi [bb1: v0], [bb2: i16 256]
     v3 = extract_value slice<calldata>, v1, 1
-    v4 = lt 0, v3
+    v4 = gt v3, 0
     v5 = eq v4, false
     icall panic_if<0x32>, v5
     v6 = extract_value slice<calldata>, v1, 0
@@ -263,7 +260,7 @@ fn @assign() -> struct5 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
     v5 = ptradd v4, 32
     mstore v5, 0x3200000000000000000000000000000000000000000000000000000000000000
     v6 = mload v0
-    v7 = lt 0, v6
+    v7 = gt v6, 0
     v8 = eq v7, false
     icall panic_if<0x32>, v8
     v9 = ptradd v0, 32
@@ -274,7 +271,7 @@ fn @assign() -> struct5 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
     v14 = trunc i256 v13 to i8
     v15 = zext i8 v14 to i256
     v16 = mload v2
-    v17 = lt 0, v16
+    v17 = gt v16, 0
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptradd v2, 32
@@ -285,7 +282,7 @@ fn @assign() -> struct5 [selector=0x12ae6397, pure, abi_params=[], abi_returns=[
     v24 = trunc i256 v23 to i8
     v25 = zext i8 v24 to i256
     v26 = mload v4
-    v27 = lt 0, v26
+    v27 = gt v26, 0
     v28 = eq v27, false
     icall panic_if<0x32>, v28
     v29 = ptradd v4, 32

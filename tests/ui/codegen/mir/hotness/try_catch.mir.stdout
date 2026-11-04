@@ -1,24 +1,24 @@
-// === ROOT/tests/ui/codegen/mir/hotness/try_catch.sol:C ===
+; === ROOT/tests/ui/codegen/mir/hotness/try_catch.sol:C ===
 @module C
 ; function check(uint256 x) external pure returns (uint256) [selector 0x5f72f450]
 fn @check(arg0: i256) -> i256 [selector=0x5f72f450, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v1 = eq arg0, 2
     jumpi v1, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb6
-  bb6:  ; preds = bb5
+  bb6:                                            ; preds = bb5
     v2 = checked_add uint256, arg0, 1
     ret v2
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     icall require<short_string>, false, 2, 0x6e6f000000000000000000000000000000000000000000000000000000000000
     invalid
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     icall revert_if<empty>, true
     invalid
 }
@@ -33,14 +33,14 @@ fn @bare(arg0: i256) -> i256 [selector=0x90f2b340, view, abi_params=[uint256], a
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     ret 100
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -61,7 +61,7 @@ fn @typed(arg0: i256) -> i256 [selector=0x23048970, view, abi_params=[uint256], 
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     v8 = icall returndata_bytes<>
     v9 = ptradd v8, 32
     v10 = mload v8
@@ -73,22 +73,22 @@ fn @typed(arg0: i256) -> i256 [selector=0x23048970, view, abi_params=[uint256], 
     v16 = shr v15, 224
     v17 = eq v16, 0x8c379a0
     jumpi v17, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     jump bb6
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     v18 = ptrtoint ptr<memory> v12 to i256
     v19 = icall @try_decode_error_message, v18, v13
     jump bb6
-  bb6 [cold_hint]:  ; preds = bb4, bb5
+  bb6 [cold_hint]:                                ; preds = bb4, bb5
     v20 = phi [bb4: v19], [bb5: false]
     jumpi v20, bb7, bb8
-  bb8 [cold_hint]:  ; preds = bb6
+  bb8 [cold_hint]:                                ; preds = bb6
     jumpi true, bb9, bb10
-  bb10 [cold_hint]:  ; preds = bb8
+  bb10 [cold_hint]:                               ; preds = bb8
     revert v12, v13
-  bb9 [cold_hint]:  ; preds = bb8
+  bb9 [cold_hint]:                                ; preds = bb8
     jump bb3
-  bb7 [cold_hint]:  ; preds = bb6
+  bb7 [cold_hint]:                                ; preds = bb6
     v21 = mload v8
     v22 = ptradd v8, 36
     v23 = sub v21, 4
@@ -97,14 +97,14 @@ fn @typed(arg0: i256) -> i256 [selector=0x23048970, view, abi_params=[uint256], 
     v26 = mload v25
     v27 = checked_add uint256, v26, 3
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
     v6 = mload 0 !metadata(memory=scratch)
     v7 = checked_add uint256, v6, 2
     jump bb3
-  bb3:  ; preds = bb1, bb7, bb9
+  bb3:                                            ; preds = bb1, bb7, bb9
     v28 = phi [bb1: v7], [bb7: v27], [bb9: 4]
     ret v28
 }
@@ -120,39 +120,39 @@ fn @looped(arg0: i256) -> i256 [selector=0xd3fb4026, view, abi_params=[uint256],
     v3 = zext i160 v0 to i256
     v4 = staticcall v1, v3, 28, 36, 0, 32
     jumpi v4, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb6
-  bb6 [cold_hint]:  ; preds = bb4, bb8
+  bb6 [cold_hint]:                                ; preds = bb4, bb8
     v8 = phi [bb4: arg0], [bb8: v8]
     v9 = phi [bb4: 0], [bb8: v9]
     v10 = phi [bb4: arg0], [bb8: v13]
     v11 = phi [bb4: 0], [bb8: v14]
     v12 = lt v11, 6
     jumpi v12, bb9, bb10
-  bb10 [cold_hint]:  ; preds = bb6
+  bb10 [cold_hint]:                               ; preds = bb6
     jump bb7
-  bb7 [cold_hint]:  ; preds = bb10
+  bb7 [cold_hint]:                                ; preds = bb10
     jump bb3
-  bb9 [cold_hint]:  ; preds = bb6
+  bb9 [cold_hint]:                                ; preds = bb6
     v13 = checked_add uint256, v10, 1
     jump bb11
-  bb11 [cold_hint]:  ; preds = bb9
+  bb11 [cold_hint]:                               ; preds = bb9
     jump bb8
-  bb8 [cold_hint]:  ; preds = bb11
+  bb8 [cold_hint]:                                ; preds = bb11
     v14 = checked_add uint256, v11, 1
     jump bb6
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v5 = returndatasize
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = mload 0 !metadata(memory=scratch)
     jump bb3
-  bb3:  ; preds = bb1, bb7
+  bb3:                                            ; preds = bb1, bb7
     v15 = phi [bb1: arg0], [bb7: v8]
     v16 = phi [bb1: 0], [bb7: v9]
     v17 = phi [bb1: v7], [bb7: v10]
@@ -165,23 +165,23 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
     v0 = lt arg1, 68
     v1 = eq v0, false
     jumpi v1, bb1, bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = add arg0, 4
     v3 = mload v2
     v4 = sub arg1, 36
-    v5 = gt v3, v4
+    v5 = lt v4, v3
     jumpi v5, bb3, bb2
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v6 = add v2, v3
     v7 = mload v6
     v8 = add v3, 36
     v9 = gt v7, 0xffffffffffffffff
     v10 = sub arg1, v8
-    v11 = gt v7, v10
+    v11 = lt v10, v7
     v12 = or v9, v11
     v13 = zext i1 v12 to i256
     v14 = eq v13, 0
     ret v14
-  bb3:  ; preds = bb0, bb1
+  bb3:                                            ; preds = bb0, bb1
     ret false
 }

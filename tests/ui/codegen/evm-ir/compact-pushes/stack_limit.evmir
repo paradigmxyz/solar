@@ -62,14 +62,19 @@ bb5 [stack=0]:
 bb12:
   jump bb5
 
-// Dynamic entries have unknown depth. Popping three words establishes enough
-// headroom for any of the recipes, without trusting the declared entry root.
+// A jump through the pushed address enters its block at the depth it leaves, so the repeated
+// recipe has room at either push.
 bb6 [stack=3]:
   push bb7
   jump
 
-// CHECK-LABEL: bb7:
-// CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+// SIZE-LABEL: bb7:
+// SIZE: + push 255
+// SIZE-NEXT: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + div
+// SIZE-NEXT: + push 48
+// SIZE-NEXT: + mul
 bb7:
   push 0x3030303030303030303030303030303030303030303030303030303030303030
   pop
@@ -79,14 +84,18 @@ bb7:
   push 0x3030303030303030303030303030303030303030303030303030303030303030
   stop
 
-// The taken edge skips the fallthrough's higher peak. That later growth must
-// not make a two-word recipe appear safe on both paths.
+// The entry depth is known, so the fallthrough's higher peak is no limit.
 bb8 [stack=1]:
   push bb9
   jump
 
-// CHECK-LABEL: bb9:
-// CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+// SIZE-LABEL: bb9:
+// SIZE: + push 255
+// SIZE-NEXT: + push 0
+// SIZE-NEXT: + not
+// SIZE-NEXT: + div
+// SIZE-NEXT: + push 48
+// SIZE-NEXT: + mul
 bb9:
   push 0x3030303030303030303030303030303030303030303030303030303030303030
   pop
@@ -132,4 +141,47 @@ bb13 [cold, stack=1023]:
 bb14 [stack=1022]:
   push 0x3030303030303030303030303030303030303030303030303030303030303030
   pop
+  stop
+
+// A copied address can be entered from elsewhere, so its depth is unknown. The first push has no
+// room for a recipe, and popping three words establishes enough headroom for the second, without
+// trusting the declared entry root.
+bb15 [stack=3]:
+  push bb16
+  dup 1
+  pop
+  jump
+
+// CHECK-LABEL: bb16:
+// CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+bb16:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  pop
+  pop
+  pop
+  pop
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  stop
+
+// The taken edge skips the fallthrough's higher peak. That later growth must not make a two-word
+// recipe appear safe on both paths.
+bb17 [stack=1]:
+  push bb18
+  dup 1
+  pop
+  jump
+
+// CHECK-LABEL: bb18:
+// CHECK-NEXT: {{^ +}}push 0x3030303030303030303030303030303030303030303030303030303030303030
+bb18:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  pop
+  push bb19
+  jumpi
+  push 1
+  push 2
+  push 3
+  stop
+
+bb19:
   stop

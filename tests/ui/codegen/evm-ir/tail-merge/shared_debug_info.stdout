@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (before tail-merge) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (after tail-merge) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (after tail-merge) ===
   @module SharedDebugInfo
   bb0:
     push 11
@@ -19,8 +19,8 @@
     push 55 !metadata(spans=[10..20, 50..60])
     revert !metadata(spans=[30..40, 70..80])
   
-- // === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (before tail-merge) ===
-+ // === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (after tail-merge) ===
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/shared_debug_info.evmir (after tail-merge) ===
   @module SharedDebugInfo
   bb0:
     push 11

@@ -349,11 +349,11 @@ fn return_facts(
     for (id, func) in module.functions.iter_enumerated() {
         names.entry(func.name).and_modify(|unique| *unique = None).or_insert(Some(id));
     }
+    let roots = module.root_functions();
     let mut tracked = DenseBitSet::new_empty(module.functions.len());
     for (id, func) in module.functions.iter_enumerated() {
         if !func.blocks.is_empty()
-            && !func.is_external_entry()
-            && module.dispatch_entry() != Some(id)
+            && !roots.contains(id)
             && func.return_components().len() <= 1
             && !(calls[id].is_empty() && tails[id].is_empty())
             && names[&func.name] == Some(id)
@@ -520,7 +520,7 @@ fn forges_free_pointer(func: &Function, alias: &AliasAnalysis, inst: InstId) -> 
             if func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT) =>
         {
             if let Some(value) = func.value_u256(value) {
-                return value.as_limbs()[0] < EvmMemoryLayout::HEAP_START;
+                return value.wrapping_to::<u64>() < EvmMemoryLayout::HEAP_START;
             }
             let Value::Inst(stored) = *func.value(value) else { return true };
             let stored = func.inst(stored);
@@ -781,18 +781,9 @@ impl<T> SlotMap<T> {
         self.unindexed.clear();
     }
 
-    /// The allocation site of `base`, if it has one. Mirrors the private
-    /// `AliasAnalysis::allocation_base`.
-    fn alloc_site(base: MemoryBase) -> Option<InstId> {
-        match base {
-            MemoryBase::Allocation(id) | MemoryBase::DynamicAllocation(id) => Some(id),
-            _ => None,
-        }
-    }
-
     fn bucket_mut(&mut self, key: MemoryAddress) -> &mut SlotBucket<T> {
         let (region, base) = (key.region, key.base);
-        let buckets = match Self::alloc_site(base) {
+        let buckets = match base.allocation() {
             Some(site) => self.by_alloc.entry(site).or_default(),
             None => &mut self.unindexed,
         };
@@ -806,7 +797,7 @@ impl<T> SlotMap<T> {
 
     fn get(&self, key: MemoryAddress) -> Option<&T> {
         let (region, base) = (key.region, key.base);
-        let buckets = match Self::alloc_site(base) {
+        let buckets = match base.allocation() {
             Some(site) => self.by_alloc.get(&site)?.as_slice(),
             None => self.unindexed.as_slice(),
         };
@@ -822,7 +813,7 @@ impl<T> SlotMap<T> {
     /// Stored entries are 32 bytes wide, matching the `mstore` slots this map
     /// tracks.
     fn invalidate(&mut self, write: MemoryAddress, size: u64) {
-        let write_site = Self::alloc_site(write.base);
+        let write_site = write.base.allocation();
         if let Some(site) = write_site {
             // A write into one allocation site cannot reach another, so only
             // this site's groups and the non-allocation groups can be affected.
@@ -847,8 +838,8 @@ impl<T> SlotMap<T> {
     /// [`AliasAnalysis::memory_alias_locations`] settle the whole group at once;
     /// only a write onto that same base reaches the offset comparison.
     fn invalidate_bucket(bucket: &mut SlotBucket<T>, write: MemoryAddress, size: u64) -> bool {
-        let bucket_site = Self::alloc_site(bucket.base);
-        let write_site = Self::alloc_site(write.base);
+        let bucket_site = bucket.base.allocation();
+        let write_site = write.base.allocation();
         if let (Some(bucket_site), Some(write_site)) = (bucket_site, write_site) {
             // Distinct allocation sites are disjoint; the same site is only
             // separable by offset when neither access is a loop instance.
@@ -2606,13 +2597,10 @@ impl MemoryStoreEliminator {
     fn allocation_site(&self, func: &Function, pointer: ValueId) -> Option<InstId> {
         let Value::Inst(inst) = func.value(pointer) else { return None };
         (matches!(func.inst(*inst).kind, InstKind::Alloc { .. })
-            && self.alias.memory_address(func, pointer).is_some_and(|address| {
-                matches!(
-                    address.base,
-                    MemoryBase::Allocation(site) | MemoryBase::DynamicAllocation(site)
-                        if site == *inst
-                )
-            }))
+            && self
+                .alias
+                .memory_address(func, pointer)
+                .is_some_and(|address| address.base.allocation() == Some(*inst)))
         .then_some(*inst)
     }
 
@@ -2967,7 +2955,7 @@ impl AllocWalk<'_> {
             // `and x, mask` is monotonic in `x` when the mask only clears low bits.
             InstKind::And(x, mask) | InstKind::And(mask, x)
                 if let Some(mask) = func.value_u256(mask)
-                    && (!mask & (!mask).wrapping_add(U256::from(1))).is_zero() =>
+                    && (!mask & (!mask).wrapping_add(U256::ONE)).is_zero() =>
             {
                 crate::mir::utils::u256_to_u64(U256::from(bound(x)) & mask).unwrap_or(u64::MAX)
             }

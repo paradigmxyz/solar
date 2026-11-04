@@ -32,12 +32,13 @@
 contract CountDown {
     // Counting down by one to zero, the parity is the counter's low bit.
     // CHECK-LABEL: fn @countDown()
-    // CHECK: [[BIT:v[0-9]+]] = and arg0, 1
+    // CHECK: [[N:v[0-9]+]] = calldataload 4
+    // CHECK: [[BIT:v[0-9]+]] = and [[N]], 1
     // CHECK-NEXT: [[ODD:v[0-9]+]] = ne [[BIT]], 0
     // CHECK-NEXT: jumpi [[ODD]], {{bb[0-9]+}}, [[ENTER:bb[0-9]+]]
     // CHECK: [[ENTER]]:
     // CHECK-NEXT: {{v[0-9]+}} = phi
-    // CHECK-NEXT: [[COUNTER:v[0-9]+]] = phi [{{bb[0-9]+}}: arg0], [{{bb[0-9]+}}: {{v[0-9]+}}]
+    // CHECK-NEXT: [[COUNTER:v[0-9]+]] = phi [{{bb[0-9]+}}: [[N]]], [{{bb[0-9]+}}: {{v[0-9]+}}]
     // CHECK: jump [[HEADER:bb[0-9]+]]
     // CHECK-NEXT: [[HEADER]]:
     // CHECK-NEXT: {{v[0-9]+}} = phi
@@ -49,8 +50,9 @@ contract CountDown {
     }
 
     // CHECK-LABEL: fn @squaresDown()
-    // CHECK: and arg0, 1
-    // CHECK: gt {{v[0-9]+}}, 0
+    // CHECK: [[N:v[0-9]+]] = calldataload 4
+    // CHECK: and [[N]], 1
+    // CHECK: ne {{v[0-9]+}}, 0
     // CHECK-COUNT-2: mul
     function squaresDown(uint256 n) external pure returns (uint256 s) {
         for (uint256 i = n; i > 0; i--) s += i * i;
@@ -58,7 +60,8 @@ contract CountDown {
 
     // Stepping down by two, the parity is bit 1 of the counter.
     // CHECK-LABEL: fn @stepDown()
-    // CHECK: [[HALF:v[0-9]+]] = shr arg0, 1
+    // CHECK: [[N:v[0-9]+]] = calldataload 4
+    // CHECK: [[HALF:v[0-9]+]] = shr [[N]], 1
     // CHECK-NEXT: and [[HALF]], 1
     function stepDown(uint256 n) external pure returns (uint256 s) {
         assembly {
@@ -67,7 +70,9 @@ contract CountDown {
     }
 
     // CHECK-LABEL: fn @downTo()
-    // CHECK: [[LEFT:v[0-9]+]] = sub arg1, arg0
+    // CHECK: [[START:v[0-9]+]] = calldataload 4
+    // CHECK-NEXT: [[END:v[0-9]+]] = calldataload 36
+    // CHECK: [[LEFT:v[0-9]+]] = sub [[END]], [[START]]
     // CHECK-NEXT: and [[LEFT]], 1
     function downTo(uint256 start, uint256 end) external pure returns (uint256 s) {
         assembly {

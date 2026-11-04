@@ -18,12 +18,6 @@
       (if-let masked (make (Op.And difference m)))
       (if-let zero (imm (u256 0))) (sequence (Op.Eq masked zero)))
 
-;; (m & x) == (y & m) => ((x ^ y) & m) == 0.
-(rule (sequence_rewrite (Op.Eq (band m x) (band y m)))
-      (if-let difference (make (Op.Xor x y)))
-      (if-let masked (make (Op.And difference m)))
-      (if-let zero (imm (u256 0))) (sequence (Op.Eq masked zero)))
-
 ;; (x & m) != (m & y) => ((x ^ y) & m) != 0.
 (rule (sequence_rewrite (Op.Ne (band x m) (band m y)))
       (if-let difference (make (Op.Xor x y)))
@@ -42,84 +36,116 @@
       (if-let masked (make (Op.And difference m)))
       (if-let zero (imm (u256 0))) (sequence (Op.Ne masked zero)))
 
-;; (m & x) != (y & m) => ((x ^ y) & m) != 0.
-(rule (sequence_rewrite (Op.Ne (band m x) (band y m)))
-      (if-let difference (make (Op.Xor x y)))
-      (if-let masked (make (Op.And difference m)))
-      (if-let zero (imm (u256 0))) (sequence (Op.Ne masked zero)))
+;; A width test, that a word fits in `k` bits or does not, is canonically the comparison with
+;; its limit, `x < 2 ** k` or `x > 2 ** k - 1`, for 1 <= k < W. The run that spells the tests,
+;; late and lowered, chooses between the two by price, where the uses are known.
 
-;; x < c0 => (x >> 8) == 0.
-;; Requires: c0 is constant, c0 == 256.
-(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256 256))) (if-let r0 (imm (u256 8))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+;; (x >> k) != 0 => x > 2 ** k - 1.
+;; Requires: k is constant, 1 <= k < W.
+(rule (sequence_rewrite (Op.Ne (shr (iconst k) x) (zero)))
+      (if-let false (spelling_widths))
+      (if-let true (u256_ge k (u256 1)))
+      (if-let false (u256_ge k (u256_add (u256 (integer_sign_bit)) (u256 1))))
+      (if-let limit (imm (u256_sub (u256_shl k (u256 1)) (u256 1))))
+      (enabling_sequence (Op.Gt x limit)))
 
-;; x < c0 => (x >> 16) == 0.
-;; Requires: c0 is constant, c0 == 65536.
-(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256 65536))) (if-let r0 (imm (u256 16))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+;; (x >> k) > 0 => x > 2 ** k - 1.
+;; Requires: k is constant, 1 <= k < W.
+(rule (sequence_rewrite (Op.Gt (shr (iconst k) x) (zero)))
+      (if-let false (spelling_widths))
+      (if-let true (u256_ge k (u256 1)))
+      (if-let false (u256_ge k (u256_add (u256 (integer_sign_bit)) (u256 1))))
+      (if-let limit (imm (u256_sub (u256_shl k (u256 1)) (u256 1))))
+      (enabling_sequence (Op.Gt x limit)))
 
-;; x < c0 => (x >> 32) == 0.
-;; Requires: c0 is constant, c0 == 4294967296.
-(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256 4294967296))) (if-let r0 (imm (u256 32))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+;; (x >> k) == 0 => x < 2 ** k.
+;; Requires: k is constant, 1 <= k < W.
+(rule (sequence_rewrite (Op.Eq (shr (iconst k) x) (zero)))
+      (if-let false (spelling_widths))
+      (if-let true (u256_ge k (u256 1)))
+      (if-let false (u256_ge k (u256_add (u256 (integer_sign_bit)) (u256 1))))
+      (if-let limit (imm (u256_shl k (u256 1))))
+      (enabling_sequence (Op.Lt x limit)))
 
-;; x < c0 => (x >> 64) == 0.
-;; Requires: c0 is constant, c0 == 0x10000000000000000.
-(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 1 0 0))) (if-let r0 (imm (u256 64))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+;; (x & m) != 0 => x > 2 ** k - 1.
+;; Requires: m is constant, m == 2 ** W - 2 ** k and 1 <= k < W.
+(rule (sequence_rewrite (Op.Ne (band x (iconst m)) (zero)))
+      (if-let false (spelling_widths))
+      (if-let power (u256_sub (u256 0) m))
+      (if-let _ (power_of_two_shift power))
+      (if-let limit (imm (u256_sub power (u256 1))))
+      (enabling_sequence (Op.Gt x limit)))
 
-;; x < c0 => (x >> 128) == 0.
-;; Requires: c0 is constant, c0 == (2 ** 128).
-(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 1 0))) (if-let r0 (imm (u256 128))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+;; (x & m) == 0 => x < 2 ** k.
+;; Requires: m is constant, m == 2 ** W - 2 ** k and 1 <= k < W.
+(rule (sequence_rewrite (Op.Eq (band x (iconst m)) (zero)))
+      (if-let false (spelling_widths))
+      (if-let power (u256_sub (u256 0) m))
+      (if-let _ (power_of_two_shift power))
+      (if-let limit (imm power))
+      (enabling_sequence (Op.Lt x limit)))
 
-;; x < c0 => (x >> 160) == 0.
-;; Requires: c0 is constant, c0 == (2 ** 160).
-(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 4294967296 0))) (if-let r0 (imm (u256 160))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+;; x < 2 ** k => (x >> k) == 0.
+;; Requires: k is constant, 1 <= k, and the block computes x >> k already.
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0)))
+      (if-let true (spelling_widths))
+      (if-let k (power_of_two_shift c0))
+      (if-let r1 (shared_shift k v0))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq r1 zero)))
 
-;; x < c0 => (x >> 224) == 0.
-;; Requires: c0 is constant, c0 == (2 ** 224).
-(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 0 4294967296))) (if-let r0 (imm (u256 224))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+;; x > 2 ** k - 1 => (x >> k) != 0.
+;; Requires: k is constant, 1 <= k, and the block computes x >> k already.
+(rule (sequence_rewrite (Op.Gt v0 (iconst c0)))
+      (if-let true (spelling_widths))
+      (if-let k (power_of_two_shift (u256_add c0 (u256 1))))
+      (if-let r1 (shared_shift k v0))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Ne r1 zero)))
 
-;; x < c0 => (x >> 248) == 0.
-;; Requires: c0 is constant, c0 ==
-;; (2 ** 248).
-(rule (sequence_rewrite (Op.Lt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 0 0 0 72057594037927936))) (if-let r0 (imm (u256 248))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Eq r1 zero)))
+;; x < 2 ** k => (x >> k) == 0.
+;; Requires: k is constant, 1 <= k, and the target prices the shift below the comparison.
+(rule (sequence_rewrite (Op.Lt v0 (iconst c0)))
+      (if-let true (spelling_widths))
+      (if-let k (power_of_two_shift c0))
+      (if-let true (width_shifts k true))
+      (if-let r0 (imm k))
+      (if-let r1 (make (Op.Shr r0 v0)))
+      (if-let zero (imm (u256 0)))
+      (enabling_sequence (Op.Eq r1 zero)))
 
-;; x > c0 => (x >> 8) != 0.
-;; Requires: c0 is constant, c0 == 255.
-(rule (sequence_rewrite (Op.Gt v0 (iconst c0))) (if-let true (u256_same c0 (u256 255))) (if-let r0 (imm (u256 8))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Ne r1 zero)))
+;; x > 2 ** k - 1 => (x >> k) != 0.
+;; Requires: k is constant, 1 <= k, and the target prices the shift below the comparison.
+(rule (sequence_rewrite (Op.Gt v0 (iconst c0)))
+      (if-let true (spelling_widths))
+      (if-let k (power_of_two_shift (u256_add c0 (u256 1))))
+      (if-let true (width_shifts k false))
+      (if-let r0 (imm k))
+      (if-let r1 (make (Op.Shr r0 v0)))
+      (if-let zero (imm (u256 0)))
+      (enabling_sequence (Op.Ne r1 zero)))
 
-;; x > c0 => (x >> 16) != 0.
-;; Requires: c0 is constant, c0 == 65535.
-(rule (sequence_rewrite (Op.Gt v0 (iconst c0))) (if-let true (u256_same c0 (u256 65535))) (if-let r0 (imm (u256 16))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Ne r1 zero)))
+;; (x < 2 ** k) & (w == 0) => ((x >> k) | w) == 0.
+;; Requires: k is constant, 1 <= k. The tests join into one word that a branch reads for free.
+(rule (sequence_rewrite (Op.And (lt x (iconst c)) (eq w (zero))))
+      (if-let true (spelling_widths))
+      (if-let k (power_of_two_shift c))
+      (if-let r0 (imm k))
+      (if-let r1 (make (Op.Shr r0 x)))
+      (if-let r2 (make (Op.Or r1 w)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq r2 zero)))
 
-;; x > c0 => (x >> 32) != 0.
-;; Requires: c0 is constant, c0 == 4294967295.
-(rule (sequence_rewrite (Op.Gt v0 (iconst c0))) (if-let true (u256_same c0 (u256 4294967295))) (if-let r0 (imm (u256 32))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Ne r1 zero)))
-
-;; x > c0 => (x >> 64) != 0.
-;; Requires: c0 is constant, c0 == (2 ** 64) - 1.
-(rule (sequence_rewrite (Op.Gt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 18446744073709551615 0 0 0))) (if-let r0 (imm (u256 64))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Ne r1 zero)))
-
-;; x > c0 => (x >> 128) != 0.
-;; Requires: c0 is constant, c0 == (2 ** 128) - 1.
-(rule (sequence_rewrite (Op.Gt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 18446744073709551615 18446744073709551615 0 0))) (if-let r0 (imm (u256 128))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Ne r1 zero)))
-
-;; x > c0 => (x >> 160) != 0.
-;; Requires: c0 is constant, c0 == (2 ** 160) - 1.
-(rule (sequence_rewrite (Op.Gt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 18446744073709551615 18446744073709551615 4294967295 0))) (if-let r0 (imm (u256 160))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Ne r1 zero)))
-
-;; x > c0 => (x >> 224) != 0.
-;; Requires: c0 is constant, c0 == (2 ** 224) - 1.
-(rule (sequence_rewrite (Op.Gt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 18446744073709551615 18446744073709551615 18446744073709551615 4294967295))) (if-let r0 (imm (u256 224))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Ne r1 zero)))
-
-;; x > c0 => (x >> 248) != 0.
-;; Requires: c0 is constant, c0 == (2 ** 248) - 1.
-(rule (sequence_rewrite (Op.Gt v0 (iconst c0))) (if-let true (u256_same c0 (u256_from_limbs 18446744073709551615 18446744073709551615 18446744073709551615 72057594037927935))) (if-let r0 (imm (u256 248))) (if-let r1 (make (Op.Shr r0 v0))) (if-let zero (imm (u256 0))) (sequence (Op.Ne r1 zero)))
-
-;; (x >> c0) != 0 => x > (1 << c0) - 1.
-;; Requires: c0 is constant.
-;; The inverse of the rules above: a test that a branch reads costs nothing, but a
-;; zero-or-one word needs two `ISZERO`s, which one comparison saves.
-(rule (sequence_rewrite (Op.Ne (shr (iconst c0) x) (zero)))
-      (if-let mask (imm (u256_sub (u256_shl c0 (u256 1)) (u256 1))))
-      (sequence (Op.Gt x mask)))
+;; (w == 0) & (x < 2 ** k) => (w | (x >> k)) == 0.
+;; Requires: k is constant, 1 <= k.
+(rule (sequence_rewrite (Op.And (eq w (zero)) (lt x (iconst c))))
+      (if-let true (spelling_widths))
+      (if-let k (power_of_two_shift c))
+      (if-let r0 (imm k))
+      (if-let r1 (make (Op.Shr r0 x)))
+      (if-let r2 (make (Op.Or w r1)))
+      (if-let zero (imm (u256 0)))
+      (sequence (Op.Eq r2 zero)))
 
 ;; smod(x, m) == 0 => (x & (m - 1)) == 0.
 ;; Requires: m is constant, m == 2 ** shift and 1 <= shift <= (W - 1), shift < (W - 1).
@@ -150,15 +176,6 @@
 ;; (x / c) * c == x => x % c == 0.
 ;; Requires: c is constant, c != 0. x is a multiple of c.
 (rule (sequence_rewrite (Op.Eq (mul (div x (iconst c)) (iconst d)) x))
-      (if-let true (u256_ge c (u256 1)))
-      (if-let true (u256_same c d))
-      (if-let divisor (imm c))
-      (if-let remainder (make (Op.Mod x divisor)))
-      (if-let zero (imm (u256 0))) (sequence (Op.Eq remainder zero)))
-
-;; x == (x / c) * c => x % c == 0.
-;; Requires: c is constant, c != 0.
-(rule (sequence_rewrite (Op.Eq x (mul (div x (iconst c)) (iconst d))))
       (if-let true (u256_ge c (u256 1)))
       (if-let true (u256_same c d))
       (if-let divisor (imm c))

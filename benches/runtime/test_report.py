@@ -3,8 +3,11 @@ import importlib.util
 import io
 import json
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -77,6 +80,91 @@ class BenchmarkBaseTests(unittest.TestCase):
                             else expected[:8],
                         },
                     )
+
+    def test_parent_lookup_failure_keeps_exact_git_base(self):
+        spec = importlib.util.spec_from_file_location(
+            "benchmark_base",
+            Path(__file__).resolve().parents[2] / ".github/scripts/benchmark_base.py",
+        )
+        assert spec is not None and spec.loader is not None
+        base = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(base)
+        revision = "a" * 40
+        with (
+            patch.object(
+                base,
+                "command",
+                side_effect=[
+                    subprocess.CalledProcessError(1, "gh"),
+                    "main revision",
+                    "b c",
+                ],
+            ),
+            patch("sys.stderr", new_callable=io.StringIO),
+        ):
+            self.assertEqual(
+                base.resolve_base(revision, "paradigmxyz/solar", "2345"),
+                {"sha": revision, "ref": revision[:8]},
+            )
+
+    @unittest.skipUnless(
+        shutil.which("bash") and shutil.which("jq"), "requires bash and jq"
+    )
+    def test_baseline_api_failures_use_local_fallback(self):
+        workflow = (
+            Path(__file__).resolve().parents[2] / ".github/workflows/bench.yml"
+        ).read_text()
+        start = workflow.index("          if ! runs_json=")
+        end = workflow.index("      - name: Build exact-base compiler", start)
+        script = textwrap.dedent(workflow[start:end]).replace(
+            "${{ github.event_name }}", "$GITHUB_EVENT_NAME"
+        )
+        mock_gh = r"""
+set -euo pipefail
+gh() {
+  case "$1 $2" in
+    'run list')
+      if [[ "$failure" == list || ( "$failure" == refresh && -f "$RUNNER_TEMP/watched" ) ]]; then
+        echo 'HTTP 403: API rate limit exceeded' >&2
+        return 1
+      fi
+      status=in_progress
+      if [[ -f "$RUNNER_TEMP/watched" ]]; then status=completed; fi
+      printf '[{"databaseId":123,"createdAt":"2026-11-03T19:00:00Z","status":"%s"}]' "$status"
+      ;;
+    'run watch')
+      touch "$RUNNER_TEMP/watched"
+      [[ "$failure" != watch ]]
+      ;;
+    'run download') return 1 ;;
+    *) return 2 ;;
+  esac
+}
+"""
+        for failure in ["list", "watch", "refresh", "download"]:
+            with (
+                self.subTest(failure=failure),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                output = Path(directory) / "outputs"
+                process = subprocess.run(
+                    ["bash", "-c", mock_gh + script],
+                    cwd=directory,
+                    env={
+                        **os.environ,
+                        "failure": failure,
+                        "base_sha": "a" * 40,
+                        "CURRENT_RUN_ID": "999",
+                        "GITHUB_EVENT_NAME": "pull_request",
+                        "GITHUB_OUTPUT": str(output),
+                        "RUNNER_TEMP": directory,
+                    },
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+                self.assertEqual(output.read_text(), "found=false\n")
 
 
 class ReportFormattingTests(unittest.TestCase):
@@ -360,17 +448,24 @@ class ReportFormattingTests(unittest.TestCase):
     def test_reference_columns_follow_solar_size_solc_solc_legacy(self):
         compilers = {
             name: {"status": "ok"}
-            for name in ("oksolc", "solc-legacy", "solc", "solar", "solar-size", "solx")
+            for name in (
+                "oksolc",
+                "solc-legacy",
+                "solc",
+                "solar",
+                "solar-size",
+                "slang",
+            )
         }
         results = [{"test_id": "a", "suite": "repository", "compilers": compilers}]
 
         self.assertEqual(
             benchmark.reference_compiler_ids(results),
-            ["solar-size", "solc", "solc-legacy", "oksolc", "solx"],
+            ["solar-size", "solc", "solc-legacy", "oksolc", "slang"],
         )
         self.assertEqual(
             benchmark.matrix_compilers(results),
-            ["solar-size", "solc", "solc-legacy", "oksolc", "solx"],
+            ["solar-size", "solc", "solc-legacy", "oksolc", "slang"],
         )
 
     def test_pr_comment_collapses_the_compiler_matrix_after_the_base_comparison(self):
@@ -984,7 +1079,7 @@ class RunComparisonTests(unittest.TestCase):
             )
 
     def test_reference_report_uses_selected_compiler(self):
-        for compiler in ("solc", "solc-legacy", "solx", "oksolc"):
+        for compiler in ("solc", "solc-legacy", "slang", "oksolc"):
             before = self.fixture()
             before["compilers"][compiler] = copy.deepcopy(before["compilers"]["solar"])
             after = copy.deepcopy(before)
@@ -1113,7 +1208,7 @@ class RunComparisonTests(unittest.TestCase):
         self.assertIn("candidate gas run failed", row["issues"])
 
     def test_reference_failures_do_not_trigger_comments_or_warnings(self):
-        for compiler in ("solc", "solc-legacy", "solx", "oksolc"):
+        for compiler in ("solc", "solc-legacy", "slang", "oksolc"):
             for stage in ("status", "runtime_status", "gas_status"):
                 with self.subTest(compiler=compiler, stage=stage):
                     before = self.fixture()
@@ -1199,7 +1294,7 @@ class RunComparisonTests(unittest.TestCase):
         after = self.fixture()
         after["runtime_status"] = "mismatch"
         after["runtime_mismatches"] = [
-            {"label": "value", "values": {"solc": "1", "solx": "2", "solar": None}}
+            {"label": "value", "values": {"solc": "1", "slang": "2", "solar": None}}
         ]
         self.assertFalse(
             benchmark.comparison_has_changes(
@@ -1215,7 +1310,7 @@ class RunComparisonTests(unittest.TestCase):
         )
         self.assertEqual(
             benchmark.runtime_issue_details([after]),
-            ["repository/test value: solc=1, solx=2, solar=1"],
+            ["repository/test value: solc=1, slang=2, solar=1"],
         )
 
     def test_totals_exclude_failed_missing_and_changed_inputs(self):
@@ -1309,7 +1404,7 @@ class RunComparisonTests(unittest.TestCase):
         ]
         for row in after:
             row["compilers"]["solc"] = {"status": "ok", "runtime_size": 200}
-            row["compilers"]["solx"] = {"status": "ok", "runtime_size": 300}
+            row["compilers"]["slang"] = {"status": "ok", "runtime_size": 300}
         comparison = benchmark.compare_runs(after, before)
         comparison["baseline"] = "main.json"
         with patch.dict(os.environ, {}, clear=True):

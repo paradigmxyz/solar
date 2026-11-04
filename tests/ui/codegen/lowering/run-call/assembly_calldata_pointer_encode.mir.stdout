@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_encode.sol:AssemblyCalldataPointerEncode ===
+; === ROOT/tests/ui/codegen/lowering/run-call/assembly_calldata_pointer_encode.sol:AssemblyCalldataPointerEncode ===
 @module AssemblyCalldataPointerEncode
 ; function arrayCopy() external pure returns (uint256[2] memory) [selector 0xb192499e]
 fn @arrayCopy() -> ptr<memory> [selector=0xb192499e, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
@@ -43,7 +43,7 @@ fn @bytesCopy() -> ptr<memory> [selector=0x6310efb6, pure, abi_params=[], abi_re
     icall revert_if<invalid_calldata_tail_length>, v14
     v15 = sub v13, v12
     v16 = ptrtoint ptr<calldata> v11 to i256
-    v17 = sgt v16, v15
+    v17 = slt v15, v16
     icall revert_if<calldata_tail_too_short>, v17
     v18 = ptradd v10, 32
     v19 = extract_value slice<calldata>, v4, 0
@@ -75,7 +75,7 @@ fn @bytesHash() -> i256 [selector=0x05da852c, pure, abi_params=[], abi_returns=[
     icall revert_if<invalid_calldata_tail_length>, v14
     v15 = sub v13, v12
     v16 = ptrtoint ptr<calldata> v11 to i256
-    v17 = sgt v16, v15
+    v17 = slt v15, v16
     icall revert_if<calldata_tail_too_short>, v17
     v18 = ptradd v10, 32
     v19 = extract_value slice<calldata>, v4, 0
@@ -104,7 +104,7 @@ fn @arrayIndex() -> i256 [selector=0xf1de2d43, pure, abi_params=[], abi_returns=
   bb0:
     v0 = make_calldata_slice ptr<calldata> 4, 2
     v1 = extract_value slice<calldata>, v0, 1
-    v2 = lt 1, v1
+    v2 = gt v1, 1
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = extract_value slice<calldata>, v0, 0
@@ -122,12 +122,10 @@ fn @structFirst() -> i8 [selector=0x2165fa18, pure, abi_params=[], abi_returns=[
     v2 = ptrtoint ptr<calldata> v1 to i256
     v3 = add v2, 0
     v4 = calldataload v3
-    v5 = shr v4, 8
-    v6 = eq v5, 0
-    v7 = eq v6, false
-    icall revert_if<empty>, v7
-    v8 = trunc i256 v4 to i8
-    ret v8
+    v5 = gt v4, 255
+    icall revert_if<empty>, v5
+    v6 = trunc i256 v4 to i8
+    ret v6
 }
 
 ; function makeStruct() internal pure returns (Pair calldata value)

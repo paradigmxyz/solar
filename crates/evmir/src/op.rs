@@ -28,7 +28,8 @@ impl OpcodeTraits {
     /// The result is a deterministic function of the stack operands alone: no memory, storage,
     /// or environment dependency, so two occurrences with equal operands produce the same value.
     pub const PURE: Self = Self(1 << 0);
-    /// The operands may be swapped without changing the result.
+    /// The top two stack operands may be swapped without changing the result; deeper operands keep
+    /// their place.
     pub const COMMUTATIVE: Self = Self(1 << 1);
     /// The operation may write to memory, invalidating cached memory reads.
     pub const WRITES_MEMORY: Self = Self(1 << 2);
@@ -335,8 +336,8 @@ opcodes! {
     0x05 => SDIV => sdiv => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
     0x06 => MOD => mod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
     0x07 => SMOD => smod => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
-    0x08 => ADDMOD => addmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy);
-    0x09 => MULMOD => mulmod => stack_io(3, 1) => traits(PURE) => gas(mid) => available(legacy);
+    0x08 => ADDMOD => addmod => stack_io(3, 1) => traits(PURE | COMMUTATIVE) => gas(mid) => available(legacy);
+    0x09 => MULMOD => mulmod => stack_io(3, 1) => traits(PURE | COMMUTATIVE) => gas(mid) => available(legacy);
     0x0a => EXP => exp => stack_io(2, 1) => traits(PURE) => gas(exp) => available(legacy);
     0x0b => SIGNEXTEND => signextend => stack_io(2, 1) => traits(PURE) => gas(low) => available(legacy);
     0x10 => LT => lt => stack_io(2, 1) => traits(PURE) => gas(verylow) => available(legacy) => result_bits(1);
@@ -487,7 +488,13 @@ opcodes! {
 
 /// Returns the encoded length of a minimally sized PUSH for an EVM version.
 pub fn push_len(evm_version: EvmVersion, value: U256) -> usize {
-    if value.is_zero() && evm_version.has_push0() { 1 } else { value.byte_len().max(1) + 1 }
+    usize::from(push_width(evm_version, value)) + 1
+}
+
+/// Returns the immediate width of a minimally sized PUSH for an EVM version, where `PUSH0` has
+/// width 0.
+pub fn push_width(evm_version: EvmVersion, value: U256) -> u8 {
+    if value.is_zero() && !evm_version.has_push0() { 1 } else { value.byte_len() as u8 }
 }
 
 /// Returns the PUSH opcode for the given width (1-32).
@@ -515,7 +522,8 @@ impl OpDef {
         }
     }
 
-    /// Returns whether this operation's operands may be swapped without changing its result.
+    /// Returns whether the top two stack operands of this operation may be swapped without changing
+    /// its result.
     #[must_use]
     pub const fn is_commutative(self) -> bool {
         self.traits.contains(OpcodeTraits::COMMUTATIVE)
@@ -615,6 +623,17 @@ pub enum StackOp {
     Pop,
 }
 
+/// Where a word is after a [`StackOp`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrackedWord {
+    /// The word is this many positions below the top, counting the top as zero.
+    At(usize),
+    /// As `At`, and the operation also put a copy of the word on top.
+    Copied(usize),
+    /// The operation discarded the word.
+    Dropped,
+}
+
 macro_rules! define_stack_op_schema {
     (
         $(
@@ -692,6 +711,33 @@ impl StackOp {
                 }
             }
             Self::Pop => 1,
+        }
+    }
+
+    /// Returns where the word `word` positions below the top, counting the top as zero, is after
+    /// this operation.
+    #[must_use]
+    pub const fn track(self, word: usize) -> TrackedWord {
+        const fn swapped(word: usize, a: usize, b: usize) -> usize {
+            if word == a {
+                b
+            } else if word == b {
+                a
+            } else {
+                word
+            }
+        }
+        match self {
+            Self::Dup(depth) if word + 1 == depth as usize => TrackedWord::Copied(word + 1),
+            Self::Dup(_) => TrackedWord::At(word + 1),
+            Self::Swap(depth) => TrackedWord::At(swapped(word, 0, depth as usize)),
+            Self::Exchange(first, second) => {
+                TrackedWord::At(swapped(word, first as usize, second as usize))
+            }
+            Self::Pop => match word.checked_sub(1) {
+                Some(below) => TrackedWord::At(below),
+                None => TrackedWord::Dropped,
+            },
         }
     }
 
@@ -874,7 +920,8 @@ pub fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
     }
 }
 
-/// Returns whether an opcode's operands may be swapped without changing its result.
+/// Returns whether the top two stack operands of an opcode may be swapped without changing its
+/// result.
 #[must_use]
 pub const fn is_commutative(op: u8) -> bool {
     match definition(op) {
@@ -883,7 +930,7 @@ pub const fn is_commutative(op: u8) -> bool {
     }
 }
 
-/// Returns the equivalent binary opcode after swapping its stack operands.
+/// Returns the equivalent opcode after swapping its top two stack operands.
 #[must_use]
 pub const fn swapped_binary_opcode(opcode: u8) -> Option<u8> {
     if is_commutative(opcode) {

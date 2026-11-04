@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/nested_array_element_memory_storage.sol:NestedArrayElementMemoryStorage ===
+; === ROOT/tests/ui/codegen/lowering/run-call/nested_array_element_memory_storage.sol:NestedArrayElementMemoryStorage ===
 @module NestedArrayElementMemoryStorage
 ; function test(uint8[2][2][2] memory values) external returns (uint256) [selector 0x55aeb383]
 fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, array<2, array<2, uint8>>>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -8,11 +8,11 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     icall panic_if<0x32>, v1
     v2 = mload arg0, ptr<memory>
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v3 = phi [bb0: 0], [bb6: v64]
     v4 = lt v3, 2
     jumpi v4, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v65 = lt 0, 2
     v66 = eq v65, false
     icall panic_if<0x32>, v66
@@ -54,28 +54,28 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v95 = checked_add uint8, v87, v94
     v96 = zext i8 v95 to i256
     ret v96
-  bb2:  ; preds = bb1
-    v5 = add 0, v3
+  bb2:                                            ; preds = bb1
+    v5 = add v3, 0
     v6 = lt v3, 2
     jumpi v6, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     v37 = alloc 64
     memory_zero v37, 64
     jump bb13
-  bb13:  ; preds = bb5, bb18
+  bb13:                                           ; preds = bb5, bb18
     v38 = phi [bb5: 0], [bb18: v63]
     v39 = lt v38, 2
     jumpi v39, bb14, bb15
-  bb15:  ; preds = bb13
+  bb15:                                           ; preds = bb13
     jump bb6
-  bb14:  ; preds = bb13
+  bb14:                                           ; preds = bb13
     v40 = div v38, 32
     v41 = add v5, v40
     v42 = mod v38, 32
     v43 = mul v42, 1
     v44 = lt v38, 2
     jumpi v44, bb16, bb17
-  bb17:  ; preds = bb14
+  bb17:                                           ; preds = bb14
     v56 = mul v43, 8
     v57 = shl 255, v56
     v58 = sload v41 !metadata(storage=symbolic(v41))
@@ -85,7 +85,7 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v62 = or v60, v61
     sstore v41, v62 !metadata(storage=symbolic(v41))
     jump bb18
-  bb16:  ; preds = bb14
+  bb16:                                           ; preds = bb14
     v45 = shl v38, 5
     v46 = ptradd v37, v45
     v47 = mload v46
@@ -99,31 +99,31 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v55 = or v52, v54
     sstore v41, v55 !metadata(storage=symbolic(v41))
     jump bb18
-  bb18:  ; preds = bb16, bb17
+  bb18:                                           ; preds = bb16, bb17
     v63 = add v38, 1
     jump bb13
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v7 = shl v3, 5
     v8 = ptradd v2, v7
     v9 = mload v8
     jump bb7
-  bb7:  ; preds = bb4, bb12
+  bb7:                                            ; preds = bb4, bb12
     v10 = phi [bb4: 0], [bb12: v36]
     v11 = lt v10, 2
     jumpi v11, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb6
-  bb6:  ; preds = bb9, bb15
+  bb6:                                            ; preds = bb9, bb15
     v64 = add v3, 1
     jump bb1
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v12 = div v10, 32
     v13 = add v5, v12
     v14 = mod v10, 32
     v15 = mul v14, 1
     v16 = lt v10, 2
     jumpi v16, bb10, bb11
-  bb11:  ; preds = bb8
+  bb11:                                           ; preds = bb8
     v29 = mul v15, 8
     v30 = shl 255, v29
     v31 = sload v13 !metadata(storage=symbolic(v13))
@@ -133,7 +133,7 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v35 = or v33, v34
     sstore v13, v35 !metadata(storage=symbolic(v13))
     jump bb12
-  bb10:  ; preds = bb8
+  bb10:                                           ; preds = bb8
     v17 = shl v10, 5
     v18 = inttoptr i256 v9 to ptr<memory>
     v19 = ptradd v18, v17
@@ -148,7 +148,7 @@ fn @test(arg0: ptr<memory>) -> i256 [selector=0x55aeb383, abi_params=[array<2, a
     v28 = or v25, v27
     sstore v13, v28 !metadata(storage=symbolic(v13))
     jump bb12
-  bb12:  ; preds = bb10, bb11
+  bb12:                                           ; preds = bb10, bb11
     v36 = add v10, 1
     jump bb7
 }
@@ -160,11 +160,11 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v1 = eq v0, false
     icall panic_if<0x32>, v1
     jump bb1
-  bb1:  ; preds = bb0, bb6
+  bb1:                                            ; preds = bb0, bb6
     v2 = phi [bb0: 0], [bb6: v63]
     v3 = lt v2, 2
     jumpi v3, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v64 = lt 0, 2
     v65 = eq v64, false
     icall panic_if<0x32>, v65
@@ -218,28 +218,28 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v102 = checked_add uint8, v92, v101
     v103 = zext i8 v102 to i256
     ret v103
-  bb2:  ; preds = bb1
-    v4 = add 2, v2
+  bb2:                                            ; preds = bb1
+    v4 = add v2, 2
     v5 = lt v2, 2
     jumpi v5, bb4, bb5
-  bb5:  ; preds = bb2
+  bb5:                                            ; preds = bb2
     v36 = alloc 64
     memory_zero v36, 64
     jump bb13
-  bb13:  ; preds = bb5, bb18
+  bb13:                                           ; preds = bb5, bb18
     v37 = phi [bb5: 0], [bb18: v62]
     v38 = lt v37, 2
     jumpi v38, bb14, bb15
-  bb15:  ; preds = bb13
+  bb15:                                           ; preds = bb13
     jump bb6
-  bb14:  ; preds = bb13
+  bb14:                                           ; preds = bb13
     v39 = div v37, 32
     v40 = add v4, v39
     v41 = mod v37, 32
     v42 = mul v41, 1
     v43 = lt v37, 2
     jumpi v43, bb16, bb17
-  bb17:  ; preds = bb14
+  bb17:                                           ; preds = bb14
     v55 = mul v42, 8
     v56 = shl 255, v55
     v57 = sload v40 !metadata(storage=symbolic(v40))
@@ -249,7 +249,7 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v61 = or v59, v60
     sstore v40, v61 !metadata(storage=symbolic(v40))
     jump bb18
-  bb16:  ; preds = bb14
+  bb16:                                           ; preds = bb14
     v44 = shl v37, 5
     v45 = ptradd v36, v44
     v46 = mload v45
@@ -263,31 +263,31 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v54 = or v51, v53
     sstore v40, v54 !metadata(storage=symbolic(v40))
     jump bb18
-  bb18:  ; preds = bb16, bb17
+  bb18:                                           ; preds = bb16, bb17
     v62 = add v37, 1
     jump bb13
-  bb4:  ; preds = bb2
+  bb4:                                            ; preds = bb2
     v6 = shl v2, 5
     v7 = ptradd arg0, v6
     v8 = mload v7
     jump bb7
-  bb7:  ; preds = bb4, bb12
+  bb7:                                            ; preds = bb4, bb12
     v9 = phi [bb4: 0], [bb12: v35]
     v10 = lt v9, 2
     jumpi v10, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb6
-  bb6:  ; preds = bb9, bb15
+  bb6:                                            ; preds = bb9, bb15
     v63 = add v2, 1
     jump bb1
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v11 = div v9, 32
     v12 = add v4, v11
     v13 = mod v9, 32
     v14 = mul v13, 1
     v15 = lt v9, 2
     jumpi v15, bb10, bb11
-  bb11:  ; preds = bb8
+  bb11:                                           ; preds = bb8
     v28 = mul v14, 8
     v29 = shl 255, v28
     v30 = sload v12 !metadata(storage=symbolic(v12))
@@ -297,7 +297,7 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v34 = or v32, v33
     sstore v12, v34 !metadata(storage=symbolic(v12))
     jump bb12
-  bb10:  ; preds = bb8
+  bb10:                                           ; preds = bb8
     v16 = shl v9, 5
     v17 = inttoptr i256 v8 to ptr<memory>
     v18 = ptradd v17, v16
@@ -312,7 +312,7 @@ fn @test2(arg0: ptr<memory>) -> i256 [selector=0x3fc8671b, abi_params=[array<2, 
     v27 = or v24, v26
     sstore v12, v27 !metadata(storage=symbolic(v12))
     jump bb12
-  bb12:  ; preds = bb10, bb11
+  bb12:                                           ; preds = bb10, bb11
     v35 = add v9, 1
     jump bb7
 }

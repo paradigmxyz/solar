@@ -1,0 +1,868 @@
+; === ROOT/tests/ui/codegen/run-call/storage_bytes_encode.sol:Test ===
+@module Test
+@data
+  literal_0: hex"30313233343536373839303132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637383930313233"
+
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 57
+    v1 = ptradd v0, 32
+    mstore v1, 0x68656c6c6f2073746f7261676520737472696e672074686174206973206c6f6e
+    v2 = ptradd v0, 64
+    mstore v2, 0x676572207468616e207468697274792d6f6e6520627974657300000000000000
+    icall @store_storage_bytes, 1, v0
+    v3 = alloc 96 !metadata(preserves_fmp)
+    mstore v3, 57
+    v4 = ptradd v3, 32
+    mstore v4, 0x68656c6c6f2073746f7261676520737472696e672074686174206973206c6f6e
+    v5 = ptradd v3, 64
+    mstore v5, 0x676572207468616e207468697274792d6f6e6520627974657300000000000000
+    icall @store_storage_bytes, 96, v3
+    v6 = alloc 32
+    mstore v6, 0
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = gt v7, 0xffffffffffffffff
+    icall panic_if<0x41>, v8
+    v9 = add v7, 1
+    v10 = storage_array_data_slot 0
+    v11 = add v10, v7
+    icall @store_storage_bytes, v11, v6
+    sstore 0, v9 !metadata(storage=slot(0))
+    v12 = alloc 64 !metadata(preserves_fmp)
+    mstore v12, 5
+    v13 = ptradd v12, 32
+    mstore v13, 0x73686f7274000000000000000000000000000000000000000000000000000000
+    v14 = sload 0 !metadata(storage=slot(0))
+    v15 = gt v14, 0xffffffffffffffff
+    icall panic_if<0x41>, v15
+    v16 = add v14, 1
+    v17 = storage_array_data_slot 0
+    v18 = add v17, v14
+    icall @store_storage_bytes, v18, v12
+    sstore 0, v16 !metadata(storage=slot(0))
+    v19 = alloc 64 !metadata(preserves_fmp)
+    mstore v19, 31
+    v20 = ptradd v19, 32
+    mstore v20, 0x3031323334353637383930313233343536373839303132333435363738393000
+    v21 = sload 0 !metadata(storage=slot(0))
+    v22 = gt v21, 0xffffffffffffffff
+    icall panic_if<0x41>, v22
+    v23 = add v21, 1
+    v24 = storage_array_data_slot 0
+    v25 = add v24, v21
+    icall @store_storage_bytes, v25, v19
+    sstore 0, v23 !metadata(storage=slot(0))
+    v26 = alloc 64 !metadata(preserves_fmp)
+    mstore v26, 32
+    v27 = ptradd v26, 32
+    mstore v27, 0x3031323334353637383930313233343536373839303132333435363738393031
+    v28 = sload 0 !metadata(storage=slot(0))
+    v29 = gt v28, 0xffffffffffffffff
+    icall panic_if<0x41>, v29
+    v30 = add v28, 1
+    v31 = storage_array_data_slot 0
+    v32 = add v31, v28
+    icall @store_storage_bytes, v32, v26
+    sstore 0, v30 !metadata(storage=slot(0))
+    v33 = alloc 96 !metadata(preserves_fmp)
+    mstore v33, 33
+    v34 = ptradd v33, 32
+    mstore v34, 0x3031323334353637383930313233343536373839303132333435363738393031
+    v35 = ptradd v33, 64
+    mstore v35, 0x3200000000000000000000000000000000000000000000000000000000000000
+    v36 = sload 0 !metadata(storage=slot(0))
+    v37 = gt v36, 0xffffffffffffffff
+    icall panic_if<0x41>, v37
+    v38 = add v36, 1
+    v39 = storage_array_data_slot 0
+    v40 = add v39, v36
+    icall @store_storage_bytes, v40, v33
+    sstore 0, v38 !metadata(storage=slot(0))
+    v41 = alloc 96 !metadata(preserves_fmp)
+    mstore v41, 64
+    v42 = ptradd v41, 32
+    datacopy literal_0, v42, 64
+    v43 = sload 0 !metadata(storage=slot(0))
+    v44 = gt v43, 0xffffffffffffffff
+    icall panic_if<0x41>, v44
+    v45 = add v43, 1
+    v46 = storage_array_data_slot 0
+    v47 = add v46, v43
+    icall @store_storage_bytes, v47, v41
+    sstore 0, v45 !metadata(storage=slot(0))
+    v48 = alloc 128 !metadata(preserves_fmp)
+    mstore v48, 70
+    v49 = ptradd v48, 32
+    mstore v49, 0x3031323334353637383930313233343536373839303132333435363738393031
+    v50 = ptradd v48, 64
+    mstore v50, 0x3233343536373839303132333435363738393031323334353637383930313233
+    v51 = ptradd v48, 96
+    mstore v51, 0x3435363738390000000000000000000000000000000000000000000000000000
+    v52 = sload 0 !metadata(storage=slot(0))
+    v53 = gt v52, 0xffffffffffffffff
+    icall panic_if<0x41>, v53
+    v54 = add v52, 1
+    v55 = storage_array_data_slot 0
+    v56 = add v55, v52
+    icall @store_storage_bytes, v56, v48
+    sstore 0, v54 !metadata(storage=slot(0))
+    v57 = alloc zeroed checked 0x420
+    mstore v57, 0x3e8
+    icall @store_storage_bytes, 2, v57
+    v58 = mapping_slot 3, 3
+    store_storage_bytes_literal v58, hex"6d61707065642073746f72616765206279746573207468617420617265206c6f6e676572207468616e207468697274792d6f6e65206279746573"
+    sstore 4, 1 !metadata(storage=slot(4))
+    store_storage_bytes_literal 5, hex"686f6c646572206e616d652074686174206973206c6f6e676572207468616e207468697274792d6f6e65206279746573"
+    ret
+}
+
+; function hashArg(string calldata value) external pure returns (bytes32) [selector 0x71e910c6]
+fn @hashArg(arg0: slice<calldata>) -> i256 [selector=0x71e910c6, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = add v0, 31
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 32
+    v4 = alloc v3
+    mstore v4, v0
+    v5 = ptradd v4, 32
+    v6 = extract_value slice<calldata>, arg0, 0
+    v7 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v5, v6, v7
+    v8 = ptradd v4, 32
+    v9 = mload v4
+    v10 = keccak256 v8, v9
+    ret v10
+}
+
+; function hashArgs(string calldata value, uint256 extra) external pure returns (bytes32) [selector 0xa45d888a]
+fn @hashArgs(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xa45d888a, pure, abi_params=[bytes, uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = abi_encode [calldata_bytes, word], scratch, args arg0, arg1
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    ret v3
+}
+
+; function encodings() external view returns (bool) [selector 0x691e101e]
+fn @encodings() -> i1 [selector=0x691e101e, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v179]
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = lt v1, v2
+    jumpi v3, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    ret true
+  bb4:                                            ; preds = bb1
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = lt v1, v4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = storage_array_data_slot 0
+    v8 = add v7, v1
+    v9 = icall @load_storage_bytes, v8
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = lt v1, v10
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = storage_array_data_slot 0
+    v14 = add v13, v1
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = lt v1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = storage_array_data_slot 0
+    v19 = add v18, v1
+    v20 = keccak256_packed (storage_bytes v14, uint8 i8 7, storage_bytes v19)
+    v21 = keccak256_packed (memory_bytes v9, uint8 i8 7, memory_bytes v9)
+    v22 = ne v20, v21
+    jumpi v22, bb7, bb8
+  bb8:                                            ; preds = bb4
+    jump bb9
+  bb9:                                            ; preds = bb8
+    v23 = sload 0 !metadata(storage=slot(0))
+    v24 = lt v1, v23
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = storage_array_data_slot 0
+    v27 = add v26, v1
+    v28 = keccak256_packed (uint8 i8 1, uint16 i16 2, storage_bytes v27)
+    v29 = keccak256_packed (uint8 i8 1, uint16 i16 2, memory_bytes v9)
+    v30 = ne v28, v29
+    jumpi v30, bb10, bb11
+  bb11:                                           ; preds = bb9
+    jump bb12
+  bb12:                                           ; preds = bb11
+    v31 = sload 0 !metadata(storage=slot(0))
+    v32 = lt v1, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = storage_array_data_slot 0
+    v35 = add v34, v1
+    v36 = keccak256_packed (storage_bytes v35)
+    v37 = keccak256_packed (memory_bytes v9)
+    v38 = ne v36, v37
+    jumpi v38, bb13, bb14
+  bb14:                                           ; preds = bb12
+    jump bb15
+  bb15:                                           ; preds = bb14
+    v39 = sload 0 !metadata(storage=slot(0))
+    v40 = lt v1, v39
+    v41 = eq v40, false
+    icall panic_if<0x32>, v41
+    v42 = storage_array_data_slot 0
+    v43 = add v42, v1
+    v44 = sload 0 !metadata(storage=slot(0))
+    v45 = lt v1, v44
+    v46 = eq v45, false
+    icall panic_if<0x32>, v46
+    v47 = storage_array_data_slot 0
+    v48 = add v47, v1
+    v49 = keccak256_packed (uint8 i8 7, storage_bytes v43, uint16 i16 9, storage_bytes v48, data hex"7461696c")
+    v50 = keccak256_packed (uint8 i8 7, memory_bytes v9, uint16 i16 9, memory_bytes v9, data hex"7461696c")
+    v51 = ne v49, v50
+    jumpi v51, bb16, bb17
+  bb17:                                           ; preds = bb15
+    jump bb18
+  bb18:                                           ; preds = bb17
+    v52 = sload 0 !metadata(storage=slot(0))
+    v53 = lt v1, v52
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = storage_array_data_slot 0
+    v56 = add v55, v1
+    v57 = sload 0 !metadata(storage=slot(0))
+    v58 = lt v1, v57
+    v59 = eq v58, false
+    icall panic_if<0x32>, v59
+    v60 = storage_array_data_slot 0
+    v61 = add v60, v1
+    v62 = abi_encode [word, storage_bytes, word<uint8>, storage_bytes], scratch, args 1, v56, 2, v61
+    v63 = extract_value slice<memory>, v62, 0
+    v64 = extract_value slice<memory>, v62, 1
+    v65 = keccak256 v63, v64
+    v66 = abi_encode [word, memory_bytes, word<uint8>, memory_bytes], scratch, args 1, v9, 2, v9
+    v67 = extract_value slice<memory>, v66, 0
+    v68 = extract_value slice<memory>, v66, 1
+    v69 = keccak256 v67, v68
+    v70 = ne v65, v69
+    jumpi v70, bb19, bb20
+  bb20:                                           ; preds = bb18
+    jump bb21
+  bb21:                                           ; preds = bb20
+    v71 = sload 0 !metadata(storage=slot(0))
+    v72 = lt v1, v71
+    v73 = eq v72, false
+    icall panic_if<0x32>, v73
+    v74 = storage_array_data_slot 0
+    v75 = add v74, v1
+    v76 = abi_encode [storage_bytes, word<uint8>], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v75, 3
+    v77 = ptradd v76, 32
+    v78 = mload v76
+    v79 = keccak256 v77, v78
+    v80 = abi_encode [memory_bytes, word<uint8>], object, selector 0x1234567800000000000000000000000000000000000000000000000000000000, args v9, 3
+    v81 = ptradd v80, 32
+    v82 = mload v80
+    v83 = keccak256 v81, v82
+    v84 = ne v79, v83
+    jumpi v84, bb22, bb23
+  bb23:                                           ; preds = bb21
+    jump bb24
+  bb24:                                           ; preds = bb23
+    v85 = sload 0 !metadata(storage=slot(0))
+    v86 = lt v1, v85
+    v87 = eq v86, false
+    icall panic_if<0x32>, v87
+    v88 = storage_array_data_slot 0
+    v89 = add v88, v1
+    v90 = abi_encode [storage_bytes, word], object, selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args v89, 5
+    v91 = ptradd v90, 32
+    v92 = mload v90
+    v93 = keccak256 v91, v92
+    v94 = abi_encode [memory_bytes, word], object, selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args v9, 5
+    v95 = ptradd v94, 32
+    v96 = mload v94
+    v97 = keccak256 v95, v96
+    v98 = ne v93, v97
+    jumpi v98, bb25, bb26
+  bb26:                                           ; preds = bb24
+    jump bb27
+  bb27:                                           ; preds = bb26
+    v99 = sload 0 !metadata(storage=slot(0))
+    v100 = lt v1, v99
+    v101 = eq v100, false
+    icall panic_if<0x32>, v101
+    v102 = storage_array_data_slot 0
+    v103 = add v102, v1
+    v104 = sload 0 !metadata(storage=slot(0))
+    v105 = lt v1, v104
+    v106 = eq v105, false
+    icall panic_if<0x32>, v106
+    v107 = storage_array_data_slot 0
+    v108 = add v107, v1
+    v109 = abi_encode_packed (uint8 i8 7, storage_bytes v103, uint16 i16 9, storage_bytes v108)
+    v110 = abi_encode_packed (uint8 i8 7, memory_bytes v9, uint16 i16 9, memory_bytes v9)
+    v111 = ptradd v109, 32
+    v112 = mload v109
+    v113 = keccak256 v111, v112
+    v114 = ptradd v110, 32
+    v115 = mload v110
+    v116 = keccak256 v114, v115
+    v117 = ne v113, v116
+    jumpi v117, bb29, bb28
+  bb28:                                           ; preds = bb27
+    v118 = mload v109
+    v119 = mload v110
+    v120 = ne v118, v119
+    jump bb30
+  bb29:                                           ; preds = bb27
+    jump bb30
+  bb30:                                           ; preds = bb29, bb28
+    v121 = phi [bb28: v120], [bb29: true]
+    jumpi v121, bb31, bb32
+  bb32:                                           ; preds = bb30
+    jump bb33
+  bb33:                                           ; preds = bb32
+    v122 = sload 0 !metadata(storage=slot(0))
+    v123 = lt v1, v122
+    v124 = eq v123, false
+    icall panic_if<0x32>, v124
+    v125 = storage_array_data_slot 0
+    v126 = add v125, v1
+    v127 = keccak256_packed (bytes31 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00, storage_bytes v126)
+    v128 = keccak256_packed (bytes31 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00, memory_bytes v9)
+    v129 = ne v127, v128
+    jumpi v129, bb34, bb35
+  bb35:                                           ; preds = bb33
+    jump bb36
+  bb36:                                           ; preds = bb35
+    v130 = sload 0 !metadata(storage=slot(0))
+    v131 = lt v1, v130
+    v132 = eq v131, false
+    icall panic_if<0x32>, v132
+    v133 = storage_array_data_slot 0
+    v134 = add v133, v1
+    v135 = abi_encode_packed (bytes31 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00, storage_bytes v134)
+    v136 = ptradd v135, 32
+    v137 = mload v135
+    v138 = keccak256 v136, v137
+    v139 = keccak256_packed (bytes31 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00, memory_bytes v9)
+    v140 = ne v138, v139
+    jumpi v140, bb37, bb38
+  bb38:                                           ; preds = bb36
+    jump bb39
+  bb39:                                           ; preds = bb38
+    v141 = sload 0 !metadata(storage=slot(0))
+    v142 = lt v1, v141
+    v143 = eq v142, false
+    icall panic_if<0x32>, v143
+    v144 = storage_array_data_slot 0
+    v145 = add v144, v1
+    v146 = sload 0 !metadata(storage=slot(0))
+    v147 = lt v1, v146
+    v148 = eq v147, false
+    icall panic_if<0x32>, v148
+    v149 = storage_array_data_slot 0
+    v150 = add v149, v1
+    v151 = abi_encode_packed (storage_bytes v145, data hex"2d", storage_bytes v150)
+    v152 = ptradd v151, 32
+    v153 = mload v151
+    v154 = keccak256 v152, v153
+    v155 = abi_encode_packed (memory_bytes v9, data hex"2d", memory_bytes v9)
+    v156 = ptradd v155, 32
+    v157 = mload v155
+    v158 = keccak256 v156, v157
+    v159 = ne v154, v158
+    jumpi v159, bb40, bb41
+  bb41:                                           ; preds = bb39
+    jump bb42
+  bb42:                                           ; preds = bb41
+    v160 = sload 0 !metadata(storage=slot(0))
+    v161 = lt v1, v160
+    v162 = eq v161, false
+    icall panic_if<0x32>, v162
+    v163 = storage_array_data_slot 0
+    v164 = add v163, v1
+    v165 = sload 0 !metadata(storage=slot(0))
+    v166 = lt v1, v165
+    v167 = eq v166, false
+    icall panic_if<0x32>, v167
+    v168 = storage_array_data_slot 0
+    v169 = add v168, v1
+    v170 = abi_encode_packed (storage_bytes v164, data hex"01", storage_bytes v169)
+    v171 = ptradd v170, 32
+    v172 = mload v170
+    v173 = keccak256 v171, v172
+    v174 = abi_encode_packed (memory_bytes v9, data hex"01", memory_bytes v9)
+    v175 = ptradd v174, 32
+    v176 = mload v174
+    v177 = keccak256 v175, v176
+    v178 = ne v173, v177
+    jumpi v178, bb43, bb44
+  bb44:                                           ; preds = bb42
+    jump bb45
+  bb45:                                           ; preds = bb44
+    jump bb6
+  bb6:                                            ; preds = bb45
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v179 = checked_add uint256, v1, 1
+    jump bb1
+  bb43:                                           ; preds = bb42
+    ret false
+  bb40:                                           ; preds = bb39
+    ret false
+  bb37:                                           ; preds = bb36
+    ret false
+  bb34:                                           ; preds = bb33
+    ret false
+  bb31:                                           ; preds = bb30
+    ret false
+  bb25:                                           ; preds = bb24
+    ret false
+  bb22:                                           ; preds = bb21
+    ret false
+  bb19:                                           ; preds = bb18
+    ret false
+  bb16:                                           ; preds = bb15
+    ret false
+  bb13:                                           ; preds = bb12
+    ret false
+  bb10:                                           ; preds = bb9
+    ret false
+  bb7:                                            ; preds = bb4
+    ret false
+}
+
+; function referencesAndConversions() external view returns (bool) [selector 0x831b33ca]
+fn @referencesAndConversions() -> i1 [selector=0x831b33ca, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 5
+    v1 = mapping_slot 3, 3
+    v2 = icall @load_storage_bytes, v1
+    v3 = mapping_slot 3, 3
+    v4 = keccak256_packed (storage_bytes 5, storage_bytes 5, storage_bytes v3, storage_bytes 5)
+    v5 = keccak256_packed (memory_bytes v0, memory_bytes v0, memory_bytes v2, memory_bytes v0)
+    v6 = ne v4, v5
+    jumpi v6, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v7 = sload 4 !metadata(storage=slot(4))
+    v8 = mapping_slot 3, 3
+    v9 = abi_encode [storage_bytes, word, storage_bytes], scratch, args 5, v7, v8
+    v10 = extract_value slice<memory>, v9, 0
+    v11 = extract_value slice<memory>, v9, 1
+    v12 = keccak256 v10, v11
+    v13 = sload 4 !metadata(storage=slot(4))
+    v14 = abi_encode [memory_bytes, word, memory_bytes], scratch, args v0, v13, v2
+    v15 = extract_value slice<memory>, v14, 0
+    v16 = extract_value slice<memory>, v14, 1
+    v17 = keccak256 v15, v16
+    v18 = ne v12, v17
+    jumpi v18, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb6:                                            ; preds = bb5
+    v19 = mapping_slot 3, 3
+    v20 = abi_encode_packed (storage_bytes 5, storage_bytes v19)
+    v21 = ptradd v20, 32
+    v22 = mload v20
+    v23 = keccak256 v21, v22
+    v24 = abi_encode_packed (memory_bytes v0, memory_bytes v2)
+    v25 = ptradd v24, 32
+    v26 = mload v24
+    v27 = keccak256 v25, v26
+    v28 = eq v23, v27
+    ret v28
+  bb4:                                            ; preds = bb3
+    ret false
+  bb1:                                            ; preds = bb0
+    ret false
+}
+
+; function externalCall() external view returns (bool) [selector 0xa6310257]
+fn @externalCall() -> i1 [selector=0xa6310257, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: 0], [bb3: v0]
+    v1 = phi [bb0: 0], [bb3: v54]
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = lt v1, v2
+    jumpi v3, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    v55 = address
+    v56 = gas
+    v57 = abi_encode [storage_bytes], scratch, selector 0x71e910c600000000000000000000000000000000000000000000000000000000, args 2
+    v58 = extract_value slice<memory>, v57, 0
+    v59 = extract_value slice<memory>, v57, 1
+    v60 = zext i160 v55 to i256
+    v61 = staticcall v56, v60, v58, v59, 0, 32
+    jumpi v61, bb18, bb17
+  bb17:                                           ; preds = bb2
+    revert_returndata
+  bb18:                                           ; preds = bb2
+    v62 = returndatasize
+    v63 = lt v62, 32
+    icall revert_if<tuple_data_too_short>, v63
+    v64 = mload 0 !metadata(memory=scratch)
+    v65 = icall @load_storage_bytes, 2
+    v66 = ptradd v65, 32
+    v67 = mload v65
+    v68 = keccak256 v66, v67
+    v69 = eq v64, v68
+    ret v69
+  bb4:                                            ; preds = bb1
+    v4 = address
+    v5 = gas
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = lt v1, v6
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = storage_array_data_slot 0
+    v10 = add v9, v1
+    v11 = abi_encode [storage_bytes], scratch, selector 0x71e910c600000000000000000000000000000000000000000000000000000000, args v10
+    v12 = extract_value slice<memory>, v11, 0
+    v13 = extract_value slice<memory>, v11, 1
+    v14 = zext i160 v4 to i256
+    v15 = staticcall v5, v14, v12, v13, 0, 32
+    jumpi v15, bb8, bb7
+  bb7:                                            ; preds = bb4
+    revert_returndata
+  bb8:                                            ; preds = bb4
+    v16 = returndatasize
+    v17 = lt v16, 32
+    icall revert_if<tuple_data_too_short>, v17
+    v18 = mload 0 !metadata(memory=scratch)
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = lt v1, v19
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = storage_array_data_slot 0
+    v23 = add v22, v1
+    v24 = icall @load_storage_bytes, v23
+    v25 = ptradd v24, 32
+    v26 = mload v24
+    v27 = keccak256 v25, v26
+    v28 = ne v18, v27
+    jumpi v28, bb9, bb10
+  bb10:                                           ; preds = bb8
+    jump bb11
+  bb11:                                           ; preds = bb10
+    v29 = address
+    v30 = gas
+    v31 = sload 0 !metadata(storage=slot(0))
+    v32 = lt v1, v31
+    v33 = eq v32, false
+    icall panic_if<0x32>, v33
+    v34 = storage_array_data_slot 0
+    v35 = add v34, v1
+    v36 = abi_encode [storage_bytes, word], scratch, selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args v35, 9
+    v37 = extract_value slice<memory>, v36, 0
+    v38 = extract_value slice<memory>, v36, 1
+    v39 = zext i160 v29 to i256
+    v40 = staticcall v30, v39, v37, v38, 0, 32
+    jumpi v40, bb13, bb12
+  bb12:                                           ; preds = bb11
+    revert_returndata
+  bb13:                                           ; preds = bb11
+    v41 = returndatasize
+    v42 = lt v41, 32
+    icall revert_if<tuple_data_too_short>, v42
+    v43 = mload 0 !metadata(memory=scratch)
+    v44 = sload 0 !metadata(storage=slot(0))
+    v45 = lt v1, v44
+    v46 = eq v45, false
+    icall panic_if<0x32>, v46
+    v47 = storage_array_data_slot 0
+    v48 = add v47, v1
+    v49 = abi_encode [storage_bytes, word], scratch, args v48, 9
+    v50 = extract_value slice<memory>, v49, 0
+    v51 = extract_value slice<memory>, v49, 1
+    v52 = keccak256 v50, v51
+    v53 = ne v43, v52
+    jumpi v53, bb14, bb15
+  bb15:                                           ; preds = bb13
+    jump bb16
+  bb16:                                           ; preds = bb15
+    jump bb6
+  bb6:                                            ; preds = bb16
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v54 = checked_add uint256, v1, 1
+    jump bb1
+  bb14:                                           ; preds = bb13
+    ret false
+  bb9:                                            ; preds = bb8
+    ret false
+}
+
+; function slotNinetySix() external returns (bool) [selector 0x2b5197ce]
+fn @slotNinetySix() -> i1 [selector=0x2b5197ce, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 96
+    v1 = abi_encode [storage_bytes, word<uint8>], scratch, args 96, 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
+    v4 = keccak256 v2, v3
+    v5 = abi_encode [memory_bytes, word<uint8>], scratch, args v0, 1
+    v6 = extract_value slice<memory>, v5, 0
+    v7 = extract_value slice<memory>, v5, 1
+    v8 = keccak256 v6, v7
+    v9 = ne v4, v8
+    jumpi v9, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v10 = abi_encode [storage_bytes, word], object, selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args 96, 5
+    v11 = ptradd v10, 32
+    v12 = mload v10
+    v13 = keccak256 v11, v12
+    v14 = abi_encode [memory_bytes, word], object, selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args v0, 5
+    v15 = ptradd v14, 32
+    v16 = mload v14
+    v17 = keccak256 v15, v16
+    v18 = ne v13, v17
+    jumpi v18, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb6:                                            ; preds = bb5
+    v19 = keccak256_packed (storage_bytes 96, uint8 i8 1)
+    v20 = keccak256_packed (memory_bytes v0, uint8 i8 1)
+    v21 = ne v19, v20
+    jumpi v21, bb7, bb8
+  bb8:                                            ; preds = bb6
+    jump bb9
+  bb9:                                            ; preds = bb8
+    v22 = address
+    v23 = gas
+    v24 = abi_encode [storage_bytes, word], scratch, selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args 96, 9
+    v25 = extract_value slice<memory>, v24, 0
+    v26 = extract_value slice<memory>, v24, 1
+    v27 = zext i160 v22 to i256
+    v28 = staticcall v23, v27, v25, v26, 0, 32
+    jumpi v28, bb11, bb10
+  bb10:                                           ; preds = bb9
+    revert_returndata
+  bb11:                                           ; preds = bb9
+    v29 = returndatasize
+    v30 = lt v29, 32
+    icall revert_if<tuple_data_too_short>, v30
+    v31 = mload 0 !metadata(memory=scratch)
+    v32 = abi_encode [memory_bytes, word], scratch, args v0, 9
+    v33 = extract_value slice<memory>, v32, 0
+    v34 = extract_value slice<memory>, v32, 1
+    v35 = keccak256 v33, v34
+    v36 = ne v31, v35
+    jumpi v36, bb12, bb13
+  bb13:                                           ; preds = bb11
+    jump bb14
+  bb14:                                           ; preds = bb13
+    v37 = address
+    v38 = gas
+    v39 = abi_encode [], object, selector 0x3cf95b1e00000000000000000000000000000000000000000000000000000000
+    v40 = address_call v37, v39, gas v38
+    v41 = icall returndata_bytes<>
+    v42 = eq v40, false
+    jumpi v42, bb15, bb16
+  bb16:                                           ; preds = bb14
+    jump bb17
+  bb15:                                           ; preds = bb14
+    v43 = ptradd v41, 32
+    v44 = mload v41
+    v45 = keccak256 v43, v44
+    v46 = abi_encode [memory_bytes], object, selector 0x4eb9487200000000000000000000000000000000000000000000000000000000, args v0
+    v47 = ptradd v46, 32
+    v48 = mload v46
+    v49 = keccak256 v47, v48
+    v50 = eq v45, v49
+    jump bb17
+  bb17:                                           ; preds = bb15, bb16
+    v51 = phi [bb15: v50], [bb16: false]
+    ret v51
+  bb12:                                           ; preds = bb11
+    ret false
+  bb7:                                            ; preds = bb6
+    ret false
+  bb4:                                            ; preds = bb3
+    ret false
+  bb1:                                            ; preds = bb0
+    ret false
+}
+
+; function failSlot96() external view [selector 0x3cf95b1e]
+fn @failSlot96() [selector=0x3cf95b1e, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall require<custom_error [storage_bytes]>, false, 0x4eb9487200000000000000000000000000000000000000000000000000000000, 96
+    invalid
+}
+
+; function packedGrowth() external view returns (uint256) [selector 0xd699e4fd]
+fn @packedGrowth() -> i256 [selector=0xd699e4fd, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @fp
+    v1 = keccak256_packed (storage_bytes 2, uint256 1)
+    v2 = icall @fp
+    v3 = ne v1, 0
+    v4 = eq v3, false
+    icall revert_if<empty>, v4
+    v5 = checked_sub uint256, v2, v0
+    ret v5
+}
+
+; function encodeGrowth() external view returns (uint256) [selector 0x7f8b3002]
+fn @encodeGrowth() -> i256 [selector=0x7f8b3002, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @fp
+    v1 = abi_encode [storage_bytes], scratch, args 2
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
+    v4 = keccak256 v2, v3
+    v5 = icall @fp
+    v6 = ne v4, 0
+    v7 = eq v6, false
+    icall revert_if<empty>, v7
+    v8 = checked_sub uint256, v5, v0
+    ret v8
+}
+
+; function concatGrowth() external view returns (uint256) [selector 0xa98cbced]
+fn @concatGrowth() -> i256 [selector=0xa98cbced, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @fp
+    v1 = abi_encode_packed (storage_bytes 2, data hex"78")
+    v2 = icall @fp
+    v3 = checked_sub uint256, v2, v0
+    v4 = checked_sub uint256, v3, 32
+    v5 = mload v1
+    v6 = checked_add uint256, v5, 31
+    v7 = checked_div uint256, v6, 32
+    v8 = checked_mul uint256, v7, 32
+    v9 = checked_sub uint256, v4, v8
+    ret v9
+}
+
+; function eventGrowth() external returns (uint256) [selector 0xa6d50127]
+fn @eventGrowth() -> i256 [selector=0xa6d50127, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @fp
+    v1 = abi_encode [storage_bytes], scratch, args 1
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
+    log v2, v3, 0xe2d50693148c0a7be38bcce8ba8cdafb9687a905dee73ac51824db680a4d2c4c
+    v4 = icall @fp
+    v5 = checked_sub uint256, v4, v0
+    ret v5
+}
+
+; function mutate() internal returns (uint256)
+fn @mutate() -> i256 {
+  bb0:
+    store_storage_bytes_literal 1, hex"78"
+    ret 1
+}
+
+; function packedAfterMutation() external returns (bool) [selector 0x85ed5f15]
+fn @packedAfterMutation() -> i1 [selector=0x85ed5f15, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @mutate
+    v1 = abi_encode_packed (storage_bytes 1, uint256 v0)
+    v2 = ptradd v1, 32
+    v3 = mload v1
+    v4 = keccak256 v2, v3
+    v5 = eq v4, 0x403924011dc0dbd4b278cad9a4d61a32602eaa786f668f3110edd61872180fd0
+    ret v5
+}
+
+; function encodeAfterMutation() external returns (bool) [selector 0x16b09f08]
+fn @encodeAfterMutation() -> i1 [selector=0x16b09f08, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @mutate
+    v1 = abi_encode [storage_bytes, word], object, args 1, v0
+    v2 = ptradd v1, 32
+    v3 = mload v1
+    v4 = keccak256 v2, v3
+    v5 = eq v4, 0xcd6ac4a988a8bc2ab65e0d1c6328475500b312b15861a3d87ad8424bb72ddfd9
+    ret v5
+}
+
+; function concatAfterMutation() external returns (bool) [selector 0xaebd6f9c]
+fn @concatAfterMutation() -> i1 [selector=0xaebd6f9c, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @mutate
+    v1 = abi_encode_packed (uint256 v0)
+    v2 = abi_encode_packed (storage_bytes 1, memory_bytes v1)
+    v3 = ptradd v2, 32
+    v4 = mload v2
+    v5 = keccak256 v3, v4
+    v6 = eq v5, 0x403924011dc0dbd4b278cad9a4d61a32602eaa786f668f3110edd61872180fd0
+    ret v6
+}
+
+; function callAfterMutation() external returns (bool) [selector 0x23654daa]
+fn @callAfterMutation() -> i1 [selector=0x23654daa, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = icall @mutate
+    v3 = abi_encode [storage_bytes, word], scratch, selector 0xa45d888a00000000000000000000000000000000000000000000000000000000, args 1, v2
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    v6 = zext i160 v0 to i256
+    v7 = staticcall v1, v6, v4, v5, 0, 32
+    jumpi v7, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = mload 0 !metadata(memory=scratch)
+    v11 = eq v10, 0xcd6ac4a988a8bc2ab65e0d1c6328475500b312b15861a3d87ad8424bb72ddfd9
+    ret v11
+}
+
+; function failLong() external view [selector 0xd9b48635]
+fn @failLong() [selector=0xd9b48635, view, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    icall require<custom_error [storage_bytes]>, false, 0x4eb9487200000000000000000000000000000000000000000000000000000000, 1
+    invalid
+}
+
+; function failAfterMutation() external [selector 0xae3d00ed]
+fn @failAfterMutation() [selector=0xae3d00ed, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = icall @mutate
+    icall require<custom_error [storage_bytes, word]>, false, 0x5ef4980a00000000000000000000000000000000000000000000000000000000, 1, v0
+    invalid
+}
+
+; function fp() private pure returns (uint256 pointer)
+fn @fp() -> i256 [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    ret v0
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}
+
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
+}

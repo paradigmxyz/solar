@@ -5,7 +5,7 @@ use super::{
     DataId, DataRef, Disambiguator, Function, FunctionId, HirVariableId, ImmutableId,
     MangledSymbol, MirType, StructId, StructType, Terminator, ValueId,
 };
-use crate::analysis::{CallGraphInfo, CfgInfo, direct_callees};
+use crate::analysis::{CallGraphInfo, CfgInfo, direct_callees, tail_callees};
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
 use solar_data_structures::{
@@ -93,6 +93,12 @@ pub struct Module {
     pub functions: IndexVec<FunctionId, Function>,
     /// The synthesized runtime dispatch entry, if this module has one.
     dispatch_entry: Option<FunctionId>,
+    /// The constructor, which runs in the creation code, if this module has one.
+    constructor: Option<FunctionId>,
+    /// The `receive` function, recorded when `lower-dispatch` clears its attribute.
+    receive: Option<FunctionId>,
+    /// The `fallback` function, recorded when `lower-dispatch` clears its attribute.
+    fallback: Option<FunctionId>,
     /// Most recently added function for each name before disambiguation.
     pub function_name_index: FxHashMap<Symbol, FunctionId>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
@@ -170,7 +176,7 @@ impl Module {
 
     /// Parses textual MIR.
     pub fn parse(
-        sess: &solar_interface::Session,
+        sess: &Session,
         source: &solar_interface::source_map::SourceFile,
     ) -> solar_interface::Result<Self> {
         super::parser::parse(sess, source)
@@ -184,6 +190,9 @@ impl Module {
             functions: IndexVec::new(),
             struct_types: IndexVec::new(),
             dispatch_entry: None,
+            constructor: None,
+            receive: None,
+            fallback: None,
             function_name_index: FxHashMap::default(),
             abi_layouts: Vec::new(),
             abi_param_layouts: Vec::new(),
@@ -314,13 +323,13 @@ impl Module {
     ) -> solar_interface::Result<LoweredModule<'_>> {
         let dcx = &sess.dcx;
         if self.phase != MirPhase::Lowered {
-            return Err(dcx
-                .err(format!(
+            return Err(dcx.emit_err(
+                self.name.span,
+                format!(
                     "EVM codegen requires MIR in the `lowered` phase, stopped at `{}`",
                     self.phase.name(),
-                ))
-                .span(self.name.span)
-                .emit());
+                ),
+            ));
         }
         if recheck || !self.lowered_checked {
             crate::analysis::validate_phase(
@@ -339,9 +348,8 @@ impl Module {
 
     /// Returns whether all external entries have an explicit ABI implementation.
     pub fn has_explicit_abi(&self) -> bool {
-        self.functions
-            .iter()
-            .all(|func| !func.is_external_entry() || func.attributes.is_abi_wrapper)
+        self.dispatch_entry.is_some()
+            || self.external_entries().iter().all(|id| self.functions[id].attributes.is_abi_wrapper)
     }
 
     /// Returns whether a live value or function signature still uses an SSA struct.
@@ -450,31 +458,107 @@ impl Module {
         );
     }
 
-    /// Updates the dispatch entry after remapping function IDs.
-    pub fn remap_dispatch_entry(&mut self, entry: Option<FunctionId>) {
-        self.dispatch_entry = entry;
+    /// Returns the constructor, if present.
+    #[must_use]
+    pub const fn constructor(&self) -> Option<FunctionId> {
+        self.constructor
     }
 
-    /// Returns the functions that the runtime entry, a selector, `receive`, or `fallback`
-    /// reaches through calls.
+    /// Records the constructor.
+    pub fn set_constructor(&mut self, constructor: FunctionId) {
+        assert!(
+            self.constructor.replace(constructor).is_none(),
+            "module already has a constructor"
+        );
+    }
+
+    /// Returns the `receive` function: the one `lower-dispatch` recorded, or before it runs, the
+    /// one with the attribute.
+    #[must_use]
+    pub fn receive(&self) -> Option<FunctionId> {
+        self.receive.or_else(|| {
+            self.functions.iter_enumerated().find(|(_, func)| func.attributes.is_receive)?.0.into()
+        })
+    }
+
+    /// Returns the `fallback` function: the one `lower-dispatch` recorded, or before it runs, the
+    /// one with the attribute.
+    #[must_use]
+    pub fn fallback(&self) -> Option<FunctionId> {
+        self.fallback.or_else(|| {
+            self.functions.iter_enumerated().find(|(_, func)| func.attributes.is_fallback)?.0.into()
+        })
+    }
+
+    /// Records the `receive` and `fallback` functions, whose attributes entry lowering clears.
+    pub fn record_receive_and_fallback(&mut self) {
+        self.receive = self.receive();
+        self.fallback = self.fallback();
+    }
+
+    /// Updates the module roots after remapping function IDs. `entry` and the constructor are
+    /// always kept; `receive` and `fallback` stop being roots when dispatch inlines them away.
+    pub fn remap_roots(&mut self, remap: impl Fn(FunctionId) -> Option<FunctionId>) {
+        let kept = |root| remap(root).expect("kept function cannot be a module root");
+        self.dispatch_entry = self.dispatch_entry.map(kept);
+        self.constructor = self.constructor.map(kept);
+        self.receive = self.receive.and_then(&remap);
+        self.fallback = self.fallback.and_then(&remap);
+    }
+
+    /// Returns the functions the runtime enters from outside: the targets of the tail calls in
+    /// `entry`. Before `lower-dispatch` builds `entry`, they are the functions with
+    /// a selector, or the `receive` or `fallback` attribute.
+    #[must_use]
+    pub fn runtime_entries(&self) -> DenseBitSet<FunctionId> {
+        let mut entries = DenseBitSet::new_empty(self.functions.len());
+        if let Some(entry) = self.dispatch_entry {
+            // A malformed target is the verifier's to report.
+            for function in self.functions.get(entry).into_iter().flat_map(tail_callees) {
+                if function.index() < self.functions.len() {
+                    entries.insert(function);
+                }
+            }
+        } else {
+            for (id, func) in self.functions.iter_enumerated() {
+                if func.is_dispatched() {
+                    entries.insert(id);
+                }
+            }
+        }
+        entries
+    }
+
+    /// Returns the runtime entries and the constructor.
+    #[must_use]
+    pub fn external_entries(&self) -> DenseBitSet<FunctionId> {
+        let mut entries = self.runtime_entries();
+        if let Some(constructor) = self.constructor {
+            entries.insert(constructor);
+        }
+        entries
+    }
+
+    /// Returns the functions that nothing calls: the external entries and `entry`.
+    #[must_use]
+    pub fn root_functions(&self) -> DenseBitSet<FunctionId> {
+        let mut roots = self.external_entries();
+        if let Some(entry) = self.dispatch_entry {
+            roots.insert(entry);
+        }
+        roots
+    }
+
+    /// Returns the functions that `entry` and the runtime entries reach through calls.
     #[must_use]
     pub fn runtime_reachable_functions(&self) -> DenseBitSet<FunctionId> {
-        let roots = self.dispatch_entry().into_iter().chain(
-            self.functions
-                .iter_enumerated()
-                .filter_map(|(id, func)| func.is_runtime_entry().then_some(id)),
-        );
-        self.reachable_from(roots)
+        self.reachable_from(self.dispatch_entry.into_iter().chain(self.runtime_entries().iter()))
     }
 
     /// Returns the constructor and the functions it reaches through calls.
     #[must_use]
     pub fn constructor_reachable_functions(&self) -> DenseBitSet<FunctionId> {
-        self.reachable_from(
-            self.functions
-                .iter_enumerated()
-                .filter_map(|(id, func)| func.attributes.is_constructor.then_some(id)),
-        )
+        self.reachable_from(self.constructor)
     }
 
     /// Checks the phase contract for helpers that require runtime static frames.
@@ -763,14 +847,15 @@ impl Module {
     ///
     /// This only orders text, so `functions` and its ids stay as they are.
     pub fn functions_in_print_order(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
-        let role = |(id, func): &(FunctionId, &Function)| {
-            if func.attributes.is_constructor {
+        let (receive, fallback) = (self.receive(), self.fallback());
+        let role = |(id, _): &(FunctionId, &Function)| {
+            if self.constructor == Some(*id) {
                 0
             } else if self.dispatch_entry == Some(*id) {
                 1
-            } else if func.attributes.is_receive {
+            } else if receive == Some(*id) {
                 2
-            } else if func.attributes.is_fallback {
+            } else if fallback == Some(*id) {
                 3
             } else {
                 4
@@ -812,8 +897,9 @@ impl Module {
                 writeln!(f)?;
             }
             if let Some(layout) = &self.backend_memory {
-                writeln!(f, "{}", layout.display(self))?;
+                writeln!(f, "{}", layout.display(self, ";"))?;
             }
+            let (receive, fallback) = (self.receive(), self.fallback());
             write!(
                 f,
                 "{}",
@@ -822,7 +908,10 @@ impl Module {
                         super::display::display_function_text(
                             func,
                             Some(self),
+                            self.constructor == Some(id),
                             self.dispatch_entry == Some(id),
+                            receive == Some(id),
+                            fallback == Some(id),
                         )
                     })
                     .format("\n")
@@ -834,7 +923,7 @@ impl Module {
     pub fn to_dot(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             if let Some(layout) = &self.backend_memory {
-                writeln!(f, "{}", layout.display(self))?;
+                writeln!(f, "{}", layout.display(self, "//"))?;
             }
             write!(
                 f,

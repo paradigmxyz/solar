@@ -1,19 +1,19 @@
-// === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.sol:NoopStores ===
+; === ROOT/tests/ui/codegen/mir/storage-dse/noop_stores.sol:NoopStores ===
 @module NoopStores
 @phase lowered
 ; constructor() [creation entry]
-fn @constructor() [abi_wrapper, constructor] {
+fn @constructor() [constructor] {
   bb0:
     v1 = callvalue
     v2 = ne v1, 0
     jumpi v2, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
     v3 = keccak256 0, 64 !metadata(memory=scratch)
     sstore v3, 5
     ret
-  bb2 [cold]:  ; preds = bb0
+  bb2 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
@@ -23,124 +23,129 @@ fn @entry() [entry] {
     v0 = callvalue
     v1 = ne v0, 0
     jumpi v1, bb9, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = calldataload 0
     v3 = shr v2, 224
     switch v3, default bb9, [0x6724f0a2 => bb2, 0x7a96c521 => bb3, 0x7cb6ded3 => bb4, 0x966953d1 => bb5, 0x9c0e3f7a => bb6, 0xb437bc14 => bb7, 0xc86d784b => bb8]
-  bb8:  ; preds = bb1
+  bb8:                                            ; preds = bb1
     tail_call @branch
-  bb7:  ; preds = bb1
+  bb7:                                            ; preds = bb1
     tail_call @checked
-  bb6:  ; preds = bb1
+  bb6:                                            ; preds = bb1
     tail_call @write
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     tail_call @masked
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     tail_call @touch
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     tail_call @staticTouch
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     tail_call @measured
-  bb9 [cold]:  ; preds = bb0, bb1
+  bb9 [cold]:                                     ; preds = bb0, bb1
     revert 0, 0
 }
 
 ; function touch(uint256 i, uint256 v) external [selector 0x7cb6ded3]
-fn @touch() [selector=0x7cb6ded3, abi_wrapper] {
+fn @touch() {
   bb0:
     v6 = calldatasize
     v7 = lt v6, 68
     jumpi v7, bb1, bb2
-  bb2:  ; preds = bb0
-    mstore 0, arg0 !metadata(memory=scratch)
+  bb2:                                            ; preds = bb0
+    v8 = calldataload 4
+    mstore 0, v8 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
     stop
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
 ; function masked(uint256 i, uint256 v) external returns (uint256) [selector 0x966953d1]
-fn @masked() [selector=0x966953d1, abi_wrapper] {
+fn @masked() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 68
     jumpi v9, bb1, bb2
-  bb2:  ; preds = bb0
-    mstore 0, arg0 !metadata(memory=scratch)
+  bb2:                                            ; preds = bb0
+    v10 = calldataload 4
+    mstore 0, v10 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v10 = keccak256 0, 64 !metadata(memory=scratch)
-    v1 = sload v10
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    v1 = sload v12
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
 ; function branch(uint256 i, bool c) external returns (uint256) [selector 0xc86d784b]
-fn @branch() [selector=0xc86d784b, abi_wrapper, implicit_args=[i256, i1]] {
+fn @branch() {
   bb0:
-    v7 = calldataload 36
-    v8 = shr v7, 1
     v5 = calldatasize
     v6 = lt v5, 68
-    v11 = zext i1 v6 to i256
-    v12 = or v11, v8
-    v13 = ne v12, 0
-    jumpi v13, bb1, bb2
-  bb2:  ; preds = bb0
-    mstore 0, arg0 !metadata(memory=scratch)
+    v8 = calldataload 36
+    v9 = gt v8, 1
+    v12 = or v6, v9
+    jumpi v12, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v13 = calldataload 4
+    mstore 0, v13 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v10 = keccak256 0, 64 !metadata(memory=scratch)
-    v1 = sload v10
+    v11 = keccak256 0, 64 !metadata(memory=scratch)
+    v1 = sload v11
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
 ; function checked(uint256 i, uint256 a) external returns (uint256) [selector 0xb437bc14]
-fn @checked() [selector=0xb437bc14, abi_wrapper] {
+fn @checked() {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 68
     jumpi v12, bb3, bb4
-  bb4:  ; preds = bb0
-    mstore 0, arg0 !metadata(memory=scratch)
+  bb4:                                            ; preds = bb0
+    v14 = calldataload 36
+    v13 = calldataload 4
+    mstore 0, v13 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v13 = keccak256 0, 64 !metadata(memory=scratch)
-    v1 = sload v13
-    v10 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v15 = keccak256 0, 64 !metadata(memory=scratch)
+    v1 = sload v15
+    v10 = eq v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jumpi v10, bb1, bb2
-  bb2:  ; preds = bb4
+  bb2:                                            ; preds = bb4
     mstore 0, v1 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb4
+  bb1 [cold]:                                     ; preds = bb4
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3 [cold]:  ; preds = bb0
+  bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
 ; function write(uint256 i, uint256 v) external returns (uint256) [selector 0x9c0e3f7a]
-fn @write() [selector=0x9c0e3f7a, abi_wrapper] {
+fn @write() {
   bb0:
     v8 = calldatasize
     v9 = lt v8, 68
     jumpi v9, bb1, bb2
-  bb2:  ; preds = bb0
-    mstore 0, arg0 !metadata(memory=scratch)
+  bb2:                                            ; preds = bb0
+    v10 = calldataload 4
+    v11 = calldataload 36
+    mstore 0, v10 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v10 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v10, arg1
-    mstore 0, arg1 !metadata(memory=scratch)
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v12, v11
+    mstore 0, v11 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 
 ; function measured() external returns (uint256) [selector 0x6724f0a2]
-fn @measured() [selector=0x6724f0a2, abi_wrapper] {
+fn @measured() {
   bb0:
     v0 = gas
     v1 = sload 1 !metadata(storage=slot(1))
@@ -149,17 +154,17 @@ fn @measured() [selector=0x6724f0a2, abi_wrapper] {
     v4 = sub v0, v2
     v5 = lt v0, v2
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     mstore 0, v4 !metadata(memory=scratch)
     returndata 0, 32
-  bb1 [cold]:  ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
 
 ; function staticTouch() external view returns (bool ok) [selector 0x7a96c521]
-fn @staticTouch() [selector=0x7a96c521, abi_wrapper, view] {
+fn @staticTouch() {
   bb0:
     v0: i256 = address
     v1 = gas

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib ===
+; === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib ===
 @module TryLib
 @library
 ; function double(uint256 x) external pure returns (uint256) [selector 0xeee97206]
@@ -14,7 +14,7 @@ fn @noop(arg0: i256) [selector=0x67190395, pure, abi_params=[uint256], abi_retur
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLibraryCall ===
+; === ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLibraryCall ===
 @module TryLibraryCall
 @libraries
   TryLib_0: "ROOT/tests/ui/codegen/lowering/try_library_call_evm_version.sol:TryLib"
@@ -36,21 +36,21 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
     v2 = zext i160 v0 to i256
     v3 = delegatecall v1, v2, 28, 36, 0, 32
     jumpi v3, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
     v6 = mload 0 !metadata(memory=scratch)
     sstore 0, v6 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v7 = phi [bb1: v6], [bb4: 7]
     ret v7
 }
@@ -69,17 +69,17 @@ fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], 
     v5 = zext i160 v0 to i256
     v6 = delegatecall v1, v5, 28, 36, 0, 0
     jumpi v6, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     sstore 0, 1 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v7 = phi [bb1: 1], [bb4: 7]
     ret v7
 }

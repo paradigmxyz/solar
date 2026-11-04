@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/isolated_array_pop.sol:IsolatedArrayPop ===
+; === ROOT/tests/ui/codegen/lowering/run-call/isolated_array_pop.sol:IsolatedArrayPop ===
 @module IsolatedArrayPop
 @types
   struct0: {i256, i256, i256}
@@ -22,12 +22,12 @@ fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, 
     sstore 0, v7 !metadata(storage=slot(0))
     v10 = checked_add uint256, 0, 1
     v11 = sload 0 !metadata(storage=slot(0))
-    v12 = lt 0, v11
+    v12 = gt v11, 0
     v13 = eq v12, false
     icall panic_if<0x32>, v13
     v14 = storage_array_data_slot 0
     v15 = sload 0 !metadata(storage=slot(0))
-    v16 = lt 0, v15
+    v16 = gt v15, 0
     v17 = eq v16, false
     icall panic_if<0x32>, v17
     v18 = storage_array_data_slot 0
@@ -37,7 +37,7 @@ fn @access() -> struct0 [selector=0x71907f17, abi_params=[], abi_returns=[word, 
     v21 = and v20, 1
     v22 = eq v21, 1
     v23 = sub 0, v21
-    v24 = or 127, v23
+    v24 = or v23, 127
     v25 = shr v20, 1
     v26 = and v25, v24
     v27 = insert_value struct0, undef struct0, 0, v10

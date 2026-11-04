@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Base ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Base ===
 @module Base
 ; constructor(uint256 value_, address[] memory entries_) [creation entry]
 fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256, array<_, address>]] {
@@ -6,26 +6,26 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256
     sstore 0, arg0 !metadata(storage=slot(0))
     v0 = mload arg1
     v1 = sload 1 !metadata(storage=slot(1))
-    v2 = gt v1, v0
+    v2 = lt v0, v1
     jumpi v2, bb1, bb2
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     v3 = phi [bb1: v0], [bb4: v17]
     v4 = lt v3, v1
     jumpi v4, bb4, bb5
-  bb5:  ; preds = bb3
+  bb5:                                            ; preds = bb3
     jump bb2
-  bb2:  ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb5
     sstore 1, v0 !metadata(storage=slot(1))
     jump bb6
-  bb6:  ; preds = bb2, bb7
+  bb6:                                            ; preds = bb2, bb7
     v18 = phi [bb2: 0], [bb7: v37]
     v19 = lt v18, v0
     jumpi v19, bb7, bb8
-  bb8:  ; preds = bb6
+  bb8:                                            ; preds = bb6
     ret
-  bb7:  ; preds = bb6
+  bb7:                                            ; preds = bb6
     v20 = shl v18, 5
     v21 = ptradd arg1, v20
     v22 = ptradd v21, 32
@@ -46,7 +46,7 @@ fn @constructor(arg0: i256, arg1: ptr<memory>) [constructor, abi_params=[uint256
     sstore v26, v36 !metadata(storage=symbolic(v26))
     v37 = add v18, 1
     jump bb6
-  bb4:  ; preds = bb3
+  bb4:                                            ; preds = bb3
     v5 = storage_array_data_slot 1
     v6 = div v3, 1
     v7 = add v5, v6
@@ -90,7 +90,7 @@ fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[uint256], 
     ret v11
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Main ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Main ===
 @module Main
 ; constructor(address[] memory entries_, uint256 value_) Base(value_, forward(entries_)) [creation entry]
 fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_, address>, uint256]] {
@@ -99,30 +99,30 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_
     sstore 0, arg1 !metadata(storage=slot(0))
     v1 = mload v0
     v2 = sload 1 !metadata(storage=slot(1))
-    v3 = gt v2, v1
+    v3 = lt v1, v2
     jumpi v3, bb2, bb3
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb4
-  bb4:  ; preds = bb2, bb5
+  bb4:                                            ; preds = bb2, bb5
     v4 = phi [bb2: v1], [bb5: v18]
     v5 = lt v4, v2
     jumpi v5, bb5, bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb0, bb6
+  bb3:                                            ; preds = bb0, bb6
     sstore 1, v1 !metadata(storage=slot(1))
     jump bb7
-  bb7:  ; preds = bb3, bb8
+  bb7:                                            ; preds = bb3, bb8
     v19 = phi [bb3: 0], [bb8: v38]
     v20 = lt v19, v1
     jumpi v20, bb8, bb9
-  bb9:  ; preds = bb7
+  bb9:                                            ; preds = bb7
     jump bb1
-  bb1:  ; preds = bb9
+  bb1:                                            ; preds = bb9
     jump bb10
-  bb10:  ; preds = bb1
+  bb10:                                           ; preds = bb1
     ret
-  bb8:  ; preds = bb7
+  bb8:                                            ; preds = bb7
     v21 = shl v19, 5
     v22 = ptradd v0, v21
     v23 = ptradd v22, 32
@@ -143,7 +143,7 @@ fn @constructor(arg0: ptr<memory>, arg1: i256) [constructor, abi_params=[array<_
     sstore v27, v37 !metadata(storage=symbolic(v27))
     v38 = add v19, 1
     jump bb7
-  bb5:  ; preds = bb4
+  bb5:                                            ; preds = bb4
     v6 = storage_array_data_slot 1
     v7 = div v4, 1
     v8 = add v6, v7
@@ -193,7 +193,7 @@ fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[uint256], 
     ret v11
 }
 
-// === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Creator ===
+; === ROOT/tests/ui/codegen/lowering/run-call/constructor_dynamic_array_forwarding.sol:Creator ===
 @module Creator
 @types
   struct0: {i256, i160}
@@ -204,55 +204,50 @@ fn @entry(arg0: i256) -> i160 [selector=0xe2095c07, view, abi_params=[uint256], 
 ; function f(uint256 index, address[] memory entries) external returns (uint256 value, address selected) [selector 0x1b2902dd]
 fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0x1b2902dd, abi_params=[uint256, array<_, address>], abi_returns=[word, word<uint160>], abi_return_params=[uint256, address]] {
   bb0:
-    v0 = abi_encode [memory_array<word<uint160>>, word], args arg1, arg0
-    v1 = extract_value slice<memory>, v0, 1
-    v2 = datasize Main_creation_code_0
-    v3 = add v2, v1
-    v4 = lt v3, v2
-    icall panic_if<0x41>, v4
-    v5 = fmp
-    datacopy Main_creation_code_0, v5, v2
-    v6 = extract_value slice<memory>, v0, 0
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = add v7, v2
-    mcopy v8, v6, v1 !metadata(memory=heap)
-    v9 = create 0, v5, v3
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
-  bb1:  ; preds = bb0
+    v0 = datasize Main_creation_code_0
+    v1 = fmp
+    datacopy Main_creation_code_0, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [memory_array<word<uint160>>, word], scratch, base v2, args arg1, arg0
+    v4 = extract_value slice<memory>, v3, 1
+    v5 = add v0, v4
+    v6 = lt v5, v0
+    icall panic_if<0x41>, v6
+    v7 = create 0, v1, v5
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v11 = gas
+  bb2:                                            ; preds = bb0
+    v9 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v12 = zext i160 v9 to i256
-    v13 = staticcall v11, v12, 28, 4, 0, 32
-    jumpi v13, bb4, bb3
-  bb3:  ; preds = bb2
+    v10 = zext i160 v7 to i256
+    v11 = staticcall v9, v10, 28, 4, 0, 32
+    jumpi v11, bb4, bb3
+  bb3:                                            ; preds = bb2
     revert_returndata
-  bb4:  ; preds = bb2
-    v14 = returndatasize
-    v15 = lt v14, 32
-    icall revert_if<tuple_data_too_short>, v15
-    v16 = mload 0 !metadata(memory=scratch)
-    v17 = gas
+  bb4:                                            ; preds = bb2
+    v12 = returndatasize
+    v13 = lt v12, 32
+    icall revert_if<tuple_data_too_short>, v13
+    v14 = mload 0 !metadata(memory=scratch)
+    v15 = gas
     mstore 0, 0xe2095c07 !metadata(memory=scratch)
     mstore 32, arg0 !metadata(memory=scratch)
-    v18 = zext i160 v9 to i256
-    v19 = staticcall v17, v18, 28, 36, 0, 32
-    jumpi v19, bb6, bb5
-  bb5:  ; preds = bb4
+    v16 = zext i160 v7 to i256
+    v17 = staticcall v15, v16, 28, 36, 0, 32
+    jumpi v17, bb6, bb5
+  bb5:                                            ; preds = bb4
     revert_returndata
-  bb6:  ; preds = bb4
-    v20 = returndatasize
-    v21 = lt v20, 32
-    icall revert_if<tuple_data_too_short>, v21
-    v22 = mload 0 !metadata(memory=scratch)
-    v23 = shr v22, 160
-    v24 = eq v23, 0
-    v25 = eq v24, false
-    icall revert_if<empty>, v25
-    v26 = trunc i256 v22 to i160
-    v27 = insert_value struct0, undef struct0, 0, v16
-    v28 = insert_value struct0, v27, 1, v26
-    ret v28
+  bb6:                                            ; preds = bb4
+    v18 = returndatasize
+    v19 = lt v18, 32
+    icall revert_if<tuple_data_too_short>, v19
+    v20 = mload 0 !metadata(memory=scratch)
+    v21 = gt v20, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v21
+    v22 = trunc i256 v20 to i160
+    v23 = insert_value struct0, undef struct0, 0, v14
+    v24 = insert_value struct0, v23, 1, v22
+    ret v24
 }

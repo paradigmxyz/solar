@@ -84,7 +84,8 @@
 //! section is about reads.
 //!
 //! A join load is never removed or moved after a gas observation on any incoming
-//! CFG path, including loop backedges and observations in transitive callees.
+//! CFG path, including loop backedges and observations in transitive callees that may return
+//! after reading gas (see `GasObservations`).
 //! A join load is a candidate only if no kill of its key precedes it in the join block.
 //! For that scan, gas observations and calls block all spaces: a partial-redundancy
 //! insertion moves the read to the end of a predecessor, so everything in the join block
@@ -324,11 +325,7 @@ impl PreCostModel<'_> {
         let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
         let splits =
             input.insertions.iter().filter(|&&pred| splits_edge(input.func, pred)).count() as i64;
-        let transfer = self
-            .target
-            .opcode(op::PUSH2)
-            .plus(self.target.opcode(op::JUMP))
-            .plus(self.target.opcode(op::JUMPDEST));
+        let transfer = self.target.jump();
         let inserted = read * input.insertions.len() as i64 + splits * i64::from(transfer.gas);
         let phi = if !input.needs_phi || input.loop_carried {
             0
@@ -1334,11 +1331,7 @@ impl<'a> Eliminator<'a> {
                     Instruction::new(InstKind::Phi(incoming), Some(result_ty))
                         .with_debug_info_dropped(),
                 );
-                let phi_count = func.blocks[target]
-                    .instructions
-                    .iter()
-                    .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                    .count();
+                let phi_count = func.block_phi_count(target);
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
                 phi_value
             }
@@ -1654,12 +1647,8 @@ impl<'a> Eliminator<'a> {
     fn available_value_in_block(func: &Function, block: BlockId, key: &ExprKey) -> Option<ValueId> {
         func.blocks[block].instructions.iter().rev().find_map(|&inst| {
             let instruction = func.inst(inst);
-            let same_op = match (&instruction.kind, &key.kind) {
-                (InstKind::Gt(..), InstKind::Lt(..)) | (InstKind::SGt(..), InstKind::SLt(..)) => {
-                    true
-                }
-                (kind, key_kind) => mem::discriminant(kind) == mem::discriminant(key_kind),
-            };
+            let same_op = mem::discriminant(&*instruction.kind.less_than_form())
+                == mem::discriminant(&key.kind);
             if !same_op
                 || instruction.result_ty != Some(key.ty)
                 || !Self::is_pure_expression(instruction)
@@ -1696,11 +1685,8 @@ impl<'a> Eliminator<'a> {
             Value::Immediate(imm) => OperandKey::Immediate(imm.clone()),
             _ => OperandKey::Value(value),
         };
-        let mut kind = match *kind {
-            InstKind::Gt(a, b) => InstKind::Lt(b, a),
-            InstKind::SGt(a, b) => InstKind::SLt(b, a),
-            _ => kind.op().canonicalize_commutative_by_key(operand).into_kind()?,
-        };
+        let mut kind =
+            kind.op().canonicalize_commutative_by_key(operand).less_than_form().into_kind()?;
         let mut immediates = SmallVec::new();
         kind.visit_operands_mut(|value| {
             if let Value::Immediate(imm) = func.value(*value) {

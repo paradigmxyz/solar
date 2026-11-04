@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_roundtrip.sol:AbiEncodeRoundtrip ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_encode_roundtrip.sol:AbiEncodeRoundtrip ===
 @module AbiEncodeRoundtrip
 @types
   struct0: {i256, i256, i8}
@@ -28,20 +28,20 @@ fn @wordsRoundtrip(arg0: ptr<memory>) -> i256 [selector=0x285417c3, pure, abi_pa
     v0 = abi_encode [memory_array<word>], object, args arg0
     v1 = abi_decode [array<_, uint256>], v0
     v2 = mload v1
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v1, 32
     v6 = mload v5
     v7 = mload v1
-    v8 = lt 1, v7
+    v8 = gt v7, 1
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = ptradd v1, 64
     v11 = mload v10
     v12 = checked_add uint256, v6, v11
     v13 = mload v1
-    v14 = lt 2, v13
+    v14 = gt v13, 2
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v1, 96
@@ -56,13 +56,13 @@ fn @nestedWordsRoundtrip(arg0: ptr<memory>) -> i256 [selector=0xd8828f2f, pure, 
     v0 = abi_encode [memory_array<memory_array<word>>], object, args arg0
     v1 = abi_decode [array<_, array<_, uint256>>], v0
     v2 = mload v1
-    v3 = lt 1, v2
+    v3 = gt v2, 1
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v1, 64
     v6 = mload v5, ptr<memory>
     v7 = mload v6
-    v8 = lt 0, v7
+    v8 = gt v7, 0
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = ptradd v6, 32
@@ -111,40 +111,40 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v7 = alloc zeroed checked 96
     mstore v7, 2
     v8 = mload v0
-    v9 = lt 0, v8
+    v9 = gt v8, 0
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptrtoint ptr<memory> v7 to i256
     v12 = ptradd v0, 32
     mstore v12, v11
     v13 = mload v0
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v0, 32
     v17 = mload v16, ptr<memory>
     v18 = mload v17
-    v19 = lt 0, v18
+    v19 = gt v18, 0
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = ptradd v17, 32
     mstore v21, 7
     v22 = mload v0
-    v23 = lt 0, v22
+    v23 = gt v22, 0
     v24 = eq v23, false
     icall panic_if<0x32>, v24
     v25 = ptradd v0, 32
     v26 = mload v25, ptr<memory>
     v27 = mload v26
-    v28 = lt 1, v27
+    v28 = gt v27, 1
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v26, 64
@@ -152,20 +152,20 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v31 = alloc zeroed checked 64
     mstore v31, 1
     v32 = mload v0
-    v33 = lt 1, v32
+    v33 = gt v32, 1
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = ptrtoint ptr<memory> v31 to i256
     v36 = ptradd v0, 64
     mstore v36, v35
     v37 = mload v0
-    v38 = lt 1, v37
+    v38 = gt v37, 1
     v39 = eq v38, false
     icall panic_if<0x32>, v39
     v40 = ptradd v0, 64
     v41 = mload v40, ptr<memory>
     v42 = mload v41
-    v43 = lt 0, v42
+    v43 = gt v42, 0
     v44 = eq v43, false
     icall panic_if<0x32>, v44
     v45 = ptradd v41, 32
@@ -180,25 +180,25 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v51 = extract_value struct3, v49, 1
     v52 = mload v50
     v53 = mload v50
-    v54 = lt 0, v53
+    v54 = gt v53, 0
     v55 = eq v54, false
     icall panic_if<0x32>, v55
     v56 = ptradd v50, 32
     v57 = mload v56, ptr<memory>
     v58 = mload v57
-    v59 = lt 1, v58
+    v59 = gt v58, 1
     v60 = eq v59, false
     icall panic_if<0x32>, v60
     v61 = ptradd v57, 64
     v62 = mload v61
     v63 = mload v50
-    v64 = lt 1, v63
+    v64 = gt v63, 1
     v65 = eq v64, false
     icall panic_if<0x32>, v65
     v66 = ptradd v50, 64
     v67 = mload v66, ptr<memory>
     v68 = mload v67
-    v69 = lt 0, v68
+    v69 = gt v68, 0
     v70 = eq v69, false
     icall panic_if<0x32>, v70
     v71 = ptradd v67, 32
@@ -209,7 +209,7 @@ fn @nestedMixedRoundtrip() -> struct2 [selector=0x337c7ce0, pure, abi_params=[],
     v76 = insert_value struct2, v75, 2, v72
     v77 = insert_value struct2, v76, 3, v73
     ret v77
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32

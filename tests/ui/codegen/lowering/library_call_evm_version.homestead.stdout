@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:Lib ===
+; === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:Lib ===
 @module Lib
 @library
 @types
@@ -82,7 +82,7 @@ fn @six(arg0: ptr<memory>) -> struct1 [selector=0xb84d18fb, pure, abi_params=[by
     ret v6
 }
 
-// === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/library_call_evm_version.sol:C ===
 @module C
 @types
   struct0: {i256, i256}
@@ -105,9 +105,9 @@ fn @one(arg0: i256) -> i256 [selector=0xef56f928, pure, abi_params=[uint256], ab
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v11 = mload v4
     ret v11
 }
@@ -129,9 +129,9 @@ fn @two(arg0: i256) -> struct0 [selector=0xcf2a8612, pure, abi_params=[uint256],
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 64
     jumpi v10, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v11 = mload v4
     v12 = ptrtoint ptr<memory> v4 to i256
     v13 = add v12, 32
@@ -165,9 +165,9 @@ fn @aggregate(arg0: i256) -> ptr<memory> [selector=0x407b7269, pure, abi_params=
     v11 = sub v10, 50
     v12 = delegatecall v11, 0x1111111111111111111111111111111111111111, v6, v7, v6, 64
     jumpi v12, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     mcopy v1, v6, 64
     v13 = make_memory_slice v1, 64
     v14 = abi_decode [array<2, uint256>], v13
@@ -191,16 +191,14 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[uint256], 
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v11 = mload v4
-    v12 = shr v11, 1
-    v13 = eq v12, 0
-    v14 = eq v13, false
-    icall revert_if<empty>, v14
-    v15 = ne v11, 0
-    ret v15
+    v12 = gt v11, 1
+    icall revert_if<empty>, v12
+    v13 = ne v11, 0
+    ret v13
 }
 
 ; function structBool(uint256 x) external pure returns (Lib.Flagged memory) [selector 0x199436a8]
@@ -225,9 +223,9 @@ fn @structBool(arg0: i256) -> ptr<memory> [selector=0x199436a8, pure, abi_params
     v12 = sub v11, 50
     v13 = delegatecall v12, 0x1111111111111111111111111111111111111111, v7, v8, v7, 64
     jumpi v13, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     mcopy v2, v7, 64
     v14 = make_memory_slice v2, 64
     v15 = abi_decode [tuple<bool, uint256>], v14
@@ -251,9 +249,9 @@ fn @attached() -> i256 [selector=0xd9e6b370, view, abi_params=[], abi_returns=[w
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 32
     jumpi v10, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v11 = mload v4
     ret v11
 }
@@ -275,9 +273,9 @@ fn @dynamicArgument(arg0: ptr<memory>) -> struct0 [selector=0x11b8efbf, pure, ab
     v9 = sub v8, 50
     v10 = delegatecall v9, 0x1111111111111111111111111111111111111111, v4, v5, v4, 192
     jumpi v10, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v11 = mload v4
     v12 = ptrtoint ptr<memory> v4 to i256
     v13 = add v12, 32
@@ -324,8 +322,8 @@ fn @none(arg0: i256) [selector=0x2758da14, pure, abi_params=[uint256], abi_retur
     v6 = sub v5, 50
     v7 = delegatecall v6, 0x1111111111111111111111111111111111111111, v1, v2, v1, 0
     jumpi v7, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }

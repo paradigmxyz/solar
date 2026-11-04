@@ -3,6 +3,7 @@ use crate::{
     global_state::{GlobalState, SourceFileEventDisposition},
     proto,
     utils::{apply_document_changes, rope_eq_str},
+    workspace::is_solidity_file,
 };
 use crop::Rope;
 use lsp_types::{
@@ -184,7 +185,7 @@ pub(crate) fn did_change_watched_files(
                     push_watched_event_batch(&mut watched_event_batches, event.typ, path);
                 }
             }
-            Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
+            Some(_) if is_solidity_file(&path) => {
                 let is_open = state.vfs.read().exists(&vfs_path);
                 // Open documents are sourced from the VFS. A save echo is redundant, while a
                 // watcher-only delete only removes the disk copy; `didClose` or `didDelete` ends

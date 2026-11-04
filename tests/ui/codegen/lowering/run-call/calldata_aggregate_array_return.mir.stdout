@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/calldata_aggregate_array_return.sol:CalldataAggregateArrayReturn ===
+; === ROOT/tests/ui/codegen/lowering/run-call/calldata_aggregate_array_return.sol:CalldataAggregateArrayReturn ===
 @module CalldataAggregateArrayReturn
 @types
   struct0: {i256, slice<calldata>}
@@ -16,7 +16,7 @@ fn @slice(arg0: slice<calldata>) -> slice<calldata> [selector=0x82cbd9d7, pure, 
     v0 = make_calldata_slice ptr<calldata> 0, 0
     v1 = extract_value slice<calldata>, arg0, 0
     v2 = extract_value slice<calldata>, arg0, 1
-    v3 = gt 2, v2
+    v3 = lt v2, 2
     v4 = lt 2, 1
     v5 = or v3, v4
     v6 = zext i1 v5 to i256
@@ -72,37 +72,36 @@ fn @row(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [selector=0x538f7f
     icall panic_if<0x32>, v3
     v4 = extract_value slice<calldata>, arg0, 0
     v5 = mul arg1, 32
-    v6 = shr arg1, 251
-    v7 = ne v6, 0
-    icall panic_if<0x41>, v7
-    v8 = ptrtoint ptr<calldata> v4 to i256
-    v9 = add v8, v5
-    v10 = calldatasize
-    v11 = sub v10, v9
-    v12 = slt v11, 32
-    icall revert_if<calldata_tail_too_short>, v12
-    v13 = calldataload v9
-    v14 = ptrtoint ptr<calldata> v4 to i256
-    v15 = add v14, v13
-    v16 = calldatasize
-    v17 = ptrtoint ptr<calldata> v4 to i256
-    v18 = sub v16, v17
-    v19 = sub v18, 31
-    v20 = slt v13, v19
-    v21 = eq v20, false
-    icall revert_if<invalid_calldata_tail_offset>, v21
-    v22 = calldataload v15
-    v23 = calldatasize
-    v24 = gt v22, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v24
-    v25 = mul v22, 64
-    v26 = add v15, 32
-    v27 = sub v23, v25
-    v28 = sgt v26, v27
-    icall revert_if<calldata_tail_too_short>, v28
-    v29 = inttoptr i256 v26 to ptr<calldata>
-    v30 = make_calldata_slice v29, v22
-    ret v30
+    v6 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v6
+    v7 = ptrtoint ptr<calldata> v4 to i256
+    v8 = add v7, v5
+    v9 = calldatasize
+    v10 = sub v9, v8
+    v11 = slt v10, 32
+    icall revert_if<calldata_tail_too_short>, v11
+    v12 = calldataload v8
+    v13 = ptrtoint ptr<calldata> v4 to i256
+    v14 = add v13, v12
+    v15 = calldatasize
+    v16 = ptrtoint ptr<calldata> v4 to i256
+    v17 = sub v15, v16
+    v18 = sub v17, 31
+    v19 = slt v12, v18
+    v20 = eq v19, false
+    icall revert_if<invalid_calldata_tail_offset>, v20
+    v21 = calldataload v14
+    v22 = calldatasize
+    v23 = gt v21, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v23
+    v24 = mul v21, 64
+    v25 = add v14, 32
+    v26 = sub v22, v24
+    v27 = slt v26, v25
+    icall revert_if<calldata_tail_too_short>, v27
+    v28 = inttoptr i256 v25 to ptr<calldata>
+    v29 = make_calldata_slice v28, v21
+    ret v29
 }
 
 ; function member(Outer calldata o) external pure returns (Pair[] calldata) [selector 0xef3fa208]
@@ -133,7 +132,7 @@ fn @member(arg0: slice<calldata>) -> slice<calldata> [selector=0xef3fa208, pure,
     v19 = mul v16, 64
     v20 = add v9, 32
     v21 = sub v17, v19
-    v22 = sgt v20, v21
+    v22 = slt v21, v20
     icall revert_if<calldata_tail_too_short>, v22
     v23 = inttoptr i256 v20 to ptr<calldata>
     v24 = make_calldata_slice v23, v16

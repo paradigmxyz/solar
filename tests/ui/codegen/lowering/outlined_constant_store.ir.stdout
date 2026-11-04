@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedConstantStore (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedConstantStore (runtime) ===
 @module OutlinedConstantStore_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 36
   calldatasize
   lt
@@ -33,10 +33,10 @@ bb4 [cold]:
   push 0
   push 0
   revert
-bb5:  ; function first(uint256 pointer) external pure returns (uint256 value) [selector 0x0b3f62f5]
+bb5 [entry]:                                      ; function first(uint256 pointer) external pure returns (uint256 value) [selector 0x0b3f62f5]
   push bb8
   jump bb7
-bb6:  ; function second(uint256 pointer) external pure returns (uint256 value) [selector 0x7896dfe3]
+bb6 [entry]:                                      ; function second(uint256 pointer) external pure returns (uint256 value) [selector 0x7896dfe3]
   push bb9
   jump bb7
 bb7 [ret=0, inputs=1, outputs=0]:
@@ -75,9 +75,9 @@ bb9 [continuation]:
   push 32
   push 0
   return
-// === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedNarrowing (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/outlined_constant_store.sol:OutlinedNarrowing (runtime) ===
 @module OutlinedNarrowing_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 36
   calldatasize
   lt
@@ -117,16 +117,18 @@ bb5 [cold]:
   push 0
   push 0
   revert
-bb6:  ; function narrow8(uint256 value) external pure returns (uint8) [selector 0x2da3006c]
+bb6 [entry]:                                      ; function narrow8(uint256 value) external pure returns (uint8) [selector 0x2da3006c]
+  push 256
   push 4
   calldataload
-  push 255
-  dup 2
-  gt
+  lt
+  iszero
   push bb8
   jumpi
   jump bb7
 bb7:
+  push 4
+  calldataload
   push 0
   mstore
   push 32
@@ -149,16 +151,17 @@ bb8 [cold]:
   swap 2
   swap 1
   jump bb15
-bb9:  ; function narrow32(uint256 value) external pure returns (uint32) [selector 0xb5be099a]
+bb9 [entry]:                                      ; function narrow32(uint256 value) external pure returns (uint32) [selector 0xb5be099a]
   push 4
   calldataload
-  dup 1
   push 32
   shr
   push bb11
   jumpi
   jump bb10
 bb10:
+  push 4
+  calldataload
   push 0
   mstore
   push 32
@@ -181,16 +184,17 @@ bb11 [cold]:
   swap 2
   swap 1
   jump bb15
-bb12:  ; function narrow128(uint256 value) external pure returns (uint128) [selector 0x9646654f]
+bb12 [entry]:                                     ; function narrow128(uint256 value) external pure returns (uint128) [selector 0x9646654f]
   push 4
   calldataload
-  dup 1
   push 128
   shr
   push bb14
   jumpi
   jump bb13
 bb13:
+  push 4
+  calldataload
   push 0
   mstore
   push 32

@@ -57,17 +57,22 @@
 //! more word the loop carries, and its saving depends on the stack schedule, not on the opcodes: a
 //! loop carrying seven words grew by two bytes, while loops carrying two and four shrank by one and
 //! four. Size mode therefore rewrites a factor's checks only while every loop around them stays
-//! within [`LOOP_CARRY_BUDGET`] with the bound.
+//! within [`Target::LOOP_CARRY_BUDGET`] with the bound.
 
-use crate::mir::{
-    BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value, ValueId,
-    analysis::{
-        AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, DominatorTree, Location,
-        LocationSize, Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef, ScalarEvolution,
+use crate::{
+    mir::{
+        BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
+        Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
+        ValueId,
+        analysis::{
+            AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, DominatorTree, Location,
+            LocationSize, Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef,
+            ScalarEvolution,
+        },
+        pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+        utils as mir_utils,
     },
-    pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
-    utils as mir_utils,
+    target::Target,
 };
 use alloy_primitives::U256;
 use arrayvec::ArrayVec;
@@ -77,14 +82,6 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
 };
 use std::{cmp::Reverse, rc::Rc};
-
-/// Most words a loop may carry after a below-threshold hoist or, in size mode, a product check's
-/// hoisted bound. The count is the header's phis plus the values defined outside the loop that
-/// its body reads, which the backend keeps on the stack through the loop when they fit. Past this
-/// many, its layouts spill loop values to frame slots, and a hoisted base then costs more in
-/// reloads of the words it displaced than its in-loop recomputation saved: the hash-probe loop of
-/// `hasDuplicate` lost 2.4% carrying eight, while `reverse` with four gained 8%.
-const LOOP_CARRY_BUDGET: usize = 5;
 
 /// Function pass for loop-invariant code motion.
 pub(crate) struct Licm;
@@ -114,8 +111,10 @@ impl MirPass for Licm {
             analyses,
             &selected,
             |func, analyses| {
+                let target = analyses.runtime_target(gcx);
                 let mut optimizer = LoopOptimizer {
-                    hoist_cheap: analyses.runtime_target(gcx).optimization().is_gas(),
+                    hoist_cheap: target.optimization().is_gas(),
+                    target,
                     alias: Rc::clone(analyses.alias()),
                     hoisted: 0,
                     annotated_aliases: false,
@@ -188,20 +187,18 @@ impl Scratch {
     }
 }
 
-/// Minimum estimated gas saved per iteration before an instruction is considered a LICM root.
-const MIN_LICM_PROFIT: u16 = 3;
-
 /// Maximum number of instructions hoisted from one loop.
 const MAX_LICM_HOISTED_INSTS: usize = 8;
 
 /// Loop optimizer.
-struct LoopOptimizer {
+pub(super) struct LoopOptimizer {
     /// Whether pure arithmetic executed on every iteration is hoisted even when its per-iteration
-    /// saving is below [`MIN_LICM_PROFIT`]. The backend carries a preheader value on the stack
-    /// through a loop or rebuilds it at its use sites, whichever its pricing prefers, so
+    /// saving does not satisfy [`Target::licm_pays`]. The backend carries a preheader value on
+    /// the stack through a loop or rebuilds it at its use sites, whichever its pricing prefers, so
     /// hoisting only widens its choice; the cost is bytecode when the value is spilled, which
     /// gas mode accepts.
     hoist_cheap: bool,
+    target: Target,
     alias: Rc<AliasAnalysis>,
     /// Number of instructions hoisted or rewritten.
     hoisted: usize,
@@ -242,7 +239,12 @@ impl LoopOptimizer {
         let mut carried = loops
             .iter()
             .map(|loop_data| {
-                let words = Self::carried_words(func, loop_data, &inst_blocks, &mut scratch.values);
+                let words = Self::carried_words(
+                    func,
+                    loop_data,
+                    |inst| Self::in_loop(loop_data, &inst_blocks, inst),
+                    &mut scratch.values,
+                );
                 (loop_data.header, words)
             })
             .collect::<FxHashMap<_, _>>();
@@ -264,12 +266,12 @@ impl LoopOptimizer {
     }
 
     /// The words the backend carries through a loop: the header's phis and the values defined
-    /// outside the loop that its non-phi instructions read. Immediates, arguments, and nullary
-    /// rematerializable reads are rebuilt where used and cost no word.
-    fn carried_words(
+    /// outside the loop that its non-phi instructions read. Immediates, calldata words at constant
+    /// offsets, and nullary rematerializable reads are rebuilt where used and cost no word.
+    pub(super) fn carried_words(
         func: &Function,
         loop_data: &Loop,
-        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+        in_loop: impl Fn(InstId) -> bool,
         seen: &mut DenseBitSet<ValueId>,
     ) -> usize {
         let header = &func.blocks[loop_data.header];
@@ -280,9 +282,7 @@ impl LoopOptimizer {
             .count();
         seen.clear_to(func.num_values());
         let mut visit = |operand| {
-            if Self::is_carried_operand(func, loop_data, inst_blocks, operand)
-                && seen.insert(operand)
-            {
+            if Self::is_carried_operand(func, &in_loop, operand) && seen.insert(operand) {
                 count += 1;
             }
         };
@@ -301,23 +301,29 @@ impl LoopOptimizer {
         count
     }
 
-    /// Whether a value read inside `loop_data` occupies a carried word: an instruction result
-    /// outside the loop that is not a nullary rematerializable read.
+    /// Whether a value read inside a loop occupies a carried word: an instruction result
+    /// outside the loop that is not a nullary rematerializable read or a calldata word at a
+    /// constant offset.
     fn is_carried_operand(
         func: &Function,
-        loop_data: &Loop,
-        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+        in_loop: &impl Fn(InstId) -> bool,
         value: ValueId,
     ) -> bool {
         let Value::Inst(inst_id) = func.value(value) else { return false };
         let kind = &func.inst(*inst_id).kind;
-        inst_blocks
-            .get(*inst_id)
-            .copied()
-            .flatten()
-            .is_none_or(|block| !loop_data.blocks.contains(block))
+        !in_loop(*inst_id)
             && !(kind.operands().is_empty()
                 && kind.op_def().traits.contains(OpTraits::REMATERIALIZABLE))
+            && !func.is_constant_calldata_load(value)
+    }
+
+    /// Whether `inst` sits in a block of `loop_data`.
+    fn in_loop(
+        loop_data: &Loop,
+        inst_blocks: &IndexVec<InstId, Option<BlockId>>,
+        inst: InstId,
+    ) -> bool {
+        inst_blocks.get(inst).copied().flatten().is_some_and(|b| loop_data.blocks.contains(b))
     }
 
     /// The change in carried words of loop `inner` (the hoisting loop or one nested in it) when
@@ -348,8 +354,11 @@ impl LoopOptimizer {
         }
         released.clear_to(func.num_values());
         for operand in closure.iter().flat_map(|&inst_id| func.inst(inst_id).kind.operands()) {
-            if Self::is_carried_operand(func, inner, inst_blocks, operand)
-                && !released.contains(operand)
+            if Self::is_carried_operand(
+                func,
+                &|inst| Self::in_loop(inner, inst_blocks, inst),
+                operand,
+            ) && !released.contains(operand)
                 && !inner.blocks.iter().any(|block| reads_outside_closure(operand, block))
             {
                 released.insert(operand);
@@ -397,7 +406,7 @@ impl LoopOptimizer {
             return;
         }
         roots.sort_unstable_by_key(|&inst_id| {
-            (Reverse(self.licm_profit(func, inst_id)), inst_id.index())
+            (Reverse(self.target.licm_saving(func, inst_id)), inst_id.index())
         });
 
         let Scratch { selected, closure_set, visiting, closure, values } = scratch;
@@ -442,9 +451,9 @@ impl LoopOptimizer {
                     )
                 })
                 .collect::<Vec<_>>();
-            if self.licm_profit(func, root) < MIN_LICM_PROFIT
+            if !self.target.licm_pays(func, root)
                 && nest.iter().any(|&(header, delta)| {
-                    carried[&header].saturating_add_signed(delta) > LOOP_CARRY_BUDGET
+                    carried[&header].saturating_add_signed(delta) > Target::LOOP_CARRY_BUDGET
                 })
             {
                 continue;
@@ -667,35 +676,13 @@ impl LoopOptimizer {
         })
     }
 
-    fn licm_profit(&self, func: &Function, inst_id: InstId) -> u16 {
-        match func.inst(inst_id).kind {
-            InstKind::Load(_, PtrLocation::Storage | PtrLocation::Transient) => 100,
-            InstKind::Keccak256(_, _) => 30,
-            InstKind::MappingSlot(_, _)
-            | InstKind::MappingSlotBytes(_, _)
-            | InstKind::StorageArrayDataSlot(_)
-            | InstKind::StorageArrayElementSlot { .. } => 30,
-            InstKind::Exp(_, _) => 10,
-            InstKind::Mul(_, _)
-            | InstKind::Div(_, _)
-            | InstKind::SDiv(_, _)
-            | InstKind::Mod(_, _)
-            | InstKind::SMod(_, _)
-            | InstKind::AddMod(_, _, _)
-            | InstKind::MulMod(_, _, _)
-            | InstKind::Clz(_) => 5,
-            InstKind::Load(..) => 3,
-            _ => 0,
-        }
-    }
-
     fn is_profitable_licm_root(
         &self,
         func: &Function,
         inst_id: InstId,
         ctx: LoopOptContext<'_>,
     ) -> bool {
-        self.licm_profit(func, inst_id) >= MIN_LICM_PROFIT
+        self.target.licm_pays(func, inst_id)
             || (ctx.loop_data.trip_count.is_some_and(|trip_count| trip_count > 1)
                 && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
             || (ctx.dominates_backedges(inst_id)
@@ -927,12 +914,7 @@ impl LoopOptimizer {
     }
 
     fn const_affine_expr(&self, func: &Function, value: ValueId) -> Option<AffineExpr> {
-        Some(AffineExpr {
-            base: None,
-            invariants: Default::default(),
-            constant: self.const_i128(func, value)?,
-            terms: Default::default(),
-        })
+        Some(AffineExpr::constant(self.const_i128(func, value)?))
     }
 
     fn const_i128(&self, func: &Function, value: ValueId) -> Option<i128> {
@@ -1141,7 +1123,14 @@ fn reduce_product_checks(
                 .filter(|inner| {
                     loop_data.blocks.contains(inner.header) && inner.blocks.contains(block)
                 })
-                .map(|inner| LoopOptimizer::carried_words(func, inner, &inst_blocks, seen))
+                .map(|inner| {
+                    LoopOptimizer::carried_words(
+                        func,
+                        inner,
+                        |inst| LoopOptimizer::in_loop(inner, &inst_blocks, inst),
+                        seen,
+                    )
+                })
                 .max()
                 .unwrap_or_default();
             let worst = worst.entry(y).or_default();
@@ -1151,7 +1140,7 @@ fn reduce_product_checks(
         let mut admitted = FxHashMap::default();
         checks.retain(|&(.., y, _)| {
             *admitted.entry(y).or_insert_with(|| {
-                let fits = worst[&y] + bounds < LOOP_CARRY_BUDGET;
+                let fits = worst[&y] + bounds < Target::LOOP_CARRY_BUDGET;
                 bounds += usize::from(fits);
                 fits
             })
@@ -1182,7 +1171,7 @@ fn reduce_product_checks(
         if flip_check(func, block, inst, &uses) {
             // overflows = gt x, limit
             // jumpi overflows, abort, next
-            func.inst_mut(inst).kind = InstKind::Gt(x, limit);
+            func.inst_mut(inst).kind = func.canonical_kind(InstKind::Gt(x, limit));
             continue;
         }
         // overflows = gt x, limit
@@ -1194,7 +1183,7 @@ fn reduce_product_checks(
         func.blocks[block].instructions.insert(position, overflows_inst);
         // valid = eq overflows, 0
         let zero = func.alloc_value(Value::Immediate(Immediate::I1(false)));
-        func.inst_mut(inst).kind = InstKind::Eq(overflows, zero);
+        func.inst_mut(inst).kind = func.canonical_kind(InstKind::Eq(overflows, zero));
     }
     checks.len()
 }
@@ -1230,10 +1219,7 @@ fn product_check(
     zero_test: ValueId,
     exact: ValueId,
 ) -> Option<(ValueId, ValueId, ValueId)> {
-    let def = |value: ValueId| match *func.value(value) {
-        Value::Inst(inst) => Some(&func.inst(inst).kind),
-        _ => None,
-    };
+    let def = |value| func.value_inst_kind(value);
     let InstKind::Eq(l, r) = *def(zero_test)? else { return None };
     let divisor = match (func.value_u256(l), func.value_u256(r)) {
         (None, Some(zero)) if zero.is_zero() => l,
@@ -1384,7 +1370,7 @@ fn reassociate_invariant_offsets(
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {
             // outer = add t, y
-            func.inst_mut(outer).kind = InstKind::Add(t, y);
+            func.inst_mut(outer).kind = func.canonical_kind(InstKind::Add(t, y));
             let block = inst_blocks[inner].expect("the inner sum is in a block");
             func.blocks[block].instructions.retain(|&inst| inst != inner);
             rewritten += 1;

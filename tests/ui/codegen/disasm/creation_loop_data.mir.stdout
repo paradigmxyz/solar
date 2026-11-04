@@ -1,30 +1,30 @@
-// === ROOT/tests/ui/codegen/disasm/creation_loop_data.sol:LoopData ===
+; === ROOT/tests/ui/codegen/disasm/creation_loop_data.sol:LoopData ===
 @module LoopData
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v4]
     v1 = phi [bb0: 0], [bb3: v5]
     v2 = lt v1, 40
     jumpi v2, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     sstore 0, v0 !metadata(storage=slot(0))
     ret
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     mstore 0, 0x1111111111111111111111111111111111111111111111111111111111111111 !metadata(memory=scratch)
     mstore 32, 0x2222222222222222222222222222222222222222222222222222222222222222 !metadata(memory=scratch)
     mstore 64, 0x3333333333333333333333333333333333333333333333333333333333333333 !metadata(memory=scratch)
     mstore 96, 0x4444444444444444444444444444444444444444444444444444444444444444 !metadata(memory=scratch)
     v3 = keccak256 0, 128 !metadata(memory=scratch)
-    v4 = xor v0, v3
+    v4 = xor v3, v0
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v5 = checked_add uint256, v1, 1
     jump bb1
 }

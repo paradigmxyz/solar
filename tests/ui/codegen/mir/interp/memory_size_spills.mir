@@ -12,7 +12,7 @@ fn @entry() [entry] {
     tail_call @sizes
 }
 
-fn @sizes() [selector=1, abi_wrapper] {
+fn @sizes() {
   bb0:
     mstore 0, 0
     v0 = keccak256 0, 32

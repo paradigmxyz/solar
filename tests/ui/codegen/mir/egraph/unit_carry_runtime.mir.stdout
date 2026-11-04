@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/egraph/unit_carry_runtime.sol:UnitCarry ===
+; === ROOT/tests/ui/codegen/mir/egraph/unit_carry_runtime.sol:UnitCarry ===
 @module UnitCarry
 @types
   struct0: {i256, i256}
@@ -10,7 +10,7 @@ fn @carries(arg0: i256) -> struct0 [selector=0xe64b0efb, pure, abi_params=[uint2
     v1 = lt v0, arg0
     v2 = zext i1 v1 to i256
     v3 = sub arg0, 1
-    v4 = gt v3, arg0
+    v4 = lt arg0, v3
     v5 = zext i1 v4 to i256
     v6 = insert_value struct0, undef struct0, 0, v2
     v7 = insert_value struct0, v6, 1, v5

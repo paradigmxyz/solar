@@ -117,7 +117,7 @@ impl<'gcx> TypeLowerer<'gcx> {
 
     /// Whether solc copies a calldata array of `element`s as one block: it does so for `uint256`
     /// and `bytes32`, and reads every other element type one word at a time.
-    fn copies_as_block(element: Ty<'gcx>) -> bool {
+    pub(super) fn copies_as_block(element: Ty<'gcx>) -> bool {
         match element.peel_refs().kind {
             TyKind::Elementary(ElementaryType::UInt(size)) => size.bits() == 256,
             TyKind::Elementary(ElementaryType::FixedBytes(size)) => size.bytes() == 32,

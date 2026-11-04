@@ -24,8 +24,11 @@ contract WithDynamicInputs {
     function b(uint256 x) external pure returns (uint256) { return x * 2; }
 }
 
+// A narrow argument is checked with one comparison of the word the dispatcher loads, so the route
+// qualifies and its body joins the switch.
 // CHECK-LABEL: @module NarrowInputs
-// CHECK: tail_call @a
+// CHECK-NOT: tail_call @a
+// CHECK: gt {{v[0-9]+}}, 255
 contract NarrowInputs {
     function a(uint8 x) external pure returns (uint256) { return x; }
     function b(uint256 x) external pure returns (uint256) { return x * 2; }

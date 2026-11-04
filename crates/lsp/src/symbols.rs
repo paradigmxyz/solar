@@ -2374,11 +2374,7 @@ struct MemberCompletionCollector<'a, 'gcx> {
 }
 
 impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
-    fn push_member_completions(
-        &mut self,
-        receiver: &'gcx hir::Expr<'gcx>,
-        member: solar_interface::Ident,
-    ) {
+    fn push_member_completions(&mut self, receiver: &'gcx hir::Expr<'gcx>, member: Ident) {
         let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) else { return };
         if receiver_ty.references_error() {
             return;
@@ -2531,7 +2527,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
         receiver: &'gcx hir::Expr<'gcx>,
-        ident: solar_interface::Ident,
+        ident: Ident,
         kind: DocumentHighlightKind,
     ) -> ControlFlow<Never> {
         self.visit_expr(receiver)?;
@@ -2930,8 +2926,8 @@ pub(crate) fn push_symbol_for_test(
     parent: Option<SymbolId>,
 ) -> SymbolId {
     let range = |start_line, start_col, end_line, end_col| Range {
-        start: lsp_types::Position { line: start_line, character: start_col },
-        end: lsp_types::Position { line: end_line, character: end_col },
+        start: Position { line: start_line, character: start_col },
+        end: Position { line: end_line, character: end_col },
     };
     tables.push_for_test(
         uri,

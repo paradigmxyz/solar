@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/member_array_dynamic_v2.sol:C ===
+; === ROOT/tests/ui/codegen/lowering/run-call/member_array_dynamic_v2.sol:C ===
 @module C
 ; function f(S calldata s) external returns (bytes memory) [selector 0x59862edc]
 fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x59862edc, abi_params=[tuple<array<_, uint256>>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -12,16 +12,21 @@ fn @g(arg0: slice<calldata>) -> ptr<memory> [selector=0x397cf2ca, abi_params=[tu
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [tuple<calldata_array<word>>], selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [tuple<calldata_array<word>>], scratch, selector 0x59862edc00000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, v3, v4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
-    ret v8
+  bb2:                                            ; preds = bb0
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
+    ret v12
 }

@@ -1503,7 +1503,7 @@ fn words_test(
         let value = builder.load_as(*word, PtrLocation::Memory, ty);
         values.insert(*word, value);
     }
-    let limit = builder.imm(U256::from(1) << 64);
+    let limit = builder.imm(U256::ONE << 64);
     let one = builder.imm(1);
     let last_header_byte = builder.imm(31);
     let no = builder.imm_bool(false);
@@ -1581,7 +1581,7 @@ fn fence_test(
     }
     // test: ok = and (and (lt low, high), (lt high, 2^250)), (lt high, bound); jumpi ok, read, slow
     let ordered = builder.lt(fence.low, fence.high);
-    let limit = builder.imm(U256::from(1) << FENCE_INDEX_BITS);
+    let limit = builder.imm(U256::ONE << FENCE_INDEX_BITS);
     let small = builder.lt(fence.high, limit);
     let mut ok = builder.and(ordered, small);
     for bound in [fence.up.bound, fence.down.bound].into_iter().flatten() {
@@ -1593,7 +1593,7 @@ fn fence_test(
     if !fence.lengths.is_empty() {
         // ok = and ok, (lt (ptrtoint array), 2^64)
         let array = pointer_word(builder, fence.up.array);
-        let limit = builder.imm(U256::from(1) << 64);
+        let limit = builder.imm(U256::ONE << 64);
         let low_memory = builder.lt(array, limit);
         ok = builder.and(ok, low_memory);
     }
@@ -1668,10 +1668,11 @@ fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
         let Some(update) = func.inst_result_value(scan.update) else { continue };
         let Value::Inst(cloned) = *func.value(copy.value(update)) else { continue };
         if let InstKind::CheckedBinary { op, lhs, rhs, .. } = func.inst(cloned).kind {
-            func.inst_mut(cloned).kind = match op {
+            let kind = match op {
                 CheckedOp::Add => InstKind::Add(lhs, rhs),
                 _ => InstKind::Sub(lhs, rhs),
             };
+            func.inst_mut(cloned).kind = func.canonical_kind(kind);
         }
     }
     // The scans' headers define the addresses beside `i'` and `j'`, so they dominate a
@@ -1712,7 +1713,7 @@ fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
         .expect("the order's block holds it");
     let casts = words.iter().filter_map(|&(_, cast)| cast).collect::<Vec<_>>();
     func.blocks[block].instructions.splice(position..position, casts);
-    func.inst_mut(order).kind = InstKind::Lt(words[0].0, words[1].0);
+    func.inst_mut(order).kind = func.canonical_kind(InstKind::Lt(words[0].0, words[1].0));
 }
 
 /// The word of a pointer value, for comparisons.

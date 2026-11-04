@@ -15,12 +15,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// it before the branch. Rerouting such an edge through a fresh jump-only
     /// block gives those inputs a home after the predecessor's branch.
     pub(super) fn split_phi_critical_edges(func: &mut Function) -> bool {
-        let has_phis = func.blocks.iter().any(|block| {
-            block
-                .instructions
-                .iter()
-                .any(|&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-        });
+        let has_phis = func.blocks.indices().any(|block| func.block_has_phi(block));
         if !has_phis {
             return false;
         }
@@ -238,10 +233,15 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Comments the entry block of `func` in the EVM IR text with its note. The comment never
     /// reaches executable IR or debug information.
-    pub(super) fn comment_function_entry(&mut self, func: &Function, is_dispatch_entry: bool) {
+    pub(super) fn comment_function_entry(
+        &mut self,
+        func: &Function,
+        is_dispatch_entry: bool,
+        is_constructor: bool,
+    ) {
         if self.capture_evm_ir || self.capture_scheduled_evm_ir {
             let note = func
-                .entry_note(is_dispatch_entry)
+                .entry_note(is_dispatch_entry, is_constructor)
                 .unwrap_or_else(|| format!("{} (synthesized)", func.name));
             self.asm.comment_block(&note);
         }

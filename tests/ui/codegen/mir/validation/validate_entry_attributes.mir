@@ -1,0 +1,63 @@
+//@compile-flags: -Zmir-pipeline=none
+// Once `entry` routes to the wrappers, no function carries an entry or ABI attribute: the
+// routing is in the tail calls, and the wrappers hold their ABI as ordinary MIR.
+@module ValidateEntryAttributes
+
+fn @entry() [entry] {
+  bb0:
+    stop
+}
+
+//~? ERROR: [fn1] `selector` survives entry lowering
+fn @selector() [selector=0x01020304] {
+  bb0:
+    stop
+}
+
+//~? ERROR: [fn2] `pure` survives entry lowering
+fn @pure() [pure] {
+  bb0:
+    stop
+}
+
+//~? ERROR: [fn3] `view` survives entry lowering
+fn @view() [view] {
+  bb0:
+    stop
+}
+
+//~? ERROR: [fn4] `payable` survives entry lowering
+fn @payable() [payable] {
+  bb0:
+    stop
+}
+
+//~? ERROR: [fn5] `abi_wrapper` survives entry lowering
+fn @abi_wrapper() [abi_wrapper] {
+  bb0:
+    stop
+}
+
+//~? ERROR: [fn6] `abi_params` survives entry lowering
+fn @abi_params() [abi_params=[]] {
+  bb0:
+    stop
+}
+
+//~? ERROR: [fn7] `abi_returns` survives entry lowering
+fn @abi_returns() [abi_returns=[word]] {
+  bb0:
+    stop
+}
+
+//~? ERROR: [fn8] `abi_return_params` survives entry lowering
+fn @abi_return_params() [abi_return_params=[address]] {
+  bb0:
+    stop
+}
+
+// The constructor is a module root, not an attribute, and the inline tags are not entry facts.
+fn @constructor() [always_inline] {
+  bb0:
+    stop
+}

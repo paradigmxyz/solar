@@ -10,7 +10,7 @@
 //!
 //! This rewrite builds a second candidate for the planner, a copy of the function in which the
 //! values that cross a crowded point, a point where more words than the reach are live, are cheap
-//! to compute again:
+//! to compute again, and the loop-carried values only the code after the loop reads:
 //!
 //! - Values that differ by a constant: an affine form, a wrapping sum of other words times
 //!   constants plus a constant, groups the crossing values whose words and factors agree, such as a
@@ -18,6 +18,9 @@
 //!   dominates the others' becomes the group's base, and every other member is computed as `base +
 //!   (c - c_base)`, or a subtraction when that constant is shorter. The base then stays live in
 //!   place of the members, and each member costs one addition.
+//! - A loop-carried value whose step is a constant: a header phi `old` read after its loop while
+//!   the header computes `next = old + c`. Carrying both words through the loop's branch costs a
+//!   drop on every backedge, so each use after the loop computes `old` as `next - c` instead.
 //! - Every crossing value is computed again right before each of its uses past a crowded point, in
 //!   its own block after the point or in later blocks: a member from its base, any other value from
 //!   its own operation chain of at most [`MAX_REBUILT_OPS`] opcodes when every stack word the chain
@@ -79,6 +82,9 @@ const MAX_AFFINE_TERMS: usize = 4;
 enum Recipe {
     /// From another value plus a wrapping constant; its definition is replaced too.
     Offset(ValueId, U256),
+    /// From the value that steps it in its loop's header, at the uses after the loop; its
+    /// definition stays.
+    Step(ValueId, U256, Uses),
     /// From its own operations, operands first.
     Chain(Chain),
 }
@@ -91,6 +97,9 @@ type Chain = SmallVec<[InstId; 4]>;
 
 /// The stack words an operation chain reads.
 type Leaves = SmallVec<[ValueId; 2]>;
+
+/// The uses of a value by block and position, a terminator's at the block's length.
+type Uses = SmallVec<[(BlockId, usize); 4]>;
 
 /// A word as a wrapping sum of other words times constants, plus a constant.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -135,20 +144,22 @@ impl Affine {
     }
 }
 
-/// Returns a copy of `func` that computes the values crossing its crowded points again, as the
-/// module documentation describes, or `None` when no value qualifies. `extra` counts the words
-/// the stack holds besides the live values, such as the return address.
-pub(super) fn rebuild_crowded_values(
+/// Returns a copy of `func` that computes values again, as the module documentation describes, or
+/// `None` when no value qualifies. The values crossing crowded points qualify only with
+/// `crowding`, the reach and the count of extra words the stack holds besides the live values, such
+/// as the return address.
+pub(super) fn rebuild_values(
     func: &Function,
-    internal: bool,
+    reads: &DenseBitSet<ValueId>,
     liveness: &Liveness,
     cfg: &CfgInfo,
     loops: &LoopInfo,
-    reach: usize,
-    extra: usize,
+    crowding: Option<(usize, usize)>,
 ) -> Option<Function> {
-    let fresh = |value: ValueId| materialized_at_use(func, internal, value);
-    let (crowded, points) = crowded_points(func, liveness, &fresh, reach, extra)?;
+    let fresh = |value: ValueId| materialized_at_use(func, reads, value);
+    let (crowded, points) = crowding
+        .and_then(|(reach, extra)| crowded_points(func, liveness, &fresh, reach, extra))
+        .unwrap_or_else(|| (DenseBitSet::new_empty(func.num_values()), FxHashMap::default()));
     let mut defs = FxHashMap::<ValueId, (BlockId, usize)>::default();
     for (block, data) in func.blocks.iter_enumerated() {
         for (index, &inst) in data.instructions.iter().enumerate() {
@@ -162,22 +173,17 @@ pub(super) fn rebuild_crowded_values(
         .filter(|&value| !fresh(value) && defs.contains_key(&value) && rebuildable(func, value))
         .collect();
 
-    // The uses of a value past a crowded point, or `None` when one of them cannot take a copy.
     let containing = |block: BlockId| {
         loops.all_loops().filter(move |lp| lp.blocks.contains(block)).map(|lp| lp.header)
     };
-    let uses_past_crowding = |value: ValueId| -> Option<SmallVec<[(BlockId, usize); 4]>> {
-        let (home, def_index) = defs[&value];
-        let first_point = points
-            .get(&home)
-            .and_then(|points| points.iter().copied().find(|&point| point > def_index));
-        let home_loops: SmallVec<[BlockId; 2]> = containing(home).collect();
-        let mut uses = SmallVec::new();
+    // The uses of a value that `wanted` accepts by block and position, or `None` when one of them
+    // is a phi input, which cannot take a copy.
+    let uses_where = |value: ValueId, wanted: &dyn Fn(BlockId, usize) -> bool| -> Option<Uses> {
+        let mut uses = Uses::new();
         for (block, data) in func.blocks.iter_enumerated() {
-            let past = |index| block != home || first_point.is_some_and(|point| point <= index);
             for (index, &inst) in data.instructions.iter().enumerate() {
                 let kind = &func.inst(inst).kind;
-                if past(index) && kind.operands().contains(&value) {
+                if wanted(block, index) && kind.operands().contains(&value) {
                     if matches!(kind, InstKind::Phi(_)) {
                         return None;
                     }
@@ -185,12 +191,24 @@ pub(super) fn rebuild_crowded_values(
                 }
             }
             let end = data.instructions.len();
-            if past(end)
+            if wanted(block, end)
                 && data.terminator.as_ref().is_some_and(|term| term.operands().contains(&value))
             {
                 uses.push((block, end));
             }
         }
+        Some(uses)
+    };
+    // The uses of a value past a crowded point, or `None` when one of them cannot take a copy.
+    let uses_past_crowding = |value: ValueId| -> Option<Uses> {
+        let (home, def_index) = defs[&value];
+        let first_point = points
+            .get(&home)
+            .and_then(|points| points.iter().copied().find(|&point| point > def_index));
+        let home_loops: SmallVec<[BlockId; 2]> = containing(home).collect();
+        let uses = uses_where(value, &|block, index| {
+            block != home || first_point.is_some_and(|point| point <= index)
+        })?;
         // A copy inside a loop that does not contain the definition runs on every iteration.
         for &(block, _) in &uses {
             if !containing(block).all(|header| home_loops.contains(&header)) {
@@ -245,11 +263,32 @@ pub(super) fn rebuild_crowded_values(
             recipes.insert(member, Recipe::Offset(base, offset));
         }
     }
+    // A header phi `old` read after its loop, from the step `next = old + c` the header computes:
+    // `old = next - c`.
+    for lp in loops.all_loops() {
+        for &inst in &func.blocks[lp.header].instructions {
+            let InstKind::Phi(incoming) = &func.inst(inst).kind else { continue };
+            let Some(old) = func.inst_result_value(inst) else { continue };
+            let step = incoming.iter().find_map(|&(_, next)| {
+                if next == old || defs.get(&next).is_none_or(|&(block, _)| block != lp.header) {
+                    return None;
+                }
+                let form = affine_form(func, next, &mut 0)?;
+                (form.terms.as_slice() == [(old, U256::ONE)]).then_some((next, form.constant))
+            });
+            if let Some((next, step)) = step
+                && let Some(uses) = uses_where(old, &|block, _| !lp.blocks.contains(block))
+                && !uses.is_empty()
+            {
+                recipes.insert(old, Recipe::Step(next, step.wrapping_neg(), uses));
+            }
+        }
+    }
     for &value in &candidates {
         if recipes.contains_key(&value) || bases.contains(&value) {
             continue;
         }
-        if let Some((insts, leaves)) = operation_chain(func, internal, value)
+        if let Some((insts, leaves)) = operation_chain(func, reads, value)
             && let Some(uses) = uses_past_crowding(value)
             && !uses.is_empty()
             && uses.iter().all(|&site| leaves.iter().all(|&leaf| live_at(leaf, site)))
@@ -263,8 +302,12 @@ pub(super) fn rebuild_crowded_values(
 
     // Each use that reads a copy, by block and position.
     let mut sites = FxHashMap::<BlockId, Vec<(usize, ValueId)>>::default();
-    for &value in recipes.keys() {
-        for (block, index) in uses_past_crowding(value).unwrap_or_default() {
+    for (&value, recipe) in &recipes {
+        let uses = match recipe {
+            Recipe::Step(.., uses) => Some(uses.clone()),
+            _ => uses_past_crowding(value),
+        };
+        for (block, index) in uses.unwrap_or_default() {
             sites.entry(block).or_default().push((index, value));
         }
     }
@@ -275,7 +318,7 @@ pub(super) fn rebuild_crowded_values(
         .iter()
         .filter_map(|(&value, recipe)| match *recipe {
             Recipe::Offset(base, offset) => Some((value, base, offset)),
-            Recipe::Chain(_) => None,
+            Recipe::Chain(_) | Recipe::Step(..) => None,
         })
         .collect();
     members.sort_unstable_by_key(|&(value, ..)| value);
@@ -299,8 +342,12 @@ pub(super) fn rebuild_crowded_values(
                 result.inst(original[index]).metadata.debug_context()
             };
             let copy = match recipes[&value] {
-                Recipe::Offset(base, offset) if offset.is_zero() => base,
-                Recipe::Offset(base, offset) => {
+                Recipe::Offset(base, offset) | Recipe::Step(base, offset, _)
+                    if offset.is_zero() =>
+                {
+                    base
+                }
+                Recipe::Offset(base, offset) | Recipe::Step(base, offset, _) => {
                     // v' = add base, offset
                     let kind = offset_kind(&mut result, base, offset);
                     let mut copy = Instruction::new(kind, Some(MirType::I256));
@@ -462,17 +509,21 @@ fn offset_kind(func: &mut Function, base: ValueId, offset: U256) -> InstKind {
 /// words in at most [`MAX_REBUILT_OPS`] opcodes and [`MAX_REBUILT_CASTS`] casts, operands first,
 /// with those stack words. Each operation is charged before its operands are visited, so a long
 /// dependency chain stops at the budget instead of being walked back to its start.
-fn operation_chain(func: &Function, internal: bool, value: ValueId) -> Option<(Chain, Leaves)> {
+fn operation_chain(
+    func: &Function,
+    reads: &DenseBitSet<ValueId>,
+    value: ValueId,
+) -> Option<(Chain, Leaves)> {
     fn collect(
         func: &Function,
-        internal: bool,
+        reads: &DenseBitSet<ValueId>,
         value: ValueId,
         insts: &mut Chain,
         leaves: &mut Leaves,
         ops: &mut u32,
         casts: &mut u32,
     ) -> bool {
-        if materialized_at_use(func, internal, value) {
+        if materialized_at_use(func, reads, value) {
             return true;
         }
         if !rebuildable(func, value) {
@@ -497,7 +548,7 @@ fn operation_chain(func: &Function, internal: bool, value: ValueId) -> Option<(C
             || !kind
                 .operands()
                 .iter()
-                .all(|&operand| collect(func, internal, operand, insts, leaves, ops, casts))
+                .all(|&operand| collect(func, reads, operand, insts, leaves, ops, casts))
         {
             return false;
         }
@@ -506,8 +557,7 @@ fn operation_chain(func: &Function, internal: bool, value: ValueId) -> Option<(C
     }
     let mut insts = SmallVec::new();
     let mut leaves = SmallVec::new();
-    collect(func, internal, value, &mut insts, &mut leaves, &mut 0, &mut 0)
-        .then_some((insts, leaves))
+    collect(func, reads, value, &mut insts, &mut leaves, &mut 0, &mut 0).then_some((insts, leaves))
 }
 
 /// Whether `value` is computed by one stable opcode or a cast, which a copy repeats exactly.
@@ -591,11 +641,15 @@ mod tests {
     fn operation_chains_stop_at_their_budget() {
         // Four additions fit, reading the parameter as their only stack word.
         let (func, value) = add_chain(4);
-        let (insts, leaves) = operation_chain(&func, true, value).expect("four additions fit");
+        let (insts, leaves) =
+            operation_chain(&func, &DenseBitSet::new_empty(func.num_values()), value)
+                .expect("four additions fit");
         assert_eq!((insts.len(), leaves.len()), (4, 1));
         // A longer chain is rejected within the budget, not walked back to its start, which
         // takes one stack frame per operation.
         let (func, value) = add_chain(100_000);
-        assert!(operation_chain(&func, true, value).is_none());
+        assert!(
+            operation_chain(&func, &DenseBitSet::new_empty(func.num_values()), value).is_none()
+        );
     }
 }

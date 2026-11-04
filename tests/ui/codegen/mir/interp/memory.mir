@@ -30,7 +30,7 @@ fn @entry() [entry] {
     revert 0, 0
 }
 
-fn @hash_words() [selector=0x623ff21d, abi_wrapper] {
+fn @hash_words() {
   bb0:
     calldatacopy 0x80, 4, 64
     v0 = keccak256 0x80, 64
@@ -38,15 +38,16 @@ fn @hash_words() [selector=0x623ff21d, abi_wrapper] {
     returndata 0, 32
 }
 
-fn @reverse() [selector=0x97d15425, abi_wrapper] {
+fn @reverse() {
   bb0:
+    v900 = calldataload 4
     jump bb1
   bb1:
     v0 = phi [bb0: 0], [bb2: v4]
     v1 = lt v0, 32
     jumpi v1, bb2, bb3
   bb2:
-    v2 = byte v0, arg0
+    v2 = byte v0, v900
     v3 = sub 0x9f, v0
     mstore8 v3, v2
     v4 = add v0, 1
@@ -57,7 +58,7 @@ fn @reverse() [selector=0x97d15425, abi_wrapper] {
     returndata 0, 32
 }
 
-fn @sparse() [selector=0x653be2bc, abi_wrapper] {
+fn @sparse() {
   bb0:
     v0 = mload 0x10000
     v1 = returndatasize
@@ -68,7 +69,7 @@ fn @sparse() [selector=0x653be2bc, abi_wrapper] {
     returndata 0, 96
 }
 
-fn @overlap() [selector=0x00000001, abi_wrapper] {
+fn @overlap() {
   bb0:
     mstore 0x80, 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
     mstore 0xa0, 0x202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
@@ -77,13 +78,13 @@ fn @overlap() [selector=0x00000001, abi_wrapper] {
     returndata 0x80, 0x80
 }
 
-fn @odd_return() [selector=0x00000002, abi_wrapper] {
+fn @odd_return() {
   bb0:
     mstore 0, 0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
     returndata 3, 5
 }
 
-fn @calldata_tail() [selector=0x00000003, abi_wrapper] {
+fn @calldata_tail() {
   bb0:
     v0 = calldatasize
     calldatacopy 0x80, 20, 64

@@ -120,7 +120,7 @@ impl ArithmeticLowerer<'_, '_> {
             // overflow, as in solc.
             return self.range_overflow(result, kind);
         }
-        // overflow = ne (shr factor, 256 - s), 0, for a constant factor 2 ** s
+        // overflow = gt factor, MAX >> s, for a constant factor 2 ** s
         if kind == ArithmeticKind::Unsigned(256)
             && let Some(overflow) = self.builder.power_of_two_mul_overflow(lhs, rhs)
         {
@@ -355,7 +355,7 @@ impl ArithmeticLowerer<'_, '_> {
 }
 
 fn signed_bounds(bits: u16, builder: &mut FunctionBuilder<'_>) -> (ValueId, ValueId) {
-    let magnitude = U256::from(1) << (bits - 1);
+    let magnitude = U256::ONE << (bits - 1);
     let min = builder.imm(U256::MAX - magnitude + U256::ONE);
     let max = builder.imm(magnitude - U256::ONE);
     (min, max)

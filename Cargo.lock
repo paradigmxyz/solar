@@ -1023,6 +1023,9 @@ name = "boxcar"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "36f64beae40a84da1b4b26ff2761a5b895c12adc41dc25aaee1c4f2bbfe97a6e"
+dependencies = [
+ "loom",
+]
 
 [[package]]
 name = "bs58"
@@ -1655,20 +1658,6 @@ dependencies = [
  "darling_core 0.24.1",
  "quote",
  "syn 3.0.6",
-]
-
-[[package]]
-name = "dashmap"
-version = "6.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
-dependencies = [
- "cfg-if",
- "crossbeam-utils",
- "hashbrown 0.14.5",
- "lock_api",
- "once_cell",
- "parking_lot_core",
 ]
 
 [[package]]
@@ -2556,14 +2545,14 @@ dependencies = [
 
 [[package]]
 name = "inturn"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "630b41dcc27d131bc9b501515a2cb3dfde2b0de4d8b53bd9c97180fb87696aa2"
+checksum = "92ce18a9b021f3375200c0c0bde1af8625cb52f427bed04e44187e429235c7d4"
 dependencies = [
  "boxcar",
  "bumpalo",
- "dashmap",
  "hashbrown 0.14.5",
+ "loom",
  "thread_local",
 ]
 
@@ -4413,6 +4402,7 @@ dependencies = [
  "derive_more",
  "either",
  "memchr",
+ "serde_json",
  "smallvec",
  "snapbox",
  "solar-ast",

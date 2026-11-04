@@ -1,10 +1,10 @@
-// === ROOT/tests/ui/codegen/mir/lowering/lower_abi_large_static_array.sol:C ===
+; === ROOT/tests/ui/codegen/mir/lowering/lower_abi_large_static_array.sol:C ===
 @module C
 ; function huge(uint256[134217727] calldata a) external pure returns (uint256) [selector 0x89a05606]
 fn @huge(arg0: slice<calldata>) -> i256 [selector=0x89a05606, pure, abi_params=[array<134217727, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
-    v1 = lt 0x7fffffe, v0
+    v1 = gt v0, 0x7fffffe
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
@@ -23,14 +23,13 @@ fn @hugeThenIndex(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x2f02929
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = shr arg1, 251
-    v6 = ne v5, 0
-    icall panic_if<0x41>, v6
-    v7 = ptrtoint ptr<calldata> v3 to i256
-    v8 = add v7, v4
-    v9 = calldataload v8
-    v10 = checked_add uint256, v9, arg1
-    ret v10
+    v5 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v5
+    v6 = ptrtoint ptr<calldata> v3 to i256
+    v7 = add v6, v4
+    v8 = calldataload v7
+    v9 = checked_add uint256, v8, arg1
+    ret v9
 }
 
 ; function read(uint256 i, uint256[4] calldata a, uint256 j) external pure returns (uint256) [selector 0x27211d59]
@@ -42,12 +41,11 @@ fn @read(arg0: i256, arg1: slice<calldata>, arg2: i256) -> i256 [selector=0x2721
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg1, 0
     v4 = mul arg0, 32
-    v5 = shr arg0, 251
-    v6 = ne v5, 0
-    icall panic_if<0x41>, v6
-    v7 = ptrtoint ptr<calldata> v3 to i256
-    v8 = add v7, v4
-    v9 = calldataload v8
-    v10 = checked_mul uint256, v9, arg2
-    ret v10
+    v5 = gt arg0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v5
+    v6 = ptrtoint ptr<calldata> v3 to i256
+    v7 = add v6, v4
+    v8 = calldataload v7
+    v9 = checked_mul uint256, v8, arg2
+    ret v9
 }

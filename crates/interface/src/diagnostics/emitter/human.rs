@@ -641,7 +641,7 @@ fn annotation_level_for_level<'a>(level: Level) -> ASLevel<'a> {
 fn stderr_choice(color_choice: ColorChoice) -> ColorChoice {
     static AUTO: OnceLock<ColorChoice> = OnceLock::new();
     if color_choice == ColorChoice::Auto {
-        *AUTO.get_or_init(|| anstream::AutoStream::choice(&std::io::stderr()))
+        *AUTO.get_or_init(|| AutoStream::choice(&io::stderr()))
     } else {
         color_choice
     }

@@ -130,13 +130,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_stmt: &hir::Stmt<'_>,
         else_stmt: Option<&hir::Stmt<'_>>,
     ) -> Option<()> {
+        let condition_span = condition.span;
         let condition = self.lower_expr(condition)?;
-        let (then_branch, else_branch) = self.lower_branches(
+        // The transfer still evaluates the condition when its computation folds into the jump.
+        // Keep its narrower origin so coverage can anchor the expression inside the `if`.
+        let previous = self.builder.replace_source_span(condition_span);
+        let branches = self.lower_branches(
             condition,
             true,
-            |this| this.lower_stmt(then_stmt),
-            |this| else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt)),
-        )?;
+            |this| {
+                this.builder.replace_source_span(previous);
+                this.lower_stmt(then_stmt)
+            },
+            |this| {
+                this.builder.replace_source_span(previous);
+                else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt))
+            },
+        );
+        self.builder.replace_source_span(previous);
+        let (then_branch, else_branch) = branches?;
         if then_branch.terminated && else_branch.terminated {
             self.builder.invalid();
         }
@@ -145,7 +157,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
         let selector = self.lower_yul_word_expr(switch.selector)?;
-        let selector = self.builder.cast_word(selector);
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
         let merge_block = self.builder.create_block();
@@ -158,7 +169,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for case in switch.cases {
             let block = self.builder.create_block();
             if let Some(constant) = case.constant {
-                let value = self.lower_word_literal(constant)?;
+                let value = self.builder.imm(constant.kind.yul_word()?);
                 case_blocks.push((value, block));
             } else {
                 default_block = Some(block);
@@ -598,27 +609,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_word_literal(&mut self, lit: &hir::Lit<'_>) -> Option<ValueId> {
-        if let LitKind::Str(_, bytes, _) = &lit.kind {
-            let bytes = bytes.as_byte_str();
-            if bytes.len() > 32 {
-                return self.cx.report_unsupported(lit.span, "switch literal");
-            }
-            return Some(self.lower_string_literal_word(bytes));
-        }
-        if let LitKind::Bool(value) = lit.kind {
-            return Some(self.builder.imm(if value { U256::ONE } else { U256::ZERO }));
-        }
-        if let LitKind::Address(value) = lit.kind {
-            return Some(self.builder.imm(U256::from_be_slice(value.as_slice())));
-        }
-        self.lower_literal(lit.kind, lit.span)
-    }
-
     pub(super) fn lower_yul_word_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        if let ExprKind::Lit(lit) = expr.peel_parens().kind {
-            return self.lower_word_literal(lit);
-        }
         let value = self.lower_expr(expr)?;
         let ty = self
             .cx

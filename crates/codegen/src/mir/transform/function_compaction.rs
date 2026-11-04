@@ -6,7 +6,7 @@
 //! explicit return in the callee returns that same value. Calls remain in place, including their
 //! effects and failure paths. Tail calls, mixed return values, and baked signature-frame addresses
 //! prevent forwarding. In `-Osize`, a tail call to a function that never returns, such as a revert
-//! helper from `outline-reverts`, returns nothing. In `-Ogas` such forwarding grew measured code:
+//! helper, returns nothing. In `-Ogas` such forwarding grew measured code:
 //! once the callee's result is pruned, every caller pushes the constant where the result used to
 //! arrive on the stack. No recursive summary or control-flow fixed point is needed.
 //!
@@ -23,7 +23,7 @@
 //! function or one of the two bodies being compared. Matching all other instructions, operands
 //! and CFG edges closes that pairwise equivalence proof, including mutual recursion.
 
-use super::utils::{frame_prefix, is_internal_body};
+use super::utils::is_internal_body;
 use crate::mir::{
     ArgIdx, Callee, EffectKind, Function, FunctionId, Immediate, InstId, InstKind, MirType, Module,
     StorageAlias, Terminator, Value, ValueId,
@@ -83,12 +83,13 @@ impl MirPass for DeadArgElim {
 fn forward_returned_values(module: &mut Module, size: bool) -> usize {
     let cold =
         if size { module.cold_functions() } else { DenseBitSet::new_empty(module.functions.len()) };
+    let roots = module.root_functions();
     let returned = module
         .functions
         .iter_enumerated()
         .filter_map(|(id, func)| {
             let value = returned_value(func, &cold)?;
-            (is_internal_body(module, id, func) && frame_offsets_are_local(func))
+            (is_internal_body(&roots, id, func) && frame_offsets_are_local(func))
                 .then_some((id, value))
         })
         .collect::<FxHashMap<_, _>>();
@@ -222,7 +223,7 @@ impl MirPass for MergeEquivalentFunctions {
 }
 
 fn has_rewritable_signature(
-    module: &Module,
+    roots: &DenseBitSet<FunctionId>,
     func_id: FunctionId,
     func: &Function,
     is_called: bool,
@@ -230,7 +231,7 @@ fn has_rewritable_signature(
     is_called
         && !func.params.is_empty()
         && func.params.len() == func.arg_indices().count()
-        && is_internal_body(module, func_id, func)
+        && is_internal_body(roots, func_id, func)
         && frame_offsets_are_local(func)
 }
 
@@ -239,8 +240,11 @@ fn has_rewritable_signature(
 /// those accesses do not identify which signature component they refer to, so changing that
 /// function's signature would be ambiguous.
 fn frame_offsets_are_local(func: &Function) -> bool {
-    let Some(local_start) =
-        func.params.len().checked_add(func.return_components().len()).and_then(frame_prefix)
+    let Some(local_start) = func
+        .params
+        .len()
+        .checked_add(func.return_components().len())
+        .and_then(EvmMemoryLayout::internal_frame_prefix)
     else {
         return false;
     };
@@ -276,8 +280,9 @@ fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
         return;
     }
     let shift = removed_slots * EvmMemoryLayout::WORD_SIZE;
-    let local_start = frame_prefix(func.params.len() + func.return_components().len())
-        .expect("MIR frame prefix overflow");
+    let local_start =
+        EvmMemoryLayout::internal_frame_prefix(func.params.len() + func.return_components().len())
+            .expect("MIR frame prefix overflow");
     let old_local_start = local_start.checked_add(shift).expect("MIR frame prefix overflow");
     let local_end = (func.internal_frame_size != 0).then(|| {
         local_start.checked_add(func.internal_frame_size).expect("MIR local frame region overflow")
@@ -308,6 +313,7 @@ fn rebase_frame_offsets(func: &mut Function, removed_slots: u64) {
 
 /// Computes the least fixed point of argument liveness and removes every argument outside it.
 fn prune_unused_args(module: &mut Module) -> usize {
+    let roots = module.root_functions();
     let mut called = DenseBitSet::new_empty(module.functions.len());
     let mut live = module
         .functions
@@ -351,7 +357,7 @@ fn prune_unused_args(module: &mut Module) -> usize {
     // into a live callee argument. Starting candidate arguments dead computes transitive deadness,
     // including arguments forwarded around an otherwise-unused recursive cycle.
     for (func_id, func) in module.functions.iter_enumerated() {
-        if !has_rewritable_signature(module, func_id, func, called.contains(func_id)) {
+        if !has_rewritable_signature(&roots, func_id, func, called.contains(func_id)) {
             live[func_id].insert_all();
         }
     }
@@ -490,6 +496,7 @@ fn record_arg_dependencies(
 /// extra results through a shared buffer and remain unchanged. Preserve the memory-return flag
 /// before erasing the signature, including when a nested struct field refers to memory.
 fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>) -> usize {
+    let roots = module.root_functions();
     let mut called = DenseBitSet::new_empty(module.functions.len());
     for func in &module.functions {
         for callee in direct_callees(func) {
@@ -501,7 +508,7 @@ fn prune_unused_returns(module: &mut Module, returning: &DenseBitSet<FunctionId>
     for (func_id, func) in module.functions.iter_enumerated() {
         if called.contains(func_id)
             && func.return_components().len() == 1
-            && is_internal_body(module, func_id, func)
+            && is_internal_body(&roots, func_id, func)
             && frame_offsets_are_local(func)
             && returned_value_dependencies_are_pure(func)
         {
@@ -719,6 +726,7 @@ impl<'a> CanonValues<'a> {
 /// their callers equivalent on the next wave. Dead-function elimination follows this pass in the
 /// canonical pipeline and removes redirected bodies.
 fn merge_equivalent_functions(module: &mut Module) -> usize {
+    let roots = module.root_functions();
     let mut merged = DenseBitSet::new_empty(module.functions.len());
     let mut total = 0;
     let mut merged_instructions = 0usize;
@@ -731,7 +739,7 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
         for (func_id, func) in module.functions.iter_enumerated() {
             if !merged.contains(func_id)
                 && !func.blocks.is_empty()
-                && is_internal_body(module, func_id, func)
+                && is_internal_body(&roots, func_id, func)
             {
                 groups.entry(equivalence_bucket(func)).or_default().push(func_id);
             }
@@ -851,7 +859,6 @@ fn equivalent_functions(
 ) -> bool {
     if lhs.params != rhs.params
         || lhs.return_components() != rhs.return_components()
-        || lhs.abi_returns != rhs.abi_returns
         || lhs.internal_frame_size != rhs.internal_frame_size
         || lhs.external_static_return_size != rhs.external_static_return_size
         || lhs.blocks.len() != rhs.blocks.len()
@@ -949,12 +956,7 @@ fn equivalent_storage_aliases(
 }
 
 fn equivalent_attributes(lhs: &Function, rhs: &Function) -> bool {
-    lhs.attributes.visibility == rhs.attributes.visibility
-        && lhs.attributes.state_mutability == rhs.attributes.state_mutability
-        && lhs.attributes.is_constructor == rhs.attributes.is_constructor
-        && lhs.attributes.is_fallback == rhs.attributes.is_fallback
-        && lhs.attributes.is_receive == rhs.attributes.is_receive
-        && lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
+    lhs.attributes.may_return_memory == rhs.attributes.may_return_memory
         && lhs.attributes.is_function_pointer_dispatcher
             == rhs.attributes.is_function_pointer_dispatcher
         && lhs.attributes.no_inline == rhs.attributes.no_inline

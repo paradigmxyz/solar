@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/check-elim/long_function.sol:LongFunction ===
+; === ROOT/tests/ui/codegen/mir/check-elim/long_function.sol:LongFunction ===
 @module LongFunction
 @phase lowered
 ; runtime dispatch entry
@@ -11,274 +11,253 @@ fn @entry() [entry] {
     v4 = or v0, v3
     v5 = ne v4, 0
     jumpi v5, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v6 = calldataload 0
     v7 = shr v6, 224
     switch v7, default bb1, [0xaeb2e72f => bb3, 0xd2fe3d6a => bb4]
-  bb4:  ; preds = bb2
-    tail_call @chained
-  bb3:  ; preds = bb2
-    tail_call @unchained
-  bb1 [cold]:  ; preds = bb0, bb2
-    revert 0, 0
-}
-
-; function chained(uint256 a, uint256 b, uint256 c) external pure returns (uint256 r) [selector 0xd2fe3d6a]
-fn @chained() [selector=0xd2fe3d6a, abi_wrapper, pure] {
-  bb0:
-    v0 = lt arg0, arg1
-    v2 = lt arg1, arg2
-    v61 = and v0, v2
-    jumpi v61, bb4, bb3
-  bb3 [cold]:  ; preds = bb0
-    revert 0, 0
-  bb4:  ; preds = bb0
-    v5 = eq arg2, 2
-    jumpi v5, bb5, bb1
-  bb1:  ; preds = bb4
-    v6 = eq arg2, 3
-    v7 = eq arg2, 4
-    v62 = or v6, v7
-    v8 = eq arg2, 5
-    v63 = or v62, v8
-    v9 = eq arg2, 6
-    v64 = or v63, v9
-    v10 = eq arg2, 7
-    v65 = or v64, v10
-    v11 = eq arg2, 8
-    v66 = or v65, v11
-    v12 = eq arg2, 9
-    v67 = or v66, v12
-    v13 = eq arg2, 10
-    v68 = or v67, v13
-    v14 = eq arg2, 11
-    v69 = or v68, v14
-    v15 = eq arg2, 12
-    v70 = or v69, v15
-    v16 = eq arg2, 13
-    v71 = or v70, v16
-    v17 = eq arg2, 14
-    v72 = or v71, v17
-    v18 = eq arg2, 15
-    v73 = or v72, v18
-    v19 = eq arg2, 16
-    v74 = or v73, v19
-    v20 = eq arg2, 17
-    v75 = or v74, v20
-    v21 = eq arg2, 18
-    v76 = or v75, v21
-    v22 = eq arg2, 19
-    v77 = or v76, v22
-    v23 = eq arg2, 20
-    v78 = or v77, v23
-    v24 = eq arg2, 21
-    v79 = or v78, v24
-    v25 = eq arg2, 22
-    v80 = or v79, v25
-    v26 = eq arg2, 23
-    v81 = or v80, v26
-    v27 = eq arg2, 24
-    v82 = or v81, v27
-    v28 = eq arg2, 25
-    v83 = or v82, v28
-    v29 = eq arg2, 26
-    v84 = or v83, v29
-    v30 = eq arg2, 27
-    v85 = or v84, v30
-    v31 = eq arg2, 28
-    v86 = or v85, v31
-    v32 = eq arg2, 29
-    v87 = or v86, v32
-    v33 = eq arg2, 30
-    v88 = or v87, v33
-    v34 = eq arg2, 31
-    v89 = or v88, v34
-    v35 = eq arg2, 32
-    v90 = or v89, v35
-    v36 = eq arg2, 33
-    v91 = or v90, v36
-    v37 = eq arg2, 34
-    v92 = or v91, v37
-    v38 = eq arg2, 35
-    v93 = or v92, v38
-    v39 = eq arg2, 36
-    v94 = or v93, v39
-    v40 = eq arg2, 37
-    v95 = or v94, v40
-    v41 = eq arg2, 38
-    v96 = or v95, v41
-    v42 = eq arg2, 39
-    v97 = or v96, v42
-    v43 = eq arg2, 40
-    v98 = or v97, v43
-    v44 = eq arg2, 41
-    v99 = or v98, v44
-    v45 = eq arg2, 42
-    v100 = or v99, v45
-    v46 = eq arg2, 43
-    v101 = or v100, v46
-    v47 = eq arg2, 44
-    v102 = or v101, v47
-    v48 = eq arg2, 45
-    v103 = or v102, v48
-    v49 = eq arg2, 46
-    v104 = or v103, v49
-    v50 = eq arg2, 47
-    v105 = or v104, v50
-    v51 = eq arg2, 48
-    v106 = or v105, v51
-    v52 = eq arg2, 49
-    v107 = or v106, v52
-    v53 = eq arg2, 50
-    v108 = or v107, v53
-    jumpi v108, bb5, bb2
-  bb2:  ; preds = bb1
-    v54 = sub arg2, arg1
-    v55 = sub arg2, arg0
-    v57 = add v54, v55
-    v58 = lt v57, v54
-    jumpi v58, bb6, bb7
-  bb7:  ; preds = bb2
-    mstore 0, v57 !metadata(memory=scratch)
+  bb4:                                            ; preds = bb2
+    v67 = calldataload 4
+    v68 = calldataload 36
+    v69 = calldataload 68
+    v70 = lt v67, v68
+    v123 = lt v68, v69
+    v125 = and v70, v123
+    jumpi v125, bb13, bb1
+  bb13:                                           ; preds = bb4
+    v124 = eq v69, 2
+    jumpi v124, bb8, bb11
+  bb11:                                           ; preds = bb13
+    v71 = eq v69, 3
+    v72 = eq v69, 4
+    v175 = or v71, v72
+    v73 = eq v69, 5
+    v176 = or v175, v73
+    v74 = eq v69, 6
+    v177 = or v176, v74
+    v75 = eq v69, 7
+    v178 = or v177, v75
+    v76 = eq v69, 8
+    v179 = or v178, v76
+    v77 = eq v69, 9
+    v180 = or v179, v77
+    v78 = eq v69, 10
+    v181 = or v180, v78
+    v79 = eq v69, 11
+    v182 = or v181, v79
+    v80 = eq v69, 12
+    v183 = or v182, v80
+    v81 = eq v69, 13
+    v184 = or v183, v81
+    v82 = eq v69, 14
+    v185 = or v184, v82
+    v83 = eq v69, 15
+    v186 = or v185, v83
+    v84 = eq v69, 16
+    v187 = or v186, v84
+    v85 = eq v69, 17
+    v188 = or v187, v85
+    v86 = eq v69, 18
+    v189 = or v188, v86
+    v87 = eq v69, 19
+    v190 = or v189, v87
+    v88 = eq v69, 20
+    v191 = or v190, v88
+    v89 = eq v69, 21
+    v192 = or v191, v89
+    v90 = eq v69, 22
+    v193 = or v192, v90
+    v91 = eq v69, 23
+    v194 = or v193, v91
+    v92 = eq v69, 24
+    v195 = or v194, v92
+    v93 = eq v69, 25
+    v196 = or v195, v93
+    v94 = eq v69, 26
+    v197 = or v196, v94
+    v95 = eq v69, 27
+    v198 = or v197, v95
+    v96 = eq v69, 28
+    v199 = or v198, v96
+    v97 = eq v69, 29
+    v200 = or v199, v97
+    v98 = eq v69, 30
+    v201 = or v200, v98
+    v99 = eq v69, 31
+    v202 = or v201, v99
+    v100 = eq v69, 32
+    v203 = or v202, v100
+    v101 = eq v69, 33
+    v204 = or v203, v101
+    v102 = eq v69, 34
+    v205 = or v204, v102
+    v103 = eq v69, 35
+    v206 = or v205, v103
+    v104 = eq v69, 36
+    v207 = or v206, v104
+    v105 = eq v69, 37
+    v208 = or v207, v105
+    v106 = eq v69, 38
+    v209 = or v208, v106
+    v107 = eq v69, 39
+    v210 = or v209, v107
+    v108 = eq v69, 40
+    v211 = or v210, v108
+    v109 = eq v69, 41
+    v212 = or v211, v109
+    v110 = eq v69, 42
+    v213 = or v212, v110
+    v111 = eq v69, 43
+    v214 = or v213, v111
+    v112 = eq v69, 44
+    v215 = or v214, v112
+    v113 = eq v69, 45
+    v216 = or v215, v113
+    v114 = eq v69, 46
+    v217 = or v216, v114
+    v115 = eq v69, 47
+    v218 = or v217, v115
+    v116 = eq v69, 48
+    v219 = or v218, v116
+    v117 = eq v69, 49
+    v220 = or v219, v117
+    v118 = eq v69, 50
+    v221 = or v220, v118
+    jumpi v221, bb8, bb12
+  bb12:                                           ; preds = bb11
+    v119 = sub v69, v68
+    v120 = sub v69, v67
+    v121 = add v119, v120
+    v122 = lt v121, v119
+    jumpi v122, bb9, bb14
+  bb14:                                           ; preds = bb12
+    mstore 0, v121
     returndata 0, 32
-  bb6 [cold]:  ; preds = bb2
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-  bb5 [cold]:  ; preds = bb1, bb4
-    tail_call @revert_stub
-}
-
-; function unchained(uint256 a, uint256 b, uint256 c) external pure returns (uint256 r) [selector 0xaeb2e72f]
-fn @unchained() [selector=0xaeb2e72f, abi_wrapper, pure] {
-  bb0:
-    v0 = lt arg0, arg1
-    jumpi v0, bb4, bb3
-  bb3 [cold]:  ; preds = bb0
-    revert 0, 0
-  bb4:  ; preds = bb0
-    v2 = eq arg2, 1
-    jumpi v2, bb5, bb1
-  bb1:  ; preds = bb4
-    v3 = eq arg2, 2
-    v4 = eq arg2, 3
-    v63 = or v3, v4
-    v5 = eq arg2, 4
-    v64 = or v63, v5
-    v6 = eq arg2, 5
-    v65 = or v64, v6
-    v7 = eq arg2, 6
-    v66 = or v65, v7
-    v8 = eq arg2, 7
-    v67 = or v66, v8
-    v9 = eq arg2, 8
-    v68 = or v67, v9
-    v10 = eq arg2, 9
-    v69 = or v68, v10
-    v11 = eq arg2, 10
-    v70 = or v69, v11
-    v12 = eq arg2, 11
-    v71 = or v70, v12
-    v13 = eq arg2, 12
-    v72 = or v71, v13
-    v14 = eq arg2, 13
-    v73 = or v72, v14
-    v15 = eq arg2, 14
-    v74 = or v73, v15
-    v16 = eq arg2, 15
-    v75 = or v74, v16
-    v17 = eq arg2, 16
-    v76 = or v75, v17
-    v18 = eq arg2, 17
-    v77 = or v76, v18
-    v19 = eq arg2, 18
-    v78 = or v77, v19
-    v20 = eq arg2, 19
-    v79 = or v78, v20
-    v21 = eq arg2, 20
-    v80 = or v79, v21
-    v22 = eq arg2, 21
-    v81 = or v80, v22
-    v23 = eq arg2, 22
-    v82 = or v81, v23
-    v24 = eq arg2, 23
-    v83 = or v82, v24
-    v25 = eq arg2, 24
-    v84 = or v83, v25
-    v26 = eq arg2, 25
-    v85 = or v84, v26
-    v27 = eq arg2, 26
-    v86 = or v85, v27
-    v28 = eq arg2, 27
-    v87 = or v86, v28
-    v29 = eq arg2, 28
-    v88 = or v87, v29
-    v30 = eq arg2, 29
-    v89 = or v88, v30
-    v31 = eq arg2, 30
-    v90 = or v89, v31
-    v32 = eq arg2, 31
-    v91 = or v90, v32
-    v33 = eq arg2, 32
-    v92 = or v91, v33
-    v34 = eq arg2, 33
-    v93 = or v92, v34
-    v35 = eq arg2, 34
-    v94 = or v93, v35
-    v36 = eq arg2, 35
-    v95 = or v94, v36
-    v37 = eq arg2, 36
-    v96 = or v95, v37
-    v38 = eq arg2, 37
-    v97 = or v96, v38
-    v39 = eq arg2, 38
-    v98 = or v97, v39
-    v40 = eq arg2, 39
-    v99 = or v98, v40
-    v41 = eq arg2, 40
-    v100 = or v99, v41
-    v42 = eq arg2, 41
-    v101 = or v100, v42
-    v43 = eq arg2, 42
-    v102 = or v101, v43
-    v44 = eq arg2, 43
-    v103 = or v102, v44
-    v45 = eq arg2, 44
-    v104 = or v103, v45
-    v46 = eq arg2, 45
-    v105 = or v104, v46
-    v47 = eq arg2, 46
-    v106 = or v105, v47
-    v48 = eq arg2, 47
-    v107 = or v106, v48
-    v49 = eq arg2, 48
-    v108 = or v107, v49
-    v50 = eq arg2, 49
-    v109 = or v108, v50
-    v51 = eq arg2, 50
-    v110 = or v109, v51
-    jumpi v110, bb5, bb2
-  bb2:  ; preds = bb1
-    v55 = sub arg2, arg1
-    v56 = lt arg2, arg1
-    v57 = sub arg2, arg0
-    v59 = add v55, v57
-    v60 = lt v59, v55
-    v111 = or v56, v60
-    jumpi v111, bb6, bb7
-  bb7:  ; preds = bb2
-    mstore 0, v59 !metadata(memory=scratch)
+  bb3:                                            ; preds = bb2
+    v8 = calldataload 4
+    v9 = calldataload 36
+    v11 = lt v8, v9
+    jumpi v11, bb7, bb1
+  bb7:                                            ; preds = bb3
+    v222 = calldataload 68
+    v63 = eq v222, 1
+    jumpi v63, bb8, bb5
+  bb5:                                            ; preds = bb7
+    v12 = eq v222, 2
+    v13 = eq v222, 3
+    v126 = or v12, v13
+    v14 = eq v222, 4
+    v127 = or v126, v14
+    v15 = eq v222, 5
+    v128 = or v127, v15
+    v16 = eq v222, 6
+    v129 = or v128, v16
+    v17 = eq v222, 7
+    v130 = or v129, v17
+    v18 = eq v222, 8
+    v131 = or v130, v18
+    v19 = eq v222, 9
+    v132 = or v131, v19
+    v20 = eq v222, 10
+    v133 = or v132, v20
+    v21 = eq v222, 11
+    v134 = or v133, v21
+    v22 = eq v222, 12
+    v135 = or v134, v22
+    v23 = eq v222, 13
+    v136 = or v135, v23
+    v24 = eq v222, 14
+    v137 = or v136, v24
+    v25 = eq v222, 15
+    v138 = or v137, v25
+    v26 = eq v222, 16
+    v139 = or v138, v26
+    v27 = eq v222, 17
+    v140 = or v139, v27
+    v28 = eq v222, 18
+    v141 = or v140, v28
+    v29 = eq v222, 19
+    v142 = or v141, v29
+    v30 = eq v222, 20
+    v143 = or v142, v30
+    v31 = eq v222, 21
+    v144 = or v143, v31
+    v32 = eq v222, 22
+    v145 = or v144, v32
+    v33 = eq v222, 23
+    v146 = or v145, v33
+    v34 = eq v222, 24
+    v147 = or v146, v34
+    v35 = eq v222, 25
+    v148 = or v147, v35
+    v36 = eq v222, 26
+    v149 = or v148, v36
+    v37 = eq v222, 27
+    v150 = or v149, v37
+    v38 = eq v222, 28
+    v151 = or v150, v38
+    v39 = eq v222, 29
+    v152 = or v151, v39
+    v40 = eq v222, 30
+    v153 = or v152, v40
+    v41 = eq v222, 31
+    v154 = or v153, v41
+    v42 = eq v222, 32
+    v155 = or v154, v42
+    v43 = eq v222, 33
+    v156 = or v155, v43
+    v44 = eq v222, 34
+    v157 = or v156, v44
+    v45 = eq v222, 35
+    v158 = or v157, v45
+    v46 = eq v222, 36
+    v159 = or v158, v46
+    v47 = eq v222, 37
+    v160 = or v159, v47
+    v48 = eq v222, 38
+    v161 = or v160, v48
+    v49 = eq v222, 39
+    v162 = or v161, v49
+    v50 = eq v222, 40
+    v163 = or v162, v50
+    v51 = eq v222, 41
+    v164 = or v163, v51
+    v52 = eq v222, 42
+    v165 = or v164, v52
+    v53 = eq v222, 43
+    v166 = or v165, v53
+    v54 = eq v222, 44
+    v167 = or v166, v54
+    v55 = eq v222, 45
+    v168 = or v167, v55
+    v56 = eq v222, 46
+    v169 = or v168, v56
+    v57 = eq v222, 47
+    v170 = or v169, v57
+    v58 = eq v222, 48
+    v171 = or v170, v58
+    v59 = eq v222, 49
+    v172 = or v171, v59
+    v60 = eq v222, 50
+    v173 = or v172, v60
+    jumpi v173, bb8, bb6
+  bb6:                                            ; preds = bb5
+    v61 = sub v222, v9
+    v62 = lt v222, v9
+    v64 = sub v222, v8
+    v65 = add v61, v64
+    v66 = lt v65, v61
+    v174 = or v62, v66
+    jumpi v174, bb9, bb10
+  bb10:                                           ; preds = bb6
+    mstore 0, v65
     returndata 0, 32
-  bb6 [cold]:  ; preds = bb2
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+  bb9 [cold]:                                     ; preds = bb6, bb12
+    mstore 32, 17
+    mstore 0, 0x4e487b71
     revert 28, 36
-  bb5 [cold]:  ; preds = bb1, bb4
-    tail_call @revert_stub
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 0, 0xaf7cfeb1 !metadata(memory=scratch)
+  bb8 [cold]:                                     ; preds = bb5, bb7, bb11, bb13
+    mstore 0, 0xaf7cfeb1
     revert 28, 4
+  bb1 [cold]:                                     ; preds = bb0, bb2, bb3, bb4
+    revert 0, 0
 }

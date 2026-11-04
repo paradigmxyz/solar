@@ -1,0 +1,331 @@
+- ; === ROOT/tests/ui/codegen/mir/lowering/packed_word_array_block.mir (before lower-builtins) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/packed_word_array_block.mir (after lower-builtins) ===
+  @module PackedWordArrayBlock
+  fn @calldata_words(arg0: slice<calldata>) -> ptr<memory> {
+    bb0:
+-     v0 = abi_encode_packed (array<word> calldata arg0)
+-     ret v0
++     v1 = extract_value slice<calldata>, arg0, 1
++     v2 = mul v1, 32
++     v3 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v3, bb1, bb2
++   bb2:                                            ; preds = bb0
++     v4 = add v2, 0
++     v5 = add v4, 32
++     v6 = lt v5, v4
++     jumpi v6, bb1, bb3
++   bb3:                                            ; preds = bb2
++     v7 = alloc v5 !metadata(preserves_fmp)
++     mstore v7, v4
++     v8 = mul v1, 32
++     v9 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v9, bb1, bb4
++   bb4:                                            ; preds = bb3
++     v10 = add v8, 0
++     v11 = lt v10, 0
++     jumpi v11, bb1, bb5
++   bb5:                                            ; preds = bb4
++     v12 = extract_value slice<calldata>, arg0, 0
++     v13 = ptradd v7, 32
++     v14 = ptradd v13, 0
++     calldatacopy v14, v12, v8 !metadata(memory=heap)
++     ret v7
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb3, bb4
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @calldata_nested(arg0: slice<calldata>) -> ptr<memory> {
+    bb0:
+-     v0 = abi_encode_packed (array<array<2, word>> calldata arg0)
+-     ret v0
++     v1 = extract_value slice<calldata>, arg0, 1
++     v2 = mul v1, 64
++     v3 = gt v1, 0x3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v3, bb1, bb2
++   bb2:                                            ; preds = bb0
++     v4 = add v2, 0
++     v5 = add v4, 32
++     v6 = lt v5, v4
++     jumpi v6, bb1, bb3
++   bb3:                                            ; preds = bb2
++     v7 = alloc v5 !metadata(preserves_fmp)
++     mstore v7, v4
++     v8 = mul v1, 64
++     v9 = gt v1, 0x3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v9, bb1, bb4
++   bb4:                                            ; preds = bb3
++     v10 = add v8, 0
++     v11 = lt v10, 0
++     jumpi v11, bb1, bb5
++   bb5:                                            ; preds = bb4
++     v12 = extract_value slice<calldata>, arg0, 0
++     v13 = ptradd v7, 32
++     v14 = ptradd v13, 0
++     v15 = extract_value slice<calldata>, arg0, 0
++     jump bb6
++   bb6:                                            ; preds = bb5, bb11
++     v16 = phi [bb5: 0], [bb11: v37]
++     v17 = lt v16, v1
++     jumpi v17, bb7, bb8
++   bb8:                                            ; preds = bb6
++     ret v7
++   bb7:                                            ; preds = bb6
++     v18 = mul v16, 64
++     v19 = add v18, 0
++     v20 = extract_value slice<calldata>, arg0, 0
++     v21 = ptrtoint ptr<calldata> v20 to i256
++     v22 = add v21, v18
++     v23 = inttoptr i256 v22 to ptr<calldata>
++     v24 = make_calldata_slice v23, 2
++     v25 = extract_value slice<calldata>, v24, 0
++     jump bb9
++   bb9:                                            ; preds = bb7, bb10
++     v26 = phi [bb7: 0], [bb10: v36]
++     v27 = lt v26, 2
++     jumpi v27, bb10, bb11
++   bb11:                                           ; preds = bb9
++     v37 = add v16, 1
++     jump bb6
++   bb10:                                           ; preds = bb9
++     v28 = mul v26, 32
++     v29 = add v19, v28
++     v30 = extract_value slice<calldata>, v24, 0
++     v31 = ptrtoint ptr<calldata> v30 to i256
++     v32 = add v31, v28
++     v33 = calldataload v32
++     v34 = ptradd v7, v29
++     v35 = ptradd v34, 32
++     mstore v35, v33
++     v36 = add v26, 1
++     jump bb9
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb3, bb4
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @calldata_wordwise(arg0: slice<calldata>) -> ptr<memory> {
+    bb0:
+-     v0 = abi_encode_packed (array<word, wordwise> calldata arg0)
+-     ret v0
++     v1 = extract_value slice<calldata>, arg0, 1
++     v2 = mul v1, 32
++     v3 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v3, bb1, bb2
++   bb2:                                            ; preds = bb0
++     v4 = add v2, 0
++     v5 = add v4, 32
++     v6 = lt v5, v4
++     jumpi v6, bb1, bb3
++   bb3:                                            ; preds = bb2
++     v7 = alloc v5 !metadata(preserves_fmp)
++     mstore v7, v4
++     v8 = mul v1, 32
++     v9 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v9, bb1, bb4
++   bb4:                                            ; preds = bb3
++     v10 = add v8, 0
++     v11 = lt v10, 0
++     jumpi v11, bb1, bb5
++   bb5:                                            ; preds = bb4
++     v12 = extract_value slice<calldata>, arg0, 0
++     v13 = ptradd v7, 32
++     v14 = ptradd v13, 0
++     v15 = extract_value slice<calldata>, arg0, 0
++     jump bb6
++   bb6:                                            ; preds = bb5, bb7
++     v16 = phi [bb5: 0], [bb7: v26]
++     v17 = lt v16, v1
++     jumpi v17, bb7, bb8
++   bb8:                                            ; preds = bb6
++     ret v7
++   bb7:                                            ; preds = bb6
++     v18 = mul v16, 32
++     v19 = add v18, 0
++     v20 = extract_value slice<calldata>, arg0, 0
++     v21 = ptrtoint ptr<calldata> v20 to i256
++     v22 = add v21, v18
++     v23 = calldataload v22
++     v24 = ptradd v7, v19
++     v25 = ptradd v24, 32
++     mstore v25, v23
++     v26 = add v16, 1
++     jump bb6
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb3, bb4
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @calldata_narrow(arg0: slice<calldata>) -> ptr<memory> {
+    bb0:
+-     v0 = abi_encode_packed (array<word<uint8>> calldata arg0)
+-     ret v0
++     v1 = extract_value slice<calldata>, arg0, 1
++     v2 = mul v1, 32
++     v3 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v3, bb1, bb2
++   bb2:                                            ; preds = bb0
++     v4 = add v2, 0
++     v5 = add v4, 32
++     v6 = lt v5, v4
++     jumpi v6, bb1, bb3
++   bb3:                                            ; preds = bb2
++     v7 = alloc v5 !metadata(preserves_fmp)
++     mstore v7, v4
++     v8 = mul v1, 32
++     v9 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v9, bb1, bb4
++   bb4:                                            ; preds = bb3
++     v10 = add v8, 0
++     v11 = lt v10, 0
++     jumpi v11, bb1, bb5
++   bb5:                                            ; preds = bb4
++     v12 = extract_value slice<calldata>, arg0, 0
++     jump bb6
++   bb6:                                            ; preds = bb5, bb7
++     v13 = phi [bb5: 0], [bb7: v24]
++     v14 = lt v13, v1
++     jumpi v14, bb7, bb8
++   bb8:                                            ; preds = bb6
++     ret v7
++   bb7:                                            ; preds = bb6
++     v15 = mul v13, 32
++     v16 = add v15, 0
++     v17 = extract_value slice<calldata>, arg0, 0
++     v18 = ptrtoint ptr<calldata> v17 to i256
++     v19 = add v18, v15
++     v20 = calldataload v19
++     v21 = and v20, 255
++     v22 = ptradd v7, v16
++     v23 = ptradd v22, 32
++     mstore v23, v21
++     v24 = add v13, 1
++     jump bb6
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb3, bb4
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @memory_words(arg0: ptr<memory>) -> ptr<memory> {
+    bb0:
+-     v0 = abi_encode_packed (array<word> memoryarray<1> arg0)
+-     ret v0
++     v1 = mload arg0
++     v2 = mul v1, 32
++     v3 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v3, bb1, bb2
++   bb2:                                            ; preds = bb0
++     v4 = add v2, 0
++     v5 = add v4, 32
++     v6 = lt v5, v4
++     jumpi v6, bb1, bb3
++   bb3:                                            ; preds = bb2
++     v7 = alloc v5 !metadata(preserves_fmp)
++     mstore v7, v4
++     v8 = mul v1, 32
++     v9 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v9, bb1, bb4
++   bb4:                                            ; preds = bb3
++     v10 = add v8, 0
++     v11 = lt v10, 0
++     jumpi v11, bb1, bb5
++   bb5:                                            ; preds = bb4
++     v12 = ptradd arg0, 32
++     v13 = ptradd v7, 32
++     v14 = ptradd v13, 0
++     mcopy v14, v12, v8 !metadata(memory=heap, disjoint)
++     ret v7
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb3, bb4
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @memory_nested(arg0: ptr<memory>) -> ptr<memory> {
+    bb0:
+-     v0 = abi_encode_packed (array<array<2, word>> memoryfixedarray<2, 1> arg0)
+-     ret v0
++     v1 = alloc 160 !metadata(preserves_fmp)
++     mstore v1, 128
++     jump bb1
++   bb1:                                            ; preds = bb0, bb5
++     v2 = phi [bb0: 0], [bb5: v13]
++     v3 = lt v2, 2
++     jumpi v3, bb2, bb3
++   bb3:                                            ; preds = bb1
++     ret v1
++   bb2:                                            ; preds = bb1
++     v4 = mul v2, 64
++     v5 = add v4, 0
++     v6 = shl v2, 5
++     v7 = ptradd arg0, v6
++     v8 = mload v7
++     v9 = add v5, 64
++     v10 = lt v9, v5
++     jumpi v10, bb4, bb5
++   bb5:                                            ; preds = bb2
++     v11 = ptradd v1, 32
++     v12 = ptradd v11, v5
++     mcopy v12, v8, 64 !metadata(memory=heap, disjoint)
++     v13 = add v2, 1
++     jump bb1
++   bb4 [cold]:                                     ; preds = bb2
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @memory_narrow(arg0: ptr<memory>) -> ptr<memory> {
+    bb0:
+-     v0 = abi_encode_packed (array<word<uint8>> memoryarray<1> arg0)
+-     ret v0
++     v1 = mload arg0
++     v2 = mul v1, 32
++     v3 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v3, bb1, bb2
++   bb2:                                            ; preds = bb0
++     v4 = add v2, 0
++     v5 = add v4, 32
++     v6 = lt v5, v4
++     jumpi v6, bb1, bb3
++   bb3:                                            ; preds = bb2
++     v7 = alloc v5 !metadata(preserves_fmp)
++     mstore v7, v4
++     v8 = mul v1, 32
++     v9 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
++     jumpi v9, bb1, bb4
++   bb4:                                            ; preds = bb3
++     v10 = add v8, 0
++     v11 = lt v10, 0
++     jumpi v11, bb1, bb5
++   bb5:                                            ; preds = bb4
++     jump bb6
++   bb6:                                            ; preds = bb5, bb7
++     v12 = phi [bb5: 0], [bb7: v23]
++     v13 = lt v12, v1
++     jumpi v13, bb7, bb8
++   bb8:                                            ; preds = bb6
++     ret v7
++   bb7:                                            ; preds = bb6
++     v14 = mul v12, 32
++     v15 = add v14, 0
++     v16 = shl v12, 5
++     v17 = ptradd arg0, v16
++     v18 = ptradd v17, 32
++     v19 = mload v18
++     v20 = and v19, 255
++     v21 = ptradd v7, v15
++     v22 = ptradd v21, 32
++     mstore v22, v20
++     v23 = add v12, 1
++     jump bb6
++   bb1 [cold]:                                     ; preds = bb0, bb2, bb3, bb4
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  

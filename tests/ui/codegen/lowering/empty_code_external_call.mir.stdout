@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTarget ===
+; === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTarget ===
 @module EmptyCodeTarget
 ; function noop() external [selector 0x5dfc2e4a]
 fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -6,7 +6,7 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeLibrary ===
+; === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeLibrary ===
 @module EmptyCodeLibrary
 @library
 @immutables
@@ -26,7 +26,7 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeCalls ===
+; === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeCalls ===
 @module EmptyCodeCalls
 ; function direct() external [selector 0x222b1407]
 fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_params=[]] {
@@ -38,9 +38,9 @@ fn @direct() [selector=0x222b1407, abi_params=[], abi_returns=[], abi_return_par
     icall revert_if<target_contract_has_no_code>, v2
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }
 
@@ -54,9 +54,9 @@ fn @pointer() [selector=0x2f5f3b3c, abi_params=[], abi_returns=[], abi_return_pa
     icall revert_if<target_contract_has_no_code>, v2
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }
 
@@ -70,9 +70,9 @@ fn @libraryCall() [selector=0x239b86e9, abi_params=[], abi_returns=[], abi_retur
     icall revert_if<target_contract_has_no_code>, v2
     v3 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 4, 0, 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }
 
@@ -86,16 +86,16 @@ fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[], abi_return_
     icall revert_if<target_contract_has_no_code>, v2
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     ret
 }
 
@@ -109,16 +109,16 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[], abi_return
     icall revert_if<target_contract_has_no_code>, v2
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     ret
 }
 
@@ -132,16 +132,16 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[], abi_r
     icall revert_if<target_contract_has_no_code>, v2
     v3 = staticcall v0, 0, 28, 4, 0, 0
     jumpi v3, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     ret
 }
 
@@ -158,14 +158,14 @@ fn @trySelf() -> i1 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     ret false
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret true
   bb3:
     ret false
@@ -192,9 +192,9 @@ fn @selfCall() -> i1 [selector=0x8dae0159, abi_params=[], abi_returns=[word<bool
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret true
 }
 
@@ -204,7 +204,7 @@ fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_param
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
+; === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryFactory ===
 @module EmptyCodeTryFactory
 @data
   EmptyCodeTryConstructor_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryConstructor"
@@ -218,13 +218,13 @@ fn @deploy() [selector=0x775c300c, abi_params=[], abi_returns=[], abi_return_par
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     ret
 }
 
-// === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryConstructor ===
+; === ROOT/tests/ui/codegen/lowering/empty_code_external_call.sol:EmptyCodeTryConstructor ===
 @module EmptyCodeTryConstructor
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
@@ -239,16 +239,16 @@ fn @constructor() [constructor] {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb1, bb2
-  bb2 [cold_hint]:  ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5 [cold_hint]:  ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4 [cold_hint]:  ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb1, bb4
+  bb3:                                            ; preds = bb1, bb4
     ret
 }
 

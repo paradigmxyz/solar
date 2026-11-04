@@ -588,7 +588,7 @@ impl From<usize> for Threads {
 
 impl Default for Threads {
     fn default() -> Self {
-        Self::resolve(if SINGLE_THREADED_TARGET { 1 } else { 8.min(get_threads().get()) })
+        Self::resolve(usize::from(SINGLE_THREADED_TARGET))
     }
 }
 
@@ -622,6 +622,17 @@ impl Threads {
 fn get_threads() -> NonZeroUsize {
     static THREADS: OnceLock<NonZeroUsize> = OnceLock::new();
     *THREADS.get_or_init(|| std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN))
+}
+
+str_enum! {
+    /// Checks preservation of existing source origins around compiler passes.
+    #[strum(serialize_all = "kebab-case")]
+    pub enum Debugify {
+        /// Report lost source origins without rejecting the compilation.
+        Report,
+        /// Reject a pass that loses a source origin, for focused metadata tests.
+        Check,
+    }
 }
 
 #[cfg(test)]

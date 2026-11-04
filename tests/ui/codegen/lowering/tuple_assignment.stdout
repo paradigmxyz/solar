@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/tuple_assignment.sol:C (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/tuple_assignment.sol:C (runtime) ===
 @module C_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   callvalue
   push bb5
   jumpi
@@ -28,7 +28,7 @@ bb5 [cold]:
   push 0
   push 0
   revert
-bb6:  ; function viaNamed(address t, bytes calldata d) external returns (bool ok) [selector 0x5030da75]
+bb6 [entry]:                                      ; function viaNamed(address t, bytes calldata d) external returns (bool ok) [selector 0x5030da75]
   push 4
   calldataload
   push 160
@@ -83,7 +83,7 @@ bb6:  ; function viaNamed(address t, bytes calldata d) external returns (bool ok
   push 32
   push 0
   return
-bb9:  ; function swap(uint256 a, uint256 b) external pure returns (uint256, uint256) [selector 0xd96073cf]
+bb9 [entry]:                                      ; function swap(uint256 a, uint256 b) external pure returns (uint256, uint256) [selector 0xd96073cf]
   push 68
   calldatasize
   lt
@@ -100,7 +100,7 @@ bb9:  ; function swap(uint256 a, uint256 b) external pure returns (uint256, uint
   push 64
   push 0
   return
-bb12:  ; function multi() external pure returns (uint256 x, uint256 y) [selector 0x1b8f5d50]
+bb12 [entry]:                                     ; function multi() external pure returns (uint256 x, uint256 y) [selector 0x1b8f5d50]
   push 7
   push 0
   mstore

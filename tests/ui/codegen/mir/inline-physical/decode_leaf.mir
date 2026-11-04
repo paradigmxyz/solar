@@ -1,0 +1,22 @@
+//@ revisions: semantic physical
+//@[semantic] compile-flags: -Ogas -Zmir-pipeline=inline
+//@[physical] compile-flags: -Ogas -Zmir-pipeline=inline-physical
+//@[semantic] filecheck: --check-prefix=SEMANTIC
+//@[physical] filecheck: --check-prefix=PHYSICAL
+@module InlinePhysicalDecodeLeaf
+
+// Only the physical policy inlines an ABI decode helper, so `inline-physical` names the late
+// inliner and `inline` the semantic one.
+// SEMANTIC-NOT: - {{.*}}icall @decode_dynamic
+// PHYSICAL: - {{.*}}icall @decode_dynamic
+fn @decode_caller(arg0: ptr<memory>) -> ptr<memory> {
+  bb0:
+    v0 = icall @decode_dynamic, arg0
+    ret v0
+}
+
+fn @decode_dynamic(arg0: ptr<memory>) -> ptr<memory> {
+  bb0:
+    v0 = abi_decode [array<_, uint256>], arg0
+    ret v0
+}

@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/storage-dse/control_flow_runtime.sol:StorageControlFlow ===
+; === ROOT/tests/ui/codegen/mir/storage-dse/control_flow_runtime.sol:StorageControlFlow ===
 @module StorageControlFlow
 ; function halted(uint256 kind, bool condition) external returns (uint256) [selector 0x85726af7]
 fn @halted(arg0: i256, arg1: i1) -> i256 [selector=0x85726af7, abi_params=[uint256, bool], abi_returns=[word], abi_return_params=[uint256]] {
@@ -16,9 +16,9 @@ fn @halted(arg0: i256, arg1: i1) -> i256 [selector=0x85726af7, abi_params=[uint2
     v9 = zext i160 v0 to i256
     v10 = call v1, v9, 0, v4, v5, 0, 0
     jumpi v10, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v11 = sload 0 !metadata(storage=slot(0))
     ret v11
 }
@@ -43,17 +43,17 @@ fn @haltIndirect(arg0: i256, arg1: i1) {
 fn @halt(arg0: i256, arg1: i1) {
   bb0:
     jumpi arg1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb4, bb2
+  bb3:                                            ; preds = bb4, bb2
     ret
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     switch arg0, default bb7, [0 => bb5, 1 => bb6]
-  bb6:  ; preds = bb1
+  bb6:                                            ; preds = bb1
     returndata 0, 0
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     stop
-  bb7:  ; preds = bb1
+  bb7:                                            ; preds = bb1
     v0 = caller
     v1 = zext i160 v0 to i256
     selfdestruct v1
@@ -65,13 +65,13 @@ fn @halt(arg0: i256, arg1: i1) {
 fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: 0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v7]
     jumpi true, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     sstore v1, 1 !metadata(storage=symbolic(v1))
     v2 = lt v1, 2
     v3 = zext i1 v2 to i256
@@ -79,19 +79,19 @@ fn @changingSlot() -> i256 [selector=0xf8e62371, abi_params=[], abi_returns=[wor
     v5 = zext i1 v4 to i256
     v6 = ne v5, 0
     jumpi v6, bb7, bb8
-  bb8:  ; preds = bb4
+  bb8:                                            ; preds = bb4
     jump bb9
-  bb9:  ; preds = bb8
+  bb9:                                            ; preds = bb8
     sstore v1, 2 !metadata(storage=symbolic(v1))
     jump bb6
-  bb6:  ; preds = bb9
+  bb6:                                            ; preds = bb9
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v7 = add v1, 1
     jump bb1
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     jump bb2
-  bb2:  ; preds = bb7, bb5
+  bb2:                                            ; preds = bb7, bb5
     v8 = sload 0 !metadata(storage=slot(0))
     ret v8
 }
@@ -106,9 +106,9 @@ fn @observer() -> i256 [selector=0xeb70e498, abi_params=[], abi_returns=[word], 
     v2 = zext i160 v0 to i256
     v3 = staticcall v1, v2, 28, 4, 0, 32
     jumpi v3, bb2, bb1
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     v4 = returndatasize
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
@@ -129,13 +129,13 @@ fn @write(arg0: i1) -> i256 [selector=0x6ebfc750, abi_params=[bool], abi_returns
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     sstore 0, 3 !metadata(storage=slot(0))
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v0 = sload 0 !metadata(storage=slot(0))
     ret v0
 }
@@ -145,14 +145,14 @@ fn @observed(arg0: i1) -> i256 [selector=0xc61230fa, abi_params=[bool], abi_retu
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
     jumpi arg0, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     sstore 0, 3 !metadata(storage=slot(0))
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v0 = sload 0 !metadata(storage=slot(0))
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v1 = phi [bb1: v0], [bb2: 0]
     ret v1
 }
@@ -181,7 +181,7 @@ fn @pack(arg0: i8, arg1: i8) -> i256 [selector=0x5a5ffdde, abi_params=[uint8, ui
     v16 = trunc i256 v15 to i8
     v17 = zext i8 v16 to i256
     v18 = shl v17, 8
-    v19 = or v13, v18
+    v19 = or v18, v13
     ret v19
 }
 

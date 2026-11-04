@@ -173,7 +173,7 @@ impl HotnessAnalysis {
     /// objective.
     fn compute_blocks(&mut self, gcx: Gcx<'_>, module: &Module, function: FunctionId) {
         let func = &module.functions[function];
-        let objective = func.attributes.optimization.unwrap_or(module.optimization);
+        let objective = module.objective_of(func);
         let marks_failure_paths_cold = Target::new(gcx, objective).marks_failure_paths_cold();
         self.collect_cold_blocks(module, func, !objective.is_none(), marks_failure_paths_cold);
         if func.attributes.cold_hint {

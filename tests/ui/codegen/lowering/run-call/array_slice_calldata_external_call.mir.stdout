@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_external_call.sol:ArraySliceCalldataExternalCall ===
+; === ROOT/tests/ui/codegen/lowering/run-call/array_slice_calldata_external_call.sol:ArraySliceCalldataExternalCall ===
 @module ArraySliceCalldataExternalCall
 ; function sink(uint256[] calldata values) external pure returns (uint256) [selector 0xe55582b7]
 fn @sink(arg0: slice<calldata>) -> i256 [selector=0xe55582b7, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
@@ -14,35 +14,33 @@ fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x4
     v1 = gas
     v2 = extract_value slice<calldata>, arg0, 0
     v3 = extract_value slice<calldata>, arg0, 1
-    v4 = gt arg2, v3
+    v4 = lt v3, arg2
     v5 = lt arg2, arg1
     v6 = or v4, v5
     v7 = zext i1 v6 to i256
     icall revert_if<empty>, v6
     v8 = sub arg2, arg1
     v9 = mul arg1, 32
-    v10 = shr arg1, 251
-    v11 = ne v10, 0
-    icall panic_if<0x41>, v11
-    v12 = ptradd v2, v9
-    v13 = make_calldata_slice v12, v8
-    v14 = extract_value slice<calldata>, v13, 1
-    v15 = mul v14, 32
-    v16 = shr v14, 251
-    v17 = ne v16, 0
-    icall panic_if<0x41>, v17
-    v18 = abi_encode [calldata_array<word>], selector 0xe55582b700000000000000000000000000000000000000000000000000000000, args v13
-    v19 = extract_value slice<memory>, v18, 0
-    v20 = extract_value slice<memory>, v18, 1
-    v21 = zext i160 v0 to i256
-    v22 = staticcall v1, v21, v19, v20, 0, 32
-    jumpi v22, bb2, bb1
-  bb1:  ; preds = bb0
+    v10 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = ptradd v2, v9
+    v12 = make_calldata_slice v11, v8
+    v13 = extract_value slice<calldata>, v12, 1
+    v14 = mul v13, 32
+    v15 = gt v13, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v15
+    v16 = abi_encode [calldata_array<word>], scratch, selector 0xe55582b700000000000000000000000000000000000000000000000000000000, args v12
+    v17 = extract_value slice<memory>, v16, 0
+    v18 = extract_value slice<memory>, v16, 1
+    v19 = zext i160 v0 to i256
+    v20 = staticcall v1, v19, v17, v18, 0, 32
+    jumpi v20, bb2, bb1
+  bb1:                                            ; preds = bb0
     revert_returndata
-  bb2:  ; preds = bb0
-    v23 = returndatasize
-    v24 = lt v23, 32
-    icall revert_if<tuple_data_too_short>, v24
-    v25 = mload 0 !metadata(memory=scratch)
-    ret v25
+  bb2:                                            ; preds = bb0
+    v21 = returndatasize
+    v22 = lt v21, 32
+    icall revert_if<tuple_data_too_short>, v22
+    v23 = mload 0 !metadata(memory=scratch)
+    ret v23
 }

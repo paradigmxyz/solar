@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/bytes_concat_array_holes.sol:BytesConcatArrayHoles ===
+; === ROOT/tests/ui/codegen/lowering/run-call/bytes_concat_array_holes.sol:BytesConcatArrayHoles ===
 @module BytesConcatArrayHoles
 @types
   struct0: {ptr<memory>, i256}
@@ -10,11 +10,11 @@ fn @chunksAndHash() -> struct0 [pure] {
     v0 = alloc zeroed checked 672
     mstore v0, 20
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v6]
     v2 = lt v1, 20
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v7 = alloc 96 !metadata(preserves_fmp)
     mstore v7, 40
     v8 = ptradd v7, 32
@@ -22,7 +22,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v9 = ptradd v7, 64
     mstore v9, 0x4748494a4b4c4d4e000000000000000000000000000000000000000000000000
     v10 = mload v0
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptrtoint ptr<memory> v7 to i256
@@ -33,7 +33,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v16 = ptradd v15, 32
     mstore v16, 0x7461696c00000000000000000000000000000000000000000000000000000000
     v17 = mload v0
-    v18 = lt 15, v17
+    v18 = gt v17, 15
     v19 = eq v18, false
     icall panic_if<0x32>, v19
     v20 = ptrtoint ptr<memory> v15 to i256
@@ -42,7 +42,7 @@ fn @chunksAndHash() -> struct0 [pure] {
     v22 = insert_value struct0, undef struct0, 0, v0
     v23 = insert_value struct0, v22, 1, 7
     ret v23
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     v5 = ptradd v4, 32
@@ -58,7 +58,7 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v1 = extract_value struct0, v0, 0
     v2 = extract_value struct0, v0, 1
     jump bb1
-  bb1:  ; preds = bb0, bb3
+  bb1:                                            ; preds = bb0, bb3
     v3 = phi [bb0: 0], [bb3: v3]
     v4 = phi [bb0: v2], [bb3: v4]
     v5 = phi [bb0: v1], [bb3: v5]
@@ -67,16 +67,16 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v8 = mload v5
     v9 = lt v7, v8
     jumpi v9, bb4, bb5
-  bb5:  ; preds = bb1
+  bb5:                                            ; preds = bb1
     jump bb2
-  bb2:  ; preds = bb5
+  bb2:                                            ; preds = bb5
     v19 = ptradd v6, 32
     v20 = mload v6
     v21 = keccak256 v19, v20
     v22 = insert_value struct1, undef struct1, 0, v21
     v23 = insert_value struct1, v22, 1, v4
     ret v23
-  bb4:  ; preds = bb1
+  bb4:                                            ; preds = bb1
     v10 = mload v5
     v11 = lt v7, v10
     v12 = eq v11, false
@@ -85,11 +85,11 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v14 = ptradd v5, v13
     v15 = ptradd v14, 32
     v16 = mload v15, ptr<memory>
-    v17 = abi_encode_packed (bytes v6, bytes v16)
+    v17 = abi_encode_packed (memory_bytes v6, memory_bytes v16)
     jump bb6
-  bb6:  ; preds = bb4
+  bb6:                                            ; preds = bb4
     jump bb3
-  bb3:  ; preds = bb6
+  bb3:                                            ; preds = bb6
     v18 = checked_add uint256, v7, 1
     jump bb1
 }

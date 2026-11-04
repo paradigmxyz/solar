@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/mir/cse/alloc_upward.sol:AllocUpward ===
+; === ROOT/tests/ui/codegen/mir/cse/alloc_upward.sol:AllocUpward ===
 @module AllocUpward
 @types
   struct0: {i256, i256}
@@ -51,7 +51,7 @@ fn @reset(arg0: slice<calldata>) -> i256 [selector=0x12a20190, pure, abi_params=
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = mload v0
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = ptradd v0, 32
@@ -69,7 +69,7 @@ fn @reset(arg0: slice<calldata>) -> i256 [selector=0x12a20190, pure, abi_params=
     v13 = extract_value slice<calldata>, arg0, 1
     calldatacopy v11, v12, v13
     v14 = mload v0
-    v15 = lt 0, v14
+    v15 = gt v14, 0
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v0, 32
@@ -96,34 +96,33 @@ fn @wrappedIndex(arg0: i256, arg1: i256) -> i256 [selector=0xf6bbb82e, pure, abi
     v9 = lt v8, v1
     icall panic_if<0x41>, v9
     v10 = mul v8, 32
-    v11 = shr v8, 251
-    v12 = ne v11, 0
-    icall panic_if<0x41>, v12
-    v13 = alloc zeroed checked v10
-    mstore v13, arg0
-    v14 = mload v0
-    v15 = lt 0, v14
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = ptradd v0, 32
-    mstore v17, 7
-    v18 = ptrtoint ptr<memory> v13 to i256
-    mstore v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v19 = mload v13
-    v20 = lt arg1, v19
-    v21 = eq v20, false
-    icall panic_if<0x32>, v21
-    v22 = shl arg1, 5
-    v23 = ptradd v13, v22
-    v24 = ptradd v23, 32
-    mstore v24, 9
-    v25 = mload v0
-    v26 = lt 0, v25
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = ptradd v0, 32
-    v29 = mload v28
-    ret v29
+    v11 = gt v8, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v10
+    mstore v12, arg0
+    v13 = mload v0
+    v14 = gt v13, 0
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v0, 32
+    mstore v16, 7
+    v17 = ptrtoint ptr<memory> v12 to i256
+    mstore v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v18 = mload v12
+    v19 = lt arg1, v18
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = shl arg1, 5
+    v22 = ptradd v12, v21
+    v23 = ptradd v22, 32
+    mstore v23, 9
+    v24 = mload v0
+    v25 = gt v24, 0
+    v26 = eq v25, false
+    icall panic_if<0x32>, v26
+    v27 = ptradd v0, 32
+    v28 = mload v27
+    ret v28
 }
 
 ; function earlierIndex(uint256 n, uint256 i) external pure returns (uint256, uint256) [selector 0x1d84cbcf]
@@ -143,24 +142,23 @@ fn @earlierIndex(arg0: i256, arg1: i256) -> struct0 [selector=0x1d84cbcf, pure, 
     v9 = lt v8, v1
     icall panic_if<0x41>, v9
     v10 = mul v8, 32
-    v11 = shr v8, 251
-    v12 = ne v11, 0
-    icall panic_if<0x41>, v12
-    v13 = alloc zeroed checked v10
-    mstore v13, arg0
-    v14 = mload v13
-    v15 = ptrtoint ptr<memory> v0 to i256
+    v11 = gt v8, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v11
+    v12 = alloc zeroed checked v10
+    mstore v12, arg0
+    v13 = mload v12
+    v14 = ptrtoint ptr<memory> v0 to i256
     mstore v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v16 = mload v0
-    v17 = lt arg1, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = shl arg1, 5
-    v20 = ptradd v0, v19
-    v21 = ptradd v20, 32
-    mstore v21, 0x3039
-    v22 = mload v13
-    v23 = insert_value struct0, undef struct0, 0, v14
-    v24 = insert_value struct0, v23, 1, v22
-    ret v24
+    v15 = mload v0
+    v16 = lt arg1, v15
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = shl arg1, 5
+    v19 = ptradd v0, v18
+    v20 = ptradd v19, 32
+    mstore v20, 0x3039
+    v21 = mload v12
+    v22 = insert_value struct0, undef struct0, 0, v13
+    v23 = insert_value struct0, v22, 1, v21
+    ret v23
 }

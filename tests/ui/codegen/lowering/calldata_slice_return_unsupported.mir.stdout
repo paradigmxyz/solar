@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/calldata_slice_return_unsupported.sol:CalldataSliceReturnUnsupported ===
+; === ROOT/tests/ui/codegen/lowering/calldata_slice_return_unsupported.sol:CalldataSliceReturnUnsupported ===
 @module CalldataSliceReturnUnsupported
 ; function peel(bytes calldata data) internal pure returns (bytes calldata)
 fn @peel(arg0: slice<calldata>) -> slice<calldata> [pure] {
@@ -7,12 +7,12 @@ fn @peel(arg0: slice<calldata>) -> slice<calldata> [pure] {
     v1 = lt v0, 2
     v2 = make_calldata_slice ptr<calldata> 0, 0
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb3:  ; preds = bb2
+  bb3:                                            ; preds = bb2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = extract_value slice<calldata>, arg0, 1
-    v5 = gt v4, v4
+    v5 = lt v4, v4
     v6 = lt v4, 1
     v7 = or v5, v6
     v8 = zext i1 v7 to i256
@@ -22,7 +22,7 @@ fn @peel(arg0: slice<calldata>) -> slice<calldata> [pure] {
     v11 = make_calldata_slice v10, v9
     v12 = icall @peel, v11
     ret v12
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     ret arg0
 }
 

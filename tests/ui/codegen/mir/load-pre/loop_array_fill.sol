@@ -32,8 +32,6 @@ contract LoopArrayFill {
     // CHECK-NOT: jumpi
     // CHECK: mstore
     // CHECK: jump [[HEADER]]
-    // CHECK-LABEL: fn @revert_stub
-    // CHECK: mstore 32, 50
     function lanes(uint256 packed) external pure returns (uint256[] memory ids) {
         uint256 count = _count(packed);
         ids = new uint256[](count);

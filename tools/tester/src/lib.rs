@@ -26,6 +26,7 @@ const RUN_CALL_STDOUT_FILTER_PATTERN: &str = r"(?s).+";
 const RUN_CALL_DUMP_STDOUT_FILTER_PATTERN: &str = r#"(?m)(?:^\n)?^\{"contracts".*\}\n{0,2}"#;
 
 mod codegen_matrix;
+mod debugify;
 mod errors;
 pub mod foundry;
 mod quiet;
@@ -182,6 +183,12 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     }
     register_custom_flags![FileCheck, run_call::RunCall, run_call::RunCallFail];
     config.custom_comments.insert(codegen_matrix::NAME, codegen_matrix::parse);
+    if let Some(output) = std::env::var_os("SOLAR_DEBUGIFY_DIR").filter(|value| !value.is_empty()) {
+        config.comment_defaults.base().add_custom(
+            debugify::Audit::NAME,
+            debugify::Audit { output: PathBuf::from(output).join(mode.to_string()) },
+        );
+    }
 
     config.comment_defaults.base().exit_status = None.into();
     config.infer_exit_status_from_annotations = !mode.is_solc();
@@ -271,7 +278,7 @@ fn add_root_stdout_filters(config: &mut ui_test::Config, root: &Path) {
 }
 
 fn get_host() -> &'static str {
-    static CACHE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    static CACHE: OnceLock<String> = OnceLock::new();
     CACHE.get_or_init(|| {
         let mut config = ui_test::Config::dummy();
         config.program = ui_test::CommandBuilder::rustc();

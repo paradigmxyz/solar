@@ -547,18 +547,16 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Returns whether the 256-bit unsigned product of `lhs` and `rhs` wraps, when one factor is
-    /// a constant power of two 2 ** s, s >= 1: the other factor then needs a bit at or above
-    /// 256 - s. Other constants keep the quotient test.
+    /// a constant power of two 2 ** s, s >= 1: the other factor then exceeds `MAX >> s`. Other
+    /// constants keep the quotient test.
     pub fn power_of_two_mul_overflow(&mut self, lhs: ValueId, rhs: ValueId) -> Option<ValueId> {
         let (factor, c) = [(lhs, rhs), (rhs, lhs)].into_iter().find_map(|(factor, constant)| {
             let c = self.func.value_u256(constant)?;
             (c > U256::ONE && c.is_power_of_two()).then_some((factor, c))
         })?;
-        // high = shr factor, 256 - s
-        // overflow = ne high, 0
-        let shift = self.imm(U256::from(256 - c.trailing_zeros()));
-        let high = self.shr(factor, shift);
-        Some(self.ne_zero(high))
+        // overflow = gt factor, MAX >> s
+        let limit = self.imm(U256::MAX >> c.trailing_zeros());
+        Some(self.gt(factor, limit))
     }
 
     /// Rounds `rounded` down to a multiple of 32.
@@ -593,9 +591,18 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Appends a fully constructed instruction to the current block.
-    pub fn append_instruction(&mut self, inst: Instruction) -> (InstId, Option<ValueId>) {
+    pub fn append_instruction(&mut self, mut inst: Instruction) -> (InstId, Option<ValueId>) {
+        inst.kind = self.func.canonical_kind(inst.kind);
+        self.append_instruction_verbatim(inst)
+    }
+
+    /// Appends an instruction to the current block with its operands as written.
+    pub(crate) fn append_instruction_verbatim(
+        &mut self,
+        inst: Instruction,
+    ) -> (InstId, Option<ValueId>) {
         let (inst_id, result) = if inst.result_ty.is_some() {
-            let (inst_id, result) = self.func.alloc_value_inst(inst);
+            let (inst_id, result) = self.func.alloc_value_inst_verbatim(inst);
             (inst_id, Some(result))
         } else {
             (self.func.alloc_inst(inst), None)
@@ -927,6 +934,15 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Alloc { size, semantics }, Some(MirType::MEMPTR))
     }
 
+    /// Marks the allocation `allocation` as keeping its free-memory-pointer address and bump.
+    pub fn mark_preserves_fmp(&mut self, allocation: ValueId) {
+        let Value::Inst(inst) = *self.func.value(allocation) else {
+            unreachable!("allocation result must reference its instruction")
+        };
+        // allocation !metadata(preserves_fmp)
+        self.func.inst_mut(inst).metadata.set_preserves_fmp(true);
+    }
+
     /// Allocates a padded bytes object and records its logical length.
     pub fn alloc_bytes_object(
         &mut self,
@@ -980,10 +996,12 @@ impl<'a> FunctionBuilder<'a> {
         let one = self.imm(1);
         let word_size = self.imm(EvmMemoryLayout::WORD_SIZE);
         let size = if semantics.failure == AllocationFailure::Checked {
-            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE - 1, 0x41
+            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE, 0x41
             // size = (length + 1) * WORD_SIZE
-            let limit =
-                self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE - 1);
+            //
+            // The limit is `2^59 - 1`, a width test. That length passes, but its size `2^64` ends
+            // past the allocation limit, which the checked allocation panics on with the same code.
+            let limit = self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE);
             let invalid = self.gt(length, limit);
             self.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
             let words = self.add(length, one);
@@ -1271,7 +1289,7 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Slice)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Slice, None)
     }
 
     /// ABI-encodes `args` into a freshly allocated bytes object.
@@ -1281,7 +1299,7 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Bytes)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Bytes, None)
     }
 
     /// ABI-encodes `args` at the free-memory pointer without reserving the result.
@@ -1291,7 +1309,18 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Scratch)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Scratch, None)
+    }
+
+    /// ABI-encodes `args` at `base` without reserving the result.
+    pub fn abi_encode_scratch_at(
+        &mut self,
+        layout: crate::AbiLayoutRef,
+        selector: Option<ValueId>,
+        args: impl Into<Box<[ValueId]>>,
+        base: ValueId,
+    ) -> ValueId {
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Scratch, Some(base))
     }
 
     fn emit_abi_encode(
@@ -1300,9 +1329,10 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
         mode: AbiEncodeMode,
+        base: Option<ValueId>,
     ) -> ValueId {
         self.emit_inst(
-            InstKind::AbiEncode { mode, selector, args: args.into(), layout },
+            InstKind::AbiEncode { mode, base, selector, args: args.into(), layout },
             Some(mode.result_type()),
         )
     }
@@ -1379,6 +1409,17 @@ impl<'a> FunctionBuilder<'a> {
     pub fn validate_abi(&mut self, value: ValueId) {
         // validate_abi value
         self.emit_void_inst(InstKind::ValidateAbi(value));
+    }
+
+    /// Builds the body of `load_storage_bytes(slot) -> bytes`, the helper shared by storage
+    /// `bytes`/`string` reads.
+    pub fn build_load_storage_bytes_helper(function: &mut Function) {
+        // load_storage_bytes(slot) -> bytes_object
+        let mut builder = FunctionBuilder::new_semantic(function);
+        let slot = builder.add_param(MirType::I256);
+        builder.set_return_type(MirType::MEMPTR);
+        let object = builder.emit_inst(InstKind::StorageBytesLoad(slot), Some(MirType::MEMPTR));
+        builder.ret([object]);
     }
 
     /// Stores a bytes object in storage, clearing any unused old data words.

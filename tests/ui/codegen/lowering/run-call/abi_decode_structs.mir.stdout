@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_structs.sol:AbiDecodeStructsRunCall ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_structs.sol:AbiDecodeStructsRunCall ===
 @module AbiDecodeStructsRunCall
 @types
   struct0: {i160, ptr<memory>}
@@ -87,21 +87,21 @@ fn @dDynArr(arg0: ptr<memory>) -> struct4 [selector=0xaca542ca, pure, abi_params
     v0 = abi_decode [array<_, tuple<uint256, bytes, array<_, uint256>>>], arg0
     v1 = mload v0
     v2 = mload v0
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v0, 32
     v6 = mload v5, ptr<memory>
     v7 = mload v6
     v8 = mload v0
-    v9 = lt 1, v8
+    v9 = gt v8, 1
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptradd v0, 64
     v12 = mload v11, ptr<memory>
     v13 = mload v12
     v14 = mload v0
-    v15 = lt 0, v14
+    v15 = gt v14, 0
     v16 = eq v15, false
     icall panic_if<0x32>, v16
     v17 = ptradd v0, 32
@@ -141,7 +141,7 @@ fn @typedDynArray(arg0: slice<calldata>) -> struct6 [selector=0xa00a84db, pure, 
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 1
-    v2 = lt 0, v1
+    v2 = gt v1, 0
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = extract_value slice<calldata>, arg0, 0
@@ -168,7 +168,7 @@ fn @typedDynArray(arg0: slice<calldata>) -> struct6 [selector=0xa00a84db, pure, 
     v23 = add v22, 0
     v24 = calldataload v23
     v25 = extract_value slice<calldata>, arg0, 1
-    v26 = lt 1, v25
+    v26 = gt v25, 1
     v27 = eq v26, false
     icall panic_if<0x32>, v27
     v28 = extract_value slice<calldata>, arg0, 0
@@ -255,7 +255,7 @@ fn @nestedRoundtrip() -> struct2 [selector=0x07f0bc21, pure, abi_params=[], abi_
     v30 = ptradd v29, 64
     v31 = mload v30, ptr<memory>
     v32 = mload v31
-    v33 = lt 0, v32
+    v33 = gt v32, 0
     v34 = eq v33, false
     icall panic_if<0x32>, v34
     v35 = ptradd v31, 32
@@ -265,7 +265,7 @@ fn @nestedRoundtrip() -> struct2 [selector=0x07f0bc21, pure, abi_params=[], abi_
     v38 = ptradd v37, 64
     v39 = mload v38, ptr<memory>
     v40 = mload v39
-    v41 = lt 1, v40
+    v41 = gt v40, 1
     v42 = eq v41, false
     icall panic_if<0x32>, v42
     v43 = ptradd v39, 64
@@ -294,11 +294,11 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v0 = alloc zeroed checked 96
     mstore v0, 2
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v10]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v11 = alloc 96 !metadata(preserves_fmp)
     mstore v11, 0
     v12 = ptradd v11, 32
@@ -321,7 +321,7 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v21 = ptradd v11, 64
     v22 = mload v21, ptr<memory>
     v23 = mload v22
-    v24 = lt 0, v23
+    v24 = gt v23, 0
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = ptradd v22, 32
@@ -329,7 +329,7 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v27 = ptradd v11, 64
     v28 = mload v27, ptr<memory>
     v29 = mload v28
-    v30 = lt 1, v29
+    v30 = gt v29, 1
     v31 = eq v30, false
     icall panic_if<0x32>, v31
     v32 = ptradd v28, 64
@@ -356,20 +356,20 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v43 = ptradd v33, 64
     v44 = mload v43, ptr<memory>
     v45 = mload v44
-    v46 = lt 0, v45
+    v46 = gt v45, 0
     v47 = eq v46, false
     icall panic_if<0x32>, v47
     v48 = ptradd v44, 32
     mstore v48, 6
     v49 = mload v0
-    v50 = lt 0, v49
+    v50 = gt v49, 0
     v51 = eq v50, false
     icall panic_if<0x32>, v51
     v52 = ptrtoint ptr<memory> v11 to i256
     v53 = ptradd v0, 32
     mstore v53, v52
     v54 = mload v0
-    v55 = lt 1, v54
+    v55 = gt v54, 1
     v56 = eq v55, false
     icall panic_if<0x32>, v56
     v57 = ptrtoint ptr<memory> v33 to i256
@@ -386,7 +386,7 @@ fn @dynamicArrayRoundtrip() -> struct4 [selector=0x533c608a, pure, abi_params=[]
     v67 = insert_value struct4, v66, 2, v63
     v68 = insert_value struct4, v67, 3, v64
     ret v68
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = alloc 96 !metadata(preserves_fmp)
     mstore v3, 0
     v4 = ptradd v3, 32
@@ -407,11 +407,11 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     jump bb1
-  bb1:  ; preds = bb0, bb2
+  bb1:                                            ; preds = bb0, bb2
     v1 = phi [bb0: 0], [bb2: v5]
     v2 = lt v1, 2
     jumpi v2, bb2, bb3
-  bb3:  ; preds = bb1
+  bb3:                                            ; preds = bb1
     v6 = alloc 64 !metadata(preserves_fmp)
     mstore v6, 1
     v7 = ptradd v6, 32
@@ -447,7 +447,7 @@ fn @fixedDynamicRoundtrip() -> struct5 [selector=0x273ceef0, pure, abi_params=[]
     v28 = insert_value struct5, undef struct5, 0, v22
     v29 = insert_value struct5, v28, 1, v27
     ret v29
-  bb2:  ; preds = bb1
+  bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3
     mstore v4, 96
@@ -529,32 +529,32 @@ fn @dNestedArrays(arg0: ptr<memory>) -> struct4 [selector=0xa8c86b4a, pure, abi_
     v0 = abi_decode [array<_, array<_, uint256>>], arg0
     v1 = mload v0
     v2 = mload v0
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v0, 32
     v6 = mload v5, ptr<memory>
     v7 = mload v6
     v8 = mload v0
-    v9 = lt 0, v8
+    v9 = gt v8, 0
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptradd v0, 32
     v12 = mload v11, ptr<memory>
     v13 = mload v12
-    v14 = lt 0, v13
+    v14 = gt v13, 0
     v15 = eq v14, false
     icall panic_if<0x32>, v15
     v16 = ptradd v12, 32
     v17 = mload v16
     v18 = mload v0
-    v19 = lt 1, v18
+    v19 = gt v18, 1
     v20 = eq v19, false
     icall panic_if<0x32>, v20
     v21 = ptradd v0, 64
     v22 = mload v21, ptr<memory>
     v23 = mload v22
-    v24 = lt 0, v23
+    v24 = gt v23, 0
     v25 = eq v24, false
     icall panic_if<0x32>, v25
     v26 = ptradd v22, 32
@@ -572,7 +572,7 @@ fn @dArrayFixed(arg0: ptr<memory>) -> struct8 [selector=0x11d9968b, pure, abi_pa
     v0 = abi_decode [array<_, array<2, uint256>>], arg0
     v1 = mload v0
     v2 = mload v0
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v0, 32
@@ -582,7 +582,7 @@ fn @dArrayFixed(arg0: ptr<memory>) -> struct8 [selector=0x11d9968b, pure, abi_pa
     icall panic_if<0x32>, v8
     v9 = mload v6
     v10 = mload v0
-    v11 = lt 0, v10
+    v11 = gt v10, 0
     v12 = eq v11, false
     icall panic_if<0x32>, v12
     v13 = ptradd v0, 32
@@ -593,7 +593,7 @@ fn @dArrayFixed(arg0: ptr<memory>) -> struct8 [selector=0x11d9968b, pure, abi_pa
     v17 = ptradd v14, 32
     v18 = mload v17
     v19 = mload v0
-    v20 = lt 1, v19
+    v20 = gt v19, 1
     v21 = eq v20, false
     icall panic_if<0x32>, v21
     v22 = ptradd v0, 64
@@ -603,7 +603,7 @@ fn @dArrayFixed(arg0: ptr<memory>) -> struct8 [selector=0x11d9968b, pure, abi_pa
     icall panic_if<0x32>, v25
     v26 = mload v23
     v27 = mload v0
-    v28 = lt 1, v27
+    v28 = gt v27, 1
     v29 = eq v28, false
     icall panic_if<0x32>, v29
     v30 = ptradd v0, 64
@@ -635,7 +635,7 @@ fn @dFixedNestedDyn(arg0: ptr<memory>) -> struct8 [selector=0xf648fcec, pure, ab
     icall panic_if<0x32>, v6
     v7 = mload v0, ptr<memory>
     v8 = mload v7
-    v9 = lt 0, v8
+    v9 = gt v8, 0
     v10 = eq v9, false
     icall panic_if<0x32>, v10
     v11 = ptradd v7, 32
@@ -645,7 +645,7 @@ fn @dFixedNestedDyn(arg0: ptr<memory>) -> struct8 [selector=0xf648fcec, pure, ab
     icall panic_if<0x32>, v14
     v15 = mload v0, ptr<memory>
     v16 = mload v15
-    v17 = lt 1, v16
+    v17 = gt v16, 1
     v18 = eq v17, false
     icall panic_if<0x32>, v18
     v19 = ptradd v15, 64
@@ -662,7 +662,7 @@ fn @dFixedNestedDyn(arg0: ptr<memory>) -> struct8 [selector=0xf648fcec, pure, ab
     v28 = ptradd v0, 32
     v29 = mload v28, ptr<memory>
     v30 = mload v29
-    v31 = lt 0, v30
+    v31 = gt v30, 0
     v32 = eq v31, false
     icall panic_if<0x32>, v32
     v33 = ptradd v29, 32
@@ -681,13 +681,13 @@ fn @dCalldataDyn(arg0: slice<calldata>) -> struct6 [selector=0xe931c6df, pure, a
     v0 = abi_decode [array<_, uint256>], arg0
     v1 = mload v0
     v2 = mload v0
-    v3 = lt 0, v2
+    v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
     v5 = ptradd v0, 32
     v6 = mload v5
     v7 = mload v0
-    v8 = lt 1, v7
+    v8 = gt v7, 1
     v9 = eq v8, false
     icall panic_if<0x32>, v9
     v10 = ptradd v0, 64

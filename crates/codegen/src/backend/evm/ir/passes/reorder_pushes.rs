@@ -49,7 +49,11 @@ pub(super) struct ReorderPushes {
 
 impl EvmPass for ReorderPushes {
     fn name(&self) -> &'static str {
-        if self.reorder_closed_expressions { "reorder-expressions" } else { "reorder-pushes" }
+        match (self.reorder_legacy_size_expressions, self.reorder_closed_expressions) {
+            (_, true) => "reorder-expressions",
+            (true, false) => "final-reorder-pushes",
+            (false, false) => "reorder-pushes",
+        }
     }
 
     fn cache_config(&self) -> u64 {

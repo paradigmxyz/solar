@@ -23,15 +23,14 @@
 //! ```
 //!
 //! The pass performs dominator-tree CSE with path-local invalidation for
-//! alias-sensitive memory/storage reads, then runs a local cleanup pass. Cheap environment
-//! reads such as `calldatasize` and `caller` stay separate, since rereading costs less than a
-//! stack copy, but they key as one operand, so the bound checks and other non-cast
-//! expressions computed from different reads of the same word are shared. Slot hashes
-//! also write scratch memory; a repeated fixed-width hash can disappear only while
-//! its input and written ranges remain unchanged. Variable-width hashes can overwrite
-//! their source or the FMP itself, so they remain effectful until physical lowering. Check
-//! availability before applying the retained instruction's clobbers so an identical write does not
-//! invalidate itself.
+//! alias-sensitive memory/storage reads, then runs a local cleanup pass. Environment reads
+//! such as `calldatasize` and `caller` that are fixed for the call frame merge like any other
+//! expression; the backend rereads a cheap one at each use instead of copying a long-lived
+//! stack value. Slot hashes also write scratch memory; a repeated fixed-width hash can
+//! disappear only while its input and written ranges remain unchanged. Variable-width hashes can
+//! overwrite their source or the FMP itself, so they remain effectful until physical lowering.
+//! Check availability before applying the retained instruction's clobbers so an identical write
+//! does not invalidate itself.
 //!
 //! Loads at the base of a constant-size allocation stay local unless the cached value already
 //! crosses the block edge.
@@ -54,7 +53,7 @@
 //! proves deterministic reads and complete restoration of temporary writes.
 //! Every intervening memory write invalidates these entries. Calls never sink or
 //! inherit a cached result across blocks; no read-footprint disjointness is assumed.
-//! Calls to pure leaf functions are the exception: a `pure` single-result leaf that
+//! Calls to pure leaf functions are the exception: a single-result leaf that
 //! touches no storage, writes no memory a caller sees, observes neither gas
 //! nor return data, and reads memory only on paths that revert depends
 //! on its arguments alone, so its result is reused like pure arithmetic, across dominating blocks
@@ -62,7 +61,8 @@
 //! After a `gas` read, state-dependent expressions remain explicit so a later
 //! `gas` read observes their dynamically priced execution. A forward CFG may-observe
 //! analysis includes observations in non-dominating branches and loop backedges.
-//! Internal calls carry the callee's transitive gas-observation summary.
+//! Internal calls carry the callee's transitive gas-observation summary, and start an observation
+//! only when the callee may return after reading gas (see `GasObservations`).
 //!
 //! A word store or a semantic length store also seeds the cache with the stored
 //! value under the written location, so a later load of that exact word forwards
@@ -88,17 +88,20 @@
 //! Unchanged functions without internal calls can skip later runs until their
 //! body changes; callers must still observe any improved callee summaries.
 
-use crate::mir::{
-    BlockId, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
-    Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
-    analysis::{
-        Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
-        Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
-        MemoryLocation, returning_blocks,
+use crate::{
+    mir::{
+        BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId,
+        InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
+        analysis::{
+            Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
+            Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
+            MemoryLocation, returning_blocks,
+        },
+        memory::EvmMemoryLayout,
+        pass::{MirPass, run_selected_function_pass, run_selected_function_pass_cached},
+        utils as mir_utils,
     },
-    memory::EvmMemoryLayout,
-    pass::{MirPass, run_selected_function_pass, run_selected_function_pass_cached},
-    utils as mir_utils,
+    target::Target,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -106,7 +109,6 @@ use solar_data_structures::{
     index::IndexVec,
     map::FxHashMap,
 };
-use solar_sema::hir::StateMutability;
 use std::{cell::OnceCell, mem, ops::Range, rc::Rc, sync::Arc};
 
 /// Function pass for local common subexpression elimination.
@@ -275,6 +277,9 @@ enum ExprKey {
     BlockHash(OperandKey),
     Balance(OperandKey),
     SelfBalance,
+    /// A nullary read that returns the same word throughout the call, such as `calldatasize` or
+    /// `caller`, keyed by its mnemonic.
+    FrameRead(&'static str),
     BlobHash(OperandKey),
     LoadImmutable(ImmutableId),
     Cast(CastKey, OperandKey, Option<MirType>),
@@ -290,21 +295,13 @@ enum CastKey {
     IntToPtr,
 }
 
-/// Derived order: immediates, then values by index, then frame constants, so that a commutative
-/// expression puts its constant operand first.
+/// Derived order: immediates, then values by index, so that a commutative expression puts its
+/// constant operand first.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum OperandKey {
     Immediate(Immediate),
     Value(ValueId),
-    /// A read that returns the same word throughout the call, such as `calldatasize` or
-    /// `caller`, keyed by its kind so that expressions over different reads match.
-    FrameConstant(&'static str),
 }
-
-/// Live-in words below which a loop-varying read is reused across one edge
-/// instead of reloaded: the `DUP` reach less room for the block's own
-/// temporaries.
-const DIRECT_REUSE_LIVE_BUDGET: usize = 12;
 
 /// Words of one `memory_zero` that seed the cache with zero, bounding the entries a large fill
 /// adds.
@@ -593,11 +590,7 @@ impl CommonSubexprEliminator {
                     .with_debug_info_dropped(),
             );
 
-            let phi_count = func.blocks[candidate.block_id]
-                .instructions
-                .iter()
-                .take_while(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .count();
+            let phi_count = func.block_phi_count(candidate.block_id);
             let inserted = inserted_by_block.entry(candidate.block_id).or_default();
             func.blocks[candidate.block_id].instructions.insert(phi_count + *inserted, new_inst);
             *inserted += 1;
@@ -654,8 +647,8 @@ impl CommonSubexprEliminator {
                 return None;
             }
             expected_key = Some(key);
-            // Equal keys may still name different operands, such as two reads of one frame
-            // constant, so clone an incoming expression whose operands exist after the phis.
+            // Equal keys may still name different operands, such as `x + 4 + 32` and `x + 36`,
+            // so clone an incoming expression whose operands exist after the phis.
             if candidate_kind.is_none()
                 && Self::operands_available_after_phis(
                     func,
@@ -824,7 +817,7 @@ impl CommonSubexprEliminator {
         // other words are live here.
         if let Some(home) = home(*cached_inst)
             && func.blocks[block].predecessors.contains(&home)
-            && liveness.live_in(block).count() < DIRECT_REUSE_LIVE_BUDGET
+            && liveness.live_in(block).count() < Target::DIRECT_REUSE_LIVE_BUDGET
         {
             return true;
         }
@@ -1225,18 +1218,9 @@ impl CommonSubexprEliminator {
         // Helper to get canonical operands after in-block replacements.
         let operand = |v: ValueId| Self::operand_key(func, v, replacements);
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
-        // A cast costs nothing, so sharing one over a frame constant would only trade a cheap
-        // reread for a stack copy: casts key each read separately.
-        let cast = |cast, v| {
-            let v = value(v);
-            let operand = match func.value(v) {
-                Value::Immediate(_) => operand(v),
-                _ => OperandKey::Value(v),
-            };
-            Some(ExprKey::Cast(cast, operand, func.inst(inst_id).result_ty))
-        };
+        let cast = |cast, v| Some(ExprKey::Cast(cast, operand(v), func.inst(inst_id).result_ty));
 
-        match kind {
+        match &*kind.less_than_form() {
             // A pure leaf call depends on its arguments alone, so no side effect invalidates it.
             InstKind::ICall { function: Callee::Function(function), args }
                 if self.is_pure_call(kind) =>
@@ -1313,11 +1297,9 @@ impl CommonSubexprEliminator {
             InstKind::Shr(a, b) => Some(ExprKey::Shr(operand(*a), operand(*b))),
             InstKind::Sar(a, b) => Some(ExprKey::Sar(operand(*a), operand(*b))),
             InstKind::Byte(a, b) => Some(ExprKey::Byte(operand(*a), operand(*b))),
-            // Swapped comparisons - canonicalize `a > b` as `b < a` so they unify
+            // A greater-than shares the key of its swapped less-than, see `less_than_form`
             InstKind::Lt(a, b) => Some(ExprKey::Lt(operand(*a), operand(*b))),
-            InstKind::Gt(a, b) => Some(ExprKey::Lt(operand(*b), operand(*a))),
             InstKind::SLt(a, b) => Some(ExprKey::SLt(operand(*a), operand(*b))),
-            InstKind::SGt(a, b) => Some(ExprKey::SLt(operand(*b), operand(*a))),
             InstKind::SignExtend(a, b) => Some(ExprKey::SignExtend(operand(*a), operand(*b))),
 
             // Unary operations
@@ -1349,9 +1331,7 @@ impl CommonSubexprEliminator {
             }
             InstKind::Fmp => Some(ExprKey::MLoad(AliasAnalysis::fmp_location())),
             InstKind::Keccak256(offset, size) => {
-                let size = value(*size);
-                let size =
-                    func.value_u64(size).map_or(LocationSize::Dynamic(size), LocationSize::Const);
+                let size = self.alias().location_size(func, value(*size));
                 let key = self.alias().memory_location(func, inst_id, value(*offset), size)?;
                 Some(ExprKey::Keccak256(key))
             }
@@ -1377,6 +1357,7 @@ impl CommonSubexprEliminator {
             }
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
+            _ if let Some(mnemonic) = frame_read_key(kind) => Some(ExprKey::FrameRead(mnemonic)),
 
             InstKind::Zext(a) => cast(CastKey::Zext, *a),
             InstKind::Trunc(a, _) => cast(CastKey::Trunc, *a),
@@ -1385,7 +1366,6 @@ impl CommonSubexprEliminator {
             InstKind::IntToPtr(a) => cast(CastKey::IntToPtr, *a),
 
             // Don't cache these:
-            // - Cheap nullary reads usually cost less than their extra stack lifetime
             // - Memory size/gas/returndata-size reads can change inside a block
             // - Storage writes - side effects
             // - Phi nodes - not expressions
@@ -1661,9 +1641,6 @@ impl CommonSubexprEliminator {
         let value = mir_utils::resolve_replacement(value, replacements);
         match func.value(value) {
             Value::Immediate(imm) => OperandKey::Immediate(imm.clone()),
-            Value::Inst(inst) if let Some(key) = frame_constant_key(&func.inst(*inst).kind) => {
-                OperandKey::FrameConstant(key)
-            }
             _ => OperandKey::Value(value),
         }
     }
@@ -1675,14 +1652,14 @@ impl CommonSubexprEliminator {
 
 /// Pure leaf functions whose calls CSE may reuse: a call's result depends on its arguments alone.
 ///
-/// `pure` keeps environment, state, and gas reads out of the source, inline assembly included,
-/// except for the return data, which the function must not read. The memory summary proves that
-/// the function never touches storage or transient storage, writes no memory a caller sees, and
-/// never observes gas, and no block that can still return reads memory: a revert path
-/// may read the error data it staged, but whether a call returns, and what, then depends on its
-/// arguments alone. A repeated call with the same arguments returns the
-/// same word, and when it would revert the dominating call already reverted. A leaf calls no other
-/// function, and one result keeps the reuse a plain value substitution.
+/// Every instruction depends on its operands, memory, or the call frame alone, which keeps out
+/// immutable reads and the return data, which an external call between two calls replaces. The
+/// memory summary proves that the function never touches storage or transient storage, writes no
+/// memory a caller sees, and never observes gas, and no block that can still return reads memory:
+/// a revert path may read the error data it staged, but whether a call returns, and what, then
+/// depends on its arguments alone. A repeated call with the same arguments returns the same word,
+/// and when it would revert the dominating call already reverted. A leaf calls no other function,
+/// and one result keeps the reuse a plain value substitution.
 fn pure_leaf_functions(
     module: &Module,
     leaves: &DenseBitSet<FunctionId>,
@@ -1695,20 +1672,14 @@ fn pure_leaf_functions(
         let untouched = [AddressSpace::Storage, AddressSpace::Transient]
             .into_iter()
             .all(|space| !summary.reads(space) && !summary.writes(space));
-        if func.attributes.state_mutability != StateMutability::Pure
-            || func.return_components().len() != 1
+        if func.return_components().len() != 1
             || func.internal_frame_size != 0
             || !untouched
             || summary.writes(AddressSpace::Memory)
             || summary.may_observe_gas()
-            // `pure` assembly may read the return data, which an external call between two
-            // calls replaces.
-            || func.instructions().any(|inst| {
-                matches!(
-                    func.inst(inst).kind,
-                    InstKind::ReturnDataSize | InstKind::Copy(.., PtrLocation::Returndata)
-                )
-            })
+            || !func
+                .instructions()
+                .all(|inst| is_frame_function_of_arguments(&func.inst(inst).kind))
         {
             continue;
         }
@@ -1728,9 +1699,30 @@ fn pure_leaf_functions(
     pure
 }
 
+/// Whether a call's result can depend on `kind` and its arguments alone within one call frame:
+/// pure computation, memory, and the environment words that fix for the frame, calldata
+/// included. Reads of an immutable, the return data, or the live state of the chain differ
+/// between two calls.
+fn is_frame_function_of_arguments(kind: &InstKind) -> bool {
+    let reads_returndata = matches!(
+        kind,
+        InstKind::Copy(.., PtrLocation::Returndata)
+            | InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
+    );
+    let reads_calldata = matches!(
+        kind,
+        InstKind::Load(_, PtrLocation::Calldata) | InstKind::Copy(.., PtrLocation::Calldata)
+    );
+    let local = matches!(
+        kind.effect_kind(),
+        EffectKind::Pure | EffectKind::MemoryRead | EffectKind::MemoryWrite
+    );
+    (local && !reads_returndata) || reads_calldata || frame_read_key(kind).is_some()
+}
+
 /// A key for an environment read whose word is fixed for the whole call frame: a nullary
 /// environment read the schema marks rematerializable, keyed by its mnemonic.
-fn frame_constant_key(kind: &InstKind) -> Option<&'static str> {
+fn frame_read_key(kind: &InstKind) -> Option<&'static str> {
     let definition = kind.op_def();
     (definition.effect == EffectKind::EnvironmentRead
         && definition.traits.contains(OpTraits::REMATERIALIZABLE)

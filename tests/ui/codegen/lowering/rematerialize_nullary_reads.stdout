@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/rematerialize_nullary_reads.sol:RematerializeNullaryReads (runtime) ===
+; === ROOT/tests/ui/codegen/lowering/rematerialize_nullary_reads.sol:RematerializeNullaryReads (runtime) ===
 @module RematerializeNullaryReads_runtime
-bb0:  ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry
   push 0
   calldataload
   push 224
@@ -13,7 +13,7 @@ bb0:  ; runtime dispatch entry
   push 0
   push 0
   revert
-bb3:  ; function readTwice() external payable [selector 0x5895c907]
+bb3 [entry]:                                      ; function readTwice() external payable [selector 0x5895c907]
   calldatasize
   push 0
   mstore

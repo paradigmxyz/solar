@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/nested_copy_stack.sol:NestedCopyStack ===
+; === ROOT/tests/ui/codegen/lowering/nested_copy_stack.sol:NestedCopyStack ===
 @module NestedCopyStack
 ; function copyGroups(uint256 groups, uint256 words, uint256 seed) public pure returns (bytes memory result) [selector 0x03aba4f0]
 fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03aba4f0, pure, abi_params=[uint256, uint256, uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
@@ -6,13 +6,13 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     v0 = gt arg0, 4
     v1 = eq v0, false
     jumpi v1, bb1, bb2
-  bb2:  ; preds = bb0
+  bb2:                                            ; preds = bb0
     jump bb3
-  bb1:  ; preds = bb0
+  bb1:                                            ; preds = bb0
     v2 = gt arg1, 4
     v3 = eq v2, false
     jump bb3
-  bb3:  ; preds = bb1, bb2
+  bb3:                                            ; preds = bb1, bb2
     v4 = phi [bb1: v3], [bb2: false]
     v5 = eq v4, false
     icall revert_if<empty>, v5
@@ -22,7 +22,7 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     v9 = add v6, 32
     mstore v6, v8
     jump bb4
-  bb4:  ; preds = bb3, bb6
+  bb4:                                            ; preds = bb3, bb6
     v10 = phi [bb3: arg0], [bb6: v43]
     v11 = phi [bb3: arg1], [bb6: v44]
     v12 = phi [bb3: arg2], [bb6: v45]
@@ -34,9 +34,9 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     v18 = zext i1 v17 to i256
     v19 = ne v18, 0
     jumpi v19, bb7, bb8
-  bb8:  ; preds = bb4
+  bb8:                                            ; preds = bb4
     jump bb5
-  bb5:  ; preds = bb8
+  bb5:                                            ; preds = bb8
     v51 = add v15, v14
     mstore v51, 0
     v52 = add v15, v14
@@ -44,16 +44,16 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     mstore 64, v53 !metadata(memory=scratch)
     v54 = inttoptr i256 v13 to ptr<memory>
     ret v54
-  bb7:  ; preds = bb4
+  bb7:                                            ; preds = bb4
     v20 = ne v11, 0
     jumpi v20, bb10, bb11
-  bb11:  ; preds = bb7
+  bb11:                                           ; preds = bb7
     jump bb12
-  bb10:  ; preds = bb7
+  bb10:                                           ; preds = bb7
     v21 = mul v16, v11
     v22 = shl v21, 5
     jump bb13
-  bb13:  ; preds = bb10, bb17
+  bb13:                                           ; preds = bb10, bb17
     v23 = phi [bb10: v10], [bb17: v23]
     v24 = phi [bb10: v11], [bb17: v24]
     v25 = phi [bb10: v12], [bb17: v25]
@@ -64,13 +64,13 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     v30 = phi [bb10: v22], [bb17: v30]
     v31 = phi [bb10: 0], [bb17: v36]
     jumpi true, bb15, bb16
-  bb16:  ; preds = bb13
+  bb16:                                           ; preds = bb13
     jump bb14
-  bb15:  ; preds = bb13
+  bb15:                                           ; preds = bb13
     v32 = shl v31, 5
-    v33 = add v30, v32
-    v34 = xor v25, v33
-    v35 = add v28, v33
+    v33 = add v32, v30
+    v34 = xor v33, v25
+    v35 = add v33, v28
     mstore v35, v34
     v36 = add v31, 1
     v37 = lt v36, v24
@@ -79,18 +79,18 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     v40 = zext i1 v39 to i256
     v41 = ne v40, 0
     jumpi v41, bb18, bb19
-  bb19:  ; preds = bb15
+  bb19:                                           ; preds = bb15
     jump bb20
-  bb20:  ; preds = bb19
+  bb20:                                           ; preds = bb19
     jump bb17
-  bb17:  ; preds = bb20
+  bb17:                                           ; preds = bb20
     jump bb13
-  bb18:  ; preds = bb15
+  bb18:                                           ; preds = bb15
     jump bb14
-  bb14:  ; preds = bb18, bb16
+  bb14:                                           ; preds = bb18, bb16
     v42 = phi [bb18: v36], [bb16: v31]
     jump bb12
-  bb12:  ; preds = bb14, bb11
+  bb12:                                           ; preds = bb14, bb11
     v43 = phi [bb14: v23], [bb11: v10]
     v44 = phi [bb14: v24], [bb11: v11]
     v45 = phi [bb14: v25], [bb11: v12]
@@ -99,9 +99,9 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     v48 = phi [bb14: v28], [bb11: v15]
     v49 = phi [bb14: v29], [bb11: v16]
     jump bb9
-  bb9:  ; preds = bb12
+  bb9:                                            ; preds = bb12
     jump bb6
-  bb6:  ; preds = bb9
+  bb6:                                            ; preds = bb9
     v50 = add v49, 1
     jump bb4
 }

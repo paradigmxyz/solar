@@ -118,13 +118,11 @@ pub struct OpTraits(u16);
 impl OpTraits {
     /// No additional operation traits.
     pub(crate) const NONE: Self = Self(0);
-    /// The operation's binary operands may be exchanged by the scheduler.
-    pub(crate) const REORDERABLE: Self = Self(1 << 0);
     /// The operation is cheap and stable enough to rematerialize when its
     /// operands can themselves be rebuilt from stable leaves.
     pub const REMATERIALIZABLE: Self = Self(1 << 1);
     /// The declared operand pair may be exchanged without changing the result.
-    pub(crate) const COMMUTATIVE: Self = Self(1 << 3);
+    pub const COMMUTATIVE: Self = Self(1 << 3);
     /// The operation is a root of at least one local e-graph rewrite rule.
     pub const EGRAPH_REWRITE: Self = Self(1 << 4);
 
@@ -1065,6 +1063,43 @@ macro_rules! define_mir_ops {
                 self.canonicalize_commutative_by_key(|value| value.index())
             }
 
+            /// Returns the declared commutative pair of operands, if the operation has one.
+            #[allow(unused_variables)]
+            pub fn commutative_pair(self) -> Option<(ValueId, ValueId)> {
+                match self {
+                    $(
+                        Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => {
+                            let pair: Option<(ValueId, ValueId)> = None;
+                            $( let pair = Some(($lhs, $rhs)); )?
+                            pair
+                        }
+                    )+
+                }
+            }
+
+            /// Returns the operation with its declared commutative pair exchanged,
+            /// when it has one and the two operands differ.
+            #[allow(unused_variables)]
+            pub fn commuted(self) -> Option<Self> {
+                match self {
+                    $(
+                        Self::$variant $( { $( $operand ),+ } )? $( { $( $field ),+ } )? => {
+                            let differs = false;
+                            $(
+                                // op(lhs, rhs, rest) -> op(rhs, lhs, rest)
+                                let differs = $lhs != $rhs;
+                                let ($lhs, $rhs) = ($rhs, $lhs);
+                            )?
+                            differs.then_some(
+                                Self::$variant
+                                    $( { $( $operand ),+ } )?
+                                    $( { $( $field ),+ } )?,
+                            )
+                        }
+                    )+
+                }
+            }
+
             /// Orders only the declared commutative pair by the caller's key.
             pub fn canonicalize_commutative_by_key<K: Ord>(
                 self,
@@ -1193,6 +1228,18 @@ impl Op {
         }
         out
     }
+
+    /// Returns the value operands in visit order.
+    #[must_use]
+    pub fn operands(self) -> SmallVec<[ValueId; 8]> {
+        let mut operands = SmallVec::new();
+        // Only the visit matters; the mapped copy is discarded.
+        let _ = self.map_values(|value| {
+            operands.push(value);
+            value
+        });
+        operands
+    }
 }
 
 define_mir_ops! {
@@ -1304,7 +1351,7 @@ define_mir_ops! {
         result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1333,7 +1380,7 @@ define_mir_ops! {
         result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1450,7 +1497,7 @@ define_mir_ops! {
         result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1465,7 +1512,7 @@ define_mir_ops! {
         result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1480,7 +1527,7 @@ define_mir_ops! {
         result = Integer,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE).union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::REMATERIALIZABLE.union(OpTraits::EGRAPH_REWRITE),
         side_effects = false,
         category = None
     )]
@@ -1582,7 +1629,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1596,7 +1643,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1610,7 +1657,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1624,7 +1671,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1638,7 +1685,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1653,7 +1700,7 @@ define_mir_ops! {
         result = I1,
         phases = PhaseSet::ALL,
         effect = Pure,
-        traits = OpTraits::REORDERABLE.union(OpTraits::EGRAPH_REWRITE),
+        traits = OpTraits::EGRAPH_REWRITE,
         side_effects = false,
         category = None
     )]
@@ -1830,10 +1877,13 @@ define_mir_ops! {
         side_effects = true,
         category = Some(PhaseCategory::AbiEncoding)
     )]
-    #[operand_types(func => Some(typing::abi_encode_types(func, selector.is_some(), args, layout)))]
+    #[operand_types(func => Some(typing::abi_encode_types(func, base.is_some(), selector.is_some(), args, layout)))]
     AbiEncode {
         /// Storage policy for the encoded result.
         mode: AbiEncodeMode,
+        /// Where a [`AbiEncodeMode::Scratch`] encoding starts, instead of the free-memory pointer.
+        /// Only scratch encodings take one.
+        base: Option<ValueId>,
         /// Optional left-aligned four-byte selector prefix.
         selector: Option<ValueId>,
         /// Values corresponding to the tuple layout.
@@ -2009,7 +2059,7 @@ define_mir_ops! {
         result = None,
         phases = PhaseSet::ALL,
         effect = MemoryWrite,
-        traits = OpTraits::REORDERABLE,
+        traits = OpTraits::NONE,
         side_effects = true,
         category = None
     )]

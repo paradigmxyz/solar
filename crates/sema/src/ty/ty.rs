@@ -1011,7 +1011,7 @@ impl<'gcx> Ty<'gcx> {
             };
         }
 
-        if self.try_convert_implicit_to(other, gcx).is_ok() {
+        if self.convert_implicit_to(other, gcx) {
             return Ok(());
         }
         match (self.kind, other.kind) {
@@ -1268,7 +1268,7 @@ impl PartialEq for TyData<'_> {
 
 impl Eq for TyData<'_> {}
 
-impl std::hash::Hash for TyData<'_> {
+impl Hash for TyData<'_> {
     #[inline]
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.kind.hash(state);

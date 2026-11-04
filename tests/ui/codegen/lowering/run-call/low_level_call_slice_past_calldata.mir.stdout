@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_slice_past_calldata.sol:LowLevelCallSlicePastCalldata ===
+; === ROOT/tests/ui/codegen/lowering/run-call/low_level_call_slice_past_calldata.sol:LowLevelCallSlicePastCalldata ===
 @module LowLevelCallSlicePastCalldata
 ; function echoPast(uint256 extra) external view returns (bytes memory result) [selector 0x1b260bcb]
 fn @echoPast(arg0: i256) -> ptr<memory> [selector=0x1b260bcb, view, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {

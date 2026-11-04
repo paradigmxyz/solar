@@ -22,8 +22,7 @@
 //! addresses or immutable placeholders as literal constants.
 //!
 //! A pure binary operation with a constant operand moves through a `SWAPn SWAP1 SWAPn`
-//! permutation, which removes two swaps. `ADDMOD` and `MULMOD` drop a preceding `SWAP1`,
-//! since only their first two operands swap.
+//! permutation, which removes two swaps.
 //!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
@@ -43,11 +42,20 @@
 //! `materialize(-c); ADD` if the target's cheapest materialization of `-c` beats the push and the
 //! swap, as `PUSH0; NOT` does for the decrement `x - 1`. The low-mask window ends in the same
 //! tail, so this rewrite waits for it.
+//!
+//! Equivalent replacements keep the root operation's source context on their result-producing
+//! instruction. Removed operand locations are dropped, and function events are moved once.
+//! A branch that absorbs a boolean test can keep its origin on the existing target push when
+//! that push has no independent location. The branch keeps its own location, so the legacy
+//! source map does not mistake two checkpoints on the same path for ambiguous shared code.
 
-use super::{EvmPass, compact_pushes::materialize_immediate, utils::MachineInstKey};
+use super::{
+    EvmPass, block_layout::terminator_kind, compact_pushes::materialize_immediate,
+    utils::MachineInstKey,
+};
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, ModuleTarget, TerminatorKind},
+        ir::{Instruction, Metadata, Module, ModuleTarget, TerminatorKind},
         op,
     },
     target::Target,
@@ -82,7 +90,7 @@ impl Peephole {
 
 impl EvmPass for Peephole {
     fn name(&self) -> &'static str {
-        "peephole"
+        if self.0 == Rules::Early { "peephole-early" } else { "peephole" }
     }
 
     fn cache_config(&self) -> u64 {
@@ -193,10 +201,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
         // mstore(offset, value); return(offset, 32)
         // -> mstore(0, value); return(0, 32)
         if final_cleanup
-            && matches!(
-                block.terminator.as_ref().map(|term| &term.kind),
-                Some(TerminatorKind::Op(op::RETURN))
-            )
+            && matches!(terminator_kind(block), Some(TerminatorKind::Op(op::RETURN)))
             && let [prefix @ .., offset, store, size, returned] = block.instructions.as_mut_slice()
             && store.as_evm_opcode() == Some(op::MSTORE)
             && size.concrete_immediate() == Some(U256::from(32))
@@ -357,19 +362,24 @@ impl Edit {
         match self {
             Self::LowMaskWithSwap => {
                 // push 0; not; protected_count; shl; not
-                // NOTE: Changed constants and arithmetic have no exact source checkpoint.
+                let root = instructions.last().unwrap().metadata.clone();
+                let entry = instructions[start].metadata.clone();
                 instructions.truncate(instructions.len() - 3);
                 instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
+                instructions[start].metadata.absorb_function_events(&entry);
                 instructions.insert(start + 1, not());
                 instructions.push(not());
+                instructions.last_mut().unwrap().metadata.copy_debug_info_from(&root);
             }
             Self::LowMask => {
                 // push 0; not; closed_count; shl; not
-                // NOTE: The changed constants and operations have different meanings;
-                // their original source checkpoints cannot describe the replacement.
+                let root = instructions.last().unwrap().metadata.clone();
+                let entry = instructions[start].metadata.clone();
                 instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
+                instructions[start].metadata.absorb_function_events(&entry);
                 instructions[start + 1] = not();
                 *instructions.last_mut().expect("matched subtraction") = not();
+                instructions.last_mut().unwrap().metadata.copy_debug_info_from(&root);
             }
             Self::ShiftPairMask => {
                 // push s; shl; push s; shr
@@ -390,8 +400,20 @@ impl Edit {
                 instructions.remove(start);
             }
             Self::FoldConstants { value } => {
+                // NOTE: The final materialization computes the old root's value on the same
+                // path. Operand locations disappear; they must not become extra checkpoints.
+                let context =
+                    replacement_debug_info(&instructions[start..], instructions.len() - start - 1);
                 instructions.truncate(start);
                 materialize_immediate(instructions, target.evm_version(), value);
+                let last = instructions.last_mut().unwrap();
+                last.metadata.copy_source_debug_from(&context);
+                if let Some(exit) = context.function_exit() {
+                    last.metadata.set_function_exit(exit);
+                }
+                if let Some(function) = context.function_invoke() {
+                    instructions[start].metadata.set_function_invoke(function);
+                }
             }
             Self::AddNegated { value } => {
                 // push -c; add
@@ -406,8 +428,15 @@ impl Edit {
                 instructions.push(add);
             }
             Self::RemoveFirstKeepOne => {
+                // push x; push 0; absorbing_op => push 0
+                // push x; push 1; exp => push 1
+                let context = (instructions.len() - start == 3)
+                    .then(|| replacement_debug_info(&instructions[start..], 2));
                 instructions.remove(start);
                 instructions.truncate(start + 1);
+                if let Some(context) = context {
+                    instructions[start].metadata.copy_debug_info_from(&context);
+                }
             }
             Self::RemoveFirstKeepTwo => {
                 instructions.remove(start);
@@ -422,7 +451,10 @@ impl Edit {
                 overwrite(&mut instructions[start], opcode);
             }
             Self::OverwriteOne { opcode } => {
+                // dup 2; binop; swap 1; pop => binop
+                let context = replacement_debug_info(&instructions[start..], 1);
                 overwrite(&mut instructions[start], opcode);
+                instructions[start].metadata.copy_debug_info_from(&context);
                 instructions.truncate(start + 1);
             }
             Self::OverwriteTwo { opcode } => {
@@ -467,20 +499,26 @@ impl Edit {
                 instructions.truncate(start + 3);
             }
             Self::DropNonzeroTest => {
+                let predicate = replacement_debug_info(&instructions[start..start + 2], 1);
                 instructions.drain(start..start + 2);
+                preserve_branch_test_debug_info(&mut instructions[start..], &predicate);
                 overwrite(&mut instructions[start + 1], op::JUMPI);
             }
             Self::EqIszeroJumpi => {
                 overwrite(&mut instructions[start], op::SUB);
-                instructions.remove(start + 1);
+                let removed = instructions.remove(start + 1);
+                preserve_branch_test_debug_info(&mut instructions[start + 1..], &removed.metadata);
                 overwrite(&mut instructions[start + 2], op::JUMPI);
             }
             Self::SwapPair { first, second } => {
+                let context = replacement_debug_info(&instructions[start..], 1);
                 for (inst, depth) in instructions[start..].iter_mut().zip([first, second]) {
                     *inst =
                         Instruction::stack_op(op::StackOp::Swap(depth)).with_debug_info_dropped();
                 }
                 instructions.truncate(start + 2);
+                // NOTE: Only the final stack state agrees with the old window.
+                instructions[start + 1].metadata.copy_debug_info_from(&context);
             }
             Self::MoveConstantThroughSwaps => {
                 // SWAPn; SWAP1; PUSH c; binop
@@ -533,4 +571,32 @@ fn instruction_sequence(instructions: &[Instruction]) -> impl fmt::Display + '_ 
         }
         Ok(())
     })
+}
+
+/// Keeps the replaced result's source context and the window's compatible function events.
+fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata {
+    let origin = &instructions[root].metadata;
+    let mut context = origin.clone();
+    context.merge_equivalent_debug_info(instructions.iter().map(|inst| &inst.metadata));
+    context.copy_source_debug_from(origin);
+    context
+}
+
+/// Keeps a folded predicate checkpoint on its branch's existing label operand when available.
+fn preserve_branch_test_debug_info(instructions: &mut [Instruction], predicate: &Metadata) {
+    let [target, branch] = instructions else { unreachable!("matched branch pair") };
+    let origin = if !predicate.source_spans().is_empty()
+        && (target.metadata.source_spans().is_empty()
+            || target.metadata.source_spans() == branch.metadata.source_spans())
+    {
+        // NOTE: Both instructions execute after the original test, regardless of its outcome.
+        // Reuse an unmapped or duplicate checkpoint, never an independently located operand.
+        predicate
+    } else {
+        &target.metadata
+    };
+    let mut context = target.metadata.clone();
+    context.merge_equivalent_debug_info(std::iter::once(predicate));
+    context.copy_source_debug_from(origin);
+    target.metadata.copy_debug_info_from(&context);
 }

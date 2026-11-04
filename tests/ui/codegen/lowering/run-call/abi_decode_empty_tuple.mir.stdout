@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_empty_tuple.sol:AbiDecodeEmptyTuple ===
+; === ROOT/tests/ui/codegen/lowering/run-call/abi_decode_empty_tuple.sol:AbiDecodeEmptyTuple ===
 @module AbiDecodeEmptyTuple
 ; function record(uint256 value) internal returns (bytes memory)
 fn @record(arg0: i256) -> ptr<memory> {
@@ -54,7 +54,7 @@ fn @decodeCalldataLength(arg0: i256) -> i256 [selector=0x616430c5, pure, abi_par
     v1 = make_calldata_slice ptr<calldata> 0, v0
     v2 = extract_value slice<calldata>, v1, 0
     v3 = extract_value slice<calldata>, v1, 1
-    v4 = gt 0, v3
+    v4 = lt v3, 0
     v5 = lt 0, 0
     v6 = or v4, v5
     v7 = zext i1 v6 to i256
