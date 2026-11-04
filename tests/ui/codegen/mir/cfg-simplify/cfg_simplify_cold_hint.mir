@@ -1,0 +1,46 @@
+//@compile-flags: -Zmir-pipeline=cfg-simplify
+@module CfgColdHint
+
+// Equal terminal blocks share one block, which keeps `cold_hint` only if every block it
+// replaces has it: a catch clause that returns what a hot path returns joins the hot return.
+fn @shared_with_hot(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jumpi arg1, bb3, bb4
+  bb2 [cold_hint]:
+    ret 0
+  bb3:
+    ret 7
+  bb4:
+    ret 0
+}
+
+// Two hinted blocks share a hinted block.
+fn @shared_hinted(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jumpi arg1, bb3, bb4
+  bb2 [cold_hint]:
+    ret 0
+  bb3:
+    ret 7
+  bb4 [cold_hint]:
+    ret 0
+}
+
+// A block merged into its sole predecessor leaves the predecessor's hint on the merged block:
+// the successor runs exactly when the predecessor does.
+fn @merge_keeps_predecessor(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb3
+  bb1 [cold_hint]:
+    jump bb2
+  bb2:
+    ret 1
+  bb3:
+    jump bb4
+  bb4 [cold_hint]:
+    ret 2
+}
