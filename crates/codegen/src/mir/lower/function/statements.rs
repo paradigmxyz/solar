@@ -341,6 +341,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.type_of_expr(rhs.id)?.is_ref_at(DataLocation::Storage)
                 {
                     self.storage_access(expr).map(drop)
+                } else if let Some(ty) = self.cx.gcx.type_of_expr(expr.id)
+                    && ty.is_value_type()
+                {
+                    // The assigned value is discarded, so a raw word stays unvalidated, as in solc.
+                    self.lower_carried_expr(expr, ty).map(drop)
                 } else {
                     self.lower_expr(expr).map(drop)
                 }

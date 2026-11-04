@@ -38,7 +38,6 @@ fn @applyShift(arg0: i256, arg1: i256) {
     v7 = and v6, 0xffffffffffff
     v8 = or v5, v7
     sstore 0, v8 !metadata(storage=slot(0))
-    v9 = and v2, 0xffffffffffff0000000000000000000000000000000000000000000000000000
     ret
 }
 

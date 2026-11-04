@@ -363,9 +363,8 @@ fn @storageAssignment() -> i256 [selector=0x7bae1f27, abi_params=[], abi_returns
     v4 = and v3, 255
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
-    v6 = ne 5, 0
-    v7 = sload 0 !metadata(storage=slot(0))
-    ret v7
+    v6 = sload 0 !metadata(storage=slot(0))
+    ret v6
 }
 
 ; function widen(uint256 value) internal pure returns (uint256)

@@ -171,4 +171,43 @@ contract EventsTest {
         );
         require(count == 9);
     }
+
+    function test_EmitDirtyIndexed() public {
+        vm.recordLogs();
+        events.emitDirtyIndexed();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 4);
+        require(logs[0].topics[1] == bytes32(uint256(0x1b)));
+        require(logs[0].topics[2] == bytes32(uint256(uint160(0x1234567890123456789012345678901234567890))));
+        require(logs[0].topics[3] == bytes32(uint256(1)));
+        require(
+            keccak256(logs[0].data)
+                == keccak256(abi.encode(bytes32(bytes4(0xdeadbeef))))
+        );
+    }
+
+    function test_EmitDirtyData() public {
+        vm.recordLogs();
+        events.emitDirtyData();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(
+            keccak256(logs[0].data)
+                == keccak256(
+                    abi.encode(
+                        uint256(0x1b),
+                        uint256(uint160(0x1234567890123456789012345678901234567890)),
+                        uint256(1),
+                        bytes32(bytes4(0xdeadbeef)),
+                        int256(-3)
+                    )
+                )
+        );
+    }
+
+    function test_EmitDirtyIndexedChoice() public {
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x21));
+        events.emitDirtyIndexedChoice();
+    }
 }

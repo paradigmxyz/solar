@@ -76,22 +76,18 @@ fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=
     v8 = zext i8 v7 to i256
     v9 = ptradd v0, 32
     mstore v9, v8
-    v10 = lt v1, 3
-    v11 = eq v10, false
-    icall panic_if<0x21>, v11
-    v12 = trunc i256 v1 to i8
-    v13 = mload v0
-    v14 = gt v13, 0
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = ptradd v0, 32
-    v17 = mload v16
-    v18 = lt v17, 3
+    v10 = mload v0
+    v11 = gt v10, 0
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptradd v0, 32
+    v14 = mload v13
+    v15 = lt v14, 3
+    v16 = eq v15, false
+    icall panic_if<0x21>, v16
+    v17 = trunc i256 v14 to i8
+    v18 = lt v17, i8 3
     v19 = eq v18, false
     icall panic_if<0x21>, v19
-    v20 = trunc i256 v17 to i8
-    v21 = lt v20, i8 3
-    v22 = eq v21, false
-    icall panic_if<0x21>, v22
-    ret v20
+    ret v17
 }

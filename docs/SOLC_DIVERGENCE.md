@@ -731,29 +731,30 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 ## Code Generation
 
-### CODEGEN-001: Dirty bits do not survive assembly-assigned variables read from Solidity
+### CODEGEN-001: Dirty bits from inline assembly match solc
 
 - ID: CODEGEN-001
-- Status: intentional
-- Difference: When inline assembly assigns a variable whose type spans fewer
-  than 256 bits, `solc` leaves the raw word in the variable and cleans it at
-  each use site that needs a canonical value (comparisons, checked arithmetic,
-  ABI encoding). `solar` instead canonicalizes once, at every Solidity-level
-  read of such a variable; reads inside assembly see the raw word in both
-  compilers. Code that deliberately round-trips dirty upper bits through a
-  typed variable or an internal-function return back into assembly — solady's
-  `Brutalizer` test helpers assert exactly that — observes cleaned values
-  under `solar`.
-- Rationale: The Solidity documentation makes bits outside a type's width
-  unspecified after assembly assignments, so both models are conforming. A
-  single cleanup point at the assembly-to-Solidity boundary covers every
-  downstream consumer (comparisons, arithmetic, mapping keys, encodes) without
-  per-use-site masks, and keeps the in-assembly raw-scratch idiom
-  (`value := shl(96, value)` then reading `value` back) working exactly like
-  `solc`.
-- Coverage: `tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol`;
-  external-suite canary: solady `BrutalizerTest::testBrutalizedAddress` and
-  `testBrutalizedBool` fail by asserting dirt survives.
+- Status: implemented
+- Behavior: When inline assembly leaves bits above a variable's type, `solar`
+  matches `solc` via-IR. The raw word survives copies, assignments, internal
+  call, modifier and user-defined operator arguments, returns, tuple
+  components, ternary and branch joins, equal-type conversions and state
+  variable initializers, and inline assembly reads it back unchanged. Every
+  other consumer sees a canonical value: operands, builtin arguments, ABI
+  encodings, stores, indexes, conditions and external calls.
+- Rationale: The Solidity documentation leaves bits outside a type's width
+  unspecified after assembly assignments, so code such as solady's
+  `Brutalizer` helpers can only rely on the `solc` behavior. The lowerer
+  represents the raw word only in raw-carrier bindings and in the `Carried`
+  and `RawWord` values the lowering API returns for copy edges and address
+  operands; `lower_expr` always returns a canonical value, so a new consumer
+  cannot see dirty bits.
+- Coverage: `tests/ui/codegen/lowering/run-call/dirty_builtin_args.sol`,
+  `dirty_operators.sol`, `dirty_conversions.sol`, `dirty_memory_storage.sol`,
+  `dirty_abi_events_errors.sol`, `dirty_calls.sol`, `dirty_raw_parity.sol`,
+  `ecrecover_dirty_v.sol`, `blockhash_dirty_number.sol`,
+  `assembly_assign_cleanup.sol` and `dirty_internal_named_return.sol`.
+  Every expectation comes from `solc --via-ir --optimize`.
 
 ### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
 
@@ -795,18 +796,19 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   Solc tracks the getter's empty revert data in
   [issue #16660](https://github.com/argotorg/solidity/issues/16660).
 
-### CODEGEN-005: Narrow storage array indexes are cleaned
+### CODEGEN-005: Narrow storage array indexes are not cleaned
 
 - ID: CODEGEN-005
-- Status: intentional
-- Difference: When assembly assigns dirty upper bits to a narrow integer used
-  as a storage-array index, `solar` cleans the value before the bounds check.
-  `solc` uses the raw word, so `uint8(0x101)` indexes out of bounds instead of
-  selecting index `1`. Memory-array indexes are cleaned by both compilers.
-- Rationale: typed storage indexing converts its index to the array's word
-  index type before checking bounds. This preserves the normal implicit
-  conversion rule for narrow values.
-- Coverage: `tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol`.
+- Status: implemented
+- Behavior: When assembly assigns dirty upper bits to a narrow integer used as
+  a storage-array index, `solar` matches `solc` via-IR and checks the raw word
+  against the array length, so `uint8(0x101)` reverts with `Panic(0x32)`.
+  Legacy `solc` cleans the index and selects index `1`. Memory-array indexes are
+  cleaned by all of them.
+- Rationale: via-IR lowers a storage index without converting it to a word
+  index type first, and the raw word fails the bounds check.
+- Coverage: `tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol`
+  and `dirty_memory_storage.sol`.
 
 ### CODEGEN-006: Legacy source-map modifier depth
 

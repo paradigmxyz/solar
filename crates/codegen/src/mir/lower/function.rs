@@ -674,31 +674,39 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// cleans it; [`Self::lower_carried_expr`] and [`Self::lower_raw_expr`] are the only ways to
     /// keep its raw bits.
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        self.with_expr_context(expr, |this| {
-            this.lower_expr_inner(expr).map(|value| {
-                if !this.in_inline_assembly
-                    && let Some(ty) = this.cx.gcx.type_of_expr(expr.id)
-                    && ty.is_value_type()
-                {
-                    let native = types::TypeLowerer::mir_type(ty);
-                    let value = if let MirType::Int(_) = native {
-                        this.builder.cast(value, native)
-                    } else {
-                        value
-                    };
-                    // A raw carrier's word reaches a consumer only through `Carried` or `RawWord`.
-                    debug_assert!(
-                        !(this.builder.func().value_ty(value) == Some(MirType::I256)
-                            && native.integer_bits().is_some_and(|bits| bits < 256)),
-                        "expression of a type narrower than a word lowered to a raw word: {:?}",
-                        expr.span
-                    );
-                    value
-                } else {
-                    value
-                }
-            })
-        })
+        let ty = self.cx.gcx.type_of_expr(expr.id);
+        let solidity_ty = ty.filter(|ty| !self.in_inline_assembly && ty.is_value_type());
+        // The read lowers under its own span. Cleaning a raw word is the consumer's work, as in
+        // solc, so it follows below under the span that asked for the value.
+        let lowered = self.with_expr_context(expr, |this| {
+            let Some(ty) = solidity_ty else {
+                return this.lower_expr_inner(expr).map(Ok);
+            };
+            let leaf = this.lower_carried_leaf(expr)?;
+            let value = match leaf {
+                Some(carried) => match carried.into_clean() {
+                    Ok(value) => value,
+                    Err(raw) => return Some(Err(raw)),
+                },
+                None => this.lower_expr_inner(expr)?,
+            };
+            Some(Ok(match types::TypeLowerer::mir_type(ty) {
+                native @ MirType::Int(_) => this.builder.cast(value, native),
+                _ => value,
+            }))
+        })?;
+        let (Some(ty), Err(raw)) = (solidity_ty, lowered) else {
+            return lowered.ok();
+        };
+        let value = raw.clean(self, ty);
+        // A raw carrier's word reaches a consumer only through `Carried` or `RawWord`.
+        debug_assert!(
+            !(self.builder.func().value_ty(value) == Some(MirType::I256)
+                && types::TypeLowerer::mir_type(ty).integer_bits().is_some_and(|bits| bits < 256)),
+            "expression of a type narrower than a word lowered to a raw word: {:?}",
+            expr.span
+        );
+        Some(value)
     }
 
     /// Runs `f` with the builder's source span and modifier depth set for `expr`.

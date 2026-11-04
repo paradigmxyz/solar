@@ -47,6 +47,11 @@ impl Carried {
         Self { value, raw: true }
     }
 
+    /// Returns the value when it is canonical, and itself when it is a raw word.
+    pub(super) fn into_clean(self) -> Result<ValueId, Self> {
+        if self.raw { Err(self) } else { Ok(self.value) }
+    }
+
     /// Returns the canonical value of type `ty`.
     ///
     /// Inline assembly reads raw words, so inside an assembly block this is the word itself.
@@ -187,7 +192,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Lowers a leaf that can produce a raw word: a raw-carrier variable, an internal call, or a
     /// user-defined operator. Returns `Some(None)` for any other expression.
-    fn lower_carried_leaf(&mut self, expr: &hir::Expr<'_>) -> Option<Option<Carried>> {
+    pub(super) fn lower_carried_leaf(&mut self, expr: &hir::Expr<'_>) -> Option<Option<Carried>> {
         match &expr.kind {
             ExprKind::Ident(_)
                 if self.cx.gcx.resolved_builtin(expr).is_none()
