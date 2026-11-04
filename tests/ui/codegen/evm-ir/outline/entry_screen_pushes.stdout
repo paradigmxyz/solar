@@ -6,19 +6,19 @@
     calldataload
     push bb1
     jumpi
-    push 1
+    push 32
     calldataload
     push bb2
     jumpi
-    push 2
+    push 64
     calldataload
     push bb3
     jumpi
-    push 3
+    push 96
     calldataload
     push bb4
     jumpi
-    push 4
+    push 128
     calldataload
     push bb5
     jumpi
