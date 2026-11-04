@@ -26,8 +26,10 @@
 
 use crate::mir::{
     Function, Immediate, InstId, InstKind, MirPhase, MirType, Module, Value, ValueId,
-    analysis::Liveness, pass::MirPass, transform::cfg_simplify::end_nonreturning_calls,
-    utils::split_edge,
+    analysis::Liveness,
+    pass::MirPass,
+    transform::cfg_simplify::end_nonreturning_calls,
+    utils::{resolve_replacement, split_edge},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::cell::LazyCell;
@@ -131,6 +133,14 @@ fn erase_pointer_types(
         return;
     }
     func.replace_uses_canonicalized(replacements);
+    // An erased cast keeps its origin on the word it passes through, when that definition nests.
+    for &inst in &*instructions {
+        if casts.contains(inst)
+            && let Some(result) = func.inst_result_value(inst)
+        {
+            func.move_origins_to_replacement(inst, resolve_replacement(result, replacements));
+        }
+    }
     for block in &mut func.blocks {
         block.instructions.retain(|inst| !casts.contains(*inst));
     }

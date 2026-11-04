@@ -1,0 +1,29 @@
+//@ compile-flags: -Zmir-pipeline=lower-structs -Zdebugify=report
+// Scalar insertions and projections emit no instruction. Their origins move onto the definitions
+// of the leaves they select when the spans nest, and are dropped when they are unrelated.
+@module DebugStructProjectionFolds
+
+@types
+  struct0: {i256, i256}
+
+fn @enclosing(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=12..14)
+    v1 = insert_value struct0, undef struct0, 0, v0 !metadata(span=10..20)
+    v2 = extract_value struct0, v1, 0 !metadata(span=10..20)
+    ret v2 !metadata(span=100..110)
+}
+fn @inside(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=32..38)
+    v1 = insert_value struct0, undef struct0, 0, v0 !metadata(span=34..36)
+    v2 = extract_value struct0, v1, 0 !metadata(span=34..36)
+    ret v2 !metadata(span=100..110)
+}
+fn @unrelated(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=52..54)
+    v1 = insert_value struct0, undef struct0, 0, v0 !metadata(span=60..70)
+    v2 = extract_value struct0, v1, 0 !metadata(span=60..70)
+    ret v2 !metadata(span=100..110)
+}

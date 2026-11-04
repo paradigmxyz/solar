@@ -41,6 +41,7 @@ use crate::mir::{
     Module, Terminator, Value, ValueId,
     analysis::Liveness,
     pass::{MirPass, ModuleAnalyses},
+    utils::resolve_replacement,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -98,6 +99,8 @@ pub(super) fn cleanup(
     let mut boolean_comparisons = Vec::new();
     let mut replacement_inputs = FxHashMap::default();
     let mut shifted_out = Vec::new();
+    // The truncation each `zext (trunc value, bits)` reads, which the fold leaves without users.
+    let mut truncations = Vec::new();
     for inst in func.instructions() {
         if let Some(inner) = func.inst(inst).kind.zero_test_operand(func)
             && native_effect(func, inst)
@@ -129,6 +132,7 @@ pub(super) fn cleanup(
             && max_bits_with_args(func, value, MAX_VALUE_DEPTH, &argument_bits) <= bits
         {
             replacements.insert(result, value);
+            truncations.push((result, *truncation));
         }
         if let InstKind::Zext(boolean) = func.inst(inst).kind
             && let Some(value) = normalized_word(func, boolean, &argument_bits, returns)
@@ -243,9 +247,23 @@ pub(super) fn cleanup(
         // result = zext (trunc value, bits); use result -> use value
         // result = shr k, value; use result -> use 0
         // result = eq (eq boolean, false), false; use result -> use boolean
-        // NOTE: Removed cleanup instructions lose their debug checkpoints;
-        // their source locations must not be assigned to the replacement value.
+        // The origins of a removed cleanup follow its replacement when they nest with the
+        // replacement's own; the truncation of a folded `zext` follows the same word.
         func.replace_uses_canonicalized(&replacements);
+        let removed = func.instructions().filter(|&inst| dead.contains(inst)).collect::<Vec<_>>();
+        for inst in removed {
+            if let Some(result) = func.inst_result_value(inst) {
+                func.move_origins_to_replacement(inst, resolve_replacement(result, &replacements));
+            }
+        }
+        for (result, truncation) in truncations {
+            if replacements.contains_key(&result) {
+                func.move_origins_to_replacement(
+                    truncation,
+                    resolve_replacement(result, &replacements),
+                );
+            }
+        }
         for block in &mut func.blocks {
             block.instructions.retain(|&inst| !dead.contains(inst));
         }

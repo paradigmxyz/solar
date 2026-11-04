@@ -26,6 +26,7 @@ use crate::{
         AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType,
         Module, PtrLocation, Value,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
+        utils::resolve_replacement,
     },
 };
 use alloy_primitives::U256;
@@ -107,19 +108,28 @@ fn lower_function(func: &mut Function) -> bool {
 /// integer, which `lower-evm-shaped` materializes.
 fn fold_word_casts(func: &mut Function) {
     // address = ptrtoint (inttoptr word) => word
-    let replacements: FxHashMap<_, _> = func
-        .instructions()
-        .filter_map(|inst| {
-            let InstKind::PtrToInt(ptr, 256) = func.inst(inst).kind else { return None };
-            let Value::Inst(def) = *func.value(ptr) else { return None };
-            let InstKind::IntToPtr(word) = func.inst(def).kind else { return None };
-            if func.value_ty(word) != Some(MirType::I256) {
-                return None;
-            }
-            Some((func.inst_result_value(inst)?, word))
-        })
-        .collect();
+    let mut replacements = FxHashMap::default();
+    let mut folds = Vec::new();
+    for inst in func.instructions() {
+        let InstKind::PtrToInt(ptr, 256) = func.inst(inst).kind else { continue };
+        let Value::Inst(def) = *func.value(ptr) else { continue };
+        let InstKind::IntToPtr(word) = func.inst(def).kind else { continue };
+        if func.value_ty(word) != Some(MirType::I256) {
+            continue;
+        }
+        if let Some(result) = func.inst_result_value(inst) {
+            replacements.insert(result, word);
+            folds.push((inst, def, word));
+        }
+    }
     func.replace_uses_canonicalized(&replacements);
+    // Both casts keep their origins on the word, when that definition nests; the pointer cast may
+    // be left dead.
+    for (address, pointer, word) in folds {
+        let word = resolve_replacement(word, &replacements);
+        func.move_origins_to_replacement(address, word);
+        func.move_origins_to_replacement(pointer, word);
+    }
 }
 
 /// Removes the pointer casts that folding address casts left without uses, as the `inttoptr` of a

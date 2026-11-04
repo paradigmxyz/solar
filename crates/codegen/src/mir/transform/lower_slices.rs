@@ -22,6 +22,7 @@
 //! undefined slice by an undefined component. In valid MIR the operands of `make_slice` are a
 //! pointer and a length, not slices, so folding exposes no new projection and one scan is enough.
 
+use super::utils::move_removed_origins;
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
     MirType, Module, PtrLocation, Terminator, Value, ValueId,
@@ -485,6 +486,7 @@ impl LowerSlices {
             }
         }
         builder.func_mut().replace_uses_canonicalized(&replacements);
+        move_removed_origins(builder.func_mut(), &removed, &replacements);
         for block in builder.func_mut().blocks.iter_mut() {
             block.instructions.retain(|inst| !removed.contains(inst));
         }
@@ -532,6 +534,7 @@ impl LowerSlices {
         }
 
         func.replace_uses_canonicalized(&replacements);
+        move_removed_origins(func, &removed, &replacements);
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|inst| !removed.contains(inst));
         }

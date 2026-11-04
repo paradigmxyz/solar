@@ -1,0 +1,23 @@
+//@ compile-flags: -Zmir-pipeline=lower-integers -Zdebugify=report
+// A widening of a value that is already a word emits nothing. Its origin moves onto the word's
+// definition when the two spans nest, with the widening enclosing the definition or inside it,
+// and is dropped when they are unrelated.
+@module DebugFoldedCasts
+fn @enclosing(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i8 !metadata(span=12..14)
+    v1 = zext i8 v0 to i256 !metadata(span=10..20)
+    ret v1 !metadata(span=100..110)
+}
+fn @inside(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i8 !metadata(span=32..38)
+    v1 = zext i8 v0 to i256 !metadata(span=34..36)
+    ret v1 !metadata(span=100..110)
+}
+fn @unrelated(arg0: i256) -> i256 {
+  bb0:
+    v0 = trunc i256 arg0 to i8 !metadata(span=52..54)
+    v1 = zext i8 v0 to i256 !metadata(span=60..70)
+    ret v1 !metadata(span=100..110)
+}

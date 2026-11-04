@@ -1,0 +1,52 @@
+- ; === ROOT/tests/ui/codegen/mir/lowering/debug_erased_pointer_casts.mir (before lower-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/debug_erased_pointer_casts.mir (after lower-alloc) ===
+  @module DebugErasedPointerCasts
+  fn @enclosing() -> i256 {
+    bb0:
+-     v0 = alloc 32 !metadata(span=12..14, preserves_fmp)
++     v2 = mload 64 !metadata(memory=scratch, span=12..14, alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch, span=12..14)
++     v3 = add v2, 32 !metadata(span=12..14, alloc_ptr)
++     mstore 64, v3 !metadata(memory=scratch, span=12..14)
+      v1 = ptrtoint ptr<memory> v0 to i256 !metadata(span=10..20)
+      ret v1 !metadata(span=100..110)
+  }
+  
+  fn @unrelated() -> i256 {
+    bb0:
+-     v0 = alloc 32 !metadata(span=52..54, preserves_fmp)
++     v2 = mload 64 !metadata(memory=scratch, span=52..54, alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch, span=52..54)
++     v3 = add v2, 32 !metadata(span=52..54, alloc_ptr)
++     mstore 64, v3 !metadata(memory=scratch, span=52..54)
+      v1 = ptrtoint ptr<memory> v0 to i256 !metadata(span=60..70)
+      ret v1 !metadata(span=100..110)
+  }
+  
+- ; === ROOT/tests/ui/codegen/mir/lowering/debug_erased_pointer_casts.mir (before lower-evm-shaped) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/debug_erased_pointer_casts.mir (after lower-evm-shaped) ===
+  @module DebugErasedPointerCasts
++ @phase lowered
+  fn @enclosing() -> i256 {
+    bb0:
+-     v2 = mload 64 !metadata(memory=scratch, span=12..14, alloc_ptr)
+-     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch, span=12..14)
++     v2 = mload 64 !metadata(memory=scratch, spans=[12..14, 10..20], alloc_ptr)
+      v3 = add v2, 32 !metadata(span=12..14, alloc_ptr)
+      mstore 64, v3 !metadata(memory=scratch, span=12..14)
+-     v1 = ptrtoint ptr<memory> v0 to i256 !metadata(span=10..20)
+-     ret v1 !metadata(span=100..110)
++     ret v2 !metadata(span=100..110)
+  }
+  
+  fn @unrelated() -> i256 {
+    bb0:
+      v2 = mload 64 !metadata(memory=scratch, span=52..54, alloc_ptr)
+-     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch, span=52..54)
+      v3 = add v2, 32 !metadata(span=52..54, alloc_ptr)
+      mstore 64, v3 !metadata(memory=scratch, span=52..54)
+-     v1 = ptrtoint ptr<memory> v0 to i256 !metadata(span=60..70)
+-     ret v1 !metadata(span=100..110)
++     ret v2 !metadata(span=100..110)
+  }
+  

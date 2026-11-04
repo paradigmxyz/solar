@@ -1,0 +1,3 @@
+debugify: MIR DebugWordCasts after lower-memory-objects: 8/10 origins retained, 2 lost
+debugify: lost 60..70
+debugify: lost 62..68
