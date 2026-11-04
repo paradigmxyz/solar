@@ -51,12 +51,12 @@ fn @callField(arg0: i256) -> i256 [selector=0x0a3dccd3, abi_params=[uint256], ab
     mstore 32, arg0 !metadata(memory=scratch)
     v13 = call v11, v10, 0, 28, 36, 0, 32
     jumpi v13, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     ret 1
   bb1:                                            ; preds = bb0
     v14 = returndatasize
@@ -96,12 +96,12 @@ fn @callReturnedField() -> i256 [selector=0xee2961ee, view, abi_params=[], abi_r
     mstore 0, v15 !metadata(memory=scratch)
     v16 = staticcall v14, v13, 28, 4, 0, 32
     jumpi v16, bb3, bb4
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:                                            ; preds = bb4
+  bb7 [cold_hint]:                                ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:                                            ; preds = bb4
+  bb6 [cold_hint]:                                ; preds = bb4
     ret 0
   bb3:                                            ; preds = bb2
     v17 = returndatasize

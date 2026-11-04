@@ -130,12 +130,12 @@ fn @tryBind(arg0: i1, arg1: i256) -> i256 [selector=0x9a0c8f93, abi_params=[bool
     v6 = zext i160 v0 to i256
     v7 = staticcall v1, v6, 28, 36, 0, 0
     jumpi v7, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     v9 = mapping_slot 2, 0
     jump bb3
   bb1:                                            ; preds = bb0
