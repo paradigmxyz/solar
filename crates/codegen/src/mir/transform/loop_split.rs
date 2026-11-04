@@ -278,7 +278,7 @@ impl LoopCopy {
 }
 
 /// Clones every loop block with its instructions, keeping edges that leave the loop. A cloned block
-/// keeps its original's label origin. A clone keeps its original's metadata, which states facts
+/// keeps its original's label origin and its instructions keep their metadata, which states facts
 /// about the instruction itself, such as an allocation whose address inline assembly observes, with
 /// the values a storage alias names renamed to their clones.
 pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {

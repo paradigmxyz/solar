@@ -784,7 +784,7 @@ impl Function {
     }
 
     /// Allocates a new basic block with the given `cold_hint`.
-    pub fn alloc_block_hinted(&mut self, cold_hint: bool) -> BlockId {
+    fn alloc_block_hinted(&mut self, cold_hint: bool) -> BlockId {
         let block = self.alloc_block();
         self.blocks[block].cold_hint = cold_hint;
         block
