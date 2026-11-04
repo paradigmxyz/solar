@@ -562,6 +562,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Emits the opcodes that compute `value` under the current origins.
     fn emit_recomputed(&mut self, func: &Function, value: ValueId) {
         match func.value(value) {
             Value::Immediate(imm) => self.asm.emit_push(imm.as_u256().unwrap_or_default()),

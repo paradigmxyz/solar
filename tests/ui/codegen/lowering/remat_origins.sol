@@ -16,11 +16,15 @@
 // CHECK-NEXT: calldataload !metadata(span=[[C]])
 // CHECK-NOT: add !metadata(span=[[C]])
 // CHECK: jump bb7
+// CHECK: caller !metadata(span=[[D:[0-9]+..[0-9]+]])
+// CHECK-NOT: add !metadata(span=[[D]])
+// CHECK: push 0
 contract C {
-    function f(uint256 x) external pure returns (uint256 r) {
+    function f(uint256 x) external view returns (uint256 r) {
         assembly {
             r := add(calldataload(36), calldataload(68))
             if x { r := add(r, calldataload(100)) }
+            r := add(r, caller())
         }
     }
 }
