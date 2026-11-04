@@ -297,7 +297,10 @@ fn materialize_data(
         let instructions = &mut module.blocks[rewrite.block].instructions;
         // The copy carries every origin of the stores it replaces; their function events land
         // on the copy itself, the last replacement.
+        // The first store seeds it, so that a store whose location was dropped or explained keeps
+        // that kind instead of merging into the default kind of an empty seed.
         let mut metadata = Metadata::default();
+        metadata.copy_source_debug_from(&instructions[rewrite.start].metadata);
         for inst in &instructions[rewrite.start..rewrite.end] {
             metadata.absorb_debug_info(&inst.metadata);
         }

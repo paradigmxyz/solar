@@ -1,0 +1,37 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=late-word
+//@ filecheck:
+@module DebugRoot
+
+// Every instruction of a replacement takes the source context of its root, the instruction whose
+// output it produces: the `and` for the shift pair, the `sub` for the negated constant.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: + push 96 !metadata(span=50..60)
+// CHECK-NEXT: {{^[ +] *}}shl !metadata(span=50..60)
+// CHECK: {{^[ +] *}}push 96{{$}}
+// CHECK: + shr !metadata(span=50..60)
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK: + push 0 !metadata(span=70..80)
+// CHECK-NEXT: + not !metadata(span=70..80)
+// CHECK-NEXT: {{^[ +] *}}add !metadata(span=70..80)
+bb0:
+  push 4
+  calldataload
+  indexed_jump bb1, bb2
+
+bb1:
+  push 4
+  calldataload
+  push 0
+  not
+  push 96
+  shr
+  and !metadata(span=50..60)
+  stop
+
+bb2:
+  push 4
+  calldataload
+  push 1
+  swap 1
+  sub !metadata(span=70..80)
+  stop

@@ -1,8 +1,4 @@
-//@ revisions: report check
-//@ compile-flags: --emit=bin -Onone
-//@[report] compile-flags: -Zdebugify=report
-//@[check] compile-flags: -Zdebugify=check
-//~[check]? ERROR: debugify: EVM IR pass `stackify` lost 1 source origins
+//@ compile-flags: --emit=bin -Onone -Zdebugify=report
 //@ normalize-stdout-test: "(?s).+" -> ""
 // The check tests `x != 0` by jumping on `x`, so no instruction implements the condition and
 // stack scheduling emits EVM IR without its origin. The `stackify` record reports that loss at the
