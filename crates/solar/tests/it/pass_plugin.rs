@@ -1,5 +1,6 @@
 //! Real native libraries exercise the public loader and transactional IR validation.
 
+use libloading::Library;
 use serde_json::{Value, json};
 use snapbox::{assert_data_eq, str};
 use std::{
@@ -43,13 +44,55 @@ fn sample() -> PathBuf {
 }
 
 fn library_path(package: &str) -> PathBuf {
-    let name = format!("{}{package}{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
     let executable = std::env::current_exe().unwrap();
     let deps = executable.parent().unwrap();
-    [deps.join(&name), deps.parent().unwrap().join(&name)]
+    [deps, deps.parent().unwrap()]
         .into_iter()
-        .find(|path| path.is_file())
-        .expect("Cargo must build the Rust plugin dev dependency")
+        .find_map(|directory| library_in(package, directory))
+        .unwrap_or_else(|| panic!("no compatible `{package}` Rust plugin artifact in {deps:?}"))
+}
+
+fn library_in(package: &str, directory: &Path) -> Option<PathBuf> {
+    let stem = format!("{}{package}", std::env::consts::DLL_PREFIX);
+    let direct = directory.join(format!("{stem}{}", std::env::consts::DLL_SUFFIX));
+    if direct.is_file() && compatible_fixture(&direct) {
+        return Some(direct);
+    }
+    let mut candidates = fs::read_dir(directory)
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            let Some(suffix) = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .and_then(|name| name.strip_prefix(&stem))
+                .and_then(|name| name.strip_suffix(std::env::consts::DLL_SUFFIX))
+            else {
+                return false;
+            };
+            suffix.strip_prefix('-').is_some_and(|hash| {
+                !hash.is_empty() && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+            })
+        })
+        .collect::<Vec<_>>();
+    candidates.sort();
+    candidates.into_iter().find(|path| compatible_fixture(path))
+}
+
+fn compatible_fixture(path: &Path) -> bool {
+    // Cargo may emit only a hashed dylib in `deps`. Ignore stale artifacts from other SDK
+    // builds instead of selecting whichever filename happens to appear first.
+    // SAFETY: These are trusted test fixtures. Only read the fixed-size fingerprint;
+    // incompatible Rust entry points are never called.
+    let Ok(library) = (unsafe { Library::new(path) }) else { return false };
+    let Ok(fingerprint) =
+        (unsafe { library.get::<*const [u8; 32]>(solar_pass_plugin::__private::ABI_SYMBOL) })
+    else {
+        return false;
+    };
+    // SAFETY: Fixture libraries export this symbol as a 32-byte array.
+    unsafe { **fingerprint == solar_pass_plugin::ABI_FINGERPRINT }
 }
 
 fn run(path: &Path, plugin: &Path, flags: &[&str]) -> Output {
@@ -108,6 +151,48 @@ fn broken(directory: &Path, mode: &str) -> PathBuf {
         .unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     library
+}
+
+#[test]
+fn hashed_plugin_artifacts_load_both_ir_layers() {
+    let directory = tempfile::tempdir().unwrap();
+    let deps = directory.path().join("deps");
+    fs::create_dir(&deps).unwrap();
+    let mismatched = broken(directory.path(), "wrong_abi");
+    for package in ["solar_pass_plugin_example", "solar_pass_plugin_fixture"] {
+        let hashed = deps.join(format!(
+            "{}{package}-0123456789abcdef{}",
+            std::env::consts::DLL_PREFIX,
+            std::env::consts::DLL_SUFFIX
+        ));
+        fs::copy(library_path(package), &hashed).unwrap();
+        assert_eq!(library_in(package, &deps).as_ref(), Some(&hashed));
+        // A leftover un-hashed library must not shadow a matching hashed build.
+        let stale = deps.join(format!(
+            "{}{package}{}",
+            std::env::consts::DLL_PREFIX,
+            std::env::consts::DLL_SUFFIX
+        ));
+        fs::copy(&mismatched, stale).unwrap();
+        assert_eq!(library_in(package, &deps).as_ref(), Some(&hashed));
+    }
+    let plugin = library_in("solar_pass_plugin_example", &deps).unwrap();
+    for (extension, source, pipeline) in [
+        ("mir", MIR, "-Zmir-pipeline=example::simplify-lowered"),
+        ("evmir", EVM, "-Zevm-ir-pipeline=example::remove-double-not"),
+    ] {
+        let path = directory.path().join(format!("test.{extension}"));
+        fs::write(&path, source).unwrap();
+        let output = run(&path, &plugin, &["-Ogas", pipeline, "--emit=bin-runtime"]);
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let input = alloy_primitives::U256::from(123).to_be_bytes::<32>();
+        let expected = if extension == "mir" {
+            input.to_vec()
+        } else {
+            alloy_primitives::U256::from(input.len()).to_be_bytes::<32>().to_vec()
+        };
+        assert_eq!(runtime::execute(&artifact(&output), &input), expected);
+    }
 }
 
 #[test]

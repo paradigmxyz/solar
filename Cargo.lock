@@ -4435,6 +4435,7 @@ dependencies = [
  "alloy-primitives",
  "evm2",
  "idna_adapter",
+ "libloading",
  "serde_json",
  "snapbox",
  "solar-ast",
