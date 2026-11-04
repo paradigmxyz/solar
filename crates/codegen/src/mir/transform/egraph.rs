@@ -63,6 +63,11 @@
 //! observes scratch writes. The whole-function proof rejects raw memory access,
 //! internal entry calls, dynamic return payloads, and observing failure payloads.
 //!
+//! A rewrite can leave an operand of the rewritten instruction or branch without a use, so `dce`
+//! deletes it later. When that operand ran exactly when its user does, in the same block and
+//! earlier with no side effect between, its source origins move onto the user if they nest with
+//! the user's own.
+//!
 //! Safety contract:
 //! - do not remove or reorder side effects
 //! - replace an instruction with a value only when the equality is exact for all 256-bit EVM words
@@ -386,6 +391,8 @@ struct Builder<'a> {
     liveness: Option<Liveness>,
     /// Instructions merged into another class or deleted as no-ops.
     dead: DenseBitSet<InstId>,
+    /// Operand instructions a rewrite stopped using, with the user that lost them.
+    absorptions: Vec<Absorption>,
     /// Scratch for the alternatives one rule match builds, reused across instructions.
     alternatives: Vec<Op>,
     /// Per-class search budget selected from the function's active size.
@@ -422,6 +429,7 @@ impl<'a> Builder<'a> {
             uses,
             liveness: None,
             dead,
+            absorptions: Vec::new(),
             alternatives: Vec::new(),
             max_nodes,
             max_operand_views,
@@ -433,6 +441,7 @@ impl<'a> Builder<'a> {
         self.visit(BlockId::ENTRY, true);
         self.materialize();
         self.rewrite_terminators();
+        self.absorb_origins();
         self.changed
     }
 
@@ -781,6 +790,7 @@ impl<'a> Builder<'a> {
             .canonical_op(current)
             .into_kind()
             .expect("rewrite rules produce complete instructions");
+        self.record_dropped_operands(inst_id, &kind);
         let inst = self.func.inst_mut(inst_id);
         tracing::trace!(
             target: TRACE_TARGET,
@@ -901,8 +911,9 @@ impl<'a> Builder<'a> {
             let best = best.map_values(|value| resolve_replacement(value, &self.merged));
             let kind =
                 self.func.canonical_op(best).into_kind().expect("nodes are complete instructions");
-            let inst = self.func.inst_mut(home);
-            if inst.kind != kind {
+            if self.func.inst(home).kind != kind {
+                self.record_dropped_operands(home, &kind);
+                let inst = self.func.inst_mut(home);
                 tracing::trace!(
                     target: TRACE_TARGET,
                     function = %name,
@@ -936,6 +947,80 @@ impl<'a> Builder<'a> {
         }
     }
 
+    /// Remembers the operands of `inst_id` that its rewrite to `kind` stops reading.
+    fn record_dropped_operands(&mut self, inst_id: InstId, kind: &InstKind) {
+        let mut kept = SmallVec::<[ValueId; 4]>::new();
+        kind.visit_operands(|operand| kept.push(operand));
+        let mut old = SmallVec::<[ValueId; 4]>::new();
+        self.func.inst(inst_id).kind.visit_operands(|operand| old.push(operand));
+        for operand in old {
+            let operand = self.resolve(operand);
+            if !kept.contains(&operand) && matches!(self.func.value(operand), Value::Inst(_)) {
+                self.absorptions.push(Absorption { user: Anchor::Inst(inst_id), operand });
+            }
+        }
+    }
+
+    /// Gives the user of every operand a rewrite left dead the operand's source origins.
+    ///
+    /// `dce` deletes such an operand, which would drop its origin although the code it computed
+    /// is now part of its user. The operand's origin moves onto the user only when it ran
+    /// exactly when the user does: in the same block, earlier, with no side effect between. An
+    /// effect between them, such as a check, can end the run before the user.
+    /// NOTE: Only operands the rewrite itself orphaned qualify; operands that die with them, and
+    /// operands elsewhere, stay lost.
+    fn absorb_origins(&mut self) {
+        if self.absorptions.is_empty() {
+            return;
+        }
+        let uses = use_counts(self.func);
+        // (block, index, side-effecting instructions before it) of every instruction in a block.
+        let mut positions = IndexVec::<InstId, Option<(BlockId, usize, usize)>>::from_vec(vec![
+            None;
+            self.func.num_insts()
+        ]);
+        let mut block_effects =
+            IndexVec::<BlockId, usize>::from_vec(vec![0; self.func.blocks.len()]);
+        for block in self.func.blocks.indices() {
+            let mut effects = 0;
+            for (index, &inst) in self.func.blocks[block].instructions.iter().enumerate() {
+                positions[inst] = Some((block, index, effects));
+                effects += usize::from(self.func.inst(inst).kind.has_side_effects());
+            }
+            block_effects[block] = effects;
+        }
+        for Absorption { user, operand } in mem::take(&mut self.absorptions) {
+            let Value::Inst(operand_inst) = *self.func.value(operand) else { continue };
+            let Some((block, index, effects)) = positions[operand_inst] else { continue };
+            if uses[operand] != 0 || self.func.inst(operand_inst).kind.has_side_effects() {
+                continue;
+            }
+            // The operand ran exactly when the user runs if no effect follows it before the user.
+            let runs_with_user = match user {
+                Anchor::Inst(user) => {
+                    positions[user].is_some_and(|(user_block, user_index, user_effects)| {
+                        user_block == block && user_index > index && user_effects == effects
+                    })
+                }
+                Anchor::Terminator(user_block) => {
+                    user_block == block && block_effects[block] == effects
+                }
+            };
+            if !runs_with_user {
+                continue;
+            }
+            let origins = self.func.inst(operand_inst).metadata.debug_context();
+            match user {
+                Anchor::Inst(user) => {
+                    self.func.inst_mut(user).metadata.move_nested_origins_from(&origins)
+                }
+                Anchor::Terminator(block) => {
+                    self.func.blocks[block].terminator_metadata.move_nested_origins_from(&origins)
+                }
+            }
+        }
+    }
+
     /// Branches on `eq x, false` swap their targets and branch on `x`, branches
     /// on a nonzero test branch on the tested value, and a return
     /// of zero bytes stops.
@@ -965,6 +1050,8 @@ impl<'a> Builder<'a> {
                 else {
                     unreachable!()
                 };
+                self.absorptions
+                    .push(Absorption { user: Anchor::Terminator(block_id), operand: *condition });
                 *condition = inner;
                 if swap {
                     std::mem::swap(then_block, else_block);
@@ -1021,6 +1108,19 @@ impl<'a> Builder<'a> {
                 .simplify(node)
         })
     }
+}
+
+/// The instruction or terminator whose rewrite stopped reading an operand.
+#[derive(Clone, Copy)]
+enum Anchor {
+    Inst(InstId),
+    Terminator(BlockId),
+}
+
+/// An operand a rewrite left without its use by `user`.
+struct Absorption {
+    user: Anchor,
+    operand: ValueId,
 }
 
 /// Bound on the refinement rounds of the optimistic numbering.

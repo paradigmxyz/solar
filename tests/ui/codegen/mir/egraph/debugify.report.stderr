@@ -1,0 +1,3 @@
+debugify: MIR Debugify after egraph: 12/12 origins retained, 0 lost
+debugify: MIR Debugify after dce: 11/12 origins retained, 1 lost
+debugify: lost 112..116

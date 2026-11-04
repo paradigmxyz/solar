@@ -70,6 +70,7 @@ fn debug_output_selection_preserves_optimized_bytecode() {
         "../../codegen/lowering/mapping.sol",
         "../../codegen/lowering/calldata_slice_ternary.sol",
         "../../codegen/lowering/run-call/internal_stop_runtime.sol",
+        "debug_egraph_origins.sol",
     ] {
         for mode in ["none", "gas", "size"] {
             let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);

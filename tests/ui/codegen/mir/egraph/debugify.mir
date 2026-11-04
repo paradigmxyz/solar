@@ -1,0 +1,38 @@
+//@ revisions: report check
+//@ compile-flags: -Zmir-pipeline=egraph,dce
+//@[report] compile-flags: -Zdebugify=report
+//@[check] compile-flags: -Zdebugify=check
+//~[check]? ERROR: debugify: MIR pass `dce` lost 1 source origins
+// A rewrite that leaves an operand dead moves the operand's origin onto the rewritten user when
+// the operand runs exactly when the user does. Across an effect it does not, so `dce` still
+// reports the loss.
+@module Debugify
+
+// The inner `add` dies when the outer one folds both constants.
+fn @in_place(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=12..16)
+    v1 = add v0, 2 !metadata(span=10..20)
+    ret v1 !metadata(span=30..40)
+}
+
+// The zero test dies when the branch tests its operand and swaps its targets.
+fn @inverted_branch(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1 !metadata(span=52..60)
+    v1 = eq v0, false !metadata(span=50..61)
+    jumpi v1, bb1, bb2 !metadata(span=45..70)
+  bb1:
+    ret 1 !metadata(span=80..90)
+  bb2:
+    ret 2 !metadata(span=100..110)
+}
+
+// The store between the operand and its user can end the run, so the origin stays lost.
+fn @effect_between(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=112..116)
+    sstore 0, arg0 !metadata(span=120..130)
+    v1 = add v0, 2 !metadata(span=110..140)
+    ret v1 !metadata(span=150..160)
+}
