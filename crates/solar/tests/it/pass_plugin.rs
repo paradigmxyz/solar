@@ -44,12 +44,14 @@ fn sample() -> PathBuf {
 }
 
 fn library_path(package: &str) -> PathBuf {
-    let executable = std::env::current_exe().unwrap();
-    let deps = executable.parent().unwrap();
-    [deps, deps.parent().unwrap()]
+    library_for_binary(package, Path::new(SOLAR)).expect("Cargo must build the Rust plugin")
+}
+
+fn library_for_binary(package: &str, binary: &Path) -> Option<PathBuf> {
+    let profile = binary.parent()?;
+    [profile.join("deps"), profile.to_path_buf()]
         .into_iter()
-        .find_map(|directory| library_in(package, directory))
-        .unwrap_or_else(|| panic!("no compatible `{package}` Rust plugin artifact in {deps:?}"))
+        .find_map(|directory| library_in(package, &directory))
 }
 
 fn library_in(package: &str, directory: &Path) -> Option<PathBuf> {
@@ -154,6 +156,24 @@ fn broken(directory: &Path, mode: &str) -> PathBuf {
 }
 
 #[test]
+fn plugin_discovery_from_relocated_test_executable() {
+    const MARKER: &str = "SOLAR_TEST_RELOCATED_PLUGIN_LOOKUP";
+    if std::env::var_os(MARKER).is_some() {
+        assert!(sample().is_file());
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let relocated = directory.path().join(format!("it{}", std::env::consts::EXE_SUFFIX));
+    fs::copy(std::env::current_exe().unwrap(), &relocated).unwrap();
+    let output = Command::new(relocated)
+        .args(["--exact", "pass_plugin::plugin_discovery_from_relocated_test_executable"])
+        .env(MARKER, "1")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+}
+
+#[test]
 fn hashed_plugin_artifacts_load_both_ir_layers() {
     let directory = tempfile::tempdir().unwrap();
     let deps = directory.path().join("deps");
@@ -167,6 +187,10 @@ fn hashed_plugin_artifacts_load_both_ir_layers() {
         ));
         fs::copy(library_path(package), &hashed).unwrap();
         assert_eq!(library_in(package, &deps).as_ref(), Some(&hashed));
+        assert_eq!(
+            library_for_binary(package, &directory.path().join("solar")),
+            Some(hashed.clone())
+        );
         // A leftover un-hashed library must not shadow a matching hashed build.
         let stale = deps.join(format!(
             "{}{package}{}",
