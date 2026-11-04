@@ -45,14 +45,14 @@ fn @vAddressTarget(arg0: i160) -> i160 [selector=0x9e9aa54a, pure, abi_params=[a
 ; function dirtyBytes1(bytes32 value) external view returns (bytes32) [selector 0x92fef914]
 fn @dirtyBytes1(arg0: i256) -> i256 [selector=0x92fef914, view, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
-    v0 = address
-    v1 = gas
-    v2 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v3 = and v2, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = address
+    v2 = gas
+    v3 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
     mstore 0, 0xa408523c !metadata(memory=scratch)
     mstore 32, v3 !metadata(memory=scratch)
-    v4 = zext i160 v0 to i256
-    v5 = staticcall v1, v4, 28, 36, 0, 32
+    v4 = zext i160 v1 to i256
+    v5 = staticcall v2, v4, 28, 36, 0, 32
     jumpi v5, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
@@ -79,22 +79,19 @@ fn @dirtyEnumArg(arg0: i256) -> i256 [selector=0xc3e104d2, view, abi_params=[uin
     v2 = lt arg0, 2
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    v4 = lt arg0, 2
-    v5 = eq v4, false
-    icall panic_if<0x21>, v5
     mstore 0, 0x5688f443 !metadata(memory=scratch)
     mstore 32, arg0 !metadata(memory=scratch)
-    v6 = zext i160 v0 to i256
-    v7 = staticcall v1, v6, 28, 36, 0, 32
-    jumpi v7, bb2, bb1
+    v4 = zext i160 v0 to i256
+    v5 = staticcall v1, v4, 28, 36, 0, 32
+    jumpi v5, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v8 = returndatasize
-    v9 = lt v8, 32
-    icall revert_if<tuple_data_too_short>, v9
-    v10 = mload 0 !metadata(memory=scratch)
-    ret v10
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = mload 0 !metadata(memory=scratch)
+    ret v8
 }
 
 ; function enumTarget(State value) external pure returns (uint256) [selector 0x5688f443]
@@ -103,10 +100,7 @@ fn @enumTarget(arg0: i256) -> i256 [selector=0x5688f443, pure, abi_params=[enum<
     v0 = lt arg0, 2
     v1 = eq v0, false
     icall panic_if<0x21>, v1
-    v2 = lt arg0, 2
-    v3 = eq v2, false
-    icall panic_if<0x21>, v3
-    v4 = trunc i256 arg0 to i8
-    v5 = zext i8 v4 to i256
-    ret v5
+    v2 = trunc i256 arg0 to i8
+    v3 = zext i8 v2 to i256
+    ret v3
 }

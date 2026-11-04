@@ -22,7 +22,10 @@ fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[
     v5 = and v4, 1
     v6 = eq v5, 1
     v7 = zext i1 v6 to i256
-    ret v7
+    v8 = ne v7, 0
+    v9 = zext i1 v8 to i256
+    v10 = zext i1 v8 to i256
+    ret v10
 }
 
 ; function testTypedConstant() external pure returns (bool) [selector 0x62655512]
@@ -146,5 +149,7 @@ fn @check(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
     v67 = zext i1 v66 to i256
     v68 = and v48, v67
     v69 = and v68, v65
-    ret v69
+    v70 = ne v69, 0
+    v71 = zext i1 v70 to i256
+    ret v71
 }

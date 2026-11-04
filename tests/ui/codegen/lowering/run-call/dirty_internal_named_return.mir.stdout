@@ -30,41 +30,47 @@ fn @joinAddress(arg0: i1) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool],
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     v0 = icall @dirtyAddress, 2
-    v1 = trunc i256 v0 to i160
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = phi [bb1: 2], [bb2: v0]
-    ret v2
+    v1 = phi [bb1: 2], [bb2: v0]
+    ret v1
 }
 
 ; function dirtyAddress(address value) internal pure returns (address result)
 fn @dirtyAddress(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = or arg0, 0x10000000000000000000000000000000000000000
-    ret v0
+    v1 = trunc i256 v0 to i160
+    v2 = zext i160 v1 to i256
+    ret v2
 }
 
 ; function dirtyBytes(bytes1 value) internal pure returns (bytes1 result)
 fn @dirtyBytes(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = or arg0, 1
-    ret v0
+    v1 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
 ; function dirtyUint8(uint8 value) internal pure returns (uint8 result)
 fn @dirtyUint8(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = or arg0, 256
-    ret v0
+    v1 = trunc i256 v0 to i8
+    v2 = zext i8 v1 to i256
+    ret v2
 }
 
 ; function dirtyBool(bool value) internal pure returns (bool result)
 fn @dirtyBool(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mul arg0, 2
-    ret v0
+    v1 = ne v0, 0
+    v2 = zext i1 v1 to i256
+    ret v2
 }
 
 ; function addressBits() external pure returns (bool dirty) [selector 0xf41cb93b]
@@ -76,7 +82,9 @@ fn @addressBits() -> i256 [selector=0xf41cb93b, pure, abi_params=[], abi_returns
     v3 = eq v2, 2
     v4 = zext i1 v3 to i256
     v5 = and v1, v4
-    ret v5
+    v6 = ne v5, 0
+    v7 = zext i1 v6 to i256
+    ret v7
 }
 
 ; function bytesBits() external pure returns (bool dirty) [selector 0x92ad518d]
@@ -87,7 +95,9 @@ fn @bytesBits() -> i256 [selector=0x92ad518d, pure, abi_params=[], abi_returns=[
     v2 = eq v1, 66
     v3 = zext i1 v2 to i256
     v4 = and v0, v3
-    ret v4
+    v5 = ne v4, 0
+    v6 = zext i1 v5 to i256
+    ret v6
 }
 
 ; function same(address a, address b) internal pure returns (bool)
@@ -221,7 +231,9 @@ fn @boolBits() -> i256 [selector=0xc674afd7, pure, abi_params=[], abi_returns=[w
     v0 = icall @dirtyBool, 1
     v1 = eq v0, 2
     v2 = zext i1 v1 to i256
-    ret v2
+    v3 = ne v2, 0
+    v4 = zext i1 v3 to i256
+    ret v4
 }
 
 fn @internal_dispatcher_p_address_r_address(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
@@ -274,7 +286,7 @@ fn @identity(arg0: i256) -> i256 [pure] {
 ; function throughPointer() external pure returns (uint256 raw) [selector 0xb80d6cd3]
 fn @throughPointer() -> i256 [selector=0xb80d6cd3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @internal_dispatcher_p_uint8_r_uint8, 2, 257
+    v0 = icall @internal_dispatcher_p_uint8_r_uint8, 2, 1
     ret v0
 }
 
@@ -303,19 +315,19 @@ fn @modifierLoop() [selector=0x2a9574e8, pure, abi_params=[], abi_returns=[], ab
   bb0:
     jump bb2
   bb2:                                            ; preds = bb0, bb4
-    v0 = phi [bb0: 1], [bb4: v3]
-    v1 = phi [bb0: 0], [bb4: v4]
+    v0 = phi [bb0: 1], [bb4: v5]
+    v1 = phi [bb0: 0], [bb4: v6]
     v2 = lt v1, 2
     jumpi v2, bb5, bb6
   bb6:                                            ; preds = bb2
     jump bb3
   bb3:                                            ; preds = bb6
-    v5 = eq v0, 257
-    v6 = zext i1 v5 to i256
-    v7 = eq v6, 0
+    v7 = eq v0, 1
     v8 = zext i1 v7 to i256
-    v9 = ne v8, 0
-    jumpi v9, bb8, bb9
+    v9 = eq v8, 0
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    jumpi v11, bb8, bb9
   bb9:                                            ; preds = bb3
     jump bb10
   bb10:                                           ; preds = bb9
@@ -328,11 +340,13 @@ fn @modifierLoop() [selector=0x2a9574e8, pure, abi_params=[], abi_returns=[], ab
     revert 0, 0
   bb5:                                            ; preds = bb2
     v3 = add v0, 128
+    v4 = trunc i256 v3 to i8
+    v5 = zext i8 v4 to i256
     jump bb7
   bb7:                                            ; preds = bb5
     jump bb4
   bb4:                                            ; preds = bb7
-    v4 = checked_add uint256, v1, 1
+    v6 = checked_add uint256, v1, 1
     jump bb2
 }
 
@@ -351,13 +365,14 @@ fn @signedJoin(arg0: i1, arg1: i256) -> i256 [selector=0x4f3ee4d1, pure, abi_par
     jump bb3
   bb1:                                            ; preds = bb0
     v0 = icall @negative8
-    v1 = trunc i256 v0 to i8
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = phi [bb1: v0], [bb2: arg1]
-    v3 = slt v2, 0
-    v4 = zext i1 v3 to i256
-    ret v4
+    v1 = phi [bb1: v0], [bb2: arg1]
+    v2 = slt v1, 0
+    v3 = zext i1 v2 to i256
+    v4 = ne v3, 0
+    v5 = zext i1 v4 to i256
+    ret v5
 }
 
 ; function signedLoop(uint256 count, int8 input) external pure returns (bool negative) [selector 0xd2122ca9]
@@ -369,7 +384,7 @@ fn @signedLoop(arg0: i256, arg1: i256) -> i256 [selector=0xd2122ca9, pure, abi_p
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: arg1], [bb3: v7]
-    v4 = phi [bb0: 0], [bb3: v9]
+    v4 = phi [bb0: 0], [bb3: v8]
     v5 = lt v4, v0
     jumpi v5, bb4, bb5
   bb5:                                            ; preds = bb1
@@ -381,19 +396,20 @@ fn @signedLoop(arg0: i256, arg1: i256) -> i256 [selector=0xd2122ca9, pure, abi_p
     jump bb9
   bb9:                                            ; preds = bb8
     v7 = icall @negative8
-    v8 = trunc i256 v7 to i8
     jump bb6
   bb6:                                            ; preds = bb9
     jump bb3
   bb3:                                            ; preds = bb6
-    v9 = checked_add uint256, v4, 1
+    v8 = checked_add uint256, v4, 1
     jump bb1
   bb7:                                            ; preds = bb4
     jump bb2
   bb2:                                            ; preds = bb7, bb5
-    v10 = slt v3, 0
-    v11 = zext i1 v10 to i256
-    ret v11
+    v9 = slt v3, 0
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    v12 = zext i1 v11 to i256
+    ret v12
 }
 
 ; function signedLocal() external pure returns (int256 raw) [selector 0xbacceb2b]
@@ -408,7 +424,9 @@ fn @signedCarrierSign(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = slt arg0, 0
     v1 = zext i1 v0 to i256
-    ret v1
+    v2 = trunc i256 v1 to i8
+    v3 = sext i8 v2 to i256
+    ret v3
 }
 
 fn @internal_dispatcher_p_int8_r_int256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
@@ -469,6 +487,6 @@ fn @identity(arg0: i256) -> i256 [pure] {
 ; function throughVirtual() external pure returns (uint256 raw) [selector 0x1286f860]
 fn @throughVirtual() -> i256 [selector=0x1286f860, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @identity, 257
+    v0 = icall @identity, 1
     ret v0
 }

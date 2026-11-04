@@ -713,7 +713,11 @@ fn @dOverlap(arg0: ptr<memory>) -> struct5 [selector=0x9297ba94, pure, abi_param
     v9 = ptrtoint ptr<memory> v1 to i256
     v10 = eq v9, v8
     v11 = zext i1 v10 to i256
-    v12 = insert_value struct5, undef struct5, 0, v6
-    v13 = insert_value struct5, v12, 1, v11
-    ret v13
+    v12 = ne v6, 0
+    v13 = zext i1 v12 to i256
+    v14 = ne v11, 0
+    v15 = zext i1 v14 to i256
+    v16 = insert_value struct5, undef struct5, 0, v13
+    v17 = insert_value struct5, v16, 1, v15
+    ret v17
 }

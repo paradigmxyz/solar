@@ -136,7 +136,9 @@ fn @belowBucket(arg0: i256, arg1: i256) -> i256 [selector=0xfb5d3534, pure, abi_
     v0 = div arg0, arg1
     v1 = eq v0, 0
     v2 = zext i1 v1 to i256
-    ret v2
+    v3 = ne v2, 0
+    v4 = zext i1 v3 to i256
+    ret v4
 }
 
 ; function nestedQuotient(uint amount) external pure returns (uint r) [selector 0x82768581]
@@ -341,7 +343,9 @@ fn @signedAligned(arg0: i256) -> i256 [selector=0xb80873c6, pure, abi_params=[in
     v0 = smod arg0, 256
     v1 = eq v0, 0
     v2 = zext i1 v1 to i256
-    ret v2
+    v3 = ne v2, 0
+    v4 = zext i1 v3 to i256
+    ret v4
 }
 
 ; function removeSetMask(uint value) external pure returns (uint) [selector 0xef69c371]

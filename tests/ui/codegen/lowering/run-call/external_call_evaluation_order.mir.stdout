@@ -130,7 +130,9 @@ fn @callOptions() -> i256 [selector=0xec5f47fe, abi_params=[], abi_returns=[word
 ; function dirtyUint8(uint256 raw) internal pure returns (uint8 value)
 fn @dirtyUint8(arg0: i256) -> i256 [pure] {
   bb0:
-    ret arg0
+    v0 = trunc i256 arg0 to i8
+    v1 = zext i8 v0 to i256
+    ret v1
 }
 
 ; function dirtyGasOption() external returns (bool success) [selector 0x494be41f]

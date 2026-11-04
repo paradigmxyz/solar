@@ -3,13 +3,17 @@
 ; function inject(uint256 raw) internal pure returns (Small x)
 fn @inject(arg0: i256) -> i256 [pure] {
   bb0:
-    ret arg0
+    v0 = trunc i256 arg0 to i8
+    v1 = zext i8 v0 to i256
+    ret v1
 }
 
 ; function injectSigned(uint256 raw) internal pure returns (SignedSmall x)
 fn @injectSigned(arg0: i256) -> i256 [pure] {
   bb0:
-    ret arg0
+    v0 = trunc i256 arg0 to i8
+    v1 = sext i8 v0 to i256
+    ret v1
 }
 
 ; function widenSmall(Small a) internal pure returns (uint256)

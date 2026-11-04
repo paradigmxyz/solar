@@ -92,5 +92,7 @@ fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[w
     v37 = eq v36, v35
     v38 = zext i1 v37 to i256
     v39 = and v34, v38
-    ret v39
+    v40 = ne v39, 0
+    v41 = zext i1 v40 to i256
+    ret v41
 }

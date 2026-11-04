@@ -133,7 +133,8 @@ fn @sendRevertData() -> i256 [selector=0x2acce81c, abi_params=[], abi_returns=[w
     v2 = icall send<>, v1, 0
     returndatacopy 0, 0, 4 !metadata(memory=scratch)
     v3 = mload 0 !metadata(memory=scratch)
-    ret v3
+    v4 = and v3, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v4
 }
 
 ; function transferOutOfGas() external payable [selector 0xb3a4387c]

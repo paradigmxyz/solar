@@ -19,11 +19,10 @@ fn @f(arg0: i256) -> struct0 [selector=0xd7da973a, view, abi_params=[bytes32], a
 fn @sideEffect() -> struct1 [selector=0x3a058265, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = icall @makeBytes
-    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v2 = sload 1 !metadata(storage=slot(1))
-    v3 = insert_value struct1, undef struct1, 0, 4
-    v4 = insert_value struct1, v3, 1, v2
-    ret v4
+    v1 = sload 1 !metadata(storage=slot(1))
+    v2 = insert_value struct1, undef struct1, 0, 4
+    v3 = insert_value struct1, v2, 1, v1
+    ret v3
 }
 
 ; function makeBytes() private returns (bytes4)

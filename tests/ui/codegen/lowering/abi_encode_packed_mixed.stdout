@@ -4,9 +4,8 @@
 fn @fixedBytesArg(arg0: i256, arg1: i160, arg2: i256) -> i256 [selector=0x795867e4, pure, abi_params=[uint256, address, bytes2], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = and arg2, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v1 = and v0, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v2 = keccak256_packed (uint256 arg0, uint160 arg1, bytes2 v1)
-    ret v2
+    v1 = keccak256_packed (uint256 arg0, uint160 arg1, bytes2 v0)
+    ret v1
 }
 
 ; function dynamicArg(bytes32 h, bytes memory tail) external pure returns (bytes32) [selector 0xde52036d]
@@ -39,7 +38,6 @@ fn @hashArray(arg0: ptr<memory>) -> i256 [selector=0x42233547, pure, abi_params=
 fn @signedStaticRun(arg0: i8, arg1: i16, arg2: i256) -> i256 [selector=0xc570e197, pure, abi_params=[uint8, int16, bytes3], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = and arg2, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = and v0, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v2 = keccak256_packed (uint8 arg0, int16 arg1, bytes3 v1)
-    ret v2
+    v1 = keccak256_packed (uint8 arg0, int16 arg1, bytes3 v0)
+    ret v1
 }

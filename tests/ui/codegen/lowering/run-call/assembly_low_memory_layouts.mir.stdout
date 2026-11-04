@@ -207,7 +207,9 @@ fn @zeroLengthCopy(arg0: i256) -> i256 [selector=0x634ce2de, view, abi_params=[u
     v4 = mload 64 !metadata(memory=scratch)
     v5 = lt v4, 0x2000
     v6 = zext i1 v5 to i256
-    ret v6
+    v7 = ne v6, 0
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
 ; function resetLoop(uint256 a, uint256 n) external pure returns (bytes32 result) [selector 0x20fd52b5]

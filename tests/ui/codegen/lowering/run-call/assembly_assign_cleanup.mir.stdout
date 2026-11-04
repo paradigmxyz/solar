@@ -6,7 +6,8 @@ fn @parseSel(arg0: ptr<memory>) -> i256 [pure] {
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = add v0, 32
     v2 = mload v1
-    ret v2
+    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v3
 }
 
 ; function selectorCompare() external pure returns (uint256) [selector 0x3c3fb316]
@@ -35,9 +36,9 @@ fn @narrowMask() -> i256 [selector=0x14c62240, pure, abi_params=[], abi_returns=
 fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = ne 7, 0
+    v1 = zext i1 v0 to i256
     icall require<short_string>, v0, 6, 0x7472757468790000000000000000000000000000000000000000000000000000
-    v1 = ne 7, 0
-    v2 = eq v1, true
+    v2 = eq v0, true
     icall require<short_string>, v2, 2, 0x6571000000000000000000000000000000000000000000000000000000000000
     ret 1
 }
@@ -45,10 +46,13 @@ fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[w
 ; function signedExtend() external pure returns (uint256) [selector 0xae58e3e0]
 fn @signedExtend() -> i256 [selector=0xae58e3e0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = eq i24 0x800000, i24 0x800000
-    icall require<short_string>, v0, 7, 0x7369676e65787400000000000000000000000000000000000000000000000000
-    v1 = slt i24 0x800000, i24 0
-    icall require<short_string>, v1, 3, 0x6e65670000000000000000000000000000000000000000000000000000000000
+    v0 = sext i24 0x800000 to i256
+    v1 = trunc i256 v0 to i24
+    v2 = eq v1, i24 0x800000
+    icall require<short_string>, v2, 7, 0x7369676e65787400000000000000000000000000000000000000000000000000
+    v3 = trunc i256 v0 to i24
+    v4 = slt v3, i24 0
+    icall require<short_string>, v4, 3, 0x6e65670000000000000000000000000000000000000000000000000000000000
     ret 1
 }
 
@@ -57,6 +61,8 @@ fn @firstShiftedByte(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = shl arg0, 96
     v1 = byte 0, v0
+    v2 = trunc i256 v0 to i160
+    v3 = zext i160 v2 to i256
     ret v1
 }
 
@@ -72,7 +78,7 @@ fn @rawScratchReuse() -> i256 [selector=0xbc90d10b, pure, abi_params=[], abi_ret
 ; function internalAssemblyRead() external pure returns (uint256) [selector 0x282e3bb7]
 fn @internalAssemblyRead() -> i256 [selector=0x282e3bb7, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = icall @readRaw, 257
+    v0 = icall @readRaw, 1
     ret v0
 }
 

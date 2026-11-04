@@ -207,5 +207,7 @@ fn @check() -> i256 [selector=0x919840ad, view, abi_params=[], abi_returns=[word
     v201 = lt v29, v28
     v202 = zext i1 v201 to i256
     v203 = and v200, v202
-    ret v203
+    v204 = ne v203, 0
+    v205 = zext i1 v204 to i256
+    ret v205
 }

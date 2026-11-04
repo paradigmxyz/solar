@@ -48,6 +48,8 @@ fn @callerCodeLength() -> i256 [selector=0xfb7e2a0a, view, abi_params=[], abi_re
   bb0:
     v0 = caller
     v1 = zext i160 v0 to i256
-    v2 = extcodesize v1
-    ret v2
+    v2 = zext i160 v0 to i256
+    v3 = zext i160 v0 to i256
+    v4 = extcodesize v3
+    ret v4
 }

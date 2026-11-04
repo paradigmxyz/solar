@@ -73,27 +73,26 @@ fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
     v8 = shl v4, 64
     v9 = ptradd v0, 32
     mstore v9, v8
-    v10 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v11 = abi_encode [memory_array<function>], object, selector v10, args v0
+    v10 = abi_encode [memory_array<function>], object, selector arg0, args v0
     jumpi arg1, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    v12 = ptrtoint ptr<memory> v11 to i256
-    v13 = add v12, 32
-    v14 = add v13, 92
-    mstore8 v14, 88
+    v11 = ptrtoint ptr<memory> v10 to i256
+    v12 = add v11, 32
+    v13 = add v12, 92
+    mstore8 v13, 88
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v15 = address
-    v16 = gas
-    v17 = address_staticcall v15, v11, gas v16
-    v18 = icall returndata_bytes<>
-    v19 = eq v17, false
-    icall revert_if<empty>, v19
-    v20 = abi_decode [uint256], v18
-    v21 = eq v20, arg2
-    v22 = eq v21, false
-    icall revert_if<empty>, v22
-    ret v20
+    v14 = address
+    v15 = gas
+    v16 = address_staticcall v14, v10, gas v15
+    v17 = icall returndata_bytes<>
+    v18 = eq v16, false
+    icall revert_if<empty>, v18
+    v19 = abi_decode [uint256], v17
+    v20 = eq v19, arg2
+    v21 = eq v20, false
+    icall revert_if<empty>, v21
+    ret v19
 }

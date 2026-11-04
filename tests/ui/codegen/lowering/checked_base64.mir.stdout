@@ -75,8 +75,8 @@ fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
     v21 = phi [bb6: v5], [bb9: v21]
     v22 = phi [bb6: v10], [bb9: v22]
     v23 = phi [bb6: v15], [bb9: v23]
-    v24 = phi [bb6: 0], [bb9: v124]
-    v25 = phi [bb6: 0], [bb9: v125]
+    v24 = phi [bb6: 0], [bb9: v120]
+    v25 = phi [bb6: 0], [bb9: v121]
     v26 = lt v25, v20
     jumpi v26, bb10, bb11
   bb11:                                           ; preds = bb7
@@ -155,85 +155,81 @@ fn @encode.4(arg0: ptr<memory>, arg1: i1, arg2: i1) -> ptr<memory> [pure] {
     v79 = ptradd v23, v24
     v80 = ptradd v79, 32
     mstore8 v80, v78
-    v81 = and v74, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v82 = shr v71, 12
-    v83 = and v82, 63
-    v84 = icall @_encode, v83, v17
-    v85 = checked_add uint256, v24, 1
-    v86 = mload v23
-    v87 = lt v85, v86
-    v88 = eq v87, false
-    icall panic_if<0x32>, v88
-    v89 = byte 0, v84
-    v90 = ptradd v23, v85
-    v91 = ptradd v90, 32
-    mstore8 v91, v89
-    v92 = and v84, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v93 = checked_add uint256, v24, 2
-    v94 = lt v93, v22
-    jumpi v94, bb19, bb20
+    v81 = shr v71, 12
+    v82 = and v81, 63
+    v83 = icall @_encode, v82, v17
+    v84 = checked_add uint256, v24, 1
+    v85 = mload v23
+    v86 = lt v84, v85
+    v87 = eq v86, false
+    icall panic_if<0x32>, v87
+    v88 = byte 0, v83
+    v89 = ptradd v23, v84
+    v90 = ptradd v89, 32
+    mstore8 v90, v88
+    v91 = checked_add uint256, v24, 2
+    v92 = lt v91, v22
+    jumpi v92, bb19, bb20
   bb20:                                           ; preds = bb18
     jump bb21
   bb19:                                           ; preds = bb18
-    v95 = checked_add uint256, v25, 1
-    v96 = lt v95, v20
-    jumpi v96, bb22, bb23
+    v93 = checked_add uint256, v25, 1
+    v94 = lt v93, v20
+    jumpi v94, bb22, bb23
   bb23:                                           ; preds = bb19
     jump bb24
   bb22:                                           ; preds = bb19
-    v97 = shr v71, 6
-    v98 = and v97, 63
-    v99 = icall @_encode, v98, v17
+    v95 = shr v71, 6
+    v96 = and v95, 63
+    v97 = icall @_encode, v96, v17
     jump bb24
   bb24:                                           ; preds = bb22, bb23
-    v100 = phi [bb22: v99], [bb23: 0x3d00000000000000000000000000000000000000000000000000000000000000]
-    v101 = checked_add uint256, v24, 2
-    v102 = mload v23
-    v103 = lt v101, v102
-    v104 = eq v103, false
-    icall panic_if<0x32>, v104
-    v105 = byte 0, v100
-    v106 = ptradd v23, v101
-    v107 = ptradd v106, 32
-    mstore8 v107, v105
-    v108 = and v100, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v98 = phi [bb22: v97], [bb23: 0x3d00000000000000000000000000000000000000000000000000000000000000]
+    v99 = checked_add uint256, v24, 2
+    v100 = mload v23
+    v101 = lt v99, v100
+    v102 = eq v101, false
+    icall panic_if<0x32>, v102
+    v103 = byte 0, v98
+    v104 = ptradd v23, v99
+    v105 = ptradd v104, 32
+    mstore8 v105, v103
     jump bb21
   bb21:                                           ; preds = bb24, bb20
-    v109 = checked_add uint256, v24, 3
-    v110 = lt v109, v22
-    jumpi v110, bb25, bb26
+    v106 = checked_add uint256, v24, 3
+    v107 = lt v106, v22
+    jumpi v107, bb25, bb26
   bb26:                                           ; preds = bb21
     jump bb27
   bb25:                                           ; preds = bb21
-    v111 = checked_add uint256, v25, 2
-    v112 = lt v111, v20
-    jumpi v112, bb28, bb29
+    v108 = checked_add uint256, v25, 2
+    v109 = lt v108, v20
+    jumpi v109, bb28, bb29
   bb29:                                           ; preds = bb25
     jump bb30
   bb28:                                           ; preds = bb25
-    v113 = and v71, 63
-    v114 = icall @_encode, v113, v17
+    v110 = and v71, 63
+    v111 = icall @_encode, v110, v17
     jump bb30
   bb30:                                           ; preds = bb28, bb29
-    v115 = phi [bb28: v114], [bb29: 0x3d00000000000000000000000000000000000000000000000000000000000000]
-    v116 = checked_add uint256, v24, 3
-    v117 = mload v23
-    v118 = lt v116, v117
-    v119 = eq v118, false
-    icall panic_if<0x32>, v119
-    v120 = byte 0, v115
-    v121 = ptradd v23, v116
-    v122 = ptradd v121, 32
-    mstore8 v122, v120
-    v123 = and v115, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v112 = phi [bb28: v111], [bb29: 0x3d00000000000000000000000000000000000000000000000000000000000000]
+    v113 = checked_add uint256, v24, 3
+    v114 = mload v23
+    v115 = lt v113, v114
+    v116 = eq v115, false
+    icall panic_if<0x32>, v116
+    v117 = byte 0, v112
+    v118 = ptradd v23, v113
+    v119 = ptradd v118, 32
+    mstore8 v119, v117
     jump bb27
   bb27:                                           ; preds = bb30, bb26
-    v124 = checked_add uint256, v24, 4
+    v120 = checked_add uint256, v24, 4
     jump bb12
   bb12:                                           ; preds = bb27
     jump bb9
   bb9:                                            ; preds = bb12
-    v125 = checked_add uint256, v25, 3
+    v121 = checked_add uint256, v25, 3
     jump bb7
 }
 

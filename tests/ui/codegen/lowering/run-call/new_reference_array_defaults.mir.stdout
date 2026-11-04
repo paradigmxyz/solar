@@ -73,7 +73,9 @@ fn @sharedBytesDefault() -> i256 [selector=0x8e773052, pure, abi_params=[], abi_
     v12 = mload v11
     v13 = eq v12, v9
     v14 = zext i1 v13 to i256
-    ret v14
+    v15 = ne v14, 0
+    v16 = zext i1 v15 to i256
+    ret v16
   bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3

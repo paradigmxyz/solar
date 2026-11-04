@@ -53,7 +53,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = self.builder.imm(value);
                     self.coerce_value(value, expr_ty, ty)
                 } else if let Some(expr) = initializer {
-                    self.lower_carried_expr(expr, ty)?
+                    self.lower_typed_expr(expr, ty)?
                 } else {
                     self.default_binding_value(ty)
                 };
@@ -129,7 +129,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             continue;
                         }
                         let span = value.span;
-                        let value = self.lower_carried_expr(value, ty)?;
+                        let value = self.lower_typed_expr(value, ty)?;
                         let value = self.materialize_scalar_carrier(*id, value, span)?;
                         self.values.insert(*id, value);
                     }
@@ -255,7 +255,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             StmtKind::AssemblyBlock(block, memory_safe) => {
                 let previous = std::mem::replace(&mut self.in_inline_assembly, true);
                 let previous_writes = std::mem::take(&mut self.assembly_writes_memory);
+                let previous_assigned = std::mem::take(&mut self.assembly_assigned);
                 let result = self.lower_block(*block);
+                let assigned = std::mem::replace(&mut self.assembly_assigned, previous_assigned);
                 // A block that writes no memory cannot break the promise.
                 if !memory_safe && self.assembly_writes_memory {
                     self.cx.module.set_unsafe_assembly(true);
@@ -263,6 +265,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.assembly_writes_memory = previous_writes;
                 self.in_inline_assembly = previous;
                 result?;
+                // Inside the block assembly sees raw words. Solidity sees canonical values, so
+                // clean every sub-word variable the block assigned.
+                for id in assigned {
+                    let ty = self.cx.gcx.type_of_item(id.into());
+                    if !ty.is_value_type()
+                        || matches!(ty.peel_refs().kind, TyKind::Enum(_) | TyKind::Fn(_))
+                    {
+                        continue;
+                    }
+                    let Some(&value) = self.values.get(&id) else { continue };
+                    if self.builder.func().value_ty(value).and_then(MirType::integer_bits).is_none()
+                    {
+                        continue;
+                    }
+                    let clean = self.normalize_abi_scalar(value, ty);
+                    let clean = self.materialize_raw_scalar(id, clean);
+                    self.dirty_values.remove(&clean);
+                    self.values.insert(id, clean);
+                }
             }
             StmtKind::Placeholder => {
                 self.lower_modifier_placeholder(stmt.span)?;

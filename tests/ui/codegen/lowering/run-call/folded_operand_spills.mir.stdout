@@ -513,46 +513,48 @@ fn @inlinedSelectCopy(arg0: i256, arg1: i256) -> i256 [selector=0xb39526b0, pure
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v18 = phi [bb1: 160], [bb2: 128]
-    icall @_variableCopy, v18, 64
-    v19 = gt arg1, 1
-    jumpi v19, bb4, bb5
+    v18 = phi [bb1: i8 160], [bb2: i8 128]
+    v19 = zext i8 v18 to i256
+    icall @_variableCopy, v19, 64
+    v20 = gt arg1, 1
+    jumpi v20, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb6
   bb4:                                            ; preds = bb3
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v20 = phi [bb4: 160], [bb5: 128]
-    icall @_variableCopy, v20, 64
-    v21 = ne arg1, 0
-    jumpi v21, bb7, bb8
+    v21 = phi [bb4: i8 160], [bb5: i8 128]
+    v22 = zext i8 v21 to i256
+    icall @_variableCopy, v22, 64
+    v23 = ne arg1, 0
+    jumpi v23, bb7, bb8
   bb8:                                            ; preds = bb6
     jump bb9
   bb7:                                            ; preds = bb6
-    v22 = icall @_copy, 0x400
-    v23 = mload v22
-    v24 = shl v23, 0
+    v24 = icall @_copy, 0x400
+    v25 = mload v24
+    v26 = shl v25, 0
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v25 = phi [bb7: v24], [bb8: 0]
-    v26 = xor v0, v1
-    v27 = xor v26, v2
-    v28 = xor v27, v3
-    v29 = xor v28, v4
-    v30 = xor v29, v5
-    v31 = xor v30, v6
-    v32 = xor v31, v7
-    v33 = xor v32, v8
-    v34 = xor v33, v9
-    v35 = xor v34, v10
-    v36 = xor v35, v11
-    v37 = xor v36, v12
-    v38 = xor v37, v13
-    v39 = xor v38, v14
-    v40 = xor v39, v15
-    v41 = xor v40, v16
-    v42 = xor v41, v25
-    ret v42
+    v27 = phi [bb7: v26], [bb8: 0]
+    v28 = xor v0, v1
+    v29 = xor v28, v2
+    v30 = xor v29, v3
+    v31 = xor v30, v4
+    v32 = xor v31, v5
+    v33 = xor v32, v6
+    v34 = xor v33, v7
+    v35 = xor v34, v8
+    v36 = xor v35, v9
+    v37 = xor v36, v10
+    v38 = xor v37, v11
+    v39 = xor v38, v12
+    v40 = xor v39, v13
+    v41 = xor v40, v14
+    v42 = xor v41, v15
+    v43 = xor v42, v16
+    v44 = xor v43, v27
+    ret v44
 }
 
 ; function farRaisedPointer(uint256 a, uint256 flag) external pure returns (bytes32 result) [selector 0x9caab65c]

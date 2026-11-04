@@ -13,8 +13,8 @@
 //@ run-call: callFunctionPointer; constructor=[171, -1234, 0x000000000000000000000000000000000000beef, 48879, true] => 7
 //@ run-call: OneByteImmutables::read; constructor=[171, -5, 0xab] => 171, -5, 0xab
 //@ run-call: SyntheticImmutableFrame::marker => 77
-//@ run-call: DirtyImmutables::read => true, 3, 0x0000000000000000000000000000000000000007, 1461501637330902918203684832716283019655932542983
-//@ run-call: IndirectDirtyImmutables::read => 115792089237316195423570985008687907853269984665640564039457584007913129639935, 115792089237316195423570985008687907853269984665640564039457584007913129639935, 115792089237316195423570985008687907853269984665640564039457584007913129639935, 2
+//@ run-call: DirtyImmutables::read => true, 1, 0x0000000000000000000000000000000000000007, 7
+//@ run-call: IndirectDirtyImmutables::read => 1461501637330902918203684832716283019655932542975, 1461501637330902918203684832716283019655932542975, 1461501637330902918203684832716283019655932542975, 1
 
 type Tiny is uint16;
 
@@ -115,8 +115,8 @@ contract DirtyImmutables {
     }
 }
 
-// Raw bits reach these immutables through an initializer, an assignment's
-// value, and an identity conversion, and leave the same ways.
+// Assembly assigns dirty bits to these immutables' sources through an initializer, an
+// assignment's value, and an identity conversion; Solidity sees them cleaned.
 contract IndirectDirtyImmutables {
     address immutable initialized = dirtyAccount();
     address immutable copied = initialized;

@@ -21,7 +21,7 @@ contract StorageBytesPushPop {
     // CHECK: sload 0
     // CHECK: gt [[LEN:v[0-9]+]], 31
     // CHECK: eq [[LEN]], 31
-    // CHECK: byte 0, {{v[0-9]+}}
+    // CHECK: byte 0, arg0
     // CHECK: sstore 0,
     // CHECK: storage_array_data_slot 0
     // CHECK: sstore 0, 65

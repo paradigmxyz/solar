@@ -48,7 +48,9 @@ fn @safeCall(arg0: i256, arg1: i256) -> i256 [selector=0x1dee2645, abi_params=[a
     v15 = zext i1 v14 to i256
     v16 = and v3, v15
     mstore 64, v0 !metadata(memory=scratch)
-    ret v16
+    v17 = ne v16, 0
+    v18 = zext i1 v17 to i256
+    ret v18
   bb1:                                            ; preds = bb0
     v11 = returndatasize
     returndatacopy v0, 0, v11

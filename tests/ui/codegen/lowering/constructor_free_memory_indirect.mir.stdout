@@ -11,7 +11,6 @@ fn @constructor() [constructor] {
     v5 = and v4, 255
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
-    v7 = ne v0, 0
     ret
 }
 
@@ -33,7 +32,9 @@ fn @freeMemoryStarted() -> i256 [pure] {
     v2 = zext i1 v1 to i256
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
-    ret v4
+    v5 = ne v4, 0
+    v6 = zext i1 v5 to i256
+    ret v6
 }
 
 ; === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughBase ===
@@ -49,7 +50,6 @@ fn @constructor() [constructor] {
     v5 = and v4, 255
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
-    v7 = ne v0, 0
     jump bb1
   bb1:                                            ; preds = bb0
     sstore 1, 1 !metadata(storage=slot(1))
@@ -81,7 +81,9 @@ fn @freeMemoryStarted() -> i256 [pure] {
     v2 = zext i1 v1 to i256
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
-    ret v4
+    v5 = ne v4, 0
+    v6 = zext i1 v5 to i256
+    ret v6
 }
 
 ; === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughModifier ===
@@ -97,7 +99,6 @@ fn @constructor() [constructor] {
     v5 = and v4, 255
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
-    v7 = ne v0, 0
     jump bb2
   bb2:                                            ; preds = bb0
     jump bb1
@@ -123,7 +124,9 @@ fn @freeMemoryStarted() -> i256 [pure] {
     v2 = zext i1 v1 to i256
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
-    ret v4
+    v5 = ne v4, 0
+    v6 = zext i1 v5 to i256
+    ret v6
 }
 
 ; === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:ThroughHelper ===
@@ -156,7 +159,6 @@ fn @record() {
     v5 = and v4, 255
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
-    v7 = ne v0, 0
     ret
 }
 
@@ -168,7 +170,9 @@ fn @freeMemoryStarted() -> i256 [pure] {
     v2 = zext i1 v1 to i256
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
-    ret v4
+    v5 = ne v4, 0
+    v6 = zext i1 v5 to i256
+    ret v6
 }
 
 ; === ROOT/tests/ui/codegen/lowering/constructor_free_memory_indirect.sol:Allocating ===

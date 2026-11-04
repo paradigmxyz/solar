@@ -54,10 +54,12 @@ fn @observed(arg0: i256) -> i256 [selector=0x3a5fe8af, pure, abi_params=[uint256
     v24 = eq v23, 0x6f7264733f000000000000000000000000000000000000000000000000000000
     v25 = zext i1 v24 to i256
     v26 = and v21, v25
-    v27 = eq v8, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
-    v28 = eq v27, false
-    icall revert_if<empty>, v28
-    ret v26
+    v27 = ne v26, 0
+    v28 = zext i1 v27 to i256
+    v29 = eq v8, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
+    v30 = eq v29, false
+    icall revert_if<empty>, v30
+    ret v28
 }
 
 ; function observedRevert(uint256 x) external pure [selector 0x8cf17d01]

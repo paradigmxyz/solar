@@ -244,67 +244,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// Lowers `expr` without cleaning a dirty sub-word value, for a consumer that ignores the
-    /// bits above the type, such as an EVM address operand.
-    pub(super) fn lower_raw_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        self.keep_raw = true;
-        let value = self.lower_expr(expr);
-        self.keep_raw = false;
-        value
-    }
-
-    /// Lowers `expr` for a copy edge that `raw_scalars` tracks, converted to `ty`.
-    ///
-    /// Like solc, a copy keeps the bits that inline assembly left above the type, so a dirty value
-    /// is not cleaned here; the first Solidity-level read of the copy does. Single-element
-    /// tuples, equal-type conversions, and ternary branches forward the edge to their operand.
-    pub(super) fn lower_carried_expr(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        ty: Ty<'gcx>,
-    ) -> Option<ValueId> {
-        let source_ty = self.cx.gcx.type_of_expr(expr.id);
-        match &expr.kind {
-            ExprKind::Tuple([Some(inner)]) => return self.lower_carried_expr(inner, ty),
-            ExprKind::Call(callee, args)
-                if let hir::CallArgsKind::Unnamed([argument]) = args.kind
-                    && expressions::is_type_conversion(self.cx.gcx, callee)
-                    && source_ty.is_some()
-                    && self.cx.gcx.type_of_expr(argument.id) == source_ty =>
-            {
-                return self.lower_carried_expr(argument, ty);
-            }
-            ExprKind::Ternary(condition, then_expr, else_expr)
-                if source_ty.is_some_and(|ty| ty.is_value_type()) =>
-            {
-                let condition = self.lower_expr(condition)?;
-                let (then_branch, else_branch) = self.lower_branches(
-                    condition,
-                    true,
-                    |this| this.lower_carried_expr(then_expr, ty),
-                    |this| this.lower_carried_expr(else_expr, ty),
-                )?;
-                return match (then_branch.terminated, else_branch.terminated) {
-                    (true, false) => Some(else_branch.value),
-                    (false, true) => Some(then_branch.value),
-                    _ if then_branch.value == else_branch.value => Some(then_branch.value),
-                    _ => Some(self.merge_ternary_phi(
-                        vec![
-                            (then_branch.block, then_branch.value),
-                            (else_branch.block, else_branch.value),
-                        ],
-                        ty,
-                    )),
-                };
-            }
-            _ => {}
-        }
-        self.keep_raw = true;
-        let value = self.lower_typed_expr(expr, ty);
-        self.keep_raw = false;
-        value
-    }
-
     pub(super) fn lower_typed_expr(
         &mut self,
         expr: &hir::Expr<'_>,

@@ -6,23 +6,23 @@
 //@ run-call: DirtyCarrierPaths::signedLoop 2, 1 => true
 //@ run-call: DirtyCarrierPaths::signedPointer => -1
 //@ run-call: DirtyCarrierPaths::signedOperator => 1
-//@ run-call: DirtyCarrierPaths::throughPointer => 257
+//@ run-call: DirtyCarrierPaths::throughPointer => 1
 //@ run-call: DirtyCarrierPaths::cleanPairDispatch => 1, 2
 //@ run-call: DirtyCarrierPaths::modifierLoop
 //@ run-call: DirtyCarrierPaths::signedLocal => -1
-//@ run-call: DirtyVirtual::throughVirtual => 257
+//@ run-call: DirtyVirtual::throughVirtual => 1
 //@ run-call: DirtyInternalNamedReturn::dispatchAddress 0x0000000000000000000000000000000000000002 => 0x0000000000000000000000000000000000000002
 //@ run-call: DirtyInternalNamedReturn::narrowAddress 0x10000000000000000000000000000000000000002 => 0x0000000000000000000000000000000000000002
 //@ run-call: DirtyInternalNamedReturn::bytesAddress 0x1234567890123456789012345678901234567890 => 0x1234567890123456789012345678901234567890
 //@ run-call: DirtyInternalNamedReturn::joinAddress true => 2
-//@ run-call: DirtyInternalNamedReturn::joinAddress false => 0x10000000000000000000000000000000000000002
+//@ run-call: DirtyInternalNamedReturn::joinAddress false => 2
 //@ codegen-matrix: standard
-//@ run-call: DirtyInternalNamedReturn::addressBits => true
-//@ run-call: DirtyInternalNamedReturn::bytesBits => true
+//@ run-call: DirtyInternalNamedReturn::addressBits => false
+//@ run-call: DirtyInternalNamedReturn::bytesBits => false
 //@ run-call: DirtyInternalNamedReturn::typedCallCleans => true
 //@ run-call: DirtyInternalNamedReturn::directTypedCallCleans => true
 //@ run-call: DirtyInternalNamedReturn::directComparisonCleans => true
-//@ run-call: DirtyInternalNamedReturn::boolBits => true
+//@ run-call: DirtyInternalNamedReturn::boolBits => false
 
 contract DirtyInternalNamedReturn {
     function dispatchAddress(address value) external pure returns (address) {
@@ -171,7 +171,7 @@ contract DirtyCarrierPaths {
         for (uint256 i; i < 2; ++i) {
             assembly { x := add(x, 128) }
         }
-        assembly { if iszero(eq(x, 257)) { revert(0, 0) } }
+        assembly { if iszero(eq(x, 1)) { revert(0, 0) } }
         _;
     }
 

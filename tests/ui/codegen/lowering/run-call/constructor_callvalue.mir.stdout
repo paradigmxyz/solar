@@ -170,5 +170,6 @@ fn @deploy(arg0: ptr<memory>) -> i256 {
     v4 = callvalue
     v5 = create v4, v3, v1
     v6 = zext i160 v5 to i256
-    ret v6
+    v7 = zext i160 v5 to i256
+    ret v7
 }

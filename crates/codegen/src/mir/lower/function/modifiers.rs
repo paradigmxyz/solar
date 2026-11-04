@@ -124,7 +124,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let access = this.require_storage_access(argument)?;
                     this.storage_refs.insert(parameter, access);
                 } else {
-                    let value = this.lower_carried_expr(argument, parameter_ty)?;
+                    let value = this.lower_typed_expr(argument, parameter_ty)?;
                     // A raw parameter keeps the caller's bits, like any other call.
                     let value = if this.cx.state.raw_scalars.contains(&parameter) {
                         value

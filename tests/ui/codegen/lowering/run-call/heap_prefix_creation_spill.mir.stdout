@@ -112,7 +112,9 @@ fn @_cloneDeterministic(arg0: i256, arg1: ptr<memory>, arg2: i256) -> i256 {
     v45 = ptrtoint ptr<memory> arg1 to i256
     v46 = sub v45, 96
     mstore v46, v3
-    ret v36
+    v47 = trunc i256 v36 to i160
+    v48 = zext i160 v47 to i256
+    ret v48
   bb1:                                            ; preds = bb0
     revert 0, 0
 }

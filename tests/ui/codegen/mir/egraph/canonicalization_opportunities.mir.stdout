@@ -102,7 +102,9 @@ fn @bothNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x4f851be3, pure, abi_
     v6 = eq v5, 0
     v7 = zext i1 v6 to i256
     v8 = and v7, v3
-    ret v8
+    v9 = ne v8, 0
+    v10 = zext i1 v9 to i256
+    ret v10
 }
 
 ; function eitherNonzero(uint a, uint b) external pure returns (bool r) [selector 0x980ee02c]
@@ -117,7 +119,9 @@ fn @eitherNonzero(arg0: i256, arg1: i256) -> i256 [selector=0x980ee02c, pure, ab
     v6 = eq v5, 0
     v7 = zext i1 v6 to i256
     v8 = or v7, v3
-    ret v8
+    v9 = ne v8, 0
+    v10 = zext i1 v9 to i256
+    ret v10
 }
 
 ; function byteMask(uint word) external pure returns (uint r) [selector 0x7aeb5711]
@@ -143,7 +147,9 @@ fn @boolExtend(arg0: i256) -> i256 [selector=0xadfa22a9, pure, abi_params=[uint2
     v3 = zext i1 v2 to i256
     v4 = eq v3, 1
     v5 = zext i1 v4 to i256
-    ret v5
+    v6 = ne v5, 0
+    v7 = zext i1 v6 to i256
+    ret v7
 }
 
 ; function extendedOrder(uint8 a, uint8 b) external pure returns (bool) [selector 0xdee337ac]
@@ -237,7 +243,9 @@ fn @boolOr(arg0: i256, arg1: i256) -> i256 [selector=0x2fb3474d, pure, abi_param
     v4 = and v3, v1
     v5 = eq v4, 0
     v6 = zext i1 v5 to i256
-    ret v6
+    v7 = ne v6, 0
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
 ; function boolAnd(bool a, bool b) external pure returns (bool r) [selector 0xd2a614e6]
@@ -250,7 +258,9 @@ fn @boolAnd(arg0: i256, arg1: i256) -> i256 [selector=0xd2a614e6, pure, abi_para
     v4 = or v3, v1
     v5 = eq v4, 0
     v6 = zext i1 v5 to i256
-    ret v6
+    v7 = ne v6, 0
+    v8 = zext i1 v7 to i256
+    ret v8
 }
 
 ; function zeroSelect(bool c, uint x, uint y) external pure returns (bool) [selector 0xcb81f4c1]
@@ -362,7 +372,9 @@ fn @emptyCall(arg0: i256) -> i256 [selector=0x2f00bb41, view, abi_params=[uint25
     v0 = gas
     v1 = staticcall v0, 4, arg0, 0, arg0, 0
     v2 = zext i1 v1 to i256
-    ret v2
+    v3 = ne v2, 0
+    v4 = zext i1 v3 to i256
+    ret v4
 }
 
 ; function emptyHash(uint pointer) external pure returns (bytes32 r) [selector 0x055e7154]
@@ -516,7 +528,9 @@ fn @compareComposition(arg0: i256, arg1: i256) -> i256 [selector=0x34fce0f6, pur
     v2 = lt arg0, arg1
     v3 = zext i1 v2 to i256
     v4 = or v3, v1
-    ret v4
+    v5 = ne v4, 0
+    v6 = zext i1 v5 to i256
+    ret v6
 }
 
 ; function zeroSubtract(uint x, uint y) external pure returns (uint) [selector 0x7fd17438]
@@ -585,7 +599,7 @@ fn @selectBool(arg0: i1, arg1: i1, arg2: i1) -> i256 [selector=0x50fa9e9e, pure,
   bb7:                                            ; preds = bb2
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v1 = phi [bb7: 1], [bb8: 0]
+    v1 = phi [bb7: i8 1], [bb8: i8 0]
     jump bb3
   bb1:                                            ; preds = bb0
     jumpi arg1, bb4, bb5
@@ -594,11 +608,12 @@ fn @selectBool(arg0: i1, arg1: i1, arg2: i1) -> i256 [selector=0x50fa9e9e, pure,
   bb4:                                            ; preds = bb1
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v0 = phi [bb4: 1], [bb5: 0]
+    v0 = phi [bb4: i8 1], [bb5: i8 0]
     jump bb3
   bb3:                                            ; preds = bb6, bb9
     v2 = phi [bb6: v0], [bb9: v1]
-    ret v2
+    v3 = zext i8 v2 to i256
+    ret v3
 }
 
 ; function xorIntersection(uint x, uint y) external pure returns (uint) [selector 0xe5393040]
@@ -707,7 +722,9 @@ fn @mixedSigns(arg0: i256, arg1: i256) -> i256 [selector=0x43adc8f7, pure, abi_p
     v2 = lt arg0, arg1
     v3 = zext i1 v2 to i256
     v4 = and v3, v1
-    ret v4
+    v5 = ne v4, 0
+    v6 = zext i1 v5 to i256
+    ret v6
 }
 
 ; function unusedCapacity(uint x, uint y) external pure returns (uint) [selector 0x89f5bc97]

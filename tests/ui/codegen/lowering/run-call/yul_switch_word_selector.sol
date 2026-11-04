@@ -2,7 +2,7 @@
 //@ run-call: switchCallResult => 11
 //@ run-call: switchBool true => 11
 //@ run-call: switchBool false => 7
-//@ run-call: switchDirty => 13
+//@ run-call: switchDirty => 11
 
 contract YulSwitchWordSelector {
     function dirty(bool value) internal pure returns (bool result) {

@@ -47,10 +47,14 @@ fn @equality(arg0: i256, arg1: i256) -> struct0 [selector=0xf53825c4, pure, abi_
     v3 = xor arg0, arg1
     v4 = eq v3, 0
     v5 = zext i1 v4 to i256
-    v6 = insert_value struct0, undef struct0, 0, v2
-    v7 = insert_value struct0, v6, 1, v5
-    v8 = insert_value struct0, v7, 2, v0
-    ret v8
+    v6 = ne v2, 0
+    v7 = zext i1 v6 to i256
+    v8 = ne v5, 0
+    v9 = zext i1 v8 to i256
+    v10 = insert_value struct0, undef struct0, 0, v7
+    v11 = insert_value struct0, v10, 1, v9
+    v12 = insert_value struct0, v11, 2, v0
+    ret v12
 }
 
 ; function common(uint256 x, uint256 y, uint256 z) external pure returns (uint256 a, uint256 b, uint256 c) [selector 0x233c6b41]
@@ -109,9 +113,13 @@ fn @compare(arg0: i256, arg1: i256) -> struct2 [selector=0xf360234c, pure, abi_p
     v3 = sub arg0, arg1
     v4 = lt arg0, v3
     v5 = zext i1 v4 to i256
-    v6 = insert_value struct2, undef struct2, 0, v2
-    v7 = insert_value struct2, v6, 1, v5
-    ret v7
+    v6 = ne v2, 0
+    v7 = zext i1 v6 to i256
+    v8 = ne v5, 0
+    v9 = zext i1 v8 to i256
+    v10 = insert_value struct2, undef struct2, 0, v7
+    v11 = insert_value struct2, v10, 1, v9
+    ret v11
 }
 
 ; function selects(bool c, uint256 x, uint256 y, uint256 z) external pure returns (uint256, uint256, uint256) [selector 0x413c28d5]

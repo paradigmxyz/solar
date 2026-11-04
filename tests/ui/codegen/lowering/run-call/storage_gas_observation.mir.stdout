@@ -66,7 +66,9 @@ fn @diamond(arg0: i256) -> i256 [selector=0xdf460a0e, view, abi_params=[bool], a
     v12 = eq v0, v4
     v13 = zext i1 v12 to i256
     v14 = and v11, v13
-    ret v14
+    v15 = ne v14, 0
+    v16 = zext i1 v15 to i256
+    ret v16
 }
 
 ; function loop() external view returns (bool result) [selector 0xa92100cb]
@@ -86,7 +88,9 @@ fn @loop() -> i256 [selector=0xa92100cb, view, abi_params=[], abi_returns=[word<
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    ret v1
+    v21 = ne v1, 0
+    v22 = zext i1 v21 to i256
+    ret v22
   bb4:                                            ; preds = bb1
     v8 = sload 0 !metadata(storage=slot(0))
     v9 = gas

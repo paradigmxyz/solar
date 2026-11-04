@@ -4,7 +4,9 @@
 fn @dirty(arg0: i256) -> i256 [pure] {
   bb0:
     v0 = mul arg0, 3
-    ret v0
+    v1 = ne v0, 0
+    v2 = zext i1 v1 to i256
+    ret v2
 }
 
 ; function switchCallResult() external returns (uint256 result) [selector 0x2e6d4117]

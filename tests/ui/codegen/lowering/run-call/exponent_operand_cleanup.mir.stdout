@@ -40,7 +40,7 @@ fn @branchedDirtyOperand(arg0: i1) -> i256 [selector=0x3d6d96b7, pure, abi_param
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v0 = phi [bb1: 259], [bb2: 2]
+    v0 = phi [bb1: 3], [bb2: 2]
     v1 = trunc i256 v0 to i8
     v2 = zext i8 v1 to i256
     v3 = checked_pow int256, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd, v2

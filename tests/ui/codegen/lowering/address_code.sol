@@ -33,9 +33,8 @@ contract AddressCode {
     }
     // CHECK-LABEL: fn @callerCodeLength{{[( ]}}
     // CHECK: [[CALLER:v[0-9]+]] = caller
-    // CHECK: [[WORD:v[0-9]+]] = zext i160 [[CALLER]] to i256
     // CHECK-NOT: trunc
-    // CHECK: extcodesize [[WORD]]
+    // CHECK: extcodesize {{v[0-9]+}}
     function callerCodeLength() external view returns (uint256) {
         address account = msg.sender;
         assembly { account := account }

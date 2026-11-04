@@ -1,8 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call: raw => 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: raw => 0x1234567800000000000000000000000000000000000000000000000000000000
 
-// A modifier parameter that assembly reads keeps the bits of its argument, as a function
-// parameter does.
+// A modifier parameter sees the cleaned `bytes4` that the assembly block of `dirty` assigned.
 contract AssemblyDirtyModifierArgument {
     bytes32 internal seen;
 

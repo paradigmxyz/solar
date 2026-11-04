@@ -80,7 +80,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if ty.is_ref_at(DataLocation::Storage) {
                 return Some(vec![self.require_storage_access(expr)?.slot]);
             }
-            let value = self.lower_carried_expr(expr, ty)?;
+            let value = self.lower_typed_expr(expr, ty)?;
             let value = if ty.is_ref_at(DataLocation::Memory) {
                 self.materialize_memory_argument(ty, value, expr.span)?
             } else {
@@ -103,7 +103,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         Some(self.require_storage_access(value)?.slot)
                     } else {
                         let span = value.span;
-                        let value = self.lower_carried_expr(value, ty)?;
+                        let value = self.lower_typed_expr(value, ty)?;
                         if ty.is_ref_at(DataLocation::Memory) {
                             self.materialize_memory_argument(ty, value, span)
                         } else {
@@ -193,7 +193,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage)) {
             return Some(self.require_storage_access(expr)?.slot);
         }
-        self.lower_raw_expr(expr)
+        self.lower_expr(expr)
     }
 
     pub(super) fn lower_tuple_assignment<'hir>(

@@ -274,21 +274,21 @@ fn @measured() {
 ; function peek(uint256 h) external view returns (uint256) [selector 0x7861d269]
 fn @peek() {
   bb0:
-    v8 = calldatasize
-    v9 = lt v8, 36
-    jumpi v9, bb1, bb2
+    v10 = calldatasize
+    v11 = lt v10, 36
+    jumpi v11, bb1, bb2
   bb2:                                            ; preds = bb0
-    v10 = calldataload 4
-    mstore 0, v10 !metadata(memory=scratch)
+    v12 = calldataload 4
+    mstore 0, v12 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v11 = keccak256 0, 64 !metadata(memory=scratch)
-    v1 = sload v11
-    v12 = and v1, 255
-    v3 = ne v12, 0
-    v5 = zext i1 v3 to i256
-    v6 = shl v5, 1
-    v7 = add v6, 3
-    mstore 0, v7 !metadata(memory=scratch)
+    v13 = keccak256 0, 64 !metadata(memory=scratch)
+    v1 = sload v13
+    v14 = and v1, 255
+    v3 = ne v14, 0
+    v6 = zext i1 v3 to i256
+    v7 = shl v6, 1
+    v8 = add v7, 3
+    mstore 0, v8
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
