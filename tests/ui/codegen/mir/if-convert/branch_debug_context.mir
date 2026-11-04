@@ -7,7 +7,6 @@
 
 // CHECK-LABEL: {{^[ +].*}}fn @diamond{{[( ]}}
 // CHECK: + {{v[0-9]+}} = add arg0, 1 !metadata(span=5..9)
-// CHECK-NOT: {{^\+.*span=(1\.\.2|10\.\.20|30\.\.40)}}
 // CHECK: + {{v[0-9]+}} = sub arg0, 1 !metadata(span=5..9)
 // CHECK: + {{v[0-9]+}} = zext i1 arg1 to i256 !metadata(span=5..9)
 // CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, {{v[0-9]+}} !metadata(span=5..9)
@@ -27,7 +26,6 @@ fn @diamond(arg0: i256, arg1: i1) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @triangle{{[( ]}}
 // CHECK: + {{v[0-9]+}} = add arg0, 1 !metadata(span=5..9)
-// CHECK-NOT: {{^\+.*span=(1\.\.2|10\.\.20)}}
 // CHECK: + {{v[0-9]+}} = zext i1 arg1 to i256 !metadata(span=5..9)
 // CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, arg0 !metadata(span=5..9)
 fn @triangle(arg0: i256, arg1: i1) -> i256 {

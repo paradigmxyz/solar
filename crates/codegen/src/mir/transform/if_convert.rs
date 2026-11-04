@@ -58,10 +58,10 @@
 //! `SourceInfo` (compiler/rustc_mir_transform/src/match_branches.rs L445-L460). solc maps that
 //! branch to the whole construct: the `if` statement (libsolidity/codegen/ContractCompiler.cpp
 //! L1160) or the conditional `c ? a : b` (libsolidity/codegen/ExpressionCompiler.cpp L290). Our
-//! `if` branch carries only its condition, but the join phi carries the construct, so the code that
-//! replaces the branch takes the span of the first phi, and each select that of its own phi. A site
-//! without selects has no phi to read and takes the branch's context. The old arm spans are
-//! dropped, and the branch becomes a jump that keeps its metadata.
+//! `if` branch carries only its condition, but the join phi of an `if` or conditional carries the
+//! construct, so the code that replaces the branch takes the span of the first phi, and each select
+//! that of its own phi. A site without selects has no phi to read and takes the branch's context.
+//! The old arm spans are dropped, and the branch becomes a jump that keeps its metadata.
 
 use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
@@ -508,11 +508,8 @@ fn convert(func: &mut Function, site: &Site) {
     // join: v = phi [then_arm: t], [else_arm: e]
     // =>
     // block: t = f(...); e = g(...); v = select cond, t, e; jump join
-    // NOTE: The hoisted arms and the condition test now execute on both paths, so they take the
-    // location of the branch they replace, as in LLVM's `foldTwoEntryPHINode` and rustc's
-    // `MatchBranchSimplification`. solc maps that branch to the whole `if` or conditional
-    // (ContractCompiler.cpp L1160, ExpressionCompiler.cpp L290), which the join phi carries and the
-    // `if` branch does not. Without a phi, the branch's own context is all there is.
+    // NOTE: Hoisted code runs on both paths, so it takes the span of the branch it replaces: the
+    // first join phi's, as the module docs explain. Without a phi it takes the branch's context.
     let context = site.selects.first().map_or_else(
         || func.blocks[block].terminator_metadata.debug_context(),
         |select| func.inst(select.phi).metadata.debug_context(),
