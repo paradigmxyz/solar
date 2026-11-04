@@ -43,7 +43,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(field) = resolved.struct_field_index(&self.cx.gcx.hir) else {
                     return self.cx.report_unsupported(name.span, "struct field l-value");
                 };
-                let object = self.lower_expr(receiver)?;
+                let object = self.operand(receiver)?;
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 // Only a memory object has addressable fields.
                 self.types.memory_layout(receiver_ty)?;
@@ -54,8 +54,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(index) = index else {
                     return self.cx.report_unsupported(expr.span, "index l-value");
                 };
-                let object = self.lower_expr(receiver)?;
-                let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+                let object = self.operand(receiver)?;
+                let uint256 = self.cx.gcx.types.uint(256);
+                let index = self.lower_typed_expr(index, uint256)?.clean(self, uint256);
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
                 match layout {
@@ -223,7 +224,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(receiver.span, "storage access");
         };
         // The index is the raw word, as in via-IR.
-        let index = self.lower_raw_expr(index)?.operand();
+        let index = self.lower_expr(index)?.raw_operand();
         let index = self.builder.cast(index, MirType::I256);
         let ty = self.type_of_expr_or_variable(expr)?;
         let access = self.storage_bytes_byte_access(access.slot, index);

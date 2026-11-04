@@ -752,11 +752,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   raw under `solar`, where via-IR validates it.
 - Rationale: The Solidity documentation leaves bits outside a type's width
   unspecified after assembly assignments, so code such as solady's
-  `Brutalizer` helpers can only rely on the `solc` behavior. The lowerer
-  represents the raw word only in raw-carrier bindings and in the `CarriedValue`
-  and `RawWord` values the lowering API returns for copy edges and address
-  operands; `lower_expr` always returns a canonical value, so a new consumer
-  cannot see dirty bits.
+  `Brutalizer` helpers can only rely on the `solc` behavior. The lowerer's
+  `lower_expr` returns a `Word`, a value plus whether it may hold such bits, and a
+  consumer takes the value only through `operand`, which cleans a raw word, so a
+  new consumer cannot see dirty bits.
 - Coverage: the fixtures under `tests/ui/codegen/lowering/dirty/`, one directory
   per consumer family (`builtins/`, `operators/`, `conversions/`,
   `memory-storage/`, `abi-events-errors/`, `calls/`, `raw-parity/`), and

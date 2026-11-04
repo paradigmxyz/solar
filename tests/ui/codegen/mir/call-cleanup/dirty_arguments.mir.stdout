@@ -68,8 +68,9 @@ fn @selected(arg0: i256) -> i256 [pure] {
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: 19], [bb2: 7]
-    ret v1
+    v1 = phi [bb1: i8 19], [bb2: i8 7]
+    v2 = zext i8 v1 to i256
+    ret v2
 }
 
 ; function cleanIsZero(address value) external pure returns (bool) [selector 0xcb37dd49]

@@ -59,9 +59,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(initializer) = variable.initializer else { continue };
             let ty = self.cx.gcx.type_of_item(id.into());
             let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
-            let carried = self.lower_carried_expr(initializer, ty)?;
+            let carried = self.lower_typed_expr(initializer, ty)?;
             if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-                let value = self.carried_into_binding(id, carried);
+                let span = self.cx.gcx.hir.variable(id).span;
+                let value = self.bind_word(id, carried, span)?;
                 self.store_immutable_value(id, immutable_id, value);
             } else {
                 let value = carried.clean(self, ty);
@@ -138,12 +139,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if Self::is_storage_parameter(parameter_ty) {
                         return Some(this.require_storage_access(argument)?.slot);
                     }
-                    let carried = this.lower_carried_expr(argument, parameter_ty)?;
-                    this.materialize_scalar_carrier(
-                        constructor.parameters[index],
-                        carried,
-                        argument.span,
-                    )
+                    let carried = this.lower_typed_expr(argument, parameter_ty)?;
+                    this.bind_word(constructor.parameters[index], carried, argument.span)
                 },
             )?;
             // Later bases may name an earlier base's parameters in their own
@@ -272,12 +269,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
-                let value = CarriedValue::from_word(value, self.is_raw_binding(id));
-                values.push(self.materialize_scalar_carrier(
-                    id,
-                    value,
-                    self.cx.gcx.hir.variable(id).span,
-                )?);
+                let value = self.binding_word(value, id);
+                values.push(self.bind_word(id, value, self.cx.gcx.hir.variable(id).span)?);
             }
             self.builder.ret(values);
         }

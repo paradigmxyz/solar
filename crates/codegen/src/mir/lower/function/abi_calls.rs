@@ -244,13 +244,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_typed_expr(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        ty: Ty<'gcx>,
-    ) -> Option<ValueId> {
+    /// Lowers `expr` and converts it to `ty`. A raw word of the same type stays raw.
+    pub(super) fn lower_typed_expr(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<Word> {
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
-            return Some(value);
+            return Some(Word::from_clean(value));
         }
         let source_expr = self.peel_bytes_conversion(expr);
         if let ExprKind::Lit(lit) = source_expr.peel_parens().kind
@@ -264,7 +261,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )
             )
         {
-            return self.lower_shared_bytes_literal(*bytes);
+            return self.lower_shared_bytes_literal(*bytes).map(Word::from_clean);
         }
         if !ty.is_ref_at(DataLocation::Storage)
             && self.types.memory_layout(ty).is_some()
@@ -275,16 +272,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
         {
             let access = self.require_storage_access(source_expr)?;
-            return self.load_storage_object(ty, access.slot, expr.span);
+            return self.load_storage_object(ty, access.slot, expr.span).map(Word::from_clean);
         }
-        let value = self.lower_expr(expr)?;
+        let word = self.lower_expr(expr)?;
         let source_ty = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
             let ExprKind::Lit(lit) = &expr.kind else { return None };
             let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
             Some(self.cx.gcx.mk_ty_string_literal(bytes.as_byte_str()))
         });
-        let value = source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, ty));
-        Some(value)
+        Some(source_ty.map_or(word, |source_ty| self.convert_word(word, source_ty, ty)))
     }
 
     /// Lowers the `bytes` or `string` operand `expr` of an ABI encoding to the value its encoder
@@ -301,7 +297,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some((self.require_storage_access(source)?.slot, PtrLocation::Storage));
         }
-        let value = self.lower_typed_expr(expr, ty)?;
+        let value = self.lower_typed_expr(expr, ty)?.clean(self, ty);
         Some((
             value,
             self.builder.func().value_slice_location(value).unwrap_or(PtrLocation::Memory),
@@ -322,7 +318,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 AbiType::Bytes(location),
             );
         }
-        let value = self.lower_typed_expr(argument, parameter_ty)?;
+        let value = self.lower_typed_expr(argument, parameter_ty)?.clean(self, parameter_ty);
         let abi_type = self.types.abi_type(parameter_ty)?;
         let abi_type = if self.cx.gcx.type_of_expr(argument.id).is_some_and(|ty| {
             ty.is_ref_at(DataLocation::Memory) || ty.is_ref_at(DataLocation::Storage)

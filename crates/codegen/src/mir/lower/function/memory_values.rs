@@ -53,7 +53,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.convert_tuple_component(slot, source_ty, element_ty, element.span)?;
                 slot.clean(self, element_ty)
             } else {
-                let value = self.lower_expr(element)?;
+                let value = self.operand(element)?;
                 let value = self.coerce_value(value, source_ty, element_ty);
                 self.materialize_memory_argument(element_ty, value, element.span)?
             };
@@ -94,7 +94,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .gcx
                     .type_of_item(struct_fields[index].into())
                     .with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
-                let value = this.lower_typed_expr(argument, field_ty)?;
+                let value = this.lower_typed_expr(argument, field_ty)?.clean(this, field_ty);
                 let value = this.materialize_memory_argument(field_ty, value, argument.span)?;
                 Some(this.encode_memory_scalar(field_ty, value))
             },
@@ -127,7 +127,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let object = self.builder.alloc_word_struct(fields, initialization);
         for (index, value) in values.iter().enumerate() {
             let Some(value) = value else { continue };
-            let value = self.lower_expr(value)?;
+            let value = self.operand(value)?;
             let value = self.encode_memory_scalar(field_types[index], value);
             self.builder.memory_store_field(object, index as u64, value);
         }

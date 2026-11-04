@@ -97,16 +97,17 @@ fn @unless(arg0: i1, arg1: i256) -> struct0 [selector=0x21bd9a17, pure, abi_para
   bb4:                                            ; preds = bb3
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v2 = phi [bb4: 0], [bb5: 1]
+    v2 = phi [bb4: i8 0], [bb5: i8 1]
+    v3 = zext i8 v2 to i256
     jumpi arg0, bb7, bb8
   bb8:                                            ; preds = bb6
     jump bb9
   bb7:                                            ; preds = bb6
-    v3 = checked_add uint256, arg1, 1
+    v4 = checked_add uint256, arg1, 1
     jump bb9
   bb9:                                            ; preds = bb7, bb8
-    v4 = phi [bb7: v3], [bb8: arg1]
-    v5 = insert_value struct0, undef struct0, 0, v2
-    v6 = insert_value struct0, v5, 1, v4
-    ret v6
+    v5 = phi [bb7: v4], [bb8: arg1]
+    v6 = insert_value struct0, undef struct0, 0, v3
+    v7 = insert_value struct0, v6, 1, v5
+    ret v7
 }

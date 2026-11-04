@@ -9,25 +9,26 @@ fn @check(arg0: i1, arg1: i256, arg2: i256) -> i1 [selector=0xc286812b, pure, ab
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v0 = phi [bb1: 32], [bb2: 0]
-    v1 = eq v0, 32
-    jumpi v1, bb4, bb5
+    v0 = phi [bb1: i8 32], [bb2: i8 0]
+    v1 = zext i8 v0 to i256
+    v2 = eq v1, 32
+    jumpi v2, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb6
   bb4:                                            ; preds = bb3
-    v2 = trunc i256 arg1 to i160
-    v3 = trunc i256 arg2 to i160
-    v4 = eq v2, v3
+    v3 = trunc i256 arg1 to i160
+    v4 = trunc i256 arg2 to i160
+    v5 = eq v3, v4
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v5 = phi [bb4: v4], [bb5: false]
-    v6 = xor arg1, arg2
-    v7 = shl v6, 96
-    v8 = lt v7, v0
-    v9 = zext i1 v8 to i256
-    v10 = ne v9, 0
-    v11 = eq v10, v5
-    ret v11
+    v6 = phi [bb4: v5], [bb5: false]
+    v7 = xor arg1, arg2
+    v8 = shl v7, 96
+    v9 = lt v8, v1
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    v12 = eq v11, v6
+    ret v12
 }
 
 ; function test(bool success, uint256 signer, uint256 recovered) public pure returns (bool) [selector 0x9297fa25]

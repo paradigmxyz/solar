@@ -84,32 +84,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
-    /// Lowers a call of a user-defined operator `expr` that resolves to `function_id`, whose
-    /// operands are copied into the operator's parameters.
-    pub(super) fn lower_user_operator_expr(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        function_id: hir::FunctionId,
-    ) -> Option<CarriedValue> {
-        let operands: &[&hir::Expr<'_>] = match &expr.kind {
-            ExprKind::Binary(lhs, _, rhs) => &[lhs, rhs],
-            ExprKind::Unary(_, operand) => &[operand],
-            _ => return self.cx.report_unsupported(expr.span, "user-defined operator operand"),
-        };
-        let mut values = Vec::with_capacity(operands.len());
-        for operand in operands {
-            let ty = self.cx.gcx.type_of_expr(operand.id)?;
-            values.push(self.lower_carried_expr(operand, ty)?);
-        }
-        self.lower_user_operator(expr.span, function_id, &values)
-    }
-
-    fn lower_user_operator(
+    pub(super) fn lower_user_operator(
         &mut self,
         span: Span,
         function_id: hir::FunctionId,
-        values: &[CarriedValue],
-    ) -> Option<CarriedValue> {
+        values: &[Word],
+    ) -> Option<Word> {
         let function = self.cx.gcx.hir.function(function_id);
         if function.parameters.len() != values.len() || function.returns.len() != 1 {
             return self.cx.report_unsupported(span, "user-defined operator signature");
@@ -123,10 +103,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let values = values
             .iter()
             .zip(function.parameters)
-            .map(|(&value, &parameter)| self.materialize_scalar_carrier(parameter, value, span))
+            .map(|(&value, &parameter)| self.bind_word(parameter, value, span))
             .collect::<Option<Vec<_>>>()?;
         let result = self.builder.icall(mir_id, values, result_ty);
-        Some(CarriedValue::from_word(result, self.is_raw_binding(function.returns[0])))
+        Some(self.binding_word(result, function.returns[0]))
     }
 
     pub(super) fn lower_call(
@@ -195,7 +175,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let (word, length) = self.storage_bytes_first_word(access.slot);
                 return Some(CallResult::Value(self.bytes_prefix(word, length, size)));
             }
-            let value = self.lower_expr(arg)?;
+            let value = self.operand(arg)?;
             return Some(CallResult::Value(self.coerce_value(value, source_ty, target_ty)));
         }
         if let ExprKind::New(ty) = &callee.kind {
@@ -211,7 +191,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(arg) = args.exprs().next() else {
                 return self.cx.report_unsupported(expr.span, "dynamic allocation");
             };
-            let len = self.lower_typed_expr(arg, self.cx.gcx.types.uint(256))?;
+            let uint256 = self.cx.gcx.types.uint(256);
+            let len = self.lower_typed_expr(arg, uint256)?.clean(self, uint256);
             let ty = self.cx.gcx.type_of_expr(expr.id)?;
             let layout = self.types.memory_layout(ty)?;
             let size = match layout {
@@ -297,15 +278,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             for option in options.args {
                 match option.name.name {
                     sym::value => {
+                        let uint256 = self.cx.gcx.types.uint(256);
                         call_value =
-                            self.lower_typed_expr(&option.value, self.cx.gcx.types.uint(256))?;
+                            self.lower_typed_expr(&option.value, uint256)?.clean(self, uint256);
                     }
                     sym::salt => {
-                        salt =
-                            Some(self.lower_typed_expr(
-                                &option.value,
-                                self.cx.gcx.types.fixed_bytes(32),
-                            )?);
+                        let bytes32 = self.cx.gcx.types.fixed_bytes(32);
+                        salt = Some(
+                            self.lower_typed_expr(&option.value, bytes32)?.clean(self, bytes32),
+                        );
                     }
                     _ => {
                         return self.cx.report_unsupported(option.name.span, "creation option");
@@ -409,7 +390,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if arg_exprs.len() != function.parameters.len() {
             return self.cx.report_unsupported(args.span, "external function argument list");
         }
-        let function_value = self.lower_expr(callee)?;
+        let function_value = self.operand(callee)?;
         // address, selector = split_function_pointer(function)
         let (address, selector) = self.split_external_function_pointer(function_value);
 
@@ -467,7 +448,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if args.len() != function.parameters.len() {
             return self.cx.report_unsupported(expr.span, "internal function argument list");
         }
-        let function_value = self.lower_expr(callee)?;
+        let function_value = self.operand(callee)?;
         let parameter_names = self
             .cx
             .gcx
@@ -488,13 +469,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // argument = slot of the storage argument
                     return Some(this.require_storage_access(argument)?.slot);
                 }
-                let carried = this.lower_carried_expr(argument, parameter)?;
+                let carried = this.lower_typed_expr(argument, parameter)?;
                 if !parameter.is_value_type() {
                     let value = carried.clean(this, parameter);
                     return this.materialize_call_argument(parameter, value, argument.span);
                 }
                 let ty = this.cx.state.pointer_carrier(types::TypeLowerer::mir_type(parameter));
-                Some(this.carried_into_carrier(carried, parameter, ty, ty == MirType::I256))
+                Some(this.word_into_carrier(carried, parameter, ty, ty == MirType::I256))
             },
         )?;
         values.insert(0, function_value);
@@ -520,8 +501,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(dispatcher, function, args)
         let result = self.builder.icall(dispatcher, values, result_ty);
         if let [ret] = function.returns {
-            let raw = self.is_raw_pointer_return(*ret);
-            return Some(CallResult::CarriedValue(CarriedValue::from_word(result, raw)));
+            return Some(CallResult::Word(self.pointer_word(result, *ret)));
         }
         Some(CallResult::Value(result))
     }
@@ -785,15 +765,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(receiver) = attached_receiver {
             let parameter_ty = self.cx.gcx.type_of_item(function.parameters[0].into());
             let value = if Self::is_storage_parameter(parameter_ty) {
-                CarriedValue::from_clean(self.require_storage_access(receiver)?.slot)
+                Word::from_clean(self.require_storage_access(receiver)?.slot)
             } else {
-                self.lower_carried_expr(receiver, parameter_ty)?
+                self.lower_typed_expr(receiver, parameter_ty)?
             };
-            values.push(self.materialize_scalar_carrier(
-                function.parameters[0],
-                value,
-                receiver.span,
-            )?);
+            values.push(self.bind_word(function.parameters[0], value, receiver.span)?);
         }
         let arguments = self.lower_call_arguments(
             args,
@@ -808,11 +784,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let parameter = function.parameters[argument_index + receiver_count];
                 let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
                 let value = if Self::is_storage_parameter(parameter_ty) {
-                    CarriedValue::from_clean(this.require_storage_access(argument)?.slot)
+                    Word::from_clean(this.require_storage_access(argument)?.slot)
                 } else {
-                    this.lower_carried_expr(argument, parameter_ty)?
+                    this.lower_typed_expr(argument, parameter_ty)?
                 };
-                this.materialize_scalar_carrier(parameter, value, argument.span)
+                this.bind_word(parameter, value, argument.span)
             },
         )?;
         values.extend(arguments);
@@ -836,8 +812,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(function, call_args)
         let result = self.builder.icall(mir_id, values, result_ty);
         if let [ret] = function.returns {
-            let raw = self.is_raw_binding(*ret);
-            return Some(CallResult::CarriedValue(CarriedValue::from_word(result, raw)));
+            return Some(CallResult::Word(self.binding_word(result, *ret)));
         }
         Some(CallResult::Value(result))
     }
@@ -895,7 +870,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if args.len() != function.parameters.len() {
             return self.cx.report_unsupported(expr.span, "external function argument list");
         }
-        let address = self.lower_raw_expr(receiver)?.operand();
+        let address = self.lower_expr(receiver)?.raw_operand();
         let options = self.lower_call_options(call_opts, true, "call option")?;
         let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
             id: function_id,

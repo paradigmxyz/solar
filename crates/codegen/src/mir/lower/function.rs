@@ -33,7 +33,6 @@ mod abi_calls;
 mod abi_values;
 mod builtins;
 mod calls;
-mod carried_value;
 mod control_flow;
 mod entry;
 mod expressions;
@@ -46,8 +45,9 @@ mod raw_scalars;
 mod statements;
 mod storage_values;
 mod values;
+mod word;
 
-use carried_value::CarriedValue;
+use word::Word;
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -478,7 +478,7 @@ enum CallResult {
     /// A canonical value.
     Value(ValueId),
     /// The result of an internal call, which can carry raw bits.
-    CarriedValue(CarriedValue),
+    Word(Word),
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -618,10 +618,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<LoweredCallOptions> {
         // for option { gas/value = lower(option.value) }
         let mut lowered = self.default_call_options();
+        let uint256 = self.cx.gcx.types.uint(256);
         if let Some(options) = options {
             for option in options.args {
                 let option_value =
-                    self.lower_typed_expr(&option.value, self.cx.gcx.types.uint(256))?;
+                    self.lower_typed_expr(&option.value, uint256)?.clean(self, uint256);
                 match option.name.name {
                     kw::Gas => lowered.gas = Some(option_value),
                     sym::value if allow_value => {
@@ -667,191 +668,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         );
     }
 
-    /// Lowers `expr` to its canonical value at the native MIR type of its Solidity type.
+    /// Lowers `expr` to its value at its carrier type, and whether it may hold bits above its type.
     ///
-    /// Use it for every consumer that needs the value: operands, arguments of builtins and
-    /// external calls, ABI encodings, stores, indexes and conditions. Reading a raw carrier
-    /// cleans it; [`Self::lower_carried_expr`] and [`Self::lower_raw_expr`] are the only ways to
-    /// keep its raw bits.
-    fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        let ty = self.cx.gcx.type_of_expr(expr.id);
-        let solidity_ty = ty.filter(|ty| !self.in_inline_assembly && ty.is_value_type());
-        // The read lowers under its own span. Cleaning a raw word is the consumer's work, so it
-        // follows below under the span that asked for the value, as in solc: legacy
-        // `ExpressionCompiler::acceptAndConvert` (ExpressionCompiler.cpp:3087) converts after the
-        // operand's `LocationSetter` has popped, and via-IR `endVisit(FunctionCall)`
-        // (IRGeneratorForStatements.cpp:961) sets the call's location before it converts.
-        let lowered = self.with_expr_context(expr, |this| {
-            let Some(ty) = solidity_ty else {
-                return this.lower_expr_inner(expr).map(Ok);
-            };
-            let leaf = this.lower_carried_leaf(expr)?;
-            let value = match leaf {
-                Some(carried) => match carried.into_clean() {
-                    Ok(value) => value,
-                    Err(raw) => return Some(Err(raw)),
-                },
-                None => this.lower_expr_inner(expr)?,
-            };
-            Some(Ok(match types::TypeLowerer::mir_type(ty) {
-                native @ MirType::Int(_) => this.builder.cast(value, native),
-                _ => value,
-            }))
-        })?;
-        let (Some(ty), Err(raw)) = (solidity_ty, lowered) else {
-            return lowered.ok();
-        };
-        let value = raw.clean(self, ty);
-        // A raw carrier's word reaches a consumer only through `CarriedValue` or `RawWord`.
-        debug_assert!(
-            !(self.builder.func().value_ty(value) == Some(MirType::I256)
-                && types::TypeLowerer::mir_type(ty).integer_bits().is_some_and(|bits| bits < 256)),
-            "expression of a type narrower than a word lowered to a raw word: {:?}",
-            expr.span
-        );
-        Some(value)
-    }
-
-    /// Runs `f` with the builder's source span and modifier depth set for `expr`.
-    pub(super) fn with_expr_context<T>(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        f: impl FnOnce(&mut Self) -> T,
-    ) -> T {
+    /// This is the only function that lowers an expression. Take the value with
+    /// [`Self::operand`], or hand the word to a sink that copies it, [`Self::bind_word`] or
+    /// [`Self::store_word`].
+    pub(super) fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<Word> {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
-        let result = f(self);
+        let result = self.lower_expr_inner(expr).map(|word| word.into_native(self, expr));
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result
     }
 
-    /// Lowers `++` or `--` on a place and returns the expression's value: the new canonical value
-    /// for the prefix forms, and the old value, raw bits included, for the postfix forms.
-    pub(super) fn lower_inc_dec(
-        &mut self,
-        kind: UnOpKind,
-        operand: &hir::Expr<'_>,
-    ) -> Option<CarriedValue> {
-        let place = self.resolve_lvalue_place(operand)?;
-        let ty = self.cx.gcx.type_of_expr(operand.id)?;
-        let old = self.load_lvalue_place_carried(&place)?;
-        let old_value = old.clean(self, ty);
-        let one = self.builder.imm(1);
-        let op = if matches!(kind, UnOpKind::PreInc | UnOpKind::PostInc) {
-            BinOpKind::Add
-        } else {
-            BinOpKind::Sub
-        };
-        let new = self.binary(op, old_value, one, Some(ty));
-        self.store_lvalue_place(&place, new)?;
-        Some(if matches!(kind, UnOpKind::PreInc | UnOpKind::PreDec) {
-            CarriedValue::from_clean(new)
-        } else {
-            old
-        })
-    }
-
-    /// Lowers an assignment, returning the assigned value: a raw word when a raw carrier's value
-    /// is copied unchanged.
-    pub(super) fn lower_assignment(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        lhs: &hir::Expr<'_>,
-        op: Option<hir::BinOp>,
-        rhs: &hir::Expr<'_>,
-    ) -> Option<CarriedValue> {
-        let compound_op = op.map(|op| op.kind);
-        if compound_op.is_some() && self.cx.gcx.unsupported_udvt_operator(expr.id) {
-            return self.report_unsupported_udvt_operator(expr.span).map(CarriedValue::from_clean);
-        }
-        if op.is_none() && self.is_storage_reference_binding(lhs) {
-            let access = self.require_storage_access(rhs)?;
-            let Some(id) = self.cx.gcx.resolved_variable(lhs) else {
-                return self.cx.report_unsupported(lhs.span, "storage reference target");
-            };
-            self.storage_refs.insert(id, access);
-            return Some(CarriedValue::from_clean(access.slot));
-        }
-        let lhs_ty = self.type_of_expr_or_variable(lhs)?;
-        if let Some(kind @ (BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)) = compound_op
-            && self.cx.gcx.user_operator(expr.id).is_none()
-            && self.forwards_bitwise(lhs, rhs, lhs_ty)
-        {
-            return self.lower_compound_bitwise(lhs, kind, rhs, lhs_ty);
-        }
-        let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
-        let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
-        let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        // A literal assigned to a fixed-bytes place is that word.
-        // Building it directly avoids allocating a memory literal whose
-        // only use is the first word read back out of it; the
-        // allocation writes memory, so nothing later removes it.
-        let fixed_bytes_literal = (fixed_bytes.is_some() && compound_op.is_none())
-            .then(|| self.lower_fixed_bytes_literal(lhs_ty, rhs))
-            .flatten();
-        let rhs_value = if let Some(word) = fixed_bytes_literal {
-            CarriedValue::from_clean(word)
-        } else if self.types.memory_layout(memory_rhs_ty).is_some()
-            && rhs_ty.is_ref_at(DataLocation::Storage)
-        {
-            CarriedValue::from_clean(self.lower_typed_expr(rhs, memory_rhs_ty)?)
-        } else if compound_op
-            .is_some_and(|op| !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar))
-        {
-            CarriedValue::from_clean(self.lower_typed_expr(rhs, lhs_ty)?)
-        } else if compound_op.is_none() && rhs_ty.is_value_type() {
-            self.lower_carried_expr(rhs, rhs_ty)?
-        } else {
-            CarriedValue::from_clean(self.lower_expr(rhs)?)
-        };
-        // The literal word above is already the place's type, so the
-        // conversion below must not widen or shift it a second time.
-        let rhs_ty = if fixed_bytes_literal.is_some() { lhs_ty } else { rhs_ty };
-        if let Some(kind) = compound_op {
-            let rhs_value = rhs_value.clean(self, rhs_ty);
-            let place = self.resolve_lvalue_place(lhs)?;
-            let lhs_value = self.load_lvalue_place(&place)?;
-            let value = self.binary(kind, lhs_value, rhs_value, Some(lhs_ty));
-            let value = if let Some(bytes) = fixed_bytes {
-                self.clean_fixed_bytes(value, bytes)
-            } else {
-                self.coerce_value(value, lhs_ty, lhs_ty)
-            };
-            self.store_lvalue_place(&place, value)?;
-            return Some(CarriedValue::from_clean(value));
-        }
-        if lhs_ty.is_value_type() && rhs_ty.is_value_type() {
-            // The assigned value keeps its raw bits when the target is a raw carrier.
-            let carried = if rhs_ty == lhs_ty {
-                rhs_value
-            } else {
-                let value = rhs_value.clean(self, rhs_ty);
-                CarriedValue::from_clean(self.coerce_value(value, rhs_ty, lhs_ty))
-            };
-            let place = self.resolve_lvalue_place(lhs)?;
-            self.store_carried_place(&place, carried, Some(rhs_ty), lhs_ty)?;
-            return Some(carried);
-        }
-        let rhs_value = rhs_value.clean(self, rhs_ty);
-        let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
-            && matches!(
-                self.builder.func().value_ty(rhs_value),
-                Some(MirType::Slice(PtrLocation::Calldata))
-            );
-        let value = if preserve_calldata_slice {
-            rhs_value
-        } else {
-            let materialize_ty =
-                if lhs_ty.is_ref_at(DataLocation::Storage) { memory_rhs_ty } else { lhs_ty };
-            self.materialize_memory_argument(materialize_ty, rhs_value, rhs.span)?
-        };
-        let value = self.coerce_value(value, rhs_ty, lhs_ty);
-        self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;
-        Some(CarriedValue::from_clean(value))
-    }
-
-    fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+    fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<Word> {
         // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
         // be fractions or may not fit any integer type. Constant names fold in
         // `lower_constant_variable`.
@@ -882,24 +713,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(expr.span, "fractional value");
             }
             if let Some(value) = self.lower_const_value(value, expr.span) {
-                return Some(value);
+                return Some(Word::from_clean(value));
             }
         }
         match &expr.kind {
             ExprKind::Lit(lit) if self.in_inline_assembly => {
-                Some(self.builder.imm(lit.kind.yul_word()?))
+                Some(Word::from_clean(self.builder.imm(lit.kind.yul_word()?)))
             }
-            ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span),
-            ExprKind::Array(elements) => self.lower_array(expr, elements),
+            ExprKind::Lit(lit) => self.lower_literal(lit.kind, expr.span).map(Word::from_clean),
+            ExprKind::Array(elements) => self.lower_array(expr, elements).map(Word::from_clean),
             ExprKind::Ident(_) => {
                 if let Some(builtin) = self.cx.gcx.resolved_builtin(expr) {
-                    return self.lower_builtin_value(expr, builtin);
+                    return self.lower_builtin_value(expr, builtin).map(Word::from_clean);
                 }
                 if let Some(value) = self.lower_internal_function_value(expr) {
-                    return Some(value);
+                    return Some(Word::from_clean(value));
                 }
                 let id = self.cx.gcx.resolved_variable(expr)?;
-                let value = self.load_variable(id, expr.span)?;
+                let word = self.load_binding_word(id, expr.span)?;
+                if word.is_raw() {
+                    return Some(word);
+                }
+                let value = word.clean(self, self.cx.gcx.type_of_item(id.into()));
                 if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
                     && self.cx.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
@@ -907,9 +742,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         Some(MirType::Slice(PtrLocation::Calldata))
                     )
                 {
-                    Some(self.builder.slice_ptr(value))
+                    Some(Word::from_clean(self.builder.slice_ptr(value)))
                 } else {
-                    Some(value)
+                    Some(word)
                 }
             }
             ExprKind::Binary(lhs, op, rhs) => {
@@ -918,9 +753,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
-                    let result = self.lower_user_operator_expr(expr, function_id)?;
-                    let ty = self.cx.gcx.type_of_expr(expr.id)?;
-                    return Some(result.clean(self, ty));
+                    let lhs = self.lower_expr(lhs)?;
+                    let rhs = self.lower_expr(rhs)?;
+                    return self.lower_user_operator(expr.span, function_id, &[lhs, rhs]);
                 }
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
@@ -951,14 +786,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     None
                 };
-                let lhs = match lhs_word {
-                    Some(word) => word,
+                let lhs_value = match lhs_word {
+                    Some(word) => Word::from_clean(word),
                     None => self.lower_expr(lhs)?,
                 };
-                let rhs = match rhs_word {
-                    Some(word) => word,
+                let rhs_value = match rhs_word {
+                    Some(word) => Word::from_clean(word),
                     None => self.lower_expr(rhs)?,
                 };
+                // A bitwise operation of same-type operands keeps raw bits, as via-IR does.
+                let expr_ty = self.cx.gcx.type_of_expr(expr.id);
+                if let Some(ty) = expr_ty
+                    && matches!(op.kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
+                    && self.forwards_bitwise(lhs, rhs, ty)
+                    && (lhs_value.is_raw() || rhs_value.is_raw())
+                {
+                    return Some(self.raw_bitwise(op.kind, lhs_value, rhs_value, ty));
+                }
+                let (Some(lhs_ty), Some(rhs_ty)) = (lhs_ty, rhs_ty) else { return None };
+                let lhs = lhs_value.clean(self, lhs_ty);
+                let rhs = rhs_value.clean(self, rhs_ty);
+                let (lhs_ty, rhs_ty) = (Some(lhs_ty), Some(rhs_ty));
                 let (lhs, rhs) = match (lhs_ty, rhs_ty) {
                     (Some(lhs_ty), Some(rhs_ty))
                         if rhs_word.is_none() && fixed_bytes(Some(lhs_ty)) && rhs_literal =>
@@ -972,7 +820,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     _ => (lhs, rhs),
                 };
-                let expr_ty = self.cx.gcx.type_of_expr(expr.id);
                 let lhs_is_literal =
                     lhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::IntLiteral(..)));
                 let rhs_is_literal =
@@ -1024,29 +871,38 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     (lhs, rhs)
                 };
                 let result = self.binary(op.kind, lhs, rhs, ty);
-                Some(if let Some(bytes) = expr_ty.and_then(operators::fixed_bytes_width) {
-                    self.clean_fixed_bytes(result, bytes)
-                } else {
-                    result
-                })
+                Some(Word::from_clean(
+                    if let Some(bytes) = expr_ty.and_then(operators::fixed_bytes_width) {
+                        self.clean_fixed_bytes(result, bytes)
+                    } else {
+                        result
+                    },
+                ))
+            }
+            // An equal-type conversion passes its operand through.
+            ExprKind::Call(callee, args)
+                if let hir::CallArgsKind::Unnamed([argument]) = args.kind
+                    && expressions::is_type_conversion(self.cx.gcx, callee)
+                    && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+                        ty.is_value_type() && Some(ty) == self.cx.gcx.type_of_expr(argument.id)
+                    }) =>
+            {
+                self.lower_expr(argument)
             }
             ExprKind::Call(callee, args) => {
                 let (callee, call_opts) = callee.split_call_options();
                 match self.lower_call(expr, callee, *args, call_opts, true)? {
                     CallResult::Void => None,
-                    CallResult::Value(value) => Some(value),
-                    CallResult::CarriedValue(carried) => {
-                        let ty = self.cx.gcx.type_of_expr(expr.id)?;
-                        Some(carried.clean(self, ty))
-                    }
+                    CallResult::Value(value) => Some(Word::from_clean(value)),
+                    CallResult::Word(word) => Some(word),
                 }
             }
             ExprKind::CallOptions(callee, options) => {
-                let value = self.lower_expr(callee)?;
+                let value = self.operand(callee)?;
                 for option in options.args {
                     self.lower_discarded_expr(&option.value)?;
                 }
-                Some(value)
+                Some(Word::from_clean(value))
             }
             ExprKind::Unary(op, value) => {
                 self.assert_operand_ty_registered(expr);
@@ -1054,46 +910,172 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     op.kind,
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
                 ) {
+                    let place = self.resolve_lvalue_place(value)?;
                     let ty = self.cx.gcx.type_of_expr(value.id)?;
-                    let carried = self.lower_inc_dec(op.kind, value)?;
-                    return Some(carried.clean(self, ty));
+                    let old = self.load_place_word(&place)?;
+                    let old_value = old.clean(self, ty);
+                    let one = self.builder.imm(1);
+                    let kind = if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PostInc) {
+                        BinOpKind::Add
+                    } else {
+                        BinOpKind::Sub
+                    };
+                    let new = self.binary(kind, old_value, one, Some(ty));
+                    self.store_lvalue_place(&place, new)?;
+                    // The expression's value is the new one for a prefix operator and the old
+                    // one, raw bits included, for a postfix operator.
+                    return Some(if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PreDec) {
+                        Word::from_clean(new)
+                    } else {
+                        old
+                    });
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
-                    let result = self.lower_user_operator_expr(expr, function_id)?;
-                    let ty = self.cx.gcx.type_of_expr(expr.id)?;
-                    return Some(result.clean(self, ty));
+                    let value = self.lower_expr(value)?;
+                    return self.lower_user_operator(expr.span, function_id, &[value]);
                 }
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
-                let value = self.lower_expr(value)?;
-                Some(self.unary(op.kind, value, self.cx.gcx.type_of_expr(expr.id)))
+                let value = self.operand(value)?;
+                Some(Word::from_clean(self.unary(
+                    op.kind,
+                    value,
+                    self.cx.gcx.type_of_expr(expr.id),
+                )))
             }
             ExprKind::Assign(lhs, op, rhs) => {
-                let carried = self.lower_assignment(expr, lhs, *op, rhs)?;
-                let ty = self.type_of_expr_or_variable(lhs)?;
-                Some(carried.clean(self, ty))
+                let compound_op = op.map(|op| op.kind);
+                if compound_op.is_some() && self.cx.gcx.unsupported_udvt_operator(expr.id) {
+                    return self.report_unsupported_udvt_operator(expr.span).map(Word::from_clean);
+                }
+                if op.is_none() && self.is_storage_reference_binding(lhs) {
+                    let access = self.require_storage_access(rhs)?;
+                    let Some(id) = self.cx.gcx.resolved_variable(lhs) else {
+                        return self.cx.report_unsupported(lhs.span, "storage reference target");
+                    };
+                    self.storage_refs.insert(id, access);
+                    return Some(Word::from_clean(access.slot));
+                }
+                let lhs_ty = self.type_of_expr_or_variable(lhs)?;
+                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+                let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
+                let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+                // A literal assigned to a fixed-bytes place is that word.
+                // Building it directly avoids allocating a memory literal whose
+                // only use is the first word read back out of it; the
+                // allocation writes memory, so nothing later removes it.
+                let fixed_bytes_literal = (fixed_bytes.is_some() && compound_op.is_none())
+                    .then(|| self.lower_fixed_bytes_literal(lhs_ty, rhs))
+                    .flatten();
+                let rhs_value = if let Some(word) = fixed_bytes_literal {
+                    Word::from_clean(word)
+                } else if self.types.memory_layout(memory_rhs_ty).is_some()
+                    && rhs_ty.is_ref_at(DataLocation::Storage)
+                {
+                    Word::from_clean(
+                        self.lower_typed_expr(rhs, memory_rhs_ty)?.clean(self, memory_rhs_ty),
+                    )
+                } else if compound_op.is_some_and(|op| {
+                    !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
+                }) {
+                    self.lower_typed_expr(rhs, lhs_ty)?
+                } else if compound_op.is_none() && rhs_ty.is_value_type() {
+                    self.lower_typed_expr(rhs, rhs_ty)?
+                } else {
+                    Word::from_clean(self.operand(rhs)?)
+                };
+                // The literal word above is already the place's type, so the
+                // conversion below must not widen or shift it a second time.
+                let rhs_ty = if fixed_bytes_literal.is_some() { lhs_ty } else { rhs_ty };
+                if let Some(kind) = compound_op {
+                    let place = self.resolve_lvalue_place(lhs)?;
+                    let lhs_word = self.load_place_word(&place)?;
+                    // A bitwise operation of same-type operands keeps raw bits, as via-IR does.
+                    if matches!(kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
+                        && self.cx.gcx.user_operator(expr.id).is_none()
+                        && self.forwards_bitwise(lhs, rhs, lhs_ty)
+                        && (lhs_word.is_raw() || rhs_value.is_raw())
+                    {
+                        let word = self.raw_bitwise(kind, lhs_word, rhs_value, lhs_ty);
+                        self.store_word(&place, word, Some(lhs_ty), lhs_ty)?;
+                        return Some(word);
+                    }
+                    let rhs_value = rhs_value.clean(self, lhs_ty);
+                    let lhs_value = lhs_word.clean(self, lhs_ty);
+                    let value = self.binary(kind, lhs_value, rhs_value, Some(lhs_ty));
+                    let value = if let Some(bytes) = fixed_bytes {
+                        self.clean_fixed_bytes(value, bytes)
+                    } else {
+                        self.coerce_value(value, lhs_ty, lhs_ty)
+                    };
+                    self.store_lvalue_place(&place, value)?;
+                    return Some(Word::from_clean(value));
+                }
+                if lhs_ty.is_value_type() && rhs_ty.is_value_type() {
+                    // The assigned value keeps its raw bits when the target is a raw carrier.
+                    let carried = if rhs_ty == lhs_ty {
+                        rhs_value
+                    } else {
+                        let value = rhs_value.clean(self, rhs_ty);
+                        Word::from_clean(self.coerce_value(value, rhs_ty, lhs_ty))
+                    };
+                    let place = self.resolve_lvalue_place(lhs)?;
+                    self.store_word(&place, carried, Some(rhs_ty), lhs_ty)?;
+                    return Some(carried);
+                }
+                let rhs_value = rhs_value.clean(self, rhs_ty);
+                let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
+                    && matches!(
+                        self.builder.func().value_ty(rhs_value),
+                        Some(MirType::Slice(PtrLocation::Calldata))
+                    );
+                let value = if preserve_calldata_slice {
+                    rhs_value
+                } else {
+                    let materialize_ty = if lhs_ty.is_ref_at(DataLocation::Storage) {
+                        memory_rhs_ty
+                    } else {
+                        lhs_ty
+                    };
+                    self.materialize_memory_argument(materialize_ty, rhs_value, rhs.span)?
+                };
+                let value = self.coerce_value(value, rhs_ty, lhs_ty);
+                self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;
+                Some(Word::from_clean(value))
             }
             ExprKind::Ternary(cond, then_expr, else_expr) => {
                 let ty = self.cx.gcx.type_of_expr(expr.id)?;
                 self.lower_ternary(cond, then_expr, else_expr, ty)
             }
             ExprKind::Tuple([Some(inner)]) => self.lower_expr(inner),
-            ExprKind::Tuple(values) => self.lower_tuple(expr, values),
-            ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
+            ExprKind::Tuple(values) => self.lower_tuple(expr, values).map(Word::from_clean),
+            ExprKind::Member(receiver, name) => {
+                self.lower_member(expr, receiver, *name).map(Word::from_clean)
+            }
             ExprKind::YulMember(..) => {
                 let place = self.resolve_lvalue_place(expr)?;
-                self.load_lvalue_place(&place)
+                self.load_lvalue_place(&place).map(Word::from_clean)
             }
-            ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
-            ExprKind::Slice(receiver, start, end) => self.lower_slice(expr, receiver, *start, *end),
-            ExprKind::Payable(value) => self.lower_expr(value),
+            ExprKind::Index(receiver, index) => {
+                self.lower_index(expr, receiver, *index).map(Word::from_clean)
+            }
+            ExprKind::Slice(receiver, start, end) => {
+                self.lower_slice(expr, receiver, *start, *end).map(Word::from_clean)
+            }
+            // `payable(x)` of an `address payable` passes `x` through.
+            ExprKind::Payable(value)
+                if self.cx.gcx.type_of_expr(value.id) == self.cx.gcx.type_of_expr(expr.id) =>
+            {
+                self.lower_expr(value)
+            }
+            ExprKind::Payable(value) => self.operand(value).map(Word::from_clean),
             _ if self.cx.gcx.dcx().has_errors().is_err() => None,
             _ => self.cx.report_unsupported(expr.span, "expression"),
         }
     }
 
-    fn report_unsupported_udvt_operator(&self, span: Span) -> Option<ValueId> {
+    fn report_unsupported_udvt_operator<T>(&self, span: Span) -> Option<T> {
         self.cx
             .gcx
             .dcx()

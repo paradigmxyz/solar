@@ -19,14 +19,14 @@ fn @lots(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selecto
     v12 = phi [bb3: arg3], [bb6: v12]
     v13 = phi [bb3: ptr<memory> 96], [bb6: v13]
     v14 = phi [bb3: v0], [bb6: v14]
-    v15 = phi [bb3: 0], [bb6: v50]
+    v15 = phi [bb3: 0], [bb6: v51]
     v16 = lt v15, 2
     jumpi v16, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb5
   bb5:                                            ; preds = bb8
-    v51 = abi_encode [memory_array<tuple<word, word<uint160>, word<enum 3>, word<bool>, word<enum 2>, word<bytes2>, word>>], object, args v14
-    ret v51
+    v52 = abi_encode [memory_array<tuple<word, word<uint160>, word<enum 3>, word<bool>, word<enum 2>, word<bytes2>, word>>], object, args v14
+    ret v52
   bb7:                                            ; preds = bb4
     v17 = mload v14
     v18 = lt v15, v17
@@ -43,43 +43,44 @@ fn @lots(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> ptr<memory> [selecto
   bb10:                                           ; preds = bb7
     jump bb12
   bb12:                                           ; preds = bb10, bb11
-    v25 = phi [bb10: 1], [bb11: 0]
-    v26 = add v12, v15
-    v27 = ptrtoint ptr<memory> v23 to i256
-    mstore v23, v26
-    v28 = add v15, 160
-    v29 = shl v12, 160
-    v30 = or v29, v28
-    v31 = ptrtoint ptr<memory> v23 to i256
-    v32 = add v31, 32
-    mstore v32, v30
-    v33 = mul v9, v25
-    v34 = ptrtoint ptr<memory> v23 to i256
-    v35 = add v34, 64
-    mstore v35, v33
-    v36 = shl v12, 8
-    v37 = ptrtoint ptr<memory> v23 to i256
-    v38 = add v37, 96
-    mstore v38, v36
-    v39 = mul v10, v25
-    v40 = ptrtoint ptr<memory> v23 to i256
-    v41 = add v40, 128
-    mstore v41, v39
-    v42 = shr v12, 16
-    v43 = or v42, 0x1122000000000000000000000000000000000000000000000000000000000000
-    v44 = ptrtoint ptr<memory> v23 to i256
-    v45 = add v44, 160
-    mstore v45, v43
-    v46 = xor v12, v15
-    v47 = xor v46, 119
-    v48 = ptrtoint ptr<memory> v23 to i256
-    v49 = add v48, 192
-    mstore v49, v47
+    v25 = phi [bb10: i8 1], [bb11: i8 0]
+    v26 = zext i8 v25 to i256
+    v27 = add v12, v15
+    v28 = ptrtoint ptr<memory> v23 to i256
+    mstore v23, v27
+    v29 = add v15, 160
+    v30 = shl v12, 160
+    v31 = or v30, v29
+    v32 = ptrtoint ptr<memory> v23 to i256
+    v33 = add v32, 32
+    mstore v33, v31
+    v34 = mul v26, v9
+    v35 = ptrtoint ptr<memory> v23 to i256
+    v36 = add v35, 64
+    mstore v36, v34
+    v37 = shl v12, 8
+    v38 = ptrtoint ptr<memory> v23 to i256
+    v39 = add v38, 96
+    mstore v39, v37
+    v40 = mul v26, v10
+    v41 = ptrtoint ptr<memory> v23 to i256
+    v42 = add v41, 128
+    mstore v42, v40
+    v43 = shr v12, 16
+    v44 = or v43, 0x1122000000000000000000000000000000000000000000000000000000000000
+    v45 = ptrtoint ptr<memory> v23 to i256
+    v46 = add v45, 160
+    mstore v46, v44
+    v47 = xor v12, v15
+    v48 = xor v47, 119
+    v49 = ptrtoint ptr<memory> v23 to i256
+    v50 = add v49, 192
+    mstore v50, v48
     jump bb9
   bb9:                                            ; preds = bb12
     jump bb6
   bb6:                                            ; preds = bb9
-    v50 = checked_add uint256, v15, 1
+    v51 = checked_add uint256, v15, 1
     jump bb4
   bb2:                                            ; preds = bb1
     v3 = alloc 224 !metadata(preserves_fmp)
