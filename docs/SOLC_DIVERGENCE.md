@@ -731,39 +731,22 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 ## Code Generation
 
-### CODEGEN-001: Dirty bits from inline assembly match solc
+### CODEGEN-001: Immutables and tuple conditionals handle dirty bits differently
 
 - ID: CODEGEN-001
-- Status: implemented
-- Behavior: When inline assembly leaves bits above a variable's type, `solar`
-  matches `solc` via-IR. The raw word survives copies, assignments, internal
-  call, modifier and user-defined operator arguments, returns, tuple
-  components, ternary and branch joins, equal-type conversions and base
-  constructor arguments, and inline assembly reads it back unchanged. So does an
-  expression that returns an operand: `payable(x)` of an `address payable`, the
-  old value of a postfix `++` or `--`, `&&` and `||`, and `&`, `|` and `^` of an
-  operand of the result type. Every other consumer sees a canonical value:
-  operands, builtin arguments, ABI encodings, stores, indexes, conditions and
-  external calls.
-- Known differences: `solar` cleans the raw bits of an integer or fixed-bytes
-  immutable when it stores the immutable, so `uint8 immutable i = f()` reads
-  back clean at run time where via-IR keeps them, and a `bool` or `address`
-  immutable that the constructor reads back keeps them where via-IR cleans
-  them. A conditional with tuple branches keeps an invalid enum, contract or
-  user-defined value type in its false branch raw under `solar`, where via-IR
+- Status: intentional
+- Difference: When inline assembly leaves bits above a variable's type, `solar`
+  cleans the raw bits of an integer or fixed-bytes immutable when it stores
+  the immutable, so `uint8 immutable i = f()` reads back clean at run time
+  where `solc` via-IR keeps them. A `bool` or `address` immutable that the
+  constructor reads back keeps them where `solc` via-IR cleans them. A
+  conditional with tuple branches keeps an invalid enum, contract or
+  user-defined value type in its false branch raw, where `solc` via-IR
   validates it.
-- Rationale: The Solidity documentation leaves bits outside a type's width
-  unspecified after assembly assignments, so code such as solady's
-  `Brutalizer` helpers can only rely on the `solc` behavior. The lowerer's
-  `lower_expr` returns a `Word`, a value plus whether it may hold such bits, and a
-  consumer takes the value only through `operand`, which cleans a raw word, so a
-  new consumer cannot see dirty bits.
-- Coverage: the fixtures under `tests/ui/codegen/lowering/dirty/`, one directory
-  per consumer family (`builtins/`, `operators/`, `conversions/`,
-  `memory-storage/`, `abi-events-errors/`, `calls/`, `raw-parity/`), and
-  `tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol` and
-  `dirty_internal_named_return.sol`. Every expectation comes from
-  `solc --via-ir --optimize`.
+- Rationale: All three cases need a word that inline assembly made invalid for
+  its type, which the Solidity documentation leaves unspecified.
+- Coverage: the fixtures under `tests/ui/codegen/lowering/dirty/`, whose
+  expectations come from `solc --via-ir --optimize`.
 
 ### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
 
@@ -804,20 +787,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   reproduced the behavior in 13 functions across 11 upstream semantic tests.
   Solc tracks the getter's empty revert data in
   [issue #16660](https://github.com/argotorg/solidity/issues/16660).
-
-### CODEGEN-005: Narrow storage array and bytes indexes are not cleaned
-
-- ID: CODEGEN-005
-- Status: implemented
-- Behavior: When assembly assigns dirty upper bits to a narrow integer used as
-  a storage-array or storage-`bytes` index, `solar` matches `solc` via-IR and checks the raw word
-  against the array length, so `uint8(0x101)` reverts with `Panic(0x32)`.
-  Legacy `solc` cleans the index and selects index `1`. Memory-array indexes are
-  cleaned by all of them.
-- Rationale: via-IR lowers a storage index without converting it to a word
-  index type first, and the raw word fails the bounds check.
-- Coverage: `tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol`
-  and `tests/ui/codegen/lowering/dirty/memory-storage/storage_ints.sol`.
 
 ### CODEGEN-006: Legacy source-map modifier depth
 
