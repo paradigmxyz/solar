@@ -7,7 +7,8 @@ use std::sync::LazyLock;
 #[cfg(feature = "version")]
 pub const SHORT_VERSION: &str = env!("SHORT_VERSION");
 
-/// Solar's version, with a `-dev` suffix unless built from a clean release tag checkout.
+/// Solar's version: a `-dev` pre-release between releases, and a release version with a `-dev`
+/// suffix when built with tracked changes or past its release tag.
 #[cfg(feature = "version")]
 pub const SOLAR_VERSION: &str = env!("SOLAR_VERSION");
 

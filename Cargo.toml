@@ -5,7 +5,7 @@ default-members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
-version = "0.3.0"
+version = "0.3.1-dev"
 edition = "2024"
 rust-version = "1.98" # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
@@ -119,23 +119,23 @@ opt-level = "s"
 
 [workspace.dependencies]
 # compiler crates
-solar = { version = "=0.3.0", path = "crates/solar", package = "solar-compiler", default-features = false }
-solar-ast = { version = "=0.3.0", path = "crates/ast", default-features = false }
-solar-cli = { version = "=0.3.0", path = "crates/cli", default-features = false }
-solar-codegen = { version = "=0.3.0", path = "crates/codegen", default-features = false }
-solar-config = { version = "=0.3.0", path = "crates/config", default-features = false }
-solar-data-structures = { version = "=0.3.0", path = "crates/data-structures", default-features = false }
-solar-evmir = { version = "=0.3.0", path = "crates/evmir", default-features = false }
-solar-evmir-interpreter = { version = "=0.3.0", path = "crates/evmir-interpreter", default-features = false }
-solar-interface = { version = "=0.3.0", path = "crates/interface", default-features = false }
-solar-ir = { version = "=0.3.0", path = "crates/ir", default-features = false }
-solar-lint = { version = "=0.3.0", path = "crates/lint", default-features = false }
-solar-lsp = { version = "=0.3.0", path = "crates/lsp", default-features = false }
-solar-macros = { version = "=0.3.0", path = "crates/macros", default-features = false }
-solar-mir = { version = "=0.3.0", path = "crates/mir", default-features = false }
-solar-mir-interpreter = { version = "=0.3.0", path = "crates/mir-interpreter", default-features = false }
-solar-parse = { version = "=0.3.0", path = "crates/parse", default-features = false }
-solar-sema = { version = "=0.3.0", path = "crates/sema", default-features = false }
+solar = { version = "=0.3.1-dev", path = "crates/solar", package = "solar-compiler", default-features = false }
+solar-ast = { version = "=0.3.1-dev", path = "crates/ast", default-features = false }
+solar-cli = { version = "=0.3.1-dev", path = "crates/cli", default-features = false }
+solar-codegen = { version = "=0.3.1-dev", path = "crates/codegen", default-features = false }
+solar-config = { version = "=0.3.1-dev", path = "crates/config", default-features = false }
+solar-data-structures = { version = "=0.3.1-dev", path = "crates/data-structures", default-features = false }
+solar-evmir = { version = "=0.3.1-dev", path = "crates/evmir", default-features = false }
+solar-evmir-interpreter = { version = "=0.3.1-dev", path = "crates/evmir-interpreter", default-features = false }
+solar-interface = { version = "=0.3.1-dev", path = "crates/interface", default-features = false }
+solar-ir = { version = "=0.3.1-dev", path = "crates/ir", default-features = false }
+solar-lint = { version = "=0.3.1-dev", path = "crates/lint", default-features = false }
+solar-lsp = { version = "=0.3.1-dev", path = "crates/lsp", default-features = false }
+solar-macros = { version = "=0.3.1-dev", path = "crates/macros", default-features = false }
+solar-mir = { version = "=0.3.1-dev", path = "crates/mir", default-features = false }
+solar-mir-interpreter = { version = "=0.3.1-dev", path = "crates/mir-interpreter", default-features = false }
+solar-parse = { version = "=0.3.1-dev", path = "crates/parse", default-features = false }
+solar-sema = { version = "=0.3.1-dev", path = "crates/sema", default-features = false }
 
 # internal crates
 solar-tester = { path = "tools/tester" }

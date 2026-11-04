@@ -52,6 +52,13 @@ commit.
 
 - [ ] Publish the crates: `cargo release publish --execute [--no-verify]`
 
+## Start the next version
+
+- [ ] Bump `main` to the next patch version as a `-dev` pre-release, such as
+  `0.3.1-dev` after `0.3.0`, in a PR named `chore: bump to <next>-dev`:
+  `cargo release version --execute <next>-dev`. Builds read the release from the
+  version, because Cargo git checkouts have no tags.
+
 ## Downstream
 
 - [ ] In foundry-core and Foundry, set the solar requirements to `=<version>`

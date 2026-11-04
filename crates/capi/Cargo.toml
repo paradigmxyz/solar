@@ -19,7 +19,7 @@ workspace = true
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-solar-cli = { version = "=0.3.0", path = "../cli", default-features = false }
+solar-cli = { version = "=0.3.1-dev", path = "../cli", default-features = false }
 
 [features]
 default = []
