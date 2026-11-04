@@ -345,6 +345,40 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.storage_refs = self.merge_storage_ref_states(before_storage_refs, &target.states);
     }
 
+    /// Like [`Self::finish_return_target`] for the continuation of a modifier's `_`.
+    ///
+    /// Only the return bindings come from the merged states. A `return` in an inner invocation
+    /// carries that invocation's parameters and locals, which share ids with an outer invocation
+    /// of the same modifier, so every other binding keeps its value from before the `_`.
+    pub(super) fn finish_placeholder_target(
+        &mut self,
+        before_values: FxHashMap<VariableId, ValueId>,
+        before_storage_refs: FxHashMap<VariableId, StorageAccess>,
+    ) {
+        let mut target = self.return_targets.pop().expect("return target exists");
+        for state in &mut target.states {
+            state.values.retain(|id, _| self.returns.contains(id));
+            state.storage_refs.retain(|id, _| self.returns.contains(id));
+        }
+        self.builder.switch_to_block(target.block);
+        let returns_before = before_values
+            .iter()
+            .filter(|(id, _)| self.returns.contains(id))
+            .map(|(&id, &value)| (id, value))
+            .collect();
+        let returns_before_storage = before_storage_refs
+            .iter()
+            .filter(|(id, _)| self.returns.contains(id))
+            .map(|(&id, &access)| (id, access))
+            .collect();
+        self.values = before_values;
+        let merged = self.merge_many_values(returns_before, &target.states);
+        self.values.extend(merged);
+        self.storage_refs = before_storage_refs;
+        let merged = self.merge_storage_ref_states(returns_before_storage, &target.states);
+        self.storage_refs.extend(merged);
+    }
+
     pub(super) fn lower_function_body(
         &mut self,
         modifiers: &'gcx [hir::Modifier<'gcx>],

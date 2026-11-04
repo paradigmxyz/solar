@@ -309,7 +309,6 @@ struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
     body: hir::Block<'gcx>,
     next: usize,
-    parameters: BindingSnapshot,
     returns: BindingSnapshot,
     incoming_returns: BindingSnapshot,
 }
