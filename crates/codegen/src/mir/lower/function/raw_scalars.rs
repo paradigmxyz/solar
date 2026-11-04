@@ -47,6 +47,10 @@ struct Exposure<'gcx> {
     /// Each internal function with a binding its pointer flows into.
     pointer_values: Vec<(hir::FunctionId, VariableId)>,
     pointer_calls: Vec<PointerCall<'gcx>>,
+    /// Internal function pointer calls whose result a binding receives, with those bindings.
+    pointer_results: Vec<(hir::ExprId, SmallVec<[VariableId; 4]>)>,
+    /// The pointer calls `sources` met in the expression it last walked.
+    result_calls: SmallVec<[hir::ExprId; 1]>,
     returns: &'gcx [VariableId],
     assembly: bool,
 }
@@ -154,6 +158,9 @@ impl<'gcx> Exposure<'gcx> {
                 self.sources(argument, out);
             }
             ExprKind::Call(callee, _) => {
+                if is_pointer_callee(self.gcx, callee) {
+                    self.result_calls.push(expr.id);
+                }
                 for id in self.callees(callee) {
                     out.extend_from_slice(self.gcx.hir.function(id).returns);
                 }
@@ -164,7 +171,11 @@ impl<'gcx> Exposure<'gcx> {
 
     fn connect(&mut self, destinations: &[VariableId], expr: &hir::Expr<'_>) {
         let mut sources = SmallVec::new();
+        self.result_calls.clear();
         self.sources(expr, &mut sources);
+        for &call in &self.result_calls {
+            self.pointer_results.push((call, destinations.iter().copied().collect()));
+        }
         for &to in destinations {
             let ty = self.gcx.type_of_item(to.into());
             for &from in &sources {
@@ -542,6 +553,8 @@ impl LoweringState {
             pointer_edges: FxHashMap::default(),
             pointer_values: Vec::new(),
             pointer_calls: Vec::new(),
+            pointer_results: Vec::new(),
+            result_calls: SmallVec::new(),
             returns: &[],
             assembly: false,
         };
@@ -636,6 +649,17 @@ impl LoweringState {
             .collect::<Vec<_>>();
         exposure.raw.extend(&enum_parameters);
         exposure.close_raw(enum_parameters);
+        // A retyped pointer returns any word, and a binding that receives it keeps the word
+        // as it is, as via-IR copies it.
+        let results = exposure
+            .pointer_results
+            .iter()
+            .filter(|(call, _)| calls.contains(call))
+            .flat_map(|(_, destinations)| destinations)
+            .copied()
+            .collect::<Vec<_>>();
+        exposure.raw.extend(&results);
+        exposure.close_raw(results);
         self.pointer_registry.assembly_exposed = exposed;
         self.pointer_registry.assembly_calls = calls;
 

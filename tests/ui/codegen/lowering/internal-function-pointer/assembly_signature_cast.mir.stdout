@@ -1,48 +1,48 @@
 ; === ROOT/tests/ui/codegen/lowering/internal-function-pointer/assembly_signature_cast.sol:InternalFunctionPointerAssemblyCast ===
 @module InternalFunctionPointerAssemblyCast
 ; function compareBytes32(bytes32 a, bytes32 b) external pure returns (bool) [selector 0x824a2a4e]
-fn @compareBytes32(arg0: i256, arg1: i256) -> i1 [selector=0x824a2a4e, pure, abi_params=[bytes32, bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @compareBytes32(arg0: i256, arg1: i256) -> i256 [selector=0x824a2a4e, pure, abi_params=[bytes32, bytes32], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 1, arg0, arg1
-    v1 = ne v0, 0
-    ret v1
+    ret v0
 }
 
 ; function compareAddress(uint256 a, uint256 b) external pure returns (bool) [selector 0xf627b917]
-fn @compareAddress(arg0: i256, arg1: i256) -> i1 [selector=0xf627b917, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @compareAddress(arg0: i256, arg1: i256) -> i256 [selector=0xf627b917, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 2, arg0, arg1
-    v1 = ne v0, 0
-    ret v1
+    ret v0
 }
 
 ; function compareInt256(uint256 a, uint256 b) external pure returns (bool) [selector 0x28717b2d]
-fn @compareInt256(arg0: i256, arg1: i256) -> i1 [selector=0x28717b2d, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @compareInt256(arg0: i256, arg1: i256) -> i256 [selector=0x28717b2d, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @internal_dispatcher_p_uint256_uint256_r_bool, 3, arg0, arg1
-    v1 = ne v0, 0
-    ret v1
+    ret v0
 }
 
 ; function _bytes32Greater(bytes32 a, bytes32 b) private pure returns (bool)
-fn @_bytes32Greater(arg0: i256, arg1: i256) -> i1 [pure] {
+fn @_bytes32Greater(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = lt arg1, arg0
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
 ; function _addressGreater(address a, address b) private pure returns (bool)
-fn @_addressGreater(arg0: i160, arg1: i160) -> i1 [pure] {
+fn @_addressGreater(arg0: i160, arg1: i160) -> i256 [pure] {
   bb0:
     v0 = lt arg1, arg0
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
 ; function _int256Less(int256 a, int256 b) private pure returns (bool)
-fn @_int256Less(arg0: i256, arg1: i256) -> i1 [pure] {
+fn @_int256Less(arg0: i256, arg1: i256) -> i256 [pure] {
   bb0:
     v0 = slt arg0, arg1
-    ret v0
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
 fn @internal_dispatcher_p_uint256_uint256_r_bool(arg0: i256, arg1: i256, arg2: i256) -> i256 [function_pointer_dispatcher] {
@@ -50,28 +50,25 @@ fn @internal_dispatcher_p_uint256_uint256_r_bool(arg0: i256, arg1: i256, arg2: i
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
   bb2:                                            ; preds = bb0
-    v3 = eq arg0, 2
-    jumpi v3, bb3, bb4
+    v2 = eq arg0, 2
+    jumpi v2, bb3, bb4
   bb4:                                            ; preds = bb2
-    v10 = eq arg0, 3
-    jumpi v10, bb5, bb6
+    v8 = eq arg0, 3
+    jumpi v8, bb5, bb6
   bb6:                                            ; preds = bb4
     icall panic_if<0x51>, true
     invalid
   bb5:                                            ; preds = bb4
-    v11 = icall @_int256Less, arg1, arg2
-    v12 = zext i1 v11 to i256
-    ret v12
-  bb3:                                            ; preds = bb2
-    v4 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = trunc i256 v4 to i160
-    v6 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
-    v7 = trunc i256 v6 to i160
-    v8 = icall @_addressGreater, v5, v7
-    v9 = zext i1 v8 to i256
+    v9 = icall @_int256Less, arg1, arg2
     ret v9
+  bb3:                                            ; preds = bb2
+    v3 = and arg1, 0xffffffffffffffffffffffffffffffffffffffff
+    v4 = trunc i256 v3 to i160
+    v5 = and arg2, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = trunc i256 v5 to i160
+    v7 = icall @_addressGreater, v4, v6
+    ret v7
   bb1:                                            ; preds = bb0
     v1 = icall @_bytes32Greater, arg1, arg2
-    v2 = zext i1 v1 to i256
-    ret v2
+    ret v1
 }
