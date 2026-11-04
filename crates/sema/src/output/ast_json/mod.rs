@@ -30,7 +30,7 @@ use solar_ast::{self as ast, CommentKind, DocComments, token::TokenLitKind};
 use solar_data_structures::index::IndexVec;
 use solar_interface::{BytePos, Ident, Span, Symbol, kw, source_map::SourceFile};
 use solar_parse::Lexer;
-use std::{borrow::Cow, cell::Cell, fmt};
+use std::{borrow::Cow, cell::Cell, collections::BTreeMap, fmt};
 
 mod expr;
 mod ty;
@@ -118,13 +118,13 @@ impl Serialize for SourceAstJson<'_, '_> {
 
         let mut m = s.serialize_map(None)?;
         m.serialize_entry("id", &json.source_unit_id(id))?;
-        let (license, start) = license_and_start(gcx, file);
+        let start = source_start(gcx, file);
         let (lo, hi) = (start.to_u32() - file.start_pos.to_u32(), file.source_len.to_u32());
         m.serialize_entry("src", &format_args!("{lo}:{}:{}", hi - lo, id.index()))?;
         m.serialize_entry("nodeType", "SourceUnit")?;
         m.serialize_entry("absolutePath", &file.name.display().to_string())?;
         m.serialize_entry("exportedSymbols", &cx.w(ExportedSymbols))?;
-        if let Some(license) = license {
+        if let Some(license) = license(file, &ast.items.raw) {
             m.serialize_entry("license", &license)?;
         }
         let source = gcx.hir.source(id);
@@ -141,21 +141,39 @@ impl Serialize for SourceAstJson<'_, '_> {
     }
 }
 
-/// Returns the SPDX license identifier of a source, from its leading comments, and where its first
-/// token starts.
-fn license_and_start(gcx: Gcx<'_>, file: &SourceFile) -> (Option<String>, BytePos) {
-    let mut license = None;
+/// Returns where the first token of a source starts.
+fn source_start(gcx: Gcx<'_>, file: &SourceFile) -> BytePos {
     let mut tokens = Lexer::from_source_file(gcx.sess, file);
-    let start = loop {
+    loop {
         let Some(token) = tokens.next() else { break file.end_position() };
-        let Some((_, _, comment)) = token.comment() else { break token.span.lo() };
-        if license.is_none()
-            && let Some((_, rest)) = comment.as_str().split_once("SPDX-License-Identifier:")
-        {
-            license = Some(rest.lines().next().unwrap_or_default().trim().to_string());
+        if token.comment().is_none() {
+            break token.span.lo();
         }
-    };
-    (license, start)
+    }
+}
+
+/// Returns the SPDX license identifier of a source, if the text outside its top-level items holds
+/// exactly one.
+///
+/// Reference: `Parser::findLicenseString` in solc's `Parser.cpp`.
+fn license(file: &SourceFile, items: &[ast::Item<'_>]) -> Option<String> {
+    const TAG: &str = "SPDX-License-Identifier:";
+    let offset = |pos: BytePos| (pos - file.start_pos).to_usize();
+    let mut gaps = Vec::with_capacity(items.len() + 1);
+    let mut start = 0;
+    for item in items {
+        gaps.push(&file.src[start..offset(item.span.lo())]);
+        start = offset(item.span.hi());
+    }
+    gaps.push(&file.src[start..]);
+    // A license ends at the end of its line or comment, and is not empty.
+    let mut licenses = gaps.into_iter().flat_map(|gap| gap.split(TAG).skip(1)).filter_map(|text| {
+        let text = text.trim_start();
+        let end = text.find(['\n', '\r']).into_iter().chain(text.find("*/")).min()?;
+        Some(text[..end].trim()).filter(|license| !license.is_empty())
+    });
+    let license = licenses.next()?;
+    licenses.next().is_none().then(|| license.to_string())
 }
 
 /// The writer of a source: the source being written and what its nodes need to refer to other
@@ -297,20 +315,51 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         self.node_with_id(s, self.item_id(id), node_type, span)
     }
 
-    /// Returns the ID of the import directive that declares the module alias `alias` of `source`.
+    /// Returns the ID of the import directive that declares the module alias `alias` of `source`
+    /// in the scope of `from`.
     ///
-    /// The declaration may come from another source that this one imports.
-    fn import_id(self, alias: Symbol, source: SourceId) -> Option<usize> {
-        let hir = &self.gcx.hir;
-        let mut sources =
-            std::iter::once(self.source).chain(hir.source_ids().filter(|&id| id != self.source));
-        sources.find_map(|id| {
-            let ast = self.gcx.sources[id].ast.as_ref()?;
-            let index = hir.source(id).imports.iter().position(|&(item, imported)| {
-                let ast::ItemKind::Import(import) = &ast.items[item].kind else { return false };
-                imported == source && import.source_alias().is_some_and(|ident| ident.name == alias)
-            })?;
-            Some(self.json.first_imports[id] + index)
+    /// The declaration may come from a source that `from` imports the alias from.
+    fn import_id(self, from: SourceId, alias: Symbol, source: SourceId) -> Option<usize> {
+        self.find_import(from, alias, source, &mut Vec::new())
+    }
+
+    fn find_import(
+        self,
+        from: SourceId,
+        alias: Symbol,
+        source: SourceId,
+        visited: &mut Vec<(SourceId, Symbol)>,
+    ) -> Option<usize> {
+        if visited.contains(&(from, alias)) {
+            return None;
+        }
+        visited.push((from, alias));
+        let ast = self.gcx.sources[from].ast.as_ref()?;
+        let imports = &self.gcx.hir.source(from).imports;
+        let import = |item: ast::ItemId| match &ast.items[item].kind {
+            ast::ItemKind::Import(import) => import,
+            _ => unreachable!("lowering does not match the AST"),
+        };
+        let own = imports.iter().position(|&(item, imported)| {
+            imported == source
+                && import(item).source_alias().is_some_and(|ident| ident.name == alias)
+        });
+        if let Some(position) = own {
+            return Some(self.json.first_imports[from] + position);
+        }
+        imports.iter().find_map(|&(item, imported)| {
+            let name = match &import(item).items {
+                ast::ImportItems::Plain(None) => alias,
+                ast::ImportItems::Aliases(aliases) => {
+                    aliases
+                        .iter()
+                        .find(|&&(foreign, local)| local.unwrap_or(foreign).name == alias)?
+                        .0
+                        .name
+                }
+                ast::ImportItems::Plain(Some(_)) | ast::ImportItems::Glob(_) => return None,
+            };
+            self.find_import(imported, name, source, visited)
         })
     }
 
@@ -478,7 +527,7 @@ impl Serialize for W<'_, '_, ExportedSymbols> {
                 .iter()
                 .filter_map(|decl| match decl.res {
                     hir::Res::Item(id) => Some(cx.item_id(id)),
-                    hir::Res::Namespace(source) => cx.import_id(name, source),
+                    hir::Res::Namespace(source) => cx.import_id(cx.source, name, source),
                     hir::Res::Builtin(_) | hir::Res::Err(_) => None,
                 })
                 .collect::<Vec<_>>();
@@ -669,6 +718,7 @@ impl Serialize for W<'_, '_, (Ident, SourceId)> {
             })
             .and_then(|declaration| match declaration.res {
                 hir::Res::Item(id) => Some(cx.item_id(id)),
+                hir::Res::Namespace(source) => cx.import_id(*imported, foreign.name, source),
                 _ => None,
             });
         if let Some(declaration) = declaration {
@@ -804,6 +854,18 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemContract<'_>, ContractId
         if !c.linearization_failed() {
             let linearized = c.linearized_bases.iter().map(|&base| cx.item_id(base));
             m.serialize_entry("linearizedBaseContracts", &linearized.collect::<Vec<_>>())?;
+        }
+        // Functions that function pointers reach are numbered from 1 in the order solc creates
+        // their nodes: by source name, then by position.
+        let mut targets = gcx.contract_internal_dispatch_targets(*id).iter().collect::<Vec<_>>();
+        targets.sort_by_cached_key(|&function| {
+            let function = gcx.hir.function(function);
+            (gcx.hir.source(function.source).file.name.display().to_string(), function.span.lo())
+        });
+        if !targets.is_empty() {
+            let ids =
+                targets.iter().zip(1..).map(|(&function, n)| (cx.item_id(function).to_string(), n));
+            m.serialize_entry("internalFunctionIDs", &ids.collect::<BTreeMap<_, usize>>())?;
         }
         m.end()
     }

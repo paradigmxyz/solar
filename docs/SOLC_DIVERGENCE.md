@@ -548,44 +548,36 @@ Status: parity debt for the types of a few expressions; intentional for the
 rest.
 
 Difference: `solar` writes the compact AST JSON of `solc` (the `ast` output of
-Standard JSON and `--emit=ast`). `solar` leaves out `internalFunctionIDs`,
-which `solc` fills from its call graph's set of internal dispatch targets,
-numbered by its own node order, whenever a contract uses internal function
-pointers. Only `solc`'s via-IR code generation reads it. Node IDs do not follow
-the numbering of `solc`: items take the IDs that `immutableReferences`, the
-storage layout and ETHDebug report, source units and imports follow them, and
-every other node takes the next free ID. `solar` leaves out the `EnumValue`
-documentation, which its AST does not keep, and reads `contractDependencies`,
-`usedEvents` and `usedErrors` from the call graph used for code generation. The
-source index in a `src` and the `id` of a source follow the order of the sources
-after sorting them by their imports, where `solc` sorts them by name, and the
-IDs of the nodes that are no items depend on the order in which the sources are
-written. It reads the `license` only from the comments before the first token, and includes
-a comment between a variable and its `;` in the location of the variable. For a
-module alias that reaches a source through another source's imports,
-`exportedSymbols`, imported symbols and identifiers name the first directive
-that declares an alias to that source, which differs from `solc` when several
-sources declare the same alias.
+Standard JSON and `--emit=ast`). Node IDs do not follow the numbering of
+`solc`: items take the IDs that `immutableReferences`, the storage layout and
+ETHDebug report, source units and imports follow them, and every other node
+takes the next free ID. `internalFunctionIDs` numbers the functions that
+internal function pointers reach by source name and position, as `solc` numbers
+its nodes, but leaves out a function that is only called through parentheses,
+such as `(f)()`, which `solc` counts as a function value: lowering removes the
+parentheses of a callee. `solar` leaves out the `EnumValue` documentation, which
+its AST does not keep, and reads `contractDependencies`, `usedEvents` and `usedErrors` from the
+call graph used for code generation. The source index in a `src` and the `id` of
+a source follow the order of the sources after sorting them by their imports,
+where `solc` sorts them by name, and the IDs of the nodes that are no items
+depend on the order in which the sources are written. `solar` includes a comment
+between a variable and its `;` in the location of the variable.
 
 The attributes of expressions come from the type checker, and differ in these
 cases:
 
-- the type of an array literal such as `[1, 2, 3]` is `uint256[3] memory`, where
-  `solc` gives `uint8[3] memory`;
 - a builtin function that is the component of a tuple, such as `abi.encode` in
   `(abi.encode, 2)`, has the kind `internal` and no call options, and
   `abi.decode` there keeps its parameters, where `solc` gives the kind of the
-  builtin and `function () pure`, and a parenthesized `require` message that is an error call, such as `require(c, (E()))`, has the type
-  `tuple()` where `solc` has `error`;
-- the type of an isolated `arr.pop` is a `storage ref`, and that of an attached
-  external library function whose receiver is in calldata keeps `calldata`, where
-  `solc` gives `storage pointer` and `memory`;
-- `isPure` of `type(L.E).min` and `type(L.E).max` is `true` for an enum `E` of a
-  library `L`;
+  builtin and `function () pure`;
+- `isPure` of `type(L.E)`, `type(L.E).min` and `type(L.E).max` is `true` for an
+  enum `E` that a library or contract `L` declares, where `solc` has `false` for
+  the name `L.E`, which lowering reduces to the type;
 - `solc` types `require` and the functions attached to a type from the call, which
   `solar` rebuilds from the arguments and the declared receiver;
-- `isPure` of a member of `abi.decode(...)`, of a tuple that holds a type declared
-  in a contract, and of a few member accesses through a getter, differ;
+- before Byzantium, only the call of an external function with one dynamically
+  encoded return value gets the inaccessible dynamic type; a tuple of returns
+  and a bare `call` keep the types of their components;
 - the names before the last one in the callee of `emit` and `revert`, and in the
   argument of `type(...)`, take their resolution from name resolution alone;
 - `isSimpleCounterLoop` does not look for writes in inline assembly.
@@ -596,8 +588,15 @@ numbering, and the differences of the types do not change what an expression
 refers to.
 
 Coverage: `tests/ui/standard-json/ast/test.jsonc`,
+`tests/ui/standard-json/ast-attached/test.jsonc`,
 `tests/ui/standard-json/ast-ids/test.jsonc`,
 `tests/ui/standard-json/ast-immutables/test.jsonc`,
+`tests/ui/standard-json/ast-import-aliases/test.jsonc`,
+`tests/ui/standard-json/ast-inaccessible/test.jsonc`,
+`tests/ui/standard-json/ast-internal-function-ids/test.jsonc`,
+`tests/ui/standard-json/ast-is-pure/test.jsonc`,
+`tests/ui/standard-json/ast-license/test.jsonc`,
+`tests/ui/standard-json/ast-tuples/test.jsonc`,
 `tests/ui/standard-json/ast-yul/test.jsonc`,
 `tests/ui/standard-json/ast-yul-hosts/test.jsonc` and
 `tests/ui/cli/emit_ast.sol`.

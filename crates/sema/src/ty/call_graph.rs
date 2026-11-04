@@ -8,7 +8,7 @@ pub(super) struct ReferencedItems {
     pub(super) events: DenseBitSet<hir::EventId>,
     pub(super) errors: DenseBitSet<hir::ErrorId>,
     pub(super) bytecode_dependencies: DenseBitSet<hir::ContractId>,
-    internal_dispatch_targets: DenseBitSet<hir::FunctionId>,
+    pub(super) internal_dispatch_targets: DenseBitSet<hir::FunctionId>,
 }
 
 pub(super) struct InterfaceItems {

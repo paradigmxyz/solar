@@ -211,8 +211,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, &hir::Stmt<'gcx>)> {
             (ast::StmtKind::DeclSingle(ast), StmtKind::DeclSingle(id)) => {
                 let (mut m, _) = cx.stmt_node(s, "VariableDeclarationStatement", span, docs)?;
                 m.serialize_entry("assignments", &[cx.item_id(*id)])?;
-                // solc parses the type of a single declaration as an expression first, unlike those
-                // of a tuple declaration.
+                // solc parses the type of a single declaration as an expression first.
                 let single = Cx { in_local: true, ..*cx };
                 m.serialize_entry("declarations", &[local(single, ast, *id)])?;
                 let initial_value =
@@ -224,9 +223,14 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, &hir::Stmt<'gcx>)> {
                 let (mut m, _) = cx.stmt_node(s, "VariableDeclarationStatement", span, docs)?;
                 let assignments = Seq(|| ids.iter().map(|id| id.map(|id| cx.item_id(id))));
                 m.serialize_entry("assignments", &assignments)?;
+                // solc parses the type of the first variable of a tuple declaration as an
+                // expression too, but not those of the others.
+                let first = vars.iter().position(|var| matches!(var, SpannedOption::Some(_)));
                 let declarations = Seq(|| {
-                    vars.iter().zip(*ids).map(|(var, id)| match (var, id) {
-                        (SpannedOption::Some(var), Some(id)) => Some(local(*cx, var, *id)),
+                    vars.iter().zip(*ids).enumerate().map(|(i, (var, id))| match (var, id) {
+                        (SpannedOption::Some(var), Some(id)) => {
+                            Some(local(Cx { in_local: first == Some(i), ..*cx }, var, *id))
+                        }
                         _ => None,
                     })
                 });
@@ -515,7 +519,8 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
             (ast::ExprKind::Ident(ident), hir::ExprKind::Ident(resolutions)) => {
                 let (mut m, _) = cx.node(s, "Identifier", span)?;
                 m.serialize_entry("name", ident.as_str())?;
-                let declaration = gcx.resolved_expr(hir).and_then(|res| cx.reference(res, *ident));
+                let declaration =
+                    gcx.resolved_expr(hir).and_then(|res| cx.reference(res, *ident, None));
                 serialize_opt(&mut m, "referencedDeclaration", declaration)?;
                 m.serialize_entry("overloadedDeclarations", &cx.overloads(resolutions))?;
                 m.serialize_entry("typeDescriptions", &ExprType::new(gcx, hir).args(parent.args))?;
@@ -549,7 +554,8 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
                 m.serialize_entry("memberLocation", &cx.src(member.span))?;
                 m.serialize_entry("expression", &cx.w((&**base, *hir_base)))?;
                 let res = gcx.resolved_expr(hir);
-                let declaration = res.and_then(|res| cx.reference(res, *member));
+                let base_res = gcx.resolved_expr(hir_base);
+                let declaration = res.and_then(|res| cx.reference(res, *member, base_res));
                 serialize_opt(&mut m, "referencedDeclaration", declaration)?;
                 cx.expr_attrs(&mut m, hir, parent, member_is_lvalue(gcx, hir_base, res))?;
                 m.end()
@@ -768,10 +774,18 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
 
     /// Returns the ID of the declaration that an identifier refers to: solc gives negative IDs to
     /// the builtins.
-    fn reference(self, res: Res, ident: Ident) -> Option<i64> {
+    ///
+    /// The identifier is a member of `base` if that is a module, and else a name in this source.
+    fn reference(self, res: Res, ident: Ident, base: Option<Res>) -> Option<i64> {
         match res {
             Res::Builtin(builtin) => builtin.solc_id(),
-            Res::Namespace(source) => Some(self.import_id(ident.name, source)? as i64),
+            Res::Namespace(source) => {
+                let scope = match base {
+                    Some(Res::Namespace(module)) => module,
+                    _ => self.source,
+                };
+                Some(self.import_id(scope, ident.name, source)? as i64)
+            }
             Res::Item(_) | Res::Err(_) => self.item_reference(res).map(|id| id as i64),
         }
     }
@@ -1076,7 +1090,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, PathExpr<'_, 'gcx>> {
         if rest.is_empty() {
             let (mut m, _) = cx.node(s, "Identifier", span)?;
             m.serialize_entry("name", ident.as_str())?;
-            let declaration = res_last.and_then(|res| cx.reference(res, ident));
+            let declaration = res_last.and_then(|res| cx.reference(res, ident, None));
             serialize_opt(&mut m, "referencedDeclaration", declaration)?;
             let overloads = match last.map(|last| &last.kind) {
                 Some(hir::ExprKind::Ident(resolutions)) => cx.overloads(resolutions),
@@ -1097,7 +1111,8 @@ impl<'gcx> Serialize for W<'_, 'gcx, PathExpr<'_, 'gcx>> {
             parent: Parent::default(),
         };
         m.serialize_entry("expression", &cx.w(base))?;
-        let declaration = res_last.and_then(|res| cx.reference(res, ident));
+        let base_res = res[rest.len() - 1];
+        let declaration = res_last.and_then(|res| cx.reference(res, ident, base_res));
         serialize_opt(&mut m, "referencedDeclaration", declaration)?;
         descriptions(&mut m)?;
         cx.argument_types(&mut m, *parent)?;

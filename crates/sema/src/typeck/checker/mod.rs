@@ -845,7 +845,13 @@ impl<'gcx> TypeChecker<'gcx> {
                                 .emit();
                         }
                         self.register_resolved_member(expr, member);
-                        member.ty
+                        // The receiver of an attached function that nothing calls stays its
+                        // first parameter, and the type remembers it.
+                        if member.attached {
+                            member.ty.as_attached_function(self.gcx)
+                        } else {
+                            member.ty
+                        }
                     }
                     Err(MemberAccessError::NotFound) => {
                         let msg = format!(

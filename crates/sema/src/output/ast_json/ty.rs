@@ -5,8 +5,9 @@ use crate::{
     builtins::Builtin,
     eval::ConstValue,
     hir,
-    ty::{Component, Gcx, Ty, TyFn, TyKind, TySolcPrinter},
+    ty::{Component, Gcx, Ty, TyFn, TyFnKind, TyKind, TySolcPrinter},
 };
+use alloy_primitives::U256;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use solar_ast::{self as ast, DataLocation, ElementaryType};
 use solar_interface::{Ident, Span, kw, sym};
@@ -96,12 +97,27 @@ impl Serialize for ExprType<'_, '_> {
         let Self { gcx, expr, args } = *self;
         let Some(mut ty) = expr_ty(gcx, expr) else { return Empty.serialize(s) };
         // The call of an error has the magic type `error`.
-        if let hir::ExprKind::Call(callee, _) = expr.kind
+        if let hir::ExprKind::Call(callee, _) = expr.peel_parens().kind
             && matches!(gcx.type_of_expr(callee.id), Some(ty) if matches!(ty.kind, TyKind::Error(..)))
         {
             let mut m = s.serialize_map(Some(2))?;
             m.serialize_entry("typeIdentifier", "t_error")?;
             m.serialize_entry("typeString", "error")?;
+            return m.end();
+        }
+        // Before Byzantium, the dynamically encoded value of an external call has no size to read.
+        if let hir::ExprKind::Call(callee, _) = expr.peel_parens().kind
+            && !gcx.sess.opts.evm_version.supports_returndata()
+            && let Some(callee_ty) = gcx.type_of_expr(callee.id)
+            && let TyKind::Fn(f) = callee_ty.kind
+            && matches!(f.kind, TyFnKind::External | TyFnKind::DelegateCall)
+            && let [ret] = f.returns
+            && !ret.encodes_as_slot()
+            && ret.is_dynamically_encoded(gcx)
+        {
+            let mut m = s.serialize_map(Some(2))?;
+            m.serialize_entry("typeIdentifier", "t_inaccessible")?;
+            m.serialize_entry("typeString", "inaccessible dynamic type")?;
             return m.end();
         }
         let builtin = gcx.resolved_expr(expr.peel_parens()).and_then(|res| res.as_builtin());
@@ -114,11 +130,20 @@ impl Serialize for ExprType<'_, '_> {
                     if gcx.resolved_callee(callee.id).is_some_and(|callee| callee.attached) =>
                 {
                     // The receiver has the type that the function declares.
-                    let declared =
-                        f.function_id.and_then(|id| match gcx.type_of_item(id.into()).kind {
+                    let declared = f.function_id.and_then(|id| {
+                        let declared = gcx.type_of_item(id.into());
+                        // A public library function takes its calldata parameters in memory.
+                        let declared = match f.kind {
+                            TyFnKind::DelegateCall => {
+                                declared.as_externally_callable_function(true, gcx)
+                            }
+                            _ => declared,
+                        };
+                        match declared.kind {
                             TyKind::Fn(declared) => declared.parameters.first().copied(),
                             _ => None,
-                        });
+                        }
+                    });
                     declared.or_else(|| expr_ty(gcx, base))
                 }
                 _ => None,
@@ -200,6 +225,13 @@ fn tuple_components<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Vec<Compone
 /// Returns the type of the expression, which type checking leaves out for a type in an
 /// expression, such as `uint256` in `abi.decode(data, (uint256))`.
 pub(super) fn expr_ty<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
+    // solc types an inline array by the common mobile type of its elements, not by the type that
+    // type checking seeds it with from its destination.
+    if let hir::ExprKind::Array(elements) = expr.kind
+        && let Some(ty) = inline_array_ty(gcx, elements)
+    {
+        return Some(ty);
+    }
     gcx.type_of_expr(expr.id).or_else(|| match &expr.kind {
         hir::ExprKind::Type(ty) => Some(gcx.mk_ty(TyKind::Type(gcx.type_of_hir_ty(ty)))),
         hir::ExprKind::Lit(lit) => Some(gcx.type_of_lit(lit)),
@@ -213,6 +245,18 @@ pub(super) fn expr_ty<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Option<Ty
         }
         _ => None,
     })
+}
+
+/// Returns the type of an inline array: the memory array of the common mobile type of its
+/// elements.
+fn inline_array_ty<'gcx>(gcx: Gcx<'gcx>, elements: &[hir::Expr<'gcx>]) -> Option<Ty<'gcx>> {
+    let (first, rest) = elements.split_first()?;
+    let mut common = expr_ty(gcx, first)?.mobile(gcx)?;
+    for element in rest {
+        common = common.common_type(expr_ty(gcx, element)?, gcx)?;
+    }
+    let array = TyKind::Array(common.peel_refs(), U256::from(elements.len()));
+    Some(gcx.mk_ty(array).with_loc(gcx, DataLocation::Memory))
 }
 
 /// Returns the type of the message of `require`: `error` for a call of an error, else the type

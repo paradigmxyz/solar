@@ -12,15 +12,19 @@ impl<'gcx> TypeckResults<'gcx> {
     /// Expressions without a type or with an erroneous type count as pure to avoid follow-up
     /// errors.
     pub(crate) fn is_pure(&self, gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> bool {
-        let Some(ty) = self.type_of_expr(expr.id) else { return true };
+        let Some(ty) = self.type_of_expr(expr.id) else {
+            // The type tuple of `abi.decode` has no type of its own, but its components do.
+            return match expr.kind {
+                hir::ExprKind::Tuple(exprs) => self.is_tuple_pure(gcx, exprs),
+                _ => true,
+            };
+        };
         if ty.references_error() {
             return true;
         }
         match expr.kind {
             hir::ExprKind::Array(exprs) => exprs.iter().all(|expr| self.is_pure(gcx, expr)),
-            hir::ExprKind::Tuple(exprs) => {
-                exprs.iter().all(|expr| expr.is_some_and(|expr| self.is_pure(gcx, expr)))
-            }
+            hir::ExprKind::Tuple(exprs) => self.is_tuple_pure(gcx, exprs),
             hir::ExprKind::Assign(..)
             | hir::ExprKind::CallOptions(..)
             | hir::ExprKind::Delete(_)
@@ -122,9 +126,16 @@ impl<'gcx> TypeckResults<'gcx> {
         }
     }
 
+    fn is_tuple_pure(&self, gcx: Gcx<'gcx>, exprs: &[Option<&hir::Expr<'gcx>>]) -> bool {
+        exprs.iter().all(|expr| expr.is_some_and(|expr| self.is_pure(gcx, expr)))
+    }
+
+    /// Returns whether the expression is a constant variable, or the getter of one.
     fn is_constant_res(&self, gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> bool {
-        self.resolved_expr(expr)
-            .and_then(|res| res.as_variable())
-            .is_some_and(|id| gcx.hir.variable(id).is_constant())
+        let variable = match self.resolved_expr(expr) {
+            Some(hir::Res::Item(hir::ItemId::Function(id))) => gcx.hir.function(id).gettee,
+            res => res.and_then(|res| res.as_variable()),
+        };
+        variable.is_some_and(|id| gcx.hir.variable(id).is_constant())
     }
 }

@@ -223,7 +223,9 @@ compiler-diff --dir /tmp/solc-suite compare --continue-on-failure
 
 `import-directory` reads `.sol` files recursively, with `--format solc`
 (default) for solc fixtures or `--format solidity` for plain sources. Each file
-is an entry point that pulls in its imports. Identical inputs deduplicate.
+is an entry point that pulls in its imports. Plain sources keep their path
+relative to the imported directory as the source-unit name, so `test/A.t.sol`
+importing `../src/A.sol` resolves to `src/A.sol`. Identical inputs deduplicate.
 Comparisons cover every emitted contract, so no target is needed.
 
 For solc fixtures, the importer splits `==== Source:` sections, loads

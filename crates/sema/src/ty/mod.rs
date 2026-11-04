@@ -1605,6 +1605,16 @@ impl<'gcx> Gcx<'gcx> {
         functions
     }
 
+    /// Returns the functions that internal function pointers of the given contract can reach.
+    ///
+    /// Creation code reaches a subset of what the runtime code reaches.
+    pub fn contract_internal_dispatch_targets(
+        self,
+        id: hir::ContractId,
+    ) -> &'gcx DenseBitSet<hir::FunctionId> {
+        &self.interface_items(id).deployed.internal_dispatch_targets
+    }
+
     /// Returns the contracts whose bytecode is referenced by the given contract.
     pub fn contract_bytecode_dependencies(
         self,
