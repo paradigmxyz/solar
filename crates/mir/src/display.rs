@@ -210,8 +210,11 @@ pub(crate) fn display_function_text<'a>(
         fmt::from_fn(move |f| {
             let label = fmt::from_fn(|f| {
                 write!(f, "  bb{}", block_id.index())?;
-                if block.hotness.is_cold() {
-                    write!(f, " [cold]")?;
+                match (block.hotness.is_cold(), block.cold_hint) {
+                    (false, false) => {}
+                    (true, false) => write!(f, " [cold]")?,
+                    (false, true) => write!(f, " [cold_hint]")?,
+                    (true, true) => write!(f, " [cold, cold_hint]")?,
                 }
                 write!(f, ":")
             });

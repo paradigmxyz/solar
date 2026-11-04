@@ -24,12 +24,12 @@ fn @sameShortLiteralSalt() -> i1 [selector=0xae55518d, abi_params=[], abi_return
     v6: i256 = create2 0, v5, v4, 0x78797a0000000000000000000000000000000000000000000000000000000000
     v7 = ne v6, 0
     jumpi v7, bb3, bb4
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:                                            ; preds = bb4
+  bb7 [cold_hint]:                                ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:                                            ; preds = bb4
+  bb6 [cold_hint]:                                ; preds = bb4
     ret true
   bb3:                                            ; preds = bb2
     ret false
@@ -55,12 +55,12 @@ fn @sameEmptyLiteralSalt() -> i1 [selector=0x01dd6ed9, abi_params=[], abi_return
     v6: i256 = create2 0, v5, v4, 0
     v7 = ne v6, 0
     jumpi v7, bb3, bb4
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:                                            ; preds = bb4
+  bb7 [cold_hint]:                                ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:                                            ; preds = bb4
+  bb6 [cold_hint]:                                ; preds = bb4
     ret true
   bb3:                                            ; preds = bb2
     ret false
@@ -86,12 +86,12 @@ fn @sameFullLiteralSalt() -> i1 [selector=0xaf96a2f0, abi_params=[], abi_returns
     v6: i256 = create2 0, v5, v4, 0x3132333435363738393031323334353637383930313233343536373839303132
     v7 = ne v6, 0
     jumpi v7, bb3, bb4
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:                                            ; preds = bb4
+  bb7 [cold_hint]:                                ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:                                            ; preds = bb4
+  bb6 [cold_hint]:                                ; preds = bb4
     ret true
   bb3:                                            ; preds = bb2
     ret false
