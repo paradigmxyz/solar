@@ -9,6 +9,9 @@ pub(super) struct ReferencedItems {
     pub(super) errors: DenseBitSet<hir::ErrorId>,
     pub(super) bytecode_dependencies: DenseBitSet<hir::ContractId>,
     pub(super) internal_dispatch_targets: DenseBitSet<hir::FunctionId>,
+    /// The functions that a call names in parentheses, which solc counts as dispatch targets but
+    /// code generation does not need to.
+    pub(super) parenthesized_targets: Vec<hir::FunctionId>,
 }
 
 pub(super) struct InterfaceItems {
@@ -24,6 +27,7 @@ impl ReferencedItems {
             errors: DenseBitSet::new_empty(gcx.hir.error_ids().count()),
             bytecode_dependencies: DenseBitSet::new_empty(gcx.hir.contract_ids().count()),
             internal_dispatch_targets: DenseBitSet::new_empty(gcx.hir.function_ids().count()),
+            parenthesized_targets: Vec::new(),
         }
     }
 }
@@ -310,6 +314,13 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
 
         if let Some((callee, args, options)) = expr.as_call() {
             let direct = self.collect_call(callee);
+            // Lowering drops the parentheses of a callee, which leaves it starting after its call.
+            if direct
+                && callee.span.lo() > expr.span.lo()
+                && let Some(function) = self.gcx.internal_call_target(Some(self.contract), callee)
+            {
+                self.graph.parenthesized_targets.push(function);
+            }
             let previous = self.direct_callee;
             if direct {
                 self.direct_callee = Some(callee.id);

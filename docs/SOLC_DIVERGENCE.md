@@ -552,10 +552,8 @@ Standard JSON and `--emit=ast`). Node IDs do not follow the numbering of
 `solc`: items take the IDs that `immutableReferences`, the storage layout and
 ETHDebug report, source units and imports follow them, and every other node
 takes the next free ID. `internalFunctionIDs` numbers the functions that
-internal function pointers reach by source name and position, as `solc` numbers
-its nodes, but leaves out a function that is only called through parentheses,
-such as `(f)()`, which `solc` counts as a function value: lowering removes the
-parentheses of a callee. `solar` leaves out the `EnumValue` documentation, which
+function values reach by source name and position, as `solc` numbers its nodes.
+`solar` leaves out the `EnumValue` documentation, which
 its AST does not keep, and reads `contractDependencies`, `usedEvents` and `usedErrors` from the
 call graph used for code generation. The source index in a `src` and the `id` of
 a source follow the order of the sources after sorting them by their imports,

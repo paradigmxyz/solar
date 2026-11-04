@@ -15,6 +15,10 @@
 // CHECK-NEXT: "{{[0-9]+}}": 1,
 // CHECK-NEXT: "{{[0-9]+}}": 2
 // CHECK-NEXT: }
+// CHECK: "name": "Parenthesized"
+// CHECK: "internalFunctionIDs": {
+// CHECK-NEXT: "{{[0-9]+}}": 1
+// CHECK-NEXT: }
 {
   "language": "Solidity",
   "settings": {

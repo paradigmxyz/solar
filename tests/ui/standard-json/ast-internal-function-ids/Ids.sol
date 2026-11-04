@@ -39,3 +39,16 @@ contract Derived is Base {
         pick()();
     }
 }
+
+// A function that a call names in parentheses is a function value, and one it calls directly is
+// not.
+contract Parenthesized {
+    function direct() internal pure {}
+
+    function parenthesized() internal pure {}
+
+    function run() public pure {
+        direct();
+        (parenthesized)();
+    }
+}

@@ -1662,14 +1662,23 @@ impl<'gcx> Gcx<'gcx> {
         functions
     }
 
-    /// Returns the functions that internal function pointers of the given contract can reach.
+    /// Returns the functions that function values of the given contract can reach, which solc
+    /// calls its internal dispatch targets: those that code generation dispatches to, and those a
+    /// call names in parentheses.
     ///
     /// Creation code reaches a subset of what the runtime code reaches.
     pub fn contract_internal_dispatch_targets(
         self,
         id: hir::ContractId,
-    ) -> &'gcx DenseBitSet<hir::FunctionId> {
-        &self.interface_items(id).deployed.internal_dispatch_targets
+    ) -> DenseBitSet<hir::FunctionId> {
+        let items = self.interface_items(id);
+        let mut targets = items.deployed.internal_dispatch_targets.clone();
+        for &function in
+            items.creation.parenthesized_targets.iter().chain(&items.deployed.parenthesized_targets)
+        {
+            targets.insert(function);
+        }
+        targets
     }
 
     /// Returns the contracts whose bytecode is referenced by the given contract.

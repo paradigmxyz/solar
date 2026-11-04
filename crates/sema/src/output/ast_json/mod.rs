@@ -20,7 +20,8 @@
 //! [`Hir::global_item_id`]: crate::hir::Hir::global_item_id
 
 use crate::{
-    hir::{self, ContractId, ItemId, SourceId, VariableId},
+    ast_lowering::resolve::Declaration,
+    hir::{self, ContractId, ItemId, Res, SourceId, VariableId},
     ty::Gcx,
     typeck::override_checker::is_fully_implemented,
 };
@@ -315,52 +316,18 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         self.node_with_id(s, self.item_id(id), node_type, span)
     }
 
-    /// Returns the ID of the import directive that declares the module alias `alias` of `source`
-    /// in the scope of `from`.
-    ///
-    /// The declaration may come from a source that `from` imports the alias from.
-    fn import_id(self, from: SourceId, alias: Symbol, source: SourceId) -> Option<usize> {
-        self.find_import(from, alias, source, &mut Vec::new())
+    /// Returns the ID of the import directive that declares a module alias.
+    fn import_id(self, declaration: &Declaration) -> Option<usize> {
+        let import = declaration.import?;
+        Some(self.json.first_imports[import.source] + import.position)
     }
 
-    fn find_import(
-        self,
-        from: SourceId,
-        alias: Symbol,
-        source: SourceId,
-        visited: &mut Vec<(SourceId, Symbol)>,
-    ) -> Option<usize> {
-        if visited.contains(&(from, alias)) {
-            return None;
-        }
-        visited.push((from, alias));
-        let ast = self.gcx.sources[from].ast.as_ref()?;
-        let imports = &self.gcx.hir.source(from).imports;
-        let import = |item: ast::ItemId| match &ast.items[item].kind {
-            ast::ItemKind::Import(import) => import,
-            _ => unreachable!("lowering does not match the AST"),
-        };
-        let own = imports.iter().position(|&(item, imported)| {
-            imported == source
-                && import(item).source_alias().is_some_and(|ident| ident.name == alias)
-        });
-        if let Some(position) = own {
-            return Some(self.json.first_imports[from] + position);
-        }
-        imports.iter().find_map(|&(item, imported)| {
-            let name = match &import(item).items {
-                ast::ImportItems::Plain(None) => alias,
-                ast::ImportItems::Aliases(aliases) => {
-                    aliases
-                        .iter()
-                        .find(|&&(foreign, local)| local.unwrap_or(foreign).name == alias)?
-                        .0
-                        .name
-                }
-                ast::ImportItems::Plain(Some(_)) | ast::ImportItems::Glob(_) => return None,
-            };
-            self.find_import(imported, name, source, visited)
-        })
+    /// Returns the ID of the import directive that declares the module alias `alias` of `source`
+    /// in the scope of `from`, which name resolution recorded in the declaration.
+    fn module_alias_id(self, from: SourceId, alias: Ident, source: SourceId) -> Option<usize> {
+        let declarations = self.gcx.symbol_resolver.source_scopes[from].resolve(alias)?;
+        let declaration = declarations.iter().find(|decl| decl.res == Res::Namespace(source))?;
+        self.import_id(declaration)
     }
 
     /// Returns the source text of a span.
@@ -527,7 +494,7 @@ impl Serialize for W<'_, '_, ExportedSymbols> {
                 .iter()
                 .filter_map(|decl| match decl.res {
                     hir::Res::Item(id) => Some(cx.item_id(id)),
-                    hir::Res::Namespace(source) => cx.import_id(cx.source, name, source),
+                    hir::Res::Namespace(_) => cx.import_id(decl),
                     hir::Res::Builtin(_) | hir::Res::Err(_) => None,
                 })
                 .collect::<Vec<_>>();
@@ -718,7 +685,7 @@ impl Serialize for W<'_, '_, (Ident, SourceId)> {
             })
             .and_then(|declaration| match declaration.res {
                 hir::Res::Item(id) => Some(cx.item_id(id)),
-                hir::Res::Namespace(source) => cx.import_id(*imported, foreign.name, source),
+                hir::Res::Namespace(_) => cx.import_id(declaration),
                 _ => None,
             });
         if let Some(declaration) = declaration {

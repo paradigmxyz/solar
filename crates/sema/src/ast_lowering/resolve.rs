@@ -33,19 +33,25 @@ impl super::LoweringContext<'_> {
                     }
                     let item = self.hir.item(item_id);
                     if let Some(name) = item.name() {
-                        let decl = Declaration { res: Res::Item(item_id), span: name.span };
+                        let decl =
+                            Declaration { res: Res::Item(item_id), span: name.span, import: None };
                         let _ = self.declare_in(&mut scope, name.name, decl);
                     }
                 }
                 // Declare module aliases before performing any imports so that cyclic importers
                 // can import them regardless of source order.
-                for &(item_id, import_id) in source.imports {
+                for (position, &(item_id, import_id)) in source.imports.iter().enumerate() {
                     let ast = self.sources[source_id].ast.as_ref().unwrap();
                     let ast::ItemKind::Import(import) = &ast.items[item_id].kind else {
                         unreachable!()
                     };
                     if let Some(alias) = import.source_alias() {
-                        let _ = self.declare_kind_in(&mut scope, alias, Res::Namespace(import_id));
+                        let decl = Declaration {
+                            res: Res::Namespace(import_id),
+                            span: alias.span,
+                            import: Some(ImportDirective { source: source_id, position }),
+                        };
+                        let _ = self.declare_in(&mut scope, alias.name, decl);
                     }
                 }
                 scope
@@ -2493,7 +2499,7 @@ impl SymbolResolverScopes {
         name: Ident,
         res: Res,
     ) -> Result<(), ErrorGuaranteed> {
-        let decl = Declaration { res, span: name.span };
+        let decl = Declaration { res, span: name.span, import: None };
         if let Err(previous) = self.current_scope().declare_new(name.name, decl) {
             let (kind, code) = match res {
                 Res::Item(hir::ItemId::Function(_)) => ("function", error_code!(6052)),
@@ -2621,7 +2627,7 @@ impl Declarations {
         name: Ident,
         res: Res,
     ) -> Result<(), ErrorGuaranteed> {
-        self.declare(sess, hir, name.name, Declaration { res, span: name.span })
+        self.declare(sess, hir, name.name, Declaration { res, span: name.span, import: None })
     }
 
     /// Declares `name => decl`, reporting conflicts and reserved names.
@@ -2716,6 +2722,16 @@ impl Declarations {
 pub(crate) struct Declaration {
     pub(crate) res: Res,
     pub(crate) span: Span,
+    /// The import directive that declares the module alias, which is the position of the
+    /// directive among the imports of its source. Imports of the alias keep it.
+    pub(crate) import: Option<ImportDirective>,
+}
+
+/// An import directive of a source.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ImportDirective {
+    pub(crate) source: hir::SourceId,
+    pub(crate) position: usize,
 }
 
 impl std::ops::Deref for Declaration {

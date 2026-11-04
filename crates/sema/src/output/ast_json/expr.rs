@@ -693,7 +693,7 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
                     Some(Res::Namespace(module)) => module,
                     _ => self.source,
                 };
-                Some(self.import_id(scope, ident.name, source)? as i64)
+                Some(self.module_alias_id(scope, ident, source)? as i64)
             }
             Res::Item(_) | Res::Err(_) => self.item_reference(res).map(|id| id as i64),
         }
@@ -922,6 +922,10 @@ impl<'gcx> Serialize for W<'_, 'gcx, PathCall<'_, '_, 'gcx>> {
 
 /// Returns what each segment of a name path resolves to, from name resolution alone.
 fn resolve_path(cx: Cx<'_, '_>, segments: &[Ident]) -> Vec<Option<Res>> {
+    // The only segment of a name is the last one, which lowering or type checking resolved.
+    if let [_] = segments {
+        return vec![None];
+    }
     let resolutions = cx.gcx.source_path_resolutions(segments, cx.source, None);
     let resolutions = resolutions.unwrap_or_else(|| vec![Vec::new(); segments.len()]);
     resolutions
