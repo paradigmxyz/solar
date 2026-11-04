@@ -541,6 +541,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             // push target; jump
             self.asm.emit_push_label(self.block_labels[&target]);
             self.asm.emit_op(op::JUMP);
+        } else if self.capture_debug_info {
+            self.asm.mark_fallthrough();
         }
     }
 

@@ -1,0 +1,68 @@
+{"contracts":{"ROOT/tests/ui/codegen/lowering/fallthrough_jump_origins.sol:C":{"srcmap-runtime":":::-:0;;;;;;;;;;;;;;;;;;521:8:0;;;;:12;;;558:23;;;;557:31;;611:23;;610:31;;-1:-1:-1;669:6:0;;416:276;;;;;-1:-1:-1;;;"}},"sourceList":["ROOT/tests/ui/codegen/lowering/fallthrough_jump_origins.sol"],"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
+; === ROOT/tests/ui/codegen/lowering/fallthrough_jump_origins.sol:C (scheduled runtime) ===
+@module C_runtime
+bb0:                                              ; runtime dispatch entry
+  callvalue
+  push bb3
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x13d1aa2e
+  eq
+  push bb2
+  jumpi
+  jump bb3
+bb2:
+  jump bb4
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb4 [entry, invoke=f@416..692]:                   ; function f(uint256 x, uint256 y) external pure returns (uint256 r) [selector 0x13d1aa2e]
+  push 68
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  jump bb5
+bb5:
+  push 0
+  push 255 !metadata(span=521..529)
+  push 4 !metadata(span=521..529)
+  calldataload !metadata(span=521..529)
+  and !metadata(span=521..529)
+  iszero !metadata(span=521..533)
+  push bb9 !metadata(span=521..533)
+  jumpi !metadata(span=521..533)
+  jump bb6 !metadata(span=521..533)
+bb6:
+  push 0x1306fe0a31b7152df !metadata(span=558..581)
+  push 36 !metadata(span=558..581)
+  calldataload !metadata(span=558..581)
+  mul !metadata(span=558..581)
+  push 64 !metadata(span=557..588)
+  shr !metadata(span=557..588)
+  push 0x1172b83c7d517adce !metadata(span=611..634)
+  mul !metadata(span=611..634)
+  push 64 !metadata(span=610..641)
+  shr !metadata(span=610..641)
+  jump bb7 !metadata(span=517..656)
+bb7:
+  push 1 !metadata(span=669..675)
+  add !metadata(span=669..675)
+  push 0 !metadata(span=416..692)
+  mstore !metadata(span=416..692)
+  push 32 !metadata(span=416..692)
+  push 0 !metadata(span=416..692)
+  return !metadata(span=416..692, exit=return)
+bb8 [cold]:
+  push 0
+  push 0
+  revert !metadata(exit=revert)
+bb9:
+  jump bb7 !metadata(span=521..533)

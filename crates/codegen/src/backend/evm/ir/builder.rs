@@ -92,6 +92,14 @@ impl<'gcx> Assembler<'gcx> {
         self.current_modifier_depth = depth;
     }
 
+    /// Attributes the jump to the next block, which ends the current block without an opcode, to
+    /// the current source origins.
+    pub(crate) fn mark_fallthrough(&mut self) {
+        let block = self.current_block();
+        self.fallthrough_origins
+            .insert(block, (self.current_source_spans.clone(), self.current_modifier_depth));
+    }
+
     /// Marks the current block as entering a source-language function.
     pub(crate) fn mark_function_invoke(&mut self, function: DebugFunction) {
         self.program.track_debug_info();
@@ -619,12 +627,17 @@ impl<'gcx> Assembler<'gcx> {
             {
                 (ir::Terminator::new(ir::TerminatorKind::Op(last.opcode)), 1, last.metadata.clone())
             } else {
+                let mut metadata = ir::Metadata::default();
+                if let Some((spans, depth)) = self.fallthrough_origins.remove(&block_id) {
+                    metadata.set_source_spans(spans);
+                    metadata.set_modifier_depth(depth);
+                }
                 (
                     next.map_or_else(ir::Terminator::implicit_stop, |target| {
                         ir::Terminator::new(ir::TerminatorKind::Jump(target))
                     }),
                     0,
-                    ir::Metadata::default(),
+                    metadata,
                 )
             };
             block.instructions.truncate(block.instructions.len() - remove);
