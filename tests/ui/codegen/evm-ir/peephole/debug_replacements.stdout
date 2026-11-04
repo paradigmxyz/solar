@@ -57,8 +57,7 @@
     callvalue
     origin
 -   exchange 2, 3
--   swap 2 !metadata(span=210..220)
-+   swap 2
+    swap 2 !metadata(span=210..220)
 +   swap 3 !metadata(span=210..220)
     stop
   bb8:
