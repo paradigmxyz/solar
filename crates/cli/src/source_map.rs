@@ -61,7 +61,7 @@ impl SourceMapEncoder {
         // The format holds one origin per instruction. Origins that form one nesting chain
         // (each pair is nested within one source file) map to the first span, the
         // instruction's own location: origin lists keep insertion order and merges append, so
-        // a nested origin added from either side never changes the map. Any other set is
+        // a nested origin added to an instruction never changes its map. Any other set is
         // shared between unrelated source statements: its incoming transfers retain
         // path-specific locations where available, and choosing one origin here would
         // attribute other callers to an unrelated statement. This applies to sharing in both
@@ -227,8 +227,12 @@ mod tests {
     fn maps_nested_origins_to_the_first_span() {
         let source_map = SourceMap::default();
         let file = source_map.new_source_file(PathBuf::from("a.sol"), "x".repeat(100)).unwrap();
+        let other = source_map.new_source_file(PathBuf::from("b.sol"), "x".repeat(100)).unwrap();
         let encoder = SourceMapEncoder {
-            source_ids: FxHashMap::from_iter([(file.start_pos, SourceId::from_usize(0))]),
+            source_ids: FxHashMap::from_iter([
+                (file.start_pos, SourceId::from_usize(0)),
+                (other.start_pos, SourceId::from_usize(1)),
+            ]),
         };
         let files = source_map.files();
         let span = |lo, hi| Span::new(BytePos(lo), BytePos(hi));
@@ -261,6 +265,10 @@ mod tests {
         assert_data_eq!(encode_spans(&[inner, span(60, 70)]), str![":::-:0"]);
         // Both enclose a span but not each other.
         assert_data_eq!(encode_spans(&[outer, overlapping, span(42, 48)]), str![":::-:0"]);
+        // Spans of different files.
+        let in_other = span(other.start_pos.0 + 20, other.start_pos.0 + 30);
+        assert_data_eq!(encode_spans(&[inner, in_other]), str![":::-:0"]);
+        assert_data_eq!(encode_spans(&[in_other]), str!["20:10:1:-:0"]);
         // No span.
         assert_data_eq!(encode_spans(&[]), str![":::-:0"]);
     }
