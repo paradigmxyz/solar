@@ -53,8 +53,8 @@
 //! from an argument, and constant arguments reach the loop bounds.
 //!
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate
-//! allocation semantics keep the call. A tail call to a helper that never returns,
-//! as `outline-reverts` leaves on failure paths, counts as a revert; any other tail
+//! allocation semantics keep the call. A tail call to a helper that never returns
+//! counts as a revert; any other tail
 //! call keeps its callee shared. A phi-free helper with one return may call such a
 //! failure helper, since caller values never survive the call; more complex helpers
 //! with calls stay shared rather than duplicating their diamonds under the scalar
@@ -1045,7 +1045,8 @@ fn summarize_function(
                     if parts.iter().any(|part| {
                         matches!(
                             part,
-                            crate::mir::PackedPart::Bytes(_) | crate::mir::PackedPart::Array { .. }
+                            crate::mir::PackedPart::Bytes { .. }
+                                | crate::mir::PackedPart::Array { .. }
                         )
                     }) =>
                 {
@@ -1083,9 +1084,9 @@ fn summarize_function(
                 summary.has_control_flow = true;
             }
             Terminator::Revert { .. } | Terminator::RevertReturndata => {}
-            // `outline-reverts` turns failure paths into tail calls to shared revert helpers.
-            // Such a jump ends the message wherever it is cloned, but a tail call to a function
-            // that returns would return from the caller instead.
+            // A tail call to a function that never returns, such as a revert helper, ends the
+            // message wherever it is cloned, but a tail call to a function that returns would
+            // return from the caller instead.
             Terminator::TailCall { function, .. } if never_returns(module.function(*function)) => {}
             Terminator::Invalid => continue,
             Terminator::ReturnData { .. }
@@ -2026,11 +2027,7 @@ fn insert_return_buffer_stores(
         return Some(());
     }
 
-    let phi_count = caller.blocks[continuation]
-        .instructions
-        .iter()
-        .take_while(|&&inst_id| matches!(caller.inst(inst_id).kind, InstKind::Phi(_)))
-        .count();
+    let phi_count = caller.block_phi_count(continuation);
     let existing_len = caller.blocks[continuation].instructions.len();
     let instructions = {
         let mut builder = FunctionBuilder::new(caller);

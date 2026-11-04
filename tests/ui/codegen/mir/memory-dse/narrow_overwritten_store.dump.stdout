@@ -28,19 +28,17 @@ fn @entry() [entry] {
 ; function hashU8(uint8 a, bytes32 x) external pure returns (bytes32) [selector 0xe99643f7]
 fn @hashU8() {
   bb0:
-    v6 = calldataload 4
-    v7 = shr v6, 8
     v4 = calldatasize
     v5 = lt v4, 68
-    v12 = zext i1 v5 to i256
-    v13 = or v7, v12
-    v14 = ne v13, 0
-    jumpi v14, bb1, bb2
+    v6 = calldataload 4
+    v7 = gt v6, 255
+    v11 = or v5, v7
+    jumpi v11, bb1, bb2
   bb2:                                            ; preds = bb0
-    v9 = calldataload 36
-    v15 = calldataload 4
-    mstore8 0, v15
-    mstore 1, v9
+    v8 = calldataload 36
+    v12 = calldataload 4
+    mstore8 0, v12
+    mstore 1, v8
     v3 = keccak256 0, 33 !metadata(memory=scratch)
     mstore 0, v3 !metadata(memory=scratch)
     returndata 0, 32

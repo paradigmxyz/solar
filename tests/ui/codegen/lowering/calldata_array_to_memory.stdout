@@ -33,13 +33,13 @@ bb6 [cold]:
   push 0
   push 0
   revert
-bb34 [cold]:                                      ; revert_stub (synthesized)
+bb16 [cold]:
   push 65
-  jump bb35
+  jump bb32
 bb31 [cold]:
   push 17
-  jump bb35
-bb35 [cold]:
+  jump bb32
+bb32 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -48,7 +48,7 @@ bb35 [cold]:
   push 36
   push 28
   revert
-bb7:                                              ; getter for `uint256 public acc` [selector 0x7da1365e]
+bb7 [entry]:                                      ; getter for `uint256 public acc` [selector 0x7da1365e]
   push 0
   sload
   push 0
@@ -56,7 +56,7 @@ bb7:                                              ; getter for `uint256 public a
   push 32
   push 0
   return
-bb8:                                              ; function viaDecl(uint256[] calldata xs) external returns (uint256) [selector 0x874b8e9d]
+bb8 [entry]:                                      ; function viaDecl(uint256[] calldata xs) external returns (uint256) [selector 0x874b8e9d]
   push 4
   calldataload
   push 36
@@ -76,34 +76,32 @@ bb8:                                              ; function viaDecl(uint256[] c
   swap 2
   push 32
   add
-  swap 1
-  dup 2
+  dup 1
   calldatasize
   sub
+  swap 2
+  dup 3
   push 5
   shr
-  dup 4
+  dup 5
   gt
   or
-  dup 3
+  dup 4
   push 5
   shl
-  swap 1
-  dup 3
-  calldatasize
-  sub
-  dup 3
+  swap 3
+  dup 4
   sgt
   or
   push bb6
   jumpi
   push 32
-  dup 2
+  dup 3
   add
   push 32
   dup 2
   lt
-  push bb34
+  push bb16
   jumpi
   push 128
   dup 5
@@ -118,6 +116,7 @@ bb8:                                              ; function viaDecl(uint256[] c
   dup 2
   mstore
   swap 3
+  swap 2
   swap 1
   calldatacopy
   push 32
@@ -161,7 +160,7 @@ bb11 [loop]:
   push 32
   push 0
   return
-bb18:                                             ; function viaAssign(uint256[] calldata xs) external pure returns (uint256) [selector 0x2be02e45]
+bb18 [entry]:                                     ; function viaAssign(uint256[] calldata xs) external pure returns (uint256) [selector 0x2be02e45]
   push 4
   calldataload
   push 36
@@ -181,33 +180,31 @@ bb18:                                             ; function viaAssign(uint256[]
   swap 2
   push 32
   add
-  swap 1
-  dup 2
+  dup 1
   calldatasize
   sub
+  swap 2
+  dup 3
   push 5
   shr
-  dup 4
+  dup 5
   gt
   or
-  dup 3
+  dup 4
   push 5
   shl
-  swap 1
-  dup 3
-  calldatasize
-  sub
-  dup 3
+  swap 3
+  dup 4
   sgt
   or
   push bb6
   jumpi
   push 32
-  dup 2
+  dup 3
   add
   push 32
   gt
-  push bb34
+  push bb16
   jumpi
   push 128
   dup 4
@@ -215,16 +212,13 @@ bb18:                                             ; function viaAssign(uint256[]
   mstore
   push 32
   add
-  swap 1
-  swap 2
-  swap 1
   calldatacopy
   push 0
   mstore
   push 32
   push 0
   return
-bb23:                                             ; function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes calldata tag) external pure returns (uint256) [selector 0x3ce9e381]
+bb23 [entry]:                                     ; function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes calldata tag) external pure returns (uint256) [selector 0x3ce9e381]
   push 224
   push 64
   mstore
@@ -249,13 +243,14 @@ bb23:                                             ; function viaStructLiteral(ui
   swap 3
   push 32
   add
-  swap 1
-  dup 2
+  dup 1
   calldatasize
   sub
+  swap 2
+  dup 3
   push 5
   shr
-  dup 5
+  dup 6
   gt
   or
   push 68
@@ -263,18 +258,18 @@ bb23:                                             ; function viaStructLiteral(ui
   push 4
   dup 2
   add
-  swap 4
+  swap 5
   lt
-  dup 4
+  dup 5
   calldataload
-  swap 4
+  swap 5
   push 32
   add
   swap 1
   dup 2
   calldatasize
   sub
-  dup 6
+  dup 7
   gt
   or
   swap 1
@@ -282,47 +277,47 @@ bb23:                                             ; function viaStructLiteral(ui
   or
   push bb6
   jumpi
-  dup 4
+  dup 5
   push 5
   shl
-  dup 3
-  calldatasize
-  sub
-  dup 2
+  swap 3
+  dup 4
   sgt
   push bb6
   jumpi
-  dup 1
   push 32
+  dup 4
   add
-  dup 1
   push 32
-  gt
-  push bb34
+  dup 2
+  lt
+  push bb16
   jumpi
   push 64
   mload
-  dup 1
-  dup 1
-  push 32
-  add
   swap 3
-  add
-  swap 7
-  dup 2
-  mstore
-  swap 4
   swap 1
+  dup 4
+  add
+  swap 6
+  dup 4
+  mstore
+  push 32
+  dup 4
+  add
+  swap 4
+  swap 2
+  swap 4
   calldatacopy
   dup 3
   dup 5
+  mstore
+  swap 3
   push 32
   add
-  swap 5
-  mstore
   dup 3
   swap 2
-  swap 4
+  swap 1
   calldatacopy
   swap 1
   mload

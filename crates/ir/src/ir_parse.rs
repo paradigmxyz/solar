@@ -16,6 +16,7 @@ use solar_interface::{
     Session, Span, Symbol, config::OptimizationMode, kw, source_map::SourceFile, sym,
 };
 use solar_parse::{Lexer, PErr};
+use std::{fmt, str::FromStr};
 
 /// Shared parser primitives for the textual IR parsers.
 pub struct Parser<'sess, 'ast> {
@@ -94,6 +95,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     pub fn parse_uint(&mut self) -> Result<U256, PErr<'sess>> {
+        self.parse_uint_spanned().map(|(value, _)| value)
+    }
+
+    /// Parses an integer literal and returns it with its span, for errors that name the literal.
+    pub fn parse_uint_spanned(&mut self) -> Result<(U256, Span), PErr<'sess>> {
+        let span = self.token().span;
         let TokenKind::Literal(TokenLitKind::Integer, symbol) = self.token().kind else {
             return Err(self.error("expected integer literal"));
         };
@@ -106,7 +113,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         let value = value.map_err(|err| self.error(format!("invalid integer: {err}")))?;
         self.bump();
-        Ok(value)
+        Ok((value, span))
+    }
+
+    /// Parses an integer literal that must fit in `T`, reporting an overflow at the literal.
+    pub fn parse_uint_as<T: TryFrom<U256>>(&mut self) -> Result<T, PErr<'sess>> {
+        let (value, span) = self.parse_uint_spanned()?;
+        value.try_into().map_err(|_| {
+            let ty = std::any::type_name::<T>();
+            self.error_at(span, format!("integer `{value}` does not fit in {ty}"))
+        })
     }
 
     pub fn parse_data_id(&mut self) -> Result<(U256, Option<Symbol>), PErr<'sess>> {
@@ -114,15 +130,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return self.parse_uint().map(|id| (id, None));
         }
 
-        let span = self.token().span;
-        let name = self.parse_ident()?;
-        let Some((base, index)) = name.as_str().rsplit_once('_') else {
-            return Err(self.error_at(span, format!("invalid data identifier `{name}`")));
-        };
-        let id = index.parse().map_err(|err| {
-            self.error_at(span, format!("invalid data identifier `{name}`: {err}"))
-        })?;
-        Ok((id, Some(Symbol::intern(base))))
+        self.parse_indexed_name::<U256>("data").map(|(id, name)| (id, Some(name)))
     }
 
     pub fn parse_data_ref(&mut self) -> Result<(U256, u32, Span), PErr<'sess>> {
@@ -131,9 +139,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut offset_span = id_span;
         let offset = if self.eat(TokenKind::BinOp(BinOpToken::Plus)) {
             offset_span = self.token().span;
-            let value = self.parse_uint()?;
-            u32::try_from(value)
-                .map_err(|_| self.error_at(offset_span, "data offset exceeds `u32`"))?
+            self.parse_uint_as()?
         } else {
             0
         };
@@ -154,7 +160,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub fn parse_library_declarations(&mut self) -> Result<(), PErr<'sess>> {
         while self.check_declaration() {
             let span = self.token().span;
-            let (id, _) = self.parse_indexed_name("library")?;
+            let (id, _) = self.parse_indexed_name::<usize>("library")?;
             if id != self.libraries.len() {
                 return Err(self.error_at(
                     span,
@@ -224,7 +230,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a reference to a declared library: `Name_index`.
     pub fn parse_library_ref(&mut self) -> Result<LibraryId, PErr<'sess>> {
         let span = self.token().span;
-        let (id, name) = self.parse_indexed_name("library")?;
+        let (id, name) = self.parse_indexed_name::<usize>("library")?;
         if id >= self.libraries.len() {
             return Err(self.error_at(span, format!("unknown library `{name}_{id}`")));
         }
@@ -232,7 +238,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses an `name_index` identifier.
-    fn parse_indexed_name(&mut self, what: &str) -> Result<(usize, Symbol), PErr<'sess>> {
+    fn parse_indexed_name<T: FromStr>(&mut self, what: &str) -> Result<(T, Symbol), PErr<'sess>>
+    where
+        T::Err: fmt::Display,
+    {
         let span = self.token().span;
         let name = self.parse_ident()?;
         let Some((base, index)) = name.as_str().rsplit_once('_') else {
@@ -249,9 +258,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if !self.eat(TokenKind::Comma) {
             return Ok((0, false));
         }
-        let value = self.parse_uint()?;
-        let addend = u64::try_from(value)
-            .map_err(|_| self.error(format!("integer `{value}` does not fit in u64")))?;
+        let addend = self.parse_uint_as()?;
         let aligned = self.eat(TokenKind::Comma);
         if aligned {
             self.expect_keyword(sym::aligned)?;
@@ -282,9 +289,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if self.eat_keyword(sym::library_relocations) {
             self.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
             while !self.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
-                let value = self.parse_uint()?;
-                let offset = usize::try_from(value)
-                    .map_err(|_| self.error("library offset exceeds `usize`"))?;
+                let offset = self.parse_uint_as::<usize>()?;
                 if offset.checked_add(20).is_none_or(|end| end > bytes.len()) {
                     return Err(self.error("library relocation exceeds data size"));
                 }
@@ -325,8 +330,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok((lo, hi));
         }
 
-        let lo = self.parse_uint()?;
-        let lo = self.u256_to_u32(lo)?;
+        let lo = self.parse_uint_as()?;
         self.expect(TokenKind::Dot)?;
         if let TokenKind::Literal(TokenLitKind::Rational, symbol) = self.token().kind
             && let Some(hi) = symbol.as_str().strip_prefix('.')
@@ -337,8 +341,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok((lo, hi));
         }
         self.expect(TokenKind::Dot)?;
-        let hi = self.parse_uint()?;
-        Ok((lo, self.u256_to_u32(hi)?))
+        Ok((lo, self.parse_uint_as()?))
     }
 
     fn u256_to_u32(&self, value: U256) -> Result<u32, PErr<'sess>> {

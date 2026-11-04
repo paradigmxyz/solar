@@ -43,7 +43,6 @@ use super::{
     Value, ValueId,
 };
 use crate::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
-use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
     Arena, StateMutability,
@@ -643,8 +642,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             match key {
                 sym::selector => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let selector = self.parser.parse_uint()?;
-                    let selector = self.u256_to_u32(selector)?;
+                    let selector = self.parser.parse_uint_as::<u32>()?;
                     builder.func_mut().selector = Some(selector.to_be_bytes());
                 }
                 sym::return_abi => {
@@ -876,18 +874,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         if starts_typed_literal(ident, &self.parser.token().kind) {
             let ty = self.parse_type_from_ident(ident)?;
-            let value = self.parser.parse_uint()?;
+            let (value, span) = self.parser.parse_uint_spanned()?;
             if ty == MirType::I1 && value > alloy_primitives::U256::ONE {
-                return Err(self.parser.error("boolean literal must be 0 or 1"));
+                return Err(self.parser.error_at(span, "boolean literal must be 0 or 1"));
             }
             if let MirType::Int(bits) = ty
                 && value.bit_len() > bits.get() as usize
             {
-                return Err(self.parser.error(format!("{ty} literal must fit in {bits} bits")));
+                return Err(self
+                    .parser
+                    .error_at(span, format!("{ty} literal must fit in {bits} bits")));
             }
             let immediate = Immediate::for_type(Some(ty), value);
             if immediate.ty() != ty {
-                return Err(self.parser.error(format!("literal does not fit type `{ty}`")));
+                return Err(self
+                    .parser
+                    .error_at(span, format!("literal does not fit type `{ty}`")));
             }
             return Ok(builder.func_mut().alloc_value(Value::Immediate(immediate)));
         }
@@ -1030,11 +1032,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 let id = self.parser.parse_ident()?;
                 let cleanup = if id == kw::Enum {
-                    let variants = self.parser.parse_uint()?;
-                    let variants = variants.try_into().map_err(|_| {
-                        self.parser.error("ABI enum variant count does not fit in u64")
-                    })?;
-                    AbiWordValidator::EnumRange(variants)
+                    AbiWordValidator::EnumRange(self.parser.parse_uint_as()?)
                 } else {
                     let ty = self.parse_value_layout_from_ident(id)?;
                     AbiWordValidator::from_layout(ty).ok_or_else(|| {
@@ -1048,6 +1046,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::memory_bytes => AbiType::Bytes(PtrLocation::Memory),
             sym::calldata_bytes => AbiType::Bytes(PtrLocation::Calldata),
             sym::returndata_bytes => AbiType::Bytes(PtrLocation::Returndata),
+            sym::storage_bytes => AbiType::Bytes(PtrLocation::Storage),
             sym::memory_array | sym::calldata_array | sym::returndata_array => {
                 self.parser.expect(TokenKind::Lt)?;
                 let element = Box::new(self.parse_abi_type()?);
@@ -1062,10 +1061,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             sym::array => {
                 self.parser.expect(TokenKind::Lt)?;
-                let len = self.parser.parse_uint()?;
-                let len = len
-                    .try_into()
-                    .map_err(|_| self.parser.error("ABI fixed-array length does not fit in u64"))?;
+                let len = self.parser.parse_uint_as()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let element = Box::new(self.parse_abi_type()?);
                 // A split `>>` still owes its closer, so the next comma belongs to the caller.
@@ -1119,10 +1115,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Bytes => AbiParamType::Bytes,
             kw::Enum => {
                 self.parser.expect(TokenKind::Lt)?;
-                let variants =
-                    self.parser.parse_uint()?.try_into().map_err(|_| {
-                        self.parser.error("ABI enum variant count does not fit in u64")
-                    })?;
+                let variants = self.parser.parse_uint_as()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let ty_name = self.parser.parse_ident()?;
                 let ty = self.parse_value_layout_from_ident(ty_name)?;
@@ -1134,9 +1127,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let len = if self.parser.eat(TokenKind::Ident(sym::underscore)) {
                     None
                 } else {
-                    Some(self.parser.parse_uint()?.try_into().map_err(|_| {
-                        self.parser.error("ABI fixed-array length does not fit in u64")
-                    })?)
+                    Some(self.parser.parse_uint_as()?)
                 };
                 self.parser.expect(TokenKind::Comma)?;
                 let element = Box::new(self.parse_abi_param_type()?);
@@ -1171,10 +1162,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::memorybytes => MemoryObjectLayout::Bytes,
             sym::memoryarray => {
                 let element_words = if self.parser.eat(TokenKind::Lt) {
-                    let value = self.parser.parse_uint()?;
-                    let value = value
-                        .try_into()
-                        .map_err(|_| self.parser.error("memory-array stride does not fit"))?;
+                    let value = self.parser.parse_uint_as()?;
                     self.expect_gt()?;
                     value
                 } else {
@@ -1184,15 +1172,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             sym::memoryfixedarray => {
                 let (len, element_words) = if self.parser.eat(TokenKind::Lt) {
-                    let len = self.parser.parse_uint()?;
-                    let len = len
-                        .try_into()
-                        .map_err(|_| self.parser.error("memory fixed-array length does not fit"))?;
+                    let len = self.parser.parse_uint_as()?;
                     self.parser.expect(TokenKind::Comma)?;
-                    let element_words = self.parser.parse_uint()?;
-                    let element_words = element_words
-                        .try_into()
-                        .map_err(|_| self.parser.error("memory fixed-array stride does not fit"))?;
+                    let element_words = self.parser.parse_uint_as()?;
                     self.expect_gt()?;
                     (len, element_words)
                 } else {
@@ -1202,10 +1184,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             sym::memorystruct => {
                 let fields = if self.parser.eat(TokenKind::Lt) {
-                    let value = self.parser.parse_uint()?;
-                    let value = value
-                        .try_into()
-                        .map_err(|_| self.parser.error("memory struct field count does not fit"))?;
+                    let value = self.parser.parse_uint_as()?;
                     self.expect_gt()?;
                     value
                 } else {
@@ -1488,15 +1467,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::loop_depth => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let value = self.parser.parse_uint()?;
-                    metadata.loop_depth = self.u256_to_u16(value)?;
+                    metadata.loop_depth = self.parser.parse_uint_as()?;
                 }
                 sym::hir => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let value = self.parser.parse_uint()?;
-                    metadata.set_hir_expr(Some(HirExprId::from_usize(
-                        self.u256_to_u32(value)? as usize
-                    )));
+                    let (id, span) = self.parser.parse_uint_spanned()?;
+                    let Some(id) =
+                        usize::try_from(id).ok().filter(|&id| id <= HirExprId::MAX_INDEX)
+                    else {
+                        return Err(self
+                            .parser
+                            .error_at(span, "HIR expression ID exceeds the index limit"));
+                    };
+                    metadata.set_hir_expr(Some(HirExprId::from_usize(id)));
                 }
                 sym::span => {
                     self.parser.expect(TokenKind::Eq)?;
@@ -1505,8 +1488,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::modifier_depth => {
                     self.parser.expect(TokenKind::Eq)?;
-                    let value = self.parser.parse_uint()?;
-                    metadata.set_modifier_depth(self.u256_to_u32(value)?);
+                    metadata.set_modifier_depth(self.parser.parse_uint_as()?);
                 }
                 sym::spans => {
                     self.parser.expect(TokenKind::Eq)?;
@@ -1611,12 +1593,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         })
     }
 
-    fn u256_to_u32(&self, value: U256) -> PResult<'sess, u32> {
-        value
-            .try_into()
-            .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u32")))
-    }
-
     fn parse_immutable_ref(&mut self) -> PResult<'sess, (ImmutableId, MirType)> {
         let span = self.parser.token().span;
         let name = self.parser.parse_ident()?;
@@ -1640,12 +1616,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 .error_at(offset_span, format!("data offset {offset} exceeds data size {size}")));
         }
         Ok(DataRef::new(DataId::from_usize(index), offset))
-    }
-
-    fn u256_to_u16(&self, value: U256) -> PResult<'sess, u16> {
-        value
-            .try_into()
-            .map_err(|_| self.parser.error(format!("integer `{value}` does not fit in u16")))
     }
 
     /// Parses one instruction by mnemonic.
@@ -1694,11 +1664,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::abi_encode => {
                 let layout = self.parse_abi_layout()?;
                 let mut mode = AbiEncodeMode::Slice;
+                let mut base = None;
                 let mut selector = None;
                 let mut args = Vec::new();
                 while self.parser.eat(TokenKind::Comma) {
                     let group = self.parser.parse_ident()?;
                     match group {
+                        sym::base if mode == AbiEncodeMode::Scratch && base.is_none() => {
+                            base = Some(self.parse_value(builder)?)
+                        }
                         sym::object if mode == AbiEncodeMode::Slice => mode = AbiEncodeMode::Bytes,
                         sym::scratch if mode == AbiEncodeMode::Slice => {
                             mode = AbiEncodeMode::Scratch
@@ -1728,7 +1702,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     )));
                 }
                 (
-                    InstKind::AbiEncode { mode, selector, args: args.into(), layout },
+                    InstKind::AbiEncode { mode, base, selector, args: args.into(), layout },
                     Some(mode.result_type()),
                 )
             }
@@ -1893,7 +1867,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let name = self.parser.parse_ident()?;
                     let part = match name {
                         sym::data => super::PackedPart::Literal(self.parser.parse_data_bytes()?),
-                        kw::Bytes => super::PackedPart::Bytes(self.parse_value(builder)?),
+                        sym::memory_bytes | sym::calldata_bytes | sym::storage_bytes => {
+                            let location = match name {
+                                sym::memory_bytes => PtrLocation::Memory,
+                                sym::calldata_bytes => PtrLocation::Calldata,
+                                _ => PtrLocation::Storage,
+                            };
+                            super::PackedPart::Bytes { value: self.parse_value(builder)?, location }
+                        }
                         sym::array => {
                             self.parser.expect(TokenKind::Lt)?;
                             let element = self.parse_abi_type()?;
@@ -1946,9 +1927,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let name = self.parser.parse_ident()?;
                 let (element, enum_variants) = if name == kw::Enum {
                     self.parser.expect(TokenKind::Lt)?;
-                    let variants = self.parser.parse_uint()?.try_into().map_err(|_| {
-                        self.parser.error("storage enum variant count does not fit in u64")
-                    })?;
+                    let variants = self.parser.parse_uint_as()?;
                     self.expect_gt()?;
                     (super::ValueLayout::UInt(TypeSize::new_int_bits(8)), Some(variants))
                 } else {
@@ -2003,9 +1982,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let index = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let element_slots = self.parser.parse_uint()?.try_into().map_err(|_| {
-                    self.parser.error("storage array element stride does not fit in u64")
-                })?;
+                let element_slots = self.parser.parse_uint_as()?;
                 (
                     InstKind::StorageArrayElementSlot { slot, index, element_slots },
                     Some(MirType::I256),
@@ -2022,12 +1999,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let name = self.parser.parse_ident()?;
                     self.parser.expect(TokenKind::Lt)?;
                     let failure = if matches!(name, sym::panic_if | sym::panic_if_zero) {
-                        let value = self.parser.parse_uint()?;
-                        let code = value
-                            .try_into()
-                            .ok()
-                            .and_then(super::PanicCode::from_u64)
-                            .ok_or_else(|| self.parser.error("invalid panic code"))?;
+                        let (value, span) = self.parser.parse_uint_spanned()?;
+                        let code =
+                            u64::try_from(value)
+                                .ok()
+                                .and_then(super::PanicCode::from_u64)
+                                .ok_or_else(|| self.parser.error_at(span, "invalid panic code"))?;
                         super::RevertKind::Panic(code)
                     } else {
                         let name = self.parser.parse_ident()?;
@@ -2101,7 +2078,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 (InstKind::ICall { function, args: args.into() }, result_ty)
             }
             sym::internal_frame_addr => {
-                let offset = self.parser.parse_uint()?.to::<u64>();
+                let offset = self.parser.parse_uint_as()?;
                 (InstKind::InternalFrameAddr(offset), Some(MirType::MEMPTR))
             }
             sym::frame_load => {
@@ -2109,7 +2086,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let kind = self.parse_frame_slot_kind()?;
                 self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parser.parse_uint()?.to::<u64>();
+                let offset = self.parser.parse_uint_as()?;
                 (InstKind::FrameLoad { offset, mode, kind }, Some(kind.result_type()))
             }
             sym::frame_store => {
@@ -2117,7 +2094,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let kind = self.parse_frame_slot_kind()?;
                 self.parser.expect(TokenKind::Comma)?;
-                let offset = self.parser.parse_uint()?.to::<u64>();
+                let offset = self.parser.parse_uint_as()?;
                 self.parser.expect(TokenKind::Comma)?;
                 let value = self.parse_value(builder)?;
                 (InstKind::FrameStore { offset, mode, kind, value }, None)
@@ -2150,11 +2127,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let value = if self.parser.eat_keyword(sym::undef) {
                     builder.undef(from)
                 } else if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
-                    let value = self.parser.parse_uint()?;
+                    let (value, span) = self.parser.parse_uint_spanned()?;
                     if let MirType::Int(bits) = from
                         && value.bit_len() > bits.get() as usize
                     {
-                        return Err(self.parser.error("cast literal does not fit its source type"));
+                        return Err(self
+                            .parser
+                            .error_at(span, "cast literal does not fit its source type"));
                     }
                     builder
                         .func_mut()
@@ -2195,9 +2174,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Comma)?;
                 let aggregate = self.parse_value(builder)?;
                 self.parser.expect(TokenKind::Comma)?;
-                let index = self.parser.parse_uint()?;
-                let index = u32::try_from(index)
-                    .map_err(|_| self.parser.error("aggregate field index is too large"))?;
+                let index = self.parser.parse_uint_as::<u32>()?;
                 let field = match ty {
                     MirType::Struct(id) => {
                         self.struct_types[id].fields.get(index as usize).copied()

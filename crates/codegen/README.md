@@ -28,7 +28,7 @@ Metadata sits directly above the operation inside `define_mir_ops!`:
     result = I256,
     phases = PhaseSet::ALL,
     effect = Pure,
-    traits = OpTraits::REORDERABLE.union(OpTraits::REMATERIALIZABLE),
+    traits = OpTraits::REMATERIALIZABLE,
     side_effects = false,
     category = None
 )]

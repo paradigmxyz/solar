@@ -6,6 +6,12 @@
 //! loops. Hash-only encodings use the existing scratch policy when the shape permits it. Literal
 //! bytes and adjacent narrow scalars, fixed bytes included, can share a word store without merging
 //! signed high bits or the low bytes of a fixed-bytes word.
+//! A byte-string part names its location. A storage `bytes` or `string` part holds its slot: the
+//! encoder validates the header for the length, then writes the data words from storage straight
+//! into the output or the hash buffer, as solc does, so the value has no memory copy and costs no
+//! free-memory growth. Storage is read here, after the arguments ran. Whole words are written, so a
+//! part may write up to 31 bytes past its end: the next part overwrites them, and after the last
+//! part they lie in the cleared word or above the allocation.
 //! An array of full words that need no cleanup copies as one block, as the standard encoder
 //! copies it: one `MCOPY` from memory and one `CALLDATACOPY` from calldata. An array of fixed
 //! arrays of words in calldata takes the standard encoder's wrap guard. Words that need cleanup
@@ -28,7 +34,10 @@
 //! two writes leave memory as it was, whatever the word held, even when the bytes are the zero
 //! slot or lie inside another object.
 
-use super::lower_abi_encode::{copy_calldata_words, copy_source_data};
+use super::{
+    lower_abi_encode::{copy_calldata_words, copy_source_data},
+    lower_storage_bytes,
+};
 use crate::{
     mir::{
         AbiType, AbiWordValidator, AllocationSemantics, BlockId, EffectKind, Function,
@@ -51,6 +60,12 @@ enum PackedPiece {
         source: ValueId,
         length: ValueId,
         bounded_heap: bool,
+    },
+    Storage {
+        slot: ValueId,
+        header: ValueId,
+        is_long: ValueId,
+        length: ValueId,
     },
     Array {
         value: ValueId,
@@ -79,7 +94,7 @@ impl PackedPiece {
         match self {
             Self::Bytes(bytes) => Some(bytes.len() as u64),
             Self::Static { length, .. } => Some(*length),
-            Self::Dynamic { .. } | Self::Array { .. } => None,
+            Self::Dynamic { .. } | Self::Storage { .. } | Self::Array { .. } => None,
         }
     }
 }
@@ -121,7 +136,14 @@ impl PackedEncoder<'_, '_> {
                         self.builder.imm(piece.static_len().expect("packed literal or scalar"));
                     (piece, length)
                 }
-                PackedPart::Bytes(value) => {
+                PackedPart::Bytes { value, location: PtrLocation::Storage } => {
+                    // header = sload(slot)
+                    // is_long, length = validate_storage_bytes(header)
+                    let header = self.builder.sload(value);
+                    let (is_long, length) = lower_storage_bytes::validate(self.builder, header);
+                    (PackedPiece::Storage { slot: value, header, is_long, length }, length)
+                }
+                PackedPart::Bytes { value, .. } => {
                     let known_length =
                         known_byte_length(self.builder.func(), value, self.builder.current_block());
                     let bounded_heap = known_length.is_some()
@@ -166,13 +188,13 @@ impl PackedEncoder<'_, '_> {
         let bounded = pieces.iter().all(|piece| match piece {
             PackedPiece::Bytes(_) | PackedPiece::Static { .. } => true,
             PackedPiece::Dynamic { bounded_heap, .. } => *bounded_heap,
-            PackedPiece::Array { .. } => false,
+            PackedPiece::Storage { .. } | PackedPiece::Array { .. } => false,
         });
         let word_aligned = pieces.iter().all(|piece| match piece {
             PackedPiece::Bytes(bytes) => bytes.len().is_multiple_of(32),
             PackedPiece::Static { length, .. } => length.is_multiple_of(32),
             PackedPiece::Array { .. } => true,
-            PackedPiece::Dynamic { .. } => false,
+            PackedPiece::Dynamic { .. } | PackedPiece::Storage { .. } => false,
         });
         let output = if word_aligned {
             // size = checked_add(total, 32)
@@ -188,9 +210,7 @@ impl PackedEncoder<'_, '_> {
             self.builder.alloc_bytes_object(total, AllocationSemantics::INTERNAL)
         };
         // output = alloc bytes(...) !preserves_fmp
-        if let Value::Inst(alloc) = *self.builder.func().value(output) {
-            self.builder.func_mut().inst_mut(alloc).metadata.set_preserves_fmp(true);
-        }
+        self.builder.mark_preserves_fmp(output);
 
         let mut offset = self.builder.imm(0);
         let mut index = 0;
@@ -232,6 +252,23 @@ impl PackedEncoder<'_, '_> {
                     }
                     offset = self.builder.add(offset, *length);
                 }
+                PackedPiece::Storage { slot, header, is_long, length } => {
+                    // for each data word { mstore(output + offset + word_offset, word) }
+                    let start = offset;
+                    let words = lower_storage_bytes::word_count(self.builder, *length);
+                    lower_storage_bytes::read_words(
+                        self.builder,
+                        *slot,
+                        *header,
+                        *is_long,
+                        words,
+                        |builder, word_offset, word| {
+                            let word_offset = builder.add(start, word_offset);
+                            builder.memory_store_word(output, word_offset, word);
+                        },
+                    );
+                    offset = self.builder.add(offset, *length);
+                }
                 PackedPiece::Array { value, length, element, source, wordwise } => {
                     // offset = copy_packed_array(output, offset, array)
                     let array = PackedArray {
@@ -268,7 +305,9 @@ impl PackedEncoder<'_, '_> {
     }
 
     fn hash(&mut self, pieces: Vec<PackedPiece>, total: ValueId) -> Option<ValueId> {
-        let has_dynamic = pieces.iter().any(|piece| matches!(piece, PackedPiece::Dynamic { .. }));
+        let has_dynamic = pieces.iter().any(|piece| {
+            matches!(piece, PackedPiece::Dynamic { .. } | PackedPiece::Storage { .. })
+        });
         // base = has_dynamic ? fmp : (scratch_needed ? fmp : 0)
         let base = if has_dynamic {
             Some(self.builder.fmp())
@@ -309,6 +348,24 @@ impl PackedEncoder<'_, '_> {
                     let source_length = self.builder.slice_len(*source);
                     let pointer = self.builder.slice_ptr(*source);
                     self.builder.copy_heap(dest, pointer, source_length, location);
+                    cursor = Some(self.builder.add(dest, *length));
+                    offset = 0;
+                }
+                PackedPiece::Storage { slot, header, is_long, length } => {
+                    // for each data word { mstore(cursor + offset + word_offset, word) }
+                    let dest = self.packed_scratch_offset(cursor, offset);
+                    let words = lower_storage_bytes::word_count(self.builder, *length);
+                    lower_storage_bytes::read_words(
+                        self.builder,
+                        *slot,
+                        *header,
+                        *is_long,
+                        words,
+                        |builder, word_offset, word| {
+                            let address = builder.add(dest, word_offset);
+                            builder.store(address, word);
+                        },
+                    );
                     cursor = Some(self.builder.add(dest, *length));
                     offset = 0;
                 }
@@ -554,7 +611,9 @@ impl PackedEncoder<'_, '_> {
                     terms.push((*value, shift, *piece_length, *signed, *fixed_bytes));
                     offset += *piece_length;
                 }
-                PackedPiece::Dynamic { .. } | PackedPiece::Array { .. } => {
+                PackedPiece::Dynamic { .. }
+                | PackedPiece::Storage { .. }
+                | PackedPiece::Array { .. } => {
                     unreachable!("packed word groups hold only literals and narrow scalars")
                 }
             }
@@ -600,7 +659,11 @@ impl PackedEncoder<'_, '_> {
     /// past `2^255` can wrap the hashed size, and the encoder's copy of that many bytes runs out of
     /// gas: so does the hash, of every byte, for such a length.
     fn hash_over_length(&mut self, parts: &[PackedPart]) -> Option<ValueId> {
-        let (&PackedPart::Bytes(object), prefix) = parts.split_last()? else { return None };
+        let (&PackedPart::Bytes { value: object, location: PtrLocation::Memory }, prefix) =
+            parts.split_last()?
+        else {
+            return None;
+        };
         if self.builder.func().value_ty(object) != Some(MirType::MEMPTR) {
             return None;
         }
@@ -673,7 +736,9 @@ fn static_write_end(pieces: &[PackedPiece]) -> Option<u64> {
                 max_write_end = max_write_end.max(offset.checked_add(32)?);
                 offset = offset.checked_add(*length)?;
             }
-            PackedPiece::Dynamic { .. } | PackedPiece::Array { .. } => return None,
+            PackedPiece::Dynamic { .. }
+            | PackedPiece::Storage { .. }
+            | PackedPiece::Array { .. } => return None,
         }
         index += 1;
     }
@@ -789,7 +854,7 @@ fn static_piece(part: &PackedPart) -> Option<PackedPiece> {
             fixed_bytes: matches!(ty, ValueLayout::FixedBytes(_)),
             signed: matches!(ty, ValueLayout::Int(_)),
         }),
-        PackedPart::Bytes(_) | PackedPart::Array { .. } => None,
+        PackedPart::Bytes { .. } | PackedPart::Array { .. } => None,
     }
 }
 

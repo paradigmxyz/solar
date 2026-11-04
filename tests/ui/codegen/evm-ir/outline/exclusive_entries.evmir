@@ -1,0 +1,96 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zevm-ir-pipeline=outline --optimize-runs 600
+//@[size] compile-flags: -Osize -Zevm-ir-pipeline=outline
+//@[gas] filecheck: --check-prefixes=BOTH,GAS
+//@[size] filecheck: --check-prefixes=BOTH,SIZE
+//@ run-call: 0x0000000000000000000000000000000000000000000000000000000000000001 =>
+//@ run-call: 0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 =>
+//@ run-call: 0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 =>
+//@ run-call: 0x =>
+@module ExclusiveEntries
+
+// A call runs one external function, so the entries' repeats of a computation never run together,
+// and a gas share pays one site's call and return gas, not every entry's. The same run in a chain
+// that no entry owns runs in every call, and its sites pay together, so gas mode keeps them
+// inline. Size mode shares both.
+bb0:
+  push 0
+  calldataload
+  push bb1
+  jumpi
+  push 1
+  calldataload
+  push bb2
+  jumpi
+  push 2
+  calldataload
+  push bb3
+  jumpi
+  jump bb4
+
+// BOTH-LABEL: bb1 [entry]:
+// BOTH: push [[RET1:bb[0-9]+]]
+// BOTH-NEXT: jump [[SHARED:bb[0-9]+]]
+bb1 [entry]:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+  add
+  push 0x0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+  mul
+  pop
+  stop
+
+// BOTH-LABEL: bb2 [entry]:
+// BOTH: push [[RET2:bb[0-9]+]]
+// BOTH-NEXT: jump [[SHARED]]
+bb2 [entry]:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+  add
+  push 0x0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+  mul
+  pop
+  stop
+
+// BOTH-LABEL: bb3 [entry]:
+// BOTH: push [[RET3:bb[0-9]+]]
+// BOTH-NEXT: jump [[SHARED]]
+bb3 [entry]:
+  push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+  push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+  add
+  push 0x0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+  mul
+  pop
+  stop
+
+// GAS-LABEL: bb4:
+// GAS-COUNT-2: push 0x1111111111111111111111111111111111111111111111111111111111111111
+// GAS-NOT: push bb
+// SIZE-LABEL: bb4:
+// SIZE: push [[RET4:bb[0-9]+]]
+// SIZE-NEXT: jump [[SHARED_CHAIN:bb[0-9]+]]
+bb4:
+  push 0x1111111111111111111111111111111111111111111111111111111111111111
+  push 0x2222222222222222222222222222222222222222222222222222222222222222
+  add
+  push 0x3333333333333333333333333333333333333333333333333333333333333333
+  mul
+  pop
+  jump bb5
+bb5:
+  push 0x1111111111111111111111111111111111111111111111111111111111111111
+  push 0x2222222222222222222222222222222222222222222222222222222222222222
+  add
+  push 0x3333333333333333333333333333333333333333333333333333333333333333
+  mul
+  pop
+  jump bb6
+bb6:
+  push 0x1111111111111111111111111111111111111111111111111111111111111111
+  push 0x2222222222222222222222222222222222222222222222222222222222222222
+  add
+  push 0x3333333333333333333333333333333333333333333333333333333333333333
+  mul
+  pop
+  stop

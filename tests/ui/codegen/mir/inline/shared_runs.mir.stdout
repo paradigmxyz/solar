@@ -27,10 +27,16 @@ fn @paintUint(arg0: i256) -> ptr<memory> [pure] {
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v2 = icall returndata_bytes<>
-    v3 = abi_decode [bytes], v2
-    v4 = icall @wrap, v3
-    ret v4
+    v2 = returndatasize
+    v3 = add v2, 31
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v5 = alloc v4
+    returndatacopy v5, 0, v2
+    v6 = make_memory_slice v5, v2
+    v7 = abi_decode [bytes], v6
+    v8 = icall @wrap, v7
+    v9 = icall @wrap, v8
+    ret v9
 }
 
 ; function paintBool(bool value) private pure returns (string memory)
@@ -46,15 +52,21 @@ fn @paintBool(arg0: i1) -> ptr<memory> [pure] {
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = icall returndata_bytes<>
-    v5 = abi_decode [bytes], v4
-    v6 = icall @wrap, v5
-    ret v6
+    v4 = returndatasize
+    v5 = add v4, 31
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v7 = alloc v6
+    returndatacopy v7, 0, v4
+    v8 = make_memory_slice v7, v4
+    v9 = abi_decode [bytes], v8
+    v10 = icall @wrap, v9
+    v11 = icall @wrap, v10
+    ret v11
 }
 
 ; function wrap(string memory text) private pure returns (string memory)
 fn @wrap(arg0: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
-    v0 = abi_encode_packed (data hex"3c", bytes arg0, data hex"3e")
+    v0 = abi_encode_packed (data hex"3c", memory_bytes arg0, data hex"3e")
     ret v0
 }

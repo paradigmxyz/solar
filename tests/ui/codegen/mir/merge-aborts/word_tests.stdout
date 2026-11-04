@@ -137,3 +137,34 @@
       revert 0, 0
   }
   
+  fn @width_tests(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = gt arg0, 0xffffffffffffffffffffffffffffffffffffffff
+-     jumpi v0, bb3, bb1
++     jump bb1
+    bb1:                                            ; preds = bb0
+      v1 = gt arg1, 0xffff
+-     jumpi v1, bb3, bb2
++     v2 = or v0, v1
++     jumpi v2, bb3, bb2
+    bb2:                                            ; preds = bb1
+      ret arg1
+-   bb3 [cold]:                                     ; preds = bb0, bb1
++   bb3 [cold]:                                     ; preds = bb1
+      revert 0, 0
+  }
+  
+  fn @signed_ne_after(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+      v0 = signextend 0, arg1
+      v1 = ne v0, arg1
+      jumpi v1, bb3, bb1
+    bb1:                                            ; preds = bb0
+      v2 = lt arg0, 3
+      jumpi v2, bb2, bb3
+    bb2:                                            ; preds = bb1
+      stop
+    bb3 [cold]:                                     ; preds = bb0, bb1
+      revert 0, 0
+  }
+  

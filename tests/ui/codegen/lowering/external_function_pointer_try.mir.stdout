@@ -76,7 +76,7 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     v1 = shl v0, 224
     v2 = shr arg0, 32
     v3 = gas
-    v4 = abi_encode [tuple<word>], selector v1, args arg1
+    v4 = abi_encode [tuple<word>], scratch, selector v1, args arg1
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 0
@@ -87,25 +87,30 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     icall revert_if<empty>, true
     invalid
   bb4:                                            ; preds = bb2
-    v14 = alloc 64 !metadata(preserves_fmp)
-    mstore v14, 6
-    v15 = ptradd v14, 32
-    mstore v15, 0x6661696c65640000000000000000000000000000000000000000000000000000
-    v16 = insert_value struct0, undef struct0, 0, 0
-    v17 = insert_value struct0, v16, 1, v14
-    ret v17
+    v18 = alloc 64 !metadata(preserves_fmp)
+    mstore v18, 6
+    v19 = ptradd v18, 32
+    mstore v19, 0x6661696c65640000000000000000000000000000000000000000000000000000
+    v20 = insert_value struct0, undef struct0, 0, 0
+    v21 = insert_value struct0, v20, 1, v18
+    ret v21
   bb1:                                            ; preds = bb0
-    v8 = icall returndata_bytes<>
-    v9 = abi_decode [uint256, bytes], v8
-    v10 = extract_value struct0, v9, 0
-    v11 = extract_value struct0, v9, 1
-    v12 = insert_value struct0, undef struct0, 0, v10
-    v13 = insert_value struct0, v12, 1, v11
-    ret v13
+    v8 = returndatasize
+    v9 = add v8, 31
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v11 = alloc v10
+    returndatacopy v11, 0, v8
+    v12 = make_memory_slice v11, v8
+    v13 = abi_decode [uint256, bytes], v12
+    v14 = extract_value struct0, v13, 0
+    v15 = extract_value struct0, v13, 1
+    v16 = insert_value struct0, undef struct0, 0, v14
+    v17 = insert_value struct0, v16, 1, v15
+    ret v17
   bb3:
-    v18 = insert_value struct0, undef struct0, 0, 0
-    v19 = insert_value struct0, v18, 1, ptr<memory> 96
-    ret v19
+    v22 = insert_value struct0, undef struct0, 0, 0
+    v23 = insert_value struct0, v22, 1, ptr<memory> 96
+    ret v23
 }
 
 ; function trySuccess() external returns (uint256) [selector 0x3984eec7]

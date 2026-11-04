@@ -1,0 +1,24 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi -Zdebugify=check
+// Fixed-buffer returns replace the value construction, not just the outer return.
+// Keep each payload or length store's origin separate from the return's own checkpoint.
+@module DebugStaticBytes
+fn @encoded() -> ptr<memory> [selector=0x01020304, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = abi_encode [word, word], object, args 1, 2 !metadata(span=10..20)
+    ret v0 !metadata(span=20..30)
+}
+fn @empty() -> ptr<memory> [selector=0x01020305, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = abi_encode [], object !metadata(span=30..40)
+    ret v0 !metadata(span=40..50)
+}
+fn @literal() -> ptr<memory> [selector=0x01020306, abi_params=[], abi_returns=[memory_bytes]] {
+  bb0:
+    v0 = alloc 96
+    mstore v0, 33 !metadata(span=50..60)
+    v1 = ptradd v0, 32
+    mstore v1, 1 !metadata(span=60..70)
+    v2 = ptradd v0, 64
+    mstore v2, 2 !metadata(span=70..80)
+    ret v0 !metadata(span=80..90)
+}

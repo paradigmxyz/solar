@@ -203,28 +203,27 @@ fn @getNested() -> ptr<memory> [selector=0x2ec68451, view, abi_params=[], abi_re
     v9 = lt v8, v1
     icall panic_if<0x41>, v9
     v10 = mul v8, 32
-    v11 = shr v8, 251
-    v12 = ne v11, 0
-    icall panic_if<0x41>, v12
-    v13 = alloc checked v10
-    mstore v13, v0
+    v11 = gt v8, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v11
+    v12 = alloc checked v10
+    mstore v12, v0
     jump bb1
   bb1:                                            ; preds = bb0, bb2
-    v14 = phi [bb0: 0], [bb2: v23]
-    v15 = lt v14, v0
-    jumpi v15, bb2, bb3
+    v13 = phi [bb0: 0], [bb2: v22]
+    v14 = lt v13, v0
+    jumpi v14, bb2, bb3
   bb3:                                            ; preds = bb1
-    ret v13
+    ret v12
   bb2:                                            ; preds = bb1
-    v16 = storage_array_data_slot 5
-    v17 = add v16, v14
-    v18 = icall @load_storage_word_array, v17
-    v19 = ptrtoint ptr<memory> v18 to i256
-    v20 = shl v14, 5
-    v21 = ptradd v13, v20
-    v22 = ptradd v21, 32
-    mstore v22, v19
-    v23 = add v14, 1
+    v15 = storage_array_data_slot 5
+    v16 = add v15, v13
+    v17 = icall @load_storage_word_array, v16
+    v18 = ptrtoint ptr<memory> v17 to i256
+    v19 = shl v13, 5
+    v20 = ptradd v12, v19
+    v21 = ptradd v20, 32
+    mstore v21, v18
+    v22 = add v13, 1
     jump bb1
 }
 
@@ -268,39 +267,44 @@ fn @arrLenAndSum() -> struct0 [selector=0x3dc68ceb, abi_params=[], abi_returns=[
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [array<_, uint256>], v7
-    v9 = mload v8
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [array<_, uint256>], v11
+    v13 = mload v12
     jump bb5
   bb5:                                            ; preds = bb4, bb7
-    v10 = phi [bb4: v9], [bb7: v10]
-    v11 = phi [bb4: 0], [bb7: v23]
-    v12 = phi [bb4: v8], [bb7: v12]
-    v13 = phi [bb4: 0], [bb7: v24]
-    v14 = mload v12
-    v15 = lt v13, v14
-    jumpi v15, bb8, bb9
+    v14 = phi [bb4: v13], [bb7: v14]
+    v15 = phi [bb4: 0], [bb7: v27]
+    v16 = phi [bb4: v12], [bb7: v16]
+    v17 = phi [bb4: 0], [bb7: v28]
+    v18 = mload v16
+    v19 = lt v17, v18
+    jumpi v19, bb8, bb9
   bb9:                                            ; preds = bb5
     jump bb6
   bb6:                                            ; preds = bb9
-    v25 = insert_value struct0, undef struct0, 0, v10
-    v26 = insert_value struct0, v25, 1, v11
-    ret v26
+    v29 = insert_value struct0, undef struct0, 0, v14
+    v30 = insert_value struct0, v29, 1, v15
+    ret v30
   bb8:                                            ; preds = bb5
-    v16 = mload v12
-    v17 = lt v13, v16
-    v18 = eq v17, false
-    icall panic_if<0x32>, v18
-    v19 = shl v13, 5
-    v20 = ptradd v12, v19
-    v21 = ptradd v20, 32
-    v22 = mload v21
-    v23 = checked_add uint256, v11, v22
+    v20 = mload v16
+    v21 = lt v17, v20
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = shl v17, 5
+    v24 = ptradd v16, v23
+    v25 = ptradd v24, 32
+    v26 = mload v25
+    v27 = checked_add uint256, v15, v26
     jump bb10
   bb10:                                           ; preds = bb8
     jump bb7
   bb7:                                            ; preds = bb10
-    v24 = checked_add uint256, v13, 1
+    v28 = checked_add uint256, v17, 1
     jump bb5
 }
 
@@ -332,20 +336,25 @@ fn @strFirstAndLen() -> struct0 [selector=0x2b10ead6, abi_params=[], abi_returns
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
-    v9 = mload v8
-    v10 = gt v9, 0
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptradd v8, 32
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
     v13 = mload v12
-    v14 = byte 0, v13
-    v15 = shl v14, 248
-    v16 = mload v8
-    v17 = insert_value struct0, undef struct0, 0, v15
-    v18 = insert_value struct0, v17, 1, v16
-    ret v18
+    v14 = gt v13, 0
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v12, 32
+    v17 = mload v16
+    v18 = byte 0, v17
+    v19 = shl v18, 248
+    v20 = mload v12
+    v21 = insert_value struct0, undef struct0, 0, v19
+    v22 = insert_value struct0, v21, 1, v20
+    ret v22
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:BytesCaller ===
@@ -373,10 +382,15 @@ fn @bytesRoundTrip() -> i256 [selector=0x9700a482, abi_params=[], abi_returns=[w
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
-    v9 = mload v8
-    ret v9
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
+    v13 = mload v12
+    ret v13
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:FixedCaller ===
@@ -397,38 +411,36 @@ fn @fixedSum() -> i256 [selector=0x1f080ca7, abi_params=[], abi_returns=[word], 
     revert_returndata
   bb2:                                            ; preds = bb0
     v4 = gas
-    v5 = abi_encode [], selector 0x8695275000000000000000000000000000000000000000000000000000000000
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = alloc 96
-    v9 = zext i160 v2 to i256
-    v10 = staticcall v4, v9, v6, v7, v8, 96
-    jumpi v10, bb4, bb3
+    v5 = alloc 96
+    mstore 0, 0x86952750 !metadata(memory=scratch)
+    v6 = zext i160 v2 to i256
+    v7 = staticcall v4, v6, 28, 4, v5, 96
+    jumpi v7, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v11 = returndatasize
-    v12 = lt v11, 96
-    icall revert_if<tuple_data_too_short>, v12
-    v13 = make_memory_slice v8, 96
-    v14 = abi_decode [array<3, uint256>], v13
-    v15 = lt 0, 3
+    v8 = returndatasize
+    v9 = lt v8, 96
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = make_memory_slice v5, 96
+    v11 = abi_decode [array<3, uint256>], v10
+    v12 = lt 0, 3
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = mload v11
+    v15 = lt 1, 3
     v16 = eq v15, false
     icall panic_if<0x32>, v16
-    v17 = mload v14
-    v18 = lt 1, 3
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptradd v14, 32
-    v21 = mload v20
-    v22 = checked_add uint256, v17, v21
-    v23 = lt 2, 3
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v14, 64
-    v26 = mload v25
-    v27 = checked_add uint256, v22, v26
-    ret v27
+    v17 = ptradd v11, 32
+    v18 = mload v17
+    v19 = checked_add uint256, v14, v18
+    v20 = lt 2, 3
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptradd v11, 64
+    v23 = mload v22
+    v24 = checked_add uint256, v19, v23
+    ret v24
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:StringElementCaller ===
@@ -456,10 +468,15 @@ fn @stringElem() -> i256 [selector=0x8eb2047c, abi_params=[], abi_returns=[word]
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [bytes], v7
-    v9 = mload v8
-    ret v9
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
+    v13 = mload v12
+    ret v13
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/dynamic_return_decode.sol:NestedCaller ===
@@ -487,19 +504,24 @@ fn @nestedSum() -> i256 [selector=0x002c8096, abi_params=[], abi_returns=[word],
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v7 = icall returndata_bytes<>
-    v8 = abi_decode [array<_, array<_, uint256>>], v7
-    v9 = mload v8
-    v10 = gt v9, 0
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = ptradd v8, 32
-    v13 = mload v12, ptr<memory>
-    v14 = mload v13
-    v15 = gt v14, 0
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = ptradd v13, 32
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [array<_, array<_, uint256>>], v11
+    v13 = mload v12
+    v14 = gt v13, 0
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v12, 32
+    v17 = mload v16, ptr<memory>
     v18 = mload v17
-    ret v18
+    v19 = gt v18, 0
+    v20 = eq v19, false
+    icall panic_if<0x32>, v20
+    v21 = ptradd v17, 32
+    v22 = mload v21
+    ret v22
 }

@@ -74,6 +74,20 @@
 (decl pure late_word_sequence () bool)
 (extern constructor late_word_sequence late_word_sequence)
 
+;; The run gives the width tests their final spelling, once their uses are known.
+(decl pure spelling_widths () bool)
+(extern constructor spelling_widths spelling_widths)
+
+;; The target prices the shift `x >> k` against zero below the comparison with the limit for a
+;; width test of `k` bits of the root's use: `fits` for `x < 2 ** k`, else `x > 2 ** k - 1`.
+(decl pure width_shifts (U256 bool) bool)
+(extern constructor width_shifts width_shifts)
+
+;; The word `x >> k` an earlier instruction of the block already computes, which a width test of
+;; `k` bits of `x` reads for the price of its zero test.
+(decl pure partial shared_shift (U256 Value) Value)
+(extern constructor shared_shift shared_shift)
+
 ;; The constant masks one value: no other instruction reads it, apart from a
 ;; redundant second `and` with the same mask. A profitability condition only.
 (decl pure unshared_mask (U256) bool)

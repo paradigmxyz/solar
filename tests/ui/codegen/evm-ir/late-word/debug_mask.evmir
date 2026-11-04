@@ -1,0 +1,25 @@
+//@ compile-flags: -Zevm-ir-pipeline=late-word -Zdebugify=check
+// The complement recipe still computes the root mask's value; only its temporary constants
+// change meaning. Retain the original subtraction's origin on the final complement.
+@module DebugMask
+bb0:
+  push 0
+  calldataload
+  indexed_jump bb1, bb2
+bb1:
+  push 1
+  push 0
+  calldataload
+  shl
+  push 1
+  swap 1
+  sub !metadata(span=10..20)
+  stop
+bb2:
+  push 1 !metadata(invoke=mask@30..50)
+  dup 1
+  push 0
+  calldataload
+  shl
+  sub !metadata(span=30..40)
+  stop

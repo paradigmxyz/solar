@@ -25,6 +25,6 @@ fn @pack(arg0: ptr<memory>) -> ptr<memory> [selector=0x62b0ae87, pure, abi_param
     v1 = eq v0, 64
     v2 = eq v1, false
     icall revert_if<empty>, v2
-    v3 = abi_encode_packed (bytes arg0, uint256 v0)
+    v3 = abi_encode_packed (memory_bytes arg0, uint256 v0)
     ret v3
 }

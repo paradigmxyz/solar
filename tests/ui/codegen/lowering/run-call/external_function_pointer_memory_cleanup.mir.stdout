@@ -24,12 +24,11 @@ fn @validate(arg0: slice<calldata>) -> i256 [selector=0xadfc46c0, pure, abi_para
     v2 = add v1, 0
     v3 = calldataload v2
     v4 = shl v3, 192
-    v5 = eq v4, 0
-    v6 = eq v5, false
-    icall revert_if<empty>, v6
-    v7 = shr v3, 64
-    v8 = calldataload 4
-    ret v8
+    v5 = ne v4, 0
+    icall revert_if<empty>, v5
+    v6 = shr v3, 64
+    v7 = calldataload 4
+    ret v7
 }
 
 ; function validateArray(function() external[] calldata values) external pure returns (uint256 value) [selector 0xc124fd97]
@@ -44,12 +43,11 @@ fn @validateArray(arg0: slice<calldata>) -> i256 [selector=0xc124fd97, pure, abi
     v5 = add v4, 0
     v6 = calldataload v5
     v7 = shl v6, 192
-    v8 = eq v7, 0
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
-    v10 = shr v6, 64
-    v11 = calldataload 68
-    ret v11
+    v8 = ne v7, 0
+    icall revert_if<empty>, v8
+    v9 = shr v6, 64
+    v10 = calldataload 68
+    ret v10
 }
 
 ; function memoryLayout() external view returns (bool) [selector 0x5caf991a]
@@ -146,7 +144,7 @@ fn @cleanupArray(arg0: i256) -> i256 [selector=0x7e130ca5, view, abi_params=[uin
     mstore v2, arg0
     v3 = address
     v4 = gas
-    v5 = abi_encode [memory_array<function>], selector 0xc124fd9700000000000000000000000000000000000000000000000000000000, args v0
+    v5 = abi_encode [memory_array<function>], scratch, selector 0xc124fd9700000000000000000000000000000000000000000000000000000000, args v0
     v6 = extract_value slice<memory>, v5, 0
     v7 = extract_value slice<memory>, v5, 1
     v8 = zext i160 v3 to i256
@@ -379,42 +377,41 @@ fn @storageArrayToMemory() -> i1 [selector=0xc4550e60, abi_params=[], abi_return
     v29 = lt v28, v21
     icall panic_if<0x41>, v29
     v30 = mul v28, 32
-    v31 = shr v28, 251
-    v32 = ne v31, 0
-    icall panic_if<0x41>, v32
-    v33 = alloc checked v30
-    mstore v33, v20
+    v31 = gt v28, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v31
+    v32 = alloc checked v30
+    mstore v32, v20
     jump bb1
   bb1:                                            ; preds = bb0, bb2
-    v34 = phi [bb0: 0], [bb2: v50]
-    v35 = lt v34, v20
-    jumpi v35, bb2, bb3
+    v33 = phi [bb0: 0], [bb2: v49]
+    v34 = lt v33, v20
+    jumpi v34, bb2, bb3
   bb3:                                            ; preds = bb1
-    v51 = ptrtoint ptr<memory> v33 to i256
-    v52 = add v51, 32
-    v53 = mload v52
-    v54 = address
-    v55 = zext i160 v54 to i256
-    v56 = shl v55, 96
-    v57 = or v56, 0x32e43a110000000000000000
-    v58 = eq v53, v57
-    ret v58
+    v50 = ptrtoint ptr<memory> v32 to i256
+    v51 = add v50, 32
+    v52 = mload v51
+    v53 = address
+    v54 = zext i160 v53 to i256
+    v55 = shl v54, 96
+    v56 = or v55, 0x32e43a110000000000000000
+    v57 = eq v52, v56
+    ret v57
   bb2:                                            ; preds = bb1
-    v36 = storage_array_data_slot 1
-    v37 = div v34, 1
-    v38 = add v36, v37
-    v39 = mod v34, 1
-    v40 = mul v39, 24
-    v41 = sload v38 !metadata(storage=symbolic(v38))
-    v42 = mul v40, 8
-    v43 = shr v41, v42
-    v44 = trunc i256 v43 to i192
-    v45 = zext i192 v44 to i256
-    v46 = shl v45, 64
-    v47 = shl v34, 5
-    v48 = ptradd v33, v47
-    v49 = ptradd v48, 32
-    mstore v49, v46
-    v50 = add v34, 1
+    v35 = storage_array_data_slot 1
+    v36 = div v33, 1
+    v37 = add v35, v36
+    v38 = mod v33, 1
+    v39 = mul v38, 24
+    v40 = sload v37 !metadata(storage=symbolic(v37))
+    v41 = mul v39, 8
+    v42 = shr v40, v41
+    v43 = trunc i256 v42 to i192
+    v44 = zext i192 v43 to i256
+    v45 = shl v44, 64
+    v46 = shl v33, 5
+    v47 = ptradd v32, v46
+    v48 = ptradd v47, 32
+    mstore v48, v45
+    v49 = add v33, 1
     jump bb1
 }

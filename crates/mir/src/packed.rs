@@ -3,7 +3,9 @@
 use super::{AbiType, MemoryObjectLayout, PtrLocation, ValueId, ValueLayout};
 use alloy_primitives::Bytes;
 
-/// One packed argument; array elements retain their padded ABI word shape.
+/// One packed argument; array elements retain their padded ABI word shape. A byte string is
+/// read in place from its location, like `AbiType::Bytes`: `value` is a memory object or slice,
+/// a calldata slice, or the slot of a storage value.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PackedPart {
     Literal(Bytes),
@@ -11,7 +13,10 @@ pub enum PackedPart {
         value: ValueId,
         ty: ValueLayout,
     },
-    Bytes(ValueId),
+    Bytes {
+        value: ValueId,
+        location: PtrLocation,
+    },
     /// An array of `element`s. `wordwise` marks calldata words that solc loads one at a time,
     /// as for `int256`, where it copies `uint256` and `bytes32` as one block.
     Array {
@@ -26,7 +31,7 @@ impl PackedPart {
     pub(crate) fn value(&self) -> Option<ValueId> {
         match *self {
             Self::Literal(_) => None,
-            Self::Scalar { value, .. } | Self::Bytes(value) | Self::Array { value, .. } => {
+            Self::Scalar { value, .. } | Self::Bytes { value, .. } | Self::Array { value, .. } => {
                 Some(value)
             }
         }
@@ -35,7 +40,7 @@ impl PackedPart {
     pub(crate) fn value_mut(&mut self) -> Option<&mut ValueId> {
         match self {
             Self::Literal(_) => None,
-            Self::Scalar { value, .. } | Self::Bytes(value) | Self::Array { value, .. } => {
+            Self::Scalar { value, .. } | Self::Bytes { value, .. } | Self::Array { value, .. } => {
                 Some(value)
             }
         }

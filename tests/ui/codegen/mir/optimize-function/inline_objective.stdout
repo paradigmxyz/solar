@@ -66,7 +66,9 @@ fn @gasCaller() {
   bb4 [cold]:                                     ; preds = bb2
     jump bb3
   bb3 [cold]:                                     ; preds = bb2, bb4
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function sizeCaller(bytes calldata data) external pure returns (uint32) [selector 0x955e9bc9]
@@ -90,7 +92,9 @@ fn @sizeCaller() [optimize=size] {
     v10 = lt v2, v27
     jumpi v10, bb5, bb4
   bb4 [cold]:                                     ; preds = bb3
-    tail_call @revert_stub
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb5:                                            ; preds = bb3
     v15 = add v28, v2
     v16 = calldataload v15
@@ -98,13 +102,6 @@ fn @sizeCaller() [optimize=size] {
     v36 = or v34, v17
     v5 = add v2, 1
     jump bb1
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_slice() -> i256 {

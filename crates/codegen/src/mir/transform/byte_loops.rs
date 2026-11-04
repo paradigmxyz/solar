@@ -157,16 +157,17 @@
 //! Not handled yet: fills longer than a word, and loops that compare or gather into an integer
 //! with left shifts.
 //!
-//! NOTE: The replacement summarizes every iteration of the loop, so its instructions carry no
-//! source location rather than an arbitrary iteration's checkpoint.
+//! NOTE: Setup and formulas summarize the loop and have no iteration-specific checkpoint.
+//! A bulk store can keep the body's unique store origin only when a positive bound or a retained
+//! zero-count skip proves that body executed. Untested possibly-empty copies remain unmapped.
 
 use crate::mir::{
     AllocationInitialization, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, Function,
-    FunctionBuilder, InstId, InstKind, MirType, Module, PanicCode, PtrLocation, RevertKind,
-    Terminator, Value, ValueId,
+    FunctionBuilder, InstId, InstKind, InstructionMetadata, MirType, Module, PanicCode,
+    PtrLocation, RevertKind, Terminator, Value, ValueId,
     analysis::{
         AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, Loop, LoopAnalyzer,
-        MemoryBase, MemoryLocation,
+        MemoryLocation,
     },
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_function_pass},
@@ -1016,7 +1017,7 @@ fn calldata_word_address(
     if func.value_u64(shift) != Some(5) {
         return None;
     }
-    // panic_if (ne (shr 251, idx), 0), 0x41
+    // panic_if (gt idx, MAX >> 5), 0x41
     for &inst in &lp.insts {
         let InstKind::ICall {
             function:
@@ -1037,20 +1038,10 @@ fn calldata_word_address(
     Some((slice, idx))
 }
 
-/// Whether `condition` tests that scaling `idx` by 32 wraps: `idx` has a bit at or above 251.
+/// Whether `condition` tests that scaling `idx` by 32 wraps: `gt idx, MAX >> 5`.
 fn scale_wraps(func: &Function, lp: &Counted, condition: ValueId, idx: ValueId) -> bool {
-    match body_def(func, lp, condition).map(|(_, kind)| kind) {
-        // ne (shr 251, idx), 0
-        Some(&InstKind::Ne(high, zero)) if func.value_u64(zero) == Some(0) => {
-            matches!(body_def(func, lp, high), Some((_, &InstKind::Shr(amount, shifted)))
-                if shifted == idx && func.value_u64(amount) == Some(251))
-        }
-        // gt idx, MAX >> 5
-        Some(&InstKind::Gt(value, limit)) => {
-            value == idx && func.value_u256(limit) == Some(U256::MAX >> 5)
-        }
-        _ => false,
-    }
+    matches!(body_def(func, lp, condition), Some((_, &InstKind::Gt(value, limit)))
+        if value == idx && func.value_u256(limit) == Some(U256::MAX >> 5))
 }
 
 /// Matches `dst[dstOffset + k] = src[srcOffset + k]` over arrays of words, counting up.
@@ -1226,10 +1217,7 @@ fn word_array_size(func: &Function, size: ValueId, len: ValueId) -> bool {
 /// argument may overlap a fresh allocation, and an allocation after a free memory pointer reset
 /// may overlap an earlier one, so only the bases the alias analysis keeps apart count.
 fn disjoint_objects(func: &Function, aa: &AliasAnalysis, a: ValueId, b: ValueId) -> bool {
-    let site = |value| match aa.memory_address(func, value)?.base {
-        MemoryBase::Allocation(inst) | MemoryBase::DynamicAllocation(inst) => Some(inst),
-        _ => None,
-    };
+    let site = |value| aa.memory_address(func, value)?.base.allocation();
     matches!((site(a), site(b)), (Some(a), Some(b)) if a != b)
 }
 
@@ -1473,6 +1461,10 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
     // The counter leaves the loop equal to its limit: the bound counting up, zero counting down.
     replacements.insert(lp.counter, lp.limit);
     let literal = lp.literal_bound(func);
+    let store_context = single_store(func, &lp, |kind| {
+        matches!(kind, InstKind::Store(_, _, PtrLocation::Memory) | InstKind::Store8(..))
+    })
+    .map(|inst| func.inst(inst).metadata.debug_context());
     // A gather that skips an empty count keeps its result phi, now joining the skip and the setup.
     let mut kept_phi = None;
     let mut builder = FunctionBuilder::new_semantic(func);
@@ -1607,7 +1599,13 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 }
                 None => value,
             };
+            if literal.is_none_or(|count| count > 0)
+                && let Some(context) = &store_context
+            {
+                builder.set_debug_context(context);
+            }
             builder.store(address, stored);
+            builder.set_debug_context(&InstructionMetadata::EMPTY);
             if guarded {
                 // fast: ...; jump exit
                 builder.jump(lp.exit);
@@ -1729,7 +1727,15 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                     (from, PtrLocation::Calldata)
                 }
             };
+            // NOTE: Untested zero-length copies can execute when the old body never did. Only
+            // a nonempty constant or the retained empty-count branch proves this store ran.
+            if (tested || literal.is_some_and(|count| count > 0))
+                && let Some(context) = &store_context
+            {
+                builder.set_debug_context(context);
+            }
             builder.copy(to, from, size, location);
+            builder.set_debug_context(&InstructionMetadata::EMPTY);
             if fast.is_some() {
                 // fast: ...; jump exit
                 // The loop stays for a destination that leads into its source, or a calldata range
@@ -1908,11 +1914,10 @@ fn keeps_loop(
     if src.shift == 0 {
         return overlaps;
     }
-    // scale_wraps = ne (shr bound, 256 - shift), 0
+    // scale_wraps = gt bound, MAX >> shift
     // keeps_loop = or overlaps, scale_wraps
-    let bits = builder.imm(256 - u32::from(src.shift));
-    let high = builder.shr(lp.bound, bits);
-    let scale_wraps = builder.ne_zero(high);
+    let limit = builder.imm(U256::MAX >> src.shift);
+    let scale_wraps = builder.gt(lp.bound, limit);
     builder.or(overlaps, scale_wraps)
 }
 
@@ -2079,14 +2084,13 @@ fn calldata_wraps(builder: &mut FunctionBuilder<'_>, access: &Access, count: Val
     if access.shift != 0 {
         // index_end = add offset, count
         // index_wraps = lt index_end, offset
-        // scale_wraps = ne (shr index_end, 256 - shift), 0
+        // scale_wraps = gt index_end, MAX >> shift
         // wraps = or wraps, (or index_wraps, scale_wraps)
         let index_start = access.offset.unwrap_or_else(|| builder.imm(0));
         let index_end = builder.add(index_start, count);
         let index_wraps = builder.lt(index_end, index_start);
-        let bits = builder.imm(256 - u32::from(access.shift));
-        let high = builder.shr(index_end, bits);
-        let scale_wraps = builder.ne_zero(high);
+        let limit = builder.imm(U256::MAX >> access.shift);
+        let scale_wraps = builder.gt(index_end, limit);
         let index_fails = builder.or(index_wraps, scale_wraps);
         wraps = builder.or(wraps, index_fails);
     }

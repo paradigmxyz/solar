@@ -681,7 +681,8 @@ pub enum AbiEncodeMode {
     Slice,
     /// Return an owned Solidity bytes object.
     Bytes,
-    /// Return a slice staged at the free-memory pointer without reserving it.
+    /// Return a slice staged at the free-memory pointer, or at an explicit base, without reserving
+    /// it.
     Scratch,
 }
 
@@ -977,25 +978,16 @@ impl InstKind {
 
     /// Returns binary operands whose evaluation order may be exchanged during EVM lowering.
     ///
-    /// This includes commutative instructions and comparisons whose opcode can be reversed with
-    /// their operands.
-    pub const fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
-        if !self.op_def().traits.contains(super::OpTraits::REORDERABLE) {
-            return None;
-        }
+    /// This includes the declared commutative pair of a binary operation and comparisons whose
+    /// opcode can be reversed with their operands. The backend pushes `addmod`, `mulmod` and the
+    /// destination and size of a data copy in one order only, so those are not included.
+    pub fn reorderable_binary_operands(&self) -> Option<(ValueId, ValueId)> {
         match self {
-            Self::InsertValue { aggregate: a, value: b, .. }
-            | Self::DataCopy(_, a, b)
-            | Self::Add(a, b)
-            | Self::Mul(a, b)
-            | Self::And(a, b)
-            | Self::Or(a, b)
-            | Self::Xor(a, b)
-            | Self::Eq(a, b)
-            | Self::Lt(a, b)
-            | Self::Gt(a, b)
-            | Self::SLt(a, b)
-            | Self::SGt(a, b) => Some((*a, *b)),
+            Self::Lt(a, b) | Self::Gt(a, b) | Self::SLt(a, b) | Self::SGt(a, b) => Some((*a, *b)),
+            // Other operations carry payloads that `op` would copy.
+            _ if self.op_def().traits.contains(super::OpTraits::COMMUTATIVE) => {
+                self.op().commutative_pair().filter(|_| self.operands().len() == 2)
+            }
             _ => None,
         }
     }

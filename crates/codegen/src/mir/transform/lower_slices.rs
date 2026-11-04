@@ -151,6 +151,7 @@ impl LowerSlices {
                     && let Some(location) = func.value_slice_location(a)
                 {
                     let old = func.inst_result_value(inst_id).expect("select has a result");
+                    let context = func.inst(inst_id).metadata.debug_context();
                     let (ia, pa) = new_projection(func, a, MirType::SLICE_PTR_FIELD);
                     let (ib, pb) = new_projection(func, b, MirType::SLICE_PTR_FIELD);
                     let (ila, la) = new_projection(func, a, MirType::SLICE_LEN_FIELD);
@@ -163,6 +164,9 @@ impl LowerSlices {
                         InstKind::MakeSlice { ptr: sp, len: sl, location },
                         MirType::Slice(location),
                     );
+                    for id in [ia, ib, ila, ilb, isp, isl, ims] {
+                        func.inst_mut(id).metadata.copy_debug_context(&context);
+                    }
                     out.extend([ia, ib, ila, ilb, isp, isl, ims]);
                     replacements.insert(old, new_slice);
                     continue;
@@ -194,6 +198,7 @@ impl LowerSlices {
             );
             split_map.clear();
             for (inst_id, location) in slice_phis.drain(..) {
+                let context = func.inst(inst_id).metadata.debug_context();
                 let incoming = match &mut func.inst_mut(inst_id).kind {
                     InstKind::Phi(incoming) => std::mem::take(incoming),
                     _ => unreachable!(),
@@ -204,6 +209,11 @@ impl LowerSlices {
                     InstKind::MakeSlice { ptr: sp, len: sl, location },
                     MirType::Slice(location),
                 );
+                // NOTE: Predecessor projections can run on edges that skip the join. Only the
+                // replacement phis and reconstruction inherit the original phi's location.
+                for id in [ptr_phi, len_phi, make] {
+                    func.inst_mut(id).metadata.copy_debug_context(&context);
+                }
                 let old = func.inst_result_value(inst_id).expect("phi has a result");
                 replacements.insert(old, new_slice);
                 split_map.insert(inst_id, (ptr_phi, len_phi, make));
@@ -250,6 +260,8 @@ impl LowerSlices {
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(block_id);
             for inst_id in instructions.drain(..) {
+                let context = builder.func().inst(inst_id).metadata.debug_context();
+                builder.set_debug_context(&context);
                 if let InstKind::ICall { function: Callee::Function(callee), args, .. } =
                     &builder.func().inst(inst_id).kind
                     && let Some(signature) = signatures.get(*callee)
@@ -294,6 +306,8 @@ impl LowerSlices {
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(block_id);
             for inst_id in instructions.drain(..) {
+                let context = builder.func().inst(inst_id).metadata.debug_context();
+                builder.set_debug_context(&context);
                 builder.func_mut().blocks[block_id].instructions.push(inst_id);
                 let Some((signature, result)) = (match builder.func().inst(inst_id).kind {
                     InstKind::ICall { function: Callee::Function(function), .. } => signatures

@@ -1,0 +1,13 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole -Zdebugify=report
+// Three independent checkpoints cannot fit on the two surviving branch instructions.
+// Do not overwrite either existing origin or make the legacy map ambiguous to save the test.
+@module DebugBranchCheckpoint
+bb0:
+  calldatasize
+  iszero
+  iszero !metadata(span=10..20)
+  push bb1 !metadata(span=30..40)
+  jumpi !metadata(span=50..60)
+  stop
+bb1:
+  stop !metadata(span=70..80)

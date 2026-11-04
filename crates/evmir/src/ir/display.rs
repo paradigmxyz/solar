@@ -2,13 +2,15 @@
 
 use super::*;
 use crate::{
-    link::{display_data_ref, display_data_size, display_declarations},
+    link::{display_data_ref, display_data_size, display_declarations, display_u256},
     op,
 };
 use solar_data_structures::fmt::FmtIteratorExt;
+use std::fmt::Write;
 
 impl Module {
-    /// Returns the canonical EVM IR text-format representation.
+    /// Returns the EVM IR text-format representation. Audit-only debug fields can be hidden
+    /// with [`Self::set_debug_info_visible`] without discarding the metadata used by the audit.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             writeln!(f, "@module {}", self.name)?;
@@ -37,7 +39,12 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if metadata.is_continuation {
             attributes.push("continuation".to_string());
         }
-        if let Some(function) = metadata.function_invoke {
+        if metadata.external_entry {
+            attributes.push("entry".to_string());
+        }
+        if !module.hide_debug_info
+            && let Some(function) = metadata.function_invoke
+        {
             attributes.push(format!(
                 "invoke={}@{}..{}",
                 function.identifier,
@@ -53,6 +60,28 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         }
         if let Some(depth) = metadata.entry_depth {
             attributes.push(format!("stack={depth}"));
+        }
+        if !module.hide_debug_info
+            && let Some(checkpoint) = metadata.entry_checkpoint
+        {
+            let mut attribute = format!(
+                "checkpoint={}..{}@{}..{}@{}",
+                checkpoint.source.lo().0,
+                checkpoint.source.hi().0,
+                checkpoint.transfer.lo().0,
+                checkpoint.transfer.hi().0,
+                checkpoint.modifier_depth,
+            );
+            if let Some(function) = checkpoint.function_invoke {
+                write!(
+                    attribute,
+                    "@{}@{}..{}",
+                    function.identifier,
+                    function.declaration.lo().0,
+                    function.declaration.hi().0
+                )?;
+            }
+            attributes.push(attribute);
         }
         let label = fmt::from_fn(|f| {
             write!(f, "bb{}", block.label)?;
@@ -88,7 +117,7 @@ fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fm
         if let Some(size) = inst.immutable_type_size() {
             write!(f, ", {}", size.bytes())?;
         }
-        write!(f, "{}", display_metadata(&inst.metadata))
+        write!(f, "{}", display_metadata(&inst.metadata, !module.hide_debug_info))
     })
 }
 
@@ -126,18 +155,20 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
                 }
             }
         }
-        write!(f, "{}", display_metadata(&term.metadata))
+        write!(f, "{}", display_metadata(&term.metadata, !module.hide_debug_info))
     })
 }
 
-fn display_metadata(metadata: &Metadata) -> impl fmt::Display + '_ {
+fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
-        let spans = metadata.source_spans();
-        let function_invoke = metadata.function_invoke();
-        let function_exit = metadata.function_exit();
+        let spans = if visible { metadata.source_spans() } else { &[] };
+        let function_invoke = visible.then(|| metadata.function_invoke()).flatten();
+        let function_exit = visible.then(|| metadata.function_exit()).flatten();
+        let checkpoints = if visible { metadata.checkpoint_transfers() } else { &[] };
         if spans.is_empty()
             && function_invoke.is_none()
             && function_exit.is_none()
+            && checkpoints.is_empty()
             && !metadata.keep_with_next
         {
             return Ok(());
@@ -177,6 +208,10 @@ fn display_metadata(metadata: &Metadata) -> impl fmt::Display + '_ {
             write!(f, "{separator}exit={exit}")?;
             separator = ", ";
         }
+        for span in checkpoints {
+            write!(f, "{separator}checkpoint={}..{}", span.lo().0, span.hi().0)?;
+            separator = ", ";
+        }
         if metadata.keep_with_next {
             write!(f, "{separator}keep_with_next")?;
         }
@@ -208,16 +243,4 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
 
 fn display_block_id(module: &Module, block: BlockId) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| write!(f, "bb{}", module.blocks[block].label))
-}
-
-fn display_u256(value: U256) -> impl fmt::Display {
-    fmt::from_fn(move |f| {
-        if let Ok(value) = u64::try_from(value)
-            && value < 1000
-        {
-            write!(f, "{value}")
-        } else {
-            write!(f, "{value:#x}")
-        }
-    })
 }

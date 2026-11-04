@@ -4,7 +4,7 @@
 //! to earlier temporaries. They are resolved when a winning recipe is committed;
 //! rejected recipes leave the function and its metadata untouched.
 
-use super::{Recipe, Stage, Temporary, mask_uses::MaskUses, widest_int_operand};
+use super::{ConditionRead, Recipe, Stage, Temporary, mask_uses::MaskUses, widest_int_operand};
 use crate::{
     backend::evm::op,
     mir::{
@@ -43,6 +43,7 @@ mod generated {
     include!(concat!(env!("OUT_DIR"), "/word_sequence.isle.rs"));
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn alternatives(
     func: &Function,
     block: &[InstId],
@@ -51,11 +52,20 @@ pub(super) fn alternatives(
     op: &Op,
     target: &Target,
     stage: Stage,
+    read: ConditionRead,
 ) -> Vec<Recipe> {
     let op = &func.canonical_op(*op);
     let mut result = Vec::new();
     let scalar_ty =
         op.into_kind().and_then(|kind| widest_int_operand(func, &kind)).unwrap_or(MirType::I256);
+    // The `and` or `or` of booleans that joins tests builds words from its operands' words, whose
+    // constants do not fit a bool. Both are bitwise, so a word of zeros and ones gives the same
+    // answer at any width; arithmetic on booleans wraps at one bit, so it keeps its type.
+    let scalar_ty = if scalar_ty == MirType::I1 && matches!(op, Op::And { .. } | Op::Or { .. }) {
+        MirType::I256
+    } else {
+        scalar_ty
+    };
     let mut context = Context {
         func,
         block,
@@ -64,6 +74,7 @@ pub(super) fn alternatives(
         target,
         scalar_ty,
         stage,
+        read,
         temporaries: FxHashMap::default(),
         reading: Reading::default(),
     };
@@ -91,6 +102,8 @@ struct Context<'a> {
     target: &'a Target,
     scalar_ty: MirType,
     stage: Stage,
+    /// How the root's result is read.
+    read: ConditionRead,
     temporaries: FxHashMap<ValueId, Temporary>,
     /// The commuted spelling of the root being matched.
     reading: Reading,
@@ -236,7 +249,31 @@ impl generated::Context for Context<'_> {
     }
 
     fn late_word_sequence(&mut self) -> bool {
-        self.stage != Stage::Early
+        matches!(self.stage, Stage::Late | Stage::LateLowered)
+    }
+
+    fn spelling_widths(&mut self) -> bool {
+        self.stage == Stage::Spelling
+    }
+
+    fn width_shifts(&mut self, bits: U256, fits: bool) -> bool {
+        u32::try_from(bits).is_ok_and(|bits| {
+            self.target.shifts_bits_test(bits, fits, self.read.branch, self.read.in_loop)
+        })
+    }
+
+    fn shared_shift(&mut self, bits: U256, value: Value) -> Option<Value> {
+        // The earliest such shift, so that the choice does not depend on the set's order.
+        let inst = self
+            .seen
+            .iter()
+            .copied()
+            .filter(|&inst| {
+                matches!(self.func.inst(inst).kind, InstKind::Shr(shift, shifted)
+                    if shifted == value && self.func.value_u256(shift) == Some(bits))
+            })
+            .min()?;
+        self.func.inst_result_value(inst)
     }
 
     fn unshared_mask(&mut self, mask: U256) -> bool {

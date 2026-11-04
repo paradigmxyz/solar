@@ -1,0 +1,14 @@
+//@ compile-flags: -Zmir-pipeline=if-convert -Zdebugify=check
+// The branch-free value computes the join phi's result on exactly the phi's original paths.
+@module DebugSelect
+fn @choose(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: 3], [bb2: 7] !metadata(span=10..20)
+    ret v0
+}

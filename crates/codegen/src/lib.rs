@@ -29,5 +29,6 @@ pub use link::{
 };
 mod isle_log;
 
+mod debugify;
 pub(crate) mod target;
 mod timing;

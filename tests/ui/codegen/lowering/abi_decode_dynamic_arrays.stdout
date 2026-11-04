@@ -61,13 +61,16 @@ fn @bools() {
     v6 = mload v72
     v8 = add v72, v6
     v11 = add v8, 32
-    v12 = gt v6, 0xffffffffffffffff
+    v87 = shr v6, 64
     v13 = lt v4, v11
-    v14 = or v12, v13
+    v89 = zext i1 v13 to i256
+    v90 = or v87, v89
+    v14 = ne v90, 0
     jumpi v14, bb1, bb3
   bb3:                                            ; preds = bb2
     v16 = mload v8
-    v18 = gt v16, 0x7fffffffffffffe
+    v92 = shr v16, 59
+    v18 = ne v92, 0
     jumpi v18, bb4, bb5
   bb5:                                            ; preds = bb3
     v19 = add v16, 1
@@ -116,8 +119,8 @@ fn @bools() {
     returndata v83, v68
   bb8:                                            ; preds = bb7
     v30 = mload v27
-    v31 = lt v30, 2
-    jumpi v31, bb10, bb1
+    v31 = gt v30, 1
+    jumpi v31, bb1, bb10
   bb10:                                           ; preds = bb8
     mstore v85, v30
     v35 = sub v26, 1
@@ -145,13 +148,16 @@ fn @strs() {
     v6 = mload v103
     v8 = add v103, v6
     v11 = add v8, 32
-    v12 = gt v6, 0xffffffffffffffff
+    v124 = shr v6, 64
     v13 = lt v4, v11
-    v14 = or v12, v13
+    v126 = zext i1 v13 to i256
+    v127 = or v124, v126
+    v14 = ne v127, 0
     jumpi v14, bb1, bb3
   bb3:                                            ; preds = bb2
     v16 = mload v8
-    v18 = gt v16, 0x7fffffffffffffe
+    v129 = shr v16, 59
+    v18 = ne v129, 0
     jumpi v18, bb4, bb5
   bb5:                                            ; preds = bb3
     v19 = add v16, 1
@@ -213,9 +219,11 @@ fn @strs() {
     v30 = mload v27
     v31 = add v11, v30
     v33 = add v31, 32
-    v34 = gt v30, 0xffffffffffffffff
+    v131 = shr v30, 64
     v35 = lt v4, v33
-    v36 = or v34, v35
+    v133 = zext i1 v35 to i256
+    v134 = or v131, v133
+    v36 = ne v134, 0
     jumpi v36, bb1, bb10
   bb10:                                           ; preds = bb8
     v38 = mload v31
@@ -270,9 +278,11 @@ fn @mixed() {
     v19 = mload v18
     v21 = add v84, v19
     v24 = add v21, 32
-    v25 = gt v19, 0xffffffffffffffff
+    v100 = shr v19, 64
     v26 = lt v10, v24
-    v27 = or v25, v26
+    v102 = zext i1 v26 to i256
+    v103 = or v100, v102
+    v27 = ne v103, 0
     jumpi v27, bb1, bb3
   bb3:                                            ; preds = bb2
     v29 = mload v21
@@ -339,19 +349,19 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v36 = add v6, 63
-    v10 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = add v6, 63
+    v10 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v11 = lt v10, v6
     v29 = heap_floor !metadata(alloc_ptr)
     v30 = add v29, v10 !metadata(alloc_ptr)
+    v38 = shr v30, 64
     v31 = lt v30, v29
-    v32 = zext i1 v31 to i256
-    v33 = shr v30, 64
-    v34 = or v33, v32
-    v38 = zext i1 v11 to i256
-    v39 = or v34, v38
-    v40 = ne v39, 0
-    jumpi v40, bb3, bb5
+    v40 = zext i1 v31 to i256
+    v41 = or v38, v40
+    v43 = zext i1 v11 to i256
+    v44 = or v41, v43
+    v37 = ne v44, 0
+    jumpi v37, bb3, bb5
   bb5:                                            ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
@@ -375,13 +385,16 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     v0 = mload arg0
     v1 = add v0, arg1
     v3 = add v1, 32
-    v4 = gt v0, 0xffffffffffffffff
+    v28 = shr v0, 64
     v5 = lt arg2, v3
-    v6 = or v4, v5
+    v30 = zext i1 v5 to i256
+    v31 = or v28, v30
+    v6 = ne v31, 0
     jumpi v6, bb1, bb2
   bb2:                                            ; preds = bb0
     v8 = mload v1
-    v10 = gt v8, 0x7fffffffffffffe
+    v33 = shr v8, 59
+    v10 = ne v33, 0
     jumpi v10, bb3, bb4
   bb4:                                            ; preds = bb2
     v11 = add v8, 1
@@ -409,12 +422,12 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v7 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v5, v4
-    v7 = ne v6, 0
-    jumpi v7, bb1, bb2
+    v9 = zext i1 v3 to i256
+    v10 = or v7, v9
+    v5 = ne v10, 0
+    jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

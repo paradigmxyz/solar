@@ -69,67 +69,66 @@ fn @test_nested() -> struct0 [selector=0x9160d787, abi_params=[], abi_returns=[w
     jumpi v42, bb5, bb6
   bb6:                                            ; preds = bb4
     v62 = mul v41, 32
-    v63 = shr v41, 251
-    v64 = ne v63, 0
-    icall panic_if<0x41>, v64
-    v65 = add v62, 32
-    v66 = lt v65, 32
-    icall panic_if<0x41>, v66
-    v67 = alloc v65
-    mstore v67, v62
-    v68 = mload v0
+    v63 = gt v41, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v63
+    v64 = add v62, 32
+    v65 = lt v64, 32
+    icall panic_if<0x41>, v65
+    v66 = alloc v64
+    mstore v66, v62
+    v67 = mload v0
     jump bb10
   bb10:                                           ; preds = bb6, bb15
-    v69 = phi [bb6: 0], [bb15: v92]
-    v70 = phi [bb6: 0], [bb15: v78]
-    v71 = lt v69, v68
-    jumpi v71, bb11, bb12
+    v68 = phi [bb6: 0], [bb15: v91]
+    v69 = phi [bb6: 0], [bb15: v77]
+    v70 = lt v68, v67
+    jumpi v70, bb11, bb12
   bb12:                                           ; preds = bb10
-    v93 = ptradd v67, 32
-    v94 = mload v67
-    v95 = keccak256 v93, v94
-    v96 = ptradd v37, 32
-    v97 = mload v37
-    v98 = keccak256 v96, v97
-    log 0, 0, 0x305fadca9073c40aaec3082e2ca0f173c104f10695c51a17b9cfa47f9fa02e76, v95, v98
-    v99 = mload v0
-    v100 = alloc 64 !metadata(preserves_fmp)
-    mstore v100, 5
-    v101 = ptradd v100, 32
-    mstore v101, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v102 = insert_value struct0, undef struct0, 0, v99
-    v103 = insert_value struct0, v102, 1, v100
-    ret v103
+    v92 = ptradd v66, 32
+    v93 = mload v66
+    v94 = keccak256 v92, v93
+    v95 = ptradd v37, 32
+    v96 = mload v37
+    v97 = keccak256 v95, v96
+    log 0, 0, 0x305fadca9073c40aaec3082e2ca0f173c104f10695c51a17b9cfa47f9fa02e76, v94, v97
+    v98 = mload v0
+    v99 = alloc 64 !metadata(preserves_fmp)
+    mstore v99, 5
+    v100 = ptradd v99, 32
+    mstore v100, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v101 = insert_value struct0, undef struct0, 0, v98
+    v102 = insert_value struct0, v101, 1, v99
+    ret v102
   bb11:                                           ; preds = bb10
-    v72 = shl v69, 5
-    v73 = ptradd v0, v72
-    v74 = ptradd v73, 32
+    v71 = shl v68, 5
+    v72 = ptradd v0, v71
+    v73 = ptradd v72, 32
+    v74 = mload v73
     v75 = mload v74
-    v76 = mload v75
     jump bb13
   bb13:                                           ; preds = bb11, bb14
-    v77 = phi [bb11: 0], [bb14: v91]
-    v78 = phi [bb11: v70], [bb14: v89]
-    v79 = lt v77, v76
-    jumpi v79, bb14, bb15
+    v76 = phi [bb11: 0], [bb14: v90]
+    v77 = phi [bb11: v69], [bb14: v88]
+    v78 = lt v76, v75
+    jumpi v78, bb14, bb15
   bb15:                                           ; preds = bb13
-    v92 = add v69, 1
+    v91 = add v68, 1
     jump bb10
   bb14:                                           ; preds = bb13
-    v80 = shl v77, 5
-    v81 = inttoptr i256 v75 to ptr<memory>
-    v82 = ptradd v81, v80
-    v83 = ptradd v82, 32
-    v84 = mload v83
-    v85 = trunc i256 v84 to i8
-    v86 = zext i8 v85 to i256
-    v87 = ptradd v67, v78
-    v88 = ptradd v87, 32
-    mstore v88, v86
-    v89 = add v78, 32
-    v90 = lt v89, v78
-    icall panic_if<0x41>, v90
-    v91 = add v77, 1
+    v79 = shl v76, 5
+    v80 = inttoptr i256 v74 to ptr<memory>
+    v81 = ptradd v80, v79
+    v82 = ptradd v81, 32
+    v83 = mload v82
+    v84 = trunc i256 v83 to i8
+    v85 = zext i8 v84 to i256
+    v86 = ptradd v66, v77
+    v87 = ptradd v86, 32
+    mstore v87, v85
+    v88 = add v77, 32
+    v89 = lt v88, v77
+    icall panic_if<0x41>, v89
+    v90 = add v76, 1
     jump bb13
   bb5:                                            ; preds = bb4
     v43 = shl v40, 5
@@ -207,61 +206,60 @@ fn @test_strings() -> ptr<memory> [selector=0xcdb50c38, abi_params=[], abi_retur
     jumpi v22, bb5, bb6
   bb6:                                            ; preds = bb4
     v35 = mul v21, 32
-    v36 = shr v21, 251
-    v37 = ne v36, 0
-    icall panic_if<0x41>, v37
-    v38 = add v35, 32
-    v39 = lt v38, 32
-    icall panic_if<0x41>, v39
-    v40 = alloc v38
-    mstore v40, v35
-    v41 = mload v0
+    v36 = gt v21, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v36
+    v37 = add v35, 32
+    v38 = lt v37, 32
+    icall panic_if<0x41>, v38
+    v39 = alloc v37
+    mstore v39, v35
+    v40 = mload v0
     jump bb7
   bb7:                                            ; preds = bb6, bb11
-    v42 = phi [bb6: 0], [bb11: v66]
-    v43 = phi [bb6: 0], [bb11: v65]
-    v44 = lt v42, v41
-    jumpi v44, bb8, bb9
+    v41 = phi [bb6: 0], [bb11: v65]
+    v42 = phi [bb6: 0], [bb11: v64]
+    v43 = lt v41, v40
+    jumpi v43, bb8, bb9
   bb9:                                            ; preds = bb7
-    v67 = ptradd v40, 32
-    v68 = mload v40
-    v69 = keccak256 v67, v68
-    log 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v18, v69
-    v70 = alloc 64 !metadata(preserves_fmp)
-    mstore v70, 5
-    v71 = ptradd v70, 32
-    mstore v71, 0x776f726c64000000000000000000000000000000000000000000000000000000
-    ret v70
+    v66 = ptradd v39, 32
+    v67 = mload v39
+    v68 = keccak256 v66, v67
+    log 0, 0, 0xe9d28597fb984e7305318ffadc229c4d310bb7cf174b53aff9316f6e3cc105e8, v18, v68
+    v69 = alloc 64 !metadata(preserves_fmp)
+    mstore v69, 5
+    v70 = ptradd v69, 32
+    mstore v70, 0x776f726c64000000000000000000000000000000000000000000000000000000
+    ret v69
   bb8:                                            ; preds = bb7
-    v45 = shl v42, 5
-    v46 = ptradd v0, v45
-    v47 = ptradd v46, 32
+    v44 = shl v41, 5
+    v45 = ptradd v0, v44
+    v46 = ptradd v45, 32
+    v47 = mload v46
     v48 = mload v47
-    v49 = mload v48
-    v50 = add v49, 31
-    v51 = lt v50, v49
-    icall panic_if<0x41>, v51
-    v52 = and v50, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v53 = eq v52, 0
-    jumpi v53, bb11, bb10
+    v49 = add v48, 31
+    v50 = lt v49, v48
+    icall panic_if<0x41>, v50
+    v51 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v52 = eq v51, 0
+    jumpi v52, bb11, bb10
   bb10:                                           ; preds = bb8
-    v54 = sub v52, 32
-    v55 = add v54, v43
-    v56 = ptradd v40, v55
-    v57 = ptradd v56, 32
-    mstore v57, 0
+    v53 = sub v51, 32
+    v54 = add v53, v42
+    v55 = ptradd v39, v54
+    v56 = ptradd v55, 32
+    mstore v56, 0
     jump bb11
   bb11:                                           ; preds = bb8, bb10
-    v58 = add v48, 32
-    v59 = inttoptr i256 v58 to ptr<memory>
-    v60 = make_memory_slice v59, v49
-    v61 = ptradd v40, v43
-    v62 = ptradd v61, 32
-    v63 = extract_value slice<memory>, v60, 0
-    v64 = extract_value slice<memory>, v60, 1
-    mcopy v62, v63, v64
-    v65 = add v52, v43
-    v66 = add v42, 1
+    v57 = add v47, 32
+    v58 = inttoptr i256 v57 to ptr<memory>
+    v59 = make_memory_slice v58, v48
+    v60 = ptradd v39, v42
+    v61 = ptradd v60, 32
+    v62 = extract_value slice<memory>, v59, 0
+    v63 = extract_value slice<memory>, v59, 1
+    mcopy v61, v62, v63
+    v64 = add v51, v42
+    v65 = add v41, 1
     jump bb7
   bb5:                                            ; preds = bb4
     v23 = shl v20, 5

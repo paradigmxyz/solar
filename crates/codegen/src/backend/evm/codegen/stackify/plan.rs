@@ -9,7 +9,7 @@ use crate::{
     backend::evm::{
         codegen::{
             StackOp,
-            select::{InstKindOpcode, opcode_lowering, rematerializable_nullary_value},
+            select::{InstKindOpcode, opcode_lowering, push_order, rematerializable_nullary_value},
             values::{gas_minus, late_gas_reads},
         },
         ir::INDEXED_JUMP_STACK_GROWTH,
@@ -240,12 +240,23 @@ pub(super) struct Planner<'a> {
     plain_trial: Option<PlainTrial>,
     /// The cost of each stack operation the planner emits most.
     stack_costs: StackOpCosts,
-    /// The fork `place_result` tries each swap on.
+    /// The fork `place_result` tries each swap on, and `plan_inst` the order that tied.
     place_sim: Sim,
     /// The candidate and the cheapest arrangement `prepare_any` keeps, reused across calls.
     scratch: RefCell<[Sim; 2]>,
     /// The fork a `trial` plans on.
     trial_sim: RefCell<Sim>,
+    /// Whether `prepare_any` records ties: only for the instruction `plan_inst` plans, not in the
+    /// trials that look ahead.
+    tracks_ties: Cell<bool>,
+    /// The operand order that tied with the one `prepare_any` kept, when they leave different
+    /// words below the operands.
+    tie: Cell<Option<usize>>,
+    /// The stack `prepare_any` started from when it recorded a tie, so that `plan_inst` forks
+    /// only for ties, not before every instruction.
+    tie_base: RefCell<Sim>,
+    /// The operand order the next `prepare_any` with several orders must use.
+    forced_order: Cell<Option<usize>>,
     peak: usize,
     calls: Vec<(FunctionId, usize)>,
     cost: Cost,
@@ -525,6 +536,10 @@ impl<'a> Planner<'a> {
             place_sim: Sim::default(),
             scratch: RefCell::default(),
             trial_sim: RefCell::default(),
+            tracks_ties: Cell::new(false),
+            tie: Cell::new(None),
+            tie_base: RefCell::default(),
+            forced_order: Cell::new(None),
             peak: 0,
             calls: Vec::new(),
             cost: Cost::ZERO,
@@ -786,8 +801,7 @@ impl<'a> Planner<'a> {
                 }
                 placed.insert(*consumer);
             }
-            self.plan_inst_inner(sim, block, step, &uses)?;
-            uses.consume(&step.operands);
+            self.plan_inst(sim, block, &planned, position, &mut uses)?;
             if optimize
                 && let Some(result) = func.inst_result_value(inst)
                 && sim.stack.last() == Some(&Slot::Value(result))
@@ -803,6 +817,58 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
+    /// Plans `planned[position]` and consumes its operands. When two operand orders tie on price
+    /// but leave different stacks, plans the instruction again with the other order and keeps
+    /// the one after which the instructions that follow plan cheaper, the first on a tie.
+    fn plan_inst(
+        &mut self,
+        sim: &mut Sim,
+        block: BlockId,
+        planned: &[PlannedInst],
+        position: usize,
+        uses: &mut Uses,
+    ) -> Result<(), Fail> {
+        let step = &planned[position];
+        let steps = sim.steps.len();
+        self.tracks_ties.set(self.target.optimizes_stack_plans());
+        self.tie.set(None);
+        let first = self.plan_inst_inner(sim, block, step, uses);
+        self.tracks_ties.set(false);
+        first?;
+        // The tie's base is the stack after the words saved across the instruction.
+        let tie = self.tie.take().filter(|_| self.saved_across(step.inst).is_empty());
+        let Some(order) = tie else {
+            uses.consume(&step.operands);
+            return Ok(());
+        };
+        // [base] -> [base, second order]
+        let mut second = std::mem::take(&mut self.place_sim);
+        second.refork(&self.tie_base.borrow());
+        self.forced_order.set(Some(order));
+        let replanned = self.plan_inst_inner(&mut second, block, step, uses).is_ok();
+        self.forced_order.set(None);
+        uses.consume(&step.operands);
+        let window = self.lookahead(planned, position + 1);
+        if replanned && sim.stack != second.stack && !window.is_empty() {
+            let first_price = self.trial(sim, block, window, uses, 0, &[], None);
+            if self.trial(&second, block, window, uses, 0, &[], first_price).is_some_and(|price| {
+                first_price.is_none_or(|bound| self.target.cmp(price, bound).is_lt())
+            }) {
+                sim.steps.truncate(steps);
+                sim.join(&mut second);
+            }
+        }
+        self.place_sim = second;
+        Ok(())
+    }
+
+    /// The instructions from `next` that a trial plans ahead: a few, up to the next call.
+    fn lookahead<'p>(&self, planned: &'p [PlannedInst], next: usize) -> &'p [PlannedInst] {
+        let rest = &planned[next..planned.len().min(next + MAX_PLACEMENT_WINDOW)];
+        let calls = rest.iter().position(|step| icall(&self.func.inst(step.inst).kind).is_some());
+        &rest[..calls.unwrap_or(rest.len())]
+    }
+
     /// Swaps a result just left on top into the slot of a deeper word whose last read in the
     /// block comes within a few instructions, when planning up to that read gets cheaper with
     /// the dying word on top.
@@ -814,12 +880,8 @@ impl<'a> Planner<'a> {
         next: usize,
         uses: &mut Uses,
     ) -> Result<(), Fail> {
-        let func = self.func;
         let live_out = self.liveness.live_out(block);
-        let rest = &planned[next..planned.len().min(next + MAX_PLACEMENT_WINDOW)];
-        // A placement looks ahead no further than the next call.
-        let calls = rest.iter().position(|step| icall(&func.inst(step.inst).kind).is_some());
-        let rest = &rest[..calls.unwrap_or(rest.len())];
+        let rest = self.lookahead(planned, next);
         let mut candidates = SmallVec::<[(usize, usize); MAX_PLACEMENT_CANDIDATES]>::new();
         for depth in 1..sim.stack.len().min(self.reach + 1) {
             if candidates.len() == MAX_PLACEMENT_CANDIDATES {
@@ -1507,15 +1569,20 @@ impl<'a> Planner<'a> {
     /// Arranges one of the operand orders `orders` on top of the stack, choosing the cheapest
     /// order and strategy. The price counts each copy of a dying value left below the operands
     /// as a `POP` and two `SWAP`s. Pricing one `SWAP`, as [`Self::dead_word_removal`] does, leaves
-    /// more such words behind and measured larger code. Returns the chosen order's index.
+    /// more such words behind and measured larger code. Returns the chosen order's index. The
+    /// first order wins a tie, and `tie` records the order that tied with it while leaving
+    /// different words below the operands.
     fn prepare_any(
         &self,
         sim: &mut Sim,
         orders: &[&[ValueId]],
         dying: &dyn Fn(ValueId) -> bool,
     ) -> Result<usize, Fail> {
+        let forced = if orders.len() > 1 { self.forced_order.take() } else { None };
+        let first = forced.unwrap_or(0);
+        let orders = forced.map_or(orders, |order| &orders[order..=order]);
         if orders[0].is_empty() {
-            return Ok(0);
+            return Ok(first);
         }
         // Every order holds the same operands.
         let mut dying_ops = SmallVec::<[ValueId; 8]>::new();
@@ -1532,7 +1599,7 @@ impl<'a> Planner<'a> {
         for (index, ops) in orders.iter().enumerate() {
             let in_place = self.in_place(&sim.stack, ops, dying);
             if in_place && leftovers(&sim.stack[..sim.stack.len() - ops.len()], dying) == 0 {
-                return Ok(index);
+                return Ok(first + index);
             }
             all_in_place.push(in_place);
         }
@@ -1551,6 +1618,8 @@ impl<'a> Planner<'a> {
             }
         }
         let mut best: Option<(Cost, usize)> = None;
+        let mut tie = None;
+        let tracks_ties = orders.len() > 1 && self.tracks_ties.get();
         // Whether the cheapest arrangement so far swaps at least twice.
         let mut best_swaps = false;
         let mut scratch = self.scratch.borrow_mut();
@@ -1596,8 +1665,12 @@ impl<'a> Planner<'a> {
                     failure.get_or_insert(fail);
                     continue;
                 }
-                // Pricing the leftovers only adds to a candidate that already cannot win.
-                if best.is_some_and(|(best, _)| !self.target.cmp(candidate.cost, best).is_lt()) {
+                // Pricing the leftovers only adds to a candidate that already cannot win, unless
+                // another order's equal price could tie.
+                if let Some((best, order)) = best
+                    && let ahead = self.target.cmp(candidate.cost, best)
+                    && (ahead.is_gt() || ahead.is_eq() && (order == index || !tracks_ties))
+                {
                     continue;
                 }
                 let leftovers =
@@ -1605,8 +1678,20 @@ impl<'a> Planner<'a> {
                 let price = candidate.cost.plus(
                     StackCosts::POP.plus(self.target.opcode(op::SWAP1).times(2)).times(leftovers),
                 );
-                if best.is_none_or(|(best, _)| self.target.cmp(price, best).is_lt()) {
+                if let Some((best, order)) = best
+                    && self.target.cmp(price, best).is_eq()
+                {
+                    let below = |stack: &Layout| stack.len() - ops.len();
+                    if tracks_ties
+                        && order != index
+                        && candidate.stack[..below(&candidate.stack)]
+                            != best_sim.stack[..below(&best_sim.stack)]
+                    {
+                        tie = Some(first + index);
+                    }
+                } else if best.is_none_or(|(best, _)| self.target.cmp(price, best).is_lt()) {
                     best = Some((price, index));
+                    tie = None;
                     best_swaps =
                         candidate.steps.iter().filter(|step| step.is_swap()).nth(1).is_some();
                     std::mem::swap(&mut best_sim, &mut candidate);
@@ -1614,8 +1699,12 @@ impl<'a> Planner<'a> {
             }
         }
         let Some((_, index)) = best else { return Err(failure.expect("a failed candidate")) };
+        if tie.is_some() {
+            self.tie.set(tie);
+            self.tie_base.borrow_mut().refork(sim);
+        }
         sim.join(best_sim);
-        Ok(index)
+        Ok(first + index)
     }
 
     /// Builds the operands bottom up: keeps the `placed` values already in place at the top of
@@ -1972,7 +2061,7 @@ impl<'a> Planner<'a> {
             Some(index) => dies[index],
             None => self.dies(block, uses, operands, value),
         };
-        let push_order: Operands = operands.iter().rev().copied().collect();
+        let push_order = push_order(kind);
         let pushes = |result: Option<ValueId>| result.map_or(0, |_| 1);
 
         // A write that may reach the spill area, or another activation of this function reusing
@@ -2073,9 +2162,9 @@ impl<'a> Planner<'a> {
                 }
                 self.set_top_result(sim, result);
             }
-            InstKind::Select(cond, true_value, false_value) => {
+            InstKind::Select(..) => {
                 // [f, c, t] -> [f, c, f, t] -> [f, c, t-f] -> [f, c*(t-f)] -> [f + c*(t-f)]
-                self.prepare(sim, &[*false_value, *cond, *true_value], &dying)?;
+                self.prepare(sim, &push_order, &dying)?;
                 sim.observe(1);
                 sim.steps.push(Step::Inst(inst));
                 sim.cost += self.target.select_stack_ops();
@@ -2256,7 +2345,7 @@ impl<'a> Planner<'a> {
                     self.shuffle(sim, &with_return_address(args))?;
                     self.calls.push((callee, 0));
                     sim.observe(1);
-                    return Ok(Exit::TailCall(callee));
+                    return Ok(Exit::TailCall { callee, origin: Some(call) });
                 }
                 // [..., return] -> [result(m-1), ..., result0, return]
                 self.shuffle(sim, &with_return_address(values))?;
@@ -2293,7 +2382,7 @@ impl<'a> Planner<'a> {
                 }
                 self.calls.push((callee, sim.below + base));
                 sim.observe(1);
-                Ok(Exit::TailCall(callee))
+                Ok(Exit::TailCall { callee, origin: None })
             }
         }
     }
@@ -2967,7 +3056,7 @@ impl<'a> Planner<'a> {
         } else {
             self.branch_edge(sim, block, else_block, false)?
         };
-        sim.cost += self.target.opcode(op::JUMPI).plus(self.target.opcode(op::PUSH2));
+        sim.cost += self.target.label_push().plus(self.target.opcode(op::JUMPI));
         Ok(Exit::Branch { then_edge, else_edge })
     }
 

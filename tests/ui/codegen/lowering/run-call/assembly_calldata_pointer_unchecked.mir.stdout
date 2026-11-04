@@ -103,18 +103,17 @@ fn @packIt() -> ptr<memory> [selector=0x3ba102e0, pure, abi_params=[], abi_retur
     v1 = icall @words, 2
     v2 = extract_value slice<calldata>, v1, 1
     v3 = mul v2, 32
-    v4 = shr v2, 251
-    v5 = ne v4, 0
-    icall panic_if<0x41>, v5
-    v6 = abi_encode_packed (bytes v0, array<word> calldata v1)
-    ret v6
+    v4 = gt v2, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v4
+    v5 = abi_encode_packed (calldata_bytes v0, array<word> calldata v1)
+    ret v5
 }
 
 ; function concatIt() external pure returns (bytes memory) [selector 0xe95a0beb]
 fn @concatIt() -> ptr<memory> [selector=0xe95a0beb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = icall @b
-    v1 = abi_encode_packed (bytes v0, data hex"01")
+    v1 = abi_encode_packed (calldata_bytes v0, data hex"01")
     ret v1
 }
 
@@ -171,7 +170,7 @@ fn @callIt() -> i256 [selector=0x83d6f579, view, abi_params=[], abi_returns=[wor
     icall revert_if<empty>, v7
     v9 = ptradd v3, 1
     v10 = make_calldata_slice v9, 3
-    v11 = abi_encode [calldata_bytes], selector 0xa49cb33b00000000000000000000000000000000000000000000000000000000, args v10
+    v11 = abi_encode [calldata_bytes], scratch, selector 0xa49cb33b00000000000000000000000000000000000000000000000000000000, args v10
     v12 = extract_value slice<memory>, v11, 0
     v13 = extract_value slice<memory>, v11, 1
     v14 = zext i160 v0 to i256
@@ -193,10 +192,9 @@ fn @hugeWords() -> i256 [selector=0x450b33f5, pure, abi_params=[], abi_returns=[
     v0 = icall @words, 0x800000000000000000000000000000000000000000000000000000000000001
     v1 = extract_value slice<calldata>, v0, 1
     v2 = mul v1, 32
-    v3 = shr v1, 251
-    v4 = ne v3, 0
-    icall panic_if<0x41>, v4
-    v5 = abi_encode [calldata_array<word>], object, args v0
-    v6 = mload v5
-    ret v6
+    v3 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v3
+    v4 = abi_encode [calldata_array<word>], object, args v0
+    v5 = mload v4
+    ret v5
 }

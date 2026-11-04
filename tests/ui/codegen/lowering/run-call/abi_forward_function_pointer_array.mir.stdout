@@ -5,7 +5,7 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
   bb0:
     v0 = address
     v1 = gas
-    v2 = abi_encode [calldata_array<function>], selector 0x5010464900000000000000000000000000000000000000000000000000000000, args arg0
+    v2 = abi_encode [calldata_array<function>], scratch, selector 0x5010464900000000000000000000000000000000000000000000000000000000, args arg0
     v3 = extract_value slice<memory>, v2, 0
     v4 = extract_value slice<memory>, v2, 1
     v5 = zext i160 v0 to i256
@@ -18,12 +18,10 @@ fn @forward(arg0: slice<calldata>) -> i1 [selector=0xf848716a, view, abi_params=
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = mload 0 !metadata(memory=scratch)
-    v10 = shr v9, 1
-    v11 = eq v10, 0
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = ne v9, 0
-    ret v13
+    v10 = gt v9, 1
+    icall revert_if<empty>, v10
+    v11 = ne v9, 0
+    ret v11
 }
 
 ; function accept(function() external[] calldata pointers) external pure returns (bool) [selector 0x50104649]
