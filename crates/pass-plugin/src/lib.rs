@@ -1,40 +1,35 @@
-//! Native pass plugin protocol. Only byte buffers, lengths, and C function pointers cross
-//! the library boundary; compiler-owned Rust values and allocators never do.
+//! Rust optimization pass plugins. Implement [`Plugin`] and use [`export_plugin!`] to build a
+//! loadable Rust library. Plugins and the compiler must use the same SDK source, Rust toolchain,
+//! target, profile, and Rust flags; the loader checks their fingerprints before calling Rust code.
 //!
-//! A library exports `solar_pass_plugin_v1` with the signature of [`Entry`]. Each call receives
-//! a JSON [`Request`] and synchronously writes exactly one JSON response to [`WriteResponse`].
-//! Use [`dispatch`] to implement that entry point in Rust. See the example plugin package.
+//! Requests are borrowed from the host. Responses are borrowed while the host clones them, so
+//! each side retains ownership of its allocations. The export adapter contains plugin panics
+//! when built with unwinding. Native libraries are trusted code, not a sandbox.
 
-use serde::{Deserialize, Serialize};
-use std::{ffi::c_void, panic::AssertUnwindSafe};
-
-/// ABI and wire-schema version understood by this SDK.
+/// Interface version understood by this SDK.
 pub const API_VERSION: u32 = 1;
-/// Unmangled C entry point, including its trailing null.
-pub const ENTRY_SYMBOL: &[u8] = b"solar_pass_plugin_v1\0";
-/// Success status for the entry point and response writer.
-pub const SUCCESS: u32 = 0;
-/// Failure status. The response is a UTF-8 diagnostic instead of JSON.
-pub const FAILURE: u32 = 1;
 
-/// Host writer. The plugin lends `length` readable bytes for the duration of this call.
-/// It must call the writer exactly once, synchronously, on the calling thread.
-pub type WriteResponse = unsafe extern "C" fn(*mut c_void, *const u8, usize) -> u32;
-/// Native entry point. Input is borrowed until return; response ownership stays with the host.
-/// Neither this function nor the writer may unwind across the C boundary.
-pub type Entry = unsafe extern "C" fn(*const u8, usize, WriteResponse, *mut c_void) -> u32;
+include!(concat!(env!("OUT_DIR"), "/abi.rs"));
+
+/// Rust toolchain, SDK source, build configuration, and panic-strategy identity.
+pub const ABI_FINGERPRINT: [u8; 32] = __private::build_fingerprint(cfg!(panic = "unwind"));
+
+/// Implemented by an out-of-tree Rust plugin. Its methods execute inside the plugin; the export
+/// macro lends their results to the compiler and drops them before returning to the host.
+pub trait Plugin: Sync {
+    fn manifest(&self) -> Manifest;
+    fn run(&self, request: &Request) -> Result<Response, String>;
+}
 
 /// IR layer accepted by a pass.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Ir {
     Mir,
     EvmIr,
 }
 
 /// One named pass exported by a plugin.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct Pass {
     pub name: String,
     pub ir: Ir,
@@ -45,8 +40,7 @@ pub struct Pass {
 }
 
 /// Registration response. Pass names are qualified by `name`, as `name::pass`.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct Manifest {
     pub api_version: u32,
     pub name: String,
@@ -55,42 +49,33 @@ pub struct Manifest {
 }
 
 /// Request from the compiler to a plugin.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
-pub enum Request {
-    Describe {
-        api_version: u32,
-    },
-    Run {
-        api_version: u32,
-        pass: String,
-        evm_version: String,
-        optimization: String,
-        module: Snapshot,
-    },
+#[derive(Clone, Debug)]
+pub struct Request {
+    pub pass: String,
+    pub evm_version: String,
+    pub optimization: String,
+    pub module: Snapshot,
 }
 
 /// Read-only view. Numeric identities are invocation-local, not addresses or persistent IDs.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(tag = "ir", rename_all = "kebab-case", deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub enum Snapshot {
     Mir { name: String, phase: String, text: String, functions: Vec<Function> },
     EvmIr { name: String, text: String, blocks: Vec<EvmBlock> },
 }
 
 /// MIR function with its active instructions and values.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct Function {
     pub id: u32,
     pub name: String,
     pub optimization: String,
-    #[serde(default)]
     pub blocks: Vec<u32>,
     pub instructions: Vec<MirInstruction>,
     pub values: Vec<Value>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct MirInstruction {
     pub id: u32,
     pub block: u32,
@@ -100,7 +85,7 @@ pub struct MirInstruction {
     pub result_type: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct Value {
     pub id: u32,
     pub ty: String,
@@ -108,15 +93,14 @@ pub struct Value {
     pub constant: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct EvmBlock {
     pub id: u32,
-    #[serde(default)]
     pub label: u32,
     pub instructions: Vec<EvmInstruction>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct EvmInstruction {
     pub index: u32,
     pub text: String,
@@ -126,16 +110,14 @@ pub struct EvmInstruction {
 }
 
 /// Edits applied sequentially to a private candidate, then verified before committing it.
-#[derive(Debug, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Default)]
 pub struct Response {
     pub edits: Vec<Edit>,
 }
 
 /// Edits preserve the representation phase and existing module declarations. New internal
 /// functions, blocks, SSA definitions, and control-flow transfers are verified as one transaction.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(tag = "edit", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub enum Edit {
     ReplaceMirValue {
         function: u32,
@@ -198,8 +180,7 @@ pub enum Edit {
 
 /// Existing instructions can be copied with their relocations. Newly constructed instructions
 /// can inherit a known source instruction's debug context, or explicitly remain unmapped.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub enum NewEvmInstruction {
     Copy { index: u32 },
     CopyFrom { block: u32, index: u32 },
@@ -209,8 +190,7 @@ pub enum NewEvmInstruction {
 }
 
 /// Types for new MIR signatures and SSA results. Struct IDs refer to the existing type table.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub enum Type {
     Integer { bits: u32 },
     Pointer { location: AddressSpace },
@@ -219,8 +199,7 @@ pub enum Type {
     Void,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug)]
 pub enum AddressSpace {
     Memory,
     Calldata,
@@ -231,8 +210,7 @@ pub enum AddressSpace {
 
 /// Local IDs name results created by this response, scoped to one function. They are distinct
 /// from the compiler's existing value IDs. Constants must fit their declared scalar type.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub enum MirOperand {
     Value { id: u32 },
     Argument { index: u32 },
@@ -241,8 +219,7 @@ pub enum MirOperand {
 }
 
 /// New internal functions append in order, so their IDs start at the snapshot's function count.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct NewMirFunction {
     pub name: String,
     pub parameters: Vec<Type>,
@@ -252,23 +229,20 @@ pub struct NewMirFunction {
 
 /// Blocks append in order; block IDs start at zero for a new function. All blocks and result
 /// locals in a batch are declared before their bodies, allowing forward edges and loop phis.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct NewMirBlock {
     pub instructions: Vec<NewMirInstruction>,
     pub terminator: MirTerminator,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct NewMirInstruction {
     pub result: Option<u32>,
     pub ty: Option<Type>,
     pub instruction: MirInstructionKind,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub enum MirInstructionKind {
     Operation {
         operation: String,
@@ -288,8 +262,7 @@ pub enum MirInstructionKind {
     },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub enum MirTerminator {
     Jump { target: u32 },
     Branch { condition: MirOperand, then_block: u32, else_block: u32 },
@@ -304,24 +277,21 @@ pub enum MirTerminator {
 
 /// EVM IR has no function objects. Callable helpers are blocks with explicit stack arguments,
 /// return-address pushes, dynamic return jumps, and optional verified call-effect annotations.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct NewEvmBlock {
     pub instructions: Vec<NewEvmInstruction>,
     pub terminator: EvmTerminator,
     pub call_effect: Option<CallEffect>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct CallEffect {
     pub ret: u8,
     pub inputs: u8,
     pub outputs: u8,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub enum EvmTerminator {
     Jump { target: u32 },
     Branch { then_block: u32, else_block: u32 },
@@ -329,36 +299,66 @@ pub enum EvmTerminator {
     Opcode { opcode: u8 },
 }
 
-/// Implements a Rust entry point, containing panics when the library uses unwinding.
-///
-/// # Safety
-/// `input` must reference `length` readable bytes. `write` and `context` must obey the host
-/// writer contract. No pointers may be retained after this function returns.
-pub unsafe fn dispatch(
-    input: *const u8,
-    length: usize,
-    write: WriteResponse,
-    context: *mut c_void,
-    handler: impl FnOnce(Request) -> Result<Vec<u8>, String>,
-) -> u32 {
-    let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
-        // SAFETY: The entry-point caller lends this buffer until return.
-        let bytes = unsafe { std::slice::from_raw_parts(input, length) };
-        let request = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
-        let version = match &request {
-            Request::Describe { api_version } | Request::Run { api_version, .. } => *api_version,
-        };
-        if version != API_VERSION {
-            return Err(format!("unsupported plugin API {version}"));
-        }
-        handler(request)
-    }));
-    let (status, bytes) = match result {
-        Ok(Ok(bytes)) => (SUCCESS, bytes),
-        Ok(Err(error)) => (FAILURE, error.into_bytes()),
-        Err(_) => (FAILURE, b"plugin panicked".to_vec()),
+/// Exports a Rust plugin and its compatibility fingerprint. A unit struct needs only its name:
+/// `solar_pass_plugin::export_plugin!(MyPlugin)`. Stateful plugins pass a type and a constant
+/// initializer: `solar_pass_plugin::export_plugin!(MyPlugin, MyPlugin::new())`.
+#[macro_export]
+macro_rules! export_plugin {
+    ($plugin:ident) => {
+        $crate::export_plugin!($plugin, $plugin);
     };
-    // SAFETY: The host writer copies these bytes synchronously and does not retain them.
-    let written = unsafe { write(context, bytes.as_ptr(), bytes.len()) };
-    if written == SUCCESS { status } else { FAILURE }
+    ($plugin:ty, $instance:expr) => {
+        #[unsafe(no_mangle)]
+        pub static solar_rust_pass_plugin_abi_v1: [u8; 32] =
+            $crate::__private::build_fingerprint(cfg!(panic = "unwind"));
+
+        #[unsafe(no_mangle)]
+        pub fn solar_rust_pass_plugin_v1() -> &'static $crate::__private::Exports {
+            static PLUGIN: $plugin = $instance;
+            static EXPORTS: $crate::__private::Exports = $crate::__private::Exports {
+                manifest: |respond| $crate::__private::manifest(&PLUGIN, respond),
+                run: |request, respond| $crate::__private::run(&PLUGIN, request, respond),
+            };
+            &EXPORTS
+        }
+    };
+}
+
+/// Implementation details shared by the loader and export macro, not a second plugin API.
+#[doc(hidden)]
+pub mod __private {
+    use super::*;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    pub const ENTRY_SYMBOL: &[u8] = b"solar_rust_pass_plugin_v1\0";
+    pub const ABI_SYMBOL: &[u8] = b"solar_rust_pass_plugin_abi_v1\0";
+    pub type Entry = fn() -> &'static Exports;
+    pub type Receiver<'a, T> = dyn FnMut(Result<&T, &str>) + 'a;
+
+    pub struct Exports {
+        pub manifest: fn(&mut Receiver<'_, Manifest>),
+        pub run: fn(&Request, &mut Receiver<'_, Response>),
+    }
+
+    pub const fn build_fingerprint(panic_unwind: bool) -> [u8; 32] {
+        let mut fingerprint = SDK_BUILD_FINGERPRINT;
+        // Include the exporting crate's actual panic strategy as well as the SDK build's.
+        fingerprint[0] ^= panic_unwind as u8;
+        fingerprint
+    }
+
+    pub fn manifest<P: Plugin>(plugin: &P, respond: &mut Receiver<'_, Manifest>) {
+        match catch_unwind(AssertUnwindSafe(|| plugin.manifest())) {
+            Ok(manifest) => respond(Ok(&manifest)),
+            Err(_) => respond(Err("plugin panicked")),
+        }
+    }
+
+    pub fn run<P: Plugin>(plugin: &P, request: &Request, respond: &mut Receiver<'_, Response>) {
+        match catch_unwind(AssertUnwindSafe(|| plugin.run(request))) {
+            Ok(Ok(response)) => respond(Ok(&response)),
+            Ok(Err(error)) => respond(Err(&error)),
+            Err(_) => respond(Err("plugin panicked")),
+        }
+    }
 }

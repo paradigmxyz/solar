@@ -1,6 +1,6 @@
 [package]
 name = "solar-pass-plugin"
-description = "Versioned native optimization pass plugin API"
+description = "Rust optimization pass plugin SDK"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -10,7 +10,3 @@ repository.workspace = true
 
 [lints]
 workspace = true
-
-[dependencies]
-serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true

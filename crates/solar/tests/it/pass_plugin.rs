@@ -39,27 +39,35 @@ impl solar_evmir_interpreter::Host for EmptyHost {
 }
 
 fn sample() -> PathBuf {
-    let name = format!(
-        "{}solar_pass_plugin_example{}",
-        std::env::consts::DLL_PREFIX,
-        std::env::consts::DLL_SUFFIX
-    );
+    library_path("solar_pass_plugin_example")
+}
+
+fn library_path(package: &str) -> PathBuf {
+    let name = format!("{}{package}{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
     let executable = std::env::current_exe().unwrap();
     let deps = executable.parent().unwrap();
     [deps.join(&name), deps.parent().unwrap().join(&name)]
         .into_iter()
         .find(|path| path.is_file())
-        .expect("Cargo must build the example cdylib dev dependency")
+        .expect("Cargo must build the Rust plugin dev dependency")
 }
 
 fn run(path: &Path, plugin: &Path, flags: &[&str]) -> Output {
-    Command::new(SOLAR)
+    let mut command = Command::new(SOLAR);
+    command
         .args(["--allow=2264", "-j1", "--error-format=rustc-json"])
         .arg(format!("-Zload-pass-plugin={}", plugin.display()))
         .args(flags)
-        .arg(path)
-        .output()
-        .unwrap()
+        .arg(path);
+    if let Some(mode) = plugin
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.strip_prefix(std::env::consts::DLL_PREFIX))
+        .and_then(|name| name.strip_prefix("broken_"))
+    {
+        command.env("SOLAR_TEST_PASS_PLUGIN_MODE", mode);
+    }
+    command.output().unwrap()
 }
 
 fn diagnostic_messages(output: &Output) -> Vec<String> {
@@ -81,9 +89,17 @@ fn broken(directory: &Path, mode: &str) -> PathBuf {
         std::env::consts::DLL_PREFIX,
         std::env::consts::DLL_SUFFIX
     ));
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/it/auxiliary/pass_plugin.rs");
+    if !matches!(mode, "missing" | "missing_abi" | "wrong_abi") {
+        fs::copy(library_path("solar_pass_plugin_fixture"), &library).unwrap();
+        return library;
+    }
+    let fingerprint = directory.join("abi.bin");
+    fs::write(&fingerprint, solar_pass_plugin::ABI_FINGERPRINT).unwrap();
+    let source =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/it/auxiliary/pass_plugin_abi.rs");
     let output = Command::new(std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))
-        .args(["--edition=2024", "--crate-type=cdylib", "--crate-name=broken_plugin", "--cfg"])
+        .args(["--edition=2024", "--crate-type=dylib", "--crate-name=broken_plugin", "--cfg"])
+        .env("SOLAR_TEST_ABI_FILE", fingerprint)
         .arg(mode)
         .arg(source)
         .arg("-o")
@@ -219,8 +235,10 @@ fn invalid_native_plugins_fail_cleanly() {
     let mut failures = Vec::new();
     for mode in [
         "missing",
+        "missing_abi",
+        "wrong_abi",
         "bad_version",
-        "malformed",
+        "panic",
         "duplicate_response",
         "no_response",
         "callback_error",
@@ -271,7 +289,21 @@ fn invalid_native_plugins_fail_cleanly() {
   [
     "missing",
     [
-      "pass plugin `$PLUGIN` has no `solar_pass_plugin_v1` entry point",
+      "pass plugin `$PLUGIN` has no `solar_rust_pass_plugin_v1` entry point",
+      "aborting due to 1 previous error"
+    ]
+  ],
+  [
+    "missing_abi",
+    [
+      "pass plugin `$PLUGIN` is missing the Rust SDK fingerprint",
+      "aborting due to 1 previous error"
+    ]
+  ],
+  [
+    "wrong_abi",
+    [
+      "pass plugin `$PLUGIN` was built with an incompatible Rust SDK or toolchain",
       "aborting due to 1 previous error"
     ]
   ],
@@ -283,23 +315,23 @@ fn invalid_native_plugins_fail_cleanly() {
     ]
   ],
   [
-    "malformed",
+    "panic",
     [
-      "plugin pass `broken::fail` failed: invalid pass response: expected ident at line 1 column 2",
+      "plugin pass `broken::fail` failed: plugin panicked",
       "aborting due to 1 previous error"
     ]
   ],
   [
     "duplicate_response",
     [
-      "plugin wrote an invalid, duplicate, or oversized response",
+      "plugin pass `broken::fail` failed: Rust plugin returned more than one response",
       "aborting due to 1 previous error"
     ]
   ],
   [
     "no_response",
     [
-      "plugin did not write a response",
+      "plugin pass `broken::fail` failed: Rust plugin did not return a response",
       "aborting due to 1 previous error"
     ]
   ],
