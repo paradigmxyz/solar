@@ -7,6 +7,7 @@ use crate::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
+use solar_ir::debug::DistinctSpans;
 use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
@@ -78,28 +79,27 @@ impl InstructionMetadata {
     /// Sets explicit textual origins.
     pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
         self.set_source_span(None);
-        for span in spans {
-            self.insert_source_span(span);
-        }
+        self.insert_source_spans(spans);
         self.flags.set_display_source_span(self.source_span().is_some());
     }
 
-    fn insert_source_span(&mut self, span: Span) {
-        if span.is_dummy() || self.source_spans().any(|old| old == span) {
-            return;
-        }
-        if self.source_span.is_dummy() {
-            self.source_span = span;
-        } else {
-            self.additional_source_spans.get_or_insert_default().push(span);
+    fn insert_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
+        let mut distinct = DistinctSpans::default();
+        for span in spans {
+            if span.is_dummy() || !distinct.is_new(span, || self.source_spans()) {
+                continue;
+            }
+            if self.source_span.is_dummy() {
+                self.source_span = span;
+            } else {
+                self.additional_source_spans.get_or_insert_default().push(span);
+            }
         }
     }
 
     /// Unions origins without importing instruction-specific analysis facts.
     pub fn merge_debug_context(&mut self, other: &Self) {
-        for span in other.source_spans() {
-            self.insert_source_span(span);
-        }
+        self.insert_source_spans(other.source_spans());
         if self.modifier_depth != other.modifier_depth {
             self.modifier_depth = 0;
         }

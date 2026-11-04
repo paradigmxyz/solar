@@ -1,6 +1,7 @@
 //! Source debug information that EVM IR operations carry.
 
 use smallvec::SmallVec;
+use solar_data_structures::map::FxHashSet;
 use solar_interface::{Span, Symbol};
 
 /// Source origins associated with one machine instruction.
@@ -8,6 +9,44 @@ use solar_interface::{Span, Symbol};
 /// A shared instruction keeps every distinct origin of the code merged into it. More than one
 /// origin means the instruction is ambiguous: consumers must not select one of them.
 pub type DebugSpans = SmallVec<[Span; 2]>;
+
+/// Finds the spans of a batch that a list of origins lacks.
+///
+/// A list that grows without bound cannot afford a scan per span. This scans while a batch is
+/// small and hashes the list once the batch passes [`Self::SCAN_LIMIT`] spans, so merging many
+/// origins into one list stays linear in the origins merged.
+#[derive(Default)]
+pub struct DistinctSpans {
+    inspected: usize,
+    seen: Option<FxHashSet<Span>>,
+}
+
+impl DistinctSpans {
+    /// Number of spans looked up by scanning before the list is hashed.
+    pub const SCAN_LIMIT: usize = 16;
+
+    /// Returns whether `span` is missing from the list, which holds `existing`.
+    ///
+    /// The caller appends every span for which this returns true, so the list always equals
+    /// `existing` plus the spans accepted so far.
+    pub fn is_new<I: Iterator<Item = Span>>(
+        &mut self,
+        span: Span,
+        existing: impl Fn() -> I,
+    ) -> bool {
+        if let Some(seen) = &mut self.seen {
+            return seen.insert(span);
+        }
+        if existing().any(|old| old == span) {
+            return false;
+        }
+        self.inspected += 1;
+        if self.inspected > Self::SCAN_LIMIT {
+            self.seen = Some(existing().chain([span]).collect());
+        }
+        true
+    }
+}
 
 /// Source-language identity of a function activation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

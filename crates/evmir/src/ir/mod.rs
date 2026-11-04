@@ -13,7 +13,7 @@
 //! is not defined by that serialization, and `verify` checks its invariants.
 
 use crate::{
-    debug::{DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugSpans},
+    debug::{DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugSpans, DistinctSpans},
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
     op::{self, StackOp, TrackedWord},
 };
@@ -950,8 +950,9 @@ impl Metadata {
     /// Sets all source origins associated with this operation.
     pub fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
         self.source_spans.clear();
+        let mut distinct = DistinctSpans::default();
         for span in spans {
-            if !span.is_dummy() && !self.source_spans.contains(&span) {
+            if !span.is_dummy() && distinct.is_new(span, || self.source_spans.iter().copied()) {
                 self.source_spans.push(span);
             }
         }
@@ -1011,25 +1012,14 @@ impl Metadata {
     }
 
     /// Adds origins from several operations without changing machine semantics.
-    ///
-    /// Duplicates are found by scanning while the list is short and by hashing once it grows, so
-    /// merging many operations into one stays linear in the origins merged.
     pub fn merge_source_spans_from<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
-        const SCAN_LIMIT: usize = 16;
-        let mut seen = None::<FxHashSet<Span>>;
+        let mut distinct = DistinctSpans::default();
         for other in others {
             let had_source_spans = !self.source_spans.is_empty();
             for &span in other.source_spans() {
-                let is_new = match &mut seen {
-                    Some(seen) => seen.insert(span),
-                    None => !self.source_spans.contains(&span),
-                };
-                if is_new {
+                if distinct.is_new(span, || self.source_spans.iter().copied()) {
                     self.source_spans.push(span);
                 }
-            }
-            if seen.is_none() && self.source_spans.len() > SCAN_LIMIT {
-                seen = Some(self.source_spans.iter().copied().collect());
             }
             if !had_source_spans && !self.source_spans.is_empty() {
                 self.modifier_depth = other.modifier_depth;
