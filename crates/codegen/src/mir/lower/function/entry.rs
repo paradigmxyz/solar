@@ -61,8 +61,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             }
             let Some(initializer) = variable.initializer else { continue };
-            // Like solc, map the whole initialization, including the conversion and the store,
-            // to the variable declaration.
+            // Like solc, map the conversion and the store to the variable declaration.
             let previous = self.builder.replace_source_span(variable.span);
             let result = self.lower_state_initializer(id, initializer);
             self.builder.replace_source_span(previous);
@@ -128,13 +127,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             };
             let constructor = self.cx.gcx.hir.function(constructor_id);
-            // Map the argument evaluation, including its conversions, to the argument list.
-            let previous = self.builder.replace_source_span(args.span);
             if args.len() != constructor.parameters.len() {
                 return self
                     .cx
                     .report_unsupported(constructor.span, "base constructor argument list");
             }
+            // Map the argument conversions to the argument list.
+            let previous = self.builder.replace_source_span(args.span);
             let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
                 id: constructor_id,
                 skips_receiver: false,
