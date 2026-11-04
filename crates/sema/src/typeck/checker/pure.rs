@@ -12,6 +12,9 @@ impl<'gcx> TypeckResults<'gcx> {
     /// Expressions without a type or with an erroneous type count as pure to avoid follow-up
     /// errors.
     pub(crate) fn is_pure(&self, gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> bool {
+        if let Some(&pure) = self.ast.pure.get(&expr.id) {
+            return pure;
+        }
         let Some(ty) = self.type_of_expr(expr.id) else {
             // The type tuple of `abi.decode` has no type of its own, but its components do.
             return match expr.kind {

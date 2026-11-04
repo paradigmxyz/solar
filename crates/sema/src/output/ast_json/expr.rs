@@ -23,15 +23,13 @@ use super::{
 };
 use crate::{
     builtins::Builtin,
-    hir::{self, ItemId, Res, StmtKind, Visit},
+    hir::{self, ItemId, Res, StmtKind},
     ty::{Gcx, Ty, TyFnKind, TyKind},
-    typeck::binop_common_type,
 };
 use alloy_primitives::hex;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use solar_ast::{self as ast, DocComments, ElementaryType, LitKind, StrKind};
 use solar_interface::{Ident, Span, SpannedOption, kw};
-use std::ops::ControlFlow;
 
 /// What an expression learns from its parent. [`Cx`] holds it for the next expression.
 #[derive(Clone, Copy, Default)]
@@ -154,9 +152,7 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         m.serialize_entry("typeDescriptions", &ExprType::new(self.gcx, expr).args(parent.args))?;
         self.argument_types(m, parent)?;
         m.serialize_entry("isLValue", &is_lvalue)?;
-        // solc does not treat a tuple that is written to as pure.
-        let written_tuple = parent.lvalue && matches!(expr.kind, hir::ExprKind::Tuple(_));
-        m.serialize_entry("isPure", &(!written_tuple && self.gcx.is_pure(expr)))?;
+        m.serialize_entry("isPure", &self.gcx.is_pure(expr))?;
         m.serialize_entry("isConstant", &false)?;
         m.serialize_entry("lValueRequested", &parent.lvalue)
     }
@@ -287,7 +283,10 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, &hir::Stmt<'gcx>)> {
                 let next = next.as_deref().zip(parts.next);
                 serialize_opt(&mut m, "loopExpression", next.map(|exprs| cx.w(Next(exprs))))?;
                 m.serialize_entry("body", &cx.w((&**body, parts.body)))?;
-                m.serialize_entry("isSimpleCounterLoop", &parts.is_simple_counter_loop(gcx))?;
+                m.serialize_entry(
+                    "isSimpleCounterLoop",
+                    &parts.cond.is_some_and(|cond| gcx.is_simple_counter_loop(cond.id)),
+                )?;
                 m.end()
             }
             (ast::StmtKind::Continue, _) => cx.stmt_node(s, "Continue", span, docs)?.0.end(),
@@ -409,93 +408,6 @@ impl<'hir> ForParts<'hir> {
         };
         Self { init, cond, body, next }
     }
-
-    /// Returns whether the loop is `for (...; i < n; i++)` or with `++i`, which cannot overflow
-    /// `i`.
-    ///
-    /// Like solc, `i` must be a local variable of an integer type that `n` and the body do not
-    /// write to. Writes in inline assembly are not looked for.
-    fn is_simple_counter_loop(&self, gcx: Gcx<'hir>) -> bool {
-        let (Some(cond), Some(next)) = (self.cond, self.next) else { return false };
-        let hir::ExprKind::Binary(lhs, op, rhs) = cond.kind else { return false };
-        let hir::ExprKind::Unary(inc, counter) = next.kind else { return false };
-        if op.kind != hir::BinOpKind::Lt
-            || !matches!(inc.kind, hir::UnOpKind::PreInc | hir::UnOpKind::PostInc)
-            || gcx.user_operator(cond.id).is_some()
-            || gcx.user_operator(next.id).is_some()
-        {
-            return false;
-        }
-        if !matches!(lhs.kind, hir::ExprKind::Ident(_))
-            || !matches!(counter.kind, hir::ExprKind::Ident(_))
-        {
-            return false;
-        }
-        let var =
-            gcx.resolved_variable(lhs).filter(|&id| Some(id) == gcx.resolved_variable(counter));
-        let Some(var) = var else { return false };
-        let is_local = gcx.hir.variable(var).is_local_variable();
-        let lhs_ty = gcx.type_of_expr(lhs.id);
-        if !is_local
-            || !lhs_ty.is_some_and(|ty| ty.is_integer())
-            || lhs_ty != common_type(gcx, cond)
-        {
-            return false;
-        }
-        let mut writes = WritesVariable { gcx, var };
-        writes.visit_expr(rhs).is_continue() && writes.visit_stmt(self.body).is_continue()
-    }
-}
-
-/// Finds a write to a variable: the `Break` is the write.
-struct WritesVariable<'gcx> {
-    gcx: Gcx<'gcx>,
-    var: hir::VariableId,
-}
-
-impl<'gcx> Visit<'gcx> for WritesVariable<'gcx> {
-    type BreakValue = ();
-
-    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
-        &self.gcx.hir
-    }
-
-    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<()> {
-        let target = match expr.kind {
-            hir::ExprKind::Assign(lhs, ..) => Some(lhs),
-            hir::ExprKind::Delete(target) => Some(target),
-            hir::ExprKind::Unary(op, target) if op.kind.has_side_effects() => Some(target),
-            _ => None,
-        };
-        if target.is_some_and(|target| writes_to(self.gcx, target, self.var)) {
-            return ControlFlow::Break(());
-        }
-        self.walk_expr(expr)
-    }
-}
-
-/// Returns whether writing to the expression writes to the variable: the expression is the
-/// variable, or a tuple with it.
-fn writes_to(gcx: Gcx<'_>, expr: &hir::Expr<'_>, var: hir::VariableId) -> bool {
-    match expr.kind {
-        hir::ExprKind::Tuple(components) => {
-            components.iter().flatten().any(|component| writes_to(gcx, component, var))
-        }
-        _ => gcx.resolved_variable(expr) == Some(var),
-    }
-}
-
-/// Returns the `commonType` of a binary operation: the type of arithmetic, and the common type of
-/// the operands of a comparison or a logical operation.
-fn common_type<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
-    let hir::ExprKind::Binary(lhs, op, rhs) = expr.kind else { return None };
-    if !op.kind.is_cmp() && !op.kind.is_logical() {
-        return gcx.type_of_expr(expr.id);
-    }
-    let (lhs_ty, rhs_ty) = (gcx.type_of_expr(lhs.id)?, gcx.type_of_expr(rhs.id)?);
-    // A user-defined operator takes the type of its operands.
-    binop_common_type(gcx, lhs_ty, rhs_ty, op.kind)
-        .or_else(|| gcx.user_operator(expr.id).map(|_| lhs_ty))
 }
 
 impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
@@ -559,7 +471,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
                 let base_res = gcx.resolved_expr(hir_base);
                 let declaration = res.and_then(|res| cx.reference(res, *member, base_res));
                 serialize_opt(&mut m, "referencedDeclaration", declaration)?;
-                cx.expr_attrs(&mut m, hir, parent, member_is_lvalue(gcx, hir_base, res))?;
+                cx.expr_attrs(&mut m, hir, parent, gcx.is_lvalue(hir.id))?;
                 m.end()
             }
             (
@@ -571,7 +483,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
                     m.serialize_entry("baseExpression", &cx.w((&**base, *hir_base)))?;
                     let index = index.as_deref().zip(*hir_index);
                     serialize_opt(&mut m, "indexExpression", index.map(|exprs| cx.w(exprs)))?;
-                    cx.expr_attrs(&mut m, hir, parent, index_is_lvalue(gcx, hir_base))?;
+                    cx.expr_attrs(&mut m, hir, parent, gcx.is_lvalue(hir.id))?;
                     m.end()
                 }
                 (
@@ -604,7 +516,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
                 m.serialize_entry("leftExpression", &cx.w((&**lhs, *hir_lhs)))?;
                 m.serialize_entry("rightExpression", &cx.w((&**rhs, *hir_rhs)))?;
                 if op.kind.is_cmp() || op.kind.is_logical() {
-                    let common = common_type(gcx, hir);
+                    let common = gcx.solc_ty(hir.id);
                     serialize_opt(
                         &mut m,
                         "commonType",
@@ -663,7 +575,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
                     })
                 });
                 m.serialize_entry("components", &components)?;
-                cx.expr_attrs(&mut m, hir, parent, parent.lvalue)?;
+                cx.expr_attrs(&mut m, hir, parent, gcx.is_lvalue(hir.id))?;
                 m.end()
             }
             (ast::ExprKind::Array(components), hir::ExprKind::Array(hir_components)) => {
@@ -711,12 +623,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
                     kind,
                     parent.try_call,
                 )?;
-                cx.expr_attrs(
-                    &mut m,
-                    hir,
-                    parent,
-                    gcx.resolved_builtin(hir_callee) == Some(Builtin::ArrayPush0),
-                )?;
+                cx.expr_attrs(&mut m, hir, parent, gcx.is_lvalue(hir.id))?;
                 m.end()
             }
             (ast::ExprKind::New(ty), hir::ExprKind::New(hir_ty)) => {
@@ -865,35 +772,6 @@ fn call_kind<'gcx>(gcx: Gcx<'gcx>, callee: &hir::Expr<'gcx>) -> &'static str {
         Some(TyKind::Type(ty)) if matches!(ty.kind, TyKind::Struct(_)) => "structConstructorCall",
         Some(TyKind::Type(_)) => "typeConversion",
         _ => "functionCall",
-    }
-}
-
-/// Returns whether solc takes a member access as an lvalue: a member of a struct that is not in
-/// calldata, and a variable of a contract that is not constant.
-fn member_is_lvalue<'gcx>(gcx: Gcx<'gcx>, base: &hir::Expr<'gcx>, res: Option<Res>) -> bool {
-    let Some(ty) = gcx.type_of_expr(base.id) else { return false };
-    match ty.kind {
-        TyKind::Ref(inner, loc) => matches!(inner.kind, TyKind::Struct(_)) && !loc.is_calldata(),
-        TyKind::Struct(_) => true,
-        TyKind::Type(inner) if matches!(inner.kind, TyKind::Contract(_)) => res
-            .and_then(|res| res.as_variable())
-            .is_some_and(|id| !gcx.hir.variable(id).is_constant()),
-        _ => false,
-    }
-}
-
-/// Returns whether solc takes an index access as an lvalue: arrays that are not in calldata, and
-/// mappings.
-fn index_is_lvalue<'gcx>(gcx: Gcx<'gcx>, base: &hir::Expr<'gcx>) -> bool {
-    let Some(ty) = gcx.type_of_expr(base.id) else { return false };
-    match ty.peel_refs().kind {
-        TyKind::Array(..)
-        | TyKind::DynArray(_)
-        | TyKind::Elementary(ast::ElementaryType::Bytes) => {
-            !ty.loc().is_some_and(|loc| loc.is_calldata())
-        }
-        TyKind::Mapping(..) => true,
-        _ => false,
     }
 }
 

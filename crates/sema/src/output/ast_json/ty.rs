@@ -7,7 +7,6 @@ use crate::{
     hir,
     ty::{Component, Gcx, Ty, TyFn, TyFnKind, TyKind, TySolcPrinter},
 };
-use alloy_primitives::U256;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use solar_ast::{self as ast, DataLocation, ElementaryType};
 use solar_interface::{Ident, Span, kw, sym};
@@ -227,8 +226,8 @@ fn tuple_components<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Vec<Compone
 pub(super) fn expr_ty<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
     // solc types an inline array by the common mobile type of its elements, not by the type that
     // type checking seeds it with from its destination.
-    if let hir::ExprKind::Array(elements) = expr.kind
-        && let Some(ty) = inline_array_ty(gcx, elements)
+    if let hir::ExprKind::Array(_) = expr.kind
+        && let Some(ty) = gcx.solc_ty(expr.id)
     {
         return Some(ty);
     }
@@ -245,18 +244,6 @@ pub(super) fn expr_ty<'gcx>(gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> Option<Ty
         }
         _ => None,
     })
-}
-
-/// Returns the type of an inline array: the memory array of the common mobile type of its
-/// elements.
-fn inline_array_ty<'gcx>(gcx: Gcx<'gcx>, elements: &[hir::Expr<'gcx>]) -> Option<Ty<'gcx>> {
-    let (first, rest) = elements.split_first()?;
-    let mut common = expr_ty(gcx, first)?.mobile(gcx)?;
-    for element in rest {
-        common = common.common_type(expr_ty(gcx, element)?, gcx)?;
-    }
-    let array = TyKind::Array(common.peel_refs(), U256::from(elements.len()));
-    Some(gcx.mk_ty(array).with_loc(gcx, DataLocation::Memory))
 }
 
 /// Returns the type of the message of `require`: `error` for a call of an error, else the type

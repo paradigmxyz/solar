@@ -103,6 +103,23 @@ pub struct TypeckResults<'gcx> {
     pub(crate) user_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
     /// Contracts whose base slot is a constant integer, for `constant_values` to evaluate.
     pub(crate) base_slots: Vec<(hir::ContractId, &'gcx hir::Expr<'gcx>)>,
+    /// What the AST JSON reads back, recorded only when the ASTs are kept.
+    pub(crate) ast: AstFacts<'gcx>,
+}
+
+/// What type checking records for the AST JSON, so that the writer never works it out again.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AstFacts<'gcx> {
+    /// Whether each expression is pure.
+    pub(crate) pure: ExprMap<bool>,
+    /// The expressions that are lvalues, in solc's sense.
+    pub(crate) lvalues: GrowableBitSet<hir::ExprId>,
+    /// The type solc gives an expression where it differs from the type of type checking: the
+    /// memory array of the common mobile type of an inline array, and the common type of the
+    /// operands of a comparison or a logical operation.
+    pub(crate) solc_tys: ExprMap<Ty<'gcx>>,
+    /// The conditions of the `for` loops whose counter cannot overflow, in solc's sense.
+    pub(crate) simple_counter_loops: FxHashSet<hir::ExprId>,
 }
 
 /// The target selected for a call callee expression.
@@ -202,6 +219,26 @@ impl<'gcx> TypeckResults<'gcx> {
     #[inline]
     pub fn user_operator(&self, id: hir::ExprId) -> Option<hir::FunctionId> {
         self.user_operators.get(&id).copied()
+    }
+
+    /// Returns whether the expression is an lvalue, if the ASTs are kept.
+    #[inline]
+    pub fn is_lvalue(&self, id: hir::ExprId) -> bool {
+        self.ast.lvalues.contains(id)
+    }
+
+    /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`],
+    /// if the ASTs are kept.
+    #[inline]
+    pub fn solc_ty(&self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.ast.solc_tys.get(&id).copied()
+    }
+
+    /// Returns whether the `for` loop with this condition cannot overflow its counter, if the ASTs
+    /// are kept.
+    #[inline]
+    pub fn is_simple_counter_loop(&self, condition: hir::ExprId) -> bool {
+        self.ast.simple_counter_loops.contains(&condition)
     }
 }
 
@@ -793,6 +830,26 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn user_operator(self, id: hir::ExprId) -> Option<hir::FunctionId> {
         self.typeck_results.get()?.user_operator(id)
+    }
+
+    /// Returns whether the type-checked expression is an lvalue, if the ASTs are kept.
+    #[inline]
+    pub fn is_lvalue(self, id: hir::ExprId) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_lvalue(id))
+    }
+
+    /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`], if
+    /// the ASTs are kept.
+    #[inline]
+    pub fn solc_ty(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.typeck_results.get()?.solc_ty(id)
+    }
+
+    /// Returns whether the `for` loop with this condition cannot overflow its counter, if the ASTs
+    /// are kept.
+    #[inline]
+    pub fn is_simple_counter_loop(self, condition: hir::ExprId) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_simple_counter_loop(condition))
     }
 
     /// Returns the contracts whose base slot is a constant integer, with the base slot.

@@ -20,7 +20,6 @@ use solar_interface::{
 use std::ops::ControlFlow;
 
 mod checker;
-pub(crate) use checker::binop_common_type;
 mod constant_cycles;
 mod constant_divisors;
 mod constant_values;
@@ -137,7 +136,15 @@ fn merge_typeck_results<'gcx>(
     let mut expr_types = Vec::with_capacity(results.len());
     let mut resolved_exprs = Vec::with_capacity(results.len());
     let mut resolved_callees = Vec::with_capacity(results.len());
+    let mut pure = Vec::with_capacity(results.len());
+    let mut solc_tys = Vec::with_capacity(results.len());
     for new_results in results {
+        pure.push(new_results.ast.pure);
+        solc_tys.push(new_results.ast.solc_tys);
+        for id in new_results.ast.lvalues.iter() {
+            merged.ast.lvalues.insert(id);
+        }
+        merged.ast.simple_counter_loops.extend(new_results.ast.simple_counter_loops);
         expr_types.push(new_results.expr_types);
         resolved_exprs.push(new_results.resolved_exprs);
         resolved_callees.push(new_results.resolved_callees);
@@ -165,6 +172,9 @@ fn merge_typeck_results<'gcx>(
             ))
             .emit();
     });
+    // Each unit records the expressions it checks, so no expression has two records.
+    merged.ast.pure = ExprMap::merge(pure, |_, _, _| {});
+    merged.ast.solc_tys = ExprMap::merge(solc_tys, |_, _, _| {});
     merged.resolved_callees = ExprMap::merge(resolved_callees, |id, prev_res, res| {
         gcx.dcx()
             .bug(format!(
