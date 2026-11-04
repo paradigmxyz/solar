@@ -33,13 +33,12 @@ fn @read(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x8f65cc66, pure, 
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = shr arg1, 251
-    v6 = ne v5, 0
-    icall panic_if<0x41>, v6
-    v7 = ptrtoint ptr<calldata> v3 to i256
-    v8 = add v7, v4
-    v9 = calldataload v8
-    ret v9
+    v5 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v5
+    v6 = ptrtoint ptr<calldata> v3 to i256
+    v7 = add v6, v4
+    v8 = calldataload v7
+    ret v8
 }
 
 ; function readDynamic(uint256[] memory values, uint256 index) external pure returns (uint256) [selector 0xcd97b1f2]
@@ -65,13 +64,12 @@ fn @readDynamicCalldata(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x5
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = shr arg1, 251
-    v6 = ne v5, 0
-    icall panic_if<0x41>, v6
-    v7 = ptrtoint ptr<calldata> v3 to i256
-    v8 = add v7, v4
-    v9 = calldataload v8
-    ret v9
+    v5 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v5
+    v6 = ptrtoint ptr<calldata> v3 to i256
+    v7 = add v6, v4
+    v8 = calldataload v7
+    ret v8
 }
 
 ; function readBytes(bytes memory values) external pure returns (bytes1) [selector 0x8b33268b]

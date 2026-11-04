@@ -16,7 +16,7 @@
       mstore v3, 2
       v4 = ptradd v3, 32
       mstore v4, 0x2223000000000000000000000000000000000000000000000000000000000000
--     v5 = abi_encode_packed (bytes v0, bytes v3)
+-     v5 = abi_encode_packed (memory_bytes v0, memory_bytes v3)
 -     ret v5
 +     v6 = ptradd v0, 32
 +     v7 = make_memory_slice v6, 33
@@ -61,7 +61,7 @@
       v1 = ptradd v0, 32
       mstore v1, 0x100000000000000000000000000000000000000000000000000000000000000
       mstore arg0, arg1
--     v2 = abi_encode_packed (bytes v0, data hex"22")
+-     v2 = abi_encode_packed (memory_bytes v0, data hex"22")
 -     ret v2
 +     v3 = ptradd v0, 32
 +     v4 = mload v0
@@ -102,7 +102,7 @@
       mstore v0, 1
       v1 = ptradd v0, 32
       mstore v1, 0x100000000000000000000000000000000000000000000000000000000000000
--     v2 = abi_encode_packed (bytes v0, data hex"22")
+-     v2 = abi_encode_packed (memory_bytes v0, data hex"22")
 -     ret v2
 +     v3 = ptradd v0, 32
 +     v4 = make_memory_slice v3, 1

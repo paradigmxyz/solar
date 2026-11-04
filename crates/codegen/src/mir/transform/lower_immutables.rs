@@ -61,8 +61,10 @@ impl MirPass for LowerImmutables {
                     builder.set_debug_context(&metadata);
                     let value = builder.cast_word(value);
                     let addr = builder.imm(immutable_staging_addr(staging_base, id));
+                    builder
+                        .func_mut()
+                        .set_inst_kind(inst_id, InstKind::Store(addr, value, PtrLocation::Memory));
                     let inst = builder.func_mut().inst_mut(inst_id);
-                    inst.kind = InstKind::Store(addr, value, PtrLocation::Memory);
                     inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
                     inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
                     changed = true;

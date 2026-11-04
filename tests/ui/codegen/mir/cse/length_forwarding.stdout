@@ -41,14 +41,14 @@ fn @relay() {
     v15 = lt v14, v10
     v66 = heap_floor !metadata(alloc_ptr)
     v67 = add v66, v14 !metadata(alloc_ptr)
+    v74 = shr v67, 64
     v68 = lt v67, v66
-    v69 = zext i1 v68 to i256
-    v70 = shr v67, 64
-    v71 = or v70, v69
-    v74 = zext i1 v15 to i256
-    v75 = or v71, v74
-    v76 = ne v75, 0
-    jumpi v76, bb3, bb5
+    v76 = zext i1 v68 to i256
+    v77 = or v74, v76
+    v79 = zext i1 v15 to i256
+    v80 = or v77, v79
+    v73 = ne v80, 0
+    jumpi v73, bb3, bb5
   bb5:                                            ; preds = bb2
     mstore 64, v67 !metadata(memory=scratch)
     mstore v66, v10
@@ -59,17 +59,17 @@ fn @relay() {
     v57 = add v66, 32
     calldatacopy v57, v11, v10
     v58 = add v57, v10
-    v73 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v33 = add v73, 32
-    mstore v73, 32
+    v72 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v33 = add v72, 32
+    mstore v72, 32
     v39 = add v33, 32
     v40 = add v33, v13
     mstore v40, 0
     mstore v33, v10
     v42 = add v39, v13
     mcopy v39, v57, v10 !metadata(disjoint)
-    v44 = sub v42, v73
-    log v73, v44, 0x3e9992c940c54ea252d3a34557cc3d3014281525c43d694f89d5f3dfd820b07d
+    v44 = sub v42, v72
+    log v72, v44, 0x3e9992c940c54ea252d3a34557cc3d3014281525c43d694f89d5f3dfd820b07d
     mstore v58, 0
     v60 = sub v66, 32
     mstore v60, 32
@@ -87,25 +87,25 @@ fn @relay() {
 fn @alloc() {
   bb0:
     v8 = calldataload 4
-    v18 = add v8, 63
-    v2 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = add v8, 63
+    v2 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v3 = lt v2, v8
     v10 = heap_floor !metadata(alloc_ptr)
     v11 = add v10, v2 !metadata(alloc_ptr)
+    v21 = shr v11, 64
     v12 = lt v11, v10
-    v13 = zext i1 v12 to i256
-    v14 = shr v11, 64
-    v15 = or v14, v13
-    v20 = zext i1 v3 to i256
-    v21 = or v15, v20
-    v22 = ne v21, 0
-    jumpi v22, bb1, bb2
+    v23 = zext i1 v12 to i256
+    v24 = or v21, v23
+    v26 = zext i1 v3 to i256
+    v27 = or v24, v26
+    v19 = ne v27, 0
+    jumpi v19, bb1, bb2
   bb2:                                            ; preds = bb0
-    v23 = calldataload 4
-    v17 = calldatasize
-    calldatacopy v10, v17, v2
-    mstore v10, v23
-    mstore 0, v23 !metadata(memory=scratch)
+    v20 = calldataload 4
+    v16 = calldatasize
+    calldatacopy v10, v16, v2
+    mstore v10, v20
+    mstore 0, v20 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)

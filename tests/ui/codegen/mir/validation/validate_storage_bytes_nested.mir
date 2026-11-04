@@ -1,0 +1,23 @@
+//@ compile-flags: -Zmir-pipeline=none
+//~? ERROR: [fn0] [bb0, inst0] ABI storage byte string is not a top-level layout entry
+//~? ERROR: [fn1] [bb0, inst0] ABI storage byte string is not a top-level layout entry
+//~? ERROR: [fn2] [bb0, inst0] ABI storage byte string is not a top-level layout entry
+@module InvalidNestedStorageBytes
+
+fn @tuple_layout(arg0: ptr<memory>) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [tuple<storage_bytes>], args arg0
+    ret v0
+}
+
+fn @array_layout(arg0: ptr<memory>) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [memory_array<storage_bytes>], args arg0
+    ret v0
+}
+
+fn @fixed_layout(arg0: ptr<memory>) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [array<2, storage_bytes>], args arg0
+    ret v0
+}

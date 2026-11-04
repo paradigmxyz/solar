@@ -35,7 +35,7 @@ fn @nonzero_factor(arg0: i256) -> i256 {
 // A conjunction drops an operand that holds, here a bound the loop test
 // established, and reduction repeats through nested conditions.
 // CHECK-LABEL: {{^[ +].*}}fn @nested_and{{[( ]}}
-// CHECK: [[BOUND:v[0-9]+]] = gt arg1, {{v[0-9]+}}
+// CHECK: [[BOUND:v[0-9]+]] = lt {{v[0-9]+}}, arg1
 // CHECK: - jumpi {{v[0-9]+}}, bb3, bb4
 // CHECK-NEXT: + jumpi [[BOUND]], bb3, bb4
 fn @nested_and(arg0: i256, arg1: i256) -> i256 {

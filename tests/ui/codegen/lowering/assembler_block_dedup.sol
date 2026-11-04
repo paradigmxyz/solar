@@ -24,10 +24,10 @@ contract AssemblerBlockDedup {
     // CHECK: push [[TWO]]
     // Each deduplicated body encodes its own return; the short tail is cheaper
     // duplicated than shared through a jump.
-    // CHECK: [[ONE]]:
+    // CHECK: [[ONE]]{{( \[[a-z, ]+\])?}}:
     // CHECK-NEXT: push 1
     // CHECK: return
-    // CHECK: [[TWO]]:
+    // CHECK: [[TWO]]{{( \[[a-z, ]+\])?}}:
     // CHECK: push {{bb[0-9]+}}
     // CHECK: jumpi
     // CHECK: push 2

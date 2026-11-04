@@ -210,8 +210,11 @@ pub(crate) fn display_function_text<'a>(
         fmt::from_fn(move |f| {
             let label = fmt::from_fn(|f| {
                 write!(f, "  bb{}", block_id.index())?;
-                if block.hotness.is_cold() {
-                    write!(f, " [cold]")?;
+                match (block.hotness.is_cold(), block.cold_hint) {
+                    (false, false) => {}
+                    (true, false) => write!(f, " [cold]")?,
+                    (false, true) => write!(f, " [cold_hint]")?,
+                    (true, true) => write!(f, " [cold, cold_hint]")?,
                 }
                 write!(f, ":")
             });
@@ -581,8 +584,8 @@ fn display_inst_kind<'a>(
                     super::PackedPart::Scalar { value, ty } => {
                         write!(f, "{ty} {}", display_val(*value, func))?
                     }
-                    super::PackedPart::Bytes(value) => {
-                        write!(f, "bytes {}", display_val(*value, func))?
+                    super::PackedPart::Bytes { value, location } => {
+                        write!(f, "{location}_bytes {}", display_val(*value, func))?
                     }
                     super::PackedPart::Array { value, element, source, wordwise } => {
                         write!(
@@ -645,12 +648,15 @@ fn display_inst_kind<'a>(
             }
             Ok(())
         }
-        InstKind::AbiEncode { mode, selector, args, layout } => {
+        InstKind::AbiEncode { mode, base, selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
             match mode {
                 super::AbiEncodeMode::Slice => {}
                 super::AbiEncodeMode::Bytes => write!(f, ", object")?,
                 super::AbiEncodeMode::Scratch => write!(f, ", scratch")?,
+            }
+            if let Some(base) = base {
+                write!(f, ", base {}", display_val(*base, func))?;
             }
             if let Some(selector) = selector {
                 write!(f, ", selector {}", display_val(*selector, func))?;

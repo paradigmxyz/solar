@@ -154,22 +154,22 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory] {
     v57 = eq v51, v56
     jumpi v57, bb7, bb8
   bb8:                                            ; preds = bb0
-    v86 = add v55, 63
-    v9 = and v86, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v85 = add v55, 63
+    v9 = and v85, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v76 = heap_floor !metadata(alloc_ptr)
     v77 = add v76, v9 !metadata(alloc_ptr)
+    v87 = shr v77, 64
     v78 = lt v77, v76
-    v79 = zext i1 v78 to i256
-    v80 = shr v77, 64
-    v81 = or v80, v79
-    v82 = ne v81, 0
-    jumpi v82, bb13, bb12
+    v89 = zext i1 v78 to i256
+    v90 = or v87, v89
+    v80 = ne v90, 0
+    jumpi v80, bb13, bb12
   bb12:                                           ; preds = bb8
     mstore 64, v77 !metadata(memory=scratch)
-    v83 = calldatasize
-    calldatacopy v76, v83, v9
+    v82 = calldatasize
+    calldatacopy v76, v82, v9
     mstore v76, v55
-    v85 = and arg0, 255
+    v84 = and arg0, 255
     jump bb1
   bb1:                                            ; preds = bb6, bb12
     v15 = phi [bb12: 0], [bb6: v49]
@@ -192,7 +192,7 @@ fn @_copy(arg0: i256) -> i256 [may_return_memory] {
     v34 = shl v32, 3
     v35 = shr v33, v34
     v37 = and v35, 255
-    v68 = mul v37, v85
+    v68 = mul v37, v84
     v69 = gt v68, 255
     jumpi v69, bb10, bb11
   bb11:                                           ; preds = bb4

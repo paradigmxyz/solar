@@ -55,7 +55,7 @@ bb37 [cold]:
   push 36
   push 28
   revert
-bb15:                                             ; function checkedExp2(uint256 exponent) external pure returns (uint256) [selector 0xb10b60bd]
+bb15 [entry]:                                     ; function checkedExp2(uint256 exponent) external pure returns (uint256) [selector 0xb10b60bd]
   push 36
   calldatasize
   lt
@@ -80,7 +80,7 @@ bb34:
   push 32
   returndatasize
   return
-bb20:                                             ; function mul32(uint256 value) external pure returns (uint256 result) [selector 0xde1efc56]
+bb20 [entry]:                                     ; function mul32(uint256 value) external pure returns (uint256 result) [selector 0xde1efc56]
   push 36
   calldatasize
   lt
@@ -90,7 +90,7 @@ bb20:                                             ; function mul32(uint256 value
   calldataload
   push 5
   jump bb35
-bb23:                                             ; function mulHigh(uint256 value) external pure returns (uint256 result) [selector 0x25ee2d76]
+bb23 [entry]:                                     ; function mulHigh(uint256 value) external pure returns (uint256 result) [selector 0x25ee2d76]
   push 36
   calldatasize
   lt
@@ -100,7 +100,7 @@ bb23:                                             ; function mulHigh(uint256 val
   calldataload
   push 255
   jump bb35
-bb26:                                             ; function at(uint256[] memory values, uint256 index) external pure returns (uint256) [selector 0xc78126ad]
+bb26 [entry]:                                     ; function at(uint256[] memory values, uint256 index) external pure returns (uint256) [selector 0xc78126ad]
   push 4
   dup 1
   push 128
@@ -126,9 +126,9 @@ bb26:                                             ; function at(uint256[] memory
   swap 1
   push 32
   add
-  push 0x7fffffffffffffe
-  dup 3
-  gt
+  dup 2
+  push 59
+  shr
   push bb33
   jumpi
   push 1
@@ -141,12 +141,12 @@ bb26:                                             ; function at(uint256[] memory
   swap 1
   dup 2
   add
-  dup 2
-  dup 2
-  lt
-  dup 2
+  dup 1
   push 64
   shr
+  dup 3
+  dup 3
+  lt
   or
   push bb33
   jumpi

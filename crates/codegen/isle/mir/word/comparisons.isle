@@ -157,7 +157,24 @@
 ;; signed(~x) < signed(~y) => signed(x) > signed(y).
 (rule (rewrite (Op.SLt (bnot x) (bnot y)))  (Op.SGt x y))
 
-;; Invert a constant bound only when its push cost does not grow. This keeps
+;; The inverse of a width test is a width test, whatever the cost of its bound: a test that a word
+;; fits in `k` bits, `x < 2 ** k`, is false exactly when `x > 2 ** k - 1`, and the late run that
+;; spells width tests prices the comparisons it finds.
+;; (x < c) == 0 => x > (c - 1).
+;; Requires: c is constant, c == 2 ** k and 1 <= k.
+(rule (rewrite (Op.Eq (lt x (iconst c)) (zero)))
+      (if-let true (u256_gt c 1))
+      (if-let true (u256_is_zero (u256_and c (u256_sub c (u256 1)))))
+      (Op.Gt x (imm (u256_sub c (u256 1)))))
+
+;; (x > c) == 0 => x < (c + 1).
+;; Requires: c is constant, c == 2 ** k - 1 and 1 <= k.
+(rule (rewrite (Op.Eq (gt x (iconst c)) (zero)))
+      (if-let true (u256_gt (u256_add c (u256 1)) 1))
+      (if-let true (u256_is_zero (u256_and (u256_add c (u256 1)) c)))
+      (Op.Lt x (imm (u256_add c (u256 1)))))
+
+;; Invert any other constant bound only when its push cost does not grow. This keeps
 ;; compact shifted bounds available for lossless-shift cancellation.
 ;; (x < c) == 0 => x > (c - 1).
 ;; Requires: c is constant, c != 0, pushing (c - 1) costs no more gas or bytes than pushing c.

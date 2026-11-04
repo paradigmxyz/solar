@@ -12,7 +12,8 @@ impl AbiType {
     /// Returns the carrier consumed by ABI encoding, before layout cleanup.
     pub(crate) fn operand_type(&self) -> MirType {
         match self {
-            Self::Word(_) | Self::Function => MirType::I256,
+            // A storage byte string travels as its slot, which the encoder reads in place.
+            Self::Word(_) | Self::Function | Self::Bytes(PtrLocation::Storage) => MirType::I256,
             Self::Bytes(PtrLocation::Memory)
             | Self::DynamicArray { location: PtrLocation::Memory, .. }
             | Self::FixedArray { .. }
@@ -37,14 +38,13 @@ impl AbiType {
     }
 
     fn input_type(&self, actual: Option<MirType>) -> MirType {
-        if matches!(
-            self,
-            Self::Bytes(_) | Self::DynamicArray { .. } | Self::FixedArray { .. } | Self::Tuple(_)
-        ) && let Some(ty @ MirType::Slice(PtrLocation::Memory | PtrLocation::Calldata)) = actual
+        let operand = self.operand_type();
+        if operand != MirType::I256
+            && let Some(ty @ MirType::Slice(PtrLocation::Memory | PtrLocation::Calldata)) = actual
         {
             ty
         } else {
-            self.operand_type()
+            operand
         }
     }
 }
@@ -110,11 +110,13 @@ pub(super) fn address_call_types(
 
 pub(super) fn abi_encode_types(
     func: &Function,
+    base: bool,
     selector: bool,
     args: &[ValueId],
     layout: &AbiLayout,
 ) -> SmallVec<[MirType; 8]> {
-    std::iter::repeat_n(MirType::I256, usize::from(selector))
+    std::iter::repeat_n(MirType::MEMPTR, usize::from(base))
+        .chain(std::iter::repeat_n(MirType::I256, usize::from(selector)))
         .chain(layout.types.iter().enumerate().map(|(index, ty)| {
             ty.input_type(args.get(index).and_then(|&value| func.value_ty(value)))
         }))
@@ -127,7 +129,9 @@ pub(super) fn packed_types(func: &Function, parts: &[PackedPart]) -> SmallVec<[M
         .filter_map(|part| match part {
             PackedPart::Literal(_) => None,
             PackedPart::Scalar { ty, .. } => Some(ty.mir_type()),
-            PackedPart::Bytes(value) => Some(read_object(func, *value)),
+            PackedPart::Bytes { value, location } => {
+                Some(AbiType::Bytes(*location).input_type(func.value_ty(*value)))
+            }
             PackedPart::Array { source, .. } => Some(match source {
                 PackedArraySource::Memory { .. } => MirType::MEMPTR,
                 PackedArraySource::Slice(location) => MirType::Slice(*location),
@@ -154,6 +158,7 @@ pub(super) fn callee_types(
                 RequireKind::CustomError(layout) => {
                     types.extend(abi_encode_types(
                         func,
+                        false,
                         true,
                         args.get(2..).unwrap_or_default(),
                         layout,

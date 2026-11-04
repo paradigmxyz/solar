@@ -1222,7 +1222,7 @@ fn fold_steps(func: &mut Function, blocks: &[BlockId]) {
                 // next = add base, step + outer
                 let sum = Value::Immediate(Immediate::I256(step.wrapping_add(outer)));
                 let sum = func.alloc_value(sum);
-                func.inst_mut(inst).kind = InstKind::Add(base, sum);
+                func.set_inst_kind(inst, InstKind::Add(base, sum));
                 uses[inner] -= 1;
                 uses[base] += 1;
                 if let Some(count) = sums.get_mut(&inner) {
@@ -1285,7 +1285,7 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
         let odd = append_value_inst(func, check, InstKind::Ne(bit, zero), MirType::I1);
         // Both ways into the loop meet in a block of their own, so the loop keeps a single
         // preheader, which the stack planner needs to keep its words on the stack.
-        let enter = func.alloc_block();
+        let enter = func.alloc_block_like(unroll.header);
         func.blocks[enter].set_generated_terminator(Terminator::Jump(unroll.header));
         branch(func, check, odd, first.blocks[&unroll.body], enter);
 
@@ -1469,7 +1469,7 @@ fn peel(func: &mut Function, peel: &Peel) {
     // Both ways from the copy into the loop meet in a block of their own, so the loop keeps a
     // single preheader, which the stack planner needs to keep its words on the stack and which
     // lets the loop unroll next.
-    let enter = func.alloc_block();
+    let enter = func.alloc_block_like(peel.header);
     func.blocks[enter].set_generated_terminator(Terminator::Jump(peel.header));
 
     // preheader: ... jump header'
@@ -1568,5 +1568,5 @@ fn reverse(func: &mut Function, reversal: &Reverse) {
         }
     });
     let Value::Inst(inst) = *func.value(reversal.condition) else { return };
-    func.inst_mut(inst).kind = InstKind::Ne(reversal.counter, zero);
+    func.set_inst_kind(inst, InstKind::Ne(reversal.counter, zero));
 }

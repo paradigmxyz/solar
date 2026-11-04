@@ -175,9 +175,8 @@ fn @freshCopy() {
     calldatacopy v52, v18, v17
     v33 = sub 0, v17
     v34 = and v33, 31
-    v57 = calldatasize
     v53 = add v52, v17
-    calldatacopy v53, v57, v34
+    calldatacopy v53, v8, v34
     v0 = ne v60, 0
     jumpi v0, bb1, bb2
   bb1:                                            ; preds = bb7
@@ -340,7 +339,7 @@ fn @_downCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
     v7 = lt v5, v6
     jumpi v7, bb7, bb6
   bb7:                                            ; preds = bb3
-    v45 = add arg0, v5
+    v45 = add v5, arg0
     v46 = add v45, 32
     v11 = mload v46
     v12 = byte 0, v11
@@ -352,7 +351,7 @@ fn @_downCopy(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
     mstore 0, 0x4e487b71
     revert 28, 36
   bb8:                                            ; preds = bb7
-    v48 = add arg1, v5
+    v48 = add v5, arg1
     v49 = add v48, 32
     mstore8 v49, v12
     jump bb1
@@ -445,12 +444,12 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v7 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v5, v4
-    v7 = ne v6, 0
-    jumpi v7, bb1, bb2
+    v9 = zext i1 v3 to i256
+    v10 = or v7, v9
+    v5 = ne v10, 0
+    jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

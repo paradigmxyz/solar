@@ -1,0 +1,45 @@
+- ; === ROOT/tests/ui/codegen/mir/lowering/debug_static_bytes.mir (before lower-abi) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/debug_static_bytes.mir (after lower-abi) ===
+  @module DebugStaticBytes
+  ; selector 0x01020304
+- fn @encoded() -> ptr<memory> [selector=0x01020304, abi_params=[], abi_returns=[memory_bytes]] {
++ fn @encoded() [selector=0x01020304, abi_wrapper] {
+    bb0:
+-     v0 = abi_encode [word, word], object, args 1, 2 !metadata(span=10..20)
+-     ret v0 !metadata(span=20..30)
++     mstore 0, 32 !metadata(memory=scratch, span=20..30)
++     mstore 32, 64 !metadata(memory=scratch, span=10..20)
++     mstore 64, 1 !metadata(memory=scratch, span=10..20)
++     mstore 96, 2 !metadata(memory=scratch, span=10..20)
++     returndata 0, 128 !metadata(span=20..30)
+  }
+  
+  ; selector 0x01020305
+- fn @empty() -> ptr<memory> [selector=0x01020305, abi_params=[], abi_returns=[memory_bytes]] {
++ fn @empty() [selector=0x01020305, abi_wrapper] {
+    bb0:
+-     v0 = abi_encode [], object !metadata(span=30..40)
+-     ret v0 !metadata(span=40..50)
++     mstore 0, 32 !metadata(memory=scratch, span=40..50)
++     mstore 32, 0 !metadata(memory=scratch, span=30..40)
++     returndata 0, 64 !metadata(span=40..50)
+  }
+  
+  ; selector 0x01020306
+- fn @literal() -> ptr<memory> [selector=0x01020306, abi_params=[], abi_returns=[memory_bytes]] {
++ fn @literal() [selector=0x01020306, abi_wrapper] {
+    bb0:
+-     v0 = alloc 96
+-     mstore v0, 33 !metadata(span=50..60)
+-     v1 = ptradd v0, 32
+-     mstore v1, 1 !metadata(span=60..70)
+-     v2 = ptradd v0, 64
+-     mstore v2, 2 !metadata(span=70..80)
+-     ret v0 !metadata(span=80..90)
++     mstore 0, 32 !metadata(memory=scratch, span=80..90)
++     mstore 32, 33 !metadata(memory=scratch, span=50..60)
++     mstore 64, 1 !metadata(memory=scratch, span=60..70)
++     mstore 96, 0 !metadata(memory=scratch, span=70..80)
++     returndata 0, 128 !metadata(span=80..90)
+  }
+  

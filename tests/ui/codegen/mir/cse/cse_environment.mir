@@ -1,12 +1,13 @@
 //@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
 @module CseEnvironment
-// CHECK-LABEL: {{^[ +].*}}fn @keep_cheap_nullary_environment_reads{{[( ]}}
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = caller
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = caller
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = callvalue
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = callvalue
-fn @keep_cheap_nullary_environment_reads(arg0: i256) -> i256 {
+// CHECK-LABEL: {{^[ +].*}}fn @merge_frame_environment_reads{{[( ]}}
+// CHECK: - {{v[0-9]+}} = caller
+// CHECK: - {{v[0-9]+}} = zext
+// CHECK: - {{v[0-9]+}} = callvalue
+// CHECK: - {{v[0-9]+}} = calldatasize
+// CHECK: - {{v[0-9]+}} = chainid
+fn @merge_frame_environment_reads(arg0: i256) -> i256 {
   bb0:
     v20 = caller
     v1 = zext i160 v20 to i256

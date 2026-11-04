@@ -62,12 +62,12 @@ fn @trySuccess() -> i256 [selector=0x3984eec7, view, abi_params=[], abi_returns=
     v8 = zext i160 v1 to i256
     v9 = staticcall v2, v8, 28, 36, 0, 0
     jumpi v9, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     ret 9
   bb1:                                            ; preds = bb0
     ret 7
@@ -92,12 +92,12 @@ fn @tryFailure() -> i256 [selector=0x86763122, view, abi_params=[], abi_returns=
     v8 = zext i160 v1 to i256
     v9 = staticcall v2, v8, 28, 36, 0, 0
     jumpi v9, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     ret 9
   bb1:                                            ; preds = bb0
     ret 7
@@ -191,22 +191,19 @@ fn @recursiveFailure(arg0: i256, arg1: i256) -> i256 [selector=0x0d8ae7f2, pure,
 ; function constructorFailure(uint256 reason) external returns (address) [selector 0x61e5bcd1]
 fn @constructorFailure(arg0: i256) -> i160 [selector=0x61e5bcd1, abi_params=[uint256], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
-    v0 = abi_encode [word], args arg0
-    v1 = datasize RevertsInConstructor_creation_code_2
-    v2 = datasize RevertsInConstructor_creation_code_2, 32
-    v3 = fmp
-    datacopy RevertsInConstructor_creation_code_2, v3, v1
-    v4 = extract_value slice<memory>, v0, 0
-    v5 = ptrtoint ptr<memory> v3 to i256
-    v6 = add v5, v1
-    mcopy v6, v4, 32 !metadata(memory=heap)
-    v7 = create 0, v3, v2
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize RevertsInConstructor_creation_code_2
+    v1 = fmp
+    datacopy RevertsInConstructor_creation_code_2, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word], scratch, base v2, args arg0
+    v4 = datasize RevertsInConstructor_creation_code_2, 32
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    ret v7
+    ret v5
 }
 
 ; function constructorWithoutArgs() external returns (bool) [selector 0x1f01d869]
@@ -218,7 +215,7 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v2 = create 0, v1, v0
     v3 = ne v2, i160 0
     jumpi v3, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     v4 = icall returndata_bytes<>
     v5 = ptradd v4, 32
     v6 = mload v4
@@ -229,9 +226,9 @@ fn @constructorWithoutArgs() -> i1 [selector=0x1f01d869, abi_params=[], abi_retu
     v11 = mload v10
     v12 = shr v11, 224
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     revert v8, v9
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     v13 = ptradd v4, 32
     v14 = mload v4
     v15 = keccak256 v13, v14
@@ -327,7 +324,7 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 36, 0, 0
     jumpi v6, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     v7 = icall returndata_bytes<>
     v8 = ptradd v7, 32
     v9 = mload v7
@@ -338,9 +335,9 @@ fn @storageRevertPayload() -> i1 [selector=0x0156c876, abi_params=[], abi_return
     v14 = mload v13
     v15 = shr v14, 224
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     revert v11, v12
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     v16 = ptradd v7, 32
     v17 = mload v7
     v18 = keccak256 v16, v17
@@ -359,7 +356,7 @@ fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[uint256],
     jump bb1
   bb1:                                            ; preds = bb0, bb3
     v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v7]
+    v1 = phi [bb0: 0], [bb3: v6]
     v2 = lt v1, v0
     jumpi v2, bb4, bb5
   bb5:                                            ; preds = bb1
@@ -379,11 +376,10 @@ fn @failWithStorageBytes(arg0: i256) [selector=0x49740e5b, abi_params=[uint256],
   bb6:                                            ; preds = bb9
     jump bb3
   bb3:                                            ; preds = bb6
-    v7 = checked_add uint256, v1, 1
+    v6 = checked_add uint256, v1, 1
     jump bb1
   bb7:                                            ; preds = bb4
-    v6 = load_storage_bytes 0
-    icall require<custom_error [memory_bytes]>, false, 0xe53184de00000000000000000000000000000000000000000000000000000000, v6
+    icall require<custom_error [storage_bytes]>, false, 0xe53184de00000000000000000000000000000000000000000000000000000000, 0
     invalid
 }
 

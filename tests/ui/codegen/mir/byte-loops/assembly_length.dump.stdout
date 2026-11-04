@@ -32,24 +32,24 @@ fn @copy() {
     v79 = add v78, 4
     v81 = sub v75, 36
     v82 = lt v81, v78
-    v161 = or v76, v82
-    jumpi v161, bb14, bb15
+    v160 = or v76, v82
+    jumpi v160, bb14, bb15
   bb15:                                           ; preds = bb0
     v83 = calldataload v79
     v84 = add v79, 32
-    v159 = add v83, 63
-    v87 = and v159, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v158 = add v83, 63
+    v87 = and v158, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v88 = lt v87, v83
     v147 = heap_floor !metadata(alloc_ptr)
     v148 = add v147, v87 !metadata(alloc_ptr)
+    v164 = shr v148, 64
     v149 = lt v148, v147
-    v150 = zext i1 v149 to i256
-    v151 = shr v148, 64
-    v152 = or v151, v150
-    v162 = zext i1 v88 to i256
-    v163 = or v152, v162
-    v164 = ne v163, 0
-    jumpi v164, bb6, bb17
+    v166 = zext i1 v149 to i256
+    v167 = or v164, v166
+    v169 = zext i1 v88 to i256
+    v170 = or v167, v169
+    v161 = ne v170, 0
+    jumpi v161, bb6, bb17
   bb17:                                           ; preds = bb15
     mstore 64, v148 !metadata(memory=scratch)
     mstore v147, v83
@@ -57,32 +57,31 @@ fn @copy() {
     v91 = lt v90, v83
     jumpi v91, bb14, bb16
   bb16:                                           ; preds = bb17
-    v166 = calldataload 36
+    v163 = calldataload 36
     v136 = add v147, 32
     calldatacopy v136, v84, v83
     icall @_dirty
     v0 = mload v147
-    v69 = sub v0, v166
-    v70 = lt v0, v166
+    v69 = sub v0, v163
+    v70 = lt v0, v163
     v71 = add v69, 31
     v72 = lt v71, v69
-    v165 = or v70, v72
-    jumpi v165, bb12, bb13
+    v162 = or v70, v72
+    jumpi v162, bb12, bb13
   bb13:                                           ; preds = bb16
     v3 = and v71, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v157 = add v3, 63
-    v6 = and v157, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v156 = add v3, 63
+    v6 = and v156, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v7 = lt v6, v3
     jumpi v7, bb6, bb7
   bb7:                                            ; preds = bb13
     v146 = icall @alloc, v6
-    v156 = calldatasize
-    calldatacopy v146, v156, v6
+    calldatacopy v146, v75, v6
     mstore v146, v69
     v36 = eq v69, 0
     jumpi v36, bb2, bb4
   bb4:                                            ; preds = bb7
-    v125 = add v147, v166
+    v125 = add v147, v163
     v126 = add v125, 32
     v128 = add v146, 32
     v43 = add v126, v69
@@ -97,7 +96,7 @@ fn @copy() {
     v55 = mload v147
     v56 = lt v55, v69
     v57 = sub v55, v69
-    v58 = lt v57, v166
+    v58 = lt v57, v163
     v59 = or v56, v58
     jumpi v59, bb8, bb11
   bb11:                                           ; preds = bb5
@@ -108,7 +107,7 @@ fn @copy() {
     v16 = lt v15, v69
     jumpi v16, bb3, bb2
   bb3:                                            ; preds = bb1
-    v73 = add v166, v15
+    v73 = add v163, v15
     v18 = mload v147
     v19 = lt v73, v18
     jumpi v19, bb9, bb8
@@ -132,9 +131,9 @@ fn @copy() {
     jump bb1
   bb2:                                            ; preds = bb1, bb7, bb11
     v33 = icall @_tail, v146
-    v154 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v106 = add v154, 64
-    mstore v154, 64
+    v153 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v106 = add v153, 64
+    mstore v153, 64
     v109 = mload v146
     v110 = add v109, 31
     v111 = and v110, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -145,10 +144,10 @@ fn @copy() {
     v115 = add v112, v111
     v123 = add v146, 32
     mcopy v112, v123, v109 !metadata(memory=heap, disjoint)
-    v117 = add v154, 32
+    v117 = add v153, 32
     mstore v117, v33
-    v119 = sub v115, v154
-    returndata v154, v119
+    v119 = sub v115, v153
+    returndata v153, v119
   bb12 [cold]:                                    ; preds = bb16
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -182,8 +181,7 @@ fn @word() {
   bb6:                                            ; preds = bb11
     v86 = calldataload 4
     v80 = icall @alloc, v4
-    v83 = calldatasize
-    calldatacopy v80, v83, v4
+    calldatacopy v80, v43, v4
     mstore v80, v46
     v70 = add v80, 40
     v72 = add v80, 32
@@ -268,8 +266,7 @@ fn @fill() {
     jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb6
     v57 = icall @alloc, v4
-    v60 = calldatasize
-    calldatacopy v57, v60, v4
+    calldatacopy v57, v28, v4
     mstore v57, v30
     v24 = lt v30, 32
     jumpi v24, bb3, bb4
@@ -314,12 +311,12 @@ fn @grownPast() {
   bb0:
     v83 = heap_floor !metadata(alloc_ptr)
     v84 = add v83, 64 !metadata(alloc_ptr)
+    v89 = shr v84, 64
     v85 = lt v84, v83
-    v86 = zext i1 v85 to i256
-    v87 = shr v84, 64
-    v88 = or v87, v86
-    v89 = ne v88, 0
-    jumpi v89, bb10, bb9
+    v91 = zext i1 v85 to i256
+    v92 = or v89, v91
+    v87 = ne v92, 0
+    jumpi v87, bb10, bb9
   bb9:                                            ; preds = bb0
     mstore 64, v84 !metadata(memory=scratch)
     mstore v83, 1
@@ -426,12 +423,12 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v7 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v5, v4
-    v7 = ne v6, 0
-    jumpi v7, bb1, bb2
+    v9 = zext i1 v3 to i256
+    v10 = or v7, v9
+    v5 = ne v10, 0
+    jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

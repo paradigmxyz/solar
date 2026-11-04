@@ -84,7 +84,7 @@ fn @sum() {
     v116 = add v47, 0
     v117 = calldataload v116
     v118 = byte 0, v117
-    v119 = or 0, v118
+    v119 = or v118, 0
     v124 = shl v119, 8
     v125 = and v124, 0xffffffff
     v126 = add v47, 1
@@ -106,10 +106,10 @@ fn @sum() {
     mstore 0, v149
     returndata 0, 32
   bb2 [cold]:                                     ; preds = bb5
-    v72 = lt 0, v46
-    v83 = lt 1, v46
+    v72 = gt v46, 0
+    v83 = gt v46, 1
     v152 = and v72, v83
-    v94 = lt 2, v46
+    v94 = gt v46, 2
     v153 = and v152, v94
     jumpi v153, bb6, bb3
   bb6 [cold]:                                     ; preds = bb2
@@ -212,7 +212,7 @@ fn @fast() [optimize=gas] {
     v108 = add v43, 0
     v109 = calldataload v108
     v110 = byte 0, v109
-    v111 = or 0, v110
+    v111 = or v110, 0
     v116 = shl v111, 7
     v117 = and v116, 0xffffffff
     v118 = add v43, 1
@@ -234,10 +234,10 @@ fn @fast() [optimize=gas] {
     mstore 0, v141
     returndata 0, 32
   bb2 [cold]:                                     ; preds = bb0
-    v64 = lt 0, v42
-    v75 = lt 1, v42
+    v64 = gt v42, 0
+    v75 = gt v42, 1
     v143 = and v64, v75
-    v86 = lt 2, v42
+    v86 = gt v42, 2
     v144 = and v143, v86
     jumpi v144, bb4, bb3
   bb4 [cold]:                                     ; preds = bb2

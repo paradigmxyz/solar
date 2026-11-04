@@ -162,8 +162,8 @@
 (decl alloc (Value AllocationSemantics) Value)
 (extractor (alloc size semantics) (inst (Op.Alloc size semantics)))
 
-(decl abiencode (AbiEncodeMode OptionValue Unit Unit) Value)
-(extractor (abiencode mode selector args layout) (inst (Op.AbiEncode mode selector args layout)))
+(decl abiencode (AbiEncodeMode OptionValue OptionValue Unit Unit) Value)
+(extractor (abiencode mode base selector args layout) (inst (Op.AbiEncode mode base selector args layout)))
 
 (decl abidecode (Value Unit) Value)
 (extractor (abidecode data layout) (inst (Op.AbiDecode data layout)))

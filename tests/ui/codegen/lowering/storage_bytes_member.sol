@@ -45,12 +45,12 @@ contract StorageBytesMember {
     // CHECK-NEXT: push [[WHOLE:bb[0-9]+]]
     // The loop test, which stops the call once the loop ends, runs at the end of
     // the entry and of the body, so no iteration jumps back to a separate test.
-    // CHECK: [[PUSH_RANGE]]{{( \[[a-z]+\])?}}:
+    // CHECK: [[PUSH_RANGE]]{{( \[[a-z, ]+\])?}}:
     // CHECK: keccak256
     // CHECK: push [[LOOP_BODY:bb[0-9]+]]
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: stop
-    // CHECK-NEXT: [[LOOP_BODY]]{{( \[[a-z]+\])?}}:
+    // CHECK-NEXT: [[LOOP_BODY]]{{( \[[a-z, ]+\])?}}:
     // CHECK: sload
     // CHECK-NOT: mcopy
     // CHECK: sstore
@@ -64,14 +64,21 @@ contract StorageBytesMember {
         }
     }
 
-    // CHECK: [[POP_ONE]]:
+    // The four entries that start with the same storage lookup share it in gas mode.
+    // CHECK: [[POP_ONE]]{{( \[[a-z, ]+\])?}}:
+    // CHECK: push {{bb[0-9]+}}
+    // CHECK-NEXT: jump [[LOOKUP:bb[0-9]+]]
+    // CHECK: [[LOOKUP]] {{\[ret=.*\]}}:
+    // CHECK: caller
+    // CHECK: push 32
+    // CHECK-NEXT: mstore
     // CHECK: keccak256
     function popOne() external {
         KeccakState storage state = states[msg.sender];
         state.part.pop();
     }
 
-    // CHECK: [[LEN]]:
+    // CHECK: [[LEN]]{{( \[[a-z, ]+\])?}}:
     // CHECK: keccak256
     // CHECK: sload
     // CHECK-NOT: mload
@@ -81,34 +88,36 @@ contract StorageBytesMember {
         return state.part.length;
     }
 
-    // CHECK: [[AT]]:
-    // CHECK: caller
-    // CHECK: push 32
-    // CHECK-NEXT: mstore
-    // CHECK: sload
-    // CHECK-NOT: mload
-    // CHECK: sload
+    // CHECK: [[AT]]{{( \[[a-z, ]+\])?}}:
+    // CHECK: jumpi
+    // CHECK-NEXT: push [[AT_RETURN:bb[0-9]+]]
+    // CHECK-NEXT: jump [[LOOKUP]]
     function at(uint256 i) external view returns (bytes1) {
         KeccakState storage state = states[msg.sender];
         return state.part[i];
     }
 
-    // CHECK: [[SET_AT]]:
-    // CHECK: keccak256
-    // CHECK: sload
-    // CHECK-NOT: mcopy
-    // CHECK: sstore
+    // CHECK: [[SET_AT]]{{( \[[a-z, ]+\])?}}:
+    // CHECK: jumpi
+    // CHECK-NEXT: push [[SET_AT_RETURN:bb[0-9]+]]
+    // CHECK-NEXT: jump [[LOOKUP]]
     function setAt(uint256 i, bytes1 b) external {
         KeccakState storage state = states[msg.sender];
         state.part[i] = b;
     }
 
-    // CHECK: [[WHOLE]]:
-    // CHECK: caller
-    // CHECK: push 32
-    // CHECK-NEXT: mstore
+    // CHECK: [[WHOLE]]{{( \[[a-z, ]+\])?}}:
+    // CHECK: mstore
+    // CHECK-NEXT: push [[WHOLE_RETURN:bb[0-9]+]]
+    // CHECK-NEXT: jump [[LOOKUP]]
+    // CHECK: [[AT_RETURN]] {{\[continuation\]}}:
+    // CHECK-NOT: mload
+    // CHECK: [[SET_AT_RETURN]] {{\[continuation\]}}:
+    // CHECK: sload
     // CHECK-NOT: mcopy
-    // CHECK: return
+    // CHECK: sstore
+    // CHECK: [[WHOLE_RETURN]] {{\[continuation\]}}:
+    // CHECK-NOT: mcopy
     function whole() external view returns (bytes memory) {
         KeccakState storage state = states[msg.sender];
         return state.part;

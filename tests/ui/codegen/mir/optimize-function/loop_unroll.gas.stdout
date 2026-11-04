@@ -26,7 +26,7 @@ fn @plain(arg0: i256, arg1: i256) -> i256 {
     v101 = add arg0, 0
     v102 = calldataload v101
     v103 = byte 0, v102
-    v104 = or 0, v103
+    v104 = or v103, 0
     v109 = shl v104, 8
     v110 = and v109, 0xffffffff
     v111 = add arg0, 1
@@ -47,10 +47,10 @@ fn @plain(arg0: i256, arg1: i256) -> i256 {
     v134 = or v130, v133
     ret v134
   bb2 [cold]:                                     ; preds = bb0
-    v57 = lt 0, arg1
-    v68 = lt 1, arg1
+    v57 = gt arg1, 0
+    v68 = gt arg1, 1
     v136 = and v57, v68
-    v79 = lt 2, arg1
+    v79 = gt arg1, 2
     v137 = and v136, v79
     jumpi v137, bb4, bb3
   bb4 [cold]:                                     ; preds = bb2
@@ -70,7 +70,7 @@ fn @fast(arg0: i256, arg1: i256) -> i256 {
     v101 = add arg0, 0
     v102 = calldataload v101
     v103 = byte 0, v102
-    v104 = or 0, v103
+    v104 = or v103, 0
     v109 = shl v104, 7
     v110 = and v109, 0xffffffff
     v111 = add arg0, 1
@@ -91,10 +91,10 @@ fn @fast(arg0: i256, arg1: i256) -> i256 {
     v134 = or v130, v133
     ret v134
   bb2 [cold]:                                     ; preds = bb0
-    v57 = lt 0, arg1
-    v68 = lt 1, arg1
+    v57 = gt arg1, 0
+    v68 = gt arg1, 1
     v136 = and v57, v68
-    v79 = lt 2, arg1
+    v79 = gt arg1, 2
     v137 = and v136, v79
     jumpi v137, bb4, bb3
   bb4 [cold]:                                     ; preds = bb2

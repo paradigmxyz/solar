@@ -86,7 +86,7 @@ fn lower_function(func: &mut Function) -> bool {
             if let Value::Inst(add) = *builder.func().value(address) {
                 builder.func_mut().inst_mut(add).metadata.set_checked_object_offset();
             }
-            builder.func_mut().inst_mut(inst).kind = InstKind::IntToPtr(address);
+            builder.func_mut().set_inst_kind(inst, InstKind::IntToPtr(address));
             false
         });
     }
@@ -239,14 +239,16 @@ fn coalesce_constant_allocations(func: &mut Function) {
             // remaining members = base + offset
             for (index, (allocation_id, allocation, _)) in allocations.iter().enumerate() {
                 if index == 0 {
-                    let inst = func.inst_mut(*allocation_id);
-                    inst.kind = InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL };
-                    inst.metadata.set_preserves_fmp(preserves_fmp);
+                    func.set_inst_kind(
+                        *allocation_id,
+                        InstKind::Alloc { size, semantics: AllocationSemantics::INTERNAL },
+                    );
+                    func.inst_mut(*allocation_id).metadata.set_preserves_fmp(preserves_fmp);
                 } else {
                     let offset_value =
                         func.alloc_value(Value::Immediate(Immediate::I256(U256::from(offset))));
+                    func.set_inst_kind(*allocation_id, InstKind::Add(base, offset_value));
                     let inst = func.inst_mut(*allocation_id);
-                    inst.kind = InstKind::Add(base, offset_value);
                     inst.metadata.set_effect(Some(inst.kind.effect_kind()));
                     inst.metadata.set_memory_region(None);
                     inst.metadata.set_storage_alias(None);
@@ -313,12 +315,12 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
                 if let Value::Inst(emitted) = *builder.func().value(value) {
                     builder.func_mut().inst_mut(emitted).metadata = inst.metadata;
                 }
+                builder.func_mut().set_inst_kind(id, InstKind::IntToPtr(value));
                 let instruction = builder.func_mut().inst_mut(id);
-                instruction.kind = InstKind::IntToPtr(value);
                 instruction.metadata.set_effect(None);
                 instruction.metadata.set_memory_region(None);
             } else {
-                builder.func_mut().inst_mut(id).kind = kind;
+                builder.func_mut().set_inst_kind(id, kind);
             }
             false
         });

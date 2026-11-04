@@ -76,19 +76,19 @@ bb14 [cold]:
   push 0
   push 0
   revert
-bb15 [loop]:                                      ; function pushRange(uint8 from, uint8 count) external [selector 0x4407bb95]
-  push 4
-  calldataload
-  push 8
-  shr
+bb15 [loop, entry]:                               ; function pushRange(uint8 from, uint8 count) external [selector 0x4407bb95]
   push 68
   calldatasize
   lt
+  push 255
+  push 4
+  calldataload
+  gt
   or
+  push 255
   push 36
   calldataload
-  push 8
-  shr
+  gt
   or
   push bb14
   jumpi
@@ -144,9 +144,10 @@ bb19 [loop]:
   eq
   push bb22
   jumpi
-  dup 1
-  push 64
-  shr
+  push 0x10000000000000000
+  dup 2
+  lt
+  iszero
   push bb23
   jumpi
   push 31
@@ -262,7 +263,10 @@ bb27 [loop]:
   push bb19
   jumpi
   stop
-bb30:                                             ; function popOne() external [selector 0x53b8a6c6]
+bb30 [entry]:                                     ; function popOne() external [selector 0x53b8a6c6]
+  push bb71
+  jump bb70
+bb70 [ret=0, inputs=1, outputs=4]:
   caller
   push 0
   mstore
@@ -278,6 +282,77 @@ bb30:                                             ; function popOne() external [
   sload
   push 1
   dup 2
+  dup 2
+  and
+  dup 1
+  push 0
+  sub
+  push 127
+  or
+  swap 2
+  eq
+  swap 2
+  swap 3
+  swap 4
+  jump
+bb35:
+  push 0
+  not
+  dup 2
+  push 32
+  sub
+  push 3
+  shl
+  shl
+  swap 1
+  swap 2
+  and
+  swap 1
+  dup 1
+  add
+  or
+  swap 1
+  sstore
+  stop
+bb36:
+  pop
+  pop
+  pop
+  dup 1
+  push 0
+  mstore
+  push 32
+  push 0
+  keccak256
+  dup 1
+  sload
+  push 255
+  not
+  and
+  push 62
+  or
+  swap 1
+  swap 2
+  sstore
+  push 0
+  swap 1
+  sstore
+  stop
+bb40 [entry]:                                     ; function len() external view returns (uint256) [selector 0x56d88e27]
+  caller
+  push 0
+  mstore
+  push 0
+  push 32
+  mstore
+  push 64
+  push 0
+  keccak256
+  push 1
+  add
+  sload
+  push 1
+  dup 2
   and
   push 1
   dup 2
@@ -287,6 +362,123 @@ bb30:                                             ; function popOne() external [
   sub
   push 127
   or
+  swap 1
+  swap 2
+  push 1
+  shr
+  and
+  swap 1
+  push 32
+  dup 3
+  lt
+  eq
+  push bb22
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb43 [entry]:                                     ; function at(uint256 i) external view returns (bytes1) [selector 0xe0886f90]
+  push 36
+  calldatasize
+  lt
+  push bb14
+  jumpi
+  push bb72
+  jump bb70
+bb52 [entry]:                                     ; function setAt(uint256 i, bytes1 b) external [selector 0xbee6975a]
+  push 36
+  calldataload
+  push 8
+  shl
+  push 68
+  calldatasize
+  lt
+  or
+  push bb14
+  jumpi
+  push bb73
+  jump bb70
+bb61 [entry]:                                     ; function whole() external view returns (bytes memory) [selector 0x72bd964d]
+  push 160
+  push 64
+  mstore
+  push bb74
+  jump bb70
+bb65 [loop]:
+  swap 3
+  push 0
+  mstore
+  push 32
+  push 0
+  keccak256
+  push 32
+  dup 5
+  add
+  swap 2
+  dup 2
+  add
+  swap 3
+  pop
+  swap 3
+  dup 4
+  dup 4
+  sub
+  push bb68
+  jumpi
+  jump bb67
+bb67:
+  dup 1
+  mload
+  push 31
+  dup 2
+  add
+  push 31
+  not
+  and
+  swap 1
+  push 32
+  dup 4
+  add
+  add
+  push 0
+  swap 1
+  mstore
+  push 32
+  swap 1
+  swap 2
+  sub
+  push 32
+  dup 2
+  mstore
+  swap 1
+  push 64
+  add
+  swap 1
+  return
+bb68 [loop]:
+  dup 2
+  dup 5
+  push 1
+  add
+  swap 5
+  sload
+  swap 1
+  push 32
+  add
+  swap 3
+  mstore
+  dup 4
+  dup 4
+  sub
+  push bb68
+  jumpi
+  jump bb67
+bb38 [cold]:
+  push 49
+  jump bb69
+bb71 [continuation]:
   dup 3
   push 1
   shr
@@ -348,120 +540,7 @@ bb30:                                             ; function popOne() external [
   swap 1
   sstore
   stop
-bb35:
-  push 0
-  not
-  dup 2
-  push 32
-  sub
-  push 3
-  shl
-  shl
-  swap 1
-  swap 2
-  and
-  swap 1
-  dup 1
-  add
-  or
-  swap 1
-  sstore
-  stop
-bb36:
-  pop
-  pop
-  pop
-  dup 1
-  push 0
-  mstore
-  push 32
-  push 0
-  keccak256
-  dup 1
-  sload
-  push 255
-  not
-  and
-  push 62
-  or
-  swap 1
-  swap 2
-  sstore
-  push 0
-  swap 1
-  sstore
-  stop
-bb40:                                             ; function len() external view returns (uint256) [selector 0x56d88e27]
-  caller
-  push 0
-  mstore
-  push 0
-  push 32
-  mstore
-  push 64
-  push 0
-  keccak256
-  push 1
-  add
-  sload
-  push 1
-  dup 2
-  and
-  push 1
-  dup 2
-  eq
-  swap 1
-  push 0
-  sub
-  push 127
-  or
-  swap 1
-  swap 2
-  push 1
-  shr
-  and
-  swap 1
-  push 32
-  dup 3
-  lt
-  eq
-  push bb22
-  jumpi
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb43:                                             ; function at(uint256 i) external view returns (bytes1) [selector 0xe0886f90]
-  push 36
-  calldatasize
-  lt
-  push bb14
-  jumpi
-  caller
-  push 0
-  mstore
-  push 0
-  push 32
-  mstore
-  push 64
-  push 0
-  keccak256
-  push 1
-  add
-  dup 1
-  sload
-  push 1
-  dup 2
-  and
-  push 1
-  dup 2
-  eq
-  swap 1
-  push 0
-  sub
-  push 127
-  or
+bb72 [continuation]:
   swap 2
   push 1
   shr
@@ -516,41 +595,7 @@ bb49:
   push 32
   push 0
   return
-bb52:                                             ; function setAt(uint256 i, bytes1 b) external [selector 0xbee6975a]
-  push 36
-  calldataload
-  push 8
-  shl
-  push 68
-  calldatasize
-  lt
-  or
-  push bb14
-  jumpi
-  caller
-  push 0
-  mstore
-  push 0
-  push 32
-  mstore
-  push 64
-  push 0
-  keccak256
-  push 1
-  add
-  dup 1
-  sload
-  push 1
-  dup 2
-  and
-  push 1
-  dup 2
-  eq
-  swap 1
-  push 0
-  sub
-  push 127
-  or
+bb73 [continuation]:
   swap 2
   push 1
   shr
@@ -612,34 +657,7 @@ bb58:
   swap 1
   sstore
   stop
-bb61:                                             ; function whole() external view returns (bytes memory) [selector 0x72bd964d]
-  push 160
-  push 64
-  mstore
-  caller
-  push 0
-  mstore
-  push 0
-  push 32
-  mstore
-  push 64
-  push 0
-  keccak256
-  push 1
-  add
-  dup 1
-  sload
-  push 1
-  dup 2
-  and
-  push 1
-  dup 2
-  eq
-  swap 1
-  push 0
-  sub
-  push 127
-  or
+bb74 [continuation]:
   dup 3
   push 1
   shr
@@ -691,75 +709,3 @@ bb61:                                             ; function whole() external vi
   mstore
   pop
   jump bb67
-bb67:
-  dup 1
-  mload
-  push 31
-  dup 2
-  add
-  push 31
-  not
-  and
-  swap 1
-  push 32
-  dup 4
-  add
-  add
-  push 0
-  swap 1
-  mstore
-  push 32
-  swap 1
-  swap 2
-  sub
-  push 32
-  dup 2
-  mstore
-  swap 1
-  push 64
-  add
-  swap 1
-  return
-bb65 [loop]:
-  swap 3
-  push 0
-  mstore
-  push 32
-  push 0
-  keccak256
-  push 32
-  dup 5
-  add
-  swap 2
-  dup 2
-  add
-  swap 3
-  pop
-  swap 3
-  dup 4
-  dup 4
-  sub
-  push bb68
-  jumpi
-  jump bb67
-bb68 [loop]:
-  dup 2
-  dup 5
-  push 1
-  add
-  swap 5
-  sload
-  swap 1
-  push 32
-  add
-  swap 3
-  mstore
-  dup 4
-  dup 4
-  sub
-  push bb68
-  jumpi
-  jump bb67
-bb38 [cold]:
-  push 49
-  jump bb69

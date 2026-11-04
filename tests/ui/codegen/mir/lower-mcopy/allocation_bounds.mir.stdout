@@ -19,7 +19,7 @@ fn @copy(arg0: i256) -> struct0 [selector=0x8370392c, pure, abi_params=[uint256]
     mstore v6, 22
     v7 = add v3, 96
     mstore v7, 33
-    v8 = abi_encode_packed (bytes v4)
+    v8 = abi_encode_packed (memory_bytes v4)
     v9 = ptrtoint ptr<memory> v8 to i256
     v10 = add v9, 32
     v11 = mload v10

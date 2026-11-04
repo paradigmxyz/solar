@@ -18,10 +18,8 @@ contract Test {
     // indexing itself is modular: a large offset can still name an ordinary element.
     // CHECK-LABEL: fn @copy(
     // CHECK: [[COUNT:v[0-9]+]] = calldataload 68
-    // CHECK: [[HIGH:v[0-9]+]] = shr [[COUNT]], 251
-    // CHECK-NEXT: [[OVERFLOW:v[0-9]+]] = ne [[HIGH]], 0
-    // CHECK-NEXT: [[WORD:v[0-9]+]] = zext i1 [[OVERFLOW]] to i256
-    // CHECK-NEXT: [[REASONS:v[0-9]+]] = or {{v[0-9]+}}, [[WORD]]
+    // CHECK: [[OVERFLOW:v[0-9]+]] = shr [[COUNT]], 251
+    // CHECK-NEXT: [[REASONS:v[0-9]+]] = or {{v[0-9]+}}, [[OVERFLOW]]
     // CHECK-NEXT: [[FALLBACK:v[0-9]+]] = ne [[REASONS]], 0
     // CHECK-NEXT: jumpi [[FALLBACK]]
     // CHECK: mcopy

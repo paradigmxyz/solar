@@ -35,37 +35,31 @@ fn @validatedTuple(arg0: i256, arg1: i256) -> struct0 [selector=0x7b478388, view
     v9 = lt v8, 96
     icall revert_if<tuple_data_too_short>, v9
     v10 = mload v5
-    v11 = shr v10, 8
-    v12 = eq v11, 0
-    v13 = eq v12, false
-    icall revert_if<empty>, v13
-    v14 = ptrtoint ptr<memory> v5 to i256
-    v15 = add v14, 32
-    v16 = mload v15
-    v17 = shr v16, 1
-    v18 = eq v17, 0
-    v19 = eq v18, false
+    v11 = gt v10, 255
+    icall revert_if<empty>, v11
+    v12 = ptrtoint ptr<memory> v5 to i256
+    v13 = add v12, 32
+    v14 = mload v13
+    v15 = gt v14, 1
+    icall revert_if<empty>, v15
+    v16 = ptrtoint ptr<memory> v5 to i256
+    v17 = add v16, 64
+    v18 = mload v17
+    v19 = gt v18, 0xffffffffffffffffffffffffffffffff
     icall revert_if<empty>, v19
-    v20 = ptrtoint ptr<memory> v5 to i256
-    v21 = add v20, 64
-    v22 = mload v21
-    v23 = shr v22, 128
-    v24 = eq v23, 0
-    v25 = eq v24, false
-    icall revert_if<empty>, v25
-    v26 = trunc i256 v10 to i8
-    v27 = ne v16, 0
-    v28 = trunc i256 v22 to i128
+    v20 = trunc i256 v10 to i8
+    v21 = ne v14, 0
+    v22 = trunc i256 v18 to i128
+    v23 = insert_value struct0, undef struct0, 0, v20
+    v24 = insert_value struct0, v23, 1, v21
+    v25 = insert_value struct0, v24, 2, v22
+    v26 = extract_value struct0, v25, 0
+    v27 = extract_value struct0, v25, 1
+    v28 = extract_value struct0, v25, 2
     v29 = insert_value struct0, undef struct0, 0, v26
     v30 = insert_value struct0, v29, 1, v27
     v31 = insert_value struct0, v30, 2, v28
-    v32 = extract_value struct0, v31, 0
-    v33 = extract_value struct0, v31, 1
-    v34 = extract_value struct0, v31, 2
-    v35 = insert_value struct0, undef struct0, 0, v32
-    v36 = insert_value struct0, v35, 1, v33
-    v37 = insert_value struct0, v36, 2, v34
-    ret v37
+    ret v31
 }
 
 ; function tupleTarget(uint256 value, uint256 flag) external pure returns (uint8, bool, uint128) [selector 0xe1ee60dd]
@@ -118,12 +112,10 @@ fn @dirty() -> i8 [selector=0x7dce0fd0, view, abi_params=[], abi_returns=[word<u
     v5 = lt v4, 32
     icall revert_if<tuple_data_too_short>, v5
     v6 = mload 0 !metadata(memory=scratch)
-    v7 = shr v6, 8
-    v8 = eq v7, 0
-    v9 = eq v8, false
-    icall revert_if<empty>, v9
-    v10 = trunc i256 v6 to i8
-    ret v10
+    v7 = gt v6, 255
+    icall revert_if<empty>, v7
+    v8 = trunc i256 v6 to i8
+    ret v8
 }
 
 ; function dirtyTarget() external pure returns (uint8) [selector 0xacf697c3]

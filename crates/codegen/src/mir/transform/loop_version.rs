@@ -1275,7 +1275,7 @@ fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
     let copy = clone_loop(func, &plan.blocks);
 
     // preheader | latch: ... jump test
-    let test = func.alloc_block();
+    let test = func.alloc_block_like(header);
     redirect(func, plan.latch.unwrap_or(plan.preheader), header, test);
     let mut builder = FunctionBuilder::new_semantic(func);
     builder.switch_to_block(test);
@@ -1672,7 +1672,7 @@ fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
                 CheckedOp::Add => InstKind::Add(lhs, rhs),
                 _ => InstKind::Sub(lhs, rhs),
             };
-            func.inst_mut(cloned).kind = func.canonical_kind(kind);
+            func.set_inst_kind(cloned, kind);
         }
     }
     // The scans' headers define the addresses beside `i'` and `j'`, so they dominate a
@@ -1713,7 +1713,7 @@ fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
         .expect("the order's block holds it");
     let casts = words.iter().filter_map(|&(_, cast)| cast).collect::<Vec<_>>();
     func.blocks[block].instructions.splice(position..position, casts);
-    func.inst_mut(order).kind = func.canonical_kind(InstKind::Lt(words[0].0, words[1].0));
+    func.set_inst_kind(order, InstKind::Lt(words[0].0, words[1].0));
 }
 
 /// The word of a pointer value, for comparisons.

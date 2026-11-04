@@ -23,7 +23,7 @@ fn @slice(arg0: slice<calldata>, arg1: i256) -> ptr<memory> [selector=0x8b150516
     v15 = sub v10, arg1
     v16 = ptradd v9, arg1
     v17 = make_calldata_slice v16, v15
-    v18 = abi_encode_packed (bytes v8, bytes v17)
+    v18 = abi_encode_packed (calldata_bytes v8, calldata_bytes v17)
     ret v18
 }
 

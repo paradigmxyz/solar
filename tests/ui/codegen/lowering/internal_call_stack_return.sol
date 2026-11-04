@@ -30,7 +30,7 @@ contract ICallStackReturn {
     // GAS: push 0xf368aee0
     // GAS-NEXT: eq
     // GAS-NEXT: push [[VOID_ENTRY:bb[0-9]+]]
-    // GAS: [[COMMON_ENTRY]]:
+    // GAS: [[COMMON_ENTRY]]{{( \[[a-z, ]+\])?}}:
     // GAS-NOT: mload
     // GAS: push 11
     // GAS-NEXT: mul
@@ -38,13 +38,13 @@ contract ICallStackReturn {
     // GAS-NEXT: push 0
     // GAS-NEXT: mstore
     // The void helper is inlined, keeping the multiplication live across storage writes.
-    // GAS: [[VOID_ENTRY]]:
+    // GAS: [[VOID_ENTRY]]{{( \[[a-z, ]+\])?}}:
     // GAS: mul
     // GAS-NEXT: push 0
     // GAS-NEXT: sload
     // GAS: sstore
     // The nested leaf is also inlined without reloading its result.
-    // GAS: [[NESTED_ENTRY]]:
+    // GAS: [[NESTED_ENTRY]]{{( \[[a-z, ]+\])?}}:
     // GAS-NOT: mload
     // GAS: push 11
     // GAS-NEXT: mul
@@ -52,7 +52,7 @@ contract ICallStackReturn {
     // GAS-NEXT: add
     // GAS-NEXT: add
     // ADDMOD consumes the inlined result without a frame reload.
-    // GAS: [[MULTI_ENTRY]]:
+    // GAS: [[MULTI_ENTRY]]{{( \[[a-z, ]+\])?}}:
     // GAS: or
     // GAS-NOT: mload
     // GAS: addmod

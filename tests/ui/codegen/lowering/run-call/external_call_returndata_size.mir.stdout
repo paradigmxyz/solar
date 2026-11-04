@@ -277,12 +277,10 @@ fn @directInvalidBool() -> i1 [selector=0x78cd2593, abi_params=[], abi_returns=[
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = mload 0 !metadata(memory=scratch)
-    v10 = shr v9, 1
-    v11 = eq v10, 0
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = ne v9, 0
-    ret v13
+    v10 = gt v9, 1
+    icall revert_if<empty>, v10
+    v11 = ne v9, 0
+    ret v11
 }
 
 ; function pointerInvalidBool() external returns (bool) [selector 0xa0f03ea6]
@@ -315,10 +313,8 @@ fn @pointerInvalidBool() -> i1 [selector=0xa0f03ea6, abi_params=[], abi_returns=
     v14 = lt v13, 32
     icall revert_if<tuple_data_too_short>, v14
     v15 = mload 0 !metadata(memory=scratch)
-    v16 = shr v15, 1
-    v17 = eq v16, 0
-    v18 = eq v17, false
-    icall revert_if<empty>, v18
-    v19 = ne v15, 0
-    ret v19
+    v16 = gt v15, 1
+    icall revert_if<empty>, v16
+    v17 = ne v15, 0
+    ret v17
 }

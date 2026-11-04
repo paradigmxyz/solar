@@ -130,13 +130,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_stmt: &hir::Stmt<'_>,
         else_stmt: Option<&hir::Stmt<'_>>,
     ) -> Option<()> {
+        let condition_span = condition.span;
         let condition = self.lower_expr(condition)?;
-        let (then_branch, else_branch) = self.lower_branches(
+        // The transfer still evaluates the condition when its computation folds into the jump.
+        // Keep its narrower origin so coverage can anchor the expression inside the `if`.
+        let previous = self.builder.replace_source_span(condition_span);
+        let branches = self.lower_branches(
             condition,
             true,
-            |this| this.lower_stmt(then_stmt),
-            |this| else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt)),
-        )?;
+            |this| {
+                this.builder.replace_source_span(previous);
+                this.lower_stmt(then_stmt)
+            },
+            |this| {
+                this.builder.replace_source_span(previous);
+                else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt))
+            },
+        );
+        self.builder.replace_source_span(previous);
+        let (then_branch, else_branch) = branches?;
         if then_branch.terminated && else_branch.terminated {
             self.builder.invalid();
         }
@@ -490,6 +502,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
+        // The blocks the clauses create inherit the hint, so the whole catch side is cold, up to
+        // but not including the merge block.
+        self.builder.func_mut().blocks[catch_block].cold_hint = true;
         self.builder.switch_to_block(catch_block);
         let needs_data =
             catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());

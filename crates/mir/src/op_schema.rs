@@ -1877,10 +1877,13 @@ define_mir_ops! {
         side_effects = true,
         category = Some(PhaseCategory::AbiEncoding)
     )]
-    #[operand_types(func => Some(typing::abi_encode_types(func, selector.is_some(), args, layout)))]
+    #[operand_types(func => Some(typing::abi_encode_types(func, base.is_some(), selector.is_some(), args, layout)))]
     AbiEncode {
         /// Storage policy for the encoded result.
         mode: AbiEncodeMode,
+        /// Where a [`AbiEncodeMode::Scratch`] encoding starts, instead of the free-memory pointer.
+        /// Only scratch encodings take one.
+        base: Option<ValueId>,
         /// Optional left-aligned four-byte selector prefix.
         selector: Option<ValueId>,
         /// Values corresponding to the tuple layout.

@@ -22,10 +22,10 @@
   fn @internal() -> i256 {
     bb0:
 -     v0 = alloc 32 !metadata(span=10..20, preserves_fmp)
-+     v2 = mload 64 !metadata(memory=scratch, alloc_ptr)
++     v2 = mload 64 !metadata(memory=scratch, span=10..20, alloc_ptr)
 +     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch, span=10..20)
-+     v3 = add v2, 32 !metadata(alloc_ptr)
-+     mstore 64, v3 !metadata(memory=scratch)
++     v3 = add v2, 32 !metadata(span=10..20, alloc_ptr)
++     mstore 64, v3 !metadata(memory=scratch, span=10..20)
       v1 = ptrtoint ptr<memory> v0 to i256
       ret v1
 + }
@@ -36,11 +36,10 @@
 +     v1 = inttoptr i256 v0 to ptr<memory>
 +     v2 = add v0, arg0 !metadata(alloc_ptr)
 +     v3 = lt v2, v0
-+     v4 = zext i1 v3 to i256
-+     v5 = shr v2, 64
-+     v6 = or v5, v4
-+     v7 = ne v6, 0
-+     jumpi v7, bb1, bb2
++     v4 = gt v2, 0xffffffffffffffff
++     v5 = or v3, v4
++     v6 = zext i1 v5 to i256
++     jumpi v5, bb1, bb2
 +   bb2:                                            ; preds = bb0
 +     mstore 64, v2 !metadata(memory=scratch)
 +     ret v1

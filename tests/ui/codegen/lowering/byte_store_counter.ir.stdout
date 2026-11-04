@@ -108,7 +108,7 @@ bb79 [cold]:
   push 36
   push 28
   revert
-bb9:                                              ; function encode(bytes memory input) public pure returns (bytes memory) [selector 0x12496a1b]
+bb9 [entry]:                                      ; function encode(bytes memory input) public pure returns (bytes memory) [selector 0x12496a1b]
   push 160
   push 64
   mstore
@@ -157,12 +157,12 @@ bb78 [ret=0, inputs=2, outputs=1]:                ; alloc (synthesized)
   swap 2
   dup 3
   add
-  dup 3
-  dup 2
-  lt
-  dup 2
+  dup 1
   push 64
   shr
+  dup 4
+  dup 3
+  lt
   or
   push bb51
   jumpi
@@ -225,7 +225,7 @@ bb12 [continuation]:
   add
   swap 1
   return
-bb14:                                             ; function encodeTwice(bytes memory input) public pure returns (bytes memory) [selector 0xf58df096]
+bb14 [entry]:                                     ; function encodeTwice(bytes memory input) public pure returns (bytes memory) [selector 0xf58df096]
   push 160
   push 64
   mstore
@@ -240,7 +240,7 @@ bb14:                                             ; function encodeTwice(bytes m
 bb16 [continuation]:
   push bb11
   jump bb53
-bb20:                                             ; function scan(bytes memory input) public pure returns (bool) [selector 0x43f8e26b]
+bb20 [entry]:                                     ; function scan(bytes memory input) public pure returns (bool) [selector 0x43f8e26b]
   push 128
   push 64
   mstore
@@ -282,7 +282,7 @@ bb23 [continuation]:
   push 32
   push 0
   return
-bb25:                                             ; function twice(bytes memory first, bytes memory second) public pure returns (bool, bool) [selector 0xbca4d4a4]
+bb25 [entry]:                                     ; function twice(bytes memory first, bytes memory second) public pure returns (bool, bool) [selector 0xbca4d4a4]
   push 128
   push 64
   mstore
@@ -315,7 +315,7 @@ bb30 [continuation]:
   push 64
   push 0
   return
-bb32:                                             ; function firstHigh(bytes memory input) public pure returns (uint256) [selector 0xec31a730]
+bb32 [entry]:                                     ; function firstHigh(bytes memory input) public pure returns (uint256) [selector 0xec31a730]
   push 128
   push 64
   mstore
@@ -366,7 +366,7 @@ bb39 [loop]:
   push 32
   push 0
   return
-bb41 [loop]:                                      ; function checkedScan(uint256 length) public pure returns (bool) [selector 0xf2609747]
+bb41 [loop, entry]:                               ; function checkedScan(uint256 length) public pure returns (bool) [selector 0xf2609747]
   push 36
   calldatasize
   lt
@@ -387,12 +387,12 @@ bb41 [loop]:                                      ; function checkedScan(uint256
   dup 3
   dup 2
   add
-  dup 2
-  dup 2
-  lt
-  dup 2
+  dup 1
   push 64
   shr
+  dup 3
+  dup 3
+  lt
   or
   swap 1
   swap 3

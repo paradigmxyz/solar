@@ -36,9 +36,9 @@ bb0:                                              ; constructor(uint8 unsignedVa
   jumpi
   dup 1
   mload
-  dup 1
-  push 8
-  shr
+  push 255
+  dup 2
+  gt
   push bb5
   jumpi
   push 32

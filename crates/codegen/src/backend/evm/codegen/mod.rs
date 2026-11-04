@@ -22,6 +22,7 @@ use crate::{
     backend::assembler::{
         ArtifactKind, AssembledCode, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
+    debugify::Origins,
     link::{EmbeddedBytecodes, LibraryRelocation, Trailer},
     mir::{
         ArgIdx, BackendMemory, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId,
@@ -155,6 +156,7 @@ pub struct EvmCodegen<'gcx> {
     capture_evm_ir: bool,
     capture_scheduled_evm_ir: bool,
     capture_debug_info: bool,
+    display_debug_info: bool,
     /// Whether the MIR pipeline runs before code generation; MIR input has already run it.
     run_pipeline: bool,
     /// MIR sites of deferred runtime allocations, retained only when capturing MIR.
@@ -222,6 +224,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_evm_ir: false,
             capture_scheduled_evm_ir: false,
             capture_debug_info: false,
+            display_debug_info: false,
             run_pipeline: true,
             allocation_sites: FxHashMap::default(),
             return_buffer_sites: FxHashMap::default(),
@@ -346,7 +349,8 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Controls whether generated artifacts include final instruction locations.
     pub fn set_capture_debug_info(&mut self, capture: bool) {
-        self.capture_debug_info = capture;
+        self.capture_debug_info = capture || crate::debugify::enabled(self.gcx);
+        self.display_debug_info = capture;
     }
 
     /// Controls whether modules without an external entry still run the MIR pipeline.
@@ -378,6 +382,9 @@ struct PendingRuntime {
     backend_memory: Option<BackendMemory>,
     /// The runtime EVM IR as stack scheduling emitted it, when captured.
     scheduled_evm_ir: Option<ir::Module>,
+    /// The origins of the MIR that stack scheduling consumed, and of the runtime EVM IR it
+    /// emitted, when auditing.
+    audit: Option<(Origins, Origins)>,
 }
 
 /// The artifact produced by the EVM backend.

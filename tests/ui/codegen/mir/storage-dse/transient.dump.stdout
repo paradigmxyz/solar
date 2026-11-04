@@ -128,19 +128,17 @@ fn @clearedAfterCall() {
 ; function afterReturn(bool early) external returns (uint256) [selector 0x888a9e3c]
 fn @afterReturn() {
   bb0:
-    v18 = calldataload 4
-    v19 = shr v18, 1
     v16 = calldatasize
     v17 = lt v16, 36
-    v24 = zext i1 v17 to i256
-    v25 = or v19, v24
-    v26 = ne v25, 0
-    jumpi v26, bb5, bb7
+    v18 = calldataload 4
+    v19 = gt v18, 1
+    v23 = or v17, v19
+    jumpi v23, bb5, bb7
   bb7:                                            ; preds = bb0
-    v27 = calldataload 4
-    v23 = ne v27, 0
+    v24 = calldataload 4
+    v22 = ne v24, 0
     tstore 1, 1 !metadata(storage=slot(1))
-    jumpi v23, bb1, bb2
+    jumpi v22, bb1, bb2
   bb2:                                            ; preds = bb7
     tstore 1, 2 !metadata(storage=slot(1))
     v7: i256 = address

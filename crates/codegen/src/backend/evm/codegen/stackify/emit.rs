@@ -51,7 +51,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let Some(plan) = plans[func_id].take() else { continue };
             self.enter_function(module, func);
-            self.asm.define_label(self.function_labels[&func_id]);
+            self.asm.define_external_entry_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
             self.comment_function_entry(func, false, false);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
@@ -405,7 +405,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
-            Exit::TailCall(callee) => {
+            Exit::TailCall { callee, origin } => {
+                if self.capture_debug_info
+                    && let Some(origin) = origin
+                {
+                    let metadata = &func.inst(*origin).metadata;
+                    self.asm.set_source_spans(metadata.source_spans());
+                    self.asm.set_modifier_depth(metadata.modifier_depth());
+                }
                 // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
                 self.asm.emit_op(op::JUMP);

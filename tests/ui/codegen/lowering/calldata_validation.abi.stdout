@@ -8,15 +8,14 @@ fn @vUint8() [selector=0xd5f6949e, abi_wrapper, pure] {
     jumpi v1, bb2, bb3
   bb3:                                            ; preds = bb0
     v2 = calldataload 4
-    v3 = shr v2, 8
-    v4 = eq v3, 0
-    jumpi v4, bb4, bb2
+    v3 = gt v2, 255
+    jumpi v3, bb2, bb4
   bb4:                                            ; preds = bb3
-    v5 = trunc i256 v2 to i8
+    v4 = trunc i256 v2 to i8
     jump bb1
   bb1:                                            ; preds = bb4
-    v6 = zext i8 v5 to i256
-    mstore 0, v6 !metadata(memory=scratch)
+    v5 = zext i8 v4 to i256
+    mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
   bb2 [cold]:                                     ; preds = bb0, bb3
     revert 0, 0
@@ -31,8 +30,8 @@ fn @vInt16() [selector=0xe9697b4d, abi_wrapper, pure] {
   bb3:                                            ; preds = bb0
     v2 = calldataload 4
     v3 = signextend 1, v2
-    v4 = eq v2, v3
-    jumpi v4, bb4, bb2
+    v4 = ne v2, v3
+    jumpi v4, bb2, bb4
   bb4:                                            ; preds = bb3
     v5 = trunc i256 v2 to i16
     jump bb1
@@ -53,16 +52,15 @@ fn @vBool() [selector=0x18a11c47, abi_wrapper, pure] {
     jumpi v1, bb2, bb3
   bb3:                                            ; preds = bb0
     v2 = calldataload 4
-    v3 = shr v2, 1
-    v4 = eq v3, 0
-    jumpi v4, bb4, bb2
+    v3 = gt v2, 1
+    jumpi v3, bb2, bb4
   bb4:                                            ; preds = bb3
-    v5 = trunc i256 v2 to i1
+    v4 = trunc i256 v2 to i1
     jump bb1
   bb1:                                            ; preds = bb4
-    v6 = ne v5, false
-    v7 = zext i1 v6 to i256
-    mstore 0, v7 !metadata(memory=scratch)
+    v5 = ne v4, false
+    v6 = zext i1 v5 to i256
+    mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
   bb2 [cold]:                                     ; preds = bb0, bb3
     revert 0, 0
@@ -76,15 +74,14 @@ fn @vAddress() [selector=0x23347413, abi_wrapper, pure] {
     jumpi v1, bb2, bb3
   bb3:                                            ; preds = bb0
     v2 = calldataload 4
-    v3 = shr v2, 160
-    v4 = eq v3, 0
-    jumpi v4, bb4, bb2
+    v3 = gt v2, 0xffffffffffffffffffffffffffffffffffffffff
+    jumpi v3, bb2, bb4
   bb4:                                            ; preds = bb3
-    v5 = trunc i256 v2 to i160
+    v4 = trunc i256 v2 to i160
     jump bb1
   bb1:                                            ; preds = bb4
-    v6 = zext i160 v5 to i256
-    mstore 0, v6 !metadata(memory=scratch)
+    v5 = zext i160 v4 to i256
+    mstore 0, v5 !metadata(memory=scratch)
     returndata 0, 32
   bb2 [cold]:                                     ; preds = bb0, bb3
     revert 0, 0
@@ -99,8 +96,8 @@ fn @vBytes4() [selector=0x2c920949, abi_wrapper, pure] {
   bb3:                                            ; preds = bb0
     v2 = calldataload 4
     v3 = shl v2, 32
-    v4 = eq v3, 0
-    jumpi v4, bb4, bb2
+    v4 = ne v3, 0
+    jumpi v4, bb2, bb4
   bb4:                                            ; preds = bb3
     jump bb1
   bb1:                                            ; preds = bb4
@@ -118,8 +115,8 @@ fn @vEnum() [selector=0x5aa5e60a, abi_wrapper, pure] {
     jumpi v3, bb2, bb3
   bb3:                                            ; preds = bb0
     v4 = calldataload 4
-    v5 = lt v4, 3
-    jumpi v5, bb4, bb2
+    v5 = gt v4, 2
+    jumpi v5, bb2, bb4
   bb4:                                            ; preds = bb3
     v6 = trunc i256 v4 to i8
     jump bb1
@@ -150,16 +147,15 @@ fn @vWidened() [selector=0x3d71ddd7, abi_wrapper, pure] {
     jumpi v2, bb2, bb3
   bb3:                                            ; preds = bb0
     v3 = calldataload 4
-    v4 = shr v3, 8
-    v5 = eq v4, 0
-    jumpi v5, bb4, bb2
+    v4 = gt v3, 255
+    jumpi v4, bb2, bb4
   bb4:                                            ; preds = bb3
-    v6 = trunc i256 v3 to i8
+    v5 = trunc i256 v3 to i8
     jump bb1
   bb1:                                            ; preds = bb4
-    v0 = zext i8 v6 to i16
-    v7 = zext i16 v0 to i256
-    mstore 0, v7 !metadata(memory=scratch)
+    v0 = zext i8 v5 to i16
+    v6 = zext i16 v0 to i256
+    mstore 0, v6 !metadata(memory=scratch)
     returndata 0, 32
   bb2 [cold]:                                     ; preds = bb0, bb3
     revert 0, 0
@@ -173,21 +169,20 @@ fn @vMulti() [selector=0x403ecab4, abi_wrapper, pure] {
     jumpi v4, bb2, bb3
   bb3:                                            ; preds = bb0
     v5 = calldataload 4
-    v6 = shr v5, 32
-    v7 = eq v6, 0
-    jumpi v7, bb4, bb2
+    v6 = gt v5, 0xffffffff
+    jumpi v6, bb2, bb4
   bb4:                                            ; preds = bb3
-    v8 = calldataload 36
-    v9 = signextend 0, v8
-    v10 = eq v8, v9
-    jumpi v10, bb5, bb2
+    v7 = calldataload 36
+    v8 = signextend 0, v7
+    v9 = ne v7, v8
+    jumpi v9, bb2, bb5
   bb5:                                            ; preds = bb4
-    v11 = trunc i256 v5 to i32
-    v12 = trunc i256 v8 to i8
+    v10 = trunc i256 v5 to i32
+    v11 = trunc i256 v7 to i8
     jump bb1
   bb1:                                            ; preds = bb5
-    v0 = zext i32 v11 to i256
-    v1 = zext i8 v12 to i256
+    v0 = zext i32 v10 to i256
+    v1 = zext i8 v11 to i256
     v2 = checked_add uint256, v0, v1
     mstore 0, v2 !metadata(memory=scratch)
     returndata 0, 32
