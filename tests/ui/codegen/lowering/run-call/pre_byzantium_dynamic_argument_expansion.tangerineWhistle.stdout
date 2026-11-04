@@ -124,12 +124,12 @@ fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], a
     v12 = zext i160 v2 to i256
     v13 = call v4, v12, 0, v7, v8, v7, 192
     jumpi v13, bb3, bb4
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:                                            ; preds = bb4
+  bb7 [cold_hint]:                                ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:                                            ; preds = bb4
+  bb6 [cold_hint]:                                ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
     v14 = mload v7
