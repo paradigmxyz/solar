@@ -1180,7 +1180,24 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                         // of its underlying type, and the raw-flow analysis links only equal
                         // types.
                         let raw = state.is_raw_scalar(gcx, parameter);
-                        if source == target && (raw || carrier != MirType::I256) {
+                        // An enum parameter validates the whole word, as via-IR does where a
+                        // value converts to the enum, instead of masking it.
+                        if let TyKind::Enum(id) = gcx.type_of_item(parameter.into()).kind
+                            && !raw
+                        {
+                            // word = zext argument to i256
+                            // validate_enum(word)
+                            // value = trunc word to carrier
+                            let word = raw_scalars::cast_carrier(
+                                &mut builder,
+                                argument,
+                                source,
+                                MirType::I256,
+                            );
+                            builder
+                                .validate_enum_value(gcx.hir.enumm(id).variants.len() as u64, word);
+                            builder.cast(word, carrier)
+                        } else if source == target && (raw || carrier != MirType::I256) {
                             raw_scalars::cast_carrier(&mut builder, argument, source, carrier)
                         } else {
                             reinterpret_word(&mut builder, argument, source, target, carrier, raw)
