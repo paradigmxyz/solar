@@ -28,6 +28,10 @@ The audit checks that an origin exists, not whether an instruction executes on t
 Pair it with source-map and coverage tests, including untaken paths. It does not check variable
 locations or inline scopes.
 
+The audit is not a target. Choose spans by the rules in
+[AGENTS.md](../AGENTS.md#debug-info): solc first, then LLVM, rustc and clang,
+then our own rule. Never move or merge a span only to lower a count.
+
 `-Zdebugify-output=DIR` enables the same audit and writes JSON-line sidecars without adding stderr
 output. It can be combined with either diagnostic mode. The
 [UI runner](../tools/tester/README.md#debug-info-differential-suite) uses this to audit the full
