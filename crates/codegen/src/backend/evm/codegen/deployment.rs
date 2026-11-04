@@ -7,7 +7,8 @@ use super::{
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
 };
 use crate::{
-    backend::assembler::DeferredAllocResolution,
+    backend::assembler::{DeferredAllocResolution, ScheduledProgram},
+    debugify::Origins,
     link::{CodeKind, LibraryTable},
     mir::{
         AllocationPlacement, BackendMemory, Function, InstKind, MirPhase,
@@ -79,6 +80,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return false;
         };
         let module = &*lowered;
+        let mir_origins = crate::debugify::enabled(self.gcx).then(|| Origins::mir(module));
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
@@ -130,12 +132,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm
             .program
             .set_debug_info_visible(self.display_debug_info || !crate::debugify::enabled(self.gcx));
-        let scheduled_evm_ir = self.asm.optimize_capturing(self.capture_scheduled_evm_ir);
+        let ScheduledProgram { evm_ir: scheduled_evm_ir, origins } =
+            self.asm.optimize_capturing(self.capture_scheduled_evm_ir);
         if self.gcx.dcx().has_errors().is_err() {
             return false;
         }
+        let audit = mir_origins.zip(origins);
         self.pending_runtime =
-            Some(PendingRuntime { call_graph, backend_memory, scheduled_evm_ir });
+            Some(PendingRuntime { call_graph, backend_memory, scheduled_evm_ir, audit });
         true
     }
 
@@ -146,7 +150,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         bytecodes: &EmbeddedBytecodes,
     ) -> EvmArtifact {
-        let PendingRuntime { call_graph, backend_memory, scheduled_evm_ir } =
+        let PendingRuntime { call_graph, backend_memory, scheduled_evm_ir, audit } =
             self.pending_runtime.take().expect("module must be scheduled first");
         debug_assert_eq!(module.phase(), MirPhase::Lowered);
         let mut libraries = module.libraries.clone();
@@ -205,7 +209,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm
             .program
             .set_debug_info_visible(self.display_debug_info || !crate::debugify::enabled(self.gcx));
-        self.asm.optimize();
+        let deployment_origins = self.asm.optimize();
+        if let Some((mir_origins, mut scheduled_origins)) = audit
+            && let Some(deployment_origins) = deployment_origins
+        {
+            scheduled_origins.extend(deployment_origins);
+            if mir_origins
+                .check(self.gcx, "EVM IR", module.name.name, "stackify", scheduled_origins)
+                .is_err()
+            {
+                return EvmArtifact::default();
+            }
+        }
         let deploy_code = self.asm.assemble_linked(
             bytecodes,
             &mut libraries,
