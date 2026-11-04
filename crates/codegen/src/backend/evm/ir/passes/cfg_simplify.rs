@@ -17,8 +17,8 @@
 //! intact.
 //!
 //! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
-//! layout can place their taken arm before the join. It preserves source origins and excludes
-//! glued instructions. Keeping this after
+//! layout can place their taken arm before the join. The `jumpi` keeps its origin and the removed
+//! jump and pushed label take theirs with them. It excludes glued instructions. Keeping this after
 //! sharing avoids changing which physical instruction sequences earlier passes can merge.
 //! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
 //! jump targets. Deferring this until sharing is complete avoids exposing larger tails whose

@@ -45,9 +45,6 @@
 //!
 //! Equivalent replacements keep the root operation's source context on their result-producing
 //! instruction. Removed operand locations are dropped, and function events are moved once.
-//! A branch that absorbs a boolean test can keep its origin on the existing target push when
-//! that push has no independent location. The branch keeps its own location, so the legacy
-//! source map does not mistake two checkpoints on the same path for ambiguous shared code.
 
 use super::{
     EvmPass, block_layout::terminator_kind, compact_pushes::materialize_immediate,

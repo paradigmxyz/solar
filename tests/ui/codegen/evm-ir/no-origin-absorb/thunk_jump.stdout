@@ -1,0 +1,19 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/no-origin-absorb/thunk_jump.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/no-origin-absorb/thunk_jump.evmir (after cfg-simplify) ===
+  @module ThunkJump
+  bb0:
+    calldatasize
+    indexed_jump bb1, bb4
+  bb1:
+    push 1
+-   jump bb2 !metadata(span=11..15)
+- bb2:
+-   jump bb3 !metadata(span=21..25)
++   jump bb3 !metadata(span=11..15)
+  bb3:
+    pop
+    stop
+  bb4:
+    push 2
+    jump bb3
+  
