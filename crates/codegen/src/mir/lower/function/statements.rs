@@ -323,6 +323,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Ident(_) | ExprKind::New(_) => Some(()),
             // Neither does literal arithmetic, whose fractions have no runtime value.
             _ if expr.is_numeric_literal() => Some(()),
+            // An equal-type conversion only evaluates its operand.
+            ExprKind::Call(..) if let Some(argument) = self.equal_type_conversion(expr) => {
+                self.lower_discarded_expr(argument)
+            }
             ExprKind::Call(callee, args) => {
                 let (callee, options) = callee.split_call_options();
                 self.lower_call(expr, callee, *args, options, false).map(drop)

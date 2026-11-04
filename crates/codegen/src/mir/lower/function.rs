@@ -682,6 +682,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result
     }
 
+    /// Returns the operand of `expr` when it converts a value to its own type.
+    pub(super) fn equal_type_conversion<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+    ) -> Option<&'a hir::Expr<'a>> {
+        let ExprKind::Call(callee, args) = &expr.kind else { return None };
+        let hir::CallArgsKind::Unnamed([argument]) = args.kind else { return None };
+        let ty = self.cx.gcx.type_of_expr(expr.id)?;
+        (expressions::is_type_conversion(self.cx.gcx, callee)
+            && ty.is_value_type()
+            && Some(ty) == self.cx.gcx.type_of_expr(argument.id))
+        .then_some(argument)
+    }
+
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<Word> {
         // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
         // be fractions or may not fit any integer type. Constant names fold in
@@ -877,13 +891,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 ))
             }
             // An equal-type conversion passes its operand through.
-            ExprKind::Call(callee, args)
-                if let hir::CallArgsKind::Unnamed([argument]) = args.kind
-                    && expressions::is_type_conversion(self.cx.gcx, callee)
-                    && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
-                        ty.is_value_type() && Some(ty) == self.cx.gcx.type_of_expr(argument.id)
-                    }) =>
-            {
+            ExprKind::Call(..) if let Some(argument) = self.equal_type_conversion(expr) => {
                 self.lower_expr(argument)
             }
             ExprKind::Call(callee, args) => {
