@@ -46,13 +46,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
                 if this.is_dynamic_bytes_type(ty) {
                     let (value, location) = this.lower_bytes_operand(expr, memory_ty)?;
-                    let (value, abi_type) = this.prepare_abi_encode_argument(
-                        expr,
-                        ty,
-                        value,
-                        AbiType::Bytes(location),
-                    )?;
-                    return Some(AbiOperand::Ready(value, abi_type));
+                    return this
+                        .prepare_abi_encode_argument(expr, ty, value, AbiType::Bytes(location))
+                        .map(AbiOperand::Ready);
                 }
                 this.lower_abi_operand(expr, memory_ty, |this, value| {
                     let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
@@ -178,13 +174,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
                 if this.is_dynamic_bytes_type(ty) {
                     let (value, location) = this.lower_bytes_operand(expr, memory_ty)?;
-                    let (value, abi_type) = this.prepare_abi_encode_argument(
-                        expr,
-                        memory_ty,
-                        value,
-                        AbiType::Bytes(location),
-                    )?;
-                    return Some(AbiOperand::Ready(value, abi_type));
+                    return this
+                        .prepare_abi_encode_argument(
+                            expr,
+                            memory_ty,
+                            value,
+                            AbiType::Bytes(location),
+                        )
+                        .map(AbiOperand::Ready);
                 }
                 this.lower_abi_operand(expr, memory_ty, |this, value| {
                     let abi_type = this.types.abi_type(memory_ty)?;
@@ -510,13 +507,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_packed_parts(&mut self, exprs: &[hir::Expr<'_>]) -> Option<Box<[PackedPart]>> {
         // values = evaluate_arguments_in_order(args)
         // parts = describe_packed_shapes(values)
-        // A storage array is read after the operands that follow it, so its part is left empty
-        // until then.
         let mut parts = Vec::with_capacity(exprs.len());
+        // A storage array is read after the operands that follow it, so its part stays empty
+        // until then.
         let mut storage = Vec::new();
         for expr in exprs {
             let ty = self.cx.gcx.type_of_expr(expr.id)?;
-            if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
+            let source = self.peel_bytes_conversion(expr);
+            if let ExprKind::Lit(lit) = source.peel_parens().kind
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
                 let bytes = bytes.as_byte_str();
@@ -532,16 +530,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if self.is_dynamic_bytes_type(ty) {
                 let (value, location) = self.lower_bytes_operand(expr, memory_ty)?;
                 parts.push(Some(self.lower_packed_part(expr, ty, value, Some(location))?));
-                continue;
-            }
-            let source = self.peel_bytes_conversion(expr);
-            if self.is_storage_object_copy(source, memory_ty) {
+            } else if self.is_storage_object_copy(source, memory_ty) {
                 storage.push((parts.len(), self.require_storage_access(source)?.slot, expr, ty));
                 parts.push(None);
-                continue;
+            } else {
+                let value = self.lower_typed_expr(expr, memory_ty)?;
+                parts.push(Some(self.lower_packed_part(expr, ty, value, None)?));
             }
-            let value = self.lower_typed_expr(expr, memory_ty)?;
-            parts.push(Some(self.lower_packed_part(expr, ty, value, None)?));
         }
         for (index, slot, expr, ty) in storage {
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);

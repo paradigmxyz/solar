@@ -1065,10 +1065,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parameter_types =
             function.parameters.iter().map(move |&parameter| gcx.type_of_item(parameter.into()));
         let mut parameter_types = parameter_types.skip(receiver_count);
-        // receiver = lower_abi_receiver(receiver)
+        // receiver = lower_abi_receiver(receiver), read before the arguments run
         let receiver = if let Some(receiver) = receiver {
             let parameter_ty = gcx.type_of_item(function.parameters[0].into());
-            Some(self.lower_abi_receiver(receiver, parameter_ty)?)
+            let operand = self.lower_abi_receiver(receiver, parameter_ty)?;
+            Some(AbiOperand::Ready(self.resolve_abi_operand(operand)?))
         } else {
             None
         };
@@ -1126,10 +1127,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         parameter_ty: Ty<'gcx>,
     ) -> Option<AbiOperand<'gcx>> {
         if Self::is_storage_parameter(parameter_ty) {
-            Some(AbiOperand::Ready(
+            Some(AbiOperand::Ready((
                 self.require_storage_access(receiver)?.slot,
                 AbiType::Word(None),
-            ))
+            )))
         } else {
             self.lower_abi_call_argument(receiver, parameter_ty)
         }

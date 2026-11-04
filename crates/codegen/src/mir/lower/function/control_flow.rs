@@ -408,7 +408,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.cx.report_unsupported(receiver.span, "attached library receiver");
                 };
                 let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-                operands.push(self.lower_abi_receiver(receiver, parameter_ty)?);
+                let operand = self.lower_abi_receiver(receiver, parameter_ty)?;
+                operands.push(AbiOperand::Ready(self.resolve_abi_operand(operand)?));
             }
             operands.extend(self.lower_abi_call_arguments(
                 *args,

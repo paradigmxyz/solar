@@ -307,8 +307,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(AbiOperand::Storage { slot, ty, span: expr.span });
         }
         let value = self.lower_typed_expr(expr, ty)?;
-        let (value, abi_type) = prepare(self, value)?;
-        Some(AbiOperand::Ready(value, abi_type))
+        prepare(self, value).map(AbiOperand::Ready)
     }
 
     /// Reads the storage operands of an ABI encoding, after every operand was lowered.
@@ -328,7 +327,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         operand: AbiOperand<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
         match operand {
-            AbiOperand::Ready(value, abi_type) => Some((value, abi_type)),
+            AbiOperand::Ready(operand) => Some(operand),
             AbiOperand::Storage { slot, ty, span } => {
                 // object = load_storage_object(ty, slot)
                 let object = self.load_storage_object(ty, slot, span)?;
@@ -365,9 +364,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<AbiOperand<'gcx>> {
         if self.is_dynamic_bytes_type(parameter_ty) {
             let (value, location) = self.lower_bytes_operand(argument, parameter_ty)?;
-            let (value, abi_type) =
-                self.prepare_abi_argument(argument, parameter_ty, value, AbiType::Bytes(location))?;
-            return Some(AbiOperand::Ready(value, abi_type));
+            return self
+                .prepare_abi_argument(argument, parameter_ty, value, AbiType::Bytes(location))
+                .map(AbiOperand::Ready);
         }
         self.lower_abi_operand(argument, parameter_ty, |this, value| {
             let abi_type = this.types.abi_type(parameter_ty)?;

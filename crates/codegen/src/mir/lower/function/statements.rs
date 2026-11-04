@@ -479,10 +479,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, index, argument| {
                 let parameter_ty = this.cx.gcx.type_of_item(parameters[index].into());
                 Some(match this.lower_abi_call_argument(argument, parameter_ty)? {
-                    AbiOperand::Ready(value, abi_type @ AbiType::Word(_)) => AbiOperand::Ready(
+                    AbiOperand::Ready((value, abi_type @ AbiType::Word(_))) => AbiOperand::Ready((
                         this.lower_word_value(parameter_ty, argument, value),
                         abi_type,
-                    ),
+                    )),
                     operand => operand,
                 })
             },
@@ -559,7 +559,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )?;
                     return Some((
                         argument,
-                        AbiOperand::Ready(value, this.types.abi_type(parameter_ty)?),
+                        AbiOperand::Ready((value, this.types.abi_type(parameter_ty)?)),
                     ));
                 }
                 if !this.cx.gcx.hir.variable(parameter).indexed {
@@ -567,7 +567,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let (value, location) = this.lower_bytes_operand(argument, parameter_ty)?;
                         return Some((
                             argument,
-                            AbiOperand::Ready(value, AbiType::Bytes(location)),
+                            AbiOperand::Ready((value, AbiType::Bytes(location))),
                         ));
                     }
                     let operand =
@@ -577,7 +577,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return Some((argument, operand));
                 }
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
-                Some((argument, AbiOperand::Ready(value, this.types.abi_type(parameter_ty)?)))
+                Some((argument, AbiOperand::Ready((value, this.types.abi_type(parameter_ty)?))))
             },
         )?;
         let mut data_values = Vec::new();

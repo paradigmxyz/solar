@@ -268,7 +268,7 @@ struct CallArgumentParams<'a> {
 /// An operand of an ABI encoding after lowering.
 enum AbiOperand<'gcx> {
     /// A value to encode, with its ABI type.
-    Ready(ValueId, AbiType),
+    Ready((ValueId, AbiType)),
     /// A storage array or struct that the encoder reads after every operand ran, as solc does.
     /// `ty` is the memory type it copies to.
     Storage { slot: ValueId, ty: Ty<'gcx>, span: Span },
