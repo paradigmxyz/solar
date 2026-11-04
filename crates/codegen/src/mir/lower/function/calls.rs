@@ -1065,11 +1065,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parameter_types =
             function.parameters.iter().map(move |&parameter| gcx.type_of_item(parameter.into()));
         let mut parameter_types = parameter_types.skip(receiver_count);
-        // receiver = lower_abi_receiver(receiver), read before the arguments run
+        // receiver = lower_bound_receiver(receiver)
         let receiver = if let Some(receiver) = receiver {
             let parameter_ty = gcx.type_of_item(function.parameters[0].into());
-            let operand = self.lower_abi_receiver(receiver, parameter_ty)?;
-            Some(AbiOperand::Ready(self.resolve_abi_operand(operand)?))
+            Some(self.lower_bound_receiver(receiver, parameter_ty)?)
         } else {
             None
         };
@@ -1119,6 +1118,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "codegen cannot decode linked library returndata before Byzantium",
         )?;
         Some(values.into_iter().next().map_or(CallResult::Void, CallResult::Value))
+    }
+
+    /// Lowers the receiver of an attached library call to a value read before the arguments run,
+    /// as solc copies it to memory when it evaluates the member access.
+    pub(super) fn lower_bound_receiver(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+        parameter_ty: Ty<'gcx>,
+    ) -> Option<AbiOperand<'gcx>> {
+        let operand = self.lower_abi_receiver(receiver, parameter_ty)?;
+        let (value, abi_type) = self.resolve_abi_operand(operand)?;
+        if abi_type == AbiType::Bytes(PtrLocation::Storage) {
+            // object = load_storage_bytes(slot)
+            let object = self.load_storage_bytes(value);
+            return Some(AbiOperand::Ready((object, AbiType::Bytes(PtrLocation::Memory))));
+        }
+        Some(AbiOperand::Ready((value, abi_type)))
     }
 
     pub(super) fn lower_abi_receiver(
