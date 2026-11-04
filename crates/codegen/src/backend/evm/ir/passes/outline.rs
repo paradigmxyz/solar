@@ -120,45 +120,63 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 /// Returns whether any repeated push could repay its call and return gas in gas mode.
 ///
 /// A share of `n` pushes, each at most a `PUSH32` and its immediate, saves fewer than
-/// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost `n` times the transfer gas
-/// at hot sites and nothing at cold ones.
+/// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost at least `n` times the
+/// transfer gas at hot sites and nothing at cold ones, divided among the external entries.
 fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
     if !module.optimization.is_gas() {
         return true;
     }
     let target = module.target(gcx);
     let (site_bytes, _, transfer_gas) = push_share_costs(&target);
-    target.deposit_repays_gas(
+    ScreenPricing::new(&target, module, transfer_gas).repays(
+        &target,
         u64::from(target.opcode(op::PUSH32).bytes).saturating_sub(site_bytes as u64),
-        u64::from(screen_transfer_gas(&target, module, transfer_gas)),
     )
 }
 
-/// The transfer gas per site that a screen must assume: a share with a cold site pays less than
-/// `gas` for it, so a module with a cold block is screened as if every site were cold.
-fn screen_transfer_gas(target: &Target, module: &Module, gas: u32) -> u32 {
-    target.site_gas(module.blocks.iter().any(|block| block.metadata.hotness.is_cold()), gas)
+/// The least transfer gas per site that a module-wide screen must assume.
+///
+/// A share with a cold site pays less than `gas` for it, so a module with a cold block is
+/// screened as if every site were cold. In a module with several external entries, a share
+/// pays only for the busiest entry's sites, as [`sites_transfer_gas`] prices it. Each site is
+/// in some entry's group, so that is at least one entry's share of the sites, and the screen
+/// charges each site `gas` divided by the number of entries.
+struct ScreenPricing {
+    gas: u32,
+    entries: u64,
+}
+
+impl ScreenPricing {
+    fn new(target: &Target, module: &Module, gas: u32) -> Self {
+        let cold = module.blocks.iter().any(|block| block.metadata.hotness.is_cold());
+        let entries = external_entries(module).count().max(1) as u64;
+        Self { gas: target.site_gas(cold, gas), entries }
+    }
+
+    /// Whether a share that saves `bytes` per site could repay its transfers at this pricing.
+    fn repays(&self, target: &Target, bytes: u64) -> bool {
+        target.deposit_repays_gas(bytes.saturating_mul(self.entries), u64::from(self.gas))
+    }
 }
 
 /// Returns whether gas mode could share some closed machine run outside loops.
 ///
 /// A share of `n` runs of `size` bytes saves fewer than `n * (size - transfer bytes)` bytes,
 /// while its transfers cost at least `n` times the gas of two pushes, two jumps, and two
-/// labels, at hot sites only. Every candidate is a closed run of whitelisted instructions, and
-/// every site of a profitable share starts with the same shortest closed prefix that is large
-/// enough. Sharing is possible only if two starts have equal prefixes, which hashes can rule out.
-/// The screen shares the outliner's candidate budget and gives up, answering yes, once it is spent.
+/// labels, at hot sites only, divided among the external entries. Every candidate is a closed run
+/// of whitelisted instructions, and every site of a profitable share starts with the same shortest
+/// closed prefix that is large enough. Sharing is possible only if two starts have equal prefixes,
+/// which hashes can rule out. The screen shares the outliner's candidate budget and gives up,
+/// answering yes, once it is spent.
 fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     if !module.optimization.is_gas() {
         return true;
     }
     let target = module.target(gcx);
     let transfer_size = transfer_size(&target);
-    let transfer_gas = screen_transfer_gas(&target, module, transfer_gas(&target));
-    let profitable = |size: usize| {
-        target
-            .deposit_repays_gas(size.saturating_sub(transfer_size) as u64, u64::from(transfer_gas))
-    };
+    let pricing = ScreenPricing::new(&target, module, transfer_gas(&target));
+    let profitable =
+        |size: usize| pricing.repays(&target, size.saturating_sub(transfer_size) as u64);
     let mut metrics = Vec::new();
     let mut prefixes = FxHashSet::default();
     let mut budget = MAX_MACHINE_RUN_CANDIDATES;
@@ -213,6 +231,15 @@ fn is_cold(module: &Module, site: &Site) -> bool {
     module.blocks[site.block].metadata.hotness.is_cold()
 }
 
+/// The blocks that an external function starts at.
+fn external_entries(module: &Module) -> impl Iterator<Item = BlockId> + '_ {
+    module
+        .blocks
+        .iter_enumerated()
+        .filter(|(_, block)| block.metadata.external_entry)
+        .map(|(entry, _)| entry)
+}
+
 /// What the external entries reach.
 struct EntryGroups {
     /// The blocks that some entry reaches and the code outside the entries does not.
@@ -228,12 +255,7 @@ impl EntryGroups {
     /// exclusive, and an entry that an earlier pass merged away leaves its code shared rather
     /// than undercounted.
     fn new(module: &Module) -> Self {
-        let entries = module
-            .blocks
-            .iter_enumerated()
-            .filter(|(_, block)| block.metadata.external_entry)
-            .map(|(entry, _)| entry)
-            .collect::<Vec<_>>();
+        let entries = external_entries(module).collect::<Vec<_>>();
         if entries.len() < 2 {
             return Self {
                 exclusive: DenseBitSet::new_empty(module.blocks.len()),
