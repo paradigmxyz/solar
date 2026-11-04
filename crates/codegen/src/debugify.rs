@@ -1,8 +1,9 @@
-//! Audits existing source origins around each MIR and EVM IR pass, like LLVM's original-debug-info
-//! checks. Inventories contain only origins on live IR and proven label checkpoints; debugify
-//! never inserts executable operations or influences a pass. Reports identify the first pass to
-//! lose an origin. Strict checking is useful for isolated preservation regressions, not arbitrary
-//! optimizing pipelines: deleting dead code can legitimately delete its last source location.
+//! Audits existing source origins around each MIR and EVM IR pass and across stack scheduling, like
+//! LLVM's original-debug-info checks. Inventories contain only origins on live IR and proven label
+//! checkpoints; debugify never inserts executable operations or influences a pass. Reports identify
+//! the first pass to lose an origin. Strict checking is useful for isolated preservation
+//! regressions, not arbitrary optimizing pipelines: deleting dead code can legitimately delete its
+//! last source location.
 //!
 //! NOTE: An origin's presence does not prove correct attribution or control-flow placement. Runtime
 //! source-map tests must also check that untaken paths do not acquire hits. This audits source
@@ -24,6 +25,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[derive(Default)]
 pub(crate) struct Origins(FxHashSet<Span>);
 
 impl Origins {
@@ -101,6 +103,10 @@ impl Origins {
                 .emit());
         }
         Ok(())
+    }
+
+    pub(crate) fn extend(&mut self, other: Self) {
+        self.0.extend(other.0);
     }
 }
 

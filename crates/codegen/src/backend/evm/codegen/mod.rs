@@ -22,6 +22,7 @@ use crate::{
     backend::assembler::{
         ArtifactKind, AssembledCode, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
+    debugify::Origins,
     link::{EmbeddedBytecodes, LibraryRelocation, Trailer},
     mir::{
         ArgIdx, BackendMemory, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId,
@@ -381,6 +382,9 @@ struct PendingRuntime {
     backend_memory: Option<BackendMemory>,
     /// The runtime EVM IR as stack scheduling emitted it, when captured.
     scheduled_evm_ir: Option<ir::Module>,
+    /// The origins of the MIR that stack scheduling consumed, and of the runtime EVM IR it
+    /// emitted, when auditing.
+    audit: Option<(Origins, Origins)>,
 }
 
 /// The artifact produced by the EVM backend.
