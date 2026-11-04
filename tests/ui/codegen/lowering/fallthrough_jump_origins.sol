@@ -1,5 +1,6 @@
 //@ compile-flags: -Osize --emit=srcmap-runtime -Zdump=evm-ir-runtime-scheduled
 //@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
 
 // A jump to the next block emits no opcode, but the jump still carries the origin of the MIR
 // terminator it implements: here the `if` statement.
