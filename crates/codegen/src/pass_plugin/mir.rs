@@ -121,6 +121,10 @@ impl MirPluginPass {
         for edit in response.edits {
             apply_edit(&mut candidate, edit, &mut locals)?;
         }
+        // Graph edits can refer forward to values whose producers were not known at insertion.
+        for function in &mut candidate.functions {
+            function.canonicalize_operands();
+        }
         candidate.invalidate_lowered_check();
         candidate.backend_memory = None;
         mir::validate(gcx.dcx(), &candidate);
