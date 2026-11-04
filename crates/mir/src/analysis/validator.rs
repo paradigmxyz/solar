@@ -52,6 +52,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
+    map::FxHashSet,
     sync,
 };
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
@@ -1486,6 +1487,24 @@ impl<'a> Validator<'a> {
                 ));
             }
             for (block_id, block) in func.blocks.iter_enumerated() {
+                if let Some(Terminator::Switch { cases, .. }) = &block.terminator {
+                    let mut values = FxHashSet::default();
+                    for &(case, _) in cases {
+                        if let Some(value) = func.value_u256(case) {
+                            if !values.insert(value) {
+                                self.emit_at_block(
+                                    "duplicate switch case in lowered MIR",
+                                    block_id,
+                                );
+                            }
+                        } else {
+                            self.emit_at_block(
+                                "switch case is not a constant in lowered MIR",
+                                block_id,
+                            );
+                        }
+                    }
+                }
                 if matches!(block.terminator, Some(crate::Terminator::RevertReturndata)) {
                     self.emit_at_block(
                         "returndata bubbling survives the `lowered` phase boundary",

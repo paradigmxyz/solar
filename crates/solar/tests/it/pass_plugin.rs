@@ -8,6 +8,12 @@ use std::{
     process::{Command, Output},
 };
 
+mod artifact;
+mod graph_tests;
+mod runtime;
+mod split_tests;
+use artifact::artifact;
+
 const SOLAR: &str = env!("CARGO_BIN_EXE_solar");
 const MIR: &str = "@module PluginTest\n@phase lowered\nfn @entry() [entry] {\n bb0:\n v0 = calldataload 0\n v1 = add v0, 0\n mstore 0, v1\n returndata 0, 32\n}\n";
 const EVM: &str = "@module PluginTest\nbb0:\n calldatasize\n not\n not\n push 0\n mstore\n push 32\n push 0\n return\n";

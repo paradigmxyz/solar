@@ -50,6 +50,8 @@ solar-codegen = { workspace = true, optional = true }
 alloy-primitives.workspace = true
 
 [dev-dependencies]
+alloy-consensus.workspace = true
+evm2.workspace = true
 serde_json.workspace = true
 snapbox.workspace = true
 solar-tester.workspace = true
