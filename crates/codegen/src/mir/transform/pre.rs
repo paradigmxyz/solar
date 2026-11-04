@@ -1467,9 +1467,10 @@ impl<'a> Eliminator<'a> {
                 }
                 continue;
             }
-            let probe = MemoryLocation::new(group, LocationSize::Const(1));
-            if AliasAnalysis::memory_alias_locations(written, probe).may_alias() {
-                for &idx in words.values() {
+            // The groups drop their offsets, so each word is compared at its own location.
+            for &idx in words.values() {
+                let Location::Memory(key) = keys[idx].location() else { unreachable!() };
+                if AliasAnalysis::memory_alias_locations(written, key).may_alias() {
                     kill(idx);
                 }
             }

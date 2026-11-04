@@ -1,0 +1,19 @@
+//@ compile-flags: -Zmir-pipeline=none
+//@ filecheck:
+// A block header carries the origin of the block's label after its flags, with the same
+// `!metadata(...)` syntax and visibility as an instruction. Text without it has no label origin.
+@module BlockLabelMetadata
+// CHECK: bb0:{{$}}
+// CHECK: bb2 !metadata(spans=[30..40, 50..60], modifier_depth=1):
+// CHECK: bb1 [cold, cold_hint] !metadata(span=10..20):
+// CHECK: bb3:{{ +}}; preds
+fn @test(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1 [cold_hint] !metadata(span=10..20):
+    jump bb3
+  bb2 !metadata(spans=[30..40, 50..60], modifier_depth=1):
+    jump bb3
+  bb3:
+    ret 0
+}
