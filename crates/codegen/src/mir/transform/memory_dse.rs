@@ -2870,7 +2870,7 @@ impl AllocWalk<'_> {
                 self.derive(inst, next);
                 1
             }
-            InstKind::Add(base, offset) | InstKind::Add(offset, base)
+            InstKind::Add(base, offset)
                 if base == value
                     && let Some(offset) = func.value_u64(offset) =>
             {
@@ -2955,7 +2955,7 @@ impl AllocWalk<'_> {
                 bound(a).saturating_add(bound(b))
             }
             // `and x, mask` is monotonic in `x` when the mask only clears low bits.
-            InstKind::And(x, mask) | InstKind::And(mask, x)
+            InstKind::And(x, mask)
                 if let Some(mask) = func.value_u256(mask)
                     && (!mask & (!mask).wrapping_add(U256::ONE)).is_zero() =>
             {

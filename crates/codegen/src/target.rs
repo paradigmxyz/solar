@@ -671,13 +671,7 @@ impl Target {
         immediate: impl Fn(ValueId) -> Option<U256>,
     ) -> Option<ValueId> {
         let (Op::Eq { a, b } | Op::Ne { a, b }) = *op else { return None };
-        if immediate(a) == Some(U256::ZERO) {
-            Some(b)
-        } else if immediate(b) == Some(U256::ZERO) {
-            Some(a)
-        } else {
-            None
-        }
+        (immediate(b) == Some(U256::ZERO)).then_some(a)
     }
 
     /// Cost of `ne x, 0` as a value, excluding its operand, and whether it is lowered as

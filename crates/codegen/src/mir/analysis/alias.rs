@@ -2260,12 +2260,8 @@ impl AliasAnalysis {
             | InstKind::InternalFrameAddr(_)
             | InstKind::FrameLoad { .. } => false,
             InstKind::PtrAdd(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
-            InstKind::Add(first, second) => match (func.value_u64(*first), func.value_u64(*second))
-            {
-                (_, Some(_)) => indexed(*first),
-                (Some(_), None) => indexed(*second),
-                (None, None) => Self::bounded_sum_base(func, address).is_none(),
-            },
+            InstKind::Add(first, second) if func.value_u64(*second).is_some() => indexed(*first),
+            InstKind::Add(..) => Self::bounded_sum_base(func, address).is_none(),
             InstKind::Sub(base, offset) => func.value_u64(*offset).is_none() || indexed(*base),
             InstKind::Select(_, first, second) => indexed(*first) || indexed(*second),
             InstKind::Phi(incoming) => incoming.iter().any(|&(_, value)| indexed(value)),
@@ -2522,9 +2518,7 @@ impl AliasAnalysis {
             InstKind::PtrToInt(value, 256) | InstKind::IntToPtr(value) => bound(*value),
             // A constant step back from a bounded address stays at or above the bound less the
             // step, which cannot underflow.
-            InstKind::PtrAdd(base, step)
-            | InstKind::Add(base, step)
-            | InstKind::Add(step, base)
+            InstKind::PtrAdd(base, step) | InstKind::Add(base, step)
                 if let Some(back) = Self::step_back(func, *step) =>
             {
                 bound(*base)?.checked_sub(back)
@@ -2533,10 +2527,6 @@ impl AliasAnalysis {
                 let lower = func
                     .value_u64(*second)
                     .and_then(|offset| bound(*first)?.checked_add(offset))
-                    .or_else(|| {
-                        func.value_u64(*first)
-                            .and_then(|offset| bound(*second)?.checked_add(offset))
-                    })
                     .or_else(|| func.inst(*inst).metadata.alloc_ptr().then(|| bound(*first))?)?;
                 // First establish a useful base. Proving that arbitrary scalar arithmetic
                 // cannot wrap cannot give an address a heap lower bound.

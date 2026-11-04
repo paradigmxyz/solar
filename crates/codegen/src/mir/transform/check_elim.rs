@@ -735,10 +735,11 @@ impl ActiveRelations {
                 added = true;
             }
         }
-        if added && matches!(relation, Relation::Lt(..)) {
-            for (base, amount) in offsets_of(func, a) {
-                self.offset_bounds.entry((b, base)).or_default().push(amount);
-            }
+        if added
+            && matches!(relation, Relation::Lt(..))
+            && let Some((base, amount)) = offsets_of(func, a)
+        {
+            self.offset_bounds.entry((b, base)).or_default().push(amount);
         }
     }
 
@@ -756,14 +757,13 @@ impl ActiveRelations {
                 removed = true;
             }
         }
-        if removed && matches!(relation, Relation::Lt(..)) {
-            for (base, amount) in offsets_of(func, a) {
-                if let Some(amounts) = self.offset_bounds.get_mut(&(b, base))
-                    && let Some(at) = amounts.iter().rposition(|&other| other == amount)
-                {
-                    amounts.swap_remove(at);
-                }
-            }
+        if removed
+            && matches!(relation, Relation::Lt(..))
+            && let Some((base, amount)) = offsets_of(func, a)
+            && let Some(amounts) = self.offset_bounds.get_mut(&(b, base))
+            && let Some(at) = amounts.iter().rposition(|&other| other == amount)
+        {
+            amounts.swap_remove(at);
         }
     }
 
@@ -822,15 +822,10 @@ impl ActiveRelations {
     }
 }
 
-/// The bases and constants `value` adds: `x + c` and `c + x` for a constant `c`.
-fn offsets_of(func: &Function, value: ValueId) -> SmallVec<[(ValueId, U256); 2]> {
-    let Some(&InstKind::Add(first, second)) = func.value_inst_kind(value) else {
-        return SmallVec::new();
-    };
-    [(first, second), (second, first)]
-        .into_iter()
-        .filter_map(|(base, constant)| Some((base, func.value_u256(constant)?)))
-        .collect()
+/// The base and constant `value` adds: `x + c` for a constant `c`.
+fn offsets_of(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
+    let &InstKind::Add(base, constant) = func.value_inst_kind(value)? else { return None };
+    Some((base, func.value_u256(constant)?))
 }
 
 fn ordered(a: ValueId, b: ValueId) -> (ValueId, ValueId) {
@@ -2215,10 +2210,11 @@ impl<'a> CheckEliminator<'a> {
                 if let Relation::Lt(index, limit) = fact
                     && limit == bound
                     && (self.relations.contains(&fact) || self.universal_relations.contains(&fact))
+                    && let Some((x, amount)) = offsets_of(func, index)
+                    && x == base
+                    && amount >= offset
                 {
-                    amounts.extend(offsets_of(func, index).into_iter().filter_map(
-                        |(x, amount)| (x == base && amount >= offset).then_some(amount),
-                    ));
+                    amounts.push(amount);
                 }
             }
         }
@@ -2787,7 +2783,7 @@ impl<'a> CheckEliminator<'a> {
         // below: `x + b < n` follows from `x + a < n` when `b <= a` and
         // `x + a` cannot wrap, which covers the lookahead guards and the
         // original bound of a loop split to run while `i + K < n`.
-        let (base, offset) = offsets_of(func, a).first().copied().unwrap_or((a, U256::ZERO));
+        let (base, offset) = offsets_of(func, a).unwrap_or((a, U256::ZERO));
         if self.has_larger_offset_bound(func, base, offset, b, depth) {
             return Some(true);
         }
@@ -2915,14 +2911,12 @@ impl<'a> CheckEliminator<'a> {
         else {
             return false;
         };
-        let Some(&InstKind::Eq(lhs, rhs)) = func.value_inst_kind(roundtrip) else { return false };
-        let quotient = if func.value_u256(rhs) == Some(U256::from(2)) {
-            lhs
-        } else if func.value_u256(lhs) == Some(U256::from(2)) {
-            rhs
-        } else {
+        let Some(&InstKind::Eq(quotient, two)) = func.value_inst_kind(roundtrip) else {
             return false;
         };
+        if func.value_u256(two) != Some(U256::from(2)) {
+            return false;
+        }
         let Some(&InstKind::Div(sum, divisor)) = func.value_inst_kind(quotient) else {
             return false;
         };
@@ -3267,7 +3261,6 @@ fn monotone_phi_candidates(
             let (step, decreasing) = match func.inst(*next_inst).kind {
                 InstKind::Sub(base, step) if base == value => (step, true),
                 InstKind::Add(base, step) if base == value => (step, false),
-                InstKind::Add(step, base) if base == value => (step, false),
                 _ => return None,
             };
             if func.value_u256(step)?.is_zero() {
@@ -3319,7 +3312,7 @@ fn header_bound_candidates(
         for block in cyclic.iter().filter(|&block| dominators.dominates(header, block)) {
             for &compare in &func.blocks[block].instructions {
                 let (limit, upper) = match func.inst(compare).kind {
-                    InstKind::Lt(p, n) | InstKind::Gt(n, p) if p == value => (n, true),
+                    InstKind::Lt(p, n) if p == value => (n, true),
                     InstKind::Lt(n, p) | InstKind::Gt(p, n) if p == value => (n, false),
                     InstKind::Eq(a, b) | InstKind::Ne(a, b) if a == value => (b, true),
                     InstKind::Eq(a, b) | InstKind::Ne(a, b) if b == value => (a, true),
@@ -3485,14 +3478,7 @@ fn shift_amount(
 fn doubled(func: &Function, value: ValueId) -> Option<(ValueId, bool)> {
     match *func.value_inst_kind(value)? {
         InstKind::Add(a, b) if a == b => Some((a, false)),
-        InstKind::Add(a, b) => {
-            let inner = if func.value_u256(b) == Some(U256::ONE) {
-                a
-            } else if func.value_u256(a) == Some(U256::ONE) {
-                b
-            } else {
-                return None;
-            };
+        InstKind::Add(inner, one) if func.value_u256(one) == Some(U256::ONE) => {
             match *func.value_inst_kind(inner)? {
                 InstKind::Add(x, y) if x == y => Some((x, true)),
                 _ => None,
@@ -3532,8 +3518,8 @@ fn ascending_trip_bound(
 
 /// The operand and the constant of `and x, C`.
 fn masked_input(func: &Function, kind: &InstKind) -> Option<(ValueId, U256)> {
-    let InstKind::And(a, b) = *kind else { return None };
-    func.value_u256(b).map(|mask| (a, mask)).or_else(|| func.value_u256(a).map(|mask| (b, mask)))
+    let InstKind::And(value, mask) = *kind else { return None };
+    Some((value, func.value_u256(mask)?))
 }
 
 /// The value `x` of `and x, MAX << low`, which clears the low `low` bits, and `low`.
@@ -3625,7 +3611,6 @@ fn largest_step(func: &Function, phi: ValueId, next: ValueId) -> Option<U256> {
         }
         match *func.value_inst_kind(value)? {
             InstKind::Add(a, b) if a == phi => largest = largest.max(func.value_u256(b)?),
-            InstKind::Add(a, b) if b == phi => largest = largest.max(func.value_u256(a)?),
             InstKind::Phi(ref incoming) => pending.extend(incoming.iter().map(|&(_, value)| value)),
             InstKind::Select(_, a, b) => pending.extend([a, b]),
             _ => return None,
@@ -3634,23 +3619,16 @@ fn largest_step(func: &Function, phi: ValueId, next: ValueId) -> Option<U256> {
     (!largest.is_zero()).then_some(largest)
 }
 
-/// The value and constant of a sum `value + constant` with a nonzero constant.
 /// Returns `x` when `value` is the allocation size of a bytes object, `((x + 31) & ~31) + 32` or
 /// its `(x + 63) & ~31` spelling.
 fn padded_size_operand(func: &Function, value: ValueId) -> Option<ValueId> {
-    let constant = |value, expected| func.value_u256(value) == Some(U256::from(expected));
     let masked = |value| {
-        let &InstKind::And(first, second) = func.value_inst_kind(value)? else { return None };
-        let mask = |mask| func.value_u256(mask) == Some(!U256::from(31));
-        if mask(second) { Some(first) } else { mask(first).then_some(second) }
+        let &InstKind::And(value, mask) = func.value_inst_kind(value)? else { return None };
+        (func.value_u256(mask) == Some(!U256::from(31))).then_some(value)
     };
     let add_constant = |value, expected| {
-        let &InstKind::Add(first, second) = func.value_inst_kind(value)? else { return None };
-        if constant(second, expected) {
-            Some(first)
-        } else {
-            constant(first, expected).then_some(second)
-        }
+        let &InstKind::Add(value, amount) = func.value_inst_kind(value)? else { return None };
+        (func.value_u256(amount) == Some(U256::from(expected))).then_some(value)
     };
     // ((x + 31) & ~31) + 32 | (x + 63) & ~31
     add_constant(value, 32)
@@ -3659,13 +3637,9 @@ fn padded_size_operand(func: &Function, value: ValueId) -> Option<ValueId> {
         .or_else(|| masked(value).and_then(|rounded| add_constant(rounded, 63)))
 }
 
+/// The value and constant of a sum `value + constant` with a nonzero constant.
 fn constant_offset(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
-    let InstKind::Add(x, y) = *func.value_inst_kind(value)? else { return None };
-    match (func.value_u256(x), func.value_u256(y)) {
-        (None, Some(c)) if !c.is_zero() => Some((x, c)),
-        (Some(c), None) if !c.is_zero() => Some((y, c)),
-        _ => None,
-    }
+    offsets_of(func, value).filter(|&(x, c)| !c.is_zero() && func.value_u256(x).is_none())
 }
 
 /// Returns true if both values are the same SSA value or the same constant.

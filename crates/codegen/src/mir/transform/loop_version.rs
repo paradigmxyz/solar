@@ -897,7 +897,7 @@ fn scan(func: &Function, l: &Loop) -> Option<Scan> {
     }
     let one = |value: ValueId| func.value_u64(value) == Some(1);
     let ascending = match func.inst(update).kind {
-        InstKind::Add(a, b) if a == counter && one(b) || b == counter && one(a) => true,
+        InstKind::Add(a, b) if a == counter && one(b) => true,
         InstKind::Sub(a, b) if a == counter && one(b) => false,
         InstKind::CheckedBinary {
             op: op @ (CheckedOp::Add | CheckedOp::Sub),
@@ -1110,13 +1110,12 @@ fn below_limit(
                 && below_limit(func, blocks, counter, limit, value, depth + 1)
         }
         Some(&InstKind::Add(a, b)) => {
-            let constant = |x: ValueId, k: ValueId| x == counter && func.value_u64(k).is_some();
             let sum = |value: ValueId| {
                 value == index
                     || matches!(func.value_inst_kind(value), Some(&InstKind::Add(x, y))
-                        if (x, y) == (a, b) || (x, y) == (b, a))
+                        if (x, y) == (a, b))
             };
-            (constant(a, b) || constant(b, a)) && blocks.iter().any(|&block| {
+            a == counter && func.value_u64(b).is_some() && blocks.iter().any(|&block| {
                 matches!(func.blocks[block].terminator, Some(Terminator::Branch { condition, .. })
                         if matches!(func.value_inst_kind(condition), Some(&InstKind::Lt(x, n))
                             if n == limit && sum(x)))

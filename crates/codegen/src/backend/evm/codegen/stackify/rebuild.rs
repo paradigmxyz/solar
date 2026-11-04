@@ -489,7 +489,6 @@ fn affine_form(func: &Function, value: ValueId, ops: &mut u32) -> Option<Affine>
             operand(word)?.scale(factor)
         }
         InstKind::Mul(a, b) if let Some(factor) = func.value_u256(b) => operand(a)?.scale(factor),
-        InstKind::Mul(a, b) if let Some(factor) = func.value_u256(a) => operand(b)?.scale(factor),
         _ => Affine::word(value),
     })
 }

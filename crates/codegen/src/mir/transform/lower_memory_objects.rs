@@ -206,7 +206,6 @@ fn coalesce_constant_allocations(func: &mut Function) {
                         continue;
                     }
                     InstKind::Add(lhs, rhs) if func.value_u64(rhs).is_some() => member(lhs),
-                    InstKind::Add(lhs, rhs) if func.value_u64(lhs).is_some() => member(rhs),
                     InstKind::PtrToInt(base, 256) => member(base).map(|(owner, _)| (owner, true)),
                     _ => None,
                 };

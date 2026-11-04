@@ -1264,8 +1264,8 @@ fn is_check_wrapper(func: &Function) -> bool {
     let call = match block.instructions.as_slice() {
         [call] => *call,
         [negation, call]
-            if matches!(func.inst(*negation).kind, InstKind::Eq(lhs, rhs)
-                if func.value_u64(lhs) == Some(0) || func.value_u64(rhs) == Some(0)) =>
+            if matches!(func.inst(*negation).kind, InstKind::Eq(_, zero)
+                if func.value_u64(zero) == Some(0)) =>
         {
             *call
         }
@@ -1518,16 +1518,13 @@ fn direct_dispatch_target(
         let Value::Inst(condition) = dispatcher.value(*condition) else {
             continue;
         };
-        let InstKind::Eq(lhs, rhs) = dispatcher.inst(*condition).kind else {
+        let InstKind::Eq(arg, value) = dispatcher.inst(*condition).kind else {
             continue;
         };
-        let matches_selector = [(lhs, rhs), (rhs, lhs)].into_iter().any(|(arg, value)| {
-            matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
-                && dispatcher.value_ty(arg) == Some(MirType::I256)
-                && dispatcher.value(value).as_immediate().and_then(Immediate::as_u256)
-                    == Some(selector)
-        });
-        if matches_selector {
+        if matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
+            && dispatcher.value_ty(arg) == Some(MirType::I256)
+            && dispatcher.value_u256(value) == Some(selector)
+        {
             return direct_dispatch_case_target(module, dispatcher, *then_block);
         }
     }
