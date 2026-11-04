@@ -551,7 +551,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             && let metadata = &func.inst(*inst).metadata
             && metadata.source_spans().next().is_some()
         {
-            // Every copy is the same computation, so it keeps the definition's origins.
+            // Every copy is the same computation, so it keeps the definition's origins, as LLVM's
+            // `TargetInstrInfo::reMaterialize` clones the original with its `DebugLoc`.
             let consumer = self.asm.debug_origin();
             self.asm.set_source_spans(metadata.source_spans());
             self.asm.set_modifier_depth(metadata.modifier_depth());
