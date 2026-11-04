@@ -625,12 +625,14 @@ fn get_threads() -> NonZeroUsize {
 }
 
 str_enum! {
-    /// Checks preservation of existing source origins around compiler passes.
+    /// Audits source debug information around compiler passes.
     #[strum(serialize_all = "kebab-case")]
     pub enum Debugify {
-        /// Report lost source origins without rejecting the compilation.
+        /// Report instructions without a location and lost source origins without rejecting the
+        /// compilation.
         Report,
-        /// Reject a pass that loses a source origin, for focused metadata tests.
+        /// Reject a pass that leaves an instruction without a location, for focused metadata
+        /// tests.
         Check,
     }
 }

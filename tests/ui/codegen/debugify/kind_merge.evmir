@@ -1,0 +1,37 @@
+//@ compile-flags: -Zevm-ir-pipeline=terminal-dedup -Zdebugify=report
+//@ filecheck:
+// Merging identical blocks keeps `compiler_generated` only when every copy has it. Different
+// explanations leave `unknown`, which is not printed, so the audit marking a gap `unknown` cannot
+// change the text.
+@module KindMerge
+bb0:
+  calldatasize
+  jumpi bb1, bb5 !metadata(span=1..2)
+// CHECK-LABEL: bb1:
+// CHECK: {{^[ +].*}}push 0 !metadata(compiler_generated)
+// CHECK: {{^[ +].*}}revert !metadata(compiler_generated)
+bb1:
+  push 0 !metadata(compiler_generated)
+  push 0 !metadata(compiler_generated)
+  revert !metadata(compiler_generated)
+bb2:
+  push 0 !metadata(compiler_generated)
+  push 0 !metadata(compiler_generated)
+  revert !metadata(compiler_generated)
+bb5:
+  calldatasize
+  jumpi bb2, bb6
+bb6:
+  calldatasize
+  jumpi bb3, bb4
+// CHECK-LABEL: bb3:
+// CHECK-NOT: {{^[ +].*}}compiler_generated
+// CHECK: {{^[ +].*}}revert{{$}}
+bb3:
+  push 1 !metadata(compiler_generated)
+  push 1 !metadata(compiler_generated)
+  revert !metadata(compiler_generated)
+bb4:
+  push 1
+  push 1
+  revert
