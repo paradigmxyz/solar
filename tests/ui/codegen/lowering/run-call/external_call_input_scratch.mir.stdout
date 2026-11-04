@@ -1318,12 +1318,12 @@ fn @dynamicArgumentCatch() -> struct0 [selector=0x40086014, view, abi_params=[],
     v12 = zext i160 v4 to i256
     v13 = staticcall v5, v12, v7, v8, 0, 0
     jumpi v13, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
