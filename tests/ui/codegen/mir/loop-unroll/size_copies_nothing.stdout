@@ -13,7 +13,7 @@
       ret v1
     bb2:                                            ; preds = bb1
       v3 = mul v0, 3
-      v4 = add v1, v3
+      v4 = add v3, v1
       v5 = add v0, 1
       jump bb1
   }

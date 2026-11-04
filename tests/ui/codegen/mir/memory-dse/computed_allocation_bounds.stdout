@@ -10,7 +10,7 @@
       mstore v3, 7
       v4 = add v1, 32
       v5 = sub v4, arg0
-      v6 = add arg0, v5
+      v6 = add v5, arg0
       mstore v6, 9
       v7 = mload v3
       ret v7
@@ -25,7 +25,7 @@
       mstore v3, 7
       v4 = add v1, 31
       v5 = sub v4, arg0
-      v6 = add arg0, v5
+      v6 = add v5, arg0
       mstore v6, 9
       v7 = mload v3
       ret v7
@@ -40,7 +40,7 @@
       mstore v3, 7
       v4 = add v1, 32
       v5 = sub v4, arg0
-      v6 = add arg0, v5
+      v6 = add v5, arg0
       mstore8 v6, 9
       v7 = mload v3
       ret v7
@@ -55,7 +55,7 @@
       mstore v3, 7
       v4 = add v1, 0
       v5 = sub v4, arg0
-      v6 = add arg0, v5
+      v6 = add v5, arg0
       calldatacopy v6, 0, 64
       v7 = mload v3
       ret v7

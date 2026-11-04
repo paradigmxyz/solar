@@ -15,10 +15,10 @@
       ret 0
     bb2:                                            ; preds = bb1
 -     v2 = shl v0, 5
--     v3 = add arg0, v2
+-     v3 = add v2, arg0
 -     v4 = mload v3
 -     v5 = shl v0, 5
--     v6 = add arg0, v5
+-     v6 = add v5, arg0
 +     v4 = mload v9
       v7 = add v4, 1
 -     mstore v6, v7
@@ -39,7 +39,7 @@
       ret 0
     bb2:                                            ; preds = bb1
       v2 = shl v0, 5
-      v3 = add arg0, v2
+      v3 = add v2, arg0
       mstore v3, v0
       v4 = add v0, 1
       jump bb1
@@ -58,7 +58,7 @@
       ret 0
     bb2:                                            ; preds = bb1
 -     v2 = mul v0, 32
--     v3 = add arg0, v2
+-     v3 = add v2, arg0
 -     v4 = add v3, 4
 -     mstore v4, v0
 +     mstore v7, v0
@@ -95,9 +95,9 @@
       ret 0
     bb2:                                            ; preds = bb1
       v2 = checked_mul uint256, v0, 32
--     v3 = add arg0, v2
+-     v3 = add v2, arg0
 -     mstore v3, v0
--     v4 = add arg0, v2
+-     v4 = add v2, arg0
 -     mstore v4, v0
 +     mstore v6, v0
 +     mstore v6, v0
@@ -118,9 +118,9 @@
       ret 0
     bb2:                                            ; preds = bb1
 -     v2 = shl v0, 5
--     v3 = add arg0, v2
+-     v3 = add v2, arg0
 -     mstore v3, v0
--     v4 = add arg0, v2
+-     v4 = add v2, arg0
 -     mstore v4, v0
 +     mstore v6, v0
 +     mstore v6, v0
@@ -140,7 +140,7 @@
       ret 0
     bb2:                                            ; preds = bb1
       v2 = shl v0, 5
-      v3 = add arg0, v2
+      v3 = add v2, arg0
       mstore v3, v0
       v4 = checked_sub uint256, v0, 1
       jump bb1
@@ -157,7 +157,7 @@
       ret 0
     bb2:                                            ; preds = bb1
       v2 = shl v0, 5
-      v3 = add arg0, v2
+      v3 = add v2, arg0
       v4 = add v3, 16
       mstore v3, v0
       mstore v4, v0
@@ -196,10 +196,10 @@
     bb2:                                            ; preds = bb1
 -     v2 = zext i8 v0 to i256
 -     v3 = shl v2, 5
--     v4 = add arg0, v3
+-     v4 = add v3, arg0
 -     v5 = mload v4
 -     v6 = shl v2, 5
--     v7 = add arg0, v6
+-     v7 = add v6, arg0
 +     v5 = mload v10
       v8 = add v5, 1
 -     mstore v7, v8
@@ -221,10 +221,10 @@
     bb2:                                            ; preds = bb1
       v2 = zext i8 v0 to i256
       v3 = shl v2, 5
-      v4 = add arg0, v3
+      v4 = add v3, arg0
       v5 = mload v4
       v6 = shl v2, 5
-      v7 = add arg0, v6
+      v7 = add v6, arg0
       v8 = add v5, 1
       mstore v7, v8
       v9 = add v0, i8 2
@@ -247,12 +247,12 @@
     bb2:                                            ; preds = bb1
 -     v2 = zext i8 arg0 to i256
 -     v3 = shl v0, 5
--     v4 = add v2, v3
+-     v4 = add v3, v2
 -     v5 = shl arg1, 1
 -     v6 = add v4, v5
 -     v7 = mload v6
 -     v8 = shl v0, 5
--     v9 = add v2, v8
+-     v9 = add v8, v2
 -     v10 = add v9, v5
 +     v7 = mload v16
       v11 = add v7, 1
@@ -268,7 +268,7 @@
       v0 = calldatasize
       v1 = sub v0, arg0
       v2 = shr v1, 5
-      v3 = gt arg1, v2
+      v3 = lt v2, arg1
       jumpi v3, bb5, bb1
     bb1:                                            ; preds = bb0
 +     v14 = shl arg1, 5
@@ -285,10 +285,10 @@
       ret v5
     bb3:                                            ; preds = bb2
 -     v7 = shl v4, 5
--     v8 = add arg0, v7
+-     v8 = add v7, arg0
 -     v9 = calldataload v8
 +     v9 = calldataload v12
-      v10 = add v5, v9
+      v10 = add v9, v5
 -     v11 = add v4, 1
 +     v13 = add v12, 32
       jump bb2
@@ -314,10 +314,10 @@
       ret v1
     bb2:                                            ; preds = bb1
 -     v3 = shl v0, 5
--     v4 = add arg0, v3
+-     v4 = add v3, arg0
 -     v5 = calldataload v4
 +     v5 = calldataload v8
-      v6 = add v1, v5
+      v6 = add v5, v1
 -     v7 = add v0, 1
 +     v9 = add v8, 32
       jump bb1
@@ -330,7 +330,7 @@
       v0 = calldatasize
       v1 = sub v0, arg0
       v2 = shr v1, 5
-      v3 = gt arg1, v2
+      v3 = lt v2, arg1
       jumpi v3, bb6, bb2
     bb2:                                            ; preds = bb0, bb1
 +     v14 = gt arg1, 0x20000000000000000
@@ -349,10 +349,10 @@
       ret v5
     bb4:                                            ; preds = bb3
 -     v7 = shl v4, 5
--     v8 = add arg0, v7
+-     v8 = add v7, arg0
 -     v9 = calldataload v8
 +     v9 = calldataload v12
-      v10 = add v5, v9
+      v10 = add v9, v5
 -     v11 = add v4, 1
 +     v13 = add v12, 32
       jump bb3
@@ -365,7 +365,7 @@
       v0 = calldatasize
       v1 = sub v0, arg0
       v2 = shr v1, 5
-      v3 = gt arg1, v2
+      v3 = lt v2, arg1
       jumpi v3, bb5, bb1
     bb1:                                            ; preds = bb0
 +     v12 = add arg0, 32
@@ -385,10 +385,10 @@
       ret v5
     bb3:                                            ; preds = bb2
 -     v7 = shl v4, 5
--     v8 = add arg0, v7
+-     v8 = add v7, arg0
 -     v9 = calldataload v8
 +     v9 = calldataload v13
-      v10 = add v5, v9
+      v10 = add v9, v5
 -     v11 = add v4, 1
 +     v14 = add v13, 32
       jump bb2
@@ -417,7 +417,7 @@
 +     v5 = add v10, 1
       v6 = sload v5
       v7 = add v4, v6
-      v8 = add v1, v7
+      v8 = add v7, v1
 -     v9 = add v0, 1
 +     v11 = add v10, 1
       jump bb1
@@ -435,9 +435,9 @@
       ret v1
     bb2:                                            ; preds = bb1
       v3 = shl v0, 5
-      v4 = add arg0, v3
+      v4 = add v3, arg0
       v5 = calldataload v4
-      v6 = add v1, v5
+      v6 = add v5, v1
       v7 = add v0, 2
       jump bb1
   }
@@ -447,7 +447,7 @@
       v0 = calldatasize
       v1 = sub v0, arg0
       v2 = shr v1, 5
-      v3 = gt arg1, v2
+      v3 = lt v2, arg1
       jumpi v3, bb6, bb1
     bb1:                                            ; preds = bb0
 +     v14 = shl arg1, 5
@@ -461,7 +461,7 @@
       jumpi v5, bb3, bb5
     bb3:                                            ; preds = bb2
 -     v6 = shl v4, 5
--     v7 = add arg0, v6
+-     v7 = add v6, arg0
 -     v8 = calldataload v7
 +     v8 = calldataload v12
       v9 = eq v8, arg2
@@ -489,7 +489,7 @@
       v0 = calldatasize
       v1 = sub v0, arg0
       v2 = shr v1, 5
-      v3 = gt arg1, v2
+      v3 = lt v2, arg1
       jumpi v3, bb6, bb1
     bb1:                                            ; preds = bb0
 +     v13 = shl arg1, 5
@@ -503,7 +503,7 @@
       jumpi v5, bb3, bb5
     bb3:                                            ; preds = bb2
 -     v6 = shl v4, 5
--     v7 = add arg0, v6
+-     v7 = add v6, arg0
 -     v8 = calldataload v7
 +     v8 = calldataload v11
       v9 = eq v8, arg2
@@ -526,7 +526,7 @@
       v0 = calldatasize
       v1 = sub v0, arg0
       v2 = shr v1, 5
-      v3 = gt arg1, v2
+      v3 = lt v2, arg1
       jumpi v3, bb7, bb1
     bb1:                                            ; preds = bb0
       jump bb2
@@ -538,7 +538,7 @@
       ret 0
     bb3:                                            ; preds = bb2
       v6 = shl v4, 5
-      v7 = add arg0, v6
+      v7 = add v6, arg0
       v8 = calldataload v7
       v9 = eq v8, arg2
       jumpi v9, bb5, bb4
@@ -564,7 +564,7 @@
     bb2:                                            ; preds = bb1
       v2 = zext i8 v0 to i256
       v3 = shl v2, 5
-      v4 = add arg0, v3
+      v4 = add v3, arg0
       v5 = mload v4
       v6 = add v5, 1
       mstore v4, v6
@@ -579,7 +579,7 @@
       jump bb1
     bb1:                                            ; preds = bb0, bb3
       v2 = phi [bb0: arg0], [bb3: v8]
-      v3 = lt 0, v2
+      v3 = gt v2, 0
       jumpi v3, bb2, bb4
     bb2:                                            ; preds = bb1
       v4 = shl v2, 5
@@ -636,7 +636,7 @@
       jumpi v1, bb3, bb2
     bb2:                                            ; preds = bb1
       v2 = shl v0, 5
-      v3 = add arg0, v2
+      v3 = add v2, arg0
       v4 = calldataload v3
       mstore 0, v4
       v5 = add v0, 1
@@ -660,7 +660,7 @@
       jumpi v1, bb2, bb4
     bb2:                                            ; preds = bb1
 -     v2 = shl v0, 5
--     v3 = add arg0, v2
+-     v3 = add v2, arg0
 -     v4 = calldataload v3
 +     v4 = calldataload v8
       v5 = eq v4, arg2

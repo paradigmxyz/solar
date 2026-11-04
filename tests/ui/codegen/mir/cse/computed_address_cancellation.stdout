@@ -4,7 +4,7 @@
   fn @cancel(arg0: i256) -> i256 {
     bb0:
       v0 = sub 128, arg0
-      v1 = add arg0, v0
+      v1 = add v0, arg0
       mstore v1, 42
 -     v2 = mload 128
 -     ret v2
@@ -25,7 +25,7 @@
     bb0:
       mstore 128, 42
       v0 = sub 128, arg0
-      v1 = add arg1, v0
+      v1 = add v0, arg1
       mstore v1, 43
       v2 = mload 128
       ret v2

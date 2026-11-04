@@ -9,7 +9,7 @@
   
   fn @compact() -> i256 {
     bb0:
-      v0 = add 1, 2
+      v0 = add 2, 1
       ret v0
   }
   

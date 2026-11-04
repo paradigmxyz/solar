@@ -477,8 +477,7 @@ fn narrow_immutable_layouts(module: &mut Module) -> bool {
                             let value = builder.cast(value, types[&id]);
                             builder
                                 .func_mut()
-                                .inst_mut(inst)
-                                .replace_kind(InstKind::StoreImmutable(id, value));
+                                .replace_inst_kind(inst, InstKind::StoreImmutable(id, value));
                         }
                         InstKind::LoadImmutable(id)
                             if types.contains_key(&id)
@@ -486,7 +485,7 @@ fn narrow_immutable_layouts(module: &mut Module) -> bool {
                         {
                             builder.set_debug_context(&builder.func().inst(inst).metadata.clone());
                             let value = builder.load_immutable(id, types[&id]);
-                            builder.func_mut().inst_mut(inst).replace_kind(InstKind::Zext(value));
+                            builder.func_mut().replace_inst_kind(inst, InstKind::Zext(value));
                         }
                         _ => {}
                     }
@@ -1103,8 +1102,7 @@ impl<'a> CheckEliminator<'a> {
         }
         // checked_op a, b that cannot fail -> op a, b
         for (id, kind) in &unfailing {
-            let kind = func.canonical_kind(kind.clone());
-            func.inst_mut(*id).replace_kind(kind);
+            func.replace_inst_kind(*id, kind.clone());
         }
         let propagated = self.apply_equalities(func);
         // branch proven_condition, keep, discard => jump keep
@@ -1790,7 +1788,7 @@ impl<'a> CheckEliminator<'a> {
                 Some(MirType::I256),
                 U256::ZERO,
             )));
-            func.inst_mut(id).kind = InstKind::Ne(word_value, zero);
+            func.set_inst_kind(id, InstKind::Ne(word_value, zero));
             words.insert(id, word_inst);
             // A word widened back from the test is the word itself, as it is for any other test
             // of a word that never exceeds one.
@@ -2002,7 +2000,7 @@ impl<'a> CheckEliminator<'a> {
         let uses = std::mem::take(&mut self.equality_uses);
         for (id, replaced) in &uses {
             // operand -> constant it equals
-            func.inst_mut(*id).rewrite_operands(|operand| {
+            func.rewrite_inst_operands(*id, |operand| {
                 if let Some(&(_, constant)) = replaced.iter().find(|&&(from, _)| from == *operand) {
                     *operand = constant;
                 }

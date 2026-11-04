@@ -163,7 +163,7 @@ fn @_scatter(arg0: i256, arg1: i256, arg2: i256, arg3: i256) [may_return_memory]
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb8:                                            ; preds = bb11
-    v53 = add arg0, v45
+    v53 = add v45, arg0
     v54 = add v53, 32
     mstore8 v54, v8
     v17 = add v4, 1

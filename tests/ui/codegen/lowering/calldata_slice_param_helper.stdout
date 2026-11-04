@@ -52,7 +52,7 @@ fn @lastWord2() {
     v20 = sub v29, 33
     v23 = add v34, v20
     v24 = calldataload v23
-    v11 = xor v17, v24
+    v11 = xor v24, v17
     mstore 0, v11 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb0

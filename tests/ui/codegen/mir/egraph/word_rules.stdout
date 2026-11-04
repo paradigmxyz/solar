@@ -334,7 +334,7 @@
   
   fn @rule_37(arg0: i256) -> i256 {
     bb0:
--     v0 = mul 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+-     v0 = mul arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 +     v0 = sub 0, arg0
       ret v0
   }
@@ -358,7 +358,7 @@
   fn @rule_40(arg0: i256) -> i256 {
     bb0:
       v0 = not arg0
--     v1 = add arg0, v0
+-     v1 = add v0, arg0
 -     ret v1
 +     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   }

@@ -35,10 +35,10 @@
       v0 = eq arg1, arg0
       jumpi v0, bb1, bb5
     bb1:                                            ; preds = bb0
-      v1 = gt arg1, arg2
+      v1 = lt arg2, arg1
       jumpi v1, bb5, bb2
     bb2:                                            ; preds = bb1
-      v2 = gt arg0, arg2
+      v2 = lt arg2, arg0
 -     jumpi v2, bb5, bb3
 +     jump bb3
     bb3:                                            ; preds = bb2

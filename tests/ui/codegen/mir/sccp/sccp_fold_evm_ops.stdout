@@ -130,7 +130,7 @@
   
   fn @addmod_zero_modulus() -> i256 {
     bb0:
--     v0 = addmod 1, 2, 0
+-     v0 = addmod 2, 1, 0
 -     ret v0
 +     ret 0
   }

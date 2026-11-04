@@ -118,7 +118,7 @@ use crate::mir::{
     analysis::{AddressInput, absolute_address_inputs, pointer_bases},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
-    utils::{IndexLists, replace_inst_uses},
+    utils::IndexLists,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -243,7 +243,7 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
     let position = index_in_block(func, block, inst);
     func.blocks[block].instructions.splice(position..position, clamp);
     // mstore 64, clamped
-    func.inst_mut(inst).kind = InstKind::Store(address, clamped, PtrLocation::Memory);
+    func.set_inst_kind(inst, InstKind::Store(address, clamped, PtrLocation::Memory));
 }
 
 /// Raises the words a function's loads read from the slot, and the returned words its calls
@@ -305,7 +305,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
     }
     // op(words) -> op(clamped words)
     for inst in rewritten {
-        replace_inst_uses(func.inst_mut(inst), &copies);
+        func.replace_inst_uses(inst, &copies);
     }
     // original = op(words)
     // copy = op(clamped words)

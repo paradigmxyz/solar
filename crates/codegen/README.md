@@ -48,11 +48,17 @@ Structural result checks and operation phase legality consume the schema,
 including the gate that advances MIR from `semantic` to `lowered`. The scheduler consumes the
 schema's rematerialization trait; constant folding uses the shared opcode selector.
 
-Equivalent local rewrites use `Instruction::replace_kind` or
-`Instruction::rewrite_operands`. These preserve result identity, provenance, and
+Equivalent local rewrites use `Function::replace_inst_kind` or
+`Function::rewrite_inst_operands`. These preserve result identity, provenance, and
 semantic obligations while invalidating memory regions, storage aliases, and
 effect overrides. The caller still proves equivalence; the helpers do not prove
-an optimization correct or permit changing the result representation.
+an optimization correct or permit changing the result representation. A lowering
+that changes the representation and manages the metadata itself uses
+`Function::set_inst_kind`. Every one of these puts commutative operands and
+comparisons in canonical order, as do `Function::replace_uses` and the other
+operand rewriters, so passes need no order handling of their own. A raw write
+through `Function::inst_mut` bypasses them and is caught only when IR validation
+runs: by default in debug builds, or with `-Zvalidate-ir`.
 
 ISLE sources are grouped by compiler layer:
 
