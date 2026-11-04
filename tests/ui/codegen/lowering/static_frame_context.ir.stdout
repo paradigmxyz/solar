@@ -72,7 +72,7 @@ bb32 [loop]:
   swap 2
   pop
   jump
-bb6:                                              ; function low(uint256 x) external pure returns (uint256) [selector 0x10c888cd]
+bb6 [entry]:                                      ; function low(uint256 x) external pure returns (uint256) [selector 0x10c888cd]
   push 4
   calldataload
   push bb7
@@ -116,7 +116,7 @@ bb7 [continuation]:
   push 32
   push 0
   return
-bb8:                                              ; function high(uint256 x) external pure returns (uint256) [selector 0x6257139f]
+bb8 [entry]:                                      ; function high(uint256 x) external pure returns (uint256) [selector 0x6257139f]
   push 4
   calldataload
   dup 1
@@ -150,7 +150,7 @@ bb9 [continuation]:
   push 32
   push 0
   return
-bb10:                                             ; function shared(uint256 x) external pure returns (uint256) [selector 0x727ee1fa]
+bb10 [entry]:                                     ; function shared(uint256 x) external pure returns (uint256) [selector 0x727ee1fa]
   push 4
   calldataload
   dup 1

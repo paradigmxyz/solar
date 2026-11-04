@@ -56,7 +56,7 @@ bb7 [cold]:
   push 36
   push 28
   revert
-bb8:                                              ; function isLocalNone(uint256 x) external pure returns (bool) [selector 0xb4702ebe]
+bb8 [entry]:                                      ; function isLocalNone(uint256 x) external pure returns (bool) [selector 0xb4702ebe]
   push 1
   push 4
   calldataload

@@ -48,7 +48,7 @@ bb32 [cold]:
   push 36
   push 28
   revert
-bb7:                                              ; getter for `uint256 public acc` [selector 0x7da1365e]
+bb7 [entry]:                                      ; getter for `uint256 public acc` [selector 0x7da1365e]
   push 0
   sload
   push 0
@@ -56,7 +56,7 @@ bb7:                                              ; getter for `uint256 public a
   push 32
   push 0
   return
-bb8:                                              ; function viaDecl(uint256[] calldata xs) external returns (uint256) [selector 0x874b8e9d]
+bb8 [entry]:                                      ; function viaDecl(uint256[] calldata xs) external returns (uint256) [selector 0x874b8e9d]
   push 4
   calldataload
   push 36
@@ -160,7 +160,7 @@ bb11 [loop]:
   push 32
   push 0
   return
-bb18:                                             ; function viaAssign(uint256[] calldata xs) external pure returns (uint256) [selector 0x2be02e45]
+bb18 [entry]:                                     ; function viaAssign(uint256[] calldata xs) external pure returns (uint256) [selector 0x2be02e45]
   push 4
   calldataload
   push 36
@@ -218,7 +218,7 @@ bb18:                                             ; function viaAssign(uint256[]
   push 32
   push 0
   return
-bb23:                                             ; function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes calldata tag) external pure returns (uint256) [selector 0x3ce9e381]
+bb23 [entry]:                                     ; function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes calldata tag) external pure returns (uint256) [selector 0x3ce9e381]
   push 224
   push 64
   mstore

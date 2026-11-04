@@ -18,7 +18,7 @@ contract C {
     // CHECK: push 0xd96073cf
     // CHECK: eq
     // CHECK-NEXT: push [[SWAP:bb[0-9]+]]
-    // CHECK: [[NAMED]]:
+    // CHECK: [[NAMED]]{{( \[[a-z, ]+\])?}}:
     // CHECK: calldatacopy
     // CHECK: {{^.*[ =]call[[:space:]]}}
     // CHECK: return
@@ -26,7 +26,7 @@ contract C {
         (ok, ) = t.call(d);
     }
 
-    // CHECK: [[SWAP]]:
+    // CHECK: [[SWAP]]{{( \[[a-z, ]+\])?}}:
     // CHECK: push 36
     // CHECK-NEXT: calldataload
     // CHECK-NEXT: push 0
@@ -45,7 +45,7 @@ contract C {
         return (7, 9);
     }
 
-    // CHECK: [[MULTI]]:
+    // CHECK: [[MULTI]]{{( \[[a-z, ]+\])?}}:
     // The tiny-leaf inliner exposes `two()` as constants and removes its call frame.
     // Returned SSA words feed the ABI stores directly.
     // CHECK: push 7

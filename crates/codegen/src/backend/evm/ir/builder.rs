@@ -433,6 +433,13 @@ impl<'gcx> Assembler<'gcx> {
         self.program.blocks[block].metadata.call_effect = Some(call_effect);
     }
 
+    /// Defines the entry label of an external function, which the runtime dispatch jumps to.
+    pub(crate) fn define_external_entry_label(&mut self, label: Label) {
+        self.define_label(label);
+        let block = self.label_blocks[&label];
+        self.program.blocks[block].metadata.external_entry = true;
+    }
+
     /// Defines a hidden internal-call return label. The callee consumes its address with `JUMP`;
     /// MIR values cannot inspect the hidden word or observe the label's numeric identity.
     pub(crate) fn define_continuation_label(&mut self, label: Label) {

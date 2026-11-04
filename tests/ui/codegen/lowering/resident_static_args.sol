@@ -22,7 +22,7 @@ contract ResidentStaticArgs {
     // CHECK: push 0xa3395f5
     // CHECK-NEXT: eq
     // CHECK-NEXT: push [[ENTRY:bb[0-9]+]]
-    // CHECK: [[ENTRY]]:
+    // CHECK: [[ENTRY]]{{( \[[a-z, ]+\])?}}:
     // CHECK: push 1
     // CHECK-NEXT: shr
     // CHECK-NEXT: push {{bb[0-9]+}}
