@@ -71,13 +71,13 @@ contract ConstantSelect {
     // CHECK-LABEL: fn @signature(
     // CHECK: select
     // SIZE: [[SIGNATURE]]{{( \[[a-z, ]+\])?}}:
-    // SIZE: push 4
-    // SIZE-NEXT: calldataload
-    // SIZE-NEXT: push 1
-    // SIZE-NEXT: shr
-    // SIZE-NEXT: push 36
+    // SIZE: push 36
     // SIZE-NEXT: calldatasize
     // SIZE-NEXT: lt
+    // SIZE-NEXT: push 1
+    // SIZE-NEXT: push 4
+    // SIZE-NEXT: calldataload
+    // SIZE-NEXT: gt
     // SIZE-NEXT: or
     // SIZE-NEXT: jump [[CHECKED:bb[0-9]+]]
     // SIZE-NEXT: [[CHECKED]]{{( \[[a-z, ]+\])?}}:

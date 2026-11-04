@@ -1,0 +1,9 @@
+//@ compile-flags: -Zmir-pipeline=dce -Zdebugify=report
+// Deleting a dead operation legitimately loses its last origin. Report it without rejecting
+// the pass, as LLVM's synthetic `Missing line` warning does.
+@module Debugify
+fn @test(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=10..20)
+    ret arg0 !metadata(span=30..40)
+}

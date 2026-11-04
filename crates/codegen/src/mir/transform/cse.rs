@@ -585,10 +585,14 @@ impl CommonSubexprEliminator {
         let mut inserted_by_block = FxHashMap::<BlockId, usize>::default();
 
         for candidate in candidates {
-            let (new_inst, new_value) = func.alloc_value_inst(
-                Instruction::new(candidate.kind, Some(candidate.result_ty))
-                    .with_debug_info_dropped(),
-            );
+            // The sunk expression runs exactly when one of the incoming expressions would have,
+            // so it is shared code carrying the union of their origins.
+            let mut sunk = Instruction::new(candidate.kind, Some(candidate.result_ty));
+            sunk.metadata.copy_debug_context(&func.inst(candidate.incoming[0].1).metadata);
+            for &(_, other) in &candidate.incoming[1..] {
+                sunk.metadata.merge_debug_context(&func.inst(other).metadata);
+            }
+            let (new_inst, new_value) = func.alloc_value_inst(sunk);
 
             let phi_count = func.block_phi_count(candidate.block_id);
             let inserted = inserted_by_block.entry(candidate.block_id).or_default();

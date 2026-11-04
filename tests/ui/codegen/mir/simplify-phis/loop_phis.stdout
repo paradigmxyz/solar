@@ -25,7 +25,7 @@
       jumpi v3, bb2, bb3
     bb3:                                            ; preds = bb1
 -     v5 = add v1, v2
-+     v5 = add 9, v2
++     v5 = add v2, 9
       mstore 0, v5
       returndata 0, 32
     bb2:                                            ; preds = bb1

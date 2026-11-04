@@ -88,12 +88,12 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v5 = zext i160 v0 to i256
     v6 = call v2, v5, v3, 28, 36, 0, 32
     jumpi v6, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     v11 = sload 0 !metadata(storage=slot(0))
     ret v11
   bb1:                                            ; preds = bb0

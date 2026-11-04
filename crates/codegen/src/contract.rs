@@ -714,7 +714,9 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             capture_mir && !module.is_optimized() && gcx.sess.opts.unstable.mir_pipeline.is_none();
         let built_mir = (capture_built && needs_backend).then(|| module.clone());
         let codegen = if needs_backend {
-            module.set_debug_info_tracked(captures.debug_info.contains(contract_id));
+            let track_debug =
+                captures.debug_info.contains(contract_id) || crate::debugify::enabled(gcx);
+            module.set_debug_info_tracked(track_debug);
             let mut codegen = Box::new(EvmCodegen::new(gcx));
             codegen.set_capture_mir(capture_mir && (!capture_built || final_mir));
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
@@ -727,6 +729,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             scheduled.then_some(codegen)
         } else {
             if capture_mir && !capture_built {
+                module.set_debug_info_tracked(crate::debugify::enabled(gcx));
                 let _changed = run_pipeline(gcx, &mut module, None);
                 gcx.dcx().has_errors()?;
             }

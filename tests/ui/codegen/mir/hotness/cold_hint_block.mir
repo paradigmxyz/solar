@@ -1,0 +1,76 @@
+//@ revisions: gas size none
+//@[gas] compile-flags: -Zmir-pipeline=none -Ogas
+//@[size] compile-flags: -Zmir-pipeline=none -Osize
+//@[none] compile-flags: -Zmir-pipeline=none -O none
+@module ColdHintBlock
+
+// A block with `cold_hint`, as lowering gives the blocks of a catch clause, is cold, and so is
+// the code only it reaches. The test, the success path, and the join stay hot. The header takes
+// the flags in either order and with or without `cold`.
+fn @bare(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2 [cold_hint]:
+    jump bb3
+  bb3:
+    ret 1
+}
+
+// A clause that returns on its own ends in a cold block.
+fn @returns(arg0: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    ret 1
+  bb2 [cold_hint]:
+    ret 0
+}
+
+// A loop in a clause is cold, the blocks that only the hinted head reaches included.
+fn @loop_body(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb6
+  bb2 [cold_hint]:
+    jump bb3
+  bb3:
+    jumpi arg1, bb4, bb5
+  bb4:
+    jump bb3
+  bb5:
+    jump bb6
+  bb6:
+    ret 1
+}
+
+// The clauses of a typed catch test the returndata one after the other.
+fn @typed(arg0: i1, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb6
+  bb2 [cold_hint]:
+    jumpi arg1, bb3, bb4
+  bb3 [cold_hint, cold]:
+    jump bb6
+  bb4 [cold, cold_hint]:
+    jump bb5
+  bb5 [cold]:
+    revert 0, 0
+  bb6:
+    ret 1
+}
+
+// The hint is a fact, not a guess from the shape of the graph: a hinted block on the only path
+// is cold too, and the join behind it is not.
+fn @only_path(arg0: i1) -> i256 {
+  bb0:
+    jump bb1
+  bb1 [cold_hint]:
+    jump bb2
+  bb2:
+    ret 1
+}

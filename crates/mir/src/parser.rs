@@ -55,7 +55,7 @@ use solar_data_structures::{
 use solar_interface::{
     BytePos, ByteSymbol, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
-use solar_ir::Hotness;
+use solar_ir::{Hotness, debug::DebugLocKind};
 use solar_parse::{PErr, PResult};
 
 // =============================================================================
@@ -292,8 +292,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let instructions = function.instructions().collect::<Vec<_>>();
                 for instruction in instructions {
                     let metadata = &mut function.inst_mut(instruction).metadata;
-                    if !metadata.debug_info_is_handled() {
-                        metadata.mark_debug_info_dropped();
+                    if metadata.lacks_debug_location() {
+                        metadata.set_debug_loc_kind(DebugLocKind::Dropped);
                     }
                 }
             }
@@ -548,9 +548,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     break;
                 }
 
-                if let Some((idx, hotness)) = self.try_parse_block_header()? {
+                if let Some((idx, hotness, cold_hint)) = self.try_parse_block_header()? {
                     let bid = self.define_block(&mut builder, idx)?;
                     builder.func_mut().blocks[bid].hotness = hotness;
+                    builder.func_mut().blocks[bid].cold_hint = cold_hint;
                     builder.switch_to_block(bid);
                     current_block = Some((bid, idx));
                     continue;
@@ -572,6 +573,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             self.reject_unresolved_block_labels()?;
             self.reject_unresolved_value_labels(builder.func())?;
+            builder.func_mut().canonicalize_operands();
             crate::utils::remap_block_order(builder.func_mut(), &self.block_order)
         };
         for reference in &mut self.function_refs {
@@ -583,7 +585,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(func)
     }
 
-    fn try_parse_block_header(&mut self) -> PResult<'sess, Option<(u32, Hotness)>> {
+    fn try_parse_block_header(&mut self) -> PResult<'sess, Option<(u32, Hotness, bool)>> {
         let TokenKind::Ident(label) = self.parser.token().kind else { return Ok(None) };
         let Some(index) = label.as_str().strip_prefix("bb").filter(|s| !s.is_empty()) else {
             return Ok(None);
@@ -591,14 +593,29 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let Ok(index) = index.parse() else {
             return Ok(None);
         };
-        let cold =
-            matches!(self.parser.look_ahead(1).kind, TokenKind::OpenDelim(Delimiter::Bracket))
-                && matches!(self.parser.look_ahead(2).kind, TokenKind::Ident(sym::cold))
-                && matches!(
-                    self.parser.look_ahead(3).kind,
-                    TokenKind::CloseDelim(Delimiter::Bracket)
-                );
-        let label_tokens = if cold { 4 } else { 1 };
+        // `bbN [cold, cold_hint]:`, each flag optional.
+        let (mut cold, mut cold_hint) = (false, false);
+        let mut label_tokens = 1;
+        if matches!(self.parser.look_ahead(1).kind, TokenKind::OpenDelim(Delimiter::Bracket)) {
+            label_tokens = 2;
+            loop {
+                // Each flag at most once, so a header is two flags long at most.
+                match self.parser.look_ahead(label_tokens).kind {
+                    TokenKind::Ident(sym::cold) if !cold => cold = true,
+                    TokenKind::Ident(sym::cold_hint) if !cold_hint => cold_hint = true,
+                    _ => return Ok(None),
+                }
+                label_tokens += 1;
+                match self.parser.look_ahead(label_tokens).kind {
+                    TokenKind::Comma => label_tokens += 1,
+                    TokenKind::CloseDelim(Delimiter::Bracket) => {
+                        label_tokens += 1;
+                        break;
+                    }
+                    _ => return Ok(None),
+                }
+            }
+        }
         if !matches!(self.parser.look_ahead(label_tokens).kind, TokenKind::Colon) {
             return Ok(None);
         }
@@ -606,7 +623,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.bump();
         }
         self.parser.expect(TokenKind::Colon)?;
-        Ok(Some((index, if cold { Hotness::Cold } else { Hotness::Hot })))
+        Ok(Some((index, if cold { Hotness::Cold } else { Hotness::Hot }, cold_hint)))
     }
 
     fn define_block(
@@ -1410,8 +1427,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         builder: &mut FunctionBuilder<'_>,
     ) -> PResult<'sess, ()> {
         let mut metadata = self.parse_metadata(builder)?;
-        if !metadata.debug_info_is_handled() {
-            metadata.mark_debug_info_dropped();
+        if metadata.lacks_debug_location() {
+            metadata.set_debug_loc_kind(DebugLocKind::Dropped);
         }
         let block = builder.current_block();
         builder.func_mut().blocks[block].terminator_metadata = metadata;
@@ -1489,6 +1506,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     metadata.set_modifier_depth(self.parser.parse_uint_as()?);
                 }
+                sym::dropped => metadata.set_displayed_debug_loc_kind(DebugLocKind::Dropped),
+                sym::compiler_generated => {
+                    metadata.set_displayed_debug_loc_kind(DebugLocKind::CompilerGenerated);
+                }
+                sym::unknown => metadata.set_displayed_debug_loc_kind(DebugLocKind::Unknown),
+                sym::temporary => metadata.set_displayed_debug_loc_kind(DebugLocKind::Temporary),
                 sym::spans => {
                     self.parser.expect(TokenKind::Eq)?;
                     self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;

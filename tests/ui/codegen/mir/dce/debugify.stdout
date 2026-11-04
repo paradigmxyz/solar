@@ -1,0 +1,9 @@
+- ; === ROOT/tests/ui/codegen/mir/dce/debugify.mir (before dce) ===
++ ; === ROOT/tests/ui/codegen/mir/dce/debugify.mir (after dce) ===
+  @module Debugify
+  fn @test(arg0: i256) -> i256 {
+    bb0:
+-     v0 = add arg0, 1 !metadata(span=10..20)
+      ret arg0 !metadata(span=30..40)
+  }
+  

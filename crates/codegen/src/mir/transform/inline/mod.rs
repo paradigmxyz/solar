@@ -1676,7 +1676,7 @@ fn inline_call_impl(
         }
     }
 
-    let continuation = caller.alloc_block();
+    let continuation = caller.alloc_block_like(call_block);
     let (old_terminator, metadata) = caller.blocks[call_block].take_terminator();
     let suffix = {
         let block = &mut caller.blocks[call_block];
@@ -1842,8 +1842,8 @@ impl<'a> InlineCloner<'a> {
     }
 
     fn clone_blocks(&mut self, continuation: BlockId) -> Option<BlockId> {
-        for _ in self.callee.blocks.indices() {
-            self.block_map.push(self.caller.alloc_block());
+        for block in self.callee.blocks.iter() {
+            self.block_map.push(self.caller.alloc_block_hinted(block.cold_hint));
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
@@ -1868,9 +1868,8 @@ impl<'a> InlineCloner<'a> {
             let caller_block = self.block_map[callee_block];
             for (index, &inst_id) in block.instructions.iter().enumerate() {
                 let kind = self.clone_inst_kind(self.callee.inst(inst_id).kind.clone())?;
-                let kind = self.caller.canonical_kind(kind);
                 let new_inst = self.caller.blocks[caller_block].instructions[index];
-                self.caller.inst_mut(new_inst).kind = kind;
+                self.caller.set_inst_kind(new_inst, kind);
             }
         }
 

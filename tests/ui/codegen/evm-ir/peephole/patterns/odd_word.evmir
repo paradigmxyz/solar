@@ -1,0 +1,32 @@
+//@compile-flags: -Zevm-ir-pipeline=peephole
+//@filecheck:
+@module module
+
+// `(x + x) | 1` is `x - ~x`.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + not
+// CHECK-NEXT: + swap 1
+// CHECK-NEXT: + sub
+bb0:
+  calldatasize
+  dup 1
+  add
+  push 1
+  or
+  stop
+
+// Another operand of the `or`, or another operation, keeps its form.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-NOT: not
+bb1:
+  calldatasize
+  dup 1
+  add
+  push 3
+  or
+  calldatasize
+  dup 1
+  mul
+  push 1
+  or
+  stop

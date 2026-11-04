@@ -104,10 +104,10 @@ fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) ->
     v92 = or v89, v91
     jumpi v92, bb11, bb12
   bb12:                                           ; preds = bb18
-    v122 = add arg1, v115
+    v122 = add v115, arg1
     v123 = add v122, 32
     v96 = mload v123
-    v125 = add arg1, v113
+    v125 = add v113, arg1
     v126 = add v125, 32
     v102 = lt v126, v134
     jumpi v102, bb8, bb10
@@ -134,7 +134,7 @@ fn @f(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256) ->
     v74 = lt v117, v73
     jumpi v74, bb14, bb11
   bb14:                                           ; preds = bb19
-    v131 = add arg1, v117
+    v131 = add v117, arg1
     v132 = add v131, 32
     mstore8 v132, v70
     v67 = add v65, 1
@@ -160,19 +160,19 @@ fn @decode_calldata_type(arg0: i256) -> i256 [may_return_memory] {
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v37 = add v6, 63
-    v10 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = add v6, 63
+    v10 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v11 = lt v10, v6
     jumpi v11, bb3, bb4
   bb4:                                            ; preds = bb2
     v29 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v30 = add v29, v10 !metadata(alloc_ptr)
+    v38 = shr v30, 64
     v31 = lt v30, v29
-    v32 = zext i1 v31 to i256
-    v33 = shr v30, 64
-    v34 = or v33, v32
-    v35 = ne v34, 0
-    jumpi v35, bb3, bb6
+    v40 = zext i1 v31 to i256
+    v41 = or v38, v40
+    v33 = ne v41, 0
+    jumpi v33, bb3, bb6
   bb6:                                            ; preds = bb4
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6

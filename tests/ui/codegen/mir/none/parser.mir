@@ -265,7 +265,7 @@ fn @cast_undef() -> ptr<memory> {
 // CHECK: zext i1 0 to i256
 // CHECK: zext i1 1 to i256
 // CHECK: zext i1 undef to i256
-// CHECK: and false, true
+// CHECK: and true, false
 fn @bool_literals() -> i1 {
   bb0:
     v0 = zext i1 0 to i256

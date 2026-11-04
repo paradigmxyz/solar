@@ -130,13 +130,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_stmt: &hir::Stmt<'_>,
         else_stmt: Option<&hir::Stmt<'_>>,
     ) -> Option<()> {
+        let condition_span = condition.span;
         let condition = self.lower_expr(condition)?;
-        let (then_branch, else_branch) = self.lower_branches(
+        // The transfer still evaluates the condition when its computation folds into the jump.
+        // Keep its narrower origin so coverage can anchor the expression inside the `if`.
+        let previous = self.builder.replace_source_span(condition_span);
+        let branches = self.lower_branches(
             condition,
             true,
-            |this| this.lower_stmt(then_stmt),
-            |this| else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt)),
-        )?;
+            |this| {
+                this.builder.replace_source_span(previous);
+                this.lower_stmt(then_stmt)
+            },
+            |this| {
+                this.builder.replace_source_span(previous);
+                else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt))
+            },
+        );
+        self.builder.replace_source_span(previous);
+        let (then_branch, else_branch) = branches?;
         if then_branch.terminated && else_branch.terminated {
             self.builder.invalid();
         }
@@ -387,37 +399,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::Creation { .. } => unreachable!(),
             };
             let options = self.lower_call_options(call_opts, true, "try call option")?;
-            let (mut values, mut types) =
-                if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
-                    let capacity = args.len() + usize::from(receiver.is_some());
-                    let mut values = Vec::with_capacity(capacity);
-                    let mut types = Vec::with_capacity(capacity);
-                    if let Some(receiver) = receiver {
-                        let function = self.cx.gcx.hir.function(function);
-                        let Some(&parameter) = function.parameters.first() else {
-                            return self
-                                .cx
-                                .report_unsupported(receiver.span, "attached library receiver");
-                        };
-                        let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-                        let (value, ty) = self.lower_abi_receiver(receiver, parameter_ty)?;
-                        values.push(value);
-                        types.push(ty);
-                    }
-                    (values, types)
-                } else {
-                    (Vec::new(), Vec::new())
+            let mut operands = Vec::new();
+            if let TryCallee::LinkedLibrary { function, receiver: Some(receiver), .. } =
+                target.callee
+            {
+                let function = self.cx.gcx.hir.function(function);
+                let Some(&parameter) = function.parameters.first() else {
+                    return self.cx.report_unsupported(receiver.span, "attached library receiver");
                 };
-            let (argument_values, argument_types) = self.lower_abi_call_arguments(
+                let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
+                operands.push(self.lower_bound_receiver(receiver, parameter_ty)?);
+            }
+            operands.extend(self.lower_abi_call_arguments(
                 *args,
                 target.parameter_types.iter().copied(),
                 target.parameter_names.as_ref(),
                 args.span,
                 "try argument",
                 matches!(target.callee, TryCallee::LinkedLibrary { .. }),
-            )?;
-            values.extend(argument_values);
-            types.extend(argument_types);
+            )?);
+            let (values, types) = self.resolve_abi_operands(operands)?;
             let selector = match target.callee {
                 TryCallee::Member { selector, .. } => {
                     self.builder.imm(U256::from_be_slice(&selector) << 224)
@@ -490,6 +491,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
+        // The blocks the clauses create inherit the hint, so the whole catch side is cold, up to
+        // but not including the merge block.
+        self.builder.func_mut().blocks[catch_block].cold_hint = true;
         self.builder.switch_to_block(catch_block);
         let needs_data =
             catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());

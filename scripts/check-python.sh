@@ -12,4 +12,5 @@ uv run --locked --all-packages ty check --extra-search-path scripts/pgo --extra-
 uv run --locked --all-packages compiler-diff self-test
 uv run --locked --all-packages python -m unittest discover -s fuzz/fandango -p 'test_*.py'
 uv run --locked --all-packages python -m unittest discover -s benches/runtime -p 'test_*.py'
+uv run --locked --all-packages python -m unittest discover -s scripts -p 'test_debugify.py'
 uv run --locked --all-packages pytest -n auto scripts/evm-rules/test.py

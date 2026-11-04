@@ -77,18 +77,18 @@ bb14 [cold]:
   push 0
   revert
 bb15 [loop, entry]:                               ; function pushRange(uint8 from, uint8 count) external [selector 0x4407bb95]
-  push 4
-  calldataload
-  push 8
-  shr
   push 68
   calldatasize
   lt
+  push 255
+  push 4
+  calldataload
+  gt
   or
+  push 255
   push 36
   calldataload
-  push 8
-  shr
+  gt
   or
   push bb14
   jumpi
@@ -144,9 +144,10 @@ bb19 [loop]:
   eq
   push bb22
   jumpi
-  dup 1
-  push 64
-  shr
+  push 0x10000000000000000
+  dup 2
+  lt
+  iszero
   push bb23
   jumpi
   push 31

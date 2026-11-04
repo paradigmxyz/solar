@@ -214,29 +214,25 @@ fn @second() -> i160 [selector=0x5a8ac02d, abi_params=[], abi_returns=[word<uint
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = mload 0 !metadata(memory=scratch)
-    v8 = shr v7, 160
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = gas
+    v8 = gt v7, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v8
+    v9 = gas
     mstore 0, 0x9507d39a !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v12 = zext i160 v1 to i256
-    v13 = staticcall v11, v12, 28, 36, 0, 32
-    jumpi v13, bb4, bb3
+    v10 = zext i160 v1 to i256
+    v11 = staticcall v9, v10, 28, 36, 0, 32
+    jumpi v11, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v14 = returndatasize
-    v15 = lt v14, 32
-    icall revert_if<tuple_data_too_short>, v15
-    v16 = mload 0 !metadata(memory=scratch)
-    v17 = shr v16, 160
-    v18 = eq v17, 0
-    v19 = eq v18, false
-    icall revert_if<empty>, v19
-    v20 = trunc i256 v16 to i160
-    ret v20
+    v12 = returndatasize
+    v13 = lt v12, 32
+    icall revert_if<tuple_data_too_short>, v13
+    v14 = mload 0 !metadata(memory=scratch)
+    v15 = gt v14, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v15
+    v16 = trunc i256 v14 to i160
+    ret v16
 }
 
 ; function both() external returns (uint256, uint256) [selector 0x35f2e0a7]
@@ -257,34 +253,30 @@ fn @both() -> struct0 [selector=0x35f2e0a7, abi_params=[], abi_returns=[word, wo
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = mload 0 !metadata(memory=scratch)
-    v8 = shr v7, 160
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = trunc i256 v7 to i160
-    v12 = zext i160 v11 to i256
-    v13 = gas
+    v8 = gt v7, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v8
+    v9 = trunc i256 v7 to i160
+    v10 = zext i160 v9 to i256
+    v11 = gas
     mstore 0, 0x9507d39a !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v14 = zext i160 v1 to i256
-    v15 = staticcall v13, v14, 28, 36, 0, 32
-    jumpi v15, bb4, bb3
+    v12 = zext i160 v1 to i256
+    v13 = staticcall v11, v12, 28, 36, 0, 32
+    jumpi v13, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v16 = returndatasize
-    v17 = lt v16, 32
-    icall revert_if<tuple_data_too_short>, v17
-    v18 = mload 0 !metadata(memory=scratch)
-    v19 = shr v18, 160
-    v20 = eq v19, 0
-    v21 = eq v20, false
-    icall revert_if<empty>, v21
-    v22 = trunc i256 v18 to i160
-    v23 = zext i160 v22 to i256
-    v24 = insert_value struct0, undef struct0, 0, v12
-    v25 = insert_value struct0, v24, 1, v23
-    ret v25
+    v14 = returndatasize
+    v15 = lt v14, 32
+    icall revert_if<tuple_data_too_short>, v15
+    v16 = mload 0 !metadata(memory=scratch)
+    v17 = gt v16, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v17
+    v18 = trunc i256 v16 to i160
+    v19 = zext i160 v18 to i256
+    v20 = insert_value struct0, undef struct0, 0, v10
+    v21 = insert_value struct0, v20, 1, v19
+    ret v21
 }
 
 ; function lengths() external returns (uint256, uint256) [selector 0xdab1fa12]

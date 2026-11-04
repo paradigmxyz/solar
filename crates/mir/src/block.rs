@@ -21,6 +21,12 @@ pub struct BasicBlock {
     /// flow need not maintain it, but reads of it inside that pass can be stale, and new blocks
     /// start hot.
     pub hotness: Hotness,
+    /// Whether the source says the block runs rarely, as the block version of a function's
+    /// `cold_hint`: lowering sets it on the blocks of a `catch` clause. Unlike `hotness`, it is a
+    /// fact the analysis only reads. The block is always cold, and so is the code that only a cold
+    /// edge into a hinted block enters. A pass that copies a block copies the hint, splitting a
+    /// block gives both halves it, and merging blocks that run together keeps it.
+    pub cold_hint: bool,
 }
 
 impl BasicBlock {
@@ -58,6 +64,7 @@ impl BasicBlock {
             terminator_metadata,
             predecessors: SmallVec::new(),
             hotness: Hotness::Hot,
+            cold_hint: false,
         }
     }
 }

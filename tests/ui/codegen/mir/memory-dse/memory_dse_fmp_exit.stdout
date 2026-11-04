@@ -238,7 +238,7 @@
   
   fn @keep_reload_across_write_through_assembly_fmp(arg0: i256) -> i256 {
     bb0:
-      v0 = add 64, arg0
+      v0 = add arg0, 64
       mstore 64, v0
 -     v1 = mload 64
 -     mstore v1, 7

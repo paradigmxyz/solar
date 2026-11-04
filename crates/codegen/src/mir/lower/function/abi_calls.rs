@@ -266,14 +266,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return self.lower_shared_bytes_literal(*bytes);
         }
-        if !ty.is_ref_at(DataLocation::Storage)
-            && self.types.memory_layout(ty).is_some()
-            && self
-                .cx
-                .gcx
-                .type_of_expr(source_expr.id)
-                .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
-        {
+        if self.is_storage_object_copy(source_expr, ty) {
             let access = self.require_storage_access(source_expr)?;
             return self.load_storage_object(ty, access.slot, expr.span);
         }
@@ -285,6 +278,62 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         });
         let value = source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, ty));
         Some(value)
+    }
+
+    /// Whether a value of type `ty` made from `source` copies a storage array or struct to memory.
+    pub(super) fn is_storage_object_copy(&self, source: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
+        !ty.is_ref_at(DataLocation::Storage)
+            && self.types.memory_layout(ty).is_some()
+            && self
+                .cx
+                .gcx
+                .type_of_expr(source.id)
+                .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
+    }
+
+    /// Lowers the operand `expr` of an ABI encoding that is not `bytes` or `string`, as the memory
+    /// type `ty`. A storage array or struct lowers to its slot, which
+    /// [`Self::resolve_abi_operands`] reads after the operands that follow, as solc does; any other
+    /// operand to its value, which `prepare` turns into the value to encode and its ABI type.
+    pub(super) fn lower_abi_operand(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+        prepare: impl FnOnce(&mut Self, ValueId) -> Option<(ValueId, AbiType)>,
+    ) -> Option<AbiOperand<'gcx>> {
+        let source = self.peel_bytes_conversion(expr);
+        if self.is_storage_object_copy(source, ty) {
+            let slot = self.require_storage_access(source)?.slot;
+            return Some(AbiOperand::Storage { slot, ty, span: expr.span });
+        }
+        let value = self.lower_typed_expr(expr, ty)?;
+        prepare(self, value).map(AbiOperand::Ready)
+    }
+
+    /// Reads the storage operands of an ABI encoding, after every operand was lowered.
+    pub(super) fn resolve_abi_operands(
+        &mut self,
+        operands: Vec<AbiOperand<'gcx>>,
+    ) -> Option<(Vec<ValueId>, Vec<AbiType>)> {
+        let operands = operands
+            .into_iter()
+            .map(|operand| self.resolve_abi_operand(operand))
+            .collect::<Option<Vec<_>>>()?;
+        Some(operands.into_iter().unzip())
+    }
+
+    pub(super) fn resolve_abi_operand(
+        &mut self,
+        operand: AbiOperand<'gcx>,
+    ) -> Option<(ValueId, AbiType)> {
+        match operand {
+            AbiOperand::Ready(operand) => Some(operand),
+            AbiOperand::Storage { slot, ty, span } => {
+                // object = load_storage_object(ty, slot)
+                let object = self.load_storage_object(ty, slot, span)?;
+                Some((object, Self::memory_abi_type(self.types.abi_type(ty)?)))
+            }
+        }
     }
 
     /// Lowers the `bytes` or `string` operand `expr` of an ABI encoding to the value its encoder
@@ -312,26 +361,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         argument: &hir::Expr<'_>,
         parameter_ty: Ty<'gcx>,
-    ) -> Option<(ValueId, AbiType)> {
+    ) -> Option<AbiOperand<'gcx>> {
         if self.is_dynamic_bytes_type(parameter_ty) {
             let (value, location) = self.lower_bytes_operand(argument, parameter_ty)?;
-            return self.prepare_abi_argument(
-                argument,
-                parameter_ty,
-                value,
-                AbiType::Bytes(location),
-            );
+            return self
+                .prepare_abi_argument(argument, parameter_ty, value, AbiType::Bytes(location))
+                .map(AbiOperand::Ready);
         }
-        let value = self.lower_typed_expr(argument, parameter_ty)?;
-        let abi_type = self.types.abi_type(parameter_ty)?;
-        let abi_type = if self.cx.gcx.type_of_expr(argument.id).is_some_and(|ty| {
-            ty.is_ref_at(DataLocation::Memory) || ty.is_ref_at(DataLocation::Storage)
-        }) {
-            Self::memory_abi_type(abi_type)
-        } else {
-            self.abi_type_for_value(value, abi_type)
-        };
-        self.prepare_abi_argument(argument, parameter_ty, value, abi_type)
+        self.lower_abi_operand(argument, parameter_ty, |this, value| {
+            let abi_type = this.types.abi_type(parameter_ty)?;
+            let abi_type = if this.cx.gcx.type_of_expr(argument.id).is_some_and(|ty| {
+                ty.is_ref_at(DataLocation::Memory) || ty.is_ref_at(DataLocation::Storage)
+            }) {
+                Self::memory_abi_type(abi_type)
+            } else {
+                this.abi_type_for_value(value, abi_type)
+            };
+            this.prepare_abi_argument(argument, parameter_ty, value, abi_type)
+        })
     }
 
     pub(super) fn prepare_abi_encode_argument(
@@ -789,9 +836,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 },
             }
         };
-        // if !valid(value) { revert(0, 0) }
-        let valid = validator.condition_once(&mut self.builder, value);
-        let invalid = self.builder.eq_zero(valid);
+        // if invalid(value) { revert(0, 0) }
+        let invalid = validator.violation(&mut self.builder, value);
         self.builder.revert_if(invalid, RevertReason::Empty);
         if is_external_function {
             // value = value >> 64

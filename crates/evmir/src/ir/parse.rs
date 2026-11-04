@@ -26,6 +26,7 @@ struct ParsedBlockHeader {
     function_invoke: Option<DebugFunction>,
     entry_depth: Option<u16>,
     call_effect: Option<CallEffect>,
+    entry_checkpoint: Option<DebugEntryCheckpoint>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -69,14 +70,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parse_program_body(&mut module)?;
         let tracks_debug_info = module.blocks.iter().any(|block| {
             block.metadata.function_invoke.is_some()
+                || block.metadata.entry_checkpoint.is_some()
                 || block.instructions.iter().any(|inst| {
                     inst.metadata.source_span().is_some()
+                        || !inst.metadata.checkpoint_transfers().is_empty()
                         || inst.metadata.function_invoke().is_some()
                         || inst.metadata.function_exit().is_some()
                         || inst.metadata.modifier_depth() != 0
                 })
                 || block.terminator.as_ref().is_some_and(|term| {
                     term.metadata.source_span().is_some()
+                        || !term.metadata.checkpoint_transfers().is_empty()
                         || term.metadata.function_invoke().is_some()
                         || term.metadata.function_exit().is_some()
                         || term.metadata.modifier_depth() != 0
@@ -86,14 +90,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             module.track_debug_info();
             for block in &mut module.blocks {
                 for instruction in &mut block.instructions {
-                    if !instruction.metadata.debug_info_is_handled() {
-                        instruction.metadata.mark_debug_info_dropped();
+                    if instruction.metadata.lacks_debug_location() {
+                        instruction.metadata.set_debug_loc_kind(DebugLocKind::Dropped);
                     }
                 }
                 if let Some(terminator) = &mut block.terminator
-                    && !terminator.metadata.debug_info_is_handled()
+                    && terminator.metadata.lacks_debug_location()
                 {
-                    terminator.metadata.mark_debug_info_dropped();
+                    terminator.metadata.set_debug_loc_kind(DebugLocKind::Dropped);
                 }
             }
         }
@@ -113,6 +117,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 module.blocks[block_id].metadata.function_invoke = header.function_invoke;
                 module.blocks[block_id].metadata.entry_depth = header.entry_depth;
                 module.blocks[block_id].metadata.call_effect = header.call_effect;
+                module.blocks[block_id].metadata.entry_checkpoint = header.entry_checkpoint;
                 current_block = Some(block_id);
                 continue;
             }
@@ -143,6 +148,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut ret = None;
         let mut inputs = None;
         let mut outputs = None;
+        let mut entry_checkpoint = None;
         while self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             loop {
                 if self.parser.eat_keyword(sym::cold) {
@@ -162,6 +168,32 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         identifier,
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
                     });
+                } else if self.parser.eat_keyword(sym::checkpoint) {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let (lo, hi) = self.parser.parse_span_bounds()?;
+                    self.parser.expect(TokenKind::At)?;
+                    let (from_lo, from_hi) = self.parser.parse_span_bounds()?;
+                    self.parser.expect(TokenKind::At)?;
+                    let depth = self.parser.parse_uint()?;
+                    let modifier_depth = u32::try_from(depth)
+                        .map_err(|_| self.parser.error("modifier depth does not fit in u32"))?;
+                    let checkpoint_invoke = if self.parser.eat(TokenKind::At) {
+                        let identifier = self.parser.parse_ident()?;
+                        self.parser.expect(TokenKind::At)?;
+                        let (lo, hi) = self.parser.parse_span_bounds()?;
+                        Some(DebugFunction {
+                            identifier,
+                            declaration: Span::new(BytePos(lo), BytePos(hi)),
+                        })
+                    } else {
+                        None
+                    };
+                    entry_checkpoint = Some(DebugEntryCheckpoint {
+                        source: Span::new(BytePos(lo), BytePos(hi)),
+                        transfer: Span::new(BytePos(from_lo), BytePos(from_hi)),
+                        modifier_depth,
+                        function_invoke: checkpoint_invoke,
+                    });
                 } else if self.parser.eat_keyword(sym::stack) {
                     self.parser.expect(TokenKind::Eq)?;
                     entry_depth = Some(self.parser.parse_uint_as()?);
@@ -176,8 +208,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     outputs = Some(self.parser.parse_uint_as()?);
                 } else {
                     return Err(self.parser.error(
-                        "expected `cold`, `loop`, `continuation`, `entry`, `invoke`, `stack`, `ret`, \
-                         `inputs`, or `outputs` block attribute",
+                        "expected `cold`, `loop`, `continuation`, `entry`, `invoke`, `checkpoint`, \
+                         `stack`, `ret`, `inputs`, or `outputs` block attribute",
                     ));
                 }
                 if !self.parser.eat(TokenKind::Comma) {
@@ -210,6 +242,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             function_invoke,
             entry_depth,
             call_effect,
+            entry_checkpoint,
         }))
     }
 
@@ -516,6 +549,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
                 metadata.set_source_spans(spans);
+            } else if key == sym::checkpoint {
+                self.parser.expect(TokenKind::Eq)?;
+                let (lo, hi) = self.parser.parse_span_bounds()?;
+                metadata.add_checkpoint_transfer(Span::new(BytePos(lo), BytePos(hi)));
             } else if key == sym::invoke {
                 self.parser.expect(TokenKind::Eq)?;
                 let identifier = self.parser.parse_ident()?;
@@ -541,6 +578,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 metadata.set_modifier_depth(self.parser.parse_uint_as()?);
             } else if key == sym::keep_with_next {
                 metadata.keep_with_next = true;
+            } else if key == sym::dropped {
+                metadata.set_debug_loc_kind(DebugLocKind::Dropped);
+            } else if key == sym::compiler_generated {
+                metadata.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
+            } else if key == sym::unknown {
+                metadata.set_debug_loc_kind(DebugLocKind::Unknown);
+            } else if key == sym::temporary {
+                metadata.set_debug_loc_kind(DebugLocKind::Temporary);
             } else if self.parser.eat(TokenKind::Eq) {
                 self.skip_metadata_value()?;
             }
@@ -551,8 +596,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             break;
         }
-        if !metadata.debug_info_is_handled() {
-            metadata.mark_debug_info_dropped();
+        if metadata.lacks_debug_location() {
+            metadata.set_debug_loc_kind(DebugLocKind::Dropped);
         }
         Ok(metadata)
     }

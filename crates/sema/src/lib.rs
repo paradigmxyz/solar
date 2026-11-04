@@ -9,7 +9,9 @@
 #[macro_use]
 extern crate tracing;
 
+use crate::span_visitor::SpanVisitor;
 use indexmap as _;
+use solar_ast::Visit;
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{
     BytePos, Result, Session,
@@ -79,8 +81,6 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     }
 
     if sess.opts.unstable.span_visitor {
-        use crate::span_visitor::SpanVisitor;
-        use ast::visit::Visit;
         for source in gcx.sources.asts() {
             let mut visitor = SpanVisitor::new(sess);
             let _ = visitor.visit_source_unit(source);

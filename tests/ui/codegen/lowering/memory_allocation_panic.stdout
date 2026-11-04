@@ -29,11 +29,10 @@ fn @makeArray(arg0: i256) -> i256 [selector=0x9510f212, pure, abi_params=[uint25
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = shr v7, 251
-    v11 = ne v10, 0
-    icall panic_if<0x41>, v11
-    v12 = alloc zeroed checked v9
-    mstore v12, arg0
-    v13 = mload v12
-    ret v13
+    v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = alloc zeroed checked v9
+    mstore v11, arg0
+    v12 = mload v11
+    ret v12
 }

@@ -236,8 +236,8 @@ fn split_guard(
         instructions.push(new_inst);
     }
     let condition = clone_value(caller, callee, &args, values, guard.condition);
-    let continuation = caller.alloc_block();
-    let call = caller.alloc_block();
+    let continuation = caller.alloc_block_like(block);
+    let call = caller.alloc_block_like(block);
     let (terminator, metadata) = caller.blocks[block].take_terminator();
     // continuation: suffix; original_terminator
     caller.blocks[continuation].instructions =
