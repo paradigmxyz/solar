@@ -776,10 +776,9 @@ fn swap(depth: usize) -> Instruction {
 /// only the first location applies.
 fn call_site_location(range: &[Instruction]) -> Metadata {
     let mut location = Metadata::default();
+    location.mark_debug_info_dropped();
     if let Some(first) = range.iter().find(|inst| inst.metadata.source_span().is_some()) {
         location.copy_source_debug_from(&first.metadata);
-    } else {
-        location.mark_debug_info_dropped();
     }
     location
 }
