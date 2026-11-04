@@ -1,6 +1,6 @@
-# Native pass plugins
+# Rust pass plugins
 
-Build a shared library, export `solar_pass_plugin_v1`, and load it into the
+Build a Rust shared library with the SDK and load it into the
 compiler with `-Zload-pass-plugin=/path/to/library`. Linux uses `.so`, macOS
 uses `.dylib`, and Windows uses `.dll`. Loading a library executes native code
 with the compiler's privileges; only load libraries you trust.
@@ -18,24 +18,33 @@ target/debug/solar -Ogas -Zload-pass-plugin=target/debug/libsolar_pass_plugin_ex
 The example in `tools/pass-plugin-example` exports a MIR `add x, 0`
 simplification and an EVM IR `NOT; NOT` elimination. It uses only this SDK,
 not compiler internals. Out-of-tree Rust plugins depend on `solar-pass-plugin`
-and build with `crate-type = ["cdylib"]`. C and C++ plugins use
-`include/solar_pass_plugin.h` and implement the same JSON protocol.
+and build with `crate-type = ["dylib"]`. The supported interface is Rust-only.
 
-The entry point receives a borrowed JSON request and a C response writer.
-It writes exactly one response before returning: JSON on success, or a
-diagnostic on failure. The host owns the copied response and unloads the
-library after the compilation. Calls into each library are serialized within
-one compilation. Separate compilations in an embedding process may call the
-same library concurrently; plugins must synchronize any shared global state.
-Pointers, allocations, Rust trait objects, and compiler objects never cross
-the boundary. The `dispatch` helper handles parsing and contains Rust panics
-when the plugin was built with panic unwinding.
+Implement `Plugin::manifest(&self) -> Manifest` and
+`Plugin::run(&self, request: &Request) -> Result<Response, String>`, then call
+`solar_pass_plugin::export_plugin!(MyPlugin)` for a unit struct. Stateful
+plugins use `export_plugin!(MyPlugin, MyPlugin::new())` with a constant
+initializer. The macro handles exports and contains plugin panics when built
+with unwinding. There are no byte buffers or JSON messages to implement.
 
-Registration starts with `{"action":"describe","api_version":1}`. Return a
-`Manifest` containing the same API version, a plugin name and version, and
-its pass definitions. Names use ASCII letters, digits, `_` and `-`; a pass
-is addressed as `plugin::pass`. Duplicates and incompatible APIs are errors.
-The public Rust types in `src/lib.rs` define version 1 of the wire schema.
+The Rust ABI has no stability guarantee. Build the plugin with the compiler's
+exact Rust toolchain, SDK source, target, profile, and Rust flags. A fingerprint
+covers these inputs; the loader compares it before calling the Rust entry
+point. Rebuild plugins when any of them changes. Randomized type layouts are
+unsupported. This is a compatibility check, not a security boundary.
+See the [Rust ABI reference](https://doc.rust-lang.org/reference/items/external-blocks.html#abi).
+
+The SDK lends requests from the host and responses from the plugin. The host
+clones responses before returning, so each side owns and frees its allocations.
+The library stays loaded until the compilation ends. Calls into each library
+are serialized within one compilation. Separate compilations in an embedding
+process may call the same library concurrently; plugins must synchronize any
+shared global state.
+
+The manifest contains the SDK's `API_VERSION`, a plugin name and version, and
+its pass definitions. Names use ASCII letters, digits, `_` and `-`; a pass is
+addressed as `plugin::pass`. Duplicate names and incompatible builds are errors.
+The public Rust types in `src/lib.rs` define the interface.
 
 Passes with `enabled_by_default` run when their library is loaded, even at
 `-O none`. Semantic MIR passes run before semantic optimization; lowered MIR
