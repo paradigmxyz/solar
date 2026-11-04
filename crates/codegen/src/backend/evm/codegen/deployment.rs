@@ -214,8 +214,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             && let Some(deployment_origins) = deployment_origins
         {
             scheduled_origins.extend(deployment_origins);
-            let name = module.name.name;
-            if mir_origins.check(self.gcx, "EVM IR", name, "stackify", scheduled_origins).is_err() {
+            if mir_origins
+                .check(self.gcx, "EVM IR", module.name.name, "stackify", scheduled_origins)
+                .is_err()
+            {
                 return EvmArtifact::default();
             }
         }

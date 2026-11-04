@@ -169,7 +169,6 @@ pub(in crate::backend) struct OptimizedProgram {
 }
 
 /// A program as stack scheduling emitted it, before the EVM IR pipeline.
-#[derive(Default)]
 pub(in crate::backend) struct ScheduledProgram {
     /// A copy of the program, when captured.
     pub(in crate::backend) evm_ir: Option<ir::Module>,
