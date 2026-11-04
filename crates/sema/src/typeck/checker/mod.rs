@@ -3,8 +3,8 @@ use crate::{
     eval::EvalErrorKind,
     hir::{self, Visit},
     ty::{
-        CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
-        TypeckResults,
+        CallableParamSource, ExprFlags, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind,
+        TyKind, TypeckResults,
     },
     typeck::Unit,
 };
@@ -698,7 +698,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 if self.results.builtin_callee(callee.id) != Some(Builtin::ArrayPush0) {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
                 } else if self.record_ast_facts {
-                    self.results.ast.lvalues.insert(expr.id);
+                    self.mark_lvalue(expr.id);
                 }
 
                 ty
@@ -767,7 +767,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         && ty.loc() != Some(DataLocation::Calldata)
                         && !ty.peel_refs().is_fixed_bytes()
                     {
-                        self.results.ast.lvalues.insert(expr.id);
+                        self.mark_lvalue(expr.id);
                     }
                     // Index expression.
                     if let Some(index) = index {
@@ -914,7 +914,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 match not_lvalue_reason {
                     Some(reason) => self.try_set_not_lvalue(reason),
                     None if self.record_ast_facts => {
-                        self.results.ast.lvalues.insert(expr.id);
+                        self.mark_lvalue(expr.id);
                     }
                     None => {}
                 }
@@ -2649,7 +2649,7 @@ impl<'gcx> TypeChecker<'gcx> {
         if self.record_ast_facts
             && self.member_not_lvalue_reason(receiver_ty, &possible_members).is_none()
         {
-            self.results.ast.lvalues.insert(callee.id);
+            self.mark_lvalue(callee.id);
         }
 
         let ty = match self.select_member_call_overload(receiver_ty, &possible_members, args) {
@@ -3946,17 +3946,23 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    /// Records that the expression is an lvalue, for the AST JSON.
+    fn mark_lvalue(&mut self, id: hir::ExprId) {
+        self.results.ast.exprs.update(id, |flags| flags.insert(ExprFlags::LVALUE));
+    }
+
     /// Records whether the expression is pure and an lvalue, for the AST JSON.
     ///
     /// Its operands are recorded already, since they are checked first.
     fn record_expr_facts(&mut self, expr: &'gcx hir::Expr<'gcx>) {
         // solc does not treat a tuple that is written to as pure.
         let written_tuple = self.in_lvalue() && matches!(expr.kind, hir::ExprKind::Tuple(_));
-        if written_tuple {
-            self.results.ast.lvalues.insert(expr.id);
-        }
         let pure = !written_tuple && self.results.is_pure(self.gcx, expr);
-        self.results.ast.pure.insert(expr.id, pure);
+        self.results.ast.exprs.update(expr.id, |flags| {
+            flags.insert(if pure { ExprFlags::PURE } else { ExprFlags::IMPURE });
+            // A tuple that is written to is an lvalue.
+            flags.set(ExprFlags::LVALUE, written_tuple || flags.contains(ExprFlags::LVALUE));
+        });
     }
 
     /// Returns whether `expr` uses a user-defined value type operator that the

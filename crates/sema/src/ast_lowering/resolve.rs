@@ -49,7 +49,10 @@ impl super::LoweringContext<'_> {
                         let decl = Declaration {
                             res: Res::Namespace(import_id),
                             span: alias.span,
-                            import: Some(ImportDirective { source: source_id, position }),
+                            import: Some(ImportDirective {
+                                source: source_id,
+                                position: position as u32,
+                            }),
                         };
                         let _ = self.declare_in(&mut scope, alias.name, decl);
                     }
@@ -2731,7 +2734,7 @@ pub(crate) struct Declaration {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ImportDirective {
     pub(crate) source: hir::SourceId,
-    pub(crate) position: usize,
+    pub(crate) position: u32,
 }
 
 impl std::ops::Deref for Declaration {

@@ -136,14 +136,10 @@ fn merge_typeck_results<'gcx>(
     let mut expr_types = Vec::with_capacity(results.len());
     let mut resolved_exprs = Vec::with_capacity(results.len());
     let mut resolved_callees = Vec::with_capacity(results.len());
-    let mut pure = Vec::with_capacity(results.len());
-    let mut solc_tys = Vec::with_capacity(results.len());
+    let mut exprs = Vec::with_capacity(results.len());
     for new_results in results {
-        pure.push(new_results.ast.pure);
-        solc_tys.push(new_results.ast.solc_tys);
-        for id in new_results.ast.lvalues.iter() {
-            merged.ast.lvalues.insert(id);
-        }
+        exprs.push(new_results.ast.exprs);
+        merged.ast.solc_tys.extend(new_results.ast.solc_tys);
         merged.ast.simple_counter_loops.extend(new_results.ast.simple_counter_loops);
         merged.ast.yul_references.extend(new_results.ast.yul_references);
         expr_types.push(new_results.expr_types);
@@ -174,9 +170,8 @@ fn merge_typeck_results<'gcx>(
             .emit();
     });
     merged.ast.yul_references.sort_unstable_by_key(|r| r.span.lo());
-    // Each unit records the expressions it checks, so no expression has two records.
-    merged.ast.pure = ExprMap::merge(pure, |_, _, _| {});
-    merged.ast.solc_tys = ExprMap::merge(solc_tys, |_, _, _| {});
+    // Each unit records the expressions it checks, and an expression is checked once.
+    merged.ast.exprs = ExprMap::merge(exprs, |_, _, _| {});
     merged.resolved_callees = ExprMap::merge(resolved_callees, |id, prev_res, res| {
         gcx.dcx()
             .bug(format!(

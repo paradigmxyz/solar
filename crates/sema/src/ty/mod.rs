@@ -110,18 +110,29 @@ pub struct TypeckResults<'gcx> {
 /// What type checking records for the AST JSON, so that the writer never works it out again.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct AstFacts<'gcx> {
-    /// Whether each expression is pure.
-    pub(crate) pure: ExprMap<bool>,
-    /// The expressions that are lvalues, in solc's sense.
-    pub(crate) lvalues: GrowableBitSet<hir::ExprId>,
+    /// What is known of each expression.
+    pub(crate) exprs: ExprMap<ExprFlags>,
     /// The type solc gives an expression where it differs from the type of type checking: the
     /// memory array of the common mobile type of an inline array, and the common type of the
     /// operands of a comparison or a logical operation.
-    pub(crate) solc_tys: ExprMap<Ty<'gcx>>,
+    pub(crate) solc_tys: FxHashMap<hir::ExprId, Ty<'gcx>>,
     /// The conditions of the `for` loops whose counter cannot overflow, in solc's sense.
     pub(crate) simple_counter_loops: FxHashSet<hir::ExprId>,
     /// The Yul identifiers that name a variable, with their suffix, ordered by position.
     pub(crate) yul_references: Vec<YulReference>,
+}
+
+bitflags::bitflags! {
+    /// What type checking knows of an expression, for the AST JSON.
+    #[derive(Clone, Copy, Debug, Default)]
+    pub(crate) struct ExprFlags: u8 {
+        /// The expression is pure.
+        const PURE = 1 << 0;
+        /// The expression is not pure.
+        const IMPURE = 1 << 1;
+        /// The expression is an lvalue, in solc's sense.
+        const LVALUE = 1 << 2;
+    }
 }
 
 /// A Yul identifier that names a variable, such as `x` or `x.slot`.
@@ -237,7 +248,7 @@ impl<'gcx> TypeckResults<'gcx> {
     /// Returns whether the expression is an lvalue, if the ASTs are kept.
     #[inline]
     pub fn is_lvalue(&self, id: hir::ExprId) -> bool {
-        self.ast.lvalues.contains(id)
+        self.ast.exprs.get(&id).is_some_and(|flags| flags.contains(ExprFlags::LVALUE))
     }
 
     /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`],

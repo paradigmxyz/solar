@@ -1,7 +1,7 @@
 use crate::{
     builtins::Builtin,
     hir,
-    ty::{Gcx, Ty, TyKind, TypeckResults},
+    ty::{ExprFlags, Gcx, Ty, TyKind, TypeckResults},
 };
 use solar_ast::ElementaryType;
 use solar_interface::{Ident, sym};
@@ -12,8 +12,13 @@ impl<'gcx> TypeckResults<'gcx> {
     /// Expressions without a type or with an erroneous type count as pure to avoid follow-up
     /// errors.
     pub(crate) fn is_pure(&self, gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> bool {
-        if let Some(&pure) = self.ast.pure.get(&expr.id) {
-            return pure;
+        if let Some(flags) = self.ast.exprs.get(&expr.id) {
+            if flags.contains(ExprFlags::PURE) {
+                return true;
+            }
+            if flags.contains(ExprFlags::IMPURE) {
+                return false;
+            }
         }
         let Some(ty) = self.type_of_expr(expr.id) else {
             // The type tuple of `abi.decode` has no type of its own, but its components do.

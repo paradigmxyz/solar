@@ -146,31 +146,35 @@ impl Serialize for ExprType<'_, '_, '_> {
         let Self { cx, expr, args } = *self;
         let gcx = cx.gcx;
         let Some(mut ty) = expr_ty(gcx, expr) else { return Empty.serialize(s) };
-        // The call of an error has the magic type `error`.
         if let hir::ExprKind::Call(callee, _) = expr.peel_parens().kind
-            && matches!(gcx.type_of_expr(callee.id), Some(ty) if matches!(ty.kind, TyKind::Error(..)))
-        {
-            let mut m = s.serialize_map(Some(2))?;
-            m.serialize_entry("typeIdentifier", "t_error")?;
-            m.serialize_entry("typeString", "error")?;
-            return m.end();
-        }
-        // Before Byzantium, the dynamically encoded value of an external call has no size to read.
-        if let hir::ExprKind::Call(callee, _) = expr.peel_parens().kind
-            && !gcx.sess.opts.evm_version.supports_returndata()
             && let Some(callee_ty) = gcx.type_of_expr(callee.id)
-            && let TyKind::Fn(f) = callee_ty.kind
-            && matches!(f.kind, TyFnKind::External | TyFnKind::DelegateCall)
-            && let [ret] = f.returns
-            && !ret.encodes_as_slot()
-            && ret.is_dynamically_encoded(gcx)
         {
-            let mut m = s.serialize_map(Some(2))?;
-            m.serialize_entry("typeIdentifier", "t_inaccessible")?;
-            m.serialize_entry("typeString", "inaccessible dynamic type")?;
-            return m.end();
+            // The call of an error has the magic type `error`.
+            if matches!(callee_ty.kind, TyKind::Error(..)) {
+                let mut m = s.serialize_map(Some(2))?;
+                m.serialize_entry("typeIdentifier", "t_error")?;
+                m.serialize_entry("typeString", "error")?;
+                return m.end();
+            }
+            // Before Byzantium, the dynamically encoded value of an external call has no size to
+            // read.
+            if !gcx.sess.opts.evm_version.supports_returndata()
+                && let TyKind::Fn(f) = callee_ty.kind
+                && matches!(f.kind, TyFnKind::External | TyFnKind::DelegateCall)
+                && let [ret] = f.returns
+                && !ret.encodes_as_slot()
+                && ret.is_dynamically_encoded(gcx)
+            {
+                let mut m = s.serialize_map(Some(2))?;
+                m.serialize_entry("typeIdentifier", "t_inaccessible")?;
+                m.serialize_entry("typeString", "inaccessible dynamic type")?;
+                return m.end();
+            }
         }
-        let builtin = gcx.resolved_expr(expr.peel_parens()).and_then(|res| res.as_builtin());
+        // Only a function has a builtin that decides its type.
+        let builtin = matches!(ty.kind, TyKind::Fn(_))
+            .then(|| gcx.resolved_expr(expr.peel_parens()).and_then(|res| res.as_builtin()))
+            .flatten();
         if let TyKind::Fn(f) = ty.kind {
             // solc gives an attached function the receiver as its first parameter, and `require`
             // the type of its message.
@@ -235,7 +239,9 @@ impl Serialize for ExprType<'_, '_, '_> {
             gcx,
             cache: cx.json.types.as_ref(),
             ty,
-            pointer: is_pointer(gcx, expr),
+            // The pointer only marks the references, which the types of a function do not have.
+            pointer: !(ty.is_value_type() && !matches!(ty.kind, TyKind::Fn(_)))
+                && is_pointer(gcx, expr),
             expr: true,
             literal,
             components,

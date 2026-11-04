@@ -325,7 +325,7 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
     /// Returns the ID of the import directive that declares a module alias.
     fn import_id(self, declaration: &Declaration) -> Option<usize> {
         let import = declaration.import?;
-        Some(self.json.first_imports[import.source] + import.position)
+        Some(self.json.first_imports[import.source] + import.position as usize)
     }
 
     /// Returns the ID of the import directive that declares the module alias `alias` of `source`
