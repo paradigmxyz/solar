@@ -316,7 +316,7 @@ fn tail_call_thunk_chain_keeps_call_site() {
 }
 
 #[test]
-fn state_initializers_map_to_their_declaration() {
+fn state_initializers_and_base_arguments_map_to_their_source() {
     let source =
         RealFileLoader.load_file(&Path::new(FIXTURES).join("src/Initializers.sol")).unwrap();
     let compile = |mode: &str, outputs: &str| {
@@ -351,6 +351,17 @@ fn state_initializers_map_to_their_declaration() {
                 "{mode}: no creation code maps to `{declaration}`"
             );
         }
+        let entries = source_entries(
+            debug["contracts"]["src/Initializers.sol:Derived"]["srcmap"].as_str().unwrap(),
+        );
+        let arguments = "(\"base label\")";
+        let start = source.find(arguments).unwrap();
+        assert!(
+            entries
+                .iter()
+                .any(|&entry| entry[0] == start as i64 && entry[1] == arguments.len() as i64),
+            "{mode}: no creation code maps to the base constructor arguments"
+        );
     }
 }
 

@@ -12,3 +12,13 @@ contract Initializers {
         return (stored, packed, text, limit, narrow);
     }
 }
+
+contract Base {
+    string public label;
+
+    constructor(string memory label_) {
+        label = label_;
+    }
+}
+
+contract Derived is Base("base label") {}

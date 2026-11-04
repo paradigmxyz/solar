@@ -128,6 +128,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             };
             let constructor = self.cx.gcx.hir.function(constructor_id);
+            // Map the argument evaluation, including its conversions, to the argument list.
+            let previous = self.builder.replace_source_span(args.span);
             if args.len() != constructor.parameters.len() {
                 return self
                     .cx
@@ -162,6 +164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // they stay live for the rest of the constructor.
             self.bind_inlined_parameters(constructor.parameters, &values);
             self.prepared_constructors.insert(constructor_id);
+            self.builder.replace_source_span(previous);
         }
         Some(())
     }
