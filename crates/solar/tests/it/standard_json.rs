@@ -374,14 +374,17 @@ fn compact_output_keeps_contract_order() {
 }
 
 /// The AST JSON reuses written type descriptions in compact output only, so both outputs must
-/// hold the same values.
+/// hold the same values, for every kind of type the sources of the AST test have.
 #[test]
 fn ast_json_matches_when_pretty() {
-    let source = "contract C { uint256 a; function f(uint256 x) public pure returns (uint256) { \
-                  uint256 y = x + 1; return y + x; } }";
+    let sources = json!({
+        "A.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/A.sol")},
+        "B.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/B.sol")},
+        "C.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/C.sol")},
+    });
     let input = json!({
         "language": "Solidity",
-        "sources": {"C.sol": {"content": source}},
+        "sources": sources,
         "settings": {"outputSelection": {"*": {"": ["ast"]}}}
     });
     let compile = |pretty_json| {
@@ -391,6 +394,6 @@ fn ast_json_matches_when_pretty() {
         serde_json::from_slice::<Value>(&output).unwrap()
     };
     let compact = compile(false);
-    assert!(compact["sources"]["C.sol"]["ast"]["nodes"][0]["nodes"].as_array().is_some());
+    assert!(compact["sources"]["A.sol"]["ast"]["nodes"].as_array().is_some_and(|n| !n.is_empty()));
     assert_eq!(compact, compile(true));
 }

@@ -76,6 +76,8 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     dcx.emit_deferred(event_error_diagnostics);
     dcx.emit_deferred(unit_diagnostics);
     dcx.emit_deferred(contract_diagnostics);
+    // The writer finds the references of an assembly block by position.
+    typeck_results.ast.yul_references.sort_unstable_by_key(|r| r.span.lo());
     gcx.set_typeck_results(typeck_results);
     // solc's `PostTypeChecker` runs when type checking succeeds, and its own errors do not stop
     // its constant cycle check.
@@ -169,7 +171,6 @@ fn merge_typeck_results<'gcx>(
             ))
             .emit();
     });
-    merged.ast.yul_references.sort_unstable_by_key(|r| r.span.lo());
     // Each unit records the expressions it checks, and an expression is checked once.
     merged.ast.exprs = (!exprs.is_empty()).then(|| ExprMap::merge(exprs, |_, _, _| {}));
     merged.resolved_callees = ExprMap::merge(resolved_callees, |id, prev_res, res| {

@@ -553,13 +553,13 @@ Standard JSON and `--emit=ast`). Node IDs do not follow the numbering of
 ETHDebug report, source units and imports follow them, and every other node
 takes the next free ID. `internalFunctionIDs` numbers the functions that
 function values reach by source name and position, as `solc` numbers its nodes.
-`solar` leaves out the `EnumValue` documentation, which
-its AST does not keep, and reads `contractDependencies`, `usedEvents` and `usedErrors` from the
-call graph used for code generation. The source index in a `src` and the `id` of
-a source follow the order of the sources after sorting them by their imports,
-where `solc` sorts them by name, and the IDs of the nodes that are no items
-depend on the order in which the sources are written. `solar` includes a comment
-between a variable and its `;` in the location of the variable.
+`solar` leaves out the `EnumValue` documentation, which its AST does not keep, and reads
+`contractDependencies`, `usedEvents` and `usedErrors` from the call graph used for
+code generation. The source index in a `src` and the `id` of a source follow the
+order of the sources after sorting them by their imports, where `solc` sorts them
+by name, and the IDs of the nodes that are no items depend on the order in which
+the sources are written. `solar` includes a comment between a variable and its `;`
+in the location of the variable.
 
 The attributes of expressions come from the type checker, and differ in these
 cases:

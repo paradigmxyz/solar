@@ -235,16 +235,17 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         self.graph.internal_dispatch_targets.insert(function);
     }
 
-    fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>) -> bool {
+    /// Collects what a call of `callee` reaches, and returns the function it calls directly.
+    fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>) -> Option<hir::FunctionId> {
         if let Some(function) = self.gcx.internal_call_target(Some(self.contract), callee) {
             let named = self.gcx.internal_call_target(None, callee).expect("the call names it");
             self.enqueue_dispatched(named, function);
-            return true;
+            return Some(function);
         }
         if let Some(TyKind::Error(_, error)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind) {
             self.graph.errors.insert(error);
         }
-        false
+        None
     }
 
     fn collect_function_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {
@@ -313,11 +314,11 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
         }
 
         if let Some((callee, args, options)) = expr.as_call() {
-            let direct = self.collect_call(callee);
+            let target = self.collect_call(callee);
+            let direct = target.is_some();
             // Lowering drops the parentheses of a callee, which leaves it starting after its call.
-            if direct
+            if let Some(function) = target
                 && callee.span.lo() > expr.span.lo()
-                && let Some(function) = self.gcx.internal_call_target(Some(self.contract), callee)
             {
                 self.graph.parenthesized_targets.push(function);
             }

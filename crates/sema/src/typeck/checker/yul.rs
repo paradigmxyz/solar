@@ -1,7 +1,7 @@
 use super::TypeChecker;
 use crate::{
     hir,
-    ty::{Ty, TyKind, YulReference},
+    ty::{Ty, TyKind},
     typeck::constant_cycles::MAX_DEPTH,
 };
 use alloy_primitives::U256;
@@ -203,16 +203,6 @@ impl<'gcx> TypeChecker<'gcx> {
             id = next;
         }
         false
-    }
-
-    /// Records a Yul identifier that names a variable, for the AST JSON.
-    pub(super) fn record_yul_reference(
-        &mut self,
-        span: Span,
-        suffix: Option<Symbol>,
-        declaration: hir::VariableId,
-    ) {
-        self.results.ast.yul_references.push(YulReference { span, suffix, declaration });
     }
 
     pub(super) fn check_yul_member(

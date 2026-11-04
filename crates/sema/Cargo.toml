@@ -48,7 +48,6 @@ serde_json = { workspace = true, features = ["raw_value"] }
 
 [dev-dependencies]
 snapbox.workspace = true
-serde_json.workspace = true
 
 [features]
 nightly = [
