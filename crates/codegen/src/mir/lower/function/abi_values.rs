@@ -911,14 +911,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
         let values = self.builtin_args::<4>(Builtin::EcRecover, &args)?;
-        let hash = &values[0];
-        let v = &values[1];
-        let r = &values[2];
-        let s = &values[3];
-        let hash = self.lower_expr(hash)?;
-        let v = self.lower_expr(v)?;
-        let r = self.lower_expr(r)?;
-        let s = self.lower_expr(s)?;
+        // The precompile reads whole words, so a narrow `v` must be cleaned like any other
+        // Solidity-level read: an assembly-assigned `uint8` may carry dirty high bits.
+        let word_ty = self.cx.gcx.types.fixed_bytes(32);
+        let v_ty = self.cx.gcx.types.uint(8);
+        let mut lower = |expr, ty| {
+            let value = self.lower_typed_expr(expr, ty)?;
+            Some(self.canonicalize_abi_value(ty, value))
+        };
+        let hash = lower(&values[0], word_ty)?;
+        let v = lower(&values[1], v_ty)?;
+        let r = lower(&values[2], word_ty)?;
+        let s = lower(&values[3], word_ty)?;
 
         // result = ecrecover(hash, v, r, s)
         Some(self.builder.emit_inst(
