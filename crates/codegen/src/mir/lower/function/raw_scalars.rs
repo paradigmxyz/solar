@@ -254,13 +254,20 @@ impl<'gcx> Exposure<'gcx> {
         }
     }
 
-    /// Records the arguments of a modifier or base constructor invocation, which lowering binds
-    /// by parameter name when they are named.
-    fn connect_arguments(&mut self, id: hir::FunctionId, args: hir::CallArgs<'_>) {
-        let names = self
-            .gcx
-            .callable_param_names(CallableParamSource::Function { id, skips_receiver: false });
-        for (index, &parameter) in self.gcx.hir.function(id).parameters.iter().enumerate() {
+    /// Records the arguments of a modifier or base constructor invocation. Named arguments bind
+    /// by the parameter names of the invoked declaration, and the values reach the parameters of
+    /// `target`, the implementation that runs, by index.
+    fn connect_arguments(
+        &mut self,
+        declared: hir::FunctionId,
+        target: hir::FunctionId,
+        args: hir::CallArgs<'_>,
+    ) {
+        let names = self.gcx.callable_param_names(CallableParamSource::Function {
+            id: declared,
+            skips_receiver: false,
+        });
+        for (index, &parameter) in self.gcx.hir.function(target).parameters.iter().enumerate() {
             if let Some(argument) = args.argument_for_parameter(index, Some(&names)) {
                 self.connect(&[parameter], argument);
             }
@@ -385,10 +392,12 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
         if let hir::ItemId::Contract(base) = modifier.id
             && let Some(constructor) = self.gcx.hir.contract(base).ctor
         {
-            self.connect_arguments(constructor, modifier.args);
+            self.connect_arguments(constructor, constructor, modifier.args);
         }
-        if let Some(id) = self.gcx.resolve_modifier_target(self.contract, modifier) {
-            self.connect_arguments(id, modifier.args);
+        if let hir::ItemId::Function(declared) = modifier.id
+            && let Some(id) = self.gcx.resolve_modifier_target(self.contract, modifier)
+        {
+            self.connect_arguments(declared, id, modifier.args);
             if self.visited.insert(id) {
                 self.walk_function(self.gcx.hir.function(id))?;
             }
