@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::{
-    link::{display_data_ref, display_data_size, display_declarations},
+    link::{display_data_ref, display_data_size, display_declarations, display_u256},
     op,
 };
 use solar_data_structures::fmt::FmtIteratorExt;
@@ -38,6 +38,9 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         }
         if metadata.is_continuation {
             attributes.push("continuation".to_string());
+        }
+        if metadata.external_entry {
+            attributes.push("entry".to_string());
         }
         if !module.hide_debug_info
             && let Some(function) = metadata.function_invoke
@@ -240,16 +243,4 @@ fn display_push_value<'a>(module: &'a Module, value: &'a PushValue) -> impl fmt:
 
 fn display_block_id(module: &Module, block: BlockId) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| write!(f, "bb{}", module.blocks[block].label))
-}
-
-fn display_u256(value: U256) -> impl fmt::Display {
-    fmt::from_fn(move |f| {
-        if let Ok(value) = u64::try_from(value)
-            && value < 1000
-        {
-            write!(f, "{value}")
-        } else {
-            write!(f, "{value:#x}")
-        }
-    })
 }

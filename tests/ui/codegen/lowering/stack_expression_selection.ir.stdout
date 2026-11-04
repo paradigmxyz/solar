@@ -70,7 +70,7 @@ bb2:
   push 0
   push 0
   revert
-bb11:                                             ; function sharedXor(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x1a49b55c]
+bb11 [entry]:                                     ; function sharedXor(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x1a49b55c]
   push 68
   calldatasize
   lt
@@ -98,7 +98,7 @@ bb34:
   push 96
   push 0
   return
-bb14:                                             ; function sharedReverse(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x8552b9c1]
+bb14 [entry]:                                     ; function sharedReverse(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x8552b9c1]
   push 68
   calldatasize
   lt
@@ -112,7 +112,7 @@ bb14:                                             ; function sharedReverse(uint2
   dup 2
   sub
   jump bb34
-bb17:                                             ; function sharedDifference(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x10fe2b84]
+bb17 [entry]:                                     ; function sharedDifference(uint256 a, uint256 b) public pure returns (uint256 d, uint256 next, bool equal) [selector 0x10fe2b84]
   push 68
   calldatasize
   lt
@@ -126,7 +126,7 @@ bb17:                                             ; function sharedDifference(ui
   dup 3
   sub
   jump bb34
-bb20:                                             ; function difference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0xa95cb7f7]
+bb20 [entry]:                                     ; function difference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0xa95cb7f7]
   calldatasize
   push 68
   gt
@@ -147,7 +147,7 @@ bb20:                                             ; function difference(uint256 
   push 64
   push 0
   return
-bb23:                                             ; function reverseDifference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0x132a45fc]
+bb23 [entry]:                                     ; function reverseDifference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0x132a45fc]
   calldatasize
   push 68
   gt
@@ -168,7 +168,7 @@ bb23:                                             ; function reverseDifference(u
   push 64
   push 0
   return
-bb26:                                             ; function xorDifference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0x30ca6808]
+bb26 [entry]:                                     ; function xorDifference(uint256 a, uint256 b) public pure returns (uint256 d, bool equal) [selector 0x30ca6808]
   calldatasize
   push 68
   gt
@@ -189,7 +189,7 @@ bb26:                                             ; function xorDifference(uint2
   push 64
   push 0
   return
-bb29 [loop]:                                      ; function loop(uint256 n) public pure returns (uint256 result) [selector 0x0b7d796e]
+bb29 [loop, entry]:                               ; function loop(uint256 n) public pure returns (uint256 result) [selector 0x0b7d796e]
   push 36
   calldatasize
   lt

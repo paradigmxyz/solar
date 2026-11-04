@@ -14,6 +14,7 @@ use solar_data_structures::{
     fmt::FmtIteratorExt,
     map::{FxHashMap, FxHashSet},
 };
+use solar_ir::link::display_u256;
 use std::fmt;
 
 /// Displays a DOT format CFG for a function.
@@ -580,11 +581,15 @@ fn display_inst_kind<'a>(
                     super::PackedPart::Scalar { value, ty } => {
                         write!(f, "{ty} {}", display_val(*value, func))?
                     }
-                    super::PackedPart::Bytes(value) => {
-                        write!(f, "bytes {}", display_val(*value, func))?
+                    super::PackedPart::Bytes { value, location } => {
+                        write!(f, "{location}_bytes {}", display_val(*value, func))?
                     }
-                    super::PackedPart::Array { value, element, source } => {
-                        write!(f, "array<{element}> ")?;
+                    super::PackedPart::Array { value, element, source, wordwise } => {
+                        write!(
+                            f,
+                            "array<{element}{}> ",
+                            if *wordwise { ", wordwise" } else { "" }
+                        )?;
                         match source {
                             super::PackedArraySource::Memory { layout } => write!(f, "{layout}")?,
                             super::PackedArraySource::Slice(location) => write!(f, "{location}")?,
@@ -640,12 +645,15 @@ fn display_inst_kind<'a>(
             }
             Ok(())
         }
-        InstKind::AbiEncode { mode, selector, args, layout } => {
+        InstKind::AbiEncode { mode, base, selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
             match mode {
                 super::AbiEncodeMode::Slice => {}
                 super::AbiEncodeMode::Bytes => write!(f, ", object")?,
                 super::AbiEncodeMode::Scratch => write!(f, ", scratch")?,
+            }
+            if let Some(base) = base {
+                write!(f, ", base {}", display_val(*base, func))?;
             }
             if let Some(selector) = selector {
                 write!(f, ", selector {}", display_val(*selector, func))?;
@@ -789,18 +797,6 @@ fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
         Value::Error(_) => write!(f, "err"),
         Value::Undef(ty) => write!(f, "undef {ty}"),
         Value::Immediate(_) => unreachable!("immediate has an integer payload"),
-    })
-}
-
-fn display_u256(value: alloy_primitives::U256) -> impl fmt::Display {
-    fmt::from_fn(move |f| {
-        if let Ok(x) = u64::try_from(value)
-            && x < 1000
-        {
-            write!(f, "{x}")
-        } else {
-            write!(f, "{value:#x}")
-        }
     })
 }
 

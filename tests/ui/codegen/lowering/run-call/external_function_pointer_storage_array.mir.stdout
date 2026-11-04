@@ -3,18 +3,16 @@
 ; function a() external [selector 0x0dbe671f]
 fn @a() [selector=0x0dbe671f, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = load_storage_bytes 0
-    v1 = abi_encode_packed (bytes v0, data hex"5b612063616c6c65645d")
-    icall @store_storage_bytes, 0, v1
+    v0 = abi_encode_packed (storage_bytes 0, data hex"5b612063616c6c65645d")
+    icall @store_storage_bytes, 0, v0
     ret
 }
 
 ; function b() external [selector 0x4df7e3d0]
 fn @b() [selector=0x4df7e3d0, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = load_storage_bytes 0
-    v1 = abi_encode_packed (bytes v0, data hex"5b622063616c6c65645d")
-    icall @store_storage_bytes, 0, v1
+    v0 = abi_encode_packed (storage_bytes 0, data hex"5b622063616c6c65645d")
+    icall @store_storage_bytes, 0, v0
     ret
 }
 
@@ -221,7 +219,7 @@ fn @runAll() -> ptr<memory> [selector=0x34ba89a6, abi_params=[], abi_returns=[me
   bb12:                                           ; preds = bb10
     v91 = address
     v92 = gas
-    v93 = abi_encode [memory_array<function>], selector 0x6aabe1c400000000000000000000000000000000000000000000000000000000, args v0
+    v93 = abi_encode [memory_array<function>], scratch, selector 0x6aabe1c400000000000000000000000000000000000000000000000000000000, args v0
     v94 = extract_value slice<memory>, v93, 0
     v95 = extract_value slice<memory>, v93, 1
     v96 = zext i160 v91 to i256

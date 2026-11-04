@@ -306,6 +306,12 @@ impl Block {
     pub fn runs_once(&self) -> bool {
         !self.metadata.in_loop && !self.metadata.repeats
     }
+
+    /// Whether the block holds hot code of a loop.
+    #[must_use]
+    pub fn in_hot_loop(&self) -> bool {
+        self.metadata.in_loop && !self.metadata.hotness.is_cold()
+    }
 }
 
 /// Block-level metadata.
@@ -328,6 +334,10 @@ pub struct BlockMetadata {
     /// equivalent continuation, unlike ordinary address-taken labels whose identity is opaque.
     /// This is an executable-code property, independent of optional debug information.
     pub is_continuation: bool,
+    /// The runtime dispatch jumps to this block to run one external function. A call runs at
+    /// most one such function, so code that only one entry reaches does not run in the same call
+    /// as code that only another reaches.
+    pub external_entry: bool,
     /// Source function entered by this block's leading `JUMPDEST`.
     pub function_invoke: Option<DebugFunction>,
     /// Stack depth at which verification enters this block, in addition to its modeled edges.

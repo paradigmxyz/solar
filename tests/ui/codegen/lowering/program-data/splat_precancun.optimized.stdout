@@ -143,7 +143,7 @@ bb6 [cold]:
   returndatasize
   returndatasize
   revert
-bb7:                                              ; function hash() external pure returns (bytes32) [selector 0x09bd5a60]
+bb7 [entry]:                                      ; function hash() external pure returns (bytes32) [selector 0x09bd5a60]
   push bb8
   jump bb16
 bb16 [ret=0, inputs=1, outputs=1]:                ; function data() internal pure returns (bytes memory)
@@ -181,7 +181,7 @@ bb17 [loop]:
   push 32
   returndatasize
   return
-bb9:                                              ; function paddingIsZero() external pure returns (bool result) [selector 0x06793283]
+bb9 [entry]:                                      ; function paddingIsZero() external pure returns (bool result) [selector 0x06793283]
   push bb10
   jump bb16
 bb10 [continuation]:
@@ -196,7 +196,7 @@ bb10 [continuation]:
   shr
   iszero
   jump bb17
-bb11:                                             ; function shortHash() external pure returns (bytes32) [selector 0x0c6b2786]
+bb11 [entry]:                                     ; function shortHash() external pure returns (bytes32) [selector 0x0c6b2786]
   push bb20
   push 128
   jump bb19
@@ -209,7 +209,7 @@ bb19 [ret=1, inputs=2, outputs=3]:
   swap 2
   swap 3
   jump
-bb12:                                             ; function fullWordsHash() external pure returns (bytes32) [selector 0x58653188]
+bb12 [entry]:                                     ; function fullWordsHash() external pure returns (bytes32) [selector 0x58653188]
   push 128
   dup 1
   add

@@ -55,7 +55,7 @@ bb10 [cold]:
   push 36
   push 28
   revert
-bb7:                                              ; function get(uint256 x) external pure returns (Data memory) [selector 0x9507d39a]
+bb7 [entry]:                                      ; function get(uint256 x) external pure returns (Data memory) [selector 0x9507d39a]
   push 512
   push 64
   mstore
@@ -105,33 +105,96 @@ bb7:                                              ; function get(uint256 x) exte
   push 128
   dup 1
   return
-bb11:                                             ; function first(uint256 x) external view returns (uint256) [selector 0x0b3f62f5]
+bb11 [entry]:                                     ; function first(uint256 x) external view returns (uint256) [selector 0x0b3f62f5]
+  push bb36
+  jump bb35
+bb35 [ret=0, inputs=1, outputs=7]:
   push_immutable 0, 20
   push 128
-  push 192
+  dup 1
   dup 2
   add
   push 64
   mstore
   push 0x9507d39a
-  push 224
-  shl
-  dup 2
+  push 0
   mstore
   push 4
   calldataload
-  push 4
-  dup 3
-  add
+  push 32
   mstore
+  dup 1
+  dup 2
+  push 36
+  push 28
+  dup 6
+  swap 1
+  swap 2
+  swap 3
+  swap 6
+  swap 7
+  jump
+bb14 [continuation]:
+  mload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb17 [entry]:                                     ; function second(uint256 x) external view returns (uint256) [selector 0x7896dfe3]
+  push bb37
+  jump bb35
+bb20 [continuation]:
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb10
+  jumpi
+  push 1
+  dup 2
+  sub
+  swap 1
+  iszero
+  push bb10
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb26 [entry]:                                     ; function third(uint256 x) external view returns (uint256) [selector 0xf1680ae6]
+  push bb38
+  jump bb35
+bb29 [continuation]:
   push 64
   dup 2
   add
-  swap 2
-  push 36
-  dup 3
-  dup 5
-  swap 3
+  mload
+  swap 1
+  push 96
+  add
+  mload
+  dup 2
+  add
+  swap 1
+  dup 2
+  lt
+  push bb10
+  jumpi
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb36 [continuation]:
   gas
   staticcall
   iszero
@@ -181,40 +244,7 @@ bb34 [ret=0, inputs=2, outputs=1]:                ; decode_static (synthesized)
   add
   mstore
   jump
-bb14 [continuation]:
-  mload
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb17:                                             ; function second(uint256 x) external view returns (uint256) [selector 0x7896dfe3]
-  push_immutable 0, 20
-  push 128
-  push 192
-  dup 2
-  add
-  push 64
-  mstore
-  push 0x9507d39a
-  push 224
-  shl
-  dup 2
-  mstore
-  push 4
-  calldataload
-  push 4
-  dup 3
-  add
-  mstore
-  push 64
-  dup 2
-  add
-  swap 2
-  push 36
-  dup 3
-  dup 5
-  swap 3
+bb37 [continuation]:
   gas
   staticcall
   iszero
@@ -227,59 +257,7 @@ bb17:                                             ; function second(uint256 x) e
   jumpi
   push bb20
   jump bb34
-bb20 [continuation]:
-  dup 1
-  mload
-  swap 1
-  push 32
-  add
-  mload
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb10
-  jumpi
-  push 1
-  dup 2
-  sub
-  swap 1
-  iszero
-  push bb10
-  jumpi
-  push 0
-  mstore
-  push 32
-  push 0
-  return
-bb26:                                             ; function third(uint256 x) external view returns (uint256) [selector 0xf1680ae6]
-  push_immutable 0, 20
-  push 128
-  push 192
-  dup 2
-  add
-  push 64
-  mstore
-  push 0x9507d39a
-  push 224
-  shl
-  dup 2
-  mstore
-  push 4
-  calldataload
-  push 4
-  dup 3
-  add
-  mstore
-  push 64
-  dup 2
-  add
-  swap 2
-  push 36
-  dup 3
-  dup 5
-  swap 3
+bb38 [continuation]:
   gas
   staticcall
   iszero
@@ -292,24 +270,3 @@ bb26:                                             ; function third(uint256 x) ex
   jumpi
   push bb29
   jump bb34
-bb29 [continuation]:
-  push 64
-  dup 2
-  add
-  mload
-  swap 1
-  push 96
-  add
-  mload
-  dup 2
-  add
-  swap 1
-  dup 2
-  lt
-  push bb10
-  jumpi
-  push 0
-  mstore
-  push 32
-  push 0
-  return

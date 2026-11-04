@@ -61,8 +61,7 @@ fn @lengthSet() {
     v35 = heap_floor !metadata(alloc_ptr)
     mstore v35, v25
     v19 = shr v25, 64
-    v10 = calldatasize
-    v12 = sub v10, v25
+    v12 = sub v23, v25
     v14 = slt v12, v28
     v39 = zext i1 v14 to i256
     v40 = or v19, v39
@@ -74,7 +73,9 @@ fn @lengthSet() {
     mstore 0, v25
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb5
-    tail_call @revert_stub
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
@@ -99,8 +100,7 @@ fn @offsetSet() {
     v39 = heap_floor !metadata(alloc_ptr)
     mstore v39, v31
     v23 = shr v31, 64
-    v14 = calldatasize
-    v16 = sub v14, v31
+    v16 = sub v27, v31
     v18 = slt v16, v2
     v43 = zext i1 v18 to i256
     v44 = or v23, v43
@@ -112,7 +112,9 @@ fn @offsetSet() {
     mstore 0, v31
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb5
-    tail_call @revert_stub
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb3 [cold]:                                     ; preds = bb0, bb2
     revert 0, 0
 }
@@ -128,8 +130,7 @@ fn @forwarded() {
     v24 = calldataload v23
     v25 = add v23, 32
     v17 = shr v24, 64
-    v2 = calldatasize
-    v4 = sub v2, v24
+    v4 = sub v21, v24
     v6 = slt v4, v25
     v36 = zext i1 v6 to i256
     v37 = or v17, v36
@@ -144,13 +145,6 @@ fn @forwarded() {
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb0, bb3
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @decode_calldata_slice() -> i256 {

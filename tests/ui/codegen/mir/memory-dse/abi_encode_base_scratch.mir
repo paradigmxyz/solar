@@ -1,0 +1,16 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck:
+@module AbiEncodeBaseScratch
+
+// An encoding at an explicit base lies where its base does, so a read through its slice can
+// observe the scratch store: the first store may not be removed.
+// CHECK-LABEL: {{^[ +].*}}fn @scratch_base{{[( ]}}
+// CHECK: {{^[ +]\s*}}mstore 32, 42
+fn @scratch_base() {
+  bb0:
+    v0 = inttoptr i256 32 to ptr<memory>
+    v1 = abi_encode [word], scratch, base v0, args 7
+    mstore 32, 42
+    v2 = extract_value slice<memory>, v1, 0
+    returndata v2, 32
+}

@@ -62,8 +62,8 @@ use super::{
     block_layout::{terminator_kind, triangle_arm},
     terminal_dedup::absorb_equal_terminal,
     utils::{
-        FreshLabels, count_block_references, instruction_size_lower_bound, is_split_point,
-        remap_block_order, retain_blocks,
+        FreshLabels, count_block_references, is_split_point, lower_bound, remap_block_order,
+        retain_blocks,
     },
 };
 use crate::backend::evm::{
@@ -251,12 +251,7 @@ fn inline_shared_return_thunks(
         let [offset, store, size, returned] = body.instructions.as_slice() else { continue };
         if store.as_evm_opcode() != Some(op::MSTORE)
             || size.concrete_immediate() != Some(alloy_primitives::U256::from(32))
-            || body
-                .instructions
-                .iter()
-                .map(|inst| instruction_size_lower_bound(module.runtime_target(gcx), inst))
-                .sum::<usize>()
-                > 7
+            || lower_bound(module.runtime_target(gcx), &body.instructions) > 7
             || offset.concrete_immediate().is_none()
             || returned.concrete_immediate() != offset.concrete_immediate()
             || !matches!(terminator_kind(body), Some(TerminatorKind::Op(op::RETURN)))

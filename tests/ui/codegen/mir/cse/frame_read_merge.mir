@@ -1,11 +1,11 @@
 //@compile-flags: -Zmir-pipeline=cse
 //@filecheck:
-@module FrameConstantOperands
+@module FrameReadMerge
 
-// Every `calldatasize` reads the same word, so the same bound computed from a
-// second read reuses the first one, while each read itself stays cheap to repeat.
+// Every `calldatasize` reads the same word, so a second read merges into the first and the
+// bound computed from it merges too.
 // CHECK-LABEL: {{^[ +].*}}fn @repeated_bound{{[( ]}}
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = calldatasize
+// CHECK: - {{v[0-9]+}} = calldatasize
 // CHECK: - {{v[0-9]+}} = sub {{v[0-9]+}}, arg0
 // CHECK: - {{v[0-9]+}} = slt
 fn @repeated_bound(arg0: i256) -> i256 {
@@ -25,10 +25,11 @@ fn @repeated_bound(arg0: i256) -> i256 {
     revert 0, 0
 }
 
-// A cast costs nothing, so widening a second `caller` read is not shared.
-// CHECK-LABEL: {{^[ +].*}}fn @casts_stay_apart{{[( ]}}
-// CHECK-NOT: {{^[-+]}}
-fn @casts_stay_apart() -> i256 {
+// Widening a second `caller` read merges with the first widening.
+// CHECK-LABEL: {{^[ +].*}}fn @casts_merge{{[( ]}}
+// CHECK: - {{v[0-9]+}} = caller
+// CHECK: - {{v[0-9]+}} = zext
+fn @casts_merge() -> i256 {
   bb0:
     v0 = caller
     v1 = zext i160 v0 to i256
@@ -40,8 +41,7 @@ fn @casts_stay_apart() -> i256 {
 
 // A bound with an immediate offset from a second read reuses the first one.
 // CHECK-LABEL: {{^[ +].*}}fn @immediate_offset{{[( ]}}
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = calldatasize
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = calldatasize
+// CHECK: - {{v[0-9]+}} = calldatasize
 // CHECK: - {{v[0-9]+}} = sub {{v[0-9]+}}, 4
 fn @immediate_offset() -> i256 {
   bb0:
@@ -55,8 +55,7 @@ fn @immediate_offset() -> i256 {
 
 // Nested immediate offsets fold to one offset from the read's kind.
 // CHECK-LABEL: {{^[ +].*}}fn @nested_offset{{[( ]}}
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = slotnum
-// CHECK: {{^[ +].*}}{{v[0-9]+}} = slotnum
+// CHECK: - {{v[0-9]+}} = slotnum
 // CHECK: - {{v[0-9]+}} = add {{v[0-9]+}}, 36
 fn @nested_offset() -> i256 {
   bb0:

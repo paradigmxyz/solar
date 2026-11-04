@@ -51,7 +51,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
     mstore v2, 3
     v3 = ptradd v2, 32
     mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v4 = abi_encode [memory_bytes], selector 0x91e145ef00000000000000000000000000000000000000000000000000000000, args v2
+    v4 = abi_encode [memory_bytes], scratch, selector 0x91e145ef00000000000000000000000000000000000000000000000000000000, args v2
     v5 = extract_value slice<memory>, v4, 0
     v6 = extract_value slice<memory>, v4, 1
     v7 = zext i160 v0 to i256
@@ -60,9 +60,14 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v9 = icall returndata_bytes<>
-    v10 = abi_decode [bytes], v9
-    ret v10
+    v9 = returndatasize
+    v10 = add v9, 31
+    v11 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v12 = alloc v11
+    returndatacopy v12, 0, v9
+    v13 = make_memory_slice v12, v9
+    v14 = abi_decode [bytes], v13
+    ret v14
 }
 
 ; function encodeDynamic(string calldata value) external pure returns (bytes memory result) [selector 0x44a76707]

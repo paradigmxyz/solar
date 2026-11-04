@@ -18,10 +18,10 @@ bb0:                                              ; runtime dispatch entry + fun
   lt
   push bb3
   jumpi
-  push 0
   push 4
   calldataload
-  gt
+  push 0
+  lt
   jump bb6
 bb6 [loop]:
   dup 1

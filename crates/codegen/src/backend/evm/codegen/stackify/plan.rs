@@ -9,7 +9,7 @@ use crate::{
     backend::evm::{
         codegen::{
             StackOp,
-            select::{InstKindOpcode, opcode_lowering, rematerializable_nullary_value},
+            select::{InstKindOpcode, opcode_lowering, push_order, rematerializable_nullary_value},
             values::{gas_minus, late_gas_reads},
         },
         ir::INDEXED_JUMP_STACK_GROWTH,
@@ -1972,7 +1972,7 @@ impl<'a> Planner<'a> {
             Some(index) => dies[index],
             None => self.dies(block, uses, operands, value),
         };
-        let push_order: Operands = operands.iter().rev().copied().collect();
+        let push_order = push_order(kind);
         let pushes = |result: Option<ValueId>| result.map_or(0, |_| 1);
 
         // A write that may reach the spill area, or another activation of this function reusing
@@ -2048,26 +2048,34 @@ impl<'a> Planner<'a> {
                 }
             }
             InstKind::Eq(..) | InstKind::Ne(..) => {
-                let ne = matches!(kind, InstKind::Ne(..));
+                let mut negate = matches!(kind, InstKind::Ne(..));
                 if let Some(value) =
                     Target::zero_test_input(&kind.op(), |value| func.value_u256(value))
                 {
-                    // eq x, 0 -> iszero x; ne x, 0 -> iszero (iszero x)
-                    self.prepare(sim, &[value], &dying)?;
-                    self.op(sim, op::ISZERO, 1, 1);
+                    if negate && self.target.ne_zero().1 {
+                        // ne x, 0 -> lt 0, x
+                        negate = false;
+                        let zero = if operands[0] == value { operands[1] } else { operands[0] };
+                        self.prepare(sim, &[value, zero], &dying)?;
+                        self.op(sim, op::LT, 2, 1);
+                    } else {
+                        // eq x, 0 -> iszero x; ne x, 0 -> iszero (iszero x)
+                        self.prepare(sim, &[value], &dying)?;
+                        self.op(sim, op::ISZERO, 1, 1);
+                    }
                 } else {
                     // ne a, b -> iszero (eq a, b)
                     self.prepare_commutable(sim, kind, &push_order, &dying)?;
                     self.op(sim, op::EQ, 2, 1);
                 }
-                if ne {
+                if negate {
                     self.op(sim, op::ISZERO, 1, 1);
                 }
                 self.set_top_result(sim, result);
             }
-            InstKind::Select(cond, true_value, false_value) => {
+            InstKind::Select(..) => {
                 // [f, c, t] -> [f, c, f, t] -> [f, c, t-f] -> [f, c*(t-f)] -> [f + c*(t-f)]
-                self.prepare(sim, &[*false_value, *cond, *true_value], &dying)?;
+                self.prepare(sim, &push_order, &dying)?;
                 sim.observe(1);
                 sim.steps.push(Step::Inst(inst));
                 sim.cost += self.target.select_stack_ops();
@@ -2959,7 +2967,7 @@ impl<'a> Planner<'a> {
         } else {
             self.branch_edge(sim, block, else_block, false)?
         };
-        sim.cost += self.target.opcode(op::JUMPI).plus(self.target.opcode(op::PUSH2));
+        sim.cost += self.target.label_push().plus(self.target.opcode(op::JUMPI));
         Ok(Exit::Branch { then_edge, else_edge })
     }
 

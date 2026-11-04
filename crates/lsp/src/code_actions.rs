@@ -219,8 +219,8 @@ impl CodeActionSource<'_> {
         if self.source().contains("\r\n") { "\r\n" } else { "\n" }
     }
 
-    fn lsp_range(&self, range: std::ops::Range<usize>) -> Option<lsp_types::Range> {
-        Some(lsp_types::Range::new(
+    fn lsp_range(&self, range: std::ops::Range<usize>) -> Option<Range> {
+        Some(Range::new(
             self.index.position_at_byte(range.start)?,
             self.index.position_at_byte(range.end)?,
         ))
@@ -229,7 +229,7 @@ impl CodeActionSource<'_> {
 
 pub(crate) fn exact_byte_range(
     index: &proto::LspPositionIndex<&Rope>,
-    range: lsp_types::Range,
+    range: Range,
 ) -> Option<std::ops::Range<usize>> {
     let bytes = index.checked_text_range(range)?;
     (index.position_at_byte(bytes.start) == Some(range.start)
@@ -450,7 +450,7 @@ fn standalone_statement_range(
 }
 
 fn spdx_fixes(diagnostic: &Diagnostic, context: &CodeActionSource<'_>) -> Vec<Fix> {
-    if diagnostic.range != lsp_types::Range::default()
+    if diagnostic.range != Range::default()
         || !diagnostic.message.starts_with("SPDX license identifier not provided in source file.")
     {
         return Vec::new();
@@ -463,7 +463,7 @@ fn spdx_fixes(diagnostic: &Diagnostic, context: &CodeActionSource<'_>) -> Vec<Fi
             (
                 format!("Add `{identifier}`"),
                 Applicability::MaybeIncorrect,
-                vec![TextEdit::new(lsp_types::Range::default(), format!("// {identifier}{eol}"))],
+                vec![TextEdit::new(Range::default(), format!("// {identifier}{eol}"))],
             )
         })
         .collect()
@@ -473,7 +473,7 @@ fn compiler_pragma_fix(diagnostic: &Diagnostic, context: &CodeActionSource<'_>) 
     const PREFIX: &str =
         "Source file does not specify required compiler version! Consider adding \"";
 
-    if diagnostic.range != lsp_types::Range::default() {
+    if diagnostic.range != Range::default() {
         return None;
     }
     let recommendation = diagnostic_primary_message(diagnostic).strip_prefix(PREFIX)?;
@@ -486,7 +486,7 @@ fn compiler_pragma_fix(diagnostic: &Diagnostic, context: &CodeActionSource<'_>) 
     Some((
         format!("Add `{pragma}`"),
         Applicability::MaybeIncorrect,
-        vec![TextEdit::new(lsp_types::Range::default(), format!("{pragma}{eol}"))],
+        vec![TextEdit::new(Range::default(), format!("{pragma}{eol}"))],
     ))
 }
 
@@ -761,7 +761,7 @@ fn keyword_insertion(
         new_text.push(' ');
     }
     let position = context.index.position_at_byte(position)?;
-    Some(TextEdit::new(lsp_types::Range::new(position, position), new_text))
+    Some(TextEdit::new(Range::new(position, position), new_text))
 }
 
 fn kind_contains(requested: &CodeActionKind, action: &CodeActionKind) -> bool {

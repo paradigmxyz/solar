@@ -20,8 +20,9 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        BlockId, Function, FunctionAttributes, Hotness, InstId, Op, Terminator, ValueId,
-        analysis::AddressSpace, memory::EvmMemoryLayout,
+        AbiLayout, AbiType, BlockId, Builtin, Callee, CheckedOp, Function, FunctionAttributes,
+        Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op, Terminator, ValueId,
+        analysis::AddressSpace, immutable::immutable_push_type_size, memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
@@ -455,6 +456,11 @@ impl Target {
         Cost::new(self.opcode_gas(opcode), opcode_bytes(opcode)).with_steps(1)
     }
 
+    /// Cost of emitting `opcodes` in order.
+    pub(crate) fn opcodes(&self, opcodes: &[u8]) -> Cost {
+        opcodes.iter().map(|&opcode| self.opcode(opcode)).sum()
+    }
+
     /// Cost of an opcode whose arguments are known in EVM pop order.
     /// Includes operand-dependent work such as the exponent bytes of `EXP`;
     /// memory expansion and state-dependent access prices remain excluded.
@@ -579,10 +585,11 @@ impl Target {
             return self.select();
         }
         if matches!(op, Op::Eq { .. } | Op::Ne { .. }) {
-            let comparison =
-                if Self::zero_test_input(op, &immediate).is_some() { op::ISZERO } else { op::EQ };
-            return self.opcode(comparison)
-                + if matches!(op, Op::Ne { .. }) { self.opcode(op::ISZERO) } else { Cost::ZERO };
+            let ne = matches!(op, Op::Ne { .. });
+            if Self::zero_test_input(op, &immediate).is_some() {
+                return if ne { self.ne_zero().0 } else { self.opcode(op::ISZERO) };
+            }
+            return self.opcode(op::EQ) + if ne { self.opcode(op::ISZERO) } else { Cost::ZERO };
         }
         let Some(lowering) = select::opcode_lowering(op) else {
             return Cost::new(GasTier::VeryLow.gas(self.evm_version), 1).with_steps(1);
@@ -625,6 +632,18 @@ impl Target {
         }
     }
 
+    /// Cost of `ne x, 0` as a value, excluding its operand, and whether it is lowered as
+    /// `PUSH 0; LT` rather than `ISZERO; ISZERO`, whichever ranks cheaper under the objective.
+    pub(crate) fn ne_zero(&self) -> (Cost, bool) {
+        let double_negation = self.opcode(op::ISZERO) + self.opcode(op::ISZERO);
+        let less_than = self.push(U256::ZERO) + self.opcode(op::LT);
+        if self.cmp(less_than, double_negation).is_lt() {
+            (less_than, true)
+        } else {
+            (double_negation, false)
+        }
+    }
+
     /// Cost of the generic Select emitter, excluding initial operand placement.
     pub(crate) fn select(&self) -> Cost {
         // sub; mul; add.
@@ -640,6 +659,14 @@ impl Target {
     pub(crate) fn copied_words(&self, size: usize) -> Cost {
         let words = u32::try_from(size.div_ceil(32)).unwrap_or(u32::MAX);
         Cost::new(self.copy_word_gas().saturating_mul(words), 0)
+    }
+
+    /// The size and source pushes of a copy of `size` bytes, with its word gas. The source of data
+    /// reserves a `PUSH3` for an address that final assembly resolves, so relocation cannot turn a
+    /// copy that pays into code growth; zeros copy from the end of calldata.
+    pub(crate) fn copy_operands(&self, size: usize, zero: bool) -> Cost {
+        let source = if zero { self.opcode(op::CALLDATASIZE) } else { self.opcode(op::PUSH3) };
+        self.push(U256::from(size)) + source + self.copied_words(size)
     }
 
     /// Cost of one internal call site with its return landing: the pushed
@@ -1088,10 +1115,7 @@ impl Target {
                 + self.opcode(op::MSTORE).times(2)
                 + self.push(U256::from(word_size))
                 + self.opcode(op::ADD);
-            let copy = self.push(U256::from(size))
-                + self.opcode(op::PUSH3)
-                + self.dup()
-                + self.opcode(op::CODECOPY);
+            let copy = self.copy_operands(size, false) + self.dup() + self.opcode(op::CODECOPY);
             ((copies + seed).bytes as usize) < size.saturating_add(copy.bytes as usize)
         } else {
             let stores = (2..size / word_size)
@@ -1215,19 +1239,6 @@ impl Target {
                 )
     }
 
-    /// Whether one shared copy of a terminal block, entered by a jump from each of `sites`,
-    /// takes fewer bytes than a copy at every site. When optimizing for size, a copy no larger
-    /// than a jump to and from a shared body stays with the backend, whose terminal-block sharing
-    /// and outlining handle it in its final layout; sharing it earlier grew the measured code.
-    pub(crate) fn shares_terminal_copy(&self, copy: Cost, sites: u32) -> bool {
-        let jump = self.label_push() + self.opcode(op::JUMP);
-        if matches!(self.optimization, OptimizationMode::Size) && copy.bytes <= jump.times(2).bytes
-        {
-            return false;
-        }
-        (jump.times(sites) + copy + self.opcode(op::JUMPDEST)).bytes < copy.times(sites).bytes
-    }
-
     /// Whether code shared from a site inside a loop pays for itself when the bytes it saves at
     /// that site, `saved_bytes`, cost `transfer_gas` more on every iteration: the deposit of the
     /// bytes against the transfers over the expected executions,
@@ -1313,17 +1324,339 @@ impl Target {
         linear.times(recurrences) + linear.times(quadratic) + self.jump() + triangular
     }
 
+    /// Live words a caller may hold across an inlined body plus the body's own peak: twelve of
+    /// the sixteen words a `DUP` or `SWAP` reaches, leaving headroom for operand staging. A
+    /// hot-leaf clone inside a loop body also keeps the loop's carried words resident through
+    /// every join it adds; at ten words, two of the Base64 decoder's four lookups stayed calls
+    /// that drained every carried word, and twelve took 15% off decoding.
+    pub(crate) const INLINE_STACK_BUDGET: usize = 12;
+    /// Live-in words below which a loop-varying read is reused across one edge instead of
+    /// reloaded: the same twelve of sixteen words as [`Self::INLINE_STACK_BUDGET`], so the `DUP`
+    /// leaves the block's own temporaries room.
+    pub(crate) const DIRECT_REUSE_LIVE_BUDGET: usize = 12;
+    /// Most words a loop may carry after a below-threshold hoist or, in size mode, a product
+    /// check's hoisted bound. The count is the header's phis plus the values defined outside the
+    /// loop that its body reads, which the backend keeps on the stack through the loop when they
+    /// fit. Past this many, its layouts spill loop values to frame slots, and a hoisted base then
+    /// costs more in reloads of the words it displaced than its in-loop recomputation saved: the
+    /// hash-probe loop of `hasDuplicate` lost 2.4% carrying eight, while `reverse` with four
+    /// gained 8%.
+    pub(crate) const LOOP_CARRY_BUDGET: usize = 5;
+    /// Words a loop carries before each further one deepens the `DUP` and `SWAP` reach of the
+    /// accesses to all the others.
+    pub(crate) const SHALLOW_CARRIED_WORDS: usize = 4;
+
+    /// Estimated code of an operation the later lowerings expand, as the opcode sequence they
+    /// emit priced by the target, with the number of MIR instructions the expansion produces.
+    /// An operation that lowers to one opcode is priced by the target directly; immediates are
+    /// left out throughout, as they are for those.
+    pub(crate) fn expansion_estimate(
+        &self,
+        module: &Module,
+        func: &Function,
+        kind: &InstKind,
+    ) -> (Cost, usize) {
+        if !matches!(kind, InstKind::ICall { .. } | InstKind::LoadImmutable(_)) {
+            let op = kind.op();
+            if select::opcode_lowering(&op).is_some() {
+                return (self.op(&op, |_| None), 1);
+            }
+        }
+        let code = match kind {
+            InstKind::Ne(..) => self.opcodes(&[op::EQ, op::ISZERO]),
+            InstKind::Trunc(..) | InstKind::Sext(..) | InstKind::PtrToInt(..) => {
+                self.op(&kind.op(), |_| None)
+            }
+            InstKind::InsertValue { .. }
+            | InstKind::ExtractValue { .. }
+            | InstKind::MakeSlice { .. }
+            | InstKind::IntToPtr(..)
+            | InstKind::Zext(_) => Cost::ZERO,
+            InstKind::PtrAdd(..) => self.opcode(op::ADD),
+            InstKind::Fmp | InstKind::FrameLoad { .. } => self.opcode(op::MLOAD),
+            InstKind::SetFmp(_) | InstKind::FrameStore { .. } => self.opcode(op::MSTORE),
+            // Bump the free-memory pointer past the allocation.
+            InstKind::Alloc { .. } => self.opcodes(&[op::MLOAD, op::ADD, op::MSTORE]),
+            // Reserve the buffer, store the selector, produce the slice, store every argument's
+            // head, and expand every dynamic value.
+            InstKind::AbiEncode { args, layout, .. } => self
+                .opcodes(&[
+                    op::MLOAD,
+                    op::ADD,
+                    op::MSTORE,
+                    op::MSTORE,
+                    op::DUP1,
+                    op::DUP2,
+                    op::SWAP1,
+                    op::SWAP2,
+                ])
+                .plus(self.opcodes(&[op::DUP1, op::ADD, op::MSTORE]).times(args.len() as u32))
+                .plus(self.dup().times(abi_layout_expansion(layout) as u32)),
+            // Check the calldata bound, then load and validate every head word.
+            InstKind::AbiDecode { layout, .. } => self
+                .opcodes(&[
+                    op::CALLDATASIZE,
+                    op::SUB,
+                    op::LT,
+                    op::JUMPI,
+                    op::CALLDATALOAD,
+                    op::ADD,
+                    op::MSTORE,
+                    op::SWAP1,
+                ])
+                .plus(
+                    self.opcodes(&[op::CALLDATALOAD, op::DUP1, op::MSTORE])
+                        .times(layout.types.len() as u32),
+                ),
+            // A pushed offset into the immutables area and the store.
+            InstKind::StoreImmutable(..) => self.opcodes(&[op::PUSH2, op::MSTORE]),
+            InstKind::DataCopy(..) => self.opcode(op::CODECOPY),
+            InstKind::DataSize(..) => self.opcode(op::PUSH2),
+            // Zero by copying from beyond the end of calldata.
+            InstKind::MemoryZero(..) => self.opcodes(&[op::CALLDATASIZE, op::CALLDATACOPY]),
+            InstKind::ConstructorArgsBase => self.opcode(op::PUSH2),
+            InstKind::ConstructorArgsEnd => {
+                self.opcodes(&[op::PUSH2, op::PUSH2, op::SUB, op::CODESIZE])
+            }
+            InstKind::HeapFloor => self.opcode(op::PUSH2),
+            InstKind::InternalFrameAddr(_) => self.opcodes(&[op::PUSH1, op::ADD]),
+            InstKind::LibraryAddress(_) => self.opcode(op::PUSH20),
+            // Typed PUSH<N> placeholder patched at deploy time, cleaned for the narrower types.
+            InstKind::LoadImmutable(id) => {
+                let ty = module.immutable_type(*id);
+                let encoding = ty.immutable_encoding().expect("validated immutable declaration");
+                let type_size = immutable_push_type_size(
+                    encoding,
+                    self.optimization(),
+                    self.evm_version().has_bitwise_shifting(),
+                );
+                let push = op::PUSH1 + (type_size.bytes() - 1);
+                if type_size.bytes() == 32 {
+                    self.opcodes(&[push])
+                } else {
+                    match encoding {
+                        ImmutableEncoding::Unsigned(_) => self.opcodes(&[push]),
+                        ImmutableEncoding::Signed(_) => {
+                            self.opcodes(&[push, op::PUSH1, op::SIGNEXTEND])
+                        }
+                        ImmutableEncoding::LeftAligned(_) => {
+                            self.opcodes(&[push, op::PUSH1, op::SHL])
+                        }
+                    }
+                }
+            }
+            // Expands to length load + data pointer + physical keccak.
+            // Includes allocation, argument packing, the precompile call, and result extraction.
+            InstKind::ValidateStorageBytes(_) => Cost::new(80, 40),
+            InstKind::StorageBytesLoad(_) => Cost::new(400, 150),
+            InstKind::StorageArrayLoad { .. } => Cost::new(400, 150),
+            InstKind::StorageBytesStore(..) => Cost::new(500, 180),
+            InstKind::StorageBytesStoreLiteral { bytes, .. } => {
+                Cost::new(500, 180 + bytes.len() as u32)
+            }
+            InstKind::StorageClearWords(..) => Cost::new(120, 32),
+            InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), .. } => {
+                Cost::new(90, 30)
+            }
+            InstKind::ICall {
+                function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
+                ..
+            } => Cost::new(32, 9),
+            InstKind::ICall {
+                function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160),
+                ..
+            } => Cost::new(800, 64),
+            InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), .. } => {
+                Cost::new(900, 100)
+            }
+            InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. } => {
+                Cost::new(24, 8)
+            }
+            InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
+                Cost::new(40, 24)
+            }
+            InstKind::ValidateAbi(_) => Cost::new(0, 0),
+            InstKind::CheckedBinary { op: CheckedOp::Pow, .. } => Cost::new(300, 128),
+            InstKind::CheckedBinary { .. } => Cost::new(30, 20),
+            InstKind::AbiEncodePacked { parts, .. } => {
+                Cost::new(60 + parts.len() as u32 * 20, 24 + parts.len() as u32 * 12)
+            }
+            InstKind::MappingSlot(..)
+            | InstKind::MappingSlotBytes(..)
+            | InstKind::StorageArrayDataSlot(..)
+            | InstKind::StorageArrayElementSlot { .. } => {
+                self.slot_expansion(func, kind).expect("a slot hash is priced")
+            }
+            InstKind::AddressCall { .. } => Cost::new(720, 12),
+            InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
+                Cost::new(60, 24)
+            }
+            InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. } => Cost::new(720, 12),
+            InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => {
+                Cost::new(740, 20)
+            }
+            InstKind::Call { .. }
+            | InstKind::CallCode { .. }
+            | InstKind::StaticCall { .. }
+            | InstKind::DelegateCall { .. } => self.opcode(op::CALL),
+            InstKind::ICall { function: Callee::Function(function), args } => {
+                self.icall(args.len(), module.function(*function).return_components().len(), 0)
+            }
+            // A phi is a stack move at the join.
+            InstKind::Phi(_) => self.dup(),
+            // A select runs the generic emitter.
+            InstKind::Select(..) => self.select(),
+            // Every other operation lowers to one opcode and was priced above.
+            _ => {
+                debug_assert!(false, "operation without a single opcode is not priced: {kind}");
+                self.opcode(op::ADD)
+            }
+        };
+        let instructions = match kind {
+            // Casts, slice construction, and aggregate insertions and projections emit no code of
+            // their own: `lower-structs` turns struct fields into separate words.
+            InstKind::Zext(_)
+            | InstKind::IntToPtr(..)
+            | InstKind::PtrToInt(_, 256)
+            | InstKind::MakeSlice { .. }
+            | InstKind::InsertValue { .. }
+            | InstKind::ExtractValue { .. } => 0,
+            InstKind::MappingSlot(..) | InstKind::StorageArrayDataSlot(..) => 3,
+            InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => 8,
+            InstKind::MappingSlotBytes(..) => 9,
+            InstKind::StorageArrayElementSlot { .. } => 4,
+            InstKind::AbiEncode { layout, .. } => abi_layout_expansion(layout),
+            _ => 1,
+        };
+        (code, instructions)
+    }
+
+    /// Estimated code of a terminator, as the opcode sequence it emits priced by the target.
+    pub(crate) fn terminator_estimate(&self, term: &Terminator) -> Cost {
+        match term {
+            Terminator::Jump(_) => self.opcodes(&[op::PUSH2, op::JUMP]),
+            Terminator::Branch { .. } => self.opcodes(&[op::PUSH2, op::JUMPI]),
+            // The dispatch on the value, then a compare and a jump per case.
+            Terminator::Switch { cases, .. } => self
+                .opcodes(&[op::PUSH2, op::JUMPI])
+                .plus(self.opcodes(&[op::DUP1, op::PUSH1, op::EQ]).times(cases.len() as u32)),
+            // The values are staged by the instructions above; the return is the protocol's jump.
+            Terminator::Return { .. } => self.internal_return(0, 0),
+            Terminator::Revert { .. } | Terminator::RevertReturndata => {
+                self.opcodes(&[op::PUSH1, op::DUP1, op::REVERT])
+            }
+            Terminator::ReturnData { .. } => self.opcodes(&[op::PUSH1, op::DUP1, op::RETURN]),
+            Terminator::Stop => self.opcode(op::STOP),
+            Terminator::SelfDestruct { .. } => self.opcode(op::SELFDESTRUCT),
+            // A jump with every argument staged.
+            Terminator::TailCall { args, .. } => {
+                self.opcodes(&[op::PUSH2, op::JUMP]).plus(self.dup().times(args.len() as u32))
+            }
+            Terminator::Invalid => self.opcode(op::INVALID),
+        }
+    }
+
     /// Cost of the stack operations the Select emitter adds around its arithmetic: from
     /// `[f, c, t]`, `dup3; swap1` leaves `[f, c, f, t]` for `sub; mul; add`.
     pub(crate) fn select_stack_ops(&self) -> Cost {
         self.opcode(op::DUP3) + self.opcode(op::SWAP1)
     }
+
+    /// Estimated code of an operation that hashes a storage slot, as the opcode sequence
+    /// `lower-mapping-slots` emits, or `None` for any other operation.
+    fn slot_expansion(&self, func: &Function, kind: &InstKind) -> Option<Cost> {
+        Some(match kind {
+            InstKind::MappingSlot(..) => self.opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256]),
+            InstKind::MappingSlotBytes(key, _) if func.value_ty(*key) == Some(MirType::MEMPTR) => {
+                self.opcodes(&[
+                    op::MLOAD,
+                    op::ADD,
+                    op::MSTORE,
+                    op::MLOAD,
+                    op::ADD,
+                    op::MSTORE,
+                    op::ADD,
+                    op::KECCAK256,
+                ])
+            }
+            InstKind::MappingSlotBytes(..) => self.opcodes(&[
+                op::CALLDATALOAD,
+                op::ADD,
+                op::MSTORE,
+                op::CALLDATALOAD,
+                op::ADD,
+                op::MSTORE,
+                op::ADD,
+                op::ADD,
+                op::KECCAK256,
+            ]),
+            InstKind::StorageArrayDataSlot(..) => {
+                self.opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256])
+            }
+            InstKind::StorageArrayElementSlot { element_slots, .. } => self
+                .opcodes(&[op::MSTORE, op::MSTORE, op::KECCAK256, op::ADD])
+                .plus(if *element_slots > 1 { self.opcode(op::MUL) } else { Cost::ZERO }),
+            _ => return None,
+        })
+    }
+
+    /// Gas that hoisting `inst` out of a loop saves on every iteration: the operation's price at
+    /// the warmth the preheader's access leaves, so a hoisted storage or account read saves the
+    /// warm access price, and a slot hash saves the opcodes `lower-mapping-slots` expands it to.
+    /// The pushes of an operation's operands are left out; the mask of a cast is part of it.
+    pub(crate) fn licm_saving(&self, func: &Function, inst: InstId) -> u32 {
+        let kind = &func.inst(inst).kind;
+        let cost = self.slot_expansion(func, kind).unwrap_or_else(|| {
+            self.op_at(&kind.op(), |value| func.value_u256(value), Warmth::Warm)
+        });
+        self.runtime_gas(cost)
+    }
+
+    /// Whether hoisting `inst` out of a loop saves enough per iteration to be a root of its own,
+    /// which the carry budget does not bound. A carried value costs a `DUP` at each use, so a
+    /// load, which runs only where its execution is guaranteed, must save at least one, as a
+    /// memory read does. Any other operation must save more: it may run speculatively, and the
+    /// backend rebuilds a constant or a `VeryLow` one such as `ADD` at its uses for the price of
+    /// a `DUP`, so that one hoists only when it runs every iteration, within the carry budget.
+    /// A boolean never pays: it feeds a branch, which tests nonzero without the `ne` that prices
+    /// it, so hoisting it saves nothing and carries one more word.
+    pub(crate) fn licm_pays(&self, func: &Function, inst: InstId) -> bool {
+        let inst_data = func.inst(inst);
+        if inst_data.result_ty == Some(MirType::I1) {
+            return false;
+        }
+        let saving = self.licm_saving(func, inst);
+        let carry = self.runtime_gas(self.dup());
+        if matches!(inst_data.kind, InstKind::Load(..)) { saving >= carry } else { saving > carry }
+    }
+}
+
+/// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
+///
+/// The placeholder is one MIR instruction, but words are loaded, cleaned, and stored one by
+/// one, dynamic values become copy loops, and aggregates encode field by field, so inlining
+/// decisions must see the expanded shape rather than the placeholder.
+fn abi_type_expansion(ty: &AbiType) -> usize {
+    match ty {
+        AbiType::Word(None) => 2,
+        AbiType::Word(Some(_)) | AbiType::Function => 3,
+        AbiType::Bytes(_) => 14,
+        AbiType::DynamicArray { element, .. } => 12 + 2 * abi_type_expansion(element),
+        AbiType::FixedArray { element, len, .. } => {
+            1 + abi_type_expansion(element) * usize::try_from(*len).unwrap_or(usize::MAX).min(8)
+        }
+        AbiType::Tuple(fields) => 1 + fields.iter().map(abi_type_expansion).sum::<usize>(),
+    }
+}
+
+fn abi_layout_expansion(layout: &AbiLayout) -> usize {
+    layout.types.iter().map(abi_type_expansion).sum()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, Immediate, InstKind, Instruction, MirType, PtrLocation, Value};
+    use crate::mir::{Immediate, Instruction, PtrLocation, Value};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -1457,6 +1790,14 @@ mod tests {
         let value = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
         let select = InstKind::Select(value, value, value).op();
         assert_eq!(target.op(&select, |_| None), target.select());
+    }
+
+    #[test]
+    fn ne_zero_picks_the_cheaper_lowering() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
+        assert_eq!(target.ne_zero(), (Cost::new(5, 2).with_steps(2), true));
+        let target = Target::with(EvmVersion::Istanbul, OptimizationMode::Gas, 200);
+        assert_eq!(target.ne_zero(), (Cost::new(6, 2).with_steps(2), false));
     }
 
     #[test]
@@ -1936,19 +2277,12 @@ mod tests {
     }
 
     #[test]
-    fn terminal_copy_sharing() {
-        let gas = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
-        let size = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 200);
-        // `mstore 0, 1; revert 0, 32`: four 4-byte jumps and one landing beat four copies.
-        let small = Cost::new(0, 8);
-        assert!(gas.shares_terminal_copy(small, 4));
-        assert!(!size.shares_terminal_copy(small, 4));
-        // A 9-byte copy shared by three sites: 12 + 9 + 1 bytes against 27.
-        let medium = Cost::new(0, 9);
-        assert!(gas.shares_terminal_copy(medium, 3));
-        assert!(size.shares_terminal_copy(medium, 3));
-        // One site never pays for a jump.
-        assert!(!gas.shares_terminal_copy(Cost::new(0, 40), 1));
+    fn data_copies_price_their_operands() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Size, 1);
+        // A zero fill copies from `CALLDATASIZE`, which needs no data operand push.
+        assert!(target.copy_operands(64, true).bytes < target.copy_operands(64, false).bytes);
+        // A longer copy pays more word gas.
+        assert!(target.copy_operands(1024, false).gas > target.copy_operands(64, false).gas);
     }
 
     #[test]
@@ -2152,16 +2486,15 @@ mod tests {
     fn loop_header_tests_price_the_compare_and_the_exit() {
         for version in [EvmVersion::Homestead, EvmVersion::Istanbul, EvmVersion::Amsterdam] {
             let target = Target::with(version, OptimizationMode::Gas, 200);
-            let cost = |opcodes: &[u8]| opcodes.iter().map(|&opcode| target.opcode(opcode)).sum();
             assert_eq!(
                 target.loop_header_test(op::LT),
-                cost(&[op::LT, op::DUP1, op::DUP1, op::PUSH2, op::JUMPI])
+                target.opcodes(&[op::LT, op::DUP1, op::DUP1, op::PUSH2, op::JUMPI])
             );
             assert_eq!(
                 target.loop_header_test(op::SUB),
-                cost(&[op::SUB, op::DUP1, op::DUP1, op::PUSH2, op::JUMPI])
+                target.opcodes(&[op::SUB, op::DUP1, op::DUP1, op::PUSH2, op::JUMPI])
             );
-            assert_eq!(target.loop_exit_jump(), cost(&[op::DUP1, op::PUSH2, op::JUMPI]));
+            assert_eq!(target.loop_exit_jump(), target.opcodes(&[op::DUP1, op::PUSH2, op::JUMPI]));
         }
     }
 
@@ -2169,12 +2502,89 @@ mod tests {
     fn closed_forms_price_each_recurrence() {
         for version in [EvmVersion::Homestead, EvmVersion::Shanghai, EvmVersion::Amsterdam] {
             let target = Target::with(version, OptimizationMode::Gas, 200);
-            let cost = |opcodes: &[u8]| opcodes.iter().map(|&opcode| target.opcode(opcode)).sum();
-            let linear: Cost = cost(&[op::MUL, op::ADD, op::DUP1, op::DUP1]);
-            let triangular = cost(&[op::SHR, op::SUB, op::OR, op::MUL, op::DUP1])
+            let linear = target.opcodes(&[op::MUL, op::ADD, op::DUP1, op::DUP1]);
+            let triangular = target.opcodes(&[op::SHR, op::SUB, op::OR, op::MUL, op::DUP1])
                 + target.push(U256::ONE).times(3);
             assert_eq!(target.loop_closed_form(2, 0), linear.times(2) + target.jump());
             assert_eq!(target.loop_closed_form(2, 1), linear.times(3) + target.jump() + triangular);
         }
+    }
+
+    #[test]
+    fn licm_savings_follow_the_opcode_schedule() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        let mut function = Function::new(Ident::DUMMY);
+        let value = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+        let saving_as = |kind, ty| {
+            let mut function = function.clone();
+            let (inst, _) = function.alloc_value_inst_verbatim(Instruction::new(kind, Some(ty)));
+            (target.licm_saving(&function, inst), target.licm_pays(&function, inst))
+        };
+        let saving = |kind| saving_as(kind, MirType::I256);
+        let (add_mod, add_mod_pays) = saving(InstKind::AddMod(value, value, value));
+        assert_eq!(add_mod, target.opcode_gas(op::ADDMOD));
+        assert!(add_mod > saving(InstKind::Mul(value, value)).0 && add_mod_pays);
+        assert_eq!(
+            saving(InstKind::Load(value, PtrLocation::Storage)),
+            (target.opcode_gas_at(op::SLOAD, Warmth::Warm), true)
+        );
+        assert!(saving(InstKind::Load(value, PtrLocation::Memory)).1);
+        assert!(!saving(InstKind::Add(value, value)).1);
+        assert!(!saving_as(InstKind::Ne(value, value), MirType::I1).1);
+    }
+
+    #[test]
+    fn stack_reach_budgets_stay_within_dup_reach() {
+        let reach = usize::from(op::DUP16 - op::DUP1) + 1;
+        for budget in [
+            Target::INLINE_STACK_BUDGET,
+            Target::DIRECT_REUSE_LIVE_BUDGET,
+            Target::LOOP_CARRY_BUDGET,
+            Target::SHALLOW_CARRIED_WORDS,
+        ] {
+            assert!(budget < reach);
+        }
+    }
+
+    #[test]
+    fn expansions_price_the_emitted_opcodes() {
+        let target = Target::with(EvmVersion::Osaka, OptimizationMode::Gas, 200);
+        let module = Module::new(Ident::DUMMY);
+        let mut function = Function::new(Ident::DUMMY);
+        let value = function.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+        let estimate = |kind| target.expansion_estimate(&module, &function, &kind);
+        // One opcode lowers directly.
+        assert_eq!(estimate(InstKind::Add(value, value)), (target.opcode(op::ADD), 1));
+        assert_eq!(
+            estimate(InstKind::Ne(value, value)),
+            (target.opcode(op::EQ) + target.opcode(op::ISZERO), 1)
+        );
+        // Two stores and a hash, in three instructions.
+        assert_eq!(
+            estimate(InstKind::MappingSlot(value, value)),
+            (target.opcode(op::MSTORE).times(2) + target.opcode(op::KECCAK256), 3)
+        );
+        // Fitted prices of operations expanded by hand.
+        assert_eq!(estimate(InstKind::StorageBytesLoad(value)), (Cost::new(400, 150), 1));
+        assert_eq!(estimate(InstKind::StorageBytesStore(value, value)), (Cost::new(500, 180), 1));
+        assert_eq!(estimate(InstKind::Zext(value)), (Cost::ZERO, 0));
+        assert_eq!(estimate(InstKind::Phi(vec![])), (target.opcode(op::DUP1), 1));
+        assert_eq!(estimate(InstKind::Select(value, value, value)), (target.select(), 1));
+        let jump = target.label_push() + target.opcode(op::JUMP);
+        assert_eq!(target.terminator_estimate(&Terminator::Jump(BlockId::ENTRY)), jump);
+        assert_eq!(
+            target.terminator_estimate(&Terminator::Branch {
+                condition: value,
+                then_block: BlockId::ENTRY,
+                else_block: BlockId::ENTRY,
+            }),
+            target.label_push() + target.opcode(op::JUMPI)
+        );
+        assert_eq!(target.terminator_estimate(&Terminator::Stop), target.opcode(op::STOP));
+        assert_eq!(target.terminator_estimate(&Terminator::Invalid), target.opcode(op::INVALID));
+        assert_eq!(
+            target.terminator_estimate(&Terminator::Return { values: smallvec::smallvec![] }),
+            target.internal_return(0, 0)
+        );
     }
 }

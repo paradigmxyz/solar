@@ -50,15 +50,17 @@ fn @encodeItems() {
     v2 = lt v196, v198
     jumpi v2, bb2, bb3
   bb3:                                            ; preds = bb1
-    v200 = calldataload 36
-    v199 = calldataload 4
-    v24 = shl v200, 160
-    v31 = shr v200, 32
+    v203 = calldataload 36
+    v202 = calldataload 4
+    v24 = shl v203, 160
+    v31 = shr v203, 32
     v32 = or v31, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v35 = shl v200, 8
+    v35 = shl v203, 8
+    v199 = add v181, 32
     jump bb4
   bb4:                                            ; preds = bb3, bb9
     v13 = phi [bb3: 0], [bb9: v45]
+    v200 = phi [bb3: v199], [bb9: v201]
     v14 = lt v13, 3
     jumpi v14, bb6, bb5
   bb5:                                            ; preds = bb4
@@ -87,7 +89,7 @@ fn @encodeItems() {
     v73 = phi [bb8: v68], [bb16: v95]
     v75 = phi [bb8: v69], [bb16: v96]
     v76 = phi [bb8: v161], [bb16: v98]
-    v77 = gt v73, 0
+    v77 = ne v73, 0
     jumpi v77, bb13, bb14
   bb14:                                           ; preds = bb12
     v100 = add v65, 32
@@ -195,11 +197,8 @@ fn @encodeItems() {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb9:                                            ; preds = bb6
-    v18 = shl v13, 5
-    v163 = add v181, v18
-    v164 = add v163, 32
-    v175 = mload v164
-    mstore v175, v199
+    v175 = mload v200
+    mstore v175, v202
     v23 = add v13, 160
     v25 = or v24, v23
     v27 = add v175, 32
@@ -214,17 +213,17 @@ fn @encodeItems() {
     mstore v38, v36
     v41 = add v175, 160
     mstore v41, v35
-    v42 = add v200, v13
+    v42 = add v203, v13
     v44 = add v175, 192
     mstore v44, v42
     v45 = add v13, 1
+    v201 = add v200, 32
     jump bb4
   bb2:                                            ; preds = bb1
     v188 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v189 = add v188, 224 !metadata(alloc_ptr)
     mstore 64, v189 !metadata(memory=scratch)
-    v194 = calldatasize
-    calldatacopy v188, v194, 224
+    calldatacopy v188, v56, 224
     mstore v196, v188
     v197 = add v196, 32
     jump bb1

@@ -70,7 +70,7 @@ contract ConstantSelect {
 
     // CHECK-LABEL: fn @signature(
     // CHECK: select
-    // SIZE: [[SIGNATURE]]:
+    // SIZE: [[SIGNATURE]]{{( \[[a-z, ]+\])?}}:
     // SIZE: push 4
     // SIZE-NEXT: calldataload
     // SIZE-NEXT: push 1
@@ -80,7 +80,7 @@ contract ConstantSelect {
     // SIZE-NEXT: lt
     // SIZE-NEXT: or
     // SIZE-NEXT: jump [[CHECKED:bb[0-9]+]]
-    // SIZE-NEXT: [[CHECKED]]:
+    // SIZE-NEXT: [[CHECKED]]{{( \[[a-z, ]+\])?}}:
     // SIZE-NEXT: push {{bb[0-9]+}}
     // SIZE-NEXT: jumpi
     // SIZE-NEXT: push 0xe2179b8e
@@ -88,11 +88,11 @@ contract ConstantSelect {
     // SIZE-NEXT: shl
     // SIZE-NEXT: push 4
     // SIZE-NEXT: calldataload
-    // SIZE-NEXT: iszero
-    // SIZE-NEXT: iszero
+    // SIZE-NEXT: push 0
+    // SIZE-NEXT: lt
     // SIZE-NEXT: push 0x26121ff0
     // SIZE-NEXT: jump [[SELECT:bb[0-9]+]]
-    // SIZE-NEXT: [[SELECT]]:
+    // SIZE-NEXT: [[SELECT]]{{( \[[a-z, ]+\])?}}:
     // SIZE-NEXT: push 224
     // SIZE-NEXT: shl
     // SIZE-NEXT: dup 3

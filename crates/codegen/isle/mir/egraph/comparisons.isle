@@ -196,6 +196,8 @@
 
 ;; Canonical zero tests preserve the operand's scalar type.
 ;; x > 0 => x != 0.
+;; As a value `x != 0` costs what `x > 0` does (`Target::ne_zero`), and the latest node wins ties,
+;; so extraction keeps `!=`, which a branch peels to a bare `JUMPI`.
 (rule (rewrite (Op.Gt x (zero))) (Op.Ne x (imm (u256 0))))
 
 ;; (a == b) == 0 => a != b.

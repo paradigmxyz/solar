@@ -51,7 +51,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let Some(plan) = plans[func_id].take() else { continue };
             self.enter_function(module, func);
-            self.asm.define_label(self.function_labels[&func_id]);
+            self.asm.define_external_entry_label(self.function_labels[&func_id]);
             self.mark_debug_function_invoke(func);
             self.comment_function_entry(func, false, false);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
@@ -162,7 +162,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Starts emitting `func`, whose own objective prices its code and marks its blocks, its
     /// first label's included, when its tag selects one.
     fn enter_function(&mut self, module: &Module, func: &Function) {
-        self.optimization = func.attributes.optimization.unwrap_or(module.optimization);
+        self.optimization = module.objective_of(func);
         self.asm.block_optimization = func.attributes.optimization;
     }
 
@@ -378,12 +378,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let (taken, fall) =
                     if invert { (else_edge, then_edge) } else { (then_edge, else_edge) };
                 // [iszero]; jumpi taken; <fall trampoline>; jump fall
-                if invert {
-                    self.asm.emit_op(op::ISZERO);
-                }
                 let label = edge_label(self, taken);
-                self.asm.emit_push_label(label);
-                self.asm.emit_op(op::JUMPI);
+                self.emit_conditional_jump(label, invert);
                 for step in fall.trampoline.iter().flatten() {
                     self.emit_stackified_step(func_id, func, step, cold);
                 }

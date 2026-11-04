@@ -278,7 +278,7 @@ fn add_root_stdout_filters(config: &mut ui_test::Config, root: &Path) {
 }
 
 fn get_host() -> &'static str {
-    static CACHE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    static CACHE: OnceLock<String> = OnceLock::new();
     CACHE.get_or_init(|| {
         let mut config = ui_test::Config::dummy();
         config.program = ui_test::CommandBuilder::rustc();

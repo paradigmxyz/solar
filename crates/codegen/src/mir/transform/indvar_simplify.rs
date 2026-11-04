@@ -105,7 +105,7 @@
 //! - recognize checked unsigned updates at every width and retain their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
-use super::egraph::max_bits_with_args;
+use super::{egraph::max_bits_with_args, loop_opt::LoopOptimizer};
 use crate::{
     mir::{
         ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
@@ -399,7 +399,12 @@ impl IndVarSimplifier {
                 });
             }
         }
-        let carried = Self::carried_words(func, loop_data, &self.in_loop, &mut self.seen);
+        let carried = LoopOptimizer::carried_words(
+            func,
+            loop_data,
+            |inst| self.in_loop.contains(inst),
+            &mut self.seen,
+        );
         let update_value = func.inst_result_value(iv.update_inst);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
         let mut offset_shared = FxHashSet::default();
@@ -1377,7 +1382,7 @@ impl IndVarSimplifier {
     /// Operations a family's pointer costs per iteration: one duplication per
     /// primary use, an add per sibling use, the latch update, and the carried word.
     fn family_cost_after(members: &[(AddressKey, Vec<ValueId>)], carried: usize) -> usize {
-        let carry = 2 + carried.saturating_sub(4);
+        let carry = 2 + carried.saturating_sub(Target::SHALLOW_CARRIED_WORDS);
         let byte_pointer = if members[0].0.scale.abs() == 1 { 2 } else { 0 };
         members
             .iter()
@@ -1437,39 +1442,6 @@ impl IndVarSimplifier {
                 .operands()
                 .iter()
                 .any(|&operand| Self::depends_on(func, in_loop, operand, target, depth + 1))
-    }
-
-    /// The words the backend carries through the loop: the header's phis and
-    /// the instruction results defined outside that the loop reads.
-    fn carried_words(
-        func: &Function,
-        loop_data: &Loop,
-        in_loop: &DenseBitSet<InstId>,
-        seen: &mut DenseBitSet<ValueId>,
-    ) -> usize {
-        let header = &func.blocks[loop_data.header];
-        let mut count = header
-            .instructions
-            .iter()
-            .filter(|&&inst_id| matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-            .count();
-        seen.clear_to(func.num_values());
-        for block in loop_data.blocks.iter() {
-            let block = &func.blocks[block];
-            for operand in block
-                .instructions
-                .iter()
-                .filter(|&&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)))
-                .flat_map(|&inst_id| func.inst(inst_id).kind.operands())
-                .chain(block.terminator.iter().flat_map(Terminator::operands))
-            {
-                let Value::Inst(inst_id) = func.value(operand) else { continue };
-                if !in_loop.contains(*inst_id) && seen.insert(operand) {
-                    count += 1;
-                }
-            }
-        }
-        count
     }
 
     fn additive_step(

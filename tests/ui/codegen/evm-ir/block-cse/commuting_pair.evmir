@@ -1,0 +1,67 @@
+//@ compile-flags: --evm-version amsterdam -Zevm-ir-pipeline=block-cse
+//@ filecheck:
+@module module
+
+// The top two operands of `addmod` and `mulmod` commute; the modulus below them does not. The
+// modulus is pushed first.
+
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: addmod
+// CHECK: +   dup 1
+// CHECK: add
+bb0:
+  push 5
+  push 2
+  push 3
+  addmod
+  push 5
+  push 3
+  push 2
+  addmod
+  add
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: mulmod
+// CHECK: +   dup 1
+// CHECK: add
+bb1:
+  push 5
+  push 2
+  push 3
+  mulmod
+  push 5
+  push 3
+  push 2
+  mulmod
+  add
+  stop
+
+// Swapping the modulus with an operand changes the result.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-COUNT-2: addmod
+bb2:
+  push 5
+  push 2
+  push 3
+  addmod
+  push 3
+  push 2
+  push 5
+  addmod
+  add
+  stop
+
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-COUNT-2: mulmod
+bb3:
+  push 5
+  push 2
+  push 3
+  mulmod
+  push 3
+  push 2
+  push 5
+  mulmod
+  add
+  stop

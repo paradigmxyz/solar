@@ -41,10 +41,10 @@ fn @sum() {
     jumpi v71, bb10, bb11
   bb11:                                           ; preds = bb0
     v49 = alloc 96 !metadata(deferred_alloc)
-    v50 = icall @decode_calldata_type.5, v44, v44
+    v50 = icall @decode_calldata_type.4, v44, v44
     mstore v49, v50
     v52 = add v44, 32
-    v53 = icall @decode_calldata_type.5, v52, v44
+    v53 = icall @decode_calldata_type.4, v52, v44
     v64 = add v49, 32
     mstore v64, v53
     v66 = add v49, 64
@@ -91,7 +91,9 @@ fn @sum() {
     v15 = add v2, 1
     jump bb1
   bb7 [cold]:                                     ; preds = bb3, bb6
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb10 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
@@ -185,7 +187,9 @@ fn @sumDecoded() {
     v17 = add v4, 1
     jump bb1
   bb7 [cold]:                                     ; preds = bb3, bb6
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb14 [cold]:                                    ; preds = bb13
     mstore 32, 65
     mstore 0, 0x4e487b71
@@ -208,10 +212,10 @@ fn @narrow() {
     jumpi v77, bb10, bb11
   bb11:                                           ; preds = bb0
     v53 = alloc 96 !metadata(deferred_alloc)
-    v54 = icall @decode_calldata_type.6, v48, v48
+    v54 = icall @decode_calldata_type.5, v48, v48
     mstore v53, v54
     v56 = add v48, 32
-    v57 = icall @decode_calldata_type.6, v56, v48
+    v57 = icall @decode_calldata_type.5, v56, v48
     v68 = add v53, 32
     mstore v68, v57
     v70 = add v53, 64
@@ -260,7 +264,9 @@ fn @narrow() {
     v17 = add v2, 1
     jump bb1
   bb7 [cold]:                                     ; preds = bb3, bb6
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb10 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
@@ -279,10 +285,10 @@ fn @grid() {
     jumpi v129, bb16, bb17
   bb17:                                           ; preds = bb0
     v99 = alloc 96 !metadata(deferred_alloc)
-    v100 = icall @decode_calldata_type.7, v94, v94
+    v100 = icall @decode_calldata_type.6, v94, v94
     mstore v99, v100
     v102 = add v94, 32
-    v103 = icall @decode_calldata_type.7, v102, v94
+    v103 = icall @decode_calldata_type.6, v102, v94
     v120 = add v99, 32
     mstore v120, v103
     v122 = add v99, 64
@@ -359,19 +365,14 @@ fn @grid() {
     v36 = add v9, 1
     jump bb5
   bb13 [cold]:                                    ; preds = bb6, bb12
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb16 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
 
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -407,7 +408,7 @@ fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_calldata_type.6(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -461,7 +462,7 @@ fn @decode_calldata_type.6(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_calldata_type.7(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+fn @decode_calldata_type.6(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -490,12 +491,12 @@ fn @decode_calldata_type.7(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v16 = phi [bb5: v6], [bb7: v25]
     v17 = phi [bb5: v7], [bb7: v26]
     v18 = phi [bb5: 0], [bb7: v27]
-    v19 = gt v16, 0
+    v19 = ne v16, 0
     jumpi v19, bb7, bb8
   bb8:                                            ; preds = bb6
     ret v32
   bb7:                                            ; preds = bb6
-    v20 = icall @decode_calldata_type.5, v17, v7
+    v20 = icall @decode_calldata_type.4, v17, v7
     v21 = shl v18, 5
     v29 = add v32, v21
     v30 = add v29, 32

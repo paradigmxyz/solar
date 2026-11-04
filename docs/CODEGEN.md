@@ -198,7 +198,7 @@ runtime follows (`code_follows`), and a block in a loop, or in creation code tha
 a loop or recursion calls (`BlockMetadata::repeats`, set from
 `Module::repeated_functions`), keeps the runtime model. The stack planner does
 the same per function. Helpers shared across call sites (`lower-mcopy`,
-`lower-abi-encode`, `outline-reverts`, `specialize`) and lowering from HIR keep
+`lower-abi-encode`, `specialize`) and lowering from HIR keep
 the runtime model, because one decision serves code of both kinds or the code's
 function and loops are not known yet.
 The stack scheduler plans against a `Target` and orders plans by

@@ -18,7 +18,7 @@ bb3 [cold]:
   push 0
   push 0
   revert
-bb15 [cold]:                                      ; revert_stub (synthesized)
+bb13 [cold]:
   push 17
   push 32
   mstore
@@ -28,7 +28,7 @@ bb15 [cold]:                                      ; revert_stub (synthesized)
   push 36
   push 28
   revert
-bb4:                                              ; function crowded(uint256 x, uint256 y, uint256 a, uint256 b, uint256 c, uint256 n) external pure returns (uint256) [selector 0xf6f9e3a3]
+bb4 [entry]:                                      ; function crowded(uint256 x, uint256 y, uint256 a, uint256 b, uint256 c, uint256 n) external pure returns (uint256) [selector 0xf6f9e3a3]
   push 196
   calldatasize
   lt
@@ -81,7 +81,7 @@ bb6 [loop]:
   or
   or
   or
-  push bb15
+  push bb13
   jumpi
   push 0
   mstore
@@ -103,14 +103,14 @@ bb9 [loop]:
   swap 7
   or
   iszero
-  push bb15
+  push bb13
   jumpi
   swap 5
   push 1
   add
   dup 1
   iszero
-  push bb15
+  push bb13
   jumpi
   swap 4
   dup 6
@@ -138,7 +138,7 @@ bb9 [loop]:
   dup 5
   lt
   or
-  push bb15
+  push bb13
   jumpi
   swap 5
   push 1

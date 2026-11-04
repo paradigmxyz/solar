@@ -12,15 +12,18 @@
 // The guards keep each function above the 128 blocks from which the dominator walk lists the
 // relations its scope states. The searches through them still prove `a < c` from `a < b` and
 // `b < c`, so neither difference checks its underflow, however many branches precede them.
-// CHECK-LABEL: fn @chained()
-// CHECK: calldataload 68
-// CHECK: [[C:v[0-9]+]] = calldataload 68
-// CHECK-NOT: lt [[C]],
+// Both functions are inlined into the dispatch entry, `chained` first.
+// CHECK-LABEL: fn @entry()
+// CHECK: [[A:v[0-9]+]] = calldataload 4
+// CHECK-NEXT: [[B:v[0-9]+]] = calldataload 36
+// CHECK-NEXT: [[C:v[0-9]+]] = calldataload 68
+// CHECK-NOT: lt [[C]], [[B]]
+// CHECK-NOT: lt [[C]], [[A]]
+// CHECK: sub [[C]], [[B]]
 //
 // Without the second guard, `b` is unordered against `c` and its difference keeps the check.
-// CHECK-LABEL: fn @unchained()
-// CHECK: [[C:v[0-9]+]] = calldataload 68
-// CHECK: lt [[C]], {{v[0-9]+}}
+// CHECK: [[C2:v[0-9]+]] = calldataload 68
+// CHECK: lt [[C2]], {{v[0-9]+}}
 
 error Hole();
 
