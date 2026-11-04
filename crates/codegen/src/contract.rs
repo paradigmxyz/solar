@@ -729,6 +729,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             scheduled.then_some(codegen)
         } else {
             if capture_mir && !capture_built {
+                module.set_debug_info_tracked(crate::debugify::enabled(gcx));
                 let _changed = run_pipeline(gcx, &mut module, None);
                 gcx.dcx().has_errors()?;
             }

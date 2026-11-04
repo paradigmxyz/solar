@@ -1,0 +1,30 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/late-word/debug_root.evmir (before late-word) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/late-word/debug_root.evmir (after late-word) ===
+  @module DebugRoot
+  bb0:
+    push 4
+    calldataload
+    indexed_jump bb1, bb2
+  bb1:
+    push 4
+    calldataload
+-   push 0
+-   not
++   push 96 !metadata(span=50..60)
++   shl !metadata(span=50..60)
+    push 96
+-   shr
+-   and !metadata(span=50..60)
++   shr !metadata(span=50..60)
+    stop
+  bb2:
+    push 4
+    calldataload
+-   push 1
+-   swap 1
+-   sub !metadata(span=70..80)
++   push 0 !metadata(span=70..80)
++   not !metadata(span=70..80)
++   add !metadata(span=70..80)
+    stop
+  

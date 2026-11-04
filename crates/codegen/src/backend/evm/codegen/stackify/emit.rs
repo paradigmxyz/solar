@@ -411,6 +411,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     let metadata = &func.inst(*origin).metadata;
                     self.asm.set_source_spans(metadata.source_spans());
+                    self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
                     self.asm.set_modifier_depth(metadata.modifier_depth());
                 }
                 // push callee; jump
@@ -479,6 +480,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if let Some(inst) = inst {
                         let metadata = &func.inst(inst).metadata;
                         self.asm.set_source_spans(metadata.source_spans());
+                        self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
                         self.asm.set_modifier_depth(metadata.modifier_depth());
                     } else {
                         // NOTE: A retained constant has no single source consumer.
@@ -531,6 +533,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.capture_debug_info {
             let metadata = &func.blocks[block].terminator_metadata;
             self.asm.set_source_spans(metadata.source_spans());
+            self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
             self.asm.set_modifier_depth(metadata.modifier_depth());
         }
     }
@@ -541,6 +544,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             // push target; jump
             self.asm.emit_push_label(self.block_labels[&target]);
             self.asm.emit_op(op::JUMP);
+        } else if self.capture_debug_info {
+            self.asm.mark_fallthrough();
         }
     }
 

@@ -48,8 +48,8 @@
     stop
   bb4 [stack=5]:
 -   swap 1 !metadata(span=16..17)
-+   swap 4
-+   swap 1
++   swap 4 !metadata(span=18..19)
++   swap 1 !metadata(span=18..19)
     push 7 !metadata(span=17..18)
 -   sub !metadata(span=18..19)
 -   swap 4 !metadata(span=19..20)

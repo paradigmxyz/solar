@@ -165,7 +165,16 @@ fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '
         let function_invoke = visible.then(|| metadata.function_invoke()).flatten();
         let function_exit = visible.then(|| metadata.function_exit()).flatten();
         let checkpoints = if visible { metadata.checkpoint_transfers() } else { &[] };
+        // Text without a location means `dropped`, and the audit sets `unknown` on the gaps it
+        // reports, so neither is spelled out: an audit must not change the text.
+        let loc_kind = (visible && spans.is_empty())
+            .then(|| metadata.debug_loc_kind())
+            .filter(|kind| {
+                matches!(kind, DebugLocKind::CompilerGenerated | DebugLocKind::Temporary)
+            })
+            .and_then(DebugLocKind::keyword);
         if spans.is_empty()
+            && loc_kind.is_none()
             && function_invoke.is_none()
             && function_exit.is_none()
             && checkpoints.is_empty()
@@ -188,6 +197,10 @@ fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '
                 write!(f, "{}..{}", span.lo().0, span.hi().0)?;
             }
             write!(f, "]")?;
+            separator = ", ";
+        }
+        if let Some(keyword) = loc_kind {
+            write!(f, "{keyword}")?;
             separator = ", ";
         }
         if let Some(function) = function_invoke {
