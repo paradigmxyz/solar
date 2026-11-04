@@ -45,7 +45,7 @@ bb9:                                              ; function c(bool fail) public
   calldataload
   dup 1
   push 1
-  shr
+  lt
   calldatasize
   push 36
   gt

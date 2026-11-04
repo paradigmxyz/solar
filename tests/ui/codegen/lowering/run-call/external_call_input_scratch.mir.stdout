@@ -839,17 +839,15 @@ fn @narrowReturn() -> struct2 [selector=0xbe491e7c, view, abi_params=[], abi_ret
     v7 = lt v6, 32
     icall revert_if<tuple_data_too_short>, v7
     v8 = mload 0 !metadata(memory=scratch)
-    v9 = shr v8, 8
-    v10 = eq v9, 0
-    v11 = eq v10, false
-    icall revert_if<empty>, v11
-    v12 = trunc i256 v8 to i8
-    v13 = zext i8 v12 to i256
-    v14 = icall @fmp
-    v15 = checked_sub uint256, v14, v0
-    v16 = insert_value struct2, undef struct2, 0, v15
-    v17 = insert_value struct2, v16, 1, v13
-    ret v17
+    v9 = gt v8, 255
+    icall revert_if<empty>, v9
+    v10 = trunc i256 v8 to i8
+    v11 = zext i8 v10 to i256
+    v12 = icall @fmp
+    v13 = checked_sub uint256, v12, v0
+    v14 = insert_value struct2, undef struct2, 0, v13
+    v15 = insert_value struct2, v14, 1, v11
+    ret v15
 }
 
 ; function functionArgument() external view returns (uint256 moved, uint256 value, uint256, uint256, uint256) [selector 0x0b08fc61]

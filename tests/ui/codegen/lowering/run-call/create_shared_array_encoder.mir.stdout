@@ -180,17 +180,15 @@ fn @createPair() -> struct0 [selector=0x9e78fb4f, abi_params=[], abi_returns=[wo
     v49 = lt v48, 32
     icall revert_if<tuple_data_too_short>, v49
     v50 = mload 0 !metadata(memory=scratch)
-    v51 = shr v50, 160
-    v52 = eq v51, 0
-    v53 = eq v52, false
-    icall revert_if<empty>, v53
-    v54 = trunc i256 v50 to i160
-    v55 = zext i160 v54 to i256
-    v56 = insert_value struct0, undef struct0, 0, v32
-    v57 = insert_value struct0, v56, 1, v38
-    v58 = insert_value struct0, v57, 2, v44
-    v59 = insert_value struct0, v58, 3, v55
-    ret v59
+    v51 = gt v50, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v51
+    v52 = trunc i256 v50 to i160
+    v53 = zext i160 v52 to i256
+    v54 = insert_value struct0, undef struct0, 0, v32
+    v55 = insert_value struct0, v54, 1, v38
+    v56 = insert_value struct0, v55, 2, v44
+    v57 = insert_value struct0, v56, 3, v53
+    ret v57
 }
 
 ; function createSingle() external returns (uint256, uint256, uint256, uint256) [selector 0xebef2b99]
@@ -274,15 +272,13 @@ fn @createSingle() -> struct0 [selector=0xebef2b99, abi_params=[], abi_returns=[
     v41 = lt v40, 32
     icall revert_if<tuple_data_too_short>, v41
     v42 = mload 0 !metadata(memory=scratch)
-    v43 = shr v42, 160
-    v44 = eq v43, 0
-    v45 = eq v44, false
-    icall revert_if<empty>, v45
-    v46 = trunc i256 v42 to i160
-    v47 = zext i160 v46 to i256
-    v48 = insert_value struct0, undef struct0, 0, v24
-    v49 = insert_value struct0, v48, 1, v30
-    v50 = insert_value struct0, v49, 2, v36
-    v51 = insert_value struct0, v50, 3, v47
-    ret v51
+    v43 = gt v42, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v43
+    v44 = trunc i256 v42 to i160
+    v45 = zext i160 v44 to i256
+    v46 = insert_value struct0, undef struct0, 0, v24
+    v47 = insert_value struct0, v46, 1, v30
+    v48 = insert_value struct0, v47, 2, v36
+    v49 = insert_value struct0, v48, 3, v45
+    ret v49
 }

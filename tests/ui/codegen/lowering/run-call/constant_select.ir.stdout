@@ -181,12 +181,12 @@ bb16 [loop, entry]:                               ; function store(bytes memory 
   swap 2
   dup 3
   add
-  dup 3
-  dup 2
-  lt
-  dup 2
+  dup 1
   push 64
   shr
+  dup 4
+  dup 3
+  lt
   or
   swap 1
   swap 2
@@ -402,12 +402,12 @@ bb31:
   swap 1
   dup 2
   add
-  dup 2
-  dup 2
-  lt
-  swap 1
+  dup 1
   push 64
   shr
+  swap 1
+  dup 3
+  gt
   or
   push bb40
   jumpi
@@ -631,13 +631,13 @@ bb50 [continuation]:
   push 0
   return
 bb52 [entry]:                                     ; function signature(bool condition) external pure returns (bytes memory) [selector 0x59834352]
-  push 4
-  calldataload
-  push 1
-  shr
   push 36
   calldatasize
   lt
+  push 1
+  push 4
+  calldataload
+  gt
   or
   jump bb85
 bb85:

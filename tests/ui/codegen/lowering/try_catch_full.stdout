@@ -204,7 +204,8 @@ fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
   bb2:                                            ; preds = bb1
     v6 = add v2, v3
     v7 = mload v6
-    v9 = gt v7, 0xffffffffffffffff
+    v15 = shr v7, 64
+    v9 = ne v15, 0
     v8 = add v3, 36
     v10 = sub arg1, v8
     v11 = lt v10, v7
@@ -226,9 +227,11 @@ fn @decode_aggregate.3(arg0: i256, arg1: i256) [may_return_memory, return_abi=[i
     v8 = mload v7
     v10 = add v8, arg0
     v13 = add v10, 32
-    v14 = gt v8, 0xffffffffffffffff
+    v48 = shr v8, 64
     v15 = lt v3, v13
-    v16 = or v14, v15
+    v50 = zext i1 v15 to i256
+    v51 = or v48, v50
+    v16 = ne v51, 0
     jumpi v16, bb1, bb3
   bb3:                                            ; preds = bb2
     v18 = mload v10
@@ -268,9 +271,11 @@ fn @decode_aggregate.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v5 = mload arg0
     v7 = add v5, arg0
     v10 = add v7, 32
-    v11 = gt v5, 0xffffffffffffffff
+    v43 = shr v5, 64
     v12 = lt v3, v10
-    v13 = or v11, v12
+    v45 = zext i1 v12 to i256
+    v46 = or v43, v45
+    v13 = ne v46, 0
     jumpi v13, bb1, bb3
   bb3:                                            ; preds = bb2
     v15 = mload v7
@@ -305,12 +310,12 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v7 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v5, v4
-    v7 = ne v6, 0
-    jumpi v7, bb1, bb2
+    v9 = zext i1 v3 to i256
+    v10 = or v7, v9
+    v5 = ne v10, 0
+    jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

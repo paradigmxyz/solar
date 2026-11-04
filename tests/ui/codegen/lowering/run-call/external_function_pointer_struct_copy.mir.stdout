@@ -8,50 +8,47 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     v1 = extract_value slice<calldata>, arg0, 1
     v2 = extract_value slice<calldata>, arg0, 0
     v3 = mul v1, 32
-    v4 = shr v1, 251
-    v5 = ne v4, 0
-    icall panic_if<0x41>, v5
-    v6 = calldatasize
-    v7 = ptrtoint ptr<calldata> v2 to i256
-    v8 = sub v6, v7
-    v9 = slt v8, v3
-    icall revert_if<calldata_tail_too_short>, v9
-    v10 = mul v1, 32
-    v11 = shr v1, 251
-    v12 = ne v11, 0
+    v4 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v4
+    v5 = calldatasize
+    v6 = ptrtoint ptr<calldata> v2 to i256
+    v7 = sub v5, v6
+    v8 = slt v7, v3
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = mul v1, 32
+    v10 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = add v9, 32
+    v12 = lt v11, 32
     icall panic_if<0x41>, v12
-    v13 = add v10, 32
-    v14 = lt v13, 32
-    icall panic_if<0x41>, v14
-    v15 = alloc v13
-    mstore v15, v1
+    v13 = alloc v11
+    mstore v13, v1
     jump bb1
   bb1:                                            ; preds = bb0, bb2
-    v16 = phi [bb0: 0], [bb2: v30]
-    v17 = lt v16, v1
-    jumpi v17, bb2, bb3
+    v14 = phi [bb0: 0], [bb2: v27]
+    v15 = lt v14, v1
+    jumpi v15, bb2, bb3
   bb3:                                            ; preds = bb1
-    v31 = ptrtoint ptr<memory> v15 to i256
-    mstore v0, v31
-    v32 = alloc 32 !metadata(preserves_fmp)
-    mstore v32, 96
+    v28 = ptrtoint ptr<memory> v13 to i256
+    mstore v0, v28
+    v29 = alloc 32 !metadata(preserves_fmp)
+    mstore v29, 96
     ret v0
   bb2:                                            ; preds = bb1
-    v18 = mul v16, 32
-    v19 = ptrtoint ptr<calldata> v2 to i256
-    v20 = add v19, v18
-    v21 = calldataload v20
-    v22 = shl v21, 192
-    v23 = eq v22, 0
-    v24 = eq v23, false
-    icall revert_if<empty>, v24
-    v25 = shr v21, 64
-    v26 = shl v25, 64
-    v27 = shl v16, 5
-    v28 = ptradd v15, v27
-    v29 = ptradd v28, 32
-    mstore v29, v26
-    v30 = add v16, 1
+    v16 = mul v14, 32
+    v17 = ptrtoint ptr<calldata> v2 to i256
+    v18 = add v17, v16
+    v19 = calldataload v18
+    v20 = shl v19, 192
+    v21 = ne v20, 0
+    icall revert_if<empty>, v21
+    v22 = shr v19, 64
+    v23 = shl v22, 64
+    v24 = shl v14, 5
+    v25 = ptradd v13, v24
+    v26 = ptradd v25, 32
+    mstore v26, v23
+    v27 = add v14, 1
     jump bb1
 }
 

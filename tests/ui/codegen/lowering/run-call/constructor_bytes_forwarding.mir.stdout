@@ -173,10 +173,9 @@ fn @f(arg0: i256, arg1: ptr<memory>) -> struct0 [selector=0xcdc9dc79, abi_params
     icall revert_if<tuple_data_too_short>, v19
     v20 = mload 0 !metadata(memory=scratch)
     v21 = shl v20, 8
-    v22 = eq v21, 0
-    v23 = eq v22, false
-    icall revert_if<empty>, v23
-    v24 = insert_value struct0, undef struct0, 0, v14
-    v25 = insert_value struct0, v24, 1, v20
-    ret v25
+    v22 = ne v21, 0
+    icall revert_if<empty>, v22
+    v23 = insert_value struct0, undef struct0, 0, v14
+    v24 = insert_value struct0, v23, 1, v20
+    ret v24
 }

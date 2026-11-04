@@ -65,20 +65,19 @@ fn @memDyn(arg0: i256, arg1: i256) -> i256 [selector=0x24828414, pure, abi_param
     v8 = lt v7, v0
     icall panic_if<0x41>, v8
     v9 = mul v7, 32
-    v10 = shr v7, 251
-    v11 = ne v10, 0
-    icall panic_if<0x41>, v11
-    v12 = alloc zeroed checked v9
-    mstore v12, arg0
-    v13 = mload v12
-    v14 = lt arg1, v13
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = shl arg1, 5
-    v17 = ptradd v12, v16
-    v18 = ptradd v17, 32
-    v19 = mload v18
-    ret v19
+    v10 = gt v7, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = alloc zeroed checked v9
+    mstore v11, arg0
+    v12 = mload v11
+    v13 = lt arg1, v12
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = shl arg1, 5
+    v16 = ptradd v11, v15
+    v17 = ptradd v16, 32
+    v18 = mload v17
+    ret v18
 }
 
 ; function stDyn(uint256 i) public view returns (uint256) [selector 0x392580ee]
@@ -127,13 +126,12 @@ fn @cdDyn(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x1406a581, pure,
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = shr arg1, 251
-    v6 = ne v5, 0
-    icall panic_if<0x41>, v6
-    v7 = ptrtoint ptr<calldata> v3 to i256
-    v8 = add v7, v4
-    v9 = calldataload v8
-    ret v9
+    v5 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v5
+    v6 = ptrtoint ptr<calldata> v3 to i256
+    v7 = add v6, v4
+    v8 = calldataload v7
+    ret v8
 }
 
 ; function cdFix(uint256[3] calldata x, uint256 i) public pure returns (uint256) [selector 0xe21341a4]
@@ -145,13 +143,12 @@ fn @cdFix(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0xe21341a4, pure,
     icall panic_if<0x32>, v2
     v3 = extract_value slice<calldata>, arg0, 0
     v4 = mul arg1, 32
-    v5 = shr arg1, 251
-    v6 = ne v5, 0
-    icall panic_if<0x41>, v6
-    v7 = ptrtoint ptr<calldata> v3 to i256
-    v8 = add v7, v4
-    v9 = calldataload v8
-    ret v9
+    v5 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v5
+    v6 = ptrtoint ptr<calldata> v3 to i256
+    v7 = add v6, v4
+    v8 = calldataload v7
+    ret v8
 }
 
 ; function cdBytes(bytes calldata b, uint256 i) public pure returns (bytes1) [selector 0x335b74df]

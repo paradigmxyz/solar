@@ -175,12 +175,10 @@ fn @boolean(arg0: i256) -> i1 [selector=0xbc586ed6, pure, abi_params=[uint256], 
     revert_returndata
   bb2:                                            ; preds = bb0
     v7 = mload v1
-    v8 = shr v7, 1
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = ne v7, 0
-    ret v11
+    v8 = gt v7, 1
+    icall revert_if<empty>, v8
+    v9 = ne v7, 0
+    ret v9
 }
 
 ; function structBool(uint256 x) external pure returns (Lib.Flagged memory) [selector 0x199436a8]

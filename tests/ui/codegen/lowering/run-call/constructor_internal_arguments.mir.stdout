@@ -86,12 +86,10 @@ fn @getFlag() -> i1 [selector=0xf9633930, view, abi_params=[], abi_returns=[word
     v6 = lt v5, 32
     icall revert_if<tuple_data_too_short>, v6
     v7 = mload 0 !metadata(memory=scratch)
-    v8 = shr v7, 1
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
-    v11 = ne v7, 0
-    ret v11
+    v8 = gt v7, 1
+    icall revert_if<empty>, v8
+    v9 = ne v7, 0
+    ret v9
 }
 
 ; function getName() external view returns (bytes3) [selector 0x17d7de7c]
@@ -112,8 +110,7 @@ fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[wo
     icall revert_if<tuple_data_too_short>, v6
     v7 = mload 0 !metadata(memory=scratch)
     v8 = shl v7, 24
-    v9 = eq v8, 0
-    v10 = eq v9, false
-    icall revert_if<empty>, v10
+    v9 = ne v8, 0
+    icall revert_if<empty>, v9
     ret v7
 }

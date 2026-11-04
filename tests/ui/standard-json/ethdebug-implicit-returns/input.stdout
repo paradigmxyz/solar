@@ -747,12 +747,6 @@
                 {
                   "offset": 88,
                   "operation": {
-                    "mnemonic": "DUP1"
-                  }
-                },
-                {
-                  "offset": 89,
-                  "operation": {
                     "mnemonic": "PUSH1",
                     "arguments": [
                       "0x01"
@@ -760,9 +754,15 @@
                   }
                 },
                 {
+                  "offset": 90,
+                  "operation": {
+                    "mnemonic": "DUP2"
+                  }
+                },
+                {
                   "offset": 91,
                   "operation": {
-                    "mnemonic": "SHR"
+                    "mnemonic": "GT"
                   }
                 },
                 {

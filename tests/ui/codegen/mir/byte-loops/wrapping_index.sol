@@ -158,11 +158,13 @@ contract Test {
     // CHECK-LABEL: fn @wrappedArray(
     // CHECK: [[INDEX:v[0-9]+]] = calldataload 68
     // CHECK: [[INDEX_END:v[0-9]+]] = add [[INDEX]], {{v[0-9]+}}
+    // CHECK-NEXT: [[SCALE_WRAPS:v[0-9]+]] = shr [[INDEX_END]], 251
     // CHECK-NEXT: [[INDEX_WRAPS:v[0-9]+]] = lt [[INDEX_END]], [[INDEX]]
-    // CHECK-NEXT: [[SCALE_HIGH:v[0-9]+]] = shr [[INDEX_END]], 251
-    // CHECK-NEXT: [[SCALE_WRAPS:v[0-9]+]] = ne [[SCALE_HIGH]], 0
-    // CHECK-NEXT: [[INDEX_FAILS:v[0-9]+]] = or [[INDEX_WRAPS]], [[SCALE_WRAPS]]
-    // CHECK-NEXT: [[FALLBACK:v[0-9]+]] = or {{v[0-9]+}}, [[INDEX_FAILS]]
+    // CHECK-NEXT: [[WRAPS_WORD:v[0-9]+]] = zext i1 [[INDEX_WRAPS]] to i256
+    // CHECK-NEXT: [[INDEX_FAILS:v[0-9]+]] = or [[SCALE_WRAPS]], [[WRAPS_WORD]]
+    // CHECK-NEXT: [[FAILS_WORD:v[0-9]+]] = zext i1 {{v[0-9]+}} to i256
+    // CHECK-NEXT: [[FALLBACK_WORD:v[0-9]+]] = or [[INDEX_FAILS]], [[FAILS_WORD]]
+    // CHECK-NEXT: [[FALLBACK:v[0-9]+]] = ne [[FALLBACK_WORD]], 0
     // CHECK-NEXT: jumpi [[FALLBACK]]
     // CHECK: calldatacopy
     // CHECK: phi

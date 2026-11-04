@@ -49,6 +49,12 @@ contract CalldataStructMemberIndex {
         return p.words[i];
     }
 
+    // A route that needs a dynamic ABI copy keeps every wrapper out of the dispatcher, so each
+    // function above stays a body of its own to check.
+    function copied(uint256[] calldata xs) external pure returns (uint256[] memory) {
+        return xs;
+    }
+
     // Whole-member reads keep working off the memory copy.
     // CDSMI-LABEL: fn @lengths
     function lengths(Params calldata p) external pure returns (uint256, uint256, uint256) {

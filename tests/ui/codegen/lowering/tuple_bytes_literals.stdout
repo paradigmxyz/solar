@@ -28,8 +28,8 @@ fn @prefix() {
     v13 = add v12, 4
     v15 = sub v10, 36
     v16 = lt v15, v12
-    v63 = or v11, v16
-    jumpi v63, bb4, bb5
+    v62 = or v11, v16
+    jumpi v62, bb4, bb5
   bb5:                                            ; preds = bb0
     v17 = calldataload v13
     v18 = add v13, 32
@@ -39,14 +39,14 @@ fn @prefix() {
     v22 = lt v21, v17
     v56 = heap_floor !metadata(alloc_ptr)
     v57 = add v56, v21 !metadata(alloc_ptr)
+    v64 = shr v57, 64
     v58 = lt v57, v56
-    v59 = zext i1 v58 to i256
-    v60 = shr v57, 64
-    v61 = or v60, v59
-    v64 = zext i1 v22 to i256
-    v65 = or v61, v64
-    v66 = ne v65, 0
-    jumpi v66, bb6, bb8
+    v66 = zext i1 v58 to i256
+    v67 = or v64, v66
+    v69 = zext i1 v22 to i256
+    v70 = or v67, v69
+    v63 = ne v70, 0
+    jumpi v63, bb6, bb8
   bb8:                                            ; preds = bb5
     mstore v56, v17
     v24 = sub v10, v18

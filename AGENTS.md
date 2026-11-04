@@ -341,6 +341,10 @@ self.dcx()
   and does not test for nonzero.
 - Zero tests are `eq v, 0` and `ne v, 0`; `ISZERO` belongs to EVM IR. Rewrites
   keep value and type; bool-to-word needs `zext i1 v to i256`.
+- Write a test that a word fits in `k` bits as `lt x, 2^k` and one that it does not as
+  `gt x, 2^k - 1`, for 1 <= k < 256, never as a shift against zero: `spell-width-tests` picks the
+  spelling where the uses are known, and every pass reads the compare. See
+  [docs/CODEGEN.md](docs/CODEGEN.md#width-tests).
 - `ptr<memory>` is not an integer; pointer casts do not establish validity,
   provenance, ownership, or non-wrapping arithmetic.
 - Memory pointers are never null: store the zero slot or a default object as a

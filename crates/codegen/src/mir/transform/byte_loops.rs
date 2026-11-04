@@ -1016,7 +1016,7 @@ fn calldata_word_address(
     if func.value_u64(shift) != Some(5) {
         return None;
     }
-    // panic_if (ne (shr 251, idx), 0), 0x41
+    // panic_if (gt idx, MAX >> 5), 0x41
     for &inst in &lp.insts {
         let InstKind::ICall {
             function:
@@ -1037,20 +1037,10 @@ fn calldata_word_address(
     Some((slice, idx))
 }
 
-/// Whether `condition` tests that scaling `idx` by 32 wraps: `idx` has a bit at or above 251.
+/// Whether `condition` tests that scaling `idx` by 32 wraps: `gt idx, MAX >> 5`.
 fn scale_wraps(func: &Function, lp: &Counted, condition: ValueId, idx: ValueId) -> bool {
-    match body_def(func, lp, condition).map(|(_, kind)| kind) {
-        // ne (shr 251, idx), 0
-        Some(&InstKind::Ne(high, zero)) if func.value_u64(zero) == Some(0) => {
-            matches!(body_def(func, lp, high), Some((_, &InstKind::Shr(amount, shifted)))
-                if shifted == idx && func.value_u64(amount) == Some(251))
-        }
-        // gt idx, MAX >> 5
-        Some(&InstKind::Gt(value, limit)) => {
-            value == idx && func.value_u256(limit) == Some(U256::MAX >> 5)
-        }
-        _ => false,
-    }
+    matches!(body_def(func, lp, condition), Some((_, &InstKind::Gt(value, limit)))
+        if value == idx && func.value_u256(limit) == Some(U256::MAX >> 5))
 }
 
 /// Matches `dst[dstOffset + k] = src[srcOffset + k]` over arrays of words, counting up.
@@ -1905,11 +1895,10 @@ fn keeps_loop(
     if src.shift == 0 {
         return overlaps;
     }
-    // scale_wraps = ne (shr bound, 256 - shift), 0
+    // scale_wraps = gt bound, MAX >> shift
     // keeps_loop = or overlaps, scale_wraps
-    let bits = builder.imm(256 - u32::from(src.shift));
-    let high = builder.shr(lp.bound, bits);
-    let scale_wraps = builder.ne_zero(high);
+    let limit = builder.imm(U256::MAX >> src.shift);
+    let scale_wraps = builder.gt(lp.bound, limit);
     builder.or(overlaps, scale_wraps)
 }
 
@@ -2076,14 +2065,13 @@ fn calldata_wraps(builder: &mut FunctionBuilder<'_>, access: &Access, count: Val
     if access.shift != 0 {
         // index_end = add offset, count
         // index_wraps = lt index_end, offset
-        // scale_wraps = ne (shr index_end, 256 - shift), 0
+        // scale_wraps = gt index_end, MAX >> shift
         // wraps = or wraps, (or index_wraps, scale_wraps)
         let index_start = access.offset.unwrap_or_else(|| builder.imm(0));
         let index_end = builder.add(index_start, count);
         let index_wraps = builder.lt(index_end, index_start);
-        let bits = builder.imm(256 - u32::from(access.shift));
-        let high = builder.shr(index_end, bits);
-        let scale_wraps = builder.ne_zero(high);
+        let limit = builder.imm(U256::MAX >> access.shift);
+        let scale_wraps = builder.gt(index_end, limit);
         let index_fails = builder.or(index_wraps, scale_wraps);
         wraps = builder.or(wraps, index_fails);
     }

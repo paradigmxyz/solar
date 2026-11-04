@@ -1,0 +1,19 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi
+//@ filecheck:
+@module LowerAbiEmptyEnum
+
+// No word is valid for an enum without variants, so its validation rejects every word, calldata
+// word 0 included, and a lone variant admits only 0.
+// CHECK-LABEL: fn @none(
+// CHECK: + jumpi true,
+// CHECK-LABEL: fn @lone(
+// CHECK: + {{v[0-9]+}} = ne {{v[0-9]+}}, 0
+fn @none(arg0: i256) -> i256 [selector=0x11111111, abi_params=[enum<0, uint8>], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
+
+fn @lone(arg0: i256) -> i256 [selector=0x22222222, abi_params=[enum<1, uint8>], abi_returns=[word]] {
+  bb0:
+    ret arg0
+}
