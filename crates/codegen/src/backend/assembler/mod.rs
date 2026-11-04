@@ -121,6 +121,8 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) current_debug_loc_kind: DebugLocKind,
     /// Legacy source-map modifier nesting depth attached to new EVM IR operations.
     pub(in crate::backend) current_modifier_depth: u32,
+    /// Source origins of the jump that falls through at the end of an EVM IR block.
+    pub(in crate::backend) fallthrough_origins: FxHashMap<ir::BlockId, (DebugSpans, u32)>,
     /// Original assembler label attached to each EVM IR block.
     pub(in crate::backend) block_labels: Vec<Option<Label>>,
     /// Defined assembler labels and their EVM IR blocks.
@@ -200,6 +202,7 @@ impl<'gcx> Assembler<'gcx> {
             current_source_spans: DebugSpans::new(),
             current_debug_loc_kind: DebugLocKind::Normal,
             current_modifier_depth: 0,
+            fallthrough_origins: FxHashMap::default(),
             block_labels: Vec::new(),
             label_blocks: FxHashMap::default(),
             cold_labels: GrowableBitSet::new_empty(),
@@ -236,6 +239,7 @@ impl<'gcx> Assembler<'gcx> {
         self.current_source_spans.clear();
         self.current_debug_loc_kind = DebugLocKind::Normal;
         self.current_modifier_depth = 0;
+        self.fallthrough_origins.clear();
         self.block_labels.clear();
         self.label_blocks.clear();
         self.cold_labels.clear();
