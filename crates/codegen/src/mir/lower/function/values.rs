@@ -65,6 +65,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = self.operand(expr)?;
                 let fields = self.unpack_return_value(value);
                 return Some(match (resolved_function, function_pointer) {
+                    // An external call decodes its results at their native widths.
+                    (Some(_), _)
+                        if !function_ty.is_some_and(|function| {
+                            function.is_internal() && !function.is_delegate_call()
+                        }) =>
+                    {
+                        fields.into_iter().map(Word::from_clean).collect()
+                    }
                     (Some(function_id), _) => {
                         let function_id = self.resolve_call_target(callee, function_id);
                         let returns = self.cx.gcx.hir.function(function_id).returns;

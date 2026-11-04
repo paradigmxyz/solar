@@ -15,6 +15,8 @@
 //@ run-call: C::t_ternary_literal_assign => 255
 //@ run-call: C::t_ternary_literal_else => 255
 //@ run-call: C::t_ternary_same_type => 511
+//@ run-call: C::t_external_tuple_ternary => 115792089237316195423570985008687907853269984665640564039457584007913129639935
+//@ run-call: C::t_external_tuple_declare => 115792089237316195423570985008687907853269984665640564039457584007913129639935
 //@ run-call: C::t_storage_ref_assign_clean_use => 255
 
 // Generated cases. Every expectation was captured by running the same source through
@@ -30,6 +32,11 @@ contract C {
 
     function d() internal pure returns (uint8 r) {
         assembly { r := 0x1ff }
+    }
+
+    function ef() external pure returns (int8 a, uint256 b) {
+        assembly { a := not(0) }
+        b;
     }
 
     function dd() internal pure returns (uint8 a, uint8 b) {
@@ -60,5 +67,7 @@ contract C {
     function t_ternary_literal_assign() external view returns (uint256 r) { uint8 x = d(); uint8 p; uint8 q; (p, q) = gasleft() > 0 ? (x, 2) : (3, 4); q; assembly { r := p } }
     function t_ternary_literal_else() external view returns (uint256 r) { uint8 x = d(); uint8 p; uint8 q; (p, q) = gasleft() == 0 ? (3, 4) : (x, 2); q; assembly { r := p } }
     function t_ternary_same_type() external view returns (uint256 r) { uint8 x = d(); uint8 y = 2; (uint8 p, uint8 q) = gasleft() > 0 ? (x, y) : (y, x); q; assembly { r := p } }
+    function t_external_tuple_ternary() external view returns (uint256 r) { (int8 a, uint256 b) = gasleft() > 0 ? this.ef() : (int8(-2), uint256(0)); b; assembly { r := a } }
+    function t_external_tuple_declare() external view returns (uint256 r) { (int8 a, uint256 b) = this.ef(); b; assembly { r := a } }
     function t_storage_ref_assign_clean_use() external view returns (uint256 r) { S storage y = ss; uint8 x; (x, y) = g(); y; return uint256(x) + 0; }
 }
