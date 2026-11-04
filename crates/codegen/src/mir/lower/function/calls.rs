@@ -126,7 +126,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|(&value, &parameter)| self.materialize_scalar_carrier(parameter, value, span))
             .collect::<Option<Vec<_>>>()?;
         let result = self.builder.icall(mir_id, values, result_ty);
-        Some(self.call_result_word(result, function.returns[0]))
+        Some(Carried::new(result, self.is_raw_binding(function.returns[0])))
     }
 
     pub(super) fn lower_call(
@@ -520,7 +520,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(dispatcher, function, args)
         let result = self.builder.icall(dispatcher, values, result_ty);
         if let [ret] = function.returns {
-            return Some(CallResult::Carried(self.pointer_result_word(result, *ret)));
+            let raw = self.is_raw_pointer_return(*ret);
+            return Some(CallResult::Carried(Carried::new(result, raw)));
         }
         Some(CallResult::Value(result))
     }
@@ -835,7 +836,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(function, call_args)
         let result = self.builder.icall(mir_id, values, result_ty);
         if let [ret] = function.returns {
-            return Some(CallResult::Carried(self.call_result_word(result, *ret)));
+            let raw = self.is_raw_binding(*ret);
+            return Some(CallResult::Carried(Carried::new(result, raw)));
         }
         Some(CallResult::Value(result))
     }

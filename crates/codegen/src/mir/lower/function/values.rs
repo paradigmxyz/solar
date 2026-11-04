@@ -62,25 +62,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && returns > 1
             {
                 // The fields are raw words where the callee's return variable is a raw carrier.
-                let raw = match (resolved_function, function_pointer) {
+                let value = self.lower_expr(expr)?;
+                let fields = self.unpack_clean_value(value);
+                return Some(match (resolved_function, function_pointer) {
                     (Some(function_id), _) => {
                         let function_id = self.resolve_call_target(callee, function_id);
-                        self.cx
-                            .gcx
-                            .hir
-                            .function(function_id)
-                            .returns
-                            .iter()
-                            .map(|&id| self.is_raw_binding(id))
-                            .collect::<Vec<_>>()
+                        let returns = self.cx.gcx.hir.function(function_id).returns;
+                        fields
+                            .into_iter()
+                            .zip(returns)
+                            .map(|(field, &id)| Carried::new(field, self.is_raw_binding(id)))
+                            .collect()
                     }
-                    (None, Some(function)) => {
-                        function.returns.iter().map(|&ty| self.is_raw_pointer_return(ty)).collect()
-                    }
-                    (None, None) => Vec::new(),
-                };
-                let value = self.lower_expr(expr)?;
-                return Some(self.unpack_return_value(value, &raw));
+                    (None, Some(function)) => fields
+                        .into_iter()
+                        .zip(function.returns)
+                        .map(|(field, &ty)| Carried::new(field, self.is_raw_pointer_return(ty)))
+                        .collect(),
+                    (None, None) => fields.into_iter().map(Carried::from_clean).collect(),
+                });
             }
         }
         match &expr.kind {
@@ -621,10 +621,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// Splits the value that a call returns into its fields, which are canonical.
+    /// Splits the value that a call returns into its fields.
     ///
-    /// Use it for the result of an external call or a decoding. The result of an internal call
-    /// goes through [`Self::unpack_return_value`].
+    /// The fields of an internal call are raw words where the return variable is a raw carrier,
+    /// so the caller wraps them in `Carried`.
     pub(super) fn unpack_clean_value(&mut self, value: ValueId) -> Vec<ValueId> {
         let Some(MirType::Struct(id)) = self.builder.func().value_ty(value) else {
             return vec![value];
@@ -646,14 +646,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Splits the value that an internal call returns into its fields. `raw` says which fields
     /// are raw words, which is where the callee's return variable is a raw carrier.
-    pub(super) fn unpack_return_value(&mut self, value: ValueId, raw: &[bool]) -> Vec<Carried> {
-        self.unpack_clean_value(value)
-            .into_iter()
-            .enumerate()
-            .map(|(index, field)| self.field_word(field, raw.get(index).copied().unwrap_or(false)))
-            .collect()
-    }
-
     pub(super) fn load_static_abi_return_value(
         &mut self,
         base: ValueId,

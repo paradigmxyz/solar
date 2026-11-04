@@ -820,7 +820,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = rhs_value.clean(self, rhs_ty);
                 Carried::from_clean(self.coerce_value(value, rhs_ty, lhs_ty))
             };
-            self.store_carried_lvalue(lhs, carried, Some(rhs_ty), lhs_ty)?;
+            let place = self.resolve_lvalue_place(lhs)?;
+            self.store_carried_place(&place, carried, Some(rhs_ty), lhs_ty)?;
             return Some(carried);
         }
         let rhs_value = rhs_value.clean(self, rhs_ty);

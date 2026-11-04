@@ -272,8 +272,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
-                let raw = self.is_raw_binding(id);
-                let value = self.field_word(value, raw);
+                let value = Carried::new(value, self.is_raw_binding(id));
                 values.push(self.materialize_scalar_carrier(
                     id,
                     value,
