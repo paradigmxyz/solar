@@ -417,12 +417,13 @@ impl Edit {
             }
             Self::AddNegated { value } => {
                 // push -c; add
-                // NOTE: The materialized constant has no source checkpoint of its own; the `ADD`
-                // keeps the spans of the removed push, swap, and subtraction.
+                // NOTE: The materialized constant has no source checkpoint of its own. The `ADD`
+                // replaces the subtraction and keeps its context; the removed push and swap take
+                // their origins with them, and only their function events move.
                 let mut add = instructions.pop().expect("matched SUB");
                 overwrite(&mut add, op::ADD);
                 for removed in instructions.drain(start..) {
-                    add.metadata.absorb_debug_info(&removed.metadata);
+                    add.metadata.absorb_function_events(&removed.metadata);
                 }
                 materialize_immediate(instructions, target.evm_version(), value);
                 instructions.push(add);
@@ -475,9 +476,10 @@ impl Edit {
                 // SWAP(n-1); PUSH address; MSTORE
                 instructions[start]
                     .replace_preserving_metadata(Instruction::stack_op(op::StackOp::Swap(depth)));
+                // The removed swap and pop take their origins with them.
                 let (retained, removed) = instructions[start..].split_at_mut(3);
                 for inst in removed {
-                    retained[2].metadata.absorb_debug_info(&inst.metadata);
+                    retained[2].metadata.absorb_function_events(&inst.metadata);
                 }
                 instructions.truncate(start + 3);
             }
@@ -499,15 +501,20 @@ impl Edit {
                 instructions.truncate(start + 3);
             }
             Self::DropNonzeroTest => {
+                // The removed test takes its origins with it; its function events move to the
+                // branch's label.
                 let predicate = replacement_debug_info(&instructions[start..start + 2], 1);
                 instructions.drain(start..start + 2);
-                preserve_branch_test_debug_info(&mut instructions[start..], &predicate);
+                instructions[start].metadata.absorb_function_events(&predicate);
                 overwrite(&mut instructions[start + 1], op::JUMPI);
             }
             Self::EqIszeroJumpi => {
+                // The `sub` keeps the `eq`'s context, as solc's peephole optimizer gives it
+                // (`_eq.debugData()`, libevmasm/PeepholeOptimiser.cpp#L349). The removed `iszero`
+                // takes its origins with it; its function events move to the branch's label.
                 overwrite(&mut instructions[start], op::SUB);
                 let removed = instructions.remove(start + 1);
-                preserve_branch_test_debug_info(&mut instructions[start + 1..], &removed.metadata);
+                instructions[start + 1].metadata.absorb_function_events(&removed.metadata);
                 overwrite(&mut instructions[start + 2], op::JUMPI);
             }
             Self::SwapPair { first, second } => {
@@ -523,9 +530,10 @@ impl Edit {
             Self::MoveConstantThroughSwaps => {
                 // SWAPn; SWAP1; PUSH c; binop
                 let window = &mut instructions[start..start + 6];
+                // The swaps take their origins with them.
                 for swap in [0, 3, 4, 5] {
                     let metadata = std::mem::take(&mut window[swap].metadata);
-                    window[2].metadata.absorb_debug_info(&metadata);
+                    window[2].metadata.absorb_function_events(&metadata);
                 }
                 window[..4].rotate_right(1);
                 // NOTE: The intermediate stack layouts differ even though the final one agrees.
@@ -543,12 +551,16 @@ fn overwrite(inst: &mut Instruction, opcode: u8) {
     inst.replace_preserving_metadata(Instruction::opcode(opcode));
 }
 
-/// Replaces the comparison before the trailing `ISZERO` with `opcode`, merging its debug info.
+/// Replaces the comparison before the trailing `ISZERO` with `opcode`, which produces the
+/// `ISZERO`'s output and so takes its source context, the root's, as InstCombine's new
+/// instructions do (llvm/lib/Transforms/InstCombine/InstructionCombining.cpp#L5974-L5999 at
+/// llvm-project e98b16a2710b). The comparison's own origins go with it.
 fn fuse_iszero(instructions: &mut Vec<Instruction>, opcode: u8) {
     let iszero = instructions.pop().expect("matched ISZERO");
     let comparison = instructions.last_mut().expect("matched comparison");
     overwrite(comparison, opcode);
-    comparison.metadata.absorb_debug_info(&iszero.metadata);
+    comparison.metadata.copy_source_debug_from(&iszero.metadata);
+    comparison.metadata.absorb_function_events(&iszero.metadata);
 }
 
 fn instruction_sequence(instructions: &[Instruction]) -> impl fmt::Display + '_ {
@@ -580,23 +592,4 @@ fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata
     context.merge_equivalent_debug_info(instructions.iter().map(|inst| &inst.metadata));
     context.copy_source_debug_from(origin);
     context
-}
-
-/// Keeps a folded predicate checkpoint on its branch's existing label operand when available.
-fn preserve_branch_test_debug_info(instructions: &mut [Instruction], predicate: &Metadata) {
-    let [target, branch] = instructions else { unreachable!("matched branch pair") };
-    let origin = if !predicate.source_spans().is_empty()
-        && (target.metadata.source_spans().is_empty()
-            || target.metadata.source_spans() == branch.metadata.source_spans())
-    {
-        // NOTE: Both instructions execute after the original test, regardless of its outcome.
-        // Reuse an unmapped or duplicate checkpoint, never an independently located operand.
-        predicate
-    } else {
-        &target.metadata
-    };
-    let mut context = target.metadata.clone();
-    context.merge_equivalent_debug_info(std::iter::once(predicate));
-    context.copy_source_debug_from(origin);
-    target.metadata.copy_debug_info_from(&context);
 }

@@ -1336,12 +1336,12 @@ fn emit(
         return None;
     }
     // NOTE: The replaced stack operations, and pushes the schedule makes fewer times, have no
-    // counterpart in the new order. Their origins and function events move to the run's last
-    // instruction, so the run as a whole keeps every event it had.
+    // counterpart in the new order. Their origins go with them; their function events move to the
+    // run's last instruction, so the run as a whole keeps every event it had.
     if let Some(last) = instructions.last_mut() {
         for (position, inst) in run.iter().enumerate() {
             if !placed.contains(position) {
-                last.metadata.absorb_debug_info(&inst.metadata);
+                last.metadata.absorb_function_events(&inst.metadata);
             }
         }
     }

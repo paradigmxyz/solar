@@ -2,9 +2,9 @@
 //@ filecheck:
 @module DebugInfo
 
-// The one pop that replaces the run keeps every origin of the run.
+// The one pop that replaces the run keeps the origin of the first operation it replaces.
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: + pop !metadata(spans=[7..8, 9..10, 11..12])
+// CHECK: + pop !metadata(span=7..8)
 bb0:
   push 1 !metadata(span=1..2)
   push 2 !metadata(span=3..4)

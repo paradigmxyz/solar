@@ -175,8 +175,9 @@ fn rotate_loop_exits(module: &mut Module, references: &mut IndexVec<BlockId, usi
         exit.metadata.repeats = block.metadata.repeats;
         exit.instructions = block.instructions.split_off(index + 3);
         exit.terminator = block.terminator.take();
+        // NOTE: The removed `iszero` takes its origins with it; only its function events move.
         let removed = block.instructions.remove(index);
-        block.instructions[index].metadata.absorb_debug_info(&removed.metadata);
+        block.instructions[index].metadata.absorb_function_events(&removed.metadata);
         block.terminator = Some(Terminator::new(TerminatorKind::Jump(body)));
         let exit = module.blocks.push(exit);
         module.blocks[header].instructions[index].value = Some(PushValue::Block(exit));
@@ -204,15 +205,16 @@ fn expose_shared_branches(module: &mut Module) -> bool {
         {
             // push taken; jump head; head: jumpi; jump other -> jumpi taken, other
             let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
+            // NOTE: The `jumpi` is the root. The pushed label is its operand and both jumps are
+            // removed, so their origins go with them and only function events move.
             branch.metadata.copy_debug_info_from(&jumpi.metadata);
-            branch.metadata.absorb_debug_info(&pushed.metadata);
-            branch.metadata.absorb_debug_info(&jump.metadata);
+            branch.metadata.absorb_function_events(&pushed.metadata);
+            branch.metadata.absorb_function_events(&jump.metadata);
             if branch.metadata.function_invoke().is_none()
                 && let Some(function) = body.metadata.function_invoke
             {
                 branch.metadata.set_function_invoke(function);
             }
-            branch.metadata.merge_source_spans(&continuation.metadata);
             let block = &mut module.blocks[block_id];
             block.instructions.pop();
             block.terminator = Some(branch);
@@ -265,7 +267,8 @@ fn inline_shared_return_thunks(
         {
             instructions[0].metadata.set_function_invoke(function);
         }
-        instructions[0].metadata.absorb_debug_info(&jump.metadata);
+        // NOTE: The removed jump takes its origins with it; only its function events move.
+        instructions[0].metadata.absorb_function_events(&jump.metadata);
         let terminator = body.terminator.clone();
         module.blocks[block_id].instructions = instructions;
         module.blocks[block_id].terminator = terminator;
@@ -327,9 +330,10 @@ fn normalize_triangle_branches(module: &mut Module) -> bool {
         {
             // push arm; jumpi; jump join -> jumpi arm, join
             let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
+            // NOTE: The `jumpi` is the root. The pushed label is its operand and the jump is
+            // removed, so their origins go with them and only the label's events move.
             branch.metadata.copy_debug_info_from(&jumpi.metadata);
-            branch.metadata.absorb_debug_info(&pushed.metadata);
-            branch.metadata.merge_source_spans(&terminator.metadata);
+            branch.metadata.absorb_function_events(&pushed.metadata);
             let block = &mut module.blocks[block_id];
             block.instructions.truncate(block.instructions.len() - 2);
             block.terminator = Some(branch);
@@ -780,7 +784,9 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
             && is_split_point(&block.instructions, block.instructions.len() - 1)
         {
             // push target; jump -> jump target
-            term.metadata.absorb_debug_info(&last.metadata);
+            // NOTE: The jump is the root and the pushed label its operand, so only the label's
+            // function events move.
+            term.metadata.absorb_function_events(&last.metadata);
             term.kind = TerminatorKind::Jump(target);
             block.instructions.pop();
             changed = true;
@@ -789,14 +795,16 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
     changed
 }
 
-/// Moves a bypassed thunk's debug information to the transfer that now skips it.
+/// Moves a bypassed thunk's function events to the transfer that now skips it.
 /// An unconditional transfer executes on the thunk's path; a conditional one also executes on
-/// other paths, so only the former can inherit its origins or function events.
+/// other paths, so only the former can inherit its events. The thunk's jump takes its origins
+/// with it, as a removed branch does in LLVM's `MergeBlockIntoPredecessor`
+/// (llvm/lib/Transforms/Utils/BasicBlockUtils.cpp#L346-L371 at llvm-project e98b16a2710b).
 // NOTE: Without an exclusive destination label, a conditional edge loses its zero-byte
 // checkpoint. Do not retain a jump or attribute an operation executed on other paths to it.
 fn absorb_thunk_debug_info(metadata: &mut Metadata, thunk: &Metadata, conditional: bool) {
     if !conditional {
-        metadata.absorb_debug_info(thunk);
+        metadata.absorb_function_events(thunk);
     }
 }
 

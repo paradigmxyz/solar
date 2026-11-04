@@ -1,12 +1,12 @@
 //@ compile-flags: -Ogas -Zevm-ir-pipeline=jumpi-fallthrough
 //@ filecheck:
-// The dropped `iszero` hands its source span to the branch's push. The fallthrough has no
+// The dropped `iszero` takes its source span with it. The fallthrough has no
 // instruction for the jump's function events, which go with it, and the rewrite happens either way.
 @module DebugInfo
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: - iszero !metadata(span=1..5)
 // CHECK: - push bb2 !metadata(span=6..10)
-// CHECK: + push bb1 !metadata(spans=[6..10, 1..5])
+// CHECK: + push bb1 !metadata(span=6..10)
 // CHECK: {{^[ +].*}}jumpi !metadata(span=11..15)
 // CHECK: - jump bb1 !metadata(span=16..20, invoke=callee@1..5, exit=return)
 // CHECK: + jump bb2 !metadata(span=16..20)

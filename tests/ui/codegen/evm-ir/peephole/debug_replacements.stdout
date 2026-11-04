@@ -29,16 +29,14 @@
     calldatasize
 -   iszero
 -   iszero !metadata(span=90..100)
--   push bb8
-+   push bb8 !metadata(span=90..100)
+    push bb8
     jumpi
     stop
   bb5:
     calldatasize
 -   push 0
 -   lt !metadata(span=110..120)
--   push bb8 !metadata(span=130..140)
-+   push bb8 !metadata(span=110..120)
+    push bb8 !metadata(span=130..140)
     jumpi !metadata(span=130..140)
     stop
   bb6:
@@ -46,9 +44,8 @@
     caller
 -   eq !metadata(span=150..160)
 -   iszero !metadata(span=170..180)
--   push bb8
 +   sub !metadata(span=150..160)
-+   push bb8 !metadata(span=170..180)
+    push bb8
     jumpi !metadata(span=190..200)
     stop
   bb7:
