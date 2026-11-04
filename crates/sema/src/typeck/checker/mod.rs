@@ -460,7 +460,13 @@ impl<'gcx> TypeChecker<'gcx> {
                         mobile_common = mobile_ty.common_type(expr_ty, self.gcx);
                     }
                     if self.record_ast_facts {
-                        let natural_ty = self.results.solc_ty(expr.id).unwrap_or(expr_ty);
+                        // Only an inline array element has a natural type of its own; a comparison
+                        // records its operands' type under the same key.
+                        let natural_ty = match expr.kind {
+                            hir::ExprKind::Array(_) => self.results.solc_ty(expr.id),
+                            _ => None,
+                        }
+                        .unwrap_or(expr_ty);
                         natural_common = if i == 0 {
                             natural_ty.mobile(self.gcx)
                         } else {

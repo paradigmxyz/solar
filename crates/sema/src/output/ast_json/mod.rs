@@ -79,9 +79,13 @@ pub struct AstJson<'gcx> {
 }
 
 impl<'gcx> AstJson<'gcx> {
-    /// Returns the AST JSON of the source, or `None` if it has no AST.
+    /// Returns the AST JSON of the source, or `None` if it has no AST, or if its imports were not
+    /// resolved (`-Zno-resolve-imports`), since an import directive needs the source it imports.
     pub fn source(&self, id: SourceId) -> Option<SourceAstJson<'_, 'gcx>> {
-        self.gcx.sources[id].ast.is_some().then_some(SourceAstJson { json: self, id })
+        let ast = self.gcx.sources[id].ast.as_ref()?;
+        let imports = ast.items.iter().filter(|item| matches!(item.kind, ast::ItemKind::Import(_)));
+        (imports.count() == self.gcx.hir.source(id).imports.len())
+            .then_some(SourceAstJson { json: self, id })
     }
 
     fn fresh_id(&self) -> usize {

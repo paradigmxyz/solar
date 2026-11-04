@@ -8,11 +8,12 @@
 // CHECK: "name": "address"
 // CHECK: "stateMutability": "nonpayable"
 // An inline array has the common mobile type of its elements, and the error call that `require`
-// takes in parentheses has the type `error`.
+// takes in parentheses has the type `error`. A comparison array is an array of bool.
 // CHECK: "typeIdentifier": "t_array$_t_uint8_$2_memory_ptr"
 // CHECK: "typeIdentifier": "t_array$_t_array$_t_uint8_$2_memory_ptr_$2_memory_ptr"
 // CHECK: "typeIdentifier": "t_array$_t_uint8_$3_memory_ptr"
 // CHECK: "typeIdentifier": "t_array$_t_uint16_$2_memory_ptr"
+// CHECK: "typeIdentifier": "t_array$_t_bool_$2_memory_ptr"
 // CHECK: "typeIdentifier": "t_error"
 {
   "language": "Solidity",
