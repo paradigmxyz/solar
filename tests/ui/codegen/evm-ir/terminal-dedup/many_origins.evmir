@@ -1,74 +1,49 @@
 //@ compile-flags: -Zevm-ir-pipeline=terminal-dedup -Zdebugify=check
 //@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
 // Merged terminal blocks keep every distinct origin, however many there are.
 @module ManyOrigins
 
 bb0:
   push 0
-  calldataload
-  jumpi bb1, bb2 !metadata(span=1..2)
-// CHECK: revert !metadata(spans=[10..11, 20..21, 30..31, 40..41, 50..51, 60..61, 70..71, 80..81, 90..91])
+  jumpi bb8, bb1
 bb1:
   push 0
-  push 0
-  revert !metadata(span=10..11)
+  jumpi bb9, bb2
 bb2:
   push 0
-  calldataload
-  jumpi bb3, bb4 !metadata(span=2..3)
+  jumpi bb10, bb3
 bb3:
   push 0
-  push 0
-  revert !metadata(span=20..21)
+  jumpi bb11, bb4
 bb4:
   push 0
-  calldataload
-  jumpi bb5, bb6 !metadata(span=3..4)
+  jumpi bb12, bb5
 bb5:
   push 0
-  push 0
-  revert !metadata(span=30..31)
+  jumpi bb13, bb6
 bb6:
   push 0
-  calldataload
-  jumpi bb7, bb8 !metadata(span=4..5)
+  jumpi bb14, bb7
 bb7:
   push 0
-  push 0
-  revert !metadata(span=40..41)
+  jumpi bb15, bb16
+// CHECK: stop !metadata(spans=[10..11, 20..21, 30..31, 40..41, 50..51, 60..61, 70..71, 80..81, 90..91])
 bb8:
-  push 0
-  calldataload
-  jumpi bb9, bb10 !metadata(span=5..6)
+  stop !metadata(span=10..11)
 bb9:
-  push 0
-  push 0
-  revert !metadata(span=50..51)
+  stop !metadata(span=20..21)
 bb10:
-  push 0
-  calldataload
-  jumpi bb11, bb12 !metadata(span=6..7)
+  stop !metadata(span=30..31)
 bb11:
-  push 0
-  push 0
-  revert !metadata(span=60..61)
+  stop !metadata(span=40..41)
 bb12:
-  push 0
-  calldataload
-  jumpi bb13, bb14 !metadata(span=7..8)
+  stop !metadata(span=50..51)
 bb13:
-  push 0
-  push 0
-  revert !metadata(span=70..71)
+  stop !metadata(span=60..61)
 bb14:
-  push 0
-  calldataload
-  jumpi bb15, bb16 !metadata(span=8..9)
+  stop !metadata(span=70..71)
 bb15:
-  push 0
-  push 0
-  revert !metadata(span=80..81)
+  stop !metadata(span=80..81)
 bb16:
-  push 0
-  push 0
-  revert !metadata(span=90..91)
+  stop !metadata(span=90..91)
