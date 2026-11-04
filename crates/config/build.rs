@@ -1,8 +1,5 @@
 use std::{env, io::Read, path::Path};
 
-#[cfg(feature = "version")]
-use std::process::Command;
-
 const SOLC_VERSION_FALLBACK: &str = "0.8.38";
 #[cfg(feature = "version")]
 const VERSION_UNKNOWN: &str = "unknown";
@@ -120,27 +117,23 @@ fn vergen_env(key: &str) -> String {
     }
 }
 
-/// Returns whether this is a Cargo git checkout of `tag` at commit `sha`.
+/// Returns whether this is a Cargo git dependency pinned to `tag` at commit `sha`.
 ///
-/// Cargo checks out git dependencies without tags, but fetches a `tag = "..."` dependency into
-/// `refs/remotes/origin/tags/<tag>` of its local git database, which is the checkout's `origin`.
-/// Only the `file` protocol is allowed, so other remotes fail without network access.
+/// Cargo checks out git dependencies without tags, and a locked build with an empty cache fetches
+/// only the commit, so Git cannot tell. The dependent's `Cargo.lock` records the pin as
+/// `?tag=<tag>#<sha>`, and sits above `OUT_DIR` when the target directory is in its workspace, as
+/// it is by default.
 #[cfg(feature = "version")]
 fn is_cargo_checkout_of(tag: &str, sha: &str) -> bool {
-    let tag_ref = format!("refs/remotes/origin/tags/{tag}");
-    let Ok(output) = Command::new("git")
-        .args(["ls-remote", "origin", &format!("{tag_ref}*")])
-        .env("GIT_ALLOW_PROTOCOL", "file")
-        .output()
-    else {
-        return false;
-    };
-    // Annotated tags list the peeled commit as `<tag>^{}`.
-    let peeled = format!("{tag_ref}^{{}}");
-    String::from_utf8_lossy(&output.stdout).lines().any(|line| {
-        line.split_once('\t')
-            .is_some_and(|(id, name)| id == sha && (name == tag_ref || name == peeled))
-    })
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let pin = format!("?tag={tag}#{sha}\"");
+    Path::new(&out_dir)
+        .ancestors()
+        .find_map(|dir| std::fs::File::open(dir.join("Cargo.lock")).ok())
+        .is_some_and(|mut file| {
+            let mut lock = String::new();
+            file.read_to_string(&mut lock).is_ok() && lock.contains(&pin)
+        })
 }
 
 fn solc_version() -> String {
