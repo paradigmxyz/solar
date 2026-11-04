@@ -49,9 +49,9 @@ use solar_sema::Gcx;
 use std::any::{Any, TypeId};
 
 /// A streamlined trait for an EVM IR transformation pass.
-trait EvmPass: Any + Sync {
+pub(crate) trait EvmPass: Any + Sync {
     /// Command-line and pipeline name.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
 
     /// Returns whether this pass is enabled with the current compiler flags.
     fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
@@ -68,20 +68,24 @@ trait EvmPass: Any + Sync {
         0
     }
 
+    fn is_cacheable(&self) -> bool {
+        true
+    }
+
     /// Runs the pass and returns whether it changed EVM IR.
     #[must_use]
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool;
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-struct PassCacheKey {
+struct PassCacheKey<'a> {
     type_id: TypeId,
-    name: &'static str,
+    name: &'a str,
     config: u64,
 }
 
-impl PassCacheKey {
-    fn new(pass: &dyn EvmPass) -> Self {
+impl<'a> PassCacheKey<'a> {
+    fn new(pass: &'a dyn EvmPass) -> Self {
         Self { type_id: pass.type_id(), name: pass.name(), config: pass.cache_config() }
     }
 }
@@ -91,7 +95,7 @@ impl PassCacheKey {
 struct RunsAtNone<P>(P);
 
 impl<P: EvmPass> EvmPass for RunsAtNone<P> {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         self.0.name()
     }
 
@@ -243,7 +247,7 @@ fn run_passes(
         name.map(ToOwned::to_owned).unwrap_or_else(|| pipeline_output_name(gcx, module.name()));
     let explicit = name.is_some();
     let mut changed = false;
-    let mut unchanged = Vec::<PassCacheKey>::new();
+    let mut unchanged = Vec::<PassCacheKey<'_>>::new();
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -259,7 +263,7 @@ fn run_passes(
             let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let cache_key = PassCacheKey::new(*pass);
-            let cached = unchanged.contains(&cache_key);
+            let cached = pass.is_cacheable() && unchanged.contains(&cache_key);
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
             let target_support_before = (!cached && should_validate_ir(gcx.sess))
                 .then(|| super::verifier(gcx).target_support_snapshot(module));
@@ -268,7 +272,7 @@ fn run_passes(
                     .in_scope(|| pass.run_pass(gcx, module));
             if pass_changed {
                 unchanged.clear();
-            } else if !cached {
+            } else if !cached && pass.is_cacheable() {
                 unchanged.push(cache_key);
             }
             timer.finish("EVM IR", module.name(), pass_name, pass_changed);
@@ -331,15 +335,43 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
         return false;
     }
 
-    let Some(value) = gcx.sess.opts.unstable.evm_ir_pipeline.as_deref() else {
-        return run_passes(gcx, module, DEFAULT_PIPELINE, None);
-    };
-    let pipeline = match parse_pass_pipeline(gcx, value, "EVM IR", lookup_pass) {
-        Ok(pipeline) => pipeline,
+    let plugins = match crate::pass_plugin::registry(gcx) {
+        Ok(plugins) => plugins,
         Err(_) => return false,
     };
+    let pipeline = match gcx.sess.opts.unstable.evm_ir_pipeline.as_deref() {
+        Some(value) => match parse_pass_pipeline(gcx, value, "EVM IR", |name| {
+            lookup_pass(name).or_else(|| {
+                plugins.and_then(|registry| {
+                    registry
+                        .evm
+                        .iter()
+                        .find(|pass| pass.name() == name)
+                        .map(|pass| pass as &dyn EvmPass)
+                })
+            })
+        }) {
+            Ok(pipeline) => pipeline,
+            Err(_) => return false,
+        },
+        None => None,
+    };
     let Some(passes) = pipeline else {
-        return run_passes(gcx, module, DEFAULT_PIPELINE, None);
+        let mut changed = false;
+        if let Some(plugins) = plugins {
+            let passes = plugins
+                .evm
+                .iter()
+                .filter(|pass| pass.is_default())
+                .map(|pass| pass as &dyn EvmPass)
+                .collect::<Vec<_>>();
+            changed |= run_passes(gcx, module, &passes, None);
+            if gcx.dcx().has_errors().is_err() {
+                return changed;
+            }
+        }
+        changed |= run_passes(gcx, module, DEFAULT_PIPELINE, None);
+        return changed;
     };
 
     let name =

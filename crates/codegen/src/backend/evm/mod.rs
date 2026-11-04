@@ -36,6 +36,7 @@ pub(crate) struct CodegenState {
     schedules: ir::SharedSchedules,
     plans: PlanCache,
     pub(crate) debugify_output: crate::debugify::Output,
+    pub(crate) plugins: std::sync::OnceLock<Result<crate::pass_plugin::Registry, String>>,
 }
 
 impl CodegenState {

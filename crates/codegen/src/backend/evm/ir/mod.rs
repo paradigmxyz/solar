@@ -19,7 +19,7 @@ use solar_sema::Gcx;
 pub use solar_evmir::ir::*;
 
 pub(in crate::backend) mod builder;
-mod passes;
+pub(crate) mod passes;
 pub(in crate::backend::evm) use passes::SharedSchedules;
 pub(crate) use passes::compact_pushes;
 
@@ -75,7 +75,7 @@ pub fn validate(gcx: Gcx<'_>, module: &Module) {
 }
 
 /// Returns a verifier for the session's target that reports to its diagnostics.
-pub(in crate::backend) fn verifier(gcx: Gcx<'_>) -> verify::Verifier<'_> {
+pub(crate) fn verifier(gcx: Gcx<'_>) -> verify::Verifier<'_> {
     verify::Verifier::for_evm_version(gcx.dcx(), gcx.sess.opts.evm_version)
 }
 

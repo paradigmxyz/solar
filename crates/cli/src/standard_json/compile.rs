@@ -244,7 +244,13 @@ fn compile(
     opts.stop_after = None;
     opts.revert_strings = RevertStrings::Default;
     match UnstableOpts::try_parse_flags(&solar.unstable) {
-        Ok(unstable) => opts.unstable.set_output_options(unstable),
+        Ok(unstable) => {
+            // Loading native code requires an explicit command-line request, not compiler input.
+            if !unstable.load_pass_plugin.is_empty() {
+                dcx.err("pass plugins must be loaded through the command line").emit();
+            }
+            opts.unstable.set_output_options(unstable);
+        }
         Err(e) => {
             let message = e.to_string();
             let message = message.lines().next().unwrap_or_default().trim_start_matches("error:");

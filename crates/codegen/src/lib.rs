@@ -30,5 +30,6 @@ pub use link::{
 mod isle_log;
 
 mod debugify;
+mod pass_plugin;
 pub(crate) mod target;
 mod timing;

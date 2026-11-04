@@ -53,6 +53,9 @@ alloy-primitives.workspace = true
 serde_json.workspace = true
 snapbox.workspace = true
 solar-tester.workspace = true
+solar-mir-interpreter.workspace = true
+solar-evmir-interpreter.workspace = true
+solar-pass-plugin-example = { path = "../../tools/pass-plugin-example" }
 tempfile.workspace = true
 
 # Pinned dependencies. See /Cargo.toml.

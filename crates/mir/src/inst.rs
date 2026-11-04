@@ -817,11 +817,8 @@ impl Instruction {
     /// rewrite; allocation markers are dropped only when allocation is lowered away.
     /// The caller must prove equivalence and preserve the result representation.
     pub(crate) fn replace_kind(&mut self, kind: InstKind) {
-        let result = kind.op_def().result;
         debug_assert!(
-            (result == super::ResultKind::Custom
-                || result.produces_value() == self.result_ty.is_some())
-                && self.result_ty.is_none_or(|ty| kind.admits_result_type(ty)),
+            self.can_replace_kind(&kind),
             "replacement must preserve the result representation"
         );
         // %result = old(operands) -> %result = equivalent(new_operands)
@@ -832,6 +829,14 @@ impl Instruction {
             self.metadata.clear_deferred_alloc();
             self.metadata.set_preserves_fmp(false);
         }
+    }
+
+    /// Returns whether a replacement preserves this instruction's result representation.
+    #[must_use]
+    pub fn can_replace_kind(&self, kind: &InstKind) -> bool {
+        let result = kind.op_def().result;
+        (result == super::ResultKind::Custom || result.produces_value() == self.result_ty.is_some())
+            && self.result_ty.is_none_or(|ty| kind.admits_result_type(ty))
     }
 
     /// Visits operands during an equivalence-preserving rewrite and invalidates
