@@ -676,8 +676,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         let ty = self.cx.gcx.type_of_expr(expr.id);
         let solidity_ty = ty.filter(|ty| !self.in_inline_assembly && ty.is_value_type());
-        // The read lowers under its own span. Cleaning a raw word is the consumer's work, as in
-        // solc, so it follows below under the span that asked for the value.
+        // The read lowers under its own span. Cleaning a raw word is the consumer's work, so it
+        // follows below under the span that asked for the value, as in solc: legacy
+        // `ExpressionCompiler::acceptAndConvert` (ExpressionCompiler.cpp:3087) converts after the
+        // operand's `LocationSetter` has popped, and via-IR `endVisit(FunctionCall)`
+        // (IRGeneratorForStatements.cpp:961) sets the call's location before it converts.
         let lowered = self.with_expr_context(expr, |this| {
             let Some(ty) = solidity_ty else {
                 return this.lower_expr_inner(expr).map(Ok);
