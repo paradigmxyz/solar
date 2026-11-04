@@ -507,22 +507,18 @@ fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
 /// Copies `TargetInstrInfo::ReplaceTailWithBranchTo`, which saves "the debug loc before erasing the
 /// instruction", `Tail->getDebugLoc()` of the first instruction it removes, and gives the new
 /// branch that location as is (llvm/lib/CodeGen/TargetInstrInfo.cpp#L175-L189 at llvm-project
-/// e98b16a2710b). The block's terminator is the first removed instruction when no instruction
-/// is. Function events keep their own rule: a jump takes the one invoke all removed operations
-/// agree on.
+/// e98b16a2710b). A suffix has at least one instruction. Function events keep their own rule: a
+/// jump takes the one invoke all removed operations agree on.
 fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
     let suffix = &block.instructions[block.instructions.len() - len..];
     let mut metadata = Metadata::default();
-    metadata.mark_debug_info_dropped();
+    // The first removed instruction, as is: all its origins, its modifier depth, and no origin if
+    // it has none.
+    metadata.copy_source_debug_from(&suffix[0].metadata);
     let all = suffix
         .iter()
         .map(|inst| &inst.metadata)
         .chain(block.terminator.iter().map(|term| &term.metadata));
-    // The first removed operation, as is: all its origins, its modifier depth, and no origin if it
-    // has none.
-    if let Some(first) = all.clone().next() {
-        metadata.copy_source_debug_from(first);
-    }
     let mut functions = all.filter_map(Metadata::function_invoke);
     if let Some(function) = functions.next()
         && functions.all(|other| other == function)
