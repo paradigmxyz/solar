@@ -2,6 +2,7 @@
 //@[gas] compile-flags: -O gas
 //@[size] compile-flags: -O size
 //@ run-call: ConstructorReads::narrow => 255, 5, 170
+//@ run-call: ConstructorReads::signed => 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
 //@ run-call: ConstructorReads::word => 0x1234
 //@ run-call: ConstructorReads::account => 0x000000000000000000000000000000000000beef
 //@ run-call: ConstructorReads::flag => 1
@@ -22,6 +23,18 @@ contract Narrow {
             mstore(32, y)
             mstore(64, shr(248, z))
             return(0, 96)
+        }
+    }
+}
+
+contract Signed {
+    int8 immutable a = -2;
+
+    constructor() {
+        int8 x = a;
+        assembly {
+            mstore(0, signextend(0, x))
+            return(0, 32)
         }
     }
 }
@@ -106,6 +119,10 @@ contract ConstructorReads {
     function narrow() external returns (uint256, uint256, uint256) {
         bytes memory code = address(new Narrow()).code;
         return abi.decode(code, (uint256, uint256, uint256));
+    }
+
+    function signed() external returns (uint256) {
+        return uint256(bytes32(address(new Signed()).code));
     }
 
     function word() external returns (uint256) {

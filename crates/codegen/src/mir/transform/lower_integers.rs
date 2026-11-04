@@ -176,6 +176,14 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                 InstKind::LoadImmutable(immutable) if narrow_immutable => {
                     // Runtime placeholders may sign-extend the stored integer.
                     let value = builder.load_immutable(immutable, MirType::I256);
+                    // The word read keeps the effect `lower-immutables` gave the narrow one.
+                    if let Value::Inst(load) = *builder.func().value(value) {
+                        builder
+                            .func_mut()
+                            .inst_mut(load)
+                            .metadata
+                            .set_effect(inst.metadata.effect());
+                    }
                     word = Some(value);
                     Some(clean(builder, value, bits(inst.result().unwrap())))
                 }
