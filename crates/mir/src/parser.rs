@@ -116,6 +116,14 @@ struct BlockLabel {
     reference_span: Option<Span>,
 }
 
+/// What a block header `bbN [cold] !metadata(...):` declares.
+struct BlockHeader {
+    index: u32,
+    hotness: Hotness,
+    cold_hint: bool,
+    label_metadata: InstructionMetadata,
+}
+
 /// Pairs an operation with the result type its schema entry declares; a pointer result takes
 /// its operand's pointer type.
 fn schema_typed(func: &Function, kind: InstKind) -> (InstKind, Option<MirType>) {
@@ -278,8 +286,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
         let tracks_debug_info = module.iter_functions().any(|(_, func)| {
             func.blocks.iter().any(|block| {
-                let metadata = &block.terminator_metadata;
-                metadata.source_span().is_some() || metadata.modifier_depth() != 0
+                [&block.terminator_metadata, &block.label_metadata].into_iter().any(|metadata| {
+                    metadata.source_span().is_some() || metadata.modifier_depth() != 0
+                })
             }) || func.instructions().any(|inst| {
                 let metadata = &func.inst(inst).metadata;
                 metadata.source_span().is_some() || metadata.modifier_depth() != 0
@@ -548,10 +557,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     break;
                 }
 
-                if let Some((idx, hotness, cold_hint)) = self.try_parse_block_header()? {
+                if let Some(header) = self.try_parse_block_header(&mut builder)? {
+                    let idx = header.index;
                     let bid = self.define_block(&mut builder, idx)?;
-                    builder.func_mut().blocks[bid].hotness = hotness;
-                    builder.func_mut().blocks[bid].cold_hint = cold_hint;
+                    let block = &mut builder.func_mut().blocks[bid];
+                    block.hotness = header.hotness;
+                    block.cold_hint = header.cold_hint;
+                    block.label_metadata = header.label_metadata;
                     builder.switch_to_block(bid);
                     current_block = Some((bid, idx));
                     continue;
@@ -585,7 +597,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(func)
     }
 
-    fn try_parse_block_header(&mut self) -> PResult<'sess, Option<(u32, Hotness, bool)>> {
+    fn try_parse_block_header(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> PResult<'sess, Option<BlockHeader>> {
         let TokenKind::Ident(label) = self.parser.token().kind else { return Ok(None) };
         let Some(index) = label.as_str().strip_prefix("bb").filter(|s| !s.is_empty()) else {
             return Ok(None);
@@ -593,7 +608,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let Ok(index) = index.parse() else {
             return Ok(None);
         };
-        // `bbN [cold, cold_hint]:`, each flag optional.
+        // `bbN [cold, cold_hint] !metadata(...):`, each flag and the metadata optional.
         let (mut cold, mut cold_hint) = (false, false);
         let mut label_tokens = 1;
         if matches!(self.parser.look_ahead(1).kind, TokenKind::OpenDelim(Delimiter::Bracket)) {
@@ -616,14 +631,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
             }
         }
-        if !matches!(self.parser.look_ahead(label_tokens).kind, TokenKind::Colon) {
+        // Nothing but a header puts `!` after a label.
+        if !matches!(self.parser.look_ahead(label_tokens).kind, TokenKind::Colon | TokenKind::Not) {
             return Ok(None);
         }
         for _ in 0..label_tokens {
             self.parser.bump();
         }
+        let label_metadata = self.parse_metadata(builder)?.debug_context();
         self.parser.expect(TokenKind::Colon)?;
-        Ok(Some((index, if cold { Hotness::Cold } else { Hotness::Hot }, cold_hint)))
+        Ok(Some(BlockHeader {
+            index,
+            hotness: if cold { Hotness::Cold } else { Hotness::Hot },
+            cold_hint,
+            label_metadata,
+        }))
     }
 
     fn define_block(

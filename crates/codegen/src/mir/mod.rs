@@ -396,3 +396,82 @@ mod round_trip {
         Ok(())
     }
 }
+
+/// Lowering labels each block with the span where solc places its tag: the function definition
+/// for the entry block, and the enclosing statement for the blocks of an `if` and a loop. Lowered
+/// MIR text does not print label origins, so this reads them from the module.
+#[cfg(test)]
+mod block_labels {
+    use super::lower;
+    use solar_interface::{ColorChoice, Session, source_map::FileName};
+    use solar_sema::Compiler;
+    use std::{fmt::Write, ops::ControlFlow};
+
+    const SOURCE: &str = "contract C {
+    function f(uint256 x) public pure returns (uint256 r) {
+        if (x > 1) { r = 1; } else { r = 2; }
+        while (r < 10) { r += x; }
+        for (uint256 i = 0; i < x; i++) { r += i; }
+        return r;
+    }
+}
+";
+
+    #[test]
+    fn labels_follow_solc_tag_locations() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        let mut compiler = Compiler::new(sess);
+        let mut labels = String::new();
+        let _ = compiler.enter_mut(|c| -> solar_interface::Result<()> {
+            let mut pcx = c.parse();
+            let file = c
+                .sess()
+                .source_map()
+                .new_source_file(FileName::Custom("labels.sol".into()), SOURCE)
+                .unwrap();
+            pcx.add_file(file);
+            pcx.parse();
+            let ControlFlow::Continue(()) = c.lower_asts()? else { return Ok(()) };
+            let ControlFlow::Continue(()) = c.analysis()? else { return Ok(()) };
+            let gcx = c.gcx();
+            let id = gcx.hir.contract_ids().next().unwrap();
+            let module = lower::lower_contract(gcx, id);
+            for (_, func) in
+                module.iter_functions().filter(|(_, func)| func.name.symbol.as_str() == "f")
+            {
+                for (block, body) in func.blocks.iter_enumerated() {
+                    let snippet = body.label_metadata.source_span().map_or_else(
+                        || String::from("-"),
+                        |span| {
+                            let snippet = gcx.sess.source_map().span_to_snippet(span).unwrap();
+                            snippet.lines().next().unwrap().trim_end().to_string()
+                        },
+                    );
+                    writeln!(labels, "bb{}: {snippet}", block.index()).unwrap();
+                }
+            }
+            Ok(())
+        });
+        snapbox::assert_data_eq!(
+            labels,
+            snapbox::str![[r#"
+bb0: function f(uint256 x) public pure returns (uint256 r) {
+bb1: if (x > 1) { r = 1; } else { r = 2; }
+bb2: if (x > 1) { r = 1; } else { r = 2; }
+bb3: if (x > 1) { r = 1; } else { r = 2; }
+bb4: while (r < 10) { r += x; }
+bb5: while (r < 10) { r += x; }
+bb6: while (r < 10) { r += x; }
+bb7: while (r < 10) { r += x; }
+bb8: while (r < 10) { r += x; }
+bb9: for (uint256 i = 0; i < x; i++) { r += i; }
+bb10: for (uint256 i = 0; i < x; i++) { r += i; }
+bb11: for (uint256 i = 0; i < x; i++) { r += i; }
+bb12: { r += i; }
+bb13: { r += i; }
+bb14: { r += i; }
+
+"#]]
+        );
+    }
+}

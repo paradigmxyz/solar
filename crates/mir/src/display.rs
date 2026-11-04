@@ -216,7 +216,7 @@ pub(crate) fn display_function_text<'a>(
                     (false, true) => write!(f, " [cold_hint]")?,
                     (true, true) => write!(f, " [cold, cold_hint]")?,
                 }
-                write!(f, ":")
+                write!(f, "{}:", display_metadata(&block.label_metadata, None, func))
             });
             let preds = (!block.predecessors.is_empty()).then(|| {
                 fmt::from_fn(|f| {
