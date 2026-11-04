@@ -40,12 +40,18 @@
 //@ run-call: C::t_postfix_chain => 510
 //@ run-call: C::t_payable_chain => 115792089237316195423570985008687907853269984665640564039457584007913129639935
 //@ run-call: C::t_bit_or_mixed_width => 4294967295
+//@ run-call: C::t_assign_element_chain => 767
+//@ run-call: C::t_assign_field_chain => 767
 //@ run-call: C::t_bit_or_clean_use => 255
 //@ run-call: C::t_bit_or_compare => 1
 
 // Generated cases. Every expectation was captured by running the same source through
 // solc 0.8.36 via-IR (`--via-ir --optimize`) on anvil, so each case matches via-IR:
 // payable, postfix, logical and bitwise expressions forward raw bits.
+
+struct S {
+    uint8 f;
+}
 
 contract C {
     function d() internal pure returns (uint8 r) {
@@ -109,6 +115,8 @@ contract C {
     function t_postfix_chain() external view returns (uint256 r) { uint8 x; assembly { x := 0x1fe } uint8 y = x++; uint8 z = y | 0; assembly { r := z } }
     function t_payable_chain() external view returns (uint256 r) { address payable p; assembly { p := not(0) } address payable q = payable(p); address payable w = payable(q); assembly { r := w } }
     function t_bit_or_mixed_width() external view returns (uint256 r) { uint16 y; uint8 x; assembly { y := 0xffffffff x := 0x1ff } uint16 w = y | x; assembly { r := w } }
+    function t_assign_element_chain() external view returns (uint256 r) { uint8[] memory a = new uint8[](1); uint8 y = d(); uint8 x = (a[0] = y); uint8 z = (a[0] = x); assembly { r := z } }
+    function t_assign_field_chain() external view returns (uint256 r) { S memory st; uint8 y = d(); uint8 x = (st.f = y); uint8 z = (st.f = x); assembly { r := z } }
     function t_bit_or_clean_use() external view returns (uint256 r) { uint8 a; assembly { a := 0x1ff } return uint256(a | 0); }
     function t_bit_or_compare() external view returns (uint256 r) { uint8 a; assembly { a := 0x1ff } return (a | 0) == 0xff ? 1 : 0; }
 }

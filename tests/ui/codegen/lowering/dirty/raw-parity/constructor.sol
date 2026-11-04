@@ -3,6 +3,8 @@
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: Inherited::t_get => 511
 //@ run-call: FromConstructor::t_get => 511
+//@ run-call: Chained::t_get => 511
+//@ run-call: ChainedFromConstructor::t_get => 511
 //@ run-call: TwoArguments::t_get => 11806093279743
 
 // Generated cases. Every expectation was captured by running the same source through
@@ -37,6 +39,24 @@ contract Inherited is Base(dirty()) {
 
 contract FromConstructor is Base {
     constructor() Base(dirty()) {}
+
+    function t_get() external view returns (uint256 r) {
+        assembly { r := sload(0) }
+    }
+}
+
+contract Middle is Base {
+    constructor(uint8 p) Base(p) {}
+}
+
+contract Chained is Middle(dirty()) {
+    function t_get() external view returns (uint256 r) {
+        assembly { r := sload(0) }
+    }
+}
+
+contract ChainedFromConstructor is Middle {
+    constructor() Middle(dirty()) {}
 
     function t_get() external view returns (uint256 r) {
         assembly { r := sload(0) }

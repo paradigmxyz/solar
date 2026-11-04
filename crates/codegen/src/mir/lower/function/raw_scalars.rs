@@ -116,8 +116,16 @@ impl<'gcx> Exposure<'gcx> {
                 self.sources(yes, out);
                 self.sources(no, out);
             }
-            // An assignment's value is its target.
-            ExprKind::Assign(lhs, _, _) => self.sources(lhs, out),
+            // An assignment's value is its target, or the copied value when the target is not a
+            // binding, and a bitwise assignment's value reads both operands.
+            ExprKind::Assign(lhs, op, rhs) => {
+                self.sources(lhs, out);
+                if op.is_none_or(|op| {
+                    matches!(op.kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
+                }) {
+                    self.sources(rhs, out);
+                }
+            }
             // These expressions return an operand, raw bits included.
             ExprKind::Binary(lhs, op, rhs)
                 if matches!(
@@ -361,6 +369,14 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
     }
 
     fn visit_modifier(&mut self, modifier: &'gcx hir::Modifier<'gcx>) -> ControlFlow<Never> {
+        if let hir::ItemId::Contract(base) = modifier.id
+            && let Some(constructor) = self.gcx.hir.contract(base).ctor
+        {
+            let parameters = self.gcx.hir.function(constructor).parameters;
+            for (&parameter, argument) in parameters.iter().zip(modifier.args.exprs()) {
+                self.connect(&[parameter], argument);
+            }
+        }
         if let Some(id) = self.gcx.resolve_modifier_target(self.contract, modifier) {
             let function = self.gcx.hir.function(id);
             for (&parameter, argument) in function.parameters.iter().zip(modifier.args.exprs()) {
@@ -492,6 +508,9 @@ impl LoweringState {
         }
         for &base in gcx.hir.contract(contract).linearized_bases {
             let base = gcx.hir.contract(base);
+            for modifier in base.bases_args {
+                let _ = exposure.visit_modifier(modifier);
+            }
             if let Some(id) = base.ctor {
                 let _ = exposure.visit_nested_function(id);
             }
