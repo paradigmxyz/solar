@@ -2,7 +2,8 @@
 
 This file tracks intentional, user-visible differences from `solc`. The baseline is
 the `solc` version checked into `testdata/solidity`, unless an entry names a
-different upstream version.
+different upstream version. Where `solc`'s legacy and via-IR pipelines behave
+differently, we follow via-IR, and such cases are not listed.
 
 The goal is not to list every missing feature. A divergence belongs here when
 `solar` deliberately accepts, rejects, warns, or reports source locations
@@ -490,8 +491,8 @@ It still accepts their storage declarations, indexed accesses, and storage
 reference bindings. Solc 0.8.38 compiles the storage-to-storage array, tuple,
 and struct copies covered by the fixture, but those copies panic with code
 `0x41` at runtime. ABI-encoding the same array causes an internal compiler
-error in solc 0.8.38. These results hold with both code generators and with
-optimization enabled or disabled.
+error in solc 0.8.38. These results hold with optimization enabled or
+disabled.
 
 Rationale: report unsupported copies at their source during type checking,
 rather than fail during lowering or emit a runtime panic for a known oversized
@@ -845,35 +846,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/revert-strings/`,
   `tests/ui/codegen/lowering/library_delegatecall_guard.sol`.
 
-### CODEGEN-008: Environment snapshots across Foundry cheatcodes
-
-- ID: CODEGEN-008
-- Status: intentional
-- Difference: Foundry tests that save `block.number` across `vm.roll`, or
-  `block.timestamp` across `vm.warp`, can observe different values with solar
-  and solc. A source local is not a reliable snapshot: optimization can reuse
-  or rematerialize an environment read. Optimized solc via IR exhibits the
-  same class of behavior; passing with one pipeline is not a guarantee.
-- Rationale: block number and timestamp are invariant within an ordinary EVM
-  transaction. Cheatcodes change that environment outside production semantics.
-  Keep production optimizations and use `vm.getBlockNumber()` or
-  `vm.getBlockTimestamp()` at the intended snapshot or observation point.
-- Coverage: [Foundry PR #16727](https://github.com/foundry-rs/foundry/pull/16727)
-  implements source lints for both patterns, following local values, internal
-  helpers, and modifiers. Its tests cover getter behavior and bytecode
-  neutrality. In the pinned OpenZeppelin external suite at
-  `f646874fdc9b151631e3c96a68defbdbe736cd53`, the helper for
-  `BlockhashTest::testFuzzHistoryBlocks(uint16,uint256,bytes32)`
-  saves `block.number - 1` before rolling. Replacing that capture with
-  `vm.getBlockNumber() - 1` passes the reproduced case and 256 fixed-seed fuzz
-  cases under both compilers. The external runner applies this test-only
-  correction to both compiler legs and keeps the test enabled. It checks the
-  expected source text before applying the correction. The pinned Seaport
-  suite's ascending and descending amount tests save `block.timestamp` before
-  `vm.warp` and compute the expected amount from it afterwards; the runner
-  reads the warped timestamp through an external helper instead, so the five
-  affected tests pass under both compilers.
-
 ### CODEGEN-009: Static frames sit below the initial free memory pointer
 
 - ID: CODEGEN-009
@@ -991,18 +963,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 - ID: CODEGEN-011
 - Status: intentional
-- Difference: `solc` honors `pragma abicoder v1` and generates ABI coder v1
-  encoders and decoders for that source unit. `solar` warns that ABI coder v1
-  is not supported and always generates ABI coder v2 code. Calldata decoding
-  validates arguments like v2, so a `bool` argument of `2` or a `uint8` or
-  `address` argument with dirty high bits reverts, where v1 cleans it and
-  continues. The type checker also does not apply v1's restrictions, so v1
-  source units may use structs and nested dynamic arrays at ABI boundaries,
-  which `solc` rejects. The warning reuses `solc`'s 9511 code, so
-  `--allow 9511` also hides this change.
+- Difference: `solc` applies ABI coder v1's restrictions to a source unit that
+  selects it, so that unit cannot use structs or nested dynamic arrays at ABI
+  boundaries. `solar` warns that ABI coder v1 is not supported, generates ABI
+  coder v2 code, and does not apply v1's restrictions. The warning reuses
+  `solc`'s 9511 code, so `--allow 9511` also hides this change.
 - Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
-  accepts the same way. A second coder would only change how malformed input
-  fails and which types compile.
+  accepts the same way. A second coder would only change which types compile.
 - Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
   `tests/ui/parser/pragma_valid.sol`.
 
@@ -1031,8 +998,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `255`, or because `solar` does not compute it, such as
   `keccak256(type(C).creationCode)` or a byte array larger than 64 KiB, gets a
   helper function that runs its initializer, one per arithmetic mode. Each use
-  calls the one for its mode, as in `solc`'s IR codegen, so such a constant
-  wraps inside `unchecked`.
+  calls the one for its mode, so such a constant wraps inside `unchecked`.
 - Rationale: a constant is one value, and computing it once is cheaper than
   running its initializer at every use.
 - Coverage: `tests/ui/codegen/lowering/run-call/constant_reverting_initializer.sol`,
