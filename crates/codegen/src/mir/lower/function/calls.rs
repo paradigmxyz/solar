@@ -506,14 +506,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .returns
             .iter()
             .map(|&ty| self.cx.state.pointer_carrier(types::TypeLowerer::mir_type(ty)))
-            .collect();
-        let result_ty = self.cx.module.intern_return_type(return_types)?;
+            .collect::<Vec<_>>();
+        let result_ty = self.cx.module.intern_return_type(return_types.clone())?;
         // result = icall(dispatcher, function, args)
         let result = self.builder.icall(dispatcher, values, result_ty);
         if let [ret] = function.returns {
+            self.mark_unchecked_calldata_slice(result, return_types[0]);
             return Some(CallResult::Word(self.pointer_word(result, *ret)));
         }
         Some(CallResult::Value(result))
+    }
+
+    /// Records that an internal call result of this type is a calldata slice whose range
+    /// assembly may have changed, so copying it to memory checks the allocation size first.
+    pub(super) fn mark_unchecked_calldata_slice(&mut self, value: ValueId, ty: MirType) {
+        if ty == MirType::Slice(PtrLocation::Calldata) {
+            self.unchecked_calldata_slices.insert(value);
+        }
     }
 
     pub(super) fn lower_internal_function_value(
@@ -822,9 +831,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = icall(function, call_args)
         let result = self.builder.icall(mir_id, values, result_ty);
         if let [ret] = function.returns {
-            if return_types[0] == MirType::Slice(PtrLocation::Calldata) {
-                self.unchecked_calldata_slices.insert(result);
-            }
+            self.mark_unchecked_calldata_slice(result, return_types[0]);
             return Some(CallResult::Word(self.binding_word(result, *ret)));
         }
         Some(CallResult::Value(result))

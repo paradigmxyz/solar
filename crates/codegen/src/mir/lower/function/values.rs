@@ -641,9 +641,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .map(|(index, &field)| {
                 // field = extract_value result, index
                 let result = self.builder.extract_value(id, value, index as u32, field);
-                if field == MirType::Slice(PtrLocation::Calldata) {
-                    self.unchecked_calldata_slices.insert(result);
-                }
+                self.mark_unchecked_calldata_slice(result, field);
                 result
             })
             .collect()
