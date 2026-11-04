@@ -338,11 +338,11 @@ fn state_initializers_and_base_arguments_map_to_their_source() {
         }
         let entries = source_entries(debug["contracts"][name]["srcmap"].as_str().unwrap());
         for declaration in [
-            "uint256 stored = 42;",
-            "uint8 packed = 7;",
-            "string text = \"initial\";",
-            "uint256 immutable limit = 100;",
-            "uint8 immutable narrow = 5;",
+            "uint256 stored = 42",
+            "uint8 packed = 7",
+            "string text = \"initial\"",
+            "uint256 immutable limit = 100",
+            "uint8 immutable narrow = 5",
         ] {
             let start = source.find(declaration).unwrap();
             let length = declaration.len() as i64;
@@ -354,13 +354,12 @@ fn state_initializers_and_base_arguments_map_to_their_source() {
         let entries = source_entries(
             debug["contracts"]["src/Initializers.sol:Derived"]["srcmap"].as_str().unwrap(),
         );
-        let arguments = "(\"base label\")";
-        let start = source.find(arguments).unwrap();
+        // solc maps the argument conversions to the base constructor's definition.
+        let start = source.find("constructor(string memory label_)").unwrap();
+        let length = source[start..].find("\n    }").unwrap() + "\n    }".len();
         assert!(
-            entries
-                .iter()
-                .any(|&entry| entry[0] == start as i64 && entry[1] == arguments.len() as i64),
-            "{mode}: no creation code maps to the base constructor arguments"
+            entries.iter().any(|&entry| entry[0] == start as i64 && entry[1] == length as i64),
+            "{mode}: no creation code maps to the base constructor definition"
         );
     }
 }

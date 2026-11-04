@@ -61,8 +61,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             }
             let Some(initializer) = variable.initializer else { continue };
-            // Like solc, map the conversion and the store to the variable declaration.
-            let previous = self.builder.replace_source_span(variable.span);
+            // Like solc's `appendStateVariableInitialization`, map the conversion and the store
+            // to the variable declaration. solc's declaration ends with its value, before the
+            // semicolon.
+            let previous =
+                self.builder.replace_source_span(variable.span.with_hi(initializer.span.hi()));
             let result = self.lower_state_initializer(id, initializer);
             self.builder.replace_source_span(previous);
             result?;
@@ -132,8 +135,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .cx
                     .report_unsupported(constructor.span, "base constructor argument list");
             }
-            // Map the argument conversions to the argument list.
-            let previous = self.builder.replace_source_span(args.span);
+            // Like solc's `appendBaseConstructor`, which sets the location of the base
+            // constructor's definition around the arguments, map the argument conversions and
+            // parameter bindings to it. Each argument expression keeps its own location.
+            let previous = self.builder.replace_source_span(constructor.span);
             let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
                 id: constructor_id,
                 skips_receiver: false,
