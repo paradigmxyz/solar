@@ -475,7 +475,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return this.materialize_call_argument(parameter, value, argument.span);
                 }
                 let ty = this.cx.state.pointer_carrier(types::TypeLowerer::mir_type(parameter));
-                Some(this.word_into_carrier(carried, parameter, ty, ty == MirType::I256))
+                let value = if ty == MirType::I256 {
+                    carried.raw_operand()
+                } else {
+                    carried.clean(this, parameter)
+                };
+                Some(raw_scalars::cast_carrier(
+                    &mut this.builder,
+                    value,
+                    types::TypeLowerer::value_layout(parameter),
+                    ty,
+                ))
             },
         )?;
         values.insert(0, function_value);

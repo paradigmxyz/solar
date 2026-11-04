@@ -291,7 +291,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         offset: None,
                     });
                 }
-                // bounds_check(index, length), on the raw word like via-IR
+                // The index is checked as a raw word, like via-IR.
+                // bounds_check(index, length)
                 let index = self.lower_expr(index)?.raw_operand();
                 let (element, dynamic, length) = match ty.kind {
                     TyKind::Array(element, len) => (element, false, self.builder.imm(len)),

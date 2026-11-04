@@ -59,8 +59,8 @@ impl Word {
 
     /// Returns the word as an operand of an instruction that ignores the bits above the type.
     ///
-    /// Use it only for EVM address operands, which the EVM truncates, and for the index of a
-    /// storage array or `bytes`, which via-IR checks as a raw word.
+    /// Use it only for EVM address operands, which the EVM truncates, for the index of a storage
+    /// array or `bytes`, which via-IR checks as a raw word, and for a slot that holds raw words.
     pub(super) fn raw_operand(self) -> ValueId {
         self.value
     }
@@ -119,39 +119,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Lowers `lhs op rhs` for `&`, `|` and `^` on raw words, as via-IR does: it emits the
-    /// operation on the operands without cleaning them. A canonical operand is widened first.
+    /// operation on the operands without cleaning them. The operands must have the result type
+    /// `ty`, or be literals that convert to it, and at least one must be raw, so the shape
+    /// forwards; otherwise this returns `None`. A canonical operand is widened first.
     pub(super) fn raw_bitwise(
         &mut self,
         kind: BinOpKind,
-        lhs: Word,
-        rhs: Word,
+        (lhs_expr, lhs): (&hir::Expr<'_>, Word),
+        (rhs_expr, rhs): (&hir::Expr<'_>, Word),
         ty: Ty<'gcx>,
-    ) -> Word {
-        let lhs = lhs.carrier(self, ty);
-        let rhs = rhs.carrier(self, ty);
-        // result = op lhs, rhs
-        Word::raw(self.binary(kind, lhs, rhs, None))
-    }
-
-    /// Returns whether `lhs op rhs` keeps raw bits: both operands have the result type, or are
-    /// literals that convert to it, and at least one has it.
-    pub(super) fn forwards_bitwise(
-        &self,
-        lhs: &hir::Expr<'_>,
-        rhs: &hir::Expr<'_>,
-        ty: Ty<'gcx>,
-    ) -> bool {
+    ) -> Option<Word> {
         let is_literal = |expr: &hir::Expr<'_>| {
             self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
                 matches!(ty.peel_refs().kind, TyKind::IntLiteral(..) | TyKind::StringLiteral(..))
             })
         };
         let has_ty = |expr: &hir::Expr<'_>| self.cx.gcx.type_of_expr(expr.id) == Some(ty);
-        let (lhs_has_ty, rhs_has_ty) = (has_ty(lhs), has_ty(rhs));
-        (arithmetic_kind(ty).is_some() || operators::fixed_bytes_width(ty).is_some())
-            && (lhs_has_ty || is_literal(lhs))
-            && (rhs_has_ty || is_literal(rhs))
+        let (lhs_has_ty, rhs_has_ty) = (has_ty(lhs_expr), has_ty(rhs_expr));
+        let forwards = matches!(kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
+            && (arithmetic_kind(ty).is_some() || operators::fixed_bytes_width(ty).is_some())
+            && (lhs_has_ty || is_literal(lhs_expr))
+            && (rhs_has_ty || is_literal(rhs_expr))
             && (lhs_has_ty || rhs_has_ty)
+            && (lhs.raw || rhs.raw);
+        if !forwards {
+            return None;
+        }
+        let lhs = lhs.carrier(self, ty);
+        let rhs = rhs.carrier(self, ty);
+        // result = op lhs, rhs
+        Some(Word::raw(self.binary(kind, lhs, rhs, None)))
     }
 
     /// Joins words that meet at a merge: a raw word if any input is raw, with the canonical ones
@@ -218,17 +215,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Returns whether the variable `id` is a raw carrier holding a scalar word.
-    pub(super) fn is_raw_binding(&self, id: VariableId) -> bool {
+    fn is_raw_binding(&self, id: VariableId) -> bool {
         self.cx.state.raw_scalars.contains(&id)
             && types::TypeLowerer::mir_type(self.cx.gcx.type_of_item(id.into()))
                 .integer_bits()
                 .is_some()
-    }
-
-    /// Returns whether a result of type `ty` from an internal function pointer call is a raw word.
-    pub(super) fn is_raw_pointer_return(&self, ty: Ty<'gcx>) -> bool {
-        let carrier = self.cx.state.pointer_carrier(types::TypeLowerer::mir_type(ty));
-        ty.is_value_type() && carrier == MirType::I256
     }
 
     /// Wraps `value`, which the binding `id` holds or an internal call returned in it: raw for a
@@ -239,7 +230,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Wraps the result of type `ty` of an internal function pointer call.
     pub(super) fn pointer_word(&self, value: ValueId, ty: Ty<'gcx>) -> Word {
-        Word { value, raw: self.is_raw_pointer_return(ty) }
+        let carrier = self.cx.state.pointer_carrier(types::TypeLowerer::mir_type(ty));
+        Word { value, raw: ty.is_value_type() && carrier == MirType::I256 }
     }
 
     /// Reads a binding as a word: raw for a raw carrier.
@@ -271,26 +263,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn bind_word(&mut self, id: VariableId, word: Word, span: Span) -> Option<ValueId> {
         let ty = self.cx.gcx.type_of_item(id.into());
         let carrier = self.cx.state.scalar_carrier(self.cx.gcx, id);
-        if carrier.integer_bits().is_some() {
-            Some(self.word_into_carrier(word, ty, carrier, self.is_raw_binding(id)))
-        } else {
+        if carrier.integer_bits().is_none() {
             let value = word.clean(self, ty);
-            self.materialize_call_argument(ty, value, span)
+            return self.materialize_call_argument(ty, value, span);
         }
-    }
-
-    /// Copies `word` into a slot of the carrier type `carrier`, such as an internal function
-    /// pointer dispatcher's parameter. `keep_raw` says whether the slot holds raw words.
-    pub(super) fn word_into_carrier(
-        &mut self,
-        word: Word,
-        ty: Ty<'gcx>,
-        carrier: MirType,
-        keep_raw: bool,
-    ) -> ValueId {
-        let value = if keep_raw { word.value } else { word.clean(self, ty) };
+        let value = if self.is_raw_binding(id) { word.value } else { word.clean(self, ty) };
         let layout = types::TypeLowerer::value_layout(ty);
-        raw_scalars::cast_carrier(&mut self.builder, value, layout, carrier)
+        Some(raw_scalars::cast_carrier(&mut self.builder, value, layout, carrier))
     }
 
     /// Stores `word` into a place: a raw-carrier variable keeps the raw bits and any other place
@@ -312,14 +291,5 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.store_lvalue_place_with_source(place, value, source_ty)
             }
         }
-    }
-
-    /// Converts `word` from `source` to `target`; a raw word of the same type passes through.
-    pub(super) fn convert_word(&mut self, word: Word, source: Ty<'gcx>, target: Ty<'gcx>) -> Word {
-        if word.raw && source == target {
-            return word;
-        }
-        let value = word.clean(self, source);
-        Word::from_clean(self.coerce_value(value, source, target))
     }
 }

@@ -280,7 +280,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
             Some(self.cx.gcx.mk_ty_string_literal(bytes.as_byte_str()))
         });
-        Some(source_ty.map_or(word, |source_ty| self.convert_word(word, source_ty, ty)))
+        // A raw word of the same type passes through.
+        Some(match source_ty {
+            Some(source_ty) if !(word.is_raw() && source_ty == ty) => {
+                let value = word.clean(self, source_ty);
+                Word::from_clean(self.coerce_value(value, source_ty, ty))
+            }
+            _ => word,
+        })
     }
 
     /// Lowers the `bytes` or `string` operand `expr` of an ABI encoding to the value its encoder

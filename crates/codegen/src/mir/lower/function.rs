@@ -797,16 +797,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // A bitwise operation of same-type operands keeps raw bits, as via-IR does.
                 let expr_ty = self.cx.gcx.type_of_expr(expr.id);
                 if let Some(ty) = expr_ty
-                    && matches!(op.kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
-                    && self.forwards_bitwise(lhs, rhs, ty)
-                    && (lhs_value.is_raw() || rhs_value.is_raw())
+                    && let Some(word) =
+                        self.raw_bitwise(op.kind, (lhs, lhs_value), (rhs, rhs_value), ty)
                 {
-                    return Some(self.raw_bitwise(op.kind, lhs_value, rhs_value, ty));
+                    return Some(word);
                 }
-                let (Some(lhs_ty), Some(rhs_ty)) = (lhs_ty, rhs_ty) else { return None };
-                let lhs = lhs_value.clean(self, lhs_ty);
-                let rhs = rhs_value.clean(self, rhs_ty);
-                let (lhs_ty, rhs_ty) = (Some(lhs_ty), Some(rhs_ty));
+                let lhs = lhs_value.clean(self, lhs_ty?);
+                let rhs = rhs_value.clean(self, rhs_ty?);
                 let (lhs, rhs) = match (lhs_ty, rhs_ty) {
                     (Some(lhs_ty), Some(rhs_ty))
                         if rhs_word.is_none() && fixed_bytes(Some(lhs_ty)) && rhs_literal =>
@@ -992,12 +989,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let place = self.resolve_lvalue_place(lhs)?;
                     let lhs_word = self.load_place_word(&place)?;
                     // A bitwise operation of same-type operands keeps raw bits, as via-IR does.
-                    if matches!(kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
-                        && self.cx.gcx.user_operator(expr.id).is_none()
-                        && self.forwards_bitwise(lhs, rhs, lhs_ty)
-                        && (lhs_word.is_raw() || rhs_value.is_raw())
+                    if self.cx.gcx.user_operator(expr.id).is_none()
+                        && let Some(word) =
+                            self.raw_bitwise(kind, (lhs, lhs_word), (rhs, rhs_value), lhs_ty)
                     {
-                        let word = self.raw_bitwise(kind, lhs_word, rhs_value, lhs_ty);
                         self.store_word(&place, word, Some(lhs_ty), lhs_ty)?;
                         return Some(word);
                     }
