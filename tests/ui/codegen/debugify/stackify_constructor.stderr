@@ -1,0 +1,20 @@
+debugify: MIR StackifyConstructor after heap-floor: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-checks: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-builtins: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-arithmetic: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after cfg-simplify: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-abi: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-abi-encode: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-dispatch: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-structs: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-frame-slots: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-mapping-slots: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-memory-objects: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-slices: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-immutables: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-mcopy: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-alloc: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-memory-zero: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-integers: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-evm-shaped: 7/7 origins retained, 0 lost
+debugify: EVM IR StackifyConstructor after stackify: 7/7 origins retained, 0 lost

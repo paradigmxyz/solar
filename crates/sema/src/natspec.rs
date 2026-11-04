@@ -2,7 +2,7 @@ use crate::{
     hir,
     ty::{Gcx, Ty, TyAbiPrinter, TyAbiPrinterMode, TyKind},
 };
-use solar_ast as ast;
+use solar_ast::{self as ast, NatSpecItem, NatSpecKind};
 use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
 use solar_interface::{
     Ident, Span, Symbol,
@@ -306,9 +306,6 @@ impl<'gcx> Resolver<'gcx> {
         item_id: hir::ItemId,
         source_id: hir::SourceId,
     ) -> (SmallVec<[hir::NatSpecItem; 8]>, Option<(Span, hir::ItemId)>) {
-        use ast::NatSpecKind;
-        use hir::NatSpecItem;
-
         let permissions = TagPermissions::from_item_id(item_id);
         let mut parameters: Option<FxHashSet<Symbol>> = None;
         let mut returns: Option<&[hir::VariableId]> = None;

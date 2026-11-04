@@ -12,6 +12,7 @@ use crate::{
         DebugFunction, DebugFunctionExit, DebugInfo, DebugInfoBuilder, DebugSpans, ir, op,
         op::WORD_BYTES,
     },
+    debugify::Origins,
     link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable, Trailer},
     mir::{ImmutableId, TypeSize},
 };
@@ -167,6 +168,14 @@ pub(in crate::backend) struct OptimizedProgram {
     pub(in crate::backend) labels: Vec<Option<Label>>,
     /// Whether the pipeline reported an error.
     pub(in crate::backend) failed: bool,
+}
+
+/// A program as stack scheduling emitted it, before the EVM IR pipeline.
+pub(in crate::backend) struct ScheduledProgram {
+    /// A copy of the program, when captured.
+    pub(in crate::backend) evm_ir: Option<ir::Module>,
+    /// The origins of the program, when auditing.
+    pub(in crate::backend) origins: Option<Origins>,
 }
 
 /// Final lowering selected for a deferred allocation.

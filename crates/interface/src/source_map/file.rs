@@ -1,6 +1,8 @@
 use crate::{BytePos, CharPos, pos::RelativeBytePos};
 use std::{
-    fmt, io,
+    fmt,
+    hash::{Hash, Hasher},
+    io,
     ops::{Range, RangeInclusive},
     path::{Path, PathBuf},
     sync::Arc,
@@ -151,7 +153,6 @@ pub(crate) struct SourceFileId(u64);
 
 impl SourceFileId {
     pub(crate) fn new(filename: &FileName) -> Self {
-        use std::hash::{Hash, Hasher};
         let mut hasher = solar_data_structures::map::FxHasher::with_seed(0);
         filename.hash(&mut hasher);
         Self(hasher.finish())
