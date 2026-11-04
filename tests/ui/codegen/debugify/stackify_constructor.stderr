@@ -1,9 +1,9 @@
-debugify: MIR StackifyConstructor after heap-floor: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-checks: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-builtins: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-arithmetic: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after cfg-simplify: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-abi: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after heap-floor: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-checks: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-builtins: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-arithmetic: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after cfg-simplify: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-abi: 8/8 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-abi: 18 without a location
 debugify: gap constructor bb0 inst0 `callvalue`
 debugify: gap constructor bb0 inst1 `ne`
@@ -23,8 +23,8 @@ debugify: gap f bb0 terminator `jumpi`
 debugify: gap f bb4 terminator `revert`
 debugify: gap f bb5 inst0 `calldataload`
 debugify: gap f bb5 terminator `jump`
-debugify: MIR StackifyConstructor after lower-abi-encode: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-dispatch: 7/7 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-abi-encode: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-dispatch: 8/8 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-dispatch: 9 without a location
 debugify: gap entry bb0 inst0 `callvalue`
 debugify: gap entry bb0 inst1 `ne`
@@ -35,22 +35,21 @@ debugify: gap entry bb1 terminator `switch`
 debugify: gap entry bb2 terminator `tail_call`
 debugify: gap entry bb3 terminator `tail_call`
 debugify: gap entry bb4 terminator `revert`
-debugify: MIR StackifyConstructor after lower-structs: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-frame-slots: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-mapping-slots: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-memory-objects: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-slices: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-immutables: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-mcopy: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-alloc: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-memory-zero: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-integers: 7/7 origins retained, 0 lost
-debugify: MIR StackifyConstructor after lower-evm-shaped: 7/7 origins retained, 0 lost
-debugify: EVM IR StackifyConstructor after stackify: 7/7 origins retained, 0 lost
-debugify: EVM IR StackifyConstructor after stackify: 29 without a location
+debugify: MIR StackifyConstructor after lower-structs: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-frame-slots: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-mapping-slots: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-memory-objects: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-slices: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-immutables: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-mcopy: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-alloc: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-memory-zero: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-integers: 8/8 origins retained, 0 lost
+debugify: MIR StackifyConstructor after lower-evm-shaped: 8/8 origins retained, 0 lost
+debugify: EVM IR StackifyConstructor after stackify: 8/8 origins retained, 0 lost
+debugify: EVM IR StackifyConstructor after stackify: 27 without a location
 debugify: gap StackifyConstructor_runtime bb0 terminator `jump`
 debugify: gap StackifyConstructor_runtime bb6 terminator `jump`
-debugify: gap StackifyConstructor_runtime bb7 terminator `jump`
 debugify: gap StackifyConstructor_deployment bb0 inst0 `push_data`
 debugify: gap StackifyConstructor_deployment bb0 inst1 `codesize`
 debugify: gap StackifyConstructor_deployment bb0 inst2 `sub`
@@ -69,7 +68,6 @@ debugify: gap StackifyConstructor_deployment bb0 inst14 `mstore`
 debugify: gap StackifyConstructor_deployment bb0 terminator `jump`
 debugify: gap StackifyConstructor_deployment bb1 terminator `jump`
 debugify: gap StackifyConstructor_deployment bb2 terminator `jump`
-debugify: gap StackifyConstructor_deployment bb3 terminator `jump`
 debugify: gap StackifyConstructor_deployment bb8 inst0 `push`
 debugify: gap StackifyConstructor_deployment bb8 inst1 `dup`
 debugify: gap StackifyConstructor_deployment bb8 inst2 `push_data`
