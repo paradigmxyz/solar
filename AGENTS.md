@@ -91,6 +91,29 @@ dropped or unknown rather than inventing a location or picking an arbitrary
 origin for shared code. Explain deliberate limits with a `NOTE:` comment. Cover
 debug-info changes with bytecode-neutrality tests.
 
+Pick locations in this order; the first rule that applies wins.
+
+1. **solc.** For which source span an expression or statement maps to, follow
+   solc: the `LocationSetter` calls in `testdata/solidity/libsolidity/codegen`
+   for legacy, `@src` for via-IR. Cite the solc file and line in the code
+   comment and the PR body.
+2. **LLVM, rustc, clang.** For how locations survive a rewrite, copy them; do
+   not invent rules. LLVM's
+   [HowToUpdateDebugInfo](https://llvm.org/docs/HowToUpdateDebugInfo.html)
+   has four:
+   - Preserve: a replacement for one instruction keeps its location.
+   - Merge (`applyMergedLocation`): only when new code replaces several
+     instructions and produces each of their outputs, as when hoisting or
+     sinking identical code, or merging tails.
+   - Drop (`dropLocation`): when keeping the location would mislead, as when
+     hoisting into another block.
+   - Remap: cloned code keeps its location.
+
+   Never move a deleted instruction's location onto code that survives. CSE
+   keeps only the survivor's own location.
+3. **Our own rule.** Only where neither applies. Give the reason in the code
+   comment and the PR body. Never add a rule only to lower an audit count.
+
 ### MIR Phases
 
 MIR has two phases, `semantic` (typed SSA, aggregates, semantic operations) and
@@ -143,6 +166,11 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 - To test one source under different flags, passes, levels, EVM versions, or
   outputs, use one test with `//@ revisions:` and revision-scoped directives.
   Use separate files only when the source text itself differs in purpose.
+- Do not check in huge outputs, such as a 1,500-line standard-json `.stdout`
+  for a one-line fix. Check the lines that matter with FileCheck.
+- Many small test files are fine. Put a new family of tests in its own
+  subdirectory, not in an already large one, and split a giant test source
+  into small focused files.
 - Put imported or secondary sources in `auxiliary/` next to the test, never
   `aux/` (Windows rejects it).
 - Assert formatted output in Rust tests with `snapbox` snapshots, not
