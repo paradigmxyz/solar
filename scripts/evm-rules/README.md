@@ -305,11 +305,13 @@ matching but not an individual rule's equality obligation. We overapproximate
 structural/fork guards; actual opcode availability and profitability remain the
 compiler's responsibility. There is no claim of a verified compiler.
 
-The physical stack lane checks the seven compiled rules in `stack_peephole.isle`
+The physical stack lane checks the eight compiled rules in `stack_peephole.isle`
 directly, including every supported DUP/SWAP depth from 1 through 235 and every
 legal EXCHANGE pair and the EQ/ISZERO shuffle cleanup. It compares every touched
 word, the final height, required input depth and peak growth; an arbitrary deeper
-prefix stays unchanged.
+prefix stays unchanged. One rule rewrites a word window: `DUP1 ADD PUSH1 1 OR` becomes
+`DUP1 NOT SWAP1 SUB`, since `(x + x) | 1` is `x - ~x`. A literal guard fixes the pushed word,
+and the price guard that decides whether the rewrite pays stays a trusted contract.
 Malformed input bytecode and out-of-gas behavior are excluded. The Rust window
 facets, edits and target lowering remain trusted and are recorded by hash.
 The guarded five-op window rejects protected instruction boundaries; focused
@@ -374,7 +376,7 @@ shift-count arithmetic or repeated literal masks. Equivalence must hold for
 every value of the new input, not merely values observed in the source program.
 The exact emitted ISLE must pass verification, then gas/size measurements decide
 whether to integrate it. Mining the optimized runtime corpus motivated the
-doubling rule in `mir/word/` and odd-word recipes in `mir/word_sequence/`.
+doubling rule in `mir/word/` and the odd-word recipe in `evm-ir/stack_peephole.isle`.
 The doubling rule keeps the producer at its original position: rebuilding it at
 the later addition regressed stack traffic across intervening computations.
 

@@ -302,7 +302,7 @@ class StackProofTests(unittest.TestCase):
 
     def test_actual_compiled_stack_rules(self):
         report = verify_rules(ISLE / "evm-ir/stack_peephole.isle")
-        self.assertEqual(len(report["rules"]), 7)
+        self.assertEqual(len(report["rules"]), 8)
         self.assertTrue(all(r["status"] == "proved" for r in report["rules"]))
         self.assertGreater(sum(r["variants"] for r in report["rules"]), 900)
 
@@ -314,6 +314,8 @@ class StackProofTests(unittest.TestCase):
         _, rules = stack_rules(ISLE / "evm-ir/stack_peephole.isle")
         for rule in rules:
             variants = stack_variants(rule)
+            if len(variants) == 1:
+                continue
             with self.subTest(line=rule.line):
                 if len(variants[0]["bindings"]) == 1:
                     self.assertEqual(len(variants), 235)
@@ -338,12 +340,25 @@ class StackProofTests(unittest.TestCase):
         self.assertEqual(result["status"], "counterexample")
         self.assertTrue(result["proofs"][0]["replayed"])
 
+    def test_odd_word_window_needs_its_guard_and_operation(self):
+        correct = "(rule (peep_op (unprotected_last4 (dup 1) (opcode $ADD) (push one) (opcode $OR))) (if-let true (u256_is_one one)) (rewrite 4 (Edit.OddWord)))"
+        self.assertEqual(self.verify(correct)["rules"][0]["status"], "proved")
+        for wrong in (
+            correct.replace(" (if-let true (u256_is_one one))", ""),
+            correct.replace("$ADD", "$SUB"),
+            correct.replace("$OR", "$SUB"),
+        ):
+            result = self.verify(wrong)["rules"][0]
+            self.assertEqual(result["status"], "counterexample")
+            self.assertTrue(result["proofs"][0]["replayed"])
+
     def test_unknown_effect_and_changed_extent_fail_closed(self):
         for source in (
             "(rule (peep_pop (last2 (opcode $MLOAD) (pop))) (rewrite 2 (Edit.Keep 0)))",
             "(rule (peep_pop (last2 (dup 1) (pop))) (rewrite 3 (Edit.Keep 0)))",
             "(rule (peep_pop (last2 (dup 1) (pop))) (rewrite 2 (Edit.Unknown)))",
             "(rule (peep_op (last2 (dup 1) (pop))) (rewrite 2 (Edit.Keep 0)))",
+            "(rule (peep_op (last2 (push x) (opcode $OR))) (if-let true (unknown x)) (rewrite 2 (Edit.Keep 0)))",
         ):
             self.assertEqual(self.verify(source)["rules"][0]["status"], "unsupported")
 

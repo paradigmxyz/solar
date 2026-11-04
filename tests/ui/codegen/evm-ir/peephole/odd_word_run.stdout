@@ -1,0 +1,19 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/odd_word_run.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/odd_word_run.evmir (after peephole) ===
+  @module odd_word_run
+  bb0:
+    push 4
+    calldataload
+    dup 1
+-   add
+-   push 1
+-   or
++   not
++   swap 1
++   sub
+    push 0
+    mstore
+    push 32
+    push 0
+    return
+  

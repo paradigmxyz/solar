@@ -24,24 +24,8 @@
 //! A pure binary operation with a constant operand moves through a `SWAPn SWAP1 SWAPn`
 //! permutation, which removes two swaps.
 //!
-//! The separate `late-word` entry point runs only after structural cleanup. It
-//! replaces a low-mask construction with a shorter complement/shift form. A closed
-//! count window cannot read the surrounding stack; a protected-base window may
-//! shuffle its base but cannot duplicate, consume, or inspect it. Neither window
-//! can cross a terminator or observe gas/PC. Their instructions stay in place.
-//! A target cost check requires a Pareto improvement, including the materialized
-//! constants. Deferring this rewrite preserves earlier outlining opportunities;
-//! doing it in MIR can turn a shareable run into two smaller inline copies that
-//! occupy more bytes overall. Matching is bounded to 24 instructions per tail.
-//! A mask that compact pushes built as `PUSH0 NOT PUSH s SHR` before an `AND` becomes the
-//! shift pair `PUSH s SHL PUSH s SHR` in a fixed five-instruction window, when the pair
-//! dominates the mask in gas and bytes. A literal mask never matches, so a loop that kept one
-//! keeps it; the MIR word-sequence pass only fuses such a mask with a neighbouring shift.
-//!
-//! When no low-mask window matches, the late rules rewrite a trailing `PUSH c; SWAP1; SUB` to
-//! `materialize(-c); ADD` if the target's cheapest materialization of `-c` beats the push and the
-//! swap, as `PUSH0; NOT` does for the decrement `x - 1`. The low-mask window ends in the same
-//! tail, so this rewrite waits for it.
+//! `DUP1 ADD PUSH1 1 OR` computes `(x + x) | 1`, which is `x - ~x`: `DUP1 NOT SWAP1 SUB` has the
+//! same gas and fewer bytes, and each of its instructions keeps the origin of the `OR`.
 //!
 //! Equivalent replacements keep the root operation's source context on their result-producing
 //! instruction. Removed operand locations are dropped, and function events are moved once.
@@ -354,6 +338,8 @@ enum Edit {
         second: u8,
     },
     MoveConstantThroughSwaps,
+    /// DUP1; NOT; SWAP1; SUB.
+    OddWord,
 }
 
 impl Edit {
@@ -533,6 +519,24 @@ impl Edit {
                     swap.metadata.mark_debug_info_dropped();
                 }
                 instructions.truncate(start + 4);
+            }
+            Self::OddWord => {
+                // dup 1; not; swap 1; sub
+                // NOTE: Every instruction of the replacement carries the source origin of the
+                // `OR` it replaces, as LLVM keeps the location of an expanded instruction; the
+                // `SUB` takes its function events.
+                let context = replacement_debug_info(&instructions[start..], 3);
+                instructions.truncate(start);
+                instructions.extend([
+                    Instruction::stack_op(op::StackOp::Dup(1)),
+                    Instruction::opcode(op::NOT),
+                    Instruction::stack_op(op::StackOp::Swap(1)),
+                    Instruction::opcode(op::SUB),
+                ]);
+                for inst in &mut instructions[start..] {
+                    inst.metadata.copy_source_debug_from(&context);
+                }
+                instructions.last_mut().unwrap().metadata.copy_debug_info_from(&context);
             }
         }
     }
