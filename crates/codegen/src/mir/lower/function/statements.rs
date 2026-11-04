@@ -108,6 +108,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let ExprKind::Tuple(values) = &expr.peel_parens().kind
                     && values.len() == ids.len()
                 {
+                    let mut declared = Vec::new();
+                    let mut operands = Vec::new();
                     for (id, value) in ids.iter().zip(values.iter()) {
                         let Some(value) = value else {
                             if id.is_some() {
@@ -129,9 +131,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             continue;
                         }
                         let span = value.span;
-                        let value = self.lower_typed_expr(value, ty)?;
-                        let value = self.materialize_scalar_carrier(*id, value, span)?;
-                        self.values.insert(*id, value);
+                        let operand = self.lower_deferred_operand(value, ty, |this, value| {
+                            this.materialize_scalar_carrier(*id, value, span)
+                        })?;
+                        declared.push(*id);
+                        operands.push(operand);
+                    }
+                    // The copies read storage after the last component ran, as solc does.
+                    let values =
+                        self.resolve_deferred_operands(operands, |this, index, value, copy| {
+                            this.materialize_scalar_carrier(declared[index], value, copy.span)
+                        })?;
+                    for (id, value) in declared.into_iter().zip(values) {
+                        self.values.insert(id, value);
                     }
                     return Some(());
                 }
@@ -571,7 +583,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         ));
                     }
                     let operand =
-                        this.lower_abi_operand(argument, parameter_ty, |this, value| {
+                        this.lower_deferred_operand(argument, parameter_ty, |this, value| {
                             Some((value, this.types.abi_type(parameter_ty)?))
                         })?;
                     return Some((argument, operand));

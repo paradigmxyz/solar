@@ -233,17 +233,17 @@ fn @pushZero(arg0: i256) -> struct0 [selector=0xb0e28d5e, abi_params=[uint256], 
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    v37 = icall @load_storage_bytes, 0
-    v38 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v38
-    v39 = and v38, 1
-    v40 = eq v39, 1
-    v41 = sub 0, v39
-    v42 = or v41, 127
-    v43 = shr v38, 1
-    v44 = and v43, v42
-    v45 = insert_value struct0, undef struct0, 0, v37
-    v46 = insert_value struct0, v45, 1, v44
+    v37 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v37
+    v38 = and v37, 1
+    v39 = eq v38, 1
+    v40 = sub 0, v38
+    v41 = or v40, 127
+    v42 = shr v37, 1
+    v43 = and v42, v41
+    v44 = icall @load_storage_bytes, 0
+    v45 = insert_value struct0, undef struct0, 0, v44
+    v46 = insert_value struct0, v45, 1, v43
     ret v46
   bb4:                                            ; preds = bb1
     v5 = sload 0 !metadata(storage=slot(0))
@@ -402,17 +402,17 @@ fn @popTo(arg0: i256, arg1: i256) -> struct0 [selector=0x6203376f, abi_params=[u
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    v43 = icall @load_storage_bytes, 0
-    v44 = sload 0 !metadata(storage=slot(0))
-    validate_storage_bytes v44
-    v45 = and v44, 1
-    v46 = eq v45, 1
-    v47 = sub 0, v45
-    v48 = or v47, 127
-    v49 = shr v44, 1
-    v50 = and v49, v48
-    v51 = insert_value struct0, undef struct0, 0, v43
-    v52 = insert_value struct0, v51, 1, v50
+    v43 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v43
+    v44 = and v43, 1
+    v45 = eq v44, 1
+    v46 = sub 0, v44
+    v47 = or v46, 127
+    v48 = shr v43, 1
+    v49 = and v48, v47
+    v50 = icall @load_storage_bytes, 0
+    v51 = insert_value struct0, undef struct0, 0, v50
+    v52 = insert_value struct0, v51, 1, v49
     ret v52
   bb4:                                            ; preds = bb1
     v6 = sload 0 !metadata(storage=slot(0))
@@ -1063,10 +1063,10 @@ fn @structPushPop(arg0: i256) -> struct0 [selector=0x9c0e8d6f, abi_params=[uint2
     sstore v58, 0 !metadata(storage=symbolic(v58))
     jump bb16
   bb16:                                           ; preds = bb15, bb13, bb14
-    v85 = icall @load_storage_bytes, 2
-    v86 = sload 1 !metadata(storage=slot(1))
-    v87 = insert_value struct0, undef struct0, 0, v85
-    v88 = insert_value struct0, v87, 1, v86
+    v85 = sload 1 !metadata(storage=slot(1))
+    v86 = icall @load_storage_bytes, 2
+    v87 = insert_value struct0, undef struct0, 0, v86
+    v88 = insert_value struct0, v87, 1, v85
     ret v88
   bb4:                                            ; preds = bb1
     v5 = checked_add uint256, v3, 1

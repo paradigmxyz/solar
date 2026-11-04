@@ -268,14 +268,27 @@ struct CallArgumentParams<'a> {
     reverse: bool,
 }
 
-/// An operand of an ABI encoding after lowering.
-enum AbiOperand<'gcx> {
-    /// A value to encode, with its ABI type.
-    Ready((ValueId, AbiType)),
-    /// A storage array or struct that the encoder reads after every operand ran, as solc does.
-    /// `ty` is the memory type it copies to.
-    Storage { slot: ValueId, ty: Ty<'gcx>, span: Span },
+/// A storage array, struct, `bytes`, or `string` that is copied to the memory type `ty` after the
+/// operands that follow it ran, as solc does.
+#[derive(Clone, Copy)]
+struct StorageCopy<'gcx> {
+    slot: ValueId,
+    ty: Ty<'gcx>,
+    span: Span,
 }
+
+/// An operand of a call, constructor, or tuple after lowering.
+enum DeferredOperand<'gcx, T = ValueId> {
+    /// A lowered value.
+    Ready(T),
+    /// A storage object that [`FunctionLowerer::resolve_deferred_operand`] copies after every
+    /// operand was lowered.
+    Storage(StorageCopy<'gcx>),
+}
+
+/// An operand of an ABI encoding after lowering: a value to encode with its ABI type, or a storage
+/// array or struct that the encoder reads after every operand ran.
+type AbiOperand<'gcx> = DeferredOperand<'gcx, (ValueId, AbiType)>;
 
 struct LoopTargets {
     break_block: BlockId,
@@ -957,12 +970,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let fixed_bytes_literal = (fixed_bytes.is_some() && compound_op.is_none())
                     .then(|| self.lower_fixed_bytes_literal(lhs_ty, rhs))
                     .flatten();
+                let mut place = None;
                 let rhs_value = if let Some(word) = fixed_bytes_literal {
                     word
                 } else if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
-                    self.lower_typed_expr(rhs, memory_rhs_ty)?
+                    match self.lower_deferred_operand(rhs, memory_rhs_ty, |_, value| Some(value))? {
+                        DeferredOperand::Ready(value) => value,
+                        DeferredOperand::Storage(copy) => {
+                            // The place, and any index it evaluates, runs before the copy.
+                            place = Some(self.resolve_lvalue_place(lhs)?);
+                            self.load_storage_object(copy.ty, copy.slot, copy.span)?
+                        }
+                    }
                 } else if compound_op.is_some_and(|op| {
                     !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
                 }) {
@@ -1002,7 +1023,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                 };
                 let value = self.coerce_value(value, rhs_ty, lhs_ty);
-                self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;
+                match place {
+                    Some(place) => {
+                        self.store_lvalue_place_with_source(&place, value, Some(rhs_ty))?
+                    }
+                    None => self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?,
+                }
                 Some(value)
             }
             ExprKind::Ternary(cond, then_expr, else_expr) => {

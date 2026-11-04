@@ -92,12 +92,12 @@ fn @assignmentChain() -> struct1 [selector=0xe732390f, abi_params=[], abi_return
     v3 = load_storage_bytes 0
     v4 = ptrtoint ptr<memory> v3 to i256
     icall @store_storage_bytes, v2, v3
-    v5 = load_storage_bytes 0
+    v5 = sload 1 !metadata(storage=slot(1))
     v6 = load_storage_bytes 0
-    v7 = sload 1 !metadata(storage=slot(1))
-    v8 = insert_value struct1, undef struct1, 0, v5
-    v9 = insert_value struct1, v8, 1, v6
-    v10 = insert_value struct1, v9, 2, v7
+    v7 = load_storage_bytes 0
+    v8 = insert_value struct1, undef struct1, 0, v6
+    v9 = insert_value struct1, v8, 1, v7
+    v10 = insert_value struct1, v9, 2, v5
     ret v10
 }
 

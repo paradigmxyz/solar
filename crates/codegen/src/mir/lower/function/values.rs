@@ -93,25 +93,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && values.len() == self.returns.len()
         {
             let returns = self.returns.clone();
-            return values
-                .iter()
-                .zip(returns)
-                .map(|(value, id)| {
-                    let value = (*value)?;
-                    let ty = self.cx.gcx.type_of_item(id.into());
-                    if ty.is_ref_at(DataLocation::Storage) {
-                        Some(self.require_storage_access(value)?.slot)
-                    } else {
-                        let span = value.span;
-                        let value = self.lower_typed_expr(value, ty)?;
-                        if ty.is_ref_at(DataLocation::Memory) {
-                            self.materialize_memory_copy(ty, value, span)
-                        } else {
-                            Some(value)
-                        }
-                    }
-                })
-                .collect();
+            let finish = |this: &mut Self, ty: Ty<'gcx>, value, span| {
+                if ty.is_ref_at(DataLocation::Memory) {
+                    this.materialize_memory_copy(ty, value, span)
+                } else {
+                    Some(value)
+                }
+            };
+            let mut operands = Vec::with_capacity(returns.len());
+            for (value, &id) in values.iter().zip(&returns) {
+                let value = (*value)?;
+                let ty = self.cx.gcx.type_of_item(id.into());
+                operands.push(if ty.is_ref_at(DataLocation::Storage) {
+                    DeferredOperand::Ready(self.require_storage_access(value)?.slot)
+                } else {
+                    self.lower_deferred_operand(value, ty, |this, object| {
+                        finish(this, ty, object, value.span)
+                    })?
+                });
+            }
+            return self.resolve_deferred_operands(operands, |this, _, object, copy| {
+                finish(this, copy.ty, object, copy.span)
+            });
         }
         if self.returns.len() > 1 {
             let returns = self.returns.clone();

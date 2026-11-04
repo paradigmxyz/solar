@@ -50,7 +50,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .prepare_abi_encode_argument(expr, ty, value, AbiType::Bytes(location))
                         .map(AbiOperand::Ready);
                 }
-                this.lower_abi_operand(expr, memory_ty, |this, value| {
+                this.lower_deferred_operand(expr, memory_ty, |this, value| {
                     let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
                         AbiType::Bytes(PtrLocation::Memory)
                     } else {
@@ -183,7 +183,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         )
                         .map(AbiOperand::Ready);
                 }
-                this.lower_abi_operand(expr, memory_ty, |this, value| {
+                this.lower_deferred_operand(expr, memory_ty, |this, value| {
                     let abi_type = this.types.abi_type(memory_ty)?;
                     this.prepare_abi_encode_argument(expr, memory_ty, value, abi_type)
                 })

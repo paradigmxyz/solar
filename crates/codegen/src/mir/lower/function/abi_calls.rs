@@ -305,31 +305,66 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Whether a value of type `ty` made from `source` copies a storage array or struct to memory.
     pub(super) fn is_storage_object_copy(&self, source: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
         !ty.is_ref_at(DataLocation::Storage)
-            && self.types.memory_layout(ty).is_some()
             && self
                 .cx
                 .gcx
                 .type_of_expr(source.id)
                 .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
+            && self.types.memory_layout(ty).is_some()
     }
 
-    /// Lowers the operand `expr` of an ABI encoding that is not `bytes` or `string`, as the memory
-    /// type `ty`. A storage array or struct lowers to its slot, which
-    /// [`Self::resolve_abi_operands`] reads after the operands that follow, as solc does; any other
-    /// operand to its value, which `prepare` turns into the value to encode and its ABI type.
-    pub(super) fn lower_abi_operand(
+    /// Lowers the operand `expr` as the memory type `ty`. A storage array, struct, `bytes`, or
+    /// `string` lowers to its slot, which [`Self::resolve_deferred_operand`] copies after the
+    /// operands that follow, as solc does; any other operand lowers to its value, which `finish`
+    /// prepares.
+    pub(super) fn lower_deferred_operand<T>(
         &mut self,
         expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-        prepare: impl FnOnce(&mut Self, ValueId) -> Option<(ValueId, AbiType)>,
-    ) -> Option<AbiOperand<'gcx>> {
+        finish: impl FnOnce(&mut Self, ValueId) -> Option<T>,
+    ) -> Option<DeferredOperand<'gcx, T>> {
         let source = self.peel_bytes_conversion(expr);
         if self.is_storage_object_copy(source, ty) {
             let slot = self.require_storage_access(source)?.slot;
-            return Some(AbiOperand::Storage { slot, ty, span: expr.span });
+            return Some(DeferredOperand::Storage(StorageCopy { slot, ty, span: expr.span }));
         }
         let value = self.lower_typed_expr(expr, ty)?;
-        prepare(self, value).map(AbiOperand::Ready)
+        finish(self, value).map(DeferredOperand::Ready)
+    }
+
+    /// Copies a storage operand out of storage, after every operand was lowered, and prepares the
+    /// copy with `finish`.
+    pub(super) fn resolve_deferred_operand<T>(
+        &mut self,
+        operand: DeferredOperand<'gcx, T>,
+        finish: impl FnOnce(&mut Self, ValueId, StorageCopy<'gcx>) -> Option<T>,
+    ) -> Option<T> {
+        match operand {
+            DeferredOperand::Ready(value) => Some(value),
+            DeferredOperand::Storage(copy) => {
+                // object = load_storage_object(ty, slot)
+                let object = self.load_storage_object(copy.ty, copy.slot, copy.span)?;
+                finish(self, object, copy)
+            }
+        }
+    }
+
+    /// Resolves each operand with [`Self::resolve_deferred_operand`]; `finish` also gets the
+    /// operand's index.
+    pub(super) fn resolve_deferred_operands(
+        &mut self,
+        operands: Vec<DeferredOperand<'gcx>>,
+        mut finish: impl FnMut(&mut Self, usize, ValueId, StorageCopy<'gcx>) -> Option<ValueId>,
+    ) -> Option<Vec<ValueId>> {
+        operands
+            .into_iter()
+            .enumerate()
+            .map(|(index, operand)| {
+                self.resolve_deferred_operand(operand, |this, object, copy| {
+                    finish(this, index, object, copy)
+                })
+            })
+            .collect()
     }
 
     /// Reads the storage operands of an ABI encoding, after every operand was lowered.
@@ -348,14 +383,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         operand: AbiOperand<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
-        match operand {
-            AbiOperand::Ready(operand) => Some(operand),
-            AbiOperand::Storage { slot, ty, span } => {
-                // object = load_storage_object(ty, slot)
-                let object = self.load_storage_object(ty, slot, span)?;
-                Some((object, Self::memory_abi_type(self.types.abi_type(ty)?)))
-            }
-        }
+        self.resolve_deferred_operand(operand, |this, object, copy| {
+            Some((object, Self::memory_abi_type(this.types.abi_type(copy.ty)?)))
+        })
     }
 
     /// Lowers the `bytes` or `string` operand `expr` of an ABI encoding to the value its encoder
@@ -390,7 +420,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .prepare_abi_argument(argument, parameter_ty, value, AbiType::Bytes(location))
                 .map(AbiOperand::Ready);
         }
-        self.lower_abi_operand(argument, parameter_ty, |this, value| {
+        self.lower_deferred_operand(argument, parameter_ty, |this, value| {
             let abi_type = this.types.abi_type(parameter_ty)?;
             let abi_type = if this.cx.gcx.type_of_expr(argument.id).is_some_and(|ty| {
                 ty.is_ref_at(DataLocation::Memory) || ty.is_ref_at(DataLocation::Storage)

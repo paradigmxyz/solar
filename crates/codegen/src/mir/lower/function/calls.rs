@@ -455,7 +455,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .gcx
             .call_param_source(callee)
             .map(|source| self.cx.gcx.callable_param_names(source));
-        let mut values = self.lower_call_arguments(
+        let carrier = |this: &mut Self, index: usize, value, span| {
+            let parameter = function.parameters[index];
+            if !Self::is_storage_parameter(parameter) && !parameter.is_value_type() {
+                return this.materialize_call_argument(parameter, value, span);
+            }
+            let ty = this.cx.state.pointer_carrier(types::TypeLowerer::mir_type(parameter));
+            Some(raw_scalars::cast_carrier(
+                &mut this.builder,
+                value,
+                types::TypeLowerer::value_layout(parameter),
+                ty,
+            ))
+        };
+        let values = self.lower_call_arguments(
             args,
             CallArgumentParams {
                 count: function.parameters.len(),
@@ -466,25 +479,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "named internal function argument",
             |this, index, argument| {
                 let parameter = function.parameters[index];
-                let value = if Self::is_storage_parameter(parameter) {
+                if Self::is_storage_parameter(parameter) {
                     // argument = slot of the storage argument
-                    this.require_storage_access(argument)?.slot
-                } else {
-                    let value = this.lower_typed_expr(argument, parameter)?;
-                    if !parameter.is_value_type() {
-                        return this.materialize_call_argument(parameter, value, argument.span);
-                    }
-                    value
-                };
-                let ty = this.cx.state.pointer_carrier(types::TypeLowerer::mir_type(parameter));
-                Some(raw_scalars::cast_carrier(
-                    &mut this.builder,
-                    value,
-                    types::TypeLowerer::value_layout(parameter),
-                    ty,
-                ))
+                    let slot = this.require_storage_access(argument)?.slot;
+                    return carrier(this, index, slot, argument.span).map(DeferredOperand::Ready);
+                }
+                this.lower_deferred_operand(argument, parameter, |this, value| {
+                    carrier(this, index, value, argument.span)
+                })
             },
         )?;
+        let mut values = self.resolve_deferred_operands(values, |this, index, value, copy| {
+            carrier(this, index, value, copy.span)
+        })?;
         values.insert(0, function_value);
 
         // A pointer retyped by assembly needs its own dispatcher only when that reaches more
@@ -831,6 +838,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 receiver.span,
             )?);
         }
+        let carrier = |this: &mut Self, argument_index: usize, value, span| {
+            let parameter = function.parameters[argument_index + receiver_count];
+            this.materialize_scalar_carrier(parameter, value, span)
+        };
         let arguments = self.lower_call_arguments(
             args,
             CallArgumentParams {
@@ -843,14 +854,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, argument_index, argument| {
                 let parameter = function.parameters[argument_index + receiver_count];
                 let parameter_ty = this.cx.gcx.type_of_item(parameter.into());
-                let value = if Self::is_storage_parameter(parameter_ty) {
-                    this.require_storage_access(argument)?.slot
-                } else {
-                    this.lower_typed_expr(argument, parameter_ty)?
-                };
-                this.materialize_scalar_carrier(parameter, value, argument.span)
+                if Self::is_storage_parameter(parameter_ty) {
+                    let slot = this.require_storage_access(argument)?.slot;
+                    return carrier(this, argument_index, slot, argument.span)
+                        .map(DeferredOperand::Ready);
+                }
+                this.lower_deferred_operand(argument, parameter_ty, |this, value| {
+                    carrier(this, argument_index, value, argument.span)
+                })
             },
         )?;
+        let arguments = self.resolve_deferred_operands(arguments, |this, index, value, copy| {
+            carrier(this, index, value, copy.span)
+        })?;
         values.extend(arguments);
         let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
