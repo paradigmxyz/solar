@@ -18,7 +18,7 @@
 
 use smallvec::SmallVec;
 use solar_ast::{self as ast, DocComment};
-use solar_interface::{BytePos, Ident, Span, Symbol, diagnostics::DiagCtxt, error_code, kw};
+use solar_interface::{BytePos, Ident, Span, Symbol, diagnostics::DiagCtxt, error_code};
 
 /// A line of the text that solc's scanner reads from a doc comment.
 struct Line<'a> {
@@ -157,10 +157,10 @@ pub(super) fn parse_natspec(
                 .position(|b| matches!(b, b' ' | b'\t'))
                 .map_or(text.len(), |offset| tag_start + offset);
             let tag = &text[tag_start..name_end];
-            let rest_start = skip_blanks(text, name_end);
             if tag.is_empty() {
                 continue;
             }
+            let rest_start = skip_blanks(text, name_end);
 
             // Calculate span: from the char after '@' to end of tag name.
             let tag_lo = line.pos(tag_offset) + 1; // +1 for '@'
@@ -223,43 +223,37 @@ fn push_item(
     item: PendingItem,
     end: usize,
 ) {
-    let (symbol, content_start, content_end, content_lo) = match lines[..end].get(item.line..) {
+    let (symbol, content_start, content_end) = match &lines[item.line..end] {
+        // Only the notice before the first tag has no lines, when the first line is a tag.
+        [] => {
+            debug_assert!(item.implicit);
+            return;
+        }
         // A single line is a slice of its comment.
-        Some([line]) => {
-            let content = &line.text[item.offset..];
-            if item.implicit && content.trim_ascii().is_empty() {
-                return;
-            }
-            let lead = content.len() - content.trim_ascii_start().len();
+        [line] => {
             let start = line.start as usize + item.offset;
-            let content_lo =
-                if lead == content.len() { item.span.hi() } else { line.pos(item.offset + lead) };
-            (line.symbol, start, start + content.len(), content_lo)
+            (line.symbol, start, line.start as usize + line.text.len())
         }
-        Some([first, rest @ ..]) => {
+        [first, rest @ ..] => {
             let joined = join_lines(first, item.offset, rest);
-            if item.implicit && joined.trim_ascii().is_empty() {
-                return;
-            }
-            let content_lo = lines[item.line..end]
-                .iter()
-                .enumerate()
-                .find_map(|(index, line)| {
-                    let offset = if index == 0 { item.offset } else { 0 };
-                    let content = &line.text[offset..];
-                    let lead = content.len() - content.trim_ascii_start().len();
-                    (lead < content.len()).then(|| line.pos(offset + lead))
-                })
-                .unwrap_or(item.span.hi());
-            (Symbol::intern(&joined), 0, joined.len(), content_lo)
-        }
-        _ => {
-            if item.implicit {
-                return;
-            }
-            (kw::Empty, 0, 0, item.span.hi())
+            (Symbol::intern(&joined), 0, joined.len())
         }
     };
+    let content = &symbol.as_str()[content_start..content_end];
+    if item.implicit && content.trim_ascii().is_empty() {
+        return;
+    }
+
+    // The first non-blank byte of the content, which may be on a later line.
+    let content_lo = lines[item.line..end]
+        .iter()
+        .enumerate()
+        .find_map(|(index, line)| {
+            let offset = if index == 0 { item.offset } else { 0 };
+            let lead = blanks_len(&line.text[offset..]);
+            (offset + lead < line.text.len()).then(|| line.pos(offset + lead))
+        })
+        .unwrap_or(item.span.hi());
     items.push(ast::NatSpecItem {
         kind: item.kind,
         span: item.span,
@@ -270,10 +264,17 @@ fn push_item(
     });
 }
 
+/// Returns the length of the leading whitespace of `text`.
+fn blanks_len(text: &str) -> usize {
+    text.len() - text.trim_ascii_start().len()
+}
+
 /// Joins the lines of a tag's content like solc: a space goes before a line that does not start
 /// with a blank.
 fn join_lines(first: &Line<'_>, offset: usize, rest: &[Line<'_>]) -> String {
-    let mut joined = first.text[offset..].to_owned();
+    let capacity = rest.iter().map(|line| line.text.len() + 1).sum::<usize>();
+    let mut joined = String::with_capacity(first.text.len() - offset + capacity);
+    joined.push_str(&first.text[offset..]);
     for line in rest {
         if line.glued {
             joined.push_str(line.text);

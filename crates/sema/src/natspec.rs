@@ -487,7 +487,7 @@ impl<'gcx> Resolver<'gcx> {
         };
 
         let content = natspec.symbol.as_str();
-        let Some((documented, _)) = solar_parse::natspec::first_word(
+        let Some((documented, word_start)) = solar_parse::natspec::first_word(
             content,
             natspec.content_start as usize,
             natspec.content_end as usize,
@@ -531,10 +531,8 @@ impl<'gcx> Resolver<'gcx> {
         let mut item = natspec;
         item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(expected.name, name_span)) };
         // Like solc, only one blank follows the name before the description.
-        let blanks = content[natspec.content_range()].len()
-            - content[natspec.content_range()].trim_ascii_start().len();
-        let name_end = natspec.content_start as usize + blanks + documented.len();
-        item.content_start = (name_end + 1).min(natspec.content_end as usize) as u32;
+        item.content_start =
+            (word_start + documented.len() + 1).min(natspec.content_end as usize) as u32;
         Some(item)
     }
 

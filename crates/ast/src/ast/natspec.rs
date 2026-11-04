@@ -39,9 +39,10 @@ pub struct NatSpecItem {
     /// Like solc, the content of a tag that spans several lines is joined, without the comment's
     /// decoration: the lines of a `///` comment or the `*` of a `/** */` comment.
     pub symbol: Symbol,
-    /// Source position of the first non-blank byte of this tag's content, as parsed.
+    /// Source position of the first non-blank byte of this tag's content.
     ///
-    /// This is the end of [`Self::span`] if the content is blank.
+    /// This is the end of [`Self::span`] if the content is blank. `@return` lowering reads it for
+    /// the span of the documented name.
     pub content_lo: BytePos,
     /// Byte offset into [`Self::symbol`] where this tag's content starts.
     pub content_start: u32,
