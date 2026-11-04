@@ -194,10 +194,10 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, &hir::Stmt<'gcx>)> {
             (ast::StmtKind::UncheckedBlock(ast), StmtKind::UncheckedBlock(hir)) => {
                 cx.w(Block { docs, span, ast, hir, unchecked: true }).serialize(s)
             }
-            (ast::StmtKind::Assembly(assembly), StmtKind::AssemblyBlock(block, _)) => {
+            (ast::StmtKind::Assembly(assembly), StmtKind::AssemblyBlock(..)) => {
                 let (mut m, _) = cx.stmt_node(s, "InlineAssembly", span, docs)?;
                 m.serialize_entry("AST", &cx.w(&assembly.block))?;
-                let references = yul::ExternalReferences { span, block };
+                let references = yul::ExternalReferences { span };
                 m.serialize_entry("externalReferences", &cx.w(references))?;
                 m.serialize_entry("evmVersion", &format_args!("{}", gcx.sess.opts.evm_version))?;
                 if !assembly.flags.is_empty() {

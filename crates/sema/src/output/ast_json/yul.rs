@@ -5,73 +5,51 @@
 //! variable declarations. Yul nodes have no IDs, so writing them leaves the ID counter alone. They
 //! have a `src` and a `nativeSrc`, which are equal for inline assembly.
 //!
-//! The `externalReferences` come from the HIR instead, which resolved the names: the identifiers
-//! of the lowered block and of the Yul functions that lowering hoisted out of it that name a
-//! declaration outside the block. Those functions follow the Solidity function that holds the
-//! block in the HIR, in the order of the source, so a block finds its own by their spans.
+//! The `externalReferences` come from type checking instead, which resolved the names and records
+//! the identifiers that name a variable: those of the block, and of the Yul functions that lowering
+//! hoisted out of it, are the ones within its span.
 
 use super::{Cx, Seq, Sym, W};
-use crate::{
-    hir::{self, ExprKind, Res, Visit},
-    ty::Gcx,
-};
+use crate::ty::YulReference;
 use alloy_primitives::hex;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use solar_ast::{self as ast, LitKind, yul};
-use solar_data_structures::Never;
-use solar_interface::{Ident, Span, Symbol, kw, sym};
-use std::ops::ControlFlow;
+use solar_interface::{Ident, Span, sym};
 
-/// The `externalReferences` of an inline assembly block.
-pub(super) struct ExternalReferences<'a, 'gcx> {
+/// The `externalReferences` of an inline assembly block: the identifiers of the block, and of the
+/// Yul functions that lowering hoisted out of it, that name a declaration outside the block, as
+/// type checking recorded them.
+pub(super) struct ExternalReferences {
     /// The span of the `assembly` statement.
     pub(super) span: Span,
-    /// The lowered block.
-    pub(super) block: &'a hir::Block<'gcx>,
 }
 
-impl<'gcx> Serialize for W<'_, 'gcx, ExternalReferences<'_, 'gcx>> {
+impl<'gcx> Serialize for W<'_, 'gcx, ExternalReferences> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self(cx, ExternalReferences { span, block }) = self;
+        let Self(cx, ExternalReferences { span }) = self;
         let hir = &cx.gcx.hir;
-        let mut refs = Collector { gcx: cx.gcx, assembly: *span, refs: Vec::new() };
-        refs.visit_block(block);
-        if let Some(function) = cx.function {
-            let hoisted = hir.functions.raw[function.index() + 1..]
-                .iter()
-                .take_while(|function| function.is_yul);
-            for function in hoisted.filter(|function| span.contains(function.span)) {
-                if let Some(body) = &function.body {
-                    refs.visit_block(body);
-                }
-            }
-        }
-
+        // The declarations of the block, which are the Yul variables, lie within its span.
+        let mut refs = cx
+            .gcx
+            .yul_references(*span)
+            .iter()
+            .filter(|r| !span.contains(hir.variable(r.declaration).span))
+            .collect::<Vec<_>>();
         // solc sorts the entries by name, then by the text of their location.
-        refs.refs.sort_by_cached_key(|r| (cx.text(r.span), cx.src(r.span).to_string()));
-        s.collect_seq(refs.refs.iter().map(|reference| ExternalReference { cx: *cx, reference }))
+        refs.sort_by_cached_key(|r| (cx.text(r.span), cx.src(r.span).to_string()));
+        s.collect_seq(refs.into_iter().map(|reference| ExternalReference { cx: *cx, reference }))
     }
-}
-
-/// The Yul identifier of an external reference.
-struct Reference {
-    /// The span of the identifier, with its suffix.
-    span: Span,
-    /// The suffix of the identifier: `slot`, `offset`, `length`, `address` or `selector`.
-    suffix: Option<Symbol>,
-    /// The declaration the identifier names.
-    declaration: hir::ItemId,
 }
 
 /// An entry of `externalReferences`.
 struct ExternalReference<'a, 'gcx> {
     cx: Cx<'a, 'gcx>,
-    reference: &'a Reference,
+    reference: &'a YulReference,
 }
 
 impl Serialize for ExternalReference<'_, '_> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self { cx, reference: Reference { span, suffix, declaration } } = self;
+        let Self { cx, reference: YulReference { span, suffix, declaration } } = self;
         let mut m = s.serialize_map(None)?;
         m.serialize_entry("src", &cx.src(*span))?;
         m.serialize_entry("declaration", &cx.item_id(*declaration))?;
@@ -83,54 +61,6 @@ impl Serialize for ExternalReference<'_, '_> {
         // The only identifiers that take more than a stack slot have a suffix that takes one.
         m.serialize_entry("valueSize", &1)?;
         m.end()
-    }
-}
-
-/// Finds the identifiers that name a declaration outside the assembly block.
-///
-/// The declarations of the block, which are the Yul variables and functions, lie within its span.
-struct Collector<'gcx> {
-    gcx: Gcx<'gcx>,
-    assembly: Span,
-    refs: Vec<Reference>,
-}
-
-impl<'gcx> Collector<'gcx> {
-    fn visit_block(&mut self, block: &hir::Block<'gcx>) {
-        for stmt in block.stmts {
-            let _ = self.visit_stmt(stmt);
-        }
-    }
-}
-
-impl<'gcx> Visit<'gcx> for Collector<'gcx> {
-    type BreakValue = Never;
-
-    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
-        &self.gcx.hir
-    }
-
-    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
-        // `x.slot` has the identifier `x` as its receiver, and the path of any other member is no
-        // Solidity name for solc.
-        let (ident, suffix) = match expr.kind {
-            ExprKind::YulMember(ident, suffix) => {
-                let suffixes = [sym::slot, sym::offset, sym::length, kw::Address, sym::selector];
-                if !suffixes.contains(&suffix.name) {
-                    return ControlFlow::Continue(());
-                }
-                (ident, Some(suffix))
-            }
-            _ => (expr, None),
-        };
-        if let ExprKind::Ident(&[Res::Item(declaration)]) = ident.kind {
-            if !self.assembly.contains(self.gcx.hir.item(declaration).span()) {
-                let span = suffix.map_or(ident.span, |suffix| ident.span.to(suffix.span));
-                self.refs.push(Reference { span, suffix: suffix.map(|s| s.name), declaration });
-            }
-            return ControlFlow::Continue(());
-        }
-        self.walk_expr(expr)
     }
 }
 

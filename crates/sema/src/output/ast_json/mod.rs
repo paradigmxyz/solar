@@ -111,7 +111,6 @@ impl Serialize for SourceAstJson<'_, '_> {
             in_local: false,
             block: json.source_unit_id(id),
             returns: None,
-            function: None,
             parent: expr::Parent::default(),
             for_init: false,
         };
@@ -200,8 +199,6 @@ struct Cx<'a, 'gcx> {
     block: usize,
     /// The ID of the list of the return parameters of the function that holds the node.
     returns: Option<usize>,
-    /// The function or modifier that holds the node.
-    function: Option<hir::FunctionId>,
     /// What the parent of an expression tells it.
     parent: expr::Parent<'gcx>,
     /// Whether the node is the initialization of a `for` statement.
@@ -930,10 +927,7 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, hir::Funct
                 hir: hir_body,
                 unchecked: false,
             };
-            m.serialize_entry(
-                "body",
-                &Cx { returns: returns_id, function: Some(*id), ..*cx }.w(body),
-            )?;
+            m.serialize_entry("body", &Cx { returns: returns_id, ..*cx }.w(body))?;
         }
         if f.is_part_of_external_interface() {
             m.serialize_entry("functionSelector", &hex::encode(gcx.function_selector(*id)))?;

@@ -737,7 +737,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 let ty = self.type_of_res(res);
                 if self.in_yul {
                     match self.check_yul_external_ident(res, ty, expr.span) {
-                        Ok(true) => return self.gcx.types.uint(256),
+                        Ok(true) => {
+                            if self.record_ast_facts
+                                && let hir::Res::Item(hir::ItemId::Variable(declaration)) = res
+                            {
+                                self.record_yul_reference(expr.span, None, declaration);
+                            }
+                            return self.gcx.types.uint(256);
+                        }
                         Ok(false) => {}
                         Err(guar) => return self.gcx.mk_ty_err(guar),
                     }

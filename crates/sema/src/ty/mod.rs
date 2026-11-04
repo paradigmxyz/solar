@@ -120,6 +120,19 @@ pub(crate) struct AstFacts<'gcx> {
     pub(crate) solc_tys: ExprMap<Ty<'gcx>>,
     /// The conditions of the `for` loops whose counter cannot overflow, in solc's sense.
     pub(crate) simple_counter_loops: FxHashSet<hir::ExprId>,
+    /// The Yul identifiers that name a variable, with their suffix, ordered by position.
+    pub(crate) yul_references: Vec<YulReference>,
+}
+
+/// A Yul identifier that names a variable, such as `x` or `x.slot`.
+#[derive(Clone, Copy, Debug)]
+pub struct YulReference {
+    /// The span of the identifier, with its suffix.
+    pub span: Span,
+    /// The suffix of the identifier: `slot`, `offset`, `length`, `address` or `selector`.
+    pub suffix: Option<Symbol>,
+    /// The variable the identifier names.
+    pub declaration: hir::VariableId,
 }
 
 /// The target selected for a call callee expression.
@@ -239,6 +252,14 @@ impl<'gcx> TypeckResults<'gcx> {
     #[inline]
     pub fn is_simple_counter_loop(&self, condition: hir::ExprId) -> bool {
         self.ast.simple_counter_loops.contains(&condition)
+    }
+
+    /// Returns the Yul identifiers in `span` that name a variable, if the ASTs are kept.
+    pub fn yul_references(&self, span: Span) -> &[YulReference] {
+        let references = &self.ast.yul_references;
+        let start = references.partition_point(|r| r.span.lo() < span.lo());
+        let len = references[start..].partition_point(|r| r.span.hi() <= span.hi());
+        &references[start..start + len]
     }
 }
 
@@ -850,6 +871,11 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn is_simple_counter_loop(self, condition: hir::ExprId) -> bool {
         self.typeck_results.get().is_some_and(|results| results.is_simple_counter_loop(condition))
+    }
+
+    /// Returns the Yul identifiers in `span` that name a variable, if the ASTs are kept.
+    pub fn yul_references(self, span: Span) -> &'gcx [YulReference] {
+        self.typeck_results.get().map_or(&[], |results| results.yul_references(span))
     }
 
     /// Returns the contracts whose base slot is a constant integer, with the base slot.

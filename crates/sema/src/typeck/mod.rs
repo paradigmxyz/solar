@@ -145,6 +145,7 @@ fn merge_typeck_results<'gcx>(
             merged.ast.lvalues.insert(id);
         }
         merged.ast.simple_counter_loops.extend(new_results.ast.simple_counter_loops);
+        merged.ast.yul_references.extend(new_results.ast.yul_references);
         expr_types.push(new_results.expr_types);
         resolved_exprs.push(new_results.resolved_exprs);
         resolved_callees.push(new_results.resolved_callees);
@@ -172,6 +173,7 @@ fn merge_typeck_results<'gcx>(
             ))
             .emit();
     });
+    merged.ast.yul_references.sort_unstable_by_key(|r| r.span.lo());
     // Each unit records the expressions it checks, so no expression has two records.
     merged.ast.pure = ExprMap::merge(pure, |_, _, _| {});
     merged.ast.solc_tys = ExprMap::merge(solc_tys, |_, _, _| {});

@@ -403,7 +403,28 @@
                       "valueSize": 1
                     },
                     {
+                      "src": "445:1:1",
+                      "declaration": 18,
+                      "isSlot": false,
+                      "isOffset": false,
+                      "valueSize": 1
+                    },
+                    {
+                      "src": "454:1:1",
+                      "declaration": 18,
+                      "isSlot": false,
+                      "isOffset": false,
+                      "valueSize": 1
+                    },
+                    {
                       "src": "358:1:1",
+                      "declaration": 17,
+                      "isSlot": false,
+                      "isOffset": false,
+                      "valueSize": 1
+                    },
+                    {
+                      "src": "464:1:1",
                       "declaration": 17,
                       "isSlot": false,
                       "isOffset": false,
@@ -547,27 +568,6 @@
                     {
                       "src": "428:5:1",
                       "declaration": 14,
-                      "isSlot": false,
-                      "isOffset": false,
-                      "valueSize": 1
-                    },
-                    {
-                      "src": "445:1:1",
-                      "declaration": 18,
-                      "isSlot": false,
-                      "isOffset": false,
-                      "valueSize": 1
-                    },
-                    {
-                      "src": "454:1:1",
-                      "declaration": 18,
-                      "isSlot": false,
-                      "isOffset": false,
-                      "valueSize": 1
-                    },
-                    {
-                      "src": "464:1:1",
-                      "declaration": 17,
                       "isSlot": false,
                       "isOffset": false,
                       "valueSize": 1
@@ -1246,6 +1246,20 @@
                               "valueSize": 1
                             },
                             {
+                              "src": "1325:1:1",
+                              "declaration": 25,
+                              "isSlot": false,
+                              "isOffset": false,
+                              "valueSize": 1
+                            },
+                            {
+                              "src": "1334:1:1",
+                              "declaration": 25,
+                              "isSlot": false,
+                              "isOffset": false,
+                              "valueSize": 1
+                            },
+                            {
                               "src": "1150:1:1",
                               "declaration": 24,
                               "isSlot": false,
@@ -1421,8 +1435,22 @@
                       },
                       "externalReferences": [
                         {
+                          "src": "1117:5:1",
+                          "declaration": 15,
+                          "isSlot": false,
+                          "isOffset": false,
+                          "valueSize": 1
+                        },
+                        {
                           "src": "1242:5:1",
                           "declaration": 14,
+                          "isSlot": false,
+                          "isOffset": false,
+                          "valueSize": 1
+                        },
+                        {
+                          "src": "1112:1:1",
+                          "declaration": 26,
                           "isSlot": false,
                           "isOffset": false,
                           "valueSize": 1
