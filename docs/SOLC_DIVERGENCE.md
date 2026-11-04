@@ -731,28 +731,44 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 ## Code Generation
 
-### CODEGEN-001: Dirty bits do not survive assembly-assigned variables read from Solidity
+### CODEGEN-001: Assembly-assigned sub-word variables are cleaned when the block ends
 
 - ID: CODEGEN-001
 - Status: intentional
 - Difference: When inline assembly assigns a variable whose type spans fewer
-  than 256 bits, `solc` leaves the raw word in the variable and cleans it at
-  each use site that needs a canonical value (comparisons, checked arithmetic,
-  ABI encoding). `solar` instead canonicalizes once, at every Solidity-level
-  read of such a variable; reads inside assembly see the raw word in both
-  compilers. Code that deliberately round-trips dirty upper bits through a
-  typed variable or an internal-function return back into assembly — solady's
-  `Brutalizer` test helpers assert exactly that — observes cleaned values
-  under `solar`.
+  than 256 bits, assembly reads the raw word for the rest of the block in both
+  compilers. `solar` cleans every such variable the block assigned when the
+  block ends, so all later Solidity reads, copies, internal calls and returns
+  see the canonical value. `solc` instead keeps the raw word through copies,
+  internal calls, returns and joins, and cleans it at each use site that needs
+  a canonical value (comparisons, checked arithmetic, ABI encoding,
+  `blockhash`, `ecrecover`). Code that deliberately carries dirty upper bits
+  out of an assembly block, through a typed variable, an internal call or
+  return, and back into assembly, observes cleaned values under `solar`. The
+  dirt is still visible inside the block that wrote it. Enums and function
+  types are not cleaned at the block end.
 - Rationale: The Solidity documentation makes bits outside a type's width
-  unspecified after assembly assignments, so both models are conforming. A
-  single cleanup point at the assembly-to-Solidity boundary covers every
-  downstream consumer (comparisons, arithmetic, mapping keys, encodes) without
-  per-use-site masks, and keeps the in-assembly raw-scratch idiom
+  unspecified after assembly assignments, so both models are conforming. One
+  cleanup point at the assembly-to-Solidity boundary covers every consumer
+  without each having to remember to clean, which `ecrecover` and `blockhash`
+  once did not, and keeps the in-assembly raw-scratch idiom
   (`value := shl(96, value)` then reading `value` back) working exactly like
   `solc`.
-- Coverage: `tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol`;
-  external-suite canary: solady `BrutalizerTest::testBrutalizedAddress` and
+- Coverage: `tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol`
+  (`internalAssemblyRead`),
+  `tests/ui/codegen/lowering/run-call/assembly_dirty_modifier_argument.sol`,
+  `tests/ui/codegen/lowering/run-call/dirty_bool_internal_return.sol`,
+  `tests/ui/codegen/lowering/run-call/dirty_internal_named_return.sol`,
+  `tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol`
+  (including its port of `operator_parameter_cleanup`),
+  `tests/ui/codegen/lowering/run-call/yul_switch_word_selector.sol`
+  (`switchDirty`), `tests/ui/codegen/lowering/base_constructor_args.sol`
+  (`RawCarrier*`), `tests/ui/codegen/mir/call-cleanup/dirty_arguments.sol`,
+  `tests/ui/codegen/run-call/immutables.sol` (`DirtyImmutables`,
+  `IndirectDirtyImmutables`),
+  `tests/ui/codegen/lowering/run-call/ecrecover_dirty_v.sol` and
+  `tests/ui/codegen/lowering/blockhash_dirty_number.sol`; external-suite
+  canary: solady `BrutalizerTest::testBrutalizedAddress` and
   `testBrutalizedBool` fail by asserting dirt survives.
 
 ### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
@@ -800,9 +816,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - ID: CODEGEN-005
 - Status: intentional
 - Difference: When assembly assigns dirty upper bits to a narrow integer used
-  as a storage-array index, `solar` cleans the value before the bounds check.
-  `solc` uses the raw word, so `uint8(0x101)` indexes out of bounds instead of
-  selecting index `1`. Memory-array indexes are cleaned by both compilers.
+  as a storage-array index, `solar` cleans the value before the bounds check,
+  so `uint8(0x101)` selects index `1`. `solc` legacy codegen cleans it the
+  same way. `solc` via-IR does not: it panics with `Panic(0x32)`.
+  Memory-array indexes are cleaned by all three.
 - Rationale: typed storage indexing converts its index to the array's word
   index type before checking bounds. This preserves the normal implicit
   conversion rule for narrow values.
