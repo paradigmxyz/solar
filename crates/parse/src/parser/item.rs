@@ -690,7 +690,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_user_definable_operator(&mut self) -> PResult<'sess, UserDefinableOperator> {
         use BinOpToken::*;
         use TokenKind::*;
-        use UserDefinableOperator as Op;
         macro_rules! user_op {
             ($($tok1:tt $(($tok2:tt))? => $op:expr),* $(,)?) => {
                 match self.token.kind {
@@ -703,21 +702,21 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             };
         }
         let op = user_op! {
-            BinOp(And) => Op::BitAnd,
-            Tilde => Op::BitNot,
-            BinOp(Or) => Op::BitOr,
-            BinOp(Caret) => Op::BitXor,
-            BinOp(Plus) => Op::Add,
-            BinOp(Slash) => Op::Div,
-            BinOp(Percent) => Op::Rem,
-            BinOp(Star) => Op::Mul,
-            BinOp(Minus) => Op::Sub,
-            EqEq => Op::Eq,
-            Ge => Op::Ge,
-            Gt => Op::Gt,
-            Le => Op::Le,
-            Lt => Op::Lt,
-            Ne => Op::Ne,
+            BinOp(And) => UserDefinableOperator::BitAnd,
+            Tilde => UserDefinableOperator::BitNot,
+            BinOp(Or) => UserDefinableOperator::BitOr,
+            BinOp(Caret) => UserDefinableOperator::BitXor,
+            BinOp(Plus) => UserDefinableOperator::Add,
+            BinOp(Slash) => UserDefinableOperator::Div,
+            BinOp(Percent) => UserDefinableOperator::Rem,
+            BinOp(Star) => UserDefinableOperator::Mul,
+            BinOp(Minus) => UserDefinableOperator::Sub,
+            EqEq => UserDefinableOperator::Eq,
+            Ge => UserDefinableOperator::Ge,
+            Gt => UserDefinableOperator::Gt,
+            Le => UserDefinableOperator::Le,
+            Lt => UserDefinableOperator::Lt,
+            Ne => UserDefinableOperator::Ne,
         };
         self.bump();
         Ok(op)

@@ -2,7 +2,7 @@ use crate::{
     hir,
     ty::{Gcx, Ty, TyAbiPrinter, TyAbiPrinterMode, TyKind},
 };
-use solar_ast as ast;
+use solar_ast::{self as ast, NatSpecItem, NatSpecKind};
 use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
 use solar_interface::{
     Ident, Span, Symbol,
@@ -306,9 +306,6 @@ impl<'gcx> Resolver<'gcx> {
         item_id: hir::ItemId,
         source_id: hir::SourceId,
     ) -> (SmallVec<[hir::NatSpecItem; 8]>, Option<(Span, hir::ItemId)>) {
-        use ast::NatSpecKind;
-        use hir::NatSpecItem;
-
         let permissions = TagPermissions::from_item_id(item_id);
         let mut parameters: Option<FxHashSet<Symbol>> = None;
         let mut returns: Option<&[hir::VariableId]> = None;
@@ -774,20 +771,18 @@ impl<'gcx> Resolver<'gcx> {
         local_tags: LocalTags,
         inherited_tags: &'gcx [hir::NatSpecItem],
     ) -> &'gcx [hir::NatSpecItem] {
-        use hir::NatSpecKind as HirKind;
-
         let mut merged = SmallVec::<[hir::NatSpecItem; 8]>::from_slice(items);
 
         for item in inherited_tags.iter() {
             let should_inherit = match &item.kind {
-                HirKind::Notice => !local_tags.contains(LocalTags::NOTICE),
-                HirKind::Dev => !local_tags.contains(LocalTags::DEV),
-                HirKind::Title => !local_tags.contains(LocalTags::TITLE),
-                HirKind::Author => !local_tags.contains(LocalTags::AUTHOR),
-                HirKind::Param { .. } => !local_tags.contains(LocalTags::PARAM),
-                HirKind::Return { .. } => !local_tags.contains(LocalTags::RETURN),
-                HirKind::Custom { .. } | HirKind::Internal { .. } => false,
-                HirKind::Inheritdoc { .. } => false,
+                NatSpecKind::Notice => !local_tags.contains(LocalTags::NOTICE),
+                NatSpecKind::Dev => !local_tags.contains(LocalTags::DEV),
+                NatSpecKind::Title => !local_tags.contains(LocalTags::TITLE),
+                NatSpecKind::Author => !local_tags.contains(LocalTags::AUTHOR),
+                NatSpecKind::Param { .. } => !local_tags.contains(LocalTags::PARAM),
+                NatSpecKind::Return { .. } => !local_tags.contains(LocalTags::RETURN),
+                NatSpecKind::Custom { .. } | NatSpecKind::Internal { .. } => false,
+                NatSpecKind::Inheritdoc { .. } => false,
             };
 
             if should_inherit {

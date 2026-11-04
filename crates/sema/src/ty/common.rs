@@ -1,6 +1,7 @@
 use super::{Interner, Ty, TyKind};
 use solar_ast::{DataLocation, ElementaryType, TypeSize};
 use solar_interface::diagnostics::ErrorGuaranteed;
+use std::array::from_fn;
 
 /// Pre-interned types.
 pub struct CommonTypes<'gcx> {
@@ -38,7 +39,6 @@ impl<'gcx> CommonTypes<'gcx> {
     pub(super) fn new(interner: &Interner<'gcx>, bump: &'gcx bumpalo::Bump) -> Self {
         use ElementaryType::*;
         use TyKind::*;
-        use std::array::from_fn;
 
         let mk = |kind| interner.intern_ty(bump, kind);
         let mk_refs = |ty| EachDataLoc {

@@ -1031,11 +1031,10 @@ pub const fn is_plain_access(op: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write;
 
     #[test]
     fn opcode_table() {
-        use std::fmt::Write;
-
         const VERSIONS: [EvmVersion; 15] = [
             EvmVersion::Homestead,
             EvmVersion::TangerineWhistle,
