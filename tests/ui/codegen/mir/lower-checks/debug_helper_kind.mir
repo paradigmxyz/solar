@@ -1,0 +1,9 @@
+//@ compile-flags: -Zmir-pipeline=lower-checks -Zdebugify=check
+// The shared `revert_error` helper merges the locations of every short-string `require`. When all
+// of them are explained, so is the helper: it must not start from a gap.
+@module DebugHelperKind
+fn @g(arg0: i1) {
+  bb0:
+    icall require<short_string>, arg0, 3, 0x6261640000000000000000000000000000000000000000000000000000000000 !metadata(compiler_generated)
+    ret !metadata(span=30..40)
+}

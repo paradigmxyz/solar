@@ -1,4 +1,4 @@
-//! Adds sidecar source-origin auditing to every test compilation when `SOLAR_DEBUGIFY_DIR` is set.
+//! Adds sidecar debug-info auditing to every test compilation when `SOLAR_DEBUGIFY_DIR` is set.
 //! Explicit debugify diagnostics stay intact, and ordinary stdout/stderr snapshots still apply.
 //! Each test and revision has a directory; compiler processes write distinct JSON-line files there.
 

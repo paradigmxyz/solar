@@ -397,16 +397,18 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub pass_diff: bool,
 
-    /// Compare source origins before and after each MIR and EVM IR pass. `report` lists lost
-    /// origins; `check` also fails when any are lost. Loss can be legitimate after deleting code,
-    /// so use `check` with a focused pipeline. Does not change generated code.
+    /// Audit source debug information after each MIR and EVM IR pass. `report` lists the
+    /// instructions left without a location and the origins lost; `check` also fails when a pass
+    /// leaves any instruction without a location, like LLVM's `not-generate` check. Lost origins
+    /// are information, since deleting code legitimately loses one. Does not change generated
+    /// code.
     #[cfg_attr(
         feature = "clap",
         arg(long, require_equals = true, value_name = "MODE", hide_possible_values = true)
     )]
     pub debugify: Option<Debugify>,
 
-    /// Write per-pass source-origin audits as JSON lines into this directory. Enables auditing
+    /// Write per-pass debug-info audits as JSON lines into this directory. Enables auditing
     /// without stderr output; an explicit `-Zdebugify` mode still controls diagnostics.
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "DIR"))]
     pub debugify_output: Option<PathBuf>,

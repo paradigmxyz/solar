@@ -1,13 +1,5 @@
 ;; Bitwise identities and boolean combinations.
 
-;; (x << 1) | 1 => x - ~x.
-(rule (sequence_rewrite (Op.Or (shl (one) x) (one)))
-      (if-let complement (make (Op.Not x))) (sequence (Op.Sub x complement)))
-
-;; (x + x) | 1 => x - ~x.
-(rule (sequence_rewrite (Op.Or (add x x) (one)))
-      (if-let complement (make (Op.Not x))) (sequence (Op.Sub x complement)))
-
 ;; ~x & ~y => ~(x | y).
 (rule (sequence_rewrite (Op.And (bnot v0) (bnot v1))) (if-let r0 (make (Op.Or v0 v1))) (sequence (Op.Not r0)))
 

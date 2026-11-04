@@ -1,10 +1,6 @@
-//@ revisions: report check
-//@ compile-flags: -Zmir-pipeline=dce
-//@[report] compile-flags: -Zdebugify=report
-//@[check] compile-flags: -Zdebugify=check
-//~[check]? ERROR: debugify: MIR pass `dce` lost 1 source origins
-// Deleting a dead operation legitimately loses its last origin. Report it, and let focused
-// preservation tests opt into rejecting that loss instead of retaining executable code.
+//@ compile-flags: -Zmir-pipeline=dce -Zdebugify=report
+// Deleting a dead operation legitimately loses its last origin. Report it without rejecting
+// the pass, as LLVM's synthetic `Missing line` warning does.
 @module Debugify
 fn @test(arg0: i256) -> i256 {
   bb0:

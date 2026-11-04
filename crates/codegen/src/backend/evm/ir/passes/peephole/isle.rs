@@ -650,6 +650,10 @@ impl generated::Context for PeepContext<'_> {
         value == U256::ONE
     }
 
+    fn complement_odd_dominates(&mut self) -> bool {
+        self.target.complement_odd_dominates()
+    }
+
     fn shift_pair_mask_profitable(&mut self, shift: U256) -> bool {
         let target = self.target;
         let push = target.push(shift);
