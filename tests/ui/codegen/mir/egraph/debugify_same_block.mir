@@ -1,0 +1,20 @@
+//@ compile-flags: -Zmir-pipeline=egraph -Zdebugify=check
+// The surviving instruction runs exactly when the deleted one would have: it is in the same
+// block, before it, with no side effect between them, so the survivor keeps both origins.
+@module DebugifySameBlock
+fn @test(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1 !metadata(span=10..20)
+    v1 = add arg0, arg1 !metadata(span=30..40)
+    v2 = mul v0, v1 !metadata(span=50..60)
+    ret v2
+}
+
+// An identity that reduces to an operand defined earlier in the same block qualifies too.
+fn @identity(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = mul arg0, arg1 !metadata(span=110..120)
+    v1 = add v0, 0 !metadata(span=130..140)
+    v2 = sub v1, arg0 !metadata(span=150..160)
+    ret v2
+}

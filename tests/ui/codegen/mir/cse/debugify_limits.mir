@@ -1,0 +1,29 @@
+//@ revisions: report check
+//@ compile-flags: -Zmir-pipeline=cse
+//@[report] compile-flags: -Zdebugify=report
+//@[check] compile-flags: -Zdebugify=check
+//~[check]? ERROR: debugify: MIR pass `cse` lost 2 source origins
+// A survivor in a dominating block, or one with a side effect before the deleted instruction,
+// can run on paths that never reach the deleted expression. Lending it the origin would credit
+// those paths, so the origin stays lost and the audit keeps reporting it.
+@module DebugifyLimits
+fn @across_blocks(arg0: i256, arg1: i256, arg2: i1) -> i256 {
+  bb0:
+    v0 = add arg0, arg1 !metadata(span=10..20)
+    jumpi arg2, bb1, bb2
+  bb1:
+    v1 = add arg0, arg1 !metadata(span=30..40)
+    v2 = mul v0, v1 !metadata(span=50..60)
+    ret v2
+  bb2:
+    ret v0
+}
+
+fn @across_effect(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, arg1 !metadata(span=110..120)
+    sstore 0, arg1 !metadata(span=125..128)
+    v1 = add arg0, arg1 !metadata(span=130..140)
+    v2 = mul v0, v1 !metadata(span=150..160)
+    ret v2
+}

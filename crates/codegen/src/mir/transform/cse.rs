@@ -99,7 +99,7 @@ use crate::{
         },
         memory::EvmMemoryLayout,
         pass::{MirPass, run_selected_function_pass, run_selected_function_pass_cached},
-        utils as mir_utils,
+        utils::{self as mir_utils, SameBlock, merge_origins},
     },
     target::Target,
 };
@@ -328,6 +328,9 @@ struct GlobalCseContext<'a> {
     summary_inputs: OnceCell<DenseBitSet<ValueId>>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
     dead: &'a mut DenseBitSet<InstId>,
+    same_block: SameBlock,
+    /// Each survivor with the deleted instruction whose origins it takes, applied after the walk.
+    origin_merges: Vec<(InstId, InstId)>,
     /// Blocks with a path to the child of the edge `filter_inherited_cache` is filtering.
     reaching_child: DenseBitSet<BlockId>,
     pending: Vec<BlockId>,
@@ -463,9 +466,10 @@ impl CommonSubexprEliminator {
         // Process each block independently (local CSE).
         let block_ids = func.blocks.indices();
         let liveness = OnceCell::new();
+        let same_block = SameBlock::new(func);
         for block_id in block_ids {
             self.alias().clear_cached_addresses();
-            self.process_block(func, block_id, &liveness, scratch);
+            self.process_block(func, block_id, &liveness, &same_block, scratch);
         }
     }
 
@@ -534,11 +538,17 @@ impl CommonSubexprEliminator {
             summary_inputs: OnceCell::new(),
             replacements: &mut scratch.replacements,
             dead: &mut scratch.removed,
+            same_block: SameBlock::new(func),
+            origin_merges: Vec::new(),
             reaching_child: DenseBitSet::new_empty(func.blocks.len()),
             pending: Vec::new(),
         };
 
         self.process_global_blocks(func, &mut ctx, &mut scratch.clobbers);
+        let origin_merges = mem::take(&mut ctx.origin_merges);
+        for (survivor, deleted) in origin_merges {
+            merge_origins(func, survivor, deleted);
+        }
 
         // Replacing an operand drops the facts that depend on it; replacing only the base a
         // storage alias names keeps the alias, renamed.
@@ -719,6 +729,12 @@ impl CommonSubexprEliminator {
                     }
                     // repeated expression with unchanged read/write dependencies -> cached value
                     ctx.replacements.insert(*result, *cached);
+                    // NOTE: The cached value lends no origin across blocks or across a side
+                    // effect, since it can run on paths that never reach this expression. Those
+                    // origins are lost.
+                    if let Some(survivor) = ctx.same_block.survivor(func, *cached, inst_id) {
+                        ctx.origin_merges.push((survivor, inst_id));
+                    }
                     ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
                     self.eliminated_settled +=
@@ -1021,6 +1037,7 @@ impl CommonSubexprEliminator {
         func: &mut Function,
         block_id: BlockId,
         liveness: &OnceCell<Liveness>,
+        same_block: &SameBlock,
         scratch: &mut Scratch,
     ) {
         // Map from expression key to the ValueId that computed it, and from ValueId to its
@@ -1059,6 +1076,11 @@ impl CommonSubexprEliminator {
                 }
                 // repeated expression with unchanged read/write dependencies -> cached value
                 replacements.insert(*result, cached_value);
+                // NOTE: The cached value lends no origin across a side effect, since it can run
+                // on paths that never reach this expression. Those origins are lost.
+                if let Some(survivor) = same_block.survivor(func, cached_value, inst_id) {
+                    merge_origins(func, survivor, inst_id);
+                }
                 to_remove.insert(inst_id);
                 self.eliminated_count += 1;
                 continue;

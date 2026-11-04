@@ -1,0 +1,7 @@
+debugify: MIR DebugifyLimits after cse: 5/7 origins retained, 2 lost
+debugify: lost 30..40
+debugify: lost 130..140
+error: debugify: MIR pass `cse` lost 2 source origins
+
+error: aborting due to 1 previous error
+

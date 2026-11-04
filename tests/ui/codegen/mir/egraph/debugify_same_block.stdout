@@ -1,0 +1,23 @@
+- ; === ROOT/tests/ui/codegen/mir/egraph/debugify_same_block.mir (before egraph) ===
++ ; === ROOT/tests/ui/codegen/mir/egraph/debugify_same_block.mir (after egraph) ===
+  @module DebugifySameBlock
+  fn @test(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = add arg0, arg1 !metadata(span=10..20)
+-     v1 = add arg0, arg1 !metadata(span=30..40)
+-     v2 = mul v0, v1 !metadata(span=50..60)
++     v0 = add arg0, arg1 !metadata(spans=[10..20, 30..40])
++     v2 = mul v0, v0 !metadata(span=50..60)
+      ret v2
+  }
+  
+  fn @identity(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = mul arg0, arg1 !metadata(span=110..120)
+-     v1 = add v0, 0 !metadata(span=130..140)
+-     v2 = sub v1, arg0 !metadata(span=150..160)
++     v0 = mul arg0, arg1 !metadata(spans=[110..120, 130..140])
++     v2 = sub v0, arg0 !metadata(span=150..160)
+      ret v2
+  }
+  

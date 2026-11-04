@@ -78,7 +78,7 @@ use crate::{
             MirPass, run_selected_function_pass, run_selected_function_pass_cached,
             run_selected_function_pass_without_analyses_cached,
         },
-        utils::eval,
+        utils::{SameBlock, eval, merge_origins},
     },
     target::{Cost, Target},
 };
@@ -386,6 +386,8 @@ struct Builder<'a> {
     liveness: Option<Liveness>,
     /// Instructions merged into another class or deleted as no-ops.
     dead: DenseBitSet<InstId>,
+    /// Which earlier instruction of a block runs exactly when a later one would.
+    same_block: SameBlock,
     /// Scratch for the alternatives one rule match builds, reused across instructions.
     alternatives: Vec<Op>,
     /// Per-class search budget selected from the function's active size.
@@ -405,6 +407,7 @@ impl<'a> Builder<'a> {
             .as_deref()
             .map_or_else(FxHashMap::default, |cfg| optimistic_phi_leaders(func, cfg, &leaves));
         let values = func.num_values();
+        let same_block = SameBlock::new(func);
         Self {
             func,
             target,
@@ -422,6 +425,7 @@ impl<'a> Builder<'a> {
             uses,
             liveness: None,
             dead,
+            same_block,
             alternatives: Vec::new(),
             max_nodes,
             max_operand_views,
@@ -862,6 +866,12 @@ impl<'a> Builder<'a> {
             "mir_egraph"
         );
         self.merged[result] = Some(into);
+        // NOTE: The survivor lends no origin across blocks or across a side effect, since it can
+        // run on paths that never reach the deleted expression. Those origins are lost.
+        let survivor = self.resolve(into);
+        if let Some(survivor) = self.same_block.survivor(self.func, survivor, inst_id) {
+            merge_origins(self.func, survivor, inst_id);
+        }
         self.dead.insert(inst_id);
         self.changed += 1;
     }
