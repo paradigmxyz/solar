@@ -358,36 +358,44 @@ enum Edit {
 
 impl Edit {
     fn apply(self, target: Target, instructions: &mut Vec<Instruction>, start: usize) {
-        let not = || Instruction::opcode(op::NOT).with_debug_info_dropped();
+        // Every instruction a replacement creates takes the source context of its root, the
+        // instruction whose output the replacement produces, as InstCombine does:
+        // `Builder.SetCurrentDebugLocation(I->getDebugLoc())`
+        // (llvm/lib/Transforms/InstCombine/InstructionCombining.cpp#L5974-L5999 at llvm-project
+        // e98b16a2710b). LLVM's guide gives an expansion the location of the replaced instruction,
+        // `(add X X) => (shl X 1)`, and solc's peephole optimizer gives each new item the
+        // location of the matched item it replaces (libevmasm/PeepholeOptimiser.cpp).
+        let not = |root: &Metadata| Instruction::opcode(op::NOT).with_source_debug(root);
         match self {
             Self::LowMaskWithSwap => {
                 // push 0; not; protected_count; shl; not
                 let root = instructions.last().unwrap().metadata.clone();
                 let entry = instructions[start].metadata.clone();
                 instructions.truncate(instructions.len() - 3);
-                instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
+                instructions[start] = Instruction::push_value(U256::ZERO).with_source_debug(&root);
                 instructions[start].metadata.absorb_function_events(&entry);
-                instructions.insert(start + 1, not());
-                instructions.push(not());
+                instructions.insert(start + 1, not(&root));
+                instructions.push(not(&root));
                 instructions.last_mut().unwrap().metadata.copy_debug_info_from(&root);
             }
             Self::LowMask => {
                 // push 0; not; closed_count; shl; not
                 let root = instructions.last().unwrap().metadata.clone();
                 let entry = instructions[start].metadata.clone();
-                instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
+                instructions[start] = Instruction::push_value(U256::ZERO).with_source_debug(&root);
                 instructions[start].metadata.absorb_function_events(&entry);
-                instructions[start + 1] = not();
-                *instructions.last_mut().expect("matched subtraction") = not();
+                instructions[start + 1] = not(&root);
+                *instructions.last_mut().expect("matched subtraction") = not(&root);
                 instructions.last_mut().unwrap().metadata.copy_debug_info_from(&root);
             }
             Self::ShiftPairMask => {
                 // push s; shl; push s; shr
-                // NOTE: The first shift count is a copy without source checkpoint; the other
-                // instructions keep the metadata of the one they replace, the last shift that
-                // of the `and`.
-                instructions[start] = instructions[start + 2].clone().with_debug_info_dropped();
+                // The root is the `and`, which the last shift replaces. The copied shift count and
+                // the first shift take its source context.
+                let root = instructions.last().unwrap().metadata.clone();
+                instructions[start] = instructions[start + 2].clone().with_source_debug(&root);
                 overwrite(&mut instructions[start + 1], op::SHL);
+                instructions[start + 1].metadata.copy_source_debug_from(&root);
                 instructions.remove(start + 3);
                 overwrite(&mut instructions[start + 3], op::SHR);
             }
@@ -400,14 +408,14 @@ impl Edit {
                 instructions.remove(start);
             }
             Self::FoldConstants { value } => {
-                // NOTE: The final materialization computes the old root's value on the same
-                // path. Operand locations disappear; they must not become extra checkpoints.
+                // NOTE: The materialization computes the old root's value on the same path, so
+                // every instruction of it takes the root's source context. Operand locations
+                // disappear.
                 let context =
                     replacement_debug_info(&instructions[start..], instructions.len() - start - 1);
                 instructions.truncate(start);
-                materialize_immediate(instructions, target.evm_version(), value);
+                materialize_immediate(instructions, target.evm_version(), value, &context);
                 let last = instructions.last_mut().unwrap();
-                last.metadata.copy_source_debug_from(&context);
                 if let Some(exit) = context.function_exit() {
                     last.metadata.set_function_exit(exit);
                 }
@@ -417,14 +425,15 @@ impl Edit {
             }
             Self::AddNegated { value } => {
                 // push -c; add
-                // NOTE: The materialized constant has no source checkpoint of its own; the `ADD`
-                // keeps the spans of the removed push, swap, and subtraction.
+                // NOTE: The materialized constant takes the source context of the subtraction,
+                // the root; the `ADD` keeps the spans of the removed push, swap, and subtraction.
                 let mut add = instructions.pop().expect("matched SUB");
                 overwrite(&mut add, op::ADD);
+                let root = add.metadata.clone();
                 for removed in instructions.drain(start..) {
                     add.metadata.absorb_debug_info(&removed.metadata);
                 }
-                materialize_immediate(instructions, target.evm_version(), value);
+                materialize_immediate(instructions, target.evm_version(), value, &root);
                 instructions.push(add);
             }
             Self::RemoveFirstKeepOne => {
@@ -514,7 +523,7 @@ impl Edit {
                 let context = replacement_debug_info(&instructions[start..], 1);
                 for (inst, depth) in instructions[start..].iter_mut().zip([first, second]) {
                     *inst =
-                        Instruction::stack_op(op::StackOp::Swap(depth)).with_debug_info_dropped();
+                        Instruction::stack_op(op::StackOp::Swap(depth)).with_source_debug(&context);
                 }
                 instructions.truncate(start + 2);
                 // NOTE: Only the final stack state agrees with the old window.
@@ -523,6 +532,7 @@ impl Edit {
             Self::MoveConstantThroughSwaps => {
                 // SWAPn; SWAP1; PUSH c; binop
                 let window = &mut instructions[start..start + 6];
+                let root = window[2].metadata.clone();
                 for swap in [0, 3, 4, 5] {
                     let metadata = std::mem::take(&mut window[swap].metadata);
                     window[2].metadata.absorb_debug_info(&metadata);
@@ -530,7 +540,7 @@ impl Edit {
                 window[..4].rotate_right(1);
                 // NOTE: The intermediate stack layouts differ even though the final one agrees.
                 for swap in &mut window[..2] {
-                    swap.metadata.mark_debug_info_dropped();
+                    swap.metadata.copy_source_debug_from(&root);
                 }
                 instructions.truncate(start + 4);
             }
