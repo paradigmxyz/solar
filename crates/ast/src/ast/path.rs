@@ -110,19 +110,13 @@ impl fmt::Display for PathSlice {
 
 impl PartialEq<Ident> for PathSlice {
     fn eq(&self, other: &Ident) -> bool {
-        match self.get_ident() {
-            Some(ident) => ident == other,
-            None => false,
-        }
+        self.get_ident().is_some_and(|ident| ident == other)
     }
 }
 
 impl PartialEq<Symbol> for PathSlice {
     fn eq(&self, other: &Symbol) -> bool {
-        match self.get_ident() {
-            Some(ident) => ident.name == *other,
-            None => false,
-        }
+        self.get_ident().is_some_and(|ident| ident.name == *other)
     }
 }
 
