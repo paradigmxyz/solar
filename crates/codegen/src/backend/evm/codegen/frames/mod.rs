@@ -832,11 +832,15 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Hand-written assembly may own low memory through constant addresses, such as the
     /// ERC-6551 registry's proxy initcode at `[0x55, 0x10c)`, which it reads back after other
     /// code ran. A spill slot there would end up in the image, and a reload would read a byte of
-    /// it. An entry's region ends at the higher of its spill area with its allocations and the
-    /// frames it reaches above the highest end of all entries, followed by its allocations that do
-    /// not fit below them, plus its heap prefix guard. A range that starts below that end and
-    /// ends above the entry's base moves the base to the range's end, which moves the end,
-    /// until no range intersects: a range beyond the final region costs nothing.
+    /// it. The local region of a function the entry runs, `HEAP_START` up to its
+    /// `internal_frame_size`, is such a range when the function names it at absolute addresses,
+    /// as the `.body` copy of an entry does with its promoted storage words. The entry's base,
+    /// and so its heap, starts above it. An entry's region ends at the higher of its spill area
+    /// with its allocations and the frames it reaches above the highest end of all entries,
+    /// followed by its allocations that do not fit below them, plus its heap prefix guard. A range
+    /// that starts below that end and ends above the entry's base moves the base to the range's
+    /// end, which moves the end, until no range intersects: a range beyond the final region costs
+    /// nothing.
     fn entry_spill_bases(
         &self,
         module: &Module,
@@ -862,6 +866,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .collect::<FxHashMap<_, _>>();
         let mut function_ranges = index_vec![None; module.functions.len()];
         let mut owns_low_memory = index_vec![None; module.functions.len()];
+        let mut local_ends = FxHashMap::default();
         let ranges = entries
             .iter()
             .map(|&entry| {
@@ -880,6 +885,19 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // the region that every other entry's frames start at nor moves its own heap
                 // above that memory.
                 let own_reach = Self::entry_own_reach(module, entry, entries);
+                // A function the entry runs that writes its own local region at absolute
+                // addresses, as the `.body` copy of an entry does, shares that region with the
+                // heap the entry places there.
+                let local_end = own_reach
+                    .iter()
+                    .filter_map(|func_id| {
+                        let ranges = function_ranges[func_id].get_or_insert_with(|| {
+                            Self::constant_memory_ranges(&module.functions[func_id])
+                        });
+                        Self::absolute_local_end(&module.functions[func_id], ranges)
+                    })
+                    .max();
+                local_ends.insert(entry, local_end);
                 if (sizes[&entry] != 0 || static_spans[&entry] != 0)
                     && own_reach.iter().any(|func_id| {
                         *owns_low_memory[func_id].get_or_insert_with(|| {
@@ -898,7 +916,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 let func = &module.functions[entry];
                 let base = EvmMemoryLayout::HEAP_START
                     + func.internal_frame_size.max(func.external_static_return_size);
-                (entry, base)
+                (entry, base.max(local_ends[&entry].unwrap_or(0)))
             })
             .collect::<FxHashMap<_, _>>();
         loop {
@@ -1376,6 +1394,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         });
         ranges
+    }
+
+    /// Returns where the local region of `func` ends if one of `ranges`, its constant memory
+    /// ranges, starts inside it.
+    fn absolute_local_end(func: &Function, ranges: &[(u64, u64)]) -> Option<u64> {
+        let end = EvmMemoryLayout::HEAP_START.saturating_add(func.internal_frame_size);
+        ranges
+            .iter()
+            .any(|&(start, _)| (EvmMemoryLayout::HEAP_START..end).contains(&start))
+            .then_some(end)
     }
 
     /// Returns whether `func` may write memory at an address that calldata computes, as Seaport
