@@ -18,6 +18,7 @@
 //@ run-call: C::calldataBytes 0xaabbcc => 0xaabbcc
 //@ run-call: C::calldataOffsetFromMemory 0xaabbcc => 3
 //@ run-call: C::calldataLengthFromMemory 0xaabbcc => 2
+//@ run-call: C::calldataStaticFromMemory [5, 6] => 5
 //@ run-call: C::eventTopic => 0x0000000000000000000000000000000000000000000000000000000000000080
 
 // A memory reference variable assigned in inline assembly stays a memory reference: every
@@ -207,5 +208,16 @@ contract C {
             x := b
         }
         emit Topic(x);
+    }
+
+    function calldataStaticFromMemory(uint256[2] calldata a) external pure returns (uint256) {
+        bytes memory b = new bytes(1);
+        assembly {
+            b := a
+        }
+        assembly {
+            a := b
+        }
+        return a[0];
     }
 }
