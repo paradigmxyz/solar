@@ -1,0 +1,39 @@
+; === ROOT/tests/ui/codegen/disasm/stackify_tie_lookahead.sol:StackifyTieLookahead ===
+@module StackifyTieLookahead
+; function check(bool success, uint256 signer, uint256 recovered) public pure returns (bool equal) [selector 0xc286812b]
+fn @check(arg0: i1, arg1: i256, arg2: i256) -> i1 [selector=0xc286812b, pure, abi_params=[bool, uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v0 = phi [bb1: i8 32], [bb2: i8 0]
+    v1 = zext i8 v0 to i256
+    v2 = eq v1, 32
+    jumpi v2, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v3 = trunc i256 arg1 to i160
+    v4 = trunc i256 arg2 to i160
+    v5 = eq v3, v4
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v6 = phi [bb4: v5], [bb5: false]
+    v7 = xor arg1, arg2
+    v8 = shl v7, 96
+    v9 = lt v8, v1
+    v10 = zext i1 v9 to i256
+    v11 = ne v10, 0
+    v12 = eq v11, v6
+    ret v12
+}
+
+; function test(bool success, uint256 signer, uint256 recovered) public pure returns (bool) [selector 0x9297fa25]
+fn @test(arg0: i1, arg1: i256, arg2: i256) -> i1 [selector=0x9297fa25, pure, abi_params=[bool, uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @check, arg0, arg1, arg2
+    ret v0
+}

@@ -255,6 +255,8 @@ fn run_passes(
 
         if enabled {
             assert_debug_info_handled(module, pass_name, "before");
+            let origins =
+                crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::evm(module));
             let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let cache_key = PassCacheKey::new(*pass);
@@ -272,6 +274,9 @@ fn run_passes(
             }
             timer.finish("EVM IR", module.name(), pass_name, pass_changed);
             changed |= pass_changed;
+            if module.debug_info_is_tracked() {
+                module.drop_invalid_entry_checkpoints();
+            }
             if gcx.dcx().err_count() != errors_before {
                 return changed;
             }
@@ -279,6 +284,19 @@ fn run_passes(
                 validate_module_after_pass(gcx, module, pass_name, &target_support_before);
             }
             assert_debug_info_handled(module, pass_name, "after");
+            if let Some(origins) = origins
+                && origins
+                    .check(
+                        gcx,
+                        "EVM IR",
+                        module.name(),
+                        pass_name,
+                        crate::debugify::Origins::evm(module),
+                    )
+                    .is_err()
+            {
+                return changed;
+            }
         }
 
         if let Some(before) = before {

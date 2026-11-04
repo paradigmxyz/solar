@@ -50,6 +50,9 @@
 //! already branch-free. Converts a sweep of sites with updated predecessor
 //! lists before running CFG cleanup, avoiding a whole-function cleanup for each
 //! diamond.
+//!
+//! Debug locations follow the join phi into newly generated select arithmetic. Speculated
+//! arm instructions lose their old locations because they now run on either branch outcome.
 
 use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
@@ -499,6 +502,11 @@ fn convert(func: &mut Function, site: &Site) {
     let condition = boolean_condition(func, block, site.condition);
     for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
         let moved = std::mem::take(&mut func.blocks[arm].instructions);
+        // NOTE: These operations now execute on both paths. Their old arm-specific source
+        // checkpoints cannot move with them; only the join's selects have an unconditional origin.
+        for &inst in &moved {
+            func.inst_mut(inst).metadata.mark_debug_info_dropped();
+        }
         func.blocks[block].instructions.extend(moved);
     }
     let then_pred = site.then_arm.unwrap_or(block);
@@ -506,7 +514,13 @@ fn convert(func: &mut Function, site: &Site) {
     let mut replacements = FxHashMap::default();
     for select in &site.selects {
         // join: v = phi [kept edges], [block: select]
+        let context = func.inst(select.phi).metadata.debug_context();
+        let start = func.blocks[block].instructions.len();
         let selected = select_value(func, block, condition, select);
+        let generated = func.blocks[block].instructions[start..].to_vec();
+        for inst in generated {
+            func.inst_mut(inst).metadata.copy_debug_context(&context);
+        }
         let InstKind::Phi(incoming) = &mut func.inst_mut(select.phi).kind else { continue };
         incoming.retain(|&(from, _)| from != then_pred && from != else_pred);
         if incoming.is_empty() {

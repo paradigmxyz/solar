@@ -10,9 +10,9 @@
 ;; `DUPn SWAPn -> DUPn` because the swapped values are equal.
 (rule 235 (peep_swap (last2 (dup n) (swap n))) (rewrite 2 (Edit.Keep 1)))
 
-;; `ISZERO ISZERO ISZERO -> ISZERO`.
+;; `ISZERO ISZERO ISZERO -> ISZERO`, keeping the first predicate and its origin.
 (rule 230 (peep_op (last3 (opcode $ISZERO) (opcode $ISZERO) (opcode $ISZERO)))
-         (rewrite 3 (Edit.OverwriteOne $ISZERO)))
+         (rewrite 3 (Edit.Keep 1)))
 
 ;; `DUP2 EQ ISZERO SWAP1 POP -> EQ ISZERO` in an unprotected window.
 (rule 205 (peep_pop (unprotected_last5 (opcode $DUP2) (opcode $EQ) (opcode $ISZERO)

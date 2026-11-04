@@ -1,0 +1,10 @@
+//@ compile-flags: -Zmir-pipeline=lower-alloc,lower-evm-shaped -Zdebugify=check
+// The allocation's pointer cast disappears during representation lowering. Its actual FMP
+// read and update must keep the origin, rather than leaving it only on that zero-byte cast.
+@module DebugAllocationContext
+fn @allocate() -> i256 {
+  bb0:
+    v0 = alloc 32 !metadata(span=10..20, preserves_fmp)
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1 !metadata(span=30..40)
+}

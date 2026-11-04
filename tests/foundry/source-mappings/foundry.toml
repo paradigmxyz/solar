@@ -1,0 +1,7 @@
+[profile.default]
+src = "src"
+test = "test"
+libs = []
+evm_version = "cancun"
+optimizer = false
+bytecode_hash = "none"

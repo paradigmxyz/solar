@@ -405,7 +405,14 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 self.mark_debug_function_exit(func, DebugFunctionExit::Return);
             }
-            Exit::TailCall(callee) => {
+            Exit::TailCall { callee, origin } => {
+                if self.capture_debug_info
+                    && let Some(origin) = origin
+                {
+                    let metadata = &func.inst(*origin).metadata;
+                    self.asm.set_source_spans(metadata.source_spans());
+                    self.asm.set_modifier_depth(metadata.modifier_depth());
+                }
                 // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
                 self.asm.emit_op(op::JUMP);
