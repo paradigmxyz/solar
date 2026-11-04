@@ -2,7 +2,9 @@
 // `lib/Guard.sol` and `/lib/Guard.sol` differ only in the root separator, which `Path` hashes alike
 // but compares as different. Both files load, and each contributes its library.
 // CHECK: "/lib/Guard.sol": {
+// CHECK: "RootedGuard": {
 // CHECK: "lib/Guard.sol": {
+// CHECK: "RelativeGuard": {
 // CHECK: "Main.sol": {
 // CHECK: "Main": {
 {
