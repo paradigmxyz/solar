@@ -175,9 +175,10 @@ impl<'a> FunctionBuilder<'a> {
         self.current_block = block;
     }
 
-    /// Creates a new basic block.
+    /// Creates a new basic block for the code the current block reaches, so it keeps the current
+    /// block's `cold_hint`.
     pub fn create_block(&mut self) -> BlockId {
-        self.func.alloc_block()
+        self.func.alloc_block_like(self.current_block)
     }
 
     /// Starts `for index in 0..length` and switches to its body.

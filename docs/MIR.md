@@ -796,6 +796,16 @@ behind a call to it that only a cold edge enters, such as a branch into the call
 path leaves its caller hot. The function and the inliner's decision to clone it are priced like
 cold code.
 
+A block carries `cold_hint` too, written `bb3 [cold, cold_hint]:` next to its `cold` hotness: the
+source says the block runs rarely, as for a function. Lowering sets it on every block it creates
+for a `catch` clause of a `try`, typed and bare, as LLVM treats the unwind edge of an `invoke` and
+rustc a cleanup path. The analysis only reads it. The block is cold under every objective, and it
+seeds the same region walk as a call to a `cold_hint` function, so the code only it reaches is cold
+too, while the success path and the join stay hot. Passes keep the hint with the code: a cloned
+block, as inlining and loop versioning make, copies it, both halves of a split block have it, a
+block merged into its sole predecessor takes the predecessor's, and a block that replaces equal
+blocks keeps it only if every one had it.
+
 The scheduler carries known loop membership into EVM IR, and block merging
 preserves it. Gas-mode outlining keeps loop computations and large pushes
 inline, except in cold blocks, whose sites it prices by bytes alone. Tail

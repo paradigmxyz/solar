@@ -16,6 +16,12 @@
 //! probability of the edge into the region it ends, never of a straight-line path, since the code
 //! after a call that returns still runs. A call on the only path leaves its caller hot.
 //!
+//! A block with `BasicBlock::cold_hint` is the block version of that attribute, a fact from the
+//! source: lowering sets it on the blocks of a `catch` clause, and the analysis only reads it, as
+//! LLVM treats the unwind edge of an `invoke` and rustc a cleanup path. The block is cold, never an
+//! abort, and a seed of the region walk, so the code behind it that only a cold edge enters is cold
+//! too. The success path and the join of the `try` stay hot.
+//!
 //! A block is cold by the rules of its function's objective, the module's unless the function
 //! has one of its own:
 //! - Every objective but `-O none` marks the blocks that abort, and then the blocks whose
@@ -44,6 +50,9 @@ pub(crate) struct HotnessAnalysis {
     /// Whether any function of the module is `cold_hint`, so a call to it can seed a region.
     /// Set with the cold functions, from attributes no pass changes after lowering.
     has_cold_hint: bool,
+    /// Whether the function under analysis has a block with `cold_hint`, which seeds a region.
+    /// Set with the cold blocks, by the scan for aborting blocks.
+    has_hinted_block: bool,
     worklist: Vec<BlockId>,
     visited: GrowableBitSet<BlockId>,
     /// The functions whose walk met a call to each function while it was not cold.
@@ -63,6 +72,7 @@ impl HotnessAnalysis {
             hot_blocks: DenseBitSet::new_empty(0),
             region: DenseBitSet::new_empty(0),
             has_cold_hint: false,
+            has_hinted_block: false,
             worklist: Vec::new(),
             visited: GrowableBitSet::new_empty(),
             callers: IndexVec::new(),
@@ -168,8 +178,19 @@ impl HotnessAnalysis {
         self.collect_cold_blocks(module, func, !objective.is_none(), marks_failure_paths_cold);
         if func.attributes.cold_hint {
             self.cold_blocks.insert_all();
-        } else if self.has_cold_hint && !objective.is_none() {
-            self.mark_cold_regions(module, func);
+        } else {
+            if (self.has_cold_hint || self.has_hinted_block) && !objective.is_none() {
+                self.mark_cold_regions(module, func);
+            }
+            // The hint is a fact, so it holds under every objective. It comes last: a hinted block
+            // on the only path to an exit does not make the blocks around it cold.
+            if self.has_hinted_block {
+                for (block_id, block) in func.blocks.iter_enumerated() {
+                    if block.cold_hint {
+                        self.cold_blocks.insert(block_id);
+                    }
+                }
+            }
         }
     }
 
@@ -186,8 +207,12 @@ impl HotnessAnalysis {
     fn mark_cold_regions(&mut self, module: &Module, func: &Function) {
         self.hot_blocks.clear_to(func.blocks.len());
         self.worklist.clear();
-        // A seed: a call to a function that is rarely run and returns.
-        let is_seed = |block| calls_cold_hint(module, func, block);
+        // A seed: a block the source says is rarely run, or a call to a function that is rarely
+        // run and returns.
+        let has_cold_hint = self.has_cold_hint;
+        let is_seed = |block: BlockId| {
+            func.blocks[block].cold_hint || has_cold_hint && calls_cold_hint(module, func, block)
+        };
         if !func.blocks.indices().any(is_seed) {
             return;
         }
@@ -372,8 +397,10 @@ impl HotnessAnalysis {
         let is_cold =
             |function: FunctionId| module.functions[function].attributes.hotness.is_cold();
         self.cold_blocks.clear_to(func.blocks.len());
+        self.has_hinted_block = false;
         self.worklist.clear();
         for block_id in func.blocks.indices() {
+            self.has_hinted_block |= func.blocks[block_id].cold_hint;
             if block_aborts(func, block_id, is_cold) {
                 self.cold_blocks.insert(block_id);
                 self.worklist.push(block_id);
