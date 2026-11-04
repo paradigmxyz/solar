@@ -65,12 +65,10 @@ impl Word {
         self.value
     }
 
-    /// Returns the word as the carrier word of a raw carrier, widening a canonical value of type
-    /// `ty` with `zext` or `sext` as its signedness requires.
+    /// Returns the word as the carrier word of a raw carrier, widening a value of type `ty` with
+    /// `zext` or `sext` as its signedness requires. A raw word that an immutable or another
+    /// binding holds at its native width widens too.
     fn carrier<'gcx>(self, lowerer: &mut FunctionLowerer<'gcx, '_>, ty: Ty<'gcx>) -> ValueId {
-        if self.raw {
-            return self.value;
-        }
         let layout = types::TypeLowerer::value_layout(ty);
         raw_scalars::cast_carrier(&mut lowerer.builder, self.value, layout, MirType::I256)
     }
