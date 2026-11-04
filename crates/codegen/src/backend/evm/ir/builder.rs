@@ -94,10 +94,19 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Attributes the jump to the next block, which ends the current block without an opcode, to
     /// the current source origins.
+    ///
+    /// Like LLVM's instruction selection, which emits no branch for a fallthrough
+    /// (`SelectionDAGBuilder::visitBr`) and gives a branch that layout later needs the location
+    /// of the block's branch (`MachineBasicBlock::updateTerminator`, `findBranchDebugLoc`), the
+    /// jump keeps its own origins and nothing else receives them.
     // NOTE: Without an open block nothing implements the jump, so its origins are dropped. Opening
-    // one would add an empty block, and debug information must not change the IR.
+    // one would add an empty block, and debug information must not change the IR. An empty block
+    // is a thunk that `cfg-simplify` removes with its jump, as LLVM's
+    // `TryToSimplifyUncondBranchFromEmptyBlock` does, so it records nothing either.
     pub(crate) fn mark_fallthrough(&mut self) {
-        if let Some(block) = self.current_block {
+        if let Some(block) = self.current_block
+            && !self.program.blocks[block].instructions.is_empty()
+        {
             self.fallthrough_origins
                 .insert(block, (self.current_source_spans.clone(), self.current_modifier_depth));
         }
