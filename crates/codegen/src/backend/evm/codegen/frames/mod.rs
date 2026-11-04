@@ -890,12 +890,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 // heap the entry places there.
                 let local_end = own_reach
                     .iter()
-                    .filter_map(|func_id| {
-                        let ranges = function_ranges[func_id].get_or_insert_with(|| {
-                            Self::constant_memory_ranges(&module.functions[func_id])
-                        });
-                        Self::absolute_local_end(&module.functions[func_id], ranges)
-                    })
+                    .filter_map(|func_id| module.functions[func_id].absolute_local_end())
                     .max();
                 local_ends.insert(entry, local_end);
                 if (sizes[&entry] != 0 || static_spans[&entry] != 0)
@@ -973,7 +968,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         projections: Option<&FxHashMap<ValueId, (FunctionId, usize)>>,
     ) -> u64 {
         let mut guard = 0;
-        Self::for_each_memory_range(func, |offset, size| {
+        func.for_each_memory_range(|offset, size| {
             if size == Some(0) {
                 return;
             }
@@ -1385,7 +1380,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// function's return buffer, lie below the base their entry places its spill area at.
     fn constant_memory_ranges(func: &Function) -> Vec<(u64, u64)> {
         let mut ranges = Vec::new();
-        Self::for_each_memory_range(func, |offset, size| {
+        func.for_each_memory_range(|offset, size| {
             if let Some(start) = func.value_u64(offset)
                 && let Some(size) = size.filter(|&size| size != 0)
                 && let Some(end) = start.checked_add(size)
@@ -1394,16 +1389,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         });
         ranges
-    }
-
-    /// Returns where the local region of `func` ends if one of `ranges`, its constant memory
-    /// ranges, starts inside it.
-    fn absolute_local_end(func: &Function, ranges: &[(u64, u64)]) -> Option<u64> {
-        let end = EvmMemoryLayout::HEAP_START.saturating_add(func.internal_frame_size);
-        ranges
-            .iter()
-            .any(|&(start, _)| (EvmMemoryLayout::HEAP_START..end).contains(&start))
-            .then_some(end)
     }
 
     /// Returns whether `func` may write memory at an address that calldata computes, as Seaport
@@ -1441,24 +1426,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let inputs = absolute_address_inputs(func);
         destinations.into_iter().any(|dest| inputs[dest] == AddressInput::Calldata)
-    }
-
-    /// Visits physical memory ranges used by instructions and terminators.
-    /// Unknown lengths still expose their base to heap-prefix analysis.
-    fn for_each_memory_range(func: &Function, mut visit: impl FnMut(ValueId, Option<u64>)) {
-        for inst_id in func.instructions() {
-            func.inst(inst_id)
-                .kind
-                .visit_raw_memory(|_, offset, size| visit(offset, size.constant(func)));
-        }
-        for block in &func.blocks {
-            if let Some(
-                Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size },
-            ) = &block.terminator
-            {
-                visit(*offset, func.value_u64(*size));
-            }
-        }
     }
 
     pub(in crate::backend::evm::codegen) fn constructor_spill_base(
