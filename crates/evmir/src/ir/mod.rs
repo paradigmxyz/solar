@@ -14,7 +14,9 @@
 
 use crate::{
     debug::{
-        DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugSpans, DistinctSpans, DebugLocKind, },
+        DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugLocKind, DebugSpans,
+        DistinctSpans,
+    },
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
     op::{self, StackOp, TrackedWord},
 };

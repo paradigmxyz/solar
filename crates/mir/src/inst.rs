@@ -7,8 +7,7 @@ use crate::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
-use solar_ir::debug::DistinctSpans;
-use solar_ir::debug::DebugLocKind;
+use solar_ir::debug::{DebugLocKind, DistinctSpans};
 use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
