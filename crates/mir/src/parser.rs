@@ -696,6 +696,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::function_pointer_dispatcher => {
                     builder.func_mut().attributes.is_function_pointer_dispatcher = true;
                 }
+                sym::creation_only => builder.func_mut().attributes.creation_only = true,
                 sym::always_inline => builder.func_mut().attributes.always_inline = true,
                 sym::inline_hint => builder.func_mut().attributes.inline_hint = true,
                 sym::cold => builder.func_mut().attributes.hotness = Hotness::Cold,

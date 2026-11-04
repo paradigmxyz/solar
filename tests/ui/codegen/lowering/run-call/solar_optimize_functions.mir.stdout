@@ -6,7 +6,7 @@
   delta: int16
 
 ; creation entry
-fn @constructor() [constructor] {
+fn @constructor() [constructor, creation_only] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0

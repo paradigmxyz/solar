@@ -8,6 +8,7 @@
 //@ run-call: ConstructorReads::flag => 1
 //@ run-call: ConstructorReads::helper => 0x2a
 //@ run-call: ConstructorReads::sharedHelper => 0x2a
+//@ run-call: ConstructorReads::loop => 13
 //@ run-call: ConstructorReads::sharedTerminal => 7
 //@ run-call: ConstructorReads::sharedTerminalLoop => 81
 
@@ -117,6 +118,25 @@ contract SharedHelper {
     }
 }
 
+contract Loop {
+    uint256 immutable a;
+
+    constructor(uint256 n) {
+        uint256 sum;
+        uint256 i;
+        a = 10;
+        do {
+            sum += a;
+            a = i + 1;
+            i++;
+        } while (i < n);
+        assembly {
+            mstore(0, sum)
+            return(0, 32)
+        }
+    }
+}
+
 contract SharedTerminal {
     uint256 immutable a;
 
@@ -189,6 +209,10 @@ contract ConstructorReads {
 
     function sharedHelper() external returns (uint256) {
         return uint256(bytes32(address(new SharedHelper()).code));
+    }
+
+    function loop() external returns (uint256) {
+        return uint256(bytes32(address(new Loop(3)).code));
     }
 
     function sharedTerminal() external returns (uint256) {
