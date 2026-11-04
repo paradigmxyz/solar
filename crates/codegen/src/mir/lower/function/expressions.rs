@@ -133,6 +133,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 base,
                 expr.span,
                 validate_bounds,
+                false,
             );
         }
 

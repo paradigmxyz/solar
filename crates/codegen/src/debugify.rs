@@ -248,6 +248,7 @@ impl Origins {
         let mut spans = FxHashSet::default();
         for (_, func) in module.iter_functions() {
             for block in &func.blocks {
+                spans.extend(block.label_metadata.source_spans());
                 spans.extend(block.terminator_metadata.source_spans());
                 for &inst in &block.instructions {
                     spans.extend(func.inst(inst).metadata.source_spans());

@@ -1,0 +1,35 @@
+//@compile-flags: -Zmir-pipeline=load-pre
+//@filecheck:
+@module MemoryKillUnboundedRead
+
+// A word read at offset 37 of a 64-byte allocation leaves the allocation, so its key is an
+// unbounded allocation address; the one-byte store at that offset stays inside it. The store
+// kills the key, so the reload after the join stays.
+// CHECK-LABEL: {{^[ +].*}}fn @store8_kills_unbounded_read{{[( ]}}
+// CHECK: {{^[ +].*}}bb6:
+// CHECK: {{^[ +].*}}[[RELOAD:v[0-9]+]] = mload
+// CHECK-NEXT: {{^[ +].*}}[[RESULT:v[0-9]+]] = add {{v[0-9]+}}, [[RELOAD]]
+// CHECK-NEXT: {{^[ +].*}}ret [[RESULT]]
+fn @store8_kills_unbounded_read(arg0: i1, arg1: i256, arg2: i1) -> i256 {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 37
+    v3 = mload v2
+    jumpi arg0, bb1, bb2
+  bb1:
+    mstore8 v2, arg1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    jumpi arg2, bb4, bb5
+  bb4:
+    jump bb6
+  bb5:
+    jump bb6
+  bb6:
+    v4 = mload v2
+    v5 = add v3, v4
+    ret v5
+}
