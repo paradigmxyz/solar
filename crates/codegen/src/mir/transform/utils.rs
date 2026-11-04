@@ -3,9 +3,12 @@
 use crate::mir::{
     BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, Terminator, ValueId,
     memory::EvmMemoryLayout,
-    utils::{IndexLists, replace_terminator},
+    utils::{IndexLists, replace_terminator, resolve_replacement},
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::hir::StateMutability;
 
 /// Whether an external entry must reject nonzero callvalue.
@@ -127,6 +130,21 @@ pub(super) fn expand_block(
     }
     if end != block {
         redirect_successor_predecessors(builder.func_mut(), block, end);
+    }
+}
+
+/// Moves the origins of every instruction in `removed` onto the definition of its final
+/// replacement, in block order, before the caller deletes them.
+pub(super) fn move_removed_origins(
+    func: &mut Function,
+    removed: &FxHashSet<InstId>,
+    replacements: &FxHashMap<ValueId, ValueId>,
+) {
+    let insts = func.instructions().filter(|inst| removed.contains(inst)).collect::<Vec<_>>();
+    for inst in insts {
+        if let Some(result) = func.inst_result_value(inst) {
+            func.move_origins_to_replacement(inst, resolve_replacement(result, replacements));
+        }
     }
 }
 

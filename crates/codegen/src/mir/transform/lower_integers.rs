@@ -21,6 +21,7 @@ use crate::mir::{
     Value, ValueId, ValueLayout,
     analysis::integers::integer_mask,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
+    utils::resolve_replacement,
 };
 use solar_data_structures::{
     index::IndexVec,
@@ -247,6 +248,9 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
             if let Some(word) = word {
                 unmasked.insert(result, word);
             }
+            // A conversion that reuses an existing word emits nothing; its origin follows the word.
+            let target = resolve_replacement(value, &replacements);
+            builder.func_mut().move_origins_to_replacement(id, target);
             replacements.insert(result, value);
             changed = true;
             true

@@ -2,8 +2,8 @@
 
 use super::{
     AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
-    InstKind, Instruction, MangledSymbol, MirType, PtrLocation, StorageAlias, Value, ValueId,
-    memory::EvmMemoryLayout, utils,
+    InstKind, Instruction, InstructionMetadata, MangledSymbol, MirType, PtrLocation, StorageAlias,
+    Value, ValueId, memory::EvmMemoryLayout, utils,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -821,6 +821,24 @@ impl Function {
         }
     }
 
+    /// Moves the source origins of `from` onto the instruction that defines `to`, for a pass that
+    /// replaces or absorbs `from`'s result with the existing value `to`.
+    ///
+    /// The definition takes each origin under the rule of
+    /// [`InstructionMetadata::move_nested_origins_from`]; origins it refuses stay dropped. `to`
+    /// may be an argument, an immediate, or a value without a defining instruction, which takes
+    /// nothing. Callers pass the value users read after replacement, and call this once per
+    /// replaced instruction, also for an operand it leaves dead. Terminators need no handling for
+    /// their operands, since they read `to` and keep their own origins; a pass that rewrites a
+    /// terminator or a void instruction calls the metadata method on it directly.
+    pub fn move_origins_to_replacement(&mut self, from: InstId, to: ValueId) {
+        let Value::Inst(def) = *self.value(to) else { return };
+        if def != from {
+            let from = self.inst(from).metadata.debug_context();
+            self.inst_mut(def).metadata.move_nested_origins_from(&from);
+        }
+    }
+
     /// Replaces all value uses according to a canonicalized replacement map.
     pub fn replace_uses_canonicalized(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
         if replacements.is_empty() {
@@ -1051,5 +1069,74 @@ impl fmt::Display for Function {
         }
 
         Ok(())
+    }
+}
+
+impl InstructionMetadata {
+    /// Appends the source origins of `from` to these, for a pass that folds the instruction `from`
+    /// describes into the one these describe.
+    ///
+    /// An origin moves only when these metadata have an origin already and the moved origin nests
+    /// with each of them: it encloses it or lies inside it, in the same file. Moved origins go
+    /// after the existing ones and the modifier depth stays, so the first origin and the source
+    /// map derived from it stay the same. Other origins are dropped, as they would name code
+    /// elsewhere in the source.
+    pub fn move_nested_origins_from(&mut self, from: &Self) {
+        let owned = self.source_spans().collect::<SmallVec<[Span; 2]>>();
+        if owned.is_empty() {
+            return;
+        }
+        for span in from.source_spans() {
+            if owned.iter().all(|&owned| span.contains(owned) || owned.contains(span)) {
+                // The depth matches ours, so merging never changes it.
+                let mut origin = Self::EMPTY;
+                origin.set_debug_source_span(Some(span));
+                origin.set_modifier_depth(self.modifier_depth());
+                self.merge_debug_context(&origin);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::BytePos;
+
+    fn metadata(spans: &[(u32, u32)], depth: u32) -> InstructionMetadata {
+        let mut metadata = InstructionMetadata::EMPTY;
+        metadata
+            .set_source_spans(spans.iter().map(|&(lo, hi)| Span::new(BytePos(lo), BytePos(hi))));
+        metadata.set_modifier_depth(depth);
+        metadata
+    }
+
+    fn spans(metadata: &InstructionMetadata) -> Vec<(u32, u32)> {
+        metadata.source_spans().map(|span| (span.lo().0, span.hi().0)).collect()
+    }
+
+    #[test]
+    fn nested_origins_append_after_existing_ones() {
+        // Enclosing, enclosed, and repeated spans move; an unrelated or overlapping one does not.
+        let from = metadata(&[(0, 100), (60, 70), (12, 14), (5, 15), (200, 300)], 1);
+        let mut to = metadata(&[(10, 20)], 3);
+        to.move_nested_origins_from(&from);
+        assert_eq!(spans(&to), [(10, 20), (0, 100), (12, 14)]);
+        assert_eq!(to.modifier_depth(), 3);
+    }
+
+    #[test]
+    fn nested_origins_must_nest_with_every_existing_origin() {
+        let from = metadata(&[(0, 100), (12, 14)], 0);
+        let mut to = metadata(&[(10, 20), (30, 40)], 0);
+        to.move_nested_origins_from(&from);
+        assert_eq!(spans(&to), [(10, 20), (30, 40), (0, 100)]);
+    }
+
+    #[test]
+    fn origins_do_not_move_onto_metadata_without_origins() {
+        let mut to = InstructionMetadata::EMPTY;
+        to.move_nested_origins_from(&metadata(&[(10, 20)], 0));
+        assert!(spans(&to).is_empty());
     }
 }

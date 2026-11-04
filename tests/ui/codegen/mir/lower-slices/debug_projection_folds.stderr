@@ -1,0 +1,2 @@
+debugify: MIR DebugProjectionFolds after lower-slices: 6/7 origins retained, 1 lost
+debugify: lost 60..70

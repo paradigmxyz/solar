@@ -1,0 +1,30 @@
+- ; === ROOT/tests/ui/codegen/mir/lower-integers/debug_folded_casts.mir (before lower-integers) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-integers/debug_folded_casts.mir (after lower-integers) ===
+  @module DebugFoldedCasts
+  fn @enclosing(arg0: i256) -> i256 {
+    bb0:
+-     v0 = trunc i256 arg0 to i8 !metadata(span=12..14)
+-     v1 = zext i8 v0 to i256 !metadata(span=10..20)
+-     ret v1 !metadata(span=100..110)
++     v2 = and arg0, 255 !metadata(spans=[12..14, 10..20])
++     ret v2 !metadata(span=100..110)
+  }
+  
+  fn @inside(arg0: i256) -> i256 {
+    bb0:
+-     v0 = trunc i256 arg0 to i8 !metadata(span=32..38)
+-     v1 = zext i8 v0 to i256 !metadata(span=34..36)
+-     ret v1 !metadata(span=100..110)
++     v2 = and arg0, 255 !metadata(spans=[32..38, 34..36])
++     ret v2 !metadata(span=100..110)
+  }
+  
+  fn @unrelated(arg0: i256) -> i256 {
+    bb0:
+-     v0 = trunc i256 arg0 to i8 !metadata(span=52..54)
+-     v1 = zext i8 v0 to i256 !metadata(span=60..70)
+-     ret v1 !metadata(span=100..110)
++     v2 = and arg0, 255 !metadata(span=52..54)
++     ret v2 !metadata(span=100..110)
+  }
+  

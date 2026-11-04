@@ -24,6 +24,7 @@ use crate::mir::{
     MirType, Module, PtrLocation, StructId, StructType, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
+    utils::resolve_replacement,
 };
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
@@ -298,8 +299,9 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
             builder.set_debug_context(&metadata);
             outputs.clear();
             match &builder.func().inst(id).kind {
-                // NOTE: Scalar insertions and projections emit no instruction. Their source
-                // checkpoints disappear with them; do not attach them to unrelated definitions.
+                // NOTE: Scalar insertions and projections emit no instruction. Their origins move
+                // only onto enclosed definitions of the leaves they select, never onto unrelated
+                // ones; see `Function::move_origins_to_replacement`.
                 // insert_value aggregate, index, value -> replace the selected leaf range
                 &InstKind::InsertValue { ty: MirType::Struct(ty), aggregate, index, value } => {
                     outputs.extend_from_slice(components(&aggregate, &aggregates));
@@ -387,6 +389,10 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                 replacements.extend(fields.iter().copied().zip(outputs.iter().copied()));
             } else if let Some(result) = result {
                 replacements.insert(result, outputs[0]);
+            }
+            for &output in &outputs {
+                let output = resolve_replacement(output, &replacements);
+                builder.func_mut().move_origins_to_replacement(id, output);
             }
             true
         });
