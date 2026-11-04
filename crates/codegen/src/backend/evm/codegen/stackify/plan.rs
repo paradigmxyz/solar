@@ -2715,14 +2715,11 @@ impl<'a> Planner<'a> {
         }
         let planned = self.planned_insts(join);
         let wanted_cost = self.join_cost(join, &planned, &wanted)?;
-        let wins = match self.join_cost(join, &planned, proposal) {
-            Some(proposal_cost) => {
-                let proposal_total = incoming + self.weigh(proposal_cost, join);
-                let wanted_total = wanted_incoming + self.weigh(wanted_cost, join);
-                self.target.cmp(wanted_total, proposal_total).is_lt()
-            }
-            None => true,
-        };
+        let wins = self.join_cost(join, &planned, proposal).is_none_or(|proposal_cost| {
+            let proposal_total = incoming + self.weigh(proposal_cost, join);
+            let wanted_total = wanted_incoming + self.weigh(wanted_cost, join);
+            self.target.cmp(wanted_total, proposal_total).is_lt()
+        });
         wins.then_some((wanted_incoming, wanted))
     }
 
