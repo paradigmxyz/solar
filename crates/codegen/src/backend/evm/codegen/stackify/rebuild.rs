@@ -38,8 +38,10 @@
 //! The rewrite does not decide: the planner plans both functions and keeps the copy only when its
 //! plan, charged the target's cost of the frame words each plan spills, beats the original's under
 //! the objective. A copy of an operation carries the debug context of the operation it repeats,
-//! and a step back from a loop's header the one of the instruction or terminator that reads it;
-//! no choice reads debug metadata.
+//! as LLVM's `TargetInstrInfo::reMaterialize` clones the original with its `DebugLoc`. A step
+//! back from a loop's header is a new instruction, which takes the context of the instruction or
+//! terminator that reads it, as inserted code does in LLVM's `IRBuilder` and rustc's `MirPatch`.
+//! No choice reads debug metadata.
 //!
 //! The selection is a liveness estimate, not a search over subsets: the candidate rebuilds every
 //! qualifying value or none. Copies are not shared: two uses of one value in a block receive two
