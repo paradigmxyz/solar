@@ -110,11 +110,13 @@ pub(super) fn address_call_types(
 
 pub(super) fn abi_encode_types(
     func: &Function,
+    base: bool,
     selector: bool,
     args: &[ValueId],
     layout: &AbiLayout,
 ) -> SmallVec<[MirType; 8]> {
-    std::iter::repeat_n(MirType::I256, usize::from(selector))
+    std::iter::repeat_n(MirType::MEMPTR, usize::from(base))
+        .chain(std::iter::repeat_n(MirType::I256, usize::from(selector)))
         .chain(layout.types.iter().enumerate().map(|(index, ty)| {
             ty.input_type(args.get(index).and_then(|&value| func.value_ty(value)))
         }))
@@ -156,6 +158,7 @@ pub(super) fn callee_types(
                 RequireKind::CustomError(layout) => {
                     types.extend(abi_encode_types(
                         func,
+                        false,
                         true,
                         args.get(2..).unwrap_or_default(),
                         layout,

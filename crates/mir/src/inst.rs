@@ -681,7 +681,8 @@ pub enum AbiEncodeMode {
     Slice,
     /// Return an owned Solidity bytes object.
     Bytes,
-    /// Return a slice staged at the free-memory pointer without reserving it.
+    /// Return a slice staged at the free-memory pointer, or at an explicit base, without reserving
+    /// it.
     Scratch,
 }
 

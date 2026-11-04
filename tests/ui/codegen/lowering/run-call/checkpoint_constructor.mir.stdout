@@ -205,42 +205,39 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<uint9
     icall panic_if<0x32>, v7
     v8 = ptradd v0, 64
     mstore v8, 6
-    v9 = abi_encode [memory_array<word<uint96>>, word<uint160>, word<uint96>], args v0, 0x1234, 0x48b
-    v10 = extract_value slice<memory>, v9, 1
-    v11 = datasize CheckpointTarget_creation_code_0
-    v12 = add v11, v10
-    v13 = lt v12, v11
-    icall panic_if<0x41>, v13
-    v14 = fmp
-    datacopy CheckpointTarget_creation_code_0, v14, v11
-    v15 = extract_value slice<memory>, v9, 0
-    v16 = ptrtoint ptr<memory> v14 to i256
-    v17 = add v16, v11
-    mcopy v17, v15, v10 !metadata(memory=heap)
-    v18 = create 0, v14, v12
-    v19 = ne v18, i160 0
-    jumpi v19, bb2, bb1
+    v9 = datasize CheckpointTarget_creation_code_0
+    v10 = fmp
+    datacopy CheckpointTarget_creation_code_0, v10, v9
+    v11 = ptradd v10, v9
+    v12 = abi_encode [memory_array<word<uint96>>, word<uint160>, word<uint96>], scratch, base v11, args v0, 0x1234, 0x48b
+    v13 = extract_value slice<memory>, v12, 1
+    v14 = add v9, v13
+    v15 = lt v14, v9
+    icall panic_if<0x41>, v15
+    v16 = create 0, v10, v14
+    v17 = ne v16, i160 0
+    jumpi v17, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v20 = gas
+    v18 = gas
     mstore 0, 0x8ee82b53 !metadata(memory=scratch)
-    v21 = zext i160 v18 to i256
-    v22 = staticcall v20, v21, 28, 4, 0, 32
-    jumpi v22, bb4, bb3
+    v19 = zext i160 v16 to i256
+    v20 = staticcall v18, v19, 28, 4, 0, 32
+    jumpi v20, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v23 = returndatasize
-    v24 = lt v23, 32
-    icall revert_if<tuple_data_too_short>, v24
-    v25 = mload 0 !metadata(memory=scratch)
-    v26 = shr v25, 96
-    v27 = eq v26, 0
-    v28 = eq v27, false
-    icall revert_if<empty>, v28
-    v29 = trunc i256 v25 to i96
-    ret v29
+    v21 = returndatasize
+    v22 = lt v21, 32
+    icall revert_if<tuple_data_too_short>, v22
+    v23 = mload 0 !metadata(memory=scratch)
+    v24 = shr v23, 96
+    v25 = eq v24, 0
+    v26 = eq v25, false
+    icall revert_if<empty>, v26
+    v27 = trunc i256 v23 to i96
+    ret v27
 }
 
 ; function multiReturn() external returns (uint8) [selector 0xfeb8bba3]
