@@ -1,4 +1,4 @@
-//@ compile-flags: -Zevm-ir-pipeline=terminal-dedup -Zdebugify=check
+//@ compile-flags: -Zevm-ir-pipeline=terminal-dedup -Zdebugify=check -Zdump=evm-ir
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 // Merged terminal blocks keep every distinct origin, however many there are.
