@@ -662,7 +662,7 @@ impl<'a> SlotSsaBuilder<'a> {
         for pending in self.phis.values() {
             let mut incoming = pending.incoming.clone();
             incoming.sort_by_key(|(block, _)| block.index());
-            func.inst_mut(pending.inst).kind = InstKind::Phi(incoming);
+            func.set_inst_kind(pending.inst, InstKind::Phi(incoming));
             let insert_pos = func.block_phi_count(pending.block);
             func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
         }
@@ -787,7 +787,7 @@ impl<'a> SlotSsaBuilder<'a> {
     fn apply_casts(&self, func: &mut Function) {
         // result = load slot, ptr<memory> => result = inttoptr reaching_value to ptr<memory>
         for &(inst, value) in &self.casts {
-            func.inst_mut(inst).replace_kind(InstKind::IntToPtr(value));
+            func.replace_inst_kind(inst, InstKind::IntToPtr(value));
         }
     }
 
