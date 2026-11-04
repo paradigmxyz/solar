@@ -1,0 +1,36 @@
+// CHECK: "userdoc": {
+// CHECK: "block()": {
+// CHECK: "notice": "Does a thing   across lines."
+// CHECK: "notice()": {
+// CHECK: "notice": "Notice text   continued."
+// CHECK: "untagged()": {
+// CHECK: "notice": "Untagged text   that continues."
+// CHECK: "mixed()": {
+// CHECK: "notice": "Intro text"
+// CHECK: "last(uint256)": {
+// CHECK: "notice": "Notice text"
+// CHECK: "devdoc": {
+// CHECK: "register(address)": {
+// CHECK: "details": "Registers `operator` for the caller. This does NOT validate the  operator address, so the caller keeps full responsibility for it."
+// CHECK: "operator": "The operator   address to register."
+// CHECK: "ok": "Whether it   worked."
+// CHECK: "block()": {
+// CHECK: "details": "Dev text   continued."
+// CHECK: "mixed()": {
+// CHECK: "details": "Details after an untagged notice."
+// CHECK: "last(uint256)": {
+// CHECK: "value": "Skips `@` blanks and drops it"
+// CHECK: "result": "  Keeps two blanks"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "C": [
+          "userdoc",
+          "devdoc"
+        ]
+      }
+    }
+  }
+}

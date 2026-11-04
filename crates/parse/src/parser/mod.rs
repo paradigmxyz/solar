@@ -1,4 +1,5 @@
 use crate::{Lexer, PErr, PResult};
+use doc_text::DocText;
 use smallvec::SmallVec;
 use solar_ast::{
     self as ast, AstPath, Box, BoxSlice, DocComment, DocComments,
@@ -13,6 +14,7 @@ use solar_interface::{
 };
 use std::{fmt, path::Path};
 
+mod doc_text;
 mod expr;
 mod item;
 mod lit;
@@ -885,22 +887,51 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
         debug_assert!(next.is_comment_or_doc());
         self.prev_token = std::mem::replace(&mut self.token, next);
-        let mut items = SmallVec::new();
+        // The doc comments before the current token. A run of adjacent `///` comments is read as
+        // one, like solc does, and `run_start` is the first comment of the current run.
+        let mut run_start = 0;
+        // The span of the previous comment, if it is a `///` doc comment.
+        let mut prev_line_doc = None;
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
-                parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx(), &mut items);
-                let natspec = if items.is_empty() {
-                    BoxSlice::default()
-                } else {
-                    self.alloc_drain(&mut items)
-                };
-                self.docs.push(DocComment { kind, span: self.token.span, symbol, natspec });
+                let span = self.token.span;
+                let continues_run = prev_line_doc.is_some_and(|prev: Span| {
+                    kind == ast::CommentKind::Line
+                        && self
+                            .sess
+                            .source_map()
+                            .span_to_snippet(Span::new(prev.hi(), span.lo()))
+                            .is_ok_and(|between| doc_text::continues_line_comment(&between))
+                });
+                if !continues_run {
+                    self.parse_natspec_run(run_start);
+                    run_start = self.docs.len();
+                }
+                self.docs.push(DocComment { kind, span, symbol, natspec: BoxSlice::default() });
+                prev_line_doc = (kind == ast::CommentKind::Line).then_some(span);
+            } else {
+                prev_line_doc = None;
             }
             // Don't set `prev_token` on purpose.
             self.token = self.next_token();
         }
+        self.parse_natspec_run(run_start);
 
         self.expected_tokens.clear();
+    }
+
+    /// Parses the NatSpec items of the doc comments from `start` on, which are one comment for
+    /// solc, and gives them to the first.
+    fn parse_natspec_run(&mut self, start: usize) {
+        let Some(docs) = self.docs.get(start..).filter(|docs| !docs.is_empty()) else { return };
+        let span = docs[0].span.to(docs[docs.len() - 1].span);
+        let kind = docs[0].kind;
+        let text = DocText::read(docs);
+        let mut items = SmallVec::new();
+        parse_natspec(span, &text, kind, self.in_yul, self.dcx(), &mut items);
+        if !items.is_empty() {
+            self.docs[start].natspec = self.alloc_drain(&mut items);
+        }
     }
 
     /// Advances the internal `tokens` iterator, without updating the parser state.
@@ -1191,70 +1222,93 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 // Default @notice behavior:
 // - Per Solidity spec, doc comments without any `@` tags default to `@notice`.
 //
-// We use a simplified approach compared to Solc's NatSpec parsing.
-//
 // Solc implementation notes:
 // - Reference: https://github.com/ethereum/solidity/blob/develop/libsolidity/analysis/DocStringTagParser.cpp
-// - Parses, validates, and stores tag content directly when parsing.
-// - Lexer merges consecutive line comments (`///`) into a single doc comment token.
+// - The scanner merges adjacent `///` lines into one doc comment and strips the decoration of `/**
+//   */` comments. The tag parser then joins the lines of each tag.
 //
 // Our implementation:
-// - Each `///` line is a separate doc comment (not merged by lexer). Because of that, each line
-//   without tags becomes an individual `@notice` item.
+// - Reads the same text as solc's scanner (`DocText`), so adjacent `///` comments are one comment
+//   with their items attached to the first, and each item holds its joined lines.
 // - Defers validation to lowering phase.
 // - Follows Solc's Yul behavior: silently ignores unknown tags in Yul context https://github.com/argotorg/solidity/blob/2ca5fb3b6adcb1a8fb2c0904fb37526121cf2c72/libyul/AsmParser.cpp#L151
 
-/// Parses NatSpec items from a single doc comment and appends them to `items`.
+/// The item whose content is being read.
+struct PendingItem {
+    kind: ast::NatSpecKind,
+    span: Span,
+    /// Offset into the text where the content starts.
+    start: usize,
+    /// Whether the item is the `@notice` of text before any tag, which is dropped when blank.
+    implicit: bool,
+}
+
+/// Builds items from the text of a doc comment.
+struct ItemBuilder<'a> {
+    text: &'a DocText,
+    /// The interned text, for items whose content is a slice of it.
+    symbol: Option<Symbol>,
+}
+
+impl ItemBuilder<'_> {
+    /// Pushes the item with the content between its start and `end`.
+    fn push(&mut self, items: &mut SmallVec<[ast::NatSpecItem; 6]>, item: PendingItem, end: usize) {
+        let content = self.text.as_str();
+        let raw = content.get(item.start..end).unwrap_or_default();
+        if item.implicit && raw.trim_ascii().is_empty() {
+            return;
+        }
+
+        let lo = raw.len() - raw.trim_ascii_start().len();
+        let content_lo =
+            if lo == raw.len() { item.span.hi() } else { self.text.source_pos(item.start + lo) };
+
+        // Like solc, the lines are joined with a space, unless the next one starts with a blank.
+        let (symbol, content_start, content_end) = if raw.contains('\n') {
+            let mut joined = String::with_capacity(raw.len());
+            for (index, line) in raw.split('\n').enumerate() {
+                // An `@` that names no tag is dropped with the blank after it, and the text
+                // before it, as solc does.
+                let line = if index > 0
+                    && let Some(rest) = line.trim_start_matches([' ', '\t']).strip_prefix('@')
+                    && (rest.is_empty() || rest.starts_with([' ', '\t']))
+                {
+                    rest.get(1..).unwrap_or_default()
+                } else {
+                    line
+                };
+                if index > 0 && !line.starts_with([' ', '\t']) {
+                    joined.push(' ');
+                }
+                joined.push_str(line);
+            }
+            (Symbol::intern(&joined), 0, joined.len())
+        } else {
+            (*self.symbol.get_or_insert_with(|| Symbol::intern(content)), item.start, end)
+        };
+        items.push(ast::NatSpecItem {
+            kind: item.kind,
+            span: item.span,
+            symbol,
+            content_lo,
+            content_start: content_start as u32,
+            content_end: content_end as u32,
+        });
+    }
+}
+
+/// Parses NatSpec items from the text of a doc comment and appends them to `items`.
 fn parse_natspec(
     comment_span: Span,
-    comment_symbol: Symbol,
+    text: &DocText,
     comment_kind: ast::CommentKind,
     in_yul: bool,
     dcx: &DiagCtxt,
     items: &mut SmallVec<[ast::NatSpecItem; 6]>,
 ) {
-    let content = comment_symbol.as_str();
+    let content = text.as_str();
     let bytes = content.as_bytes();
-
-    // Early-exit if no tag is found.
-    if memchr::memchr(b'@', bytes).is_none() {
-        if content.trim().is_empty() {
-            return;
-        }
-
-        // Create a synthetic @notice tag for the entire comment
-        items.push(ast::NatSpecItem {
-            kind: ast::NatSpecKind::Notice,
-            span: comment_span,
-            symbol: comment_symbol,
-            content_start: 0,
-            content_end: content.len() as u32,
-        });
-        return;
-    }
-
-    // Line comments: '///', Block comments: '/**'.
-    const PREFIX_BYTES: u32 = 3;
-    let (mut line_start, mut content_start, mut span, mut kind) = (0, 0usize, None, None);
-
-    fn flush_item(
-        items: &mut SmallVec<[ast::NatSpecItem; 6]>,
-        kind: &mut Option<ast::NatSpecKind>,
-        span: &mut Option<Span>,
-        symbol: Symbol,
-        content_start: usize,
-        content_end: usize,
-    ) {
-        if let Some(k) = kind.take() {
-            items.push(ast::NatSpecItem {
-                span: span.take().unwrap(),
-                kind: k,
-                symbol,
-                content_start: content_start as u32,
-                content_end: content_end as u32,
-            });
-        }
-    }
+    let mut builder = ItemBuilder { text, symbol: None };
 
     #[cold]
     #[inline(never)]
@@ -1265,6 +1319,11 @@ fn parse_natspec(
             format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"),
         );
     }
+
+    // Returns the offset of the first non-blank byte at or after `from`, up to `to`.
+    let skip_blanks = |from: usize, to: usize| {
+        from + bytes[from..to].iter().take_while(|b| matches!(b, b' ' | b'\t')).count()
+    };
 
     // Check if '@' is located at the logical start of the line.
     let is_line_start = |line_start: usize, at_pos: usize| {
@@ -1286,77 +1345,106 @@ fn parse_natspec(
         }
     };
 
+    // Text before the first tag is a `@notice`.
+    let mut pending = Some(PendingItem {
+        kind: ast::NatSpecKind::Notice,
+        span: comment_span,
+        start: skip_blanks(0, bytes.iter().position(|&b| b == b'\n').unwrap_or(bytes.len())),
+        implicit: true,
+    });
+    // Whether the tag has no content on its line, so its content starts on the next one.
+    let mut content_on_next_line = false;
+
     // Iterate over each line and look for tags.
-    let mut prev_line_end = 0;
+    let (mut line_start, mut prev_line_end) = (0, 0);
     for line_end in memchr::memchr_iter(b'\n', bytes).chain(std::iter::once(bytes.len())) {
-        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end])
-            && is_line_start(line_start, line_start + tag_offset)
-        {
+        let tag_offset = memchr::memchr(b'@', &bytes[line_start..line_end])
+            .filter(|&offset| is_line_start(line_start, line_start + offset));
+        let starts_tag = tag_offset.is_some_and(|offset| {
+            bytes.get(line_start + offset + 1).is_some_and(|b| !matches!(b, b' ' | b'\t' | b'\n'))
+        });
+        if content_on_next_line && !starts_tag {
+            // Like solc, a line after a tag without content is its content. Unlike solc, a tag is
+            // never content, so `@custom:solar-cold` can be followed by another tag.
+            if let Some(item) = &mut pending {
+                item.start = skip_blanks(line_start, line_end);
+            }
+            content_on_next_line = false;
+        } else if let Some(tag_offset) = tag_offset {
+            content_on_next_line = false;
             let tag_start = line_start + tag_offset + 1;
 
             // The tag name must immediately follow the '@': `@ param` is
             // plain text continuing the previous tag, matching solc.
-            let (tag, rest_start) = crate::natspec::split_once_ws(content, tag_start, line_end);
-            if tag.is_empty() {
-                prev_line_end = line_end;
-                line_start = line_end + 1;
-                continue;
-            }
+            let name_end = tag_start
+                + bytes[tag_start..line_end]
+                    .iter()
+                    .position(|b| matches!(b, b' ' | b'\t'))
+                    .unwrap_or(line_end - tag_start);
+            let tag = &content[tag_start..name_end];
+            let rest_start = skip_blanks(name_end, line_end);
+            if !tag.is_empty() {
+                // Calculate span: from the char after '@' to end of tag name.
+                let tag_lo = text.source_pos(line_start + tag_offset).0 + 1; // +1 for '@'
+                let tag_hi = tag_lo + tag.len() as u32;
+                let span = Span::new(BytePos(tag_lo), BytePos(tag_hi));
+                let mut start = rest_start;
 
-            flush_item(items, &mut kind, &mut span, comment_symbol, content_start, prev_line_end);
-
-            // Calculate span: from the char after '@' to end of tag name.
-            let tag_lo = comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset) as u32; // +1 for '@'
-            let tag_hi = tag_lo + tag.len() as u32;
-            span = Some(Span::new(BytePos(tag_lo), BytePos(tag_hi)));
-            content_start = rest_start;
-
-            kind = Some(match tag {
-                "title" => ast::NatSpecKind::Title,
-                "author" => ast::NatSpecKind::Author,
-                "notice" => ast::NatSpecKind::Notice,
-                "dev" => ast::NatSpecKind::Dev,
-                "param" | "inheritdoc" => {
-                    let name_start = rest_start;
-                    // Names are identifier prefixes, mirroring solc: `@param -`
-                    // documents an unnamed parameter with an empty name.
-                    let (name, content_start_pos) =
-                        crate::natspec::split_once_ident(content, rest_start, line_end);
-                    content_start = content_start_pos;
-                    let name_lo = comment_span.lo() + PREFIX_BYTES + name_start as u32;
-                    let name_span = Span::new(name_lo, name_lo + name.len() as u32);
-                    let ident = Ident::new(Symbol::intern(name), name_span);
-                    match tag {
-                        "param" => ast::NatSpecKind::Param { name: ident },
-                        "inheritdoc" => ast::NatSpecKind::Inheritdoc { contract: ident },
-                        _ => unreachable!(),
+                let kind = match tag {
+                    "title" => Some(ast::NatSpecKind::Title),
+                    "author" => Some(ast::NatSpecKind::Author),
+                    "notice" => Some(ast::NatSpecKind::Notice),
+                    "dev" => Some(ast::NatSpecKind::Dev),
+                    "param" | "inheritdoc" => {
+                        // Names are identifier prefixes, mirroring solc: `@param -`
+                        // documents an unnamed parameter with an empty name.
+                        let (name, content_start) =
+                            crate::natspec::split_once_ident(content, rest_start, line_end);
+                        start = content_start;
+                        let name_lo = text.source_pos(rest_start);
+                        let name_span = Span::new(name_lo, name_lo + name.len() as u32);
+                        let ident = Ident::new(Symbol::intern(name), name_span);
+                        Some(match tag {
+                            "param" => ast::NatSpecKind::Param { name: ident },
+                            "inheritdoc" => ast::NatSpecKind::Inheritdoc { contract: ident },
+                            _ => unreachable!(),
+                        })
                     }
-                }
-                "return" => ast::NatSpecKind::Return { name: None },
-                _ => {
-                    if let Some(custom_tag) = tag.strip_prefix("custom:") {
-                        let ident = Ident::new(Symbol::intern(custom_tag), comment_span);
-                        ast::NatSpecKind::Custom { name: ident }
-                    } else if ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag) {
-                        let ident = Ident::new(Symbol::intern(tag), comment_span);
-                        ast::NatSpecKind::Internal { tag: ident }
-                    } else {
-                        // Emit error for invalid solidity tags, but ignore in Yul.
-                        if !in_yul {
-                            invalid_tag(dcx, tag, comment_span);
+                    "return" => Some(ast::NatSpecKind::Return { name: None }),
+                    _ => {
+                        if let Some(custom_tag) = tag.strip_prefix("custom:") {
+                            let ident = Ident::new(Symbol::intern(custom_tag), comment_span);
+                            Some(ast::NatSpecKind::Custom { name: ident })
+                        } else if ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag) {
+                            let ident = Ident::new(Symbol::intern(tag), comment_span);
+                            Some(ast::NatSpecKind::Internal { tag: ident })
+                        } else {
+                            // Emit error for invalid solidity tags, but ignore in Yul.
+                            if !in_yul {
+                                invalid_tag(dcx, tag, comment_span);
+                            }
+                            None
                         }
-                        line_start = line_end + 1;
-                        prev_line_end = line_end;
-                        continue;
                     }
+                };
+
+                if let Some(kind) = kind {
+                    if let Some(item) = pending.take() {
+                        builder.push(items, item, prev_line_end);
+                    }
+                    content_on_next_line =
+                        name_end == line_end && !matches!(tag, "param" | "inheritdoc");
+                    pending = Some(PendingItem { kind, span, start, implicit: false });
                 }
-            });
+            }
         }
 
         prev_line_end = line_end;
         line_start = line_end + 1;
     }
-    flush_item(items, &mut kind, &mut span, comment_symbol, content_start, bytes.len());
+    if let Some(item) = pending {
+        builder.push(items, item, bytes.len());
+    }
 }
 
 #[cfg(test)]
@@ -1366,7 +1454,6 @@ mod tests {
 
     fn check_natspec_item(
         sm: &SourceMap,
-        symbol: Symbol,
         item: &ast::NatSpecItem,
         snip: &str,
         kind: &str,
@@ -1392,8 +1479,7 @@ mod tests {
         assert_eq!(actual_name, name);
 
         if let Some(expected) = content {
-            let actual = &symbol.as_str()[item.content_start as usize..item.content_end as usize];
-            assert_eq!(actual.trim(), expected.trim());
+            assert_eq!(item.content(), expected);
         }
     }
 
@@ -1461,14 +1547,13 @@ import * as B from "b.sol";
 /// @author Alice
 /// @notice This is a notice
 /// that spans multiple lines
-/// and continues here
+///   and continues here
 /// @dev This is dev documentation
 /// @param x The input parameter
 /// @return result The return value
 /// @inheritdoc BaseContract
 /// @custom:security High priority
 /// @solidity memory-safe
-/// @ notice with space
 "#;
 
         let sess =
@@ -1481,30 +1566,33 @@ import * as B from "b.sol";
             let sm = sess.source_map();
             let docs = parser.parse_doc_comments();
 
-            let natspec_items: Vec<_> = docs.iter().flat_map(|d| d.natspec.iter().map(move |i| (d.symbol, i))).collect();
-            // `@ notice with space` is not a tag: the name must immediately
-            // follow the `@`, so the line yields no item.
-            assert_eq!(natspec_items.len(), 11);
+            // The comments are one for solc, so the first has all the items.
+            assert_eq!(docs.len(), 11);
+            assert!(docs[1..].iter().all(|doc| doc.natspec.is_empty()));
+            let items = &docs[0].natspec;
+            assert_eq!(items.len(), 9);
 
             let check = |i: usize, snip, kind, name, content| {
-                check_natspec_item(sm, natspec_items[i].0, natspec_items[i].1, snip, kind, name, content)
+                check_natspec_item(sm, &items[i], snip, kind, name, content)
             };
 
             check(0, "title", "title", None, Some("MyContract"));
             check(1, "author", "author", None, Some("Alice"));
-            check(2, "notice", "notice", None, Some("This is a notice"));
-            let span3 = sm.span_to_snippet(natspec_items[3].1.span).unwrap();
-            check(3, &span3, "notice", None, Some("that spans multiple lines"));
-            let span4 = sm.span_to_snippet(natspec_items[4].1.span).unwrap();
-            check(4, &span4, "notice", None, Some("and continues here"));
-            check(5, "dev", "dev", None, Some("This is dev documentation"));
-            check(6, "param", "param", Some("x"), Some("The input parameter"));
-            check(7, "return", "return", None, Some("result The return value"));
-            check(8, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
-            check(9, "custom:security", "custom", Some("security"), Some("High priority"));
-            check(10, "solidity", "internal", Some("solidity"), Some("memory-safe"));
+            check(
+                2,
+                "notice",
+                "notice",
+                None,
+                Some("This is a notice that spans multiple lines   and continues here"),
+            );
+            check(3, "dev", "dev", None, Some("This is dev documentation"));
+            check(4, "param", "param", Some("x"), Some("The input parameter"));
+            check(5, "return", "return", None, Some("result The return value"));
+            check(6, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
+            check(7, "custom:security", "custom", Some("security"), Some("High priority"));
+            check(8, "solidity", "internal", Some("solidity"), Some("memory-safe"));
 
-            assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/// @title MyContract\n/// @author Alice\n/// @notice This is a notice\n/// that spans multiple lines\n/// and continues here\n/// @dev This is dev documentation\n/// @param x The input parameter\n/// @return result The return value\n/// @inheritdoc BaseContract\n/// @custom:security High priority\n/// @solidity memory-safe\n/// @ notice with space");
+            assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/// @title MyContract\n/// @author Alice\n/// @notice This is a notice\n/// that spans multiple lines\n///   and continues here\n/// @dev This is dev documentation\n/// @param x The input parameter\n/// @return result The return value\n/// @inheritdoc BaseContract\n/// @custom:security High priority\n/// @solidity memory-safe");
         });
     }
 
@@ -1516,7 +1604,7 @@ import * as B from "b.sol";
  * @author Alice
  * @notice This is a notice
  * that spans multiple lines
- * and continues here
+ *   and continues here
  * @dev This is dev documentation
  * @param x The input parameter
  * @return result The return value
@@ -1538,16 +1626,22 @@ import * as B from "b.sol";
             let docs = parser.parse_doc_comments();
             assert_eq!(docs.len(), 1);
 
-            let (sym, items) = (docs[0].symbol, &docs[0].natspec);
+            let items = &docs[0].natspec;
             assert_eq!(items.len(), 9);
 
             let check = |i: usize, span, kind, name, content| {
-                check_natspec_item(sm, sym, &items[i], span, kind, name, content)
+                check_natspec_item(sm, &items[i], span, kind, name, content)
             };
 
             check(0, "title", "title", None, Some("MyContract"));
             check(1, "author", "author", None, Some("Alice"));
-            check(2, "notice", "notice", None, Some("This is a notice\n * that spans multiple lines\n * and continues here"));
+            check(
+                2,
+                "notice",
+                "notice",
+                None,
+                Some("This is a notice that spans multiple lines   and continues here"),
+            );
             check(3, "dev", "dev", None, Some("This is dev documentation"));
             check(4, "param", "param", Some("x"), Some("The input parameter"));
             check(5, "return", "return", None, Some("result The return value"));
@@ -1555,7 +1649,7 @@ import * as B from "b.sol";
             check(7, "custom:security", "custom", Some("security"), Some("High priority"));
             check(8, "src", "internal", Some("src"), Some("0:123:456"));
 
-            assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/**\n * @title MyContract\n * @author Alice\n * @notice This is a notice\n * that spans multiple lines\n * and continues here\n * @dev This is dev documentation\n * @param x The input parameter\n * @return result The return value\n * @inheritdoc BaseContract\n * @custom:security High priority\n * @src 0:123:456\n */");
+            assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/**\n * @title MyContract\n * @author Alice\n * @notice This is a notice\n * that spans multiple lines\n *   and continues here\n * @dev This is dev documentation\n * @param x The input parameter\n * @return result The return value\n * @inheritdoc BaseContract\n * @custom:security High priority\n * @src 0:123:456\n */");
         });
     }
 
@@ -1564,7 +1658,8 @@ import * as B from "b.sol";
         let src = r#"
 /// This is a simple comment
 /// It has no tags at all
-/// Just plain documentation
+///
+///   Just plain documentation
 contract Test {}
 "#;
 
@@ -1578,18 +1673,20 @@ contract Test {}
 
             let sm = sess.source_map();
             let docs = parser.parse_doc_comments();
-            assert_eq!(docs.len(), 3);
+            assert_eq!(docs.len(), 4);
+            assert!(docs[1..].iter().all(|doc| doc.natspec.is_empty()));
 
-            for (doc, expected) in docs.iter().zip([
-                "This is a simple comment",
-                "It has no tags at all",
-                "Just plain documentation",
-            ]) {
-                assert_eq!(doc.natspec.len(), 1);
-                let item = &doc.natspec[0];
-                let span = sm.span_to_snippet(item.span).unwrap();
-                check_natspec_item(sm, doc.symbol, item, &span, "notice", None, Some(expected));
-            }
+            assert_eq!(docs[0].natspec.len(), 1);
+            let item = &docs[0].natspec[0];
+            let span = sm.span_to_snippet(item.span).unwrap();
+            check_natspec_item(
+                sm,
+                item,
+                &span,
+                "notice",
+                None,
+                Some("This is a simple comment It has no tags at all   Just plain documentation"),
+            );
         });
     }
 
@@ -1621,12 +1718,11 @@ contract Test {}
             let snip = sm.span_to_snippet(item.span).unwrap();
             check_natspec_item(
                 sm,
-                docs[0].symbol,
                 item,
                 &snip,
                 "notice",
                 None,
-                Some("* This is a block comment\n * with multiple lines\n * but no tags at all"),
+                Some("This is a block comment with multiple lines but no tags at all"),
             );
         });
     }

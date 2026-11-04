@@ -1,0 +1,63 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "C": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "block()": {
+              "notice": "Does a thing   across lines."
+            },
+            "notice()": {
+              "notice": "Notice text   continued."
+            },
+            "untagged()": {
+              "notice": "Untagged text   that continues."
+            },
+            "mixed()": {
+              "notice": "Intro text"
+            },
+            "last(uint256)": {
+              "notice": "Notice text"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "register(address)": {
+              "details": "Registers `operator` for the caller. This does NOT validate the  operator address, so the caller keeps full responsibility for it.",
+              "params": {
+                "operator": "The operator   address to register."
+              },
+              "returns": {
+                "ok": "Whether it   worked."
+              }
+            },
+            "block()": {
+              "details": "Dev text   continued."
+            },
+            "mixed()": {
+              "details": "Details after an untagged notice."
+            },
+            "last(uint256)": {
+              "params": {
+                "value": "Skips `@` blanks and drops it"
+              },
+              "returns": {
+                "result": "  Keeps two blanks"
+              }
+            }
+          },
+          "version": 1
+        }
+      }
+    }
+  }
+}
