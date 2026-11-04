@@ -817,11 +817,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .returns
             .iter()
             .map(|&ret| self.cx.state.scalar_carrier(self.cx.gcx, ret))
-            .collect();
-        let result_ty = self.cx.module.intern_return_type(return_types)?;
+            .collect::<Vec<_>>();
+        let result_ty = self.cx.module.intern_return_type(return_types.clone())?;
         // result = icall(function, call_args)
         let result = self.builder.icall(mir_id, values, result_ty);
         if let [ret] = function.returns {
+            if return_types[0] == MirType::Slice(PtrLocation::Calldata) {
+                self.unchecked_calldata_slices.insert(result);
+            }
             return Some(CallResult::Word(self.binding_word(result, *ret)));
         }
         Some(CallResult::Value(result))
