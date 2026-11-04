@@ -99,14 +99,22 @@ impl<'gcx> Assembler<'gcx> {
         self.current_modifier_depth = depth;
     }
 
-    /// Returns the source origins and modifier depth attached to new operations.
-    pub(crate) fn debug_origin(&self) -> (DebugSpans, u32) {
-        (self.current_source_spans.clone(), self.current_modifier_depth)
+    /// Returns the source origins, location kind and modifier depth attached to new operations.
+    pub(crate) fn debug_origin(&self) -> (DebugSpans, DebugLocKind, u32) {
+        (
+            self.current_source_spans.clone(),
+            self.current_debug_loc_kind,
+            self.current_modifier_depth,
+        )
     }
 
     /// Restores the origins returned by [`Self::debug_origin`].
-    pub(crate) fn set_debug_origin(&mut self, (spans, depth): (DebugSpans, u32)) {
+    pub(crate) fn set_debug_origin(
+        &mut self,
+        (spans, kind, depth): (DebugSpans, DebugLocKind, u32),
+    ) {
         self.current_source_spans = spans;
+        self.current_debug_loc_kind = kind;
         self.current_modifier_depth = depth;
     }
 
