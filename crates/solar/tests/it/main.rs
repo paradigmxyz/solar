@@ -28,3 +28,6 @@ mod source_set_bytecode;
 
 #[cfg(feature = "cli")]
 mod source_maps;
+
+#[cfg(all(feature = "cli", any(unix, windows)))]
+mod pass_plugin;

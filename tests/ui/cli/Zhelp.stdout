@@ -48,6 +48,9 @@ Options:
       -Zevm-ir-pipeline=<PASS[,PASS...]>
           Comma-separated EVM IR pass pipeline. Use `default` for the compiler's canonical pipeline and `none` for no passes
 
+      -Zload-pass-plugin=<PATH>
+          Load a trusted native MIR/EVM IR pass plugin (command line only). Repeat for multiple libraries
+
       -Zprint-after-each
           Print MIR or EVM IR after every optimization pass
 

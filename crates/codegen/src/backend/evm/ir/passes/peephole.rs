@@ -119,7 +119,7 @@ impl EvmPass for LateWord {
 pub(super) struct Cleanup<T>(pub(super) T);
 
 impl<T: EvmPass> EvmPass for Cleanup<T> {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         self.0.name()
     }
 

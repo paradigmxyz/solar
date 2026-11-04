@@ -1,0 +1,19 @@
+[package]
+name = "solar-pass-plugin-example"
+description = "Example native MIR and EVM IR pass plugin"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+solar-pass-plugin.workspace = true
+serde_json.workspace = true
