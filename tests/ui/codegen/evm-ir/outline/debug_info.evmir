@@ -3,14 +3,14 @@
 @module DebugInfo
 
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: + push [[RET0:bb[0-9]+]]
-// CHECK: + jump [[OUTLINE:bb[0-9]+]]{{$}}
+// CHECK: + push [[RET0:bb[0-9]+]] !metadata(span=1..5)
+// CHECK: + jump [[OUTLINE:bb[0-9]+]] !metadata(span=1..5){{$}}
 // CHECK: {{^[ +].*}}bb1:
-// CHECK: + push [[RET1:bb[0-9]+]]
-// CHECK: + jump [[OUTLINE]] !metadata(invoke=second@21..35)
+// CHECK: + push [[RET1:bb[0-9]+]] !metadata(span=21..25)
+// CHECK: + jump [[OUTLINE]] !metadata(span=21..25, invoke=second@21..35)
 // CHECK: + [[OUTLINE]] {{\[ret=.*\]}}:
-// CHECK: {{^[ +].*}}push 1 !metadata(spans=[1..5, 21..25])
-// CHECK: + jump
+// CHECK: + push 1{{$}}
+// CHECK: + pop{{$}}
 bb0:
   push 1 !metadata(span=1..5, invoke=first@1..15)
   pop !metadata(span=6..10, invoke=nested@6..15)

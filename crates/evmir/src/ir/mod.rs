@@ -13,7 +13,10 @@
 //! is not defined by that serialization, and `verify` checks its invariants.
 
 use crate::{
-    debug::{DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS},
+    debug::{
+        DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugLocKind, DebugSpans,
+        MAX_DEBUG_SPANS,
+    },
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
     op::{self, StackOp, TrackedWord},
 };
@@ -915,8 +918,8 @@ pub struct Metadata {
     function_exit: Option<DebugFunctionExit>,
     /// Legacy source-map modifier nesting depth for this operation.
     modifier_depth: u32,
-    /// Whether the source location was preserved or intentionally dropped.
-    debug_info_handled: bool,
+    /// Why the operation has no source origin, when it has none.
+    debug_loc_kind: DebugLocKind,
     /// Identities of removed thunk entries reached by this transfer, not function events.
     /// These only validate exclusive destination checkpoints and are never emitted as calls.
     checkpoint_transfers: DebugSpans,
@@ -944,7 +947,7 @@ impl Metadata {
     pub fn set_source_span(&mut self, span: Option<Span>) {
         self.source_spans.clear();
         self.source_spans.extend(span.filter(|span| !span.is_dummy()));
-        self.debug_info_handled = true;
+        self.debug_loc_kind = DebugLocKind::Normal;
     }
 
     /// Sets all source origins associated with this operation.
@@ -958,7 +961,7 @@ impl Metadata {
                 }
             }
         }
-        self.debug_info_handled = true;
+        self.debug_loc_kind = DebugLocKind::Normal;
     }
 
     /// Returns the legacy source-map modifier nesting depth for this operation.
@@ -970,13 +973,13 @@ impl Metadata {
     /// Sets the legacy source-map modifier nesting depth for this operation.
     pub fn set_modifier_depth(&mut self, depth: u32) {
         self.modifier_depth = depth;
-        self.debug_info_handled = true;
     }
 
     /// Copies source location metadata, including legacy modifier depth.
     pub fn copy_source_debug_from(&mut self, other: &Self) {
         self.set_source_spans(other.source_spans().iter().copied());
         self.modifier_depth = other.modifier_depth;
+        self.debug_loc_kind = other.debug_loc_kind;
     }
 
     /// Copies debug information without copying machine properties such as `keep_with_next`.
@@ -1022,7 +1025,11 @@ impl Metadata {
         if !had_source_spans && !self.source_spans.is_empty() {
             self.modifier_depth = other.modifier_depth;
         }
-        self.debug_info_handled |= other.debug_info_handled;
+        self.debug_loc_kind = if self.source_spans.is_empty() {
+            self.debug_loc_kind.merge(other.debug_loc_kind)
+        } else {
+            DebugLocKind::Normal
+        };
     }
 
     /// Merges source origins and function events across equivalent operations.
@@ -1054,12 +1061,10 @@ impl Metadata {
     /// Marks this operation as entering a function.
     pub fn set_function_invoke(&mut self, function: DebugFunction) {
         self.function_invoke = Some(function);
-        self.debug_info_handled = true;
     }
 
     /// Removes and returns the function entered after this operation.
     pub fn take_function_invoke(&mut self) -> Option<DebugFunction> {
-        self.debug_info_handled = true;
         self.function_invoke.take()
     }
 
@@ -1072,18 +1077,31 @@ impl Metadata {
     /// Marks this operation as closing the active function.
     pub fn set_function_exit(&mut self, exit: DebugFunctionExit) {
         self.function_exit = Some(exit);
-        self.debug_info_handled = true;
     }
 
-    /// Marks this operation as intentionally having no source location.
+    /// Marks this operation as intentionally having no source location, like LLVM's
+    /// `Instruction::dropLocation`.
     pub fn mark_debug_info_dropped(&mut self) {
         self.set_source_span(None);
+        self.debug_loc_kind = DebugLocKind::Dropped;
     }
 
-    /// Returns whether source debug information was preserved or intentionally dropped.
+    /// Returns why this operation has no source origin, when it has none.
     #[must_use]
-    pub const fn debug_info_is_handled(&self) -> bool {
-        self.debug_info_handled
+    pub const fn debug_loc_kind(&self) -> DebugLocKind {
+        self.debug_loc_kind
+    }
+
+    /// Annotates the missing origin of this operation.
+    pub fn set_debug_loc_kind(&mut self, kind: DebugLocKind) {
+        self.debug_loc_kind = kind;
+    }
+
+    /// Returns whether this operation has neither a source origin nor a reason for lacking one,
+    /// which is what LLVM's `not-generate` check reports.
+    #[must_use]
+    pub fn lacks_debug_location(&self) -> bool {
+        self.debug_loc_kind == DebugLocKind::Normal && self.source_spans.is_empty()
     }
 
     /// Returns identities used only to validate removed entry checkpoints.
@@ -1099,7 +1117,6 @@ impl Metadata {
             && !self.checkpoint_transfers.contains(&span)
         {
             self.checkpoint_transfers.push(span);
-            self.debug_info_handled = true;
         }
     }
 }

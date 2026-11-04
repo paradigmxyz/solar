@@ -90,14 +90,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             module.track_debug_info();
             for block in &mut module.blocks {
                 for instruction in &mut block.instructions {
-                    if !instruction.metadata.debug_info_is_handled() {
-                        instruction.metadata.mark_debug_info_dropped();
+                    if instruction.metadata.lacks_debug_location() {
+                        instruction.metadata.set_debug_loc_kind(DebugLocKind::Dropped);
                     }
                 }
                 if let Some(terminator) = &mut block.terminator
-                    && !terminator.metadata.debug_info_is_handled()
+                    && terminator.metadata.lacks_debug_location()
                 {
-                    terminator.metadata.mark_debug_info_dropped();
+                    terminator.metadata.set_debug_loc_kind(DebugLocKind::Dropped);
                 }
             }
         }
@@ -578,6 +578,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 metadata.set_modifier_depth(self.parser.parse_uint_as()?);
             } else if key == sym::keep_with_next {
                 metadata.keep_with_next = true;
+            } else if key == sym::dropped {
+                metadata.set_debug_loc_kind(DebugLocKind::Dropped);
+            } else if key == sym::compiler_generated {
+                metadata.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
+            } else if key == sym::unknown {
+                metadata.set_debug_loc_kind(DebugLocKind::Unknown);
+            } else if key == sym::temporary {
+                metadata.set_debug_loc_kind(DebugLocKind::Temporary);
             } else if self.parser.eat(TokenKind::Eq) {
                 self.skip_metadata_value()?;
             }
@@ -588,8 +596,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             break;
         }
-        if !metadata.debug_info_is_handled() {
-            metadata.mark_debug_info_dropped();
+        if metadata.lacks_debug_location() {
+            metadata.set_debug_loc_kind(DebugLocKind::Dropped);
         }
         Ok(metadata)
     }

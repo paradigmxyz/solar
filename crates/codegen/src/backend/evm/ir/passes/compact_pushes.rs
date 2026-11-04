@@ -228,16 +228,15 @@ impl ImmediateMaterialization {
     }
 }
 
+/// Appends the materialization of `value`, each instruction carrying the source debug information
+/// of `source`.
 pub(super) fn materialize_immediate(
     instructions: &mut Vec<Instruction>,
     evm_version: EvmVersion,
     value: U256,
+    source: &Metadata,
 ) {
-    materialize(
-        instructions,
-        &ImmediateMaterialization::new(evm_version, value),
-        &Metadata::default(),
-    );
+    materialize(instructions, &ImmediateMaterialization::new(evm_version, value), source);
 }
 
 /// Every replacement carries the source debug information of the push it materializes.
