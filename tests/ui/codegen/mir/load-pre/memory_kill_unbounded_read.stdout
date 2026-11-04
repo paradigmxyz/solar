@@ -1,0 +1,27 @@
+- ; === ROOT/tests/ui/codegen/mir/load-pre/memory_kill_unbounded_read.mir (before load-pre) ===
++ ; === ROOT/tests/ui/codegen/mir/load-pre/memory_kill_unbounded_read.mir (after load-pre) ===
+  @module MemoryKillUnboundedRead
+  fn @store8_kills_unbounded_read(arg0: i1, arg1: i256, arg2: i1) -> i256 {
+    bb0:
+      v0 = alloc 64
+      v1 = ptrtoint ptr<memory> v0 to i256
+      v2 = add v1, 37
+      v3 = mload v2
+      jumpi arg0, bb1, bb2
+    bb2:                                            ; preds = bb0
+      jump bb3
+    bb1:                                            ; preds = bb0
+      mstore8 v2, arg1
+      jump bb3
+    bb3:                                            ; preds = bb1, bb2
+      jumpi arg2, bb4, bb5
+    bb5:                                            ; preds = bb3
+      jump bb6
+    bb4:                                            ; preds = bb3
+      jump bb6
+    bb6:                                            ; preds = bb4, bb5
+      v4 = mload v2
+      v5 = add v3, v4
+      ret v5
+  }
+  
