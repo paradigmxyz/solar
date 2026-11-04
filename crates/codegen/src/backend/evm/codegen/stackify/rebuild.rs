@@ -37,8 +37,9 @@
 //!
 //! The rewrite does not decide: the planner plans both functions and keeps the copy only when its
 //! plan, charged the target's cost of the frame words each plan spills, beats the original's under
-//! the objective. The copies carry the debug context of the instruction or terminator that reads
-//! them, as the code they emit runs as part of it, and no choice reads debug metadata.
+//! the objective. A copy of an operation carries the debug context of the operation it repeats,
+//! and a step back from a loop's header the one of the instruction or terminator that reads it;
+//! no choice reads debug metadata.
 //!
 //! The selection is a liveness estimate, not a search over subsets: the candidate rebuilds every
 //! qualifying value or none. Copies are not shared: two uses of one value in a block receive two
@@ -351,7 +352,14 @@ pub(super) fn rebuild_values(
                     // v' = add base, offset
                     let kind = offset_kind(&mut result, base, offset);
                     let mut copy = Instruction::new(kind, Some(MirType::I256));
-                    copy.metadata = reader;
+                    // The definition of a member is replaced, and its copy computes the same sum.
+                    copy.metadata = if let Recipe::Offset(..) = recipes[&value]
+                        && let Value::Inst(def) = result.value(value)
+                    {
+                        result.inst(*def).metadata.debug_context()
+                    } else {
+                        reader
+                    };
                     let (copy_id, copy_value) = result.alloc_value_inst(copy);
                     copies.push((index, copy_id));
                     copy_value
@@ -368,7 +376,7 @@ pub(super) fn rebuild_values(
                             }
                         });
                         let mut copy = Instruction::new(kind, source.result_ty);
-                        copy.metadata = reader.debug_context();
+                        copy.metadata = source.metadata.debug_context();
                         let original_result = result.inst_result_value(inst).unwrap();
                         let (copy_id, copy_value) = result.alloc_value_inst(copy);
                         renamed.insert(original_result, copy_value);
