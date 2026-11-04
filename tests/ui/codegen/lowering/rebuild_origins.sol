@@ -6,6 +6,13 @@
 // definition, not the one of the instruction that reads it.
 
 // CHECK-LABEL: (scheduled runtime) ===
+// A chain of operations that is not a sum is rebuilt the same way (`g`, laid out first).
+// CHECK: push 514 !metadata(span=[[C:[0-9]+..[0-9]+]])
+// CHECK-NEXT: push 4 !metadata(span=[[C]])
+// CHECK-NEXT: calldataload !metadata(span=[[C]])
+// CHECK-NEXT: xor !metadata(span=[[C]])
+// CHECK-NOT: add !metadata(span=[[C]])
+// CHECK: push 771
 // CHECK: push 3 !metadata(span=[[A:[0-9]+..[0-9]+]])
 // CHECK-NEXT: dup 3 !metadata(span=[[A]])
 // CHECK-NEXT: add !metadata(span=[[A]])
@@ -38,6 +45,31 @@ contract C {
             uint256 a17 = value + 18;
             uint256 mid = value * value;
             return mid + a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17;
+        }
+    }
+
+    function g(uint256 value) external pure returns (uint256) {
+        unchecked {
+            uint256 b0 = value ^ 257;
+            uint256 b1 = value ^ 514;
+            uint256 b2 = value ^ 771;
+            uint256 b3 = value ^ 1028;
+            uint256 b4 = value ^ 1285;
+            uint256 b5 = value ^ 1542;
+            uint256 b6 = value ^ 1799;
+            uint256 b7 = value ^ 2056;
+            uint256 b8 = value ^ 2313;
+            uint256 b9 = value ^ 2570;
+            uint256 b10 = value ^ 2827;
+            uint256 b11 = value ^ 3084;
+            uint256 b12 = value ^ 3341;
+            uint256 b13 = value ^ 3598;
+            uint256 b14 = value ^ 3855;
+            uint256 b15 = value ^ 4112;
+            uint256 b16 = value ^ 4369;
+            uint256 b17 = value ^ 4626;
+            uint256 mid = value * value;
+            return mid + b0 + b1 + b2 + b3 + b4 + b5 + b6 + b7 + b8 + b9 + b10 + b11 + b12 + b13 + b14 + b15 + b16 + b17;
         }
     }
 }
