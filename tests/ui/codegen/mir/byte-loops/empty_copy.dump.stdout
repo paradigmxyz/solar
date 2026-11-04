@@ -169,9 +169,8 @@ fn @freshCopy() {
     calldatacopy v53, v23, v22
     v38 = sub 0, v22
     v39 = and v38, 31
-    v62 = calldatasize
     v54 = add v53, v22
-    calldatacopy v54, v62, v39
+    calldatacopy v54, v13, v39
     v9 = sub v65, v61
     v0 = ne v65, 0
     v10 = zext i1 v0 to i256

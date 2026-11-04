@@ -37,8 +37,7 @@ fn @endPastLength() {
     v6 = sub v27, 1
     v52 = add v28, 33
     v59 = shr v6, 64
-    v11 = calldatasize
-    v13 = sub v11, v6
+    v13 = sub v25, v6
     v15 = slt v13, v52
     v61 = zext i1 v15 to i256
     v62 = or v59, v61
@@ -85,8 +84,7 @@ fn @startAfterEnd() {
     v6 = sub v28, v27
     v53 = add v31, v27
     v60 = shr v6, 64
-    v11 = calldatasize
-    v13 = sub v11, v6
+    v13 = sub v25, v6
     v15 = slt v13, v53
     v62 = zext i1 v15 to i256
     v63 = or v60, v62

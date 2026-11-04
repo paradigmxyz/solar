@@ -85,7 +85,7 @@ fn @join() -> struct1 [selector=0xb688a363, pure, abi_params=[], abi_returns=[wo
     v14 = ptradd v5, v13
     v15 = ptradd v14, 32
     v16 = mload v15, ptr<memory>
-    v17 = abi_encode_packed (bytes v6, bytes v16)
+    v17 = abi_encode_packed (memory_bytes v6, memory_bytes v16)
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3

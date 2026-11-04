@@ -295,6 +295,20 @@ impl AbiType {
         }
     }
 
+    /// Returns whether a storage byte string occurs in this layout, itself included. One reads
+    /// its bytes from a slot operand, which only a top-level layout entry has.
+    #[must_use]
+    pub fn contains_storage_bytes(&self) -> bool {
+        match self {
+            Self::Bytes(location) => *location == PtrLocation::Storage,
+            Self::Word(_) | Self::Function => false,
+            Self::DynamicArray { element, .. } | Self::FixedArray { element, .. } => {
+                element.contains_storage_bytes()
+            }
+            Self::Tuple(fields) => fields.iter().any(Self::contains_storage_bytes),
+        }
+    }
+
     /// Returns whether the ABI value occupies an offset in its containing head.
     #[must_use]
     pub fn is_dynamic(&self) -> bool {

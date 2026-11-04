@@ -10,14 +10,16 @@
 // branch instead of keeping it beside a second copy. The branch pushes the `0` once, the side
 // edge reaches the join directly, and no `PUSH0 PUSH1 join JUMP` edge block follows.
 // RUNTIME-LABEL: ; === {{.*}}:C (runtime) ===
-// RUNTIME: JUMPDEST
+// RUNTIME: REVERT
+// RUNTIME-NEXT: ; bb{{[0-9]+}}
+// RUNTIME-NEXT: JUMPDEST
 // RUNTIME-NEXT: PUSH0
 // RUNTIME-NEXT: PUSH1 0x04
 // RUNTIME-NEXT: CALLDATASIZE
 // RUNTIME-NEXT: EQ
-// RUNTIME-NEXT: PUSH1 {{0x[0-9a-f]+}} ; bb[[JOIN:[0-9]+]]
-// RUNTIME-NEXT: JUMPI
-// RUNTIME: ; bb[[JOIN]]
+// RUNTIME-NEXT: PUSH1 {{0x[0-9a-f]+}}
+// RUNTIME: BYTE
+// RUNTIME-NEXT: ; bb[[JOIN:[0-9]+]]
 // RUNTIME-NEXT: JUMPDEST
 // RUNTIME-NEXT: PUSH0
 // RUNTIME-NEXT: MSTORE

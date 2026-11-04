@@ -75,26 +75,22 @@ fn @member() {
     v46 = lt v45, 128
     v50 = or v49, v46
     v2 = add v42, 32
-    v3 = calldatasize
-    v4 = sub v3, v2
+    v4 = sub v38, v2
     v5 = slt v4, 32
     v51 = or v50, v5
     jumpi v51, bb1, bb2
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v8 = add v42, v6
-    v9 = calldatasize
-    v11 = sub v9, v42
-    v12 = sub v11, 31
+    v12 = sub v45, 31
     v13 = slt v6, v12
     jumpi v13, bb3, bb1
   bb3:                                            ; preds = bb2
     v15 = calldataload v8
-    v16 = calldatasize
     v54 = shr v15, 64
     v18 = shl v15, 7
     v19 = add v8, 32
-    v20 = sub v16, v18
+    v20 = sub v38, v18
     v21 = slt v20, v19
     v56 = zext i1 v21 to i256
     v57 = or v54, v56
@@ -133,26 +129,22 @@ fn @word() {
     v41 = lt v40, 128
     v45 = or v44, v41
     v2 = add v37, 64
-    v3 = calldatasize
-    v4 = sub v3, v2
+    v4 = sub v33, v2
     v5 = slt v4, 32
     v46 = or v45, v5
     jumpi v46, bb1, bb2
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v8 = add v37, v6
-    v9 = calldatasize
-    v11 = sub v9, v37
-    v12 = sub v11, 31
+    v12 = sub v40, 31
     v13 = slt v6, v12
     jumpi v13, bb3, bb1
   bb3:                                            ; preds = bb2
     v15 = calldataload v8
-    v16 = calldatasize
     v49 = shr v15, 64
     v18 = shl v15, 5
     v19 = add v8, 32
-    v20 = sub v16, v18
+    v20 = sub v33, v18
     v21 = slt v20, v19
     v51 = zext i1 v21 to i256
     v52 = or v49, v51
@@ -231,17 +223,14 @@ fn @lengths() {
     v84 = lt v83, 128
     v88 = or v87, v84
     v2 = add v80, 32
-    v3 = calldatasize
-    v4 = sub v3, v2
+    v4 = sub v77, v2
     v5 = slt v4, 32
     v89 = or v88, v5
     jumpi v89, bb1, bb2
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v8 = add v80, v6
-    v9 = calldatasize
-    v11 = sub v9, v80
-    v12 = sub v11, 31
+    v12 = sub v83, 31
     v13 = slt v6, v12
     jumpi v13, bb3, bb1
   bb3:                                            ; preds = bb2
@@ -249,14 +238,12 @@ fn @lengths() {
     v95 = shr v15, 64
     v19 = add v8, 32
     v18 = shl v15, 7
-    v16 = calldatasize
-    v20 = sub v16, v18
+    v20 = sub v77, v18
     v21 = slt v20, v19
     v97 = zext i1 v21 to i256
     v98 = or v95, v97
     v27 = add v80, 64
-    v28 = calldatasize
-    v29 = sub v28, v27
+    v29 = sub v77, v27
     v30 = slt v29, 32
     v100 = zext i1 v30 to i256
     v101 = or v98, v100
@@ -272,14 +259,12 @@ fn @lengths() {
     v103 = shr v40, 64
     v44 = add v33, 32
     v43 = shl v40, 5
-    v41 = calldatasize
-    v45 = sub v41, v43
+    v45 = sub v77, v43
     v46 = slt v45, v44
     v105 = zext i1 v46 to i256
     v106 = or v103, v105
     v52 = add v80, 96
-    v53 = calldatasize
-    v54 = sub v53, v52
+    v54 = sub v77, v52
     v55 = slt v54, 32
     v108 = zext i1 v55 to i256
     v109 = or v106, v108
@@ -294,8 +279,7 @@ fn @lengths() {
     v65 = calldataload v58
     v111 = shr v65, 64
     v68 = add v58, 32
-    v66 = calldatasize
-    v69 = sub v66, v65
+    v69 = sub v77, v65
     v70 = slt v69, v68
     v113 = zext i1 v70 to i256
     v114 = or v111, v113

@@ -660,8 +660,7 @@ fn @encode_abi_calldata.13(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     mstore v8, v22
     v24 = add v7, 64
     v25 = calldataload v19
-    v26 = calldatasize
-    v28 = sub v26, v19
+    v28 = sub v12, v19
     v29 = sub v28, 31
     v30 = slt v25, v29
     v63 = eq v30, false
@@ -672,7 +671,7 @@ fn @encode_abi_calldata.13(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v69 = or v66, v68
     v36 = shl v34, 6
     v37 = add v33, 32
-    v38 = sub v26, v36
+    v38 = sub v12, v36
     v39 = slt v38, v37
     v71 = zext i1 v39 to i256
     v72 = or v69, v71
@@ -728,8 +727,7 @@ fn @encode_abi_calldata.14(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     mstore v8, v22
     v24 = add v7, 64
     v25 = calldataload v19
-    v26 = calldatasize
-    v28 = sub v26, v19
+    v28 = sub v12, v19
     v29 = sub v28, 31
     v30 = slt v25, v29
     v62 = eq v30, false
@@ -740,7 +738,7 @@ fn @encode_abi_calldata.14(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v68 = or v65, v67
     v36 = shl v34, 6
     v37 = add v33, 32
-    v38 = sub v26, v36
+    v38 = sub v12, v36
     v39 = slt v38, v37
     v70 = zext i1 v39 to i256
     v71 = or v68, v70
@@ -800,8 +798,7 @@ fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v29 = add v7, 32
     v28 = add v19, 32
     v30 = calldataload v28
-    v31 = calldatasize
-    v33 = sub v31, v19
+    v33 = sub v12, v19
     v34 = sub v33, 31
     v35 = slt v30, v34
     v91 = eq v35, false
@@ -812,7 +809,7 @@ fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v102 = or v99, v101
     v41 = shl v39, 6
     v42 = add v38, 32
-    v43 = sub v31, v41
+    v43 = sub v12, v41
     v44 = slt v43, v42
     v104 = zext i1 v44 to i256
     v105 = or v102, v104
@@ -825,7 +822,6 @@ fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v53 = add v7, 64
     v52 = add v19, 64
     v54 = calldataload v52
-    v55 = calldatasize
     v59 = slt v54, v34
     v94 = eq v59, false
     v62 = add v19, v54
@@ -834,7 +830,7 @@ fn @encode_abi_calldata.15(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retu
     v109 = zext i1 v94 to i256
     v110 = or v107, v109
     v65 = add v62, 32
-    v66 = sub v55, v63
+    v66 = sub v12, v63
     v67 = slt v66, v65
     v112 = zext i1 v67 to i256
     v113 = or v110, v112

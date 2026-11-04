@@ -49,56 +49,53 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     mstore v0, 5
     v1 = ptradd v0, 32
     mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v2 = abi_encode [memory_bytes, word<uint8>], args v0, 18
-    v3 = extract_value slice<memory>, v2, 1
-    v4 = datasize Token_creation_code_0
-    v5 = add v4, v3
-    v6 = lt v5, v4
-    icall panic_if<0x41>, v6
-    v7 = fmp
-    datacopy Token_creation_code_0, v7, v4
-    v8 = extract_value slice<memory>, v2, 0
-    v9 = ptrtoint ptr<memory> v7 to i256
-    v10 = add v9, v4
-    mcopy v10, v8, v3 !metadata(memory=heap)
-    v11 = create 0, v7, v5
-    v12 = ne v11, i160 0
-    jumpi v12, bb2, bb1
+    v2 = datasize Token_creation_code_0
+    v3 = fmp
+    datacopy Token_creation_code_0, v3, v2
+    v4 = ptradd v3, v2
+    v5 = abi_encode [memory_bytes, word<uint8>], scratch, base v4, args v0, 18
+    v6 = extract_value slice<memory>, v5, 1
+    v7 = add v2, v6
+    v8 = lt v7, v2
+    icall panic_if<0x41>, v8
+    v9 = create 0, v3, v7
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v13 = gas
+    v11 = gas
     mstore 0, 0x6fdde03 !metadata(memory=scratch)
-    v14 = zext i160 v11 to i256
-    v15 = staticcall v13, v14, 28, 4, 0, 0
-    jumpi v15, bb4, bb3
+    v12 = zext i160 v9 to i256
+    v13 = staticcall v11, v12, 28, 4, 0, 0
+    jumpi v13, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v16 = returndatasize
-    v17 = add v16, 31
-    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = alloc v18
-    returndatacopy v19, 0, v16
-    v20 = make_memory_slice v19, v16
-    v21 = abi_decode [bytes], v20
-    v22 = mload v21
-    v23 = gas
+    v14 = returndatasize
+    v15 = add v14, 31
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = alloc v16
+    returndatacopy v17, 0, v14
+    v18 = make_memory_slice v17, v14
+    v19 = abi_decode [bytes], v18
+    v20 = mload v19
+    v21 = gas
     mstore 0, 0x313ce567 !metadata(memory=scratch)
-    v24 = zext i160 v11 to i256
-    v25 = staticcall v23, v24, 28, 4, 0, 32
-    jumpi v25, bb6, bb5
+    v22 = zext i160 v9 to i256
+    v23 = staticcall v21, v22, 28, 4, 0, 32
+    jumpi v23, bb6, bb5
   bb5:                                            ; preds = bb4
     revert_returndata
   bb6:                                            ; preds = bb4
-    v26 = returndatasize
-    v27 = lt v26, 32
-    icall revert_if<tuple_data_too_short>, v27
-    v28 = mload 0 !metadata(memory=scratch)
-    v29 = gt v28, 255
-    icall revert_if<empty>, v29
-    v30 = trunc i256 v28 to i8
-    v31 = insert_value struct0, undef struct0, 0, v22
-    v32 = insert_value struct0, v31, 1, v30
-    ret v32
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = mload 0 !metadata(memory=scratch)
+    v27 = gt v26, 255
+    icall revert_if<empty>, v27
+    v28 = trunc i256 v26 to i8
+    v29 = insert_value struct0, undef struct0, 0, v20
+    v30 = insert_value struct0, v29, 1, v28
+    ret v30
 }

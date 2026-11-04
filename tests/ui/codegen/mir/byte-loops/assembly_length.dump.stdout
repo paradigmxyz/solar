@@ -76,8 +76,7 @@ fn @copy() {
     jumpi v7, bb6, bb7
   bb7:                                            ; preds = bb13
     v146 = icall @alloc, v6
-    v155 = calldatasize
-    calldatacopy v146, v155, v6
+    calldatacopy v146, v75, v6
     mstore v146, v69
     v36 = eq v69, 0
     jumpi v36, bb2, bb4
@@ -182,8 +181,7 @@ fn @word() {
   bb6:                                            ; preds = bb11
     v86 = calldataload 4
     v80 = icall @alloc, v4
-    v83 = calldatasize
-    calldatacopy v80, v83, v4
+    calldatacopy v80, v43, v4
     mstore v80, v46
     v70 = add v80, 40
     v72 = add v80, 32
@@ -268,8 +266,7 @@ fn @fill() {
     jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb6
     v57 = icall @alloc, v4
-    v60 = calldatasize
-    calldatacopy v57, v60, v4
+    calldatacopy v57, v28, v4
     mstore v57, v30
     v24 = lt v30, 32
     jumpi v24, bb3, bb4

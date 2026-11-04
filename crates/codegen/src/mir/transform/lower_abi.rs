@@ -3828,8 +3828,9 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     let Some(Terminator::Return { values }) = &block.terminator else { return None };
     let [object] = values.as_slice() else { return None };
     if let [encode] = block.instructions.as_slice()
-        && let InstKind::AbiEncode { mode: AbiEncodeMode::Bytes, selector: None, args, layout } =
-            &func.inst(*encode).kind
+        && let InstKind::AbiEncode {
+            mode: AbiEncodeMode::Bytes, selector: None, args, layout, ..
+        } = &func.inst(*encode).kind
         && func.inst_result_value(*encode) == Some(*object)
         && args.len() == layout.types.len()
         && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(None)))
@@ -4063,7 +4064,6 @@ fn copy_calldata_member(
     // position = base + offset
     let tail = CalldataTail::Decode;
     let offset = builder.load(head, PtrLocation::Calldata);
-    // A fresh `calldatasize` per member keeps fewer values live across copy loops.
     let end = builder.calldatasize();
     builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size());
     let position = builder.add(base, offset);

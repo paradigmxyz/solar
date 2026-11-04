@@ -3,18 +3,16 @@
 ; function a() external [selector 0x0dbe671f]
 fn @a() [selector=0x0dbe671f, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = load_storage_bytes 0
-    v1 = abi_encode_packed (bytes v0, data hex"5b612063616c6c65645d")
-    icall @store_storage_bytes, 0, v1
+    v0 = abi_encode_packed (storage_bytes 0, data hex"5b612063616c6c65645d")
+    icall @store_storage_bytes, 0, v0
     ret
 }
 
 ; function b() external [selector 0x4df7e3d0]
 fn @b() [selector=0x4df7e3d0, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = load_storage_bytes 0
-    v1 = abi_encode_packed (bytes v0, data hex"5b622063616c6c65645d")
-    icall @store_storage_bytes, 0, v1
+    v0 = abi_encode_packed (storage_bytes 0, data hex"5b622063616c6c65645d")
+    icall @store_storage_bytes, 0, v0
     ret
 }
 

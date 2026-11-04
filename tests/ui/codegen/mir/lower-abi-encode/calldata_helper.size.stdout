@@ -195,8 +195,7 @@ fn @fc() {
     mstore v40, v54
     v56 = add v39, 64
     v57 = calldataload v51
-    v58 = calldatasize
-    v60 = sub v58, v51
+    v60 = sub v11, v51
     v61 = sub v60, 31
     v62 = slt v57, v61
     v99 = eq v62, false
@@ -207,7 +206,7 @@ fn @fc() {
     v114 = or v111, v113
     v68 = shl v66, 6
     v69 = add v65, 32
-    v70 = sub v58, v68
+    v70 = sub v11, v68
     v71 = slt v70, v69
     v116 = zext i1 v71 to i256
     v117 = or v114, v116
@@ -301,8 +300,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v29 = add v7, 32
     v28 = add v19, 32
     v30 = calldataload v28
-    v31 = calldatasize
-    v33 = sub v31, v19
+    v33 = sub v12, v19
     v34 = sub v33, 31
     v35 = slt v30, v34
     v118 = eq v35, false
@@ -313,7 +311,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v132 = or v129, v131
     v41 = shl v39, 6
     v42 = add v38, 32
-    v43 = sub v31, v41
+    v43 = sub v12, v41
     v44 = slt v43, v42
     v134 = zext i1 v44 to i256
     v135 = or v132, v134
@@ -326,7 +324,6 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v53 = add v7, 64
     v52 = add v19, 64
     v54 = calldataload v52
-    v55 = calldatasize
     v59 = slt v54, v34
     v121 = eq v59, false
     v62 = add v19, v54
@@ -336,7 +333,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v140 = or v137, v139
     v65 = shl v63, 6
     v66 = add v62, 32
-    v67 = sub v55, v65
+    v67 = sub v12, v65
     v68 = slt v67, v66
     v142 = zext i1 v68 to i256
     v143 = or v140, v142
@@ -350,7 +347,6 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v77 = add v7, 96
     v76 = add v19, 96
     v78 = calldataload v76
-    v79 = calldatasize
     v83 = slt v78, v34
     v124 = eq v83, false
     v86 = add v19, v78
@@ -359,7 +355,7 @@ fn @encode_abi_calldata.4(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_retur
     v147 = zext i1 v124 to i256
     v148 = or v145, v147
     v89 = add v86, 32
-    v90 = sub v79, v87
+    v90 = sub v12, v87
     v91 = slt v90, v89
     v150 = zext i1 v91 to i256
     v151 = or v148, v150

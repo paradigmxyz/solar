@@ -42,6 +42,29 @@ fn @scratch(arg0: i256) -> slice<memory> {
     ret v0
 }
 
+// An explicit base replaces the free-memory pointer and nothing is reserved.
+// CHECK-LABEL: {{^[ +].*}}fn @scratch_at_base{{[( ]}}
+// CHECK-NOT: fmp
+// CHECK: + mstore arg0, arg1
+// CHECK-NOT: alloc
+// CHECK: + {{v[0-9]+}} = make_memory_slice arg0, 32
+fn @scratch_at_base(arg0: ptr<memory>, arg1: i256) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [word], scratch, base arg0, args arg1
+    ret v0
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @dynamic_scratch_at_base{{[( ]}}
+// CHECK-NOT: fmp
+// CHECK: + mstore arg0, {{v[0-9]+}}
+// CHECK: + mcopy
+// CHECK-NOT: alloc
+fn @dynamic_scratch_at_base(arg0: ptr<memory>, arg1: ptr<memory>) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [memory_bytes], scratch, base arg0, args arg1
+    ret v0
+}
+
 // CHECK-LABEL: {{^[ +].*}}fn @dynamic{{[( ]}}
 // CHECK: + [[DYNAMIC_MEMORY_PTR:v[0-9]+]] = fmp
 // CHECK: + {{v[0-9]+}} = sub

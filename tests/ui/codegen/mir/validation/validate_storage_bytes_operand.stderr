@@ -1,0 +1,6 @@
+error: [fn0] [bb0, inst0] `abi_encode` has incompatible scalar types; use an explicit cast
+
+error: [fn1] [bb0, inst0] `keccak256_packed` has incompatible scalar types; use an explicit cast
+
+error: aborting due to 2 previous errors
+

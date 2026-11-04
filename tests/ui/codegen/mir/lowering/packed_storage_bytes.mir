@@ -1,0 +1,16 @@
+//@ compile-flags: -Zmir-pipeline=lower-builtins
+//@ filecheck:
+@module PackedStorageBytes
+
+// A storage byte string is validated for its length and read from storage into the output.
+// CHECK-LABEL: fn @encode(
+// CHECK: [[HEADER:v[0-9]+]] = sload arg0
+// CHECK: alloc
+// CHECK: jumpi
+// CHECK: sload
+// CHECK-NOT: mcopy
+fn @encode(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = abi_encode_packed (storage_bytes arg0, data hex"01")
+    ret v0
+}

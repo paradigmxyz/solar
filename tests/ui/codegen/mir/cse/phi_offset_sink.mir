@@ -1,0 +1,23 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+@module PhiOffsetSink
+
+// The incoming sums share one key, `arg0 + 36`, but name different operands: the entry sum
+// reads `v0`, which exists after the phi, and the other reads `arg0`. Sinking clones the one
+// whose operands are available in `bb3`.
+// CHECK-LABEL: {{^[ +].*}}fn @offset_pair{{[( ]}}
+// CHECK: + {{v[0-9]+}} = add v0, 32
+fn @offset_pair(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = add arg0, 4
+    jumpi arg1, bb1, bb2
+  bb1:
+    v1 = add v0, 32
+    jump bb3
+  bb2:
+    v2 = add arg0, 36
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: v2]
+    ret v3
+}

@@ -146,9 +146,8 @@ fn @pair() {
     calldatacopy v108, v74, v76
     v92 = sub 0, v76
     v93 = and v92, 31
-    v139 = calldatasize
     v109 = add v108, v76
-    calldatacopy v109, v139, v93
+    calldatacopy v109, v13, v93
     v111 = add v137, 32
     mstore v111, v132
     v113 = add v137, 64
@@ -348,9 +347,8 @@ fn @pairs() {
     calldatacopy v157, v78, v80
     v96 = sub 0, v80
     v97 = and v96, 31
-    v199 = calldatasize
     v158 = add v157, v80
-    calldatacopy v158, v199, v97
+    calldatacopy v158, v35, v97
     v160 = add v195, 32
     mstore v160, v191
     v162 = add v195, 64
@@ -401,9 +399,8 @@ fn @pairs() {
     calldatacopy v164, v116, v118
     v134 = sub 0, v118
     v135 = and v134, 31
-    v200 = calldatasize
     v165 = add v164, v118
-    calldatacopy v165, v200, v135
+    calldatacopy v165, v35, v135
     v167 = add v197, 32
     mstore v167, v192
     v169 = add v197, 64

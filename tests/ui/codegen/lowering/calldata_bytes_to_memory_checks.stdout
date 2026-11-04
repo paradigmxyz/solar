@@ -61,8 +61,7 @@ fn @lengthSet() {
     v33 = heap_floor !metadata(alloc_ptr)
     mstore v33, v23
     v38 = shr v23, 64
-    v10 = calldatasize
-    v12 = sub v10, v23
+    v12 = sub v21, v23
     v14 = slt v12, v26
     v40 = zext i1 v14 to i256
     v41 = or v38, v40
@@ -101,8 +100,7 @@ fn @offsetSet() {
     v37 = heap_floor !metadata(alloc_ptr)
     mstore v37, v29
     v42 = shr v29, 64
-    v14 = calldatasize
-    v16 = sub v14, v29
+    v16 = sub v25, v29
     v18 = slt v16, v2
     v44 = zext i1 v18 to i256
     v45 = or v42, v44
@@ -132,8 +130,7 @@ fn @forwarded() {
     v22 = calldataload v21
     v23 = add v21, 32
     v35 = shr v22, 64
-    v2 = calldatasize
-    v4 = sub v2, v22
+    v4 = sub v19, v22
     v6 = slt v4, v23
     v37 = zext i1 v6 to i256
     v38 = or v35, v37

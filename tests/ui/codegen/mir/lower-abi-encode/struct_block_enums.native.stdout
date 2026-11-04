@@ -205,8 +205,7 @@ fn @lots() {
     v174 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v175 = add v174, 224 !metadata(alloc_ptr)
     mstore 64, v175 !metadata(memory=scratch)
-    v180 = calldatasize
-    calldatacopy v174, v180, 224
+    calldatacopy v174, v60, 224
     mstore v182, v174
     v183 = add v182, 32
     jump bb1

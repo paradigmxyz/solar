@@ -287,11 +287,41 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(value)
     }
 
+    /// Lowers the `bytes` or `string` operand `expr` of an ABI encoding to the value its encoder
+    /// reads in place, and where that value lies. A storage reference lowers to its slot, which
+    /// the encoder reads when it runs, after the operands that follow, as solc does; any other
+    /// operand to its memory object or its memory or calldata slice.
+    pub(super) fn lower_bytes_operand(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<(ValueId, PtrLocation)> {
+        let source = self.peel_bytes_conversion(expr);
+        if self.cx.gcx.type_of_expr(source.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+        {
+            return Some((self.require_storage_access(source)?.slot, PtrLocation::Storage));
+        }
+        let value = self.lower_typed_expr(expr, ty)?;
+        Some((
+            value,
+            self.builder.func().value_slice_location(value).unwrap_or(PtrLocation::Memory),
+        ))
+    }
+
     pub(super) fn lower_abi_call_argument(
         &mut self,
         argument: &hir::Expr<'_>,
         parameter_ty: Ty<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
+        if self.is_dynamic_bytes_type(parameter_ty) {
+            let (value, location) = self.lower_bytes_operand(argument, parameter_ty)?;
+            return self.prepare_abi_argument(
+                argument,
+                parameter_ty,
+                value,
+                AbiType::Bytes(location),
+            );
+        }
         let value = self.lower_typed_expr(argument, parameter_ty)?;
         let abi_type = self.types.abi_type(parameter_ty)?;
         let abi_type = if self.cx.gcx.type_of_expr(argument.id).is_some_and(|ty| {
@@ -370,6 +400,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn abi_type_for_value(&self, value: ValueId, ty: AbiType) -> AbiType {
+        // A storage operand is a slot word, which can equal a memory address or the zero slot.
+        if ty == AbiType::Bytes(PtrLocation::Storage) {
+            return ty;
+        }
         if let Some(location) = self.builder.func().value_slice_location(value) {
             match ty {
                 AbiType::Bytes(_) | AbiType::DynamicArray { .. } => ty.at_location(location),

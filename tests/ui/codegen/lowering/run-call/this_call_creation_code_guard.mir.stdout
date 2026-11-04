@@ -502,19 +502,16 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_par
 fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
     v0 = ne true, false
-    v1 = zext i1 v0 to i256
-    v2 = abi_encode [word<bool>], args v1
-    v3 = datasize SharedHelper_creation_code_6
-    v4 = datasize SharedHelper_creation_code_6, 32
-    v5 = fmp
-    datacopy SharedHelper_creation_code_6, v5, v3
-    v6 = extract_value slice<memory>, v2, 0
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = add v7, v3
-    mcopy v8, v6, 32 !metadata(memory=heap)
-    v9 = create 0, v5, v4
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v1 = datasize SharedHelper_creation_code_6
+    v2 = fmp
+    datacopy SharedHelper_creation_code_6, v2, v1
+    v3 = ptradd v2, v1
+    v4 = zext i1 v0 to i256
+    v5 = abi_encode [word<bool>], scratch, base v3, args v4
+    v6 = datasize SharedHelper_creation_code_6, 32
+    v7 = create 0, v2, v6
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0

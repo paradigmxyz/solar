@@ -1288,7 +1288,7 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Slice)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Slice, None)
     }
 
     /// ABI-encodes `args` into a freshly allocated bytes object.
@@ -1298,7 +1298,7 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Bytes)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Bytes, None)
     }
 
     /// ABI-encodes `args` at the free-memory pointer without reserving the result.
@@ -1308,7 +1308,18 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Scratch)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Scratch, None)
+    }
+
+    /// ABI-encodes `args` at `base` without reserving the result.
+    pub fn abi_encode_scratch_at(
+        &mut self,
+        layout: crate::AbiLayoutRef,
+        selector: Option<ValueId>,
+        args: impl Into<Box<[ValueId]>>,
+        base: ValueId,
+    ) -> ValueId {
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Scratch, Some(base))
     }
 
     fn emit_abi_encode(
@@ -1317,9 +1328,10 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
         mode: AbiEncodeMode,
+        base: Option<ValueId>,
     ) -> ValueId {
         self.emit_inst(
-            InstKind::AbiEncode { mode, selector, args: args.into(), layout },
+            InstKind::AbiEncode { mode, base, selector, args: args.into(), layout },
             Some(mode.result_type()),
         )
     }

@@ -13,7 +13,7 @@ fn @slice(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory> [selecto
     v6 = sub arg2, arg1
     v7 = ptradd v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = abi_encode_packed (bytes v8, data hex"21")
+    v9 = abi_encode_packed (calldata_bytes v8, data hex"21")
     ret v9
 }
 
@@ -22,6 +22,6 @@ fn @all() -> ptr<memory> [selector=0x10c4e8b0, pure, abi_params=[], abi_returns=
   bb0:
     v0 = calldatasize
     v1 = make_calldata_slice ptr<calldata> 0, v0
-    v2 = abi_encode_packed (bytes v1)
+    v2 = abi_encode_packed (calldata_bytes v1)
     ret v2
 }

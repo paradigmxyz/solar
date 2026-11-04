@@ -144,126 +144,120 @@ fn @staticArguments() -> struct0 [selector=0x2295c846, abi_params=[], abi_return
   bb0:
     v0 = icall @live
     v1 = icall @fmp
-    v2 = abi_encode [word, word], args 5, 6
-    v3 = datasize Arguments_creation_code_1
-    v4 = datasize Arguments_creation_code_1, 64
-    v5 = fmp
-    datacopy Arguments_creation_code_1, v5, v3
-    v6 = extract_value slice<memory>, v2, 0
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = add v7, v3
-    mcopy v8, v6, 64 !metadata(memory=heap)
-    v9 = create 0, v5, v4
-    v10 = ne v9, i160 0
-    jumpi v10, bb2, bb1
+    v2 = datasize Arguments_creation_code_1
+    v3 = fmp
+    datacopy Arguments_creation_code_1, v3, v2
+    v4 = ptradd v3, v2
+    v5 = abi_encode [word, word], scratch, base v4, args 5, 6
+    v6 = datasize Arguments_creation_code_1, 64
+    v7 = create 0, v3, v6
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v11 = icall @fmp
-    v12 = checked_sub uint256, v11, v1
-    v13 = mload v0
-    v14 = gt v13, 0
-    v15 = eq v14, false
-    icall panic_if<0x32>, v15
-    v16 = ptradd v0, 32
-    v17 = mload v16
-    v18 = mload v0
-    v19 = gt v18, 1
-    v20 = eq v19, false
-    icall panic_if<0x32>, v20
-    v21 = ptradd v0, 64
-    v22 = mload v21
-    v23 = mload v0
-    v24 = gt v23, 2
-    v25 = eq v24, false
-    icall panic_if<0x32>, v25
-    v26 = ptradd v0, 96
-    v27 = mload v26
-    v28 = gas
+    v9 = icall @fmp
+    v10 = checked_sub uint256, v9, v1
+    v11 = mload v0
+    v12 = gt v11, 0
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = ptradd v0, 32
+    v15 = mload v14
+    v16 = mload v0
+    v17 = gt v16, 1
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = ptradd v0, 64
+    v20 = mload v19
+    v21 = mload v0
+    v22 = gt v21, 2
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = ptradd v0, 96
+    v25 = mload v24
+    v26 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v29 = zext i160 v9 to i256
-    v30 = staticcall v28, v29, 28, 4, 0, 32
-    jumpi v30, bb4, bb3
+    v27 = zext i160 v7 to i256
+    v28 = staticcall v26, v27, 28, 4, 0, 32
+    jumpi v28, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v31 = returndatasize
-    v32 = lt v31, 32
-    icall revert_if<tuple_data_too_short>, v32
-    v33 = mload 0 !metadata(memory=scratch)
-    v34 = insert_value struct0, undef struct0, 0, v12
-    v35 = insert_value struct0, v34, 1, v17
-    v36 = insert_value struct0, v35, 2, v22
-    v37 = insert_value struct0, v36, 3, v27
-    v38 = insert_value struct0, v37, 4, v33
-    ret v38
+    v29 = returndatasize
+    v30 = lt v29, 32
+    icall revert_if<tuple_data_too_short>, v30
+    v31 = mload 0 !metadata(memory=scratch)
+    v32 = insert_value struct0, undef struct0, 0, v10
+    v33 = insert_value struct0, v32, 1, v15
+    v34 = insert_value struct0, v33, 2, v20
+    v35 = insert_value struct0, v34, 3, v25
+    v36 = insert_value struct0, v35, 4, v31
+    ret v36
 }
 
 ; function dynamicArguments() external returns (uint256 moved, uint256, uint256, uint256, uint256 value) [selector 0xd79ddb88]
 fn @dynamicArguments() -> struct0 [selector=0xd79ddb88, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
   bb0:
     v0 = icall @live
-    v1 = icall @fmp
-    v2 = alloc 64 !metadata(preserves_fmp)
-    mstore v2, 3
-    v3 = ptradd v2, 32
-    mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v4 = abi_encode [memory_bytes, word], args v2, 96
-    v5 = extract_value slice<memory>, v4, 1
-    v6 = datasize Dynamic_creation_code_2
-    v7 = add v6, v5
-    v8 = lt v7, v6
-    icall panic_if<0x41>, v8
-    v9 = fmp
-    datacopy Dynamic_creation_code_2, v9, v6
-    v10 = extract_value slice<memory>, v4, 0
-    v11 = ptrtoint ptr<memory> v9 to i256
-    v12 = add v11, v6
-    mcopy v12, v10, v5 !metadata(memory=heap)
-    v13 = create 0, v9, v7
-    v14 = ne v13, i160 0
-    jumpi v14, bb2, bb1
+    v1 = alloc 64 !metadata(preserves_fmp)
+    mstore v1, 3
+    v2 = ptradd v1, 32
+    mstore v2, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v3 = icall @fmp
+    v4 = datasize Dynamic_creation_code_2
+    v5 = fmp
+    datacopy Dynamic_creation_code_2, v5, v4
+    v6 = ptradd v5, v4
+    v7 = abi_encode [memory_bytes, word], scratch, base v6, args v1, 96
+    v8 = extract_value slice<memory>, v7, 1
+    v9 = add v4, v8
+    v10 = lt v9, v4
+    icall panic_if<0x41>, v10
+    v11 = create 0, v5, v9
+    v12 = ne v11, i160 0
+    jumpi v12, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v15 = icall @fmp
-    v16 = checked_sub uint256, v15, v1
-    v17 = mload v0
-    v18 = gt v17, 0
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = ptradd v0, 32
-    v21 = mload v20
-    v22 = mload v0
-    v23 = gt v22, 1
-    v24 = eq v23, false
-    icall panic_if<0x32>, v24
-    v25 = ptradd v0, 64
-    v26 = mload v25
-    v27 = mload v0
-    v28 = gt v27, 2
-    v29 = eq v28, false
-    icall panic_if<0x32>, v29
-    v30 = ptradd v0, 96
-    v31 = mload v30
-    v32 = gas
+    v13 = icall @fmp
+    v14 = checked_sub uint256, v13, v3
+    v15 = mload v0
+    v16 = gt v15, 0
+    v17 = eq v16, false
+    icall panic_if<0x32>, v17
+    v18 = ptradd v0, 32
+    v19 = mload v18
+    v20 = mload v0
+    v21 = gt v20, 1
+    v22 = eq v21, false
+    icall panic_if<0x32>, v22
+    v23 = ptradd v0, 64
+    v24 = mload v23
+    v25 = mload v0
+    v26 = gt v25, 2
+    v27 = eq v26, false
+    icall panic_if<0x32>, v27
+    v28 = ptradd v0, 96
+    v29 = mload v28
+    v30 = gas
     mstore 0, 0x3fa4f245 !metadata(memory=scratch)
-    v33 = zext i160 v13 to i256
-    v34 = staticcall v32, v33, 28, 4, 0, 32
-    jumpi v34, bb4, bb3
+    v31 = zext i160 v11 to i256
+    v32 = staticcall v30, v31, 28, 4, 0, 32
+    jumpi v32, bb4, bb3
   bb3:                                            ; preds = bb2
     revert_returndata
   bb4:                                            ; preds = bb2
-    v35 = returndatasize
-    v36 = lt v35, 32
-    icall revert_if<tuple_data_too_short>, v36
-    v37 = mload 0 !metadata(memory=scratch)
-    v38 = insert_value struct0, undef struct0, 0, v16
-    v39 = insert_value struct0, v38, 1, v21
-    v40 = insert_value struct0, v39, 2, v26
-    v41 = insert_value struct0, v40, 3, v31
-    v42 = insert_value struct0, v41, 4, v37
-    ret v42
+    v33 = returndatasize
+    v34 = lt v33, 32
+    icall revert_if<tuple_data_too_short>, v34
+    v35 = mload 0 !metadata(memory=scratch)
+    v36 = insert_value struct0, undef struct0, 0, v14
+    v37 = insert_value struct0, v36, 1, v19
+    v38 = insert_value struct0, v37, 2, v24
+    v39 = insert_value struct0, v38, 3, v29
+    v40 = insert_value struct0, v39, 4, v35
+    ret v40
 }
 
 ; function salted() external returns (uint256 moved, uint256, uint256, uint256, uint256 value) [selector 0x1f981516]
@@ -319,6 +313,64 @@ fn @salted() -> struct0 [selector=0x1f981516, abi_params=[], abi_returns=[word, 
     v33 = insert_value struct0, v32, 3, v23
     v34 = insert_value struct0, v33, 4, v29
     ret v34
+}
+
+; function saltedArguments() external returns (uint256 moved, uint256, uint256, uint256, uint256 value) [selector 0x7776ed59]
+fn @saltedArguments() -> struct0 [selector=0x7776ed59, abi_params=[], abi_returns=[word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256]] {
+  bb0:
+    v0 = icall @live
+    v1 = icall @fmp
+    v2 = datasize Arguments_creation_code_1
+    v3 = fmp
+    datacopy Arguments_creation_code_1, v3, v2
+    v4 = ptradd v3, v2
+    v5 = abi_encode [word, word], scratch, base v4, args 5, 6
+    v6 = datasize Arguments_creation_code_1, 64
+    v7: i256 = create2 0, v3, v6, 1
+    v8 = ne v7, 0
+    jumpi v8, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v9 = trunc i256 v7 to i160
+    v10 = icall @fmp
+    v11 = checked_sub uint256, v10, v1
+    v12 = mload v0
+    v13 = gt v12, 0
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = ptradd v0, 32
+    v16 = mload v15
+    v17 = mload v0
+    v18 = gt v17, 1
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptradd v0, 64
+    v21 = mload v20
+    v22 = mload v0
+    v23 = gt v22, 2
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd v0, 96
+    v26 = mload v25
+    v27 = gas
+    mstore 0, 0x3fa4f245 !metadata(memory=scratch)
+    v28 = zext i160 v9 to i256
+    v29 = staticcall v27, v28, 28, 4, 0, 32
+    jumpi v29, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v30 = returndatasize
+    v31 = lt v30, 32
+    icall revert_if<tuple_data_too_short>, v31
+    v32 = mload 0 !metadata(memory=scratch)
+    v33 = insert_value struct0, undef struct0, 0, v11
+    v34 = insert_value struct0, v33, 1, v16
+    v35 = insert_value struct0, v34, 2, v21
+    v36 = insert_value struct0, v35, 3, v26
+    v37 = insert_value struct0, v36, 4, v32
+    ret v37
 }
 
 ; function repeated() external returns (uint256 moved, uint256 first, uint256 second) [selector 0xc7642fc4]
