@@ -240,7 +240,22 @@ struct Src {
 
 impl Serialize for Src {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_str(self)
+        if self.span.is_dummy() {
+            return s.serialize_str("-1:-1:-1");
+        }
+        let lo = self.span.lo().to_u32() - self.start.to_u32();
+        let len = self.span.hi().to_u32() - self.span.lo().to_u32();
+        // Three numbers of up to ten digits, and two colons.
+        let mut buf = [0u8; 32];
+        let mut end = 0;
+        for (i, number) in [lo, len, self.source.index() as u32].into_iter().enumerate() {
+            if i > 0 {
+                buf[end] = b':';
+                end += 1;
+            }
+            end += write_u32(number, &mut buf[end..]);
+        }
+        s.serialize_str(std::str::from_utf8(&buf[..end]).expect("digits and colons are ASCII"))
     }
 }
 
@@ -253,6 +268,24 @@ impl fmt::Display for Src {
         let len = self.span.hi().to_u32() - self.span.lo().to_u32();
         write!(f, "{lo}:{len}:{}", self.source.index())
     }
+}
+
+/// Writes the decimal digits of `n` at the start of `out`, and returns how many.
+fn write_u32(mut n: u32, out: &mut [u8]) -> usize {
+    let mut digits = [0u8; 10];
+    let mut len = 0;
+    loop {
+        digits[len] = b'0' + (n % 10) as u8;
+        len += 1;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    for (i, digit) in digits[..len].iter().rev().enumerate() {
+        out[i] = *digit;
+    }
+    len
 }
 
 impl<'a, 'gcx> Cx<'a, 'gcx> {
