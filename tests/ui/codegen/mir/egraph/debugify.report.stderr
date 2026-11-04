@@ -1,3 +1,5 @@
-debugify: MIR Debugify after egraph: 12/12 origins retained, 0 lost
-debugify: MIR Debugify after dce: 11/12 origins retained, 1 lost
+debugify: MIR Debugify after egraph: 25/25 origins retained, 0 lost
+debugify: MIR Debugify after dce: 22/25 origins retained, 3 lost
 debugify: lost 112..116
+debugify: lost 312..316
+debugify: lost 412..416

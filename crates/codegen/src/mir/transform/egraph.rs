@@ -852,9 +852,9 @@ impl<'a> Builder<'a> {
         }
         if changed {
             // check eq(condition, false), polarity => check condition, !polarity
-            self.func
-                .inst_mut(inst_id)
-                .replace_kind(InstKind::builtin(Builtin::Check { is_zero, failure }, [condition]));
+            let kind = InstKind::builtin(Builtin::Check { is_zero, failure }, [condition]);
+            self.record_dropped_operands(inst_id, &kind);
+            self.func.inst_mut(inst_id).replace_kind(kind);
             self.changed += 1;
         }
     }

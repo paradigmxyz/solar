@@ -2,14 +2,14 @@
 //@ compile-flags: -Zmir-pipeline=egraph,dce
 //@[report] compile-flags: -Zdebugify=report
 //@[check] compile-flags: -Zdebugify=check
-//~[check]? ERROR: debugify: MIR pass `dce` lost 1 source origins
+//~[check]? ERROR: debugify: MIR pass `dce` lost 3 source origins
 // A rewrite that leaves an operand dead moves the operand's origin onto the rewritten user when
 // the operand runs exactly when the user does. Across an effect it does not, so `dce` still
 // reports the loss.
 @module Debugify
 
 // The inner `add` dies when the outer one folds both constants.
-fn @in_place(arg0: i256) -> i256 {
+fn @folded_operand(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1 !metadata(span=12..16)
     v1 = add v0, 2 !metadata(span=10..20)
@@ -35,4 +35,34 @@ fn @effect_between(arg0: i256) -> i256 {
     sstore 0, arg0 !metadata(span=120..130)
     v1 = add v0, 2 !metadata(span=110..140)
     ret v1 !metadata(span=150..160)
+}
+
+// The zero test dies when the check flips its polarity.
+fn @flipped_check(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, arg1 !metadata(span=212..220)
+    v1 = eq v0, false !metadata(span=210..221)
+    icall panic_if<0x1>, v1 !metadata(span=205..230)
+    ret arg0 !metadata(span=240..250)
+}
+
+// The operand is defined in another block, so the user may run on paths that skip it.
+fn @other_block(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=312..316)
+    v2 = ne arg1, 0 !metadata(span=306..308)
+    jumpi v2, bb1, bb2 !metadata(span=305..309)
+  bb1:
+    v1 = add v0, 2 !metadata(span=310..320)
+    ret v1 !metadata(span=330..340)
+  bb2:
+    ret 0 !metadata(span=350..360)
+}
+
+// An origin outside the user's span names unrelated code, so it stays lost.
+fn @unrelated_span(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=412..416)
+    v1 = add v0, 2 !metadata(span=420..430)
+    ret v1 !metadata(span=440..450)
 }
