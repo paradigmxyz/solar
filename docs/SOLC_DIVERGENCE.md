@@ -748,7 +748,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Rationale: The Solidity documentation leaves bits outside a type's width
   unspecified after assembly assignments, so code such as solady's
   `Brutalizer` helpers can only rely on the `solc` behavior. The lowerer
-  represents the raw word only in raw-carrier bindings and in the `Carried`
+  represents the raw word only in raw-carrier bindings and in the `CarriedValue`
   and `RawWord` values the lowering API returns for copy edges and address
   operands; `lower_expr` always returns a canonical value, so a new consumer
   cannot see dirty bits.

@@ -6,14 +6,18 @@
 //! variable that assembly can reach, or that a raw value can be copied into, is a *raw carrier*:
 //! the exposure analysis in `raw_scalars` finds them, and their values are `i256` words.
 //!
-//! The invariant: bits above a type exist only in raw-carrier bindings and in the [`Carried`]
+//! A [`CarriedValue`] is a value in transit along such a copy edge: it holds either the raw word
+//! of a raw carrier or a canonical value, and the type says it has not been cleaned yet. A
+//! [`RawWord`] is a raw word handed to a consumer that ignores the bits above its type.
+//!
+//! The invariant: bits above a type exist only in raw-carrier bindings and in the [`CarriedValue`]
 //! and [`RawWord`] values that carry them between bindings. Everything else is canonical at the
 //! native MIR type:
 //!
 //! - [`FunctionLowerer::lower_expr`] always returns a canonical value. Reading a raw-carrier
 //!   binding, or the result of a call whose return variable is a raw carrier, goes through the one
 //!   normalizer.
-//! - [`FunctionLowerer::lower_carried_expr`] returns a [`Carried`] value for a copy edge. Only the
+//! - [`FunctionLowerer::lower_carried_expr`] returns a [`CarriedValue`] for a copy edge. Only the
 //!   sinks in this module take it, and a sink keeps the raw bits only when its destination is a raw
 //!   carrier.
 //! - [`FunctionLowerer::lower_raw_expr`] returns a [`RawWord`] for the few consumers that ignore
@@ -27,23 +31,23 @@ use super::*;
 /// A lowered value that may carry bits above its type.
 ///
 /// It is the word of a raw-carrier binding or of a call result whose return variable is a raw
-/// carrier, or a canonical value. Clean it with [`Carried::clean`], or hand it to a sink that
+/// carrier, or a canonical value. Clean it with [`CarriedValue::clean`], or hand it to a sink that
 /// copies it into a binding.
 #[must_use]
 #[derive(Clone, Copy)]
-pub(super) struct Carried {
+pub(super) struct CarriedValue {
     value: ValueId,
     raw: bool,
 }
 
-impl Carried {
+impl CarriedValue {
     /// A canonical value at its native type.
     pub(super) fn from_clean(value: ValueId) -> Self {
         Self { value, raw: false }
     }
 
-    /// A word that is raw when `raw` and canonical otherwise.
-    pub(super) fn new(value: ValueId, raw: bool) -> Self {
+    /// A word of a binding or call result that is raw when `raw` and canonical otherwise.
+    pub(super) fn from_word(value: ValueId, raw: bool) -> Self {
         Self { value, raw }
     }
 
@@ -88,8 +92,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// against zero, an integer or address is cast to its native type, and a fixed-bytes value is
     /// masked.
     ///
-    /// This is the one cleaning path. [`Carried::clean`] and the memory decoding entry points use
-    /// it, and nothing else.
+    /// This is the one cleaning path. [`CarriedValue::clean`] and the memory decoding entry points
+    /// use it, and nothing else.
     fn normalize_abi_scalar(&mut self, value: ValueId, ty: Ty<'gcx>) -> ValueId {
         match ty.peel_refs().kind {
             TyKind::Enum(..) => {
@@ -141,11 +145,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-    ) -> Option<Carried> {
+    ) -> Option<CarriedValue> {
         self.with_expr_context(expr, |this| this.lower_carried_expr_inner(expr, ty))
     }
 
-    fn lower_carried_expr_inner(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<Carried> {
+    fn lower_carried_expr_inner(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<CarriedValue> {
         let source_ty = self.cx.gcx.type_of_expr(expr.id);
         match &expr.kind {
             ExprKind::Tuple([Some(inner)]) => return self.lower_carried_expr(inner, ty),
@@ -165,20 +173,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => {}
         }
         let Some(source_ty) = source_ty.filter(|ty| ty.is_value_type()) else {
-            return Some(Carried::from_clean(self.lower_typed_expr(expr, ty)?));
+            return Some(CarriedValue::from_clean(self.lower_typed_expr(expr, ty)?));
         };
         let carried = match self.lower_carried_leaf(expr)? {
             Some(carried) => carried,
             None => match self.lower_carried_shape(expr, source_ty)? {
                 Some(carried) => carried,
-                None => return Some(Carried::from_clean(self.lower_typed_expr(expr, ty)?)),
+                None => return Some(CarriedValue::from_clean(self.lower_typed_expr(expr, ty)?)),
             },
         };
         if source_ty == ty {
             return Some(carried);
         }
         let value = carried.clean(self, source_ty);
-        Some(Carried::from_clean(self.coerce_value(value, source_ty, ty)))
+        Some(CarriedValue::from_clean(self.coerce_value(value, source_ty, ty)))
     }
 
     /// Lowers `expr` as a word for a consumer that ignores the bits above its type.
@@ -195,7 +203,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Lowers a leaf that can produce a raw word: a raw-carrier variable, an internal call, or a
     /// user-defined operator. Returns `Some(None)` for any other expression.
-    pub(super) fn lower_carried_leaf(&mut self, expr: &hir::Expr<'_>) -> Option<Option<Carried>> {
+    pub(super) fn lower_carried_leaf(
+        &mut self,
+        expr: &hir::Expr<'_>,
+    ) -> Option<Option<CarriedValue>> {
         match &expr.kind {
             ExprKind::Ident(_)
                 if self.cx.gcx.resolved_builtin(expr).is_none()
@@ -208,8 +219,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let (callee, call_opts) = callee.split_call_options();
                 Some(match self.lower_call(expr, callee, *args, call_opts, true)? {
                     CallResult::Void => None,
-                    CallResult::Value(value) => Some(Carried::from_clean(value)),
-                    CallResult::Carried(carried) => Some(carried),
+                    CallResult::Value(value) => Some(CarriedValue::from_clean(value)),
+                    CallResult::CarriedValue(carried) => Some(carried),
                 })
             }
             ExprKind::Assign(lhs, None, rhs) => {
@@ -232,7 +243,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
         source_ty: Ty<'gcx>,
-    ) -> Option<Option<Carried>> {
+    ) -> Option<Option<CarriedValue>> {
         match &expr.kind {
             ExprKind::Payable(inner) if self.cx.gcx.type_of_expr(inner.id) == Some(source_ty) => {
                 self.lower_carried_expr(inner, source_ty).map(Some)
@@ -284,19 +295,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         kind: BinOpKind,
         rhs: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-    ) -> Option<Carried> {
+    ) -> Option<CarriedValue> {
         let operand = |this: &mut Self, expr: &hir::Expr<'_>| {
             if this.cx.gcx.type_of_expr(expr.id) == Some(ty) {
                 this.lower_carried_expr(expr, ty)
             } else {
-                Some(Carried::from_clean(this.lower_typed_expr(expr, ty)?))
+                Some(CarriedValue::from_clean(this.lower_typed_expr(expr, ty)?))
             }
         };
         let lhs = operand(self, lhs)?;
         let rhs = operand(self, rhs)?;
         if !lhs.raw && !rhs.raw {
             let value = self.binary(kind, lhs.value, rhs.value, Some(ty));
-            return Some(Carried::from_clean(match operators::fixed_bytes_width(ty) {
+            return Some(CarriedValue::from_clean(match operators::fixed_bytes_width(ty) {
                 Some(bytes) => self.clean_fixed_bytes(value, bytes),
                 None => value,
             }));
@@ -304,7 +315,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let lhs = self.raw_word(lhs, ty);
         let rhs = self.raw_word(rhs, ty);
         // result = op lhs, rhs
-        Some(Carried::new(self.binary(kind, lhs, rhs, None), true))
+        Some(CarriedValue::from_word(self.binary(kind, lhs, rhs, None), true))
     }
 
     /// Lowers `&&` and `||` along a copy edge: the result is the operand that decides it, raw
@@ -315,7 +326,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         kind: BinOpKind,
         rhs: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-    ) -> Option<Carried> {
+    ) -> Option<CarriedValue> {
         // if && { branch(lhs, rhs, false) }
         // if || { branch(lhs, lhs, rhs) }
         let lhs = self.lower_carried_expr(lhs, ty)?;
@@ -325,7 +336,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if lhs.raw && !is_and {
                 Some(lhs)
             } else {
-                Some(Carried::from_clean(this.builder.imm_bool(!is_and)))
+                Some(CarriedValue::from_clean(this.builder.imm_bool(!is_and)))
             }
         };
         let (then_branch, else_branch) = self.lower_branches(
@@ -347,10 +358,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn load_lvalue_place_carried(
         &mut self,
         place: &LValuePlace<'gcx>,
-    ) -> Option<Carried> {
+    ) -> Option<CarriedValue> {
         match *place {
             LValuePlace::Variable { id, span } => self.load_variable_carried(id, span),
-            _ => Some(Carried::from_clean(self.load_lvalue_place(place)?)),
+            _ => Some(CarriedValue::from_clean(self.load_lvalue_place(place)?)),
         }
     }
 
@@ -377,7 +388,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-    ) -> Option<Carried> {
+    ) -> Option<CarriedValue> {
         let condition = self.lower_expr(condition)?;
         // branch(condition, then, else)
         // value = then | else | phi(then, else)
@@ -399,7 +410,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Returns `carried` as the word of a raw carrier, widening a canonical value of type `ty`.
-    fn raw_word(&mut self, carried: Carried, ty: Ty<'gcx>) -> ValueId {
+    fn raw_word(&mut self, carried: CarriedValue, ty: Ty<'gcx>) -> ValueId {
         if carried.raw {
             return carried.value;
         }
@@ -411,16 +422,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Joins carried values: a raw word if any is raw, widening the others in their blocks.
     pub(super) fn merge_carried(
         &mut self,
-        incoming: &[(BlockId, Carried)],
+        incoming: &[(BlockId, CarriedValue)],
         ty: Ty<'gcx>,
-    ) -> Carried {
+    ) -> CarriedValue {
         if incoming.windows(2).all(|pair| pair[0].1.value == pair[1].1.value) {
             return incoming[0].1;
         }
         if !incoming.iter().any(|(_, carried)| carried.raw) {
             let phi =
                 self.merge_value_phi(incoming.iter().map(|&(block, c)| (block, c.value)).collect());
-            return Carried::from_clean(phi);
+            return CarriedValue::from_clean(phi);
         }
         // word_i = widen value_i, in block_i
         // phi(words)
@@ -431,7 +442,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             words.push((block, self.raw_word(carried, ty)));
         }
         self.builder.switch_to_block(current);
-        Carried::new(self.merge_value_phi(words), true)
+        CarriedValue::from_word(self.merge_value_phi(words), true)
     }
 
     /// Returns whether a result of type `ty` from an internal function pointer call is a raw word.
@@ -441,9 +452,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Reads a binding without cleaning it: the sink side of a copy edge.
-    pub(super) fn load_variable_carried(&mut self, id: VariableId, span: Span) -> Option<Carried> {
+    pub(super) fn load_variable_carried(
+        &mut self,
+        id: VariableId,
+        span: Span,
+    ) -> Option<CarriedValue> {
         let value = self.load_variable_word(id, span)?;
-        Some(Carried::new(value, self.is_raw_binding(id)))
+        Some(CarriedValue::from_word(value, self.is_raw_binding(id)))
     }
 
     /// Reads a binding as a canonical value.
@@ -457,7 +472,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns what the binding `id` holds for `carried`: the raw word in a raw carrier and the
     /// canonical value in any other binding.
-    pub(super) fn carried_into_binding(&mut self, id: VariableId, carried: Carried) -> ValueId {
+    pub(super) fn carried_into_binding(
+        &mut self,
+        id: VariableId,
+        carried: CarriedValue,
+    ) -> ValueId {
         if self.is_raw_binding(id) {
             carried.value
         } else {
@@ -472,7 +491,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn materialize_scalar_carrier(
         &mut self,
         id: VariableId,
-        carried: Carried,
+        carried: CarriedValue,
         span: Span,
     ) -> Option<ValueId> {
         let ty = self.cx.gcx.type_of_item(id.into());
@@ -489,7 +508,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// pointer dispatcher's parameter. `keep_raw` says whether the slot holds raw words.
     pub(super) fn carried_into_carrier(
         &mut self,
-        carried: Carried,
+        carried: CarriedValue,
         ty: Ty<'gcx>,
         carrier: MirType,
         keep_raw: bool,
@@ -508,7 +527,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn store_carried_place(
         &mut self,
         place: &LValuePlace<'gcx>,
-        carried: Carried,
+        carried: CarriedValue,
         source_ty: Option<Ty<'gcx>>,
         ty: Ty<'gcx>,
     ) -> Option<()> {

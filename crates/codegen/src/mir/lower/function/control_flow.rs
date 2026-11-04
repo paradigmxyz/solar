@@ -745,11 +745,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-    ) -> Option<Vec<Carried>> {
+    ) -> Option<Vec<CarriedValue>> {
         let TyKind::Tuple(types) = ty.kind else {
             return self
                 .lower_ternary(condition, then_expr, else_expr, ty)
-                .map(|value| vec![Carried::from_clean(value)]);
+                .map(|value| vec![CarriedValue::from_clean(value)]);
         };
         let condition = self.lower_expr(condition)?;
         // branch(condition, then, else)
@@ -787,7 +787,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
         types: &[Ty<'gcx>],
-    ) -> Option<Vec<Carried>> {
+    ) -> Option<Vec<CarriedValue>> {
         let TyKind::Tuple(sources) = self.cx.gcx.type_of_expr(expr.id)?.kind else {
             return None;
         };

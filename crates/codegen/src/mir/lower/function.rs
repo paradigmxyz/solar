@@ -33,7 +33,7 @@ mod abi_calls;
 mod abi_values;
 mod builtins;
 mod calls;
-mod carried;
+mod carried_value;
 mod control_flow;
 mod entry;
 mod expressions;
@@ -47,7 +47,7 @@ mod statements;
 mod storage_values;
 mod values;
 
-use carried::Carried;
+use carried_value::CarriedValue;
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -478,7 +478,7 @@ enum CallResult {
     /// A canonical value.
     Value(ValueId),
     /// The result of an internal call, which can carry raw bits.
-    Carried(Carried),
+    CarriedValue(CarriedValue),
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -699,7 +699,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return lowered.ok();
         };
         let value = raw.clean(self, ty);
-        // A raw carrier's word reaches a consumer only through `Carried` or `RawWord`.
+        // A raw carrier's word reaches a consumer only through `CarriedValue` or `RawWord`.
         debug_assert!(
             !(self.builder.func().value_ty(value) == Some(MirType::I256)
                 && types::TypeLowerer::mir_type(ty).integer_bits().is_some_and(|bits| bits < 256)),
@@ -729,7 +729,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         kind: UnOpKind,
         operand: &hir::Expr<'_>,
-    ) -> Option<Carried> {
+    ) -> Option<CarriedValue> {
         let place = self.resolve_lvalue_place(operand)?;
         let ty = self.cx.gcx.type_of_expr(operand.id)?;
         let old = self.load_lvalue_place_carried(&place)?;
@@ -743,7 +743,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let new = self.binary(op, old_value, one, Some(ty));
         self.store_lvalue_place(&place, new)?;
         Some(if matches!(kind, UnOpKind::PreInc | UnOpKind::PreDec) {
-            Carried::from_clean(new)
+            CarriedValue::from_clean(new)
         } else {
             old
         })
@@ -757,10 +757,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lhs: &hir::Expr<'_>,
         op: Option<hir::BinOp>,
         rhs: &hir::Expr<'_>,
-    ) -> Option<Carried> {
+    ) -> Option<CarriedValue> {
         let compound_op = op.map(|op| op.kind);
         if compound_op.is_some() && self.cx.gcx.unsupported_udvt_operator(expr.id) {
-            return self.report_unsupported_udvt_operator(expr.span).map(Carried::from_clean);
+            return self.report_unsupported_udvt_operator(expr.span).map(CarriedValue::from_clean);
         }
         if op.is_none() && self.is_storage_reference_binding(lhs) {
             let access = self.require_storage_access(rhs)?;
@@ -768,7 +768,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(lhs.span, "storage reference target");
             };
             self.storage_refs.insert(id, access);
-            return Some(Carried::from_clean(access.slot));
+            return Some(CarriedValue::from_clean(access.slot));
         }
         let lhs_ty = self.type_of_expr_or_variable(lhs)?;
         let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
@@ -782,19 +782,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .then(|| self.lower_fixed_bytes_literal(lhs_ty, rhs))
             .flatten();
         let rhs_value = if let Some(word) = fixed_bytes_literal {
-            Carried::from_clean(word)
+            CarriedValue::from_clean(word)
         } else if self.types.memory_layout(memory_rhs_ty).is_some()
             && rhs_ty.is_ref_at(DataLocation::Storage)
         {
-            Carried::from_clean(self.lower_typed_expr(rhs, memory_rhs_ty)?)
+            CarriedValue::from_clean(self.lower_typed_expr(rhs, memory_rhs_ty)?)
         } else if compound_op
             .is_some_and(|op| !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar))
         {
-            Carried::from_clean(self.lower_typed_expr(rhs, lhs_ty)?)
+            CarriedValue::from_clean(self.lower_typed_expr(rhs, lhs_ty)?)
         } else if compound_op.is_none() && rhs_ty.is_value_type() {
             self.lower_carried_expr(rhs, rhs_ty)?
         } else {
-            Carried::from_clean(self.lower_expr(rhs)?)
+            CarriedValue::from_clean(self.lower_expr(rhs)?)
         };
         // The literal word above is already the place's type, so the
         // conversion below must not widen or shift it a second time.
@@ -810,7 +810,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.coerce_value(value, lhs_ty, lhs_ty)
             };
             self.store_lvalue_place(&place, value)?;
-            return Some(Carried::from_clean(value));
+            return Some(CarriedValue::from_clean(value));
         }
         if lhs_ty.is_value_type() && rhs_ty.is_value_type() {
             // The assigned value keeps its raw bits when the target is a raw carrier.
@@ -818,7 +818,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 rhs_value
             } else {
                 let value = rhs_value.clean(self, rhs_ty);
-                Carried::from_clean(self.coerce_value(value, rhs_ty, lhs_ty))
+                CarriedValue::from_clean(self.coerce_value(value, rhs_ty, lhs_ty))
             };
             let place = self.resolve_lvalue_place(lhs)?;
             self.store_carried_place(&place, carried, Some(rhs_ty), lhs_ty)?;
@@ -839,7 +839,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let value = self.coerce_value(value, rhs_ty, lhs_ty);
         self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;
-        Some(Carried::from_clean(value))
+        Some(CarriedValue::from_clean(value))
     }
 
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
@@ -1026,7 +1026,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match self.lower_call(expr, callee, *args, call_opts, true)? {
                     CallResult::Void => None,
                     CallResult::Value(value) => Some(value),
-                    CallResult::Carried(carried) => {
+                    CallResult::CarriedValue(carried) => {
                         let ty = self.cx.gcx.type_of_expr(expr.id)?;
                         Some(carried.clean(self, ty))
                     }

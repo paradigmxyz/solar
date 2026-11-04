@@ -8,7 +8,7 @@ enum PreparedTupleAssignment<'gcx> {
 }
 
 enum TupleAssignmentRhs<'gcx> {
-    Materialized { value: Carried, source_ty: Option<Ty<'gcx>>, span: Span },
+    Materialized { value: CarriedValue, source_ty: Option<Ty<'gcx>>, span: Span },
     // Capture the source slot during RHS evaluation, but copy its contents when
     // this assignment is committed.
     StorageCopy { access: StorageAccess, source_ty: Ty<'gcx>, span: Span },
@@ -16,7 +16,7 @@ enum TupleAssignmentRhs<'gcx> {
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
-    pub(super) fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<Carried>> {
+    pub(super) fn lower_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<CarriedValue>> {
         let expr = expr.peel_parens();
         if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_unit()) {
             self.lower_discarded_expr(expr)?;
@@ -29,7 +29,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some((callee, args, call_opts)) = expr.as_call() {
             if let Some(builtin) = self.low_level_call_builtin(expr) {
                 let values = self.lower_low_level_call_values(expr, builtin, 2, false)?;
-                return Some(values.into_iter().map(Carried::from_clean).collect());
+                return Some(values.into_iter().map(CarriedValue::from_clean).collect());
             }
             let resolved_builtin = self.cx.gcx.resolved_builtin(callee);
             if resolved_builtin == Some(Builtin::AbiDecode)
@@ -39,7 +39,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 let value = self.lower_expr(expr)?;
                 let values = self.unpack_clean_value(value);
-                return Some(values.into_iter().map(Carried::from_clean).collect());
+                return Some(values.into_iter().map(CarriedValue::from_clean).collect());
             }
             let function_ty = self.cx.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
                 TyKind::Fn(function) => Some(function),
@@ -56,7 +56,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let values = self.lower_external_function_pointer_call_values(
                     callee, function, *args, call_opts,
                 )?;
-                return Some(values.into_iter().map(Carried::from_clean).collect());
+                return Some(values.into_iter().map(CarriedValue::from_clean).collect());
             }
             if let Some(returns) = returns
                 && returns > 1
@@ -71,15 +71,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         fields
                             .into_iter()
                             .zip(returns)
-                            .map(|(field, &id)| Carried::new(field, self.is_raw_binding(id)))
+                            .map(|(field, &id)| {
+                                CarriedValue::from_word(field, self.is_raw_binding(id))
+                            })
                             .collect()
                     }
                     (None, Some(function)) => fields
                         .into_iter()
                         .zip(function.returns)
-                        .map(|(field, &ty)| Carried::new(field, self.is_raw_pointer_return(ty)))
+                        .map(|(field, &ty)| {
+                            CarriedValue::from_word(field, self.is_raw_pointer_return(ty))
+                        })
                         .collect(),
-                    (None, None) => fields.into_iter().map(Carried::from_clean).collect(),
+                    (None, None) => fields.into_iter().map(CarriedValue::from_clean).collect(),
                 });
             }
         }
@@ -91,7 +95,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_return_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<Carried>> {
+    pub(super) fn lower_return_values(
+        &mut self,
+        expr: &hir::Expr<'_>,
+    ) -> Option<Vec<CarriedValue>> {
         if self.cx.gcx.type_of_expr(expr.id)?.is_unit() {
             self.lower_discarded_expr(expr)?;
             return Some(Vec::new());
@@ -99,12 +106,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.returns.len() == 1 {
             let ty = self.cx.gcx.type_of_item(self.returns[0].into());
             if ty.is_ref_at(DataLocation::Storage) {
-                return Some(vec![Carried::from_clean(self.require_storage_access(expr)?.slot)]);
+                return Some(vec![CarriedValue::from_clean(
+                    self.require_storage_access(expr)?.slot,
+                )]);
             }
             let carried = self.lower_carried_expr(expr, ty)?;
             let carried = if ty.is_ref_at(DataLocation::Memory) {
                 let value = carried.clean(self, ty);
-                Carried::from_clean(self.materialize_memory_argument(ty, value, expr.span)?)
+                CarriedValue::from_clean(self.materialize_memory_argument(ty, value, expr.span)?)
             } else {
                 carried
             };
@@ -122,14 +131,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = (*value)?;
                     let ty = self.cx.gcx.type_of_item(id.into());
                     if ty.is_ref_at(DataLocation::Storage) {
-                        Some(Carried::from_clean(self.require_storage_access(value)?.slot))
+                        Some(CarriedValue::from_clean(self.require_storage_access(value)?.slot))
                     } else {
                         let span = value.span;
                         let carried = self.lower_carried_expr(value, ty)?;
                         if ty.is_ref_at(DataLocation::Memory) {
                             let value = carried.clean(self, ty);
                             self.materialize_memory_argument(ty, value, span)
-                                .map(Carried::from_clean)
+                                .map(CarriedValue::from_clean)
                         } else {
                             Some(carried)
                         }
@@ -175,11 +184,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Converts an already-lowered tuple component to its target type.
     pub(super) fn convert_tuple_component(
         &mut self,
-        carried: Carried,
+        carried: CarriedValue,
         source_ty: Ty<'gcx>,
         target_ty: Ty<'gcx>,
         span: Span,
-    ) -> Option<Carried> {
+    ) -> Option<CarriedValue> {
         // A storage reference is its slot in both the source and the declared return, so the
         // value already has the right shape.
         if target_ty.is_ref_at(DataLocation::Storage) {
@@ -195,11 +204,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return self.cx.report_unsupported(span, "storage reference return");
             }
             let slot = carried.clean(self, source_ty);
-            return self.load_storage_object(target_ty, slot, span).map(Carried::from_clean);
+            return self.load_storage_object(target_ty, slot, span).map(CarriedValue::from_clean);
         }
         let carried = if target_ty.is_ref_at(DataLocation::Memory) {
             let value = carried.clean(self, source_ty);
-            Carried::from_clean(self.materialize_memory_argument(target_ty, value, span)?)
+            CarriedValue::from_clean(self.materialize_memory_argument(target_ty, value, span)?)
         } else {
             carried
         };
@@ -208,21 +217,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             carried
         } else {
             let value = carried.clean(self, source_ty);
-            Carried::from_clean(self.coerce_value(value, source_ty, target_ty))
+            CarriedValue::from_clean(self.coerce_value(value, source_ty, target_ty))
         })
     }
 
     /// Lowers one component of a multi-value expression in the shape `convert_tuple_component`
     /// expects: a storage reference as its slot word, like one returned by a call.
-    pub(super) fn lower_component(&mut self, expr: &hir::Expr<'_>) -> Option<Carried> {
+    pub(super) fn lower_component(&mut self, expr: &hir::Expr<'_>) -> Option<CarriedValue> {
         // `lower_expr` copies a storage state variable to memory, unlike any other storage
         // reference.
         if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage)) {
-            return Some(Carried::from_clean(self.require_storage_access(expr)?.slot));
+            return Some(CarriedValue::from_clean(self.require_storage_access(expr)?.slot));
         }
         match self.cx.gcx.type_of_expr(expr.id) {
             Some(ty) if ty.is_value_type() => self.lower_carried_expr(expr, ty),
-            _ => Some(Carried::from_clean(self.lower_expr(expr)?)),
+            _ => Some(CarriedValue::from_clean(self.lower_expr(expr)?)),
         }
     }
 
@@ -290,7 +299,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .flatten()
                     .copied()
                     .zip(values)
-                    .map(|(element, value)| (element, Carried::from_clean(value), None)),
+                    .map(|(element, value)| (element, CarriedValue::from_clean(value), None)),
             );
         }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
@@ -354,7 +363,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let source_ty = source_ty.unwrap_or(target_ty);
         let value = if target_ty.is_ref_at(DataLocation::Memory) {
             let value = value.clean(self, source_ty);
-            Carried::from_clean(self.materialize_memory_argument(target_ty, value, span)?)
+            CarriedValue::from_clean(self.materialize_memory_argument(target_ty, value, span)?)
         } else {
             value
         };
@@ -363,14 +372,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             value
         } else {
             let value = value.clean(self, source_ty);
-            Carried::from_clean(self.coerce_value(value, source_ty, target_ty))
+            CarriedValue::from_clean(self.coerce_value(value, source_ty, target_ty))
         };
         Some(TupleAssignmentRhs::Materialized { value, source_ty: Some(source_ty), span })
     }
 
     fn store_tuple_values<'hir>(
         &mut self,
-        values: impl IntoIterator<Item = (&'hir hir::Expr<'hir>, Carried, Option<Ty<'gcx>>)>,
+        values: impl IntoIterator<Item = (&'hir hir::Expr<'hir>, CarriedValue, Option<Ty<'gcx>>)>,
     ) -> Option<()> {
         let values = values
             .into_iter()
@@ -423,7 +432,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             (value, source_ty)
                         }
                         TupleAssignmentRhs::StorageCopy { access, source_ty, span } => (
-                            Carried::from_clean(self.load_storage_value(source_ty, access, span)?),
+                            CarriedValue::from_clean(
+                                self.load_storage_value(source_ty, access, span)?,
+                            ),
                             Some(source_ty),
                         ),
                         TupleAssignmentRhs::StorageReference { .. } => {
@@ -535,7 +546,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             // A literal for fixed bytes is the target's word already, as in a
                             // single assignment, rather than a string object to convert.
                             TupleAssignmentRhs::Materialized {
-                                value: Carried::from_clean(value),
+                                value: CarriedValue::from_clean(value),
                                 source_ty: Some(target_ty),
                                 span: rhs.span,
                             }
@@ -571,7 +582,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_storage_reference_values(
         &mut self,
         expr: &hir::Expr<'_>,
-    ) -> Option<Vec<(Carried, Ty<'gcx>, Option<StorageAccess>)>> {
+    ) -> Option<Vec<(CarriedValue, Ty<'gcx>, Option<StorageAccess>)>> {
         if expr.as_call().is_none() && !matches!(expr.kind, ExprKind::Ternary(..)) {
             return None;
         }
@@ -624,7 +635,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Splits the value that a call returns into its fields.
     ///
     /// The fields of an internal call are raw words where the return variable is a raw carrier,
-    /// so the caller wraps them in `Carried`.
+    /// so the caller wraps them in `CarriedValue`.
     pub(super) fn unpack_clean_value(&mut self, value: ValueId) -> Vec<ValueId> {
         let Some(MirType::Struct(id)) = self.builder.func().value_ty(value) else {
             return vec![value];

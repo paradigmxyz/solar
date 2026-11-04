@@ -51,11 +51,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 {
                     let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
                     let value = self.builder.imm(value);
-                    Carried::from_clean(self.coerce_value(value, expr_ty, ty))
+                    CarriedValue::from_clean(self.coerce_value(value, expr_ty, ty))
                 } else if let Some(expr) = initializer {
                     self.lower_carried_expr(expr, ty)?
                 } else {
-                    Carried::from_clean(self.default_binding_value(ty))
+                    CarriedValue::from_clean(self.default_binding_value(ty))
                 };
                 let value = self.materialize_scalar_carrier(
                     *id,
