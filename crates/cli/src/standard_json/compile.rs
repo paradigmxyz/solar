@@ -347,7 +347,7 @@ fn compile(
 
                 let gcx = compiler.gcx();
                 if output_selection.requests_ast() {
-                    let ast_json = ast_json.get_or_init(|| gcx.ast_json());
+                    let ast_json = ast_json.get_or_init(|| gcx.ast_json(opts.pretty_json));
                     let sources = output.sources.iter_mut().flatten();
                     for ((name, source), id) in sources.zip(gcx.hir.source_ids()) {
                         if output_selection.ast(name) {

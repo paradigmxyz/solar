@@ -484,7 +484,7 @@ fn emit_combined_json(
     if emit_ast {
         gcx.dcx().has_errors()?;
     }
-    let ast_json = emit_ast.then(|| gcx.ast_json());
+    let ast_json = emit_ast.then(|| gcx.ast_json(sess.opts.pretty_json));
     let mut output = CombinedJson {
         source_list: (emit_ast || source_map_encoder.is_some()).then(|| {
             gcx.hir

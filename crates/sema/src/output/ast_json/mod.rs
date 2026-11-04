@@ -40,10 +40,11 @@ mod yul;
 impl<'gcx> Gcx<'gcx> {
     /// Returns the AST JSON of the compilation, which must have passed analysis.
     ///
-    /// Matches the `ast` output of solc's Standard JSON and combined JSON.
+    /// Matches the `ast` output of solc's Standard JSON and combined JSON. `pretty` says whether
+    /// the output is indented, which takes more work to write than compact output.
     ///
     /// Reference: <https://docs.soliditylang.org/en/develop/using-the-compiler.html#output-description>
-    pub fn ast_json(self) -> AstJson<'gcx> {
+    pub fn ast_json(self, pretty: bool) -> AstJson<'gcx> {
         let hir = &self.hir;
         let mut next_import = hir.item_count() + hir.sources.len();
         let first_imports = hir
@@ -54,7 +55,12 @@ impl<'gcx> Gcx<'gcx> {
                 first
             })
             .collect();
-        AstJson { gcx: self, next_id: Cell::new(next_import), first_imports }
+        AstJson {
+            gcx: self,
+            next_id: Cell::new(next_import),
+            first_imports,
+            types: (!pretty).then(Default::default),
+        }
     }
 }
 
@@ -67,6 +73,9 @@ pub struct AstJson<'gcx> {
     next_id: Cell<usize>,
     /// The ID of the first import directive of each source.
     first_imports: IndexVec<SourceId, usize>,
+    /// The written `typeDescriptions` that only depend on a type, which most of them do. Pretty
+    /// output has none, since it indents inside them.
+    types: Option<ty::TypeCache<'gcx>>,
 }
 
 impl<'gcx> AstJson<'gcx> {
@@ -1078,7 +1087,7 @@ impl Serialize for W<'_, '_, Var<'_, '_>> {
         // pointers.
         let pointer = !var.is_state_variable() || var.mutability.is_some();
         let ty = gcx.type_of_item((*id).into());
-        m.serialize_entry("typeDescriptions", &ty::TypeDescriptions::new(gcx, ty, pointer))?;
+        m.serialize_entry("typeDescriptions", &ty::TypeDescriptions::new(*cx, ty, pointer))?;
         if let Some(getter) = var.getter {
             m.serialize_entry("functionSelector", &hex::encode(gcx.function_selector(getter)))?;
             let bases = gcx.base_override_items((*id).into());

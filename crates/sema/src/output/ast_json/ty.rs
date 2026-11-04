@@ -7,13 +7,21 @@ use crate::{
     hir,
     ty::{Component, Gcx, Ty, TyFn, TyFnKind, TyKind, TySolcPrinter},
 };
-use serde::ser::{Serialize, SerializeMap, Serializer};
+use serde::ser::{Error as _, Serialize, SerializeMap, Serializer};
+use serde_json::value::RawValue;
 use solar_ast::{self as ast, DataLocation, ElementaryType};
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, Span, kw, sym};
+use std::cell::RefCell;
+
+/// The written `typeDescriptions` of the types: for the type, whether solc marks it as a pointer,
+/// and whether it is the type of an expression.
+pub(super) type TypeCache<'gcx> = RefCell<FxHashMap<(Ty<'gcx>, bool, bool), Box<RawValue>>>;
 
 /// The `typeDescriptions` of a declaration or a type name.
-pub(super) struct TypeDescriptions<'gcx> {
+pub(super) struct TypeDescriptions<'a, 'gcx> {
     pub(super) gcx: Gcx<'gcx>,
+    pub(super) cache: Option<&'a TypeCache<'gcx>>,
     pub(super) ty: Ty<'gcx>,
     /// Whether solc marks the reference types as pointers.
     pub(super) pointer: bool,
@@ -29,11 +37,12 @@ pub(super) struct TypeDescriptions<'gcx> {
     pub(super) function_kind: Option<&'static str>,
 }
 
-impl<'gcx> TypeDescriptions<'gcx> {
+impl<'a, 'gcx> TypeDescriptions<'a, 'gcx> {
     /// The descriptions of a declaration or a type name.
-    pub(super) fn new(gcx: Gcx<'gcx>, ty: Ty<'gcx>, pointer: bool) -> Self {
+    pub(super) fn new(cx: Cx<'a, 'gcx>, ty: Ty<'gcx>, pointer: bool) -> Self {
         Self {
-            gcx,
+            gcx: cx.gcx,
+            cache: cx.json.types.as_ref(),
             ty,
             pointer,
             expr: false,
@@ -45,10 +54,36 @@ impl<'gcx> TypeDescriptions<'gcx> {
     }
 }
 
-impl Serialize for TypeDescriptions<'_> {
-    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self { gcx, ty, pointer, expr, literal, ref components, call_options, function_kind } =
-            *self;
+impl TypeDescriptions<'_, '_> {
+    /// Writes the descriptions, or the written ones if only the type decides them.
+    fn serialize_cached<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let only_type = self.literal.is_none()
+            && self.components.is_empty()
+            && self.call_options == [false; 3]
+            && self.function_kind.is_none();
+        let Some(cache) = self.cache.filter(|_| only_type) else { return self.write(s) };
+        let key = (self.ty, self.pointer, self.expr);
+        if let Some(written) = cache.borrow().get(&key) {
+            return written.serialize(s);
+        }
+        let written = serde_json::value::to_raw_value(&Uncached(self)).map_err(S::Error::custom)?;
+        let result = written.serialize(s);
+        cache.borrow_mut().insert(key, written);
+        result
+    }
+
+    fn write<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let Self {
+            gcx,
+            ty,
+            pointer,
+            expr,
+            literal,
+            ref components,
+            call_options,
+            function_kind,
+            ..
+        } = *self;
         let printer = |buf| {
             TySolcPrinter::new(gcx, buf)
                 .literal(literal)
@@ -71,18 +106,33 @@ impl Serialize for TypeDescriptions<'_> {
     }
 }
 
+impl Serialize for TypeDescriptions<'_, '_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.serialize_cached(s)
+    }
+}
+
+/// Descriptions that are written without the cache.
+struct Uncached<'a, 'b, 'gcx>(&'a TypeDescriptions<'b, 'gcx>);
+
+impl Serialize for Uncached<'_, '_, '_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.write(s)
+    }
+}
+
 /// The `typeDescriptions` of an expression, which are empty if the expression has no type.
-pub(super) struct ExprType<'a, 'gcx> {
-    gcx: Gcx<'gcx>,
-    expr: &'a hir::Expr<'gcx>,
+pub(super) struct ExprType<'a, 'b, 'gcx> {
+    cx: Cx<'a, 'gcx>,
+    expr: &'b hir::Expr<'gcx>,
     /// The arguments of the call that the expression is the callee of, which give `require` its
     /// type.
     args: Option<hir::CallArgs<'gcx>>,
 }
 
-impl<'a, 'gcx> ExprType<'a, 'gcx> {
-    pub(super) fn new(gcx: Gcx<'gcx>, expr: &'a hir::Expr<'gcx>) -> Self {
-        Self { gcx, expr, args: None }
+impl<'a, 'b, 'gcx> ExprType<'a, 'b, 'gcx> {
+    pub(super) fn new(cx: Cx<'a, 'gcx>, expr: &'b hir::Expr<'gcx>) -> Self {
+        Self { cx, expr, args: None }
     }
 
     pub(super) fn args(mut self, args: Option<hir::CallArgs<'gcx>>) -> Self {
@@ -91,9 +141,10 @@ impl<'a, 'gcx> ExprType<'a, 'gcx> {
     }
 }
 
-impl Serialize for ExprType<'_, '_> {
+impl Serialize for ExprType<'_, '_, '_> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self { gcx, expr, args } = *self;
+        let Self { cx, expr, args } = *self;
+        let gcx = cx.gcx;
         let Some(mut ty) = expr_ty(gcx, expr) else { return Empty.serialize(s) };
         // The call of an error has the magic type `error`.
         if let hir::ExprKind::Call(callee, _) = expr.peel_parens().kind
@@ -182,6 +233,7 @@ impl Serialize for ExprType<'_, '_> {
         };
         let descriptions = TypeDescriptions {
             gcx,
+            cache: cx.json.types.as_ref(),
             ty,
             pointer: is_pointer(gcx, expr),
             expr: true,
@@ -281,7 +333,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Type<'_>, &hir::Type<'gcx>)> {
         let Self(cx, (ty, hir_ty)) = self;
         let gcx = cx.gcx;
         // The type of a type name is a pointer when it is a reference type.
-        let descriptions = TypeDescriptions::new(gcx, gcx.type_of_hir_ty(hir_ty), true);
+        let descriptions = TypeDescriptions::new(*cx, gcx.type_of_hir_ty(hir_ty), true);
         match (&ty.kind, &hir_ty.kind) {
             (ast::TypeKind::Elementary(elementary), _) => {
                 let (mut m, _) = cx.node(s, "ElementaryTypeName", ty.span)?;

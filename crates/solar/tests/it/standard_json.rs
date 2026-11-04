@@ -372,3 +372,25 @@ fn compact_output_keeps_contract_order() {
         )
     );
 }
+
+/// The AST JSON reuses written type descriptions in compact output only, so both outputs must
+/// hold the same values.
+#[test]
+fn ast_json_matches_when_pretty() {
+    let source = "contract C { uint256 a; function f(uint256 x) public pure returns (uint256) { \
+                  uint256 y = x + 1; return y + x; } }";
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"C.sol": {"content": source}},
+        "settings": {"outputSelection": {"*": {"": ["ast"]}}}
+    });
+    let compile = |pretty_json| {
+        let opts = CompileOpts { pretty_json, ..Default::default() };
+        let mut output = Vec::new();
+        compile_standard_json(&input.to_string(), opts, None, &mut output).unwrap();
+        serde_json::from_slice::<Value>(&output).unwrap()
+    };
+    let compact = compile(false);
+    assert!(compact["sources"]["C.sol"]["ast"]["nodes"][0]["nodes"].as_array().is_some());
+    assert_eq!(compact, compile(true));
+}

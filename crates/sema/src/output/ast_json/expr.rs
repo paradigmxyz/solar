@@ -149,7 +149,7 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         parent: Parent<'gcx>,
         is_lvalue: bool,
     ) -> Result<(), M::Error> {
-        m.serialize_entry("typeDescriptions", &ExprType::new(self.gcx, expr).args(parent.args))?;
+        m.serialize_entry("typeDescriptions", &ExprType::new(self, expr).args(parent.args))?;
         self.argument_types(m, parent)?;
         m.serialize_entry("isLValue", &is_lvalue)?;
         m.serialize_entry("isPure", &self.gcx.is_pure(expr))?;
@@ -166,7 +166,7 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         let Some(args) = parent.args else { return Ok(()) };
         m.serialize_entry(
             "argumentTypes",
-            &Seq(|| args.exprs().map(|arg| ExprType::new(self.gcx, arg))),
+            &Seq(|| args.exprs().map(|arg| ExprType::new(self, arg))),
         )
     }
 
@@ -175,8 +175,8 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         self,
         ty: Ty<'gcx>,
         function_kind: Option<&'static str>,
-    ) -> TypeDescriptions<'gcx> {
-        TypeDescriptions { expr: true, function_kind, ..TypeDescriptions::new(self.gcx, ty, true) }
+    ) -> TypeDescriptions<'a, 'gcx> {
+        TypeDescriptions { expr: true, function_kind, ..TypeDescriptions::new(self, ty, true) }
     }
 }
 
@@ -437,7 +437,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
                     gcx.resolved_expr(hir).and_then(|res| cx.reference(res, *ident, None));
                 serialize_opt(&mut m, "referencedDeclaration", declaration)?;
                 m.serialize_entry("overloadedDeclarations", &cx.overloads(resolutions))?;
-                m.serialize_entry("typeDescriptions", &ExprType::new(gcx, hir).args(parent.args))?;
+                m.serialize_entry("typeDescriptions", &ExprType::new(cx, hir).args(parent.args))?;
                 cx.argument_types(&mut m, parent)?;
                 m.end()
             }
@@ -523,7 +523,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
                         common.map(|ty| cx.synthetic_type(ty, None)),
                     )?;
                 } else {
-                    m.serialize_entry("commonType", &ExprType::new(gcx, hir))?;
+                    m.serialize_entry("commonType", &ExprType::new(cx, hir))?;
                 }
                 if let Some(function) = gcx.user_operator(hir.id) {
                     m.serialize_entry("function", &cx.item_id(function))?;
@@ -966,7 +966,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, PathExpr<'_, 'gcx>> {
         let span = segments[0].span.to(ident.span);
         let descriptions = |m: &mut S::SerializeMap| match (last, ty) {
             (Some(last), _) => {
-                m.serialize_entry("typeDescriptions", &ExprType::new(gcx, last).args(parent.args))
+                m.serialize_entry("typeDescriptions", &ExprType::new(*cx, last).args(parent.args))
             }
             (None, Some(ty)) => m.serialize_entry("typeDescriptions", &cx.synthetic_type(ty, None)),
             (None, None) => m.serialize_entry("typeDescriptions", &Empty),
