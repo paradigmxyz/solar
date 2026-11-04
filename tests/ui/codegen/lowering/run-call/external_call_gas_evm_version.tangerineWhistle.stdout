@@ -341,9 +341,8 @@ fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
   bb3:                                            ; preds = bb2
     jump bb5
   bb5:                                            ; preds = bb3, bb4
-    v7 = phi [bb3: i8 1], [bb4: i8 0]
-    v8 = zext i8 v7 to i256
-    ret v8
+    v7 = phi [bb3: 1], [bb4: 0]
+    ret v7
 }
 
 ; function sendZero() external returns (uint256) [selector 0xe857d88b]
@@ -366,7 +365,6 @@ fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], 
   bb3:                                            ; preds = bb2
     jump bb5
   bb5:                                            ; preds = bb3, bb4
-    v6 = phi [bb3: i8 1], [bb4: i8 0]
-    v7 = zext i8 v6 to i256
-    ret v7
+    v6 = phi [bb3: 1], [bb4: 0]
+    ret v6
 }

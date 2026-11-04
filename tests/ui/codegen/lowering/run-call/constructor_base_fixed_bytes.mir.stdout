@@ -10,6 +10,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[bytes3]] {
     v4 = and v3, 0xffffff
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
+    v6 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
     ret
 }
 

@@ -3,23 +3,25 @@
 ; function at1(bytes1 value, uint256 index) external pure returns (bytes1) [selector 0xc793e4d2]
 fn @at1(arg0: i256, arg1: i256) -> i256 [selector=0xc793e4d2, pure, abi_params=[bytes1, uint256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = lt arg1, 1
-    v1 = eq v0, false
-    icall panic_if<0x32>, v1
-    v2 = byte arg1, arg0
-    v3 = shl v2, 248
-    ret v3
+    v0 = and arg0, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v1 = lt arg1, 1
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = byte arg1, v0
+    v4 = shl v3, 248
+    ret v4
 }
 
 ; function at7(bytes7 value, uint256 index) external pure returns (bytes1) [selector 0x84f023b5]
 fn @at7(arg0: i256, arg1: i256) -> i256 [selector=0x84f023b5, pure, abi_params=[bytes7, uint256], abi_returns=[word<bytes1>], abi_return_params=[bytes1]] {
   bb0:
-    v0 = lt arg1, 7
-    v1 = eq v0, false
-    icall panic_if<0x32>, v1
-    v2 = byte arg1, arg0
-    v3 = shl v2, 248
-    ret v3
+    v0 = and arg0, 0xffffffffffffff00000000000000000000000000000000000000000000000000
+    v1 = lt arg1, 7
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = byte arg1, v0
+    v4 = shl v3, 248
+    ret v4
 }
 
 ; function at32(bytes32 value, uint256 index) external pure returns (bytes1) [selector 0xabb4fb46]

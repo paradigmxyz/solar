@@ -30,12 +30,13 @@ fn @joinAddress(arg0: i1) -> i256 [selector=0xbfc95d7a, pure, abi_params=[bool],
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     v0 = icall @dirtyAddress, 2
+    v1 = trunc i256 v0 to i160
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: 2], [bb2: v0]
-    ret v1
+    v2 = phi [bb1: 2], [bb2: v0]
+    ret v2
 }
 
 ; function dirtyAddress(address value) internal pure returns (address result)
@@ -350,12 +351,13 @@ fn @signedJoin(arg0: i1, arg1: i256) -> i256 [selector=0x4f3ee4d1, pure, abi_par
     jump bb3
   bb1:                                            ; preds = bb0
     v0 = icall @negative8
+    v1 = trunc i256 v0 to i8
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: v0], [bb2: arg1]
-    v2 = slt v1, 0
-    v3 = zext i1 v2 to i256
-    ret v3
+    v2 = phi [bb1: v0], [bb2: arg1]
+    v3 = slt v2, 0
+    v4 = zext i1 v3 to i256
+    ret v4
 }
 
 ; function signedLoop(uint256 count, int8 input) external pure returns (bool negative) [selector 0xd2122ca9]
@@ -367,7 +369,7 @@ fn @signedLoop(arg0: i256, arg1: i256) -> i256 [selector=0xd2122ca9, pure, abi_p
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
     v3 = phi [bb0: arg1], [bb3: v7]
-    v4 = phi [bb0: 0], [bb3: v8]
+    v4 = phi [bb0: 0], [bb3: v9]
     v5 = lt v4, v0
     jumpi v5, bb4, bb5
   bb5:                                            ; preds = bb1
@@ -379,18 +381,19 @@ fn @signedLoop(arg0: i256, arg1: i256) -> i256 [selector=0xd2122ca9, pure, abi_p
     jump bb9
   bb9:                                            ; preds = bb8
     v7 = icall @negative8
+    v8 = trunc i256 v7 to i8
     jump bb6
   bb6:                                            ; preds = bb9
     jump bb3
   bb3:                                            ; preds = bb6
-    v8 = checked_add uint256, v4, 1
+    v9 = checked_add uint256, v4, 1
     jump bb1
   bb7:                                            ; preds = bb4
     jump bb2
   bb2:                                            ; preds = bb7, bb5
-    v9 = slt v3, 0
-    v10 = zext i1 v9 to i256
-    ret v10
+    v10 = slt v3, 0
+    v11 = zext i1 v10 to i256
+    ret v11
 }
 
 ; function signedLocal() external pure returns (int256 raw) [selector 0xbacceb2b]

@@ -212,6 +212,8 @@ struct FunctionLowerer<'gcx, 'ctx> {
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
     dirty_values: FxHashSet<ValueId>,
+    /// Makes the next [`Self::lower_expr`] return a dirty value as is instead of cleaning it.
+    keep_raw: bool,
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
@@ -492,6 +494,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
             dirty_values: FxHashSet::default(),
+            keep_raw: false,
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),
@@ -668,16 +671,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         );
     }
 
+    /// Lowers `expr` to its canonical Solidity value: a dirty sub-word value, one that inline
+    /// assembly left with bits above its type, is cleaned. Callers that must keep the raw bits
+    /// use [`Self::lower_carried_expr`] or [`Self::lower_raw_expr`].
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
+        let keep_raw = std::mem::take(&mut self.keep_raw);
         let result = self.lower_expr_inner(expr).map(|value| {
-            if !self.in_inline_assembly
-                && !self.dirty_values.contains(&value)
-                && let Some(ty) = self.cx.gcx.type_of_expr(expr.id)
-                && ty.is_value_type()
-                && let ty @ MirType::Int(_) = types::TypeLowerer::mir_type(ty)
-            {
+            if self.in_inline_assembly {
+                return value;
+            }
+            let Some(ty) = self.cx.gcx.type_of_expr(expr.id).filter(|ty| ty.is_value_type()) else {
+                return value;
+            };
+            if self.dirty_values.contains(&value) {
+                if keep_raw || !self.has_bits_above_type(value, ty) {
+                    value
+                } else {
+                    self.normalize_abi_scalar(value, ty)
+                }
+            } else if let ty @ MirType::Int(_) = types::TypeLowerer::mir_type(ty) {
                 self.builder.cast(value, ty)
             } else {
                 value
@@ -686,6 +700,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result
+    }
+
+    /// Whether `value` of Solidity type `ty` can have bits above the type: its carrier is wider
+    /// than the type's native MIR type, or it is a `bytesN` with `N < 32`.
+    fn has_bits_above_type(&self, value: ValueId, ty: Ty<'gcx>) -> bool {
+        self.builder.func().value_ty(value) != Some(types::TypeLowerer::mir_type(ty))
+            || matches!(
+                types::TypeLowerer::value_layout(ty),
+                crate::mir::ValueLayout::FixedBytes(size) if size.bytes() < 32
+            )
     }
 
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
@@ -755,8 +779,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
-                    let lhs = self.lower_expr(lhs)?;
-                    let rhs = self.lower_expr(rhs)?;
+                    let lhs = self.lower_carried_expr(lhs, self.cx.gcx.type_of_expr(lhs.id)?)?;
+                    let rhs = self.lower_carried_expr(rhs, self.cx.gcx.type_of_expr(rhs.id)?)?;
                     return self.lower_user_operator(expr.span, function_id, &[lhs, rhs]);
                 }
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
@@ -909,7 +933,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     });
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
-                    let value = self.lower_expr(value)?;
+                    let value =
+                        self.lower_carried_expr(value, self.cx.gcx.type_of_expr(value.id)?)?;
                     return self.lower_user_operator(expr.span, function_id, &[value]);
                 }
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
@@ -955,7 +980,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }) {
                     self.lower_typed_expr(rhs, lhs_ty)?
                 } else {
-                    self.lower_expr(rhs)?
+                    self.lower_carried_expr(rhs, rhs_ty)?
                 };
                 // The literal word above is already the place's type, so the
                 // conversion below must not widen or shift it a second time.

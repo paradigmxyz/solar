@@ -228,9 +228,8 @@ fn @peek(arg0: i256) -> i256 [selector=0x7861d269, view, abi_params=[uint256], a
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v4 = phi [bb1: i8 5], [bb2: i8 3]
-    v5 = zext i8 v4 to i256
-    ret v5
+    v4 = phi [bb1: 5], [bb2: 3]
+    ret v4
 }
 
 ; function raw(uint256 h) external view returns (uint256 word) [selector 0x302e678f]

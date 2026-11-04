@@ -333,7 +333,10 @@ fn @invalidEnum() -> i256 [selector=0xb65e9efe, pure, abi_params=[], abi_returns
     v0 = lt 2, 2
     v1 = eq v0, false
     icall panic_if<0x21>, v1
-    v2 = eq i8 2, i8 0
+    v2 = lt 2, 2
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
+    v4 = eq i8 2, i8 0
     ret 2
 }
 
@@ -363,8 +366,9 @@ fn @storageAssignment() -> i256 [selector=0x7bae1f27, abi_params=[], abi_returns
     v4 = and v3, 255
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    ret v6
+    v6 = ne 5, 0
+    v7 = sload 0 !metadata(storage=slot(0))
+    ret v7
 }
 
 ; function widen(uint256 value) internal pure returns (uint256)

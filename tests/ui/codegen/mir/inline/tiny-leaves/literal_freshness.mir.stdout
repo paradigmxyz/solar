@@ -8,7 +8,7 @@ fn @freshInLoop(arg0: i256) -> i1 [selector=0x533a7d1b, pure, abi_params=[bytes1
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v1]
     v2 = phi [bb0: ptr<memory> 96], [bb3: v5]
-    v3 = phi [bb0: 0], [bb3: v33]
+    v3 = phi [bb0: 0], [bb3: v34]
     v4 = lt v3, 2
     jumpi v4, bb4, bb5
   bb5:                                            ; preds = bb1
@@ -68,11 +68,12 @@ fn @freshInLoop(arg0: i256) -> i1 [selector=0x533a7d1b, pure, abi_params=[bytes1
     v31 = byte 0, v0
     v32 = ptradd v5, 32
     mstore8 v32, v31
+    v33 = and v0, 0xff00000000000000000000000000000000000000000000000000000000000000
     jump bb6
   bb6:                                            ; preds = bb18
     jump bb3
   bb3:                                            ; preds = bb6
-    v33 = checked_add uint256, v3, 1
+    v34 = checked_add uint256, v3, 1
     jump bb1
   bb16:                                           ; preds = bb15
     ret false

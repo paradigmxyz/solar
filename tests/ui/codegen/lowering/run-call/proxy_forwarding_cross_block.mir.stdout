@@ -30,6 +30,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
+    v6 = trunc i256 arg0 to i160
     ret
 }
 
@@ -74,6 +75,7 @@ fn @constructor(arg0: i256) [constructor, abi_params=[address]] {
     v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
+    v6 = trunc i256 arg0 to i160
     ret
 }
 

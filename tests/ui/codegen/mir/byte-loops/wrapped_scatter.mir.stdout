@@ -11,7 +11,7 @@ fn @fill(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i1 [selector=0xb4f7766b, 
     v2 = phi [bb0: arg1], [bb3: v2]
     v3 = phi [bb0: arg2], [bb3: v3]
     v4 = phi [bb0: 0], [bb3: v4]
-    v5 = phi [bb0: 0], [bb3: v14]
+    v5 = phi [bb0: 0], [bb3: v15]
     v6 = lt v5, 2
     jumpi v6, bb4, bb5
   bb5:                                            ; preds = bb1
@@ -28,11 +28,12 @@ fn @fill(arg0: ptr<memory>, arg1: i256, arg2: i256) -> i1 [selector=0xb4f7766b, 
     v12 = ptradd v1, v7
     v13 = ptradd v12, 32
     mstore8 v13, v11
+    v14 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v14 = checked_add uint256, v5, 1
+    v15 = checked_add uint256, v5, 1
     jump bb1
 }
 

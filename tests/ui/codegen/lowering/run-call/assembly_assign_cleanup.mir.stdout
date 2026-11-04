@@ -34,10 +34,11 @@ fn @narrowMask() -> i256 [selector=0x14c62240, pure, abi_params=[], abi_returns=
 ; function boolNorm() external pure returns (uint256) [selector 0x3d176e51]
 fn @boolNorm() -> i256 [selector=0x3d176e51, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    icall require<short_string>, true, 6, 0x7472757468790000000000000000000000000000000000000000000000000000
     v0 = ne 7, 0
-    v1 = eq v0, true
-    icall require<short_string>, v1, 2, 0x6571000000000000000000000000000000000000000000000000000000000000
+    icall require<short_string>, v0, 6, 0x7472757468790000000000000000000000000000000000000000000000000000
+    v1 = ne 7, 0
+    v2 = eq v1, true
+    icall require<short_string>, v2, 2, 0x6571000000000000000000000000000000000000000000000000000000000000
     ret 1
 }
 

@@ -469,7 +469,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     // argument = slot of the storage argument
                     this.require_storage_access(argument)?.slot
                 } else {
-                    let value = this.lower_typed_expr(argument, parameter)?;
+                    let value = this.lower_carried_expr(argument, parameter)?;
                     if !parameter.is_value_type() {
                         return this.materialize_call_argument(parameter, value, argument.span);
                     }
@@ -822,7 +822,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = if Self::is_storage_parameter(parameter_ty) {
                 self.require_storage_access(receiver)?.slot
             } else {
-                self.lower_typed_expr(receiver, parameter_ty)?
+                self.lower_carried_expr(receiver, parameter_ty)?
             };
             values.push(self.materialize_scalar_carrier(
                 function.parameters[0],
@@ -845,7 +845,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = if Self::is_storage_parameter(parameter_ty) {
                     this.require_storage_access(argument)?.slot
                 } else {
-                    this.lower_typed_expr(argument, parameter_ty)?
+                    this.lower_carried_expr(argument, parameter_ty)?
                 };
                 this.materialize_scalar_carrier(parameter, value, argument.span)
             },
@@ -927,7 +927,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if args.len() != function.parameters.len() {
             return self.cx.report_unsupported(expr.span, "external function argument list");
         }
-        let address = self.lower_expr(receiver)?;
+        let address = self.lower_raw_expr(receiver)?;
         let options = self.lower_call_options(call_opts, true, "call option")?;
         let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
             id: function_id,

@@ -11,6 +11,7 @@ fn @constructor() [constructor] {
     v5 = and v4, 255
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
+    v7 = ne v0, 0
     ret
 }
 
@@ -48,6 +49,7 @@ fn @constructor() [constructor] {
     v5 = and v4, 255
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
+    v7 = ne v0, 0
     jump bb1
   bb1:                                            ; preds = bb0
     sstore 1, 1 !metadata(storage=slot(1))
@@ -95,6 +97,7 @@ fn @constructor() [constructor] {
     v5 = and v4, 255
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
+    v7 = ne v0, 0
     jump bb2
   bb2:                                            ; preds = bb0
     jump bb1
@@ -153,6 +156,7 @@ fn @record() {
     v5 = and v4, 255
     v6 = or v3, v5
     sstore 0, v6 !metadata(storage=slot(0))
+    v7 = ne v0, 0
     ret
 }
 

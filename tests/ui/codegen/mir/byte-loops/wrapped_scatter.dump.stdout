@@ -22,60 +22,60 @@ fn @entry() [entry] {
 ; function fill(bytes memory buffer, uint256 offset, bytes1 value) external pure returns (bool) [selector 0xb4f7766b]
 fn @fill() {
   bb0:
-    v38 = calldataload 68
-    v39 = shl v38, 8
-    v35 = calldatasize
-    v36 = lt v35, 100
-    v57 = zext i1 v36 to i256
-    v58 = or v39, v57
-    v59 = ne v58, 0
-    jumpi v59, bb10, bb11
+    v39 = calldataload 68
+    v40 = shl v39, 8
+    v36 = calldatasize
+    v37 = lt v36, 100
+    v58 = zext i1 v37 to i256
+    v59 = or v40, v58
+    v60 = ne v59, 0
+    jumpi v60, bb10, bb11
   bb11:                                           ; preds = bb0
-    v61 = calldataload 68
-    v60 = calldataload 36
-    v41 = icall @decode_calldata_type
-    mstore v41, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v15 = byte 0, v61
-    v16 = mul v15, 0x101010101010101010101010101010101010101010101010101010101010101
-    v51 = add v41, v60
-    v52 = add v51, 32
-    v54 = add v41, 32
-    v22 = lt v52, v54
-    jumpi v22, bb1, bb4
+    v62 = calldataload 68
+    v61 = calldataload 36
+    v42 = icall @decode_calldata_type
+    mstore v42, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v16 = byte 0, v62
+    v17 = mul v16, 0x101010101010101010101010101010101010101010101010101010101010101
+    v52 = add v42, v61
+    v53 = add v52, 32
+    v55 = add v42, 32
+    v23 = lt v53, v55
+    jumpi v23, bb1, bb4
   bb4:                                            ; preds = bb11
-    v26 = gt v60, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
-    jumpi v26, bb5, bb7
+    v27 = gt v61, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+    jumpi v27, bb5, bb7
   bb7:                                            ; preds = bb4
-    v29 = mload v52
-    v44 = xor v29, v16
-    v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v32 = xor v16, v45
-    mstore v52, v32
+    v30 = mload v53
+    v45 = xor v30, v17
+    v46 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v33 = xor v17, v46
+    mstore v53, v33
     jump bb2
   bb1:                                            ; preds = bb6, bb11
-    v5 = phi [bb11: 0], [bb6: v14]
+    v5 = phi [bb11: 0], [bb6: v15]
     v6 = lt v5, 2
     jumpi v6, bb3, bb2
   bb2:                                            ; preds = bb1, bb7
     mstore 0, 1
     returndata 0, 32
   bb3:                                            ; preds = bb1
-    v33 = add v60, v5
-    v34 = lt v33, v60
-    jumpi v34, bb8, bb9
+    v34 = add v61, v5
+    v35 = lt v34, v61
+    jumpi v35, bb8, bb9
   bb9:                                            ; preds = bb3
-    v8 = mload v41
-    v9 = lt v33, v8
+    v8 = mload v42
+    v9 = lt v34, v8
     jumpi v9, bb6, bb5
   bb5 [cold]:                                     ; preds = bb4, bb9
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb6:                                            ; preds = bb9
-    v48 = add v41, v33
-    v49 = add v48, 32
-    mstore8 v49, v15
-    v14 = add v5, 1
+    v49 = add v42, v34
+    v50 = add v49, 32
+    mstore8 v50, v16
+    v15 = add v5, 1
     jump bb1
   bb8 [cold]:                                     ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)

@@ -53,7 +53,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = self.builder.imm(value);
                     self.coerce_value(value, expr_ty, ty)
                 } else if let Some(expr) = initializer {
-                    self.lower_typed_expr(expr, ty)?
+                    self.lower_carried_expr(expr, ty)?
                 } else {
                     self.default_binding_value(ty)
                 };
@@ -129,7 +129,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             continue;
                         }
                         let span = value.span;
-                        let value = self.lower_typed_expr(value, ty)?;
+                        let value = self.lower_carried_expr(value, ty)?;
                         let value = self.materialize_scalar_carrier(*id, value, span)?;
                         self.values.insert(*id, value);
                     }

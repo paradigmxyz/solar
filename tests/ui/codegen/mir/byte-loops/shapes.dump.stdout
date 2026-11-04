@@ -933,37 +933,37 @@ fn @zeroSome() {
 ; function fillSome(bytes memory b, bytes1 c) external pure returns (bytes memory) [selector 0x613646c3]
 fn @fillSome() {
   bb0:
-    v23 = calldataload 36
-    v24 = shl v23, 8
-    v21 = calldatasize
-    v22 = lt v21, 68
-    v47 = zext i1 v22 to i256
-    v48 = or v24, v47
-    v49 = ne v48, 0
-    jumpi v49, bb3, bb4
+    v24 = calldataload 36
+    v25 = shl v24, 8
+    v22 = calldatasize
+    v23 = lt v22, 68
+    v48 = zext i1 v23 to i256
+    v49 = or v25, v48
+    v50 = ne v49, 0
+    jumpi v50, bb3, bb4
   bb4:                                            ; preds = bb0
-    v50 = calldataload 36
-    v26 = icall @decode_calldata_type.18, 4
-    v12 = byte 0, v50
-    v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
-    v14 = mload v26
-    v15 = lt v14, 4
-    jumpi v15, bb1, bb2
+    v51 = calldataload 36
+    v27 = icall @decode_calldata_type.18, 4
+    v13 = byte 0, v51
+    v14 = mul v13, 0x101010101010101010101010101010101010101010101010101010101010101
+    v15 = mload v27
+    v16 = lt v15, 4
+    jumpi v16, bb1, bb2
   bb2:                                            ; preds = bb4
-    v43 = add v26, 32
-    v17 = mload v43
-    v39 = xor v17, v13
-    v40 = and v39, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v20 = xor v13, v40
-    mstore v43, v20
-    v31 = add v14, 31
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v35 = add v43, v14
-    mstore v35, 0
-    v45 = sub v26, 32
-    mstore v45, 32
-    v37 = add v32, 64
-    returndata v45, v37
+    v44 = add v27, 32
+    v18 = mload v44
+    v40 = xor v18, v14
+    v41 = and v40, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v21 = xor v14, v41
+    mstore v44, v21
+    v32 = add v15, 31
+    v33 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = add v44, v15
+    mstore v36, 0
+    v46 = sub v27, 32
+    mstore v46, 32
+    v38 = add v33, 64
+    returndata v46, v38
   bb1 [cold]:                                     ; preds = bb4
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

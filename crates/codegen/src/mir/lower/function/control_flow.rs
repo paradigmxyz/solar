@@ -686,7 +686,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn merge_ternary_phi(
+    pub(super) fn merge_ternary_phi(
         &mut self,
         mut incoming: Vec<(BlockId, ValueId)>,
         ty: Ty<'gcx>,

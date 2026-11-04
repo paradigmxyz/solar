@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ run-call-fail: storageIndex 0x101 => Panic(0x32)
+//@ run-call: storageIndex 0x101 => 2
 
 contract DirtyStorageArrayIndex {
     uint256[] sarr;

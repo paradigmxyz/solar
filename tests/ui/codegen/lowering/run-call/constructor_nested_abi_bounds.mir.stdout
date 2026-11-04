@@ -212,9 +212,8 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
   bb18:                                           ; preds = bb17
     jump bb20
   bb20:                                           ; preds = bb18, bb19
-    v84 = phi [bb18: i8 1], [bb19: i8 0]
-    v85 = zext i8 v84 to i256
-    ret v85
+    v84 = phi [bb18: 1], [bb19: 0]
+    ret v84
   bb2:                                            ; preds = bb1
     v3 = shl v1, 5
     v4 = ptradd v0, v3

@@ -12,6 +12,9 @@ fn @constructor() [constructor] {
     icall panic_if<0x21>, v2
     v3 = trunc i256 v0 to i8
     storeimmutable choice, v3
+    v4 = lt v0, 2
+    v5 = eq v4, false
+    icall panic_if<0x21>, v5
     ret
 }
 
@@ -55,6 +58,9 @@ fn @constructor() [constructor] {
     icall panic_if<0x21>, v2
     v3 = trunc i256 v0 to i8
     storeimmutable choice, v3
+    v4 = lt v0, 2
+    v5 = eq v4, false
+    icall panic_if<0x21>, v5
     ret
 }
 
@@ -101,6 +107,9 @@ fn @constructor() [constructor] {
     icall panic_if<0x21>, v2
     v3 = trunc i256 v0 to i8
     storeimmutable choice, v3
+    v4 = lt v0, 2
+    v5 = eq v4, false
+    icall panic_if<0x21>, v5
     ret
 }
 
@@ -143,6 +152,9 @@ fn @constructor(arg0: i256) [constructor, abi_params=[enum<2, uint8>]] {
     icall panic_if<0x21>, v1
     v2 = trunc i256 arg0 to i8
     storeimmutable choice, v2
+    v3 = lt arg0, 2
+    v4 = eq v3, false
+    icall panic_if<0x21>, v4
     ret
 }
 
