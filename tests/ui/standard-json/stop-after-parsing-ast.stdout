@@ -1,0 +1,19 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": null,
+      "message": "AST output needs analysis, but compilation stops after parsing",
+      "formattedMessage": "warning: AST output needs analysis, but compilation stops after parsing\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  }
+}

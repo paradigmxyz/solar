@@ -1,0 +1,23 @@
+//@ filecheck:
+// The AST needs analysis, so a stop before it leaves it out with a warning.
+// CHECK: "severity": "warning"
+// CHECK: "message": "AST output needs analysis, but compilation stops after parsing"
+// CHECK-NOT: "ast":
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract C { function f() public pure returns (uint256) { return 1; } }"
+    }
+  },
+  "settings": {
+    "stopAfter": "parsing",
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

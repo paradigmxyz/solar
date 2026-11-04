@@ -341,20 +341,32 @@ fn compile(
                 )?;
                 compiler.gcx().dcx().has_errors()?;
                 output.sources = Some(parsed_sources);
+                if output_selection.requests_ast() {
+                    let gcx = compiler.gcx();
+                    // The AST JSON takes its types and references from analysis.
+                    if let Some(stage) = gcx.sess.opts.stop_after
+                        && stage < CompilerStage::Analysis
+                    {
+                        gcx.dcx()
+                            .warn(format!(
+                                "AST output needs analysis, but compilation stops after {stage}"
+                            ))
+                            .emit();
+                    } else {
+                        let ast_json = ast_json.get_or_init(|| gcx.ast_json(opts.pretty_json));
+                        let sources = output.sources.iter_mut().flatten();
+                        for ((name, source), id) in sources.zip(gcx.hir.source_ids()) {
+                            if output_selection.ast(name) {
+                                source.ast = ast_json.source(id);
+                            }
+                        }
+                    }
+                }
                 if control_flow.is_break() {
                     return Ok(());
                 }
 
                 let gcx = compiler.gcx();
-                if output_selection.requests_ast() {
-                    let ast_json = ast_json.get_or_init(|| gcx.ast_json(opts.pretty_json));
-                    let sources = output.sources.iter_mut().flatten();
-                    for ((name, source), id) in sources.zip(gcx.hir.source_ids()) {
-                        if output_selection.ast(name) {
-                            source.ast = ast_json.source(id);
-                        }
-                    }
-                }
                 let bytecode_contracts = requested_bytecode_contracts(gcx, output_selection);
                 let debug_info_contracts = requested_debug_info_contracts(gcx, output_selection);
                 let needs_metadata = output_selection.requests_metadata()
