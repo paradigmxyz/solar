@@ -169,7 +169,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let carried = match self.lower_carried_leaf(expr)? {
             Some(carried) => carried,
-            None => return Some(Carried::from_clean(self.lower_typed_expr(expr, ty)?)),
+            None => match self.lower_carried_shape(expr, source_ty)? {
+                Some(carried) => carried,
+                None => return Some(Carried::from_clean(self.lower_typed_expr(expr, ty)?)),
+            },
         };
         if source_ty == ty {
             return Some(carried);
@@ -218,6 +221,143 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(Some(self.lower_user_operator_expr(expr, function_id)?))
             }
             _ => Some(None),
+        }
+    }
+
+    /// Lowers an expression that forwards the raw bits of its operands, as `solc` via-IR does:
+    /// `payable(x)` of an `address payable`, a postfix `x++` or `x--`, `&&` and `||` on `bool`,
+    /// and `&`, `|` and `^` of operands of the result type. Returns `Some(None)` for any other
+    /// expression.
+    fn lower_carried_shape(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        source_ty: Ty<'gcx>,
+    ) -> Option<Option<Carried>> {
+        match &expr.kind {
+            ExprKind::Payable(inner) if self.cx.gcx.type_of_expr(inner.id) == Some(source_ty) => {
+                Some(Some(self.lower_carried_expr(inner, source_ty)?))
+            }
+            ExprKind::Unary(op, operand)
+                if matches!(op.kind, UnOpKind::PostInc | UnOpKind::PostDec) =>
+            {
+                Some(Some(self.lower_inc_dec(op.kind, operand)?))
+            }
+            ExprKind::Binary(lhs, op, rhs)
+                if op.kind.is_logical()
+                    && matches!(source_ty.kind, TyKind::Elementary(ElementaryType::Bool)) =>
+            {
+                Some(Some(self.lower_carried_logical(lhs, op.kind, rhs, source_ty)?))
+            }
+            ExprKind::Binary(lhs, op, rhs)
+                if matches!(op.kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
+                    && self.cx.gcx.user_operator(expr.id).is_none()
+                    && !self.cx.gcx.unsupported_udvt_operator(expr.id)
+                    && self.forwards_bitwise(lhs, rhs, source_ty) =>
+            {
+                Some(Some(self.lower_carried_bitwise(lhs, op.kind, rhs, source_ty)?))
+            }
+            _ => Some(None),
+        }
+    }
+
+    /// Returns whether `lhs op rhs` keeps raw bits: both operands have the result type, or are
+    /// literals that convert to it, and at least one has it.
+    fn forwards_bitwise(&self, lhs: &hir::Expr<'_>, rhs: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
+        let is_literal = |expr: &hir::Expr<'_>| {
+            self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+                matches!(ty.peel_refs().kind, TyKind::IntLiteral(..) | TyKind::StringLiteral(..))
+            })
+        };
+        let has_ty = |expr: &hir::Expr<'_>| self.cx.gcx.type_of_expr(expr.id) == Some(ty);
+        (arithmetic_kind(ty).is_some() || operators::fixed_bytes_width(ty).is_some())
+            && (has_ty(lhs) || is_literal(lhs))
+            && (has_ty(rhs) || is_literal(rhs))
+            && (has_ty(lhs) || has_ty(rhs))
+    }
+
+    /// Lowers `lhs op rhs` for `&`, `|` and `^`: the operation runs on the raw words when an
+    /// operand is raw, because via-IR emits it without cleaning its operands.
+    fn lower_carried_bitwise(
+        &mut self,
+        lhs: &hir::Expr<'_>,
+        kind: BinOpKind,
+        rhs: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<Carried> {
+        let operand = |this: &mut Self, expr: &hir::Expr<'_>| {
+            if this.cx.gcx.type_of_expr(expr.id) == Some(ty) {
+                this.lower_carried_expr(expr, ty)
+            } else {
+                Some(Carried::from_clean(this.lower_typed_expr(expr, ty)?))
+            }
+        };
+        let lhs = operand(self, lhs)?;
+        let rhs = operand(self, rhs)?;
+        if !lhs.raw && !rhs.raw {
+            let value = self.binary(kind, lhs.value, rhs.value, Some(ty));
+            return Some(Carried::from_clean(match operators::fixed_bytes_width(ty) {
+                Some(bytes) => self.clean_fixed_bytes(value, bytes),
+                None => value,
+            }));
+        }
+        let layout = types::TypeLowerer::value_layout(ty);
+        let word = |this: &mut Self, carried: Carried| {
+            if carried.raw {
+                carried.value
+            } else {
+                raw_scalars::cast_carrier(&mut this.builder, carried.value, layout, MirType::I256)
+            }
+        };
+        let lhs = word(self, lhs);
+        let rhs = word(self, rhs);
+        // result = op lhs, rhs
+        Some(Carried::from_raw_carrier(self.binary(kind, lhs, rhs, None)))
+    }
+
+    /// Lowers `&&` and `||` along a copy edge: the result is the operand that decides it, raw
+    /// bits included, as in via-IR.
+    fn lower_carried_logical(
+        &mut self,
+        lhs: &hir::Expr<'_>,
+        kind: BinOpKind,
+        rhs: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<Carried> {
+        // if && { branch(lhs, rhs, false) }
+        // if || { branch(lhs, lhs, rhs) }
+        let lhs = self.lower_carried_expr(lhs, ty)?;
+        let condition = lhs.clean(self, ty);
+        let is_and = kind == BinOpKind::And;
+        let short = |this: &mut Self| {
+            if lhs.raw && !is_and {
+                Some(lhs)
+            } else {
+                Some(Carried::from_clean(this.builder.imm_bool(!is_and)))
+            }
+        };
+        let (then_branch, else_branch) = self.lower_branches(
+            condition,
+            is_and,
+            |this| if is_and { this.lower_carried_expr(rhs, ty) } else { short(this) },
+            |this| if is_and { short(this) } else { this.lower_carried_expr(rhs, ty) },
+        )?;
+        let (rhs, short) =
+            if is_and { (then_branch, else_branch) } else { (else_branch, then_branch) };
+        if rhs.terminated || rhs.value.value == short.value.value {
+            Some(short.value)
+        } else {
+            Some(self.merge_carried(&[(rhs.block, rhs.value), (short.block, short.value)], ty))
+        }
+    }
+
+    /// Loads the place `place` without cleaning a raw-carrier variable.
+    pub(super) fn load_lvalue_place_carried(
+        &mut self,
+        place: &LValuePlace<'gcx>,
+    ) -> Option<Carried> {
+        match *place {
+            LValuePlace::Variable { id, span } => self.load_variable_carried(id, span),
+            _ => Some(Carried::from_clean(self.load_lvalue_place(place)?)),
         }
     }
 

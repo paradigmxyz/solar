@@ -138,7 +138,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if Self::is_storage_parameter(parameter_ty) {
                         return Some(this.require_storage_access(argument)?.slot);
                     }
-                    this.lower_typed_expr(argument, parameter_ty)
+                    let carried = this.lower_carried_expr(argument, parameter_ty)?;
+                    this.materialize_scalar_carrier(
+                        constructor.parameters[index],
+                        carried,
+                        argument.span,
+                    )
                 },
             )?;
             // Later bases may name an earlier base's parameters in their own

@@ -723,6 +723,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result
     }
 
+    /// Lowers `++` or `--` on a place and returns the expression's value: the new canonical value
+    /// for the prefix forms, and the old value, raw bits included, for the postfix forms.
+    pub(super) fn lower_inc_dec(
+        &mut self,
+        kind: UnOpKind,
+        operand: &hir::Expr<'_>,
+    ) -> Option<Carried> {
+        let place = self.resolve_lvalue_place(operand)?;
+        let ty = self.cx.gcx.type_of_expr(operand.id)?;
+        let old = self.load_lvalue_place_carried(&place)?;
+        let old_value = old.clean(self, ty);
+        let one = self.builder.imm(1);
+        let op = if matches!(kind, UnOpKind::PreInc | UnOpKind::PostInc) {
+            BinOpKind::Add
+        } else {
+            BinOpKind::Sub
+        };
+        let new = self.binary(op, old_value, one, Some(ty));
+        self.store_lvalue_place(&place, new)?;
+        Some(if matches!(kind, UnOpKind::PreInc | UnOpKind::PreDec) {
+            Carried::from_clean(new)
+        } else {
+            old
+        })
+    }
+
     /// Lowers an assignment, returning the assigned value: a raw word when a raw carrier's value
     /// is copied unchanged.
     pub(super) fn lower_assignment(
@@ -1018,22 +1044,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     op.kind,
                     UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
                 ) {
-                    let place = self.resolve_lvalue_place(value)?;
-                    let ty = self.cx.gcx.type_of_expr(value.id);
-                    let old = self.load_lvalue_place(&place)?;
-                    let one = self.builder.imm(1);
-                    let kind = if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PostInc) {
-                        BinOpKind::Add
-                    } else {
-                        BinOpKind::Sub
-                    };
-                    let new = self.binary(kind, old, one, ty);
-                    self.store_lvalue_place(&place, new)?;
-                    return Some(if matches!(op.kind, UnOpKind::PreInc | UnOpKind::PreDec) {
-                        new
-                    } else {
-                        old
-                    });
+                    let ty = self.cx.gcx.type_of_expr(value.id)?;
+                    let carried = self.lower_inc_dec(op.kind, value)?;
+                    return Some(carried.clean(self, ty));
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
                     let result = self.lower_user_operator_expr(expr, function_id)?;

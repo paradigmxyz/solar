@@ -86,7 +86,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 // the reference itself only binds to a storage
                                 // variable.
                                 let span = self.cx.gcx.hir.variable(*id).span;
-                                let value = self.load_storage_object(ty, value, span)?;
+                                let value = self.load_storage_object(ty, access.slot, span)?;
                                 self.values.insert(*id, value);
                                 continue;
                             }
@@ -97,7 +97,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 "mixed storage tuple",
                             );
                         } else {
-                            let value = Carried::from_clean(value);
                             let value =
                                 self.convert_tuple_component(value, source_ty, ty, expr.span)?;
                             let value = self.carried_into_binding(*id, value);

@@ -3,12 +3,12 @@
 use super::*;
 
 enum PreparedTupleAssignment<'gcx> {
-    Value { place: LValuePlace<'gcx>, rhs: TupleAssignmentRhs<'gcx> },
+    Value { place: LValuePlace<'gcx>, target_ty: Ty<'gcx>, rhs: TupleAssignmentRhs<'gcx> },
     StorageReference { id: VariableId, access: StorageAccess },
 }
 
 enum TupleAssignmentRhs<'gcx> {
-    Materialized { value: ValueId, source_ty: Option<Ty<'gcx>>, span: Span },
+    Materialized { value: Carried, source_ty: Option<Ty<'gcx>>, span: Span },
     // Capture the source slot during RHS evaluation, but copy its contents when
     // this assignment is committed.
     StorageCopy { access: StorageAccess, source_ty: Ty<'gcx>, span: Span },
@@ -89,27 +89,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             _ => Some(vec![self.lower_component(expr)?]),
         }
-    }
-
-    /// Lowers the values of an expression that produces several, each canonical for its type.
-    ///
-    /// Use it where the values go to consumers rather than into bindings.
-    pub(super) fn lower_clean_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<ValueId>> {
-        let values = self.lower_values(expr)?;
-        let types = self.multi_value_types(expr);
-        let own = self.cx.gcx.type_of_expr(expr.peel_parens().id);
-        values
-            .into_iter()
-            .enumerate()
-            .map(|(index, value)| {
-                let ty = match (&types, own) {
-                    (Some(types), _) => types.get(index).copied(),
-                    (None, Some(ty)) => Some(ty),
-                    (None, None) => None,
-                };
-                ty.map(|ty| value.clean(self, ty))
-            })
-            .collect()
     }
 
     pub(super) fn lower_return_values(&mut self, expr: &hir::Expr<'_>) -> Option<Vec<Carried>> {
@@ -311,7 +290,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .flatten()
                     .copied()
                     .zip(values)
-                    .map(|(element, value)| (element, value, None)),
+                    .map(|(element, value)| (element, Carried::from_clean(value), None)),
             );
         }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
@@ -319,7 +298,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && rhs_elements.iter().any(Option::is_none)
                 && let Some(rhs) = rhs_elements.iter().flatten().next()
             {
-                let values = self.lower_clean_values(rhs)?;
+                let values = self.lower_values(rhs)?;
                 if values.len() >= elements.len() {
                     let source_ty = self.cx.gcx.type_of_expr(rhs.id)?;
                     let sources = match source_ty.kind {
@@ -343,7 +322,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .collect::<Option<Vec<_>>>()?;
             return self.store_prepared_tuple_values(values);
         }
-        let values = self.lower_clean_values(rhs)?;
+        let values = self.lower_values(rhs)?;
         if values.len() < elements.len() {
             return self.cx.report_unsupported(rhs.span, "tuple assignment arity");
         }
@@ -374,17 +353,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let source_ty = source_ty.unwrap_or(target_ty);
         let value = if target_ty.is_ref_at(DataLocation::Memory) {
-            self.materialize_memory_argument(target_ty, value, span)?
+            let value = value.clean(self, source_ty);
+            Carried::from_clean(self.materialize_memory_argument(target_ty, value, span)?)
         } else {
             value
         };
-        let value = self.coerce_value(value, source_ty, target_ty);
+        // An equal-type copy keeps its raw bits, like any copy edge.
+        let value = if source_ty == target_ty {
+            value
+        } else {
+            let value = value.clean(self, source_ty);
+            Carried::from_clean(self.coerce_value(value, source_ty, target_ty))
+        };
         Some(TupleAssignmentRhs::Materialized { value, source_ty: Some(source_ty), span })
     }
 
     fn store_tuple_values<'hir>(
         &mut self,
-        values: impl IntoIterator<Item = (&'hir hir::Expr<'hir>, ValueId, Option<Ty<'gcx>>)>,
+        values: impl IntoIterator<Item = (&'hir hir::Expr<'hir>, Carried, Option<Ty<'gcx>>)>,
     ) -> Option<()> {
         let values = values
             .into_iter()
@@ -416,7 +402,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     rhs => {
                         let place = self.resolve_lvalue_place(element)?;
-                        PreparedTupleAssignment::Value { place, rhs }
+                        let target_ty = self.type_of_expr_or_variable(element)?;
+                        PreparedTupleAssignment::Value { place, target_ty, rhs }
                     }
                 })
             })
@@ -430,19 +417,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         for assignment in assignments.into_iter().rev() {
             match assignment {
-                PreparedTupleAssignment::Value { place, rhs } => {
+                PreparedTupleAssignment::Value { place, target_ty, rhs } => {
                     let (value, source_ty) = match rhs {
                         TupleAssignmentRhs::Materialized { value, source_ty, .. } => {
                             (value, source_ty)
                         }
-                        TupleAssignmentRhs::StorageCopy { access, source_ty, span } => {
-                            (self.load_storage_value(source_ty, access, span)?, Some(source_ty))
-                        }
+                        TupleAssignmentRhs::StorageCopy { access, source_ty, span } => (
+                            Carried::from_clean(self.load_storage_value(source_ty, access, span)?),
+                            Some(source_ty),
+                        ),
                         TupleAssignmentRhs::StorageReference { .. } => {
                             unreachable!("storage reference reached value assignment")
                         }
                     };
-                    self.store_lvalue_place_with_source(&place, value, source_ty)?;
+                    self.store_carried_place(&place, value, source_ty, target_ty)?;
                 }
                 PreparedTupleAssignment::StorageReference { id, access } => {
                     self.storage_refs.insert(id, access);
@@ -481,7 +469,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             .cx
                             .report_unsupported(rhs.span, "nested tuple assignment value");
                     };
-                    let rhs_values = self.lower_clean_values(rhs)?;
+                    let rhs_values = self.lower_values(rhs)?;
                     if rhs_values.len() != nested_lhs.len() || rhs_types.len() != nested_lhs.len() {
                         return self.cx.report_unsupported(rhs.span, "tuple assignment arity");
                     }
@@ -495,7 +483,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         }
                         let value = if rhs_ty.is_ref_at(DataLocation::Storage) {
                             let access = StorageAccess {
-                                slot: value,
+                                slot: value.clean(self, rhs_ty),
                                 location: StorageLocation::word(U256::ZERO),
                                 offset: None,
                             };
@@ -547,13 +535,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             // A literal for fixed bytes is the target's word already, as in a
                             // single assignment, rather than a string object to convert.
                             TupleAssignmentRhs::Materialized {
-                                value,
+                                value: Carried::from_clean(value),
                                 source_ty: Some(target_ty),
                                 span: rhs.span,
                             }
                         } else {
                             TupleAssignmentRhs::Materialized {
-                                value: self.lower_expr(rhs)?,
+                                value: self.lower_component(rhs)?,
                                 source_ty,
                                 span: rhs.span,
                             }
@@ -583,7 +571,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_storage_reference_values(
         &mut self,
         expr: &hir::Expr<'_>,
-    ) -> Option<Vec<(ValueId, Ty<'gcx>, Option<StorageAccess>)>> {
+    ) -> Option<Vec<(Carried, Ty<'gcx>, Option<StorageAccess>)>> {
         if expr.as_call().is_none() && !matches!(expr.kind, ExprKind::Ternary(..)) {
             return None;
         }
@@ -595,14 +583,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !types.iter().any(|ty| ty.is_ref_at(DataLocation::Storage)) {
             return None;
         }
-        let values = self.lower_clean_values(expr)?;
+        let values = self.lower_values(expr)?;
         (values.len() == types.len()).then(|| {
             values
                 .into_iter()
                 .zip(types)
                 .map(|(value, &ty)| {
                     let access = ty.is_ref_at(DataLocation::Storage).then(|| StorageAccess {
-                        slot: value,
+                        slot: value.clean(self, ty),
                         location: StorageLocation::word(U256::ZERO),
                         offset: None,
                     });

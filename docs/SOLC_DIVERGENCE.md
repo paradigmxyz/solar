@@ -738,8 +738,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Behavior: When inline assembly leaves bits above a variable's type, `solar`
   matches `solc` via-IR. The raw word survives copies, assignments, internal
   call, modifier and user-defined operator arguments, returns, tuple
-  components, ternary and branch joins, equal-type conversions and state
-  variable initializers, and inline assembly reads it back unchanged. Every
+  components, ternary and branch joins, equal-type conversions, state
+  variable initializers and base constructor arguments, and inline assembly reads
+  it back unchanged. So does an expression that returns an operand: `payable(x)`
+  of an `address payable`, the old value of a postfix `++` or `--`, `&&` and `||`,
+  and `&`, `|` and `^` of operands of the result type. Every
   other consumer sees a canonical value: operands, builtin arguments, ABI
   encodings, stores, indexes, conditions and external calls.
 - Rationale: The Solidity documentation leaves bits outside a type's width
