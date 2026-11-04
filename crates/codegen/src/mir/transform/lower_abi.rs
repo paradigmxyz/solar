@@ -4064,7 +4064,6 @@ fn copy_calldata_member(
     // position = base + offset
     let tail = CalldataTail::Decode;
     let offset = builder.load(head, PtrLocation::Calldata);
-    // A fresh `calldatasize` per member keeps fewer values live across copy loops.
     let end = builder.calldatasize();
     builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size());
     let position = builder.add(base, offset);

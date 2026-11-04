@@ -496,8 +496,7 @@ fn @sliceCalldata() {
     v83 = ne v82, 0
     jumpi v83, bb3, bb8
   bb8:                                            ; preds = bb7
-    v80 = calldatasize
-    calldatacopy v73, v80, v2
+    calldatacopy v73, v45, v2
     mstore v73, v48
     v29 = eq v48, 0
     jumpi v29, bb1, bb2
@@ -552,8 +551,7 @@ fn @fresh() {
     jumpi v4, bb6, bb7
   bb7:                                            ; preds = bb13
     v120 = icall @alloc, v3
-    v122 = calldatasize
-    calldatacopy v120, v122, v3
+    calldatacopy v120, v78, v3
     mstore v120, v72
     v29 = eq v81, 0
     jumpi v29, bb2, bb4
@@ -664,8 +662,7 @@ fn @freshPair() {
     jumpi v155, bb13, bb21
   bb21:                                           ; preds = bb20
     mstore 64, v135 !metadata(memory=scratch)
-    v143 = calldatasize
-    calldatacopy v134, v143, v2
+    calldatacopy v134, v91, v2
     mstore v134, v93
     v80 = or v134, v93
     v89 = shr v80, 64
@@ -700,8 +697,7 @@ fn @freshPair() {
     jumpi v68, bb10, bb2
   bb2:                                            ; preds = bb1, bb9
     v133 = icall @alloc, v2
-    v142 = calldatasize
-    calldatacopy v133, v142, v2
+    calldatacopy v133, v91, v2
     mstore v133, v93
     v47 = eq v93, 0
     jumpi v47, bb5, bb7
@@ -787,8 +783,7 @@ fn @viaHelper() {
     jumpi v3, bb6, bb7
   bb7:                                            ; preds = bb15
     v104 = icall @alloc, v2
-    v106 = calldatasize
-    calldatacopy v104, v106, v2
+    calldatacopy v104, v64, v2
     mstore v104, v67
     v24 = eq v67, 0
     jumpi v24, bb1, bb4
@@ -1051,8 +1046,7 @@ fn @copyWords() {
     jumpi v13, bb6, bb8
   bb8:                                            ; preds = bb7
     v113 = icall @alloc, v11
-    v115 = calldatasize
-    calldatacopy v113, v115, v11
+    calldatacopy v113, v80, v11
     mstore v113, v76
     v36 = eq v76, 0
     jumpi v36, bb2, bb4
@@ -1165,8 +1159,7 @@ fn @wordsFromCalldata() {
     v87 = ne v86, 0
     jumpi v87, bb3, bb6
   bb6:                                            ; preds = bb5
-    v83 = calldatasize
-    calldatacopy v76, v83, v11
+    calldatacopy v76, v49, v11
     mstore v76, v47
     v37 = eq v56, 0
     jumpi v37, bb1, bb2
@@ -1412,9 +1405,8 @@ fn @decode_calldata_type.18(arg0: i256) -> i256 [may_return_memory] {
     calldatacopy v25, v7, v6
     v22 = sub 0, v6
     v23 = and v22, 31
-    v30 = calldatasize
     v26 = add v25, v6
-    calldatacopy v26, v30, v23
+    calldatacopy v26, v0, v23
     ret v29
   bb3 [cold]:                                     ; preds = bb2
     mstore 32, 65 !metadata(memory=scratch)

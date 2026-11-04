@@ -46,8 +46,7 @@ fn @siftValues() {
     jumpi v215, bb24, bb36
   bb36:                                           ; preds = bb25
     mstore 64, v200 !metadata(memory=scratch)
-    v206 = calldatasize
-    calldatacopy v199, v206, v9
+    calldatacopy v199, v150, v9
     mstore v199, v152
     v135 = or v199, v152
     v146 = shr v135, 64
@@ -246,8 +245,7 @@ fn @siftUp() {
     jumpi v384, bb23, bb45
   bb45:                                           ; preds = bb24
     mstore 64, v353 !metadata(memory=scratch)
-    v367 = calldatasize
-    calldatacopy v352, v367, v9
+    calldatacopy v352, v256, v9
     mstore v352, v258
     v360 = add v353, v9 !metadata(alloc_ptr)
     v361 = lt v360, v353
@@ -258,8 +256,7 @@ fn @siftUp() {
     jumpi v365, bb23, bb46
   bb46:                                           ; preds = bb45
     mstore 64, v360 !metadata(memory=scratch)
-    v368 = calldatasize
-    calldatacopy v353, v368, v9
+    calldatacopy v353, v256, v9
     mstore v353, v258
     v212 = mload v352
     v216 = or v352, v212

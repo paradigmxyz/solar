@@ -53,8 +53,7 @@ fn @fromCalldata() {
     jumpi v94, bb3, bb8
   bb8:                                            ; preds = bb7
     mstore 64, v83 !metadata(memory=scratch)
-    v90 = calldatasize
-    calldatacopy v82, v90, v2
+    calldatacopy v82, v39, v2
     mstore v82, v95
     v31 = eq v95, 0
     jumpi v31, bb1, bb2
@@ -115,8 +114,7 @@ fn @fromFresh() {
     jumpi v172, bb13, bb22
   bb22:                                           ; preds = bb20
     mstore 64, v152 !metadata(memory=scratch)
-    v160 = calldatasize
-    calldatacopy v151, v160, v2
+    calldatacopy v151, v94, v2
     mstore v151, v96
     v83 = or v151, v96
     v92 = shr v83, 64
@@ -160,8 +158,7 @@ fn @fromFresh() {
     jumpi v150, bb13, bb21
   bb21:                                           ; preds = bb2
     mstore 64, v145 !metadata(memory=scratch)
-    v159 = calldatasize
-    calldatacopy v144, v159, v2
+    calldatacopy v144, v94, v2
     mstore v144, v96
     v52 = eq v96, 0
     jumpi v52, bb5, bb7

@@ -249,8 +249,7 @@ fn @slice() {
     jumpi v107, bb6, bb16
   bb16:                                           ; preds = bb7
     mstore 64, v102 !metadata(memory=scratch)
-    v108 = calldatasize
-    calldatacopy v101, v108, v2
+    calldatacopy v101, v62, v2
     mstore v101, v65
     v27 = eq v65, 0
     jumpi v27, bb2, bb4

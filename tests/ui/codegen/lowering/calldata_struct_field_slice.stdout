@@ -45,37 +45,33 @@ fn @factory.0() {
     v6 = lt v5, v3
     v7 = sub v1, v4
     v8 = lt v7, 256
-    v50 = or v6, v8
+    v48 = or v6, v8
     v17 = add v4, 64
-    v18 = calldatasize
-    v19 = sub v18, v17
+    v19 = sub v1, v17
     v20 = slt v19, 32
-    v51 = or v50, v20
-    jumpi v51, bb1, bb4
+    v49 = or v48, v20
+    jumpi v49, bb1, bb4
   bb4:                                            ; preds = bb0
     v34 = calldataload v17
     v35 = add v4, v34
-    v36 = calldatasize
-    v37 = sub v36, v4
-    v38 = sub v37, 31
-    v39 = slt v34, v38
-    jumpi v39, bb5, bb1
+    v37 = sub v7, 31
+    v38 = slt v34, v37
+    jumpi v38, bb5, bb1
   bb5:                                            ; preds = bb4
-    v40 = calldataload v35
-    v41 = calldatasize
-    v42 = shr v40, 64
-    v44 = add v35, 32
-    v45 = sub v41, v40
-    v46 = slt v45, v44
-    v52 = zext i1 v46 to i256
-    v53 = or v42, v52
-    v54 = ne v53, 0
-    jumpi v54, bb1, bb6
+    v39 = calldataload v35
+    v40 = shr v39, 64
+    v42 = add v35, 32
+    v43 = sub v1, v39
+    v44 = slt v43, v42
+    v50 = zext i1 v44 to i256
+    v51 = or v40, v50
+    v52 = ne v51, 0
+    jumpi v52, bb1, bb6
   bb6:                                            ; preds = bb5
-    v48 = lt v40, 20
-    jumpi v48, bb3, bb2
+    v46 = lt v39, 20
+    jumpi v46, bb3, bb2
   bb2:                                            ; preds = bb6
-    v25 = calldataload v44
+    v25 = calldataload v42
     v31 = and v25, 0xffffffffffffffffffffffffffffffffffffffff000000000000000000000000
     v32 = shr v31, 96
     jump bb3
@@ -97,52 +93,47 @@ fn @tailHash.1() {
     v6 = lt v5, v3
     v7 = sub v1, v4
     v8 = lt v7, 256
-    v58 = or v6, v8
+    v55 = or v6, v8
     v16 = add v4, 64
-    v17 = calldatasize
-    v18 = sub v17, v16
+    v18 = sub v1, v16
     v19 = slt v18, 32
-    v59 = or v58, v19
-    jumpi v59, bb1, bb4
+    v56 = or v55, v19
+    jumpi v56, bb1, bb4
   bb4:                                            ; preds = bb0
-    v28 = calldataload v16
-    v29 = add v4, v28
-    v30 = calldatasize
-    v31 = sub v30, v4
-    v32 = sub v31, 31
-    v33 = slt v28, v32
-    jumpi v33, bb5, bb1
+    v27 = calldataload v16
+    v28 = add v4, v27
+    v30 = sub v7, 31
+    v31 = slt v27, v30
+    jumpi v31, bb5, bb1
   bb5:                                            ; preds = bb4
-    v34 = calldataload v29
-    v35 = calldatasize
-    v36 = shr v34, 64
-    v38 = add v29, 32
-    v39 = sub v35, v34
-    v40 = slt v39, v38
-    v60 = zext i1 v40 to i256
-    v61 = or v36, v60
-    v62 = ne v61, 0
-    jumpi v62, bb1, bb6
+    v32 = calldataload v28
+    v33 = shr v32, 64
+    v35 = add v28, 32
+    v36 = sub v1, v32
+    v37 = slt v36, v35
+    v57 = zext i1 v37 to i256
+    v58 = or v33, v57
+    v59 = ne v58, 0
+    jumpi v59, bb1, bb6
   bb6:                                            ; preds = bb5
-    v42 = lt v34, 20
-    jumpi v42, bb3, bb2
+    v39 = lt v32, 20
+    jumpi v39, bb3, bb2
   bb2:                                            ; preds = bb6
-    v20 = sub v34, 20
-    v22 = add v38, 20
-    v24 = calldatasize
-    v43 = sub v24, v20
-    v45 = slt v43, v22
-    jumpi v45, bb1, bb7
+    v20 = sub v32, 20
+    v22 = add v35, 20
+    v40 = sub v1, v20
+    v42 = slt v40, v22
+    jumpi v42, bb1, bb7
   bb7:                                            ; preds = bb2
-    v49 = heap_floor
-    mstore v49, v20
-    v53 = add v49, 32
-    calldatacopy v53, v22, v20
-    v54 = keccak256 v53, v20
+    v46 = heap_floor
+    mstore v46, v20
+    v50 = add v46, 32
+    calldatacopy v50, v22, v20
+    v51 = keccak256 v50, v20
     jump bb3
   bb3:                                            ; preds = bb6, bb7
-    v27 = phi [bb6: 0], [bb7: v54]
-    mstore 0, v27
+    v26 = phi [bb6: 0], [bb7: v51]
+    mstore 0, v26
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb0, bb2, bb4, bb5
     revert 0, 0
@@ -151,45 +142,41 @@ fn @tailHash.1() {
 ; function midWord(PackedUserOperation calldata op) external pure returns (bytes32) [selector 0xbb6106d2]
 fn @midWord.2() {
   bb0:
-    v39 = calldatasize
-    v41 = calldataload 4
-    v42 = add v41, 4
-    v43 = sub v39, 4
-    v44 = lt v43, v41
-    v45 = sub v39, v42
-    v46 = lt v45, 256
-    v52 = or v44, v46
-    v3 = add v42, 96
-    v4 = calldatasize
-    v5 = sub v4, v3
+    v37 = calldatasize
+    v39 = calldataload 4
+    v40 = add v39, 4
+    v41 = sub v37, 4
+    v42 = lt v41, v39
+    v43 = sub v37, v40
+    v44 = lt v43, 256
+    v50 = or v42, v44
+    v3 = add v40, 96
+    v5 = sub v37, v3
     v6 = slt v5, 32
-    v53 = or v52, v6
-    jumpi v53, bb1, bb2
+    v51 = or v50, v6
+    jumpi v51, bb1, bb2
   bb2:                                            ; preds = bb0
     v7 = calldataload v3
-    v8 = add v42, v7
-    v9 = calldatasize
-    v10 = sub v9, v42
-    v11 = sub v10, 31
-    v12 = slt v7, v11
-    jumpi v12, bb3, bb1
+    v8 = add v40, v7
+    v10 = sub v43, 31
+    v11 = slt v7, v10
+    jumpi v11, bb3, bb1
   bb3:                                            ; preds = bb2
-    v13 = calldataload v8
-    v14 = calldatasize
-    v15 = shr v13, 64
-    v17 = add v8, 32
-    v18 = sub v14, v13
-    v19 = slt v18, v17
-    v54 = zext i1 v19 to i256
-    v55 = or v15, v54
-    v24 = lt v13, 32
-    v57 = zext i1 v24 to i256
-    v58 = or v55, v57
-    v59 = ne v58, 0
-    jumpi v59, bb1, bb4
+    v12 = calldataload v8
+    v13 = shr v12, 64
+    v15 = add v8, 32
+    v16 = sub v37, v12
+    v17 = slt v16, v15
+    v52 = zext i1 v17 to i256
+    v53 = or v13, v52
+    v22 = lt v12, 32
+    v55 = zext i1 v22 to i256
+    v56 = or v53, v55
+    v57 = ne v56, 0
+    jumpi v57, bb1, bb4
   bb4:                                            ; preds = bb3
-    v28 = calldataload v17
-    mstore 0, v28
+    v26 = calldataload v15
+    mstore 0, v26
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb2, bb3, bb0
     revert 0, 0
