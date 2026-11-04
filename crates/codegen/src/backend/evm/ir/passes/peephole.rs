@@ -43,6 +43,9 @@
 //! swap, as `PUSH0; NOT` does for the decrement `x - 1`. The low-mask window ends in the same
 //! tail, so this rewrite waits for it.
 //!
+//! `DUP1 ADD PUSH1 1 OR` computes `(x + x) | 1`, which is `x - ~x`: `DUP1 NOT SWAP1 SUB` has the
+//! same gas and fewer bytes, and each of its instructions keeps the origin of the `OR`.
+//!
 //! Equivalent replacements keep the root operation's source context on their result-producing
 //! instruction. Removed operand locations are dropped, and function events are moved once.
 //! A branch that absorbs a boolean test can keep its origin on the existing target push when
@@ -354,6 +357,8 @@ enum Edit {
         second: u8,
     },
     MoveConstantThroughSwaps,
+    /// DUP1; NOT; SWAP1; SUB.
+    OddWord,
 }
 
 impl Edit {
@@ -533,6 +538,24 @@ impl Edit {
                     swap.metadata.mark_debug_info_dropped();
                 }
                 instructions.truncate(start + 4);
+            }
+            Self::OddWord => {
+                // NOTE: Every instruction of the replacement carries the source origin of the
+                // `OR` it replaces, as LLVM keeps the location of an expanded instruction, and
+                // the `SUB` takes its function events. Origins of the `ADD` and the push drop,
+                // as those of any removed operand do.
+                let context = replacement_debug_info(&instructions[start..], 3);
+                instructions.truncate(start);
+                instructions.extend([
+                    Instruction::stack_op(op::StackOp::Dup(1)),
+                    Instruction::opcode(op::NOT),
+                    Instruction::stack_op(op::StackOp::Swap(1)),
+                    Instruction::opcode(op::SUB),
+                ]);
+                for inst in &mut instructions[start..start + 3] {
+                    inst.metadata.copy_source_debug_from(&context);
+                }
+                instructions[start + 3].metadata.copy_debug_info_from(&context);
             }
         }
     }
