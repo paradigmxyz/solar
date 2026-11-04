@@ -9,8 +9,8 @@
 //! The removed jump's source origin moves to the first operation that then runs in its place:
 //! B's first non-phi instruction or terminator, else A's last pure instruction, when that
 //! operation has no origin. A located carrier keeps only its own origin, so the jump's is
-//! dropped. Eliminating a forwarder that is its target's only predecessor and has one predecessor
-//! of its own gives the target's first operation the forwarder's origin the same way.
+//! dropped. A forwarder whose target has no other predecessor merges into it first, so it follows
+//! the same rule. Eliminating a forwarder whose target is shared drops its jump's origin.
 //!
 //! ## Empty Block Elimination
 //! Remove blocks that contain no instructions and only an unconditional jump,
@@ -764,18 +764,6 @@ fn forwarder_elimination_preserves_phis(func: &Function, block_id: BlockId) -> b
 /// Eliminates an empty forwarder block by redirecting its predecessors.
 fn eliminate_forwarder(func: &mut Function, block_id: BlockId) {
     let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else { return };
-
-    // The target's first operation runs exactly when the jump did only if the forwarder is the
-    // target's sole predecessor and has a single predecessor itself. Otherwise the jump's origin
-    // is dropped like any other.
-    if func.blocks[block_id].predecessors.len() == 1
-        && func.blocks[target].predecessors[..] == [block_id]
-    {
-        let jump = func.blocks[block_id].terminator_metadata.debug_context();
-        if jump.source_span().is_some() {
-            absorb_jump_context(func, target, &jump);
-        }
-    }
 
     let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
     redirect_target_phi_incoming(func, block_id, target, &predecessors);

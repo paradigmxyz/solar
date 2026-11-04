@@ -65,8 +65,8 @@ fn @prefix_side_effect(arg0: i256) {
     ret !metadata(span=250..260)
 }
 
-// A forwarder that is its target's only predecessor, with one predecessor, hands its origin to
-// the target's first operation.
+// An empty block that is its target's only predecessor merges into it, and hands its origin to
+// the target's first operation even when its own predecessor ends in a branch.
 // CHECK-LABEL: {{^[ +].*}}fn @forwarder_unlocated{{[( ]}}
 // CHECK: + {{v[0-9]+}} = add arg0, 1 !metadata(span=270..280)
 fn @forwarder_unlocated(arg0: i256, arg1: i1) -> i256 {
