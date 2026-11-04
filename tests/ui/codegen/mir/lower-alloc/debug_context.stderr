@@ -1,2 +1,2 @@
-debugify: MIR DebugAllocationContext after lower-alloc: 2/2 origins retained, 0 lost
-debugify: MIR DebugAllocationContext after lower-evm-shaped: 2/2 origins retained, 0 lost
+debugify: MIR DebugAllocationContext after lower-alloc: 8/8 origins retained, 0 lost
+debugify: MIR DebugAllocationContext after lower-evm-shaped: 8/8 origins retained, 0 lost

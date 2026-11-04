@@ -1,7 +1,8 @@
-//@ compile-flags: -Zmir-pipeline=call-cleanup -Zdebugify=report
+//@ compile-flags: -Zmir-pipeline=call-cleanup -Zdebugify=check
+//~? ERROR: debugify: MIR pass `call-cleanup` lost 1 source origins
+//@ normalize-stdout-test: "(?s).+" -> ""
 // A `zext (trunc x)` of a word that already fits is replaced by the word, and the truncation is
-// left dead. Both origins move onto the word's definition when the spans nest, and are dropped
-// when they are unrelated.
+// left dead. Both origins move onto the word's definition when they nest with its span.
 @module DebugCleanupFolds
 fn @enclosing(arg0: i256) -> i256 {
   bb0:
@@ -17,6 +18,7 @@ fn @inside(arg0: i256) -> i256 {
     v2 = zext i8 v1 to i256 !metadata(span=34..36)
     ret v2 !metadata(span=100..110)
 }
+// An unrelated span stays dropped: the only origin lost is `62..68`.
 fn @unrelated(arg0: i256) -> i256 {
   bb0:
     v0 = and arg0, 0xff !metadata(span=52..54)

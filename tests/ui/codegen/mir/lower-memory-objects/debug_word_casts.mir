@@ -1,7 +1,8 @@
-//@ compile-flags: -Zmir-pipeline=lower-memory-objects -Zdebugify=report
+//@ compile-flags: -Zmir-pipeline=lower-memory-objects -Zdebugify=check
+//~? ERROR: debugify: MIR pass `lower-memory-objects` lost 2 source origins
+//@ normalize-stdout-test: "(?s).+" -> ""
 // A `ptrtoint` of an `inttoptr` of a word folds into the word, and the pointer cast may be left
-// dead. Both origins move onto the word's definition when the spans nest, and are dropped when
-// they are unrelated.
+// dead. Both origins move onto the word's definition when they nest with its span.
 @module DebugWordCasts
 @phase semantic
 fn @enclosing(arg0: i256) -> i256 {
@@ -18,6 +19,7 @@ fn @inside(arg0: i256) -> i256 {
     v2 = ptrtoint ptr<memory> v1 to i256 !metadata(span=34..36)
     ret v2 !metadata(span=100..110)
 }
+// An unrelated span stays dropped: the origins lost are `60..70` and `62..68`.
 fn @unrelated(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1 !metadata(span=52..54)

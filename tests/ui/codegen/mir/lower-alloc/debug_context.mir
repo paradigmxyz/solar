@@ -1,4 +1,5 @@
 //@ compile-flags: -Zmir-pipeline=lower-alloc,lower-evm-shaped -Zdebugify=check
+//@ normalize-stdout-test: "(?s).+" -> ""
 // The allocation's pointer cast disappears during representation lowering. Its actual FMP
 // read and update must keep the origin, rather than leaving it only on that zero-byte cast.
 @module DebugAllocationContext
@@ -7,4 +8,18 @@ fn @allocate() -> i256 {
     v0 = alloc 32 !metadata(span=10..20, preserves_fmp)
     v1 = ptrtoint ptr<memory> v0 to i256
     ret v1 !metadata(span=30..40)
+}
+// `lower-evm-shaped` erases pointer casts. A cast's origin moves onto the word it passes through,
+// whether it encloses that word's span or lies inside it.
+fn @enclosing() -> i256 {
+  bb0:
+    v0 = alloc 32 !metadata(span=52..54, preserves_fmp)
+    v1 = ptrtoint ptr<memory> v0 to i256 !metadata(span=50..60)
+    ret v1 !metadata(span=70..80)
+}
+fn @inside() -> i256 {
+  bb0:
+    v0 = alloc 32 !metadata(span=92..98, preserves_fmp)
+    v1 = ptrtoint ptr<memory> v0 to i256 !metadata(span=94..96)
+    ret v1 !metadata(span=100..110)
 }

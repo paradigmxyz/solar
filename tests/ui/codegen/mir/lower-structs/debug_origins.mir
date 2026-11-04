@@ -25,3 +25,26 @@ fn @pair(arg0: i256) -> struct0 {
     v1 = insert_value struct0, v0, 1, 42 !metadata(span=120..130)
     ret v1 !metadata(span=130..140)
 }
+
+// Scalar insertions and projections emit no instruction. Their origins join the enclosed or
+// enclosing definition of the leaf they select.
+// CHECK-LABEL: {{^[ +].*}}fn @fold{{[( ]}}
+// CHECK: + {{v[0-9]+}} = add arg0, 1 !metadata(spans=[152..154, 150..160, 153..154])
+fn @fold(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=152..154)
+    v1 = insert_value struct0, undef struct0, 0, v0 !metadata(span=150..160)
+    v2 = extract_value struct0, v1, 0 !metadata(span=153..154)
+    ret v2
+}
+
+// A projection whose span nests with nothing in the leaf's definition keeps its origin dropped.
+// CHECK-LABEL: {{^[ +].*}}fn @unrelated{{[( ]}}
+// CHECK: {{v[0-9]+}} = add arg0, 1 !metadata(span=252..254){{$}}
+fn @unrelated(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=252..254)
+    v1 = insert_value struct0, undef struct0, 0, v0 !metadata(span=260..270)
+    v2 = extract_value struct0, v1, 0 !metadata(span=260..270)
+    ret v2
+}

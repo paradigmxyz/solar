@@ -1,3 +1,0 @@
-debugify: MIR DebugErasedPointerCasts after lower-alloc: 5/5 origins retained, 0 lost
-debugify: MIR DebugErasedPointerCasts after lower-evm-shaped: 4/5 origins retained, 1 lost
-debugify: lost 60..70

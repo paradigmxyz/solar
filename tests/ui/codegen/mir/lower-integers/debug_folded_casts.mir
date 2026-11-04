@@ -1,7 +1,8 @@
-//@ compile-flags: -Zmir-pipeline=lower-integers -Zdebugify=report
+//@ compile-flags: -Zmir-pipeline=lower-integers -Zdebugify=check
+//~? ERROR: debugify: MIR pass `lower-integers` lost 1 source origins
+//@ normalize-stdout-test: "(?s).+" -> ""
 // A widening of a value that is already a word emits nothing. Its origin moves onto the word's
-// definition when the two spans nest, with the widening enclosing the definition or inside it,
-// and is dropped when they are unrelated.
+// definition, whether it encloses that span or lies inside it.
 @module DebugFoldedCasts
 fn @enclosing(arg0: i256) -> i256 {
   bb0:
@@ -15,6 +16,7 @@ fn @inside(arg0: i256) -> i256 {
     v1 = zext i8 v0 to i256 !metadata(span=34..36)
     ret v1 !metadata(span=100..110)
 }
+// An unrelated span stays dropped: the only origin lost is `60..70`.
 fn @unrelated(arg0: i256) -> i256 {
   bb0:
     v0 = trunc i256 arg0 to i8 !metadata(span=52..54)

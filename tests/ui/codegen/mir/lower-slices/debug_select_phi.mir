@@ -1,4 +1,5 @@
 //@ compile-flags: -Zmir-pipeline=lower-slices -Zdebugify=check
+//@ normalize-stdout-test: "(?s).+" -> ""
 // A slice select and a slice phi become two word operations. They retain their own origins.
 // The predecessor projections of the phi have no join checkpoint: their other edge can skip it.
 @module DebugSliceSplitting
@@ -21,4 +22,20 @@ fn @phi(arg0: slice<calldata>, arg1: slice<calldata>, arg2: i1) -> i256 {
     ret v1
   bb4:
     ret 0
+}
+// A slice built from a pointer and a length folds into those words with its projection. Their
+// origins move onto the definition of the length, whether they enclose its span or lie inside it.
+fn @enclosing(arg0: ptr<calldata>, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg1, 1 !metadata(span=52..54)
+    v1 = make_calldata_slice arg0, v0 !metadata(span=50..60)
+    v2 = extract_value slice<calldata>, v1, 1 !metadata(span=50..60)
+    ret v2
+}
+fn @inside(arg0: ptr<calldata>, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg1, 1 !metadata(span=72..78)
+    v1 = make_calldata_slice arg0, v0 !metadata(span=74..76)
+    v2 = extract_value slice<calldata>, v1, 1 !metadata(span=74..76)
+    ret v2
 }

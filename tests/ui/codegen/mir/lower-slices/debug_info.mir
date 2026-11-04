@@ -14,3 +14,15 @@ fn @select_slice(arg0: slice<calldata>, arg1: slice<calldata>, arg2: i1) -> i256
     v4 = extract_value slice<calldata>, v3, 1 !metadata(span=20..30)
     ret v4
 }
+
+// A folded projection whose span nests with nothing in its replacement's definition keeps its
+// origin dropped: the length definition keeps its own span alone.
+// CHECK-LABEL: {{^[ +].*}}fn @unrelated{{[( ]}}
+// CHECK: {{v[0-9]+}} = add arg1, 1 !metadata(span=52..54){{$}}
+fn @unrelated(arg0: ptr<calldata>, arg1: i256) -> i256 {
+  bb0:
+    v0 = add arg1, 1 !metadata(span=52..54)
+    v1 = make_calldata_slice arg0, v0 !metadata(span=60..70)
+    v2 = extract_value slice<calldata>, v1, 1 !metadata(span=60..70)
+    ret v2
+}

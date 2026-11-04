@@ -14,3 +14,12 @@
 +     ret v7
   }
   
+  fn @unrelated(arg0: ptr<calldata>, arg1: i256) -> i256 {
+    bb0:
+      v0 = add arg1, 1 !metadata(span=52..54)
+-     v1 = make_calldata_slice arg0, v0 !metadata(span=60..70)
+-     v2 = extract_value slice<calldata>, v1, 1 !metadata(span=60..70)
+-     ret v2
++     ret v0
+  }
+  
