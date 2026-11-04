@@ -924,34 +924,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             return;
         }
 
-        let mut unimplemented: Vec<(OverrideProxy, ContractId)> = Vec::new();
-
-        for &f_id in &override_index(self.gcx).unimplemented_functions {
-            let f = self.gcx.hir.function(f_id);
-            let Some(base_id) = f.contract else { continue };
-            if f.kind.is_constructor()
-                || f.name.is_none()
-                || !contract.linearized_bases.contains(&base_id)
-            {
-                continue;
-            }
-
-            let sig = self.signature(OverrideProxy::Function(f_id));
-            let is_implemented = contract.linearized_bases.iter().any(|&impl_base_id| {
-                let impl_base = self.gcx.hir.contract(impl_base_id);
-                impl_base.functions().any(|impl_f_id| {
-                    let impl_f = self.gcx.hir.function(impl_f_id);
-                    if impl_f.body.is_none() || impl_f.name.is_none() {
-                        return false;
-                    }
-                    let impl_sig = self.signature(OverrideProxy::Function(impl_f_id));
-                    impl_sig == sig
-                })
-            });
-            if !is_implemented {
-                unimplemented.push((OverrideProxy::Function(f_id), base_id));
-            }
-        }
+        let unimplemented = unimplemented_functions(self.gcx, self.contract_id);
 
         let mut seen_sigs: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
         for (proxy, base_id) in unimplemented {
@@ -990,6 +963,49 @@ impl<'gcx> OverrideChecker<'gcx> {
             diag.emit();
         }
     }
+}
+
+/// Returns whether `contract_id` still has any unimplemented function, including ones
+/// inherited from bases. Keyword-`abstract` contracts and interfaces are not checked here;
+/// callers that care about the keyword should test `Contract::is_abstract` separately.
+pub(crate) fn has_unimplemented_functions(gcx: Gcx<'_>, contract_id: ContractId) -> bool {
+    !unimplemented_functions(gcx, contract_id).is_empty()
+}
+
+/// Unimplemented functions reachable through `contract_id`'s linearized bases, with the base
+/// that declared each one.
+fn unimplemented_functions(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+) -> Vec<(OverrideProxy, ContractId)> {
+    let contract = gcx.hir.contract(contract_id);
+    let mut unimplemented = Vec::new();
+    for &f_id in &override_index(gcx).unimplemented_functions {
+        let f = gcx.hir.function(f_id);
+        let Some(base_id) = f.contract else { continue };
+        if f.kind.is_constructor()
+            || f.name.is_none()
+            || !contract.linearized_bases.contains(&base_id)
+        {
+            continue;
+        }
+
+        let sig = override_signature(gcx, OverrideProxy::Function(f_id));
+        let is_implemented = contract.linearized_bases.iter().any(|&impl_base_id| {
+            let impl_base = gcx.hir.contract(impl_base_id);
+            impl_base.functions().any(|impl_f_id| {
+                let impl_f = gcx.hir.function(impl_f_id);
+                if impl_f.body.is_none() || impl_f.name.is_none() {
+                    return false;
+                }
+                override_signature(gcx, OverrideProxy::Function(impl_f_id)) == sig
+            })
+        });
+        if !is_implemented {
+            unimplemented.push((OverrideProxy::Function(f_id), base_id));
+        }
+    }
+    unimplemented
 }
 
 fn override_index<'gcx>(gcx: Gcx<'gcx>) -> &'gcx OverrideIndex<'gcx> {

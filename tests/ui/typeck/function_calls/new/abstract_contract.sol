@@ -6,6 +6,6 @@ abstract contract A {
 
 contract C {
     function f() public {
-        new A(); //~ ERROR: cannot instantiate abstract contracts
+        new A(); //~ ERROR: cannot instantiate an abstract contract
     }
 }

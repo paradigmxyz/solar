@@ -1,0 +1,22 @@
+error[4614]: cannot instantiate an abstract contract
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/implicit_abstract_contract.sol:LL:CC
+   │
+LL │         new Abs();
+   ╰╴            ━━━
+
+error[3656]: contract `Abs` has unimplemented functions
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/implicit_abstract_contract.sol:LL:CC
+   │
+LL │ contract Abs {
+   │ ┬─────── ━━━
+   │ │
+   │ help: mark the contract as abstract: `abstract contract`
+   ╰╴
+note: unimplemented function `f` defined in `Abs`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/implicit_abstract_contract.sol:LL:CC
+   │
+LL │     function f() public virtual;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

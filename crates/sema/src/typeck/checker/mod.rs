@@ -6,7 +6,7 @@ use crate::{
         CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
         TypeckResults,
     },
-    typeck::Unit,
+    typeck::{Unit, override_checker},
 };
 use alloy_primitives::U256;
 use solar_ast::{
@@ -901,7 +901,19 @@ impl<'gcx> TypeChecker<'gcx> {
                 match ty.kind {
                     TyKind::Contract(id) => {
                         let c = self.gcx.hir.contract(id);
-                        if !c.kind.is_contract() {
+                        // solc 4614: keyword-`abstract` contracts. Also reject contracts that still
+                        // have unimplemented members (solc reports 3656 on the definition only) so
+                        // `new` never types as creating a non-deployable contract.
+                        let effectively_abstract = c.kind.is_abstract_contract()
+                            || (c.kind.is_contract()
+                                && override_checker::has_unimplemented_functions(self.gcx, id));
+                        if effectively_abstract {
+                            self.gcx.mk_ty_err(self.dcx().emit_err_code(
+                                hir_ty.span,
+                                error_code!(4614),
+                                "cannot instantiate an abstract contract",
+                            ))
+                        } else if !c.kind.is_contract() {
                             let msg = format!("cannot instantiate {}s", c.kind);
                             self.gcx.mk_ty_err(self.dcx().emit_err(hir_ty.span, msg))
                         } else {

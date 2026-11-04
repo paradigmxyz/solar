@@ -1,4 +1,4 @@
-error: cannot instantiate abstract contracts
+error[4614]: cannot instantiate an abstract contract
    ╭▸ ROOT/tests/ui/typeck/function_calls/new/abstract_contract.sol:LL:CC
    │
 LL │         new A();
