@@ -500,14 +500,13 @@ impl<'gcx> Assembler<'gcx> {
         }
     }
 
-    /// Gives the `JUMPDEST` of the block that `label` started a source origin.
+    /// Sets the source origin of the `JUMPDEST` of the block that `label` started.
     pub(crate) fn set_label_origin(
         &mut self,
         label: Label,
         span: solar_interface::Span,
         modifier_depth: u32,
     ) {
-        self.program.track_debug_info();
         let block = self.label_blocks[&label];
         let metadata = &mut self.program.blocks[block].label_metadata;
         metadata.set_source_span(Some(span));
