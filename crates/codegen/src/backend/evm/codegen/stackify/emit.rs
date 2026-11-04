@@ -544,7 +544,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Recomputes `value` at its use, under the origins of the instruction that defines it.
     fn emit_materialized(&mut self, func: &Function, value: ValueId) {
+        if self.capture_debug_info
+            && let Value::Inst(inst) = func.value(value)
+            && let metadata = &func.inst(*inst).metadata
+            && metadata.source_spans().next().is_some()
+        {
+            // Every copy is the same computation, so it keeps the definition's origins.
+            let consumer = self.asm.debug_origin();
+            self.asm.set_source_spans(metadata.source_spans());
+            self.asm.set_modifier_depth(metadata.modifier_depth());
+            self.emit_recomputed(func, value);
+            self.asm.set_debug_origin(consumer);
+        } else {
+            self.emit_recomputed(func, value);
+        }
+    }
+
+    fn emit_recomputed(&mut self, func: &Function, value: ValueId) {
         match func.value(value) {
             Value::Immediate(imm) => self.asm.emit_push(imm.as_u256().unwrap_or_default()),
             Value::Undef(_) => self.asm.emit_push(U256::ZERO),

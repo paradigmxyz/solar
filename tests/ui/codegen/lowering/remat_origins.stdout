@@ -1,0 +1,59 @@
+{"contracts":{"ROOT/tests/ui/codegen/lowering/remat_origins.sol:C":{"srcmap-runtime":":::-:0;;;;;;;;;;;;;;;;;884:16:0;;866;;862:39;917:1;;;;;933:17;;926:25;-1:-1:-1;768:201:0;;;;;-1:-1:-1;;;"}},"sourceList":["ROOT/tests/ui/codegen/lowering/remat_origins.sol"],"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
+; === ROOT/tests/ui/codegen/lowering/remat_origins.sol:C (scheduled runtime) ===
+@module C_runtime
+bb0:                                              ; runtime dispatch entry
+  callvalue
+  push bb3
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xb3de648b
+  eq
+  push bb2
+  jumpi
+  jump bb3
+bb2:
+  jump bb4
+bb3 [cold]:
+  push 0
+  push 0
+  revert
+bb4 [entry, invoke=f@768..969]:                   ; function f(uint256 x) external pure returns (uint256 r) [selector 0xb3de648b]
+  push 36
+  calldatasize
+  lt
+  push bb8
+  jumpi
+  jump bb5
+bb5:
+  push 68 !metadata(span=884..900)
+  calldataload !metadata(span=884..900)
+  push 36 !metadata(span=866..882)
+  calldataload !metadata(span=866..882)
+  add !metadata(span=862..901)
+  push 4 !metadata(span=917..918)
+  calldataload !metadata(span=917..918)
+  iszero !metadata(span=917..918)
+  push bb7 !metadata(span=917..918)
+  jumpi !metadata(span=917..918)
+  jump bb6
+bb6:
+  push 100 !metadata(span=933..950)
+  calldataload !metadata(span=933..950)
+  add !metadata(span=926..951)
+  jump bb7
+bb7:
+  push 0 !metadata(span=768..969)
+  mstore !metadata(span=768..969)
+  push 32 !metadata(span=768..969)
+  push 0 !metadata(span=768..969)
+  return !metadata(span=768..969, exit=return)
+bb8 [cold]:
+  push 0
+  push 0
+  revert !metadata(exit=revert)
