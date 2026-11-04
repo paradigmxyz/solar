@@ -1,6 +1,7 @@
 //@ compile-flags: -Zevm-ir-pipeline=peephole -Zdebugify=report
 // The folded expression's result retains its origin and one invocation event, even when
 // immediate materialization emits multiple instructions. Operands are not new checkpoints.
+// The `push` that carries the event has no origin, which the audit reports as a gap.
 @module DebugConstantFold
 bb0:
   push 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe !metadata(invoke=folded@10..30)

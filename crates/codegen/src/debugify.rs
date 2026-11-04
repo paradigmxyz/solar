@@ -1,5 +1,5 @@
 //! Audits source debug information around each MIR and EVM IR pass and across stack scheduling.
-//! Debugify never inserts executable operations or influences a pass.
+//! Debugify never inserts executable operations and never changes a pass's decisions.
 //!
 //! Two measures, both copied from LLVM (`llvm/lib/Transforms/Utils/Debugify.cpp`):
 //!
@@ -7,17 +7,17 @@
 //!   each pass, the live instructions and terminators (phis excluded) that have no origin and no
 //!   [`DebugLocKind`] explaining why. Each gap is reported once, in the record of the pass that
 //!   left it, and then set to [`DebugLocKind::Unknown`], as LLVM's caller does, so that later
-//!   passes are not blamed for it. Gaps present when a module arrives, as lowering made it, get an
-//!   `input` record. `-Zdebugify=check` rejects every gap, like LLVM's check, which has no
-//!   exemptions; use it on a focused `-Zmir-pipeline` or `-Zevm-ir-pipeline`.
+//!   passes are not blamed for it. Gaps present when a pipeline run receives a module, as lowering
+//!   made them, get an `input` record. `-Zdebugify=check` rejects every gap, like LLVM's check,
+//!   which has no exemptions; use it on a focused `-Zmir-pipeline` or `-Zevm-ir-pipeline`.
 //! - **Lost origins** are the analogue of LLVM's synthetic-mode `Missing line` warning, which LLVM
 //!   prints and does not count as a failure: the origins on live IR before a pass that no longer
 //!   appear after it. Deleting dead code or merging two locations legitimately loses an origin, so
 //!   this is information, never a check. Reports identify the first pass to lose one.
 //!
-//! Marking a gap `Unknown` changes only the location kind, metadata that code generation and every
-//! output never read: the debug-output tests compare bytecode, source maps and ETHDebug with the
-//! audit on and off.
+//! Marking a gap `Unknown` changes only the location kind, which code generation never reads and
+//! text output does not print for `Unknown`: the debug-output tests compare bytecode, source maps
+//! and ETHDebug with the audit on and off.
 //!
 //! NOTE: An origin's presence does not prove correct attribution or control-flow placement. Runtime
 //! source-map tests must also check that untaken paths do not acquire hits. This audits source
@@ -72,9 +72,7 @@ impl Gaps {
             return Self(gaps);
         }
         for func in module.functions.iter_mut() {
-            let function = func
-                .debug_identifier
-                .map_or_else(|| func.name.symbol.to_string(), |identifier| identifier.to_string());
+            let function = func.debug_identifier.unwrap_or(func.name.symbol);
             for block in 0..func.blocks.len() {
                 let block_id = solar_mir::BlockId::from_usize(block);
                 for index in 0..func.blocks[block_id].instructions.len() {
@@ -87,7 +85,7 @@ impl Gaps {
                     }
                     instruction.metadata.set_debug_loc_kind(DebugLocKind::Unknown);
                     gaps.push(Gap {
-                        function: Some(function.clone()),
+                        function: Some(function.to_string()),
                         block,
                         instruction: Some(index),
                         opcode: instruction.kind.mnemonic().to_owned(),
@@ -98,7 +96,7 @@ impl Gaps {
                     && body.terminator_metadata.lacks_debug_location()
                 {
                     gaps.push(Gap {
-                        function: Some(function.clone()),
+                        function: Some(function.to_string()),
                         block,
                         instruction: None,
                         opcode: terminator.mnemonic().to_owned(),
@@ -222,7 +220,7 @@ const INPUT: &str = "input";
 /// Sites listed per record in the JSON audit, which keeps the raw artifact small.
 const SITE_LIMIT: usize = 100;
 
-/// Reports the gaps a MIR module arrives with, before the first pass.
+/// Reports the gaps a MIR pipeline run receives in its module.
 pub(crate) fn report_mir_input(gcx: Gcx<'_>, module: &mut solar_mir::Module) -> Result {
     Gaps::mir(module).report(gcx, "MIR", module.name, INPUT)
 }

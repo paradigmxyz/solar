@@ -11,8 +11,8 @@ terminator (phis excluded) that has no source origin and whose `DebugLocKind` is
 The kinds are LLVM's: `Normal`, `Dropped` (the location was intentionally removed, like
 `dropLocation`), `CompilerGenerated`, `Unknown` and `Temporary`. The audit reports each gap once,
 at the pass that left it, then sets it to `Unknown` so later passes are not blamed for it; the
-kind is metadata that code generation and every output never read. The record `input` holds the gaps
-lowering left before the first pass, and `stackify` those that stack scheduling left. MIR and
+kind is metadata that code generation never reads, and text output does not print `unknown`. The record `input` holds the gaps
+lowering left in the module a pipeline run received, and `stackify` those that stack scheduling left. MIR and
 EVM IR text spell `compiler_generated` and `temporary`; text without a location is `dropped`.
 
 `-Zdebugify=report` lists gaps on stderr, and `-Zdebugify=check` rejects every one, like LLVM's

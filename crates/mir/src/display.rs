@@ -889,10 +889,9 @@ fn display_metadata<'a>(
                 if metadata.modifier_depth() != 0 {
                     fields.push(MetadataField::ModifierDepth(metadata.modifier_depth()));
                 }
-            } else if matches!(
-                metadata.debug_loc_kind(),
-                DebugLocKind::CompilerGenerated | DebugLocKind::Temporary
-            ) && let Some(keyword) = metadata.debug_loc_kind().keyword()
+            } else if let kind @ (DebugLocKind::CompilerGenerated | DebugLocKind::Temporary) =
+                metadata.debug_loc_kind()
+                && let Some(keyword) = kind.keyword()
             {
                 // `dropped` is what text without a location means, and the audit sets `unknown` on
                 // the gaps it reports, so neither is spelled out: an audit must not change text.

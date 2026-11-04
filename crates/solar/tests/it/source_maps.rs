@@ -209,8 +209,9 @@ fn debugify_sidecars_preserve_output() {
     for mode in ["none", "gas", "size"] {
         let directory = temp.path().join(mode);
         let flag = format!("-Zdebugify-output={}", directory.display());
-        let plain = compile(mode, "bin,bin-runtime");
-        let audited = compile_with(mode, "bin,bin-runtime", &[&flag]);
+        let outputs = "bin,bin-runtime,srcmap-runtime,ethdebug-runtime";
+        let plain = compile(mode, outputs);
+        let audited = compile_with(mode, outputs, &[&flag]);
         assert_eq!(plain, audited, "{mode}: sidecar auditing changed compiler output");
         let files = std::fs::read_dir(&directory).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
         assert_eq!(files.len(), 1, "one serialized audit file per compiler invocation");
