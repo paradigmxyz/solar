@@ -7,9 +7,9 @@
     indexed_jump bb1, bb2
   bb1:
 -   push 1
++   push 0 !metadata(span=10..20)
++   not !metadata(span=10..20)
     push 0
-+   not
-+   push 0
     calldataload
     shl
 -   push 1
@@ -20,8 +20,8 @@
   bb2:
 -   push 1 !metadata(invoke=mask@30..50)
 -   dup 1
-+   push 0 !metadata(invoke=mask@30..50)
-+   not
++   push 0 !metadata(span=30..40, invoke=mask@30..50)
++   not !metadata(span=30..40)
     push 0
     calldataload
     shl

@@ -180,4 +180,24 @@ contract Events {
         }
         emit DirtyIndexedChoice(choice);
     }
+
+    struct Late {
+        uint256 value;
+    }
+
+    event LateStorage(uint256[] values, Late late, uint256 count);
+
+    uint256[] internal lateValues;
+    Late internal late;
+
+    // The data reads the storage array and struct after the last argument ran, as solc does.
+    function emitLateStorage() public {
+        emit LateStorage(lateValues, late, writeLate());
+    }
+
+    function writeLate() internal returns (uint256) {
+        lateValues.push(7);
+        late.value = 9;
+        return 3;
+    }
 }
