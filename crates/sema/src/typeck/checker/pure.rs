@@ -12,7 +12,7 @@ impl<'gcx> TypeckResults<'gcx> {
     /// Expressions without a type or with an erroneous type count as pure to avoid follow-up
     /// errors.
     pub(crate) fn is_pure(&self, gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> bool {
-        if let Some(flags) = self.ast.exprs.get(&expr.id) {
+        if let Some(flags) = self.ast.exprs.as_ref().and_then(|exprs| exprs.get(&expr.id)) {
             if flags.contains(ExprFlags::PURE) {
                 return true;
             }

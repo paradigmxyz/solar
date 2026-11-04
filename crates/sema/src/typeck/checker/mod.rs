@@ -3948,7 +3948,8 @@ impl<'gcx> TypeChecker<'gcx> {
 
     /// Records that the expression is an lvalue, for the AST JSON.
     fn mark_lvalue(&mut self, id: hir::ExprId) {
-        self.results.ast.exprs.update(id, |flags| flags.insert(ExprFlags::LVALUE));
+        let exprs = self.results.ast.exprs.get_or_insert_default();
+        exprs.update(id, |flags| flags.insert(ExprFlags::LVALUE));
     }
 
     /// Records whether the expression is pure and an lvalue, for the AST JSON.
@@ -3958,7 +3959,8 @@ impl<'gcx> TypeChecker<'gcx> {
         // solc does not treat a tuple that is written to as pure.
         let written_tuple = self.in_lvalue() && matches!(expr.kind, hir::ExprKind::Tuple(_));
         let pure = !written_tuple && self.results.is_pure(self.gcx, expr);
-        self.results.ast.exprs.update(expr.id, |flags| {
+        let exprs = self.results.ast.exprs.get_or_insert_default();
+        exprs.update(expr.id, |flags| {
             flags.insert(if pure { ExprFlags::PURE } else { ExprFlags::IMPURE });
             // A tuple that is written to is an lvalue.
             flags.set(ExprFlags::LVALUE, written_tuple || flags.contains(ExprFlags::LVALUE));

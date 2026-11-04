@@ -110,8 +110,8 @@ pub struct TypeckResults<'gcx> {
 /// What type checking records for the AST JSON, so that the writer never works it out again.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct AstFacts<'gcx> {
-    /// What is known of each expression.
-    pub(crate) exprs: ExprMap<ExprFlags>,
+    /// What is known of each expression, which only exists when the ASTs are kept.
+    pub(crate) exprs: Option<ExprMap<ExprFlags>>,
     /// The type solc gives an expression where it differs from the type of type checking: the
     /// memory array of the common mobile type of an inline array, and the common type of the
     /// operands of a comparison or a logical operation.
@@ -248,7 +248,11 @@ impl<'gcx> TypeckResults<'gcx> {
     /// Returns whether the expression is an lvalue, if the ASTs are kept.
     #[inline]
     pub fn is_lvalue(&self, id: hir::ExprId) -> bool {
-        self.ast.exprs.get(&id).is_some_and(|flags| flags.contains(ExprFlags::LVALUE))
+        self.ast
+            .exprs
+            .as_ref()
+            .and_then(|exprs| exprs.get(&id))
+            .is_some_and(|flags| flags.contains(ExprFlags::LVALUE))
     }
 
     /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`],
