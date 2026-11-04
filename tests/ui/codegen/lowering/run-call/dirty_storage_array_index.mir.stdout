@@ -1,10 +1,9 @@
 ; === ROOT/tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol:DirtyStorageArrayIndex ===
 @module DirtyStorageArrayIndex
 ; function inject(uint256 raw) internal pure returns (uint8 x)
-fn @inject(arg0: i256) -> i8 [pure] {
+fn @inject(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = trunc i256 arg0 to i8
-    ret v0
+    ret arg0
 }
 
 ; function storageIndex(uint256 raw) external returns (uint256) [selector 0xe1f98cd0]
@@ -36,13 +35,11 @@ fn @storageIndex(arg0: i256) -> i256 [selector=0xe1f98cd0, abi_params=[uint256],
     sstore 0, v12 !metadata(storage=slot(0))
     v15 = icall @inject, arg0
     v16 = sload 0 !metadata(storage=slot(0))
-    v17 = zext i8 v15 to i256
-    v18 = lt v17, v16
-    v19 = eq v18, false
-    icall panic_if<0x32>, v19
-    v20 = storage_array_data_slot 0
-    v21 = zext i8 v15 to i256
-    v22 = add v20, v21
-    v23 = sload v22 !metadata(storage=symbolic(v22))
-    ret v23
+    v17 = lt v15, v16
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = storage_array_data_slot 0
+    v20 = add v19, v15
+    v21 = sload v20 !metadata(storage=symbolic(v20))
+    ret v21
 }

@@ -201,7 +201,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => {
                 let layout = types::TypeLowerer::value_layout(ty);
                 if matches!(layout, crate::mir::ValueLayout::Int(_)) {
-                    widen_to_word(&mut self.builder, value, layout)
+                    raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
                 } else {
                     value
                 }
@@ -288,7 +288,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // result = abi_decode(layout, data)
         // fields = extract_value result, 0; ...
         let value = self.builder.abi_decode(layout, data, result_ty);
-        Some(self.unpack_return_value(value))
+        Some(self.unpack_clean_value(value))
     }
 
     pub(super) fn materialize_memory_slice(&mut self, slice: ValueId) -> ValueId {
@@ -776,9 +776,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .cleanup(&mut self.builder, value)
             }
             _ => {
-                // The element is a word read from memory, which assembly can have dirtied.
-                let value = self.normalize_abi_scalar(value, ty);
-                widen_to_word(&mut self.builder, value, types::TypeLowerer::value_layout(ty))
+                let value = self.normalize_memory_scalar(ty, value);
+                raw_scalars::cast_carrier(
+                    &mut self.builder,
+                    value,
+                    types::TypeLowerer::value_layout(ty),
+                    MirType::I256,
+                )
             }
         };
         self.builder.memory_store_word(output, offset, value);

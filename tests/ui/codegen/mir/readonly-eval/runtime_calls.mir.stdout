@@ -1,7 +1,7 @@
 ; === ROOT/tests/ui/codegen/mir/readonly-eval/runtime_calls.sol:RuntimeCalls ===
 @module RuntimeCalls
 ; function emptyBytes() external pure returns (bool) [selector 0x55c4baff]
-fn @emptyBytes() -> i1 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @emptyBytes() -> i256 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32
     mstore v0, 0
@@ -10,7 +10,7 @@ fn @emptyBytes() -> i1 [selector=0x55c4baff, pure, abi_params=[], abi_returns=[w
 }
 
 ; function nonemptyBytes() external pure returns (bool) [selector 0xe23ba52c]
-fn @nonemptyBytes() -> i1 [selector=0xe23ba52c, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @nonemptyBytes() -> i256 [selector=0xe23ba52c, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 64 !metadata(preserves_fmp)
     mstore v0, 1
@@ -21,14 +21,13 @@ fn @nonemptyBytes() -> i1 [selector=0xe23ba52c, pure, abi_params=[], abi_returns
 }
 
 ; function isEmpty(bytes memory data) internal pure returns (bool result)
-fn @isEmpty(arg0: ptr<memory>) -> i1 [pure] {
+fn @isEmpty(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = mload arg0
     v2 = eq v1, 0
     v3 = zext i1 v2 to i256
-    v4 = ne v3, 0
-    ret v4
+    ret v3
 }
 
 ; function constantWord() external pure returns (uint256) [selector 0xf7bfd103]

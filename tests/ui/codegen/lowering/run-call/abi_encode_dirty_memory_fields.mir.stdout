@@ -8,29 +8,32 @@ fn @dirty() -> ptr<memory> [pure] {
     mstore v0, 1
     v1 = ptradd v0, 32
     mstore v1, 1
-    v2 = ptradd v0, 64
-    mstore v2, 1
-    v3 = ptradd v0, 96
-    mstore v3, 1
-    v4 = sext i8 255 to i256
-    v5 = ptradd v0, 128
-    mstore v5, v4
-    v6 = ptradd v0, 160
-    mstore v6, 0x1234000000000000000000000000000000000000000000000000000000000000
-    v7 = ptrtoint ptr<memory> v0 to i256
+    v2 = lt i8 1, i8 2
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
+    v4 = ptradd v0, 64
+    mstore v4, 1
+    v5 = ptradd v0, 96
+    mstore v5, 1
+    v6 = sext i8 255 to i256
+    v7 = ptradd v0, 128
+    mstore v7, v6
+    v8 = ptradd v0, 160
+    mstore v8, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v9 = ptrtoint ptr<memory> v0 to i256
     mstore v0, 511
-    v8 = ptrtoint ptr<memory> v0 to i256
-    v9 = add v8, 32
-    mstore v9, 258
     v10 = ptrtoint ptr<memory> v0 to i256
-    v11 = add v10, 96
-    mstore v11, 0x1000000000000000000000000000000000000000000000000000000000000002
+    v11 = add v10, 32
+    mstore v11, 258
     v12 = ptrtoint ptr<memory> v0 to i256
-    v13 = add v12, 128
-    mstore v13, 254
+    v13 = add v12, 96
+    mstore v13, 0x1000000000000000000000000000000000000000000000000000000000000002
     v14 = ptrtoint ptr<memory> v0 to i256
-    v15 = add v14, 160
-    mstore v15, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v15 = add v14, 128
+    mstore v15, 254
+    v16 = ptrtoint ptr<memory> v0 to i256
+    v17 = add v16, 160
+    mstore v17, 0x1234567800000000000000000000000000000000000000000000000000000000
     ret v0
 }
 

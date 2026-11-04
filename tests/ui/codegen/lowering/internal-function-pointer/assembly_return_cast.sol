@@ -8,7 +8,7 @@
 //@ run-call: swapArrays [1, 2], [3] => 2, [3], [1, 2]
 //@ run-call: applyPair 3, 4 => 12
 //@ run-call: isOdd 3 => true
-//@ run-call: widenNarrow 0x1234 => 0x34, 0x34
+//@ run-call: widenNarrow 0x1234 => 0x1234, 0x34
 //@ run-call-fail: callInvalid => 0x4e487b710000000000000000000000000000000000000000000000000000000000000051
 
 type CalldataPointer is uint256;
@@ -80,8 +80,8 @@ contract InternalFunctionPointerAssemblyReturnCast {
         return predicate(value);
     }
 
-    // A word passed through a pointer retyped from a `uint8` parameter is cleaned to the callee's
-    // `uint8` at the call, so the callee's assembly sees it clean.
+    // A word passed through a pointer retyped from a `uint8` parameter keeps its bits for the
+    // callee's assembly; the callee's Solidity reads clean them.
     function widenNarrow(uint256 value) external pure returns (uint256, uint256) {
         return _toWideInput(_rawAndTyped)(value);
     }
@@ -166,11 +166,10 @@ contract InternalFunctionPointerAssemblyReturnCast {
     // CHECK: icall @_isOdd
     // CHECK-NOT: @_decodePair
     //
-    // A word reaches a retyped callee's narrow parameter cleaned.
+    // A raw word reaches a retyped callee's narrow parameter unmasked.
     // CHECK-LABEL: fn @internal_dispatcher_asm_p_uint256_r_uint256_uint256(
-    // CHECK: [[MASKED:v[0-9]+]] = and arg1, 255
-    // CHECK-NEXT: [[NARROW:v[0-9]+]] = trunc i256 [[MASKED]] to i8
-    // CHECK-NEXT: icall @_rawAndTyped, [[NARROW]]
+    // CHECK-NOT: and arg1
+    // CHECK: icall @_rawAndTyped, arg1
     // CHECK-LABEL: fn @internal_dispatcher_asm_p_uint256_r_uint256(
     function _toPairReturnType(
         function(CalldataPointer) internal pure returns (MemoryPointer) inFn

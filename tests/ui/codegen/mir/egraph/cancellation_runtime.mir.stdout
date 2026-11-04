@@ -3,9 +3,7 @@
 @types
   struct0: {i256, i256, i256}
   struct1: {i256, i256, i256, i256}
-  struct2: {i1, i1, i256}
-  struct3: {i256, i256}
-  struct4: {i1, i1}
+  struct2: {i256, i256}
 
 ; function arithmetic(uint256 x, uint256 y) external pure returns (uint256 a, uint256 b, uint256 c) [selector 0x6cbb5ae3]
 fn @arithmetic(arg0: i256, arg1: i256) -> struct0 [selector=0x6cbb5ae3, pure, abi_params=[uint256, uint256], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
@@ -41,7 +39,7 @@ fn @bitwise(arg0: i256, arg1: i256) -> struct1 [selector=0x2c27aaa9, pure, abi_p
 }
 
 ; function equality(uint256 x, uint256 y) external pure returns (bool a, bool b, uint256 difference) [selector 0xf53825c4]
-fn @equality(arg0: i256, arg1: i256) -> struct2 [selector=0xf53825c4, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, uint256]] {
+fn @equality(arg0: i256, arg1: i256) -> struct0 [selector=0xf53825c4, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>, word<bool>, word], abi_return_params=[bool, bool, uint256]] {
   bb0:
     v0 = sub arg0, arg1
     v1 = eq v0, 0
@@ -49,12 +47,10 @@ fn @equality(arg0: i256, arg1: i256) -> struct2 [selector=0xf53825c4, pure, abi_
     v3 = xor arg0, arg1
     v4 = eq v3, 0
     v5 = zext i1 v4 to i256
-    v6 = ne v2, 0
-    v7 = ne v5, 0
-    v8 = insert_value struct2, undef struct2, 0, v6
-    v9 = insert_value struct2, v8, 1, v7
-    v10 = insert_value struct2, v9, 2, v0
-    ret v10
+    v6 = insert_value struct0, undef struct0, 0, v2
+    v7 = insert_value struct0, v6, 1, v5
+    v8 = insert_value struct0, v7, 2, v0
+    ret v8
 }
 
 ; function common(uint256 x, uint256 y, uint256 z) external pure returns (uint256 a, uint256 b, uint256 c) [selector 0x233c6b41]
@@ -86,14 +82,14 @@ fn @carry(arg0: i256, arg1: i256) -> i256 [selector=0x8deb15c8, pure, abi_params
 }
 
 ; function dynamicPower(uint256 x, uint256 shift) external pure returns (uint256 product, uint256 remainder) [selector 0x26dfdcc8]
-fn @dynamicPower(arg0: i256, arg1: i256) -> struct3 [selector=0x26dfdcc8, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @dynamicPower(arg0: i256, arg1: i256) -> struct2 [selector=0x26dfdcc8, pure, abi_params=[uint256, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = shl 1, arg1
     v1 = mul v0, arg0
     v2 = shl 1, arg1
     v3 = mod arg0, v2
-    v4 = insert_value struct3, undef struct3, 0, v1
-    v5 = insert_value struct3, v4, 1, v3
+    v4 = insert_value struct2, undef struct2, 0, v1
+    v5 = insert_value struct2, v4, 1, v3
     ret v5
 }
 
@@ -105,7 +101,7 @@ fn @signedRemainder(arg0: i256) -> i256 [selector=0xf6544855, pure, abi_params=[
 }
 
 ; function compare(uint256 x, uint256 y) external pure returns (bool equal, bool less) [selector 0xf360234c]
-fn @compare(arg0: i256, arg1: i256) -> struct4 [selector=0xf360234c, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+fn @compare(arg0: i256, arg1: i256) -> struct2 [selector=0xf360234c, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
   bb0:
     v0 = xor arg0, arg1
     v1 = eq v0, arg0
@@ -113,11 +109,9 @@ fn @compare(arg0: i256, arg1: i256) -> struct4 [selector=0xf360234c, pure, abi_p
     v3 = sub arg0, arg1
     v4 = lt arg0, v3
     v5 = zext i1 v4 to i256
-    v6 = ne v2, 0
-    v7 = ne v5, 0
-    v8 = insert_value struct4, undef struct4, 0, v6
-    v9 = insert_value struct4, v8, 1, v7
-    ret v9
+    v6 = insert_value struct2, undef struct2, 0, v2
+    v7 = insert_value struct2, v6, 1, v5
+    ret v7
 }
 
 ; function selects(bool c, uint256 x, uint256 y, uint256 z) external pure returns (uint256, uint256, uint256) [selector 0x413c28d5]
@@ -166,7 +160,7 @@ fn @selects(arg0: i1, arg1: i256, arg2: i256, arg3: i256) -> struct0 [selector=0
 }
 
 ; function bitTestSelect(uint256 x) external pure returns (uint256, uint256) [selector 0xa23456db]
-fn @bitTestSelect(arg0: i256) -> struct3 [selector=0xa23456db, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @bitTestSelect(arg0: i256) -> struct2 [selector=0xa23456db, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = and arg0, 255
     v1 = eq v0, 0
@@ -188,7 +182,7 @@ fn @bitTestSelect(arg0: i256) -> struct3 [selector=0xa23456db, pure, abi_params=
     jump bb6
   bb6:                                            ; preds = bb4, bb5
     v7 = phi [bb4: arg0], [bb5: v6]
-    v8 = insert_value struct3, undef struct3, 0, v3
-    v9 = insert_value struct3, v8, 1, v7
+    v8 = insert_value struct2, undef struct2, 0, v3
+    v9 = insert_value struct2, v8, 1, v7
     ret v9
 }

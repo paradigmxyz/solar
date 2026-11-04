@@ -291,8 +291,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         offset: None,
                     });
                 }
-                // bounds_check(index, length)
-                let index = self.lower_expr(index)?;
+                // bounds_check(index, length), on the raw word like via-IR
+                let index = self.lower_raw_expr(index)?.operand();
                 let (element, dynamic, length) = match ty.kind {
                     TyKind::Array(element, len) => (element, false, self.builder.imm(len)),
                     TyKind::DynArray(element) => (element, true, self.builder.sload(base.slot)),
@@ -969,6 +969,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.types.memory_layout(ty).is_some() {
             return self.store_storage_object_with_source(ty, source_ty, access.slot, value, span);
         }
+        self.validate_enum(ty, value);
         if let Some(offset) = access.offset {
             self.cx.storage.store_at_offset(
                 &mut self.builder,

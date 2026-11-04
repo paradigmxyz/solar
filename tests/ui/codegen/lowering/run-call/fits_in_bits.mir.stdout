@@ -21,6 +21,9 @@ fn @flag(arg0: i1) -> i1 [selector=0xa92a4c3b, pure, abi_params=[bool], abi_retu
 ; function dir(Dir d) external pure returns (Dir) [selector 0x528a27a3]
 fn @dir(arg0: i8) -> i8 [selector=0x528a27a3, pure, abi_params=[enum<4, uint8>], abi_returns=[word<enum 4>], abi_return_params=[enum<4, uint8>]] {
   bb0:
+    v0 = lt arg0, i8 4
+    v1 = eq v0, false
+    icall panic_if<0x21>, v1
     ret arg0
 }
 

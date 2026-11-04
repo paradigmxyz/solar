@@ -2,12 +2,9 @@
 
 use super::*;
 use crate::mir::lower::data::stores_data_as_words;
-use solar_data_structures::Never;
-use solar_sema::hir::Visit;
-use std::{collections::BTreeSet, ops::ControlFlow};
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
-    pub(super) fn lower_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> Option<()> {
+    pub(super) fn lower_stmt(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
         let previous = self.builder.replace_source_span(stmt.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_stmt_inner(stmt);
@@ -16,7 +13,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result
     }
 
-    fn lower_stmt_inner(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> Option<()> {
+    fn lower_stmt_inner(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
         match &stmt.kind {
             StmtKind::DeclSingle(id) => {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
@@ -54,18 +51,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 {
                     let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
                     let value = self.builder.imm(value);
-                    self.coerce_value(value, expr_ty, ty)
+                    Carried::from_clean(self.coerce_value(value, expr_ty, ty))
                 } else if let Some(expr) = initializer {
-                    self.lower_typed_expr(expr, ty)?
+                    self.lower_carried_expr(expr, ty)?
                 } else {
-                    self.default_binding_value(ty)
+                    Carried::from_clean(self.default_binding_value(ty))
                 };
-                let value = self.materialize_binding(
+                let value = self.materialize_scalar_carrier(
                     *id,
                     value,
                     initializer.map_or(stmt.span, |expr| expr.span),
                 )?;
-                self.bind_variable(*id, value);
+                self.values.insert(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {
                 if ids.iter().flatten().any(|&id| {
@@ -90,7 +87,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 // variable.
                                 let span = self.cx.gcx.hir.variable(*id).span;
                                 let value = self.load_storage_object(ty, value, span)?;
-                                self.bind_variable(*id, value);
+                                self.values.insert(*id, value);
                                 continue;
                             }
                             self.storage_refs.insert(*id, access);
@@ -100,9 +97,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 "mixed storage tuple",
                             );
                         } else {
+                            let value = Carried::from_clean(value);
                             let value =
                                 self.convert_tuple_component(value, source_ty, ty, expr.span)?;
-                            self.bind_variable(*id, value);
+                            let value = self.carried_into_binding(*id, value);
+                            let value = self.materialize_raw_scalar(*id, value);
+                            self.values.insert(*id, value);
                         }
                     }
                     return Some(());
@@ -131,9 +131,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             continue;
                         }
                         let span = value.span;
-                        let value = self.lower_typed_expr(value, ty)?;
-                        let value = self.materialize_binding(*id, value, span)?;
-                        self.bind_variable(*id, value);
+                        let value = self.lower_carried_expr(value, ty)?;
+                        let value = self.materialize_scalar_carrier(*id, value, span)?;
+                        self.values.insert(*id, value);
                     }
                     return Some(());
                 }
@@ -145,7 +145,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         ids.first().is_some_and(Option::is_none),
                     )?;
                     for (id, value) in ids.iter().flatten().zip(values) {
-                        self.bind_variable(*id, value);
+                        let value = self.materialize_raw_scalar(*id, value);
+                        self.values.insert(*id, value);
                     }
                     return Some(());
                 }
@@ -163,7 +164,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let target = self.cx.gcx.type_of_item((*id).into());
                         let value =
                             self.convert_tuple_component(value, source, target, expr.span)?;
-                        self.bind_variable(*id, value);
+                        let value = self.carried_into_binding(*id, value);
+                        let value = self.materialize_raw_scalar(*id, value);
+                        self.values.insert(*id, value);
                     }
                 }
             }
@@ -219,10 +222,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         for (id, value) in return_ids.into_iter().zip(values) {
                             let ty = self.cx.gcx.type_of_item(id.into());
                             if ty.is_ref_at(DataLocation::Storage) {
-                                self.set_storage_ref_slot(id, value);
+                                let slot = value.clean(self, ty);
+                                self.set_storage_ref_slot(id, slot);
                             } else {
-                                let value = self.materialize_binding(id, value, stmt.span)?;
-                                self.bind_variable(id, value);
+                                let value =
+                                    self.materialize_scalar_carrier(id, value, stmt.span)?;
+                                self.values.insert(id, value);
                             }
                         }
                     }
@@ -240,9 +245,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             .map(|(id, value)| {
                                 let ty = self.cx.gcx.type_of_item(id.into());
                                 if ty.is_ref_at(DataLocation::Storage) {
-                                    Some(value)
+                                    Some(value.clean(self, ty))
                                 } else {
-                                    self.materialize_binding(id, value, stmt.span)
+                                    self.materialize_scalar_carrier(id, value, stmt.span)
                                 }
                             })
                             .collect::<Option<Vec<_>>>()?;
@@ -252,7 +257,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             StmtKind::Revert(expr) => self.lower_revert_payload(expr)?,
             StmtKind::AssemblyBlock(block, memory_safe) => {
-                self.lower_assembly_block(*block, *memory_safe)?;
+                let previous = std::mem::replace(&mut self.in_inline_assembly, true);
+                let previous_writes = std::mem::take(&mut self.assembly_writes_memory);
+                let result = self.lower_block(*block);
+                // A block that writes no memory cannot break the promise.
+                if !memory_safe && self.assembly_writes_memory {
+                    self.cx.module.set_unsafe_assembly(true);
+                }
+                self.assembly_writes_memory = previous_writes;
+                self.in_inline_assembly = previous;
+                result?;
             }
             StmtKind::Placeholder => {
                 self.lower_modifier_placeholder(stmt.span)?;
@@ -667,7 +681,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_block(&mut self, block: hir::Block<'gcx>) -> Option<()> {
+    pub(super) fn lower_block(&mut self, block: hir::Block<'_>) -> Option<()> {
         let mut stmts = block.stmts.iter().peekable();
         while let Some(stmt) = stmts.next() {
             if self.is_terminated() {
@@ -738,7 +752,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !ty.peel_refs().is_fixed_bytes() {
             let layout = types::TypeLowerer::value_layout(ty);
             return if matches!(layout, crate::mir::ValueLayout::Int(_)) {
-                widen_to_word(&mut self.builder, value, layout)
+                raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
             } else {
                 value
             };
@@ -751,91 +765,5 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.builder.slice_load_word(value, zero);
         }
         value
-    }
-
-    /// Lowers an inline assembly block. Inside it a Solidity variable that the block assigns is
-    /// a raw word, and when the block ends each such variable is cleaned once and goes back to
-    /// its native type, so Solidity code never sees bits above a variable's type.
-    fn lower_assembly_block(&mut self, block: hir::Block<'gcx>, memory_safe: bool) -> Option<()> {
-        let mut assigned = AssignedVariables { gcx: self.cx.gcx, ids: BTreeSet::new() };
-        for stmt in block.stmts {
-            let _ = assigned.visit_stmt(stmt);
-        }
-        // word = zext | sext variable
-        let mut words = Vec::with_capacity(assigned.ids.len());
-        for id in assigned.ids {
-            let ty = self.cx.gcx.type_of_item(id.into());
-            // A Yul local that the block declares has no value yet.
-            let bound = self.values.contains_key(&id)
-                || self.default_bindings.contains(&id)
-                || self.deferred_bindings.contains(&id);
-            if bound
-                && ty.is_value_type()
-                && !matches!(ty.kind, TyKind::Fn(_))
-                && let Some(value) = self.load_variable(id, block.span)
-            {
-                let word =
-                    widen_to_word(&mut self.builder, value, types::TypeLowerer::value_layout(ty));
-                self.values.insert(id, word);
-                words.push((id, ty));
-            }
-        }
-
-        let previous = std::mem::replace(&mut self.in_inline_assembly, true);
-        let previous_writes = std::mem::take(&mut self.assembly_writes_memory);
-        let result = self.lower_block(block);
-        // A block that writes no memory cannot break the promise.
-        if !memory_safe && self.assembly_writes_memory {
-            self.cx.module.set_unsafe_assembly(true);
-        }
-        self.assembly_writes_memory = previous_writes;
-        self.in_inline_assembly = previous;
-        result?;
-
-        if !self.is_terminated() {
-            for (id, ty) in words {
-                // value = cleanup(word) | validate enum, then trunc | ne 0 to the native type
-                let word = self.values[&id];
-                let value = self.normalize_abi_scalar(word, ty);
-                let value = self.builder.cast(value, types::TypeLowerer::mir_type(ty));
-                self.values.insert(id, value);
-            }
-        }
-        Some(())
-    }
-}
-
-/// Collects the variables that the assignments in a Yul block target.
-struct AssignedVariables<'gcx> {
-    gcx: Gcx<'gcx>,
-    ids: BTreeSet<VariableId>,
-}
-
-impl AssignedVariables<'_> {
-    fn collect_targets(&mut self, target: &hir::Expr<'_>) {
-        match target.kind {
-            ExprKind::Ident(_) => self.ids.extend(self.gcx.resolved_variable(target)),
-            ExprKind::Tuple(targets) => {
-                for target in targets.iter().flatten() {
-                    self.collect_targets(target);
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-impl<'gcx> Visit<'gcx> for AssignedVariables<'gcx> {
-    type BreakValue = Never;
-
-    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
-        &self.gcx.hir
-    }
-
-    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
-        if let ExprKind::Assign(target, None, _) = expr.kind {
-            self.collect_targets(target);
-        }
-        self.walk_expr(expr)
     }
 }

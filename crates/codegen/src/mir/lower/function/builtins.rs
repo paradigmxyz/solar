@@ -136,7 +136,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         capture_returndata: bool,
     ) -> Option<(ValueId, Option<ValueId>)> {
         let data = &self.builtin_args::<1>(builtin, &args)?[0];
-        let address = self.lower_expr(receiver)?;
+        let address = self.lower_raw_expr(receiver)?.operand();
         let data_span = data.span;
         let data_ty = self.cx.gcx.type_of_expr(data.id)?;
         let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
@@ -197,7 +197,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         args: hir::CallArgs<'_>,
     ) -> Option<CallResult> {
         let amount = &self.builtin_args::<1>(builtin, &args)?[0];
-        let address = self.lower_expr(receiver)?;
+        let address = self.lower_raw_expr(receiver)?.operand();
         let amount = self.lower_typed_expr(amount, self.cx.gcx.types.uint(256))?;
         match builtin {
             Builtin::AddressPayableTransfer => {
@@ -265,7 +265,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return self.cx.report_unsupported(expr.span, "address balance");
                 };
-                let receiver = self.lower_expr(receiver)?;
+                let receiver = self.lower_raw_expr(receiver)?.operand();
                 Some(self.builder.balance(receiver))
             }
             Builtin::ContractCreationCode
@@ -301,7 +301,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ExprKind::Member(receiver, _) = &expr.kind else {
                     return self.cx.report_unsupported(expr.span, "environment builtin");
                 };
-                let address = self.lower_expr(receiver)?;
+                let address = self.lower_raw_expr(receiver)?.operand();
                 match builtin {
                     Builtin::AddressCodehash => {
                         // value = extcodehash(address)
@@ -412,7 +412,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 match (&receiver.kind, self.cx.gcx.resolved_builtin(receiver)) {
                     (ExprKind::Member(address, _), Some(Builtin::AddressCode)) => {
-                        let address = self.lower_expr(address)?;
+                        let address = self.lower_raw_expr(address)?.operand();
                         Some(self.builder.extcodesize(address))
                     }
                     _ => {
@@ -582,7 +582,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Builtin::Selfdestruct => {
                 let address = &self.builtin_args::<1>(builtin, &args)?[0];
-                let address = self.lower_expr(address)?;
+                let address = self.lower_raw_expr(address)?.operand();
                 self.builder.selfdestruct(address);
             }
             _ => {

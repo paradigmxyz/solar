@@ -178,28 +178,40 @@ fn @enumRvalue(arg0: i256) -> struct1 [selector=0x8b2cec53, abi_params=[uint256]
     v13 = lt v12, i8 4
     v14 = eq v13, false
     icall panic_if<0x21>, v14
-    v15 = sload 4 !metadata(storage=slot(4))
-    v16 = gt v15, 0xffffffffffffffff
-    icall panic_if<0x41>, v16
-    v17 = add v15, 1
-    v18 = storage_array_data_slot 4
-    v19 = div v15, 32
-    v20 = add v18, v19
-    v21 = mod v15, 32
-    v22 = mul v21, 1
-    sstore 4, v17 !metadata(storage=slot(4))
-    v23 = sload v20 !metadata(storage=symbolic(v20))
-    v24 = mul v22, 8
-    v25 = shr v23, v24
-    v26 = trunc i256 v25 to i8
-    v27 = lt v26, i8 4
-    v28 = eq v27, false
-    icall panic_if<0x21>, v28
-    v29 = sload 4 !metadata(storage=slot(4))
-    v30 = insert_value struct1, undef struct1, 0, v12
-    v31 = insert_value struct1, v30, 1, v26
-    v32 = insert_value struct1, v31, 2, v29
-    ret v32
+    v15 = lt v12, i8 4
+    v16 = eq v15, false
+    icall panic_if<0x21>, v16
+    v17 = sload 4 !metadata(storage=slot(4))
+    v18 = gt v17, 0xffffffffffffffff
+    icall panic_if<0x41>, v18
+    v19 = add v17, 1
+    v20 = storage_array_data_slot 4
+    v21 = div v17, 32
+    v22 = add v20, v21
+    v23 = mod v17, 32
+    v24 = mul v23, 1
+    sstore 4, v19 !metadata(storage=slot(4))
+    v25 = sload v22 !metadata(storage=symbolic(v22))
+    v26 = mul v24, 8
+    v27 = shr v25, v26
+    v28 = trunc i256 v27 to i8
+    v29 = lt v28, i8 4
+    v30 = eq v29, false
+    icall panic_if<0x21>, v30
+    v31 = lt v28, i8 4
+    v32 = eq v31, false
+    icall panic_if<0x21>, v32
+    v33 = lt v12, i8 4
+    v34 = eq v33, false
+    icall panic_if<0x21>, v34
+    v35 = lt v28, i8 4
+    v36 = eq v35, false
+    icall panic_if<0x21>, v36
+    v37 = sload 4 !metadata(storage=slot(4))
+    v38 = insert_value struct1, undef struct1, 0, v12
+    v39 = insert_value struct1, v38, 1, v28
+    v40 = insert_value struct1, v39, 2, v37
+    ret v40
 }
 
 ; function signedRvalue(uint256 dirty) external returns (int128, int128, uint256) [selector 0xb5c04c0f]
@@ -389,10 +401,13 @@ fn @enumInvalidRvalue(arg0: i256) -> struct7 [selector=0x12551884, abi_params=[u
     v13 = lt v12, i8 4
     v14 = eq v13, false
     icall panic_if<0x21>, v14
-    v15 = sload 4 !metadata(storage=slot(4))
-    v16 = insert_value struct7, undef struct7, 0, v12
-    v17 = insert_value struct7, v16, 1, v15
-    ret v17
+    v15 = lt v12, i8 4
+    v16 = eq v15, false
+    icall panic_if<0x21>, v16
+    v17 = sload 4 !metadata(storage=slot(4))
+    v18 = insert_value struct7, undef struct7, 0, v12
+    v19 = insert_value struct7, v18, 1, v17
+    ret v19
 }
 
 ; function enumBareRvalue(uint256 dirty) external returns (uint256, uint256) [selector 0x7b8d408b]
@@ -532,16 +547,19 @@ fn @enumDeclHole(arg0: i256) -> struct3 [selector=0xfcfa4d59, abi_params=[uint25
     v21 = lt v20, i8 4
     v22 = eq v21, false
     icall panic_if<0x21>, v22
+    v23 = lt v20, i8 4
+    v24 = eq v23, false
+    icall panic_if<0x21>, v24
     mstore 0, 4 !metadata(memory=scratch)
-    v23 = keccak256 0, 32 !metadata(memory=scratch)
-    v24 = sload v23 !metadata(storage=symbolic(v23))
-    v25 = and v24, 255
-    v26 = zext i8 v20 to i256
-    v27 = sload 4 !metadata(storage=slot(4))
-    v28 = insert_value struct3, undef struct3, 0, v26
-    v29 = insert_value struct3, v28, 1, v25
-    v30 = insert_value struct3, v29, 2, v27
-    ret v30
+    v25 = keccak256 0, 32 !metadata(memory=scratch)
+    v26 = sload v25 !metadata(storage=symbolic(v25))
+    v27 = and v26, 255
+    v28 = zext i8 v20 to i256
+    v29 = sload 4 !metadata(storage=slot(4))
+    v30 = insert_value struct3, undef struct3, 0, v28
+    v31 = insert_value struct3, v30, 1, v27
+    v32 = insert_value struct3, v31, 2, v29
+    ret v32
 }
 
 ; function enumAssignHole(uint256 dirty) external returns (uint256, uint256, uint256) [selector 0xb891707d]
@@ -649,10 +667,13 @@ fn @enumUsedComponent(arg0: i256) -> struct0 [selector=0x3af411b8, abi_params=[u
     v13 = lt v12, i8 4
     v14 = eq v13, false
     icall panic_if<0x21>, v14
-    v15 = zext i8 v12 to i256
-    v16 = insert_value struct0, undef struct0, 0, v15
-    v17 = insert_value struct0, v16, 1, 123
-    ret v17
+    v15 = lt v12, i8 4
+    v16 = eq v15, false
+    icall panic_if<0x21>, v16
+    v17 = zext i8 v12 to i256
+    v18 = insert_value struct0, undef struct0, 0, v17
+    v19 = insert_value struct0, v18, 1, 123
+    ret v19
 }
 
 ; function nestedInStmtRvalue(uint256 dirty) external returns (uint256, uint256) [selector 0xa803cfdb]

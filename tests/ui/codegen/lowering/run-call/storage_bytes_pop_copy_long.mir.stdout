@@ -229,7 +229,7 @@ fn @testOnePop() -> i8 [selector=0x38de92b5, abi_params=[], abi_returns=[word<ui
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: i8 0], [bb3: v0]
+    v0 = phi [bb0: 0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v40]
     v2 = lt v1, 33
     jumpi v2, bb4, bb5

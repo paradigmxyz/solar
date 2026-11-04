@@ -11,10 +11,10 @@
 //@ run-call: VirtualFunctionUsageDerived::getA => 2
 //@ run-call: EmptyBaseArgumentMask::domain => "Token", "1"
 //@ run-call: WriterDerived::order => 12
-//@ run-call: RawCarrierMiddle::raw => 0x34
-//@ run-call: RawCarrierMiddle::modified => 0x78
-//@ run-call: RawCarrierDerived::raw => 0x34
-//@ run-call: RawCarrierDerived::modified => 0x78
+//@ run-call: RawCarrierMiddle::raw => 0x1234
+//@ run-call: RawCarrierMiddle::modified => 0x5678
+//@ run-call: RawCarrierDerived::raw => 0x1234
+//@ run-call: RawCarrierDerived::modified => 0x5678
 // ported-from: test/libsolidity/semanticTests/constructor/order_of_evaluation.sol
 // ported-from: test/libsolidity/semanticTests/inheritance/constructor_inheritance_init_order_3_viaIR.sol
 // ported-from: test/libsolidity/semanticTests/constructor/function_usage_in_constructor_arguments.sol

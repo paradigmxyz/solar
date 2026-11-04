@@ -16,8 +16,8 @@
 //@ run-call-fail: 0x169b26230000000000000000000000010000000000000000000000000000000000000000
 //@ run-call: dirty 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffff
 //@ run-call: dirty 0x10000000000000000000000000000000000000001 => 1
-//@ run-call: observeDirty 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff
-//@ run-call: dirtyBool 2 => 1
+//@ run-call: observeDirty 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: dirtyBool 2 => 0
 //@ run-call: dirtyBool 3 => 1
 //@ run-call: cleanBool true => 1
 //@ run-call: cleanBool false => 0

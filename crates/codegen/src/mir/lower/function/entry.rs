@@ -7,7 +7,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.parameters.extend_from_slice(function.parameters);
         for &param in function.parameters {
             let ty = self.cx.gcx.type_of_item(param.into());
-            let value = self.builder.add_param(types::TypeLowerer::mir_type(ty));
+            let value = self.builder.add_param(self.cx.state.scalar_carrier(self.cx.gcx, param));
             if ty.is_ref_at(DataLocation::Storage) {
                 self.storage_refs.insert(
                     param,
@@ -18,13 +18,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     },
                 );
             } else {
-                self.bind_variable(param, value);
+                self.values.insert(param, value);
             }
         }
         let return_types = function
             .returns
             .iter()
-            .map(|&ret| types::TypeLowerer::mir_type(self.cx.gcx.type_of_item(ret.into())))
+            .map(|&ret| self.cx.state.scalar_carrier(self.cx.gcx, ret))
             .collect();
         if let Some(ty) = self.cx.module.intern_return_type(return_types) {
             self.builder.set_return_type(ty);
@@ -59,10 +59,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some(initializer) = variable.initializer else { continue };
             let ty = self.cx.gcx.type_of_item(id.into());
             let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
-            let value = self.lower_typed_expr(initializer, ty)?;
+            let carried = self.lower_carried_expr(initializer, ty)?;
             if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-                self.store_immutable_value(immutable_id, value);
+                let value = self.carried_into_binding(id, carried);
+                self.store_immutable_value(id, immutable_id, value);
             } else {
+                let value = carried.clean(self, ty);
                 self.store_state_variable(id, value, source_ty, initializer.span)?;
             }
         }
@@ -171,7 +173,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             } else {
                 self.storage_refs.remove(&parameter);
-                self.bind_variable(parameter, value);
+                let value = self.materialize_raw_scalar(parameter, value);
+                self.values.insert(parameter, value);
             }
         }
     }
@@ -264,7 +267,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
-                values.push(self.materialize_binding(
+                let raw = self.is_raw_binding(id);
+                let value = self.field_word(value, raw);
+                values.push(self.materialize_scalar_carrier(
                     id,
                     value,
                     self.cx.gcx.hir.variable(id).span,
@@ -296,7 +301,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for id in ids {
             let ty = self.cx.gcx.type_of_item(id.into());
             let value = self.default_binding_value(ty);
-            self.bind_variable(id, value);
+            let value = self.materialize_raw_scalar(id, value);
+            self.values.insert(id, value);
         }
     }
 

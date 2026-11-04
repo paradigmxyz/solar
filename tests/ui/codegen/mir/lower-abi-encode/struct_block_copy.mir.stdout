@@ -92,23 +92,26 @@ fn @encodeItems(arg0: i256, arg1: i256) -> ptr<memory> [selector=0x9d5586ab, pur
 fn @literal(arg0: i256) -> ptr<memory> [selector=0x41d012fd, pure, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
   bb0:
     v0 = alloc 224
-    v1 = trunc i256 arg0 to i160
-    v2 = zext i160 v1 to i256
-    v3 = sext i8 254 to i256
-    v4 = checked_add uint256, arg0, 1
+    v1 = lt i8 1, i8 3
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    v3 = trunc i256 arg0 to i160
+    v4 = zext i160 v3 to i256
+    v5 = sext i8 254 to i256
+    v6 = checked_add uint256, arg0, 1
     mstore v0, 1
-    v5 = ptradd v0, 32
-    mstore v5, v2
-    v6 = ptradd v0, 64
-    mstore v6, arg0
-    v7 = ptradd v0, 96
-    mstore v7, 0x1122334400000000000000000000000000000000000000000000000000000000
-    v8 = ptradd v0, 128
-    mstore v8, v3
-    v9 = ptradd v0, 160
-    mstore v9, 1
-    v10 = ptradd v0, 192
-    mstore v10, v4
-    v11 = abi_encode [tuple<word<enum 3>, word<uint160>, word, word<bytes4>, word<int8>, word<bool>, word>], object, args v0
-    ret v11
+    v7 = ptradd v0, 32
+    mstore v7, v4
+    v8 = ptradd v0, 64
+    mstore v8, arg0
+    v9 = ptradd v0, 96
+    mstore v9, 0x1122334400000000000000000000000000000000000000000000000000000000
+    v10 = ptradd v0, 128
+    mstore v10, v5
+    v11 = ptradd v0, 160
+    mstore v11, 1
+    v12 = ptradd v0, 192
+    mstore v12, v6
+    v13 = abi_encode [tuple<word<enum 3>, word<uint160>, word, word<bytes4>, word<int8>, word<bool>, word>], object, args v0
+    ret v13
 }

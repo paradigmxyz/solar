@@ -1,9 +1,9 @@
 ; === ROOT/tests/ui/codegen/lowering/run-call/ecrecover_dirty_v.sol:C ===
 @module C
 ; function dirtyV() internal pure returns (uint8 v)
-fn @dirtyV() -> i8 [pure] {
+fn @dirtyV() -> i256 [pure] {
   bb0:
-    ret i8 27
+    ret 0xff1b
 }
 
 ; function direct() external pure returns (uint256) [selector 0x222b1407]
@@ -19,20 +19,22 @@ fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[wor
 fn @viaReturn() -> i256 [selector=0xefd065cd, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @dirtyV
-    v1 = zext i8 v0 to i256
-    v2 = icall ecrecover<>, 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824, v1, 0xf2fff8620d8ffe97040f8cf72ae476ef8ff4412373929c0324ce8428d3352e7, 0x1845ae4903027667005846f8f0be3e5ed2db5c3826ba83a6e542e080792f9a9d
-    v3 = trunc i256 v2 to i160
-    v4 = zext i160 v3 to i256
-    ret v4
+    v1 = trunc i256 v0 to i8
+    v2 = zext i8 v1 to i256
+    v3 = icall ecrecover<>, 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824, v2, 0xf2fff8620d8ffe97040f8cf72ae476ef8ff4412373929c0324ce8428d3352e7, 0x1845ae4903027667005846f8f0be3e5ed2db5c3826ba83a6e542e080792f9a9d
+    v4 = trunc i256 v3 to i160
+    v5 = zext i160 v4 to i256
+    ret v5
 }
 
 ; function viaLocal() external pure returns (uint256) [selector 0xf9bef4ed]
 fn @viaLocal() -> i256 [selector=0xf9bef4ed, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @dirtyV
-    v1 = zext i8 v0 to i256
-    v2 = icall ecrecover<>, 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824, v1, 0xf2fff8620d8ffe97040f8cf72ae476ef8ff4412373929c0324ce8428d3352e7, 0x1845ae4903027667005846f8f0be3e5ed2db5c3826ba83a6e542e080792f9a9d
-    v3 = trunc i256 v2 to i160
-    v4 = zext i160 v3 to i256
-    ret v4
+    v1 = trunc i256 v0 to i8
+    v2 = zext i8 v1 to i256
+    v3 = icall ecrecover<>, 0x2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824, v2, 0xf2fff8620d8ffe97040f8cf72ae476ef8ff4412373929c0324ce8428d3352e7, 0x1845ae4903027667005846f8f0be3e5ed2db5c3826ba83a6e542e080792f9a9d
+    v4 = trunc i256 v3 to i160
+    v5 = zext i160 v4 to i256
+    ret v5
 }

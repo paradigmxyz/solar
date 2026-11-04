@@ -21,7 +21,7 @@ fn @hash(arg0: i256) -> i256 [selector=0xb189fd4c, pure, abi_params=[uint256], a
 }
 
 ; function observed(uint256 x) external pure returns (bool result) [selector 0x3a5fe8af]
-fn @observed(arg0: i256) -> i1 [selector=0x3a5fe8af, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @observed(arg0: i256) -> i256 [selector=0x3a5fe8af, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     v1 = alloc 96 !metadata(preserves_fmp)
@@ -52,11 +52,10 @@ fn @observed(arg0: i256) -> i1 [selector=0x3a5fe8af, pure, abi_params=[uint256],
     v23 = eq v22, 0x6f7264733f000000000000000000000000000000000000000000000000000000
     v24 = zext i1 v23 to i256
     v25 = and v20, v24
-    v26 = ne v25, 0
-    v27 = eq v7, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
-    v28 = eq v27, false
-    icall revert_if<empty>, v28
-    ret v26
+    v26 = eq v7, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
+    v27 = eq v26, false
+    icall revert_if<empty>, v27
+    ret v25
 }
 
 ; function observedRevert(uint256 x) external pure [selector 0x8cf17d01]

@@ -26,43 +26,43 @@ fn @entry() [entry] {
 ; function gasCaller(bytes calldata data) external pure returns (uint32) [selector 0x3dd81fa2]
 fn @gasCaller() {
   bb0:
-    v37 = icall @decode_calldata_slice
-    v38 = calldataload v37
-    v39 = add v37, 32
-    v33 = lt v38, 4
-    jumpi v33, bb2, bb1
+    v42 = icall @decode_calldata_slice
+    v43 = calldataload v42
+    v44 = add v42, 32
+    v38 = lt v43, 4
+    jumpi v38, bb2, bb1
   bb1:                                            ; preds = bb0
-    v102 = add v39, 0
-    v103 = calldataload v102
-    v104 = byte 0, v103
-    v105 = or 0, v104
-    v110 = shl v105, 8
-    v111 = and v110, 0xffffffff
-    v112 = add v39, 1
-    v113 = calldataload v112
-    v114 = byte 0, v113
-    v115 = or v111, v114
-    v120 = shl v115, 8
-    v121 = and v120, 0xffffffff
-    v122 = add v39, 2
-    v123 = calldataload v122
-    v124 = byte 0, v123
-    v125 = or v121, v124
-    v130 = shl v125, 8
-    v131 = and v130, 0xffffffff
-    v132 = add v39, 3
-    v133 = calldataload v132
-    v134 = byte 0, v133
-    v135 = or v131, v134
-    mstore 0, v135
+    v109 = add v44, 0
+    v110 = calldataload v109
+    v111 = byte 0, v110
+    v112 = or 0, v111
+    v117 = shl v112, 8
+    v118 = and v117, 0xffffffff
+    v119 = add v44, 1
+    v120 = calldataload v119
+    v121 = byte 0, v120
+    v122 = or v118, v121
+    v127 = shl v122, 8
+    v128 = and v127, 0xffffffff
+    v129 = add v44, 2
+    v130 = calldataload v129
+    v131 = byte 0, v130
+    v132 = or v128, v131
+    v137 = shl v132, 8
+    v138 = and v137, 0xffffffff
+    v139 = add v44, 3
+    v140 = calldataload v139
+    v141 = byte 0, v140
+    v142 = or v138, v141
+    mstore 0, v142
     returndata 0, 32
   bb2 [cold]:                                     ; preds = bb0
-    v58 = lt 0, v38
-    v69 = lt 1, v38
-    v137 = and v58, v69
-    v80 = lt 2, v38
-    v138 = and v137, v80
-    jumpi v138, bb4, bb3
+    v65 = lt 0, v43
+    v76 = lt 1, v43
+    v144 = and v65, v76
+    v87 = lt 2, v43
+    v145 = and v144, v87
+    jumpi v145, bb4, bb3
   bb4 [cold]:                                     ; preds = bb2
     jump bb3
   bb3 [cold]:                                     ; preds = bb2, bb4
@@ -74,34 +74,34 @@ fn @gasCaller() {
 ; function sizeCaller(bytes calldata data) external pure returns (uint32) [selector 0x955e9bc9]
 fn @sizeCaller() [optimize=size] {
   bb0:
-    v23 = icall @decode_calldata_slice
-    v24 = calldataload v23
-    v25 = add v23, 32
-    jump bb2
-  bb2:                                            ; preds = bb0, bb5
-    v1 = phi [bb0: 0], [bb5: v32]
-    v2 = phi [bb0: 0], [bb5: v4]
+    v26 = icall @decode_calldata_slice
+    v27 = calldataload v26
+    v28 = add v26, 32
+    jump bb1
+  bb1:                                            ; preds = bb0, bb5
+    v1 = phi [bb0: 0], [bb5: v36]
+    v2 = phi [bb0: 0], [bb5: v5]
     v3 = lt v2, 4
-    jumpi v3, bb3, bb1
-  bb1:                                            ; preds = bb2
+    jumpi v3, bb3, bb2
+  bb2:                                            ; preds = bb1
     mstore 0, v1
     returndata 0, 32
-  bb3:                                            ; preds = bb2
-    v29 = shl v1, 7
-    v30 = and v29, 0xffffffff
-    v7 = lt v2, v24
-    jumpi v7, bb5, bb4
+  bb3:                                            ; preds = bb1
+    v33 = shl v1, 7
+    v34 = and v33, 0xffffffff
+    v10 = lt v2, v27
+    jumpi v10, bb5, bb4
   bb4 [cold]:                                     ; preds = bb3
     mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb5:                                            ; preds = bb3
-    v12 = add v25, v2
-    v13 = calldataload v12
-    v14 = byte 0, v13
-    v32 = or v30, v14
-    v4 = add v2, 1
-    jump bb2
+    v15 = add v28, v2
+    v16 = calldataload v15
+    v17 = byte 0, v16
+    v36 = or v34, v17
+    v5 = add v2, 1
+    jump bb1
 }
 
 fn @decode_calldata_slice() -> i256 {

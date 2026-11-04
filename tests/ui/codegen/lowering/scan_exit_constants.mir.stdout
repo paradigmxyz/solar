@@ -1,7 +1,7 @@
 ; === ROOT/tests/ui/codegen/lowering/scan_exit_constants.sol:ScanExitConstants ===
 @module ScanExitConstants
 ; function check(uint256 length, uint256 badIndex) external pure returns (bool result) [selector 0x8fefd8ea]
-fn @check(arg0: i256, arg1: i256) -> i1 [selector=0x8fefd8ea, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @check(arg0: i256, arg1: i256) -> i256 [selector=0x8fefd8ea, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gt arg0, 0x400
     v1 = eq v0, false
@@ -18,7 +18,7 @@ fn @check(arg0: i256, arg1: i256) -> i1 [selector=0x8fefd8ea, pure, abi_params=[
   bb1:                                            ; preds = bb0, bb3
     v8 = phi [bb0: arg0], [bb3: v8]
     v9 = phi [bb0: arg1], [bb3: v9]
-    v10 = phi [bb0: false], [bb3: v10]
+    v10 = phi [bb0: 0], [bb3: v10]
     v11 = phi [bb0: v7], [bb3: v11]
     v12 = phi [bb0: 0], [bb3: v22]
     v13 = lt v12, v8
@@ -31,13 +31,14 @@ fn @check(arg0: i256, arg1: i256) -> i1 [selector=0x8fefd8ea, pure, abi_params=[
     v25 = add v24, v8
     mstore v25, 0xdeadbeef
     v26 = icall @scan, v11
-    v27 = ptrtoint ptr<memory> v11 to i256
-    v28 = add v27, 32
-    v29 = add v28, v8
-    v30 = mload v29
-    v31 = eq v30, 0xdeadbeef
-    v32 = eq v31, false
-    icall revert_if<empty>, v32
+    v27 = ne v26, 0
+    v28 = ptrtoint ptr<memory> v11 to i256
+    v29 = add v28, 32
+    v30 = add v29, v8
+    v31 = mload v30
+    v32 = eq v31, 0xdeadbeef
+    v33 = eq v32, false
+    icall revert_if<empty>, v33
     ret v26
   bb4:                                            ; preds = bb1
     v14 = eq v12, v9
@@ -65,7 +66,7 @@ fn @check(arg0: i256, arg1: i256) -> i1 [selector=0x8fefd8ea, pure, abi_params=[
 }
 
 ; function scan(bytes memory data) internal pure returns (bool result)
-fn @scan(arg0: ptr<memory>) -> i1 [pure] {
+fn @scan(arg0: ptr<memory>) -> i256 [pure] {
   bb0:
     v0 = ptrtoint ptr<memory> arg0 to i256
     v1 = mload arg0
@@ -124,6 +125,5 @@ fn @scan(arg0: ptr<memory>) -> i1 [pure] {
     v24 = phi [bb5: v7], [bb2: arg0]
     v25 = phi [bb5: v22], [bb2: 1]
     v26 = phi [bb5: v9], [bb2: v1]
-    v27 = ne v25, 0
-    ret v27
+    ret v25
 }

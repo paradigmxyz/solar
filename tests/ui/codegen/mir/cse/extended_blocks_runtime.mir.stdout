@@ -20,22 +20,21 @@ fn @aliasedElement(arg0: i256) -> i256 [selector=0x7d7000ed, abi_params=[uint256
 }
 
 ; function aliasedSlotInBranch(bool condition, uint256 slot) external returns (uint256 result) [selector 0x7ae00b38]
-fn @aliasedSlotInBranch(arg0: i1, arg1: i256) -> i256 [selector=0x7ae00b38, abi_params=[bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+fn @aliasedSlotInBranch(arg0: i256, arg1: i256) -> i256 [selector=0x7ae00b38, abi_params=[bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     sstore 0, 1 !metadata(storage=slot(0))
-    v0 = zext i1 arg0 to i256
-    switch v0, default bb3, [0 => bb2]
+    switch arg0, default bb3, [0 => bb2]
   bb2:                                            ; preds = bb0
     sstore 0, 3 !metadata(storage=slot(0))
     jump bb1
   bb3:                                            ; preds = bb0
     sstore arg1, 5 !metadata(storage=symbolic(arg1))
-    v1 = sload 0 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
     sstore 0, 2 !metadata(storage=slot(0))
     jump bb1
   bb1:                                            ; preds = bb2, bb3
-    v2 = phi [bb2: 0], [bb3: v1]
-    ret v2
+    v1 = phi [bb2: 0], [bb3: v0]
+    ret v1
 }
 
 ; function callChangesSlot() external returns (uint256) [selector 0x307235ff]

@@ -228,19 +228,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(LValuePlace::Storage { ty, access, span: expr.span })
     }
 
-    pub(super) fn load_variable(&mut self, id: VariableId, span: Span) -> Option<ValueId> {
+    /// Reads the binding `id` as it is stored, which for a raw carrier is the raw word.
+    pub(super) fn load_variable_word(&mut self, id: VariableId, span: Span) -> Option<ValueId> {
         if let Some(value) = self.values.get(&id).copied() {
             return Some(value);
         }
         if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
             let ty = self.cx.gcx.type_of_item(id.into());
             let value = self.default_binding_value(ty);
-            self.bind_variable(id, value);
+            let value = self.materialize_raw_scalar(id, value);
+            self.values.insert(id, value);
             return Some(value);
         }
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
             let ty = self.cx.module.immutable_type(immutable_id).mir_type();
-            return Some(self.builder.load_immutable(immutable_id, ty));
+            let value = self.builder.load_immutable(immutable_id, ty);
+            let source_ty = self.cx.gcx.type_of_item(id.into());
+            // A fixed-bytes immutable keeps its full word, so assembly can have stored dirty bits
+            // that ABI return encoding would otherwise trust as canonical.
+            if self.cx.state.raw_scalars.contains(&id)
+                && let crate::mir::ValueLayout::FixedBytes(size) =
+                    types::TypeLowerer::value_layout(source_ty)
+            {
+                return Some(self.clean_fixed_bytes(value, size.bytes()));
+            }
+            return Some(value);
         }
         if let Some(access) = self.storage_refs.get(&id).copied() {
             let ty = self.cx.gcx.type_of_item(id.into());
@@ -270,50 +282,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.cx.report_unsupported(span, "identifier")
     }
 
-    /// Stores a value in an immutable.
-    pub(super) fn store_immutable_value(&mut self, immutable_id: ImmutableId, value: ValueId) {
+    /// Stores a value in an immutable and range checks an enum, like solc. `value` is the raw word
+    /// for a raw immutable, which keeps the bits assembly wrote, and canonical for any other.
+    pub(super) fn store_immutable_value(
+        &mut self,
+        id: VariableId,
+        immutable_id: ImmutableId,
+        value: ValueId,
+    ) {
+        let source_ty = self.cx.gcx.type_of_item(id.into());
+        self.validate_enum(source_ty, value);
         // value = cast to the immutable value type
         let ty = self.cx.module.immutable_type(immutable_id).mir_type();
         let value = self.builder.cast(value, ty);
         self.builder.store_immutable(immutable_id, value);
-    }
-
-    /// Converts a lowered value for the binding `id`: a scalar is already at its native type,
-    /// and any other type is materialized like a call argument.
-    pub(super) fn materialize_binding(
-        &mut self,
-        id: VariableId,
-        value: ValueId,
-        span: Span,
-    ) -> Option<ValueId> {
-        let ty = self.cx.gcx.type_of_item(id.into());
-        if types::TypeLowerer::mir_type(ty).integer_bits().is_some() {
-            Some(value)
-        } else {
-            self.materialize_call_argument(ty, value, span)
-        }
-    }
-
-    /// Narrows a word that was validated for the variable `id` to the variable's native type.
-    pub(super) fn cast_to_native(&mut self, id: VariableId, value: ValueId) -> ValueId {
-        let native = types::TypeLowerer::mir_type(self.cx.gcx.type_of_item(id.into()));
-        if native.integer_bits().is_some() { self.builder.cast(value, native) } else { value }
-    }
-
-    /// Binds a Solidity value to its variable. Outside inline assembly the value has the
-    /// variable's native MIR type, so it cannot carry bits above the type.
-    pub(super) fn bind_variable(&mut self, id: VariableId, value: ValueId) {
-        debug_assert!(
-            self.in_inline_assembly
-                || self.builder.func().value_ty(value).is_none_or(|ty| {
-                    let native = types::TypeLowerer::mir_type(self.cx.gcx.type_of_item(id.into()));
-                    native.integer_bits().is_none() || ty == native
-                }),
-            "variable {:?} bound to a value of type {:?}, not its native type",
-            self.cx.gcx.hir.variable(id).name,
-            self.builder.func().value_ty(value),
-        );
-        self.values.insert(id, value);
     }
 
     pub(super) fn store_variable(
@@ -322,6 +304,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut value: ValueId,
         span: Span,
     ) -> Option<()> {
+        if !self.in_inline_assembly {
+            value = self.materialize_raw_scalar(id, value);
+        }
         if self.in_inline_assembly {
             let ty = self.cx.gcx.type_of_item(id.into());
             self.assembly_writes_memory |= ty.is_ref_at(DataLocation::Memory);
@@ -349,18 +334,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 self.unchecked_calldata_slices.insert(value);
             }
         }
-        if self.values.contains_key(&id)
-            || self.default_bindings.contains(&id)
-            || self.deferred_bindings.contains(&id)
-        {
-            self.bind_variable(id, value);
+        if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
+            entry.insert(value);
+            return Some(());
+        }
+        if self.default_bindings.contains(&id) || self.deferred_bindings.contains(&id) {
+            self.values.insert(id, value);
             return Some(());
         }
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-            self.store_immutable_value(immutable_id, value);
+            self.store_immutable_value(id, immutable_id, value);
             return Some(());
         }
         if let Some(location) = self.cx.storage.get(id) {
+            let ty = self.cx.gcx.type_of_item(id.into());
+            self.validate_enum(ty, value);
             self.cx.storage.store(&mut self.builder, location, value);
             return Some(());
         }
@@ -382,6 +370,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let slot = self.builder.imm(location.slot);
             self.store_storage_object_with_source(ty, source_ty, slot, value, span)
         } else {
+            self.validate_enum(ty, value);
             self.cx.storage.store(&mut self.builder, location, value);
             Some(())
         }

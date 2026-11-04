@@ -1,7 +1,7 @@
 ; === ROOT/tests/ui/codegen/lowering/run-call/assembly_low_memory_places_nothing.sol:AssemblyLowMemoryPlacesNothing ===
 @module AssemblyLowMemoryPlacesNothing
 ; function bareLayout(uint256 a, uint256 words) external pure returns (bool lowHeap) [selector 0x76a693e2]
-fn @bareLayout(arg0: i256, arg1: i256) -> i1 [selector=0x76a693e2, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @bareLayout(arg0: i256, arg1: i256) -> i256 [selector=0x76a693e2, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @_lay, arg0
     v1 = mload 64 !metadata(memory=scratch)
@@ -12,12 +12,11 @@ fn @bareLayout(arg0: i256, arg1: i256) -> i1 [selector=0x76a693e2, pure, abi_par
     v6 = lt v1, 0x2000
     v7 = zext i1 v6 to i256
     v8 = and v7, v5
-    v9 = ne v8, 0
-    ret v9
+    ret v8
 }
 
 ; function framedRoute(uint256 a) external pure returns (bool lowHeap) [selector 0x3a993fd0]
-fn @framedRoute(arg0: i256) -> i1 [selector=0x3a993fd0, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @framedRoute(arg0: i256) -> i256 [selector=0x3a993fd0, pure, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = icall @_frame, arg0
     v1 = eq v0, 0
@@ -28,8 +27,7 @@ fn @framedRoute(arg0: i256) -> i1 [selector=0x3a993fd0, pure, abi_params=[uint25
     v6 = lt v5, 0x2000
     v7 = zext i1 v6 to i256
     v8 = and v7, v4
-    v9 = ne v8, 0
-    ret v9
+    ret v8
 }
 
 ; function _lay(uint256 a) internal pure returns (bytes32 h)

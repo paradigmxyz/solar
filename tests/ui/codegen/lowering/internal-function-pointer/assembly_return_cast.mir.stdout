@@ -193,11 +193,11 @@ fn @_isOdd(arg0: i256) -> i1 [pure] {
 }
 
 ; function _rawAndTyped(uint8 narrow) internal pure returns (uint256 raw, uint256 typed)
-fn @_rawAndTyped(arg0: i8) -> struct0 [pure] {
+fn @_rawAndTyped(arg0: i256) -> struct0 [pure] {
   bb0:
-    v0 = zext i8 arg0 to i256
-    v1 = zext i8 arg0 to i256
-    v2 = insert_value struct0, undef struct0, 0, v0
+    v0 = trunc i256 arg0 to i8
+    v1 = zext i8 v0 to i256
+    v2 = insert_value struct0, undef struct0, 0, arg0
     v3 = insert_value struct0, v2, 1, v1
     ret v3
 }
@@ -403,10 +403,8 @@ fn @internal_dispatcher_asm_p_uint256_r_uint256_uint256(arg0: i256, arg1: i256) 
     icall panic_if<0x51>, true
     invalid
   bb1:                                            ; preds = bb0
-    v1 = and arg1, 255
-    v2 = trunc i256 v1 to i8
-    v3 = icall @_rawAndTyped, v2
-    ret v3
+    v1 = icall @_rawAndTyped, arg1
+    ret v1
 }
 
 fn @internal_dispatcher_asm_p_uint256_r_uint256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {

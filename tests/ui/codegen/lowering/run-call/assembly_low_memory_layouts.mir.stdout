@@ -197,7 +197,7 @@ fn @bufferAboveHeap(arg0: i256, arg1: i256) -> i256 [selector=0x52cf10d7, pure, 
 }
 
 ; function zeroLengthCopy(uint256) external view returns (bool lowHeap) [selector 0x634ce2de]
-fn @zeroLengthCopy(arg0: i256) -> i1 [selector=0x634ce2de, view, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @zeroLengthCopy(arg0: i256) -> i256 [selector=0x634ce2de, view, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
     v1 = staticcall v0, 4, 0, 1, 0, 0
@@ -207,8 +207,7 @@ fn @zeroLengthCopy(arg0: i256) -> i1 [selector=0x634ce2de, view, abi_params=[uin
     v4 = mload 64 !metadata(memory=scratch)
     v5 = lt v4, 0x2000
     v6 = zext i1 v5 to i256
-    v7 = ne v6, 0
-    ret v7
+    ret v6
 }
 
 ; function resetLoop(uint256 a, uint256 n) external pure returns (bytes32 result) [selector 0x20fd52b5]

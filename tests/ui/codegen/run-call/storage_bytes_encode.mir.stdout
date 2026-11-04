@@ -152,7 +152,7 @@ fn @encodings() -> i1 [selector=0x691e101e, view, abi_params=[], abi_returns=[wo
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: false], [bb3: v0]
+    v0 = phi [bb0: 0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v179]
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = lt v1, v2
@@ -494,7 +494,7 @@ fn @externalCall() -> i1 [selector=0xa6310257, view, abi_params=[], abi_returns=
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: false], [bb3: v0]
+    v0 = phi [bb0: 0], [bb3: v0]
     v1 = phi [bb0: 0], [bb3: v54]
     v2 = sload 0 !metadata(storage=slot(0))
     v3 = lt v1, v2

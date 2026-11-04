@@ -20,34 +20,35 @@ fn @entry() [entry] {
 ; function check(bool a, address b, uint96 c, int24 d) external pure returns (uint256 r) [selector 0x05c051e1]
 fn @check() {
   bb0:
-    v7 = calldatasize
-    v8 = lt v7, 132
-    v9 = calldataload 4
-    v10 = gt v9, 1
-    v28 = or v8, v10
-    v11 = calldataload 36
-    v38 = shr v11, 160
-    v12 = ne v38, 0
-    v29 = or v28, v12
-    v13 = calldataload 68
-    v40 = shr v13, 96
-    v14 = ne v40, 0
-    v30 = or v29, v14
-    v15 = calldataload 100
-    v16 = signextend 2, v15
-    v31 = zext i1 v30 to i256
-    v32 = xor v15, v16
-    v33 = or v32, v31
-    v34 = ne v33, 0
-    jumpi v34, bb1, bb2
+    v3 = calldatasize
+    v4 = lt v3, 132
+    v5 = calldataload 4
+    v6 = gt v5, 1
+    v24 = or v4, v6
+    v7 = calldataload 36
+    v35 = shr v7, 160
+    v8 = ne v35, 0
+    v25 = or v24, v8
+    v9 = calldataload 68
+    v37 = shr v9, 96
+    v10 = ne v37, 0
+    v26 = or v25, v10
+    v11 = calldataload 100
+    v27 = zext i1 v26 to i256
+    v12 = signextend 2, v11
+    v28 = xor v11, v12
+    v29 = or v28, v27
+    v30 = ne v29, 0
+    jumpi v30, bb1, bb2
   bb2:                                            ; preds = bb0
-    v37 = calldataload 68
-    v2 = add v37, v16
-    v36 = calldataload 36
-    v35 = calldataload 4
-    v5 = add v35, v36
-    v6 = add v5, v2
-    mstore 0, v6 !metadata(memory=scratch)
+    v34 = calldataload 100
+    v33 = calldataload 68
+    v0 = add v34, v33
+    v32 = calldataload 36
+    v31 = calldataload 4
+    v1 = add v31, v32
+    v2 = add v1, v0
+    mstore 0, v2 !metadata(memory=scratch)
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb0
     revert 0, 0

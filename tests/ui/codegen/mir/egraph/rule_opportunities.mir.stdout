@@ -131,13 +131,12 @@ fn @reduceMul(arg0: i256, arg1: i256) -> i256 [selector=0xe74637c7, pure, abi_pa
 }
 
 ; function belowBucket(uint amount, uint unit) external pure returns (bool r) [selector 0xfb5d3534]
-fn @belowBucket(arg0: i256, arg1: i256) -> i1 [selector=0xfb5d3534, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @belowBucket(arg0: i256, arg1: i256) -> i256 [selector=0xfb5d3534, pure, abi_params=[uint256, uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = div arg0, arg1
     v1 = eq v0, 0
     v2 = zext i1 v1 to i256
-    v3 = ne v2, 0
-    ret v3
+    ret v2
 }
 
 ; function nestedQuotient(uint amount) external pure returns (uint r) [selector 0x82768581]
@@ -337,13 +336,12 @@ fn @extractMasked(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xe932a7
 }
 
 ; function signedAligned(int value) external pure returns (bool r) [selector 0xb80873c6]
-fn @signedAligned(arg0: i256) -> i1 [selector=0xb80873c6, pure, abi_params=[int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @signedAligned(arg0: i256) -> i256 [selector=0xb80873c6, pure, abi_params=[int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = smod arg0, 256
     v1 = eq v0, 0
     v2 = zext i1 v1 to i256
-    v3 = ne v2, 0
-    ret v3
+    ret v2
 }
 
 ; function removeSetMask(uint value) external pure returns (uint) [selector 0xef69c371]

@@ -17,7 +17,7 @@ use alloy_primitives::{U256, keccak256};
 use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    map::{FxHashMap, FxHashSet, FxIndexSet},
+    map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
 };
 use solar_interface::{ByteSymbol, Ident, Span, Symbol, kw, sym};
 use solar_sema::{
@@ -33,6 +33,7 @@ mod abi_calls;
 mod abi_values;
 mod builtins;
 mod calls;
+mod carried;
 mod control_flow;
 mod entry;
 mod expressions;
@@ -41,10 +42,12 @@ mod lvalues;
 mod memory_values;
 mod modifiers;
 mod operators;
-mod pointer_exposure;
+mod raw_scalars;
 mod statements;
 mod storage_values;
 mod values;
+
+use carried::Carried;
 
 /// Shared inputs for one contract's function lowering.
 pub(super) struct LoweringContext<'gcx, 'ctx> {
@@ -98,6 +101,8 @@ pub(super) struct LoweringState {
     pub(super) pointer_registry: InternalFunctionPointerRegistry,
     /// DO NOT ADD OTHER HELPER MAPS. USE THIS ONE ONLY.
     pub(super) helpers: FxHashMap<Symbol, FunctionId>,
+    raw_scalars: FxHashSet<VariableId>,
+    raw_pointer_types: FxHashSet<MirType>,
 }
 
 /// Lowers one HIR function into a typed MIR function.
@@ -358,31 +363,21 @@ impl BuiltinArgCount {
 pub(super) struct InternalFunctionPointerShape {
     params: Vec<crate::mir::ValueLayout>,
     returns: Vec<crate::mir::ValueLayout>,
-    /// The variant count of each parameter that is an enum.
-    param_enums: Vec<Option<usize>>,
-    /// The variant count of each return that is an enum.
-    return_enums: Vec<Option<usize>>,
 }
 
 impl InternalFunctionPointerShape {
-    fn from_ty(gcx: Gcx<'_>, function: &TyFn<'_>) -> Self {
-        let layouts = |types: &[Ty<'_>]| {
-            types.iter().map(|&ty| types::TypeLowerer::value_layout(ty)).collect::<Vec<_>>()
-        };
-        let enums = |types: &[Ty<'_>]| {
-            types
-                .iter()
-                .map(|ty| match ty.peel_refs().kind {
-                    TyKind::Enum(id) => Some(gcx.hir.enumm(id).variants.len()),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-        };
+    fn from_ty(function: &TyFn<'_>) -> Self {
         Self {
-            params: layouts(function.parameters),
-            returns: layouts(function.returns),
-            param_enums: enums(function.parameters),
-            return_enums: enums(function.returns),
+            params: function
+                .parameters
+                .iter()
+                .map(|&ty| types::TypeLowerer::value_layout(ty))
+                .collect(),
+            returns: function
+                .returns
+                .iter()
+                .map(|&ty| types::TypeLowerer::value_layout(ty))
+                .collect(),
         }
     }
 
@@ -422,19 +417,8 @@ impl InternalFunctionPointerShape {
     }
 
     fn helper_name(&self, from_assembly: bool) -> Symbol {
-        let names = |layouts: &[crate::mir::ValueLayout], enums: &[Option<usize>]| {
-            layouts
-                .iter()
-                .zip(enums)
-                .map(|(layout, variants)| match variants {
-                    Some(variants) => format!("enum{variants}"),
-                    None => layout.to_string(),
-                })
-                .collect::<Vec<_>>()
-                .join("_")
-        };
-        let params = names(&self.params, &self.param_enums);
-        let returns = names(&self.returns, &self.return_enums);
+        let params = self.params.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
+        let returns = self.returns.iter().map(ToString::to_string).collect::<Vec<_>>().join("_");
         let suffix = format!(
             "{}p_{}_r_{}",
             if from_assembly { "asm_" } else { "" },
@@ -469,7 +453,7 @@ impl InternalFunctionPointerRegistry {
             let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
                 return false;
             };
-            let candidate = InternalFunctionPointerShape::from_ty(gcx, function);
+            let candidate = InternalFunctionPointerShape::from_ty(function);
             !shape.is_assembly_cast_compatible_with(&candidate)
                 && shape.is_word_compatible_with(&candidate)
         })
@@ -491,16 +475,10 @@ fn internal_function_pointer_id(index: usize) -> u64 {
 
 enum CallResult {
     Void,
+    /// A canonical value.
     Value(ValueId),
-}
-
-impl CallResult {
-    fn value(self) -> Option<ValueId> {
-        match self {
-            Self::Void => None,
-            Self::Value(value) => Some(value),
-        }
-    }
+    /// The result of an internal call, which can carry raw bits.
+    Carried(Carried),
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -689,23 +667,144 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         );
     }
 
+    /// Lowers `expr` to its canonical value at the native MIR type of its Solidity type.
+    ///
+    /// Use it for every consumer that needs the value: operands, arguments of builtins and
+    /// external calls, ABI encodings, stores, indexes and conditions. Reading a raw carrier
+    /// cleans it; [`Self::lower_carried_expr`] and [`Self::lower_raw_expr`] are the only ways to
+    /// keep its raw bits.
     fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+        self.with_expr_context(expr, |this| {
+            this.lower_expr_inner(expr).map(|value| {
+                if !this.in_inline_assembly
+                    && let Some(ty) = this.cx.gcx.type_of_expr(expr.id)
+                    && ty.is_value_type()
+                {
+                    let native = types::TypeLowerer::mir_type(ty);
+                    let value = if let MirType::Int(_) = native {
+                        this.builder.cast(value, native)
+                    } else {
+                        value
+                    };
+                    // A raw carrier's word reaches a consumer only through `Carried` or `RawWord`.
+                    debug_assert!(
+                        !(this.builder.func().value_ty(value) == Some(MirType::I256)
+                            && native.integer_bits().is_some_and(|bits| bits < 256)),
+                        "expression of a type narrower than a word lowered to a raw word: {:?}",
+                        expr.span
+                    );
+                    value
+                } else {
+                    value
+                }
+            })
+        })
+    }
+
+    /// Runs `f` with the builder's source span and modifier depth set for `expr`.
+    pub(super) fn with_expr_context<T>(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        f: impl FnOnce(&mut Self) -> T,
+    ) -> T {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
-        let result = self.lower_expr_inner(expr).map(|value| {
-            if !self.in_inline_assembly
-                && let Some(ty) = self.cx.gcx.type_of_expr(expr.id)
-                && ty.is_value_type()
-                && let ty @ MirType::Int(_) = types::TypeLowerer::mir_type(ty)
-            {
-                self.builder.cast(value, ty)
-            } else {
-                value
-            }
-        });
+        let result = f(self);
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result
+    }
+
+    /// Lowers an assignment, returning the assigned value: a raw word when a raw carrier's value
+    /// is copied unchanged.
+    pub(super) fn lower_assignment(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        lhs: &hir::Expr<'_>,
+        op: Option<hir::BinOp>,
+        rhs: &hir::Expr<'_>,
+    ) -> Option<Carried> {
+        let compound_op = op.map(|op| op.kind);
+        if compound_op.is_some() && self.cx.gcx.unsupported_udvt_operator(expr.id) {
+            return self.report_unsupported_udvt_operator(expr.span).map(Carried::from_clean);
+        }
+        if op.is_none() && self.is_storage_reference_binding(lhs) {
+            let access = self.require_storage_access(rhs)?;
+            let Some(id) = self.cx.gcx.resolved_variable(lhs) else {
+                return self.cx.report_unsupported(lhs.span, "storage reference target");
+            };
+            self.storage_refs.insert(id, access);
+            return Some(Carried::from_clean(access.slot));
+        }
+        let lhs_ty = self.type_of_expr_or_variable(lhs)?;
+        let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
+        let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
+        let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+        // A literal assigned to a fixed-bytes place is that word.
+        // Building it directly avoids allocating a memory literal whose
+        // only use is the first word read back out of it; the
+        // allocation writes memory, so nothing later removes it.
+        let fixed_bytes_literal = (fixed_bytes.is_some() && compound_op.is_none())
+            .then(|| self.lower_fixed_bytes_literal(lhs_ty, rhs))
+            .flatten();
+        let rhs_value = if let Some(word) = fixed_bytes_literal {
+            Carried::from_clean(word)
+        } else if self.types.memory_layout(memory_rhs_ty).is_some()
+            && rhs_ty.is_ref_at(DataLocation::Storage)
+        {
+            Carried::from_clean(self.lower_typed_expr(rhs, memory_rhs_ty)?)
+        } else if compound_op
+            .is_some_and(|op| !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar))
+        {
+            Carried::from_clean(self.lower_typed_expr(rhs, lhs_ty)?)
+        } else if compound_op.is_none() && rhs_ty.is_value_type() {
+            self.lower_carried_expr(rhs, rhs_ty)?
+        } else {
+            Carried::from_clean(self.lower_expr(rhs)?)
+        };
+        // The literal word above is already the place's type, so the
+        // conversion below must not widen or shift it a second time.
+        let rhs_ty = if fixed_bytes_literal.is_some() { lhs_ty } else { rhs_ty };
+        if let Some(kind) = compound_op {
+            let rhs_value = rhs_value.clean(self, rhs_ty);
+            let place = self.resolve_lvalue_place(lhs)?;
+            let lhs_value = self.load_lvalue_place(&place)?;
+            let value = self.binary(kind, lhs_value, rhs_value, Some(lhs_ty));
+            let value = if let Some(bytes) = fixed_bytes {
+                self.clean_fixed_bytes(value, bytes)
+            } else {
+                self.coerce_value(value, lhs_ty, lhs_ty)
+            };
+            self.store_lvalue_place(&place, value)?;
+            return Some(Carried::from_clean(value));
+        }
+        if lhs_ty.is_value_type() && rhs_ty.is_value_type() {
+            // The assigned value keeps its raw bits when the target is a raw carrier.
+            let carried = if rhs_ty == lhs_ty {
+                rhs_value
+            } else {
+                let value = rhs_value.clean(self, rhs_ty);
+                Carried::from_clean(self.coerce_value(value, rhs_ty, lhs_ty))
+            };
+            self.store_carried_lvalue(lhs, carried, Some(rhs_ty), lhs_ty)?;
+            return Some(carried);
+        }
+        let rhs_value = rhs_value.clean(self, rhs_ty);
+        let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
+            && matches!(
+                self.builder.func().value_ty(rhs_value),
+                Some(MirType::Slice(PtrLocation::Calldata))
+            );
+        let value = if preserve_calldata_slice {
+            rhs_value
+        } else {
+            let materialize_ty =
+                if lhs_ty.is_ref_at(DataLocation::Storage) { memory_rhs_ty } else { lhs_ty };
+            self.materialize_memory_argument(materialize_ty, rhs_value, rhs.span)?
+        };
+        let value = self.coerce_value(value, rhs_ty, lhs_ty);
+        self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;
+        Some(Carried::from_clean(value))
     }
 
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
@@ -757,25 +856,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 let id = self.cx.gcx.resolved_variable(expr)?;
                 let value = self.load_variable(id, expr.span)?;
-                if self.in_inline_assembly {
-                    // Assembly reads a Solidity variable as a word.
-                    let ty = self.cx.gcx.type_of_item(id.into());
-                    if ty.is_value_type()
-                        && !matches!(ty.kind, TyKind::Fn(_))
-                        && self
-                            .builder
-                            .func()
-                            .value_ty(value)
-                            .and_then(MirType::integer_bits)
-                            .is_some()
-                    {
-                        return Some(widen_to_word(
-                            &mut self.builder,
-                            value,
-                            types::TypeLowerer::value_layout(ty),
-                        ));
-                    }
-                }
                 if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type())
                     && self.cx.gcx.type_of_item(id.into()).is_ref_at(DataLocation::Calldata)
                     && matches!(
@@ -794,9 +874,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return self.lower_logical(lhs, op.kind, rhs);
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
-                    let lhs = self.lower_expr(lhs)?;
-                    let rhs = self.lower_expr(rhs)?;
-                    return self.lower_user_operator(expr.span, function_id, &[lhs, rhs]);
+                    let result = self.lower_user_operator_expr(expr, function_id)?;
+                    let ty = self.cx.gcx.type_of_expr(expr.id)?;
+                    return Some(result.clean(self, ty));
                 }
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
@@ -908,7 +988,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Call(callee, args) => {
                 let (callee, call_opts) = callee.split_call_options();
-                self.lower_call(expr, callee, *args, call_opts, true)?.value()
+                match self.lower_call(expr, callee, *args, call_opts, true)? {
+                    CallResult::Void => None,
+                    CallResult::Value(value) => Some(value),
+                    CallResult::Carried(carried) => {
+                        let ty = self.cx.gcx.type_of_expr(expr.id)?;
+                        Some(carried.clean(self, ty))
+                    }
+                }
             }
             ExprKind::CallOptions(callee, options) => {
                 let value = self.lower_expr(callee)?;
@@ -941,8 +1028,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     });
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
-                    let value = self.lower_expr(value)?;
-                    return self.lower_user_operator(expr.span, function_id, &[value]);
+                    let result = self.lower_user_operator_expr(expr, function_id)?;
+                    let ty = self.cx.gcx.type_of_expr(expr.id)?;
+                    return Some(result.clean(self, ty));
                 }
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
@@ -951,75 +1039,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(self.unary(op.kind, value, self.cx.gcx.type_of_expr(expr.id)))
             }
             ExprKind::Assign(lhs, op, rhs) => {
-                let compound_op = op.map(|op| op.kind);
-                if compound_op.is_some() && self.cx.gcx.unsupported_udvt_operator(expr.id) {
-                    return self.report_unsupported_udvt_operator(expr.span);
-                }
-                if op.is_none() && self.is_storage_reference_binding(lhs) {
-                    let access = self.require_storage_access(rhs)?;
-                    let Some(id) = self.cx.gcx.resolved_variable(lhs) else {
-                        return self.cx.report_unsupported(lhs.span, "storage reference target");
-                    };
-                    self.storage_refs.insert(id, access);
-                    return Some(access.slot);
-                }
-                let lhs_ty = self.type_of_expr_or_variable(lhs)?;
-                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
-                let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
-                let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-                // A literal assigned to a fixed-bytes place is that word.
-                // Building it directly avoids allocating a memory literal whose
-                // only use is the first word read back out of it; the
-                // allocation writes memory, so nothing later removes it.
-                let fixed_bytes_literal = (fixed_bytes.is_some() && compound_op.is_none())
-                    .then(|| self.lower_fixed_bytes_literal(lhs_ty, rhs))
-                    .flatten();
-                let rhs_value = if let Some(word) = fixed_bytes_literal {
-                    word
-                } else if self.types.memory_layout(memory_rhs_ty).is_some()
-                    && rhs_ty.is_ref_at(DataLocation::Storage)
-                {
-                    self.lower_typed_expr(rhs, memory_rhs_ty)?
-                } else if compound_op.is_some_and(|op| {
-                    !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
-                }) {
-                    self.lower_typed_expr(rhs, lhs_ty)?
-                } else {
-                    self.lower_expr(rhs)?
-                };
-                // The literal word above is already the place's type, so the
-                // conversion below must not widen or shift it a second time.
-                let rhs_ty = if fixed_bytes_literal.is_some() { lhs_ty } else { rhs_ty };
-                if let Some(kind) = compound_op {
-                    let place = self.resolve_lvalue_place(lhs)?;
-                    let lhs_value = self.load_lvalue_place(&place)?;
-                    let value = self.binary(kind, lhs_value, rhs_value, Some(lhs_ty));
-                    let value = if let Some(bytes) = fixed_bytes {
-                        self.clean_fixed_bytes(value, bytes)
-                    } else {
-                        self.coerce_value(value, lhs_ty, lhs_ty)
-                    };
-                    self.store_lvalue_place(&place, value)?;
-                    return Some(value);
-                }
-                let preserve_calldata_slice = lhs_ty.is_ref_at(DataLocation::Calldata)
-                    && matches!(
-                        self.builder.func().value_ty(rhs_value),
-                        Some(MirType::Slice(PtrLocation::Calldata))
-                    );
-                let value = if preserve_calldata_slice {
-                    rhs_value
-                } else {
-                    let materialize_ty = if lhs_ty.is_ref_at(DataLocation::Storage) {
-                        memory_rhs_ty
-                    } else {
-                        lhs_ty
-                    };
-                    self.materialize_memory_argument(materialize_ty, rhs_value, rhs.span)?
-                };
-                let value = self.coerce_value(value, rhs_ty, lhs_ty);
-                self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;
-                Some(value)
+                let carried = self.lower_assignment(expr, lhs, *op, rhs)?;
+                let ty = self.type_of_expr_or_variable(lhs)?;
+                Some(carried.clean(self, ty))
             }
             ExprKind::Ternary(cond, then_expr, else_expr) => {
                 let ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -1072,7 +1094,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 let TyKind::Fn(function) = gcx.type_of_item(function_id.into()).kind else {
                     return None;
                 };
-                let candidate_shape = InternalFunctionPointerShape::from_ty(gcx, function);
+                let candidate_shape = InternalFunctionPointerShape::from_ty(function);
                 (shape.is_assembly_cast_compatible_with(&candidate_shape)
                     || (from_assembly
                         && state.pointer_registry.assembly_exposed.contains(&function_id)
@@ -1094,11 +1116,14 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         {
             let mut builder = FunctionBuilder::new_semantic(&mut function);
             let function_value = builder.add_param(MirType::I256);
-            let arguments =
-                shape.params.iter().map(|ty| builder.add_param(ty.mir_type())).collect::<Vec<_>>();
-            if let Some(ty) =
-                module.intern_return_type(shape.returns.iter().map(|ty| ty.mir_type()).collect())
-            {
+            let arguments = shape
+                .params
+                .iter()
+                .map(|ty| builder.add_param(state.pointer_carrier(ty.mir_type())))
+                .collect::<Vec<_>>();
+            if let Some(ty) = module.intern_return_type(
+                shape.returns.iter().map(|ty| state.pointer_carrier(ty.mir_type())).collect(),
+            ) {
                 builder.set_return_type(ty);
             }
 
@@ -1120,16 +1145,16 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                 let call_arguments = arguments
                     .iter()
                     .copied()
-                    .enumerate()
-                    .map(|(index, argument)| {
-                        let parameter = gcx.hir.function(function_id).parameters[index];
-                        dispatch_cast(
-                            &mut builder,
-                            argument,
-                            (shape.params[index], shape.param_enums[index]),
-                            (candidate_shape.params[index], candidate_shape.param_enums[index]),
-                            types::TypeLowerer::mir_type(gcx.type_of_item(parameter.into())),
-                        )
+                    .zip(&shape.params)
+                    .zip(&candidate_shape.params)
+                    .zip(gcx.hir.function(function_id).parameters)
+                    .map(|(((argument, &source), &target), &parameter)| {
+                        let carrier = state.scalar_carrier(gcx, parameter);
+                        if source == target {
+                            raw_scalars::cast_carrier(&mut builder, argument, source, carrier)
+                        } else {
+                            reinterpret_word(&mut builder, argument, source, target, carrier)
+                        }
                     })
                     .collect::<Vec<_>>();
                 if shape.returns.is_empty() {
@@ -1141,13 +1166,13 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     let result_ty = module.function(mir_id).return_type();
                     let result = builder.icall(mir_id, call_arguments, result_ty);
                     let cast_return = |builder: &mut FunctionBuilder<'_>, value, index, ty| {
-                        dispatch_cast(
-                            builder,
-                            value,
-                            (candidate_shape.returns[index], candidate_shape.return_enums[index]),
-                            (shape.returns[index], shape.return_enums[index]),
-                            ty,
-                        )
+                        let (source, target) =
+                            (candidate_shape.returns[index], shape.returns[index]);
+                        if source == target {
+                            raw_scalars::cast_carrier(builder, value, target, ty)
+                        } else {
+                            reinterpret_word(builder, value, source, target, ty)
+                        }
                     };
                     let result = if let (MirType::Struct(source), MirType::Struct(target)) =
                         (result_ty, builder.func().return_type())
@@ -1212,54 +1237,29 @@ fn report_error<T>(gcx: Gcx<'_>, span: Span, message: &'static str) -> Option<T>
     None
 }
 
-/// Widens a Solidity value to the word inline assembly sees: signed integers sign-extend and
-/// every other type zero-extends.
-fn widen_to_word(
+/// Reinterprets a one-word value that inline assembly retyped from `source` to `target`.
+fn reinterpret_word(
     builder: &mut FunctionBuilder<'_>,
     value: ValueId,
-    layout: crate::mir::ValueLayout,
+    source: crate::mir::ValueLayout,
+    target: crate::mir::ValueLayout,
+    carrier: MirType,
 ) -> ValueId {
-    if matches!(layout, crate::mir::ValueLayout::Int(_))
-        && let Some(bits) = builder.func().value_ty(value).and_then(MirType::integer_bits)
-        && bits < 256
-    {
-        builder.emit_inst(InstKind::Sext(value, bits, 256), Some(MirType::I256))
-    } else {
-        builder.cast(value, MirType::I256)
-    }
-}
-
-/// Converts a value that crosses an internal function pointer dispatcher from the `source` type
-/// to the `target` type, each given as its layout and, for an enum, its variant count. Inline
-/// assembly can retype the pointer, so a word that is not a value of the target type is cleaned
-/// for it, and an out of range enum reverts.
-fn dispatch_cast(
-    builder: &mut FunctionBuilder<'_>,
-    value: ValueId,
-    (source, source_enum): (crate::mir::ValueLayout, Option<usize>),
-    (target, target_enum): (crate::mir::ValueLayout, Option<usize>),
-    ty: MirType,
-) -> ValueId {
-    if source == target && source_enum == target_enum {
-        return builder.cast(value, ty);
-    }
     // word = zext | sext | ptrtoint value to i256
-    // validate_enum(word), unless the target is not an enum
-    // word = canonical(target, word)
-    // value = trunc | ne 0 | inttoptr word to ty
-    let word = widen_to_word(builder, value, source);
-    if let Some(variants) = target_enum.filter(|_| source_enum != target_enum) {
-        builder.validate_enum_value(variants as u64, word);
-    }
-    // Internal function pointers are small identifiers: the ABI's left-aligned cleanup of
-    // external function words does not apply to them.
-    let word = if target == crate::mir::ValueLayout::Function {
+    // word = canonical(target, word), unless the carrier is a raw word
+    // value = trunc | ne 0 | inttoptr word to carrier
+    let word = raw_scalars::cast_carrier(builder, value, source, MirType::I256);
+    // A raw word carrier passes the bits on as a direct call would: the receiver cleans them where
+    // Solidity reads the value, and its assembly sees them as they are. Internal function pointers
+    // are small identifiers: the ABI's left-aligned cleanup of external function words does not
+    // apply to them.
+    let word = if carrier == MirType::I256 || target == crate::mir::ValueLayout::Function {
         word
     } else {
         AbiWordValidator::from_layout(target)
             .map_or(word, |validator| validator.cleanup(builder, word))
     };
-    builder.cast(word, ty)
+    builder.cast(word, carrier)
 }
 
 /// Returns `true` if `expr` is a number literal, an operation on them, or a comparison of them.

@@ -1,7 +1,7 @@
 ; === ROOT/tests/ui/codegen/lowering/run-call/extended_stack.sol:ExtendedStack ===
 @module ExtendedStack
 ; function check() external view returns (bool result) [selector 0x919840ad]
-fn @check() -> i1 [selector=0x919840ad, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @check() -> i256 [selector=0x919840ad, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = gas
     v1 = gas
@@ -207,6 +207,5 @@ fn @check() -> i1 [selector=0x919840ad, view, abi_params=[], abi_returns=[word<b
     v201 = lt v29, v28
     v202 = zext i1 v201 to i256
     v203 = and v200, v202
-    v204 = ne v203, 0
-    ret v204
+    ret v203
 }

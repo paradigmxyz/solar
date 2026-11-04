@@ -11,7 +11,7 @@
 //@ run-call: implicitReturn => 0x78
 //@ run-call-fail: invalidEnum => Panic(0x21)
 //@ run-call: assemblyRead => 0x0101
-//@ run-call: internalArguments => 0, 0
+//@ run-call: internalArguments => 0x42, 0x42
 //@ run-call: storageAssignment => 1
 //@ run-call: signedAssignment => -1
 //@ run-call: signedMerge true => -1
@@ -20,18 +20,18 @@
 //@ run-call: signedLoop 2 => -3
 //@ run-call: signedUserAssignment => -1
 //@ run-call: signedModifier => -1
-//@ run-call: dirtySigned => 0x34
+//@ run-call: dirtySigned => 0x1234
 //@ run-call: signedTry true => -2
 //@ run-call: signedTry false => -1
 //@ run-call: signedCallTuple true => -2
 //@ run-call: signedCallTuple false => -1
 //@ run-call: signedAssemblyComparison => 1
 //@ run-call: signedTernary true => -1, true
-//@ run-call: signedTernary false => 0x34, false
+//@ run-call: signedTernary false => 0x1234, false
 //@ run-call: signedTupleTernary true => -2, 1
-//@ run-call: signedTupleTernary false => 0x34, 2
+//@ run-call: signedTupleTernary false => 0x1234, 2
 //@ run-call: signedUserTernary true => -1
-//@ run-call: signedUserTernary false => 0x34
+//@ run-call: signedUserTernary false => 0x1234
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/checked_arithmetic.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/cleanup/comparison.sol
 // ported-from: test/libsolidity/semanticTests/viaYul/conversion/implicit_cast_assignment.sol

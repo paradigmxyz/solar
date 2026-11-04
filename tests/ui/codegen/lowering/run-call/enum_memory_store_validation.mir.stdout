@@ -1,12 +1,9 @@
 ; === ROOT/tests/ui/codegen/lowering/run-call/enum_memory_store_validation.sol:EnumMemoryStoreValidation ===
 @module EnumMemoryStoreValidation
 ; function dirty() internal pure returns (Mode value)
-fn @dirty() -> i8 [pure] {
+fn @dirty() -> i256 [pure] {
   bb0:
-    v0 = lt 4, 3
-    v1 = eq v0, false
-    icall panic_if<0x21>, v1
-    ret i8 4
+    ret 4
 }
 
 ; function structConstructor() external pure returns (Mode) [selector 0x9b40f93f]
@@ -14,14 +11,24 @@ fn @structConstructor() -> i8 [selector=0x9b40f93f, pure, abi_params=[], abi_ret
   bb0:
     v0 = alloc 32
     v1 = icall @dirty
-    v2 = zext i8 v1 to i256
-    mstore v0, v2
-    v3 = mload v0
-    v4 = lt v3, 3
-    v5 = eq v4, false
-    icall panic_if<0x21>, v5
-    v6 = trunc i256 v3 to i8
-    ret v6
+    v2 = lt v1, 3
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
+    v4 = trunc i256 v1 to i8
+    v5 = lt v4, i8 3
+    v6 = eq v5, false
+    icall panic_if<0x21>, v6
+    v7 = zext i8 v4 to i256
+    mstore v0, v7
+    v8 = mload v0
+    v9 = lt v8, 3
+    v10 = eq v9, false
+    icall panic_if<0x21>, v10
+    v11 = trunc i256 v8 to i8
+    v12 = lt v11, i8 3
+    v13 = eq v12, false
+    icall panic_if<0x21>, v13
+    ret v11
 }
 
 ; function arrayLiteral() external pure returns (Mode) [selector 0x7e94f0e2]
@@ -29,17 +36,27 @@ fn @arrayLiteral() -> i8 [selector=0x7e94f0e2, pure, abi_params=[], abi_returns=
   bb0:
     v0 = alloc 32
     v1 = icall @dirty
-    v2 = zext i8 v1 to i256
-    mstore v0, v2
-    v3 = lt 0, 1
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = mload v0
-    v6 = lt v5, 3
-    v7 = eq v6, false
-    icall panic_if<0x21>, v7
-    v8 = trunc i256 v5 to i8
-    ret v8
+    v2 = lt v1, 3
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
+    v4 = trunc i256 v1 to i8
+    v5 = lt v4, i8 3
+    v6 = eq v5, false
+    icall panic_if<0x21>, v6
+    v7 = zext i8 v4 to i256
+    mstore v0, v7
+    v8 = lt 0, 1
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = mload v0
+    v11 = lt v10, 3
+    v12 = eq v11, false
+    icall panic_if<0x21>, v12
+    v13 = trunc i256 v10 to i8
+    v14 = lt v13, i8 3
+    v15 = eq v14, false
+    icall panic_if<0x21>, v15
+    ret v13
 }
 
 ; function arrayElement() external pure returns (Mode) [selector 0x050651a8]
@@ -52,18 +69,29 @@ fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=
     v3 = gt v2, 0
     v4 = eq v3, false
     icall panic_if<0x32>, v4
-    v5 = zext i8 v1 to i256
-    v6 = ptradd v0, 32
-    mstore v6, v5
-    v7 = mload v0
-    v8 = gt v7, 0
-    v9 = eq v8, false
-    icall panic_if<0x32>, v9
-    v10 = ptradd v0, 32
-    v11 = mload v10
-    v12 = lt v11, 3
-    v13 = eq v12, false
-    icall panic_if<0x21>, v13
-    v14 = trunc i256 v11 to i8
-    ret v14
+    v5 = lt v1, 3
+    v6 = eq v5, false
+    icall panic_if<0x21>, v6
+    v7 = trunc i256 v1 to i8
+    v8 = zext i8 v7 to i256
+    v9 = ptradd v0, 32
+    mstore v9, v8
+    v10 = lt v1, 3
+    v11 = eq v10, false
+    icall panic_if<0x21>, v11
+    v12 = trunc i256 v1 to i8
+    v13 = mload v0
+    v14 = gt v13, 0
+    v15 = eq v14, false
+    icall panic_if<0x32>, v15
+    v16 = ptradd v0, 32
+    v17 = mload v16
+    v18 = lt v17, 3
+    v19 = eq v18, false
+    icall panic_if<0x21>, v19
+    v20 = trunc i256 v17 to i8
+    v21 = lt v20, i8 3
+    v22 = eq v21, false
+    icall panic_if<0x21>, v22
+    ret v20
 }

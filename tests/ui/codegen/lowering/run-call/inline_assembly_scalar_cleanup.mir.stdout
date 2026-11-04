@@ -1,13 +1,12 @@
 ; === ROOT/tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol:InlineAssemblyScalarCleanup ===
 @module InlineAssemblyScalarCleanup
 @types
-  struct0: {i8, ptr<memory>}
-  struct1: {i256, i1}
+  struct0: {i256, ptr<memory>}
+  struct1: {i8, ptr<memory>}
   struct2: {i256, i256}
   struct3: {i8, i8, i8, i8, i8, i8}
   struct4: {i1, i1, i1, i1, i1, i1}
-  struct5: {i8, i8}
-  struct6: {i16, i256}
+  struct5: {i16, i256}
 
 ; function signedAssignment() external pure returns (int256 raw) [selector 0x8de017fc]
 fn @signedAssignment() -> i256 [selector=0x8de017fc, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
@@ -19,40 +18,43 @@ fn @signedAssignment() -> i256 [selector=0x8de017fc, pure, abi_params=[], abi_re
 ; function signedMerge(bool choose) external pure returns (int256 raw) [selector 0xba2c8ddd]
 fn @signedMerge(arg0: i1) -> i256 [selector=0xba2c8ddd, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
+    v0 = sext i8 254 to i256
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
+    v1 = sext i8 255 to i256
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v0 = phi [bb1: i8 255], [bb2: i8 254]
-    v1 = sext i8 v0 to i256
-    ret v1
+    v2 = phi [bb1: v1], [bb2: v0]
+    ret v2
 }
 
 ; function signedLoop(uint256 count) external pure returns (int256 raw) [selector 0x7cfa8702]
 fn @signedLoop(arg0: i256) -> i256 [selector=0x7cfa8702, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
+    v0 = sext i8 255 to i256
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: arg0], [bb3: v0]
-    v1 = phi [bb0: 0], [bb3: v1]
-    v2 = phi [bb0: i8 255], [bb3: v5]
-    v3 = phi [bb0: 0], [bb3: v6]
-    v4 = lt v3, v0
-    jumpi v4, bb4, bb5
+    v1 = phi [bb0: arg0], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v2]
+    v3 = phi [bb0: v0], [bb3: v8]
+    v4 = phi [bb0: 0], [bb3: v9]
+    v5 = lt v4, v1
+    jumpi v5, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    v7 = sext i8 v2 to i256
-    ret v7
+    ret v3
   bb4:                                            ; preds = bb1
-    v5 = checked_sub int8, v2, i8 1
+    v6 = trunc i256 v3 to i8
+    v7 = checked_sub int8, v6, i8 1
+    v8 = sext i8 v7 to i256
     jump bb6
   bb6:                                            ; preds = bb4
     jump bb3
   bb3:                                            ; preds = bb6
-    v6 = checked_add uint256, v3, 1
+    v9 = checked_add uint256, v4, 1
     jump bb1
 }
 
@@ -82,9 +84,10 @@ fn @signedSource() -> struct0 [selector=0xeacc97f1, pure, abi_params=[], abi_ret
   bb0:
     v0 = alloc 32
     mstore v0, 0
-    v1 = insert_value struct0, undef struct0, 0, i8 255
-    v2 = insert_value struct0, v1, 1, v0
-    ret v2
+    v1 = sext i8 255 to i256
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, v0
+    ret v3
 }
 
 ; function signedTry(bool choose) external view returns (int256 raw) [selector 0x3ac87366]
@@ -111,20 +114,21 @@ fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], a
     returndatacopy v7, 0, v4
     v8 = make_memory_slice v7, v4
     v9 = abi_decode [int8, bytes], v8
-    v10 = extract_value struct0, v9, 0
-    v11 = extract_value struct0, v9, 1
+    v10 = extract_value struct1, v9, 0
+    v11 = extract_value struct1, v9, 1
+    v12 = sext i8 v10 to i256
     jumpi arg0, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb6
   bb4:                                            ; preds = bb1
+    v13 = sext i8 254 to i256
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v12 = phi [bb4: i8 254], [bb5: v10]
-    v13 = sext i8 v12 to i256
+    v14 = phi [bb4: v13], [bb5: v12]
     jump bb3
   bb3:                                            ; preds = bb6, bb7
-    v14 = phi [bb6: v13], [bb7: 0]
-    ret v14
+    v15 = phi [bb6: v14], [bb7: 0]
+    ret v15
 }
 
 ; function signedCallTuple(bool choose) external view returns (int256 raw) [selector 0xf2329614]
@@ -146,100 +150,92 @@ fn @signedCallTuple(arg0: i1) -> i256 [selector=0xf2329614, view, abi_params=[bo
     returndatacopy v7, 0, v4
     v8 = make_memory_slice v7, v4
     v9 = abi_decode [int8, bytes], v8
-    v10 = extract_value struct0, v9, 0
-    v11 = extract_value struct0, v9, 1
-    v12 = insert_value struct0, undef struct0, 0, v10
-    v13 = insert_value struct0, v12, 1, v11
-    v14 = extract_value struct0, v13, 0
-    v15 = extract_value struct0, v13, 1
+    v10 = extract_value struct1, v9, 0
+    v11 = extract_value struct1, v9, 1
+    v12 = insert_value struct1, undef struct1, 0, v10
+    v13 = insert_value struct1, v12, 1, v11
+    v14 = extract_value struct1, v13, 0
+    v15 = extract_value struct1, v13, 1
+    v16 = sext i8 v14 to i256
     jumpi arg0, bb3, bb4
   bb4:                                            ; preds = bb2
     jump bb5
   bb3:                                            ; preds = bb2
+    v17 = sext i8 254 to i256
     jump bb5
   bb5:                                            ; preds = bb3, bb4
-    v16 = phi [bb3: i8 254], [bb4: v14]
-    v17 = sext i8 v16 to i256
-    ret v17
+    v18 = phi [bb3: v17], [bb4: v16]
+    ret v18
 }
 
 ; function signedAssemblyComparison() external pure returns (uint256 raw) [selector 0xc03e566f]
 fn @signedAssemblyComparison() -> i256 [selector=0xc03e566f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = sext i8 0 to i256
-    v1 = eq 1, 1
-    v2 = zext i1 v1 to i256
-    v3 = trunc i256 v2 to i8
-    ret v2
+    v0 = eq 1, 1
+    v1 = zext i1 v0 to i256
+    ret v1
 }
 
 ; function signedTernary(bool choose) external pure returns (int256 raw, bool negative) [selector 0x70e03028]
-fn @signedTernary(arg0: i1) -> struct1 [selector=0x70e03028, pure, abi_params=[bool], abi_returns=[word, word<bool>], abi_return_params=[int256, bool]] {
+fn @signedTernary(arg0: i1) -> struct2 [selector=0x70e03028, pure, abi_params=[bool], abi_returns=[word, word<bool>], abi_return_params=[int256, bool]] {
   bb0:
-    v0 = sext i8 0 to i256
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
+    v0 = sext i8 255 to i256
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: i8 255], [bb2: i8 52]
-    v2 = sext i8 v1 to i256
-    v3 = sext i8 v1 to i256
-    v4 = slt v3, 0
-    v5 = zext i1 v4 to i256
-    v6 = ne v5, 0
-    v7 = insert_value struct1, undef struct1, 0, v2
-    v8 = insert_value struct1, v7, 1, v6
-    ret v8
+    v1 = phi [bb1: v0], [bb2: 0x1234]
+    v2 = slt v1, 0
+    v3 = zext i1 v2 to i256
+    v4 = insert_value struct2, undef struct2, 0, v1
+    v5 = insert_value struct2, v4, 1, v3
+    ret v5
 }
 
 ; function signedTupleTernary(bool choose) external pure returns (int256 raw, uint256 other) [selector 0x534cf359]
 fn @signedTupleTernary(arg0: i1) -> struct2 [selector=0x534cf359, pure, abi_params=[bool], abi_returns=[word, word], abi_return_params=[int256, uint256]] {
   bb0:
-    v0 = sext i8 0 to i256
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
+    v0 = sext i8 254 to i256
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: i8 254], [bb2: i8 52]
+    v1 = phi [bb1: v0], [bb2: 0x1234]
     v2 = phi [bb1: 1], [bb2: 2]
-    v3 = sext i8 v1 to i256
-    v4 = insert_value struct2, undef struct2, 0, v3
-    v5 = insert_value struct2, v4, 1, v2
-    ret v5
+    v3 = insert_value struct2, undef struct2, 0, v1
+    v4 = insert_value struct2, v3, 1, v2
+    ret v4
 }
 
 ; function signedUserTernary(bool choose) external pure returns (int256 raw) [selector 0x8a33c453]
 fn @signedUserTernary(arg0: i1) -> i256 [selector=0x8a33c453, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = sext i8 0 to i256
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
+    v0 = sext i8 255 to i256
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: i8 255], [bb2: i8 52]
-    v2 = sext i8 v1 to i256
-    ret v2
+    v1 = phi [bb1: v0], [bb2: 0x1234]
+    ret v1
 }
 
 ; function dirtySigned() external pure returns (uint256 raw) [selector 0x36c3b875]
 fn @dirtySigned() -> i256 [selector=0x36c3b875, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = sext i8 0 to i256
-    v1 = eq 0, 0
-    jumpi v1, bb1, bb2
+    v0 = eq 0, 0
+    jumpi v0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v2 = sext i8 52 to i256
-    ret v2
+    ret 0x1234
 }
 
 ; function arithmetic() external pure returns (uint8, uint8, uint8, uint8, uint8, uint8) [selector 0x980a67fd]
@@ -281,36 +277,41 @@ fn @comparisons() -> struct4 [selector=0x6cf2b655, pure, abi_params=[], abi_retu
 }
 
 ; function increments() external pure returns (uint8 pre, uint8 post) [selector 0x56aa2dc5]
-fn @increments() -> struct5 [selector=0x56aa2dc5, pure, abi_params=[], abi_returns=[word<uint8>, word<uint8>], abi_return_params=[uint8, uint8]] {
+fn @increments() -> struct2 [selector=0x56aa2dc5, pure, abi_params=[], abi_returns=[word<uint8>, word<uint8>], abi_return_params=[uint8, uint8]] {
   bb0:
     v0 = checked_add uint8, i8 0, i8 1
-    v1 = checked_add uint8, i8 0, i8 1
-    v2 = insert_value struct5, undef struct5, 0, v0
-    v3 = insert_value struct5, v2, 1, i8 0
-    ret v3
+    v1 = zext i8 v0 to i256
+    v2 = checked_add uint8, i8 0, i8 1
+    v3 = zext i8 v2 to i256
+    v4 = zext i8 v0 to i256
+    v5 = insert_value struct2, undef struct2, 0, v4
+    v6 = insert_value struct2, v5, 1, 0
+    ret v6
 }
 
 ; function decrements() external pure returns (uint8 value) [selector 0xa1d28959]
-fn @decrements() -> i8 [selector=0xa1d28959, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+fn @decrements() -> i256 [selector=0xa1d28959, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
     v0 = checked_sub uint8, i8 0, i8 1
-    ret v0
+    v1 = zext i8 v0 to i256
+    v2 = zext i8 v0 to i256
+    ret v2
 }
 
 ; function negation() external pure returns (int8 value) [selector 0x336c96f8]
-fn @negation() -> i8 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word<int8>], abi_return_params=[int8]] {
+fn @negation() -> i256 [selector=0x336c96f8, pure, abi_params=[], abi_returns=[word<int8>], abi_return_params=[int8]] {
   bb0:
-    v0 = sext i8 0 to i256
-    v1 = checked_sub int8, i8 0, i8 128
+    v0 = checked_sub int8, i8 0, i8 128
+    v1 = sext i8 v0 to i256
     ret v1
 }
 
 ; function wideningConversions() external pure returns (uint16 assigned, uint256 called) [selector 0x06a404a3]
-fn @wideningConversions() -> struct6 [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word<uint16>, word], abi_return_params=[uint16, uint256]] {
+fn @wideningConversions() -> struct5 [selector=0x06a404a3, pure, abi_params=[], abi_returns=[word<uint16>, word], abi_return_params=[uint16, uint256]] {
   bb0:
     v0 = icall @widen, 120
-    v1 = insert_value struct6, undef struct6, 0, i16 120
-    v2 = insert_value struct6, v1, 1, v0
+    v1 = insert_value struct5, undef struct5, 0, i16 120
+    v2 = insert_value struct5, v1, 1, v0
     ret v2
 }
 
@@ -321,19 +322,19 @@ fn @explicitWideningReturn() -> i256 [selector=0xbd2ce75e, pure, abi_params=[], 
 }
 
 ; function implicitReturn() external pure returns (uint8 value) [selector 0xf8438e3d]
-fn @implicitReturn() -> i8 [selector=0xf8438e3d, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+fn @implicitReturn() -> i256 [selector=0xf8438e3d, pure, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
   bb0:
-    ret i8 120
+    ret 0x12345678
 }
 
 ; function invalidEnum() external pure returns (Choice value) [selector 0xb65e9efe]
-fn @invalidEnum() -> i8 [selector=0xb65e9efe, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, uint8>]] {
+fn @invalidEnum() -> i256 [selector=0xb65e9efe, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, uint8>]] {
   bb0:
     v0 = lt 2, 2
     v1 = eq v0, false
     icall panic_if<0x21>, v1
     v2 = eq i8 2, i8 0
-    ret i8 2
+    ret 2
 }
 
 ; function assemblyRead() external pure returns (uint256 raw) [selector 0x4f21d5c0]
@@ -343,12 +344,12 @@ fn @assemblyRead() -> i256 [selector=0x4f21d5c0, pure, abi_params=[], abi_return
 }
 
 ; function internalArguments() external pure returns (DirtyU8, DirtyU8) [selector 0xd0754141]
-fn @internalArguments() -> struct5 [selector=0xd0754141, pure, abi_params=[], abi_returns=[word<uint8>, word<uint8>], abi_return_params=[uint8, uint8]] {
+fn @internalArguments() -> struct2 [selector=0xd0754141, pure, abi_params=[], abi_returns=[word<uint8>, word<uint8>], abi_return_params=[uint8, uint8]] {
   bb0:
-    v0 = icall @dirtyNot, i8 0
-    v1 = icall @dirtyNot, i8 0
-    v2 = insert_value struct5, undef struct5, 0, v0
-    v3 = insert_value struct5, v2, 1, v1
+    v0 = icall @dirtyNot, 0x4200
+    v1 = icall @dirtyNot, 0x4200
+    v2 = insert_value struct2, undef struct2, 0, v0
+    v3 = insert_value struct2, v2, 1, v1
     ret v3
 }
 
@@ -362,8 +363,9 @@ fn @storageAssignment() -> i256 [selector=0x7bae1f27, abi_params=[], abi_returns
     v4 = and v3, 255
     v5 = or v2, v4
     sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    ret v6
+    v6 = ne 5, 0
+    v7 = sload 0 !metadata(storage=slot(0))
+    ret v7
 }
 
 ; function widen(uint256 value) internal pure returns (uint256)
@@ -373,10 +375,8 @@ fn @widen(arg0: i256) -> i256 [pure] {
 }
 
 ; function dirtyNot(DirtyU8 value) pure returns (DirtyU8 result)
-fn @dirtyNot(arg0: i8) -> i8 [pure] {
+fn @dirtyNot(arg0: i256) -> i256 [pure] {
   bb0:
-    v0 = zext i8 arg0 to i256
-    v1 = div v0, 256
-    v2 = trunc i256 v1 to i8
-    ret v2
+    v0 = div arg0, 256
+    ret v0
 }

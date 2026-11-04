@@ -1,9 +1,8 @@
 ; === ROOT/tests/ui/codegen/mir/egraph/cost_shared_inputs_runtime.sol:SharedInputCosts ===
 @module SharedInputCosts
 @types
-  struct0: {i256, i1}
-  struct1: {i1, i1, i1}
-  struct2: {i256, i256}
+  struct0: {i256, i256}
+  struct1: {i256, i256, i256}
 
 ; function retained(uint256 x) external pure returns (uint256 high, bool equal) [selector 0x0634616b]
 fn @retained(arg0: i256) -> struct0 [selector=0x0634616b, pure, abi_params=[uint256], abi_returns=[word, word<bool>], abi_return_params=[uint256, bool]] {
@@ -12,10 +11,9 @@ fn @retained(arg0: i256) -> struct0 [selector=0x0634616b, pure, abi_params=[uint
     v1 = shl v0, 248
     v2 = eq v1, 0x700000000000000000000000000000000000000000000000000000000000000
     v3 = zext i1 v2 to i256
-    v4 = ne v3, 0
-    v5 = insert_value struct0, undef struct0, 0, v1
-    v6 = insert_value struct0, v5, 1, v4
-    ret v6
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
 }
 
 ; function several(uint256 x) external pure returns (bool equal, bool less, bool greater) [selector 0x640af651]
@@ -29,13 +27,10 @@ fn @several(arg0: i256) -> struct1 [selector=0x640af651, pure, abi_params=[uint2
     v5 = zext i1 v4 to i256
     v6 = gt v1, 0x600000000000000000000000000000000000000000000000000000000000000
     v7 = zext i1 v6 to i256
-    v8 = ne v3, 0
-    v9 = ne v5, 0
-    v10 = ne v7, 0
-    v11 = insert_value struct1, undef struct1, 0, v8
-    v12 = insert_value struct1, v11, 1, v9
-    v13 = insert_value struct1, v12, 2, v10
-    ret v13
+    v8 = insert_value struct1, undef struct1, 0, v3
+    v9 = insert_value struct1, v8, 1, v5
+    v10 = insert_value struct1, v9, 2, v7
+    ret v10
 }
 
 ; function repeated(uint256 x) external pure returns (uint256 result) [selector 0x0abef8a2]
@@ -47,11 +42,11 @@ fn @repeated(arg0: i256) -> i256 [selector=0x0abef8a2, pure, abi_params=[uint256
 }
 
 ; function returned(uint256 x) external pure returns (uint256 twice, uint256 fourTimes) [selector 0xf8c883cc]
-fn @returned(arg0: i256) -> struct2 [selector=0xf8c883cc, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @returned(arg0: i256) -> struct0 [selector=0xf8c883cc, pure, abi_params=[uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = shl arg0, 1
     v1 = shl v0, 1
-    v2 = insert_value struct2, undef struct2, 0, v0
-    v3 = insert_value struct2, v2, 1, v1
+    v2 = insert_value struct0, undef struct0, 0, v0
+    v3 = insert_value struct0, v2, 1, v1
     ret v3
 }

@@ -64,7 +64,12 @@ bb5 [entry]:                                      ; function read() external vie
   push 128
   return
 bb6 [entry]:                                      ; function readRaw() external view returns (address) [selector 0xf8bad2c3]
-  push_immutable 7, 20
+  push_immutable 7, 32
+  push 0
+  not
+  push 96
+  shr
+  and
   push 0
   mstore
   push 32

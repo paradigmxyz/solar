@@ -6,8 +6,19 @@
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @internal_dispatcher_asm_p_uint256_r_enum2, 1, 0
-    storeimmutable choice, v0
+    v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
+    v1 = lt v0, 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    v3 = trunc i256 v0 to i8
+    v4 = lt v3, i8 2
+    v5 = eq v4, false
+    icall panic_if<0x21>, v5
+    storeimmutable choice, v3
+    v6 = lt v0, 2
+    v7 = eq v6, false
+    icall panic_if<0x21>, v7
+    v8 = trunc i256 v0 to i8
     ret
 }
 
@@ -25,7 +36,7 @@ fn @five(arg0: i256) -> i256 [pure] {
     ret 5
 }
 
-fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -34,12 +45,7 @@ fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [fun
     invalid
   bb1:                                            ; preds = bb0
     v1 = icall @five, arg1
-    v2 = lt v1, 2
-    v3 = eq v2, false
-    icall panic_if<0x21>, v3
-    v4 = and v1, 255
-    v5 = trunc i256 v4 to i8
-    ret v5
+    ret v1
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:RawEnumImmutable ===
@@ -50,8 +56,16 @@ fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [fun
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @internal_dispatcher_asm_p_uint256_r_enum2, 1, 0
-    storeimmutable choice, v0
+    v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
+    v1 = lt v0, 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    v3 = trunc i256 v0 to i8
+    storeimmutable choice, v3
+    v4 = lt v0, 2
+    v5 = eq v4, false
+    icall panic_if<0x21>, v5
+    v6 = trunc i256 v0 to i8
     ret
 }
 
@@ -69,7 +83,7 @@ fn @five(arg0: i256) -> i256 [pure] {
     ret 5
 }
 
-fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -78,12 +92,7 @@ fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [fun
     invalid
   bb1:                                            ; preds = bb0
     v1 = icall @five, arg1
-    v2 = lt v1, 2
-    v3 = eq v2, false
-    icall panic_if<0x21>, v3
-    v4 = and v1, 255
-    v5 = trunc i256 v4 to i8
-    ret v5
+    ret v1
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:WideEnumImmutable ===
@@ -94,8 +103,19 @@ fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [fun
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    v0 = icall @internal_dispatcher_asm_p_uint256_r_enum2, 1, 0
-    storeimmutable choice, v0
+    v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
+    v1 = lt v0, 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    v3 = trunc i256 v0 to i8
+    v4 = lt v3, i8 2
+    v5 = eq v4, false
+    icall panic_if<0x21>, v5
+    storeimmutable choice, v3
+    v6 = lt v0, 2
+    v7 = eq v6, false
+    icall panic_if<0x21>, v7
+    v8 = trunc i256 v0 to i8
     ret
 }
 
@@ -113,7 +133,7 @@ fn @wide(arg0: i256) -> i256 [pure] {
     ret 257
 }
 
-fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -122,12 +142,7 @@ fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [fun
     invalid
   bb1:                                            ; preds = bb0
     v1 = icall @wide, arg1
-    v2 = lt v1, 2
-    v3 = eq v2, false
-    icall panic_if<0x21>, v3
-    v4 = and v1, 255
-    v5 = trunc i256 v4 to i8
-    ret v5
+    ret v1
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:RawEnumBase ===
@@ -136,9 +151,17 @@ fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [fun
   choice: uint8
 
 ; constructor(Choice value) [creation entry]
-fn @constructor(arg0: i8) [constructor, abi_params=[enum<2, uint8>]] {
+fn @constructor(arg0: i256) [constructor, abi_params=[enum<2, uint8>]] {
   bb0:
-    storeimmutable choice, arg0
+    v0 = lt arg0, 2
+    v1 = eq v0, false
+    icall panic_if<0x21>, v1
+    v2 = trunc i256 arg0 to i8
+    storeimmutable choice, v2
+    v3 = lt arg0, 2
+    v4 = eq v3, false
+    icall panic_if<0x21>, v4
+    v5 = trunc i256 arg0 to i8
     ret
 }
 
@@ -159,7 +182,17 @@ fn @raw() -> i256 [selector=0xc096a632, view, abi_params=[], abi_returns=[word],
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @viaPointer
+    v1 = lt v0, i8 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    v3 = zext i8 v0 to i256
+    v4 = lt v3, 2
+    v5 = eq v4, false
+    icall panic_if<0x21>, v5
     storeimmutable choice, v0
+    v6 = lt v3, 2
+    v7 = eq v6, false
+    icall panic_if<0x21>, v7
     jump bb1
   bb1:                                            ; preds = bb0
     ret
@@ -182,11 +215,15 @@ fn @five(arg0: i256) -> i256 [pure] {
 ; function viaPointer() pure returns (Choice)
 fn @viaPointer() -> i8 [pure] {
   bb0:
-    v0 = icall @internal_dispatcher_asm_p_uint256_r_enum2, 1, 0
-    ret v0
+    v0 = icall @internal_dispatcher_asm_p_uint256_r_uint8, 1, 0
+    v1 = lt v0, 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    v3 = trunc i256 v0 to i8
+    ret v3
 }
 
-fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [function_pointer_dispatcher] {
+fn @internal_dispatcher_asm_p_uint256_r_uint8(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
   bb0:
     v0 = eq arg0, 1
     jumpi v0, bb1, bb2
@@ -195,12 +232,7 @@ fn @internal_dispatcher_asm_p_uint256_r_enum2(arg0: i256, arg1: i256) -> i8 [fun
     invalid
   bb1:                                            ; preds = bb0
     v1 = icall @five, arg1
-    v2 = lt v1, 2
-    v3 = eq v2, false
-    icall panic_if<0x21>, v3
-    v4 = and v1, 255
-    v5 = trunc i256 v4 to i8
-    ret v5
+    ret v1
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/enum_immutable_retyped_pointer.sol:Deployer ===

@@ -52,7 +52,7 @@ fn @dirtyFreeMemory() [view] {
 }
 
 ; function defaultLocal() external view returns (bool ok) [selector 0x2f73c827]
-fn @defaultLocal() -> i1 [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @defaultLocal() -> i256 [selector=0x2f73c827, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     mstore v0, 0
@@ -61,12 +61,11 @@ fn @defaultLocal() -> i1 [selector=0x2f73c827, view, abi_params=[], abi_returns=
     v2 = mload v0
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
-    v5 = ne v4, 0
-    ret v5
+    ret v4
 }
 
 ; function defaultReturn() external view returns (bool ok) [selector 0x099c80fd]
-fn @defaultReturn() -> i1 [selector=0x099c80fd, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @defaultReturn() -> i256 [selector=0x099c80fd, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     icall @dirtyFreeMemory
     v0 = icall @empty
@@ -74,12 +73,11 @@ fn @defaultReturn() -> i1 [selector=0x099c80fd, view, abi_params=[], abi_returns
     v2 = mload v0
     v3 = eq v2, 0
     v4 = zext i1 v3 to i256
-    v5 = ne v4, 0
-    ret v5
+    ret v4
 }
 
 ; function firstAppend() external view returns (bool ok) [selector 0x9d2b282b]
-fn @firstAppend() -> i1 [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @firstAppend() -> i256 [selector=0x9d2b282b, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     mstore v0, 0
@@ -101,12 +99,11 @@ fn @firstAppend() -> i1 [selector=0x9d2b282b, view, abi_params=[], abi_returns=[
     v15 = zext i1 v14 to i256
     v16 = and v15, v13
     v17 = and v16, v9
-    v18 = ne v17, 0
-    ret v18
+    ret v17
 }
 
 ; function secondAppend() external view returns (bool ok) [selector 0xdce19125]
-fn @secondAppend() -> i1 [selector=0xdce19125, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @secondAppend() -> i256 [selector=0xdce19125, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = alloc 32 !metadata(preserves_fmp)
     mstore v0, 0
@@ -126,8 +123,7 @@ fn @secondAppend() -> i1 [selector=0xdce19125, view, abi_params=[], abi_returns=
     v13 = eq v12, v6
     v14 = zext i1 v13 to i256
     v15 = and v14, v10
-    v16 = ne v15, 0
-    ret v16
+    ret v15
 }
 
 ; function recursiveYul(uint256 depth) external pure returns (uint256 length, bytes1 first) [selector 0x2aa1bcc4]
@@ -137,10 +133,9 @@ fn @recursiveYul(arg0: i256) -> struct0 [selector=0x2aa1bcc4, pure, abi_params=[
     v1 = icall @encode, arg0, v0
     v2 = sub v1, v0
     v3 = mload v0
-    v4 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v5 = insert_value struct0, undef struct0, 0, v2
-    v6 = insert_value struct0, v5, 1, v4
-    ret v6
+    v4 = insert_value struct0, undef struct0, 0, v2
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
 }
 
 ; function nestedListEncoding() external pure returns (uint256 length, bytes32 word) [selector 0xb61d93a1]

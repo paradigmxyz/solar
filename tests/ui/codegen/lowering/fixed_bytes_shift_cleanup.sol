@@ -9,7 +9,7 @@
 contract FixedBytesShiftCleanup {
     // CHECK: push 240
     // CHECK-NEXT: shl
-    // CHECK: and
+    // CHECK-NOT: and
     // CHECK: return
     // CHECK: push 240
     // CHECK-NEXT: shl

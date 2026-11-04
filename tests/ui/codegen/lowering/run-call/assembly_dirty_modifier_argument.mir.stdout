@@ -16,5 +16,5 @@ fn @raw() -> i256 [selector=0xc096a632, abi_params=[], abi_returns=[word], abi_r
 ; function dirty() internal pure returns (bytes4 id)
 fn @dirty() -> i256 [pure] {
   bb0:
-    ret 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret 0x12345678ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 }

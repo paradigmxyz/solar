@@ -1,6 +1,11 @@
-//! Tracks which internal functions inline assembly can reach through retyped pointers.
+//! Tracks scalar bindings whose raw EVM bits can cross an assembly boundary.
 //!
-//! Calls through internal function pointers dispatch
+//! Copies and internal calls preserve raw bits, while Solidity operations and
+//! conversions consume typed values. Propagate assembly exposure through the
+//! copy graph before choosing signatures and loop phi types. These carriers
+//! are explicitly i256; ordinary integer values retain their native width.
+//!
+//! Internal function pointers are scalars too. Calls through them dispatch
 //! over the functions of the pointer's type, but assembly can retype a
 //! pointer: `outFn := inFn` makes a function returning a `MemoryPointer` word
 //! callable as one returning a `memory` struct. Taint the bindings assembly
@@ -31,24 +36,23 @@ use std::ops::ControlFlow;
 
 struct Exposure<'gcx> {
     gcx: Gcx<'gcx>,
-    /// Bindings that assembly reads or writes.
-    assembly_bindings: FxHashSet<VariableId>,
+    raw: FxHashSet<VariableId>,
     contract: hir::ContractId,
     functions: Vec<hir::FunctionId>,
     indirect_callees: FxHashMap<Ty<'gcx>, SmallVec<[hir::FunctionId; 1]>>,
     visited: FxHashSet<hir::FunctionId>,
     edges: FxHashMap<VariableId, Vec<VariableId>>,
-    /// Edges that carry internal function pointers but not scalar values.
+    /// Edges that carry internal function pointers but not raw scalar bits.
     pointer_edges: FxHashMap<VariableId, Vec<VariableId>>,
     /// Each internal function with a binding its pointer flows into.
     pointer_values: Vec<(hir::FunctionId, VariableId)>,
-    pointer_calls: Vec<PointerCall>,
+    pointer_calls: Vec<PointerCall<'gcx>>,
     returns: &'gcx [VariableId],
     assembly: bool,
 }
 
 /// An internal function pointer call with the pointers it reads.
-struct PointerCall {
+struct PointerCall<'gcx> {
     call: hir::ExprId,
     /// Bindings the callee may read.
     callee: SmallVec<[VariableId; 4]>,
@@ -56,6 +60,8 @@ struct PointerCall {
     arguments: SmallVec<[VariableId; 4]>,
     /// Functions whose pointers the arguments take.
     functions: SmallVec<[hir::FunctionId; 1]>,
+    /// The parameter and return types of the pointer.
+    types: SmallVec<[Ty<'gcx>; 4]>,
 }
 
 impl<'gcx> Exposure<'gcx> {
@@ -71,7 +77,7 @@ impl<'gcx> Exposure<'gcx> {
         self.indirect_callees
             .entry(ty)
             .or_insert_with(|| {
-                let shape = InternalFunctionPointerShape::from_ty(self.gcx, function);
+                let shape = InternalFunctionPointerShape::from_ty(function);
                 self.functions
                     .iter()
                     .copied()
@@ -80,7 +86,7 @@ impl<'gcx> Exposure<'gcx> {
                             return false;
                         };
                         shape.is_assembly_cast_compatible_with(
-                            &InternalFunctionPointerShape::from_ty(self.gcx, function),
+                            &InternalFunctionPointerShape::from_ty(function),
                         )
                     })
                     .collect()
@@ -281,11 +287,18 @@ impl<'gcx> Exposure<'gcx> {
         for argument in args.exprs() {
             self.pointer_sources(argument, &mut arguments, &mut functions);
         }
+        let types = match self.gcx.type_of_expr(callee.id).map(|ty| ty.kind) {
+            Some(TyKind::Fn(function)) => {
+                function.parameters.iter().chain(function.returns).copied().collect()
+            }
+            _ => SmallVec::new(),
+        };
         self.pointer_calls.push(PointerCall {
             call: call.id,
             callee: bindings,
             arguments,
             functions,
+            types,
         });
     }
 }
@@ -368,7 +381,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                 && let Some(hir::Res::Item(hir::ItemId::Variable(id))) =
                     self.gcx.resolved_expr(expr)
             {
-                self.assembly_bindings.insert(id);
+                self.raw.insert(id);
             }
         } else if let Some(id) = self.gcx.user_operator(expr.id) {
             let parameters = self.gcx.hir.function(id).parameters;
@@ -434,7 +447,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
 }
 
 impl LoweringState {
-    pub(in crate::mir::lower) fn analyze_pointer_exposure<'gcx>(
+    pub(in crate::mir::lower) fn analyze_raw_scalars<'gcx>(
         &mut self,
         gcx: Gcx<'gcx>,
         contract: hir::ContractId,
@@ -446,7 +459,7 @@ impl LoweringState {
             functions: functions.iter().map(|&(id, _)| id).collect(),
             indirect_callees: FxHashMap::default(),
             visited: FxHashSet::default(),
-            assembly_bindings: FxHashSet::default(),
+            raw: FxHashSet::default(),
             edges: FxHashMap::default(),
             pointer_edges: FxHashMap::default(),
             pointer_values: Vec::new(),
@@ -467,7 +480,7 @@ impl LoweringState {
                 if variable.is_state_variable()
                     && let Some(initializer) = variable.initializer
                 {
-                    // An immutable's initializer flows through copies like a local's.
+                    // An immutable stores the raw bits of its initializer.
                     if variable.is_immutable() {
                         exposure.connect(&[id], initializer);
                     } else {
@@ -476,7 +489,18 @@ impl LoweringState {
                 }
             }
         }
-        let mut tainted = exposure.assembly_bindings;
+        let mut pending = exposure.raw.iter().copied().collect::<Vec<_>>();
+        while let Some(id) = pending.pop() {
+            if let Some(neighbors) = exposure.edges.get(&id) {
+                for &neighbor in neighbors {
+                    if exposure.raw.insert(neighbor) {
+                        pending.push(neighbor);
+                    }
+                }
+            }
+        }
+
+        let mut tainted = exposure.raw.clone();
         let mut pending = tainted.iter().copied().collect::<Vec<_>>();
         let mut exposed = FxHashSet::default();
         let mut calls = FxHashSet::default();
@@ -531,5 +555,84 @@ impl LoweringState {
         }
         self.pointer_registry.assembly_exposed = exposed;
         self.pointer_registry.assembly_calls = calls;
+
+        // Assembly can pass a retyped call any word, and the callee's word comes back unchanged,
+        // so its dispatcher must not truncate the narrow types of the call.
+        self.raw_pointer_types = exposure
+            .raw
+            .iter()
+            .map(|&id| gcx.type_of_item(id.into()))
+            .chain(
+                exposure
+                    .pointer_calls
+                    .iter()
+                    .filter(|call| self.pointer_registry.assembly_calls.contains(&call.call))
+                    .flat_map(|call| call.types.iter().copied()),
+            )
+            .map(types::TypeLowerer::mir_type)
+            .filter(|ty| ty.integer_bits().is_some())
+            .collect();
+        self.raw_scalars = exposure.raw;
+    }
+
+    pub(super) fn pointer_carrier(&self, ty: MirType) -> MirType {
+        if self.raw_pointer_types.contains(&ty) { MirType::I256 } else { ty }
+    }
+
+    pub(in crate::mir::lower) fn scalar_carrier(&self, gcx: Gcx<'_>, id: VariableId) -> MirType {
+        let ty = types::TypeLowerer::mir_type(gcx.type_of_item(id.into()));
+        if ty.integer_bits().is_some() && self.raw_scalars.contains(&id) {
+            MirType::I256
+        } else {
+            ty
+        }
+    }
+
+    /// Returns an immutable's source layout, or a full word for a `bool` or `address` that
+    /// can carry raw bits between inline assembly blocks.
+    pub(in crate::mir::lower) fn immutable_layout(
+        &self,
+        gcx: Gcx<'_>,
+        id: VariableId,
+    ) -> crate::mir::ValueLayout {
+        match types::TypeLowerer::value_layout(gcx.type_of_item(id.into())) {
+            crate::mir::ValueLayout::Bool | crate::mir::ValueLayout::Address
+                if self.raw_scalars.contains(&id) =>
+            {
+                crate::mir::ValueLayout::uint256()
+            }
+            layout => layout,
+        }
+    }
+}
+
+impl FunctionLowerer<'_, '_> {
+    pub(super) fn materialize_raw_scalar(&mut self, id: VariableId, value: ValueId) -> ValueId {
+        if !self.cx.state.raw_scalars.contains(&id) {
+            return value;
+        }
+        let layout = types::TypeLowerer::value_layout(self.cx.gcx.type_of_item(id.into()));
+        if layout.mir_type().integer_bits().is_some() {
+            cast_carrier(&mut self.builder, value, layout, MirType::I256)
+        } else {
+            value
+        }
+    }
+}
+
+pub(super) fn cast_carrier(
+    builder: &mut FunctionBuilder<'_>,
+    value: ValueId,
+    source: crate::mir::ValueLayout,
+    target: MirType,
+) -> ValueId {
+    if target == MirType::I256
+        && matches!(source, crate::mir::ValueLayout::Int(_))
+        && let Some(bits) = builder.func().value_ty(value).and_then(MirType::integer_bits)
+        && bits < 256
+    {
+        builder.emit_inst(InstKind::Sext(value, bits, 256), Some(target))
+    } else {
+        builder.cast(value, target)
     }
 }

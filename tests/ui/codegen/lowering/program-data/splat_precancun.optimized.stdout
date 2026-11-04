@@ -58,8 +58,8 @@ fn @paddingIsZero() {
     v5 = add v4, v2
     v6 = mload v5
     v8 = lt v6, 256
-    v13 = zext i1 v8 to i256
-    mstore 0, v13 !metadata(memory=scratch)
+    v9 = zext i1 v8 to i256
+    mstore 0, v9
     returndata 0, 32
 }
 

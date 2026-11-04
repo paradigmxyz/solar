@@ -3,36 +3,32 @@
 ; function widen8(uint256 w) external pure returns (int256) [selector 0xcfc9acca]
 fn @widen8(arg0: i256) -> i256 [selector=0xcfc9acca, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = sext i8 0 to i256
-    v1 = trunc i256 arg0 to i8
-    v2 = sext i8 v1 to i256
-    ret v2
+    v0 = trunc i256 arg0 to i8
+    v1 = sext i8 v0 to i256
+    ret v1
 }
 
 ; function widen24(uint256 w) external pure returns (int256) [selector 0x40e2e935]
 fn @widen24(arg0: i256) -> i256 [selector=0x40e2e935, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = sext i24 0 to i256
-    v1 = trunc i256 arg0 to i24
-    v2 = sext i24 v1 to i256
-    ret v2
+    v0 = trunc i256 arg0 to i24
+    v1 = sext i24 v0 to i256
+    ret v1
 }
 
 ; function widen128(uint256 w) external pure returns (int256) [selector 0x3d24f478]
 fn @widen128(arg0: i256) -> i256 [selector=0x3d24f478, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = sext i128 0 to i256
-    v1 = trunc i256 arg0 to i128
-    v2 = sext i128 v1 to i256
-    ret v2
+    v0 = trunc i256 arg0 to i128
+    v1 = sext i128 v0 to i256
+    ret v1
 }
 
 ; function widen24_scaled(uint256 w) external pure returns (int256) [selector 0xa430ed03]
 fn @widen24_scaled(arg0: i256) -> i256 [selector=0xa430ed03, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
   bb0:
-    v0 = sext i24 0 to i256
-    v1 = trunc i256 arg0 to i24
-    v2 = sext i24 v1 to i256
-    v3 = checked_mul int256, v2, 3
-    ret v3
+    v0 = trunc i256 arg0 to i24
+    v1 = sext i24 v0 to i256
+    v2 = checked_mul int256, v1, 3
+    ret v2
 }

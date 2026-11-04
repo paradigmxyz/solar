@@ -10,42 +10,46 @@ fn @words(arg0: i256, arg1: i256) -> i1 [selector=0xa5a43888, pure, abi_params=[
 }
 
 ; function mixed(int8 a, bytes4 b, bool flag) public pure returns (bool) [selector 0x8e902cd6]
-fn @mixed(arg0: i8, arg1: i256, arg2: i1) -> i1 [selector=0x8e902cd6, pure, abi_params=[int8, bytes4, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+fn @mixed(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0x8e902cd6, pure, abi_params=[int8, bytes4, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = sext i8 arg0 to i256
-    v1 = keccak256_packed (uint256 v0, uint256 arg1)
-    v2 = sext i8 arg0 to i256
-    v3 = keccak256_packed (int256 v2, bytes32 arg1)
-    v4 = eq v1, v3
-    jumpi v4, bb1, bb2
+    v0 = trunc i256 arg0 to i8
+    v1 = sext i8 v0 to i256
+    v2 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v3 = keccak256_packed (uint256 v1, uint256 v2)
+    v4 = trunc i256 arg0 to i8
+    v5 = sext i8 v4 to i256
+    v6 = and arg1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v7 = keccak256_packed (int256 v5, bytes32 v6)
+    v8 = eq v3, v7
+    jumpi v8, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    v5 = zext i1 arg2 to i256
-    v6 = keccak256_packed (uint256 v5)
-    jumpi arg2, bb4, bb5
+    v9 = ne arg2, 0
+    v10 = zext i1 v9 to i256
+    v11 = keccak256_packed (uint256 v10)
+    v12 = ne arg2, 0
+    jumpi v12, bb4, bb5
   bb5:                                            ; preds = bb1
     jump bb6
   bb4:                                            ; preds = bb1
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v7 = phi [bb4: i8 1], [bb5: i8 0]
-    v8 = zext i8 v7 to i256
-    v9 = keccak256_packed (uint256 v8)
-    v10 = eq v6, v9
+    v13 = phi [bb4: i8 1], [bb5: i8 0]
+    v14 = zext i8 v13 to i256
+    v15 = keccak256_packed (uint256 v14)
+    v16 = eq v11, v15
     jump bb3
   bb3:                                            ; preds = bb6, bb2
-    v11 = phi [bb6: v10], [bb2: false]
-    ret v11
+    v17 = phi [bb6: v16], [bb2: false]
+    ret v17
 }
 
 ; function dirty() external pure returns (bool) [selector 0x7dce0fd0]
 fn @dirty() -> i1 [selector=0x7dce0fd0, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = sext i8 0 to i256
-    v1 = ne 2, 0
-    v2 = icall @mixed, i8 254, 0xffffffff00000000000000000000000000000000000000000000000000000000, v1
-    ret v2
+    v0 = icall @mixed, 254, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2
+    ret v0
 }
 
 ; function ordered() external returns (bool) [selector 0xfda8b909]

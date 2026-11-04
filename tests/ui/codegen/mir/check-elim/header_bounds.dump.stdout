@@ -30,10 +30,10 @@ fn @entry() [entry] {
 ; function search(uint256[] memory a, uint256 needle) external pure returns (bool found, uint256 index) [selector 0xd43fc471]
 fn @search() {
   bb0:
-    v49 = calldataload 36
-    v50 = icall @decode_calldata_type
-    v0 = mload v50
-    v59 = add v50, 32
+    v50 = calldataload 36
+    v51 = icall @decode_calldata_type
+    v0 = mload v51
+    v60 = add v51, 32
     jump bb1
   bb1:                                            ; preds = bb0, bb6
     v5 = phi [bb0: 1], [bb6: v27]
@@ -41,32 +41,32 @@ fn @search() {
     v7 = lt v6, v5
     jumpi v7, bb2, bb3
   bb3:                                            ; preds = bb1
-    v34 = add v5, v6
-    v35 = lt v34, v5
-    v10 = shr v34, 1
-    v36 = sub v10, 1
-    v37 = eq v10, 0
-    v60 = or v35, v37
-    jumpi v60, bb7, bb8
+    v35 = add v5, v6
+    v36 = lt v35, v5
+    v10 = shr v35, 1
+    v37 = sub v10, 1
+    v38 = eq v10, 0
+    v61 = or v36, v38
+    jumpi v61, bb7, bb8
   bb8:                                            ; preds = bb3
-    v15 = shl v36, 5
-    v57 = add v59, v15
-    v18 = mload v57
-    v19 = eq v18, v49
+    v15 = shl v37, 5
+    v58 = add v60, v15
+    v18 = mload v58
+    v19 = eq v18, v50
     jumpi v19, bb9, bb4
   bb4:                                            ; preds = bb8
-    v23 = lt v18, v49
+    v23 = lt v18, v50
     jumpi v23, bb5, bb6
   bb5:                                            ; preds = bb4
-    v42 = add v10, 1
+    v43 = add v10, 1
     jump bb6
   bb6:                                            ; preds = bb4, bb5
-    v27 = phi [bb4: v5], [bb5: v42]
-    v28 = phi [bb4: v36], [bb5: v6]
+    v27 = phi [bb4: v5], [bb5: v43]
+    v28 = phi [bb4: v37], [bb5: v6]
     jump bb1
   bb9:                                            ; preds = bb8
     mstore 0, 1
-    mstore 32, v36 !metadata(memory=scratch)
+    mstore 32, v37 !metadata(memory=scratch)
     returndata 0, 64
   bb7 [cold]:                                     ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)
@@ -75,10 +75,10 @@ fn @search() {
   bb2:                                            ; preds = bb1
     v30 = sub v6, 1
     v29 = ne v6, 0
-    v45 = zext i1 v29 to i256
-    v46 = mul v30, v45
+    v46 = zext i1 v29 to i256
+    v47 = mul v30, v46
     mstore 0, 0
-    mstore 32, v46 !metadata(memory=scratch)
+    mstore 32, v47 !metadata(memory=scratch)
     returndata 0, 64
 }
 

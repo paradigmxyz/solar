@@ -10,8 +10,7 @@
   struct6: {i256, i256, i256}
   struct7: {i256, i256, i256, i256, i256, i256}
   struct8: {i256, i256, i256, i256, i256}
-  struct9: {i1, i1}
-  struct10: {ptr<memory>, ptr<memory>}
+  struct9: {ptr<memory>, ptr<memory>}
 
 ; function dAddress(bytes memory encoded) external pure returns (address) [selector 0xd6ff3ab5]
 fn @dAddress(arg0: ptr<memory>) -> i160 [selector=0xd6ff3ab5, pure, abi_params=[bytes], abi_returns=[word<uint160>], abi_return_params=[address]] {
@@ -700,11 +699,11 @@ fn @dCalldataDyn(arg0: slice<calldata>) -> struct6 [selector=0xe931c6df, pure, a
 }
 
 ; function dOverlap(bytes memory buf) public pure returns (bool same, bool inplaceDecoded) [selector 0x9297ba94]
-fn @dOverlap(arg0: ptr<memory>) -> struct9 [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+fn @dOverlap(arg0: ptr<memory>) -> struct5 [selector=0x9297ba94, pure, abi_params=[bytes], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
   bb0:
     v0 = abi_decode [array<_, uint256>, array<_, uint256>], arg0
-    v1 = extract_value struct10, v0, 0
-    v2 = extract_value struct10, v0, 1
+    v1 = extract_value struct9, v0, 0
+    v2 = extract_value struct9, v0, 1
     v3 = ptrtoint ptr<memory> v2 to i256
     v4 = ptrtoint ptr<memory> v1 to i256
     v5 = eq v4, v3
@@ -714,9 +713,7 @@ fn @dOverlap(arg0: ptr<memory>) -> struct9 [selector=0x9297ba94, pure, abi_param
     v9 = ptrtoint ptr<memory> v1 to i256
     v10 = eq v9, v8
     v11 = zext i1 v10 to i256
-    v12 = ne v6, 0
-    v13 = ne v11, 0
-    v14 = insert_value struct9, undef struct9, 0, v12
-    v15 = insert_value struct9, v14, 1, v13
-    ret v15
+    v12 = insert_value struct5, undef struct5, 0, v6
+    v13 = insert_value struct5, v12, 1, v11
+    ret v13
 }
