@@ -314,8 +314,6 @@ class StackProofTests(unittest.TestCase):
         _, rules = stack_rules(ISLE / "evm-ir/stack_peephole.isle")
         for rule in rules:
             variants = stack_variants(rule)
-            if len(variants) == 1:
-                continue
             with self.subTest(line=rule.line):
                 if len(variants[0]["bindings"]) == 1:
                     self.assertEqual(len(variants), 235)

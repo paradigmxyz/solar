@@ -16,7 +16,7 @@ from .expr import Expr, Unsupported
 from .isle import Rule, forms
 
 # Pure word operations of a window, with the words each pops; each pushes one.
-OPERATIONS = {"not": 1, "iszero": 1, "shl": 2, "or": 2, "add": 2, "sub": 2, "eq": 2}
+OPERATIONS = {"not": 1, "iszero": 1, "or": 2, "add": 2, "sub": 2, "eq": 2}
 # Guards that fix a pushed word, and guards that only price a rewrite.
 LITERAL_GUARDS = {"u256_is_one": 1}
 PRICE_GUARDS = {"complement_odd_dominates"}
@@ -224,7 +224,7 @@ def stack_variants(rule):
                 difference = Expr("or", (difference, Expr("xor", (a, b))))
         variants.append(
             {
-                "bindings": bindings,
+                "bindings": dict(zip(variables, values)),
                 "minimum_stack": needed,
                 "peak_growth": peak,
                 "difference": difference,
