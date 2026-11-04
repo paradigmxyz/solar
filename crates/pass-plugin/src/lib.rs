@@ -84,6 +84,8 @@ pub struct Function {
     pub id: u32,
     pub name: String,
     pub optimization: String,
+    #[serde(default)]
+    pub blocks: Vec<u32>,
     pub instructions: Vec<MirInstruction>,
     pub values: Vec<Value>,
 }
@@ -109,6 +111,8 @@ pub struct Value {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EvmBlock {
     pub id: u32,
+    #[serde(default)]
+    pub label: u32,
     pub instructions: Vec<EvmInstruction>,
 }
 
@@ -128,9 +132,8 @@ pub struct Response {
     pub edits: Vec<Edit>,
 }
 
-/// V1 preserves the module's declarations, function signatures, and CFG. Passes can simplify
-/// SSA uses, rewrite operand-only MIR operations, and splice physical EVM instruction windows.
-/// Adding blocks, functions, types, and new operation definitions requires a future API.
+/// Edits preserve the representation phase and existing module declarations. New internal
+/// functions, blocks, SSA definitions, and control-flow transfers are verified as one transaction.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "edit", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Edit {
@@ -151,6 +154,46 @@ pub enum Edit {
         remove: u32,
         instructions: Vec<NewEvmInstruction>,
     },
+    AddMirFunctions {
+        functions: Vec<NewMirFunction>,
+    },
+    AddMirBlocks {
+        function: u32,
+        blocks: Vec<NewMirBlock>,
+    },
+    SplitMirBlock {
+        function: u32,
+        block: u32,
+        at: u32,
+    },
+    ReplaceMirValueWith {
+        function: u32,
+        value: u32,
+        replacement: MirOperand,
+    },
+    SpliceMirInstructions {
+        function: u32,
+        block: u32,
+        start: u32,
+        remove: u32,
+        instructions: Vec<NewMirInstruction>,
+    },
+    SetMirTerminator {
+        function: u32,
+        block: u32,
+        terminator: MirTerminator,
+    },
+    AddEvmBlocks {
+        blocks: Vec<NewEvmBlock>,
+    },
+    SplitEvmBlock {
+        block: u32,
+        at: u32,
+    },
+    SetEvmTerminator {
+        block: u32,
+        terminator: EvmTerminator,
+    },
 }
 
 /// Existing instructions can be copied with their relocations. Newly constructed instructions
@@ -159,8 +202,131 @@ pub enum Edit {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NewEvmInstruction {
     Copy { index: u32 },
+    CopyFrom { block: u32, index: u32 },
+    BlockAddress { block: u32 },
     Opcode { opcode: u8, source: Option<u32> },
     Push { value: String, source: Option<u32> },
+}
+
+/// Types for new MIR signatures and SSA results. Struct IDs refer to the existing type table.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Type {
+    Integer { bits: u32 },
+    Pointer { location: AddressSpace },
+    Slice { location: AddressSpace },
+    Struct { id: u32 },
+    Void,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AddressSpace {
+    Memory,
+    Calldata,
+    Returndata,
+    Storage,
+    Transient,
+}
+
+/// Local IDs name results created by this response, scoped to one function. They are distinct
+/// from the compiler's existing value IDs. Constants must fit their declared scalar type.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum MirOperand {
+    Value { id: u32 },
+    Argument { index: u32 },
+    Local { id: u32 },
+    Constant { ty: Type, value: String },
+}
+
+/// New internal functions append in order, so their IDs start at the snapshot's function count.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewMirFunction {
+    pub name: String,
+    pub parameters: Vec<Type>,
+    pub returns: Type,
+    pub blocks: Vec<NewMirBlock>,
+}
+
+/// Blocks append in order; block IDs start at zero for a new function. All blocks and result
+/// locals in a batch are declared before their bodies, allowing forward edges and loop phis.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewMirBlock {
+    pub instructions: Vec<NewMirInstruction>,
+    pub terminator: MirTerminator,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewMirInstruction {
+    pub result: Option<u32>,
+    pub ty: Option<Type>,
+    pub instruction: MirInstructionKind,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum MirInstructionKind {
+    Operation {
+        operation: String,
+        operands: Vec<MirOperand>,
+    },
+    Phi {
+        incoming: Vec<(u32, MirOperand)>,
+    },
+    Call {
+        function: u32,
+        args: Vec<MirOperand>,
+    },
+    /// Clone an existing operation's attributes and debug context, replacing its operands.
+    Copy {
+        instruction: u32,
+        operands: Vec<MirOperand>,
+    },
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum MirTerminator {
+    Jump { target: u32 },
+    Branch { condition: MirOperand, then_block: u32, else_block: u32 },
+    Switch { value: MirOperand, default: u32, cases: Vec<(MirOperand, u32)> },
+    Return { values: Vec<MirOperand> },
+    ReturnData { offset: MirOperand, size: MirOperand },
+    Revert { offset: MirOperand, size: MirOperand },
+    TailCall { function: u32, args: Vec<MirOperand> },
+    Stop,
+    Invalid,
+}
+
+/// EVM IR has no function objects. Callable helpers are blocks with explicit stack arguments,
+/// return-address pushes, dynamic return jumps, and optional verified call-effect annotations.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct NewEvmBlock {
+    pub instructions: Vec<NewEvmInstruction>,
+    pub terminator: EvmTerminator,
+    pub call_effect: Option<CallEffect>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CallEffect {
+    pub ret: u8,
+    pub inputs: u8,
+    pub outputs: u8,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum EvmTerminator {
+    Jump { target: u32 },
+    Branch { then_block: u32, else_block: u32 },
+    IndexedJump { targets: Vec<u32> },
+    Opcode { opcode: u8 },
 }
 
 /// Implements a Rust entry point, containing panics when the library uses unwinding.
