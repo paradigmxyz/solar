@@ -154,7 +154,9 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         m.serialize_entry("typeDescriptions", &ExprType::new(self.gcx, expr).args(parent.args))?;
         self.argument_types(m, parent)?;
         m.serialize_entry("isLValue", &is_lvalue)?;
-        m.serialize_entry("isPure", &self.gcx.is_pure(expr))?;
+        // solc does not treat a tuple that is written to as pure.
+        let written_tuple = parent.lvalue && matches!(expr.kind, hir::ExprKind::Tuple(_));
+        m.serialize_entry("isPure", &(!written_tuple && self.gcx.is_pure(expr)))?;
         m.serialize_entry("isConstant", &false)?;
         m.serialize_entry("lValueRequested", &parent.lvalue)
     }

@@ -32,3 +32,16 @@ contract User {
         abi.decode("", (uint256));
     }
 }
+
+contract Written {
+    uint256 a;
+    uint256 b;
+
+    function swap() external {
+        (a, b) = (b, a);
+    }
+
+    function clear() external pure {
+        delete ([""][0]);
+    }
+}

@@ -21,6 +21,15 @@
 // CHECK: "nodeType": "ElementaryTypeNameExpression"
 // CHECK: "isPure": true
 // CHECK: "isPure": true
+// A tuple that is written to is not pure, whether it is assigned or deleted.
+// CHECK: "name": "swap"
+// CHECK: "nodeType": "TupleExpression"
+// CHECK: "isPure": false
+// CHECK: "lValueRequested": true
+// CHECK: "name": "clear"
+// CHECK: "nodeType": "TupleExpression"
+// CHECK: "isPure": false
+// CHECK: "lValueRequested": true
 {
   "language": "Solidity",
   "settings": {
