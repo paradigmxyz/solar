@@ -36,6 +36,7 @@ def records(path: Path):
                         raise ValueError(f"missing {field}")
                 if record["kind"] == "gaps":
                     check_gaps(record)
+                    count += 1
                     yield record
                     continue
                 for field in ("before", "retained"):
@@ -57,7 +58,7 @@ def records(path: Path):
             count += 1
             yield record
         if not count:
-            raise ValueError(f"{path}: invocation has no pass records")
+            raise ValueError(f"{path}: invocation has no audit records")
 
 
 def check_gaps(record: dict) -> None:

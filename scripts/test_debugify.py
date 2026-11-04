@@ -130,6 +130,12 @@ class DebugifyReportTests(unittest.TestCase):
         )
         self.assertTrue(has_changes(head, baseline))
 
+    def test_input_gaps_alone_are_an_audit(self):
+        # `-Zdebugify=check` stops at the input gaps, before any pass record exists.
+        self.write("only/a/default/x.jsonl", self.gaps("MIR", "input", {"add": 2}))
+        report = summarize(self.root / "only")
+        self.assertEqual((report["gaps"], report["pass_runs"]), (2, 0))
+
     def test_inconsistent_gap_records_fail(self):
         record = self.gaps("MIR", "dce", {"add": 2})
         self.write("bad.jsonl", {**record, "count": 3})
@@ -148,7 +154,7 @@ class DebugifyReportTests(unittest.TestCase):
 
     def test_header_only_and_truncated_records_fail(self):
         path = self.write("empty.jsonl")
-        with self.assertRaisesRegex(ValueError, "no pass records"):
+        with self.assertRaisesRegex(ValueError, "no audit records"):
             summarize(self.root)
         with path.open("a") as stream:
             stream.write('{"kind": "pass",')
