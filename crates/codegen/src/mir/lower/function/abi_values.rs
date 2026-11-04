@@ -34,11 +34,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         exprs: &[hir::Expr<'_>],
     ) -> Option<(Arc<AbiLayout>, Box<[ValueId]>)> {
-        // values = lower_typed(args)
-        // values, types = prepare_abi_arguments(values)
+        // operands = lower_typed(args)
+        // values, types = prepare_abi_arguments(resolve(operands))
         // layout = abi_layout(types)
         // return (layout, values)
-        let values_and_types = self.lower_argument_exprs(
+        let operands = self.lower_argument_exprs(
             CallArgumentParams { count: exprs.len(), names: None, reverse: false },
             exprs.iter().enumerate(),
             |this, _, expr| {
@@ -46,23 +46,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
                 if this.is_dynamic_bytes_type(ty) {
                     let (value, location) = this.lower_bytes_operand(expr, memory_ty)?;
-                    return this.prepare_abi_encode_argument(
-                        expr,
-                        ty,
-                        value,
-                        AbiType::Bytes(location),
-                    );
+                    return this
+                        .prepare_abi_encode_argument(expr, ty, value, AbiType::Bytes(location))
+                        .map(AbiOperand::Ready);
                 }
-                let value = this.lower_typed_expr(expr, memory_ty)?;
-                let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
-                    AbiType::Bytes(PtrLocation::Memory)
-                } else {
-                    this.types.abi_type(ty)?
-                };
-                this.prepare_abi_encode_argument(expr, ty, value, abi_type)
+                this.lower_abi_operand(expr, memory_ty, |this, value| {
+                    let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
+                        AbiType::Bytes(PtrLocation::Memory)
+                    } else {
+                        this.types.abi_type(ty)?
+                    };
+                    this.prepare_abi_encode_argument(expr, ty, value, abi_type)
+                })
             },
         )?;
-        let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
+        let (values, types) = self.resolve_abi_operands(operands)?;
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         Some((layout, values.into_boxed_slice()))
     }
@@ -168,7 +166,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if exprs.len() != parameter_types.len() {
             return self.cx.report_unsupported(tuple.span, "abi.encodeCall argument list");
         }
-        let values_and_types = self.lower_argument_exprs(
+        let operands = self.lower_argument_exprs(
             CallArgumentParams { count: exprs.len(), names: None, reverse: false },
             exprs.into_iter().enumerate(),
             |this, index, expr| {
@@ -176,19 +174,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
                 if this.is_dynamic_bytes_type(ty) {
                     let (value, location) = this.lower_bytes_operand(expr, memory_ty)?;
-                    return this.prepare_abi_encode_argument(
-                        expr,
-                        memory_ty,
-                        value,
-                        AbiType::Bytes(location),
-                    );
+                    return this
+                        .prepare_abi_encode_argument(
+                            expr,
+                            memory_ty,
+                            value,
+                            AbiType::Bytes(location),
+                        )
+                        .map(AbiOperand::Ready);
                 }
-                let value = this.lower_typed_expr(expr, memory_ty)?;
-                let abi_type = this.types.abi_type(memory_ty)?;
-                this.prepare_abi_encode_argument(expr, memory_ty, value, abi_type)
+                this.lower_abi_operand(expr, memory_ty, |this, value| {
+                    let abi_type = this.types.abi_type(memory_ty)?;
+                    this.prepare_abi_encode_argument(expr, memory_ty, value, abi_type)
+                })
             },
         )?;
-        let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
+        let (values, types) = self.resolve_abi_operands(operands)?;
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         Some(self.builder.abi_encode_bytes(layout, Some(selector), values.into_boxed_slice()))
     }
@@ -504,68 +505,90 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_packed_parts(&mut self, exprs: &[hir::Expr<'_>]) -> Option<Box<[PackedPart]>> {
-        let mut parts = Vec::with_capacity(exprs.len());
         // values = evaluate_arguments_in_order(args)
         // parts = describe_packed_shapes(values)
+        let mut parts = Vec::with_capacity(exprs.len());
+        // A storage array is read after the operands that follow it, so its part stays empty
+        // until then.
+        let mut storage = Vec::new();
         for expr in exprs {
             let ty = self.cx.gcx.type_of_expr(expr.id)?;
-            if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
+            let source = self.peel_bytes_conversion(expr);
+            if let ExprKind::Lit(lit) = source.peel_parens().kind
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
                 let bytes = bytes.as_byte_str();
                 // Adjacent literals pack into one.
-                if let Some(PackedPart::Literal(last)) = parts.last_mut() {
+                if let Some(Some(PackedPart::Literal(last))) = parts.last_mut() {
                     *last = [&last[..], bytes].concat().into();
                 } else {
-                    parts.push(PackedPart::Literal(bytes.to_vec().into()));
+                    parts.push(Some(PackedPart::Literal(bytes.to_vec().into())));
                 }
                 continue;
             }
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-            let (mut value, location) = if self.is_dynamic_bytes_type(ty) {
+            if self.is_dynamic_bytes_type(ty) {
                 let (value, location) = self.lower_bytes_operand(expr, memory_ty)?;
-                (value, Some(location))
+                parts.push(Some(self.lower_packed_part(expr, ty, value, Some(location))?));
+            } else if self.is_storage_object_copy(source, memory_ty) {
+                storage.push((parts.len(), self.require_storage_access(source)?.slot, expr, ty));
+                parts.push(None);
             } else {
-                (self.lower_typed_expr(expr, memory_ty)?, None)
-            };
-            let abi_type = self.types.abi_type(ty);
-            if let Some(abi_type) = &abi_type {
-                self.check_calldata_array_size(value, ty, abi_type);
-            }
-            if self.needs_calldata_aggregate_validation(value, ty) {
-                // Packed encoding validates words even for ABI-decoded arguments, but static
-                // arrays retain zero-padded calldata reads instead of checking the source range.
-                if abi_type.as_ref().is_some_and(|abi_type| !abi_type.is_dynamic()) {
-                    // validate_static(ty, slice_ptr(value))
-                    let base = self.builder.slice_ptr(value);
-                    self.validate_calldata_static_value(ty, base);
-                } else if abi_type.as_ref().is_some_and(Self::is_calldata_word_array) {
-                    self.validate_calldata_word_array(value, ty);
-                } else {
-                    value = self.materialize_calldata_argument(ty, value, expr.span)?;
-                }
-            }
-            if let Some(location) = location {
-                parts.push(PackedPart::Bytes { value, location });
-            } else if let Some((element, source, wordwise)) = self.packed_array_shape(ty, value) {
-                parts.push(PackedPart::Array { value, element, source, wordwise });
-            } else {
-                let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
-                    return self.cx.report_unsupported(expr.span, "abi.encodePacked argument");
-                };
-                let value = self.normalize_abi_scalar(value, ty);
-                let size = TypeSize::new_int_bits((length * 8) as u16);
-                let ty = if fixed_bytes {
-                    crate::mir::ValueLayout::FixedBytes(size)
-                } else if is_signed_packed_scalar(ty) {
-                    crate::mir::ValueLayout::Int(size)
-                } else {
-                    crate::mir::ValueLayout::UInt(size)
-                };
-                parts.push(PackedPart::Scalar { value, ty });
+                let value = self.lower_typed_expr(expr, memory_ty)?;
+                parts.push(Some(self.lower_packed_part(expr, ty, value, None)?));
             }
         }
-        Some(parts.into_boxed_slice())
+        for (index, slot, expr, ty) in storage {
+            let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+            let value = self.load_storage_object(memory_ty, slot, expr.span)?;
+            parts[index] = Some(self.lower_packed_part(expr, ty, value, None)?);
+        }
+        Some(parts.into_iter().flatten().collect())
+    }
+
+    fn lower_packed_part(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+        mut value: ValueId,
+        location: Option<PtrLocation>,
+    ) -> Option<PackedPart> {
+        let abi_type = self.types.abi_type(ty);
+        if let Some(abi_type) = &abi_type {
+            self.check_calldata_array_size(value, ty, abi_type);
+        }
+        if self.needs_calldata_aggregate_validation(value, ty) {
+            // Packed encoding validates words even for ABI-decoded arguments, but static
+            // arrays retain zero-padded calldata reads instead of checking the source range.
+            if abi_type.as_ref().is_some_and(|abi_type| !abi_type.is_dynamic()) {
+                // validate_static(ty, slice_ptr(value))
+                let base = self.builder.slice_ptr(value);
+                self.validate_calldata_static_value(ty, base);
+            } else if abi_type.as_ref().is_some_and(Self::is_calldata_word_array) {
+                self.validate_calldata_word_array(value, ty);
+            } else {
+                value = self.materialize_calldata_argument(ty, value, expr.span)?;
+            }
+        }
+        if let Some(location) = location {
+            Some(PackedPart::Bytes { value, location })
+        } else if let Some((element, source, wordwise)) = self.packed_array_shape(ty, value) {
+            Some(PackedPart::Array { value, element, source, wordwise })
+        } else {
+            let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
+                return self.cx.report_unsupported(expr.span, "abi.encodePacked argument");
+            };
+            let value = self.normalize_abi_scalar(value, ty);
+            let size = TypeSize::new_int_bits((length * 8) as u16);
+            let ty = if fixed_bytes {
+                crate::mir::ValueLayout::FixedBytes(size)
+            } else if is_signed_packed_scalar(ty) {
+                crate::mir::ValueLayout::Int(size)
+            } else {
+                crate::mir::ValueLayout::UInt(size)
+            };
+            Some(PackedPart::Scalar { value, ty })
+        }
     }
 
     fn packed_array_shape(
