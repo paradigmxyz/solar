@@ -7,14 +7,14 @@
   fn @reuse_gt_after_lt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
       v0 = lt arg0, arg1
--     v1 = gt arg1, arg0
+-     v1 = lt arg0, arg1
 -     ret v0, v1
 +     ret v0, v0
   }
   
   fn @reuse_lt_after_gt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
-      v0 = gt arg1, arg0
+      v0 = lt arg0, arg1
 -     v1 = lt arg0, arg1
 -     ret v0, v1
 +     ret v0, v0
@@ -23,14 +23,14 @@
   fn @reuse_sgt_after_slt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
       v0 = slt arg0, arg1
--     v1 = sgt arg1, arg0
+-     v1 = slt arg0, arg1
 -     ret v0, v1
 +     ret v0, v0
   }
   
   fn @reuse_slt_after_sgt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
-      v0 = sgt arg1, arg0
+      v0 = slt arg0, arg1
 -     v1 = slt arg0, arg1
 -     ret v0, v1
 +     ret v0, v0
@@ -39,14 +39,14 @@
   fn @keep_same_order_lt_gt(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
       v0 = lt arg0, arg1
-      v1 = gt arg0, arg1
+      v1 = lt arg1, arg0
       ret v0, v1
   }
   
   fn @keep_unsigned_signed_distinct(arg0: i256, arg1: i256) -> struct0 [return_abi=[i1, i1]] {
     bb0:
       v0 = lt arg0, arg1
-      v1 = sgt arg1, arg0
+      v1 = slt arg0, arg1
       ret v0, v1
   }
   

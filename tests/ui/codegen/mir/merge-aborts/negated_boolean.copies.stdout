@@ -3,7 +3,7 @@
   @module NegatedBoolean
   fn @negated(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = gt arg0, arg1
+      v0 = lt arg1, arg0
       v1 = eq v0, false
 -     jumpi v1, bb1, bb3
 +     jump bb1

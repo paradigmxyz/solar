@@ -67,18 +67,51 @@
                     "arguments": [
                       "0x07"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 20,
+                        "length": 17
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 6,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 20,
+                        "length": 17
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 7,
                   "operation": {
                     "mnemonic": "SSTORE"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 20,
+                        "length": 17
+                      }
+                    }
                   }
                 },
                 {
@@ -155,7 +188,7 @@
                 }
               ]
             },
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;"
+            "sourceMap": ":::-:0;;;20:17:0;;;-1:-1:-1;;;;;;;;;;"
           },
           "deployedBytecode": {
             "ethdebug": {

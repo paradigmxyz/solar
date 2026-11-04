@@ -30,8 +30,8 @@
 // CHECK-NEXT: add
 // CHECK-NEXT: swap 4
 // CHECK-NEXT: mstore8
-// CHECK-NEXT: dup 5
-// CHECK-NEXT: dup 2
+// CHECK-NEXT: dup 1
+// CHECK-NEXT: dup 6
 // CHECK-NEXT: sub
 // CHECK-NEXT: push bb{{[0-9]+}}
 // CHECK-NEXT: jumpi

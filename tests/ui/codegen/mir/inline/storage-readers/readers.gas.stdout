@@ -23,7 +23,7 @@
 +     v6 = phi [bb3: v8]
       v1 = sload 3
 -     v2 = add v0, v1
-+     v2 = add v6, v1
++     v2 = add v1, v6
       ret v2
   }
   
@@ -121,7 +121,7 @@
 +     v6 = phi [bb2: v5]
       v1 = sload 3
 -     v2 = add v0, v1
-+     v2 = add v6, v1
++     v2 = add v1, v6
       ret v2
   }
   

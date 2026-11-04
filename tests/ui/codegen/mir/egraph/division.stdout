@@ -124,7 +124,7 @@
 -     v2 = lt arg0, v1
       v3 = div arg0, arg1
       v4 = mul v3, arg1
--     v5 = gt v4, arg0
+-     v5 = lt arg0, v4
       v6 = div v4, arg1
 -     v7 = eq v6, v3
 -     ret v2, v5, v7
@@ -140,7 +140,7 @@
 -     v4 = lt arg0, v3
       v5 = mul arg0, 997
       v6 = div v5, 0x3e8
--     v7 = gt v6, arg0
+-     v7 = lt arg0, v6
       v8 = mul arg0, 3
 -     v9 = div v8, 2
 +     v9 = shr v8, 1
@@ -227,7 +227,7 @@
       v0 = ne arg1, 0
       v1 = zext i1 v0 to i256
       v2 = div arg0, arg1
--     v3 = mul v1, v2
+-     v3 = mul v2, v1
 -     ret v3
 +     ret v2
   }
@@ -257,7 +257,7 @@
       v0 = ne arg1, 0
       v1 = zext i1 v0 to i256
       v2 = smod arg0, arg1
--     v3 = mul v1, v2
+-     v3 = mul v2, v1
 -     ret v3
 +     ret v2
   }
@@ -267,8 +267,7 @@
       v0 = ne arg0, 0
       v1 = zext i1 v0 to i256
       v2 = div arg0, arg1
--     v3 = mul v1, v2
-+     v3 = mul v2, v1
+      v3 = mul v2, v1
       ret v3
   }
   

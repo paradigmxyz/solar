@@ -131,7 +131,7 @@
     bb2 [cold]:                                     ; preds = bb0
       revert 0, 0
     bb1:                                            ; preds = bb0
--     v3 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000, arg0
+-     v3 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
 -     mstore 0, v3
 +     mstore 0, arg0
       mstore 32, v0

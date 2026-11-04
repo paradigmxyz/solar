@@ -797,7 +797,7 @@ impl Instruction {
     /// allocation obligations are semantic, so they survive an equivalent
     /// rewrite; allocation markers are dropped only when allocation is lowered away.
     /// The caller must prove equivalence and preserve the result representation.
-    pub fn replace_kind(&mut self, kind: InstKind) {
+    pub(crate) fn replace_kind(&mut self, kind: InstKind) {
         let result = kind.op_def().result;
         debug_assert!(
             (result == super::ResultKind::Custom
@@ -817,8 +817,8 @@ impl Instruction {
 
     /// Visits operands during an equivalence-preserving rewrite and invalidates
     /// operand-dependent facts only if a value actually changes. Without an operand change, the
-    /// base of a storage alias is renamed the same way.
-    pub fn rewrite_operands(&mut self, mut f: impl FnMut(&mut ValueId)) {
+    /// base of a storage alias is renamed the same way. Returns whether any operand changed.
+    pub(crate) fn rewrite_operands(&mut self, mut f: impl FnMut(&mut ValueId)) -> bool {
         let mut changed = false;
         // %result = op(operands) -> %result = op(equivalent_operands)
         self.kind.visit_operands_mut(|operand| {
@@ -833,6 +833,7 @@ impl Instruction {
             //   -> sstore slot, value !metadata(storage=offset(new, n))
             self.metadata.set_storage_alias(Some(alias.map_base(&mut f)));
         }
+        changed
     }
 
     /// Drops facts whose proof can depend on the previous operation or operands.

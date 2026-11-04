@@ -604,7 +604,7 @@ fn @_rest(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v15 = lt v91, v14
     jumpi v15, bb11, bb10
   bb11:                                           ; preds = bb3
-    v103 = add arg0, v91
+    v103 = add v91, arg0
     v104 = add v103, 32
     v19 = mload v104
     v20 = byte 0, v19

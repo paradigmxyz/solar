@@ -6,7 +6,7 @@
 // CHECK: - {{v[0-9]+}} = mload 0x400
 // CHECK: - {{v[0-9]+}} = mload 0x420
 // CHECK: - {{v[0-9]+}} = mload 0x440
-// CHECK: + {{v[0-9]+}} = add 0, arg0
+// CHECK: + {{v[0-9]+}} = add arg0, 0
 fn @fold_zeroed_words(arg0: i256) -> i256 {
   bb0:
     memory_zero 1024, 96
@@ -68,7 +68,7 @@ fn @keep_after_unknown_store(arg0: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @keep_partial_word{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload 0x400
 // CHECK: {{^[ +].*}}{{v[0-9]+}} = mload 0x420
-// CHECK: + {{v[0-9]+}} = add 0, [[TAIL:v[0-9]+]]
+// CHECK: + {{v[0-9]+}} = add [[TAIL:v[0-9]+]], 0
 fn @keep_partial_word() -> i256 {
   bb0:
     memory_zero 1024, 48
@@ -104,7 +104,7 @@ fn @cap_zero_fill() -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @fold_past_absolute_store{{[( ]}}
 // CHECK: - {{v[0-9]+}} = mload {{v[0-9]+}}
 // CHECK: {{^ +}}[[KEPT:v[0-9]+]] = mload {{v[0-9]+}}
-// CHECK: + {{v[0-9]+}} = add 0, [[KEPT]]
+// CHECK: + {{v[0-9]+}} = add [[KEPT]], 0
 fn @fold_past_absolute_store(arg0: i256) -> i256 {
   bb0:
     v0 = alloc 96

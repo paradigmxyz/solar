@@ -5,14 +5,14 @@
     bb0:
 -     jumpi arg0, bb1, bb2
 -   bb2:                                            ; preds = bb0
--     v0 = add 7, 42
+-     v0 = add 42, 7
 -     jump bb3
 +     jumpi arg0, bb2, bb1
     bb1:                                            ; preds = bb0
 -     jump bb3
 -   bb3:                                            ; preds = bb1, bb2
 -     v1 = phi [bb1: 42], [bb2: v0]
-+     v0 = add 7, 42
++     v0 = add 42, 7
 +     jump bb2
 +   bb2:                                            ; preds = bb1, bb0
 +     v1 = phi [bb0: 42], [bb1: v0]
@@ -25,13 +25,13 @@
 -   bb3:                                            ; preds = bb0
 +     jumpi arg0, bb1, bb2
 +   bb2:                                            ; preds = bb0
-      v1 = add 3, 4
+      v1 = add 4, 3
 -     jump bb4
 +     jump bb3
     bb1:                                            ; preds = bb0
 -     jump bb2
 -   bb2:                                            ; preds = bb1
-      v0 = add 1, 2
+      v0 = add 2, 1
 -     jump bb4
 -   bb4:                                            ; preds = bb2, bb3
 -     v2 = phi [bb2: v0], [bb3: v1]
