@@ -749,12 +749,12 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   and `RawWord` values the lowering API returns for copy edges and address
   operands; `lower_expr` always returns a canonical value, so a new consumer
   cannot see dirty bits.
-- Coverage: `tests/ui/codegen/lowering/run-call/dirty_builtin_args.sol`,
-  `dirty_operators.sol`, `dirty_conversions.sol`, `dirty_memory_storage.sol`,
-  `dirty_abi_events_errors.sol`, `dirty_calls.sol`, `dirty_raw_parity.sol`,
-  `ecrecover_dirty_v.sol`, `blockhash_dirty_number.sol`,
-  `assembly_assign_cleanup.sol` and `dirty_internal_named_return.sol`.
-  Every expectation comes from `solc --via-ir --optimize`.
+- Coverage: the fixtures under `tests/ui/codegen/lowering/dirty/`, one directory
+  per consumer family (`builtins/`, `operators/`, `conversions/`,
+  `memory-storage/`, `abi-events-errors/`, `calls/`, `raw-parity/`), and
+  `tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol` and
+  `dirty_internal_named_return.sol`. Every expectation comes from
+  `solc --via-ir --optimize`.
 
 ### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
 
@@ -808,7 +808,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Rationale: via-IR lowers a storage index without converting it to a word
   index type first, and the raw word fails the bounds check.
 - Coverage: `tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol`
-  and `dirty_memory_storage.sol`.
+  and `tests/ui/codegen/lowering/dirty/memory-storage/storage_ints.sol`.
 
 ### CODEGEN-006: Legacy source-map modifier depth
 
