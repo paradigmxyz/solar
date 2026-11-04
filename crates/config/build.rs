@@ -121,19 +121,18 @@ fn vergen_env(key: &str) -> String {
 ///
 /// Cargo checks out git dependencies without tags, and a locked build with an empty cache fetches
 /// only the commit, so Git cannot tell. The dependent's `Cargo.lock` records the pin as
-/// `?tag=<tag>#<sha>`, and sits above `OUT_DIR` when the target directory is in its workspace, as
-/// it is by default.
+/// `?tag=<tag>#<sha>`. It sits above `OUT_DIR` when the target directory is in the workspace, or
+/// above `PWD` when Cargo runs from the workspace with the target directory elsewhere.
 #[cfg(feature = "version")]
 fn is_cargo_checkout_of(tag: &str, sha: &str) -> bool {
-    let out_dir = env::var("OUT_DIR").unwrap();
     let pin = format!("?tag={tag}#{sha}\"");
-    Path::new(&out_dir)
-        .ancestors()
-        .find_map(|dir| std::fs::File::open(dir.join("Cargo.lock")).ok())
-        .is_some_and(|mut file| {
-            let mut lock = String::new();
-            file.read_to_string(&mut lock).is_ok() && lock.contains(&pin)
-        })
+    let dirs = [env::var_os("OUT_DIR"), env::var_os("PWD")];
+    dirs.iter().flatten().flat_map(|dir| Path::new(dir).ancestors()).any(|dir| {
+        let mut lock = String::new();
+        std::fs::File::open(dir.join("Cargo.lock"))
+            .and_then(|mut file| file.read_to_string(&mut lock))
+            .is_ok_and(|_| lock.contains(&pin))
+    })
 }
 
 fn solc_version() -> String {
