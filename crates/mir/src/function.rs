@@ -990,6 +990,9 @@ pub struct FunctionAttributes {
     pub may_return_memory: bool,
     /// Whether this function dispatches an internal function-pointer shape.
     pub is_function_pointer_dispatcher: bool,
+    /// Whether only deployment runs this function, so its immutable reads load the staging memory
+    /// that its assignments stored to. Set by `lower-immutables`.
+    pub creation_only: bool,
     /// Never clone this function into multiple callers.
     pub no_inline: bool,
     /// Clone this function into every caller where inlining is legal, whatever it costs, as its
@@ -1039,6 +1042,7 @@ impl Default for FunctionAttributes {
             is_receive: false,
             may_return_memory: false,
             is_function_pointer_dispatcher: false,
+            creation_only: false,
             no_inline: false,
             always_inline: false,
             inline_hint: false,

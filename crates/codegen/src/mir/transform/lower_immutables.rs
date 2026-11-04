@@ -12,8 +12,8 @@
 //! code stays semantic and fails the lowered-phase check rather than writing memory there.
 //!
 //! The backend emits a `loadimmutable` in those functions as a load from the same home. The pass
-//! tags it with a memory-read effect, so memory passes keep the lowered stores it reads alive.
-//! Reads in other functions stay untagged: they are code placeholders at runtime.
+//! marks them `creation_only`, so memory analyses count such a read, and a call that reaches one,
+//! as a read of memory and keep the stores. Reads in other functions are code placeholders.
 
 use super::utils::expand_block;
 use crate::mir::{
@@ -41,12 +41,7 @@ impl MirPass for LowerImmutables {
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         if !module.iter_functions().any(|(_, func)| {
-            func.instructions().any(|id| {
-                matches!(
-                    func.inst(id).kind,
-                    InstKind::StoreImmutable(..) | InstKind::LoadImmutable(..)
-                )
-            })
+            func.instructions().any(|id| matches!(func.inst(id).kind, InstKind::StoreImmutable(..)))
         }) {
             return false;
         }
@@ -57,16 +52,10 @@ impl MirPass for LowerImmutables {
             if runtime_reachable.contains(func_id) {
                 continue;
             }
+            func.attributes.creation_only = true;
             for block in func.blocks.indices() {
                 let mut builder = FunctionBuilder::new(func);
                 expand_block(&mut builder, block, |builder, inst_id| {
-                    if matches!(builder.func().inst(inst_id).kind, InstKind::LoadImmutable(..)) {
-                        // loadimmutable (reads the staging word)
-                        let inst = builder.func_mut().inst_mut(inst_id);
-                        changed |= inst.metadata.effect() != Some(EffectKind::MemoryRead);
-                        inst.metadata.set_effect(Some(EffectKind::MemoryRead));
-                        return false;
-                    }
                     let InstKind::StoreImmutable(id, value) = builder.func().inst(inst_id).kind
                     else {
                         return false;

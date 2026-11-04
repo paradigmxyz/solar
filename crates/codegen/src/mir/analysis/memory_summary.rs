@@ -534,8 +534,6 @@ impl MemoryCallSummaries {
             cache.entries.raw.resize_with(module.functions.len(), || None);
         }
 
-        let constructor_reachable = module.constructor_reachable_functions();
-
         // The parameter sources, alias analysis, and local summary of each target.
         let mut facts = IndexVec::with_capacity(module.functions.len());
         let mut local = index_vec![None; module.functions.len()];
@@ -551,11 +549,6 @@ impl MemoryCallSummaries {
             }
             let entry = slot.get_or_insert_with(|| LocalSummaryEntry::new(module, func));
             let mut summary = entry.summary.clone();
-            // A function that the constructor calls loads an immutable from its staging memory
-            // there, so a caller's staging store must outlive the call.
-            if summary.reads(AddressSpace::Immutable) && constructor_reachable.contains(func_id) {
-                summary.record_access(func, Access::Any(AddressSpace::Memory), false);
-            }
             summary.has_multiple_returns = func.return_components().len() > 1;
             summary.control.may_diverge |= calls.is_recursive(func_id);
             local[func_id] = Some(summary);

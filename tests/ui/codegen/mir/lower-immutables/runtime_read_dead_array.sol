@@ -4,18 +4,20 @@
 //@[run] compile-flags: -Ogas
 //@[run] run-call: f 1; constructor=[9] => 28
 // A runtime read of an immutable loads a code placeholder, not memory, so the array that the
-// function never reads from is still removed.
+// function never reads from is still removed, also when the constructor calls the same helper.
 
 contract RuntimeReadDeadArray {
     uint256 immutable x;
+    uint256 public total;
 
     constructor(uint256 v) {
         x = v;
+        if (get() == 7) revert();
     }
 
-    function get() internal view returns (uint256) {
-        if (x == 0) revert();
-        return x;
+    function get() internal view returns (uint256 r) {
+        r = x;
+        for (uint256 i; i < total; i++) r += i * x;
     }
 
     // CHECK-LABEL: fn @f(

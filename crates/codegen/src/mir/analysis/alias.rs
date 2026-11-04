@@ -21,7 +21,7 @@
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
     AbiLayout, AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee,
-    EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
+    FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
     MAX_SCRATCH_ERROR_WORDS, MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RawMemorySize,
     RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
@@ -397,6 +397,10 @@ impl ModRef {
         aa: &AliasAnalysis,
         args: &[ValueId],
     ) {
+        // A creation-only caller reaches the staging stores through the callee's immutable reads.
+        if func.attributes.creation_only && summary.reads(AddressSpace::Immutable) {
+            self.read_any(AddressSpace::Memory);
+        }
         for space in AddressSpace::ALL {
             for write in [false, true] {
                 if !(if write { summary.writes(space) } else { summary.reads(space) }) {
@@ -1486,9 +1490,8 @@ impl AliasAnalysis {
             }
             InstKind::LoadImmutable(id) => {
                 effects.read(Access::Location(Location::Immutable(id)));
-                // `lower-immutables` tags a creation-only read: the backend loads it from the
-                // staging word that the lowered assignments store to.
-                if func.inst(inst_id).metadata.effect() == Some(EffectKind::MemoryRead) {
+                // Creation code loads the staging word that `lower-immutables` stores to.
+                if func.attributes.creation_only {
                     effects.read_any(AddressSpace::Memory);
                 }
             }
