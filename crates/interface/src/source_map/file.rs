@@ -125,8 +125,8 @@ impl FileName {
     }
 
     /// Compares the source unit names of two file names by their raw bytes, like solc's ordered
-    /// `m_sources` map. This is the order of [`FileName::display`], including `<stdin>` and
-    /// `<custom>` names.
+    /// `m_sources` map. The names are those of [`FileName::display`], including `<stdin>` and
+    /// `<custom>`.
     pub fn cmp_source_unit_name(&self, other: &Self) -> Ordering {
         let roots = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.roots()))
             .unwrap_or_else(|| arc_swap::Guard::from_inner(None));
