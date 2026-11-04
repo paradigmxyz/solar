@@ -1,5 +1,5 @@
 //@ revisions: gas size
-//@ compile-flags: -Zmir-pipeline=byte-loops -Zdebugify=check
+//@ compile-flags: -Zmir-pipeline=byte-loops -Zdebugify=report
 //@[gas] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
 // Both objectives retain the zero-count skip. The bulk write inherits the one store it

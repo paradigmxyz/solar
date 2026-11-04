@@ -1,8 +1,4 @@
-//@ revisions: report check
-//@ compile-flags: --emit=bin -Onone
-//@[report] compile-flags: -Zdebugify=report
-//@[check] compile-flags: -Zdebugify=check
-//~[check]? ERROR: debugify: EVM IR pass `stackify` lost 2 source origins
+//@ compile-flags: --emit=bin -Onone -Zdebugify=report
 //@ normalize-stdout-test: "(?s).+" -> ""
 // The MIR carries the origins of both `calldataload` operands, but stack scheduling emits EVM IR
 // without them. The `stackify` record reports that loss at the MIR to EVM IR boundary.

@@ -226,6 +226,16 @@ fn debugify_sidecars_preserve_output() {
             .iter()
             .skip(1)
             .map(|record| {
+                if record["kind"] == "gaps" {
+                    let count = record["count"].as_u64().unwrap();
+                    assert!(count > 0);
+                    assert_eq!(
+                        record["omitted"].as_u64().unwrap()
+                            + record["sites"].as_array().unwrap().len() as u64,
+                        count
+                    );
+                    return record["ir"].as_str().unwrap();
+                }
                 assert_eq!(record["kind"], "pass");
                 assert_eq!(
                     record["before"].as_u64().unwrap(),
@@ -376,11 +386,14 @@ fn debugify_sidecars_separate_compilations() {
         assert_eq!(sources[0]["end"], source.len());
         let mut lost_count = 0;
         for record in &records[1..] {
-            assert_eq!(record["kind"], "pass");
             assert!(
                 record["module"].as_str().unwrap().starts_with(contract),
                 "{name}: mixed compilation records"
             );
+            if record["kind"] == "gaps" {
+                continue;
+            }
+            assert_eq!(record["kind"], "pass");
             for span in record["lost"].as_array().unwrap() {
                 let start = span[0].as_u64().unwrap();
                 let end = span[1].as_u64().unwrap();

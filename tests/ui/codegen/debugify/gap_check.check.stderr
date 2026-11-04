@@ -1,0 +1,7 @@
+debugify: EVM IR GapCheck after peephole: 1/1 origins retained, 0 lost
+debugify: EVM IR GapCheck after peephole: 1 without a location
+debugify: gap bb0 inst0 `push`
+error: debugify: EVM IR pass `peephole` left 1 instruction without a location
+
+error: aborting due to 1 previous error
+

@@ -1,9 +1,23 @@
-//! Audits existing source origins around each MIR and EVM IR pass and across stack scheduling, like
-//! LLVM's original-debug-info checks. Inventories contain only origins on live IR and proven label
-//! checkpoints; debugify never inserts executable operations or influences a pass. Reports identify
-//! the first pass to lose an origin. Strict checking is useful for isolated preservation
-//! regressions, not arbitrary optimizing pipelines: deleting dead code can legitimately delete its
-//! last source location.
+//! Audits source debug information around each MIR and EVM IR pass and across stack scheduling.
+//! Debugify never inserts executable operations or influences a pass.
+//!
+//! Two measures, both copied from LLVM (`llvm/lib/Transforms/Utils/Debugify.cpp`):
+//!
+//! - **Gaps** are LLVM's original-mode `not-generate` check (`checkInstructionCoverage`): after
+//!   each pass, the live instructions and terminators (phis excluded) that have no origin and no
+//!   [`DebugLocKind`] explaining why. Each gap is reported once, in the record of the pass that
+//!   left it, and then set to [`DebugLocKind::Unknown`], as LLVM's caller does, so that later
+//!   passes are not blamed for it. Gaps present when a module arrives, as lowering made it, get an
+//!   `input` record. `-Zdebugify=check` rejects every gap, like LLVM's check, which has no
+//!   exemptions; use it on a focused `-Zmir-pipeline` or `-Zevm-ir-pipeline`.
+//! - **Lost origins** are the analogue of LLVM's synthetic-mode `Missing line` warning, which LLVM
+//!   prints and does not count as a failure: the origins on live IR before a pass that no longer
+//!   appear after it. Deleting dead code or merging two locations legitimately loses an origin, so
+//!   this is information, never a check. Reports identify the first pass to lose one.
+//!
+//! Marking a gap `Unknown` changes only the location kind, metadata that code generation and every
+//! output never read: the debug-output tests compare bytecode, source maps and ETHDebug with the
+//! audit on and off.
 //!
 //! NOTE: An origin's presence does not prove correct attribution or control-flow placement. Runtime
 //! source-map tests must also check that untaken paths do not acquire hits. This audits source
@@ -12,9 +26,11 @@
 use crate::backend::evm::CodegenState;
 use solar_config::Debugify;
 use solar_data_structures::map::FxHashSet;
+use solar_evmir::debug::DebugLocKind;
 use solar_interface::{Result, Span};
 use solar_sema::Gcx;
 use std::{
+    collections::BTreeMap,
     fs::{self, File},
     io::{self, Write},
     path::Path,
@@ -26,7 +42,190 @@ use std::{
 };
 
 #[derive(Default)]
-pub(crate) struct Origins(FxHashSet<Span>);
+pub(crate) struct Origins {
+    spans: FxHashSet<Span>,
+    /// Gaps found while collecting, which are reported with the pass that created them.
+    gaps: Gaps,
+}
+
+/// Instructions and terminators with neither a source origin nor a reason for lacking one: LLVM's
+/// `not-generate` finding (`Debugify.cpp` `checkInstructionCoverage`). Unlike a lost origin, a gap
+/// never depends on what other code survives.
+#[derive(Default)]
+pub(crate) struct Gaps(Vec<Gap>);
+
+struct Gap {
+    function: Option<String>,
+    block: usize,
+    /// The index in the block, or `None` for its terminator.
+    instruction: Option<usize>,
+    opcode: String,
+}
+
+impl Gaps {
+    /// Finds the gaps in `module`, then marks each [`DebugLocKind::Unknown`] as LLVM's caller
+    /// does, so that later passes are not blamed for it. Phis have no location of their own, and
+    /// LLVM skips them too.
+    fn mir(module: &mut solar_mir::Module) -> Self {
+        let mut gaps = Vec::new();
+        if !module.debug_info_is_tracked() {
+            return Self(gaps);
+        }
+        for func in module.functions.iter_mut() {
+            let function = func
+                .debug_identifier
+                .map_or_else(|| func.name.symbol.to_string(), |identifier| identifier.to_string());
+            for block in 0..func.blocks.len() {
+                let block_id = solar_mir::BlockId::from_usize(block);
+                for index in 0..func.blocks[block_id].instructions.len() {
+                    let inst = func.blocks[block_id].instructions[index];
+                    let instruction = func.inst_mut(inst);
+                    if matches!(instruction.kind, solar_mir::InstKind::Phi(_))
+                        || !instruction.metadata.lacks_debug_location()
+                    {
+                        continue;
+                    }
+                    instruction.metadata.set_debug_loc_kind(DebugLocKind::Unknown);
+                    gaps.push(Gap {
+                        function: Some(function.clone()),
+                        block,
+                        instruction: Some(index),
+                        opcode: instruction.kind.mnemonic().to_owned(),
+                    });
+                }
+                let body = &mut func.blocks[block_id];
+                if let Some(terminator) = &body.terminator
+                    && body.terminator_metadata.lacks_debug_location()
+                {
+                    gaps.push(Gap {
+                        function: Some(function.clone()),
+                        block,
+                        instruction: None,
+                        opcode: terminator.mnemonic().to_owned(),
+                    });
+                    body.terminator_metadata.set_debug_loc_kind(DebugLocKind::Unknown);
+                }
+            }
+        }
+        Self(gaps)
+    }
+
+    /// Like [`Self::mir`], for EVM IR.
+    fn evm(module: &mut solar_evmir::ir::Module) -> Self {
+        let mut gaps = Vec::new();
+        if !module.debug_info_is_tracked() {
+            return Self(gaps);
+        }
+        for (id, block) in module.blocks.iter_mut().enumerate() {
+            for (index, instruction) in block.instructions.iter_mut().enumerate() {
+                if instruction.metadata.lacks_debug_location() {
+                    instruction.metadata.set_debug_loc_kind(DebugLocKind::Unknown);
+                    gaps.push(Gap {
+                        function: None,
+                        block: id,
+                        instruction: Some(index),
+                        opcode: instruction.mnemonic().to_string(),
+                    });
+                }
+            }
+            if let Some(terminator) = &mut block.terminator
+                && terminator.metadata.lacks_debug_location()
+            {
+                terminator.metadata.set_debug_loc_kind(DebugLocKind::Unknown);
+                gaps.push(Gap {
+                    function: None,
+                    block: id,
+                    instruction: None,
+                    opcode: match &terminator.kind {
+                        solar_evmir::ir::TerminatorKind::Jump(_) => "jump",
+                        solar_evmir::ir::TerminatorKind::JumpI { .. } => "jumpi",
+                        solar_evmir::ir::TerminatorKind::IndexedJump(_) => "indexed_jump",
+                        solar_evmir::ir::TerminatorKind::Op(opcode) => {
+                            solar_evmir::op::mnemonic(*opcode).unwrap_or("raw")
+                        }
+                    }
+                    .to_owned(),
+                });
+            }
+        }
+        Self(gaps)
+    }
+
+    fn extend(&mut self, other: Self) {
+        self.0.extend(other.0);
+    }
+
+    /// Reports the gaps found at `pass`, which is `input` for what a module arrived with.
+    ///
+    /// Like LLVM's check, `-Zdebugify=check` rejects every gap, whichever pass left it.
+    fn report(&self, gcx: Gcx<'_>, ir: &str, module: impl std::fmt::Display, pass: &str) -> Result {
+        if self.0.is_empty() {
+            return Ok(());
+        }
+        if gcx.sess.opts.unstable.debugify.is_some() {
+            let when = if pass == INPUT { "at input".to_owned() } else { format!("after {pass}") };
+            eprintln!("debugify: {ir} {module} {when}: {} without a location", self.0.len());
+            for gap in &self.0 {
+                let function = gap.function.as_ref().map_or_else(String::new, |f| format!("{f} "));
+                let index =
+                    gap.instruction.map_or_else(|| "terminator".into(), |i| format!("inst{i}"));
+                eprintln!("debugify: gap {function}bb{} {index} `{}`", gap.block, gap.opcode);
+            }
+        }
+        if let Some(directory) = &gcx.sess.opts.unstable.debugify_output {
+            let mut opcodes = BTreeMap::<&str, usize>::new();
+            for gap in &self.0 {
+                *opcodes.entry(&gap.opcode).or_default() += 1;
+            }
+            // The count and the opcode histogram stay exact; only the sites are capped.
+            let record = serde_json::json!({
+                "kind": "gaps",
+                "ir": ir,
+                "module": module.to_string(),
+                "pass": pass,
+                "count": self.0.len(),
+                "opcodes": opcodes,
+                "sites": self.0.iter().take(SITE_LIMIT).map(|gap| serde_json::json!({
+                    "function": gap.function,
+                    "block": gap.block,
+                    "instruction": gap.instruction,
+                    "opcode": gap.opcode,
+                })).collect::<Vec<_>>(),
+                "omitted": self.0.len().saturating_sub(SITE_LIMIT),
+            });
+            write_record(gcx, directory, &record).map_err(|error| {
+                gcx.dcx().err(format!("could not write debugify audit: {error}")).emit()
+            })?;
+        }
+        if gcx.sess.opts.unstable.debugify == Some(Debugify::Check) {
+            let what = if self.0.len() == 1 { "instruction" } else { "instructions" };
+            let message = if pass == INPUT {
+                format!(
+                    "debugify: {ir} module arrived with {} {what} without a location",
+                    self.0.len()
+                )
+            } else {
+                format!(
+                    "debugify: {ir} pass `{pass}` left {} {what} without a location",
+                    self.0.len()
+                )
+            };
+            return Err(gcx.dcx().err(message).emit());
+        }
+        Ok(())
+    }
+}
+
+/// The record that reports the gaps a module arrives with.
+const INPUT: &str = "input";
+
+/// Sites listed per record in the JSON audit, which keeps the raw artifact small.
+const SITE_LIMIT: usize = 100;
+
+/// Reports the gaps a MIR module arrives with, before the first pass.
+pub(crate) fn report_mir_input(gcx: Gcx<'_>, module: &mut solar_mir::Module) -> Result {
+    Gaps::mir(module).report(gcx, "MIR", module.name, INPUT)
+}
 
 impl Origins {
     pub(crate) fn mir(module: &solar_mir::Module) -> Self {
@@ -39,7 +238,7 @@ impl Origins {
                 }
             }
         }
-        Self(spans)
+        Self { spans, gaps: Gaps::default() }
     }
 
     pub(crate) fn evm(module: &solar_evmir::ir::Module) -> Self {
@@ -58,7 +257,21 @@ impl Origins {
                 spans.extend(term.metadata.source_spans());
             }
         }
-        Self(spans)
+        Self { spans, gaps: Gaps::default() }
+    }
+
+    /// The origins of `module` after a pass, together with the gaps it left. See [`Gaps::mir`].
+    pub(crate) fn mir_after(module: &mut solar_mir::Module) -> Self {
+        let mut origins = Self::mir(module);
+        origins.gaps = Gaps::mir(module);
+        origins
+    }
+
+    /// The origins of `module` after a pass, together with the gaps it left. See [`Gaps::evm`].
+    pub(crate) fn evm_after(module: &mut solar_evmir::ir::Module) -> Self {
+        let mut origins = Self::evm(module);
+        origins.gaps = Gaps::evm(module);
+        origins
     }
 
     pub(crate) fn check(
@@ -69,13 +282,13 @@ impl Origins {
         pass: &str,
         after: Self,
     ) -> Result {
-        let mut lost = self.0.difference(&after.0).copied().collect::<Vec<_>>();
+        let mut lost = self.spans.difference(&after.spans).copied().collect::<Vec<_>>();
         lost.sort_unstable_by_key(|span| (span.lo(), span.hi()));
-        let retained = self.0.len() - lost.len();
+        let retained = self.spans.len() - lost.len();
         if gcx.sess.opts.unstable.debugify.is_some() {
             eprintln!(
                 "debugify: {ir} {module} after {pass}: {retained}/{} origins retained, {} lost",
-                self.0.len(),
+                self.spans.len(),
                 lost.len()
             );
             for span in &lost {
@@ -88,7 +301,7 @@ impl Origins {
                 "ir": ir,
                 "module": module.to_string(),
                 "pass": pass,
-                "before": self.0.len(),
+                "before": self.spans.len(),
                 "retained": retained,
                 "lost": lost.iter().map(|span| [span.lo().0, span.hi().0]).collect::<Vec<_>>(),
             });
@@ -96,17 +309,12 @@ impl Origins {
                 gcx.dcx().err(format!("could not write debugify audit: {error}")).emit()
             })?;
         }
-        if !lost.is_empty() && gcx.sess.opts.unstable.debugify == Some(Debugify::Check) {
-            return Err(gcx
-                .dcx()
-                .err(format!("debugify: {ir} pass `{pass}` lost {} source origins", lost.len()))
-                .emit());
-        }
-        Ok(())
+        after.gaps.report(gcx, ir, &module, pass)
     }
 
     pub(crate) fn extend(&mut self, other: Self) {
-        self.0.extend(other.0);
+        self.spans.extend(other.spans);
+        self.gaps.extend(other.gaps);
     }
 }
 

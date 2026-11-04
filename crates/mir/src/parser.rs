@@ -55,7 +55,7 @@ use solar_data_structures::{
 use solar_interface::{
     BytePos, ByteSymbol, Ident, Result, Session, Span, Symbol, kw, source_map::SourceFile, sym,
 };
-use solar_ir::Hotness;
+use solar_ir::{Hotness, debug::DebugLocKind};
 use solar_parse::{PErr, PResult};
 
 // =============================================================================
@@ -292,8 +292,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let instructions = function.instructions().collect::<Vec<_>>();
                 for instruction in instructions {
                     let metadata = &mut function.inst_mut(instruction).metadata;
-                    if !metadata.debug_info_is_handled() {
-                        metadata.mark_debug_info_dropped();
+                    if metadata.lacks_debug_location() {
+                        metadata.set_debug_loc_kind(DebugLocKind::Dropped);
                     }
                 }
             }
@@ -1426,8 +1426,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         builder: &mut FunctionBuilder<'_>,
     ) -> PResult<'sess, ()> {
         let mut metadata = self.parse_metadata(builder)?;
-        if !metadata.debug_info_is_handled() {
-            metadata.mark_debug_info_dropped();
+        if metadata.lacks_debug_location() {
+            metadata.set_debug_loc_kind(DebugLocKind::Dropped);
         }
         let block = builder.current_block();
         builder.func_mut().blocks[block].terminator_metadata = metadata;
@@ -1505,6 +1505,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parser.expect(TokenKind::Eq)?;
                     metadata.set_modifier_depth(self.parser.parse_uint_as()?);
                 }
+                sym::dropped => metadata.set_displayed_debug_loc_kind(DebugLocKind::Dropped),
+                sym::compiler_generated => {
+                    metadata.set_displayed_debug_loc_kind(DebugLocKind::CompilerGenerated);
+                }
+                sym::unknown => metadata.set_displayed_debug_loc_kind(DebugLocKind::Unknown),
+                sym::temporary => metadata.set_displayed_debug_loc_kind(DebugLocKind::Temporary),
                 sym::spans => {
                     self.parser.expect(TokenKind::Eq)?;
                     self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;

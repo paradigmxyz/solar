@@ -17,6 +17,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
@@ -84,6 +85,12 @@ impl<'gcx> Assembler<'gcx> {
         self.program.track_debug_info();
         self.current_source_spans.clear();
         self.current_source_spans.extend(spans.into_iter().filter(|span| !span.is_dummy()));
+        self.current_debug_loc_kind = DebugLocKind::Normal;
+    }
+
+    /// Sets why subsequently emitted operations have no source origin, after the origins.
+    pub(crate) fn set_debug_loc_kind(&mut self, kind: DebugLocKind) {
+        self.current_debug_loc_kind = kind;
     }
 
     /// Sets the legacy source-map modifier nesting depth attached to new operations.
@@ -359,6 +366,7 @@ impl<'gcx> Assembler<'gcx> {
         let block = self.current_block.take().expect("indexed jump requires a current block");
         let mut metadata = ir::Metadata::default();
         metadata.set_source_spans(self.current_source_spans.iter().copied());
+        metadata.set_debug_loc_kind(self.current_debug_loc_kind);
         metadata.set_modifier_depth(self.current_modifier_depth);
         self.indexed_jump_relocations.push((block, targets, metadata));
         self.debug_assert_dataflow_relocations_sorted();
@@ -491,6 +499,7 @@ impl<'gcx> Assembler<'gcx> {
 
     fn push_ir_instruction(&mut self, mut instruction: ir::Instruction) -> (ir::BlockId, usize) {
         instruction.metadata.set_source_spans(self.current_source_spans.iter().copied());
+        instruction.metadata.set_debug_loc_kind(self.current_debug_loc_kind);
         instruction.metadata.set_modifier_depth(self.current_modifier_depth);
         let (block, index) = self.next_instruction_position();
         self.program.blocks[block].instructions.push(instruction);

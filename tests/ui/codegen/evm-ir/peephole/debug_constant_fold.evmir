@@ -1,4 +1,4 @@
-//@ compile-flags: -Zevm-ir-pipeline=peephole -Zdebugify=check
+//@ compile-flags: -Zevm-ir-pipeline=peephole -Zdebugify=report
 // The folded expression's result retains its origin and one invocation event, even when
 // immediate materialization emits multiple instructions. Operands are not new checkpoints.
 @module DebugConstantFold

@@ -6,6 +6,15 @@ debugify: MIR StackifyBoundary after cfg-simplify: 5/5 origins retained, 0 lost
 debugify: MIR StackifyBoundary after lower-abi: 5/5 origins retained, 0 lost
 debugify: MIR StackifyBoundary after lower-abi-encode: 5/5 origins retained, 0 lost
 debugify: MIR StackifyBoundary after lower-dispatch: 5/5 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-dispatch: 8 without a location
+debugify: gap entry bb0 inst0 `callvalue`
+debugify: gap entry bb0 inst1 `ne`
+debugify: gap entry bb0 terminator `jumpi`
+debugify: gap entry bb1 inst0 `calldataload`
+debugify: gap entry bb1 inst1 `shr`
+debugify: gap entry bb1 terminator `switch`
+debugify: gap entry bb2 terminator `tail_call`
+debugify: gap entry bb3 terminator `revert`
 debugify: MIR StackifyBoundary after lower-structs: 5/5 origins retained, 0 lost
 debugify: MIR StackifyBoundary after lower-frame-slots: 5/5 origins retained, 0 lost
 debugify: MIR StackifyBoundary after lower-mapping-slots: 5/5 origins retained, 0 lost
@@ -28,9 +37,7 @@ debugify: EVM IR StackifyBoundary_deployment after pack-data: 0/0 origins retain
 debugify: EVM IR StackifyBoundary_deployment after compact-pushes: 0/0 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary_deployment after returndata-zero: 0/0 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary after stackify: 3/5 origins retained, 2 lost
-debugify: lost 561..576
-debugify: lost 578..594
-error: debugify: EVM IR pass `stackify` lost 2 source origins
-
-error: aborting due to 1 previous error
-
+debugify: lost 389..404
+debugify: lost 406..422
+debugify: EVM IR StackifyBoundary after stackify: 1 without a location
+debugify: gap bb0 terminator `jump`
