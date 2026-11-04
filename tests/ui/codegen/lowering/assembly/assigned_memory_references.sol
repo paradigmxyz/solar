@@ -16,6 +16,7 @@
 //@ run-call: C::arrayElement => 20
 //@ run-call: C::arrayLength => 2
 //@ run-call: C::calldataBytes 0xaabbcc => 0xaabbcc
+//@ run-call: C::calldataOffsetFromMemory 0xaabbcc => 3
 
 // A memory reference variable assigned in inline assembly stays a memory reference: every
 // reader sees the object the word points to, not the word. Weiroll's VM decodes revert reasons
@@ -165,5 +166,16 @@ contract C {
             c.offset := c.offset
         }
         return c;
+    }
+
+    function calldataOffsetFromMemory(bytes calldata c) external pure returns (uint256) {
+        bytes memory b = new bytes(1);
+        assembly {
+            b := c.offset
+        }
+        assembly {
+            c.offset := b
+        }
+        return c.length;
     }
 }

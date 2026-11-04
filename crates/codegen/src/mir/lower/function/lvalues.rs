@@ -455,6 +455,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<()> {
+        // A suffix holds a word, so a memory reference assigned to it is its address.
+        let value = if self.builder.func().value_ty(value) == Some(MirType::MEMPTR) {
+            self.builder.cast_word(value)
+        } else {
+            value
+        };
         let value = match suffix {
             YulSuffix::StorageSlot if self.cx.gcx.hir.variable(id).is_state_variable() => {
                 return self.cx.report_unsupported(span, "Yul state-variable slot assignment");
