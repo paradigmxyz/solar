@@ -235,7 +235,7 @@ fn helpers(first: u32) -> Vec<Function> {
                     terminator: Term::Branch { condition: local(1), then_block: 2, else_block: 3 },
                 },
                 Block {
-                    instructions: vec![operation(2, word(), "add", vec![local(0), constant("1")])],
+                    instructions: vec![operation(2, word(), "add", vec![constant("1"), local(0)])],
                     terminator: Term::Jump { target: 1 },
                 },
                 Block {
