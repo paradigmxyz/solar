@@ -1252,6 +1252,7 @@ symbols! {
         stack,
         storage_array_data_slot,
         storage_array_element_slot,
+        storage_bytes,
         storage_read,
         storage_write,
         storageptr,

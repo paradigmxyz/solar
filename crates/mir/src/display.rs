@@ -581,8 +581,8 @@ fn display_inst_kind<'a>(
                     super::PackedPart::Scalar { value, ty } => {
                         write!(f, "{ty} {}", display_val(*value, func))?
                     }
-                    super::PackedPart::Bytes(value) => {
-                        write!(f, "bytes {}", display_val(*value, func))?
+                    super::PackedPart::Bytes { value, location } => {
+                        write!(f, "{location}_bytes {}", display_val(*value, func))?
                     }
                     super::PackedPart::Array { value, element, source, wordwise } => {
                         write!(

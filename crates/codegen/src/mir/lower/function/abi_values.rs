@@ -44,6 +44,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, _, expr| {
                 let ty = this.cx.gcx.type_of_expr(expr.id)?;
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
+                if this.is_dynamic_bytes_type(ty) {
+                    let (value, location) = this.lower_bytes_operand(expr, memory_ty)?;
+                    return this.prepare_abi_encode_argument(
+                        expr,
+                        ty,
+                        value,
+                        AbiType::Bytes(location),
+                    );
+                }
                 let value = this.lower_typed_expr(expr, memory_ty)?;
                 let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
                     AbiType::Bytes(PtrLocation::Memory)
@@ -165,6 +174,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, index, expr| {
                 let ty = parameter_types[index];
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
+                if this.is_dynamic_bytes_type(ty) {
+                    let (value, location) = this.lower_bytes_operand(expr, memory_ty)?;
+                    return this.prepare_abi_encode_argument(
+                        expr,
+                        memory_ty,
+                        value,
+                        AbiType::Bytes(location),
+                    );
+                }
                 let value = this.lower_typed_expr(expr, memory_ty)?;
                 let abi_type = this.types.abi_type(memory_ty)?;
                 this.prepare_abi_encode_argument(expr, memory_ty, value, abi_type)
@@ -504,7 +522,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             }
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-            let mut value = self.lower_typed_expr(expr, memory_ty)?;
+            let (mut value, location) = if self.is_dynamic_bytes_type(ty) {
+                let (value, location) = self.lower_bytes_operand(expr, memory_ty)?;
+                (value, Some(location))
+            } else {
+                (self.lower_typed_expr(expr, memory_ty)?, None)
+            };
             let abi_type = self.types.abi_type(ty);
             if let Some(abi_type) = &abi_type {
                 self.check_calldata_array_size(value, ty, abi_type);
@@ -522,8 +545,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     value = self.materialize_calldata_argument(ty, value, expr.span)?;
                 }
             }
-            if self.is_dynamic_bytes_type(ty) {
-                parts.push(PackedPart::Bytes(value));
+            if let Some(location) = location {
+                parts.push(PackedPart::Bytes { value, location });
             } else if let Some((element, source, wordwise)) = self.packed_array_shape(ty, value) {
                 parts.push(PackedPart::Array { value, element, source, wordwise });
             } else {

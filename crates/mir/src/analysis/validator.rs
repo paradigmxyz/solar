@@ -40,7 +40,7 @@
 //! ```
 
 use crate::{
-    AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
+    AbiType, AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RequireKind,
     ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
@@ -899,6 +899,16 @@ impl<'a> Validator<'a> {
                         } else {
                             args.as_ref()
                         };
+                        if layout.types.iter().any(|ty| {
+                            *ty != AbiType::Bytes(PtrLocation::Storage)
+                                && ty.contains_storage_bytes()
+                        }) {
+                            self.emit_at_inst(
+                                "ABI storage byte string is not a top-level layout entry",
+                                block,
+                                id,
+                            );
+                        }
                         if values.iter().zip(&layout.types).any(|(&value, ty)| {
                             func.value_ty(value).is_none_or(|actual| !ty.accepts_input_type(actual))
                         }) {
@@ -1137,7 +1147,7 @@ impl<'a> Validator<'a> {
                     }
                     InstKind::AbiEncodePacked { parts, hash } => {
                         let valid_parts = parts.iter().all(|part| match part {
-                            crate::PackedPart::Literal(_) | crate::PackedPart::Bytes(_) => true,
+                            crate::PackedPart::Literal(_) | crate::PackedPart::Bytes { .. } => true,
                             crate::PackedPart::Scalar { ty, .. } => {
                                 matches!(
                                     ty,

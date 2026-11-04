@@ -646,13 +646,12 @@ fn @bytesToString() -> i1 [selector=0x6ae58365, abi_params=[], abi_returns=[word
 fn @bytesToStringConcat() -> i1 [selector=0xad6c47b6, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     store_storage_bytes_literal 9, hex"616263"
-    v0 = icall @load_storage_bytes, 9
-    v1 = abi_encode_packed (bytes v0, data hex"64")
-    v2 = ptradd v1, 32
-    v3 = mload v1
-    v4 = keccak256 v2, v3
-    v5 = eq v4, 0x48bed44d1bcd124a28c27f343a817e5f5243190d3c52bf347daf876de1dbbf77
-    ret v5
+    v0 = abi_encode_packed (storage_bytes 9, data hex"64")
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    v4 = eq v3, 0x48bed44d1bcd124a28c27f343a817e5f5243190d3c52bf347daf876de1dbbf77
+    ret v4
 }
 
 ; function returnString() external returns (string memory) [selector 0x6cf43347]
@@ -667,13 +666,12 @@ fn @returnString() -> ptr<memory> [selector=0x6cf43347, abi_params=[], abi_retur
 fn @encodeString() -> i1 [selector=0xed5df365, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     store_storage_bytes_literal 9, hex"616263"
-    v0 = icall @load_storage_bytes, 9
-    v1 = abi_encode [memory_bytes], scratch, args v0
-    v2 = extract_value slice<memory>, v1, 0
-    v3 = extract_value slice<memory>, v1, 1
-    v4 = keccak256 v2, v3
-    v5 = eq v4, 0x8907a120cfb0578047a2ea8420b2a4ea383710bac1b2bcb182476d4f8b7a5f51
-    ret v5
+    v0 = abi_encode [storage_bytes], scratch, args 9
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = keccak256 v1, v2
+    v4 = eq v3, 0x8907a120cfb0578047a2ea8420b2a4ea383710bac1b2bcb182476d4f8b7a5f51
+    ret v4
 }
 
 ; function assignMemory() external returns (bool) [selector 0xcf39e051]
@@ -692,13 +690,12 @@ fn @assignMemory() -> i1 [selector=0xcf39e051, abi_params=[], abi_returns=[word<
 fn @concatBytes() -> i1 [selector=0xceafa9e0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     store_storage_bytes_literal 8, hex"6162"
-    v0 = icall @load_storage_bytes, 8
-    v1 = abi_encode_packed (bytes v0, data hex"63")
-    v2 = ptradd v1, 32
-    v3 = mload v1
-    v4 = keccak256 v2, v3
-    v5 = eq v4, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
-    ret v5
+    v0 = abi_encode_packed (storage_bytes 8, data hex"63")
+    v1 = ptradd v0, 32
+    v2 = mload v0
+    v3 = keccak256 v1, v2
+    v4 = eq v3, 0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45
+    ret v4
 }
 
 ; function revertMessage() external [selector 0x9d667c99]

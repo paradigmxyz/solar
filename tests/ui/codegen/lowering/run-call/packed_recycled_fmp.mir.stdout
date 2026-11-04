@@ -14,7 +14,7 @@ fn @payload() -> ptr<memory> [selector=0xa878f858, pure, abi_params=[], abi_retu
     v4 = ptrtoint ptr<memory> v0 to i256
     v5 = add v4, 32
     mstore v5, 0xabcd000000000000000000000000000000000000000000000000000000000000
-    v6 = abi_encode_packed (bytes v2, data hex"22")
+    v6 = abi_encode_packed (memory_bytes v2, data hex"22")
     ret v6
 }
 
@@ -31,7 +31,7 @@ fn @length() -> ptr<memory> [selector=0x1f7b6d32, pure, abi_params=[], abi_retur
     mstore v3, 0x1122334400000000000000000000000000000000000000000000000000000000
     v4 = ptrtoint ptr<memory> v0 to i256
     mstore v0, 2
-    v5 = abi_encode_packed (bytes v2, data hex"55")
+    v5 = abi_encode_packed (memory_bytes v2, data hex"55")
     ret v5
 }
 
@@ -47,7 +47,7 @@ fn @overlap() -> i256 [selector=0xea9e4070, pure, abi_params=[], abi_returns=[wo
     v3 = ptrtoint ptr<memory> v0 to i256
     v4 = add v3, 32
     mstore 64, v4 !metadata(memory=scratch)
-    v5 = abi_encode_packed (bytes v0, data hex"")
+    v5 = abi_encode_packed (memory_bytes v0, data hex"")
     v6 = mload v5
     v7 = gt v6, 32
     v8 = eq v7, false

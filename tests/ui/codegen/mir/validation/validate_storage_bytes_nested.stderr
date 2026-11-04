@@ -1,0 +1,8 @@
+error: [fn0] [bb0, inst0] ABI storage byte string is not a top-level layout entry
+
+error: [fn1] [bb0, inst0] ABI storage byte string is not a top-level layout entry
+
+error: [fn2] [bb0, inst0] ABI storage byte string is not a top-level layout entry
+
+error: aborting due to 3 previous errors
+

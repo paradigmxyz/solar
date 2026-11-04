@@ -1,0 +1,20 @@
+//@ revisions: gas size
+//@[gas] compile-flags: -Ogas -Zmir-pipeline=lower-abi-encode
+//@[gas] filecheck: --check-prefix=CHECK
+//@[size] compile-flags: -Osize -Zmir-pipeline=lower-abi-encode
+//@[size] filecheck: --check-prefix=CHECK
+@module StorageBytes
+
+// A storage byte string is read from storage into the output: the header gives the length, and
+// the data words follow it with no memory copy.
+// CHECK-LABEL: {{^[ +].*}}fn @encode
+// CHECK: + [[HEADER:v[0-9]+]] = sload arg0
+// CHECK: + {{v[0-9]+}} = storage_array_data_slot arg0
+// CHECK: + [[WORD:v[0-9]+]] = sload
+// CHECK: + mstore {{v[0-9]+}}, [[WORD]]
+// CHECK-NOT: mcopy
+fn @encode(arg0: i256) -> slice<memory> {
+  bb0:
+    v0 = abi_encode [storage_bytes], args arg0
+    ret v0
+}

@@ -721,6 +721,12 @@ Packed ABI encoding skips allocation rounding when every component occupies
 whole words, while retaining overflow checks. Storage-byte pushes place the
 short-header path first so packed writes can fall through during growth.
 
+A byte string operand of an ABI encoding names its location in packed parts and
+layouts (`memory_bytes`, `calldata_bytes`, `storage_bytes`), and the encoder
+reads it in place when it runs, after the operands that follow it. A storage
+operand travels as its slot and its words go from storage into the output with
+no memory copy of the value.
+
 Semantic checks fold a negated condition into their failure polarity. This lets
 ordinary dead-code cleanup remove the predicate before conversion and exposes
 phi-only short-circuit joins to jump threading. Builtin expansion also runs
