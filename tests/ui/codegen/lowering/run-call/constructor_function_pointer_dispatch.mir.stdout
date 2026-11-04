@@ -61,7 +61,8 @@ fn @internal_dispatcher_p_bytes6_r_none(arg0: i256, arg1: i256) [function_pointe
     icall panic_if<0x51>, true
     invalid
   bb1:                                            ; preds = bb0
-    icall @setName, arg1
+    v1 = and arg1, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    icall @setName, v1
     ret
 }
 
@@ -73,6 +74,7 @@ fn @internal_dispatcher_p_bytes6_uint256_r_bytes6(arg0: i256, arg1: i256, arg2: 
     icall panic_if<0x51>, true
     invalid
   bb1:                                            ; preds = bb0
-    v1 = icall @leftByteShift, arg1, arg2
-    ret v1
+    v1 = and arg1, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    v2 = icall @leftByteShift, v1, arg2
+    ret v2
 }

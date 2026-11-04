@@ -3,10 +3,11 @@
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: C::retyped => 1
 //@ run-call: U::retyped => 1
+//@ run-call: V::retyped => 1
 
 // A function pointer that assembly retyped passes a `bytes4` through a full word, to a `bytes4`
-// or to a user-defined value type over it. A parameter that is not a raw carrier still sees a
-// clean value, as in solc via-IR.
+// or to a user-defined value type over it, in either direction. A parameter that is not a raw
+// carrier still sees a clean value, as in solc via-IR.
 
 contract C {
     function f(bytes4 x) internal pure returns (uint256) {
@@ -31,6 +32,20 @@ contract U {
         function(bytes4) internal pure returns (uint256) q;
         assembly { q := p }
         bytes4 a;
+        assembly { a := or(shl(224, 0x11111111), 1) }
+        r = q(a);
+    }
+}
+
+contract V {
+    function f(bytes4 x) internal pure returns (uint256) {
+        return x == bytes4(0x11111111) ? 1 : 2;
+    }
+    function retyped() external pure returns (uint256 r) {
+        function(bytes4) internal pure returns (uint256) p = f;
+        function(B) internal pure returns (uint256) q;
+        assembly { q := p }
+        B a;
         assembly { a := or(shl(224, 0x11111111), 1) }
         r = q(a);
     }
