@@ -969,12 +969,20 @@ fn end_block_after(func: &mut Function, block: BlockId, position: usize) -> bool
     {
         return false;
     }
+    // NOTE: Like LLVM's `changeToUnreachable` (`UI->setDebugLoc(I->getDebugLoc())`, Local.cpp
+    // L2559-L2560 at e98b16a2710b), the `invalid` takes the debug context of the first instruction
+    // it replaces, or keeps the old terminator's when none follows.
+    let replaced = func.blocks[block]
+        .instructions
+        .get(position + 1)
+        .map(|&inst| func.inst(inst).metadata.debug_context());
     // call or check
-    // invalid
+    // invalid !metadata(first replaced instruction)
     func.blocks[block].instructions.truncate(position + 1);
     replace_terminator(func, block, Terminator::Invalid);
-    // NOTE: The unreachable terminator has no source checkpoint.
-    func.blocks[block].terminator_metadata.mark_debug_info_dropped();
+    if let Some(replaced) = replaced {
+        func.blocks[block].terminator_metadata.copy_debug_context(&replaced);
+    }
     true
 }
 
