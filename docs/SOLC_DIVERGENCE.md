@@ -579,10 +579,22 @@ cases:
 - the names before the last one in the callee of `emit` and `revert`, and in the
   argument of `type(...)`, take their resolution from name resolution alone.
 
+`solar` returns no AST for `settings.stopAfter: "parsing"`, and warns that the
+AST needs analysis, where `solc` returns the parse-only AST: the same nodes
+without `typeDescriptions`, references, scopes and the attributes that type
+checking sets. A `stopAfter` of `lowering` or `analysis` has no such counterpart
+in `solc`, which accepts `parsing` only; `solar` attaches the AST when analysis
+ran.
+
 Rationale: IDs must agree across the outputs of one compilation, not with
 `solc`. Consumers that look up declarations by ID do not need `solc`'s
 numbering, and the differences of the types do not change what an expression
-refers to.
+refers to. The writer walks the AST and reads the IDs, types and resolutions of
+each node from the HIR in lockstep, which undoes what lowering rewrites, so that
+no second classifier of nodes exists. A parse-only AST has no HIR, and about 50
+serializers would need an AST-only variant of every field they read from it, in
+effect a second walker. The use that needs the AST, matching `immutableReferences`
+and the storage layout to declarations, needs a compiled contract.
 
 Coverage: `tests/ui/standard-json/ast/test.jsonc`,
 `tests/ui/standard-json/ast-attached/test.jsonc`,
