@@ -88,25 +88,26 @@ fn @fill() {
 ; function scatter(bytes memory buffer, uint256 offset, bytes32 value, uint256 count, uint256 pointer) external pure returns (bool) [selector 0xa3efd67d]
 fn @scatter() {
   bb0:
-    v9 = calldatasize
-    v10 = lt v9, 164
-    jumpi v10, bb1, bb2
-  bb2:                                            ; preds = bb0
-    v11 = calldataload 36
-    v12 = calldataload 68
-    v13 = calldataload 100
-    v14 = calldataload 132
-    v15 = icall @decode_calldata_type
-    mstore v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v5 = sub v14, v15
-    v1 = ne v14, 0
-    v6 = zext i1 v1 to i256
-    v7 = mul v5, v6
-    v8 = add v15, v7
-    icall @_scatter, v8, v11, v12, v13
+    v4 = calldatasize
+    v5 = lt v4, 164
+    jumpi v5, bb3, bb4
+  bb4:                                            ; preds = bb0
+    v9 = calldataload 132
+    v10 = icall @decode_calldata_type
+    mstore v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = ne v9, 0
+    jumpi v1, bb1, bb2
+  bb1:                                            ; preds = bb4
+    jump bb2
+  bb2:                                            ; preds = bb1, bb4
+    v3 = phi [bb1: v9], [bb4: v10]
+    v16 = calldataload 100
+    v15 = calldataload 68
+    v14 = calldataload 36
+    icall @_scatter, v3, v14, v15, v16
     mstore 0, 1
     returndata 0, 32
-  bb1 [cold]:                                     ; preds = bb0
+  bb3 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 

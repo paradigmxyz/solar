@@ -447,8 +447,8 @@ fn @lengthWordCovered() {
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 48
     mstore v1, 20
-    v2 = add v1, 32
-    mstore v2, 0x101010101010101010101010101010101010101010101010101010101010101
+    v3 = add v1, 32
+    mstore v3, 0x101010101010101010101010101010101010101010101010101010101010101
     v4 = icall @_count, v1, 32
     v12 = mload v4
     v13 = add v12, 31

@@ -603,19 +603,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let source_size = fixed_bytes_size(from);
         let destination_size = fixed_bytes_size(to);
-        // Inline assembly binds a memory `bytes`/`string` variable to a plain word; read it back
-        // as the memory object it points to rather than converting the pointer itself.
-        let value = if from.is_ref_at(DataLocation::Memory)
-            && matches!(
-                from.peel_refs().kind,
-                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
-            )
-            && self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
-        {
-            self.builder.cast(value, MirType::MEMPTR)
-        } else {
-            value
-        };
         if let Some(size) = destination_size
             && (self.is_dynamic_bytes_type(from)
                 || matches!(from.peel_refs().kind, TyKind::StringLiteral(..)))

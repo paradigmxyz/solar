@@ -314,7 +314,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if self.in_inline_assembly {
             let ty = self.cx.gcx.type_of_item(id.into());
-            self.assembly_writes_memory |= ty.is_ref_at(DataLocation::Memory);
+            if ty.is_ref_at(DataLocation::Memory) {
+                self.assembly_writes_memory = true;
+                // ptr = inttoptr word to ptr<memory>
+                if self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
+                {
+                    value = self.builder.cast(value, MirType::MEMPTR);
+                }
+            }
             if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
                 && ty.is_ref_at(DataLocation::Calldata)
             {

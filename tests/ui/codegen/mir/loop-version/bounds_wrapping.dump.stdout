@@ -22,15 +22,15 @@ fn @entry() [entry] {
 ; function empty(uint256 count) external pure returns (uint256) [selector 0xf3a3e4fe]
 fn @empty() {
   bb0:
-    v13 = calldatasize
-    v14 = lt v13, 36
-    jumpi v14, bb6, bb7
+    v12 = calldatasize
+    v13 = lt v12, 36
+    jumpi v13, bb6, bb7
   bb7:                                            ; preds = bb0
-    v15 = calldataload 4
+    v14 = calldataload 4
     jump bb1
   bb1:                                            ; preds = bb5, bb7
-    v3 = phi [bb7: 0], [bb5: v12]
-    v4 = lt v3, v15
+    v3 = phi [bb7: 0], [bb5: v11]
+    v4 = lt v3, v14
     jumpi v4, bb3, bb2
   bb2:                                            ; preds = bb1
     mstore 0, 7 !metadata(memory=scratch)
@@ -45,9 +45,9 @@ fn @empty() {
     revert 28, 36
   bb5:                                            ; preds = bb3
     v8 = shl v3, 5
-    v17 = add v8, 0x10000000000000020
-    mstore v17, 0
-    v12 = add v3, 1
+    v16 = add v8, 0x10000000000000020
+    mstore v16, 0
+    v11 = add v3, 1
     jump bb1
   bb6 [cold]:                                     ; preds = bb0
     revert 0, 0
