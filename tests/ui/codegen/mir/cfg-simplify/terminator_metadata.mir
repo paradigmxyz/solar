@@ -37,3 +37,53 @@ fn @shared_values(arg0: i256, arg1: i1) -> i256 {
     v1 = add arg0, 1 !metadata(span=150..160, modifier_depth=2)
     ret v1 !metadata(span=170..180, modifier_depth=2)
 }
+
+// A removed jump's origin goes to the operation that now runs in its place, if that has none.
+// CHECK-LABEL: {{^[ +].*}}fn @jump_to_first{{[( ]}}
+// CHECK: + {{v[0-9]+}} = add arg0, 1 !metadata(span=210..220){{$}}
+fn @jump_to_first(arg0: i256) -> i256 {
+  bb0:
+    jump bb1 !metadata(span=210..220)
+  bb1:
+    v0 = add arg0, 1
+    ret v0 !metadata(span=230..240)
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @jump_to_terminator{{[( ]}}
+// CHECK: + ret arg0 !metadata(span=250..260){{$}}
+fn @jump_to_terminator(arg0: i256) -> i256 {
+  bb0:
+    jump bb1 !metadata(span=250..260)
+  bb1:
+    ret arg0
+}
+
+// A located first operation keeps its own origin, so the pure instruction before the jump takes it.
+// CHECK-LABEL: {{^[ +].*}}fn @jump_to_prefix{{[( ]}}
+// CHECK: + {{v[0-9]+}} = add arg0, 1 !metadata(span=270..280){{$}}
+fn @jump_to_prefix(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1
+    jump bb1 !metadata(span=270..280)
+  bb1:
+    v1 = mul v0, 2 !metadata(span=290..300)
+    ret v1 !metadata(span=310..320)
+}
+
+// With both carriers located the jump's origin is dropped, as it is when the prefix has a side
+// effect.
+// CHECK-LABEL: {{^[ +].*}}fn @jump_dropped{{[( ]}}
+// CHECK: {{^ +}}v0 = add arg0, 1 !metadata(span=330..340){{$}}
+// CHECK: {{^ +}}v1 = mul v0, 2 !metadata(span=370..380){{$}}
+// CHECK: {{^ +}}sstore arg0, v0{{$}}
+fn @jump_dropped(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=330..340)
+    jump bb1 !metadata(span=350..360)
+  bb1:
+    v1 = mul v0, 2 !metadata(span=370..380)
+    sstore arg0, v0
+    jump bb2 !metadata(span=390..400)
+  bb2:
+    ret v1 !metadata(span=410..420)
+}
