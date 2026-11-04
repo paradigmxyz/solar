@@ -1,5 +1,6 @@
-use crate::{BytePos, CharPos, pos::RelativeBytePos};
+use crate::{BytePos, CharPos, pos::RelativeBytePos, source_map::SourceRoots};
 use std::{
+    cmp::Ordering,
     fmt,
     hash::{Hash, Hasher},
     io,
@@ -121,6 +122,27 @@ impl FileName {
             Self::Real(path) => Some(path),
             _ => None,
         }
+    }
+
+    /// Compares the source unit names of two file names by their raw bytes, like solc's ordered
+    /// `m_sources` map. This is the order of [`FileName::display`], including `<stdin>` and
+    /// `<custom>` names.
+    pub fn cmp_source_unit_name(&self, other: &Self) -> Ordering {
+        let roots = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.roots()))
+            .unwrap_or_else(|| arc_swap::Guard::from_inner(None));
+        fn bytes<'a>(name: &'a FileName, roots: Option<&SourceRoots>) -> [&'a [u8]; 3] {
+            match name {
+                FileName::Real(path) => {
+                    let path = roots.map_or(&**path, |roots| roots.source_unit_name(path));
+                    [path.as_os_str().as_encoded_bytes(), b"", b""]
+                }
+                FileName::Stdin => [b"<stdin>", b"", b""],
+                FileName::Custom(s) => [b"<", s.as_bytes(), b">"],
+            }
+        }
+        let roots = roots.as_deref();
+        let flat = |name| bytes(name, roots).into_iter().flatten();
+        flat(self).cmp(flat(other))
     }
 }
 
