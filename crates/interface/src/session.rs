@@ -662,7 +662,7 @@ mod tests {
     use super::*;
     use std::{
         path::PathBuf,
-        sync::atomic::{AtomicBool, Ordering},
+        sync::atomic::AtomicBool,
         time::{Duration, Instant},
     };
 
