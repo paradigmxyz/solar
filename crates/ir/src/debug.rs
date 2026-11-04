@@ -88,11 +88,17 @@ impl DebugLocKind {
         }
     }
 
-    /// Returns the kind of the location left by merging two locations that both have no origin,
-    /// as LLVM's `getMergedLocation` does: a gap on either side stays visible, and otherwise the
-    /// first kind stays.
+    /// Returns the kind of the location left by merging two locations that both have no origin.
+    /// Equal kinds stay, and a gap on either side stays visible, as with LLVM's
+    /// `getMergedLocation`. Two different explanations leave `Unknown`, LLVM's "ambiguous in a way
+    /// that cannot be represented". The result never depends on whether a gap was already
+    /// reported, since `Normal` and `Unknown` are not printed: the audit must not change output.
     #[must_use]
     pub const fn merge(self, other: Self) -> Self {
-        if matches!(other, Self::Normal) { Self::Normal } else { self }
+        match (self, other) {
+            (Self::Normal, _) | (_, Self::Normal) => Self::Normal,
+            (a, b) if a as u8 == b as u8 => a,
+            _ => Self::Unknown,
+        }
     }
 }

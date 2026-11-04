@@ -27,7 +27,7 @@ use crate::backend::evm::CodegenState;
 use solar_config::Debugify;
 use solar_data_structures::map::FxHashSet;
 use solar_evmir::debug::DebugLocKind;
-use solar_interface::{Result, Span};
+use solar_interface::{Result, Span, Symbol};
 use solar_sema::Gcx;
 use std::{
     collections::BTreeMap,
@@ -51,11 +51,19 @@ pub(crate) struct Origins {
 /// Instructions and terminators with neither a source origin nor a reason for lacking one: LLVM's
 /// `not-generate` finding (`Debugify.cpp` `checkInstructionCoverage`). Unlike a lost origin, a gap
 /// never depends on what other code survives.
+///
+/// Only the count and a histogram of opcodes are exact; the first [`SITE_LIMIT`] sites are kept to
+/// locate them, so that memory does not grow with the number of gaps.
 #[derive(Default)]
-pub(crate) struct Gaps(Vec<Gap>);
+pub(crate) struct Gaps {
+    count: usize,
+    opcodes: BTreeMap<String, usize>,
+    sites: Vec<Gap>,
+}
 
 struct Gap {
-    function: Option<String>,
+    /// The MIR function, or the EVM IR program, which is a contract's runtime or deployment code.
+    scope: Option<String>,
     block: usize,
     /// The index in the block, or `None` for its terminator.
     instruction: Option<usize>,
@@ -67,9 +75,9 @@ impl Gaps {
     /// does, so that later passes are not blamed for it. Phis have no location of their own, and
     /// LLVM skips them too.
     fn mir(module: &mut solar_mir::Module) -> Self {
-        let mut gaps = Vec::new();
+        let mut gaps = Self::default();
         if !module.debug_info_is_tracked() {
-            return Self(gaps);
+            return gaps;
         }
         for func in module.functions.iter_mut() {
             let function = func.debug_identifier.unwrap_or(func.name.symbol);
@@ -84,128 +92,138 @@ impl Gaps {
                         continue;
                     }
                     instruction.metadata.set_debug_loc_kind(DebugLocKind::Unknown);
-                    gaps.push(Gap {
-                        function: Some(function.to_string()),
-                        block,
-                        instruction: Some(index),
-                        opcode: instruction.kind.mnemonic().to_owned(),
-                    });
+                    gaps.push(Some(function), block, Some(index), instruction.kind.mnemonic());
                 }
                 let body = &mut func.blocks[block_id];
                 if let Some(terminator) = &body.terminator
                     && body.terminator_metadata.lacks_debug_location()
                 {
-                    gaps.push(Gap {
-                        function: Some(function.to_string()),
-                        block,
-                        instruction: None,
-                        opcode: terminator.mnemonic().to_owned(),
-                    });
+                    gaps.push(Some(function), block, None, terminator.mnemonic());
                     body.terminator_metadata.set_debug_loc_kind(DebugLocKind::Unknown);
                 }
             }
         }
-        Self(gaps)
+        gaps
     }
 
     /// Like [`Self::mir`], for EVM IR.
     fn evm(module: &mut solar_evmir::ir::Module) -> Self {
-        let mut gaps = Vec::new();
+        let mut gaps = Self::default();
         if !module.debug_info_is_tracked() {
-            return Self(gaps);
+            return gaps;
         }
+        let program = module.name();
         for (id, block) in module.blocks.iter_mut().enumerate() {
             for (index, instruction) in block.instructions.iter_mut().enumerate() {
                 if instruction.metadata.lacks_debug_location() {
                     instruction.metadata.set_debug_loc_kind(DebugLocKind::Unknown);
-                    gaps.push(Gap {
-                        function: None,
-                        block: id,
-                        instruction: Some(index),
-                        opcode: instruction.mnemonic().to_string(),
-                    });
+                    gaps.push(Some(program), id, Some(index), &instruction.mnemonic().to_string());
                 }
             }
             if let Some(terminator) = &mut block.terminator
                 && terminator.metadata.lacks_debug_location()
             {
                 terminator.metadata.set_debug_loc_kind(DebugLocKind::Unknown);
-                gaps.push(Gap {
-                    function: None,
-                    block: id,
-                    instruction: None,
-                    opcode: match &terminator.kind {
-                        solar_evmir::ir::TerminatorKind::Jump(_) => "jump",
-                        solar_evmir::ir::TerminatorKind::JumpI { .. } => "jumpi",
-                        solar_evmir::ir::TerminatorKind::IndexedJump(_) => "indexed_jump",
-                        solar_evmir::ir::TerminatorKind::Op(opcode) => {
-                            solar_evmir::op::mnemonic(*opcode).unwrap_or("raw")
-                        }
+                let opcode = match &terminator.kind {
+                    solar_evmir::ir::TerminatorKind::Jump(_) => "jump",
+                    solar_evmir::ir::TerminatorKind::JumpI { .. } => "jumpi",
+                    solar_evmir::ir::TerminatorKind::IndexedJump(_) => "indexed_jump",
+                    solar_evmir::ir::TerminatorKind::Op(opcode) => {
+                        solar_evmir::op::mnemonic(*opcode).unwrap_or("raw")
                     }
-                    .to_owned(),
-                });
+                };
+                gaps.push(Some(program), id, None, opcode);
             }
         }
-        Self(gaps)
+        gaps
+    }
+
+    fn push(
+        &mut self,
+        scope: Option<Symbol>,
+        block: usize,
+        instruction: Option<usize>,
+        opcode: &str,
+    ) {
+        self.count += 1;
+        match self.opcodes.get_mut(opcode) {
+            Some(count) => *count += 1,
+            None => {
+                self.opcodes.insert(opcode.to_owned(), 1);
+            }
+        }
+        if self.sites.len() < SITE_LIMIT {
+            self.sites.push(Gap {
+                scope: scope.map(|scope| scope.to_string()),
+                block,
+                instruction,
+                opcode: opcode.to_owned(),
+            });
+        }
     }
 
     fn extend(&mut self, other: Self) {
-        self.0.extend(other.0);
+        self.count += other.count;
+        for (opcode, count) in other.opcodes {
+            *self.opcodes.entry(opcode).or_default() += count;
+        }
+        let room = SITE_LIMIT.saturating_sub(self.sites.len());
+        self.sites.extend(other.sites.into_iter().take(room));
     }
 
     /// Reports the gaps found at `pass`, which is `input` for what a module arrived with.
     ///
     /// Like LLVM's check, `-Zdebugify=check` rejects every gap, whichever pass left it.
     fn report(&self, gcx: Gcx<'_>, ir: &str, module: impl std::fmt::Display, pass: &str) -> Result {
-        if self.0.is_empty() {
+        if self.count == 0 {
             return Ok(());
         }
         if gcx.sess.opts.unstable.debugify.is_some() {
             let when = if pass == INPUT { "at input".to_owned() } else { format!("after {pass}") };
-            eprintln!("debugify: {ir} {module} {when}: {} without a location", self.0.len());
-            for gap in &self.0 {
-                let function = gap.function.as_ref().map_or_else(String::new, |f| format!("{f} "));
+            eprintln!("debugify: {ir} {module} {when}: {} without a location", self.count);
+            for gap in &self.sites {
+                let scope =
+                    gap.scope.as_ref().map_or_else(String::new, |scope| format!("{scope} "));
                 let index =
                     gap.instruction.map_or_else(|| "terminator".into(), |i| format!("inst{i}"));
-                eprintln!("debugify: gap {function}bb{} {index} `{}`", gap.block, gap.opcode);
+                eprintln!("debugify: gap {scope}bb{} {index} `{}`", gap.block, gap.opcode);
+            }
+            if self.count > self.sites.len() {
+                eprintln!("debugify: and {} more", self.count - self.sites.len());
             }
         }
         if let Some(directory) = &gcx.sess.opts.unstable.debugify_output {
-            let mut opcodes = BTreeMap::<&str, usize>::new();
-            for gap in &self.0 {
-                *opcodes.entry(&gap.opcode).or_default() += 1;
-            }
             // The count and the opcode histogram stay exact; only the sites are capped.
             let record = serde_json::json!({
                 "kind": "gaps",
                 "ir": ir,
                 "module": module.to_string(),
                 "pass": pass,
-                "count": self.0.len(),
-                "opcodes": opcodes,
-                "sites": self.0.iter().take(SITE_LIMIT).map(|gap| serde_json::json!({
-                    "function": gap.function,
+                "count": self.count,
+                "opcodes": self.opcodes,
+                "sites": self.sites.iter().map(|gap| serde_json::json!({
+                    "scope": gap.scope,
                     "block": gap.block,
                     "instruction": gap.instruction,
                     "opcode": gap.opcode,
                 })).collect::<Vec<_>>(),
-                "omitted": self.0.len().saturating_sub(SITE_LIMIT),
+                "omitted": self.count - self.sites.len(),
             });
             write_record(gcx, directory, &record).map_err(|error| {
                 gcx.dcx().err(format!("could not write debugify audit: {error}")).emit()
             })?;
         }
         if gcx.sess.opts.unstable.debugify == Some(Debugify::Check) {
-            let what = if self.0.len() == 1 { "instruction" } else { "instructions" };
+            let what = if self.count == 1 { "instruction" } else { "instructions" };
             let message = if pass == INPUT {
                 format!(
                     "debugify: {ir} module arrived with {} {what} without a location",
-                    self.0.len()
+                    self.count
                 )
             } else {
                 format!(
                     "debugify: {ir} pass `{pass}` left {} {what} without a location",
-                    self.0.len()
+                    self.count
                 )
             };
             return Err(gcx.dcx().err(message).emit());
