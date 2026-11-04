@@ -9,6 +9,8 @@ use solar_pass_plugin::{
 };
 use std::ffi::c_void;
 
+mod graph;
+
 fn handle(request: Request) -> Result<Vec<u8>, String> {
     match request {
         Request::Describe { .. } => serde_json::to_vec(&Manifest {
@@ -34,10 +36,38 @@ fn handle(request: Request) -> Result<Vec<u8>, String> {
                     phase: None,
                     enabled_by_default: true,
                 },
+                Pass {
+                    name: "create-mir-helper".into(),
+                    ir: Ir::Mir,
+                    phase: Some("semantic".into()),
+                    enabled_by_default: false,
+                },
+                Pass {
+                    name: "create-lowered-helper".into(),
+                    ir: Ir::Mir,
+                    phase: Some("lowered".into()),
+                    enabled_by_default: false,
+                },
+                Pass {
+                    name: "create-evm-helper".into(),
+                    ir: Ir::EvmIr,
+                    phase: None,
+                    enabled_by_default: false,
+                },
+                Pass {
+                    name: "split-lowered-block".into(),
+                    ir: Ir::Mir,
+                    phase: Some("lowered".into()),
+                    enabled_by_default: false,
+                },
             ],
         })
         .map_err(|error| error.to_string()),
         Request::Run { module, pass, .. } => {
+            if let Some(edits) = graph::run(&pass, &module) {
+                return serde_json::to_vec(&Response { edits: edits? })
+                    .map_err(|error| error.to_string());
+            }
             let mut edits = Vec::new();
             match module {
                 Snapshot::Mir { functions, .. }

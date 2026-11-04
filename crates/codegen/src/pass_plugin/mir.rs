@@ -1,6 +1,7 @@
 //! Adapter for native MIR passes. A pass preserves the current representation phase and edits
-//! existing SSA identities rather than reparsing the module, so declarations and source metadata
-//! remain owned by the compiler. Edits are checked transactionally, including dominance and
+//! SSA identities and CFGs without reparsing the module, so existing declarations and source
+//! metadata remain owned by the compiler. New internal functions preserve the phase. Edits are
+//! checked transactionally, including dominance and
 //! result types; the ordinary pass manager invalidates analyses and derived backend records.
 
 use super::Pass;
@@ -8,9 +9,11 @@ use crate::mir::{
     self, FunctionId, InstId, InstKind, Module, ValueId,
     pass::{MirPass, ModuleAnalyses},
 };
-use solar_data_structures::bit_set::DenseBitSet;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_pass_plugin::{Edit, Function, MirInstruction, Snapshot, Value};
 use solar_sema::Gcx;
+
+mod graph;
 
 pub(crate) struct MirPluginPass(pub(super) Pass);
 
@@ -71,6 +74,7 @@ impl MirPluginPass {
                             .optimization
                             .unwrap_or(module.optimization)
                             .to_string(),
+                        blocks: func.blocks.indices().map(|id| id.index() as u32).collect(),
                         instructions: func
                             .blocks
                             .iter_enumerated()
@@ -113,8 +117,9 @@ impl MirPluginPass {
             return Ok(false);
         }
         let mut candidate = module.clone();
+        let mut locals = FxHashMap::default();
         for edit in response.edits {
-            apply_edit(&mut candidate, edit)?;
+            apply_edit(&mut candidate, edit, &mut locals)?;
         }
         candidate.invalidate_lowered_check();
         candidate.backend_memory = None;
@@ -126,7 +131,18 @@ impl MirPluginPass {
     }
 }
 
-fn apply_edit(module: &mut Module, edit: Edit) -> Result<(), String> {
+fn apply_edit(module: &mut Module, edit: Edit, locals: &mut graph::Locals) -> Result<(), String> {
+    if matches!(
+        &edit,
+        Edit::AddMirFunctions { .. }
+            | Edit::AddMirBlocks { .. }
+            | Edit::SpliceMirInstructions { .. }
+            | Edit::SetMirTerminator { .. }
+            | Edit::SplitMirBlock { .. }
+            | Edit::ReplaceMirValueWith { .. }
+    ) {
+        return graph::apply_edit(module, edit, locals);
+    }
     let (Edit::ReplaceMirValue { function, .. } | Edit::RewriteMirInstruction { function, .. }) =
         &edit
     else {
@@ -140,16 +156,7 @@ fn apply_edit(module: &mut Module, edit: Edit) -> Result<(), String> {
         Edit::ReplaceMirValue { value, replacement, .. } => {
             let value = checked_value(func, value)?;
             let replacement = checked_value(func, replacement)?;
-            if func.value_ty(value).is_none() || func.value_ty(value) != func.value_ty(replacement)
-            {
-                return Err("replacement SSA value has a different type".into());
-            }
-            // uses(%value) => %replacement
-            func.rewrite_all_operands(|operand| {
-                if *operand == value {
-                    *operand = replacement;
-                }
-            });
+            replace_value(func, value, replacement)?;
         }
         Edit::RewriteMirInstruction { instruction, operation, operands, .. } => {
             if instruction as usize >= func.num_insts() {
@@ -182,4 +189,21 @@ fn checked_value(func: &mir::Function, value: u32) -> Result<ValueId, String> {
         return Err("unknown MIR value".into());
     }
     Ok(ValueId::from_usize(value as usize))
+}
+
+fn replace_value(
+    func: &mut mir::Function,
+    value: ValueId,
+    replacement: ValueId,
+) -> Result<(), String> {
+    if func.value_ty(value).is_none() || func.value_ty(value) != func.value_ty(replacement) {
+        return Err("replacement SSA value has a different type".into());
+    }
+    // uses(%value) => %replacement
+    func.rewrite_all_operands(|operand| {
+        if *operand == value {
+            *operand = replacement;
+        }
+    });
+    Ok(())
 }
