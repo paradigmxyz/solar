@@ -32,9 +32,6 @@ contract C {
         return abi.encodeWithSignature("Error(string)", "Insufficient output");
     }
 
-    // CHECK-LABEL: fn @noop()
-    // CHECK: [[B:v[0-9]+]] = icall @data
-    // CHECK: mload [[B]]
     function noop() external pure returns (bytes32) {
         bytes memory b = data();
         assembly {
@@ -43,6 +40,10 @@ contract C {
         return bytes32(b);
     }
 
+    // CHECK-LABEL: fn @shifted()
+    // CHECK: [[WORD:v[0-9]+]] = add
+    // CHECK-NEXT: [[B:v[0-9]+]] = inttoptr i256 [[WORD]] to ptr<memory>
+    // CHECK: mload [[B]]
     function shifted() external pure returns (uint256) {
         bytes memory b = data();
         assembly {
