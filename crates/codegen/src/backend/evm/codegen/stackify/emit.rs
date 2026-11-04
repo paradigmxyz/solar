@@ -291,14 +291,6 @@ impl<'gcx> EvmCodegen<'gcx> {
             if !func.blocks[block].predecessors.is_empty() {
                 self.asm.define_label(self.block_labels[&block]);
             }
-            if self.capture_debug_info {
-                let depth = func.blocks[block]
-                    .instructions
-                    .first()
-                    .map(|&inst| func.inst(inst).metadata.modifier_depth())
-                    .unwrap_or(0);
-                self.asm.set_modifier_depth(depth);
-            }
             self.emit_stackified_block(
                 func_id,
                 func,
@@ -348,13 +340,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
         let cold = self.block_code_is_cold(func, block);
         self.set_insertion_origin(func, block, body);
-        for (index, step) in body.iter().enumerate() {
-            if matches!(step, Step::Begin(None)) {
-                // A retained constant is pushed right before the instruction that reads it.
-                self.set_insertion_origin(func, block, &body[index + 1..]);
-            } else {
-                self.emit_stackified_step(func_id, func, step, cold);
-            }
+        for step in body {
+            self.emit_stackified_step(func_id, func, step, cold);
         }
         self.set_terminator_origin(func, block);
         for step in terminator {
@@ -534,8 +521,8 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Attributes the code that follows to the instruction it is inserted before, the first one
-    /// that `steps` begin, or else to the block's terminator.
+    /// Attributes the code that precedes the first instruction that `steps` begin to that
+    /// instruction, or else to the block's terminator.
     ///
     /// Scheduler code, such as the pops that clean the stack at the start of a block, belongs to no
     /// instruction of its own. It takes the location of the instruction it precedes, as rustc's
