@@ -367,10 +367,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// Emits code that no MIR instruction owns under the origin of the contract definition.
     ///
     /// solc compiles the free memory pointer setup, and the code that wraps the constructor and the
-    /// runtime, in the `LocationSetter` of the contract (`ContractCompiler::compileContract` and
-    /// `compileConstructor`), so each instruction maps to the contract's range.
+    /// runtime, in the `LocationSetter` of the contract (`ContractCompiler::compileContract`,
+    /// `compileConstructor` and `packIntoContractCreator`), so each instruction maps to the
+    /// contract's range.
     pub(super) fn emit_with_contract_origin(&mut self, emit: impl FnOnce(&mut Self)) {
-        let Some(span) = self.contract_span.filter(|_| self.capture_debug_info) else {
+        self.emit_with_origin(self.contract_span, emit);
+    }
+
+    /// Emits code under `span` while debug information is captured, then restores the origin that
+    /// was in force. Without a span the code keeps the current origin.
+    pub(super) fn emit_with_origin(&mut self, span: Option<Span>, emit: impl FnOnce(&mut Self)) {
+        let Some(span) = span.filter(|span| self.capture_debug_info && !span.is_dummy()) else {
             return emit(self);
         };
         let origin = self.asm.debug_origin();
