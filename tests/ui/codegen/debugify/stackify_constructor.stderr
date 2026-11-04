@@ -47,10 +47,9 @@ debugify: MIR StackifyConstructor after lower-memory-zero: 7/7 origins retained,
 debugify: MIR StackifyConstructor after lower-integers: 7/7 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-evm-shaped: 7/7 origins retained, 0 lost
 debugify: EVM IR StackifyConstructor after stackify: 7/7 origins retained, 0 lost
-debugify: EVM IR StackifyConstructor after stackify: 29 without a location
+debugify: EVM IR StackifyConstructor after stackify: 27 without a location
 debugify: gap StackifyConstructor_runtime bb0 terminator `jump`
 debugify: gap StackifyConstructor_runtime bb6 terminator `jump`
-debugify: gap StackifyConstructor_runtime bb7 terminator `jump`
 debugify: gap StackifyConstructor_deployment bb0 inst0 `push_data`
 debugify: gap StackifyConstructor_deployment bb0 inst1 `codesize`
 debugify: gap StackifyConstructor_deployment bb0 inst2 `sub`
@@ -69,7 +68,6 @@ debugify: gap StackifyConstructor_deployment bb0 inst14 `mstore`
 debugify: gap StackifyConstructor_deployment bb0 terminator `jump`
 debugify: gap StackifyConstructor_deployment bb1 terminator `jump`
 debugify: gap StackifyConstructor_deployment bb2 terminator `jump`
-debugify: gap StackifyConstructor_deployment bb3 terminator `jump`
 debugify: gap StackifyConstructor_deployment bb8 inst0 `push`
 debugify: gap StackifyConstructor_deployment bb8 inst1 `dup`
 debugify: gap StackifyConstructor_deployment bb8 inst2 `push_data`
