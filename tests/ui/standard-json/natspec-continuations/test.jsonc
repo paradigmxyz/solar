@@ -9,6 +9,8 @@
 // CHECK: "notice": "Intro text"
 // CHECK: "last(uint256)": {
 // CHECK: "notice": "Notice text"
+// CHECK: "stars()": {
+// CHECK: "notice": "Block text** glued and a blank star line"
 // CHECK: "devdoc": {
 // CHECK: "register(address)": {
 // CHECK: "details": "Registers `operator` for the caller. This does NOT validate the  operator address, so the caller keeps full responsibility for it."

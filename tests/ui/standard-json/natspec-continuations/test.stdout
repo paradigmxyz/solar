@@ -24,6 +24,9 @@
             },
             "last(uint256)": {
               "notice": "Notice text"
+            },
+            "stars()": {
+              "notice": "Block text** glued and a blank star line"
             }
           },
           "version": 1

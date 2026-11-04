@@ -32,4 +32,11 @@ contract C {
     /// @ and drops it
     /// @return result   Keeps two blanks
     function last(uint256 value) external returns (uint256 result) {}
+
+    /** @notice Block text
+     ** glued
+     *
+     * and a blank star line
+     */
+    function stars() external {}
 }
