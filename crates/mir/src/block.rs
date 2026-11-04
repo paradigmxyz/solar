@@ -18,9 +18,7 @@ pub struct BasicBlock {
     /// block, as solc gives a tag the location active where the tag is placed
     /// (`m_context << tag`). It holds only debug context: source spans and the modifier depth.
     ///
-    /// Lowering sets it when it places the block. A pass that keeps a block keeps its label, one
-    /// that merges the block into its predecessor drops it, and new blocks start empty. Cloning
-    /// the block clones the label.
+    /// Lowering sets it when it places the block; `docs/MIR.md` says what passes do with it.
     pub label_metadata: InstructionMetadata,
     /// Predecessor blocks, each listed once.
     pub predecessors: SmallVec<[BlockId; 4]>,

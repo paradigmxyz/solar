@@ -284,15 +284,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         module.struct_types = std::mem::take(&mut self.struct_types);
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
         module.abi_param_layouts = std::mem::take(&mut self.abi_param_layouts);
+        let has_origin = |metadata: &InstructionMetadata| {
+            metadata.source_span().is_some() || metadata.modifier_depth() != 0
+        };
         let tracks_debug_info = module.iter_functions().any(|(_, func)| {
             func.blocks.iter().any(|block| {
-                [&block.terminator_metadata, &block.label_metadata].into_iter().any(|metadata| {
-                    metadata.source_span().is_some() || metadata.modifier_depth() != 0
-                })
-            }) || func.instructions().any(|inst| {
-                let metadata = &func.inst(inst).metadata;
-                metadata.source_span().is_some() || metadata.modifier_depth() != 0
-            })
+                has_origin(&block.terminator_metadata) || has_origin(&block.label_metadata)
+            }) || func.instructions().any(|inst| has_origin(&func.inst(inst).metadata))
         });
         if tracks_debug_info {
             module.set_debug_info_tracked(true);
@@ -558,12 +556,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
 
                 if let Some(header) = self.try_parse_block_header(&mut builder)? {
-                    let idx = header.index;
+                    let BlockHeader { index: idx, hotness, cold_hint, label_metadata } = header;
                     let bid = self.define_block(&mut builder, idx)?;
                     let block = &mut builder.func_mut().blocks[bid];
-                    block.hotness = header.hotness;
-                    block.cold_hint = header.cold_hint;
-                    block.label_metadata = header.label_metadata;
+                    block.hotness = hotness;
+                    block.cold_hint = cold_hint;
+                    block.label_metadata = label_metadata;
                     builder.switch_to_block(bid);
                     current_block = Some((bid, idx));
                     continue;
