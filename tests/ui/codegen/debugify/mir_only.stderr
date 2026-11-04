@@ -1,4 +1,4 @@
-debugify: MIR MirOnly after lower-abi: 2/2 origins retained, 0 lost
+debugify: MIR MirOnly after lower-abi: 3/3 origins retained, 0 lost
 debugify: MIR MirOnly after lower-abi: 6 without a location
 debugify: gap f bb0 inst0 `calldatasize`
 debugify: gap f bb0 inst1 `lt`
