@@ -102,6 +102,6 @@ The pass prints `entry: 1 add operations` to stderr. On macOS the library is
 `target/debug/hello_pass.dll`.
 
 For a pass that changes MIR or EVM IR, return edits in `Response` instead of an
-empty list. See the [SDK guide](README.md) and the
-[example plugin](../../tools/pass-plugin-example/src/lib.rs) for the available
+empty list. See the [SDK guide](../crates/pass-plugin/README.md) and the
+[example plugin](../tools/pass-plugin-example/src/lib.rs) for the available
 edits and pipeline hooks.
