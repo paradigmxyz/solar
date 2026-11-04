@@ -399,37 +399,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::Creation { .. } => unreachable!(),
             };
             let options = self.lower_call_options(call_opts, true, "try call option")?;
-            let (mut values, mut types) =
-                if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
-                    let capacity = args.len() + usize::from(receiver.is_some());
-                    let mut values = Vec::with_capacity(capacity);
-                    let mut types = Vec::with_capacity(capacity);
-                    if let Some(receiver) = receiver {
-                        let function = self.cx.gcx.hir.function(function);
-                        let Some(&parameter) = function.parameters.first() else {
-                            return self
-                                .cx
-                                .report_unsupported(receiver.span, "attached library receiver");
-                        };
-                        let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-                        let (value, ty) = self.lower_abi_receiver(receiver, parameter_ty)?;
-                        values.push(value);
-                        types.push(ty);
-                    }
-                    (values, types)
-                } else {
-                    (Vec::new(), Vec::new())
+            let mut operands = Vec::new();
+            if let TryCallee::LinkedLibrary { function, receiver: Some(receiver), .. } =
+                target.callee
+            {
+                let function = self.cx.gcx.hir.function(function);
+                let Some(&parameter) = function.parameters.first() else {
+                    return self.cx.report_unsupported(receiver.span, "attached library receiver");
                 };
-            let (argument_values, argument_types) = self.lower_abi_call_arguments(
+                let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
+                operands.push(self.lower_abi_receiver(receiver, parameter_ty)?);
+            }
+            operands.extend(self.lower_abi_call_arguments(
                 *args,
                 target.parameter_types.iter().copied(),
                 target.parameter_names.as_ref(),
                 args.span,
                 "try argument",
                 matches!(target.callee, TryCallee::LinkedLibrary { .. }),
-            )?;
-            values.extend(argument_values);
-            types.extend(argument_types);
+            )?);
+            let (values, types) = self.resolve_abi_operands(operands)?;
             let selector = match target.callee {
                 TryCallee::Member { selector, .. } => {
                     self.builder.imm(U256::from_be_slice(&selector) << 224)
