@@ -540,11 +540,13 @@ impl Edit {
                 instructions.truncate(start + 4);
             }
             Self::OddWord => {
-                // NOTE: Every instruction of the replacement carries the source origin of the
-                // `OR` it replaces, as LLVM keeps the location of an expanded instruction, and
-                // the `SUB` takes its function events. Origins of the `ADD` and the push drop,
-                // as those of any removed operand do.
-                let context = replacement_debug_info(&instructions[start..], 3);
+                // NOTE: Every instruction of the replacement carries the source origins of the
+                // window, the `OR` first, as LLVM keeps the location of an expanded instruction.
+                // The `SUB` takes the function events.
+                let mut context = replacement_debug_info(&instructions[start..], 3);
+                for inst in &instructions[start..start + 3] {
+                    context.merge_source_spans(&inst.metadata);
+                }
                 instructions.truncate(start);
                 instructions.extend([
                     Instruction::stack_op(op::StackOp::Dup(1)),

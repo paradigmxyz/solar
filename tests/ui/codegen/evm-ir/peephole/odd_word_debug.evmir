@@ -1,10 +1,10 @@
 //@ compile-flags: -Zevm-ir-pipeline=peephole -Zdebugify=check
-// Each instruction of the replacement keeps the origin of the `OR` it replaces.
+// Each instruction of the replacement keeps the origins of the window, the `OR` first.
 @module OddWordDebug
 bb0:
   calldatasize
   dup 1
-  add
+  add !metadata(span=10..20)
   push 1
-  or !metadata(span=10..20)
+  or !metadata(span=30..40)
   stop
