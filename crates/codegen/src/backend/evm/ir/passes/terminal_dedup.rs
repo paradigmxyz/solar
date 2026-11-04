@@ -109,6 +109,13 @@ impl EvmPass for TerminalDedup {
 
 fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
     let target = redirects[0].1;
+    // Every redirected path enters through the survivor's label. The redirected blocks keep
+    // their own, since they remain as jump blocks.
+    let mut label = module.blocks[target].label_metadata.clone();
+    label.merge_equivalent_debug_info(
+        redirects.iter().map(|&(block, _)| &module.blocks[block].label_metadata),
+    );
+    module.blocks[target].label_metadata = label;
     for index in 0..module.blocks[target].instructions.len() {
         let mut metadata = module.blocks[target].instructions[index].metadata.clone();
         metadata.merge_equivalent_debug_info(

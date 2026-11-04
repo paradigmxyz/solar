@@ -270,8 +270,8 @@ fn lower_evm_ir_once(
         if let Some(label) = labels.get(original).copied().flatten() {
             // The label's own origin wins over a checkpoint, which only lends one to a label
             // that has none.
-            if let [span] = block.label_metadata.source_spans() {
-                program.set_source_span(Some(*span));
+            if !block.label_metadata.source_spans().is_empty() {
+                program.set_source_spans(block.label_metadata.source_spans());
                 program.set_modifier_depth(block.label_metadata.modifier_depth());
             } else if let Some(checkpoint) = checkpoint {
                 program.set_source_span(Some(checkpoint.source));

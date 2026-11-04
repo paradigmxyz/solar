@@ -1,14 +1,14 @@
 //@ compile-flags: -Zevm-ir-pipeline=terminal-dedup
 //@ filecheck:
-@module LabelOriginsDedup
+@module LabelOrigins
 
 bb0:
   push 1
   jumpi bb1, bb2
 
-// Equal terminal bodies share the first copy, which keeps its label and its origin. The second
-// copy only jumps to the first and keeps its own, since it still has a label.
-// CHECK-LABEL: {{^[ +].*}}bb1 !metadata(span=10..20):
+// The first copy survives and every redirected path enters through its label, so the label
+// carries the origins of both copies. The second copy keeps its own label as a jump block.
+// CHECK-LABEL: {{^[ +].*}}bb1 !metadata(spans=[10..20, 30..40]):
 // CHECK: {{^[ +].*}}revert
 // CHECK-LABEL: {{^[ +].*}}bb2 !metadata(span=30..40):
 // CHECK: + jump bb1
