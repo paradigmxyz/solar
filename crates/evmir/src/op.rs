@@ -914,10 +914,7 @@ pub const fn is_terminal(op: u8) -> bool {
 /// Returns whether an opcode is available for `evm_version`.
 #[must_use]
 pub fn is_available(opcode: u8, evm_version: EvmVersion) -> bool {
-    match definition(opcode) {
-        Some(definition) => definition.is_available(evm_version),
-        None => false,
-    }
+    definition(opcode).is_some_and(|definition| definition.is_available(evm_version))
 }
 
 /// Returns whether the top two stack operands of an opcode may be swapped without changing its

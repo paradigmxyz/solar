@@ -129,14 +129,14 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v25 = lt v4, v24
     jumpi v25, bb12, bb10
   bb12:                                           ; preds = bb11
-    v103 = add arg2, v10
+    v103 = add v10, arg2
     v104 = add v103, 32
     mstore v104, v23
     v30 = add v4, 1
     v52 = mload arg0
     v53 = mload arg1
     v54 = mload arg2
-    v57 = or arg1, v53
+    v57 = or v53, arg1
     v58 = shl v53, 5
     v60 = add v58, 31
     v63 = lt v62, v60
@@ -175,7 +175,7 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     ret v91
   bb7:                                            ; preds = bb6
     v35 = shl v32, 5
-    v97 = add arg0, v35
+    v97 = add v35, arg0
     v98 = add v97, 32
     v38 = mload v98
     v39 = eq v38, 0
@@ -185,7 +185,7 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     v43 = lt v32, v53
     jumpi v43, bb13, bb10
   bb13:                                           ; preds = bb8
-    v106 = add arg1, v35
+    v106 = add v35, arg1
     v107 = add v106, 32
     mstore v107, v118
     v46 = shr v38, 128
@@ -196,7 +196,7 @@ fn @_splitUntilZero(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_memo
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb14:                                           ; preds = bb13
-    v109 = add arg2, v35
+    v109 = add v35, arg2
     v110 = add v109, 32
     mstore v110, v46
     v51 = add v32, 1

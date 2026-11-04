@@ -3,7 +3,7 @@
   @module CheckElimSubGuard
   fn @fold_sub_after_ge_guard(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = gt arg1, arg0
+      v0 = lt arg0, arg1
       v1 = eq v0, false
       v2 = eq v1, false
       jumpi v2, bb1, bb2
@@ -35,7 +35,7 @@
   
   fn @keep_sub_on_other_value(arg0: i256, arg1: i256) -> i256 {
     bb0:
-      v0 = gt arg1, arg0
+      v0 = lt arg0, arg1
       jumpi v0, bb1, bb2
     bb2:                                            ; preds = bb0
       v1 = mload 0

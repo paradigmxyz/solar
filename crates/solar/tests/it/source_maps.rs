@@ -327,6 +327,55 @@ fn tail_call_thunk_chain_keeps_call_site() {
 }
 
 #[test]
+fn state_initializers_and_base_arguments_map_to_their_source() {
+    let source =
+        RealFileLoader.load_file(&Path::new(FIXTURES).join("src/Initializers.sol")).unwrap();
+    let compile = |mode: &str, outputs: &str| {
+        let output = Command::new(SOLAR)
+            .current_dir(FIXTURES)
+            .args(["src/Initializers.sol", "-O", mode])
+            .arg(format!("--emit={outputs}"))
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    for mode in ["none", "gas", "size"] {
+        let plain = compile(mode, "bin,bin-runtime");
+        let debug = compile(mode, "bin,bin-runtime,srcmap,ethdebug");
+        let name = "src/Initializers.sol:Initializers";
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(plain["contracts"][name][code], debug["contracts"][name][code], "{mode}");
+        }
+        let entries = source_entries(debug["contracts"][name]["srcmap"].as_str().unwrap());
+        for declaration in [
+            "uint256 stored = 42",
+            "uint8 packed = 7",
+            "string text = \"initial\"",
+            "uint256 immutable limit = 100",
+            "uint8 immutable narrow = 5",
+        ] {
+            let start = source.find(declaration).unwrap();
+            let length = declaration.len() as i64;
+            assert!(
+                entries.iter().any(|&entry| entry[0] == start as i64 && entry[1] == length),
+                "{mode}: no creation code maps to `{declaration}`"
+            );
+        }
+        let entries = source_entries(
+            debug["contracts"]["src/Initializers.sol:Derived"]["srcmap"].as_str().unwrap(),
+        );
+        // solc maps the argument conversions to the base constructor's definition.
+        let start = source.find("constructor(string memory label_)").unwrap();
+        let length = source[start..].find("\n    }").unwrap() + "\n    }".len();
+        assert!(
+            entries.iter().any(|&entry| entry[0] == start as i64 && entry[1] == length as i64),
+            "{mode}: no creation code maps to the base constructor definition"
+        );
+    }
+}
+
+#[test]
 fn debugify_sidecars_separate_compilations() {
     let temp = tempfile::tempdir().unwrap();
     let cases = [

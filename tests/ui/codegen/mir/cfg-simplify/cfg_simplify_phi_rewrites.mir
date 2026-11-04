@@ -6,13 +6,13 @@
 // CHECK:       [[ENTRY:bb[0-9]+]]:
 // CHECK: -     jumpi {{(arg[0-9]+|v[0-9]+)}}, [[OTHER_BLOCK:bb[0-9]+]], [[REMOVED_BLOCK:bb[0-9]+]]
 // CHECK: -     [[REMOVED_BLOCK]]:
-// CHECK: -     [[OTHER:v[0-9]+]] = add 7, 42
+// CHECK: -     [[OTHER:v[0-9]+]] = add 42, 7
 // CHECK: -     jump [[OLD_MERGE:bb[0-9]+]]
 // CHECK: +     jumpi {{(arg[0-9]+|v[0-9]+)}}, [[MERGE:bb[0-9]+]], [[OTHER_BLOCK]]
 // CHECK:       [[OTHER_BLOCK]]:
 // CHECK: -     jump [[OLD_MERGE]]
 // CHECK: -     [[OLD_MERGE]]:
-// CHECK: +     [[OTHER]] = add 7, 42
+// CHECK: +     [[OTHER]] = add 42, 7
 // CHECK: +     jump [[MERGE]]
 // CHECK: +     [[MERGE]]:
 // CHECK:       [[PHI:v[0-9]+]] = phi [[[ENTRY]]: 42], [[[OTHER_BLOCK]]: [[OTHER]]]
@@ -36,13 +36,13 @@ fn @empty_forwarder(arg0: i1) -> i256 {
 // CHECK: -     [[OLD_RIGHT]]:
 // CHECK: +     jumpi {{(arg[0-9]+|v[0-9]+)}}, [[LEFT_BLOCK]], [[RIGHT_BLOCK:bb[0-9]+]]
 // CHECK: +     [[RIGHT_BLOCK]]:
-// CHECK:       [[RIGHT:v[0-9]+]] = add 3, 4
+// CHECK:       [[RIGHT:v[0-9]+]] = add 4, 3
 // CHECK: -     jump [[OLD_MERGE:bb[0-9]+]]
 // CHECK: +     jump [[MERGE:bb[0-9]+]]
 // CHECK:       [[LEFT_BLOCK]]:
 // CHECK: -     jump [[OLD_LEFT:bb[0-9]+]]
 // CHECK: -     [[OLD_LEFT]]:
-// CHECK:       [[LEFT:v[0-9]+]] = add 1, 2
+// CHECK:       [[LEFT:v[0-9]+]] = add 2, 1
 // CHECK: -     jump [[OLD_MERGE]]
 // CHECK: -     [[OLD_MERGE]]:
 // CHECK: +     jump [[MERGE]]

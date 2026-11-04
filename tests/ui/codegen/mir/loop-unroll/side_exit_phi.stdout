@@ -30,7 +30,7 @@
       jump bb1
 -   bb4:                                            ; preds = bb2
 -     v6 = phi [bb2: v3]
--     v7 = add v6, v3
+-     v7 = add v3, v6
 +   bb7:                                            ; preds = bb6
 +     v12 = mul v10, 3
 +     v13 = gt v12, 0x3e8
@@ -68,7 +68,7 @@
 +   bb4:                                            ; preds = bb2, bb7, bb10, bb13, bb16
 +     v8 = phi [bb2: v3], [bb7: v12], [bb10: v18], [bb13: v24], [bb16: v30]
 +     v6 = phi [bb2: v3], [bb7: v12], [bb10: v18], [bb13: v24], [bb16: v30]
-+     v7 = add v6, v8
++     v7 = add v8, v6
       ret v7
   }
   

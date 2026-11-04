@@ -78,7 +78,7 @@
       jumpi v2, bb2, bb3
     bb3:                                            ; preds = bb1
       v5 = msize
-      v6 = add v0, v5
+      v6 = add v5, v0
       ret v6
     bb2:                                            ; preds = bb1
 -     v3 = mload 64

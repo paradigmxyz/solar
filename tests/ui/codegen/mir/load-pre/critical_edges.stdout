@@ -18,11 +18,11 @@
 -   bb3:                                            ; preds = bb1, bb2
 -     v0 = phi [bb1: 3], [bb2: 7]
 -     v1 = sload 5
--     v2 = add v0, v1
+-     v2 = add v1, v0
 +   bb3:                                            ; preds = bb1, bb5
 +     v0 = phi [bb1: 3], [bb5: 7]
 +     v4 = phi [bb1: arg2], [bb5: v3]
-+     v2 = add v0, v4
++     v2 = add v4, v0
       ret v2
   }
   
@@ -107,7 +107,7 @@
 -     v5 = add v1, v4
 -     ret v4
 +     v8 = phi [bb3: v2], [bb4: v3]
-+     v5 = add v7, v8
++     v5 = add v8, v7
 +     ret v8
   }
   
