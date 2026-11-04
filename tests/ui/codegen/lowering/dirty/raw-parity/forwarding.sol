@@ -34,6 +34,12 @@
 //@ run-call: C::t_compound_value => 511
 //@ run-call: C::t_compound_bytes4 => 0
 //@ run-call: C::t_compound_clean_use => 255
+//@ run-call: C::t_bit_or_chain => 511
+//@ run-call: C::t_bit_and_chain => 511
+//@ run-call: C::t_logical_chain => 511
+//@ run-call: C::t_postfix_chain => 510
+//@ run-call: C::t_payable_chain => 115792089237316195423570985008687907853269984665640564039457584007913129639935
+//@ run-call: C::t_bit_or_mixed_width => 4294967295
 //@ run-call: C::t_bit_or_clean_use => 255
 //@ run-call: C::t_bit_or_compare => 1
 
@@ -97,6 +103,12 @@ contract C {
     function t_compound_value() external view returns (uint256 r) { uint8 c; assembly { c := 0x1ff } uint8 e = (c |= 1); assembly { r := e } }
     function t_compound_bytes4() external view returns (uint256 r) { bytes4 c; assembly { c := 0x1122334455667788 } bytes4 m = 0xffffffff; c &= m; assembly { r := c } }
     function t_compound_clean_use() external view returns (uint256 r) { uint8 c; assembly { c := 0x1ff } c |= 1; return uint256(c); }
+    function t_bit_or_chain() external view returns (uint256 r) { uint8 x; assembly { x := 0x1ff } uint8 y = x | 0; uint8 z = y | 0; assembly { r := z } }
+    function t_bit_and_chain() external view returns (uint256 r) { uint8 x; assembly { x := 0x1ff } uint8 y = x | 0; uint8 z = y & y; assembly { r := z } }
+    function t_logical_chain() external view returns (uint256 r) { bool x; assembly { x := 0x1ff } bool y = x || false; bool z = y && y; assembly { r := z } }
+    function t_postfix_chain() external view returns (uint256 r) { uint8 x; assembly { x := 0x1fe } uint8 y = x++; uint8 z = y | 0; assembly { r := z } }
+    function t_payable_chain() external view returns (uint256 r) { address payable p; assembly { p := not(0) } address payable q = payable(p); address payable w = payable(q); assembly { r := w } }
+    function t_bit_or_mixed_width() external view returns (uint256 r) { uint16 y; uint8 x; assembly { y := 0xffffffff x := 0x1ff } uint16 w = y | x; assembly { r := w } }
     function t_bit_or_clean_use() external view returns (uint256 r) { uint8 a; assembly { a := 0x1ff } return uint256(a | 0); }
     function t_bit_or_compare() external view returns (uint256 r) { uint8 a; assembly { a := 0x1ff } return (a | 0) == 0xff ? 1 : 0; }
 }

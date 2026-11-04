@@ -117,7 +117,27 @@ impl<'gcx> Exposure<'gcx> {
                 self.sources(no, out);
             }
             // An assignment's value is its target.
-            ExprKind::Assign(lhs, None, _) => self.sources(lhs, out),
+            ExprKind::Assign(lhs, _, _) => self.sources(lhs, out),
+            // These expressions return an operand, raw bits included.
+            ExprKind::Binary(lhs, op, rhs)
+                if matches!(
+                    op.kind,
+                    BinOpKind::BitAnd
+                        | BinOpKind::BitOr
+                        | BinOpKind::BitXor
+                        | BinOpKind::And
+                        | BinOpKind::Or
+                ) =>
+            {
+                self.sources(lhs, out);
+                self.sources(rhs, out);
+            }
+            ExprKind::Unary(op, operand)
+                if matches!(op.kind, UnOpKind::PostInc | UnOpKind::PostDec) =>
+            {
+                self.sources(operand, out);
+            }
+            ExprKind::Payable(operand) => self.sources(operand, out),
             // `connect` only links bindings of equal types, so a conversion between them copies.
             ExprKind::Call(callee, args)
                 if let hir::CallArgsKind::Unnamed([argument]) = args.kind

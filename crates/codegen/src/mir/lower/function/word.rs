@@ -119,9 +119,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Lowers `lhs op rhs` for `&`, `|` and `^` on raw words, as via-IR does: it emits the
-    /// operation on the operands without cleaning them. The operands must have the result type
-    /// `ty`, or be literals that convert to it, and at least one must be raw, so the shape
-    /// forwards; otherwise this returns `None`. A canonical operand is widened first.
+    /// operation on the operands without cleaning them. An operand of the result type `ty` keeps
+    /// its raw bits, and one of another type is converted to `ty` first, which cleans it. This
+    /// returns `None` when no operand of type `ty` is raw, so the shape does not forward. A
+    /// canonical operand is widened first.
     pub(super) fn raw_bitwise(
         &mut self,
         kind: BinOpKind,
@@ -129,24 +130,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         (rhs_expr, rhs): (&hir::Expr<'_>, Word),
         ty: Ty<'gcx>,
     ) -> Option<Word> {
-        let is_literal = |expr: &hir::Expr<'_>| {
-            self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
-                matches!(ty.peel_refs().kind, TyKind::IntLiteral(..) | TyKind::StringLiteral(..))
-            })
-        };
-        let has_ty = |expr: &hir::Expr<'_>| self.cx.gcx.type_of_expr(expr.id) == Some(ty);
-        let (lhs_has_ty, rhs_has_ty) = (has_ty(lhs_expr), has_ty(rhs_expr));
-        let forwards = matches!(kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
-            && (arithmetic_kind(ty).is_some() || operators::fixed_bytes_width(ty).is_some())
-            && (lhs_has_ty || is_literal(lhs_expr))
-            && (rhs_has_ty || is_literal(rhs_expr))
-            && (lhs_has_ty || rhs_has_ty)
-            && (lhs.raw || rhs.raw);
-        if !forwards {
+        let operand_ty = |expr: &hir::Expr<'_>| self.cx.gcx.type_of_expr(expr.id);
+        let (lhs_ty, rhs_ty) = (operand_ty(lhs_expr)?, operand_ty(rhs_expr)?);
+        if !matches!(kind, BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)
+            || !(arithmetic_kind(ty).is_some() || operators::fixed_bytes_width(ty).is_some())
+            || !((lhs_ty == ty && lhs.raw) || (rhs_ty == ty && rhs.raw))
+        {
             return None;
         }
-        let lhs = lhs.carrier(self, ty);
-        let rhs = rhs.carrier(self, ty);
+        let convert = |this: &mut Self, word: Word, source: Ty<'gcx>| {
+            let literal = matches!(
+                source.peel_refs().kind,
+                TyKind::IntLiteral(..) | TyKind::StringLiteral(..)
+            );
+            if source == ty || literal {
+                return word;
+            }
+            let value = word.clean(this, source);
+            Word::from_clean(this.coerce_value(value, source, ty))
+        };
+        let lhs = convert(self, lhs, lhs_ty).carrier(self, ty);
+        let rhs = convert(self, rhs, rhs_ty).carrier(self, ty);
         // result = op lhs, rhs
         Some(Word::raw(self.binary(kind, lhs, rhs, None)))
     }
