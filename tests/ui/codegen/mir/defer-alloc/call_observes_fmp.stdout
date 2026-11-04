@@ -94,7 +94,7 @@
       v2 = lt arg0, v1
       v3 = mload arg0
       v4 = zext i1 v2 to i256
-      v5 = add v4, v3
+      v5 = add v3, v4
       ret v5
   }
   

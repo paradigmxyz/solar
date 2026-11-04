@@ -112,22 +112,24 @@ regression tests here.
 ## Debug-info differential suite
 
 `SOLAR_DEBUGIFY_DIR="$PWD/target/debugify/origins" TESTER_MODE=ui,standard-json
-cargo nextest run -p solar-compiler --test tests --no-capture` audits source
-origins around every MIR and EVM IR pass in all UI tests. Test diagnostics and
-snapshots stay unchanged; explicit `-Zdebugify=check` tests still reject losses.
-Frontend-only and rejected inputs do not reach IR passes.
+cargo nextest run -p solar-compiler --test tests --no-capture` audits source debug information
+around every MIR and EVM IR pass in all UI tests. Test diagnostics and snapshots stay unchanged;
+explicit `-Zdebugify=check` tests still reject gaps. Frontend-only and rejected inputs do not reach
+IR passes.
 
-Run `python3 scripts/debugify_report.py target/debugify/origins --output
-target/debugify` for a summary by pass and test/revision. Raw JSON-line files
-contain the invocation, source-file bounds and each pass's lost spans. The
-report rejects missing or damaged audits. Ordinary optimization losses are
-reported for investigation, since removing dead code can legitimately delete its
-last source origin.
+Run `python3 scripts/debugify_report.py target/debugify/origins --output target/debugify` for a
+summary by record and test/revision. The headline is the number of gaps, LLVM's `not-generate`
+count of instructions without a source origin or a reason for lacking one; lost origins are listed
+as information. Raw JSON-line files contain the invocation, source-file bounds, each pass's lost
+spans, and per record the gap count, an exact opcode histogram and up to 100 gap sites. The report
+rejects missing or damaged audits, and renders against a baseline summary from before gaps existed
+as "no gap baseline".
 
 The `Debugify` workflow runs this audit on pull requests and pushes to main. A
-pull request comment lists the passes and tests whose lost origins changed
-against the exact base commit's audit, like the codegen benchmark comment. A base
-without an audit gets a report without changes.
+pull request comment lists the records and tests whose gaps changed against the
+exact base commit's audit, like the codegen benchmark comment, with lost origins
+as information. A base without an audit gets a report without changes, and one
+audited before gaps existed gets absolute gap counts.
 
 `SOLDB=/path/to/soldb/target/debug/soldb cargo tq debug-diff` compiles and runs
 local debug-info comparisons against solc and between our ETHDebug and legacy

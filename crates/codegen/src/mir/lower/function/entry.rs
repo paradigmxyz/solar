@@ -61,16 +61,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             }
             let Some(initializer) = variable.initializer else { continue };
-            let ty = self.cx.gcx.type_of_item(id.into());
-            let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
-            let value = self.lower_typed_expr(initializer, ty)?;
-            if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-                self.store_immutable_value(id, immutable_id, value);
-            } else {
-                self.store_state_variable(id, value, source_ty, initializer.span)?;
-            }
+            // Like solc's `appendStateVariableInitialization`, map the conversion and the store
+            // to the variable declaration. solc's declaration ends with its value, before the
+            // semicolon.
+            let previous =
+                self.builder.replace_source_span(variable.span.with_hi(initializer.span.hi()));
+            let result = self.lower_state_initializer(id, initializer);
+            self.builder.replace_source_span(previous);
+            result?;
         }
         Some(())
+    }
+
+    fn lower_state_initializer(
+        &mut self,
+        id: VariableId,
+        initializer: &hir::Expr<'_>,
+    ) -> Option<()> {
+        let ty = self.cx.gcx.type_of_item(id.into());
+        let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
+        let value = self.lower_typed_expr(initializer, ty)?;
+        if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
+            self.store_immutable_value(id, immutable_id, value);
+            Some(())
+        } else {
+            self.store_state_variable(id, value, source_ty, initializer.span)
+        }
     }
 
     pub(super) fn lower_implicit_base_constructors(
@@ -119,6 +135,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .cx
                     .report_unsupported(constructor.span, "base constructor argument list");
             }
+            // Like solc's `appendBaseConstructor`, which sets the location of the base
+            // constructor's definition around the arguments, map the argument conversions and
+            // parameter bindings to it. Each argument expression keeps its own location.
+            let previous = self.builder.replace_source_span(constructor.span);
             let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
                 id: constructor_id,
                 skips_receiver: false,
@@ -148,6 +168,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // they stay live for the rest of the constructor.
             self.bind_inlined_parameters(constructor.parameters, &values);
             self.prepared_constructors.insert(constructor_id);
+            self.builder.replace_source_span(previous);
         }
         Some(())
     }

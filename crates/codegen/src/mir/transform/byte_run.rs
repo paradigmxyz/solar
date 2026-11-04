@@ -178,7 +178,7 @@ fn fuse(
     let amount = 256 - 8 * run as u64;
     let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(amount))));
     let word = leaves[0].word;
-    func.inst_mut(root).replace_kind(InstKind::Shr(shift, word));
+    func.replace_inst_kind(root, InstKind::Shr(shift, word));
     true
 }
 
@@ -349,7 +349,7 @@ fn rewrite_groups(func: &mut Function, groups: &[Vec<(u64, InstId, ValueId)>]) -
             }
             // %byte = byte(offset - first, %first_word)
             let index = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(index))));
-            func.inst_mut(inst).replace_kind(InstKind::Byte(index, *first_word));
+            func.replace_inst_kind(inst, InstKind::Byte(index, *first_word));
             changed = true;
         }
     }

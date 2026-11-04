@@ -20,7 +20,7 @@
 +     jump bb4
     bb4:                                            ; preds = bb3
       v5 = mload v3
-      v6 = gt v5, arg0
+      v6 = lt arg0, v5
       jumpi v6, bb5, bb7
     bb7:                                            ; preds = bb2, bb4
       ret v1

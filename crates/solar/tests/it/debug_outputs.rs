@@ -167,7 +167,17 @@ fn debug_outputs_match_standard_json() {
 
 #[test]
 fn inlined_dispatch_debug_outputs_are_bytecode_neutral() {
-    let source = "../../codegen/lowering/run-call/scalar_dispatch.sol";
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/lowering/run-call/scalar_dispatch.sol",
+    );
+}
+
+#[test]
+fn sunk_phi_expression_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral("phi_sink.sol");
+}
+
+fn assert_debug_outputs_are_bytecode_neutral(source: &str) {
     for mode in ["gas", "size"] {
         let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
         let debug = compile_json(&[

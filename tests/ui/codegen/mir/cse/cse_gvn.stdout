@@ -17,8 +17,8 @@
   
   fn @commuted_nested_offsets(arg0: i256, arg1: i1) -> i256 {
     bb0:
-      v0 = add 16, arg0
-      v1 = add 16, v0
+      v0 = add arg0, 16
+      v1 = add v0, 16
       jumpi arg1, bb1, bb2
     bb2:                                            ; preds = bb0
       ret v1

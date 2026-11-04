@@ -765,15 +765,12 @@ fn summarize(
             cost += instruction_cost(inst, target);
         } else if inst.is_encoded_push() && !branch {
             let key = constant(inst)?;
-            let index = match keys.iter().position(|&existing| existing == key) {
-                Some(index) => index,
-                None => {
-                    keys.push(key);
-                    pushes.push(SmallVec::new());
-                    constant_costs.push(scalar(push_cost(inst, target), target));
-                    keys.len() - 1
-                }
-            };
+            let index = keys.iter().position(|&existing| existing == key).unwrap_or_else(|| {
+                keys.push(key);
+                pushes.push(SmallVec::new());
+                constant_costs.push(scalar(push_cost(inst, target), target));
+                keys.len() - 1
+            });
             pushes[index].push(position);
             stack.insert(0, Word::Constant(u8::try_from(index).ok()?));
             cost += push_cost(inst, target);

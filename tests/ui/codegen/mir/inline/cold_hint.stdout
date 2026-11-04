@@ -59,8 +59,8 @@
 +     jump bb11
 +   bb11:                                           ; preds = bb13, bb17
 +     v20 = phi [bb13: 0], [bb17: v19]
-+     v6 = add v14, v20
-      v7 = add v1, v6
++     v6 = add v20, v14
+      v7 = add v6, v1
       v8 = add v0, 1
       jump bb1
   }
@@ -80,7 +80,7 @@
       v4 = add v0, arg1
       v5 = icall @classify_cold, v4
       v6 = add v3, v5
-      v7 = add v1, v6
+      v7 = add v6, v1
       v8 = add v0, 1
       jump bb1
 - }
@@ -99,7 +99,7 @@
 -   bb5:                                            ; preds = bb3, bb4
 -     v2 = phi [bb3: 7], [bb4: 9]
 -     v3 = and arg0, 31
--     v4 = add v2, v3
+-     v4 = add v3, v2
 -     ret v4
 -   bb1:                                            ; preds = bb0
 -     ret 0
@@ -119,7 +119,7 @@
     bb5 [cold]:                                     ; preds = bb3, bb4
       v2 = phi [bb3: 7], [bb4: 9]
       v3 = and arg0, 31
-      v4 = add v2, v3
+      v4 = add v3, v2
       ret v4
     bb1 [cold]:                                     ; preds = bb0
       ret 0

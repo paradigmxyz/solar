@@ -113,7 +113,7 @@ fn @tail_result(arg0: i1, arg1: i256) -> i256 {
 // CHECK: {{^\+ +}}icall @same_argument, arg0, arg1
 // CHECK: {{^\+ +}}[[DIFF:v[0-9]+]] = icall @different_arguments, arg0, arg1, 11
 // CHECK: {{^\+ +}}[[TAIL:v[0-9]+]] = icall @tail_result, arg0, arg1
-// CHECK: {{^\+ +}}[[SUM:v[0-9]+]] = add arg1, [[DIFF]]
+// CHECK: {{^\+ +}}[[SUM:v[0-9]+]] = add [[DIFF]], arg1
 // CHECK: {{^\+ +}}{{v[0-9]+}} = add [[SUM]], [[TAIL]]
 fn @forwarded_calls(arg0: i1, arg1: i256) -> i256 [selector=0x01020307] {
   bb0:
@@ -157,7 +157,7 @@ fn @different_constants(arg0: i1) -> i256 {
 // CHECK-LABEL: fn @constant_entry(arg0: i1, arg1: i1, arg2: i256) -> i256
 // CHECK:       v0 = icall @constant, arg0, arg1, arg2
 // CHECK:       v1 = icall @different_constants, arg0
-// CHECK: +     v2 = add 9, v1
+// CHECK: +     v2 = add v1, 9
 // CHECK:       ret v2
 fn @constant_entry(arg0: i1, arg1: i1, arg2: i256) -> i256 [selector=0x01020308] {
   bb0:

@@ -13,7 +13,7 @@
 // CHECK-NEXT: {{^ +}}{{v[0-9]+}} = lt [[JM1]], arg2
 // CHECK-NEXT: -     jumpi
 // CHECK-NEXT: +     jump
-// CHECK: {{^ +}}{{v[0-9]+}} = gt {{v[0-9]+}}, arg0
+// CHECK: {{^ +}}{{v[0-9]+}} = lt arg0, {{v[0-9]+}}
 // CHECK-NEXT: {{^ +}}jumpi
 // CHECK: {{^ +}}{{v[0-9]+}} = lt [[J]], arg2
 // CHECK-NEXT: -     jumpi

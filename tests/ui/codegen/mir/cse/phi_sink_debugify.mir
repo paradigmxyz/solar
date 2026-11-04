@@ -1,0 +1,22 @@
+//@ revisions: report check
+//@ compile-flags: -Zmir-pipeline=cse
+//@[report] compile-flags: -Zdebugify=report
+//@[check] compile-flags: -Zdebugify=check
+// The incoming sums share one key, `arg0 + 36`, so cse sinks one into `bb3`. The sunk sum runs
+// exactly when one of the incoming sums would have, so it is shared code and carries the union
+// of their origins.
+@module PhiSinkDebugify
+fn @test(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = add arg0, 4 !metadata(span=10..20)
+    jumpi arg1, bb1, bb2
+  bb1:
+    v1 = add v0, 32 !metadata(span=30..40)
+    jump bb3
+  bb2:
+    v2 = add arg0, 36 !metadata(span=50..60)
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v1], [bb2: v2]
+    ret v3 !metadata(span=70..80)
+}

@@ -11,7 +11,7 @@
 // BASE-LABEL: {{^[ +].*}}fn @negated{{[( ]}}
 // BASE-NOT: {{^[-+]}}
 // COPIES-LABEL: {{^[ +].*}}fn @negated{{[( ]}}
-// COPIES: [[ABOVE:v[0-9]+]] = gt arg0, arg1
+// COPIES: [[ABOVE:v[0-9]+]] = lt arg1, arg0
 // COPIES: - jumpi {{v[0-9]+}}, bb1, bb3
 // COPIES-NEXT: + jump bb1
 // COPIES: [[WRAPPED:v[0-9]+]] = lt {{v[0-9]+}}, arg0

@@ -4,7 +4,7 @@
 // CHECK-LABEL: {{^[ +].*}}fn @promote_across_unrelated_staticcall{{[( ]}}
 // CHECK: {{^[ +].*}}[[CALL:v[0-9]+]] = staticcall
 // CHECK: [[WORD:v[0-9]+]] = {{(zext|ptrtoint)}} {{[^ ]+}} [[CALL]]
-// CHECK: + {{v[0-9]+}} = add 9, [[WORD]]
+// CHECK: + {{v[0-9]+}} = add [[WORD]], 9
 fn @promote_across_unrelated_staticcall(arg0: i256) -> i256 {
   bb0:
     v8 = internal_frame_addr 128
@@ -21,7 +21,7 @@ fn @promote_across_unrelated_staticcall(arg0: i256) -> i256 {
 
 // CHECK-LABEL: {{^[ +].*}}fn @promote_slot_with_unrelated_frame_hash{{[( ]}}
 // CHECK: {{^[ +].*}}[[HASH:v[0-9]+]] = keccak256
-// CHECK: + {{v[0-9]+}} = add 9, [[HASH]]
+// CHECK: + {{v[0-9]+}} = add [[HASH]], 9
 fn @promote_slot_with_unrelated_frame_hash() -> i256 {
   bb0:
     v12 = internal_frame_addr 128

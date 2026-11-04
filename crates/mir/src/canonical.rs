@@ -1,4 +1,4 @@
-//! Canonical operand order, applied to every instruction when it is allocated.
+//! Canonical operand order, applied to every instruction when it is allocated or edited.
 //!
 //! The middle end keeps one spelling of each equivalent instruction so analyses and rewrites
 //! match a single pattern, and the backend picks the cheapest spelling late. Nothing here prices
@@ -17,12 +17,20 @@
 //!   already matches `lt index, bound`, and the EVM IR stack rescheduler may mirror it where the
 //!   stack favors that.
 //!
-//! A pass that rewrites an instruction in place passes the new kind through
-//! [`Function::canonical_kind`]. Replacing the uses of a value does not re-establish the order;
-//! the e-graph and word-sequence rule contexts restore it through [`Function::canonical_op`] on
-//! every node they match.
+//! Every `Function` entry point that creates or changes an instruction restores the order, so it
+//! holds between passes: [`Function::alloc_value_inst`] for a new instruction,
+//! [`Function::set_inst_kind`] and [`Function::replace_inst_kind`] for a new kind, and
+//! [`Function::rewrite_inst_operands`], [`Function::replace_uses`] and
+//! [`Function::replace_uses_canonicalized`] for new operands. A raw write through
+//! [`Function::inst_mut`] bypasses them, and the validator rejects the instruction when
+//! [`Function::has_canonical_operands`] refuses it.
+//!
+//! The order among non-constant operands is only as current as the last write to the instruction.
+//! Rewriting a value's producer in place can change its [`OperandRank`] and leave its users in the
+//! old order, so the validator checks only what holds regardless of rank: constants and the
+//! comparison form.
 
-use super::{Function, InstKind, Op, OpTraits, Value, ValueId};
+use super::{Function, InstId, InstKind, Op, OpTraits, Value, ValueId};
 use std::{borrow::Cow, cmp::Reverse};
 
 /// How complex an operand is, ordered from the simplest to the most complex.
@@ -40,9 +48,83 @@ impl Function {
     /// Returns `op` with its operands in canonical order.
     #[must_use]
     pub fn canonical_op(&self, op: Op) -> Op {
+        self.canonical_op_ranked(op, |value| self.operand_rank(value))
+    }
+
+    /// Returns `kind` with its operands in canonical order.
+    #[must_use]
+    pub fn canonical_kind(&self, kind: InstKind) -> InstKind {
+        if is_ordered(&kind)
+            && let Some(canonical) = self.canonical_op(kind.op()).into_kind()
+        {
+            return canonical;
+        }
+        kind
+    }
+
+    /// Sets the kind of an existing instruction, in canonical operand order, and leaves its
+    /// metadata and result type to the caller. This is for a rewrite that manages both itself,
+    /// such as a lowering; an equivalent rewrite uses [`Self::replace_inst_kind`].
+    pub fn set_inst_kind(&mut self, inst: InstId, kind: InstKind) {
+        self.inst_mut(inst).kind = self.canonical_kind(kind);
+    }
+
+    /// Replaces an instruction with an equivalent one, in canonical operand order, preserving its
+    /// result and provenance.
+    ///
+    /// Memory regions, storage aliases, and effect overrides describe the old operation and are
+    /// dropped. ABI validation dependencies and allocation obligations survive an equivalent
+    /// rewrite. The caller must prove equivalence and preserve the result representation.
+    pub fn replace_inst_kind(&mut self, inst: InstId, kind: InstKind) {
+        let kind = self.canonical_kind(kind);
+        self.inst_mut(inst).replace_kind(kind);
+    }
+
+    /// Rewrites an instruction's operands in place and restores their canonical order if any
+    /// changed. Returns whether any changed.
+    pub fn rewrite_inst_operands(&mut self, inst: InstId, mut f: impl FnMut(&mut ValueId)) -> bool {
+        let changed = self.inst_mut(inst).rewrite_operands(&mut f);
+        if changed {
+            self.canonicalize_inst(inst);
+        }
+        changed
+    }
+
+    /// Puts every instruction in canonical operand order.
+    ///
+    /// For a producer that builds a whole function from operands it does not yet know to be
+    /// final, such as the text parser, whose forward references have no producer to rank.
+    pub fn canonicalize_operands(&mut self) {
+        for block in self.blocks.indices() {
+            for index in 0..self.blocks[block].instructions.len() {
+                self.canonicalize_inst(self.blocks[block].instructions[index]);
+            }
+        }
+    }
+
+    fn canonicalize_inst(&mut self, inst: InstId) {
+        // Only these kinds clone: the payloads of other kinds are not worth copying.
+        if is_ordered(&self.inst(inst).kind) {
+            self.set_inst_kind(inst, self.inst(inst).kind.clone());
+        }
+    }
+
+    /// Whether `kind` has its constants and comparison in canonical form, whatever the rank of
+    /// its non-constant operands, see the module documentation.
+    #[must_use]
+    pub fn has_canonical_operands(&self, kind: &InstKind) -> bool {
+        let rank = |value| match self.value(value) {
+            Value::Immediate(_) => OperandRank::Constant,
+            _ => OperandRank::Leaf,
+        };
+        !is_ordered(kind)
+            || self.canonical_op_ranked(kind.op(), rank).into_kind().as_ref() == Some(kind)
+    }
+
+    fn canonical_op_ranked(&self, op: Op, rank: impl Fn(ValueId) -> OperandRank) -> Op {
         let is_constant = |value| matches!(self.value(value), Value::Immediate(_));
         let op = op.canonicalize_commutative_by_key(|value| {
-            (Reverse(self.operand_rank(value)), Reverse(self.value_u256(value)))
+            (Reverse(rank(value)), Reverse(self.value_u256(value)))
         });
         match op {
             // lt constant, value => gt value, constant
@@ -52,21 +134,6 @@ impl Function {
             Op::Gt { b, .. } | Op::SGt { b, .. } if !is_constant(b) => op.less_than_form(),
             other => other,
         }
-    }
-
-    /// Returns `kind` with its operands in canonical order.
-    #[must_use]
-    pub fn canonical_kind(&self, kind: InstKind) -> InstKind {
-        // Only these kinds convert: `op()` of other kinds would copy their payloads.
-        let ordered = kind.op_def().traits.contains(OpTraits::COMMUTATIVE)
-            || matches!(
-                kind,
-                InstKind::Lt(..) | InstKind::Gt(..) | InstKind::SLt(..) | InstKind::SGt(..)
-            );
-        if ordered && let Some(canonical) = self.canonical_op(kind.op()).into_kind() {
-            return canonical;
-        }
-        kind
     }
 
     fn operand_rank(&self, value: ValueId) -> OperandRank {
@@ -82,6 +149,16 @@ impl Function {
             Value::Arg(_) | Value::Undef(_) | Value::Error(_) => OperandRank::Leaf,
         }
     }
+}
+
+/// Whether canonical order constrains `kind`. Only these kinds convert: `op()` of other kinds
+/// would copy their payloads.
+fn is_ordered(kind: &InstKind) -> bool {
+    kind.op_def().traits.contains(OpTraits::COMMUTATIVE)
+        || matches!(
+            kind,
+            InstKind::Lt(..) | InstKind::Gt(..) | InstKind::SLt(..) | InstKind::SGt(..)
+        )
 }
 
 impl Op {
@@ -107,5 +184,47 @@ impl InstKind {
             }
             _ => Cow::Borrowed(self),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Immediate, Module, validate};
+    use alloy_primitives::U256;
+    use solar_data_structures::map::FxHashMap;
+    use solar_interface::{ColorChoice, Session, source_map::FileName};
+
+    const MODULE: &str = "@module M\nfn @f(arg0: i256, arg1: i256) -> i256 {\n  bb0:\n    v0 = add arg0, arg1\n    ret v0\n}\n";
+
+    // The text parser canonicalizes, so only a raw write can build a non-canonical instruction.
+    #[test]
+    fn validator_rejects_a_constant_on_the_left_until_the_order_is_restored() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter_sequential(|| {
+            let file = sess.source_map().new_source_file(FileName::Custom("m.mir".into()), MODULE);
+            let mut module = Module::parse(&sess, &file.unwrap()).unwrap();
+            let function = module.functions.indices().next().unwrap();
+            let func = &mut module.functions[function];
+            let inst = func.instructions().next().unwrap();
+            let InstKind::Add(arg0, arg1) = func.inst(inst).kind else { unreachable!() };
+            let five = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(5))));
+
+            // An edit that bypasses `set_inst_kind` leaves the constant on the left.
+            func.inst_mut(inst).kind = InstKind::Add(five, arg0);
+            validate(&sess.dcx, &module);
+            let errors = sess.dcx.emitted_errors().unwrap().unwrap_err().to_string();
+            snapbox::assert_data_eq!(
+                errors.lines().next().unwrap(),
+                snapbox::str!["error: [fn0] [bb0, inst0] `add` operands are not in canonical order; a pass must rebuild it with `set_inst_kind` or `rewrite_inst_operands`"]
+            );
+
+            // Replacing a use puts the instruction back in order.
+            let func = &mut module.functions[function];
+            func.inst_mut(inst).kind = InstKind::Add(arg1, arg0);
+            func.replace_uses(&FxHashMap::from_iter([(arg1, five)]));
+            assert_eq!(func.inst(inst).kind, InstKind::Add(arg0, five));
+            assert!(func.has_canonical_operands(&func.inst(inst).kind));
+        });
     }
 }
