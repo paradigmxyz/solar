@@ -61,16 +61,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             }
             let Some(initializer) = variable.initializer else { continue };
-            let ty = self.cx.gcx.type_of_item(id.into());
-            let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
-            let value = self.lower_typed_expr(initializer, ty)?;
-            if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-                self.store_immutable_value(id, immutable_id, value);
-            } else {
-                self.store_state_variable(id, value, source_ty, initializer.span)?;
-            }
+            // Like solc, map the whole initialization, including the conversion and the store,
+            // to the variable declaration.
+            let previous = self.builder.replace_source_span(variable.span);
+            let result = self.lower_state_initializer(id, initializer);
+            self.builder.replace_source_span(previous);
+            result?;
         }
         Some(())
+    }
+
+    fn lower_state_initializer(
+        &mut self,
+        id: VariableId,
+        initializer: &hir::Expr<'_>,
+    ) -> Option<()> {
+        let ty = self.cx.gcx.type_of_item(id.into());
+        let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
+        let value = self.lower_typed_expr(initializer, ty)?;
+        if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
+            self.store_immutable_value(id, immutable_id, value);
+            Some(())
+        } else {
+            self.store_state_variable(id, value, source_ty, initializer.span)
+        }
     }
 
     pub(super) fn lower_implicit_base_constructors(
