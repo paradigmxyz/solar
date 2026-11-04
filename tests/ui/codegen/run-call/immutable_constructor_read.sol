@@ -8,6 +8,8 @@
 //@ run-call: ConstructorReads::flag => 1
 //@ run-call: ConstructorReads::helper => 0x2a
 //@ run-call: ConstructorReads::sharedHelper => 0x2a
+//@ run-call: ConstructorReads::sharedTerminal => 7
+//@ run-call: ConstructorReads::sharedTerminalLoop => 81
 
 contract Narrow {
     uint8 immutable a = 0xff;
@@ -115,6 +117,50 @@ contract SharedHelper {
     }
 }
 
+contract SharedTerminal {
+    uint256 immutable a;
+
+    constructor(uint256 v) {
+        a = v;
+        finish();
+    }
+
+    function finish() internal view {
+        uint256 v = a;
+        assembly {
+            mstore(0, v)
+            return(0, 32)
+        }
+    }
+
+    function runtime() external view {
+        finish();
+    }
+}
+
+contract SharedTerminalLoop {
+    uint256 immutable a;
+    uint256 public total;
+
+    constructor(uint256 v) {
+        a = v;
+        finish(v);
+    }
+
+    function finish(uint256 n) internal view {
+        uint256 r;
+        for (uint256 i; i < n; i++) r += a + total;
+        assembly {
+            mstore(0, r)
+            return(0, 32)
+        }
+    }
+
+    function runtime(uint256 n) external view {
+        finish(n);
+    }
+}
+
 contract ConstructorReads {
     function narrow() external returns (uint256, uint256, uint256) {
         bytes memory code = address(new Narrow()).code;
@@ -143,5 +189,13 @@ contract ConstructorReads {
 
     function sharedHelper() external returns (uint256) {
         return uint256(bytes32(address(new SharedHelper()).code));
+    }
+
+    function sharedTerminal() external returns (uint256) {
+        return uint256(bytes32(address(new SharedTerminal(7)).code));
+    }
+
+    function sharedTerminalLoop() external returns (uint256) {
+        return uint256(bytes32(address(new SharedTerminalLoop(9)).code));
     }
 }
