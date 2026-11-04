@@ -494,6 +494,24 @@ impl<'gcx> Assembler<'gcx> {
         self.define_label(label);
         let block = self.label_blocks[&label];
         self.program.blocks[block].metadata.is_continuation = true;
+        // The return tag is placed under the call's own location.
+        if let [span] = self.current_source_spans[..] {
+            self.set_label_origin(label, span, self.current_modifier_depth);
+        }
+    }
+
+    /// Gives the `JUMPDEST` of the block that `label` started a source origin.
+    pub(crate) fn set_label_origin(
+        &mut self,
+        label: Label,
+        span: solar_interface::Span,
+        modifier_depth: u32,
+    ) {
+        self.program.track_debug_info();
+        let block = self.label_blocks[&label];
+        let metadata = &mut self.program.blocks[block].label_metadata;
+        metadata.set_source_span(Some(span));
+        metadata.set_modifier_depth(modifier_depth);
     }
 
     /// Marks a label-started block as cold for EVM IR layout passes.

@@ -51,7 +51,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let Some(plan) = plans[func_id].take() else { continue };
             self.enter_function(module, func);
-            self.asm.define_external_entry_label(self.function_labels[&func_id]);
+            let label = self.function_labels[&func_id];
+            self.asm.define_external_entry_label(label);
+            self.mark_debug_external_entry_label(label, func);
             self.mark_debug_function_invoke(func);
             self.comment_function_entry(func, false, false);
             self.emit_entry_free_memory_start(module, call_graph, func_id);

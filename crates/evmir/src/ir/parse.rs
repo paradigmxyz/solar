@@ -27,6 +27,7 @@ struct ParsedBlockHeader {
     entry_depth: Option<u16>,
     call_effect: Option<CallEffect>,
     entry_checkpoint: Option<DebugEntryCheckpoint>,
+    label_metadata: Metadata,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -71,6 +72,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let tracks_debug_info = module.blocks.iter().any(|block| {
             block.metadata.function_invoke.is_some()
                 || block.metadata.entry_checkpoint.is_some()
+                || block.label_metadata.source_span().is_some()
                 || block.instructions.iter().any(|inst| {
                     inst.metadata.source_span().is_some()
                         || !inst.metadata.checkpoint_transfers().is_empty()
@@ -118,6 +120,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 module.blocks[block_id].metadata.entry_depth = header.entry_depth;
                 module.blocks[block_id].metadata.call_effect = header.call_effect;
                 module.blocks[block_id].metadata.entry_checkpoint = header.entry_checkpoint;
+                module.blocks[block_id].label_metadata = header.label_metadata;
                 current_block = Some(block_id);
                 continue;
             }
@@ -219,6 +222,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
         }
 
+        let label_metadata = if self.parser.token().kind == TokenKind::Not {
+            self.parse_metadata()?
+        } else {
+            Metadata::default()
+        };
         self.parser.expect(TokenKind::Colon)?;
 
         let call_effect = match (ret, inputs, outputs) {
@@ -243,6 +251,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             entry_depth,
             call_effect,
             entry_checkpoint,
+            label_metadata,
         }))
     }
 

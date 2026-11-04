@@ -286,6 +286,11 @@ pub struct Block {
     /// Block metadata. The hot/cold field is present before it is consumed by
     /// layout so fixtures can pin the format early.
     pub metadata: BlockMetadata,
+    /// Source origin of this block's `JUMPDEST`, the location active where its label is placed.
+    /// Only the source spans and the modifier depth are meaningful. Like instruction origins it
+    /// is debug information: it never changes the executable code, and a block without a label
+    /// has none.
+    pub label_metadata: Metadata,
     /// Non-terminating EVM backend instructions.
     pub instructions: Vec<Instruction>,
     /// Optional control-flow terminator.
@@ -299,6 +304,7 @@ impl Block {
         Self {
             label,
             metadata: BlockMetadata::default(),
+            label_metadata: Metadata::default(),
             instructions: Vec::new(),
             terminator: None,
         }
