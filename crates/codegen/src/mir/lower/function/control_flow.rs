@@ -149,11 +149,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // Keep its narrower origin so coverage can anchor the expression inside the `if`.
         let previous = self.builder.replace_source_span(condition_span);
         // solc places the else and end tags under the statement: `LocationSetter(m_context,
-        // _ifStatement)` at ContractCompiler.cpp L1157-1176.
+        // _ifStatement)` at ContractCompiler.cpp L1157-1176. A loop condition desugars to
+        // `if (cond) body else break`, and solc places a loop's tags under the loop statement
+        // (`LocationSetter(m_context, _forStatement)`, L1224-1265), so those blocks take the span
+        // of the desugared `break`, which is the loop statement. A user `break` is narrower than
+        // its `if`.
+        let label_span = else_stmt
+            .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous))
+            .map_or(previous, |stmt| stmt.span);
         let branches = self.lower_branches_labeled(
             condition,
             true,
-            Some(previous),
+            Some(label_span),
             |this| {
                 this.builder.replace_source_span(previous);
                 this.lower_stmt(then_stmt)

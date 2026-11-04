@@ -411,7 +411,8 @@ mod block_labels {
     function f(uint256 x) public pure returns (uint256 r) {
         if (x > 1) { r = 1; } else { r = 2; }
         while (r < 10) { r += x; }
-        for (uint256 i = 0; i < x; i++) { r += i; }
+        for (uint256 i = 0; i < x; i++) { if (i == 3) { break; } r += i; }
+        do { r += 1; } while (r < 20);
         return r;
     }
 }
@@ -464,12 +465,21 @@ bb5: while (r < 10) { r += x; }
 bb6: while (r < 10) { r += x; }
 bb7: while (r < 10) { r += x; }
 bb8: while (r < 10) { r += x; }
-bb9: for (uint256 i = 0; i < x; i++) { r += i; }
-bb10: for (uint256 i = 0; i < x; i++) { r += i; }
-bb11: for (uint256 i = 0; i < x; i++) { r += i; }
-bb12: { r += i; }
-bb13: { r += i; }
-bb14: { r += i; }
+bb9: for (uint256 i = 0; i < x; i++) { if (i == 3) { break; } r += i; }
+bb10: for (uint256 i = 0; i < x; i++) { if (i == 3) { break; } r += i; }
+bb11: for (uint256 i = 0; i < x; i++) { if (i == 3) { break; } r += i; }
+bb12: for (uint256 i = 0; i < x; i++) { if (i == 3) { break; } r += i; }
+bb13: for (uint256 i = 0; i < x; i++) { if (i == 3) { break; } r += i; }
+bb14: for (uint256 i = 0; i < x; i++) { if (i == 3) { break; } r += i; }
+bb15: if (i == 3) { break; }
+bb16: if (i == 3) { break; }
+bb17: if (i == 3) { break; }
+bb18: do { r += 1; } while (r < 20);
+bb19: do { r += 1; } while (r < 20);
+bb20: do { r += 1; } while (r < 20);
+bb21: do { r += 1; } while (r < 20);
+bb22: do { r += 1; } while (r < 20);
+bb23: do { r += 1; } while (r < 20);
 
 "#]]
         );
