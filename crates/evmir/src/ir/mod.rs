@@ -1007,16 +1007,35 @@ impl Metadata {
 
     /// Adds origins from another operation without changing machine semantics.
     pub fn merge_source_spans(&mut self, other: &Self) {
-        let had_source_spans = !self.source_spans.is_empty();
-        for &span in other.source_spans() {
-            if !self.source_spans.contains(&span) {
-                self.source_spans.push(span);
+        self.merge_source_spans_from(std::iter::once(other));
+    }
+
+    /// Adds origins from several operations without changing machine semantics.
+    ///
+    /// Duplicates are found by scanning while the list is short and by hashing once it grows, so
+    /// merging many operations into one stays linear in the origins merged.
+    pub fn merge_source_spans_from<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        const SCAN_LIMIT: usize = 16;
+        let mut seen = None::<FxHashSet<Span>>;
+        for other in others {
+            let had_source_spans = !self.source_spans.is_empty();
+            for &span in other.source_spans() {
+                let is_new = match &mut seen {
+                    Some(seen) => seen.insert(span),
+                    None => !self.source_spans.contains(&span),
+                };
+                if is_new {
+                    self.source_spans.push(span);
+                }
             }
+            if seen.is_none() && self.source_spans.len() > SCAN_LIMIT {
+                seen = Some(self.source_spans.iter().copied().collect());
+            }
+            if !had_source_spans && !self.source_spans.is_empty() {
+                self.modifier_depth = other.modifier_depth;
+            }
+            self.debug_info_handled |= other.debug_info_handled;
         }
-        if !had_source_spans && !self.source_spans.is_empty() {
-            self.modifier_depth = other.modifier_depth;
-        }
-        self.debug_info_handled |= other.debug_info_handled;
     }
 
     /// Merges source origins and function events across equivalent operations.
@@ -1034,9 +1053,7 @@ impl Metadata {
         self.function_exit = common_debug_event(
             self.function_exit.into_iter().chain(others.clone().filter_map(Self::function_exit)),
         );
-        for other in others {
-            self.merge_source_spans(other);
-        }
+        self.merge_source_spans_from(others);
     }
 
     /// Returns the function entered after this operation.

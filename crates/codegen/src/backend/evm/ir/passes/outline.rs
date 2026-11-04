@@ -736,12 +736,12 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
 }
 
 fn merge_site_source_spans(module: &Module, body: &mut [Instruction], sites: &[Site]) {
-    for site in sites {
-        let instructions =
-            &module.blocks[site.block].instructions[site.start..site.start + site.len];
-        for (body_instruction, site_instruction) in body.iter_mut().zip(instructions) {
-            body_instruction.metadata.merge_source_spans(&site_instruction.metadata);
-        }
+    for (index, body_instruction) in body.iter_mut().enumerate() {
+        body_instruction.metadata.merge_source_spans_from(sites.iter().filter_map(|site| {
+            let instructions =
+                &module.blocks[site.block].instructions[site.start..site.start + site.len];
+            instructions.get(index).map(|instruction| &instruction.metadata)
+        }));
     }
 }
 
