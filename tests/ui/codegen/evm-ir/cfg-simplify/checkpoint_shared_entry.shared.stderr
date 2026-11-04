@@ -1,0 +1,4 @@
+debugify: EVM IR CheckpointSharedEntry after cfg-simplify: 3/3 origins retained, 0 lost
+debugify: EVM IR CheckpointSharedEntry after terminal-dedup: 2/3 origins retained, 1 lost
+debugify: lost 30..40
+debugify: EVM IR CheckpointSharedEntry after cfg-simplify: 2/2 origins retained, 0 lost

@@ -58,13 +58,18 @@ fn debug_output_selection_and_bytecode_neutrality() {
 }
 
 #[test]
-fn debug_output_selection_preserves_shared_tail_bytecode() {
+fn debug_output_selection_preserves_optimized_bytecode() {
     for source in [
         "../../codegen/lowering/run-call/external_call_returndata_size.sol",
         "../../codegen/lowering/empty_code_external_call.sol",
         "../../codegen/lowering/storage_checked_arithmetic.sol",
         "../../codegen/lowering/library_address.sol",
         "../../../foundry/libraries/test/OverloadLib.t.sol",
+        "../../codegen/mir/byte-loops/shapes.sol",
+        "../../codegen/mir/if-convert/boolean_selects_runtime.sol",
+        "../../codegen/lowering/mapping.sol",
+        "../../codegen/lowering/calldata_slice_ternary.sol",
+        "../../codegen/lowering/run-call/internal_stop_runtime.sol",
     ] {
         for mode in ["none", "gas", "size"] {
             let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
@@ -448,5 +453,50 @@ fn evm_ir_dump_preserves_bytecode() {
         .expect("compiler JSON")
         .expect("parse compiler JSON");
         assert_eq!(dumped["contracts"], baseline["contracts"], "{mode}");
+    }
+}
+
+#[test]
+fn evm_ir_debug_contexts_preserve_bytecode() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("debug.evmir");
+    let path = path.to_str().unwrap();
+    for (pipeline, fixture, audit) in [
+        ("peephole", "peephole/debug_replacements.evmir", "check"),
+        ("cfg-simplify", "cfg-simplify/branch_entry_inversion.evmir", "check"),
+        ("cfg-simplify", "cfg-simplify/thunk_chain_spans.evmir", "check"),
+        (
+            "cfg-simplify,terminal-dedup,cfg-simplify",
+            "cfg-simplify/checkpoint_shared_entry.evmir",
+            "report",
+        ),
+    ] {
+        let source = RealFileLoader
+            .load_file(&Path::new(FIXTURES).join("../../codegen/evm-ir").join(fixture))
+            .unwrap();
+        let plain = source
+            .lines()
+            .map(|line| line.split_once(" !metadata(").map_or(line, |(code, _)| code))
+            .map(|line| {
+                line.split_once(" [invoke=")
+                    .map_or_else(|| line.to_owned(), |(code, _)| format!("{code}:"))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        for mode in ["none", "gas", "size"] {
+            let pipeline = format!("-Zevm-ir-pipeline={pipeline}");
+            let args = [path, "-O", mode, "--emit=bin,bin-runtime", &pipeline];
+            fs::write(path, &plain).unwrap();
+            let baseline = compile_json(&args);
+            fs::write(path, &source).unwrap();
+            let annotated = compile_json(&args);
+            let audit = format!("-Zdebugify={audit}");
+            let audited = compile_json(&[args.as_slice(), &[&audit]].concat());
+            assert_eq!(
+                baseline["contracts"], annotated["contracts"],
+                "{fixture}, {mode}: source contexts"
+            );
+            assert_eq!(baseline["contracts"], audited["contracts"], "{fixture}, {mode}: debugify");
+        }
     }
 }

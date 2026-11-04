@@ -2256,7 +2256,7 @@ impl<'a> Planner<'a> {
                     self.shuffle(sim, &with_return_address(args))?;
                     self.calls.push((callee, 0));
                     sim.observe(1);
-                    return Ok(Exit::TailCall(callee));
+                    return Ok(Exit::TailCall { callee, origin: Some(call) });
                 }
                 // [..., return] -> [result(m-1), ..., result0, return]
                 self.shuffle(sim, &with_return_address(values))?;
@@ -2293,7 +2293,7 @@ impl<'a> Planner<'a> {
                 }
                 self.calls.push((callee, sim.below + base));
                 sim.observe(1);
-                Ok(Exit::TailCall(callee))
+                Ok(Exit::TailCall { callee, origin: None })
             }
         }
     }

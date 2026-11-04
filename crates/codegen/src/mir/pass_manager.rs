@@ -160,6 +160,8 @@ pub(crate) fn run_passes_inner(
 
         if enabled {
             assert_debug_info_handled(module, pass_name, "before");
+            let origins =
+                crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::mir(module));
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let key = pass.cache_key();
             let cached = key.is_some_and(|key| unchanged.contains(&key));
@@ -215,6 +217,17 @@ pub(crate) fn run_passes_inner(
                 return (changed, analyses.error);
             }
             assert_debug_info_handled(module, pass_name, "after");
+            if let Some(origins) = origins
+                && let Err(error) = origins.check(
+                    gcx,
+                    "MIR",
+                    module.name,
+                    pass_name,
+                    crate::debugify::Origins::mir(module),
+                )
+            {
+                return (changed, Some(error));
+            }
 
             if pass_changed && should_validate_ir(gcx.sess) {
                 validate_module_after_pass(module, pass_name);

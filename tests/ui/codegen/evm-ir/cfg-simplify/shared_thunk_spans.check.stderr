@@ -1,0 +1,7 @@
+debugify: EVM IR SharedThunkSpans after cfg-simplify: 1/3 origins retained, 2 lost
+debugify: lost 30..40
+debugify: lost 50..60
+error: debugify: EVM IR pass `cfg-simplify` lost 2 source origins
+
+error: aborting due to 1 previous error
+

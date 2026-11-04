@@ -232,6 +232,7 @@ fn lower_evm_ir_once(
         }
     }
     let mut program = Program::with_debug_info(capture_debug_info);
+    let entry_checkpoints = module.valid_entry_checkpoints();
     let mut pending_block_invoke = None;
     for (block_id, block) in module.blocks.iter_enumerated() {
         program.set_source_span(None);
@@ -241,7 +242,17 @@ fn lower_evm_ir_once(
         );
         program.set_modifier_depth(block_modifier_depth);
         let original = block.label as usize;
-        if let Some(function) = block.metadata.function_invoke {
+        // A thunk's function entry depends on the same exclusive-edge proof as its source
+        // checkpoint. Sharing may revoke it without affecting a native block entry.
+        let checkpoint = entry_checkpoints
+            .contains(block_id)
+            .then_some(block.metadata.entry_checkpoint)
+            .flatten();
+        if let Some(function) = block
+            .metadata
+            .function_invoke
+            .or_else(|| checkpoint.and_then(|checkpoint| checkpoint.function_invoke))
+        {
             debug_assert!(
                 pending_block_invoke.is_none() || pending_block_invoke == Some(function),
                 "an instruction-free block cannot enter two functions"
@@ -249,6 +260,10 @@ fn lower_evm_ir_once(
             pending_block_invoke = Some(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
+            if let Some(checkpoint) = checkpoint {
+                program.set_source_span(Some(checkpoint.source));
+                program.set_modifier_depth(checkpoint.modifier_depth);
+            }
             program.define_label(label);
             program.mark_last_function_invoke(pending_block_invoke.take());
         }

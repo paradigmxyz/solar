@@ -1045,6 +1045,7 @@ symbols! {
         checked_pow,
         checked_rem,
         checked_sub,
+        checkpoint,
         clear_recursive_storage,
         clear_storage_words,
         code,
