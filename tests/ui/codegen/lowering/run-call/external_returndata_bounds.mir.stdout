@@ -203,13 +203,11 @@ fn @dirtyAddressBoundary() -> i256 [selector=0x2986c9cc, abi_params=[], abi_retu
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = mload 0 !metadata(memory=scratch)
-    v10 = shr v9, 160
-    v11 = eq v10, 0
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = trunc i256 v9 to i160
-    v14 = eq v13, i160 0xffffffffffffffffffffffffffffffffffffffff
-    icall require<short_string>, v14, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
+    v10 = gt v9, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v10
+    v11 = trunc i256 v9 to i160
+    v12 = eq v11, i160 0xffffffffffffffffffffffffffffffffffffffff
+    icall require<short_string>, v12, 7, 0x6164647265737300000000000000000000000000000000000000000000000000
     ret 1
 }
 

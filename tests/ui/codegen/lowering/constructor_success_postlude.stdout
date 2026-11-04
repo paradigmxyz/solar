@@ -35,9 +35,9 @@ bb0:                                              ; constructor(bool fail) [crea
   push bb3
   jumpi
   mload
-  dup 1
   push 1
-  shr
+  dup 2
+  gt
   or
   push bb3
   jumpi

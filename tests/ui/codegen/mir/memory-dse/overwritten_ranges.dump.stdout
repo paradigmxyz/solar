@@ -71,20 +71,20 @@ fn @allocated() {
   bb2:                                            ; preds = bb0
     v28 = heap_floor !metadata(alloc_ptr)
     v29 = add v28, 96 !metadata(alloc_ptr)
+    v36 = shr v29, 64
     v30 = lt v29, v28
-    v31 = zext i1 v30 to i256
-    v32 = shr v29, 64
-    v33 = or v32, v31
-    v34 = ne v33, 0
-    jumpi v34, bb4, bb3
+    v38 = zext i1 v30 to i256
+    v39 = or v36, v38
+    v32 = ne v39, 0
+    jumpi v32, bb4, bb3
   bb3:                                            ; preds = bb2
-    v36 = calldataload 36
-    v35 = calldataload 4
+    v35 = calldataload 36
+    v34 = calldataload 4
     mstore v28, 2
     v22 = add v28, 32
-    mstore v22, v35
+    mstore v22, v34
     v24 = add v28, 64
-    mstore v24, v36
+    mstore v24, v35
     v26 = sub v28, 32
     mstore v26, 32
     returndata v26, 128

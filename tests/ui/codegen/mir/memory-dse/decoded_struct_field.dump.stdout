@@ -20,24 +20,24 @@ fn @entry() [entry] {
 ; function tokenId(bytes calldata data) external pure returns (uint256) [selector 0x8f25c453]
 fn @tokenId() {
   bb0:
-    v23 = calldatasize
-    v24 = lt v23, 36
-    v25 = calldataload 4
-    v26 = add v25, 4
-    v28 = sub v23, 36
-    v29 = lt v28, v25
-    v30 = calldataload v26
-    v31 = add v26, 32
-    v32 = sub v23, v31
-    v33 = lt v32, v30
-    v34 = or v29, v33
-    v39 = or v24, v34
-    v6 = slt v30, 128
-    v40 = or v39, v6
-    jumpi v40, bb1, bb2
+    v18 = calldatasize
+    v19 = lt v18, 36
+    v20 = calldataload 4
+    v21 = add v20, 4
+    v23 = sub v18, 36
+    v24 = lt v23, v20
+    v25 = calldataload v21
+    v26 = add v21, 32
+    v27 = sub v18, v26
+    v28 = lt v27, v25
+    v29 = or v24, v28
+    v34 = or v19, v29
+    v6 = slt v25, 128
+    v35 = or v34, v6
+    jumpi v35, bb1, bb2
   bb2:                                            ; preds = bb0
     v7 = alloc 128 !metadata(deferred_alloc)
-    v8 = calldataload v31
+    v8 = calldataload v26
     mstore 0, v8
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb0

@@ -119,26 +119,26 @@ fn @decode() {
 ; function sum4(uint256[4] calldata values) external pure returns (uint256 total) [selector 0x0540a714]
 fn @sum4() {
   bb0:
-    v33 = calldatasize
-    v34 = lt v33, 132
-    jumpi v34, bb2, bb3
+    v31 = calldatasize
+    v32 = lt v31, 132
+    jumpi v32, bb2, bb3
   bb3:                                            ; preds = bb0
-    v77 = calldataload 4
-    v78 = add v77, 0
-    v86 = calldataload 36
-    v87 = add v86, v78
-    v88 = lt v87, v78
-    v95 = calldataload 68
-    v96 = add v95, v87
-    v97 = lt v96, v87
-    v108 = or v88, v97
-    v104 = calldataload 100
-    v105 = add v104, v96
-    v106 = lt v105, v96
-    v109 = or v108, v106
-    jumpi v109, bb1, bb4
+    v75 = calldataload 4
+    v76 = add v75, 0
+    v84 = calldataload 36
+    v85 = add v84, v76
+    v86 = lt v85, v76
+    v93 = calldataload 68
+    v94 = add v93, v85
+    v95 = lt v94, v85
+    v106 = or v86, v95
+    v102 = calldataload 100
+    v103 = add v102, v94
+    v104 = lt v103, v94
+    v107 = or v106, v104
+    jumpi v107, bb1, bb4
   bb4:                                            ; preds = bb3
-    mstore 0, v105
+    mstore 0, v103
     returndata 0, 32
   bb1 [cold]:                                     ; preds = bb3
     mstore 32, 17 !metadata(memory=scratch)

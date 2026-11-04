@@ -131,7 +131,7 @@ bb26 [entry]:                                     ; function at(uint256[] memory
   swap 1
   push 32
   add
-  push 0x7fffffffffffffe
+  push 0x7ffffffffffffff
   dup 3
   gt
   push 1

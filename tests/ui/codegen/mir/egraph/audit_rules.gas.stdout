@@ -234,7 +234,8 @@
   fn @compact_inclusive_bound(arg0: i256) -> i1 {
     bb0:
       v0 = gt arg0, 255
-      v1 = eq v0, false
+-     v1 = eq v0, false
++     v1 = lt arg0, 256
       ret v1
   }
   
@@ -743,7 +744,7 @@
   fn @compact_inclusive_bound(arg0: i256) -> i1 {
     bb0:
       v0 = gt arg0, 255
-      v1 = eq v0, false
+      v1 = lt arg0, 256
       ret v1
   }
   
@@ -1223,7 +1224,7 @@
   fn @compact_inclusive_bound(arg0: i256) -> i1 {
     bb0:
       v0 = gt arg0, 255
-      v1 = eq v0, false
+      v1 = lt arg0, 256
       ret v1
   }
   

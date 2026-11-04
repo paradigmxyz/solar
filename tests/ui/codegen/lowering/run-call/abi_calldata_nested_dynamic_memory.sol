@@ -23,8 +23,7 @@ contract AbiCalldataNestedDynamicMemory {
     // SEMANTIC: mul {{v[0-9]+}}, 64
     // SEMANTIC: [[ELEMENT:v[0-9]+]] = phi
     // SEMANTIC: [[OFFSET:v[0-9]+]] = mul [[ELEMENT]], 64
-    // SEMANTIC-NEXT: [[HIGH:v[0-9]+]] = shr [[ELEMENT]], 250
-    // SEMANTIC-NEXT: [[OVERFLOW:v[0-9]+]] = ne [[HIGH]], 0
+    // SEMANTIC-NEXT: [[OVERFLOW:v[0-9]+]] = gt [[ELEMENT]], 0x3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     // SEMANTIC-NEXT: icall panic_if<0x41>, [[OVERFLOW]]
     function h(uint256[2][][] calldata values)
         external

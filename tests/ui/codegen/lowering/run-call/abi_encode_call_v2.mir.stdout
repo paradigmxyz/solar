@@ -271,22 +271,21 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v221 = ptrtoint ptr<calldata> v220 to i256
     v222 = add v221, 128
     v223 = calldataload v222
-    v224 = lt v223, 3
-    v225 = eq v224, false
-    icall revert_if<empty>, v225
-    v226 = trunc i256 v223 to i8
-    v227 = eq v226, i8 1
-    v228 = eq v227, false
-    icall panic_if<0x1>, v228
-    v229 = eq arg1, 5
-    v230 = eq v229, false
-    icall panic_if<0x1>, v230
-    v231 = ptradd arg2, 32
-    v232 = mload arg2
-    v233 = keccak256 v231, v232
-    v234 = eq v233, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
-    v235 = eq v234, false
-    icall panic_if<0x1>, v235
+    v224 = gt v223, 2
+    icall revert_if<empty>, v224
+    v225 = trunc i256 v223 to i8
+    v226 = eq v225, i8 1
+    v227 = eq v226, false
+    icall panic_if<0x1>, v227
+    v228 = eq arg1, 5
+    v229 = eq v228, false
+    icall panic_if<0x1>, v229
+    v230 = ptradd arg2, 32
+    v231 = mload arg2
+    v232 = keccak256 v230, v231
+    v233 = eq v232, 0x746c32bd76400aea458889122fc934ee4dbd66d1fce294f5a05a66cf3d2a6d53
+    v234 = eq v233, false
+    icall panic_if<0x1>, v234
     ret
 }
 

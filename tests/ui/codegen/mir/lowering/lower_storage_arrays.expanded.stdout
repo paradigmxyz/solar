@@ -6,7 +6,7 @@
 -     v0 = load_storage_array uint256, arg0
 -     ret v0
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
-+     v2 = gt v1, 0x7fffffffffffffe
++     v2 = gt v1, 0x7ffffffffffffff
 +     jumpi v2, bb1, bb2
 +   bb2:                                            ; preds = bb0
 +     v3 = add v1, 1
@@ -42,7 +42,7 @@
 -     v0 = load_storage_array uint8, arg0
 -     ret v0
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
-+     v2 = gt v1, 0x7fffffffffffffe
++     v2 = gt v1, 0x7ffffffffffffff
 +     jumpi v2, bb1, bb2
 +   bb2:                                            ; preds = bb0
 +     v3 = add v1, 1
@@ -96,7 +96,7 @@
 -     v0 = load_storage_array int24, arg0
 -     ret v0
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
-+     v2 = gt v1, 0x7fffffffffffffe
++     v2 = gt v1, 0x7ffffffffffffff
 +     jumpi v2, bb1, bb2
 +   bb2:                                            ; preds = bb0
 +     v3 = add v1, 1
@@ -151,7 +151,7 @@
 -     v0 = load_storage_array bytes9, arg0
 -     ret v0
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
-+     v2 = gt v1, 0x7fffffffffffffe
++     v2 = gt v1, 0x7ffffffffffffff
 +     jumpi v2, bb1, bb2
 +   bb2:                                            ; preds = bb0
 +     v3 = add v1, 1
@@ -206,7 +206,7 @@
 -     v0 = load_storage_array enum<3>, arg0
 -     ret v0
 +     v1 = sload arg0 !metadata(storage=symbolic(arg0))
-+     v2 = gt v1, 0x7fffffffffffffe
++     v2 = gt v1, 0x7ffffffffffffff
 +     jumpi v2, bb1, bb2
 +   bb2:                                            ; preds = bb0
 +     v3 = add v1, 1
@@ -271,7 +271,7 @@
     bb1:                                            ; preds = bb0
 -     v0 = load_storage_array memorybytes, arg1 !metadata(span=50..60, modifier_depth=5)
 +     v2 = sload arg1 !metadata(storage=symbolic(arg1), span=50..60, modifier_depth=5)
-+     v3 = gt v2, 0x7fffffffffffffe !metadata(span=50..60, modifier_depth=5)
++     v3 = gt v2, 0x7ffffffffffffff !metadata(span=50..60, modifier_depth=5)
 +     jumpi v3, bb4, bb5 !metadata(span=50..60, modifier_depth=5)
 +   bb5:                                            ; preds = bb1
 +     v4 = add v2, 1 !metadata(span=50..60, modifier_depth=5)

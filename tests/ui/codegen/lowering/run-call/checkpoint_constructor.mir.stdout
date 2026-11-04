@@ -232,12 +232,10 @@ fn @deploy() -> i96 [selector=0x775c300c, abi_params=[], abi_returns=[word<uint9
     v22 = lt v21, 32
     icall revert_if<tuple_data_too_short>, v22
     v23 = mload 0 !metadata(memory=scratch)
-    v24 = shr v23, 96
-    v25 = eq v24, 0
-    v26 = eq v25, false
-    icall revert_if<empty>, v26
-    v27 = trunc i256 v23 to i96
-    ret v27
+    v24 = gt v23, 0xffffffffffffffffffffffff
+    icall revert_if<empty>, v24
+    v25 = trunc i256 v23 to i96
+    ret v25
 }
 
 ; function multiReturn() external returns (uint8) [selector 0xfeb8bba3]
@@ -264,12 +262,10 @@ fn @multiReturn() -> i8 [selector=0xfeb8bba3, abi_params=[], abi_returns=[word<u
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = mload 0 !metadata(memory=scratch)
-    v10 = shr v9, 8
-    v11 = eq v10, 0
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = trunc i256 v9 to i8
-    ret v13
+    v10 = gt v9, 255
+    icall revert_if<empty>, v10
+    v11 = trunc i256 v9 to i8
+    ret v11
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/checkpoint_constructor.sol:ConstructorMultiReturn ===

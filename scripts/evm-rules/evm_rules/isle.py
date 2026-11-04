@@ -517,6 +517,11 @@ class Context:
                 ]
             )
             return shift
+        if name == "shared_shift" and len(values) == 2:
+            self.contracts.add(
+                "shared_shift: the Rust constructor returns an existing `x >> k` word"
+            )
+            return Expr("shr", (values[0], values[1]))
         if name == "power_of_two_shift" and len(values) == 1:
             shift = self.fresh()
             self.assumptions.extend(
@@ -536,6 +541,8 @@ class Context:
             "push_not_larger",
             "optimize_for_size",
             "late_word_sequence",
+            "spelling_widths",
+            "width_shifts",
             "allocations_lowered",
             "unshared_mask",
             "compared_mask",

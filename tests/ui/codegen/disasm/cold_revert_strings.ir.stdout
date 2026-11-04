@@ -13,13 +13,13 @@ bb0:                                              ; runtime dispatch entry + fun
   sub
   push bb3
   jumpi
-  push 36
-  calldataload
-  push 1
-  shr
   push 68
   calldatasize
   lt
+  push 1
+  push 36
+  calldataload
+  gt
   or
   push bb3
   jumpi

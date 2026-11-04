@@ -144,12 +144,12 @@ bb78 [ret=0, inputs=2, outputs=1]:                ; alloc (synthesized)
   swap 2
   dup 3
   add
-  dup 3
-  dup 2
-  lt
-  dup 2
+  dup 1
   push 64
   shr
+  dup 4
+  dup 3
+  lt
   or
   push bb29
   jumpi
@@ -496,13 +496,13 @@ bb37 [continuation]:
   and
   jump bb79
 bb39 [entry]:                                     ; function signature(bool condition) external pure returns (bytes memory) [selector 0x59834352]
-  push 4
-  calldataload
-  push 1
-  shr
   push 36
   calldatasize
   lt
+  push 1
+  push 4
+  calldataload
+  gt
   or
   jump bb82
 bb82:

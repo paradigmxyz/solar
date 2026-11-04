@@ -92,12 +92,10 @@ fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[w
     v25 = lt v24, 32
     icall revert_if<tuple_data_too_short>, v25
     v26 = mload 0 !metadata(memory=scratch)
-    v27 = shr v26, 8
-    v28 = eq v27, 0
-    v29 = eq v28, false
-    icall revert_if<empty>, v29
-    v30 = trunc i256 v26 to i8
-    v31 = insert_value struct0, undef struct0, 0, v20
-    v32 = insert_value struct0, v31, 1, v30
-    ret v32
+    v27 = gt v26, 255
+    icall revert_if<empty>, v27
+    v28 = trunc i256 v26 to i8
+    v29 = insert_value struct0, undef struct0, 0, v20
+    v30 = insert_value struct0, v29, 1, v28
+    ret v30
 }

@@ -1345,9 +1345,9 @@ fn validate_calldata_word(
     validator: AbiWordValidator,
     word: ValueId,
 ) {
-    // if !valid(word) { revert(0, 0) }
-    let valid = validator.condition(builder, word);
-    builder.revert_if_zero(valid, RevertReason::Empty);
+    // if invalid(word) { revert(0, 0) }
+    let invalid = validator.violation(builder, word);
+    builder.revert_if(invalid, RevertReason::Empty);
 }
 
 /// Canonicalizes a word read from memory before it is encoded: narrow values are masked or

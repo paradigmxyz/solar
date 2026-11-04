@@ -24,7 +24,9 @@ contract ResidentStaticArgs {
     // CHECK-NEXT: push [[ENTRY:bb[0-9]+]]
     // CHECK: [[ENTRY]]{{( \[[a-z, ]+\])?}}:
     // CHECK: push 1
-    // CHECK-NEXT: shr
+    // CHECK-NEXT: push 36
+    // CHECK-NEXT: calldataload
+    // CHECK-NEXT: gt
     // CHECK-NEXT: push {{bb[0-9]+}}
     // CHECK-NEXT: jumpi
     // CHECK-NEXT: push 36

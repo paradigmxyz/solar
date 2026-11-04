@@ -66,6 +66,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &egraph::Egraph,
     &word_sequence::WordSequence::Early,
     &word_sequence::WordSequence::Late,
+    &word_sequence::WordSequence::Spelling,
     &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
     &cse::Cse::Storage,
@@ -432,7 +433,13 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // the copies again.
     &place_reads::PlaceReads,
     // Late lowering can leave pure address and length calculations unused.
-    // Remove their complete dependency chains before selecting physical stack order.
+    // Remove their complete dependency chains before the spelling reads the uses of a test.
+    &dce::Dce,
+    // A width test is a comparison with its limit until here, where its uses are final: a branch
+    // reads a shifted word for free, and a bound that is costly to push is cheaper as a shift.
+    &word_sequence::WordSequence::Spelling,
+    // The spelling leaves the tests it replaced unused. Remove their complete dependency chains
+    // before selecting physical stack order.
     &dce::Dce,
     // Targets without shift opcodes get arithmetic instead, so scheduling orders its operands.
     &lower_shifts::LowerShifts,

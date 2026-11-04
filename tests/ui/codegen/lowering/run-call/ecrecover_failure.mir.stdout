@@ -22,8 +22,8 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v0 = phi [bb0: 0], [bb3: v17]
-    v1 = phi [bb0: 0x7d0], [bb3: v18]
+    v0 = phi [bb0: 0], [bb3: v15]
+    v1 = phi [bb0: 0x7d0], [bb3: v16]
     v2 = lt v1, 0x1b58
     jumpi v2, bb4, bb5
   bb5:                                            ; preds = bb1
@@ -49,27 +49,25 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
     v8 = lt v7, 32
     icall revert_if<tuple_data_too_short>, v8
     v9 = mload 0 !metadata(memory=scratch)
-    v10 = shr v9, 160
-    v11 = eq v10, 0
-    v12 = eq v11, false
-    icall revert_if<empty>, v12
-    v13 = trunc i256 v9 to i160
-    v14 = ne v13, i160 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
-    jumpi v14, bb10, bb11
+    v10 = gt v9, 0xffffffffffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v10
+    v11 = trunc i256 v9 to i160
+    v12 = ne v11, i160 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
+    jumpi v12, bb10, bb11
   bb11:                                           ; preds = bb7
     jump bb12
   bb10:                                           ; preds = bb7
-    v15 = checked_add uint256, v0, 1
+    v13 = checked_add uint256, v0, 1
     jump bb12
   bb12:                                           ; preds = bb10, bb11
-    v16 = phi [bb10: v15], [bb11: v0]
+    v14 = phi [bb10: v13], [bb11: v0]
     jump bb9
   bb9:                                            ; preds = bb12, bb13
-    v17 = phi [bb12: v16], [bb13: v0]
+    v15 = phi [bb12: v14], [bb13: v0]
     jump bb6
   bb6:                                            ; preds = bb9
     jump bb3
   bb3:                                            ; preds = bb6
-    v18 = checked_add uint256, v1, 11
+    v16 = checked_add uint256, v1, 11
     jump bb1
 }
