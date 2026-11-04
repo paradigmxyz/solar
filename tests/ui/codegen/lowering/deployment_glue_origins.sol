@@ -7,7 +7,8 @@
 // `packIntoContractCreator`. Neither is a MIR instruction.
 
 // CHECK-LABEL: (creation) ===
-// CHECK: codesize !metadata(span=[[CTOR:[0-9]+..[0-9]+]])
+// CHECK: bb0 [invoke=constructor@[[CTOR:[0-9]+..[0-9]+]]]
+// CHECK: codesize !metadata(span=[[CTOR]])
 // CHECK: codecopy !metadata(span=[[CTOR]])
 // CHECK: mstore !metadata(span=[[CTOR]])
 // CHECK: push 0 !metadata(span=[[C:[0-9]+..[0-9]+]])

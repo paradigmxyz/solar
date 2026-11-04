@@ -368,8 +368,8 @@ impl<'gcx> EvmCodegen<'gcx> {
     ///
     /// solc compiles the free memory pointer setup, and the code that wraps the constructor and the
     /// runtime, in the `LocationSetter` of the contract (`ContractCompiler::compileContract`,
-    /// `compileConstructor` and `packIntoContractCreator`), so each instruction maps to the
-    /// contract's range.
+    /// `compileConstructor`, `appendInitAndConstructorCode` and `packIntoContractCreator`), so each
+    /// instruction maps to the contract's range.
     pub(super) fn emit_with_contract_origin(&mut self, emit: impl FnOnce(&mut Self)) {
         self.emit_with_origin(self.contract_span, emit);
     }
