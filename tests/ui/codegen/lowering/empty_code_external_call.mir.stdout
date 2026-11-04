@@ -86,12 +86,12 @@ fn @tryDirect() [selector=0x45eca8af, abi_params=[], abi_returns=[], abi_return_
     icall revert_if<target_contract_has_no_code>, v2
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
@@ -109,12 +109,12 @@ fn @tryPointer() [selector=0xce20ef7a, abi_params=[], abi_returns=[], abi_return
     icall revert_if<target_contract_has_no_code>, v2
     v3 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v3, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
@@ -132,12 +132,12 @@ fn @tryStatic() [selector=0x54f223e3, view, abi_params=[], abi_returns=[], abi_r
     icall revert_if<target_contract_has_no_code>, v2
     v3 = staticcall v0, 0, 28, 4, 0, 0
     jumpi v3, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
@@ -158,12 +158,12 @@ fn @trySelf() -> i1 [selector=0xf948cf5e, abi_params=[], abi_returns=[word<bool>
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     ret false
   bb1:                                            ; preds = bb0
     ret true
@@ -239,12 +239,12 @@ fn @constructor() [constructor] {
     v5 = zext i160 v0 to i256
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3

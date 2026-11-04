@@ -38,7 +38,8 @@
 //! Terminal-block equivalence compares every non-operand instruction field, including semantic
 //! layouts and literal payloads, while comparing SSA operands by definition position. It ignores
 //! source context. Shared instructions and
-//! terminators retain the bounded union of their original locations instead.
+//! terminators retain the bounded union of their original locations instead. A shared block keeps
+//! `cold_hint` only if every block it replaces has it.
 
 use super::utils::{redirect_edge, redirect_successor_predecessors};
 use crate::mir::{
@@ -286,6 +287,8 @@ fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
         }
         let metadata = func.blocks[dup].terminator_metadata.debug_context();
         func.blocks[keep].terminator_metadata.merge_debug_context(&metadata);
+        // A shared block is rarely run only if every block it replaces is.
+        func.blocks[keep].cold_hint &= func.blocks[dup].cold_hint;
         for pred in std::mem::take(&mut func.blocks[dup].predecessors) {
             redirect_edge(func, pred, dup, keep);
         }
@@ -594,6 +597,7 @@ fn do_merge(func: &mut Function, block_id: BlockId, target: BlockId) {
     let terminator = terminator.expect("merged block must have a terminator");
 
     // block: prefix; target_instructions; target_terminator
+    // The merged block keeps the hint of `block_id`: `target` runs exactly when it does.
     func.blocks[block_id].instructions.extend(target_instructions);
     func.blocks[block_id].set_terminator(terminator, metadata);
     redirect_successor_predecessors(func, target, block_id);

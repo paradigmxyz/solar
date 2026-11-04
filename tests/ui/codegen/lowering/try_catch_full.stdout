@@ -33,7 +33,7 @@ fn @full() {
     mstore 32, v63
     v4 = staticcall v2, v0, 28, 36, 0, 0
     jumpi v4, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold, cold_hint]:                          ; preds = bb0
     v49 = returndatasize
     v193 = add v49, 63
     v52 = and v193, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -47,15 +47,15 @@ fn @full() {
     v23 = shr v22, 224
     v24 = eq v23, 0x8c379a0
     jumpi v24, bb3, bb5
-  bb3:                                            ; preds = bb2
+  bb3 [cold, cold_hint]:                          ; preds = bb2
     v26 = icall @try_decode_error_message, v158, v49
     jumpi v26, bb4, bb5
-  bb5:                                            ; preds = bb2, bb3
+  bb5 [cold, cold_hint]:                          ; preds = bb2, bb3
     v35 = eq v23, 0x4e487b71
     v37 = gt v49, 35
     v38 = and v35, v37
     jumpi v38, bb6, bb7
-  bb7:                                            ; preds = bb5
+  bb7 [cold, cold_hint]:                          ; preds = bb5
     v192 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v134 = add v192, 64
     mstore v192, 3
@@ -72,7 +72,7 @@ fn @full() {
     mcopy v142, v158, v139 !metadata(disjoint)
     v147 = sub v145, v192
     returndata v192, v147
-  bb6:                                            ; preds = bb5
+  bb6 [cold, cold_hint]:                          ; preds = bb5
     v164 = add v186, 36
     v41 = mload v164
     v189 = mload 64 !metadata(memory=scratch, alloc_ptr)
@@ -89,7 +89,7 @@ fn @full() {
     mstore v116, 32
     mcopy v124, v166, 32 !metadata(disjoint)
     returndata v190, 128
-  bb4:                                            ; preds = bb3
+  bb4 [cold, cold_hint]:                          ; preds = bb3
     v30 = sub v49, 4
     v160 = add v186, 36
     v60 = icall @decode_aggregate.4, v160, v30
@@ -151,7 +151,7 @@ fn @rethrows() {
     mstore 32, v46
     v4 = staticcall v2, v0, 28, 36, 0, 0
     jumpi v4, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold, cold_hint]:                          ; preds = bb0
     v32 = returndatasize
     v69 = add v32, 63
     v35 = and v69, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
@@ -165,12 +165,12 @@ fn @rethrows() {
     v21 = shr v20, 224
     v22 = eq v21, 0x8c379a0
     jumpi v22, bb4, bb6
-  bb4:                                            ; preds = bb2
+  bb4 [cold, cold_hint]:                          ; preds = bb2
     v24 = icall @try_decode_error_message, v52, v32
     jumpi v24, bb5, bb6
-  bb6 [cold]:                                     ; preds = bb2, bb4
+  bb6 [cold, cold_hint]:                          ; preds = bb2, bb4
     revert v52, v32
-  bb5:                                            ; preds = bb4
+  bb5 [cold, cold_hint]:                          ; preds = bb4
     v28 = sub v32, 4
     v54 = add v67, 36
     v43 = icall @decode_aggregate.4, v54, v28
