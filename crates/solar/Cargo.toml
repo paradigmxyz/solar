@@ -62,6 +62,9 @@ solar-pass-plugin-fixture = { path = "../../tools/pass-plugin-fixture" }
 solar-pass-plugin.workspace = true
 tempfile.workspace = true
 
+[target.'cfg(any(unix, windows))'.dev-dependencies]
+libloading.workspace = true
+
 # Pinned dependencies. See /Cargo.toml.
 [target.'cfg(any())'.dependencies]
 idna_adapter.workspace = true
