@@ -1,0 +1,71 @@
+; === ROOT/tests/ui/codegen/mir/load-pre/constant_index_write.sol:ConstantIndexWrite ===
+@module ConstantIndexWrite
+; function f(bool c0, bool c1, bytes1 v, bytes1 w) external pure returns (uint256 r) [selector 0x96dde50a]
+fn @f(arg0: i1, arg1: i1, arg2: i256, arg3: i256) -> i256 [selector=0x96dde50a, pure, abi_params=[bool, bool, bytes1, bytes1], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 32
+    v1 = mload v0
+    v2 = gt v1, 5
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = byte 0, arg2
+    v5 = ptradd v0, 37
+    mstore8 v5, v4
+    v6 = mload v0
+    v7 = gt v6, 5
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd v0, 37
+    v10 = mload v9
+    v11 = byte 0, v10
+    v12 = shl v11, 248
+    v13 = shr v12, 248
+    v14 = trunc i256 v13 to i8
+    v15 = zext i8 v14 to i256
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v22 = checked_add uint256, v15, 2
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v16 = mload v0
+    v17 = gt v16, 5
+    v18 = eq v17, false
+    icall panic_if<0x32>, v18
+    v19 = byte 0, arg3
+    v20 = ptradd v0, 37
+    mstore8 v20, v19
+    v21 = checked_add uint256, v15, 1
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v23 = phi [bb1: v21], [bb2: v22]
+    jumpi arg1, bb4, bb5
+  bb5:                                            ; preds = bb3
+    v25 = checked_add uint256, v23, 20
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v24 = checked_add uint256, v23, 10
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v26 = phi [bb4: v24], [bb5: v25]
+    v27 = mload v0
+    v28 = gt v27, 5
+    v29 = eq v28, false
+    icall panic_if<0x32>, v29
+    v30 = ptradd v0, 37
+    v31 = mload v30
+    v32 = byte 0, v31
+    v33 = shl v32, 248
+    v34 = shr v33, 248
+    v35 = trunc i256 v34 to i8
+    v36 = zext i8 v35 to i256
+    v37 = eq v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v37, bb7, bb8
+  bb8:                                            ; preds = bb6
+    jump bb9
+  bb7:                                            ; preds = bb6
+    jump bb9
+  bb9:                                            ; preds = bb7, bb8
+    v38 = phi [bb7: v26], [bb8: v36]
+    ret v38
+}
