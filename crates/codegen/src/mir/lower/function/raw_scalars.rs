@@ -274,6 +274,19 @@ impl<'gcx> Exposure<'gcx> {
         }
     }
 
+    /// Marks the bindings that copy edges connect to the raw bindings in `pending` as raw.
+    fn close_raw(&mut self, mut pending: Vec<VariableId>) {
+        while let Some(id) = pending.pop() {
+            if let Some(neighbors) = self.edges.get(&id) {
+                for &neighbor in neighbors {
+                    if self.raw.insert(neighbor) {
+                        pending.push(neighbor);
+                    }
+                }
+            }
+        }
+    }
+
     /// Records the internal function pointers an expression may carry into bindings.
     fn connect_pointers(&mut self, destinations: &[VariableId], expr: &hir::Expr<'_>) {
         let destinations = destinations
@@ -558,16 +571,7 @@ impl LoweringState {
                 }
             }
         }
-        let mut pending = exposure.raw.iter().copied().collect::<Vec<_>>();
-        while let Some(id) = pending.pop() {
-            if let Some(neighbors) = exposure.edges.get(&id) {
-                for &neighbor in neighbors {
-                    if exposure.raw.insert(neighbor) {
-                        pending.push(neighbor);
-                    }
-                }
-            }
-        }
+        exposure.close_raw(exposure.raw.iter().copied().collect());
 
         let mut tainted = exposure.raw.clone();
         let mut pending = tainted.iter().copied().collect::<Vec<_>>();
@@ -622,6 +626,16 @@ impl LoweringState {
                 break;
             }
         }
+        // A retyped pointer passes an enum parameter any word, and solc checks the word where the
+        // function reads the enum, not on entry, so the parameter is a raw carrier.
+        let enum_parameters = exposed
+            .iter()
+            .flat_map(|&function| gcx.hir.function(function).parameters)
+            .copied()
+            .filter(|&id| matches!(gcx.type_of_item(id.into()).kind, TyKind::Enum(_)))
+            .collect::<Vec<_>>();
+        exposure.raw.extend(&enum_parameters);
+        exposure.close_raw(enum_parameters);
         self.pointer_registry.assembly_exposed = exposed;
         self.pointer_registry.assembly_calls = calls;
 
