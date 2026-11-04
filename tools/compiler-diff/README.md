@@ -72,7 +72,7 @@ worst by time:
 ## Saved comparisons
 
 ```sh
-# Latest attempt from each compiler, for every attempted compilation.
+# Latest attempt from each compiler, for every compilation in the corpus.
 compiler-diff compare --continue-on-failure
 compiler-diff compare --check abi --policy exact --check userdoc --check devdoc
 # Specific attempt directories or raw standard-JSON output files.
@@ -103,9 +103,9 @@ agreement does not imply runtime equivalence.
 
 Each check reports `equal`, `different`, `unsupported` (outputs missing on both
 sides), or `error` (failed compilation or malformed output); output missing on
-one side is a difference. Reports exclude unrun corpus entries but count corpus
-size and available and processed pairs, so a partial run cannot pass for full
-coverage. The CLI prints PASS, FAIL, or KNOWN per pair; failures show compiler
+one side is a difference. A compilation that a compiler never ran is an `error`,
+so a partial run (`run --limit`) fails; the report counts corpus size and
+available and processed pairs. The CLI prints PASS, FAIL, or KNOWN per pair; failures show compiler
 commands, versions and hashes, JSON paths, both values, and replay commands. It
 shows five differences per check and shortens large values unless `--full` is
 set; reports keep everything, grouped by comparator and path. The summary gives
@@ -114,10 +114,11 @@ unexpected difference or incomplete check unless `--continue-on-failure` is
 set; either way these exit 1.
 
 Reports and mismatch bundles live in `comparisons/<id>/`, indexed by the local
-DuckDB database. Bundles copy both sides' attempt files and list JSON-pointer
-differences with both values. When both sides exist, a bundle also holds
+DuckDB database. Bundles copy both sides' attempt files (`stdout.txt` is a hard
+link, so do not edit it in place) and list JSON-pointer differences with both
+values. When both sides exist, a bundle also holds
 `compare.sh` and a snapshot of its expectation rules; `sh <bundle>/compare.sh`
-repeats the comparison from the copies, needs this checkout and uv, and writes
+repeats the comparison from the bundle, needs this checkout and uv, and writes
 a new report. Compiler replay scripts use the recorded executable paths, not
 bundled binaries. Standard-JSON compilers may exit 0 with error diagnostics;
 inspect `replay.stdout.txt` or pass the outputs to `compare`, which rejects
@@ -185,12 +186,13 @@ The report holds, for each `(nodeType, field)`, the nodes compared, `equal`,
 `different`, `missing_left`, `missing_right` and `ignored`, and for each node
 type the node count of both sides. Node types that the reference has and the
 candidate never emits are `never_emitted`. `report.json` sums them under `ast`
-and keeps them per pair only for pairs that differ; the CLI prints the
+and keeps nothing per pair; the CLI prints the
 agreement, how many reference nodes were paired (nodes under a missing field or
 list item are not), the never-emitted types and the ten least-equal fields.
 `differences` keeps 20 samples per field with normalized values and pointers;
 the rest are counted as `omitted`, which expectations cannot excuse.
-`difference_groups` counts differences by `nodeType.field`.
+`difference_groups` counts all differences, sampled or not, by
+`nodeType.field`.
 
 `--ast-rules FILE` lists accepted differences, each with a version (1), the
 `nodeType` (or `*`), the `field`, an `action` and a `reason`:

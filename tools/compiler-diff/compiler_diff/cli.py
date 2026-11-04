@@ -242,14 +242,15 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
         report["failed"] = report["failed"] or bool(pair["failed"])
         for result in pair["results"]:
             counts[result["comparator"] + ":" + result["status"]] += 1
-            for diff in result["differences"]:
-                groups[
-                    result["comparator"] + ":" + diff.get("group", diff["path"])
-                ] += 1
+            if "groups" in result:
+                for group, count in result["groups"].items():
+                    groups[f"ast:{group}"] += count
+            else:
+                for diff in result["differences"]:
+                    groups[result["comparator"] + ":" + diff["path"]] += 1
             if "fields" in result:
                 ast_summary.add(result)
-                if result["status"] == "equal":
-                    del result["fields"], result["node_types"]
+                del result["fields"], result["node_types"]
         if any(r["status"] != "equal" for r in pair["results"]):
             bundle = directory / str(len(report["pairs"]))
             bundle.mkdir()
@@ -271,10 +272,16 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
                             "import.json",
                         ):
                             if (source / name).is_file():
-                                link_or_copy(source / name, destination / name)
+                                # Output is large; link it, copy the rest.
+                                copy = (
+                                    link_or_copy
+                                    if name == "stdout.txt"
+                                    else shutil.copyfile
+                                )
+                                copy(source / name, destination / name)
                     else:
                         destination = bundle / (label + ".json")
-                        link_or_copy(source, destination)
+                        shutil.copyfile(source, destination)
                     copied.append(destination)
             pair["bundle"] = str(bundle)
             if len(copied) == 2:
@@ -1026,6 +1033,7 @@ class Tests(corpus.Tests):
         report = read_json(report_path / "report.json")
         self.assertEqual(report["summary"], {"ast:equal": 1})
         self.assertEqual(report["ast"]["unused_rules"], [])
+        self.assertNotIn("fields", report["pairs"][0]["results"][0])
         self.assertEqual(report["ast_rules"][0]["field"], "name")
         for bad in ({"version": 2}, {"action": "drop"}, {"reason": " "}, {"extra": 1}):
             rule = {**read_json(rules)[0], **bad}
@@ -1114,6 +1122,7 @@ class Tests(corpus.Tests):
             )
             / "report.json"
         )
-        self.assertEqual(
-            [pair["id"] for pair in report["pairs"] if pair["failed"]], ["one", "two"]
-        )
+        statuses = {
+            p["id"]: [r["status"] for r in p["results"]] for p in report["pairs"]
+        }
+        self.assertEqual(statuses["two"], ["error", "error"])

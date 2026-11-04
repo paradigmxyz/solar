@@ -346,6 +346,7 @@ def compare_ast(left, right, rules):
     found = []
     samples = Counter()
     omitted = 0
+    groups = Counter()
     # Each source's `ast` is a field of a pseudo node, so missing sources count too.
     stack = [
         (path, "(sources)", roots[0].get(path, {}), roots[1].get(path, {}))
@@ -402,8 +403,9 @@ def compare_ast(left, right, rules):
                     for p, x, y in ast_pairs(l[key], r[key], pointer(path, key)):
                         if x["nodeType"] == y["nodeType"]:
                             children.append((p, x["nodeType"], x, y))
+            if new:
+                groups[f"{node_type}.{key}"] += len(new)
             for difference in new:
-                difference["group"] = f"{node_type}.{key}"
                 if samples[node_type, key] < AST_SAMPLES:
                     samples[node_type, key] += 1
                     found.append(difference)
@@ -423,6 +425,7 @@ def compare_ast(left, right, rules):
         else "equal",
         "differences": found,
         "omitted": omitted,
+        "groups": dict(groups),
         "fields": [
             {
                 "nodeType": node_type,
@@ -1022,6 +1025,7 @@ class Tests(unittest.TestCase):
             [f"/sources/A.sol/ast/nodes/0/nodes/{n}/name" for n in range(AST_SAMPLES)],
         )
         self.assertEqual(result["omitted"], 2 * count - AST_SAMPLES)
+        self.assertEqual(result["groups"], {"EnumDefinition.name": 2 * count})
         rule = {key: result[key] for key in ("comparator", "version", "policy")}
         rules = [
             {**rule, "difference": d, "reason": "x"} for d in result["differences"]
