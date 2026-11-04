@@ -70,7 +70,7 @@ pub(crate) fn mir_output_name(gcx: Gcx<'_>, module: &Module) -> String {
 /// A streamlined trait for a MIR transformation pass.
 pub trait MirPass: Sync {
     /// Command-line and pipeline name.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
 
     /// Returns whether this pass is enabled with the current compiler flags and MIR phase.
     fn is_enabled(&self, _gcx: Gcx<'_>, module: &Module) -> bool {
@@ -107,7 +107,7 @@ pub trait MirPass: Sync {
 
     /// Cache only stateless optional passes, keyed by concrete type and pipeline name.
     /// Configured or required passes must run unless they provide their own safe cache.
-    fn cache_key(&self) -> Option<(&'static str, &'static str)> {
+    fn cache_key(&self) -> Option<(&'static str, &str)> {
         (!self.is_required() && std::mem::size_of_val(self) == 0)
             .then_some((std::any::type_name::<Self>(), self.name()))
     }
