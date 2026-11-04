@@ -59,15 +59,17 @@ impl SourceMapEncoder {
         instruction: &DebugInstruction<'_>,
     ) -> SourceMapEntry {
         // The format holds one origin per instruction. Origins that form one nesting chain
-        // (each pair is nested within one source file) map to the innermost span, which every
-        // other origin encloses. Any other set is shared between unrelated source statements:
-        // its incoming transfers retain path-specific locations where available, and choosing
-        // one origin here would attribute other callers to an unrelated statement. This applies
-        // to sharing in both MIR and EVM IR.
+        // (each pair is nested within one source file) map to the first span, the
+        // instruction's own location: origin lists keep insertion order and merges append, so
+        // a nested origin added from either side never changes the map. Any other set is
+        // shared between unrelated source statements: its incoming transfers retain
+        // path-specific locations where available, and choosing one origin here would
+        // attribute other callers to an unrelated statement. This applies to sharing in both
+        // MIR and EVM IR.
         // NOTE: An incoming transfer may be optimized into a zero-byte fallthrough.
         // Its checkpoint is then unavailable; keep such a shared location unknown
         // (-1, -1, -1) rather than changing codegen to manufacture a source stop.
-        let location = innermost_span(instruction.location.source_spans).and_then(|span| {
+        let location = first_nested_span(instruction.location.source_spans).and_then(|span| {
             let source = files.span_to_source(span).ok()?;
             let source_id = *self.source_ids.get(&source.file.start_pos)?;
             Some((source.data.start as i64, source.data.len() as i64, source_id.index() as i64))
@@ -97,15 +99,12 @@ impl SourceMapEncoder {
     }
 }
 
-/// Returns the innermost of `spans` when they form one nesting chain.
+/// Returns the first of `spans` when they form one nesting chain.
 ///
 /// Spans of different source files occupy disjoint position ranges, so they never nest.
-fn innermost_span(spans: &[Span]) -> Option<Span> {
+fn first_nested_span(spans: &[Span]) -> Option<Span> {
     let nested = spans.iter().all(|&a| spans.iter().all(|&b| a.contains(b) || b.contains(a)));
-    if !nested {
-        return None;
-    }
-    spans.iter().copied().min_by_key(|span| span.hi() - span.lo())
+    spans.first().copied().filter(|_| nested)
 }
 
 /// Returns the statically encoded destination of a jump preceded by `PUSH`.
@@ -225,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn maps_nested_origins_to_the_innermost_span() {
+    fn maps_nested_origins_to_the_first_span() {
         let source_map = SourceMap::default();
         let file = source_map.new_source_file(PathBuf::from("a.sol"), "x".repeat(100)).unwrap();
         let encoder = SourceMapEncoder {
@@ -251,11 +250,11 @@ mod tests {
 
         // A single span.
         assert_data_eq!(encode_spans(&[inner]), str!["20:10:0:-:0"]);
-        // A nested pair, in either order.
-        assert_data_eq!(encode_spans(&[outer, inner]), str!["20:10:0:-:0"]);
+        // A nested pair writes its first span, whether that is the outer or the inner one.
+        assert_data_eq!(encode_spans(&[outer, inner]), str!["10:40:0:-:0"]);
         assert_data_eq!(encode_spans(&[inner, outer]), str!["20:10:0:-:0"]);
         // A chain of three, and a duplicate.
-        assert_data_eq!(encode_spans(&[inner, outer, innermost]), str!["22:3:0:-:0"]);
+        assert_data_eq!(encode_spans(&[inner, outer, innermost]), str!["20:10:0:-:0"]);
         assert_data_eq!(encode_spans(&[inner, inner]), str!["20:10:0:-:0"]);
         // A pair that overlaps without nesting, and a disjoint pair.
         assert_data_eq!(encode_spans(&[outer, overlapping]), str![":::-:0"]);
