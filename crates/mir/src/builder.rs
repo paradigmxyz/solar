@@ -317,6 +317,10 @@ impl<'a> FunctionBuilder<'a> {
     /// a statically sized aggregate. These are the checks of solc's `access_calldata_tail` and
     /// the ABI encoder's `calldata_access`; `tail` only picks the debug messages.
     ///
+    /// With `decoded`, the offset must also fit in 64 bits, as solc's ABI decoder requires of the
+    /// nested offsets of a value copied to memory. The signed bound alone accepts an offset above
+    /// `2**255`, which wraps `base + offset` back onto earlier calldata.
+    ///
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L2542-L2569>
     /// and <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ABIFunctions.cpp#L1435-L1475>
     pub fn check_calldata_tail_offset(
@@ -326,13 +330,21 @@ impl<'a> FunctionBuilder<'a> {
         offset: ValueId,
         calldata_end: ValueId,
         tail_size: u64,
+        decoded: bool,
     ) {
-        // if !(offset <s calldata_end - base - (tail_size - 1)) { revert }
+        // if !(offset <s calldata_end - base - (tail_size - 1)) || offset > 0xffffffffffffffff {
+        //     revert
+        // }
         let available = self.sub(calldata_end, base);
         let slack = self.imm(tail_size - 1);
         let bound = self.sub(available, slack);
         let valid = self.slt(offset, bound);
-        let invalid = self.eq_zero(valid);
+        let mut invalid = self.eq_zero(valid);
+        if decoded {
+            let max_offset = self.imm(u64::MAX);
+            let too_large = self.gt(offset, max_offset);
+            invalid = self.or(invalid, too_large);
+        }
         self.revert_if(invalid, tail.offset_reason());
     }
 
