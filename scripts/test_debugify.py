@@ -141,6 +141,12 @@ class DebugifyReportTests(unittest.TestCase):
         self.write("bad.jsonl", {**record, "count": 3})
         with self.assertRaisesRegex(ValueError, "inconsistent gap opcodes"):
             summarize(self.root)
+        # A negative entry that offsets an overcount is not a histogram.
+        self.write(
+            "bad.jsonl", {**record, "opcodes": {"add": 3, "sub": -1}, "count": 2}
+        )
+        with self.assertRaisesRegex(ValueError, "inconsistent gap opcodes"):
+            summarize(self.root)
 
     def test_invalid_baseline_fails(self):
         path = self.root / "summary.json"

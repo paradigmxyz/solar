@@ -69,7 +69,7 @@ def check_gaps(record: dict) -> None:
     opcodes = record.get("opcodes")
     if (
         not isinstance(opcodes, dict)
-        or any(type(value) is not int for value in opcodes.values())
+        or any(type(value) is not int or value <= 0 for value in opcodes.values())
         or sum(opcodes.values()) != count
     ):
         raise ValueError("inconsistent gap opcodes")
