@@ -1,7 +1,7 @@
 use crate::{BytePos, CharPos, pos::RelativeBytePos};
 use std::{
     fmt,
-    hash::{Hash, Hasher},
+    hash::Hash,
     io,
     ops::{Range, RangeInclusive},
     path::{Path, PathBuf},
@@ -148,17 +148,6 @@ impl fmt::Display for FileNameDisplay<'_> {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct SourceFileId(u64);
-
-impl SourceFileId {
-    pub(crate) fn new(filename: &FileName) -> Self {
-        let mut hasher = solar_data_structures::map::FxHasher::with_seed(0);
-        filename.hash(&mut hasher);
-        Self(hasher.finish())
-    }
-}
-
 /// Sum of all file lengths is over [`u32::MAX`].
 #[derive(Debug)]
 pub struct OffsetOverflowError(pub(crate) ());
@@ -216,17 +205,12 @@ impl std::hash::Hash for SourceFile {
 
 impl SourceFile {
     /// Creates a new `SourceFile`. Use the [`SourceMap`](crate::SourceMap) methods instead.
-    pub(crate) fn new(
-        name: FileName,
-        id: SourceFileId,
-        mut src: Arc<String>,
-    ) -> Result<Self, OffsetOverflowError> {
+    pub(crate) fn new(name: FileName, mut src: Arc<String>) -> Result<Self, OffsetOverflowError> {
         // Compute the file hash before any normalization.
         // let src_hash = SourceFileHash::new(hash_kind, &src);
 
         // let normalized_pos = normalize_src(&mut src);
 
-        debug_assert_eq!(id, SourceFileId::new(&name));
         let source_len = src.len();
         let source_len = u32::try_from(source_len).map_err(|_| OffsetOverflowError(()))?;
 
