@@ -1040,21 +1040,3 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol`,
   `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/constant_values_too_large.sol`.
-
-### CODEGEN-014: Indexed event topics follow via-IR
-
-- ID: CODEGEN-014
-- Status: intentional
-- Difference: legacy `solc` evaluates the indexed arguments of an event first,
-  in reverse order, and hashes each topic at once; via-IR evaluates every
-  argument in source order and hashes the topics after the last one. `solar`
-  evaluates arguments in source order and reads an indexed storage array,
-  struct, or string after the last argument, as via-IR does. The two `solc`
-  pipelines agree when the arguments that follow the storage topic are all
-  indexed, and `solar` matches them there. With a non-indexed argument that
-  writes the storage, legacy hashes the old value and `solar` hashes the new
-  one.
-- Rationale: the two `solc` pipelines disagree, and source order is the
-  behavior of via-IR and of every other call.
-- Coverage: `tests/foundry/events` (`test_EmitLateIndexed` and
-  `test_EmitLateIndexedText`).
