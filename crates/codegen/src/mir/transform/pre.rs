@@ -1469,9 +1469,8 @@ impl<'a> Eliminator<'a> {
             }
             // The groups drop their offsets, so each word is compared at its own location.
             for &idx in words.values() {
-                if let Location::Memory(key) = keys[idx].location()
-                    && AliasAnalysis::memory_alias_locations(written, key).may_alias()
-                {
+                let Location::Memory(key) = keys[idx].location() else { unreachable!() };
+                if AliasAnalysis::memory_alias_locations(written, key).may_alias() {
                     kill(idx);
                 }
             }
