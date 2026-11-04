@@ -503,6 +503,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
+        // The blocks the clauses create inherit the hint, so the whole catch side is cold, up to
+        // but not including the merge block.
+        self.builder.func_mut().blocks[catch_block].cold_hint = true;
         self.builder.switch_to_block(catch_block);
         let needs_data =
             catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());
