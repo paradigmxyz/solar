@@ -358,6 +358,8 @@ pub(super) fn rebuild_values(
                     {
                         result.inst(*def).metadata.debug_context()
                     } else {
+                        // NOTE: A step back, `next - c`, is a new computation, not a copy of the
+                        // phi it stands for, so it keeps the context of the reader.
                         reader
                     };
                     let (copy_id, copy_value) = result.alloc_value_inst(copy);
