@@ -2,6 +2,9 @@
 //@ compile-flags: -Zmir-pipeline=egraph,dce
 //@[report] compile-flags: -Zdebugify=report
 //@[check] compile-flags: -Zdebugify=check
+//@ normalize-stdout-test: "(?s).+" -> ""
+//@[report] compile-flags: -Zdump=mir
+//@[report] filecheck:
 //~[check]? ERROR: debugify: MIR pass `dce` lost 3 source origins
 // A rewrite that leaves an operand dead moves the operand's origin onto the rewritten user when
 // the operand runs exactly when the user does. Across an effect it does not, so `dce` still
@@ -9,6 +12,7 @@
 @module Debugify
 
 // The inner `add` dies when the outer one folds both constants.
+// CHECK: add arg0, 3 !metadata(spans=[10..20, 12..16])
 fn @folded_operand(arg0: i256) -> i256 {
   bb0:
     v0 = add arg0, 1 !metadata(span=12..16)
@@ -17,6 +21,7 @@ fn @folded_operand(arg0: i256) -> i256 {
 }
 
 // The zero test dies when the branch tests its operand and swaps its targets.
+// CHECK: jumpi {{v[0-9]+}}, bb2, bb1 !metadata(spans=[45..70, 50..61])
 fn @inverted_branch(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = gt arg0, arg1 !metadata(span=52..60)
@@ -38,6 +43,7 @@ fn @effect_between(arg0: i256) -> i256 {
 }
 
 // The zero test dies when the check flips its polarity.
+// CHECK: panic_if_zero<0x1>, {{v[0-9]+}} !metadata(spans=[205..230, 210..221])
 fn @flipped_check(arg0: i256, arg1: i256) -> i256 {
   bb0:
     v0 = gt arg0, arg1 !metadata(span=212..220)

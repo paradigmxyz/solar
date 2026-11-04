@@ -316,6 +316,38 @@ fn tail_call_thunk_chain_keeps_call_site() {
 }
 
 #[test]
+fn egraph_absorbed_origins_keep_the_legacy_map() {
+    let path = Path::new(FIXTURES).join("../../ui/cli/auxiliary/debug_egraph_origins.sol");
+    let source = RealFileLoader.load_file(&path).unwrap();
+    let folded = source.find("x + 1 + 2").unwrap();
+    let condition = source.find("!(x > y)").unwrap();
+    let compile = |outputs: &str| {
+        let output = Command::new(SOLAR)
+            .arg(&path)
+            .args(["-Ogas", "--allow=2264"])
+            .arg(format!("--emit={outputs}"))
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    let plain = compile("bin,bin-runtime");
+    let debug = compile("bin,bin-runtime,srcmap-runtime");
+    let contract = debug["contracts"].as_object().unwrap().values().next().unwrap();
+    let baseline = plain["contracts"].as_object().unwrap().values().next().unwrap();
+    for code in ["bin", "bin-runtime"] {
+        assert_eq!(contract[code], baseline[code]);
+    }
+    // The folded `add` keeps the span of the whole sum, never of the inner `x + 1`, and the
+    // flipped branch keeps the span of its negated condition.
+    let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
+    let has = |start: usize, len: usize| entries.contains(&[start as i64, len as i64, 0]);
+    assert!(has(folded, "x + 1 + 2".len()));
+    assert!(!has(folded, "x + 1".len()));
+    assert!(has(condition, "!(x > y)".len()));
+}
+
+#[test]
 fn debugify_sidecars_separate_compilations() {
     let temp = tempfile::tempdir().unwrap();
     let cases = [
