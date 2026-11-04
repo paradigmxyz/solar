@@ -1,0 +1,6 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/discarded_ternary_calldata_conversion.sol:LL:CC
+   │
+LL │         takeCalldata ? values : empty;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

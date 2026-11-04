@@ -38,6 +38,12 @@ LL │     uint public a = 0x42 >> (1 / 2);
    │                     │
    ╰╴                    int_literal[7]
 
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         -0.5;
+   ╰╴        ━━━━
+
 error: cannot apply unary operator `~` to `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
    │
@@ -97,6 +103,18 @@ LL │         1 << 1.5;
    │         ┬ ━━ ─── rational_literal
    │         │
    ╰╴        int_literal[1]
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         0.5 ** 2;
+   ╰╴        ━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
+   │
+LL │         0.5 ** -2;
+   ╰╴        ━━━━━━━━━
 
 error[2271]: cannot apply builtin operator `**` to `int256` and `rational_literal`
    ╭▸ ROOT/tests/ui/typeck/rational_literal_operators.sol:LL:CC
@@ -210,5 +228,5 @@ LL │         0.5 == x;
    │         │
    ╰╴        rational_literal
 
-error: aborting due to 27 previous errors
+error: aborting due to 27 previous errors; 3 warnings emitted
 

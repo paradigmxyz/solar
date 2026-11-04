@@ -1,3 +1,9 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/parser/empty_call_args.sol:LL:CC
+   │
+LL │     f;
+   ╰╴    ━
+
 error[2144]: no matching declarations found
    ╭▸ ROOT/tests/ui/parser/empty_call_args.sol:LL:CC
    │
@@ -10,5 +16,5 @@ error[9322]: no matching declarations found
 LL │     revert ({ });
    ╰╴    ━━━━━━
 
-error: aborting due to 2 previous errors
+error: aborting due to 2 previous errors; 1 warning emitted
 

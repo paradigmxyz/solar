@@ -16,20 +16,20 @@ contract Members {
 // Only the body of `receive` itself is checked.
 contract Allowed {
     modifier m() {
-        msg.data;
+        msg.data; //~ WARN: statement has no effect
         _;
     }
 
     receive() external payable m {
-        msg.sig;
+        msg.sig; //~ WARN: statement has no effect
         f();
     }
 
     fallback() external {
-        msg.data;
+        msg.data; //~ WARN: statement has no effect
     }
 
     function f() internal pure {
-        msg.data;
+        msg.data; //~ WARN: statement has no effect
     }
 }

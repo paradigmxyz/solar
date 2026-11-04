@@ -42,7 +42,7 @@ contract NegativeNumeratorNegativeExponent {
 // Fractions only support negation and arithmetic with other literals, with whole exponents.
 contract Operators {
     function f(uint x, int y) public pure {
-        -0.5;
+        -0.5; //~ WARN: statement has no effect
         ~0.5; //~ ERROR: cannot apply unary operator `~` to `rational_literal`
         !0.5; //~ ERROR: cannot apply unary operator `!` to `rational_literal`
         1.5 | 3; //~ ERROR: cannot apply builtin operator `|` to `rational_literal` and `int_literal[2]`
@@ -51,8 +51,8 @@ contract Operators {
         1.5 << 1; //~ ERROR: cannot apply builtin operator `<<` to `rational_literal` and `int_literal[1]`
         1.5 >> 1; //~ ERROR: cannot apply builtin operator `>>` to `rational_literal` and `int_literal[1]`
         1 << 1.5; //~ ERROR: cannot apply builtin operator `<<` to `int_literal[1]` and `rational_literal`
-        0.5 ** 2;
-        0.5 ** -2;
+        0.5 ** 2; //~ WARN: statement has no effect
+        0.5 ** -2; //~ WARN: statement has no effect
         y ** 0.5; //~ ERROR: cannot apply builtin operator `**` to `int256` and `rational_literal`
         x + 0.5; //~ ERROR: cannot apply builtin operator `+` to `uint256` and `rational_literal`
         0.5 * x; //~ ERROR: cannot apply builtin operator `*` to `rational_literal` and `uint256`

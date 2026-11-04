@@ -14,11 +14,11 @@ contract C {
     function statement() public pure {
         2**256; //~ ERROR: literal is too large for any integer type
         (2**256); //~ ERROR: literal is too large for any integer type
-        2**256 - 1;
+        2**256 - 1; //~ WARN: statement has no effect
     }
 
     function tuple() public pure {
         (2**256, 1); //~ ERROR: literal is too large for any integer type
-        (2**256 - 1, 1);
+        (2**256 - 1, 1); //~ WARN: statement has no effect
     }
 }

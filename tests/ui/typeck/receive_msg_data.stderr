@@ -22,5 +22,29 @@ LL │         bytes calldata data = msg.data[0:0];
    │
    ╰ note: `receive` is only called with empty calldata
 
-error: aborting due to 3 previous errors
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
+   │
+LL │         msg.data;
+   ╰╴        ━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
+   │
+LL │         msg.sig;
+   ╰╴        ━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
+   │
+LL │         msg.data;
+   ╰╴        ━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
+   │
+LL │         msg.data;
+   ╰╴        ━━━━━━━━
+
+error: aborting due to 3 previous errors; 4 warnings emitted
 

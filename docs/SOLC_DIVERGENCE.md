@@ -708,6 +708,26 @@ Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`
 `tests/ui/codegen/mir/optimize-function/` and
 `tests/ui/codegen/mir/inline/solar_inline_forms.sol`.
 
+### TYPECK-023: Statements with no effect
+
+Status: intentional.
+
+Difference: `solc` warns `Statement has no effect` (6133) when an expression
+statement is a compile-time constant. `solar` reuses the code for any
+expression statement that can neither write state nor revert, such as `require;`,
+`msg.sender;`, `a == b;` and `(a == b, "msg");`. It does not warn on calls,
+assignments, checked arithmetic, division, indexing, enum conversions, reads
+from calldata, or a bare variable (`x;`, which `solc` accepts and code uses to
+silence unused variable warnings). It also does not warn on builtin calls with
+constant arguments, such as `keccak256("a")` and `abi.decode(...)`, which `solc`
+reports.
+
+Rationale: a slipped parenthesis, as in `require; (cond, "message");`, would
+otherwise drop a check without a diagnostic. The warning stays conservative so
+it never hides code that can revert.
+
+Coverage: `tests/ui/typeck/no_effect_statement.sol`.
+
 ## Contract-Level Checks
 
 ### CONTRACT-001: Base slots that solc does not evaluate

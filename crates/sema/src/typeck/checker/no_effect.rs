@@ -1,0 +1,118 @@
+use super::TypeChecker;
+use crate::{hir, ty::TyKind};
+use solar_ast::{BinOpKind, DataLocation, UnOpKind};
+
+impl<'gcx> TypeChecker<'gcx> {
+    /// Returns whether an expression statement does nothing: evaluating it neither writes state
+    /// nor can revert.
+    ///
+    /// Solc only reports compile-time constants (6133). This also reports reads of builtins and
+    /// comparisons, but never an expression that could revert, such as checked arithmetic,
+    /// division, indexing, or an enum conversion.
+    ///
+    /// A bare mention of a variable (`x;`) is not reported, since solc accepts it silently and
+    /// code uses it to silence unused variable warnings and to force a function to read state.
+    pub(super) fn has_no_effect(&self, expr: &hir::Expr<'gcx>) -> bool {
+        !self.is_variable_mention(expr) && self.is_effect_free(expr)
+    }
+
+    fn is_variable_mention(&self, expr: &hir::Expr<'gcx>) -> bool {
+        match expr.kind {
+            hir::ExprKind::Tuple(exprs) => {
+                exprs.iter().all(|expr| expr.is_none_or(|expr| self.is_variable_mention(expr)))
+            }
+            hir::ExprKind::Ident(_) => self
+                .results
+                .resolved_expr(expr)
+                .and_then(|res| res.as_variable())
+                .is_some_and(|id| !self.gcx.hir.variable(id).is_constant()),
+            _ => false,
+        }
+    }
+
+    fn is_effect_free(&self, expr: &hir::Expr<'gcx>) -> bool {
+        let Some(ty) = self.results.type_of_expr(expr.id) else { return false };
+        if ty.references_error() {
+            return false;
+        }
+        if expr.is_numeric_literal() {
+            return true;
+        }
+        if let Some(id) = self.results.resolved_expr(expr).and_then(|res| res.as_variable())
+            && self.gcx.hir.variable(id).is_constant()
+        {
+            // A constant without a value runs its initializer, which can revert.
+            return self.gcx.early_const_eval().eval_var(id).is_ok();
+        }
+        match expr.kind {
+            hir::ExprKind::Array(exprs) => exprs.iter().all(|expr| self.is_effect_free(expr)),
+            hir::ExprKind::Tuple(exprs) => {
+                exprs.iter().all(|expr| expr.is_none_or(|expr| self.is_effect_free(expr)))
+            }
+            hir::ExprKind::Binary(lhs, op, rhs) => {
+                self.results.user_operator(expr.id).is_none()
+                    && is_non_reverting_binary(op.kind)
+                    && self.is_effect_free(lhs)
+                    && self.is_effect_free(rhs)
+            }
+            hir::ExprKind::Unary(op, inner) => {
+                matches!(op.kind, UnOpKind::Not | UnOpKind::BitNot)
+                    && self.results.user_operator(expr.id).is_none()
+                    && self.is_effect_free(inner)
+            }
+            hir::ExprKind::Call(callee, ref args) => {
+                let (callee, options) = callee.split_call_options();
+                if options.is_some() || !args.exprs().all(|arg| self.is_effect_free(arg)) {
+                    return false;
+                }
+                // Only conversions and struct constructors, and not an enum conversion.
+                let Some(callee_ty) = self.results.type_of_expr(callee.id) else { return false };
+                let TyKind::Type(inner) = callee_ty.kind else { return false };
+                matches!(
+                    inner.peel_refs().kind,
+                    TyKind::Elementary(_)
+                        | TyKind::Contract(_)
+                        | TyKind::Struct(_)
+                        | TyKind::Udvt(..)
+                )
+            }
+            hir::ExprKind::Ident(_) => {
+                !matches!(self.results.resolved_expr(expr), None | Some(hir::Res::Err(_)))
+            }
+            hir::ExprKind::Member(receiver, _) => {
+                // Reading calldata decodes lazily and can revert on malformed data.
+                self.results
+                    .type_of_expr(receiver.id)
+                    .is_some_and(|ty| !ty.is_ref_at(DataLocation::Calldata))
+                    && self.is_effect_free(receiver)
+            }
+            hir::ExprKind::Lit(_) | hir::ExprKind::Type(_) | hir::ExprKind::TypeCall(_) => true,
+            hir::ExprKind::Payable(inner) => self.is_effect_free(inner),
+            hir::ExprKind::Ternary(cond, then, els) => {
+                self.is_effect_free(cond) && self.is_effect_free(then) && self.is_effect_free(els)
+            }
+            hir::ExprKind::Assign(..)
+            | hir::ExprKind::CallOptions(..)
+            | hir::ExprKind::Delete(_)
+            | hir::ExprKind::Index(..)
+            | hir::ExprKind::Slice(..)
+            | hir::ExprKind::New(_)
+            | hir::ExprKind::YulMember(..)
+            | hir::ExprKind::Err(_) => false,
+        }
+    }
+}
+
+/// Returns whether a binary operator never reverts on built-in types: not checked arithmetic,
+/// division, or modulo.
+fn is_non_reverting_binary(op: BinOpKind) -> bool {
+    !matches!(
+        op,
+        BinOpKind::Add
+            | BinOpKind::Sub
+            | BinOpKind::Mul
+            | BinOpKind::Pow
+            | BinOpKind::Div
+            | BinOpKind::Rem
+    )
+}

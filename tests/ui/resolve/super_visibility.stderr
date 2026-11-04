@@ -10,5 +10,11 @@ error[7576]: unresolved symbol `super`
 LL │         super;
    ╰╴        ━━━━━
 
-error: aborting due to 2 previous errors
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/resolve/super_visibility.sol:LL:CC
+   │
+LL │         super;
+   ╰╴        ━━━━━
+
+error: aborting due to 2 previous errors; 1 warning emitted
 

@@ -7,7 +7,7 @@
 contract DiscardedTernaryCalldataConversion {
     function choose(bool takeCalldata, uint256[][] calldata values) external pure {
         uint256[][] memory empty = new uint256[][](0);
-        takeCalldata ? values : empty;
+        takeCalldata ? values : empty; //~ WARN: statement has no effect
     }
 
     function test(bool takeCalldata, bool malformed) external returns (bool success) {

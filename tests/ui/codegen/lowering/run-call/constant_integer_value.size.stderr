@@ -1,0 +1,6 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/constant_integer_value.sol:LL:CC
+   │
+LL │     function zeroNegativePower() external pure returns (uint) { 0.5; return 0 ** -1; }
+   ╰╴                                                                ━━━
+

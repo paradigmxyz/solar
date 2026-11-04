@@ -127,9 +127,9 @@ contract CallChecking {
 
     // === Struct constructor ===
     function testStructConstructor() public pure {
-        MyStruct(1, "hi");
-        MyStruct({x: 1, y: "hi"});
-        MyStruct({y: "hi", x: 1});
+        MyStruct(1, "hi"); //~ WARN: statement has no effect
+        MyStruct({x: 1, y: "hi"}); //~ WARN: statement has no effect
+        MyStruct({y: "hi", x: 1}); //~ WARN: statement has no effect
     }
     function testStructConstructorWrongCount() public pure {
         MyStruct(1); //~ ERROR: wrong argument count
