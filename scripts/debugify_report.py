@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize per-pass source-origin audits from the UI suite."""
+"""Summarize per-pass source-origin audits from the UI suite, optionally against a baseline."""
 
 import argparse
 import json
@@ -88,37 +88,172 @@ def cell(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ").replace("\r", " ")
 
 
-def markdown(summary: dict) -> str:
+def load_baseline(path: Path) -> dict:
+    try:
+        baseline = json.loads(path.read_text())
+        if baseline["version"] != 1:
+            raise ValueError("unsupported summary version")
+        for key in ("lost_origins", "losses", "pass_runs", "audited_tests"):
+            if type(baseline[key]) is not int:
+                raise ValueError(f"invalid {key}")
+        for field, rows in (("by_pass", ("ir", "pass")), ("by_test", ("test",))):
+            for row in baseline[field]:
+                for key in (*rows, "losses", "lost_origins"):
+                    row[key]
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(f"{path}: invalid baseline summary: {error!r}") from error
+    return baseline
+
+
+def delta(base: int, head: int) -> str:
+    """Lower is better, so fewer lost origins is an improvement."""
+    if base == head:
+        return "~0%"
+    sign = "+" if head > base else "-"
+    change = f"{sign}{abs(head - base):,}"
+    if base:
+        change += f", {sign}{abs(head - base) / base * 100:.2f}%"
+    return f"{'❌' if head > base else '✅'} {change}"
+
+
+def change(base: int, head: int) -> str:
+    return f"{head:,}" if base == head else f"{base:,} → {head:,} ({delta(base, head)})"
+
+
+def compare(
+    rows: list[dict], baseline: list[dict], key
+) -> list[tuple[dict, dict, dict]]:
+    """Pair rows by key, ordering by the size of the change in lost origins."""
+    empty = {"losses": 0, "lost_origins": 0}
+    before = {key(row): row for row in baseline}
+    after = {key(row): row for row in rows}
+    changed = [
+        (
+            after.get(name, empty),
+            before.get(name, empty),
+            after.get(name) or before[name],
+        )
+        for name in sorted(before.keys() | after.keys())
+        if after.get(name, empty)["lost_origins"]
+        != before.get(name, empty)["lost_origins"]
+    ]
+    return sorted(
+        changed,
+        key=lambda item: -abs(item[0]["lost_origins"] - item[1]["lost_origins"]),
+    )
+
+
+def has_changes(summary: dict, baseline: dict) -> bool:
+    return bool(
+        compare(
+            summary["by_pass"],
+            baseline["by_pass"],
+            lambda row: (row["ir"], row["pass"]),
+        )
+        or compare(summary["by_test"], baseline["by_test"], lambda row: row["test"])
+    )
+
+
+def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") -> str:
+    if baseline:
+        intro = f"Source-origin loss changes against `{base_ref}`."
+        overview = [
+            "| Metric | Base | PR | Change |",
+            "| --- | ---: | ---: | ---: |",
+        ]
+        for label, key in (
+            ("lost origins", "lost_origins"),
+            ("pass runs with losses", "losses"),
+        ):
+            overview.append(
+                f"| {label} | {baseline[key]:,} | {summary[key]:,} | "
+                f"{delta(baseline[key], summary[key])} |"
+            )
+        for label, key in (
+            ("pass runs", "pass_runs"),
+            ("audited tests", "audited_tests"),
+        ):
+            overview.append(f"| {label} | {baseline[key]:,} | {summary[key]:,} | |")
+    else:
+        intro = "Source-origin losses; no baseline audit was found for the base commit."
+        overview = [
+            "| Metric | PR |",
+            "| --- | ---: |",
+            f"| lost origins | {summary['lost_origins']:,} |",
+            f"| pass runs with losses | {summary['losses']:,} |",
+            f"| pass runs | {summary['pass_runs']:,} |",
+            f"| audited tests | {summary['audited_tests']:,} |",
+        ]
     lines = [
-        "## Debugify UI audit",
+        "## Debug info audit",
+        "",
+        intro,
+        "",
+        "### Overview",
+        "",
+        *overview,
         "",
         (
             f"Audited {summary['audited_tests']:,} test/revision pairs, "
             f"{summary['invocations']:,} compiler invocations and "
-            f"{summary['pass_runs']:,} pass runs."
+            f"{summary['pass_runs']:,} pass runs; lower is better."
         ),
-        (
-            f"{summary['lost_origins']:,} origins were lost across "
-            f"{summary['losses']:,} pass runs."
-        ),
-        "",
-        (
-            "Losses are investigation candidates: deleting dead code can legitimately "
-            "remove its last origin. Frontend-only and rejected inputs never reach IR passes. "
-            "Counts above cover audited compilations only."
-        ),
-        "",
-        (
-            "Strict preservation tests still fail. The output directory contains the full JSON "
-            "summary and raw per-invocation reports, including arguments, source-file "
-            "bounds and lost spans."
-        ),
-        "",
-        "### Passes with the most losses",
-        "",
-        "| Layer | Pass | Runs with losses | Lost origins |",
-        "| --- | --- | ---: | ---: |",
     ]
+    if baseline:
+        passes = compare(
+            summary["by_pass"],
+            baseline["by_pass"],
+            lambda row: (row["ir"], row["pass"]),
+        )
+        tests = compare(
+            summary["by_test"], baseline["by_test"], lambda row: row["test"]
+        )
+        if passes:
+            lines.extend(
+                [
+                    "",
+                    f"### Changed passes vs `{base_ref}`",
+                    "",
+                    "| Layer | Pass | Runs with losses | Lost origins |",
+                    "| --- | --- | ---: | ---: |",
+                ]
+            )
+            for head, base, row in passes[:25]:
+                lines.append(
+                    f"| {cell(row['ir'])} | {cell(row['pass'])} | "
+                    f"{change(base['losses'], head['losses'])} | "
+                    f"{change(base['lost_origins'], head['lost_origins'])} |"
+                )
+        if tests:
+            lines.extend(
+                [
+                    "",
+                    f"### Changed tests vs `{base_ref}`",
+                    "",
+                    "| Test / revision | Runs with losses | Lost origins |",
+                    "| --- | ---: | ---: |",
+                ]
+            )
+            for head, base, row in tests[:25]:
+                lines.append(
+                    f"| {cell(row['test'])} | "
+                    f"{change(base['losses'], head['losses'])} | "
+                    f"{change(base['lost_origins'], head['lost_origins'])} |"
+                )
+        if not passes and not tests:
+            lines.extend(
+                ["", f"No pass or test changed its lost origins vs `{base_ref}`."]
+            )
+    lines.extend(
+        [
+            "",
+            "<details>",
+            "<summary>Passes with the most losses</summary>",
+            "",
+            "| Layer | Pass | Runs with losses | Lost origins |",
+            "| --- | --- | ---: | ---: |",
+        ]
+    )
     for row in summary["by_pass"][:25]:
         if row["lost_origins"]:
             lines.append(
@@ -128,7 +263,10 @@ def markdown(summary: dict) -> str:
     lines.extend(
         [
             "",
-            "### Tests with the most losses",
+            "</details>",
+            "",
+            "<details>",
+            "<summary>Tests with the most losses</summary>",
             "",
             "| Test / revision | Runs with losses | Lost origins |",
             "| --- | ---: | ---: |",
@@ -139,6 +277,19 @@ def markdown(summary: dict) -> str:
             lines.append(
                 f"| {cell(row['test'])} | {row['losses']:,} | {row['lost_origins']:,} |"
             )
+    lines.extend(
+        [
+            "",
+            "</details>",
+            "",
+            (
+                "Losses are investigation candidates: deleting dead code can legitimately "
+                "remove its last origin. Frontend-only and rejected inputs never reach IR "
+                "passes. Strict preservation tests still fail. The output directory contains "
+                "the full JSON summary and raw per-invocation reports."
+            ),
+        ]
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -146,13 +297,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--baseline", type=Path, help="summary.json from the base commit"
+    )
+    parser.add_argument("--base-ref", default="", help="label for the base commit")
     args = parser.parse_args()
     try:
         summary = summarize(args.input)
+        baseline = load_baseline(args.baseline) if args.baseline else None
         args.output.mkdir(parents=True, exist_ok=True)
         (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-        report = markdown(summary)
+        report = markdown(summary, baseline, args.base_ref)
         (args.output / "report.md").write_text(report)
+        changed = baseline is not None and has_changes(summary, baseline)
+        (args.output / "should-comment").write_text(f"{str(changed).lower()}\n")
     except (ValueError, OSError) as error:
         parser.exit(1, f"debugify: {error}\n")
     print(report)

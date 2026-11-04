@@ -124,6 +124,11 @@ report rejects missing or damaged audits. Ordinary optimization losses are
 reported for investigation, since removing dead code can legitimately delete its
 last source origin.
 
+The `Debugify` workflow runs this audit on pull requests and pushes to main. A
+pull request comment lists the passes and tests whose lost origins changed
+against the exact base commit's audit, like the codegen benchmark comment. A base
+without an audit gets a report without changes.
+
 `SOLDB=/path/to/soldb/target/debug/soldb cargo tq debug-diff` compiles and runs
 local debug-info comparisons against solc and between our ETHDebug and legacy
 source-map formats. See [the suite guide](../../tests/debug-diff/README.md) for

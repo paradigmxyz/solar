@@ -1,0 +1,184 @@
+name: Debugify
+
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - crates/**
+      - tools/tester/**
+      - tests/**
+      - scripts/debugify_report.py
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/debugify.yml
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: "sccache"
+  PINNED_SCCACHE_VERSION: v0.19.0
+
+jobs:
+  audit:
+    name: debug info audit
+    runs-on: depot-ubuntu-latest-8
+    timeout-minutes: 45
+    permissions:
+      id-token: write
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+      - name: Checkout Solar
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          submodules: true
+      - name: Checkout submodules
+        run: git submodule update --checkout
+      - name: Install LLVM
+        run: .github/scripts/install_llvm.sh ubuntu
+      - uses: tempoxyz/gh-actions/vendor/dtolnay/rust-toolchain@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+        with:
+          toolchain: stable
+      - name: Install nextest
+        uses: tempoxyz/gh-actions/vendor/taiki-e/install-action@d5402286a7abdfb7232173b3228d56473feb8a66 # 2026-09-29T02-04-45Z-d5402286
+        with:
+          tool: nextest@0.9.140
+          checksum: true
+          fallback: none
+      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: ${{ env.PINNED_SCCACHE_VERSION }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          cache-on-failure: true
+          cache-targets: false
+
+      # The audit needs a compiler that writes sidecars, so only an earlier run of this workflow
+      # can serve as the base. A base without one gets a report without changes.
+      - name: Resolve and download exact baseline
+        id: baseline
+        if: github.event_name == 'pull_request'
+        env:
+          CURRENT_RUN_ID: ${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/debugify/baseline
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^2)" = "$PR_HEAD_SHA"
+          baseline="$(python3 .github/scripts/benchmark_base.py \
+            "$(git rev-parse HEAD^1)" "$GITHUB_REPOSITORY" "$PR_NUMBER")"
+          base_sha="$(jq -r .sha <<< "$baseline")"
+          {
+            echo "sha=$base_sha"
+            echo "ref=$(jq -r .ref <<< "$baseline")"
+          } >> "$GITHUB_OUTPUT"
+
+          list_runs() {
+            gh run list --workflow debugify.yml --commit "$base_sha" --limit 10 \
+              --json createdAt,databaseId,status 2>/dev/null || echo '[]'
+          }
+          runs_json="$(list_runs)"
+          pending="$(
+            jq -r --argjson current "$CURRENT_RUN_ID" \
+              '[.[] | select(.databaseId != $current and .status != "completed")] | max_by(.createdAt).databaseId // empty' \
+              <<< "$runs_json"
+          )"
+          if [[ -n "$pending" ]]; then
+            echo "Waiting for exact-base debugify run $pending"
+            gh run watch "$pending" --interval 10 || echo "::warning::Could not wait for the exact-base audit"
+            runs_json="$(list_runs)"
+          fi
+          run_ids="$(
+            jq -r --argjson current "$CURRENT_RUN_ID" \
+              '[.[] | select(.databaseId != $current and .status == "completed")] | sort_by(.createdAt) | reverse | .[].databaseId' \
+              <<< "$runs_json"
+          )"
+          for run_id in $run_ids; do
+            download_dir="$RUNNER_TEMP/debugify-baseline-$run_id"
+            mkdir -p "$download_dir"
+            if gh run download "$run_id" --name debugify-results --dir "$download_dir" 2>/dev/null &&
+              [[ -f "$download_dir/summary.json" ]]; then
+              cp "$download_dir/summary.json" target/debugify/baseline/summary.json
+              echo "found=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::Exact base $base_sha has no debugify audit"
+
+      - name: Audit all UI tests
+        env:
+          TESTER_MODE: ui,standard-json
+          SOLAR_DEBUGIFY_DIR: ${{ github.workspace }}/target/debugify/origins
+        run: cargo nextest run --profile ci -p solar-compiler --test tests
+
+      - name: Generate debug info report
+        id: report
+        if: always()
+        env:
+          BASE_FOUND: ${{ steps.baseline.outputs.found }}
+          BASE_REF: ${{ steps.baseline.outputs.ref }}
+          BASE_SHA: ${{ steps.baseline.outputs.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          args=(target/debugify/origins --output target/debugify)
+          if [[ "$BASE_FOUND" == "true" ]]; then
+            args+=(--baseline target/debugify/baseline/summary.json --base-ref "$BASE_REF")
+          fi
+          python3 scripts/debugify_report.py "${args[@]}"
+          cat target/debugify/report.md >> "$GITHUB_STEP_SUMMARY"
+          should_comment="$(< target/debugify/should-comment)"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            changed="$(git diff --name-only "$BASE_SHA...$PR_HEAD_SHA" -- \
+              crates/codegen/src/debugify.rs tools/tester/src/debugify.rs \
+              scripts/debugify_report.py .github/workflows/debugify.yml)"
+            if [[ -n "$changed" ]]; then
+              should_comment=true
+            fi
+          fi
+          echo "should_comment=$should_comment" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: >-
+          always() &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          steps.report.outcome == 'success'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: debugify
+          path: target/debugify/report.md
+          only_update: ${{ steps.report.outputs.should_comment != 'true' }}
+
+      - name: Upload results as artifact
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: debugify-results
+          path: |
+            target/debugify/summary.json
+            target/debugify/report.md
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload raw audits
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: debugify-audits
+          path: target/debugify/origins
+          retention-days: 7
+          if-no-files-found: ignore

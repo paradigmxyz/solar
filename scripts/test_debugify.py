@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from debugify_report import markdown, summarize
+from debugify_report import has_changes, load_baseline, markdown, summarize
 
 
 class DebugifyReportTests(unittest.TestCase):
@@ -46,6 +46,34 @@ class DebugifyReportTests(unittest.TestCase):
             {"ir": "MIR", "pass": "dce", "runs": 2, "losses": 2, "lost_origins": 3},
         )
         self.assertIn("mir/example.mir/report", markdown(report))
+
+    def test_baseline_comparison_lists_changed_passes_and_tests(self):
+        self.write(
+            "base/a/default/x.jsonl",
+            self.record("MIR", "dce", 3, 1, [[1, 2], [3, 4]]),
+            self.record("MIR", "sccp", 1, 1, []),
+        )
+        base = summarize(self.root / "base")
+        self.write(
+            "head/a/default/x.jsonl",
+            self.record("MIR", "dce", 3, 0, [[1, 2], [3, 4], [5, 6]]),
+            self.record("MIR", "sccp", 1, 1, []),
+        )
+        head = summarize(self.root / "head")
+        self.assertTrue(has_changes(head, base))
+        self.assertFalse(has_changes(base, base))
+        report = markdown(head, base, "abc12345")
+        self.assertIn("Source-origin loss changes against `abc12345`", report)
+        self.assertIn("| MIR | dce | 1 | 2 → 3 (❌ +1, +50.00%) |", report)
+        self.assertNotIn("sccp", report.split("<details>")[0])
+        self.assertIn("No pass or test changed", markdown(base, base, "abc12345"))
+        self.assertIn("no baseline audit", markdown(head))
+
+    def test_invalid_baseline_fails(self):
+        path = self.root / "summary.json"
+        path.write_text('{"version": 2}')
+        with self.assertRaisesRegex(ValueError, "invalid baseline summary"):
+            load_baseline(path)
 
     def test_no_output_does_not_pass_as_zero_losses(self):
         with self.assertRaisesRegex(ValueError, "no debugify audits"):
