@@ -36,11 +36,12 @@ impl Assembler<'_> {
         &mut self,
         capture_scheduled: bool,
     ) -> ScheduledProgram {
+        let audit = crate::debugify::enabled(self.gcx);
         let Some((mut program, labels)) = self.finish_evm_ir() else {
-            return ScheduledProgram::default();
+            return ScheduledProgram { evm_ir: None, origins: audit.then(Origins::default) };
         };
         let evm_ir = capture_scheduled.then(|| program.clone());
-        let origins = crate::debugify::enabled(self.gcx).then(|| Origins::evm(&program));
+        let origins = audit.then(|| Origins::evm(&program));
         let failed = !self.run_pipeline(&mut program, true);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
         ScheduledProgram { evm_ir, origins }
