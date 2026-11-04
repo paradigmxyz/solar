@@ -720,8 +720,9 @@ assignments, checked arithmetic, division, indexing, enum conversions, reads
 from calldata or copies of it to memory, or a bare variable, `this` or `super`
 (`x;`, which `solc` accepts and code uses to silence unused variable warnings
 and to restrict state mutability). It also does not warn on builtin calls with
-constant arguments, such as `keccak256("a")` and `abi.decode(...)`, which `solc`
-reports.
+constant arguments, such as `keccak256("a")` and `abi.decode(...)`, or on
+arithmetic and enum conversions of constants that can revert, such as
+`K + 1;` and `E(1);`, which `solc` reports.
 
 Rationale: a slipped parenthesis, as in `require; (cond, "message");`, would
 otherwise drop a check without a diagnostic. The warning stays conservative so
