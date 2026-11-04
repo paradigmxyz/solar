@@ -87,7 +87,7 @@ jobs:
 
           list_runs() {
             gh run list --workflow debugify.yml --commit "$base_sha" --limit 10 \
-              --json createdAt,databaseId,status 2>/dev/null || echo '[]'
+              --json conclusion,createdAt,databaseId,status 2>/dev/null || echo '[]'
           }
           runs_json="$(list_runs)"
           pending="$(
@@ -102,7 +102,7 @@ jobs:
           fi
           run_ids="$(
             jq -r --argjson current "$CURRENT_RUN_ID" \
-              '[.[] | select(.databaseId != $current and .status == "completed")] | sort_by(.createdAt) | reverse | .[].databaseId' \
+              '[.[] | select(.databaseId != $current and .conclusion == "success")] | sort_by(.createdAt) | reverse | .[].databaseId' \
               <<< "$runs_json"
           )"
           for run_id in $run_ids; do
@@ -124,9 +124,10 @@ jobs:
           SOLAR_DEBUGIFY_DIR: ${{ github.workspace }}/target/debugify/origins
         run: cargo nextest run --profile ci -p solar-compiler --test tests
 
+      # Only a fully successful audit may report or serve as a baseline; a failed, cancelled or
+      # timed-out run leaves partial sidecars.
       - name: Generate debug info report
         id: report
-        if: always()
         env:
           BASE_FOUND: ${{ steps.baseline.outputs.found }}
           BASE_REF: ${{ steps.baseline.outputs.ref }}
@@ -153,10 +154,8 @@ jobs:
 
       - name: Comment on PR
         if: >-
-          always() &&
           github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          steps.report.outcome == 'success'
+          github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
         with:
           header: debugify
@@ -164,7 +163,6 @@ jobs:
           only_update: ${{ steps.report.outputs.should_comment != 'true' }}
 
       - name: Upload results as artifact
-        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: debugify-results
