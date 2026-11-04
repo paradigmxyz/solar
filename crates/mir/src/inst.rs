@@ -75,7 +75,7 @@ impl InstructionMetadata {
             .chain(self.additional_source_spans.iter().flat_map(|spans| spans.iter().copied()))
     }
 
-    /// Sets explicit textual origins, bounding metadata growth in repeated merges.
+    /// Sets explicit textual origins.
     pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
         self.set_source_span(None);
         for span in spans {
@@ -85,13 +85,12 @@ impl InstructionMetadata {
     }
 
     fn insert_source_span(&mut self, span: Span) {
-        // Keep the same bounded ambiguity representation in both IR layers.
         if span.is_dummy() || self.source_spans().any(|old| old == span) {
             return;
         }
         if self.source_span.is_dummy() {
             self.source_span = span;
-        } else if self.source_spans().count() < solar_ir::debug::MAX_DEBUG_SPANS {
+        } else {
             self.additional_source_spans.get_or_insert_default().push(span);
         }
     }

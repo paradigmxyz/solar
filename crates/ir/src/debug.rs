@@ -3,14 +3,10 @@
 use smallvec::SmallVec;
 use solar_interface::{Span, Symbol};
 
-/// Maximum retained origins of a shared instruction.
-///
-/// Retaining several origins identifies ambiguity without allowing repeated
-/// merging to grow metadata without bound. Consumers must not select an
-/// arbitrary origin when more than one is present.
-pub const MAX_DEBUG_SPANS: usize = 8;
-
 /// Source origins associated with one machine instruction.
+///
+/// A shared instruction keeps every distinct origin of the code merged into it. More than one
+/// origin means the instruction is ambiguous: consumers must not select one of them.
 pub type DebugSpans = SmallVec<[Span; 2]>;
 
 /// Source-language identity of a function activation.

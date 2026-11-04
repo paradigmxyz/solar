@@ -816,7 +816,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   depth in the `m` field, preserving it through MIR and EVM IR lowering and
   optimization. Shared code with different modifier depths has no unique
   modifier frame and uses depth zero. Shared code with multiple source origins
-  is unmapped in legacy output; ETHDebug retains bounded source alternatives.
+  is unmapped in legacy output; ETHDebug retains every source alternative.
   This policy applies equally to MIR and EVM IR sharing.
 - Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc`.
 

@@ -19,10 +19,10 @@ fn @checked(arg0: i256) -> i256 {
     revert 0, 0 !metadata(span=10..20)
 }
 
-// Repeated origins are deduplicated and bounded to eight distinct locations.
-// CHECK-LABEL: {{^[ +]*}}fn @bounded_origins{{[( ]}}
-// CHECK: ret arg0 !metadata(spans=[1..2, 3..4, 5..6, 7..8, 9..10, 11..12, 13..14, 15..16])
-fn @bounded_origins(arg0: i256) -> i256 {
+// Repeated origins are deduplicated; every distinct location is kept.
+// CHECK-LABEL: {{^[ +]*}}fn @distinct_origins{{[( ]}}
+// CHECK: ret arg0 !metadata(spans=[1..2, 3..4, 5..6, 7..8, 9..10, 11..12, 13..14, 15..16, 17..18])
+fn @distinct_origins(arg0: i256) -> i256 {
   bb0:
     ret arg0 !metadata(spans=[1..2, 1..2, 3..4, 5..6, 7..8, 9..10, 11..12, 13..14, 15..16, 17..18])
 }

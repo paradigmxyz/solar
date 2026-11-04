@@ -13,7 +13,7 @@
 //! is not defined by that serialization, and `verify` checks its invariants.
 
 use crate::{
-    debug::{DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS},
+    debug::{DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugSpans},
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
     op::{self, StackOp, TrackedWord},
 };
@@ -953,9 +953,6 @@ impl Metadata {
         for span in spans {
             if !span.is_dummy() && !self.source_spans.contains(&span) {
                 self.source_spans.push(span);
-                if self.source_spans.len() == MAX_DEBUG_SPANS {
-                    break;
-                }
             }
         }
         self.debug_info_handled = true;
@@ -1012,9 +1009,6 @@ impl Metadata {
     pub fn merge_source_spans(&mut self, other: &Self) {
         let had_source_spans = !self.source_spans.is_empty();
         for &span in other.source_spans() {
-            if self.source_spans.len() == MAX_DEBUG_SPANS {
-                break;
-            }
             if !self.source_spans.contains(&span) {
                 self.source_spans.push(span);
             }
@@ -1094,10 +1088,7 @@ impl Metadata {
 
     /// Records a checkpoint proof without describing a function activation.
     pub fn add_checkpoint_transfer(&mut self, span: Span) {
-        if !span.is_dummy()
-            && self.checkpoint_transfers.len() < MAX_DEBUG_SPANS
-            && !self.checkpoint_transfers.contains(&span)
-        {
+        if !span.is_dummy() && !self.checkpoint_transfers.contains(&span) {
             self.checkpoint_transfers.push(span);
             self.debug_info_handled = true;
         }

@@ -1496,8 +1496,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     loop {
                         let (lo, hi) = self.parser.parse_span_bounds()?;
                         let span = Span::new(BytePos(lo), BytePos(hi));
-                        if spans.len() < solar_ir::debug::MAX_DEBUG_SPANS && !spans.contains(&span)
-                        {
+                        if !spans.contains(&span) {
                             spans.push(span);
                         }
                         if !self.parser.eat(TokenKind::Comma) {
