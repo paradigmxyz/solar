@@ -156,14 +156,15 @@ every ID-valued field follows: `id`, `referencedDeclaration`,
 `contractDependencies`, `baseFunctions`, `baseModifiers`, `usedEvents`,
 `usedErrors`, `functionReturnParameters`, `assignments`, `function`,
 `exportedSymbols`, `externalReferences[].declaration`, the keys of
-`internalFunctionIDs`, and the IDs in `typeIdentifier` and `typeString` of
-`t_struct`, `t_contract`, `t_enum`, `t_userDefinedValueType` and `t_super` types and in `t_module_N`. Solc's
-negative builtin IDs stay. The source index at the end of every span (`src`,
-`nameLocation`, ...) becomes the name of the source, since compilers number
-sources in their own order; source IDs themselves are not compared. A reference agrees only if both sides point at the
-node in the same place, so a wrong declaration, a wrong builtin, or an ID with
-no node (shown as `?N@left` or `?N@right`) differs. A duplicate ID on one side is an error. The sets solc
-sorts by ID (`contractDependencies`, `baseFunctions`, `baseModifiers`,
+`internalFunctionIDs`, and the IDs in `typeIdentifier` of `t_struct`,
+`t_contract`, `t_enum`, `t_userDefinedValueType` and `t_super` types and in
+`t_module_N`; `typeString` is compared as written. Solc's negative builtin IDs
+stay. The source index at the end of every span (`src`, `nameLocation`, ...)
+becomes the name of the source, since compilers number sources in their own
+order; source IDs themselves are not compared. A reference agrees only if both
+sides point at the node in the same place, so a wrong declaration, a wrong
+builtin, or an ID with no node (shown as `?N@left` or `?N@right`) differs. A
+duplicate, negative or non-integer ID is an error. The sets solc sorts by ID (`contractDependencies`, `baseFunctions`, `baseModifiers`,
 `usedEvents`, `usedErrors`) compare sorted; `linearizedBaseContracts`,
 `overloadedDeclarations` and every other list keep their order.
 
@@ -183,12 +184,13 @@ a source without `ast`, is `missing_left` (the reference lacks it) or
 The report holds, for each `(nodeType, field)`, the nodes compared, `equal`,
 `different`, `missing_left`, `missing_right` and `ignored`, and for each node
 type the node count of both sides. Node types that the reference has and the
-candidate never emits are `never_emitted`. `report.json` has them per pair and
-summed under `ast`; the CLI prints the agreement, how many reference nodes were paired
-(nodes under a missing field or list item are not), the never-emitted types and
-the ten least-equal fields. `differences` keeps 20 samples per field with
-normalized values and pointers; the rest are counted as `omitted`, which
-expectations cannot excuse.
+candidate never emits are `never_emitted`. `report.json` sums them under `ast`
+and keeps them per pair only for pairs that differ; the CLI prints the
+agreement, how many reference nodes were paired (nodes under a missing field or
+list item are not), the never-emitted types and the ten least-equal fields.
+`differences` keeps 20 samples per field with normalized values and pointers;
+the rest are counted as `omitted`, which expectations cannot excuse.
+`difference_groups` counts differences by `nodeType.field`.
 
 `--ast-rules FILE` lists accepted differences, each with a version (1), the
 `nodeType` (or `*`), the `field`, an `action` and a `reason`:

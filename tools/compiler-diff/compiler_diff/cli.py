@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -131,6 +132,13 @@ def import_input(db, path, target, version, *, request=None, quiet=False):
     return identifier
 
 
+def link_or_copy(source, destination):
+    try:
+        os.link(source, destination)
+    except OSError:
+        shutil.copyfile(source, destination)
+
+
 def compare_pair(left, right, selected, policy, ast_rules=()):
     outputs = []
     inputs = []
@@ -190,9 +198,15 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
         """,
             [args.reference, args.candidate, compilation_id, compilation_id],
         ).fetchall()
-        by_id = {}
+        by_id = {
+            identifier: {}
+            for (identifier,) in db.execute(
+                "SELECT id FROM compilations WHERE ? IS NULL OR id = ? ORDER BY id",
+                [compilation_id, compilation_id],
+            ).fetchall()
+        }
         for identifier, compiler, directory in rows:
-            by_id.setdefault(identifier, {})[compiler] = Path(directory)
+            by_id[identifier][compiler] = Path(directory)
         pairs = [
             (identifier, paths.get(args.reference), paths.get(args.candidate))
             for identifier, paths in by_id.items()
@@ -215,6 +229,7 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
     matched = set()
     counts = Counter()
     groups = Counter()
+    ast_summary = compare.AstSummary()
     for identifier, left, right in pairs:
         pair = {
             "id": identifier,
@@ -228,7 +243,13 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
         for result in pair["results"]:
             counts[result["comparator"] + ":" + result["status"]] += 1
             for diff in result["differences"]:
-                groups[result["comparator"] + ":" + diff["path"]] += 1
+                groups[
+                    result["comparator"] + ":" + diff.get("group", diff["path"])
+                ] += 1
+            if "fields" in result:
+                ast_summary.add(result)
+                if result["status"] == "equal":
+                    del result["fields"], result["node_types"]
         if any(r["status"] != "equal" for r in pair["results"]):
             bundle = directory / str(len(report["pairs"]))
             bundle.mkdir()
@@ -250,10 +271,10 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
                             "import.json",
                         ):
                             if (source / name).is_file():
-                                shutil.copyfile(source / name, destination / name)
+                                link_or_copy(source / name, destination / name)
                     else:
                         destination = bundle / (label + ".json")
-                        shutil.copyfile(source, destination)
+                        link_or_copy(source, destination)
                     copied.append(destination)
             pair["bundle"] = str(bundle)
             if len(copied) == 2:
@@ -297,11 +318,8 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
         display.show_pair(pair, getattr(args, "full", False))
         if pair["failed"] and not args.continue_on_failure:
             break
-    ast_results = [
-        r for pair in report["pairs"] for r in pair["results"] if "fields" in r
-    ]
-    if ast_results:
-        report["ast"] = compare.ast_summary(ast_results)
+    if ast_summary.results:
+        report["ast"] = ast_summary.report()
     report["summary"] = dict(counts)
     report["difference_groups"] = dict(groups)
     report["available_pairs"] = len(pairs)
@@ -1081,4 +1099,21 @@ class Tests(corpus.Tests):
         )
         self.assertEqual(
             compare_pair(None, right, ["abi"], "interface")[0]["status"], "error"
+        )
+        # A compilation that was never run is an error, not a skipped pair.
+        self.db.execute(
+            "INSERT INTO compilations VALUES ('two', ?, 'D', '../C.sol:C', '{}', 'null', '{}')",
+            [corpus.DEFAULT_VERSION],
+        )
+        self.assertEqual(compare_saved(self.db, self.root, args), 1)
+        report = read_json(
+            Path(
+                self.db.execute(
+                    "SELECT directory FROM comparisons ORDER BY started DESC LIMIT 1"
+                ).fetchone()[0]
+            )
+            / "report.json"
+        )
+        self.assertEqual(
+            [pair["id"] for pair in report["pairs"] if pair["failed"]], ["one", "two"]
         )

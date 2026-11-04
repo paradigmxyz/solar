@@ -100,7 +100,7 @@ def show_ast_summary(summary, worst=10):
     reference = [n for n, c in summary["node_types"].items() if c["left"]]
     print(
         f"AST: {total['equal']}/{total['compared']} field comparisons equal"
-        f" ({total['equal'] / max(total['compared'], 1):.1%}), {total['ignored']} ignored"
+        f" ({total['equal'] * 100_000 // max(total['compared'], 1) / 1000}%), {total['ignored']} ignored"
     )
     nodes = summary["node_types"].values()
     print(

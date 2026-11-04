@@ -278,7 +278,9 @@ def ast_index(roots):
     while stack:
         path, node = stack.pop()
         types[node["nodeType"]] += 1
-        if type(node.get("id")) is int:
+        if "id" in node:
+            if type(node["id"]) is not int or node["id"] < 0:
+                raise ValueError(f"invalid AST node ID {node['id']!r} at {path}")
             if node["id"] in ids:
                 raise ValueError(f"duplicate AST node ID {node['id']} at {path}")
             ids[node["id"]] = path
@@ -305,7 +307,7 @@ def ast_translate(key, value, ref, source):
         return ref(value)
     if isinstance(value, str) and key in AST_SPAN_FIELDS:
         return AST_SPAN.sub(lambda m: m[1] + source(int(m[2])), value)
-    if isinstance(value, str) and key in ("typeIdentifier", "typeString"):
+    if isinstance(value, str) and key == "typeIdentifier":
         return AST_TYPE_ID.sub(lambda m: m[1] + str(ref(int(m[2]))), value)
     return value
 
@@ -401,6 +403,7 @@ def compare_ast(left, right, rules):
                         if x["nodeType"] == y["nodeType"]:
                             children.append((p, x["nodeType"], x, y))
             for difference in new:
+                difference["group"] = f"{node_type}.{key}"
                 if samples[node_type, key] < AST_SAMPLES:
                     samples[node_type, key] += 1
                     found.append(difference)
@@ -441,31 +444,42 @@ def compare_ast(left, right, rules):
     }
 
 
-def ast_summary(results):
-    """Add up the fields, node counts and rule use of several ast results."""
-    fields = defaultdict(Counter)
-    types = defaultdict(Counter)
-    applied = Counter()
-    for result in results:
+class AstSummary:
+    """Add up the fields, node counts and rule use of ast results."""
+
+    def __init__(self):
+        self.fields = defaultdict(Counter)
+        self.types = defaultdict(Counter)
+        self.applied = Counter()
+        self.rules = 0
+        self.results = 0
+
+    def add(self, result):
         for row in result["fields"]:
-            fields[row["nodeType"], row["field"]].update(
+            self.fields[row["nodeType"], row["field"]].update(
                 {k: v for k, v in row.items() if type(v) is int}
             )
         for node_type, counts in result["node_types"].items():
-            types[node_type].update(counts)
+            self.types[node_type].update(counts)
         for number, rule in enumerate(result["rules"]):
-            applied[number] += rule["applied"]
-    return {
-        "fields": [
-            {"nodeType": node_type, "field": field, **counts}
-            for (node_type, field), counts in sorted(fields.items())
-        ],
-        "node_types": {name: dict(counts) for name, counts in sorted(types.items())},
-        "never_emitted": sorted(
-            n for n, c in types.items() if c["left"] and not c["right"]
-        ),
-        "unused_rules": [n for n in range(len(results[0]["rules"])) if not applied[n]],
-    }
+            self.applied[number] += rule["applied"]
+        self.rules = len(result["rules"])
+        self.results += 1
+
+    def report(self):
+        return {
+            "fields": [
+                {"nodeType": node_type, "field": field, **counts}
+                for (node_type, field), counts in sorted(self.fields.items())
+            ],
+            "node_types": {
+                name: dict(counts) for name, counts in sorted(self.types.items())
+            },
+            "never_emitted": sorted(
+                n for n, c in self.types.items() if c["left"] and not c["right"]
+            ),
+            "unused_rules": [n for n in range(self.rules) if not self.applied[n]],
+        }
 
 
 def compare_outputs(left, right, comparator="abi", policy="interface", rules=()):
@@ -736,7 +750,7 @@ class Tests(unittest.TestCase):
             "referencedDeclaration": -15,
             "typeDescriptions": {
                 "typeIdentifier": f"t_type$_t_super$_C_${ids['C']}_$",
-                "typeString": f"t_module_{ids['unit']}",
+                "typeString": "t_module_999",
             },
         }
         ident = {
@@ -806,6 +820,12 @@ class Tests(unittest.TestCase):
             "nodes": [contract("C", "CD", nodes), contract("D", "D", [])],
         }
         return {"sources": {"A.sol": {"id": index, "ast": unit}}}
+
+    def summarize(self, *results):
+        total = AstSummary()
+        for result in results:
+            total.add(result)
+        return total.report()
 
     def ast_rows(self, result):
         return {(r["nodeType"], r["field"]): r for r in result["fields"]}
@@ -930,7 +950,7 @@ class Tests(unittest.TestCase):
                 "/sources/A.sol/ast/nodes/1/name",
             ],
         )
-        summary = ast_summary([result, result])
+        summary = self.summarize(result, result)
         self.assertEqual(summary["never_emitted"], ["MemberAccess"])
         self.assertEqual(
             summary["node_types"]["MemberAccess"],
@@ -958,7 +978,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(
             self.ast_rows(result)["ContractDefinition", "name"]["ignored"], 2
         )
-        self.assertEqual(ast_summary([result])["unused_rules"], [1])
+        self.assertEqual(self.summarize(result)["unused_rules"], [1])
         rules[0]["action"] = "presence"
         self.assertEqual(
             compare_outputs(left, right, "ast", rules=rules)["status"], "equal"
@@ -973,6 +993,10 @@ class Tests(unittest.TestCase):
         right = self.ast_output()
         right["sources"]["A.sol"]["ast"]["nodes"][1]["id"] = 1
         self.assertEqual(compare_outputs(left, right, "ast")["status"], "error")
+        for bad in ("7", -3, True):
+            right = self.ast_output()
+            right["sources"]["A.sol"]["ast"]["nodes"][1]["id"] = bad
+            self.assertEqual(compare_outputs(left, right, "ast")["status"], "error")
         right = self.ast_output()
         right["sources"]["B.sol"] = right["sources"].pop("A.sol")
         result = compare_outputs(left, right, "ast")
