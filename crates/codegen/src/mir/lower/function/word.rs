@@ -218,10 +218,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns whether the variable `id` is a raw carrier holding a scalar word.
     fn is_raw_binding(&self, id: VariableId) -> bool {
-        self.cx.state.raw_scalars.contains(&id)
-            && types::TypeLowerer::mir_type(self.cx.gcx.type_of_item(id.into()))
-                .integer_bits()
-                .is_some()
+        self.cx.state.is_raw_scalar(self.cx.gcx, id)
     }
 
     /// Wraps `value`, which the binding `id` holds or an internal call returned in it: raw for a

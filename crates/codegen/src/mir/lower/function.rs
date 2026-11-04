@@ -1169,7 +1169,10 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                         if source == target {
                             raw_scalars::cast_carrier(&mut builder, argument, source, carrier)
                         } else {
-                            reinterpret_word(&mut builder, argument, source, target, carrier)
+                            // A parameter that is not a raw carrier is read as a clean value, so
+                            // the word is cleaned even when it travels as a full word.
+                            let raw = state.is_raw_scalar(gcx, parameter);
+                            reinterpret_word(&mut builder, argument, source, target, carrier, raw)
                         }
                     })
                     .collect::<Vec<_>>();
@@ -1187,7 +1190,14 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                         if source == target {
                             raw_scalars::cast_carrier(builder, value, target, ty)
                         } else {
-                            reinterpret_word(builder, value, source, target, ty)
+                            reinterpret_word(
+                                builder,
+                                value,
+                                source,
+                                target,
+                                ty,
+                                ty == MirType::I256,
+                            )
                         }
                     };
                     let result = if let (MirType::Struct(source), MirType::Struct(target)) =
@@ -1260,16 +1270,17 @@ fn reinterpret_word(
     source: crate::mir::ValueLayout,
     target: crate::mir::ValueLayout,
     carrier: MirType,
+    raw: bool,
 ) -> ValueId {
     // word = zext | sext | ptrtoint value to i256
-    // word = canonical(target, word), unless the carrier is a raw word
+    // word = canonical(target, word), unless `raw`
     // value = trunc | ne 0 | inttoptr word to carrier
     let word = raw_scalars::cast_carrier(builder, value, source, MirType::I256);
-    // A raw word carrier passes the bits on as a direct call would: the receiver cleans them where
+    // A raw word passes the bits on as a direct call would: the receiver cleans them where
     // Solidity reads the value, and its assembly sees them as they are. Internal function pointers
     // are small identifiers: the ABI's left-aligned cleanup of external function words does not
     // apply to them.
-    let word = if carrier == MirType::I256 || target == crate::mir::ValueLayout::Function {
+    let word = if raw || target == crate::mir::ValueLayout::Function {
         word
     } else {
         AbiWordValidator::from_layout(target)

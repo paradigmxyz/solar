@@ -649,12 +649,17 @@ impl LoweringState {
     }
 
     pub(in crate::mir::lower) fn scalar_carrier(&self, gcx: Gcx<'_>, id: VariableId) -> MirType {
-        let ty = types::TypeLowerer::mir_type(gcx.type_of_item(id.into()));
-        if ty.integer_bits().is_some() && self.raw_scalars.contains(&id) {
+        if self.is_raw_scalar(gcx, id) {
             MirType::I256
         } else {
-            ty
+            types::TypeLowerer::mir_type(gcx.type_of_item(id.into()))
         }
+    }
+
+    /// Returns whether the variable `id` is a raw carrier holding a scalar word.
+    pub(in crate::mir::lower) fn is_raw_scalar(&self, gcx: Gcx<'_>, id: VariableId) -> bool {
+        self.raw_scalars.contains(&id)
+            && types::TypeLowerer::mir_type(gcx.type_of_item(id.into())).integer_bits().is_some()
     }
 
     /// Returns an immutable's source layout, or a full word for a `bool` or `address` that
