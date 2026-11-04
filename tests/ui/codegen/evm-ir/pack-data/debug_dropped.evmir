@@ -1,0 +1,27 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=pack-data -Zdebugify=check
+//@ filecheck:
+// Stores without a location are `dropped` in text. Packing them keeps that kind, so the audit
+// finds no gap.
+@module DebugDropped
+// CHECK: codecopy
+// CHECK-NOT: {{^[ +].*}}mstore
+bb0:
+  codesize !metadata(span=1..2)
+  pop
+  push 0
+  push 0x1111111111111111111111111111111111111111111111111111111111111111
+  dup 2
+  mstore
+  push 32
+  dup 2
+  add
+  push 0x2222222222222222222222222222222222222222222222222222222222222222
+  swap 1
+  mstore
+  push 64
+  dup 2
+  add
+  push 0x3333333333333333333333333333333333333333333333333333333333333333
+  swap 1
+  mstore
+  stop

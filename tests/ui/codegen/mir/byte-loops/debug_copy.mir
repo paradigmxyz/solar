@@ -1,9 +1,11 @@
 //@ revisions: gas size
-//@ compile-flags: -Zmir-pipeline=byte-loops -Zdebugify=check
+//@ compile-flags: -Zmir-pipeline=byte-loops -Zdebugify=report
 //@[gas] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
 // Both objectives retain the zero-count skip. The bulk write inherits the one store it
 // replaces, while setup and failure checks must not claim that the loop's body executed.
+// Those instructions have no origin on purpose, so the audit reports them as gaps instead of
+// rejecting them.
 @module DebugCopy
 fn @copy(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) {
   bb0:

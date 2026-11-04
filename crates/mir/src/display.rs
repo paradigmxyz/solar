@@ -14,7 +14,7 @@ use solar_data_structures::{
     fmt::FmtIteratorExt,
     map::{FxHashMap, FxHashSet},
 };
-use solar_ir::link::display_u256;
+use solar_ir::{debug::DebugLocKind, link::display_u256};
 use std::fmt;
 
 /// Displays a DOT format CFG for a function.
@@ -814,6 +814,7 @@ fn display_metadata<'a>(
         Hir(HirExprId),
         Span { lo: u32, hi: u32 },
         Spans(&'a InstructionMetadata),
+        DebugLocKind(&'static str),
         ModifierDepth(u32),
         Unchecked,
         DeferredAlloc,
@@ -842,6 +843,7 @@ fn display_metadata<'a>(
                     span.hi().0
                 )),
             ),
+            MetadataField::DebugLocKind(keyword) => f.write_str(keyword),
             MetadataField::ModifierDepth(depth) => write!(f, "modifier_depth={depth}"),
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
@@ -877,16 +879,23 @@ fn display_metadata<'a>(
         if let Some(hir_expr) = metadata.hir_expr() {
             fields.push(MetadataField::Hir(hir_expr));
         }
-        if metadata.displays_source_span()
-            && let Some(span) = metadata.source_span()
-        {
-            if metadata.source_spans().count() == 1 {
-                fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });
-            } else {
-                fields.push(MetadataField::Spans(metadata));
-            }
-            if metadata.modifier_depth() != 0 {
-                fields.push(MetadataField::ModifierDepth(metadata.modifier_depth()));
+        if metadata.displays_source_span() {
+            if let Some(span) = metadata.source_span() {
+                if metadata.source_spans().count() == 1 {
+                    fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });
+                } else {
+                    fields.push(MetadataField::Spans(metadata));
+                }
+                if metadata.modifier_depth() != 0 {
+                    fields.push(MetadataField::ModifierDepth(metadata.modifier_depth()));
+                }
+            } else if let kind @ (DebugLocKind::CompilerGenerated | DebugLocKind::Temporary) =
+                metadata.debug_loc_kind()
+                && let Some(keyword) = kind.keyword()
+            {
+                // `dropped` is what text without a location means, and the audit sets `unknown` on
+                // the gaps it reports, so neither is spelled out: an audit must not change text.
+                fields.push(MetadataField::DebugLocKind(keyword));
             }
         }
         if metadata.unchecked() {

@@ -43,7 +43,16 @@ class DebugifyReportTests(unittest.TestCase):
         self.assertEqual(report["losses"], 2)
         self.assertEqual(
             report["by_pass"][0],
-            {"ir": "MIR", "pass": "dce", "runs": 2, "losses": 2, "lost_origins": 3},
+            {
+                "ir": "MIR",
+                "pass": "dce",
+                "runs": 2,
+                "losses": 2,
+                "lost_origins": 3,
+                "gaps": 0,
+                "gap_runs": 0,
+                "opcodes": [],
+            },
         )
         self.assertIn("mir/example.mir/report", markdown(report))
 
@@ -63,11 +72,81 @@ class DebugifyReportTests(unittest.TestCase):
         self.assertTrue(has_changes(head, base))
         self.assertFalse(has_changes(base, base))
         report = markdown(head, base, "abc12345")
-        self.assertIn("Source-origin loss changes against `abc12345`", report)
+        self.assertIn("(LLVM's `not-generate`), against `abc12345`", report)
         self.assertIn("| MIR | dce | 1 | 2 → 3 (❌ +1, +50.00%) |", report)
         self.assertNotIn("sccp", report.split("<details>")[0])
         self.assertIn("No pass or test changed", markdown(base, base, "abc12345"))
         self.assertIn("no baseline audit", markdown(head))
+
+    def test_gaps_are_the_headline_and_lost_origins_information(self):
+        self.write(
+            "base/a/default/x.jsonl",
+            self.record("MIR", "dce", 3, 1, [[1, 2], [3, 4]]),
+            self.gaps("MIR", "input", {"add": 2}),
+        )
+        base = summarize(self.root / "base")
+        self.write(
+            "head/a/default/x.jsonl",
+            self.record("MIR", "dce", 3, 3, []),
+            self.gaps("MIR", "input", {"add": 2}),
+            self.gaps("EVM IR", "stackify", {"jump": 3, "push": 1}),
+        )
+        head = summarize(self.root / "head")
+        self.assertEqual((base["gaps"], head["gaps"]), (2, 6))
+        self.assertEqual(head["gap_runs"], 2)
+        self.assertEqual(head["by_pass"][0]["opcodes"], [("jump", 3), ("push", 1)])
+        report = markdown(head, base, "abc12345")
+        self.assertIn("| **gaps** | 2 | 6 | ❌ +4, +200.00% |", report)
+        self.assertIn("| EVM IR stackify | 4 | 1 |", report)
+        self.assertIn(
+            "| lost origins (information) | 2 | 0 | ✅ -2, -100.00% |", report
+        )
+        # Lost origins have their own collapsed table and never reach the gap tables.
+        self.assertNotIn("dce", report.split("<summary>Lost origins")[0])
+        self.assertTrue(has_changes(head, base))
+        self.assertFalse(has_changes(base, base))
+        self.assertTrue(has_changes(base, {**base, "gaps": 1, "by_pass": []}))
+
+    def test_baseline_without_gap_data_still_renders(self):
+        self.write("head/a/default/x.jsonl", self.record("MIR", "dce", 2, 1, [[1, 2]]))
+        head = summarize(self.root / "head")
+        old = {
+            "version": 1,
+            "lost_origins": 5,
+            "losses": 2,
+            "pass_runs": 9,
+            "audited_tests": 3,
+            "by_pass": [{"ir": "MIR", "pass": "dce", "losses": 2, "lost_origins": 5}],
+            "by_test": [{"test": "a/default", "losses": 2, "lost_origins": 5}],
+        }
+        path = self.root / "summary.json"
+        path.write_text(json.dumps(old))
+        baseline = load_baseline(path)
+        report = markdown(head, baseline, "abc12345")
+        self.assertIn("No gap baseline", report)
+        self.assertIn("audited before gaps existed", report)
+        self.assertIn(
+            "| lost origins (information) | 1 (base 5, ✅ -4, -80.00%) |", report
+        )
+        self.assertTrue(has_changes(head, baseline))
+
+    def test_input_gaps_alone_are_an_audit(self):
+        # `-Zdebugify=check` stops at the input gaps, before any pass record exists.
+        self.write("only/a/default/x.jsonl", self.gaps("MIR", "input", {"add": 2}))
+        report = summarize(self.root / "only")
+        self.assertEqual((report["gaps"], report["pass_runs"]), (2, 0))
+
+    def test_inconsistent_gap_records_fail(self):
+        record = self.gaps("MIR", "dce", {"add": 2})
+        self.write("bad.jsonl", {**record, "count": 3})
+        with self.assertRaisesRegex(ValueError, "inconsistent gap opcodes"):
+            summarize(self.root)
+        # A negative entry that offsets an overcount is not a histogram.
+        self.write(
+            "bad.jsonl", {**record, "opcodes": {"add": 3, "sub": -1}, "count": 2}
+        )
+        with self.assertRaisesRegex(ValueError, "inconsistent gap opcodes"):
+            summarize(self.root)
 
     def test_invalid_baseline_fails(self):
         path = self.root / "summary.json"
@@ -81,7 +160,7 @@ class DebugifyReportTests(unittest.TestCase):
 
     def test_header_only_and_truncated_records_fail(self):
         path = self.write("empty.jsonl")
-        with self.assertRaisesRegex(ValueError, "no pass records"):
+        with self.assertRaisesRegex(ValueError, "no audit records"):
             summarize(self.root)
         with path.open("a") as stream:
             stream.write('{"kind": "pass",')
@@ -92,6 +171,19 @@ class DebugifyReportTests(unittest.TestCase):
         self.write("bad.jsonl", self.record("MIR", "dce", 2, 2, [[10, 20]]))
         with self.assertRaisesRegex(ValueError, "inconsistent origin counts"):
             summarize(self.root)
+
+    @staticmethod
+    def gaps(ir, name, opcodes):
+        return {
+            "kind": "gaps",
+            "ir": ir,
+            "pass": name,
+            "module": "test",
+            "count": sum(opcodes.values()),
+            "opcodes": opcodes,
+            "sites": [],
+            "omitted": sum(opcodes.values()),
+        }
 
     @staticmethod
     def record(ir, name, before, retained, lost):
