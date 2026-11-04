@@ -712,6 +712,11 @@ fn local_summary(
                 }
                 continue;
             }
+            // A function that the constructor also calls loads the immutable from its staging
+            // memory, so a caller's staging store must outlive the call.
+            if matches!(kind, InstKind::LoadImmutable(_)) {
+                summary.record_access(func, Access::Any(AddressSpace::Memory), false);
+            }
             let behavior = kind.effects();
             summary.control.merge(behavior.control);
             summary.observable |= behavior.observable;

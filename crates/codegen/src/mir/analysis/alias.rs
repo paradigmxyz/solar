@@ -21,7 +21,7 @@
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
     AbiLayout, AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee,
-    FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
+    EffectKind, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
     MAX_SCRATCH_ERROR_WORDS, MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RawMemorySize,
     RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
@@ -1486,6 +1486,11 @@ impl AliasAnalysis {
             }
             InstKind::LoadImmutable(id) => {
                 effects.read(Access::Location(Location::Immutable(id)));
+                // `lower-immutables` tags a creation-only read: the backend loads it from the
+                // staging word that the lowered assignments store to.
+                if func.inst(inst_id).metadata.effect() == Some(EffectKind::MemoryRead) {
+                    effects.read_any(AddressSpace::Memory);
+                }
             }
             InstKind::StoreImmutable(id, _) => {
                 effects.write(Access::Location(Location::Immutable(id)));
