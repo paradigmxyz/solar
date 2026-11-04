@@ -139,6 +139,27 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Gives `label`, which starts `block` of `func`, the origin that MIR placed the block's label
+    /// under: the statement a block opens, or the function for its entry (solc's `LocationSetter`
+    /// scopes). A label with several origins gets none, as the source map writes a union as `-1`.
+    pub(in crate::backend::evm::codegen) fn mark_block_label_origin(
+        &mut self,
+        label: Label,
+        func: &Function,
+        block: BlockId,
+    ) {
+        if !self.capture_debug_info {
+            return;
+        }
+        let metadata = &func.blocks[block].label_metadata;
+        let mut spans = metadata.source_spans();
+        if let Some(span) = spans.next()
+            && spans.next().is_none()
+        {
+            self.asm.set_label_origin(label, span, metadata.modifier_depth());
+        }
+    }
+
     pub(in crate::backend::evm::codegen) fn mark_debug_function_exit(
         &mut self,
         func: &Function,

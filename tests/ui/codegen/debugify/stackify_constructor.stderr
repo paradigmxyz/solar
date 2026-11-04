@@ -46,8 +46,7 @@ debugify: MIR StackifyConstructor after lower-alloc: 8/8 origins retained, 0 los
 debugify: MIR StackifyConstructor after lower-memory-zero: 8/8 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-integers: 8/8 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-evm-shaped: 8/8 origins retained, 0 lost
-debugify: EVM IR StackifyConstructor after stackify: 7/8 origins retained, 1 lost
-debugify: lost 410..500
+debugify: EVM IR StackifyConstructor after stackify: 8/8 origins retained, 0 lost
 debugify: EVM IR StackifyConstructor after stackify: 27 without a location
 debugify: gap StackifyConstructor_runtime bb0 terminator `jump`
 debugify: gap StackifyConstructor_runtime bb6 terminator `jump`
