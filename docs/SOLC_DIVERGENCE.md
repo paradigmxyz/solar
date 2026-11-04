@@ -577,8 +577,7 @@ cases:
   encoded return value gets the inaccessible dynamic type; a tuple of returns
   and a bare `call` keep the types of their components;
 - the names before the last one in the callee of `emit` and `revert`, and in the
-  argument of `type(...)`, take their resolution from name resolution alone;
-- `isSimpleCounterLoop` does not look for writes in inline assembly.
+  argument of `type(...)`, take their resolution from name resolution alone.
 
 Rationale: IDs must agree across the outputs of one compilation, not with
 `solc`. Consumers that look up declarations by ID do not need `solc`'s

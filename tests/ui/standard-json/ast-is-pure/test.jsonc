@@ -30,6 +30,18 @@
 // CHECK: "nodeType": "TupleExpression"
 // CHECK: "isPure": false
 // CHECK: "lValueRequested": true
+// Indexing a calldata slice, or calldata, is not an lvalue, and indexing memory is.
+// CHECK: "name": "indexSlice"
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "isLValue": false
+// CHECK: "name": "indexMemory"
+// CHECK: "isLValue": true
+// CHECK: "isLValue": true
 {
   "language": "Solidity",
   "settings": {

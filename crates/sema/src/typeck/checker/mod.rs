@@ -767,6 +767,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     if self.record_ast_facts
                         && ty.loc() != Some(DataLocation::Calldata)
                         && !ty.peel_refs().is_fixed_bytes()
+                        && !matches!(ty.peel_refs().kind, TyKind::Slice(_))
                     {
                         self.mark_lvalue(expr.id);
                     }
@@ -3622,7 +3623,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let result = self.lvalue_context.unwrap();
         self.lvalue_context = prev;
 
-        if self.loop_depth > 0 && !self.in_yul {
+        if self.loop_depth > 0 {
             self.note_write(expr);
         }
 

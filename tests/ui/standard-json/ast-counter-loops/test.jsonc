@@ -23,6 +23,10 @@
 // CHECK: "isSimpleCounterLoop": false
 // compare.
 // CHECK: "isSimpleCounterLoop": false
+// assemblyWrite, a write in inline assembly.
+// CHECK: "isSimpleCounterLoop": false
+// assemblyRead, which only reads the counter.
+// CHECK: "isSimpleCounterLoop": true
 {
   "language": "Solidity",
   "settings": {

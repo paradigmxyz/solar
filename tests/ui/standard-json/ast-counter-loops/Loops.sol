@@ -53,4 +53,20 @@ contract Loops {
     function compare(uint256 n) public pure {
         for (uint256 i = 0; i <= n; i++) {}
     }
+
+    function assemblyWrite() public pure {
+        for (uint256 i = 0; i < 42; ++i) {
+            assembly {
+                i := add(i, 1)
+            }
+        }
+    }
+
+    function assemblyRead(uint256 n) public pure returns (uint256 sum) {
+        for (uint256 i = 0; i < n; ++i) {
+            assembly {
+                sum := add(sum, i)
+            }
+        }
+    }
 }

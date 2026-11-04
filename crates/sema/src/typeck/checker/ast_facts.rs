@@ -52,7 +52,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     /// Records that a `for` loop cannot overflow its counter, if it is `for (...; i < n; i++)` or
     /// with `++i`, where `i` is a local variable of an integer type that the condition and the body
-    /// do not write to. Like solc, this does not look for writes in inline assembly.
+    /// do not write to, in Solidity or in inline assembly.
     ///
     /// `first_write` is where the writes of the loop start in `loop_writes`; the update itself
     /// writes the counter once.
