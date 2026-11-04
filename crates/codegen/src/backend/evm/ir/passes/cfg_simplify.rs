@@ -74,7 +74,7 @@ use crate::backend::evm::{
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
-use solar_evmir::debug::DebugEntryCheckpoint;
+use solar_evmir::debug::{DebugEntryCheckpoint, single_origin};
 use solar_sema::Gcx;
 
 pub(super) struct CfgSimplify {
@@ -809,14 +809,14 @@ fn thunk_checkpoint(
     transfer: &Metadata,
     chain: &Metadata,
 ) -> Option<(BlockId, DebugEntryCheckpoint)> {
-    let [source] = chain.source_spans() else { return None };
-    let origin = match transfer.source_spans() {
-        [origin] => *origin,
-        [] => transfer.function_invoke().or_else(|| chain.function_invoke())?.declaration,
-        _ => return None,
+    let source = single_origin(chain.source_spans())?;
+    let origin = if transfer.source_spans().is_empty() {
+        transfer.function_invoke().or_else(|| chain.function_invoke())?.declaration
+    } else {
+        single_origin(transfer.source_spans())?
     };
     let checkpoint = DebugEntryCheckpoint {
-        source: *source,
+        source,
         transfer: origin,
         modifier_depth: chain.modifier_depth(),
         function_invoke: None,
@@ -824,7 +824,8 @@ fn thunk_checkpoint(
     let mut target = start;
     for _ in 0..thunks.len() {
         let Some(thunk) = thunks.get(&target) else { return Some((target, checkpoint)) };
-        if !thunk.metadata.source_spans().iter().all(|&span| span == checkpoint.source)
+        if !(thunk.metadata.source_spans().is_empty()
+            || single_origin(thunk.metadata.source_spans()) == Some(checkpoint.source))
             || (!thunk.metadata.source_spans().is_empty()
                 && thunk.metadata.modifier_depth() != checkpoint.modifier_depth)
             || references.get(thunk.next) != Some(&1)

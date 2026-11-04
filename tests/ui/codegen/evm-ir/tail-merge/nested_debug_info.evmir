@@ -1,0 +1,25 @@
+//@ compile-flags: -Zevm-ir-pipeline=tail-merge --optimize-runs 1
+//@ filecheck:
+@module NestedDebugInfo
+
+// Origins that form one nesting chain are a single origin, so the replacement transfer keeps them.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + jump [[TAIL:bb[0-9]+]] !metadata(spans=[30..40, 32..38])
+bb0:
+  push 11
+  push 22
+  push 33
+  push 44
+  push 55
+  revert !metadata(spans=[30..40, 32..38])
+
+// Origins without a common nesting chain stay ambiguous, so the replacement transfer is unmapped.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: + jump [[TAIL]]{{$}}
+bb1:
+  push 99
+  push 22
+  push 33
+  push 44
+  push 55
+  revert !metadata(spans=[30..40, 70..80])

@@ -62,6 +62,8 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHasher;
+use solar_evmir::debug::single_origin;
+use solar_interface::Span;
 use solar_sema::Gcx;
 use std::{
     fmt,
@@ -582,12 +584,17 @@ fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata
     context
 }
 
+/// Whether two origin lists name the same origin: equal lists, or equal single origins.
+fn same_origin(a: &[Span], b: &[Span]) -> bool {
+    a == b || single_origin(a).is_some_and(|origin| single_origin(b) == Some(origin))
+}
+
 /// Keeps a folded predicate checkpoint on its branch's existing label operand when available.
 fn preserve_branch_test_debug_info(instructions: &mut [Instruction], predicate: &Metadata) {
     let [target, branch] = instructions else { unreachable!("matched branch pair") };
     let origin = if !predicate.source_spans().is_empty()
         && (target.metadata.source_spans().is_empty()
-            || target.metadata.source_spans() == branch.metadata.source_spans())
+            || same_origin(target.metadata.source_spans(), branch.metadata.source_spans()))
     {
         // NOTE: Both instructions execute after the original test, regardless of its outcome.
         // Reuse an unmapped or duplicate checkpoint, never an independently located operand.

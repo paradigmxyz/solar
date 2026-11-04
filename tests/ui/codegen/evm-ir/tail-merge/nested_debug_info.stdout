@@ -1,0 +1,22 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/nested_debug_info.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/nested_debug_info.evmir (after tail-merge) ===
+  @module NestedDebugInfo
+  bb0:
+    push 11
+-   push 22
+-   push 33
+-   push 44
+-   push 55
+-   revert !metadata(spans=[30..40, 32..38])
++   jump bb2 !metadata(spans=[30..40, 32..38])
+  bb1:
+    push 99
++   jump bb2
++ bb2:
+    push 22
+    push 33
+    push 44
+    push 55
+-   revert !metadata(spans=[30..40, 70..80])
++   revert !metadata(spans=[30..40, 32..38, 70..80])
+  

@@ -16,7 +16,7 @@ mod debug_info;
 pub(crate) use debug_info::DebugInfoBuilder;
 pub use debug_info::{
     DebugFunction, DebugFunctionExit, DebugInfo, DebugInstruction, DebugInstructions,
-    DebugLocation, DebugSpans, MAX_DEBUG_SPANS,
+    DebugLocation, DebugSpans, MAX_DEBUG_SPANS, single_origin,
 };
 
 mod disasm;

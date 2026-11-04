@@ -13,7 +13,10 @@
 //! is not defined by that serialization, and `verify` checks its invariants.
 
 use crate::{
-    debug::{DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS},
+    debug::{
+        DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS,
+        single_origin,
+    },
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
     op::{self, StackOp, TrackedWord},
 };
@@ -209,7 +212,7 @@ impl Module {
             let Some(checkpoint) = self.blocks[target].metadata.entry_checkpoint else { return };
             if !seen.insert(target)
                 || !metadata.is_some_and(|metadata| {
-                    metadata.source_spans() == [checkpoint.transfer]
+                    single_origin(metadata.source_spans()) == Some(checkpoint.transfer)
                         || (metadata.source_spans().is_empty()
                             && (metadata.checkpoint_transfers().contains(&checkpoint.transfer)
                                 || metadata.function_invoke().is_some_and(|function| {

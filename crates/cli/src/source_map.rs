@@ -1,9 +1,11 @@
 //! Legacy Solidity instruction source maps.
 
 use core::fmt::NumBuffer;
-use solar_codegen::backend::evm::{DebugFunctionExit, DebugInfo, DebugInstruction, op};
+use solar_codegen::backend::evm::{
+    DebugFunctionExit, DebugInfo, DebugInstruction, op, single_origin,
+};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
-use solar_interface::{BytePos, Span, source_map::SourceMapFiles};
+use solar_interface::{BytePos, source_map::SourceMapFiles};
 use solar_sema::{Gcx, hir::SourceId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,7 +71,7 @@ impl SourceMapEncoder {
         // NOTE: An incoming transfer may be optimized into a zero-byte fallthrough.
         // Its checkpoint is then unavailable; keep such a shared location unknown
         // (-1, -1, -1) rather than changing codegen to manufacture a source stop.
-        let location = first_nested_span(instruction.location.source_spans).and_then(|span| {
+        let location = single_origin(instruction.location.source_spans).and_then(|span| {
             let source = files.span_to_source(span).ok()?;
             let source_id = *self.source_ids.get(&source.file.start_pos)?;
             Some((source.data.start as i64, source.data.len() as i64, source_id.index() as i64))
@@ -97,14 +99,6 @@ impl SourceMapEncoder {
             modifier_depth: i64::from(instruction.location.modifier_depth),
         }
     }
-}
-
-/// Returns the first of `spans` when they form one nesting chain.
-///
-/// Spans of different source files occupy disjoint position ranges, so they never nest.
-fn first_nested_span(spans: &[Span]) -> Option<Span> {
-    let nested = spans.iter().all(|&a| spans.iter().all(|&b| a.contains(b) || b.contains(a)));
-    spans.first().copied().filter(|_| nested)
 }
 
 /// Returns the statically encoded destination of a jump preceded by `PUSH`.
@@ -204,7 +198,7 @@ mod tests {
     use super::*;
     use snapbox::{assert_data_eq, str};
     use solar_codegen::backend::evm::DebugLocation;
-    use solar_interface::source_map::SourceMap;
+    use solar_interface::{Span, source_map::SourceMap};
     use std::path::PathBuf;
 
     #[test]

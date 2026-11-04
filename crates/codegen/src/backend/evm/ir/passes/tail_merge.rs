@@ -70,6 +70,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
     newtype_index,
 };
+use solar_evmir::debug::single_origin;
 use solar_sema::Gcx;
 
 pub(super) struct TailMerge;
@@ -511,8 +512,10 @@ fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
         .map(|inst| &inst.metadata)
         .chain(block.terminator.iter().map(|term| &term.metadata));
     // Already-shared suffixes cannot provide a path-specific jump origin.
-    // Prefer a unique origin from this site; otherwise leave it unmapped.
-    if let Some(origin) = all.clone().find(|metadata| metadata.source_spans().len() == 1) {
+    // Prefer a single origin from this site; otherwise leave it unmapped.
+    if let Some(origin) =
+        all.clone().find(|metadata| single_origin(metadata.source_spans()).is_some())
+    {
         metadata.copy_source_debug_from(origin);
     }
     let mut functions = all.filter_map(Metadata::function_invoke);
