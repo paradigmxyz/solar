@@ -146,47 +146,58 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> Option<CarriedValue> {
-        self.with_expr_context(expr, |this| this.lower_carried_expr_inner(expr, ty))
+        let (carried, carried_ty) =
+            self.with_expr_context(expr, |this| this.lower_carried_expr_inner(expr, ty))?;
+        if carried_ty == ty {
+            return Some(carried);
+        }
+        // The conversion belongs to the consumer, so it takes the consumer's span, as in solc.
+        let value = carried.clean(self, carried_ty);
+        Some(CarriedValue::from_clean(self.coerce_value(value, carried_ty, ty)))
     }
 
+    /// Lowers `expr` for [`Self::lower_carried_expr`] and returns the value with its type, which
+    /// is `ty` unless the conversion to `ty` is left to the caller.
     fn lower_carried_expr_inner(
         &mut self,
         expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-    ) -> Option<CarriedValue> {
+    ) -> Option<(CarriedValue, Ty<'gcx>)> {
+        let clean = |value| Some((CarriedValue::from_clean(value), ty));
         let source_ty = self.cx.gcx.type_of_expr(expr.id);
         match &expr.kind {
-            ExprKind::Tuple([Some(inner)]) => return self.lower_carried_expr(inner, ty),
+            ExprKind::Tuple([Some(inner)]) => {
+                return Some((self.lower_carried_expr(inner, ty)?, ty));
+            }
             ExprKind::Call(callee, args)
                 if let hir::CallArgsKind::Unnamed([argument]) = args.kind
                     && expressions::is_type_conversion(self.cx.gcx, callee)
                     && source_ty.is_some()
                     && self.cx.gcx.type_of_expr(argument.id) == source_ty =>
             {
-                return self.lower_carried_expr(argument, ty);
+                return Some((self.lower_carried_expr(argument, ty)?, ty));
             }
             ExprKind::Ternary(condition, then_expr, else_expr)
                 if source_ty.is_some_and(|ty| ty.is_value_type()) =>
             {
-                return self.lower_carried_ternary(condition, then_expr, else_expr, ty);
+                return Some((
+                    self.lower_carried_ternary(condition, then_expr, else_expr, ty)?,
+                    ty,
+                ));
             }
             _ => {}
         }
         let Some(source_ty) = source_ty.filter(|ty| ty.is_value_type()) else {
-            return Some(CarriedValue::from_clean(self.lower_typed_expr(expr, ty)?));
+            return clean(self.lower_typed_expr(expr, ty)?);
         };
         let carried = match self.lower_carried_leaf(expr)? {
             Some(carried) => carried,
             None => match self.lower_carried_shape(expr, source_ty)? {
                 Some(carried) => carried,
-                None => return Some(CarriedValue::from_clean(self.lower_typed_expr(expr, ty)?)),
+                None => return clean(self.lower_typed_expr(expr, ty)?),
             },
         };
-        if source_ty == ty {
-            return Some(carried);
-        }
-        let value = carried.clean(self, source_ty);
-        Some(CarriedValue::from_clean(self.coerce_value(value, source_ty, ty)))
+        Some((carried, source_ty))
     }
 
     /// Lowers `expr` as a word for a consumer that ignores the bits above its type.
@@ -223,8 +234,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     CallResult::CarriedValue(carried) => Some(carried),
                 })
             }
-            ExprKind::Assign(lhs, None, rhs) => {
-                Some(Some(self.lower_assignment(expr, lhs, None, rhs)?))
+            ExprKind::Assign(lhs, op, rhs) => {
+                Some(Some(self.lower_assignment(expr, lhs, *op, rhs)?))
             }
             ExprKind::Binary(..) | ExprKind::Unary(..)
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) =>
@@ -273,7 +284,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns whether `lhs op rhs` keeps raw bits: both operands have the result type, or are
     /// literals that convert to it, and at least one has it.
-    fn forwards_bitwise(&self, lhs: &hir::Expr<'_>, rhs: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
+    pub(super) fn forwards_bitwise(
+        &self,
+        lhs: &hir::Expr<'_>,
+        rhs: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> bool {
         let is_literal = |expr: &hir::Expr<'_>| {
             self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
                 matches!(ty.peel_refs().kind, TyKind::IntLiteral(..) | TyKind::StringLiteral(..))
@@ -296,26 +312,59 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         rhs: &hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> Option<CarriedValue> {
-        let operand = |this: &mut Self, expr: &hir::Expr<'_>| {
-            if this.cx.gcx.type_of_expr(expr.id) == Some(ty) {
-                this.lower_carried_expr(expr, ty)
-            } else {
-                Some(CarriedValue::from_clean(this.lower_typed_expr(expr, ty)?))
-            }
-        };
-        let lhs = operand(self, lhs)?;
-        let rhs = operand(self, rhs)?;
+        let lhs = self.lower_bitwise_operand(lhs, ty)?;
+        let rhs = self.lower_bitwise_operand(rhs, ty)?;
+        Some(self.bitwise_carried(kind, lhs, rhs, ty))
+    }
+
+    /// Lowers `lhs op= rhs` for `&`, `|` and `^` along a copy edge and returns the stored value.
+    pub(super) fn lower_compound_bitwise(
+        &mut self,
+        lhs: &hir::Expr<'_>,
+        kind: BinOpKind,
+        rhs: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<CarriedValue> {
+        let rhs = self.lower_bitwise_operand(rhs, ty)?;
+        let place = self.resolve_lvalue_place(lhs)?;
+        let old = self.load_lvalue_place_carried(&place)?;
+        let new = self.bitwise_carried(kind, old, rhs, ty);
+        self.store_carried_place(&place, new, Some(ty), ty)?;
+        Some(new)
+    }
+
+    /// Lowers an operand of a forwarding bitwise operation: a literal converts to `ty`.
+    fn lower_bitwise_operand(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+    ) -> Option<CarriedValue> {
+        if self.cx.gcx.type_of_expr(expr.id) == Some(ty) {
+            self.lower_carried_expr(expr, ty)
+        } else {
+            Some(CarriedValue::from_clean(self.lower_typed_expr(expr, ty)?))
+        }
+    }
+
+    /// Runs `kind` on the raw words when an operand is raw, and on the clean values otherwise.
+    fn bitwise_carried(
+        &mut self,
+        kind: BinOpKind,
+        lhs: CarriedValue,
+        rhs: CarriedValue,
+        ty: Ty<'gcx>,
+    ) -> CarriedValue {
         if !lhs.raw && !rhs.raw {
             let value = self.binary(kind, lhs.value, rhs.value, Some(ty));
-            return Some(CarriedValue::from_clean(match operators::fixed_bytes_width(ty) {
+            return CarriedValue::from_clean(match operators::fixed_bytes_width(ty) {
                 Some(bytes) => self.clean_fixed_bytes(value, bytes),
                 None => value,
-            }));
+            });
         }
         let lhs = self.raw_word(lhs, ty);
         let rhs = self.raw_word(rhs, ty);
         // result = op lhs, rhs
-        Some(CarriedValue::from_word(self.binary(kind, lhs, rhs, None), true))
+        CarriedValue::from_word(self.binary(kind, lhs, rhs, None), true)
     }
 
     /// Lowers `&&` and `||` along a copy edge: the result is the operand that decides it, raw

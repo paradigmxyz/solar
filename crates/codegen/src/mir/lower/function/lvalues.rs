@@ -222,7 +222,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(access) = self.storage_access(receiver) else {
             return self.cx.report_unsupported(receiver.span, "storage access");
         };
-        let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+        // The index is the raw word, as in via-IR.
+        let index = self.lower_raw_expr(index)?.operand();
+        let index = self.builder.cast(index, MirType::I256);
         let ty = self.type_of_expr_or_variable(expr)?;
         let access = self.storage_bytes_byte_access(access.slot, index);
         Some(LValuePlace::Storage { ty, access, span: expr.span })

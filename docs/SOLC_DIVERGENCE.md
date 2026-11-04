@@ -745,6 +745,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   and `&`, `|` and `^` of operands of the result type. Every
   other consumer sees a canonical value: operands, builtin arguments, ABI
   encodings, stores, indexes, conditions and external calls.
+- Known differences: `solar` cleans the raw bits of an integer or fixed-bytes
+  immutable when it stores the immutable, so `uint8 immutable i = f()` reads
+  back clean where via-IR keeps them. A conditional with tuple branches
+  keeps an invalid enum, contract or user-defined value type in its false branch
+  raw under `solar`, where via-IR validates it.
 - Rationale: The Solidity documentation leaves bits outside a type's width
   unspecified after assembly assignments, so code such as solady's
   `Brutalizer` helpers can only rely on the `solc` behavior. The lowerer

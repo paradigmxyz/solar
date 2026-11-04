@@ -791,12 +791,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let TyKind::Tuple(sources) = self.cx.gcx.type_of_expr(expr.id)?.kind else {
             return None;
         };
+        // A branch whose tuple type differs from the result type converts every component, and a
+        // conversion cleans, as in via-IR.
+        let converts = sources != types;
         self.lower_values(expr)?
             .into_iter()
             .zip(sources)
             .zip(types)
             .map(|((value, &source), &target)| {
-                self.convert_tuple_component(value, source, target, expr.span)
+                let value = self.convert_tuple_component(value, source, target, expr.span)?;
+                Some(if converts {
+                    CarriedValue::from_clean(value.clean(self, target))
+                } else {
+                    value
+                })
             })
             .collect()
     }

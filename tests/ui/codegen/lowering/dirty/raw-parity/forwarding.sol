@@ -27,6 +27,13 @@
 //@ run-call: C::t_bit_or_widen => 255
 //@ run-call: C::t_bit_or_argument => 511
 //@ run-call: C::t_bit_or_return => 511
+//@ run-call: C::t_compound_or => 511
+//@ run-call: C::t_compound_xor => 510
+//@ run-call: C::t_compound_and => 255
+//@ run-call: C::t_compound_and_literal => 255
+//@ run-call: C::t_compound_value => 511
+//@ run-call: C::t_compound_bytes4 => 0
+//@ run-call: C::t_compound_clean_use => 255
 //@ run-call: C::t_bit_or_clean_use => 255
 //@ run-call: C::t_bit_or_compare => 1
 
@@ -83,6 +90,13 @@ contract C {
     function t_bit_or_widen() external view returns (uint256 r) { uint8 a; assembly { a := 0x1ff } uint16 b = a | uint16(0); assembly { r := b } }
     function t_bit_or_argument() external view returns (uint256 r) { uint8 a; assembly { a := 0x1ff } r = raw(a | 0); }
     function t_bit_or_return() external view returns (uint256 r) { r = rawOr(); }
+    function t_compound_or() external view returns (uint256 r) { uint8 c; assembly { c := 0x1ff } c |= 1; assembly { r := c } }
+    function t_compound_xor() external view returns (uint256 r) { uint8 c; assembly { c := 0x1ff } c ^= 1; assembly { r := c } }
+    function t_compound_and() external view returns (uint256 r) { uint8 c; assembly { c := 0x1ff } uint8 m = d(); c &= m; assembly { r := c } }
+    function t_compound_and_literal() external view returns (uint256 r) { uint8 c; assembly { c := 0x1ff } c &= 0xff; assembly { r := c } }
+    function t_compound_value() external view returns (uint256 r) { uint8 c; assembly { c := 0x1ff } uint8 e = (c |= 1); assembly { r := e } }
+    function t_compound_bytes4() external view returns (uint256 r) { bytes4 c; assembly { c := 0x1122334455667788 } bytes4 m = 0xffffffff; c &= m; assembly { r := c } }
+    function t_compound_clean_use() external view returns (uint256 r) { uint8 c; assembly { c := 0x1ff } c |= 1; return uint256(c); }
     function t_bit_or_clean_use() external view returns (uint256 r) { uint8 a; assembly { a := 0x1ff } return uint256(a | 0); }
     function t_bit_or_compare() external view returns (uint256 r) { uint8 a; assembly { a := 0x1ff } return (a | 0) == 0xff ? 1 : 0; }
 }

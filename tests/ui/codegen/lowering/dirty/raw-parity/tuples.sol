@@ -11,6 +11,10 @@
 //@ run-call: C::t_declare => 50266623
 //@ run-call: C::t_storage_ref_declare => 511
 //@ run-call: C::t_storage_ref_assign => 511
+//@ run-call: C::t_ternary_literal_decl => 255
+//@ run-call: C::t_ternary_literal_assign => 255
+//@ run-call: C::t_ternary_literal_else => 255
+//@ run-call: C::t_ternary_same_type => 511
 //@ run-call: C::t_storage_ref_assign_clean_use => 255
 
 // Generated cases. Every expectation was captured by running the same source through
@@ -52,5 +56,9 @@ contract C {
     function t_declare() external view returns (uint256 r) { (uint8 p, uint8 q) = dd(); assembly { r := or(p, shl(16, q)) } }
     function t_storage_ref_declare() external view returns (uint256 r) { (uint8 x, S storage y) = g(); y; assembly { r := x } }
     function t_storage_ref_assign() external view returns (uint256 r) { S storage y = ss; uint8 x; (x, y) = g(); y; assembly { r := x } }
+    function t_ternary_literal_decl() external view returns (uint256 r) { uint8 x = d(); (uint8 p, uint8 q) = gasleft() > 0 ? (x, 2) : (3, 4); q; assembly { r := p } }
+    function t_ternary_literal_assign() external view returns (uint256 r) { uint8 x = d(); uint8 p; uint8 q; (p, q) = gasleft() > 0 ? (x, 2) : (3, 4); q; assembly { r := p } }
+    function t_ternary_literal_else() external view returns (uint256 r) { uint8 x = d(); uint8 p; uint8 q; (p, q) = gasleft() == 0 ? (3, 4) : (x, 2); q; assembly { r := p } }
+    function t_ternary_same_type() external view returns (uint256 r) { uint8 x = d(); uint8 y = 2; (uint8 p, uint8 q) = gasleft() > 0 ? (x, y) : (y, x); q; assembly { r := p } }
     function t_storage_ref_assign_clean_use() external view returns (uint256 r) { S storage y = ss; uint8 x; (x, y) = g(); y; return uint256(x) + 0; }
 }

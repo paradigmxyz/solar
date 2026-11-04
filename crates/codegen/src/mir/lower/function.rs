@@ -771,6 +771,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return Some(CarriedValue::from_clean(access.slot));
         }
         let lhs_ty = self.type_of_expr_or_variable(lhs)?;
+        if let Some(kind @ (BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor)) = compound_op
+            && self.cx.gcx.user_operator(expr.id).is_none()
+            && self.forwards_bitwise(lhs, rhs, lhs_ty)
+        {
+            return self.lower_compound_bitwise(lhs, kind, rhs, lhs_ty);
+        }
         let rhs_ty = self.cx.gcx.type_of_expr(rhs.id).unwrap_or(lhs_ty);
         let fixed_bytes = operators::fixed_bytes_width(lhs_ty);
         let memory_rhs_ty = rhs_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
