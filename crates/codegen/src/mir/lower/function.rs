@@ -1166,12 +1166,17 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
                     .zip(gcx.hir.function(function_id).parameters)
                     .map(|(((argument, &source), &target), &parameter)| {
                         let carrier = state.scalar_carrier(gcx, parameter);
-                        if source == target {
+                        // A parameter that is not a raw carrier is read as a clean value, so
+                        // the word is cleaned even when it travels as a full word. A call of
+                        // the parameter's own type needs none, since the raw-flow analysis links
+                        // its argument to it, but a user-defined value type shares the layout of
+                        // its underlying type without that link.
+                        let raw = state.is_raw_scalar(gcx, parameter);
+                        let own_type =
+                            !matches!(gcx.type_of_item(parameter.into()).kind, TyKind::Udvt(..));
+                        if source == target && (raw || carrier != MirType::I256 || own_type) {
                             raw_scalars::cast_carrier(&mut builder, argument, source, carrier)
                         } else {
-                            // A parameter that is not a raw carrier is read as a clean value, so
-                            // the word is cleaned even when it travels as a full word.
-                            let raw = state.is_raw_scalar(gcx, parameter);
                             reinterpret_word(&mut builder, argument, source, target, carrier, raw)
                         }
                     })
