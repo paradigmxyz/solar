@@ -122,3 +122,22 @@ fn @checked(arg0: i256) -> i256 {
     icall panic_if_zero<0x32>, v0
     ret arg0
 }
+
+// The `invalid` takes the debug context of the first instruction it replaces, as in LLVM's
+// `changeToUnreachable`, or the old terminator's when none follows.
+// CHECK-LABEL: @located_after
+// CHECK: +   invalid !metadata(span=10..20)
+// CHECK-LABEL: @terminator_after
+// CHECK: +   invalid !metadata(span=50..60)
+fn @located_after(arg0: i256) -> i256 {
+  bb0:
+    icall @fail
+    v0 = add arg0, 1 !metadata(span=10..20)
+    ret v0 !metadata(span=30..40)
+}
+
+fn @terminator_after() {
+  bb0:
+    icall @fail
+    ret !metadata(span=50..60)
+}
