@@ -1,0 +1,63 @@
+- ; === ROOT/tests/ui/codegen/mir/cfg-simplify/merge_jump_origins.mir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/mir/cfg-simplify/merge_jump_origins.mir (after cfg-simplify) ===
+  @module MergeJumpOrigins
+  fn @first_unlocated(arg0: i256) -> i256 {
+    bb0:
+-     jump bb1 !metadata(span=10..20)
+-   bb1:                                            ; preds = bb0
+-     v0 = add arg0, 1
++     v0 = add arg0, 1 !metadata(span=10..20)
+      ret v0 !metadata(span=30..40)
+  }
+  
+  fn @terminator_unlocated(arg0: i256) -> i256 {
+    bb0:
+-     jump bb1 !metadata(span=50..60)
+-   bb1:                                            ; preds = bb0
+-     ret arg0
++     ret arg0 !metadata(span=50..60)
+  }
+  
+  fn @prefix_unlocated(arg0: i256) -> i256 {
+    bb0:
+-     v0 = add arg0, 1
+-     jump bb1 !metadata(span=70..80)
+-   bb1:                                            ; preds = bb0
++     v0 = add arg0, 1 !metadata(span=70..80)
+      v1 = mul v0, 2 !metadata(span=90..100)
+      ret v1 !metadata(span=110..120)
+  }
+  
+  fn @both_located(arg0: i256) -> i256 {
+    bb0:
+      v0 = add arg0, 1 !metadata(span=130..140)
+-     jump bb1 !metadata(span=150..160)
+-   bb1:                                            ; preds = bb0
+      v1 = mul v0, 2 !metadata(span=170..180)
+      ret v1 !metadata(span=190..200)
+  }
+  
+  fn @prefix_side_effect(arg0: i256) {
+    bb0:
+      sstore arg0, arg0
+-     jump bb1 !metadata(span=210..220)
+-   bb1:                                            ; preds = bb0
+      v0 = add arg0, 1 !metadata(span=230..240)
+      ret !metadata(span=250..260)
+  }
+  
+  fn @forwarder_unlocated(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+-     jumpi arg1, bb1, bb3 !metadata(span=262..266)
+-   bb3:                                            ; preds = bb0
++     jumpi arg1, bb1, bb2 !metadata(span=262..266)
++   bb2:                                            ; preds = bb0
+      ret arg0 !metadata(span=310..320)
+    bb1:                                            ; preds = bb0
+-     jump bb2 !metadata(span=270..280)
+-   bb2:                                            ; preds = bb1
+-     v0 = add arg0, 1
++     v0 = add arg0, 1 !metadata(span=270..280)
+      ret v0 !metadata(span=290..300)
+  }
+  

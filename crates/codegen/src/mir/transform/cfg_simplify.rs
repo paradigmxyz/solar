@@ -6,6 +6,12 @@
 //! If block A unconditionally jumps to B, and B has only A as predecessor,
 //! merge A and B into a single block. This reduces jump instructions (one `JUMP` each).
 //!
+//! The removed jump's source origin moves to the first operation that then runs in its place:
+//! B's first non-phi instruction or terminator, else A's last pure instruction, when that
+//! operation has no origin. A located carrier keeps only its own origin, so the jump's is
+//! dropped. Eliminating a forwarder that is its target's only predecessor and has one predecessor
+//! of its own gives the target's first operation the forwarder's origin the same way.
+//!
 //! ## Empty Block Elimination
 //! Remove blocks that contain no instructions and only an unconditional jump,
 //! redirecting predecessors to the target.
@@ -587,6 +593,21 @@ fn can_merge(func: &Function, block_id: BlockId) -> Option<BlockId> {
 
 /// Merges block_id with target, appending target's instructions and terminator to block_id.
 fn do_merge(func: &mut Function, block_id: BlockId, target: BlockId) {
+    let jump = func.blocks[block_id].terminator_metadata.debug_context();
+    // NOTE: The jump's origin survives only on an operation without one. A located carrier keeps
+    // its own origin: the jump is a zero-byte fallthrough with no checkpoint, and a second span
+    // would unmap the carrier in the legacy source map.
+    if jump.source_span().is_some() && !absorb_jump_context(func, target, &jump) {
+        // The jump and A's last pure instruction without an origin run on exactly the same paths.
+        if let Some(&last) = func.blocks[block_id].instructions.last()
+            && !matches!(func.inst(last).kind, InstKind::Phi(_))
+            && !func.inst(last).kind.has_side_effects()
+            && func.inst(last).metadata.source_span().is_none()
+        {
+            func.inst_mut(last).metadata.copy_debug_context(&jump);
+        }
+    }
+
     let phi_replacements = fold_target_phis_for_merge(func, block_id, target);
     let mut target_instructions = std::mem::take(&mut func.blocks[target].instructions);
     target_instructions.retain(|&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)));
@@ -602,6 +623,28 @@ fn do_merge(func: &mut Function, block_id: BlockId, target: BlockId) {
     func.blocks[target].predecessors.clear();
 
     func.replace_uses(&phi_replacements);
+}
+
+/// Gives the first operation of `target` the debug context of a jump into it, when that operation
+/// has no origin. It is the first non-phi instruction, or the terminator without one.
+///
+/// Returns whether the operation had no origin. The caller must remove the jump, whose edge was
+/// the only way into `target`, so the operation runs exactly when the jump did.
+fn absorb_jump_context(func: &mut Function, target: BlockId, jump: &InstructionMetadata) -> bool {
+    let first = func.blocks[target]
+        .instructions
+        .iter()
+        .copied()
+        .find(|&inst_id| !matches!(func.inst(inst_id).kind, InstKind::Phi(_)));
+    let metadata = match first {
+        Some(inst_id) => &mut func.inst_mut(inst_id).metadata,
+        None => &mut func.blocks[target].terminator_metadata,
+    };
+    let unlocated = metadata.source_span().is_none();
+    if unlocated {
+        metadata.copy_debug_context(jump);
+    }
+    unlocated
 }
 
 fn fold_target_phis_for_merge(
@@ -717,6 +760,18 @@ fn forwarder_elimination_preserves_phis(func: &Function, block_id: BlockId) -> b
 /// Eliminates an empty forwarder block by redirecting its predecessors.
 fn eliminate_forwarder(func: &mut Function, block_id: BlockId) {
     let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else { return };
+
+    // The target's first operation runs exactly when the jump did only if the forwarder is the
+    // target's sole predecessor and has a single predecessor itself. Otherwise the jump's origin
+    // is dropped like any other.
+    if func.blocks[block_id].predecessors.len() == 1
+        && func.blocks[target].predecessors[..] == [block_id]
+    {
+        let jump = func.blocks[block_id].terminator_metadata.debug_context();
+        if jump.source_span().is_some() {
+            absorb_jump_context(func, target, &jump);
+        }
+    }
 
     let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
     redirect_target_phi_incoming(func, block_id, target, &predecessors);
