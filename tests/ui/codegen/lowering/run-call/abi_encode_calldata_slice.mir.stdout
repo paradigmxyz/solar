@@ -13,7 +13,7 @@ fn @encPackedBytes(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
     v6 = sub arg2, arg1
     v7 = ptradd v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = abi_encode_packed (bytes v8)
+    v9 = abi_encode_packed (calldata_bytes v8)
     ret v9
 }
 
@@ -30,7 +30,7 @@ fn @encPackedBytesReference(arg0: slice<calldata>, arg1: i256, arg2: i256) -> pt
     v6 = sub arg2, arg1
     v7 = ptradd v0, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = abi_encode_packed (bytes v8)
+    v9 = abi_encode_packed (calldata_bytes v8)
     ret v9
 }
 

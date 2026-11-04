@@ -33,8 +33,7 @@ fn @copyHigh() {
     v95 = ne v94, 0
     jumpi v95, bb9, bb8
   bb8:                                            ; preds = bb0
-    v96 = calldatasize
-    calldatacopy v89, v96, v6
+    calldatacopy v89, v0, v6
     mstore v89, v60
     v33 = eq v0, 0
     jumpi v33, bb2, bb4

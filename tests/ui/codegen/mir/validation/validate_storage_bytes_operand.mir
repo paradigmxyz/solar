@@ -1,0 +1,16 @@
+//@ compile-flags: -Zmir-pipeline=none
+//~? ERROR: [fn0] [bb0, inst0] `abi_encode` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn1] [bb0, inst0] `keccak256_packed` has incompatible scalar types; use an explicit cast
+@module InvalidStorageBytesOperand
+
+fn @encode_slice(arg0: slice<memory>) -> i256 {
+  bb0:
+    v0 = abi_encode [storage_bytes], scratch, args arg0
+    ret 0
+}
+
+fn @packed_slice(arg0: slice<memory>) -> i256 {
+  bb0:
+    v0 = keccak256_packed (storage_bytes arg0)
+    ret v0
+}

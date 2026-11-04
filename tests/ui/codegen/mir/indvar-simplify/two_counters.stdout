@@ -119,8 +119,7 @@ fn @pack() {
     jumpi v258, bb10, bb28
   bb28:                                           ; preds = bb11
     mstore 64, v253 !metadata(memory=scratch)
-    v266 = calldatasize
-    calldatacopy v252, v266, v5
+    calldatacopy v252, v154, v5
     mstore v252, v138
     v121 = mload v259
     v125 = or v252, v138
