@@ -4377,6 +4377,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.1",
+ "snapbox",
  "solar-codegen",
  "solar-config",
  "solar-data-structures",
