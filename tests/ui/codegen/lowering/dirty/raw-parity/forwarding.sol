@@ -42,6 +42,9 @@
 //@ run-call: C::t_bit_or_mixed_width => 4294967295
 //@ run-call: C::t_assign_element_chain => 767
 //@ run-call: C::t_assign_field_chain => 767
+//@ run-call: C::t_compound_or_chain => 511
+//@ run-call: C::t_compound_xor_chain => 511
+//@ run-call: C::t_compound_or_chain_bytes4 => 1234605616436508552
 //@ run-call: C::t_bit_or_clean_use => 255
 //@ run-call: C::t_bit_or_compare => 1
 
@@ -117,6 +120,9 @@ contract C {
     function t_bit_or_mixed_width() external view returns (uint256 r) { uint16 y; uint8 x; assembly { y := 0xffffffff x := 0x1ff } uint16 w = y | x; assembly { r := w } }
     function t_assign_element_chain() external view returns (uint256 r) { uint8[] memory a = new uint8[](1); uint8 y = d(); uint8 x = (a[0] = y); uint8 z = (a[0] = x); assembly { r := z } }
     function t_assign_field_chain() external view returns (uint256 r) { S memory st; uint8 y = d(); uint8 x = (st.f = y); uint8 z = (st.f = x); assembly { r := z } }
+    function t_compound_or_chain() external view returns (uint256 r) { uint8 x; assembly { x := 0x1ff } uint8 m; m |= x; uint8 y = m; uint8 o; o |= y; assembly { r := o } }
+    function t_compound_xor_chain() external view returns (uint256 r) { uint8 x; assembly { x := 0x1ff } uint8 m; m ^= x; uint8 y = m; uint8 o; o ^= y; assembly { r := o } }
+    function t_compound_or_chain_bytes4() external view returns (uint256 r) { bytes4 x; assembly { x := 0x1122334455667788 } bytes4 m; m |= x; bytes4 y = m; bytes4 o; o |= y; assembly { r := o } }
     function t_bit_or_clean_use() external view returns (uint256 r) { uint8 a; assembly { a := 0x1ff } return uint256(a | 0); }
     function t_bit_or_compare() external view returns (uint256 r) { uint8 a; assembly { a := 0x1ff } return (a | 0) == 0xff ? 1 : 0; }
 }

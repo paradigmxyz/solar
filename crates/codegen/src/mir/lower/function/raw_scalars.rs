@@ -439,6 +439,19 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                     self.store_roots(lhs, &mut roots);
                     self.connect_pointers(&roots, rhs);
                 }
+                // A bitwise assignment keeps the raw bits of its operands.
+                ExprKind::Assign(
+                    lhs,
+                    Some(hir::BinOp {
+                        kind: BinOpKind::BitAnd | BinOpKind::BitOr | BinOpKind::BitXor,
+                        ..
+                    }),
+                    rhs,
+                ) => {
+                    let mut ids = SmallVec::new();
+                    self.sources(lhs, &mut ids);
+                    self.connect(&ids, rhs);
+                }
                 ExprKind::Call(callee, args) => {
                     self.record_pointer_call(expr, callee, args);
                     if self.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush)
@@ -519,6 +532,7 @@ impl LoweringState {
                 if variable.is_state_variable()
                     && let Some(initializer) = variable.initializer
                 {
+                    let _ = exposure.visit_expr(initializer);
                     // An immutable stores the raw bits of its initializer.
                     if variable.is_immutable() {
                         exposure.connect(&[id], initializer);
