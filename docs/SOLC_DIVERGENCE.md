@@ -804,12 +804,12 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   Solc tracks the getter's empty revert data in
   [issue #16660](https://github.com/argotorg/solidity/issues/16660).
 
-### CODEGEN-005: Narrow storage array indexes are not cleaned
+### CODEGEN-005: Narrow storage array and bytes indexes are not cleaned
 
 - ID: CODEGEN-005
 - Status: implemented
 - Behavior: When assembly assigns dirty upper bits to a narrow integer used as
-  a storage-array index, `solar` matches `solc` via-IR and checks the raw word
+  a storage-array or storage-`bytes` index, `solar` matches `solc` via-IR and checks the raw word
   against the array length, so `uint8(0x101)` reverts with `Panic(0x32)`.
   Legacy `solc` cleans the index and selects index `1`. Memory-array indexes are
   cleaned by all of them.
