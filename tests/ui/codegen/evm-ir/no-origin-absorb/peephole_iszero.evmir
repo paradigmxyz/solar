@@ -2,8 +2,8 @@
 //@ filecheck:
 @module PeepholeIszero
 
-// `push 0; lt; iszero` becomes one `iszero`, which produces the old `iszero`'s output and so takes
-// its context. The `push` and the `lt` take their origins with them.
+// `push 0; lt; iszero` becomes one `iszero`. The comparison is removed, so the surviving `iszero`
+// keeps its own context, and the `push` and the `lt` take their origins with them.
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: {{^[ +] *}}iszero !metadata(span=21..25){{$}}
 bb0:
@@ -27,4 +27,16 @@ bb1:
   jumpi !metadata(span=50..55)
   stop
 bb2:
+  stop
+
+// `push c; operand; lt; iszero` becomes `push c-1; operand; gt`. The new comparison keeps the
+// comparison's context, as solc's `sub` keeps the `eq`'s, and the removed `iszero` takes its
+// origin with it.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK: + gt !metadata(span=61..65){{$}}
+bb3:
+  push 5 !metadata(span=56..60)
+  calldatasize
+  lt !metadata(span=61..65)
+  iszero !metadata(span=66..70)
   stop

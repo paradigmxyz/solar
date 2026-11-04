@@ -18,4 +18,12 @@
     stop
   bb2:
     stop
+  bb3:
+-   push 5 !metadata(span=56..60)
++   push 4 !metadata(span=56..60)
+    calldatasize
+-   lt !metadata(span=61..65)
+-   iszero !metadata(span=66..70)
++   gt !metadata(span=61..65)
+    stop
   

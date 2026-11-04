@@ -486,13 +486,26 @@ impl Edit {
             Self::InvertComparison { value, opcode } => {
                 // PUSH c; independent operands; compare; ISZERO
                 // => PUSH adjusted; independent operands; opposite compare
+                // NOTE: The opposite compare keeps the comparison's context, as solc's `sub` keeps
+                // the `eq`'s when `eq; iszero; push; jumpi` fuses (`_eq.debugData()`,
+                // libevmasm/PeepholeOptimiser.cpp#L349). The removed `iszero` takes its origins
+                // with it; only its function events move.
                 instructions[start].replace_preserving_metadata(Instruction::push_value(value));
-                fuse_iszero(instructions, opcode);
+                let iszero = instructions.pop().expect("matched ISZERO");
+                let comparison = instructions.last_mut().expect("matched comparison");
+                overwrite(comparison, opcode);
+                comparison.metadata.absorb_function_events(&iszero.metadata);
             }
             Self::ZeroLessIszero => {
                 // PUSH 0; LT; ISZERO => ISZERO
-                instructions.remove(start);
-                fuse_iszero(instructions, op::ISZERO);
+                // NOTE: The comparison is removed and the surviving `iszero` keeps its own
+                // context. The removed push and `lt` take their origins with them; only their
+                // function events move.
+                let pushed = instructions.remove(start);
+                let comparison = instructions.remove(start);
+                let iszero = instructions.last_mut().expect("matched ISZERO");
+                iszero.metadata.absorb_function_events(&pushed.metadata);
+                iszero.metadata.absorb_function_events(&comparison.metadata);
             }
             Self::ReloadStoredValue => {
                 instructions.swap(start, start + 3);
@@ -549,18 +562,6 @@ impl Edit {
 fn overwrite(inst: &mut Instruction, opcode: u8) {
     debug_assert!(inst.as_evm_opcode().is_some());
     inst.replace_preserving_metadata(Instruction::opcode(opcode));
-}
-
-/// Replaces the comparison before the trailing `ISZERO` with `opcode`, which produces the
-/// `ISZERO`'s output and so takes its source context, the root's, as InstCombine's new
-/// instructions do (llvm/lib/Transforms/InstCombine/InstructionCombining.cpp#L5974-L5999 at
-/// llvm-project e98b16a2710b). The comparison's own origins go with it.
-fn fuse_iszero(instructions: &mut Vec<Instruction>, opcode: u8) {
-    let iszero = instructions.pop().expect("matched ISZERO");
-    let comparison = instructions.last_mut().expect("matched comparison");
-    overwrite(comparison, opcode);
-    comparison.metadata.copy_source_debug_from(&iszero.metadata);
-    comparison.metadata.absorb_function_events(&iszero.metadata);
 }
 
 fn instruction_sequence(instructions: &[Instruction]) -> impl fmt::Display + '_ {
