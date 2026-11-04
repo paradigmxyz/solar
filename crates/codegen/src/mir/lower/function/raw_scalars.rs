@@ -254,6 +254,19 @@ impl<'gcx> Exposure<'gcx> {
         }
     }
 
+    /// Records the arguments of a modifier or base constructor invocation, which lowering binds
+    /// by parameter name when they are named.
+    fn connect_arguments(&mut self, id: hir::FunctionId, args: hir::CallArgs<'_>) {
+        let names = self
+            .gcx
+            .callable_param_names(CallableParamSource::Function { id, skips_receiver: false });
+        for (index, &parameter) in self.gcx.hir.function(id).parameters.iter().enumerate() {
+            if let Some(argument) = args.argument_for_parameter(index, Some(&names)) {
+                self.connect(&[parameter], argument);
+            }
+        }
+    }
+
     /// Records the internal function pointers an expression may carry into bindings.
     fn connect_pointers(&mut self, destinations: &[VariableId], expr: &hir::Expr<'_>) {
         let destinations = destinations
@@ -372,18 +385,12 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
         if let hir::ItemId::Contract(base) = modifier.id
             && let Some(constructor) = self.gcx.hir.contract(base).ctor
         {
-            let parameters = self.gcx.hir.function(constructor).parameters;
-            for (&parameter, argument) in parameters.iter().zip(modifier.args.exprs()) {
-                self.connect(&[parameter], argument);
-            }
+            self.connect_arguments(constructor, modifier.args);
         }
         if let Some(id) = self.gcx.resolve_modifier_target(self.contract, modifier) {
-            let function = self.gcx.hir.function(id);
-            for (&parameter, argument) in function.parameters.iter().zip(modifier.args.exprs()) {
-                self.connect(&[parameter], argument);
-            }
+            self.connect_arguments(id, modifier.args);
             if self.visited.insert(id) {
-                self.walk_function(function)?;
+                self.walk_function(self.gcx.hir.function(id))?;
             }
         }
         self.walk_modifier(modifier)
