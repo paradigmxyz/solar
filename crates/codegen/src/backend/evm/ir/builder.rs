@@ -94,10 +94,13 @@ impl<'gcx> Assembler<'gcx> {
 
     /// Attributes the jump to the next block, which ends the current block without an opcode, to
     /// the current source origins.
+    // NOTE: Without an open block nothing implements the jump, so its origins are dropped. Opening
+    // one would add an empty block, and debug information must not change the IR.
     pub(crate) fn mark_fallthrough(&mut self) {
-        let block = self.current_block();
-        self.fallthrough_origins
-            .insert(block, (self.current_source_spans.clone(), self.current_modifier_depth));
+        if let Some(block) = self.current_block {
+            self.fallthrough_origins
+                .insert(block, (self.current_source_spans.clone(), self.current_modifier_depth));
+        }
     }
 
     /// Marks the current block as entering a source-language function.
