@@ -969,8 +969,9 @@ fn end_block_after(func: &mut Function, block: BlockId, position: usize) -> bool
     {
         return false;
     }
-    // NOTE: Like LLVM's `changeToUnreachable`, the `invalid` takes the debug context of the first
-    // instruction it replaces, or keeps the old terminator's when none follows.
+    // NOTE: Like LLVM's `changeToUnreachable` (`UI->setDebugLoc(I->getDebugLoc())`, Local.cpp
+    // L2559-L2560 at e98b16a2710b), the `invalid` takes the debug context of the first instruction
+    // it replaces, or keeps the old terminator's when none follows.
     let replaced = func.blocks[block]
         .instructions
         .get(position + 1)

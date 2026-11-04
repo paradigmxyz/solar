@@ -105,3 +105,14 @@
 +     invalid !metadata(span=50..60)
   }
   
+- fn @failing_check_after(arg0: i256) -> i256 {
+-   bb0:
++ fn @failing_check_after(arg0: i256) -> i256 [cold] {
++   bb0 [cold]:
+      v0 = gt 0, 0
+      icall panic_if_zero<0x32>, v0
+-     v1 = add arg0, 1 !metadata(span=70..80)
+-     ret v1 !metadata(span=90..100)
++     invalid !metadata(span=70..80)
+  }
+  
