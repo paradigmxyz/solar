@@ -190,7 +190,7 @@
       v0 = zext i1 0 to i256
       v1 = zext i1 1 to i256
       v2 = zext i1 undef to i256
-      v3 = and false, true
+      v3 = and true, false
       ret v3
   }
   

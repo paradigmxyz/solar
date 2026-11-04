@@ -28,7 +28,7 @@
       mstore v4, arg1
       v5 = mload v1
 -     v6 = add v2, v5
-+     v6 = add arg0, v5
++     v6 = add v5, arg0
       ret v6
   }
   

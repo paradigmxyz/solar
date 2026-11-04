@@ -82,7 +82,7 @@
       v2 = eq arg1, false
 -     v3 = eq v2, false
       v4 = zext i1 arg1 to i256
--     v5 = lt 0, v4
+-     v5 = gt v4, 0
 -     v6 = zext i1 arg1 to i256
 -     v7 = gt v6, 0
 -     v8 = shl arg0, 256
@@ -96,15 +96,15 @@
   fn @complete_exact_identities(arg0: i256, arg1: i1) -> struct3 [return_abi=[i256, i256, i256, i256, i1, i1, i1, i1, i256, i256]] {
     bb0:
       v0 = not arg0
--     v1 = and arg0, v0
--     v2 = or arg0, v0
--     v3 = xor arg0, v0
+-     v1 = and v0, arg0
+-     v2 = or v0, arg0
+-     v3 = xor v0, arg0
       v4 = zext i1 arg1 to i256
 -     v5 = lt v4, 2
 -     v6 = zext i1 arg1 to i256
--     v7 = lt 1, v6
+-     v7 = gt v6, 1
 -     v8 = zext i1 arg1 to i256
--     v9 = gt 2, v8
+-     v9 = lt v8, 2
 -     v10 = zext i1 arg1 to i256
 -     v11 = gt v10, 1
 -     v12 = byte 0, 0
@@ -140,7 +140,7 @@
     bb0:
 -     v0 = add 7, 5
 -     v1 = sub 7, 9
--     v2 = mul 6, 7
+-     v2 = mul 7, 6
 -     v3 = div 42, 5
 -     v4 = div 42, 0
 -     v5 = mod 42, 5
@@ -150,7 +150,7 @@
 -     v9 = sdiv v7, v8
 -     v10 = smod v7, 5
 -     v11 = slt v7, 1
--     v12 = sgt 1, v7
+-     v12 = slt v7, 1
 -     v13 = and 255, 15
 -     v14 = or 16, 1
 -     v15 = xor 15, 3
@@ -159,8 +159,8 @@
 -     v18 = sar v7, 1
 -     v19 = byte 31, 255
 -     v20 = signextend 0, 255
--     v21 = addmod 5, 7, 10
--     v22 = mulmod 5, 7, 10
+-     v21 = addmod 7, 5, 10
+-     v22 = mulmod 7, 5, 10
 -     ret v0, v1, v2, v3, v4, v5, v6, v9, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22
 +     ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, true, true, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5
   }
@@ -551,7 +551,7 @@
   
   fn @ne_bool_true_swapped(arg0: i1) -> i1 {
     bb0:
--     v0 = ne true, arg0
+-     v0 = ne arg0, true
 +     v0 = eq arg0, false
       ret v0
   }
@@ -567,7 +567,7 @@
   fn @ne_clz_zero(arg0: i256) -> i1 {
     bb0:
       v0 = clz arg0
--     v1 = ne 256, v0
+-     v1 = ne v0, 256
 +     v1 = ne arg0, 0
       ret v1
   }
@@ -583,7 +583,7 @@
   fn @ne_byte_bound_swapped(arg0: i256) -> i1 {
     bb0:
       v0 = byte 31, arg0
--     v1 = ne 256, v0
+-     v1 = ne v0, 256
 -     ret v1
 +     ret true
   }
@@ -599,7 +599,7 @@
   fn @ne_clz_bound_swapped(arg0: i256) -> i1 {
     bb0:
       v0 = clz arg0
--     v1 = ne 257, v0
+-     v1 = ne v0, 257
 -     ret v1
 +     ret true
   }

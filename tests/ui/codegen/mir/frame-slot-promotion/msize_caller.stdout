@@ -22,7 +22,7 @@
       v4 = ptrtoint ptr<memory> v3 to i256
 -     v5 = mload v4
 -     v6 = add v5, v2
-+     v6 = add 9, v2
++     v6 = add v2, 9
       ret v6
   }
   

@@ -325,7 +325,7 @@ pub(super) fn rebuild_values(
     for (value, base, offset) in members {
         let Value::Inst(def) = *result.value(value) else { unreachable!("rebuilt instruction") };
         let kind = offset_kind(&mut result, base, offset);
-        result.inst_mut(def).replace_kind(kind);
+        result.replace_inst_kind(def, kind);
     }
     let mut blocks: Vec<BlockId> = sites.keys().copied().collect();
     blocks.sort_unstable();

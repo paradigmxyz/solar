@@ -373,7 +373,7 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
     jumpi v263, bb46, bb48
   bb48:                                           ; preds = bb2
     v318 = shl v262, 5
-    v319 = add arg0, v318
+    v319 = add v318, arg0
     v320 = add v319, 32
     jump bb20
   bb20:                                           ; preds = bb43, bb48
@@ -390,7 +390,7 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
   bb42:                                           ; preds = bb22
     v167 = mload v321
     v323 = shl v159, 5
-    v324 = add arg0, v323
+    v324 = add v323, arg0
     jump bb23
   bb23:                                           ; preds = bb42, bb45
     v173 = phi [bb42: v159], [bb45: v175]
@@ -412,7 +412,7 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
     jumpi v201, bb43, bb36
   bb43:                                           ; preds = bb24
     v203 = shl v173, 5
-    v303 = add arg0, v203
+    v303 = add v203, arg0
     v304 = add v303, 32
     mstore v304, v167
     v206 = add v159, 1
@@ -436,21 +436,21 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
     jumpi v10, bb37, bb36
   bb37:                                           ; preds = bb3
     v12 = shl v1, 5
-    v285 = add arg0, v12
+    v285 = add v12, arg0
     v286 = add v285, 32
     v15 = mload v286
     v17 = lt v266, v9
     jumpi v17, bb38, bb36
   bb38:                                           ; preds = bb37
     v19 = shl v266, 5
-    v288 = add arg0, v19
+    v288 = add v19, arg0
     v289 = add v288, 32
     v22 = mload v289
     v24 = lt v5, v9
     jumpi v24, bb39, bb36
   bb39:                                           ; preds = bb38
     v26 = shl v5, 5
-    v291 = add arg0, v26
+    v291 = add v26, arg0
     v292 = add v291, 32
     v29 = mload v292
     v30 = lt v22, v15
@@ -550,7 +550,7 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
     jumpi v80, bb40, bb36
   bb40:                                           ; preds = bb12
     v82 = shl v270, 5
-    v294 = add arg0, v82
+    v294 = add v82, arg0
     v295 = add v294, 32
     v85 = mload v295
     v86 = lt v85, v38
@@ -571,7 +571,7 @@ fn @_sort(arg0: i256, arg1: i256, arg2: i256) [may_return_memory] {
     revert 28, 36
   bb41:                                           ; preds = bb50
     v101 = shl v272, 5
-    v297 = add arg0, v101
+    v297 = add v101, arg0
     v298 = add v297, 32
     v104 = mload v298
     v105 = lt v38, v104

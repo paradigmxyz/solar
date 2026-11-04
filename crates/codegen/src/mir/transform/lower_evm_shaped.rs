@@ -112,7 +112,7 @@ fn erase_pointer_types(
         match instruction.kind {
             // pointer = inttoptr narrow to ptr<location> -> zext narrow to i256
             InstKind::IntToPtr(operand) if narrow_operand => {
-                instruction.kind = InstKind::Zext(operand);
+                func.set_inst_kind(inst, InstKind::Zext(operand));
             }
             // word = ptrtoint pointer to i256 -> pointer
             // pointer = inttoptr word to ptr<location> -> word
@@ -123,7 +123,9 @@ fn erase_pointer_types(
                 }
             }
             // narrow = ptrtoint pointer to iN -> trunc pointer to iN
-            InstKind::PtrToInt(operand, bits) => instruction.kind = InstKind::Trunc(operand, bits),
+            InstKind::PtrToInt(operand, bits) => {
+                func.set_inst_kind(inst, InstKind::Trunc(operand, bits));
+            }
             _ => {}
         }
     }

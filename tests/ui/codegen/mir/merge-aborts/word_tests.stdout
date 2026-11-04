@@ -58,7 +58,7 @@
 +     jump bb1
     bb1:                                            ; preds = bb0
       v2 = signextend 2, arg1
-      v3 = eq arg1, v2
+      v3 = eq v2, arg1
 -     jumpi v3, bb2, bb3
 +     v4 = xor v2, arg1
 +     v5 = or v0, v4
@@ -78,7 +78,7 @@
 +     jump bb1
     bb1:                                            ; preds = bb0
       v1 = signextend 0, arg1
-      v2 = eq arg1, v1
+      v2 = eq v1, arg1
 -     jumpi v2, bb2, bb3
 -   bb3 [cold]:                                     ; preds = bb0, bb1
 +     v3 = and v0, v2
@@ -157,7 +157,7 @@
   fn @signed_ne_after(arg0: i256, arg1: i256) -> i256 {
     bb0:
       v0 = signextend 0, arg1
-      v1 = ne arg1, v0
+      v1 = ne v0, arg1
       jumpi v1, bb3, bb1
     bb1:                                            ; preds = bb0
       v2 = lt arg0, 3

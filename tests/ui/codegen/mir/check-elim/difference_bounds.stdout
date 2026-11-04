@@ -45,7 +45,7 @@
       v0 = lt arg0, arg1
       jumpi v0, bb1, bb3
     bb1:                                            ; preds = bb0
-      v1 = lt 1, arg0
+      v1 = gt arg0, 1
       jumpi v1, bb2, bb3
     bb3:                                            ; preds = bb0, bb1
       stop

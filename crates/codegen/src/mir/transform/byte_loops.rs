@@ -173,7 +173,7 @@ use crate::mir::{
     pass::{MirPass, ModuleAnalyses, run_function_pass},
     utils::{
         fold_terminator_to_jump, invalidate_unreachable_block, rebuild_predecessors,
-        replace_inst_uses, replace_terminator_uses,
+        replace_terminator_uses,
     },
 };
 use alloy_primitives::U256;
@@ -2146,7 +2146,7 @@ fn replace_after_loop(
             continue;
         }
         for inst in func.blocks[block].instructions.clone() {
-            replace_inst_uses(func.inst_mut(inst), replacements);
+            func.replace_inst_uses(inst, replacements);
         }
         if let Some(terminator) = &mut func.blocks[block].terminator {
             replace_terminator_uses(terminator, replacements);

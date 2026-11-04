@@ -14,7 +14,7 @@
       icall @fused
       jump bb1
     bb1:                                            ; preds = bb0
-      v0 = add 1, 2
+      v0 = add 2, 1
       mstore 128, v0
       returndata 128, 32
   }
@@ -61,7 +61,7 @@
       icall @fused
       jump bb1
     bb1:                                            ; preds = bb0
-      v0 = add 1, 2
+      v0 = add 2, 1
       mstore 128, v0
       returndata 128, 32
   }
@@ -105,7 +105,7 @@
 -     icall @fused
 -     jump bb1
 -   bb1:                                            ; preds = bb0
--     v0 = add 1, 2
+-     v0 = add 2, 1
 -     mstore 128, v0
 -     returndata 128, 32
 +     tail_call @fused
