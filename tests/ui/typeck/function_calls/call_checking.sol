@@ -133,9 +133,10 @@ contract CallChecking {
     }
     function testStructConstructorWrongCount() public pure {
         MyStruct(1); //~ ERROR: wrong argument count
+        //~^ WARN: statement has no effect
     }
     function testStructConstructorWrongType() public pure {
-        MyStruct("hi", 1);
+        MyStruct("hi", 1); //~ WARN: statement has no effect
         //~^ ERROR: mismatched types
         //~| ERROR: mismatched types
     }

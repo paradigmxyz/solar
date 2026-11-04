@@ -1,5 +1,5 @@
 use super::TypeChecker;
-use crate::{hir, ty::TyKind};
+use crate::{builtins::Builtin, hir, ty::TyKind};
 use solar_ast::{BinOpKind, DataLocation, UnOpKind};
 
 impl<'gcx> TypeChecker<'gcx> {
@@ -21,11 +21,13 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Tuple(exprs) => {
                 exprs.iter().all(|expr| expr.is_none_or(|expr| self.is_variable_mention(expr)))
             }
-            hir::ExprKind::Ident(_) => self
-                .results
-                .resolved_expr(expr)
-                .and_then(|res| res.as_variable())
-                .is_some_and(|id| !self.gcx.hir.variable(id).is_constant()),
+            hir::ExprKind::Ident(_) => match self.results.resolved_expr(expr) {
+                Some(hir::Res::Item(hir::ItemId::Variable(id))) => {
+                    !self.gcx.hir.variable(id).is_constant()
+                }
+                Some(hir::Res::Builtin(Builtin::This | Builtin::Super)) => true,
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -38,14 +40,14 @@ impl<'gcx> TypeChecker<'gcx> {
         if expr.is_numeric_literal() {
             return true;
         }
-        if let Some(id) = self.results.resolved_expr(expr).and_then(|res| res.as_variable())
-            && self.gcx.hir.variable(id).is_constant()
-        {
+        if let Some(id) = self.constant_var(expr) {
             // A constant without a value runs its initializer, which can revert.
             return self.gcx.early_const_eval().eval_var(id).is_ok();
         }
         match expr.kind {
-            hir::ExprKind::Array(exprs) => exprs.iter().all(|expr| self.is_effect_free(expr)),
+            hir::ExprKind::Array(exprs) => {
+                exprs.iter().all(|expr| self.is_copied_effect_free(expr))
+            }
             hir::ExprKind::Tuple(exprs) => {
                 exprs.iter().all(|expr| expr.is_none_or(|expr| self.is_effect_free(expr)))
             }
@@ -56,13 +58,14 @@ impl<'gcx> TypeChecker<'gcx> {
                     && self.is_effect_free(rhs)
             }
             hir::ExprKind::Unary(op, inner) => {
+                // Not `Neg`, which reverts on the minimum value in checked code.
                 matches!(op.kind, UnOpKind::Not | UnOpKind::BitNot)
                     && self.results.user_operator(expr.id).is_none()
                     && self.is_effect_free(inner)
             }
             hir::ExprKind::Call(callee, ref args) => {
                 let (callee, options) = callee.split_call_options();
-                if options.is_some() || !args.exprs().all(|arg| self.is_effect_free(arg)) {
+                if options.is_some() || !args.exprs().all(|arg| self.is_copied_effect_free(arg)) {
                     return false;
                 }
                 // Only conversions and struct constructors, and not an enum conversion.
@@ -89,7 +92,9 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Lit(_) | hir::ExprKind::Type(_) | hir::ExprKind::TypeCall(_) => true,
             hir::ExprKind::Payable(inner) => self.is_effect_free(inner),
             hir::ExprKind::Ternary(cond, then, els) => {
-                self.is_effect_free(cond) && self.is_effect_free(then) && self.is_effect_free(els)
+                self.is_effect_free(cond)
+                    && self.is_copied_effect_free(then)
+                    && self.is_copied_effect_free(els)
             }
             hir::ExprKind::Assign(..)
             | hir::ExprKind::CallOptions(..)
@@ -100,6 +105,17 @@ impl<'gcx> TypeChecker<'gcx> {
             | hir::ExprKind::YulMember(..)
             | hir::ExprKind::Err(_) => false,
         }
+    }
+
+    /// Like [`Self::is_effect_free`], for an operand that an array literal, ternary, or struct
+    /// constructor can copy to memory. Copying calldata decodes it, which can revert on malformed
+    /// data.
+    fn is_copied_effect_free(&self, expr: &hir::Expr<'gcx>) -> bool {
+        self.is_effect_free(expr)
+            && self
+                .results
+                .type_of_expr(expr.id)
+                .is_some_and(|ty| !ty.is_ref_at(DataLocation::Calldata))
     }
 }
 

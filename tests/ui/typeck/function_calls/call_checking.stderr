@@ -158,6 +158,12 @@ LL │         MyStruct(1);
    │                 │
    ╰╴                expected 2 arguments, found 1
 
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         MyStruct(1);
+   ╰╴        ━━━━━━━━━━━
+
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
    │
@@ -170,5 +176,11 @@ error: mismatched types
 LL │         MyStruct("hi", 1);
    ╰╴                       ━ expected `bytes32`, found `int_literal[1]`
 
-error: aborting due to 21 previous errors; 3 warnings emitted
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         MyStruct("hi", 1);
+   ╰╴        ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 21 previous errors; 5 warnings emitted
 

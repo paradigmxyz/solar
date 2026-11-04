@@ -717,8 +717,9 @@ statement is a compile-time constant. `solar` reuses the code for any
 expression statement that can neither write state nor revert, such as `require;`,
 `msg.sender;`, `a == b;` and `(a == b, "msg");`. It does not warn on calls,
 assignments, checked arithmetic, division, indexing, enum conversions, reads
-from calldata, or a bare variable (`x;`, which `solc` accepts and code uses to
-silence unused variable warnings). It also does not warn on builtin calls with
+from calldata or copies of it to memory, or a bare variable, `this` or `super`
+(`x;`, which `solc` accepts and code uses to silence unused variable warnings
+and to restrict state mutability). It also does not warn on builtin calls with
 constant arguments, such as `keccak256("a")` and `abi.decode(...)`, which `solc`
 reports.
 

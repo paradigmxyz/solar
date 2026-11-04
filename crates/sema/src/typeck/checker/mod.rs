@@ -4022,10 +4022,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Expr(expr) => {
                 // An expression statement discards its value.
                 self.discard(expr, Discarded::All);
-                let errors = self.dcx().err_count();
                 let ty = self.check_expr(expr);
-                let _ = self.check_literal_fits(expr, ty, error_code!(3757));
-                if self.dcx().err_count() == errors && self.has_no_effect(expr) {
+                let fits = self.check_literal_fits(expr, ty, error_code!(3757));
+                if fits.is_ok() && self.has_no_effect(expr) {
                     self.dcx().emit_warn_code(
                         expr.span,
                         error_code!(6133),

@@ -1,3 +1,19 @@
+struct T {
+    uint8[] a;
+}
+
+type U is uint;
+
+function eq(U a, U b) pure returns (bool) {
+    return U.unwrap(a) == U.unwrap(b);
+}
+
+function neg(U a) pure returns (U) {
+    return U.wrap(~U.unwrap(a));
+}
+
+using {eq as ==, neg as ~} for U global;
+
 contract C {
     uint x;
     uint[] arr;
@@ -56,6 +72,14 @@ contract C {
         (a, b);
         x;
         (a);
+        this;
+        super;
+    }
+
+    function calldataCopies(uint8[] calldata cd, uint8[] memory mem, bool c) public pure {
+        c ? cd : mem;
+        T(cd);
+        [cd, mem];
     }
 
     function noWarn(uint a, uint b, uint[] memory mem, uint[] calldata cd, E e, S calldata s, int i) public {
@@ -88,6 +112,9 @@ contract C {
         keccak256("");
         abi.encode(a);
         new C();
+        U u;
+        u == u;
+        ~u;
         emit Ev();
     }
 }

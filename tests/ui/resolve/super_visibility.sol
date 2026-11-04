@@ -13,6 +13,6 @@ library L {
 
 contract C {
     function contractFunction() public {
-        super; //~ WARN: statement has no effect
+        super;
     }
 }
