@@ -4,7 +4,6 @@ use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn bind_signature(&mut self, function: &hir::Function<'_>) {
-        self.parameters.extend_from_slice(function.parameters);
         for &param in function.parameters {
             let ty = self.cx.gcx.type_of_item(param.into());
             let value = self.builder.add_param(self.cx.state.scalar_carrier(self.cx.gcx, param));

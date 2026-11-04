@@ -158,11 +158,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(contract_id) = contract_id {
             self.lower_state_initializers(contract_id)?;
         }
-        let parameter_start = self.parameters.len();
-        self.parameters.extend_from_slice(constructor.parameters);
-        let result = self.lower_function_body(constructor.modifiers, body);
-        self.parameters.truncate(parameter_start);
-        result?;
+        self.lower_function_body(constructor.modifiers, body)?;
         if !self.is_terminated() {
             self.record_return_state();
             self.builder.jump(continuation);
