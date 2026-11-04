@@ -4,7 +4,7 @@
 //! local edge helpers below. New edges need explicit phi inputs; none of these helpers updates
 //! cached analyses or reconstructs SSA after moving definitions.
 
-use crate::{BasicBlock, BlockId, Function, InstKind, Instruction, MirType, Terminator, ValueId};
+use crate::{BlockId, Function, InstKind, Instruction, MirType, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
 use solar_data_structures::{
@@ -12,7 +12,6 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_ir::Hotness;
 
 mod index_lists;
 pub use index_lists::IndexLists;
@@ -109,13 +108,10 @@ pub fn append_value_inst(
 /// backedge and `succ`'s phis are rekeyed from `pred` to the new block.
 pub fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId {
     // pred -> new_block -> succ !metadata(pred terminator)
-    let new_block = func.blocks.push(BasicBlock {
-        instructions: Vec::new(),
-        terminator: Some(Terminator::Jump(succ)),
-        terminator_metadata: func.blocks[pred].terminator_metadata.clone(),
-        predecessors: smallvec![pred],
-        hotness: Hotness::Hot,
-    });
+    let new_block = func.alloc_edge_block(pred, succ);
+    func.blocks[new_block].terminator = Some(Terminator::Jump(succ));
+    func.blocks[new_block].terminator_metadata = func.blocks[pred].terminator_metadata.clone();
+    func.blocks[new_block].predecessors = smallvec![pred];
 
     // Retarget every occurrence of `succ` among `pred`'s successors.
     let mut retargeted = false;

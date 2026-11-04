@@ -874,7 +874,9 @@ fn equivalent_functions(
     let lhs_values = CanonValues::new(lhs);
     let rhs_values = CanonValues::new(rhs);
     for (lhs_block, rhs_block) in lhs.blocks.iter().zip(&rhs.blocks) {
-        if lhs_block.instructions.len() != rhs_block.instructions.len() {
+        if lhs_block.instructions.len() != rhs_block.instructions.len()
+            || lhs_block.cold_hint != rhs_block.cold_hint
+        {
             return false;
         }
         for (&lhs_inst, &rhs_inst) in lhs_block.instructions.iter().zip(&rhs_block.instructions) {

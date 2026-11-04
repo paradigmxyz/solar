@@ -267,7 +267,7 @@ fn @tryStructReturn() {
     mstore 32, v21
     v4 = staticcall v1, v0, 28, 36, v25, 64
     jumpi v4, bb1, bb2
-  bb2:                                            ; preds = bb7
+  bb2 [cold, cold_hint]:                          ; preds = bb7
     mstore 0, 0 !metadata(memory=scratch)
     returndata 0, 32
   bb1:                                            ; preds = bb7
