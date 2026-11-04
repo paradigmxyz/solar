@@ -133,8 +133,7 @@ impl<'gcx> Assembler<'gcx> {
         if let Some(block) = self.current_block
             && !self.program.blocks[block].instructions.is_empty()
         {
-            self.fallthrough_origins
-                .insert(block, (self.current_source_spans.clone(), self.current_modifier_depth));
+            self.fallthrough_origins.insert(block, self.debug_origin());
         }
     }
 
@@ -668,8 +667,9 @@ impl<'gcx> Assembler<'gcx> {
                 (ir::Terminator::new(ir::TerminatorKind::Op(last.opcode)), 1, last.metadata.clone())
             } else {
                 let mut metadata = ir::Metadata::default();
-                if let Some((spans, depth)) = self.fallthrough_origins.remove(&block_id) {
+                if let Some((spans, kind, depth)) = self.fallthrough_origins.remove(&block_id) {
                     metadata.set_source_spans(spans);
+                    metadata.set_debug_loc_kind(kind);
                     metadata.set_modifier_depth(depth);
                 }
                 (
