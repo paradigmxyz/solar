@@ -18,7 +18,7 @@
 -     mstore 0, 7
       v0 = mload 64 !metadata(alloc_ptr)
       mstore v0, 9
-      v1 = add 32, v0
+      v1 = add v0, 32
       mcopy 128, v1, 32
       returndata v0, 64
   }

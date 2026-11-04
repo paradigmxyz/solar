@@ -1222,7 +1222,7 @@ fn fold_steps(func: &mut Function, blocks: &[BlockId]) {
                 // next = add base, step + outer
                 let sum = Value::Immediate(Immediate::I256(step.wrapping_add(outer)));
                 let sum = func.alloc_value(sum);
-                func.inst_mut(inst).kind = InstKind::Add(base, sum);
+                func.set_inst_kind(inst, InstKind::Add(base, sum));
                 uses[inner] -= 1;
                 uses[base] += 1;
                 if let Some(count) = sums.get_mut(&inner) {
@@ -1259,24 +1259,20 @@ fn apply(func: &mut Function, unroll: &Unroll) -> BlockId {
         // end is, leaves `d` to go on entry.
         let mut left = if func.value_u256(unroll.bound).is_some_and(|bound| bound.is_zero()) {
             word
-        } else if let Some(distance) = entry_word(func, unroll.word, unroll.preheader)
-            .and_then(|start| addend(func, unroll.bound, start))
-        {
-            distance
         } else {
-            append_value_inst(func, check, InstKind::Sub(unroll.bound, word), MirType::I256)
+            entry_word(func, unroll.word, unroll.preheader)
+                .and_then(|start| addend(func, unroll.bound, start))
+                .unwrap_or_else(|| {
+                    append_value_inst(func, check, InstKind::Sub(unroll.bound, word), MirType::I256)
+                })
         };
         let zeros = unroll.step.trailing_zeros();
         if zeros != 0 {
             // Bit `t` of `m << t` is bit zero of `m`.
-            left = match shifted_left(func, left, zeros) {
-                Some(count) => count,
-                None => {
-                    let shift =
-                        func.alloc_value(Value::Immediate(Immediate::I256(U256::from(zeros))));
-                    append_value_inst(func, check, InstKind::Shr(shift, left), MirType::I256)
-                }
-            };
+            left = shifted_left(func, left, zeros).unwrap_or_else(|| {
+                let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(zeros))));
+                append_value_inst(func, check, InstKind::Shr(shift, left), MirType::I256)
+            });
         }
         // Integer conversions are already lowered here, so mask the low bit.
         let one = func.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
@@ -1568,5 +1564,5 @@ fn reverse(func: &mut Function, reversal: &Reverse) {
         }
     });
     let Value::Inst(inst) = *func.value(reversal.condition) else { return };
-    func.inst_mut(inst).kind = InstKind::Ne(reversal.counter, zero);
+    func.set_inst_kind(inst, InstKind::Ne(reversal.counter, zero));
 }

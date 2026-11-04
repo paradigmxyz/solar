@@ -249,15 +249,16 @@ fn flush_group(func: &mut Function, block: BlockId, members: Vec<Member>) -> boo
     // The fused size sums the member sizes, so the final frontier matches the
     // member-by-member bumps.
     // base = alloc total_size
-    let instruction = func.inst_mut(members[0].inst);
-    instruction.kind =
-        InstKind::Alloc { size: total_size, semantics: AllocationSemantics::INTERNAL };
-    instruction.metadata.set_preserves_fmp(preserves_fmp);
+    func.set_inst_kind(
+        members[0].inst,
+        InstKind::Alloc { size: total_size, semantics: AllocationSemantics::INTERNAL },
+    );
+    func.inst_mut(members[0].inst).metadata.set_preserves_fmp(preserves_fmp);
 
     // member = add base, offset
     for (member, offset) in members[1..].iter().zip(offsets) {
+        func.set_inst_kind(member.inst, InstKind::Add(base, offset));
         let instruction = func.inst_mut(member.inst);
-        instruction.kind = InstKind::Add(base, offset);
         instruction.metadata.set_effect(None);
         instruction.metadata.set_memory_region(None);
     }

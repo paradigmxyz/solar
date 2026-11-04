@@ -411,6 +411,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     let metadata = &func.inst(*origin).metadata;
                     self.asm.set_source_spans(metadata.source_spans());
+                    self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
                     self.asm.set_modifier_depth(metadata.modifier_depth());
                 }
                 // push callee; jump
@@ -479,6 +480,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if let Some(inst) = inst {
                         let metadata = &func.inst(inst).metadata;
                         self.asm.set_source_spans(metadata.source_spans());
+                        self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
                         self.asm.set_modifier_depth(metadata.modifier_depth());
                     } else {
                         // NOTE: A retained constant has no single source consumer.
@@ -531,6 +533,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         if self.capture_debug_info {
             let metadata = &func.blocks[block].terminator_metadata;
             self.asm.set_source_spans(metadata.source_spans());
+            self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
             self.asm.set_modifier_depth(metadata.modifier_depth());
         }
     }
@@ -541,10 +544,32 @@ impl<'gcx> EvmCodegen<'gcx> {
             // push target; jump
             self.asm.emit_push_label(self.block_labels[&target]);
             self.asm.emit_op(op::JUMP);
+        } else if self.capture_debug_info {
+            self.asm.mark_fallthrough();
         }
     }
 
+    /// Recomputes `value` at its use, under the origins of the instruction that defines it.
     fn emit_materialized(&mut self, func: &Function, value: ValueId) {
+        if self.capture_debug_info
+            && let Value::Inst(inst) = func.value(value)
+            && let metadata = &func.inst(*inst).metadata
+            && metadata.source_spans().next().is_some()
+        {
+            // Every copy is the same computation, so it keeps the definition's origins, as LLVM's
+            // `TargetInstrInfo::reMaterialize` clones the original with its `DebugLoc`.
+            let consumer = self.asm.debug_origin();
+            self.asm.set_source_spans(metadata.source_spans());
+            self.asm.set_modifier_depth(metadata.modifier_depth());
+            self.emit_recomputed(func, value);
+            self.asm.set_debug_origin(consumer);
+        } else {
+            self.emit_recomputed(func, value);
+        }
+    }
+
+    /// Emits the opcodes that compute `value` under the current origins.
+    fn emit_recomputed(&mut self, func: &Function, value: ValueId) {
         match func.value(value) {
             Value::Immediate(imm) => self.asm.emit_push(imm.as_u256().unwrap_or_default()),
             Value::Undef(_) => self.asm.emit_push(U256::ZERO),

@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Summarize per-pass source-origin audits from the UI suite, optionally against a baseline."""
+"""Summarize per-pass debug-info audits from the UI suite, optionally against a baseline.
+
+The headline is LLVM's original-mode `not-generate` count: instructions and terminators with no
+source origin and no reason for lacking one ("gaps"). Lost origins, the analogue of LLVM's
+synthetic-mode `Missing line` warning, are reported as information.
+"""
 
 import argparse
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 
@@ -19,13 +24,21 @@ def records(path: Path):
         for line_number, line in enumerate(stream, start=2):
             try:
                 record = json.loads(line)
-                if not isinstance(record, dict) or record.get("kind") != "pass":
-                    raise ValueError("expected a pass record")
+                if not isinstance(record, dict) or record.get("kind") not in (
+                    "pass",
+                    "gaps",
+                ):
+                    raise ValueError("expected a pass or gaps record")
                 if record.get("ir") not in ("MIR", "EVM IR"):
                     raise ValueError("unknown IR layer")
                 for field in ("pass", "module"):
                     if not isinstance(record.get(field), str) or not record[field]:
                         raise ValueError(f"missing {field}")
+                if record["kind"] == "gaps":
+                    check_gaps(record)
+                    count += 1
+                    yield record
+                    continue
                 for field in ("before", "retained"):
                     if type(record.get(field)) is not int or record[field] < 0:
                         raise ValueError(f"invalid {field} count")
@@ -45,12 +58,40 @@ def records(path: Path):
             count += 1
             yield record
         if not count:
-            raise ValueError(f"{path}: invocation has no pass records")
+            raise ValueError(f"{path}: invocation has no audit records")
+
+
+def check_gaps(record: dict) -> None:
+    """The count and the opcode histogram are exact; the listed sites may be capped."""
+    count = record.get("count")
+    if type(count) is not int or count <= 0:
+        raise ValueError("invalid gap count")
+    opcodes = record.get("opcodes")
+    if (
+        not isinstance(opcodes, dict)
+        or any(type(value) is not int or value <= 0 for value in opcodes.values())
+        or sum(opcodes.values()) != count
+    ):
+        raise ValueError("inconsistent gap opcodes")
+    sites = record.get("sites")
+    if not isinstance(sites, list) or record.get("omitted") != count - len(sites):
+        raise ValueError("inconsistent gap sites")
+
+
+def row() -> dict:
+    return {
+        "runs": 0,
+        "losses": 0,
+        "lost_origins": 0,
+        "gaps": 0,
+        "gap_runs": 0,
+    }
 
 
 def summarize(root: Path) -> dict:
-    passes = defaultdict(lambda: {"runs": 0, "losses": 0, "lost_origins": 0})
-    tests = defaultdict(lambda: {"runs": 0, "losses": 0, "lost_origins": 0})
+    passes = defaultdict(row)
+    opcodes = defaultdict(Counter)
+    tests = defaultdict(row)
     files = sorted(root.rglob("*.jsonl"))
     if not files:
         raise ValueError(f"no debugify audits found in {root}")
@@ -58,6 +99,12 @@ def summarize(root: Path) -> dict:
         test = path.parent.relative_to(root).as_posix()
         for record in records(path):
             key = (record["ir"], record["pass"])
+            if record["kind"] == "gaps":
+                opcodes[key].update(record["opcodes"])
+                for counts in (passes[key], tests[test]):
+                    counts["gap_runs"] += 1
+                    counts["gaps"] += record["count"]
+                continue
             for counts in (passes[key], tests[test]):
                 counts["runs"] += 1
                 counts["losses"] += bool(record["lost"])
@@ -69,16 +116,25 @@ def summarize(root: Path) -> dict:
         "pass_runs": sum(row["runs"] for row in passes.values()),
         "losses": sum(row["losses"] for row in passes.values()),
         "lost_origins": sum(row["lost_origins"] for row in passes.values()),
+        "gap_runs": sum(row["gap_runs"] for row in passes.values()),
+        "gaps": sum(row["gaps"] for row in passes.values()),
         "by_pass": [
-            {"ir": ir, "pass": name, **row}
+            {
+                "ir": ir,
+                "pass": name,
+                **row,
+                "opcodes": opcodes[(ir, name)].most_common(5),
+            }
             for (ir, name), row in sorted(
-                passes.items(), key=lambda item: (-item[1]["lost_origins"], item[0])
+                passes.items(),
+                key=lambda item: (-item[1]["gaps"], -item[1]["lost_origins"], item[0]),
             )
         ],
         "by_test": [
             {"test": name, **row}
             for name, row in sorted(
-                tests.items(), key=lambda item: (-item[1]["lost_origins"], item[0])
+                tests.items(),
+                key=lambda item: (-item[1]["gaps"], -item[1]["lost_origins"], item[0]),
             )
         ],
     }
@@ -86,6 +142,11 @@ def summarize(root: Path) -> dict:
 
 def cell(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ").replace("\r", " ")
+
+
+def has_gap_data(summary: dict) -> bool:
+    """A baseline from before gaps existed has no gap counts."""
+    return "gaps" in summary
 
 
 def load_baseline(path: Path) -> dict:
@@ -96,17 +157,21 @@ def load_baseline(path: Path) -> dict:
         for key in ("lost_origins", "losses", "pass_runs", "audited_tests"):
             if type(baseline[key]) is not int:
                 raise ValueError(f"invalid {key}")
+        gap_keys = ("gaps", "gap_runs") if has_gap_data(baseline) else ()
+        for key in gap_keys:
+            if type(baseline[key]) is not int:
+                raise ValueError(f"invalid {key}")
         for field, rows in (("by_pass", ("ir", "pass")), ("by_test", ("test",))):
-            for row in baseline[field]:
-                for key in (*rows, "losses", "lost_origins"):
-                    row[key]
+            for item in baseline[field]:
+                for key in (*rows, "losses", "lost_origins", *gap_keys):
+                    item[key]
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(f"{path}: invalid baseline summary: {error!r}") from error
     return baseline
 
 
 def delta(base: int, head: int) -> str:
-    """Lower is better, so fewer lost origins is an improvement."""
+    """Lower is better, so fewer gaps or lost origins is an improvement."""
     if base == head:
         return "~0%"
     sign = "+" if head > base else "-"
@@ -121,12 +186,12 @@ def change(base: int, head: int) -> str:
 
 
 def compare(
-    rows: list[dict], baseline: list[dict], key
+    rows: list[dict], baseline: list[dict], key, metric: str
 ) -> list[tuple[dict, dict, dict]]:
-    """Pair rows by key, ordering by the size of the change in lost origins."""
-    empty = {"losses": 0, "lost_origins": 0}
-    before = {key(row): row for row in baseline}
-    after = {key(row): row for row in rows}
+    """Pair rows by key, ordering by the size of the change in `metric`."""
+    empty = {"losses": 0, "lost_origins": 0, "gaps": 0, "gap_runs": 0}
+    before = {key(item): item for item in baseline}
+    after = {key(item): item for item in rows}
     changed = [
         (
             after.get(name, empty),
@@ -134,56 +199,102 @@ def compare(
             after.get(name) or before[name],
         )
         for name in sorted(before.keys() | after.keys())
-        if after.get(name, empty)["lost_origins"]
-        != before.get(name, empty)["lost_origins"]
+        if after.get(name, empty)[metric] != before.get(name, empty)[metric]
     ]
-    return sorted(
-        changed,
-        key=lambda item: -abs(item[0]["lost_origins"] - item[1]["lost_origins"]),
-    )
+    return sorted(changed, key=lambda item: -abs(item[0][metric] - item[1][metric]))
+
+
+def by_pass(row: dict) -> tuple[str, str]:
+    return (row["ir"], row["pass"])
+
+
+def by_test(row: dict) -> str:
+    return row["test"]
 
 
 def has_changes(summary: dict, baseline: dict) -> bool:
+    """Whether to comment: gaps changed, or there is no gap baseline yet, or lost origins changed."""
+    lost = compare(
+        summary["by_pass"], baseline["by_pass"], by_pass, "lost_origins"
+    ) or compare(summary["by_test"], baseline["by_test"], by_test, "lost_origins")
+    if not has_gap_data(baseline):
+        return True
     return bool(
-        compare(
-            summary["by_pass"],
-            baseline["by_pass"],
-            lambda row: (row["ir"], row["pass"]),
-        )
-        or compare(summary["by_test"], baseline["by_test"], lambda row: row["test"])
+        lost
+        or compare(summary["by_pass"], baseline["by_pass"], by_pass, "gaps")
+        or compare(summary["by_test"], baseline["by_test"], by_test, "gaps")
     )
 
 
+def opcodes(row: dict) -> str:
+    return ", ".join(f"`{cell(op)}` {count:,}" for op, count in row.get("opcodes", []))
+
+
 def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") -> str:
-    if baseline:
-        intro = f"Source-origin loss changes against `{base_ref}`."
+    gap_baseline = baseline if baseline and has_gap_data(baseline) else None
+    if gap_baseline:
+        intro = (
+            "Instructions without a source location or a reason for lacking one "
+            f"(LLVM's `not-generate`), against `{base_ref}`."
+        )
         overview = [
             "| Metric | Base | PR | Change |",
             "| --- | ---: | ---: | ---: |",
         ]
         for label, key in (
-            ("lost origins", "lost_origins"),
-            ("pass runs with losses", "losses"),
+            ("**gaps**", "gaps"),
+            ("pass runs with gaps", "gap_runs"),
         ):
             overview.append(
-                f"| {label} | {baseline[key]:,} | {summary[key]:,} | "
-                f"{delta(baseline[key], summary[key])} |"
+                f"| {label} | {gap_baseline[key]:,} | {summary[key]:,} | "
+                f"{delta(gap_baseline[key], summary[key])} |"
             )
+    else:
+        intro = (
+            "Instructions without a source location or a reason for lacking one "
+            "(LLVM's `not-generate`). No gap baseline: "
+            + (
+                f"the base commit `{base_ref}` was audited before gaps existed."
+                if baseline
+                else "no baseline audit was found for the base commit."
+            )
+        )
+        overview = [
+            "| Metric | PR |",
+            "| --- | ---: |",
+            f"| **gaps** | {summary['gaps']:,} |",
+            f"| pass runs with gaps | {summary['gap_runs']:,} |",
+        ]
+    if baseline:
         for label, key in (
             ("pass runs", "pass_runs"),
             ("audited tests", "audited_tests"),
         ):
-            overview.append(f"| {label} | {baseline[key]:,} | {summary[key]:,} | |")
+            overview.append(
+                f"| {label} | {baseline[key]:,} | {summary[key]:,} | |"
+                if gap_baseline
+                else f"| {label} | {summary[key]:,} |"
+            )
+        lost = (
+            f"| lost origins (information) | {baseline['lost_origins']:,} | "
+            f"{summary['lost_origins']:,} | "
+            f"{delta(baseline['lost_origins'], summary['lost_origins'])} |"
+        )
+        if not gap_baseline:
+            lost = (
+                f"| lost origins (information) | {summary['lost_origins']:,} "
+                f"(base {baseline['lost_origins']:,}, "
+                f"{delta(baseline['lost_origins'], summary['lost_origins'])}) |"
+            )
     else:
-        intro = "Source-origin losses; no baseline audit was found for the base commit."
-        overview = [
-            "| Metric | PR |",
-            "| --- | ---: |",
-            f"| lost origins | {summary['lost_origins']:,} |",
-            f"| pass runs with losses | {summary['losses']:,} |",
-            f"| pass runs | {summary['pass_runs']:,} |",
-            f"| audited tests | {summary['audited_tests']:,} |",
-        ]
+        overview.extend(
+            [
+                f"| pass runs | {summary['pass_runs']:,} |",
+                f"| audited tests | {summary['audited_tests']:,} |",
+            ]
+        )
+        lost = f"| lost origins (information) | {summary['lost_origins']:,} |"
+    overview.append(lost)
     lines = [
         "## Debug info audit",
         "",
@@ -198,67 +309,66 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
             f"{summary['invocations']:,} compiler invocations and "
             f"{summary['pass_runs']:,} pass runs; lower is better."
         ),
+        "",
+        "### Gaps by record",
+        "",
     ]
-    if baseline:
-        passes = compare(
-            summary["by_pass"],
-            baseline["by_pass"],
-            lambda row: (row["ir"], row["pass"]),
+    if gap_baseline:
+        records_changed = compare(
+            summary["by_pass"], gap_baseline["by_pass"], by_pass, "gaps"
         )
-        tests = compare(
-            summary["by_test"], baseline["by_test"], lambda row: row["test"]
+        lines.extend(
+            [
+                "| Record | Gaps | Runs with gaps | Top opcodes |",
+                "| --- | ---: | ---: | --- |",
+            ]
         )
-        if passes:
-            lines.extend(
-                [
-                    "",
-                    f"### Changed passes vs `{base_ref}`",
-                    "",
-                    "| Layer | Pass | Runs with losses | Lost origins |",
-                    "| --- | --- | ---: | ---: |",
-                ]
+        for head, base, item in records_changed[:25]:
+            lines.append(
+                f"| {cell(item['ir'])} {cell(item['pass'])} | "
+                f"{change(base['gaps'], head['gaps'])} | "
+                f"{change(base['gap_runs'], head['gap_runs'])} | "
+                f"{opcodes(head) if head['gaps'] else ''} |"
             )
-            for head, base, row in passes[:25]:
-                lines.append(
-                    f"| {cell(row['ir'])} | {cell(row['pass'])} | "
-                    f"{change(base['losses'], head['losses'])} | "
-                    f"{change(base['lost_origins'], head['lost_origins'])} |"
-                )
-        if tests:
+        if not records_changed:
+            lines.extend(["", f"No record changed its gaps vs `{base_ref}`."])
+        tests_changed = compare(
+            summary["by_test"], gap_baseline["by_test"], by_test, "gaps"
+        )
+        if tests_changed:
             lines.extend(
                 [
                     "",
                     f"### Changed tests vs `{base_ref}`",
                     "",
-                    "| Test / revision | Runs with losses | Lost origins |",
+                    "| Test / revision | Runs with gaps | Gaps |",
                     "| --- | ---: | ---: |",
                 ]
             )
-            for head, base, row in tests[:25]:
+            for head, base, item in tests_changed[:25]:
                 lines.append(
-                    f"| {cell(row['test'])} | "
-                    f"{change(base['losses'], head['losses'])} | "
-                    f"{change(base['lost_origins'], head['lost_origins'])} |"
+                    f"| {cell(item['test'])} | "
+                    f"{change(base['gap_runs'], head['gap_runs'])} | "
+                    f"{change(base['gaps'], head['gaps'])} |"
                 )
-        if not passes and not tests:
-            lines.extend(
-                ["", f"No pass or test changed its lost origins vs `{base_ref}`."]
-            )
+        lines.extend(
+            ["", "<details>", "<summary>Records with the most gaps</summary>", ""]
+        )
+    else:
+        lines.extend(
+            ["<details open>", "<summary>Records with the most gaps</summary>", ""]
+        )
     lines.extend(
         [
-            "",
-            "<details>",
-            "<summary>Passes with the most losses</summary>",
-            "",
-            "| Layer | Pass | Runs with losses | Lost origins |",
-            "| --- | --- | ---: | ---: |",
+            "| Record | Gaps | Runs with gaps | Top opcodes |",
+            "| --- | ---: | ---: | --- |",
         ]
     )
-    for row in summary["by_pass"][:25]:
-        if row["lost_origins"]:
+    for item in summary["by_pass"][:25]:
+        if item["gaps"]:
             lines.append(
-                f"| {cell(row['ir'])} | {cell(row['pass'])} | "
-                f"{row['losses']:,} | {row['lost_origins']:,} |"
+                f"| {cell(item['ir'])} {cell(item['pass'])} | {item['gaps']:,} | "
+                f"{item['gap_runs']:,} | {opcodes(item)} |"
             )
     lines.extend(
         [
@@ -266,16 +376,80 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
             "</details>",
             "",
             "<details>",
-            "<summary>Tests with the most losses</summary>",
+            "<summary>Lost origins (information)</summary>",
+            "",
+        ]
+    )
+    if baseline:
+        passes = compare(
+            summary["by_pass"], baseline["by_pass"], by_pass, "lost_origins"
+        )
+        tests = compare(
+            summary["by_test"], baseline["by_test"], by_test, "lost_origins"
+        )
+        if passes:
+            lines.extend(
+                [
+                    f"Changed passes vs `{base_ref}`:",
+                    "",
+                    "| Layer | Pass | Runs with losses | Lost origins |",
+                    "| --- | --- | ---: | ---: |",
+                ]
+            )
+            for head, base, item in passes[:25]:
+                lines.append(
+                    f"| {cell(item['ir'])} | {cell(item['pass'])} | "
+                    f"{change(base['losses'], head['losses'])} | "
+                    f"{change(base['lost_origins'], head['lost_origins'])} |"
+                )
+            lines.append("")
+        if tests:
+            lines.extend(
+                [
+                    f"Changed tests vs `{base_ref}`:",
+                    "",
+                    "| Test / revision | Runs with losses | Lost origins |",
+                    "| --- | ---: | ---: |",
+                ]
+            )
+            for head, base, item in tests[:25]:
+                lines.append(
+                    f"| {cell(item['test'])} | "
+                    f"{change(base['losses'], head['losses'])} | "
+                    f"{change(base['lost_origins'], head['lost_origins'])} |"
+                )
+            lines.append("")
+        if not passes and not tests:
+            lines.extend(
+                [f"No pass or test changed its lost origins vs `{base_ref}`.", ""]
+            )
+    lines.extend(
+        [
+            "Passes with the most lost origins:",
+            "",
+            "| Layer | Pass | Runs with losses | Lost origins |",
+            "| --- | --- | ---: | ---: |",
+        ]
+    )
+    for item in sorted(summary["by_pass"], key=lambda r: -r["lost_origins"])[:25]:
+        if item["lost_origins"]:
+            lines.append(
+                f"| {cell(item['ir'])} | {cell(item['pass'])} | "
+                f"{item['losses']:,} | {item['lost_origins']:,} |"
+            )
+    lines.extend(
+        [
+            "",
+            "Tests with the most lost origins:",
             "",
             "| Test / revision | Runs with losses | Lost origins |",
             "| --- | ---: | ---: |",
         ]
     )
-    for row in summary["by_test"][:25]:
-        if row["lost_origins"]:
+    for item in sorted(summary["by_test"], key=lambda r: -r["lost_origins"])[:25]:
+        if item["lost_origins"]:
             lines.append(
-                f"| {cell(row['test'])} | {row['losses']:,} | {row['lost_origins']:,} |"
+                f"| {cell(item['test'])} | {item['losses']:,} | {item['lost_origins']:,} |"
             )
     lines.extend(
         [
@@ -283,10 +457,13 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
             "</details>",
             "",
             (
-                "Losses are investigation candidates: deleting dead code can legitimately "
-                "remove its last origin. Frontend-only and rejected inputs never reach IR "
-                "passes. Strict preservation tests still fail. The output directory contains "
-                "the full JSON summary and raw per-invocation reports."
+                "A gap is a bug to fix or to annotate; a lost origin is not, since deleting dead "
+                "code or merging two locations legitimately removes one (LLVM prints the same "
+                "finding as a `Missing line` warning). Frontend-only and rejected inputs never "
+                "reach IR passes. The record `input` counts the gaps lowering left before the first "
+                "pass. Each gap is reported once, at the pass that left it. The output directory "
+                "contains the full JSON summary and raw per-invocation reports, whose gap "
+                "records list at most 100 sites each; counts are exact."
             ),
         ]
     )

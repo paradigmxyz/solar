@@ -1501,8 +1501,10 @@ impl MemoryStoreEliminator {
                     && Self::copy_dominates(cfg.dominators(), cached_copy, block_id, index)
                 {
                     replacements.insert(loaded_value, cached_copy.value);
-                    func.inst_mut(codecopy).kind =
-                        InstKind::Store(dest, cached_copy.value, PtrLocation::Memory);
+                    func.set_inst_kind(
+                        codecopy,
+                        InstKind::Store(dest, cached_copy.value, PtrLocation::Memory),
+                    );
                     dead.insert(load);
                     self.eliminated_count += 1;
                 } else {
@@ -1710,7 +1712,7 @@ impl MemoryStoreEliminator {
                 }
             };
             // mstore addr, byte << 248 -> mstore8 addr, byte
-            func.inst_mut(inst).replace_kind(InstKind::Store8(addr, byte));
+            func.replace_inst_kind(inst, InstKind::Store8(addr, byte));
             self.eliminated_count += 1;
         }
         if scratch.dead.is_empty() {

@@ -27,7 +27,7 @@
 +     jump bb7
     bb7:                                            ; preds = bb6
       v8 = shl v5, 5
-      v9 = add arg0, v8
+      v9 = add v8, arg0
       v10 = mload v9
       v11 = lt v0, arg1
 -     jumpi v11, bb9, bb8
@@ -36,7 +36,7 @@
 +     jump bb9
     bb9:                                            ; preds = bb7
       v12 = shl v0, 5
-      v13 = add arg0, v12
+      v13 = add v12, arg0
       mstore v13, v10
       v14 = add v0, 1
       jump bb1

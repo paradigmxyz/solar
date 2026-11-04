@@ -224,8 +224,8 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
                         .expect("allocation must produce a value");
                     // ptr = inttoptr word
                     // mstore 64, word + size
+                    builder.func_mut().set_inst_kind(inst, InstKind::IntToPtr(word));
                     let instruction = builder.func_mut().inst_mut(inst);
-                    instruction.kind = InstKind::IntToPtr(word);
                     instruction.metadata.set_effect(None);
                     instruction.metadata.set_preserves_fmp(false);
                     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
@@ -381,8 +381,8 @@ fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: InstId, fresh: b
         InstKind::Load(builder.imm(EvmMemoryLayout::FMP_SLOT), PtrLocation::Memory)
     };
     let is_load = matches!(kind, InstKind::Load(..));
+    builder.func_mut().set_inst_kind(inst, kind);
     let instruction = builder.func_mut().inst_mut(inst);
-    instruction.kind = kind;
     instruction.metadata.set_effect(None);
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
@@ -396,8 +396,8 @@ fn rewrite_as_fmp_store(builder: &mut FunctionBuilder<'_>, inst: InstId, ptr: Va
     // set_fmp ptr -> mstore 64, word
     let ptr = builder.cast(ptr, MirType::I256);
     let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
+    builder.func_mut().set_inst_kind(inst, InstKind::Store(slot, ptr, PtrLocation::Memory));
     let instruction = builder.func_mut().inst_mut(inst);
-    instruction.kind = InstKind::Store(slot, ptr, PtrLocation::Memory);
     instruction.metadata.set_effect(None);
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));

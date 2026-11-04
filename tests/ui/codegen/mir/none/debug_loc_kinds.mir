@@ -1,0 +1,17 @@
+//@ compile-flags: -Zmir-pipeline=none
+//@ filecheck:
+// A location kind explains why an instruction has no origin. Only `compiler_generated` and
+// `temporary` are spelled out; `dropped` is what text without a location already means, and the
+// audit sets `unknown` on the gaps it reports.
+@module DebugLocKinds
+// CHECK: v0 = add arg0, 1 !metadata(compiler_generated)
+// CHECK: v1 = add v0, 2{{$}}
+// CHECK: v2 = add v1, 3 !metadata(span=10..20)
+// CHECK: ret v2 !metadata(temporary)
+fn @test(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(compiler_generated)
+    v1 = add v0, 2 !metadata(unknown)
+    v2 = add v1, 3 !metadata(span=10..20)
+    ret v2 !metadata(temporary)
+}

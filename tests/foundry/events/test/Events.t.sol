@@ -171,4 +171,15 @@ contract EventsTest {
         );
         require(count == 9);
     }
+
+    function test_EmitLateStorage() public {
+        vm.recordLogs();
+        events.emitLateStorage();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        (uint256[] memory values, uint256 late, uint256 count) =
+            abi.decode(logs[0].data, (uint256[], uint256, uint256));
+        require(values.length == 1 && values[0] == 7);
+        require(late == 9 && count == 3);
+    }
 }

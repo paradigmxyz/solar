@@ -95,7 +95,7 @@ fn @loop_sload_clean_body(arg0: i256) -> i256 {
 // CHECK-LABEL: {{^[ +].*}}fn @diamond_mload_clobbered_arm{{[( ]}}
 // CHECK: -     {{v[0-9]+}} = mload 0
 // CHECK: {{^ +}}[[JOIN:v[0-9]+]] = mload 0
-// CHECK: +     {{v[0-9]+}} = add 11, [[JOIN]]
+// CHECK: +     {{v[0-9]+}} = add [[JOIN]], 11
 fn @diamond_mload_clobbered_arm(arg0: i1) -> i256 {
   bb0:
     mstore 0, 11

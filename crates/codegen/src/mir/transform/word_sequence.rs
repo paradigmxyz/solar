@@ -274,9 +274,9 @@ impl Recipe {
             &mut inserted,
         );
         let Value::Inst(last) = *func.value(result) else { unreachable!() };
-        let kind = func.canonical_kind(func.inst(last).kind.clone());
+        let kind = func.inst(last).kind.clone();
         inserted.retain(|&id| id != last);
-        func.inst_mut(root).replace_kind(kind);
+        func.replace_inst_kind(root, kind);
         inserted
     }
 
@@ -549,7 +549,7 @@ fn spell_zero_tested(func: &mut Function, target: &Target, cyclic: &DenseBitSet<
                     }
                     word
                 });
-                func.inst_mut(inst).replace_kind(InstKind::Or(a, b));
+                func.replace_inst_kind(inst, InstKind::Or(a, b));
             }
         }
         let mut spelled = Vec::with_capacity(original.len() + shifts.len());

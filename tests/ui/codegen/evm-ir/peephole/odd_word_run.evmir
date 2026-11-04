@@ -1,0 +1,21 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@ run-call: f(uint256)(uint256) 0 => 1
+//@ run-call: f(uint256)(uint256) 9 => 19
+//@ run-call: f(uint256)(uint256) 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+//@ run-call: f(uint256)(uint256) 0x8000000000000000000000000000000000000000000000000000000000000000 => 1
+//@ run-call: f(uint256)(uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+// Computes `(x + x) | 1`, which the rewrite spells as `x - ~x`.
+@module odd_word_run
+bb0:
+  push 4
+  calldataload
+  dup 1
+  add
+  push 1
+  or
+  push 0
+  mstore
+  push 32
+  push 0
+  return

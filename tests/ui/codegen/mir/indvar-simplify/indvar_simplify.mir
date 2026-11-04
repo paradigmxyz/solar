@@ -37,7 +37,7 @@ fn @strength_reduce_shifted_address(arg0: i256) -> i256 {
 // does not pay for the latch update plus a second loop-carried word.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_shifted_address_single_use{{[( ]}}
 // CHECK-NOT: + {{v[0-9]+}} = phi
-// CHECK: {{^ +}}{{v[0-9]+}} = add arg0, {{v[0-9]+}}
+// CHECK: {{^ +}}{{v[0-9]+}} = add {{v[0-9]+}}, arg0
 // CHECK-NEXT: {{^ +}}mstore
 fn @keep_shifted_address_single_use(arg0: i256) -> i256 {
   bb0:
@@ -156,7 +156,7 @@ fn @strength_reduce_commuted_checked_step(arg0: i256) -> i256 {
 // Descending recurrences remain outside this transform's positive-stride contract.
 // CHECK-LABEL: {{^[ +].*}}fn @keep_checked_descending_address{{[( ]}}
 // CHECK: {{^[ +].*}}shl {{[^ ,]+}}, 5{{$}}
-// CHECK: {{^[ +].*}}add arg0,
+// CHECK: {{^[ +].*}}add {{[^ ,]+}}, arg0
 // CHECK: {{^[ +](.*[^a-z_])?}}mstore
 // CHECK: {{^[ +].*}}checked_sub uint256,
 fn @keep_checked_descending_address(arg0: i256) -> i256 {

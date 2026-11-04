@@ -76,7 +76,7 @@ fn @same_select(arg0: i1) -> i256 {
 // CHECK: -     {{v[0-9]+}} = mload [[FIRST]]
 // CHECK: {{^ +}}mstore
 // CHECK: {{^ +}}[[AFTER:v[0-9]+]] = mload [[FIRST]]
-// CHECK: +     {{v[0-9]+}} = add 1, [[AFTER]]
+// CHECK: +     {{v[0-9]+}} = add [[AFTER]], 1
 fn @joined_select(arg0: i1) -> i256 {
   bb0:
     v12 = alloc 32

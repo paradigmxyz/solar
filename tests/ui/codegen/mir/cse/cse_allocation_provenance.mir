@@ -28,7 +28,7 @@ fn @fresh(arg0: i256, arg1: i256) -> i256 {
 // CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
 // CHECK: {{^ +}}set_fmp {{v[0-9]+}}
 // CHECK: {{^ +}}[[SECOND:v[0-9]+]] = mload [[ADDR]]
-// CHECK: +     [[SUM:v[0-9]+]] = add arg0, [[SECOND]]
+// CHECK: +     [[SUM:v[0-9]+]] = add [[SECOND]], arg0
 // CHECK: {{^ +}}ret [[SUM]]
 fn @reset(arg0: i256, arg1: i256) -> i256 {
   bb0:
