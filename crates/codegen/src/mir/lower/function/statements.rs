@@ -568,8 +568,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let (value, location) = this.lower_bytes_operand(argument, parameter_ty)?;
                     return Some((argument, AbiOperand::Ready((value, AbiType::Bytes(location)))));
                 }
-                // A storage array, struct, or indexed `bytes` is read after the arguments that
-                // follow it, as solc does, legacy and via-IR.
+                // A storage array, struct, or string is read after the arguments that follow it,
+                // as via-IR does; legacy hashes indexed topics before the data arguments run.
                 let operand = this.lower_abi_operand(argument, parameter_ty, |this, value| {
                     Some((value, this.types.abi_type(parameter_ty)?))
                 })?;

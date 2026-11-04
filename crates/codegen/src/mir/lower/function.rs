@@ -272,6 +272,7 @@ enum SignatureOperand {
     /// A `bytes` or `string` value, hashed after the other arguments ran.
     Bytes(ValueId, PtrLocation),
 }
+
 /// An operand of an ABI encoding after lowering.
 enum AbiOperand<'gcx> {
     /// A value to encode, with its ABI type.
