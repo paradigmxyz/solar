@@ -26,8 +26,8 @@
 -   push 1 !metadata(span=1..5)
 -   swap 1 !metadata(span=11..15)
 -   sub !metadata(span=21..25)
-+   push 0
-+   not
++   push 0 !metadata(span=21..25)
++   not !metadata(span=21..25)
 +   add !metadata(span=21..25)
     stop
   bb1:
