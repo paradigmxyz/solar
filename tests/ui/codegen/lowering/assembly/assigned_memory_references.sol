@@ -18,6 +18,7 @@
 //@ run-call: C::calldataBytes 0xaabbcc => 0xaabbcc
 //@ run-call: C::calldataOffsetFromMemory 0xaabbcc => 3
 //@ run-call: C::calldataLengthFromMemory 0xaabbcc => 2
+//@ run-call: C::eventTopic => 0x0000000000000000000000000000000000000000000000000000000000000080
 
 // A memory reference variable assigned in inline assembly stays a memory reference: every
 // reader sees the object the word points to, not the word. Weiroll's VM decodes revert reasons
@@ -25,6 +26,8 @@
 // `bytes32`.
 
 contract C {
+    event Topic(bytes32 indexed value);
+
     struct S {
         uint256 a;
         uint256 b;
@@ -189,5 +192,20 @@ contract C {
             c.length := b
         }
         return c.length;
+    }
+
+    // A word copied out of an assigned reference is the address, not the data it points to.
+    // CHECK-LABEL: fn @eventTopic()
+    // CHECK-NOT: mload
+    // CHECK: log 0, 0, {{.*}}, [[WORD:v[0-9]+]]
+    // CHECK-NEXT: ret [[WORD]]
+    function eventTopic() external returns (bytes32 x) {
+        bytes memory b = new bytes(32);
+        assembly {
+            mstore(add(b, 32), not(0))
+            b := b
+            x := b
+        }
+        emit Topic(x);
     }
 }

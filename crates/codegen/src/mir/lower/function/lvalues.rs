@@ -321,6 +321,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 {
                     value = self.builder.cast(value, MirType::MEMPTR);
                 }
+            } else if self.builder.func().value_ty(value) == Some(MirType::MEMPTR) {
+                // word = ptrtoint ptr<memory>
+                value = self.builder.cast_word(value);
             }
             if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
                 && ty.is_ref_at(DataLocation::Calldata)
