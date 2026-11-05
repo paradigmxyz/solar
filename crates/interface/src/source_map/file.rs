@@ -3,9 +3,9 @@ use std::{
     cmp::Ordering,
     fmt,
     hash::{Hash, Hasher},
-    io,
+    io, mem,
     ops::{Range, RangeInclusive},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Arc,
 };
 
@@ -127,8 +127,9 @@ impl FileName {
 
 /// Orders file names by the raw bytes of their source unit names, like solc's ordered
 /// `m_sources` map. The names are those of [`FileName::display`], including `<stdin>` and
-/// `<custom>`. Names that are equal in this order are ordered by their path or string, to agree
-/// with `Eq`.
+/// `<custom>`, and a real path is compared as its components joined by `/`, so paths that are
+/// equal as `Path`s compare equal. Names with the same bytes are ordered by their path or string,
+/// to agree with `Eq`.
 impl Ord for FileName {
     fn cmp(&self, other: &Self) -> Ordering {
         #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -146,22 +147,40 @@ impl Ord for FileName {
             }
         }
 
-        fn bytes<'a>(name: &'a FileName, roots: Option<&SourceRoots>) -> [&'a [u8]; 3] {
-            match name {
+        fn path_bytes(path: &Path) -> impl Iterator<Item = u8> + '_ {
+            let mut separate = false;
+            path.components().flat_map(move |component| {
+                let separator = mem::replace(&mut separate, component != Component::RootDir);
+                separator
+                    .then_some(b'/')
+                    .into_iter()
+                    .chain(component.as_os_str().as_encoded_bytes().iter().copied())
+            })
+        }
+
+        fn bytes<'a>(
+            name: &'a FileName,
+            roots: Option<&SourceRoots>,
+        ) -> impl Iterator<Item = u8> + 'a {
+            let (head, body, path, tail): (&[u8], &[u8], _, &[u8]) = match name {
                 FileName::Real(path) => {
                     let path = roots.map_or(&**path, |roots| roots.source_unit_name(path));
-                    [path.as_os_str().as_encoded_bytes(), b"", b""]
+                    (b"", b"", Some(path), b"")
                 }
-                FileName::Stdin => [b"<stdin>", b"", b""],
-                FileName::Custom(s) => [b"<", s.as_bytes(), b">"],
-            }
+                FileName::Stdin => (b"<stdin>", b"", None, b""),
+                FileName::Custom(s) => (b"<", s.as_bytes(), None, b">"),
+            };
+            head.iter()
+                .chain(body)
+                .copied()
+                .chain(path.into_iter().flat_map(path_bytes))
+                .chain(tail.iter().copied())
         }
 
         let roots = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.roots()))
             .unwrap_or_else(|| arc_swap::Guard::from_inner(None));
         let roots = roots.as_deref();
-        let flat = |name| bytes(name, roots).into_iter().flatten();
-        flat(self).cmp(flat(other)).then_with(|| key(self).cmp(&key(other)))
+        bytes(self, roots).cmp(bytes(other, roots)).then_with(|| key(self).cmp(&key(other)))
     }
 }
 
