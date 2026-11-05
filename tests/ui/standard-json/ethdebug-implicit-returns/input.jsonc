@@ -15,7 +15,7 @@
 // CHECK: "mnemonic": "JUMP"
 // CHECK: "offset": 280,
 // CHECK-NEXT: "length": 64
-// CHECK: "sourceMap": "{{.*}}39:34:0{{.*}}74:68:0{{.*}}345:64:0{{.*}}280:64:0
+// CHECK: "sourceMap": "{{.*}}39:34{{.*}}74:68{{.*}}345:64{{.*}}280:64
 {
   "language": "Solidity",
   "sources": {

@@ -74,7 +74,7 @@ use crate::backend::evm::{
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
-use solar_evmir::debug::{DebugEntryCheckpoint, DebugLocKind};
+use solar_evmir::debug::{DebugEntryCheckpoint, DebugFunction, DebugLocKind};
 use solar_sema::Gcx;
 
 pub(super) struct CfgSimplify {
@@ -513,7 +513,11 @@ fn redirect_jump_thunks(
                     let conditional =
                         block.instructions.get(at + 1).is_some_and(|inst| inst.opcode == op::JUMPI);
                     if conditional && track_checkpoints {
-                        let chain = thunk_chain_debug_info(target, thunks);
+                        let chain = thunk_chain_debug_info(
+                            target,
+                            thunks,
+                            &block.instructions[at].metadata,
+                        );
                         if let Some((destination, checkpoint)) = thunk_checkpoint(
                             target,
                             thunks,
@@ -561,7 +565,7 @@ fn redirect_jump_thunks(
             term.kind.visit_targets_mut(|target| {
                 if let Some(thunk) = thunks.get(target) {
                     if conditional && track_checkpoints {
-                        let chain = thunk_chain_debug_info(*target, thunks);
+                        let chain = thunk_chain_debug_info(*target, thunks, &term.metadata);
                         if let Some((destination, checkpoint)) =
                             thunk_checkpoint(*target, thunks, references, &term.metadata, &chain)
                         {
@@ -837,9 +841,10 @@ fn thunk_checkpoint(
     let mut target = start;
     for _ in 0..thunks.len() {
         let Some(thunk) = thunks.get(&target) else { return Some((target, checkpoint)) };
-        if !thunk.metadata.source_spans().iter().all(|&span| span == checkpoint.source)
-            || (!thunk.metadata.source_spans().is_empty()
-                && thunk.metadata.modifier_depth() != checkpoint.modifier_depth)
+        if !represented_by(&thunk.metadata, transfer, chain.function_invoke())
+            && (!thunk.metadata.source_spans().iter().all(|&span| span == checkpoint.source)
+                || (!thunk.metadata.source_spans().is_empty()
+                    && thunk.metadata.modifier_depth() != checkpoint.modifier_depth))
             || references.get(thunk.next) != Some(&1)
         {
             return None;
@@ -849,13 +854,32 @@ fn thunk_checkpoint(
     (!thunks.contains_key(&target)).then_some((target, checkpoint))
 }
 
+/// Returns whether a located thunk adds nothing the transfer or the chain's function entry lacks.
+/// Bypassing it then loses nothing, and it does not describe a removed source operation. That
+/// holds for a thunk with every origin and function event of the transfer, and for a route into
+/// `invoke` placed under that function's declaration, as the dispatcher does.
+fn represented_by(thunk: &Metadata, transfer: &Metadata, invoke: Option<DebugFunction>) -> bool {
+    !thunk.source_spans().is_empty()
+        && thunk.function_invoke().is_none_or(|event| Some(event) == transfer.function_invoke())
+        && (thunk.source_spans() == transfer.source_spans()
+            && thunk.modifier_depth() == transfer.modifier_depth()
+            || invoke.is_some_and(|invoke| thunk.source_spans() == [invoke.declaration]))
+}
+
 /// Collects the chain's origins and compatible function events, including beyond empty prefixes.
 /// Its entry identity can validate an exclusive checkpoint without becoming a transfer event.
-fn thunk_chain_debug_info(start: BlockId, thunks: &FxHashMap<BlockId, Thunk>) -> Metadata {
+/// Thunks the transfer or the chain's function entry already represents are left out.
+fn thunk_chain_debug_info(
+    start: BlockId,
+    thunks: &FxHashMap<BlockId, Thunk>,
+    transfer: &Metadata,
+) -> Metadata {
     let chain =
         std::iter::successors(Some(start), |target| thunks.get(target).map(|thunk| thunk.next))
             .take(thunks.len())
             .filter_map(|target| thunks.get(&target).map(|thunk| &thunk.metadata));
+    let invoke = chain.clone().find_map(Metadata::function_invoke);
+    let chain = chain.filter(|thunk| !represented_by(thunk, transfer, invoke));
     let mut context = Metadata::default();
     context.drop_debug_loc(DebugLocKind::Dropped);
     context.merge_debug_locs(chain.clone());
