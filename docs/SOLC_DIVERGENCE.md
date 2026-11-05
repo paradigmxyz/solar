@@ -709,7 +709,7 @@ Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`
 `tests/ui/codegen/mir/optimize-function/` and
 `tests/ui/codegen/mir/inline/solar_inline_forms.sol`.
 
-### TYPECK-023: Hexadecimal literals of 39 and 41 digits
+### TYPECK-024: Hexadecimal literals of 39 and 41 digits
 
 Status: intentional.
 
