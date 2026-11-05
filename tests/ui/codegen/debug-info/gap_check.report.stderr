@@ -4,37 +4,35 @@ debugify: MIR GapCheck after lower-builtins: 3/3 origins retained, 0 lost
 debugify: MIR GapCheck after lower-arithmetic: 3/3 origins retained, 0 lost
 debugify: MIR GapCheck after cfg-simplify: 3/3 origins retained, 0 lost
 debugify: MIR GapCheck after lower-abi: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after lower-abi: 6 without a location
+debugify: gap f bb0 inst0 `calldatasize`
+debugify: gap f bb0 inst1 `lt`
+debugify: gap f bb0 terminator `jumpi`
+debugify: gap f bb4 terminator `revert`
+debugify: gap f bb5 inst0 `calldataload`
+debugify: gap f bb5 terminator `jump`
 debugify: MIR GapCheck after lower-abi-encode: 3/3 origins retained, 0 lost
 debugify: MIR GapCheck after lower-dispatch: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-dispatch: 8 without a location
-debugify: gap entry bb0 inst0 `callvalue`
-debugify: gap entry bb0 inst1 `ne`
-debugify: gap entry bb0 terminator `jumpi`
-debugify: gap entry bb1 inst0 `calldataload`
-debugify: gap entry bb1 inst1 `shr`
-debugify: gap entry bb1 terminator `switch`
-debugify: gap entry bb2 terminator `tail_call`
-debugify: gap entry bb3 terminator `revert`
-debugify: MIR GapCheck after lower-structs: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-frame-slots: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-mapping-slots: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-memory-objects: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-slices: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-immutables: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-mcopy: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-alloc: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-memory-zero: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-integers: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-evm-shaped: 3/3 origins retained, 0 lost
-debugify: EVM IR GapCheck_runtime after cfg-simplify-early: 2/2 origins retained, 0 lost
-debugify: EVM IR GapCheck_runtime after block-layout: 2/2 origins retained, 0 lost
-debugify: EVM IR GapCheck_runtime after pack-data: 2/2 origins retained, 0 lost
-debugify: EVM IR GapCheck_runtime after compact-pushes: 2/2 origins retained, 0 lost
-debugify: EVM IR GapCheck_runtime after returndata-zero: 2/2 origins retained, 0 lost
+debugify: MIR GapCheck after lower-structs: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-frame-slots: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-mapping-slots: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-memory-objects: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-slices: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-immutables: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-mcopy: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-alloc: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-memory-zero: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-integers: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-evm-shaped: 4/4 origins retained, 0 lost
+debugify: EVM IR GapCheck_runtime after cfg-simplify-early: 3/3 origins retained, 0 lost
+debugify: EVM IR GapCheck_runtime after block-layout: 3/3 origins retained, 0 lost
+debugify: EVM IR GapCheck_runtime after pack-data: 3/3 origins retained, 0 lost
+debugify: EVM IR GapCheck_runtime after compact-pushes: 3/3 origins retained, 0 lost
+debugify: EVM IR GapCheck_runtime after returndata-zero: 3/3 origins retained, 0 lost
 debugify: EVM IR GapCheck_deployment after cfg-simplify-early: 1/1 origins retained, 0 lost
 debugify: EVM IR GapCheck_deployment after block-layout: 1/1 origins retained, 0 lost
 debugify: EVM IR GapCheck_deployment after pack-data: 1/1 origins retained, 0 lost
 debugify: EVM IR GapCheck_deployment after compact-pushes: 1/1 origins retained, 0 lost
 debugify: EVM IR GapCheck_deployment after returndata-zero: 1/1 origins retained, 0 lost
-debugify: EVM IR GapCheck after stackify: 2/3 origins retained, 1 lost
-debugify: lost 585..591
+debugify: EVM IR GapCheck after stackify: 3/4 origins retained, 1 lost
+debugify: lost 602..608

@@ -1,0 +1,55 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/constructs/immutable_byte_patch_copy_base.sol:ImmutableBytePatchCopyBase (deployment) ===
+PUSH1 0xfd
+CODESIZE
+SUB
+DUP1
+PUSH1 0xfd
+PUSH1 0xe0
+CODECOPY
+PUSH1 0xe0
+ADD
+PUSH1 0x1f
+ADD
+PUSH1 0x1f
+NOT
+AND
+PUSH1 0x40
+MSTORE
+PUSH1 0xe0
+DUP1
+PUSH1 0xfd
+CODESIZE
+SUB
+ADD
+PUSH1 0x20
+DUP3
+ADD
+GT
+CALLVALUE
+OR
+PUSH1 0x43 ; bb0
+JUMPI
+MLOAD
+PUSH1 0xff
+DUP2
+GT
+PUSH1 0x43 ; bb0
+JUMPI
+PUSH1 0xc0
+MSTORE
+PUSH1 0xb6
+DUP1
+PUSH1 0x47
+PUSH0
+CODECOPY
+PUSH1 0xc0
+MLOAD
+PUSH1 0xaf
+MSTORE8
+PUSH0
+RETURN
+; bb0
+JUMPDEST
+PUSH0
+PUSH0
+REVERT

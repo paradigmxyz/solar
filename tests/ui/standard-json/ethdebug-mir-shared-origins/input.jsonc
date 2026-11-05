@@ -13,8 +13,7 @@
 // CHECK-NEXT: "length": 13
 // CHECK: "offset": 132,
 // CHECK-NEXT: "length": 13
-// The wrapper maps to the declaration (18:133); the shared code has no legacy location.
-// CHECK: "sourceMap": "{{(;|:::-:0|18:133:0|-1:-1:-1)*}}"
+// CHECK: "sourceMap": "0:153:0:-:0;
 {
   "language": "Solidity",
   "sources": {

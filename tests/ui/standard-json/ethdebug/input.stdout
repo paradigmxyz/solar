@@ -301,6 +301,17 @@
                   "offset": 0,
                   "operation": {
                     "mnemonic": "CALLVALUE"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
@@ -310,24 +321,68 @@
                     "arguments": [
                       "0x2b"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 3,
                   "operation": {
                     "mnemonic": "JUMPI"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 4,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 5,
                   "operation": {
                     "mnemonic": "CALLDATALOAD"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
@@ -337,18 +392,51 @@
                     "arguments": [
                       "0xe0"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 8,
                   "operation": {
                     "mnemonic": "SHR"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 9,
                   "operation": {
                     "mnemonic": "DUP1"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
@@ -358,12 +446,34 @@
                     "arguments": [
                       "0xb3de648b"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 15,
                   "operation": {
                     "mnemonic": "SUB"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
@@ -373,12 +483,34 @@
                     "arguments": [
                       "0x2b"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 18,
                   "operation": {
                     "mnemonic": "JUMPI"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 89
+                      }
+                    }
                   }
                 },
                 {
@@ -388,51 +520,18 @@
                     "arguments": [
                       "0x24"
                     ]
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 13,
-                        "length": 74
-                      }
-                    }
                   }
                 },
                 {
                   "offset": 21,
                   "operation": {
                     "mnemonic": "CALLDATASIZE"
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 13,
-                        "length": 74
-                      }
-                    }
                   }
                 },
                 {
                   "offset": 22,
                   "operation": {
                     "mnemonic": "LT"
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 13,
-                        "length": 74
-                      }
-                    }
                   }
                 },
                 {
@@ -442,34 +541,12 @@
                     "arguments": [
                       "0x2b"
                     ]
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 13,
-                        "length": 74
-                      }
-                    }
                   }
                 },
                 {
                   "offset": 25,
                   "operation": {
                     "mnemonic": "JUMPI"
-                  },
-                  "context": {
-                    "code": {
-                      "source": {
-                        "id": 0
-                      },
-                      "range": {
-                        "offset": 13,
-                        "length": 74
-                      }
-                    }
                   }
                 },
                 {
@@ -506,8 +583,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 13,
-                        "length": 74
+                        "offset": 79,
+                        "length": 5
                       }
                     }
                   }
@@ -523,8 +600,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 13,
-                        "length": 74
+                        "offset": 79,
+                        "length": 5
                       }
                     }
                   }
@@ -723,8 +800,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 13,
-                        "length": 74
+                        "offset": 0,
+                        "length": 89
                       }
                     }
                   }
@@ -740,8 +817,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 13,
-                        "length": 74
+                        "offset": 0,
+                        "length": 89
                       }
                     }
                   }
@@ -757,8 +834,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 13,
-                        "length": 74
+                        "offset": 0,
+                        "length": 89
                       }
                     },
                     "revert": {}
