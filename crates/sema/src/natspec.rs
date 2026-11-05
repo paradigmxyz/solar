@@ -530,12 +530,10 @@ impl<'gcx> Resolver<'gcx> {
 
         let mut item = natspec;
         item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(expected.name, name_span)) };
-        // Like solc, the description starts after the name and one blank, if the content is more
-        // than the name.
-        let description = word_start + documented.len() + 1;
+        let name_end = word_start + documented.len();
         item.content_start =
-            if description <= natspec.content_end as usize { description } else { word_start }
-                as u32;
+            return_description_start(content, name_end, natspec.content_end as usize)
+                .unwrap_or(word_start) as u32;
         Some(item)
     }
 
@@ -1094,6 +1092,26 @@ fn optimize_objective(natspec: &ast::NatSpecItem) -> Option<OptimizationMode> {
         (Some("size"), None) => Some(OptimizationMode::Size),
         _ => None,
     }
+}
+
+/// Returns whether a line of a tag's content follows the previous line as it is, when solc joins
+/// them. Other lines have a space put before them, as they lost their first space.
+pub(crate) fn follows_as_is(line: &str) -> bool {
+    line.starts_with(['\t']) || line.starts_with(" \t") || line.trim_ascii().is_empty()
+}
+
+/// Returns where the description of a `@return` starts, when the name ends at `name_end`: after
+/// the blank that solc takes off, which is the one after the name or the first of the next line
+/// when it joins it. It is `None` if the name is all the content, which solc keeps.
+fn return_description_start(content: &str, name_end: usize, end: usize) -> Option<usize> {
+    let rest = &content[name_end..end];
+    if rest.starts_with([' ', '\t']) {
+        return Some(name_end + 1);
+    }
+    let next_lines = rest.strip_prefix('\n')?.trim_start_matches('\n');
+    let start = end - next_lines.len();
+    let line = next_lines.split('\n').next().filter(|line| !line.is_empty())?;
+    Some(start + follows_as_is(line) as usize)
 }
 
 /// Rejects reserved tags on syntax which has no documented HIR item or Solidity statement.

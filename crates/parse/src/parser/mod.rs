@@ -1395,14 +1395,14 @@ import * as B from "b.sol";
                 "notice",
                 "notice",
                 None,
-                Some("This is a notice that spans multiple lines   and continues here"),
+                Some("This is a notice\nthat spans multiple lines\n  and continues here"),
             );
             check(3, "dev", "dev", None, Some("This is dev documentation"));
             check(4, "param", "param", Some("x"), Some("The input parameter"));
             check(5, "return", "return", None, Some("result The return value"));
             check(6, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
             check(7, "custom:security", "custom", Some("security"), Some("High priority"));
-            check(8, "solidity", "internal", Some("solidity"), Some("memory-safe notice with space"));
+            check(8, "solidity", "internal", Some("solidity"), Some("memory-safe\nnotice with space"));
 
             assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/// @title MyContract\n/// @author Alice\n/// @notice This is a notice\n/// that spans multiple lines\n///   and continues here\n/// @dev This is dev documentation\n/// @param x The input parameter\n/// @return result The return value\n/// @inheritdoc BaseContract\n/// @custom:security High priority\n/// @solidity memory-safe\n/// @ notice with space");
         });
@@ -1452,7 +1452,7 @@ import * as B from "b.sol";
                 "notice",
                 "notice",
                 None,
-                Some("This is a notice that spans multiple lines   and continues here"),
+                Some("This is a notice\nthat spans multiple lines\n  and continues here"),
             );
             check(3, "dev", "dev", None, Some("This is dev documentation"));
             check(4, "param", "param", Some("x"), Some("The input parameter"));
@@ -1497,7 +1497,9 @@ contract Test {}
                 &span,
                 "notice",
                 None,
-                Some("This is a simple comment It has no tags at all   Just plain documentation"),
+                Some(
+                    "This is a simple comment\nIt has no tags at all\n\n  Just plain documentation",
+                ),
             );
         });
     }
@@ -1534,7 +1536,7 @@ contract Test {}
                 &snip,
                 "notice",
                 None,
-                Some("This is a block comment with multiple lines but no tags at all"),
+                Some("This is a block comment\nwith multiple lines\nbut no tags at all"),
             );
         });
     }

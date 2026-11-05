@@ -11,7 +11,9 @@
 //! - The content of a tag starts after the blanks that follow the tag, or on the next line if it
 //!   has none on its own line. Unlike solc, a tag is never content, so that `@custom:solar-cold`
 //!   can be followed by another tag.
-//! - A continuation line is joined with a space, unless it starts with a blank.
+//! - The lines of a tag are joined with line breaks, so that the content of a tag keeps its
+//!   paragraphs, and a line with text loses a leading space. The outputs join the lines like solc
+//!   does.
 //!
 //! Validation is deferred to lowering. Unknown tags are ignored in Yul, like solc does:
 //! <https://github.com/argotorg/solidity/blob/2ca5fb3b6adcb1a8fb2c0904fb37526121cf2c72/libyul/AsmParser.cpp#L151>
@@ -140,6 +142,10 @@ pub(super) fn parse_natspec(
     // Iterate over each line and look for tags.
     for (index, line) in lines.iter().enumerate() {
         let text = line.text;
+        // An empty line is only part of the content of a tag.
+        if text.is_empty() {
+            continue;
+        }
         if !line.glued {
             (logical_start, consumed) = (index, false);
         }
@@ -245,6 +251,11 @@ fn push_item(
     end: usize,
     closing_star: bool,
 ) {
+    // The empty lines at the end are not content.
+    let mut end = end;
+    while end > item.line + 1 && lines[end - 1].text.is_empty() {
+        end -= 1;
+    }
     let (symbol, content_start, mut content_end, content_lo) = match &lines[item.line..end] {
         // Only the notice before the first tag has no lines, when the first line is a tag.
         [] => {
@@ -297,8 +308,9 @@ fn blanks_len(text: &str) -> usize {
     text.len() - text.trim_ascii_start().len()
 }
 
-/// Joins the lines of a tag's content like solc: a space goes before a logical line that does not
-/// start with a blank. A logical line is a line and the lines that the scanner glues to it.
+/// Joins the lines of a tag's content with line breaks. A logical line is a line and the lines
+/// that the scanner glues to it. Joining them like solc is up to the output: it drops the empty
+/// lines and puts a space before a line with text, which lost its first space for that.
 ///
 /// Also returns the source position of the first non-blank byte of the joined text.
 fn join_lines(first: &Line<'_>, offset: usize, rest: &[Line<'_>]) -> (String, Option<BytePos>) {
@@ -341,10 +353,16 @@ fn join_lines(first: &Line<'_>, offset: usize, rest: &[Line<'_>]) -> (String, Op
             kept = at + 2;
         }
         let text = &logical[kept..];
-        if !text.starts_with([' ', '\t']) {
+        joined.push('\n');
+        // Solc joins an `@ ` with a space, but drops an empty line.
+        if kept > 0 && text.is_empty() {
             joined.push(' ');
+        } else {
+            // The output puts back the space that it joins the line with, unless a tab follows.
+            let has_text = !text.trim_ascii().is_empty();
+            let stripped = text.strip_prefix(' ').filter(|rest| !rest.starts_with('\t'));
+            joined.push_str(if has_text { stripped.unwrap_or(text) } else { text });
         }
-        joined.push_str(text);
         if content_lo.is_none() {
             let lead = blanks_len(text);
             if lead < text.len() {
@@ -366,8 +384,8 @@ fn position_in_logical_line(group: &[Line<'_>], mut offset: usize) -> BytePos {
     group[group.len() - 1].pos(group[group.len() - 1].text.len())
 }
 
-/// Returns the lines of adjacent `///` comments. The first loses its leading blanks, the others
-/// keep them, and empty lines vanish.
+/// Returns the lines of adjacent `///` comments. The first loses its leading blanks and the
+/// others keep them. An empty line has empty text.
 fn line_comment_lines<'a>(docs: &'a [DocComment<'_>]) -> Lines<'a> {
     let mut lines = Lines::new();
     for (index, doc) in docs.iter().enumerate() {
@@ -375,21 +393,20 @@ fn line_comment_lines<'a>(docs: &'a [DocComment<'_>]) -> Lines<'a> {
         let text = text.strip_suffix('\r').unwrap_or(text);
         let start =
             if index == 0 { text.len() - text.trim_start_matches([' ', '\t']).len() } else { 0 };
-        if index == 0 || !text.is_empty() {
-            lines.push(Line {
-                text: &text[start..],
-                symbol: doc.symbol,
-                start: start as u32,
-                base: doc.span.lo().0 + 3,
-                glued: false,
-            });
-        }
+        lines.push(Line {
+            text: &text[start..],
+            symbol: doc.symbol,
+            start: start as u32,
+            base: doc.span.lo().0 + 3,
+            glued: false,
+        });
     }
     lines
 }
 
 /// Returns the lines of a `/** */` comment. Every line after the first loses its leading blanks
-/// and its first `*`, and empty lines vanish.
+/// and its first `*`. An empty line has empty text, except before the content and at the closing
+/// `*/`, where it is not a line.
 fn block_comment_lines<'a>(doc: &'a DocComment<'_>) -> Lines<'a> {
     let content = doc.symbol.as_str();
     let bytes = content.as_bytes();
@@ -414,14 +431,17 @@ fn block_comment_lines<'a>(doc: &'a DocComment<'_>) -> Lines<'a> {
         // The decoration of the lines after the first.
         if line_start > 0 {
             match &bytes[start..line_end] {
-                [] => skip = true,
+                [] => skip = is_last || lines.is_empty(),
                 // The scanner reads the `*` before the closing `*/` like the first of `**`.
                 [b'*'] if is_last => glued = true,
-                [b'*'] => skip = true,
+                [b'*'] => {
+                    start = line_end;
+                    skip = lines.is_empty();
+                }
                 [b'*', b'*', ..] => glued = true,
                 [b'*', ..] => {
                     start += 1;
-                    skip = start == line_end;
+                    skip = start == line_end && lines.is_empty();
                 }
                 _ => {}
             }
@@ -429,6 +449,12 @@ fn block_comment_lines<'a>(doc: &'a DocComment<'_>) -> Lines<'a> {
             skip = true;
         }
         if !skip {
+            // Solc drops the empty lines, so the line is glued to the last that is not empty.
+            if glued {
+                while lines.last().is_some_and(|line| line.text.is_empty()) {
+                    lines.pop();
+                }
+            }
             lines.push(Line {
                 text: &content[start..line_end],
                 symbol: doc.symbol,

@@ -1,9 +1,10 @@
 //! NatSpec outputs matching solc's Standard JSON output fields.
 
 use super::DocumentationKind;
-use crate::{hir, ty::Gcx};
+use crate::{hir, natspec::follows_as_is, ty::Gcx};
 use serde::Serialize;
 use solar_data_structures::map::{FxHashSet, FxIndexMap};
+use std::borrow::Cow;
 
 /// NatSpec documentation in solc's Standard JSON `userdoc` and `devdoc` output fields.
 ///
@@ -249,7 +250,7 @@ fn natspec_text(
         .iter()
         .copied()
         .filter(|item| matches(item.kind))
-        .map(|item| item.content().to_string())
+        .map(|item| solc_content(item.content()).into_owned())
         .collect::<String>();
     (!text.is_empty()).then_some(text)
 }
@@ -257,7 +258,8 @@ fn natspec_text(
 fn dev_doc_item(gcx: Gcx<'_>, doc_id: hir::DocId) -> DocumentationItem {
     let mut documentation = DocumentationItem::default();
     for item in gcx.natspec_doc_comments(doc_id).iter().copied() {
-        let content = item.content();
+        let content = solc_content(item.content());
+        let content = &*content;
         match item.kind {
             hir::NatSpecKind::Author => append_doc(&mut documentation.author, content),
             hir::NatSpecKind::Dev => append_doc(&mut documentation.details, content),
@@ -299,28 +301,46 @@ fn return_docs(
         .filter_map(|(index, item)| {
             let variable = gcx.hir.variable(*returns.get(index)?);
             let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
-            Some((name, item.content().to_string()))
+            Some((name, solc_content(item.content()).into_owned()))
         })
         .collect()
 }
 
 /// Returns the content of a `@return` tag with the name that lowering takes off its description,
 /// as solc keeps it for the `return` of a state variable.
-fn raw_return_content(item: &hir::NatSpecItem) -> &str {
+fn raw_return_content(item: &hir::NatSpecItem) -> Cow<'_, str> {
     let symbol = item.symbol.as_str();
     if let hir::NatSpecKind::Return { name: Some(name) } = item.kind {
         let name = name.name.as_str();
         let start = item.content_start as usize;
-        // The name is a word of its own, so it is not the end of `@return` itself.
-        let name_start = start.checked_sub(1 + name.len());
-        if let Some(name_start) = name_start
-            && symbol.get(name_start..start - 1) == Some(name)
-            && name_start
-                .checked_sub(1)
-                .is_none_or(|before| symbol.as_bytes()[before].is_ascii_whitespace())
+        // Lowering took the name off if blanks separate it from the content. The name is a word of
+        // its own, so it is not the end of `@return` itself.
+        let before = symbol[..start].trim_end_matches(|c: char| c.is_ascii_whitespace());
+        if before.len() < start
+            && let Some(name_start) = before.len().checked_sub(name.len())
+            && before.ends_with(name)
+            && name_start.checked_sub(1).is_none_or(|b| symbol.as_bytes()[b].is_ascii_whitespace())
         {
-            return &symbol[name_start..item.content_end as usize];
+            return solc_content(&symbol[name_start..item.content_end as usize]);
         }
     }
-    item.content()
+    solc_content(item.content())
+}
+
+/// Returns the content of a tag as solc's NatSpec parser reads it. The content has the lines of
+/// the tag. Solc joins them: an empty line vanishes, and a line has a space put before it unless
+/// it follows as it is.
+fn solc_content(content: &str) -> Cow<'_, str> {
+    if !content.contains('\n') {
+        return Cow::Borrowed(content);
+    }
+    let mut lines = content.split('\n');
+    let mut joined = lines.next().unwrap_or_default().to_owned();
+    for line in lines.filter(|line| !line.is_empty()) {
+        if !follows_as_is(line) {
+            joined.push(' ');
+        }
+        joined.push_str(line);
+    }
+    Cow::Owned(joined)
 }
