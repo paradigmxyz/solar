@@ -14,7 +14,11 @@ impl Plugin for Broken {
         let mode = mode();
         let phase = match mode.as_str() {
             "graph_bad_phase" | "graph_copy_result" => Some("lowered"),
-            "wrong_type"
+            "observe_mir"
+            | "copy_alloc"
+            | "raw_write"
+            | "late_phi"
+            | "wrong_type"
             | "invalid_function"
             | "graph_bad_type"
             | "graph_phi"
@@ -40,8 +44,117 @@ impl Plugin for Broken {
         }
     }
 
-    fn run(&self, _: &Request) -> Result<Response, String> {
-        let edit = match mode().as_str() {
+    fn run(&self, request: &Request) -> Result<Response, String> {
+        let mode = mode();
+        if mode.starts_with("observe_") {
+            eprintln!("SNAPSHOT:{request:?}");
+            return Ok(Response::default());
+        }
+        if mode == "copy_alloc" {
+            let api::Snapshot::Mir { functions, .. } = &request.module else { unreachable!() };
+            let function = &functions[0];
+            let inst = function.instructions.iter().find(|inst| inst.operation == "alloc").unwrap();
+            let at = function
+                .instructions
+                .iter()
+                .filter(|other| other.block == inst.block)
+                .position(|other| other.id == inst.id)
+                .unwrap() as u32;
+            return Ok(Response {
+                edits: vec![
+                    Edit::SpliceMirInstructions {
+                        function: function.id,
+                        block: inst.block,
+                        start: at,
+                        remove: 1,
+                        instructions: vec![Instruction {
+                            result: Some(0),
+                            ty: Some(Type::Pointer { location: api::AddressSpace::Memory }),
+                            instruction: Kind::Copy {
+                                instruction: inst.id,
+                                operands: inst
+                                    .operands
+                                    .iter()
+                                    .map(|&id| Operand::Value { id })
+                                    .collect(),
+                            },
+                        }],
+                    },
+                    Edit::ReplaceMirValueWith {
+                        function: function.id,
+                        value: inst.result.unwrap(),
+                        replacement: local(),
+                    },
+                ],
+            });
+        }
+        if mode == "raw_write" {
+            let api::Snapshot::Mir { unsafe_assembly, functions, .. } = &request.module else {
+                unreachable!()
+            };
+            eprintln!("UNSAFE:{unsafe_assembly}");
+            if *unsafe_assembly {
+                return Ok(Response::default());
+            }
+            return Ok(Response {
+                edits: vec![Edit::SpliceMirInstructions {
+                    function: functions[0].id,
+                    block: 0,
+                    start: 0,
+                    remove: 0,
+                    instructions: vec![Instruction {
+                        result: None,
+                        ty: None,
+                        instruction: Kind::Operation {
+                            operation: "mstore8".into(),
+                            operands: vec![
+                                Operand::Constant { ty: word(), value: "0x40".into() },
+                                Operand::Constant { ty: word(), value: "0".into() },
+                            ],
+                        },
+                    }],
+                }],
+            });
+        }
+        let edit = match mode.as_str() {
+            "late_phi" => Edit::AddMirFunctions {
+                functions: vec![Function {
+                    name: "late_phi".into(),
+                    parameters: vec![word()],
+                    returns: word(),
+                    blocks: vec![
+                        Block { instructions: Vec::new(), terminator: Term::Jump { target: 1 } },
+                        Block {
+                            instructions: vec![
+                                Instruction {
+                                    result: Some(0),
+                                    ty: Some(word()),
+                                    instruction: Kind::Operation {
+                                        operation: "add".into(),
+                                        operands: vec![arg(), arg()],
+                                    },
+                                },
+                                Instruction {
+                                    result: Some(1),
+                                    ty: Some(word()),
+                                    instruction: Kind::Phi { incoming: vec![(0, arg())] },
+                                },
+                            ],
+                            terminator: Term::Return { values: vec![Operand::Local { id: 1 }] },
+                        },
+                    ],
+                }],
+            },
+            "wrong_returns" => Edit::AddEvmBlocks {
+                blocks: vec![api::NewEvmBlock {
+                    instructions: vec![
+                        api::NewEvmInstruction::Push { value: "0".into(), source: None },
+                        opcode(0x90),
+                    ],
+                    terminator: EvmTerminator::Opcode { opcode: 0x56 },
+                    call_effect: Some(api::CallEffect { ret: 0, inputs: 1, outputs: 0 }),
+                }],
+            },
             "wrong_type" => Edit::ReplaceMirValue { function: 0, value: 0, replacement: 1 },
             "invalid_function" => {
                 Edit::ReplaceMirValue { function: u32::MAX, value: 0, replacement: 1 }

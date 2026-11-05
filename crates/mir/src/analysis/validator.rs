@@ -373,8 +373,20 @@ impl<'a> Validator<'a> {
 
             // ----- Walk instructions in this block -----
             let block_preds = &block.predecessors;
+            let mut saw_non_phi = false;
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
+                if matches!(inst.kind, InstKind::Phi(_)) {
+                    if saw_non_phi {
+                        self.emit_at_inst(
+                            "phi must precede non-phi instructions",
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                } else {
+                    saw_non_phi = true;
+                }
 
                 if !inst.kind.scalar_types_match(func, inst.result_ty) {
                     self.emit_at_inst(

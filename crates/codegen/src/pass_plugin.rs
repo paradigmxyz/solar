@@ -35,6 +35,7 @@ pub(crate) use mir::MirPluginPass;
 pub(crate) struct Registry {
     pub(crate) mir: Vec<MirPluginPass>,
     pub(crate) evm: Vec<EvmPluginPass>,
+    identities: Vec<String>,
 }
 
 struct NativePlugin {
@@ -95,6 +96,10 @@ impl Registry {
         let path = std::fs::canonicalize(path)
             .map_err(|error| format!("cannot open pass plugin `{}`: {error}", path.display()))?;
         let plugin = Arc::new(NativePlugin::load(&path)?);
+        // Native libraries are build inputs, outside the virtual Solidity source loader.
+        #[allow(clippy::disallowed_methods)]
+        let bytes =
+            std::fs::read(&path).map_err(|error| format!("cannot read pass plugin: {error}"))?;
         let manifest = plugin.manifest()?;
         if manifest.api_version != API_VERSION {
             return Err(format!(
@@ -109,6 +114,12 @@ impl Registry {
                 path.display()
             ));
         }
+        self.identities.push(format!(
+            "{}@{}:{:#x}",
+            manifest.name,
+            manifest.version,
+            alloy_primitives::keccak256(bytes)
+        ));
         for definition in manifest.passes {
             let name = format!("{}::{}", manifest.name, definition.name);
             if !valid_name(&definition.name)
@@ -206,4 +217,9 @@ fn receive<T: Clone>(call: impl FnOnce(&mut Receiver<'_, T>)) -> Result<T, Strin
         return Err("Rust plugin returned more than one response".into());
     }
     response.ok_or_else(|| "Rust plugin did not return a response".to_owned())?
+}
+
+/// Ordered plugin identities, including the digest of each loaded native library.
+pub fn build_inputs(gcx: Gcx<'_>) -> Result<Vec<String>, ErrorGuaranteed> {
+    Ok(registry(gcx)?.map_or_else(Vec::new, |registry| registry.identities.clone()))
 }
