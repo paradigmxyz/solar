@@ -123,8 +123,7 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) current_modifier_depth: u32,
     /// Source origins and location kind of the jump that falls through at the end of an EVM IR
     /// block.
-    pub(in crate::backend) fallthrough_origins:
-        FxHashMap<ir::BlockId, (DebugSpans, DebugLocKind, u32)>,
+    pub(in crate::backend) fallthrough_origins: FxHashMap<ir::BlockId, ir::Metadata>,
     /// Original assembler label attached to each EVM IR block.
     pub(in crate::backend) block_labels: Vec<Option<Label>>,
     /// Defined assembler labels and their EVM IR blocks.
