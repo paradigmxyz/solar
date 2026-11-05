@@ -115,6 +115,12 @@
               "returns": {
                 "amount": "The amount"
               }
+            },
+            "stateReturnName": {
+              "return": "turn",
+              "returns": {
+                "turn": "turn"
+              }
             }
           },
           "version": 1

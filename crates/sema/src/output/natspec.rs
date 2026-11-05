@@ -311,8 +311,15 @@ fn raw_return_content(item: &hir::NatSpecItem) -> &str {
     if let hir::NatSpecKind::Return { name: Some(name) } = item.kind {
         let name = name.name.as_str();
         let start = item.content_start as usize;
-        if start > name.len() && symbol.get(start - 1 - name.len()..start - 1) == Some(name) {
-            return &symbol[start - 1 - name.len()..item.content_end as usize];
+        // The name is a word of its own, so it is not the end of `@return` itself.
+        let name_start = start.checked_sub(1 + name.len());
+        if let Some(name_start) = name_start
+            && symbol.get(name_start..start - 1) == Some(name)
+            && name_start
+                .checked_sub(1)
+                .is_none_or(|before| symbol.as_bytes()[before].is_ascii_whitespace())
+        {
+            return &symbol[name_start..item.content_end as usize];
         }
     }
     item.content()
