@@ -4354,11 +4354,11 @@ fn binop_common_type<'gcx>(
         }
 
         TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => {
+            use hir::BinOpKind::*;
+
             if op.is_shift() {
                 return valid_shift(gcx, ty, other, op);
             }
-            use hir::BinOpKind::*;
-
             // Fixed bytes only compare and combine bitwise.
             if (op.is_cmp() || matches!(op, BitAnd | BitOr | BitXor))
                 && let Some(common_type) = ty.common_type(other, gcx)

@@ -1,5 +1,5 @@
 // Fixed bytes compare, combine bitwise, and shift by unsigned amounts, like solc. A literal on the
-// left only combines with integers.
+// left never combines with fixed bytes.
 
 contract C {
     function accepted(bytes32 a, bytes32 b, bytes4 c, uint8 u) external pure {
@@ -21,6 +21,7 @@ contract C {
         a == c;
         c < a;
         a == 0;
+        a & 0;
         ~a;
     }
 
