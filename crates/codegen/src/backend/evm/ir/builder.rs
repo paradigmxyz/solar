@@ -8,7 +8,7 @@ use crate::{
             assembly::DeferredAlloc,
         },
         evm::{
-            DebugFunction, DebugFunctionExit, DebugSpans,
+            DebugFunction, DebugFunctionExit,
             op::{self, push_len},
         },
     },
@@ -100,22 +100,20 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     /// Returns the source origins, location kind and modifier depth attached to new operations.
-    pub(crate) fn debug_origin(&self) -> (DebugSpans, DebugLocKind, u32) {
-        (
-            self.current_source_spans.clone(),
-            self.current_debug_loc_kind,
-            self.current_modifier_depth,
-        )
+    pub(crate) fn debug_origin(&self) -> ir::Metadata {
+        let mut origin = ir::Metadata::default();
+        origin.set_source_spans(self.current_source_spans.iter().copied());
+        origin.set_debug_loc_kind(self.current_debug_loc_kind);
+        origin.set_modifier_depth(self.current_modifier_depth);
+        origin
     }
 
     /// Restores the origins returned by [`Self::debug_origin`].
-    pub(crate) fn set_debug_origin(
-        &mut self,
-        (spans, kind, depth): (DebugSpans, DebugLocKind, u32),
-    ) {
-        self.current_source_spans = spans;
-        self.current_debug_loc_kind = kind;
-        self.current_modifier_depth = depth;
+    pub(crate) fn set_debug_origin(&mut self, origin: ir::Metadata) {
+        self.current_source_spans.clear();
+        self.current_source_spans.extend(origin.source_spans().iter().copied());
+        self.current_debug_loc_kind = origin.debug_loc_kind();
+        self.current_modifier_depth = origin.modifier_depth();
     }
 
     /// Attributes the jump to the next block, which ends the current block without an opcode, to
