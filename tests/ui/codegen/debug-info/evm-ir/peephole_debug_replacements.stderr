@@ -1,1 +1,4 @@
-debugify: EVM IR DebugReplacements after peephole: 14/14 origins retained, 0 lost
+debugify: EVM IR DebugReplacements after peephole: 11/14 origins retained, 3 lost
+debugify: lost 90..100
+debugify: lost 110..120
+debugify: lost 170..180

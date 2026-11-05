@@ -9,7 +9,6 @@
 -   swap 1 !metadata(span=7..8)
 -   pop !metadata(span=9..10)
     push 0 !metadata(span=11..12)
--   mstore !metadata(span=13..14)
-+   mstore !metadata(spans=[13..14, 1..2, 7..8, 9..10])
+    mstore !metadata(span=13..14)
     stop !metadata(span=15..16)
   

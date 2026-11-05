@@ -818,8 +818,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   optimization. Shared code with different modifier depths has no unique
   modifier frame and uses depth zero. Shared code with multiple source origins
   is unmapped in legacy output; ETHDebug retains every source alternative.
-  This policy applies equally to MIR and EVM IR sharing.
-- Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc`.
+  This policy applies equally to MIR and EVM IR sharing. Like solc, every entry
+  of a constructor's modifier list, including base constructor calls, adds one
+  level of depth to the code after it.
+- Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc` and
+  `tests/ui/standard-json/source-maps/modifier-constructor.jsonc`.
 
 ### CODEGEN-007: `revertStrings: debug` message parity is best effort
 

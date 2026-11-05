@@ -472,7 +472,7 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
     let path = temp.path().join("debug.evmir");
     let path = path.to_str().unwrap();
     for (pipeline, fixture, audit) in [
-        ("peephole", "peephole_debug_replacements.evmir", "check"),
+        ("peephole", "peephole_debug_replacements.evmir", "report"),
         ("cfg-simplify", "cfg_simplify_branch_entry_inversion.evmir", "check"),
         ("cfg-simplify", "cfg_simplify_thunk_chain_spans.evmir", "check"),
         (

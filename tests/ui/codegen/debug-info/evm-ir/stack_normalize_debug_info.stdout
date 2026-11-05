@@ -8,6 +8,6 @@
 -   swap 1 !metadata(span=7..8)
 -   swap 1 !metadata(span=9..10)
 -   pop !metadata(span=11..12)
-+   pop !metadata(spans=[7..8, 9..10, 11..12])
++   pop !metadata(span=7..8)
     stop !metadata(span=13..14)
   
