@@ -1,0 +1,18 @@
+error: this doc comment is replaced by a later one
+   ╭▸ ROOT/tests/ui/natspec/solar_tag_replaced_comment.sol:LL:CC
+   │
+LL │ /// @custom:solar-safe memory
+   │      ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put `@custom:solar-safe` in the doc comment of the item
+
+error: this doc comment is replaced by a later one
+   ╭▸ ROOT/tests/ui/natspec/solar_tag_replaced_comment.sol:LL:CC
+   │
+LL │ /// @custom:solar-optimize size
+   │      ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: put `@custom:solar-optimize` in the doc comment of the item
+
+error: aborting due to 2 previous errors
+
