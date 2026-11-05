@@ -67,7 +67,11 @@ fn assembly_bindings(gcx: Gcx<'_>, expr: &hir::Expr<'_>, out: &mut Vec<VariableI
     match expr.kind {
         ExprKind::Ident(_) => out.extend(gcx.resolved_variable(expr)),
         ExprKind::YulMember(base, _) => assembly_bindings(gcx, base, out),
-        ExprKind::Call(_, args) => {
+        ExprKind::Call(callee, args) => {
+            // A Yul function can return a word it read itself.
+            if let Some(id) = gcx.resolved_function(callee) {
+                out.extend_from_slice(gcx.hir.function(id).returns);
+            }
             for argument in args.exprs() {
                 assembly_bindings(gcx, argument, out);
             }
