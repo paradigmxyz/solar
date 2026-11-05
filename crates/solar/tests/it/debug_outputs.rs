@@ -442,7 +442,7 @@ fn ethdebug_omits_unresolved_library_operands() {
 
 #[test]
 fn evm_ir_dump_preserves_bytecode() {
-    let source = "../../codegen/lowering/function_comments.sol";
+    let source = "../../codegen/debug-info/function_comments.sol";
     for mode in ["none", "gas", "size"] {
         let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
         let output = compile(&[
@@ -472,17 +472,17 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
     let path = temp.path().join("debug.evmir");
     let path = path.to_str().unwrap();
     for (pipeline, fixture, audit) in [
-        ("peephole", "peephole/debug_replacements.evmir", "check"),
-        ("cfg-simplify", "cfg-simplify/branch_entry_inversion.evmir", "check"),
-        ("cfg-simplify", "cfg-simplify/thunk_chain_spans.evmir", "check"),
+        ("peephole", "peephole_debug_replacements.evmir", "check"),
+        ("cfg-simplify", "cfg_simplify_branch_entry_inversion.evmir", "check"),
+        ("cfg-simplify", "cfg_simplify_thunk_chain_spans.evmir", "check"),
         (
             "cfg-simplify,terminal-dedup,cfg-simplify",
-            "cfg-simplify/checkpoint_shared_entry.evmir",
+            "cfg_simplify_checkpoint_shared_entry.evmir",
             "report",
         ),
     ] {
         let source = RealFileLoader
-            .load_file(&Path::new(FIXTURES).join("../../codegen/evm-ir").join(fixture))
+            .load_file(&Path::new(FIXTURES).join("../../codegen/debug-info/evm-ir").join(fixture))
             .unwrap();
         let plain = source
             .lines()
