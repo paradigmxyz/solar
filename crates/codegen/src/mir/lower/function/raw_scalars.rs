@@ -601,7 +601,17 @@ impl LoweringState {
         // Bindings whose words may reach a computed store.
         let mut stored = FxHashSet::from_iter(exposure.stored.iter().copied());
         // Solidity stores through a retargeted reference land at a computed address too.
-        for root in &exposure.retargeted {
+        let mut retargeted = FxHashSet::from_iter(exposure.retargeted.iter().copied());
+        let mut pending = retargeted.iter().copied().collect::<Vec<_>>();
+        // Copies, parameters and returns of a reference alias it.
+        while let Some(id) = pending.pop() {
+            for &alias in exposure.edges.get(&id).into_iter().flatten() {
+                if retargeted.insert(alias) {
+                    pending.push(alias);
+                }
+            }
+        }
+        for root in &retargeted {
             stored.extend(exposure.store_edges.get(root).into_iter().flatten().copied());
         }
         let mut pending = stored.iter().copied().collect::<Vec<_>>();
@@ -619,7 +629,7 @@ impl LoweringState {
         let escaped = exposure
             .pointer_values
             .iter()
-            .any(|(_, binding)| stored.contains(binding) || exposure.retargeted.contains(binding));
+            .any(|(_, binding)| stored.contains(binding) || retargeted.contains(binding));
 
         let mut tainted = exposure.raw.clone();
         let mut pending = tainted.iter().copied().collect::<Vec<_>>();
