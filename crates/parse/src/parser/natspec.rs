@@ -154,6 +154,19 @@ pub(super) fn parse_natspec(
         let tag_offset =
             if line.glued && consumed { None } else { memchr::memchr(b'@', text.as_bytes()) };
         let end = if line.glued { logical_start } else { index };
+        // Solc reads a line glued to a tag as its content, which would silently drop a requirement.
+        if line.glued
+            && consumed
+            && let Some(at) = text.find("@custom:solar-")
+            && is_line_start(text, at)
+        {
+            let tag = text[at + 1..].split([' ', '\t']).next().unwrap_or_default();
+            let lo = line.pos(at) + 1;
+            dcx.err(format!("`@{tag}` is part of the previous tag"))
+                .span(Span::new(lo, lo + tag.len() as u32))
+                .help("start the tag on a line that does not begin with `**`")
+                .emit();
+        }
         let starts_tag = tag_offset.is_some_and(|offset| {
             is_line_start(text, offset)
                 && text.as_bytes().get(offset + 1).is_some_and(|b| !matches!(b, b' ' | b'\t'))

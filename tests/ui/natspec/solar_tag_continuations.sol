@@ -30,3 +30,9 @@ contract UnknownProperty {}
 /// @custom:solar-optimize
 /// size
 contract ContinuedObjective {}
+
+/**
+ * @notice A glued tag.
+ ** @custom:solar-safe arithmetic //~ ERROR: `@custom:solar-safe` is part of the previous tag
+ */
+contract Glued {}

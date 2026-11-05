@@ -1,3 +1,11 @@
+error: `@custom:solar-safe` is part of the previous tag
+   ╭▸ ROOT/tests/ui/natspec/solar_tag_continuations.sol:LL:CC
+   │
+LL │  ** @custom:solar-safe arithmetic
+   │      ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: start the tag on a line that does not begin with `**`
+
 error: `Continued` is tagged `@custom:solar-safe` but runs an `unchecked` block
    ╭▸ ROOT/tests/ui/natspec/solar_tag_continuations.sol:LL:CC
    │
@@ -20,5 +28,5 @@ LL │ /// @custom:solar-safe memory
    │
    ╰ help: the properties are `memory` and `arithmetic`; naming none requires only `memory`
 
-error: aborting due to 2 previous errors
+error: aborting due to 3 previous errors
 
