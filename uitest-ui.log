@@ -1,0 +1,35 @@
+   Compiling xtask v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/tools/xtask)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.31s
+     Running `target/debug/xtask test ui`
+$ cargo nextest run --test=tests --no-capture --
+   Compiling solar-config v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/config)
+   Compiling solar-macros v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/macros)
+   Compiling solar-data-structures v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/data-structures)
+   Compiling solar-codegen v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/codegen)
+   Compiling eyre v0.6.14
+   Compiling ui_test v0.30.7 (https://github.com/DaniPopes/ui_test?branch=fork#1c13820b)
+   Compiling solar-interface v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/interface)
+   Compiling solar-ast v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/ast)
+   Compiling solar-parse v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/parse)
+   Compiling solar-ir v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/ir)
+   Compiling solar-sema v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/sema)
+   Compiling solar-evmir v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/evmir)
+   Compiling solar-mir v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/mir)
+   Compiling solar-evmir-interpreter v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/evmir-interpreter)
+   Compiling solar-mir-interpreter v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/mir-interpreter)
+   Compiling solar-lsp v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/lsp)
+   Compiling solar-lint v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/lint)
+   Compiling solar-tester v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/tools/tester)
+   Compiling solar-cli v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/cli)
+   Compiling solar-compiler v0.3.0 (/home/ubuntu/github/paradigmxyz/solar-test-layout-run-call/crates/solar)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.02s
+────────────
+ Nextest run ID a17fa95d-e4ad-479c-90c6-51934f75a9c3 with nextest profile: default
+    Starting 1 test across 1 binary
+       START [         ] (1/1) solar-compiler::tests ui_test
+
+test result: ok. 5463 passed; 186 filtered out
+
+        PASS [  21.374s] (1/1) solar-compiler::tests ui_test
+────────────
+     Summary [  21.375s] 1 test run: 1 passed, 0 skipped

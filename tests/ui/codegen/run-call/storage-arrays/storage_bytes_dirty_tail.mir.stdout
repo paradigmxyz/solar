@@ -1,0 +1,68 @@
+; === ROOT/tests/ui/codegen/run-call/storage-arrays/storage_bytes_dirty_tail.sol:StorageBytesDirtyTail ===
+@module StorageBytesDirtyTail
+@types
+  struct0: {i256, i256, i256}
+  struct1: {i256, i256}
+
+; function storeLong() external returns (bytes32 first, bytes32 last, uint256 length) [selector 0xc4a6ec73]
+fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = inttoptr i256 v0 to ptr<memory>
+    mstore v0, 33
+    v2 = add v0, 32
+    mstore v2, 0x101010101010101010101010101010101010101010101010101010101010101
+    v3 = add v0, 64
+    mstore v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = add v0, 96
+    mstore 64, v4 !metadata(memory=scratch)
+    icall @store_storage_bytes, 0, v1
+    mstore 0, 0 !metadata(memory=scratch)
+    v5 = keccak256 0, 32 !metadata(memory=scratch)
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v7 = add v5, 1
+    v8 = sload v7 !metadata(storage=offset(v5, 1))
+    v9 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v9
+    v10 = and v9, 1
+    v11 = eq v10, 1
+    v12 = sub 0, v10
+    v13 = or v12, 127
+    v14 = shr v9, 1
+    v15 = and v14, v13
+    v16 = insert_value struct0, undef struct0, 0, v6
+    v17 = insert_value struct0, v16, 1, v8
+    v18 = insert_value struct0, v17, 2, v15
+    ret v18
+}
+
+; function storeShort() external returns (bytes32 slot, uint256 length) [selector 0x5296e6c1]
+fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = inttoptr i256 v0 to ptr<memory>
+    mstore v0, 5
+    v2 = add v0, 32
+    mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = add v0, 64
+    mstore 64, v3 !metadata(memory=scratch)
+    icall @store_storage_bytes, 0, v1
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    validate_storage_bytes v5
+    v6 = and v5, 1
+    v7 = eq v6, 1
+    v8 = sub 0, v6
+    v9 = or v8, 127
+    v10 = shr v5, 1
+    v11 = and v10, v9
+    v12 = insert_value struct1, undef struct1, 0, v4
+    v13 = insert_value struct1, v12, 1, v11
+    ret v13
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}

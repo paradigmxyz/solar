@@ -1,0 +1,14 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running `target/debug/xtask test evm-ir`
+$ cargo nextest run --test=tests --no-capture --
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+────────────
+ Nextest run ID 43ed1721-1715-402b-9fcb-0e4c5a07286d with nextest profile: default
+    Starting 1 test across 1 binary
+       START [         ] (1/1) solar-compiler::tests ui_test
+
+test result: ok. 403 passed
+
+        PASS [   0.214s] (1/1) solar-compiler::tests ui_test
+────────────
+     Summary [   0.214s] 1 test run: 1 passed, 0 skipped

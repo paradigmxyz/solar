@@ -1,0 +1,6 @@
+error: no such command: `uitest`
+
+help: a command with a similar name exists: `test`
+
+help: view all installed commands with `cargo --list`
+help: find a package to install `uitest` with `cargo search cargo-uitest`

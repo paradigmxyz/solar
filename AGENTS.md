@@ -198,6 +198,10 @@ deliberate omissions. A one-line restatement of the name is not enough.
   for one to extend.
 - Test pass behavior with UI tests, by layer:
   - Solidity-to-IR lowering: `tests/ui/codegen/lowering/`.
+  - Runtime behaviour of a Solidity feature, checked with `run-call` and no
+    explicit dump: `tests/ui/codegen/run-call/<feature>/`, such as
+    `abi-decode`, `storage-arrays`, or `modifiers`. FileCheck on the codegen
+    matrix's `mir` revision does not make a test a lowering test.
   - MIR passes: `tests/ui/codegen/mir/<pass-name>/` (command-line pass name).
   - `lower-abi`, `lower-dispatch`, `lower-evm-shaped`:
     `tests/ui/codegen/mir/lowering/`.

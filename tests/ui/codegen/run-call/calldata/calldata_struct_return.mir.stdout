@@ -1,0 +1,109 @@
+; === ROOT/tests/ui/codegen/run-call/calldata/calldata_struct_return.sol:CalldataStructDecoder ===
+@module CalldataStructDecoder
+@library
+
+; === ROOT/tests/ui/codegen/run-call/calldata/calldata_struct_return.sol:CalldataStructReturn ===
+@module CalldataStructReturn
+@types
+  struct0: {i1, i256}
+  struct1: {i1, slice<calldata>}
+  struct2: {i1, i256, i256, i256, i256, i256, i256}
+  struct3: {i1, ptr<memory>}
+
+; function direct(bytes calldata encoded) external pure returns (bool success, uint256 value) [selector 0x18f2e0cb]
+fn @direct(arg0: slice<calldata>) -> struct0 [selector=0x18f2e0cb, pure, abi_params=[bytes], abi_returns=[word<bool>, word], abi_return_params=[bool, uint256]] {
+  bb0:
+    v0 = icall @decode.3, arg0
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = add v4, 64
+    v6 = calldataload v5
+    v7 = insert_value struct0, undef struct0, 0, v1
+    v8 = insert_value struct0, v7, 1, v6
+    ret v8
+}
+
+; function decode(bytes calldata encoded) external pure returns (bool success, CalldataStructDecoder.Auth calldata auth) [selector 0xe5c5e9a3]
+fn @decode.1(arg0: slice<calldata>) -> struct1 [selector=0xe5c5e9a3, pure, abi_params=[bytes], abi_returns=[word<bool>, tuple<word, word, word, word, memory_bytes, memory_bytes>], abi_return_params=[bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>]] {
+  bb0:
+    v0 = icall @decode.3, arg0
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = insert_value struct1, undef struct1, 0, v1
+    v4 = insert_value struct1, v3, 1, v2
+    ret v4
+}
+
+; function roundTrip() external view returns (bool, uint256, uint256, uint256, uint256, uint256, uint256) [selector 0x6643a628]
+fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_returns=[word<bool>, word, word, word, word, word, word], abi_return_params=[bool, uint256, uint256, uint256, uint256, uint256, uint256]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 3
+    v3 = ptradd v2, 32
+    mstore v3, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
+    v4 = ptrtoint ptr<memory> v2 to i256
+    v5 = alloc 64 !metadata(preserves_fmp)
+    mstore v5, 4
+    v6 = ptradd v5, 32
+    mstore v6, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
+    v7 = ptrtoint ptr<memory> v5 to i256
+    v8 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args 1, 2, 3, 4, v2, v5
+    v9 = abi_encode [memory_bytes], scratch, selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v8
+    v10 = extract_value slice<memory>, v9, 0
+    v11 = extract_value slice<memory>, v9, 1
+    v12 = zext i160 v0 to i256
+    v13 = staticcall v1, v12, v10, v11, 0, 0
+    jumpi v13, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v14 = returndatasize
+    v15 = add v14, 31
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = alloc v16
+    returndatacopy v17, 0, v14
+    v18 = make_memory_slice v17, v14
+    v19 = abi_decode [bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>], v18
+    v20 = extract_value struct3, v19, 0
+    v21 = extract_value struct3, v19, 1
+    v22 = insert_value struct3, undef struct3, 0, v20
+    v23 = insert_value struct3, v22, 1, v21
+    v24 = extract_value struct3, v23, 0
+    v25 = extract_value struct3, v23, 1
+    v26 = mload v25
+    v27 = ptradd v25, 32
+    v28 = mload v27
+    v29 = ptradd v25, 64
+    v30 = mload v29
+    v31 = ptradd v25, 96
+    v32 = mload v31
+    v33 = ptradd v25, 128
+    v34 = mload v33, ptr<memory>
+    v35 = mload v34
+    v36 = ptradd v25, 160
+    v37 = mload v36, ptr<memory>
+    v38 = mload v37
+    v39 = insert_value struct2, undef struct2, 0, v24
+    v40 = insert_value struct2, v39, 1, v26
+    v41 = insert_value struct2, v40, 2, v28
+    v42 = insert_value struct2, v41, 3, v30
+    v43 = insert_value struct2, v42, 4, v32
+    v44 = insert_value struct2, v43, 5, v35
+    v45 = insert_value struct2, v44, 6, v38
+    ret v45
+}
+
+; function decode(bytes calldata input) internal pure returns (bool success, Auth calldata auth)
+fn @decode.3(arg0: slice<calldata>) -> struct1 [pure] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = ptrtoint ptr<calldata> v0 to i256
+    v2 = make_calldata_slice v0, 0
+    v3 = insert_value struct1, undef struct1, 0, true
+    v4 = insert_value struct1, v3, 1, v2
+    ret v4
+}

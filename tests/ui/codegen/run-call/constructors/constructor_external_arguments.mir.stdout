@@ -1,0 +1,39 @@
+; === ROOT/tests/ui/codegen/run-call/constructors/constructor_external_arguments.sol:ConstructorExternalArguments ===
+@module ConstructorExternalArguments
+; constructor(bytes3 name_, bool flag_) [creation entry]
+fn @constructor(arg0: i256, arg1: i1) [constructor, abi_params=[bytes3, bool]] {
+  bb0:
+    v0 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000
+    v3 = shr v0, 232
+    v4 = and v3, 0xffffff
+    v5 = or v2, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ffffff
+    v8 = zext i1 arg1 to i256
+    v9 = and v8, 255
+    v10 = shl v9, 24
+    v11 = or v7, v10
+    sstore 0, v11 !metadata(storage=slot(0))
+    ret
+}
+
+; function getName() external view returns (bytes3) [selector 0x17d7de7c]
+fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[word<bytes3>], abi_return_params=[bytes3]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shl v0, 232
+    ret v1
+}
+
+; function getFlag() external view returns (bool) [selector 0xf9633930]
+fn @getFlag() -> i1 [selector=0xf9633930, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr v0, 24
+    v2 = trunc i256 v1 to i8
+    v3 = ne v2, i8 0
+    ret v3
+}
