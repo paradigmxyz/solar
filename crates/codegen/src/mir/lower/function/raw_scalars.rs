@@ -553,6 +553,7 @@ impl LoweringState {
                     } else {
                         exposure.connect_pointers(&[id], initializer);
                     }
+                    let _ = exposure.visit_expr(initializer);
                 }
             }
         }
