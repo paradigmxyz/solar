@@ -16,7 +16,7 @@ fn frontend_callbacks_cross_library_boundary() {
     assert_data_eq!(
         format!("{manifest:?}\n{expansion:?}"),
         str![[
-            r#"FrontendManifest { extensions: [FrontendExtension { name: "repeat", kind: Statement }] }
+            r#"FrontendManifest { extensions: [FrontendExtension { name: "sum", kind: Expression }, FrontendExtension { name: "repeat", kind: Statement }] }
 Statement(Repeat { count: Argument(0), body: Body })"#
         ]]
     );
@@ -405,6 +405,22 @@ fn plugin_identity_rejects_library_replacement_during_loading() {
   "aborting due to 1 previous error"
 ]
 "#]],
+        );
+    }
+}
+
+#[test]
+fn frontend_expression_compiles_and_executes() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("test.sol");
+    fs::write(&path, "contract C { function f() external pure returns(uint256) { return @example.sum(20, @example.sum(21, 1)); } }").unwrap();
+    for optimization in ["-Onone", "-Ogas", "-Osize"] {
+        let output = run(&path, &sample(), &[optimization, "--emit=bin-runtime"]);
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let input = &alloy_primitives::keccak256("f()")[..4];
+        assert_eq!(
+            super::runtime::execute(&artifact(&output), input),
+            alloy_primitives::U256::from(42).to_be_bytes::<32>()
         );
     }
 }

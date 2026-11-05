@@ -4654,6 +4654,7 @@ dependencies = [
  "solar-ast",
  "solar-data-structures",
  "solar-interface",
+ "solar-pass-plugin",
  "tracing",
 ]
 

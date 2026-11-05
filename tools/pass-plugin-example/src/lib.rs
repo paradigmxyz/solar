@@ -15,10 +15,16 @@ struct Example;
 impl Plugin for Example {
     fn frontend_manifest(&self) -> solar_pass_plugin::FrontendManifest {
         solar_pass_plugin::FrontendManifest {
-            extensions: vec![solar_pass_plugin::FrontendExtension {
-                name: "repeat".into(),
-                kind: solar_pass_plugin::ExtensionKind::Statement,
-            }],
+            extensions: vec![
+                solar_pass_plugin::FrontendExtension {
+                    name: "sum".into(),
+                    kind: solar_pass_plugin::ExtensionKind::Expression,
+                },
+                solar_pass_plugin::FrontendExtension {
+                    name: "repeat".into(),
+                    kind: solar_pass_plugin::ExtensionKind::Statement,
+                },
+            ],
         }
     }
 
@@ -27,6 +33,13 @@ impl Plugin for Example {
         request: &solar_pass_plugin::ExpansionRequest,
     ) -> Result<solar_pass_plugin::Expansion, String> {
         use solar_pass_plugin::{Expansion, ExpansionExpr, ExpansionStmt, ExtensionKind};
+        if request.name == "sum" && request.kind == ExtensionKind::Expression {
+            return Ok(Expansion::Expression(ExpansionExpr::Binary {
+                op: "+".into(),
+                left: Box::new(ExpansionExpr::Argument(0)),
+                right: Box::new(ExpansionExpr::Argument(1)),
+            }));
+        }
         if request.name != "repeat" || request.kind != ExtensionKind::Statement {
             return Err("unknown frontend extension".into());
         }
