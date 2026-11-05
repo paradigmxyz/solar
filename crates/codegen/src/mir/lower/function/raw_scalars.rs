@@ -35,7 +35,8 @@
 //! Outside blocks, only copies and pointer edges carry such words, so a
 //! pointer that Solidity code masks or shifts into a different type before
 //! assembly stores it is not tracked, nor is a word that assembly loads from
-//! an address and stores elsewhere, or a pointer that a retyped call hands to a
+//! an address and stores elsewhere, including by a call to the identity
+//! precompile or `returndatacopy`, or a pointer that a retyped call hands to a
 //! function that stores it.
 
 use super::*;
