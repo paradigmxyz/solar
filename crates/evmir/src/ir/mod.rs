@@ -15,7 +15,7 @@
 use crate::{
     debug::{
         DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugLocKind, DebugSpans,
-        MAX_DEBUG_SPANS,
+        DistinctSpans,
     },
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
     op::{self, StackOp, TrackedWord},
@@ -953,12 +953,10 @@ impl Metadata {
     /// Sets all source origins associated with this operation.
     pub fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
         self.source_spans.clear();
+        let mut distinct = DistinctSpans::default();
         for span in spans {
-            if !span.is_dummy() && !self.source_spans.contains(&span) {
+            if !span.is_dummy() && distinct.is_new(span, || self.source_spans.iter().copied()) {
                 self.source_spans.push(span);
-                if self.source_spans.len() == MAX_DEBUG_SPANS {
-                    break;
-                }
             }
         }
         self.debug_loc_kind = DebugLocKind::Normal;
@@ -1013,23 +1011,28 @@ impl Metadata {
 
     /// Adds origins from another operation without changing machine semantics.
     pub fn merge_source_spans(&mut self, other: &Self) {
-        let had_source_spans = !self.source_spans.is_empty();
-        for &span in other.source_spans() {
-            if self.source_spans.len() == MAX_DEBUG_SPANS {
-                break;
+        self.merge_source_spans_from(std::iter::once(other));
+    }
+
+    /// Adds origins from several operations without changing machine semantics.
+    pub fn merge_source_spans_from<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        let mut distinct = DistinctSpans::default();
+        for other in others {
+            let had_source_spans = !self.source_spans.is_empty();
+            for &span in other.source_spans() {
+                if distinct.is_new(span, || self.source_spans.iter().copied()) {
+                    self.source_spans.push(span);
+                }
             }
-            if !self.source_spans.contains(&span) {
-                self.source_spans.push(span);
+            if !had_source_spans && !self.source_spans.is_empty() {
+                self.modifier_depth = other.modifier_depth;
             }
+            self.debug_loc_kind = if self.source_spans.is_empty() {
+                self.debug_loc_kind.merge(other.debug_loc_kind)
+            } else {
+                DebugLocKind::Normal
+            };
         }
-        if !had_source_spans && !self.source_spans.is_empty() {
-            self.modifier_depth = other.modifier_depth;
-        }
-        self.debug_loc_kind = if self.source_spans.is_empty() {
-            self.debug_loc_kind.merge(other.debug_loc_kind)
-        } else {
-            DebugLocKind::Normal
-        };
     }
 
     /// Merges source origins and function events across equivalent operations.
@@ -1047,9 +1050,7 @@ impl Metadata {
         self.function_exit = common_debug_event(
             self.function_exit.into_iter().chain(others.clone().filter_map(Self::function_exit)),
         );
-        for other in others {
-            self.merge_source_spans(other);
-        }
+        self.merge_source_spans_from(others);
     }
 
     /// Returns the function entered after this operation.
@@ -1112,11 +1113,18 @@ impl Metadata {
 
     /// Records a checkpoint proof without describing a function activation.
     pub fn add_checkpoint_transfer(&mut self, span: Span) {
-        if !span.is_dummy()
-            && self.checkpoint_transfers.len() < MAX_DEBUG_SPANS
-            && !self.checkpoint_transfers.contains(&span)
-        {
-            self.checkpoint_transfers.push(span);
+        self.add_checkpoint_transfers([span]);
+    }
+
+    /// Records several checkpoint proofs, keeping the work linear in their number.
+    pub fn add_checkpoint_transfers(&mut self, spans: impl IntoIterator<Item = Span>) {
+        let mut distinct = DistinctSpans::default();
+        for span in spans {
+            if !span.is_dummy()
+                && distinct.is_new(span, || self.checkpoint_transfers.iter().copied())
+            {
+                self.checkpoint_transfers.push(span);
+            }
         }
     }
 }
