@@ -322,6 +322,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Assign(..) | ExprKind::Delete(_) => true,
             ExprKind::Unary(op, _) => op.kind.has_side_effects(),
             ExprKind::Call(callee, _) => {
+                let callee = callee.split_call_options().0;
                 gcx.resolved_builtin(callee).is_some_and(Builtin::is_array_mutator)
                     || gcx.type_of_expr(callee.id).is_some_and(|ty| {
                         matches!(
