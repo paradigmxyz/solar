@@ -1843,7 +1843,7 @@ impl<'a> InlineCloner<'a> {
 
     fn clone_blocks(&mut self, continuation: BlockId) -> Option<BlockId> {
         for block in self.callee.blocks.iter() {
-            self.block_map.push(self.caller.alloc_block_hinted(block.cold_hint));
+            self.block_map.push(self.caller.blocks.push(block.new_copy()));
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
