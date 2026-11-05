@@ -375,6 +375,48 @@
           },
           "version": 1
         }
+      },
+      "UnnamedBase": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "balance(uint256)": {
+              "notice": "Gets the balance"
+            },
+            "stake(uint256)": {
+              "notice": "Gets the stake"
+            },
+            "lock(uint256)": {
+              "notice": "Gets the lock"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "lock(uint256)": {
+              "returns": {
+                "amount": "The lock"
+              }
+            }
+          },
+          "stateVariables": {
+            "balance": {
+              "return": "amount The amount",
+              "returns": {
+                "amount": "The amount"
+              }
+            },
+            "stake": {
+              "return": "amount The stake",
+              "returns": {
+                "amount": "The stake"
+              }
+            }
+          },
+          "version": 1
+        }
       }
     }
   }

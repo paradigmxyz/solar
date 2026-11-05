@@ -72,6 +72,17 @@
 // CHECK: "notice": "Own notice"
 // CHECK: "total()": {
 // CHECK: "notice": "Gets the total"
+//
+// CHECK-LABEL: "UnnamedBase": {
+// CHECK: "devdoc": {
+// CHECK: "lock(uint256)": {
+// CHECK: "amount": "The lock"
+// CHECK: "balance": {
+// CHECK: "return": "amount The amount"
+// CHECK: "amount": "The amount"
+// CHECK: "stake": {
+// CHECK: "return": "amount The stake"
+// CHECK: "amount": "The stake"
 {
   "language": "Solidity",
   "settings": {
@@ -114,6 +125,10 @@
           "devdoc"
         ],
         "Same": [
+          "userdoc",
+          "devdoc"
+        ],
+        "UnnamedBase": [
           "userdoc",
           "devdoc"
         ]

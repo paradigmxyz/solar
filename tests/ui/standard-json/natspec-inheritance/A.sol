@@ -147,3 +147,29 @@ contract DocumentedVariable is V {
     mapping(uint => address) public override owner;
     mapping(uint => S) public override pair;
 }
+
+struct Amount {
+    uint amount;
+}
+
+interface W {
+    /// @notice Gets the balance
+    /// @return amount The amount
+    function balance(uint id) external view returns (uint);
+
+    /// @notice Gets the stake
+    /// @return The stake
+    function stake(uint id) external view returns (uint);
+
+    /// @notice Gets the lock
+    /// @return amount The lock
+    function lock(uint id) external view returns (uint);
+}
+
+// Inherited text of an unnamed return that starts with the name of the return it documents.
+contract UnnamedBase is W {
+    mapping(uint => Amount) public override balance;
+    mapping(uint => Amount) public override stake;
+
+    function lock(uint id) external view override returns (uint amount) {}
+}
