@@ -1,4 +1,4 @@
-{"contracts":{"ROOT/tests/ui/codegen/debug-info/function_comments_debug.sol:C":{"srcmap-runtime":"230:115:0:-:0;;;;;;;;;;;;-1:-1:-1;;;;;;;331:5:0;;;;;;;;;324:13;;;;;-1:-1:-1;230:115:0;;;-1:-1:-1;331:5:0;;;;;;;;"}},"sourceList":["ROOT/tests/ui/codegen/debug-info/function_comments_debug.sol"],"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
+{"contracts":{"ROOT/tests/ui/codegen/debug-info/function_comments_debug.sol:C":{"srcmap-runtime":"230:115:0:-:0;;;;;;;;;;;;247:96;;;;;;;;;331:5;;;;;;;324:13;;;;;-1:-1:-1;;;;;331:5:0;;;;;;;;"}},"sourceList":["ROOT/tests/ui/codegen/debug-info/function_comments_debug.sol"],"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
 ; === ROOT/tests/ui/codegen/debug-info/function_comments_debug.sol:C (runtime) ===
 @module C_runtime
 bb0:                                              ; runtime dispatch entry + function add(uint256 a, uint256 b) external pure returns (uint256) [selector 0x771602f7]
@@ -14,15 +14,15 @@ bb0:                                              ; runtime dispatch entry + fun
   sub !metadata(span=230..345)
   push bb3 !metadata(span=230..345)
   jumpi !metadata(span=230..345)
-  push 68 !metadata(invoke=add@247..343)
-  calldatasize
-  lt
-  push bb3
-  jumpi
-  push 4
-  calldataload
-  push 36 !metadata(span=331..336)
-  calldataload !metadata(span=331..336)
+  push 68 !metadata(span=247..343, invoke=add@247..343)
+  calldatasize !metadata(span=247..343)
+  lt !metadata(span=247..343)
+  push bb3 !metadata(span=247..343)
+  jumpi !metadata(span=247..343)
+  push 4 !metadata(span=247..343)
+  calldataload !metadata(span=247..343)
+  push 36 !metadata(span=247..343)
+  calldataload !metadata(span=247..343)
   dup 2 !metadata(span=331..336)
   add !metadata(span=331..336)
   swap 1 !metadata(span=331..336)
@@ -36,9 +36,9 @@ bb0:                                              ; runtime dispatch entry + fun
   push 0 !metadata(span=324..337)
   return !metadata(span=324..337, exit=return)
 bb3 [cold]:
-  push 0 !metadata(span=230..345)
-  push 0 !metadata(span=230..345)
-  revert !metadata(span=230..345, exit=revert)
+  push 0 !metadata(spans=[230..345, 247..343])
+  push 0 !metadata(spans=[230..345, 247..343])
+  revert !metadata(spans=[230..345, 247..343], exit=revert)
 bb7 [cold]:
   push 17 !metadata(span=331..336)
   push 32 !metadata(span=331..336)
