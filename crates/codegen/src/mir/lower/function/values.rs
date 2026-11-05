@@ -100,6 +100,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Some(value)
                 }
             };
+            let defer = values.iter().flatten().any(|value| self.may_write_storage(value));
             let mut operands = Vec::with_capacity(returns.len());
             for (value, &id) in values.iter().zip(&returns) {
                 let value = (*value)?;
@@ -107,7 +108,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 operands.push(if ty.is_ref_at(DataLocation::Storage) {
                     DeferredOperand::Ready(self.require_storage_access(value)?.slot)
                 } else {
-                    self.lower_deferred_operand(value, ty, |this, object| {
+                    self.lower_deferred_operand(value, ty, defer, |this, object| {
                         finish(this, ty, object, value.span)
                     })?
                 });

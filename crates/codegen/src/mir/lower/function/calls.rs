@@ -455,6 +455,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .gcx
             .call_param_source(callee)
             .map(|source| self.cx.gcx.callable_param_names(source));
+        let defer = args.exprs().any(|arg| self.may_write_storage(arg));
         let carrier = |this: &mut Self, index: usize, value, span| {
             let parameter = function.parameters[index];
             if !Self::is_storage_parameter(parameter) && !parameter.is_value_type() {
@@ -484,7 +485,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let slot = this.require_storage_access(argument)?.slot;
                     return carrier(this, index, slot, argument.span).map(DeferredOperand::Ready);
                 }
-                this.lower_deferred_operand(argument, parameter, |this, value| {
+                this.lower_deferred_operand(argument, parameter, defer, |this, value| {
                     carrier(this, index, value, argument.span)
                 })
             },
@@ -838,6 +839,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 receiver.span,
             )?);
         }
+        let defer = args.exprs().any(|arg| self.may_write_storage(arg));
         let carrier = |this: &mut Self, argument_index: usize, value, span| {
             let parameter = function.parameters[argument_index + receiver_count];
             this.materialize_scalar_carrier(parameter, value, span)
@@ -859,7 +861,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     return carrier(this, argument_index, slot, argument.span)
                         .map(DeferredOperand::Ready);
                 }
-                this.lower_deferred_operand(argument, parameter_ty, |this, value| {
+                this.lower_deferred_operand(argument, parameter_ty, defer, |this, value| {
                     carrier(this, argument_index, value, argument.span)
                 })
             },

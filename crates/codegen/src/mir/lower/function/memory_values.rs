@@ -77,6 +77,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parameter_names =
             self.cx.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
         let object = self.builder.alloc_word_struct(fields, AllocationSemantics::INTERNAL);
+        let defer = args.exprs().any(|arg| self.may_write_storage(arg));
         let field_ty = |this: &Self, index: usize| {
             this.cx
                 .gcx
@@ -98,7 +99,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "struct constructor argument",
             |this, index, argument| {
                 let field_ty = field_ty(this, index);
-                this.lower_deferred_operand(argument, field_ty, |this, value| {
+                this.lower_deferred_operand(argument, field_ty, defer, |this, value| {
                     field_value(this, field_ty, value, argument.span)
                 })
             },

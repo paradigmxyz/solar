@@ -313,18 +313,87 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && self.types.memory_layout(ty).is_some()
     }
 
-    /// Lowers the operand `expr` as the memory type `ty`. A storage array, struct, `bytes`, or
-    /// `string` lowers to its slot, which [`Self::resolve_deferred_operand`] copies after the
-    /// operands that follow, as solc does; any other operand lowers to its value, which `finish`
-    /// prepares.
+    /// Whether lowering `expr` can write storage: an assignment, `delete`, increment, decrement,
+    /// `push`, `pop`, or a call that is not `view` or `pure`. Only such an operand can change what
+    /// an earlier storage operand copies.
+    pub(super) fn may_write_storage(&self, expr: &hir::Expr<'_>) -> bool {
+        let gcx = self.cx.gcx;
+        let writes = match expr.kind {
+            ExprKind::Assign(..) | ExprKind::Delete(_) => true,
+            ExprKind::Unary(op, _) => op.kind.has_side_effects(),
+            ExprKind::Call(callee, _) => {
+                gcx.resolved_builtin(callee).is_some_and(Builtin::is_array_mutator)
+                    || gcx.type_of_expr(callee.id).is_some_and(|ty| {
+                        matches!(
+                            ty.state_mutability(),
+                            Some(StateMutability::NonPayable | StateMutability::Payable)
+                        )
+                    })
+            }
+            _ => false,
+        } || gcx.user_operator(expr.id).is_some_and(|id| {
+            !matches!(
+                gcx.hir.function(id).state_mutability,
+                StateMutability::View | StateMutability::Pure
+            )
+        });
+        writes
+            || match expr.kind {
+                ExprKind::Array(exprs) => exprs.iter().any(|expr| self.may_write_storage(expr)),
+                ExprKind::Tuple(exprs) => {
+                    exprs.iter().flatten().any(|expr| self.may_write_storage(expr))
+                }
+                ExprKind::Assign(lhs, _, rhs) | ExprKind::Binary(lhs, _, rhs) => {
+                    self.may_write_storage(lhs) || self.may_write_storage(rhs)
+                }
+                ExprKind::Call(callee, args) => {
+                    self.may_write_storage(callee)
+                        || args.exprs().any(|arg| self.may_write_storage(arg))
+                }
+                ExprKind::CallOptions(callee, options) => {
+                    self.may_write_storage(callee)
+                        || options.args.iter().any(|option| self.may_write_storage(&option.value))
+                }
+                ExprKind::Delete(inner)
+                | ExprKind::Member(inner, _)
+                | ExprKind::Payable(inner)
+                | ExprKind::Unary(_, inner)
+                | ExprKind::YulMember(inner, _) => self.may_write_storage(inner),
+                ExprKind::Index(base, index) => {
+                    self.may_write_storage(base) || index.is_some_and(|i| self.may_write_storage(i))
+                }
+                ExprKind::Slice(base, start, end) => {
+                    self.may_write_storage(base)
+                        || [start, end].into_iter().flatten().any(|e| self.may_write_storage(e))
+                }
+                ExprKind::Ternary(cond, then, els) => {
+                    self.may_write_storage(cond)
+                        || self.may_write_storage(then)
+                        || self.may_write_storage(els)
+                }
+                ExprKind::Ident(_)
+                | ExprKind::Lit(_)
+                | ExprKind::New(_)
+                | ExprKind::Type(_)
+                | ExprKind::TypeCall(_)
+                | ExprKind::Err(_) => false,
+            }
+    }
+
+    /// Lowers the operand `expr` as the memory type `ty`. When `defer` is set, a storage array,
+    /// struct, `bytes`, or `string` lowers to its slot, which [`Self::resolve_deferred_operand`]
+    /// copies after the operands that follow, as solc does; otherwise, and for any other operand,
+    /// it lowers to its value, which `finish` prepares. `defer` is false when no later operand
+    /// can write storage, so that the copy keeps its place.
     pub(super) fn lower_deferred_operand<T>(
         &mut self,
         expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
+        defer: bool,
         finish: impl FnOnce(&mut Self, ValueId) -> Option<T>,
     ) -> Option<DeferredOperand<'gcx, T>> {
         let source = self.peel_bytes_conversion(expr);
-        if self.is_storage_object_copy(source, ty) {
+        if defer && self.is_storage_object_copy(source, ty) {
             let slot = self.require_storage_access(source)?.slot;
             return Some(DeferredOperand::Storage(StorageCopy { slot, ty, span: expr.span }));
         }
@@ -420,7 +489,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .prepare_abi_argument(argument, parameter_ty, value, AbiType::Bytes(location))
                 .map(AbiOperand::Ready);
         }
-        self.lower_deferred_operand(argument, parameter_ty, |this, value| {
+        self.lower_deferred_operand(argument, parameter_ty, true, |this, value| {
             let abi_type = this.types.abi_type(parameter_ty)?;
             let abi_type = if this.cx.gcx.type_of_expr(argument.id).is_some_and(|ty| {
                 ty.is_ref_at(DataLocation::Memory) || ty.is_ref_at(DataLocation::Storage)

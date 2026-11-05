@@ -976,7 +976,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
-                    match self.lower_deferred_operand(rhs, memory_rhs_ty, |_, value| Some(value))? {
+                    let defer = self.may_write_storage(lhs);
+                    match self
+                        .lower_deferred_operand(rhs, memory_rhs_ty, defer, |_, value| Some(value))?
+                    {
                         DeferredOperand::Ready(value) => value,
                         DeferredOperand::Storage(copy) => {
                             // The place, and any index it evaluates, runs before the copy.

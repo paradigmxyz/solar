@@ -108,6 +108,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let ExprKind::Tuple(values) = &expr.peel_parens().kind
                     && values.len() == ids.len()
                 {
+                    let defer = values.iter().flatten().any(|value| self.may_write_storage(value));
                     let mut declared = Vec::new();
                     let mut operands = Vec::new();
                     for (id, value) in ids.iter().zip(values.iter()) {
@@ -131,9 +132,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             continue;
                         }
                         let span = value.span;
-                        let operand = self.lower_deferred_operand(value, ty, |this, value| {
-                            this.materialize_scalar_carrier(*id, value, span)
-                        })?;
+                        let operand =
+                            self.lower_deferred_operand(value, ty, defer, |this, value| {
+                                this.materialize_scalar_carrier(*id, value, span)
+                            })?;
                         declared.push(*id);
                         operands.push(operand);
                     }
@@ -582,10 +584,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             AbiOperand::Ready((value, AbiType::Bytes(location))),
                         ));
                     }
-                    let operand =
-                        this.lower_deferred_operand(argument, parameter_ty, |this, value| {
-                            Some((value, this.types.abi_type(parameter_ty)?))
-                        })?;
+                    let operand = this.lower_deferred_operand(
+                        argument,
+                        parameter_ty,
+                        true,
+                        |this, value| Some((value, this.types.abi_type(parameter_ty)?)),
+                    )?;
                     return Some((argument, operand));
                 }
                 let value = this.lower_typed_expr(argument, parameter_ty)?;
