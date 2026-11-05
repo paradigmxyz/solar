@@ -24,9 +24,11 @@
 //! exposed, and the parameters and returns of every exposed function are
 //! tainted. These rules feed each other and iterate to a fixpoint.
 //!
-//! NOTE: Pointers reach this graph only through bindings. Assembly that writes
-//! a pointer into memory or storage through an address it computed, rather
-//! than through a reference binding, is not tracked.
+//! Assembly can also write a pointer into memory or storage through an address
+//! it computed, which the graph cannot follow to a reference binding. So when
+//! an assembly block that stores reads a binding that can hold a pointer, the
+//! functions whose pointers reach that binding may sit behind any pointer in
+//! the contract, and every pointer call dispatches over the exposed functions.
 
 use super::*;
 use smallvec::SmallVec;
@@ -48,7 +50,17 @@ struct Exposure<'gcx> {
     pointer_values: Vec<(hir::FunctionId, VariableId)>,
     pointer_calls: Vec<PointerCall<'gcx>>,
     returns: &'gcx [VariableId],
-    assembly: bool,
+    assembly: Option<AssemblyBlock>,
+    /// Bindings that can hold pointers and that assembly blocks storing words read.
+    storing_reads: Vec<VariableId>,
+}
+
+/// What an assembly block does with the bindings it reads.
+#[derive(Default)]
+struct AssemblyBlock {
+    /// Whether the block writes memory or storage, where it can put a pointer anywhere.
+    stores: bool,
+    reads: SmallVec<[VariableId; 4]>,
 }
 
 /// An internal function pointer call with the pointers it reads.
@@ -147,6 +159,18 @@ impl<'gcx> Exposure<'gcx> {
             }
         }
         self.connect_pointers(destinations, expr);
+    }
+
+    /// Adds to `set` every binding reachable from `pending` over copy and pointer edges.
+    fn close(&self, set: &mut FxHashSet<VariableId>, pending: &mut Vec<VariableId>) {
+        while let Some(id) = pending.pop() {
+            let neighbors = self.edges.get(&id).into_iter().flatten();
+            for &neighbor in neighbors.chain(self.pointer_edges.get(&id).into_iter().flatten()) {
+                if set.insert(neighbor) {
+                    pending.push(neighbor);
+                }
+            }
+        }
     }
 
     /// Returns the internal function whose pointer an expression takes.
@@ -361,9 +385,11 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Never> {
-        let previous = self.assembly;
+        let is_assembly = matches!(stmt.kind, StmtKind::AssemblyBlock(..));
+        if is_assembly {
+            self.assembly = Some(AssemblyBlock::default());
+        }
         match stmt.kind {
-            StmtKind::AssemblyBlock(..) => self.assembly = true,
             StmtKind::Return(Some(expr)) => self.connect(self.returns, expr),
             StmtKind::DeclMulti(ids, expr) => {
                 self.connect(&ids.iter().flatten().copied().collect::<SmallVec<[_; 4]>>(), expr);
@@ -371,17 +397,40 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
             _ => {}
         }
         let result = self.walk_stmt(stmt);
-        self.assembly = previous;
+        if is_assembly
+            && let Some(block) = self.assembly.take()
+            && block.stores
+        {
+            self.storing_reads.extend(block.reads);
+        }
         result
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
-        if self.assembly {
-            if matches!(expr.kind, ExprKind::Ident(_))
-                && let Some(hir::Res::Item(hir::ItemId::Variable(id))) =
-                    self.gcx.resolved_expr(expr)
-            {
-                self.raw.insert(id);
+        if let Some(block) = &mut self.assembly {
+            match expr.kind {
+                ExprKind::Ident(_) => {
+                    if let Some(hir::Res::Item(hir::ItemId::Variable(id))) =
+                        self.gcx.resolved_expr(expr)
+                    {
+                        self.raw.insert(id);
+                        if can_hold_function_pointer(self.gcx.type_of_item(id.into())) {
+                            block.reads.push(id);
+                        }
+                    }
+                }
+                ExprKind::Call(callee, _) => {
+                    block.stores |= matches!(
+                        self.gcx.resolved_builtin(callee),
+                        Some(
+                            Builtin::YulMstore
+                                | Builtin::YulMstore8
+                                | Builtin::YulSstore
+                                | Builtin::YulTstore
+                        )
+                    );
+                }
+                _ => {}
             }
         } else if let Some(id) = self.gcx.user_operator(expr.id) {
             let parameters = self.gcx.hir.function(id).parameters;
@@ -465,7 +514,8 @@ impl LoweringState {
             pointer_values: Vec::new(),
             pointer_calls: Vec::new(),
             returns: &[],
-            assembly: false,
+            assembly: None,
+            storing_reads: Vec::new(),
         };
         for &(id, _) in functions {
             let _ = exposure.visit_nested_function(id);
@@ -500,22 +550,19 @@ impl LoweringState {
             }
         }
 
+        // Pointers that assembly can write through a computed address.
+        let mut escaping = FxHashSet::from_iter(exposure.storing_reads.iter().copied());
+        let mut pending = escaping.iter().copied().collect::<Vec<_>>();
+        exposure.close(&mut escaping, &mut pending);
+        let escaped = exposure.pointer_values.iter().any(|(_, binding)| escaping.contains(binding));
+
         let mut tainted = exposure.raw.clone();
         let mut pending = tainted.iter().copied().collect::<Vec<_>>();
         let mut exposed = FxHashSet::default();
         let mut calls = FxHashSet::default();
         loop {
             // tainted = closure(tainted, copy edges + pointer edges)
-            while let Some(id) = pending.pop() {
-                let neighbors = exposure.edges.get(&id).into_iter().flatten();
-                for &neighbor in
-                    neighbors.chain(exposure.pointer_edges.get(&id).into_iter().flatten())
-                {
-                    if tainted.insert(neighbor) {
-                        pending.push(neighbor);
-                    }
-                }
-            }
+            exposure.close(&mut tainted, &mut pending);
             // A function whose pointer reaches a tainted binding is exposed to assembly.
             let mut newly_exposed = exposure
                 .pointer_values
@@ -528,7 +575,7 @@ impl LoweringState {
             // A tainted call can pass its arguments to an exposed function of another type.
             for call in &exposure.pointer_calls {
                 if !calls.contains(&call.call)
-                    && call.callee.iter().any(|binding| tainted.contains(binding))
+                    && (escaped || call.callee.iter().any(|binding| tainted.contains(binding)))
                 {
                     calls.insert(call.call);
                     pending.extend(call.arguments.iter().filter(|&&id| tainted.insert(id)));
