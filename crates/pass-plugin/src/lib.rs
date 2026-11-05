@@ -6,6 +6,9 @@
 //! each side retains ownership of its allocations. The export adapter contains plugin panics
 //! when built with unwinding. Native libraries are trusted code, not a sandbox.
 
+#[cfg(feature = "host")]
+pub mod host;
+
 /// Interface version understood by this SDK.
 pub const API_VERSION: u32 = 1;
 

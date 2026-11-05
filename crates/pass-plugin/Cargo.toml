@@ -10,3 +10,10 @@ repository.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+host = ["dep:libloading"]
+
+[target.'cfg(any(unix, windows))'.dependencies]
+# host
+libloading = { workspace = true, optional = true }

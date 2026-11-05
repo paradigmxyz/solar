@@ -4410,7 +4410,6 @@ dependencies = [
  "cranelift-isle",
  "derive_more",
  "either",
- "libloading",
  "memchr",
  "serde_json",
  "smallvec",
@@ -4661,6 +4660,9 @@ dependencies = [
 [[package]]
 name = "solar-pass-plugin"
 version = "0.3.0"
+dependencies = [
+ "libloading",
+]
 
 [[package]]
 name = "solar-pass-plugin-example"
