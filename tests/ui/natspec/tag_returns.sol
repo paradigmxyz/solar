@@ -35,3 +35,10 @@ contract InvalidReturnOrder {
     //~^^ WARN: mismatched `@return` parameter: expected `second`, found `first`
     function swappedNames() public returns (uint first, uint second) {}
 }
+
+contract NameAfterDroppedText {
+    /// @return   
+    /// @ second The name is read after the dropped `@`
+    //~^ WARN: mismatched `@return` parameter: expected `first`, found `second`
+    function droppedAt() public returns (uint first, uint second) {}
+}

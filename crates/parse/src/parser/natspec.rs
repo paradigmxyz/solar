@@ -81,6 +81,9 @@ pub(super) fn parse_natspec(
     if lines.is_empty() {
         return;
     }
+    // The token has no `*/`, so a `*` at its end is the first of a `**/`.
+    let closing_star =
+        comment_kind == ast::CommentKind::Block && docs[0].symbol.as_str().ends_with('*');
 
     #[cold]
     #[inline(never)]
@@ -213,7 +216,7 @@ pub(super) fn parse_natspec(
                         }
                         // Like solc, the tag and its lines are not content of the previous tag.
                         if let Some(item) = pending.take() {
-                            push_item(items, &lines, item, end);
+                            push_item(items, &lines, item, end, closing_star);
                         }
                         consumed = true;
                         continue;
@@ -222,7 +225,7 @@ pub(super) fn parse_natspec(
             };
 
             if let Some(item) = pending.take() {
-                push_item(items, &lines, item, end);
+                push_item(items, &lines, item, end, closing_star);
             }
             consumed = true;
             content_on_next_line = name_end == text.len() && !matches!(tag, "param" | "inheritdoc");
@@ -230,7 +233,7 @@ pub(super) fn parse_natspec(
         }
     }
     if let Some(item) = pending {
-        push_item(items, &lines, item, lines.len());
+        push_item(items, &lines, item, lines.len(), closing_star);
     }
 }
 
@@ -240,8 +243,9 @@ fn push_item(
     lines: &Lines<'_>,
     item: PendingItem,
     end: usize,
+    closing_star: bool,
 ) {
-    let (symbol, content_start, content_end) = match &lines[item.line..end] {
+    let (symbol, content_start, mut content_end, content_lo) = match &lines[item.line..end] {
         // Only the notice before the first tag has no lines, when the first line is a tag.
         [] => {
             debug_assert!(item.implicit);
@@ -250,28 +254,28 @@ fn push_item(
         // A single line is a slice of its comment.
         [line] => {
             let start = line.start as usize + item.offset;
-            (line.symbol, start, line.start as usize + line.text.len())
+            let content_lo = first_non_blank(line, item.offset).unwrap_or(item.span.hi());
+            (line.symbol, start, line.start as usize + line.text.len(), content_lo)
         }
         [first, rest @ ..] => {
-            let joined = join_lines(first, item.offset, rest);
-            (Symbol::intern(&joined), 0, joined.len())
+            let (joined, content_lo) = join_lines(first, item.offset, rest);
+            (Symbol::intern(&joined), 0, joined.len(), content_lo.unwrap_or(item.span.hi()))
         }
     };
-    let content = &symbol.as_str()[content_start..content_end];
-    if item.implicit && content.trim_ascii().is_empty() {
+    if item.implicit && symbol.as_str()[content_start..content_end].trim_ascii().is_empty() {
         return;
     }
 
-    // The first non-blank byte of the content, which may be on a later line.
-    let content_lo = lines[item.line..end]
-        .iter()
-        .enumerate()
-        .find_map(|(index, line)| {
-            let offset = if index == 0 { item.offset } else { 0 };
-            let lead = blanks_len(&line.text[offset..]);
-            (offset + lead < line.text.len()).then(|| line.pos(offset + lead))
-        })
-        .unwrap_or(item.span.hi());
+    // The `*` of a `**/` that closes the comment is not part of the arguments of a
+    // `@custom:solar-*` tag. Anywhere else, a `*` is part of them.
+    if closing_star
+        && end == lines.len()
+        && let ast::NatSpecKind::Custom { name } = item.kind
+        && name.name.as_str().starts_with("solar-")
+        && let Some(without_star) = symbol.as_str()[content_start..content_end].strip_suffix('*')
+    {
+        content_end = content_start + without_star.trim_end().len();
+    }
     items.push(ast::NatSpecItem {
         kind: item.kind,
         span: item.span,
@@ -282,6 +286,12 @@ fn push_item(
     });
 }
 
+/// Returns the source position of the first non-blank byte of the text of `line` from `offset`.
+fn first_non_blank(line: &Line<'_>, offset: usize) -> Option<BytePos> {
+    let lead = blanks_len(&line.text[offset..]);
+    (offset + lead < line.text.len()).then(|| line.pos(offset + lead))
+}
+
 /// Returns the length of the leading whitespace of `text`.
 fn blanks_len(text: &str) -> usize {
     text.len() - text.trim_ascii_start().len()
@@ -289,41 +299,71 @@ fn blanks_len(text: &str) -> usize {
 
 /// Joins the lines of a tag's content like solc: a space goes before a logical line that does not
 /// start with a blank. A logical line is a line and the lines that the scanner glues to it.
-fn join_lines(first: &Line<'_>, offset: usize, rest: &[Line<'_>]) -> String {
+///
+/// Also returns the source position of the first non-blank byte of the joined text.
+fn join_lines(first: &Line<'_>, offset: usize, rest: &[Line<'_>]) -> (String, Option<BytePos>) {
     let capacity = rest.iter().map(|line| line.text.len() + 1).sum::<usize>();
     let mut joined = String::with_capacity(first.text.len() - offset + capacity);
     joined.push_str(&first.text[offset..]);
+    let mut content_lo = first_non_blank(first, offset);
 
     // The logical line of the first line is content as it is.
-    let mut rest = rest.iter().peekable();
-    while let Some(line) = rest.next_if(|line| line.glued) {
+    let mut index = 0;
+    while let Some(line) = rest.get(index).filter(|line| line.glued) {
         joined.push_str(line.text);
+        content_lo = content_lo.or_else(|| first_non_blank(line, 0));
+        index += 1;
     }
     let mut logical = String::new();
-    while let Some(line) = rest.next() {
+    while index < rest.len() {
+        let start = index;
+        index += 1;
+        while rest.get(index).is_some_and(|line| line.glued) {
+            index += 1;
+        }
+        let group = &rest[start..index];
         logical.clear();
-        logical.push_str(line.text);
-        while let Some(glued) = rest.next_if(|line| line.glued) {
-            logical.push_str(glued.text);
+        for line in group {
+            logical.push_str(line.text);
         }
 
         // An `@` that names no tag is dropped with the blank after it, and the text before it,
         // as solc does.
-        let mut text = logical.as_str();
-        if let Some(at) = text.find('@')
-            && let after = &text[at + 1..]
+        let mut kept = 0;
+        if let Some(at) = logical.find('@')
+            && let after = &logical[at + 1..]
             && (after.is_empty() || after.starts_with([' ', '\t']))
         {
             // A lone `@` has no text to join.
-            let Some(after) = after.get(1..) else { continue };
-            text = after;
+            if after.is_empty() {
+                continue;
+            }
+            kept = at + 2;
         }
+        let text = &logical[kept..];
         if !text.starts_with([' ', '\t']) {
             joined.push(' ');
         }
         joined.push_str(text);
+        if content_lo.is_none() {
+            let lead = blanks_len(text);
+            if lead < text.len() {
+                content_lo = Some(position_in_logical_line(group, kept + lead));
+            }
+        }
     }
-    joined
+    (joined, content_lo)
+}
+
+/// Returns the source position of the byte at `offset` in the logical line made of `group`.
+fn position_in_logical_line(group: &[Line<'_>], mut offset: usize) -> BytePos {
+    for line in group {
+        if offset < line.text.len() {
+            return line.pos(offset);
+        }
+        offset -= line.text.len();
+    }
+    group[group.len() - 1].pos(group[group.len() - 1].text.len())
 }
 
 /// Returns the lines of adjacent `///` comments. The first loses its leading blanks, the others
