@@ -846,6 +846,35 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/revert-strings/`,
   `tests/ui/codegen/lowering/library_delegatecall_guard.sol`.
 
+### CODEGEN-008: Environment snapshots across Foundry cheatcodes
+
+- ID: CODEGEN-008
+- Status: intentional
+- Difference: Foundry tests that save `block.number` across `vm.roll`, or
+  `block.timestamp` across `vm.warp`, can observe different values with solar
+  and solc. A source local is not a reliable snapshot: optimization can reuse
+  or rematerialize an environment read. Optimized solc via IR exhibits the
+  same class of behavior; passing with one pipeline is not a guarantee.
+- Rationale: block number and timestamp are invariant within an ordinary EVM
+  transaction. Cheatcodes change that environment outside production semantics.
+  Keep production optimizations and use `vm.getBlockNumber()` or
+  `vm.getBlockTimestamp()` at the intended snapshot or observation point.
+- Coverage: [Foundry PR #16727](https://github.com/foundry-rs/foundry/pull/16727)
+  implements source lints for both patterns, following local values, internal
+  helpers, and modifiers. Its tests cover getter behavior and bytecode
+  neutrality. In the pinned OpenZeppelin external suite at
+  `f646874fdc9b151631e3c96a68defbdbe736cd53`, the helper for
+  `BlockhashTest::testFuzzHistoryBlocks(uint16,uint256,bytes32)`
+  saves `block.number - 1` before rolling. Replacing that capture with
+  `vm.getBlockNumber() - 1` passes the reproduced case and 256 fixed-seed fuzz
+  cases under both compilers. The external runner applies this test-only
+  correction to both compiler legs and keeps the test enabled. It checks the
+  expected source text before applying the correction. The pinned Seaport
+  suite's ascending and descending amount tests save `block.timestamp` before
+  `vm.warp` and compute the expected amount from it afterwards; the runner
+  reads the warped timestamp through an external helper instead, so the five
+  affected tests pass under both compilers.
+
 ### CODEGEN-009: Static frames sit below the initial free memory pointer
 
 - ID: CODEGEN-009
