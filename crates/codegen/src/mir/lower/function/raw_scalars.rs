@@ -27,9 +27,10 @@
 //! Assembly can also write a pointer into memory or storage through an address
 //! it computed, which the graph cannot follow to a binding. So when a block
 //! stores a word that may come from a binding a function's pointer reaches,
-//! every pointer call dispatches over the exposed functions. Assigning a
-//! reference's `slot` or `offset` counts the same, since Solidity stores
-//! through the reference then land at a computed address. Within a block,
+//! every pointer call dispatches over the exposed functions. So does a
+//! pointer that Solidity stores through a reference that assembly assigned,
+//! or whose `slot` or `offset` it assigned, since the store lands at a
+//! computed address. Within a block,
 //! words can flow between any of its bindings, so they all count as one.
 //! Outside blocks, only copies and pointer edges carry such words, so a
 //! pointer that Solidity code masks or shifts into a different type before
@@ -62,6 +63,10 @@ struct Exposure<'gcx> {
     assembly_edges: FxHashMap<VariableId, Vec<VariableId>>,
     /// Bindings whose words assembly stores to memory or storage.
     stored: Vec<VariableId>,
+    /// References that assembly points at an address of its choosing.
+    retargeted: Vec<VariableId>,
+    /// The bindings whose pointers Solidity stores into the object of each reference.
+    store_edges: FxHashMap<VariableId, Vec<VariableId>>,
 }
 
 /// Collects the bindings an assembly expression mentions.
@@ -288,6 +293,16 @@ impl<'gcx> Exposure<'gcx> {
         }
     }
 
+    /// Records the pointers an expression stores into the objects of references.
+    fn connect_stores(&mut self, roots: &[VariableId], expr: &hir::Expr<'_>) {
+        self.connect_pointers(roots, expr);
+        let mut bindings = SmallVec::<[_; 4]>::new();
+        self.pointer_sources(expr, &mut bindings, &mut SmallVec::new());
+        for &root in roots {
+            self.store_edges.entry(root).or_default().extend_from_slice(&bindings);
+        }
+    }
+
     /// Records the references whose objects an assignment target stores into.
     fn store_roots(&mut self, target: &hir::Expr<'_>, roots: &mut SmallVec<[VariableId; 4]>) {
         match target.kind {
@@ -444,11 +459,13 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                 && let Some(value) = args.exprs().nth(1)
             {
                 assembly_bindings(self.gcx, value, &mut self.stored);
-            } else if let ExprKind::Assign(target, ..) = expr.kind
-                && let ExprKind::YulMember(base, _) = target.kind
-            {
+            } else if let ExprKind::Assign(target, ..) = expr.kind {
                 // Retargeting a reference makes Solidity stores through it computed.
-                assembly_bindings(self.gcx, base, &mut self.stored);
+                let mut targets = Vec::new();
+                assembly_bindings(self.gcx, target, &mut targets);
+                self.retargeted.extend(targets.into_iter().filter(|&id| {
+                    matches!(self.gcx.type_of_item(id.into()).kind, TyKind::Ref(..))
+                }));
             } else if let ExprKind::Call(callee, _) = expr.kind
                 && let Some(id) = self.gcx.resolved_function(callee)
                 && self.gcx.hir.function(id).is_yul
@@ -477,7 +494,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                     self.connect(&ids, rhs);
                     let mut roots = SmallVec::new();
                     self.store_roots(lhs, &mut roots);
-                    self.connect_pointers(&roots, rhs);
+                    self.connect_stores(&roots, rhs);
                 }
                 ExprKind::Call(callee, args) => {
                     self.record_pointer_call(expr, callee, args);
@@ -487,7 +504,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                     {
                         let mut roots = SmallVec::new();
                         self.pointer_sources(base, &mut roots, &mut SmallVec::new());
-                        self.connect_pointers(&roots, value);
+                        self.connect_stores(&roots, value);
                     }
                     let callees = self.callees(callee);
                     if callees.is_empty() {
@@ -544,6 +561,8 @@ impl LoweringState {
             assembly: None,
             assembly_edges: FxHashMap::default(),
             stored: Vec::new(),
+            retargeted: Vec::new(),
+            store_edges: FxHashMap::default(),
         };
         for &(id, _) in functions {
             let _ = exposure.visit_nested_function(id);
@@ -581,6 +600,10 @@ impl LoweringState {
 
         // Bindings whose words may reach a computed store.
         let mut stored = FxHashSet::from_iter(exposure.stored.iter().copied());
+        // Solidity stores through a retargeted reference land at a computed address too.
+        for root in &exposure.retargeted {
+            stored.extend(exposure.store_edges.get(root).into_iter().flatten().copied());
+        }
         let mut pending = stored.iter().copied().collect::<Vec<_>>();
         while let Some(id) = pending.pop() {
             let neighbors = exposure.edges.get(&id).into_iter().flatten();
@@ -593,7 +616,10 @@ impl LoweringState {
             }
         }
         // A pointer stored through a computed address can sit behind any pointer call.
-        let escaped = exposure.pointer_values.iter().any(|(_, binding)| stored.contains(binding));
+        let escaped = exposure
+            .pointer_values
+            .iter()
+            .any(|(_, binding)| stored.contains(binding) || exposure.retargeted.contains(binding));
 
         let mut tainted = exposure.raw.clone();
         let mut pending = tainted.iter().copied().collect::<Vec<_>>();
