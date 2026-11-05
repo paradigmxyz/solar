@@ -189,6 +189,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a primary expression.
     fn parse_primary_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let lo = self.token.span;
+        if self.check(TokenKind::At) {
+            return self.parse_plugin_expr();
+        }
         let kind = if self.check_lit() {
             self.parse_lit_expr()?
         } else if self.eat_keyword(kw::Type) {

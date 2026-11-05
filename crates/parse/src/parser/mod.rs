@@ -16,6 +16,7 @@ use std::{fmt, path::Path};
 mod expr;
 mod item;
 mod lit;
+mod plugin;
 mod stmt;
 mod ty;
 mod yul;
@@ -37,6 +38,17 @@ pub struct Parser<'sess, 'ast, 'cb> {
     pub sess: &'sess Session,
     /// The arena where the AST nodes are allocated.
     pub arena: &'ast ast::Arena,
+
+    #[allow(clippy::type_complexity)]
+    plugin_expansion: Option<
+        std::boxed::Box<
+            dyn Fn(
+                    &str,
+                    &solar_pass_plugin::ExpansionRequest,
+                ) -> std::result::Result<solar_pass_plugin::Expansion, String>
+                + 'cb,
+        >,
+    >,
 
     /// The current token.
     pub token: Token,
@@ -175,6 +187,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
             recursion_depth: 0,
             import_callback: None,
+            plugin_expansion: None,
         };
         parser.bump();
         parser

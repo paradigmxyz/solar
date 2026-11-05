@@ -399,6 +399,23 @@ impl<'gcx> ParsingContext<'gcx> {
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
+        if !self.sess.opts.unstable.load_pass_plugin.is_empty() {
+            let plugins = self.gcx.plugins().ok()?;
+            parser.set_plugin_expansion(move |namespace, request| {
+                for plugin in plugins {
+                    if plugin.manifest()?.name == namespace {
+                        let manifest = plugin.frontend_manifest()?;
+                        if manifest.extensions.iter().any(|extension| {
+                            extension.name == request.name && extension.kind == request.kind
+                        }) {
+                            return plugin.expand(request);
+                        }
+                    }
+                }
+                Err(format!("unknown frontend extension `@{namespace}.{}`", request.name))
+            });
+        }
+
         if self.resolve_imports {
             parser.set_import_callback(import_callback);
         }
