@@ -31,7 +31,9 @@
 //! words can flow between any of its bindings, so they all count as one.
 //! Outside blocks, only copies and pointer edges carry such words, so a
 //! pointer that Solidity code masks or shifts into a different type before
-//! assembly stores it is not tracked.
+//! assembly stores it is not tracked, nor is a word that assembly loads from
+//! an address and stores elsewhere, or a pointer that a retyped call hands to a
+//! function that stores it.
 
 use super::*;
 use smallvec::SmallVec;
@@ -360,7 +362,8 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
 
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Never> {
         // A Yul function is visited from its callers' assembly blocks.
-        if self.gcx.hir.function(id).is_yul && self.assembly.is_none() || !self.visited.insert(id) {
+        if (self.gcx.hir.function(id).is_yul && self.assembly.is_none()) || !self.visited.insert(id)
+        {
             return ControlFlow::Continue(());
         }
         let previous = self.returns;
@@ -429,6 +432,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                             | Builtin::YulMstore8
                             | Builtin::YulSstore
                             | Builtin::YulTstore
+                            | Builtin::YulMcopy
                     )
                 )
                 && let Some(value) = args.exprs().nth(1)
