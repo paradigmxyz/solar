@@ -1561,4 +1561,23 @@ contract Test {}
             );
         });
     }
+
+    #[test]
+    fn parse_natspec_line_cmnts_of_unregistered_source() {
+        let src = "/// @notice a\n/// b\n";
+
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let arena = ast::Arena::new();
+            // The source map has no source for the tokens of the lexer.
+            let mut parser = Parser::from_lexer(&arena, Lexer::new(&sess, src));
+
+            let docs = parser.parse_doc_comments();
+            assert_eq!(docs.len(), 2);
+            // The comments are not known to be adjacent.
+            assert_eq!(docs[0].natspec.len(), 1);
+            assert_eq!(docs[1].natspec.len(), 1);
+        });
+    }
 }
