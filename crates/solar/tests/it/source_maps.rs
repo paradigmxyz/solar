@@ -120,15 +120,15 @@ fn abi_origins_and_conditional_thunks() {
             "{mode}: the require branch lost its conditional label's origin"
         );
         if mode == "none" {
-            let start = source.find("_set(x)").unwrap();
-            let end = start + "_set(x)".len();
+            let start = source.find("function _set(").unwrap();
+            let end = start + source[start..].find('}').unwrap() + 1;
             assert!(
                 instructions.iter().enumerate().any(|(index, inst)| {
                     inst["operation"]["mnemonic"] == "JUMPDEST"
                         && in_statement(entries[index], source_id("src/Base.sol"), start, end)
                         && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
                 }),
-                "the removed tail jump must use its exclusive callee's existing label"
+                "the removed tail jump's callee label must map to its definition"
             );
         }
     }
@@ -295,12 +295,12 @@ fn static_bytes_origins_survive_direct_returns() {
 }
 
 #[test]
-fn tail_call_thunk_chain_keeps_call_site() {
+fn tail_call_entry_label_maps_to_definition() {
     let path =
         Path::new(FIXTURES).join("../../ui/codegen/lowering/run-call/internal_stop_runtime.sol");
     let source = RealFileLoader.load_file(&path).unwrap();
-    let start = source.find("halt();").unwrap();
-    let end = start + "halt()".len();
+    let start = source.find("function halt()").unwrap();
+    let end = start + source[start..].find("\n    }").unwrap() + "\n    }".len();
     let compile = |outputs: &str| {
         let output = Command::new(SOLAR)
             .arg(&path)
@@ -319,9 +319,10 @@ fn tail_call_thunk_chain_keeps_call_site() {
         assert_eq!(contract[code], baseline[code]);
     }
     let entries = source_entries(contract["srcmap-runtime"].as_str().unwrap());
-    assert!(entries.iter().any(|&entry| in_statement(entry, 0, start, end)));
-    assert!(contract["ethdebug-runtime"]["instructions"].as_array().unwrap().iter().any(|inst| {
+    let instructions = contract["ethdebug-runtime"]["instructions"].as_array().unwrap();
+    assert!(instructions.iter().enumerate().any(|(index, inst)| {
         inst["operation"]["mnemonic"] == "JUMPDEST"
+            && in_statement(entries[index], 0, start, end)
             && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
     }));
 }
