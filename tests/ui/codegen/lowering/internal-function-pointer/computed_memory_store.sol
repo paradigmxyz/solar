@@ -2,7 +2,7 @@
 //@[gas] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
 //@ run-call: run() => 7
-//@ run-call: runLocal() => 11
+//@ run-call: runWord() => 11
 
 type MemoryPointer is uint256;
 
@@ -16,24 +16,29 @@ struct Holder {
 }
 
 contract C {
+    function(Pair memory) internal pure returns (uint256) stored;
+
+    // The holder is the last allocation, and assembly reaches it only by address.
     function run() external pure returns (uint256) {
         function(MemoryPointer) internal pure returns (uint256) raw = sum;
         Holder memory holder;
         assembly {
-            mstore(holder, raw)
+            mstore(sub(mload(0x40), 0x20), raw)
         }
         return holder.callback(Pair(3, 4));
     }
 
-    // The pointer is written to scratch space and read back as a local.
-    function runLocal() external pure returns (uint256) {
+    // The pointer passes through a word before a second block stores it.
+    function runWord() external returns (uint256) {
         function(MemoryPointer) internal pure returns (uint256) raw = sum;
-        function(Pair memory) internal pure returns (uint256) typed;
+        uint256 word;
         assembly {
-            mstore(0, raw)
-            typed := mload(0)
+            word := raw
         }
-        return typed(Pair(5, 6));
+        assembly {
+            sstore(0, word)
+        }
+        return stored(Pair(5, 6));
     }
 
     function sum(MemoryPointer pointer) internal pure returns (uint256 value) {
