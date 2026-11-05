@@ -601,21 +601,26 @@ impl LoweringState {
         for &(id, _) in functions {
             let _ = exposure.visit_nested_function(id);
         }
-        let contract_item = gcx.hir.contract(contract);
-        for (index, &base) in contract_item.linearized_bases.iter().enumerate() {
-            let base = gcx.hir.contract(base);
-            // The pointers a contract or a derived constructor gives this base's constructor.
-            if let Some(Some(modifier)) = index
-                .checked_sub(1)
-                .and_then(|index| contract_item.linearized_bases_args.get(index))
-                && let Some(ctor) = base.ctor
+        // The pointers each contract of the hierarchy gives the constructors of its bases.
+        for &writer in gcx.hir.contract(contract).linearized_bases {
+            let writer = gcx.hir.contract(writer);
+            for (&base, modifier) in
+                writer.linearized_bases.iter().skip(1).zip(writer.linearized_bases_args)
             {
-                for (parameter, argument) in exposure.modifier_arguments(ctor, ctor, modifier.args)
+                if let Some(modifier) = modifier
+                    && let Some(ctor) = gcx.hir.contract(base).ctor
                 {
-                    exposure.connect_pointers(&[parameter], argument);
-                    let _ = exposure.visit_expr(argument);
+                    for (parameter, argument) in
+                        exposure.modifier_arguments(ctor, ctor, modifier.args)
+                    {
+                        exposure.connect_pointers(&[parameter], argument);
+                        let _ = exposure.visit_expr(argument);
+                    }
                 }
             }
+        }
+        for &base in gcx.hir.contract(contract).linearized_bases {
+            let base = gcx.hir.contract(base);
             if let Some(id) = base.ctor {
                 let _ = exposure.visit_nested_function(id);
             }
