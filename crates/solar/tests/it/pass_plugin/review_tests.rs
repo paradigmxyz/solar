@@ -293,3 +293,58 @@ fn semantic_plugins_can_construct_wrapping_pointer_additions() {
         }
     }
 }
+
+#[test]
+fn mir_edits_invalidate_transitive_array_widths() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("arrays.mir");
+    fs::write(
+        &path,
+        r#"@module Arrays
+fn @write(arg0: ptr<memory>) {
+  bb0:
+    v0 = ptradd arg0, 32
+    mstore v0, 1
+    ret
+}
+fn @fresh() -> ptr<memory> [selector=0x00000001, abi_returns=[memory_array<word<uint8>>], abi_return_params=[array<_, uint8>]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    icall @write, v0
+    ret v0
+}
+fn @echo(arg0: ptr<memory>) -> ptr<memory> [selector=0x00000002, abi_params=[array<_, uint8>], abi_returns=[memory_array<word<uint8>>], abi_return_params=[array<_, uint8>]] {
+  bb0:
+    icall @write, arg0
+    ret arg0
+}
+"#,
+    )
+    .unwrap();
+    let plugin = broken(directory.path(), "widen_array_store");
+    let expected = [32, 1, 1]
+        .into_iter()
+        .flat_map(|word| alloy_primitives::U256::from(word).to_be_bytes::<32>())
+        .collect::<Vec<_>>();
+    for optimization in ["-Ogas", "-Osize"] {
+        let output = run(
+            &path,
+            &plugin,
+            &[
+                optimization,
+                "-Zmir-pipeline=element-cleanup,broken::fail,lower-abi,lower-abi-encode,lower-dispatch,lower-memory-objects,lower-slices,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped",
+                "--emit=bin-runtime",
+                "-Zvalidate-ir=false",
+            ],
+        );
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let artifact = artifact(&output);
+        for (selector, arguments) in [(1_u32, &[][..]), (2, expected.as_slice())] {
+            let mut input = selector.to_be_bytes().to_vec();
+            input.extend_from_slice(arguments);
+            // Both untouched callers must clean the dirty word stored by the edited callee.
+            assert_eq!(super::runtime::execute(&artifact, &input), expected);
+        }
+    }
+}

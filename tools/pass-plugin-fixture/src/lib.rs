@@ -29,7 +29,8 @@ impl Plugin for Broken {
             | "graph_bad_constant"
             | "graph_duplicate_name"
             | "graph_split_bounds"
-            | "graph_void_phi" => Some("semantic"),
+            | "graph_void_phi"
+            | "widen_array_store" => Some("semantic"),
             _ => None,
         };
         Manifest {
@@ -155,6 +156,36 @@ impl Plugin for Broken {
             });
         }
         let edit = match mode.as_str() {
+            "widen_array_store" => {
+                let api::Snapshot::Mir { functions, .. } = &request.module else { unreachable!() };
+                let function = functions.iter().find(|function| function.name == "write").unwrap();
+                let store =
+                    function.instructions.iter().find(|inst| inst.operation == "mstore").unwrap();
+                let start = function
+                    .instructions
+                    .iter()
+                    .filter(|inst| inst.block == store.block)
+                    .position(|inst| inst.id == store.id)
+                    .unwrap() as u32;
+                // mstore address, 1 => mstore address, 257
+                Edit::SpliceMirInstructions {
+                    function: function.id,
+                    block: store.block,
+                    start,
+                    remove: 1,
+                    instructions: vec![Instruction {
+                        result: None,
+                        ty: None,
+                        instruction: Kind::Copy {
+                            instruction: store.id,
+                            operands: vec![
+                                Operand::Value { id: store.operands[0] },
+                                Operand::Constant { ty: word(), value: "257".into() },
+                            ],
+                        },
+                    }],
+                }
+            }
             "existing_helper_output" => Edit::SpliceEvmInstructions {
                 block: 3,
                 start: 0,
