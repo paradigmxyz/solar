@@ -2,7 +2,7 @@
 
 use crate::{
     __private::{ABI_SYMBOL, ENTRY_SYMBOL, Entry, Exports, Receiver, build_fingerprint},
-    Manifest, Request, Response,
+    Expansion, ExpansionRequest, FrontendManifest, Manifest, Request, Response,
 };
 use std::{path::Path, sync::Mutex};
 
@@ -66,6 +66,18 @@ impl NativePlugin {
     pub fn run(&self, request: &Request) -> Result<Response, String> {
         let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
         receive(|respond| (self.exports.run)(request, respond))
+    }
+
+    /// Returns the syntax extensions registered by this library.
+    pub fn frontend_manifest(&self) -> Result<FrontendManifest, String> {
+        let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
+        receive(|respond| (self.exports.frontend_manifest)(respond))
+    }
+
+    /// Runs an extension and copies the result into the host.
+    pub fn expand(&self, request: &ExpansionRequest) -> Result<Expansion, String> {
+        let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
+        receive(|respond| (self.exports.expand)(request, respond))
     }
 }
 

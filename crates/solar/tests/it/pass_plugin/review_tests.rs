@@ -1,5 +1,26 @@
 use super::*;
+use solar_pass_plugin::{ExpansionRequest, ExtensionKind, host::NativePlugin};
 use std::{io::Write, process::Stdio};
+
+#[test]
+fn frontend_callbacks_cross_library_boundary() {
+    let plugin = NativePlugin::load(&sample()).unwrap();
+    let manifest = plugin.frontend_manifest().unwrap();
+    let expansion = plugin
+        .expand(&ExpansionRequest {
+            name: "repeat".into(),
+            kind: ExtensionKind::Statement,
+            tokens: Vec::new(),
+        })
+        .unwrap();
+    assert_data_eq!(
+        format!("{manifest:?}\n{expansion:?}"),
+        str![[
+            r#"FrontendManifest { extensions: [FrontendExtension { name: "repeat", kind: Statement }] }
+Statement(Repeat { count: Argument(0), body: Body })"#
+        ]]
+    );
+}
 
 #[test]
 fn requests_do_not_expose_debug_output_options() {

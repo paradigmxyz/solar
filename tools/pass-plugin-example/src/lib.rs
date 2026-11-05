@@ -13,6 +13,29 @@ mod graph;
 struct Example;
 
 impl Plugin for Example {
+    fn frontend_manifest(&self) -> solar_pass_plugin::FrontendManifest {
+        solar_pass_plugin::FrontendManifest {
+            extensions: vec![solar_pass_plugin::FrontendExtension {
+                name: "repeat".into(),
+                kind: solar_pass_plugin::ExtensionKind::Statement,
+            }],
+        }
+    }
+
+    fn expand(
+        &self,
+        request: &solar_pass_plugin::ExpansionRequest,
+    ) -> Result<solar_pass_plugin::Expansion, String> {
+        use solar_pass_plugin::{Expansion, ExpansionExpr, ExpansionStmt, ExtensionKind};
+        if request.name != "repeat" || request.kind != ExtensionKind::Statement {
+            return Err("unknown frontend extension".into());
+        }
+        Ok(Expansion::Statement(ExpansionStmt::Repeat {
+            count: ExpansionExpr::Argument(0),
+            body: Box::new(ExpansionStmt::Body),
+        }))
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest {
             api_version: API_VERSION,

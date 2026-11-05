@@ -302,6 +302,8 @@ pub static solar_rust_pass_plugin_abi_v1: [u8; 32] = api::ABI_FINGERPRINT;
 pub fn solar_rust_pass_plugin_v1() -> &'static Exports {
     static EXPORTS: Exports = Exports {
         manifest: |respond| api::__private::manifest(&Broken, respond),
+        frontend_manifest: |respond| api::__private::frontend_manifest(&Broken, respond),
+        expand: |request, respond| api::__private::expand(&Broken, request, respond),
         run: |request, respond| match mode().as_str() {
             "no_response" => {}
             "duplicate_response" => {
