@@ -650,8 +650,6 @@ fn lower_function(
             let layout = Arc::clone(layout);
             let mode = *mode;
             // abi_encode(args) !metadata(span) => icall or stores/copies !metadata(span)
-            let metadata = builder.func().inst(inst).metadata.clone();
-            builder.set_debug_context(&metadata);
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
             let replacement = if let Some(&form) = zero_copy_returns.get(&inst) {
