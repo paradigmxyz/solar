@@ -306,16 +306,9 @@ fn state_variable_return(gcx: Gcx<'_>, variable_id: hir::VariableId) -> Option<S
     if items.next().is_some() {
         return None;
     }
-    let content = match item.kind {
-        hir::NatSpecKind::Return { name: Some(name) } => match raw_return_content(item) {
-            Some(raw) => raw.to_string(),
-            // A tag of only the name keeps it as its description.
-            None if item.content() == name.name.as_str() => item.content().to_string(),
-            None => format!("{} {}", name.name, item.content()),
-        },
-        _ => item.content().to_string(),
-    };
-    (!content.is_empty()).then_some(content)
+    // A tag of only the name keeps it as its description.
+    let content = raw_return_content(item).unwrap_or_else(|| item.content());
+    (!content.is_empty()).then(|| content.to_string())
 }
 
 /// Returns the content of a `@return` tag with the name that lowering takes off its description,

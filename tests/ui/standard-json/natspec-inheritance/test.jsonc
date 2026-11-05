@@ -88,6 +88,10 @@
 // CHECK: "devdoc": {
 // CHECK: "share()": {
 // CHECK: "balance": "The share"
+//
+// CHECK-LABEL: "Renamed2Impl": {
+// CHECK: "devdoc": {
+// CHECK: "return": "amount amount"
 {
   "language": "Solidity",
   "settings": {
@@ -138,6 +142,10 @@
           "devdoc"
         ],
         "Chain2": [
+          "userdoc",
+          "devdoc"
+        ],
+        "Renamed2Impl": [
           "userdoc",
           "devdoc"
         ]

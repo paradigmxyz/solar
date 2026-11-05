@@ -859,7 +859,8 @@ impl<'gcx> Resolver<'gcx> {
     /// Renames an inherited `@return` to the name of the return it now documents.
     ///
     /// The description keeps its words, except that a first word equal to the new name becomes
-    /// the name.
+    /// the name. A renamed tag gets its own text of the name and the description, so that its
+    /// name precedes its content like that of a tag written for the return.
     fn rename_inherited_return(
         &self,
         item: &mut hir::NatSpecItem,
@@ -870,15 +871,21 @@ impl<'gcx> Resolver<'gcx> {
             item.kind = hir::NatSpecKind::Return { name: None };
             return;
         };
+        if documented.is_some_and(|documented| documented.name == expected.name) {
+            return;
+        }
+        let mut content = item.content();
         if documented.is_none()
-            && let Some((word, _)) = item.content().split_once([' ', '\t'])
+            && let Some((word, rest)) = content.split_once([' ', '\t'])
             && word == expected.name.as_str()
         {
-            item.content_start += word.len() as u32 + 1;
+            content = rest;
         }
-        if documented.is_none_or(|documented| documented.name != expected.name) {
-            item.kind = hir::NatSpecKind::Return { name: Some(expected) };
-        }
+        let symbol = Symbol::intern(&format!("{} {content}", expected.name));
+        item.kind = hir::NatSpecKind::Return { name: Some(expected) };
+        item.symbol = symbol;
+        item.content_start = expected.name.as_str().len() as u32 + 1;
+        item.content_end = symbol.as_str().len() as u32;
     }
 
     fn positional_sections(
