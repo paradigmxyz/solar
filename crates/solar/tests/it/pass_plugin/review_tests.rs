@@ -262,3 +262,34 @@ fn unrelated_edits_accept_backend_generated_helpers() {
         alloy_primitives::U256::from(20).to_be_bytes::<32>()
     );
 }
+
+#[test]
+fn semantic_plugins_can_construct_wrapping_pointer_additions() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("ptradd.mir");
+    fs::write(&path, "@module Wrapping\nfn @entry() [entry] {\nbb0:\nv0 = calldataload 0\nv1 = inttoptr i256 v0 to ptr<memory>\nv2 = calldataload 32\nv3 = icall @offset, v1, v2\nv4 = ptrtoint ptr<memory> v3 to i256\nmstore 0, v4\nreturndata 0, 32\n}\nfn @offset(arg0: ptr<memory>, arg1: i256) -> ptr<memory> {\nbb0:\nv0 = ptradd arg0, 0\nret v0\n}\n").unwrap();
+    for optimization in ["-Onone", "-Ogas", "-Osize"] {
+        let output = run(
+            &path,
+            &broken(directory.path(), "semantic_ptradd"),
+            &[
+                optimization,
+                "-Zmir-pipeline=broken::fail,lower-memory-objects,lower-evm-shaped",
+                "--emit=bin-runtime",
+                "-Zvalidate-ir=false",
+            ],
+        );
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        for (base, offset) in [
+            (alloy_primitives::U256::from(0x100), alloy_primitives::U256::MAX),
+            (alloy_primitives::U256::MAX, alloy_primitives::U256::from(33)),
+        ] {
+            let mut input = base.to_be_bytes::<32>().to_vec();
+            input.extend_from_slice(&offset.to_be_bytes::<32>());
+            assert_eq!(
+                super::runtime::execute(&artifact(&output), &input),
+                base.wrapping_add(offset).to_be_bytes::<32>()
+            );
+        }
+    }
+}

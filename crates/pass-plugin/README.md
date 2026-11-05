@@ -112,7 +112,9 @@ MIR copies retain semantic allocation obligations. Nonempty MIR edits discard
 retained memory proofs, including checked object offsets, allocator bounds and
 copy disjointness, since producer or CFG edits can invalidate them indirectly. Edited MIR is treated as potentially containing raw
 assembly memory writes, so source-only placement assumptions cannot protect
-plugin-created accesses. Phis must precede other instructions in each block.
+plugin-created accesses. A semantic `ptradd` has wrapping arithmetic and does
+not establish bounds; memory lowering cannot turn its pointer type into a
+checked-offset proof. Phis must precede other instructions in each block.
 New or changed helper call annotations are checked against symbolic return-address
 and stack tracking. Existing contracts remain trusted when their code, reachable
 continuations and nested call contracts are unchanged, including backend helpers

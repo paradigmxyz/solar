@@ -14,7 +14,8 @@ impl Plugin for Broken {
         let mode = mode();
         let phase = match mode.as_str() {
             "graph_bad_phase" | "graph_copy_result" => Some("lowered"),
-            "observe_mir"
+            "semantic_ptradd"
+            | "observe_mir"
             | "copy_alloc"
             | "raw_write"
             | "late_phi"
@@ -49,6 +50,43 @@ impl Plugin for Broken {
         if mode.starts_with("observe_") {
             eprintln!("SNAPSHOT:{request:?}");
             return Ok(Response::default());
+        }
+        if mode == "semantic_ptradd" {
+            let api::Snapshot::Mir { functions, .. } = &request.module else { unreachable!() };
+            let function = functions
+                .iter()
+                .find(|function| {
+                    function.instructions.iter().any(|inst| inst.operation == "ptradd")
+                })
+                .unwrap();
+            let original =
+                function.instructions.iter().find(|inst| inst.operation == "ptradd").unwrap();
+            return Ok(Response {
+                edits: vec![
+                    Edit::SpliceMirInstructions {
+                        function: function.id,
+                        block: original.block,
+                        start: 0,
+                        remove: 1,
+                        instructions: vec![Instruction {
+                            result: Some(0),
+                            ty: Some(Type::Pointer { location: api::AddressSpace::Memory }),
+                            instruction: Kind::Operation {
+                                operation: "ptradd".into(),
+                                operands: vec![
+                                    Operand::Value { id: original.operands[0] },
+                                    Operand::Argument { index: 1 },
+                                ],
+                            },
+                        }],
+                    },
+                    Edit::ReplaceMirValueWith {
+                        function: function.id,
+                        value: original.result.unwrap(),
+                        replacement: local(),
+                    },
+                ],
+            });
         }
         if mode == "copy_alloc" {
             let api::Snapshot::Mir { functions, .. } = &request.module else { unreachable!() };
