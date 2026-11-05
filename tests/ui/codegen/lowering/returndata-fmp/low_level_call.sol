@@ -8,6 +8,7 @@
 //@ run-call: staticcallWord() => 64
 //@ run-call: delegatecallWord() => 64
 //@ run-call: callRevertData() => 160
+//@ run-call: stashedEmpty() => 0
 //@ run-call: forwardWord() => 1
 //@ run-call: forwardEmpty()
 //@ run-call-fail: forwardRevert() => 0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000568656c6c6f000000000000000000000000000000000000000000000000000000
@@ -117,5 +118,27 @@ contract C {
         assembly ("memory-safe") {
             revert(add(data, 32), mload(data))
         }
+    }
+
+    function stash() private {
+        bytes memory input = abi.encodeWithSelector(this.noop.selector);
+        (bool ok, bytes memory data) = address(this).call(input);
+        require(ok);
+        assembly {
+            sstore(0, data)
+        }
+    }
+
+    // A pointer saved to storage outlives the call, so the empty object cannot sit at the free
+    // memory pointer, where the next allocation overwrites its length.
+    function stashedEmpty() external returns (uint256 length) {
+        stash();
+        bytes memory other = abi.encode(uint256(1), uint256(2));
+        require(other.length == 64);
+        bytes memory data;
+        assembly {
+            data := sload(0)
+        }
+        return data.length;
     }
 }

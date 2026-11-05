@@ -396,8 +396,9 @@ fn initialize(
 /// An empty object that reserves nothing sits at the free-memory pointer, where the next
 /// allocation or staged write would overwrite its length. It is safe when nothing reachable from
 /// the allocation allocates, calls, or writes memory except through the object's own pointer,
-/// and the pointer neither leaves through a return or a phi nor is stored. Then the object is
-/// only read, as when a call's returndata is forwarded, and needs no pointer to the zero slot.
+/// and the pointer neither leaves through a return or a phi nor is stored to memory or storage.
+/// Then the object is only read, as when a call's returndata is forwarded, and needs no pointer to
+/// the zero slot.
 fn stable_empty_allocs(func: &Function) -> FxHashSet<InstId> {
     let mut stable = FxHashSet::default();
     for block in func.blocks.indices() {
@@ -434,11 +435,10 @@ fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool
                 EffectKind::Pure => !matches!(kind, InstKind::Phi(_)) || !uses_object,
                 EffectKind::MemoryRead
                 | EffectKind::StorageRead
-                | EffectKind::StorageWrite
                 | EffectKind::TransientRead
-                | EffectKind::TransientWrite
                 | EffectKind::EnvironmentRead
                 | EffectKind::Log => true,
+                EffectKind::StorageWrite | EffectKind::TransientWrite => !uses_object,
                 EffectKind::MemoryWrite => match *kind {
                     InstKind::Store(ptr, value, PtrLocation::Memory) => {
                         derived.contains(&ptr) && !derived.contains(&value)
