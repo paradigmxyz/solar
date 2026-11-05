@@ -4,7 +4,9 @@
 
 // The dispatcher belongs to the contract definition, as in solc: `compileContract` sets the
 // contract's location around `appendFunctionSelector`, which covers the selector load and
-// switch, the hoisted callvalue check, and the revert for an unknown selector.
+// switch, the hoisted callvalue check, and the revert for an unknown selector. Each route's entry
+// is the exception: solc places it under the routed function's declaration (`ContractCompiler.cpp`
+// L514), so the jump into the function takes that function's span.
 
 // CHECK-LABEL: (scheduled runtime) ===
 // CHECK: bb0: {{.*}}runtime dispatch entry
@@ -16,6 +18,11 @@
 // CHECK-NEXT: push 224 !metadata(span=[[C]])
 // CHECK-NEXT: shr !metadata(span=[[C]])
 // CHECK: jumpi !metadata(span=[[C]])
+// CHECK: jump {{bb[0-9]+}} !metadata(span=[[C]])
+// CHECK-NOT: !metadata(span=[[C]])
+// CHECK: jump {{bb[0-9]+}} !metadata(span=[[F1:[0-9]+..[0-9]+]])
+// CHECK-NOT: !metadata(span=[[C]])
+// CHECK: jump {{bb[0-9]+}} !metadata(span=[[F2:[0-9]+..[0-9]+]])
 // CHECK: push 0 !metadata(span=[[C]])
 // CHECK-NEXT: push 0 !metadata(span=[[C]])
 // CHECK-NEXT: revert !metadata(span=[[C]])

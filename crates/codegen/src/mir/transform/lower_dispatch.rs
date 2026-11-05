@@ -51,8 +51,10 @@
 //!
 //! Every instruction, terminator, and block label of `entry` takes the contract definition's span,
 //! as solc places the dispatcher under the contract's location (`compileContract`'s
-//! `LocationSetter` over `appendFunctionSelector`). The library guard is the exception: it takes
-//! the routed function's declaration span, as solc's per-function `LocationSetter` covers it.
+//! `LocationSetter` over `appendFunctionSelector`). A selector route is the exception: its case
+//! label, library guard, and `tail_call` take the routed function's declaration span, as solc
+//! places the function's entry tag and the code at it under that function's `LocationSetter`
+//! (`ContractCompiler.cpp` L514).
 //!
 //! The backend only consumes the final `lowered` module.
 
@@ -342,20 +344,19 @@ fn build_entry(
         //   jumpi v2, revert, continue
         let library_deploy_address = module.library_deploy_address();
         for ((_, target), block) in routes.iter().zip(&case_blocks) {
+            builder.replace_source_span(module.function(*target).declaration_span);
             builder.switch_to_block(*block);
             if let Some(immutable) = library_deploy_address
                 && super::utils::needs_delegatecall_guard(module.function(*target))
             {
-                let previous =
-                    builder.replace_source_span(module.function(*target).declaration_span);
                 let own = builder.load_immutable(immutable, MirType::I160);
                 let this = builder.address();
                 let direct_call = builder.eq(own, this);
                 builder.revert_if(direct_call, RevertReason::LibraryCalledWithoutDelegatecall);
-                builder.replace_source_span(previous);
             }
             builder.tail_call(*target, Vec::new());
         }
+        builder.replace_source_span(contract_span);
 
         builder.switch_to_block(revert_block);
         // NOTE: Block tail merging can fuse this revert with a user `revert()`. The merged revert

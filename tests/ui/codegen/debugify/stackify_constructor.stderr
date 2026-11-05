@@ -36,5 +36,4 @@ debugify: MIR StackifyConstructor after lower-alloc: 9/9 origins retained, 0 los
 debugify: MIR StackifyConstructor after lower-memory-zero: 9/9 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-integers: 9/9 origins retained, 0 lost
 debugify: MIR StackifyConstructor after lower-evm-shaped: 9/9 origins retained, 0 lost
-debugify: EVM IR StackifyConstructor after stackify: 8/9 origins retained, 1 lost
-debugify: lost 410..500
+debugify: EVM IR StackifyConstructor after stackify: 9/9 origins retained, 0 lost
