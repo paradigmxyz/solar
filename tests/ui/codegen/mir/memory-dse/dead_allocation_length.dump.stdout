@@ -109,8 +109,8 @@ fn @relay() {
     calldatacopy v39, v23, v22
     v43 = sub v42, v33
     v44 = add v43, 4
-    v74 = add v44, 63
-    v47 = and v74, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v75 = add v44, 63
+    v47 = and v75, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v48 = lt v47, v44
     jumpi v48, bb4, bb5
   bb5:                                            ; preds = bb3
@@ -123,14 +123,22 @@ fn @relay() {
     v10 = returndatasize
     v11 = add v10, 31
     v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    mstore v69, v10
-    v64 = add v69, 32
+    v13 = add v12, 32
+    v72 = lt v11, 32
+    v78 = eq v72, false
+    v79 = zext i1 v78 to i256
+    v73 = mul v13, v79
+    v74 = add v69, v73 !metadata(alloc_ptr)
+    mstore 64, v74 !metadata(memory=scratch)
+    v14 = select v72, 96, v69 !metadata(zero_slot_if_empty)
+    mstore v14, v10
+    v64 = add v14, 32
     returndatacopy v64, 0, v10
     jumpi v9, bb2, bb1
   bb2:                                            ; preds = bb5
     v55 = add v64, v10
     mstore v55, 0
-    v60 = sub v69, 32
+    v60 = sub v14, 32
     mstore v60, 32
     v57 = add v12, 64
     returndata v60, v57

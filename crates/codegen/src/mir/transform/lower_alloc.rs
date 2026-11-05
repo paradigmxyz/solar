@@ -21,9 +21,9 @@
 //! object when its size is one header word. Like solc, such an object is the zero slot and
 //! reserves nothing, so the pointer does not move: the allocation becomes `select(size == 32,
 //! ZERO_SLOT, ptr)` with a bump of `size == 32 ? 0 : size`. When nothing reachable after the
-//! allocation allocates, calls, or writes memory except through the object's own pointer, and the
-//! pointer does not escape, the empty object is only read and stays at the free-memory pointer
-//! without the `select`, which keeps forwarding code such as proxies as small as before.
+//! allocation allocates, calls, or writes memory except the object's length word and empty data,
+//! and the pointer does not escape, the empty object is only read and stays at the free-memory
+//! pointer without the `select`, which keeps forwarding code such as proxies as small as before.
 //!
 //! A read that returns the entry's initial pointer, because nothing before it may write the
 //! slot (see [`FreshHeap`]), takes the heap floor, which codegen knows, instead of loading
@@ -474,14 +474,13 @@ fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool
                     !kind.operands().iter().skip(1).any(|operand| derived.contains(operand))
                 }
                 EffectKind::StorageWrite | EffectKind::TransientWrite => !uses_object,
+                // The object is an empty `bytes`: only its length word and, past it, the empty data
+                // are written, and only with values that are not derived from the object.
                 EffectKind::MemoryWrite => match *kind {
-                    InstKind::Store(ptr, value, PtrLocation::Memory)
-                    | InstKind::Store8(ptr, value) => {
-                        derived.contains(&ptr) && !derived.contains(&value)
+                    InstKind::Store(ptr, value, PtrLocation::Memory) => {
+                        strip_pointer_casts(func, ptr) == result && !derived.contains(&value)
                     }
-                    InstKind::MemoryZero(ptr, _) | InstKind::Copy(ptr, ..) => {
-                        derived.contains(&ptr)
-                    }
+                    InstKind::Copy(ptr, ..) => is_data_start(func, ptr, result),
                     _ => false,
                 },
                 _ => false,
@@ -496,6 +495,28 @@ fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool
                 Some(_) => true,
             }
     })
+}
+
+/// `value` without the casts between a pointer and its address word.
+fn strip_pointer_casts(func: &Function, mut value: ValueId) -> ValueId {
+    while let Value::Inst(inst) = *func.value(value)
+        && let InstKind::PtrToInt(operand, _) | InstKind::IntToPtr(operand) = func.inst(inst).kind
+    {
+        value = operand;
+    }
+    value
+}
+
+/// Whether `value` is `object + 32`, where the data of the object starts.
+fn is_data_start(func: &Function, value: ValueId, object: ValueId) -> bool {
+    let Value::Inst(inst) = *func.value(strip_pointer_casts(func, value)) else { return false };
+    match func.inst(inst).kind {
+        InstKind::Add(a, b) | InstKind::PtrAdd(a, b) => {
+            strip_pointer_casts(func, a) == object
+                && func.value_u64(b) == Some(EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
+        }
+        _ => false,
+    }
 }
 
 /// Rewrites the detached `inst` to read the pointer from its slot, or the heap floor when nothing
