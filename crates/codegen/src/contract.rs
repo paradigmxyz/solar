@@ -724,6 +724,7 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
                 captures.evm_ir.contains(contract_id) && dumps_scheduled_evm_ir(gcx),
             );
             codegen.set_capture_debug_info(captures.debug_info.contains(contract_id));
+            codegen.set_contract_span(gcx.hir.contract(contract_id).span);
             let scheduled = codegen.schedule_module(&mut module);
             gcx.dcx().has_errors()?;
             scheduled.then_some(codegen)

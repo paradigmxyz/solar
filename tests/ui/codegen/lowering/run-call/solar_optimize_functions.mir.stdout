@@ -6,7 +6,7 @@
   delta: int16
 
 ; creation entry
-fn @constructor() [constructor] {
+fn @constructor() [constructor, creation_only] {
   bb0:
     v0 = callvalue
     v1 = ne v0, 0
@@ -122,30 +122,13 @@ fn @small() [optimize=size] {
   bb0:
     v11 = calldatasize
     v12 = lt v11, 36
-    jumpi v12, bb6, bb7
-  bb7:                                            ; preds = bb0
+    jumpi v12, bb1, bb2
+  bb2:                                            ; preds = bb0
     v13 = calldataload 4
-    jump bb1
-  bb1:                                            ; preds = bb5, bb7
-    v1 = phi [bb7: 0], [bb5: v7]
-    v2 = phi [bb7: 1], [bb5: v9]
-    v3 = lt v13, v2
-    jumpi v3, bb2, bb3
-  bb3:                                            ; preds = bb1
-    v7 = add v1, v2
-    v8 = lt v7, v1
-    jumpi v8, bb4, bb5
-  bb5:                                            ; preds = bb3
-    v9 = add v2, 1
-    jump bb1
-  bb4 [cold]:                                     ; preds = bb3
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-  bb2:                                            ; preds = bb1
-    mstore 0, v1 !metadata(memory=scratch)
+    v14 = icall @small.body, v13
+    mstore 0, v14 !metadata(memory=scratch)
     returndata 0, 32
-  bb6 [cold]:                                     ; preds = bb0
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 

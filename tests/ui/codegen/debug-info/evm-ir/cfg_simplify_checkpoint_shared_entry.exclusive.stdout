@@ -1,0 +1,30 @@
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_checkpoint_shared_entry.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_checkpoint_shared_entry.evmir (after cfg-simplify) ===
+  @module CheckpointSharedEntry
+  bb0:
+    calldatasize
+-   jumpi bb1, bb2 !metadata(span=10..20)
+- bb1 [invoke=callee@30..70]:
+-   jump bb4 !metadata(span=30..40)
++   jumpi bb4, bb2 !metadata(span=10..20)
+  bb2:
+    push 0
+    calldataload
+    jumpi bb5, bb6 !metadata(span=50..60)
+- bb4:
++ bb4 [checkpoint=30..40@10..20@0@callee@30..70]:
+    push 2
+    push 0
+    mstore
+    stop
+  bb5 [invoke=independent@80..120]:
+    push 3
+    push 0
+    mstore
+    stop
+  bb6:
+    push 2
+    push 0
+    mstore
+    stop
+  

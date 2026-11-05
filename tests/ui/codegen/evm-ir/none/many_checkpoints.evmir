@@ -1,0 +1,9 @@
+//@ compile-flags: -Zevm-ir-pipeline=none -Zdump=evm-ir
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// Every checkpoint of an operation survives parsing, however many there are, and repeats collapse.
+@module ManyCheckpoints
+
+bb0:
+// CHECK: stop !metadata(span=1..2, checkpoint=10..11, checkpoint=20..21, checkpoint=30..31, checkpoint=40..41, checkpoint=50..51, checkpoint=60..61, checkpoint=70..71, checkpoint=80..81, checkpoint=90..91, checkpoint=100..101, checkpoint=110..111, checkpoint=120..121, checkpoint=130..131, checkpoint=140..141, checkpoint=150..151, checkpoint=160..161, checkpoint=170..171, checkpoint=180..181, checkpoint=190..191, checkpoint=200..201)
+  stop !metadata(span=1..2, checkpoint=10..11, checkpoint=20..21, checkpoint=30..31, checkpoint=40..41, checkpoint=50..51, checkpoint=60..61, checkpoint=70..71, checkpoint=80..81, checkpoint=90..91, checkpoint=100..101, checkpoint=110..111, checkpoint=120..121, checkpoint=130..131, checkpoint=140..141, checkpoint=150..151, checkpoint=160..161, checkpoint=170..171, checkpoint=180..181, checkpoint=190..191, checkpoint=200..201, checkpoint=10..11, checkpoint=200..201)

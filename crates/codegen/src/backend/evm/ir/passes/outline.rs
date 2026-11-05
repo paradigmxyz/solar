@@ -82,6 +82,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet, FxHasher},
 };
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 use std::{
     cell::OnceCell,
@@ -655,7 +656,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         .map(|(value, sites)| {
             // The stub appends its output swap to the body.
             let mut body = Vec::with_capacity(2);
-            body.push(Instruction::push_value(value).with_debug_info_dropped());
+            body.push(Instruction::push_value(value).with_debug_loc_dropped());
             Group { body, sites, parameters: Vec::new() }
         })
         .collect();
@@ -738,7 +739,7 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
         stub.instructions = group.body;
         stub.instructions.extend((1..=usize::from(outputs)).map(swap));
         stub.terminator =
-            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
+            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_loc_dropped());
         stub.metadata.call_effect =
             stub_call_effect(usize::from(inputs) + group.parameters.len(), outputs);
         let stub = module.add_block(stub);
@@ -766,7 +767,7 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
 /// llvm/lib/CodeGen/MachineOutliner.cpp#L1035-L1045 at llvm-project e98b16a2710b).
 fn drop_body_source_spans(body: &mut [Instruction]) {
     for instruction in body {
-        instruction.metadata.mark_debug_info_dropped();
+        instruction.metadata.drop_debug_loc(DebugLocKind::Dropped);
     }
 }
 
@@ -784,7 +785,7 @@ fn range_function_invoke(instructions: &[Instruction]) -> Option<DebugFunction> 
 }
 
 fn swap(depth: usize) -> Instruction {
-    Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped()
+    Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_loc_dropped()
 }
 
 /// The location of a call sequence that replaces `range`: the first instruction that has one.
@@ -798,9 +799,9 @@ fn swap(depth: usize) -> Instruction {
 /// only the first location applies.
 fn call_site_location(range: &[Instruction]) -> Metadata {
     let mut location = Metadata::default();
-    location.mark_debug_info_dropped();
+    location.drop_debug_loc(DebugLocKind::Dropped);
     if let Some(first) = range.iter().find(|inst| inst.metadata.source_span().is_some()) {
-        location.copy_source_debug_from(&first.metadata);
+        location.preserve_debug_loc(&first.metadata);
     }
     location
 }
@@ -851,13 +852,12 @@ fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32)
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
     let instructions = &mut module.blocks[block].instructions;
-    instructions.push(Instruction::push_block(continuation).with_source_debug(&location));
-    instructions.extend(
-        (1..=usize::from(inputs)).rev().map(|depth| swap(depth).with_source_debug(&location)),
-    );
+    instructions.push(Instruction::push_block(continuation).with_debug_loc(&location));
+    instructions
+        .extend((1..=usize::from(inputs)).rev().map(|depth| swap(depth).with_debug_loc(&location)));
     instructions.extend_from_slice(&edit.parameters);
     let mut terminator = Terminator::new(TerminatorKind::Jump(edit.stub));
-    terminator.metadata.copy_source_debug_from(&location);
+    terminator.metadata.preserve_debug_loc(&location);
     if let Some(function) = function_invoke {
         terminator.metadata.set_function_invoke(function);
     }

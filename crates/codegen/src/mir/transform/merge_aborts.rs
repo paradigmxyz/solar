@@ -417,10 +417,10 @@ fn mergeable(
 fn complement(func: &Function, condition: ValueId) -> Option<Compare> {
     let literal = |value| func.value_u256(value);
     Some(match *func.value_inst_kind(condition)? {
-        InstKind::Lt(word, k) | InstKind::Gt(k, word) if literal(word).is_none() => {
+        InstKind::Lt(word, k) if literal(word).is_none() => {
             Compare { word, below: false, literal: literal(k)?.checked_sub(U256::ONE)? }
         }
-        InstKind::Gt(word, k) | InstKind::Lt(k, word) if literal(word).is_none() => {
+        InstKind::Gt(word, k) if literal(word).is_none() => {
             Compare { word, below: true, literal: literal(k)?.checked_add(U256::ONE)? }
         }
         _ => return None,
@@ -603,13 +603,8 @@ fn counter_step(func: &Function, phi: ValueId, mut next: ValueId) -> Option<U256
         if next == phi {
             return (!step.is_zero()).then_some(step);
         }
-        let &InstKind::Add(a, b) = func.value_inst_kind(next)? else { return None };
-        let (rest, literal) = match (func.value_u256(a), func.value_u256(b)) {
-            (None, Some(literal)) => (a, literal),
-            (Some(literal), None) => (b, literal),
-            _ => return None,
-        };
-        step = step.checked_add(literal)?;
+        let &InstKind::Add(rest, literal) = func.value_inst_kind(next)? else { return None };
+        step = step.checked_add(func.value_u256(literal)?)?;
         next = rest;
     }
     None

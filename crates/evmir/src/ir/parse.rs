@@ -512,7 +512,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_metadata(&mut self) -> PResult<'sess, Metadata> {
         let mut metadata = Metadata::default();
         if !self.parser.eat(TokenKind::Not) {
-            metadata.mark_debug_info_dropped();
+            metadata.drop_debug_loc(DebugLocKind::Dropped);
             return Ok(metadata);
         }
         let name = self.parser.parse_ident()?;
@@ -521,10 +521,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
-            metadata.mark_debug_info_dropped();
+            metadata.drop_debug_loc(DebugLocKind::Dropped);
             return Ok(metadata);
         }
 
+        let mut checkpoints = Vec::new();
         loop {
             let key = self.parser.parse_ident()?;
             if key == sym::stack {
@@ -552,7 +553,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             } else if key == sym::checkpoint {
                 self.parser.expect(TokenKind::Eq)?;
                 let (lo, hi) = self.parser.parse_span_bounds()?;
-                metadata.add_checkpoint_transfer(Span::new(BytePos(lo), BytePos(hi)));
+                checkpoints.push(Span::new(BytePos(lo), BytePos(hi)));
             } else if key == sym::invoke {
                 self.parser.expect(TokenKind::Eq)?;
                 let identifier = self.parser.parse_ident()?;
@@ -596,6 +597,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             break;
         }
+        metadata.add_checkpoint_transfers(checkpoints);
         if metadata.lacks_debug_location() {
             metadata.set_debug_loc_kind(DebugLocKind::Dropped);
         }
@@ -638,24 +640,26 @@ mod tests {
         Module::parse(sess, &source)
     }
 
-    fn evm_ir_fixture_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    fn evm_ir_fixture_dirs() -> [PathBuf; 2] {
+        let codegen = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")
             .join("tests")
             .join("ui")
-            .join("codegen")
-            .join("evm-ir")
+            .join("codegen");
+        [codegen.join("evm-ir"), codegen.join("debug-info").join("evm-ir")]
     }
 
     #[test]
     fn round_trip_all_evm_ir_fixtures() {
-        let dir = evm_ir_fixture_dir();
-        assert!(dir.exists(), "EVM IR fixture dir not found: {}", dir.display());
+        let roots = evm_ir_fixture_dirs();
+        for dir in &roots {
+            assert!(dir.exists(), "EVM IR fixture dir not found: {}", dir.display());
+        }
 
         let mut failures = Vec::new();
         let mut count = 0usize;
-        let mut dirs = vec![dir.clone()];
+        let mut dirs = roots.to_vec();
         while let Some(dir) = dirs.pop() {
             for entry in std::fs::read_dir(dir).unwrap() {
                 let path = entry.unwrap().path();
@@ -679,7 +683,7 @@ mod tests {
             }
         }
 
-        assert!(count > 0, "no .evmir fixtures found in {}", dir.display());
+        assert!(count > 0, "no .evmir fixtures found in {roots:?}");
         assert!(
             failures.is_empty(),
             "{} EVM IR round-trip failure(s):\n  {}",

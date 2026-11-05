@@ -215,9 +215,12 @@ fn terminal_liveness(
         let calls = |inst| {
             matches!(func.inst(inst).kind, InstKind::ICall { function: Callee::Function(_), .. })
         };
+        // The constructor runs a shared function that reads an immutable as a memory read of its
+        // staging word, which the function alone does not show.
+        let reads_immutable = |inst| matches!(func.inst(inst).kind, InstKind::LoadImmutable(_));
         if func.blocks.is_empty()
             || func.blocks.iter().any(returns)
-            || func.instructions().any(calls)
+            || func.instructions().any(|inst| calls(inst) || reads_immutable(inst))
         {
             continue;
         }
@@ -2870,7 +2873,7 @@ impl AllocWalk<'_> {
                 self.derive(inst, next);
                 1
             }
-            InstKind::Add(base, offset) | InstKind::Add(offset, base)
+            InstKind::Add(base, offset)
                 if base == value
                     && let Some(offset) = func.value_u64(offset) =>
             {
@@ -2955,7 +2958,7 @@ impl AllocWalk<'_> {
                 bound(a).saturating_add(bound(b))
             }
             // `and x, mask` is monotonic in `x` when the mask only clears low bits.
-            InstKind::And(x, mask) | InstKind::And(mask, x)
+            InstKind::And(x, mask)
                 if let Some(mask) = func.value_u256(mask)
                     && (!mask & (!mask).wrapping_add(U256::ONE)).is_zero() =>
             {
