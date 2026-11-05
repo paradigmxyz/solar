@@ -36,5 +36,3 @@ debugify: EVM IR GapCheck_deployment after compact-pushes: 1/1 origins retained,
 debugify: EVM IR GapCheck_deployment after returndata-zero: 1/1 origins retained, 0 lost
 debugify: EVM IR GapCheck after stackify: 3/4 origins retained, 1 lost
 debugify: lost 602..608
-debugify: EVM IR GapCheck after stackify: 1 without a location
-debugify: gap GapCheck_runtime bb4 terminator `jump`

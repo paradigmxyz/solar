@@ -557,28 +557,6 @@
                             "length": 13
                           }
                         }
-                      },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 116,
-                            "length": 5
-                          }
-                        }
-                      },
-                      {
-                        "code": {
-                          "source": {
-                            "id": 0
-                          },
-                          "range": {
-                            "offset": 139,
-                            "length": 5
-                          }
-                        }
                       }
                     ]
                   }

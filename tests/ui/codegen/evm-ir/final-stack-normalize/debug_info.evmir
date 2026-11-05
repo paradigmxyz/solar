@@ -1,7 +1,7 @@
 //@ compile-flags: --evm-version amsterdam -Zevm-ir-pipeline=final-stack-normalize
 @module module
 
-// A folded cycle takes the debug information of the swaps it replaces, and the operations
+// A folded cycle takes the debug information of the first swap it replaces, and the operations
 // around it keep their own.
 bb0:
   push 0
