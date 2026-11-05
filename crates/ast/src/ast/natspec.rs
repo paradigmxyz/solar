@@ -15,8 +15,9 @@ pub struct DocComment<'ast> {
     pub symbol: Symbol,
     /// The comment's natspec items.
     ///
-    /// Adjacent `///` comments are one comment for solc: the items of all of them are on the
-    /// first, and the others have none.
+    /// Like solc, only the last doc comment before an item documents it, and adjacent `///`
+    /// comments are one comment: the items of all of them are on the first. The other doc
+    /// comments are in the AST, but have no items.
     pub natspec: BoxSlice<'ast, NatSpecItem>,
 }
 
