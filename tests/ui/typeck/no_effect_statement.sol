@@ -64,8 +64,7 @@ contract C {
         S; //~ WARN: statement has no effect
         Ev; //~ WARN: statement has no effect
         Er; //~ WARN: statement has no effect
-        uint8(a); //~ WARN: statement has no effect
-        address(this); //~ WARN: statement has no effect
+        bytes1("a"); //~ WARN: statement has no effect
         payable(msg.sender); //~ WARN: statement has no effect
         S(1, 2); //~ WARN: statement has no effect
         type(uint).max; //~ WARN: statement has no effect
@@ -83,12 +82,33 @@ contract C {
         (a);
         this;
         super;
+        uint8(a);
+        address(this);
     }
 
     function calldataCopies(uint8[] calldata cd, uint8[] memory mem, bool c) public pure {
         c ? cd : mem;
         T(cd);
         [cd, mem];
+    }
+
+    function constants() public pure {
+        // solc reports compile-time constants, which can revert when run.
+        K + 1; //~ WARN: statement has no effect
+        E(1); //~ WARN: statement has no effect
+        keccak256("a"); //~ WARN: statement has no effect
+        abi.decode("", (uint)); //~ WARN: statement has no effect
+        [1, 2][1]; //~ WARN: statement has no effect
+        C[0]; //~ WARN: statement has no effect
+        uint[7]; //~ WARN: statement has no effect
+    }
+
+    function accountReads(address a) public view {
+        // Reading an account's balance or code warms it.
+        a.balance;
+        a.codehash;
+        a.code.length;
+        address(this).balance;
     }
 
     function storageLoads(bool c) public view {
@@ -129,7 +149,6 @@ contract C {
         (a, x = 1);
         a == b ? g() : 0;
         payable(owner).send(0);
-        keccak256("");
         abi.encode(a);
         new C();
         U u;

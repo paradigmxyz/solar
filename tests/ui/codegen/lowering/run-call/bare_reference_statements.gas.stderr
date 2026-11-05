@@ -73,8 +73,26 @@ LL │         type(IToken);
 warning[6133]: statement has no effect
    ╭▸ ROOT/tests/ui/codegen/lowering/run-call/bare_reference_statements.sol:LL:CC
    │
+LL │         MAX;
+   ╰╴        ━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/bare_reference_statements.sol:LL:CC
+   │
+LL │         BareReferenceStatements.MAX;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/bare_reference_statements.sol:LL:CC
+   │
 LL │         NAME;
    ╰╴        ━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/bare_reference_statements.sol:LL:CC
+   │
+LL │         new uint256[];
+   ╰╴        ━━━━━━━━━━━━━
 
 warning[6133]: statement has no effect
    ╭▸ ROOT/tests/ui/codegen/lowering/run-call/bare_reference_statements.sol:LL:CC

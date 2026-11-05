@@ -85,10 +85,10 @@ contract C {
     using {doubleFn} for function(uint256) internal pure returns (uint256);
 
     function bad(uint256 x) public pure {
-        x.inc; //~ WARN: statement has no effect
-        x.selector; //~ WARN: statement has no effect
-        x.selector.selector; //~ WARN: statement has no effect
-        x.ext.selector; //~ WARN: statement has no effect
+        x.inc;
+        x.selector;
+        x.selector.selector;
+        x.ext.selector;
         x.ext.address; //~ ERROR: member `address` not found
         x.pick; //~ ERROR: member `pick` not unique
         function(uint256) internal pure returns (uint256) ptr = x.inc; //~ ERROR: mismatched types

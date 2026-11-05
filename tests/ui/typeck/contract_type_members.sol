@@ -50,24 +50,24 @@ contract ContractTypes {
 
 contract C {
     function libraryTypes() public pure {
-        LibraryTypes.BASE; //~ WARN: statement has no effect
+        LibraryTypes.BASE;
         LibraryTypes.Amount.wrap(1);
-        LibraryTypes.Item(1); //~ WARN: statement has no effect
-        LibraryTypes.Choice.A; //~ WARN: statement has no effect
-        LibraryTypes.Problem.selector; //~ WARN: statement has no effect
-        LibraryTypes.Signal.selector; //~ WARN: statement has no effect
+        LibraryTypes.Item(1);
+        LibraryTypes.Choice.A;
+        LibraryTypes.Problem.selector;
+        LibraryTypes.Signal.selector;
         LibraryTypes.only; //~ ERROR: member `only` not found
-        LibraryTypes.check.selector; //~ WARN: statement has no effect
+        LibraryTypes.check.selector;
     }
 
     function contractTypes() public pure {
         ContractTypes.BASE; //~ ERROR: member `BASE` not found
         ContractTypes.Amount.wrap(1);
-        ContractTypes.Item(1); //~ WARN: statement has no effect
-        ContractTypes.Choice.A; //~ WARN: statement has no effect
-        ContractTypes.Problem.selector; //~ WARN: statement has no effect
-        ContractTypes.Signal.selector; //~ WARN: statement has no effect
+        ContractTypes.Item(1);
+        ContractTypes.Choice.A;
+        ContractTypes.Problem.selector;
+        ContractTypes.Signal.selector;
         ContractTypes.only; //~ ERROR: member `only` not found
-        ContractTypes.check.selector; //~ WARN: statement has no effect
+        ContractTypes.check.selector;
     }
 }

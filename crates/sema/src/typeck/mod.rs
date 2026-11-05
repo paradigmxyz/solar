@@ -88,9 +88,25 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     check_error_selector_collisions(gcx);
     control_flow::check(gcx);
     // solc's `StaticAnalyzer` runs before its `ViewPureChecker`.
+    check_no_effect_statements(gcx);
     constant_divisors::check(gcx, &units);
     view_pure_checker::check(gcx);
     safe_profile::check(gcx);
+}
+
+/// Reports expression statements that have no effect (6133), like solc's `StaticAnalyzer`, which
+/// only runs when no other error was reported.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/1835d247de183f23e7b0e2bc4a50732af525b77c/libsolidity/analysis/StaticAnalyzer.cpp#L200-L208>
+fn check_no_effect_statements(gcx: Gcx<'_>) {
+    if gcx.dcx().has_errors().is_err() {
+        return;
+    }
+    let mut spans = gcx.typeck_no_effect_stmts().to_vec();
+    spans.sort_unstable_by_key(|span| (span.lo(), span.hi()));
+    for span in spans {
+        gcx.dcx().emit_warn_code(span, error_code!(6133), "statement has no effect");
+    }
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
@@ -146,6 +162,7 @@ fn merge_typeck_results<'gcx>(
         }
         merged.user_operators.extend(new_results.user_operators);
         merged.base_slots.extend(new_results.base_slots);
+        merged.no_effect_stmts.extend(new_results.no_effect_stmts);
     }
 
     merged.expr_types = ExprMap::merge(expr_types, |id, prev_ty, ty| {

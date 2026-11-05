@@ -41,10 +41,10 @@ contract BareReferenceStatements {
         Module.IModule.f; //~ WARN: statement has no effect
         Module.IModule.f.selector; //~ WARN: statement has no effect
         type(IToken); //~ WARN: statement has no effect
-        MAX;
-        BareReferenceStatements.MAX;
+        MAX; //~ WARN: statement has no effect
+        BareReferenceStatements.MAX; //~ WARN: statement has no effect
         NAME; //~ WARN: statement has no effect
-        new uint256[];
+        new uint256[]; //~ WARN: statement has no effect
         to.transfer; //~ WARN: statement has no effect
         to.send; //~ WARN: statement has no effect
         to.call; //~ WARN: statement has no effect

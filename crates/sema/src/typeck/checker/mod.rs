@@ -751,7 +751,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         let index_ty = self.check_array_size(index);
                         let len = index_ty
                             .error_reported()
-                            .and_then(|()| self.gcx.early_const_eval().eval_array_len(index));
+                            .and_then(|()| self.gcx.early_const_eval().eval_expr_array_len(index));
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
                             Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::ONE),
@@ -4023,14 +4023,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 // An expression statement discards its value.
                 self.discard(expr, Discarded::All);
                 let ty = self.check_expr(expr);
-                let fits = self.check_literal_fits(expr, ty, error_code!(3757));
-                if fits.is_ok() && self.has_no_effect(expr) {
-                    self.dcx().emit_warn_code(
-                        expr.span,
-                        error_code!(6133),
-                        "statement has no effect",
-                    );
+                if self.has_no_effect(expr) {
+                    self.results.no_effect_stmts.push(expr.span);
                 }
+                let _ = self.check_literal_fits(expr, ty, error_code!(3757));
                 return ControlFlow::Continue(());
             }
             hir::StmtKind::Return(expr) if !self.in_yul => {

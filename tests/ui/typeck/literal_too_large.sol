@@ -28,7 +28,7 @@ contract TupleLiteralTooLargeExp {
 
 contract TupleLiteralTooLargeExpression {
     function f() pure public {
-        ((2**270) / 2**100, 1); //~ WARN: statement has no effect
+        ((2**270) / 2**100, 1);
     }
 }
 
@@ -81,7 +81,7 @@ contract FractionsTooLarge {
         2**256 + 0.5; //~ ERROR: literal is too large for any fixed-point type
         (1, 2**256 - 0.5); //~ ERROR: literal is too large for any fixed-point type
         (1, -(2**255) - 0.5); //~ ERROR: literal is too large for any fixed-point type
-        (1, 2**256 - 1.5); //~ WARN: statement has no effect
-        (1, -(2**255) + 0.5); //~ WARN: statement has no effect
+        (1, 2**256 - 1.5);
+        (1, -(2**255) + 0.5);
     }
 }

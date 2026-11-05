@@ -40,23 +40,11 @@ error[3757]: literal is too large for any integer type
 LL │         (2**256);
    ╰╴        ━━━━━━━━
 
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/literal_too_large_mobile_type.sol:LL:CC
-   │
-LL │         2**256 - 1;
-   ╰╴        ━━━━━━━━━━
-
 error[3390]: literal is too large for any integer type
    ╭▸ ROOT/tests/ui/typeck/literal_too_large_mobile_type.sol:LL:CC
    │
 LL │         (2**256, 1);
    ╰╴         ━━━━━━
 
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/literal_too_large_mobile_type.sol:LL:CC
-   │
-LL │         (2**256 - 1, 1);
-   ╰╴        ━━━━━━━━━━━━━━━
-
-error: aborting due to 8 previous errors; 2 warnings emitted
+error: aborting due to 8 previous errors
 

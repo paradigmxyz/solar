@@ -8,23 +8,37 @@ use solar_ast::{BinOpKind, DataLocation, ElementaryType, UnOpKind};
 use solar_data_structures::map::FxHashSet;
 
 impl<'gcx> TypeChecker<'gcx> {
-    /// Returns whether an expression statement does nothing: evaluating it neither writes state
-    /// nor can revert.
+    /// Returns whether an expression statement does nothing: it is a compile-time constant, as in
+    /// solc (6133), or evaluating it neither writes state nor can revert.
     ///
-    /// Solc only reports compile-time constants (6133). This also reports reads of builtins and
-    /// comparisons, but never an expression that could revert, such as checked arithmetic,
-    /// division, indexing, or an enum conversion.
+    /// Beyond solc's constants this reports reads of builtins and comparisons, but not an
+    /// expression that could revert, such as checked arithmetic, division, indexing, or an enum
+    /// conversion, unless solc reports it too.
     ///
-    /// A bare mention of a variable (`x;`) is not reported, since solc accepts it silently and
-    /// code uses it to silence unused variable warnings and to force a function to read state.
+    /// A bare mention of a variable (`x;`, `address(this);`) is not reported, since solc accepts it
+    /// silently and code uses it to silence unused variable warnings and to force a function to
+    /// read state.
     pub(super) fn has_no_effect(&self, expr: &hir::Expr<'gcx>) -> bool {
-        !self.is_variable_mention(expr) && self.is_effect_free(expr)
+        !self.is_variable_mention(expr)
+            && (self.is_effect_free(expr)
+                || self.results.type_of_expr(expr.id).is_some_and(|ty| !ty.references_error())
+                    && self.is_pure(expr))
     }
 
     fn is_variable_mention(&self, expr: &hir::Expr<'gcx>) -> bool {
         match expr.kind {
             hir::ExprKind::Tuple(exprs) => {
                 exprs.iter().all(|expr| expr.is_none_or(|expr| self.is_variable_mention(expr)))
+            }
+            // `address(this);` is the same idiom, which forge-std uses.
+            hir::ExprKind::Call(callee, ref args) => {
+                let (callee, None) = callee.split_call_options() else { return false };
+                let is_conversion = self
+                    .results
+                    .type_of_expr(callee.id)
+                    .is_some_and(|ty| matches!(ty.kind, TyKind::Type(_)));
+                is_conversion
+                    && matches!(args.exprs().collect::<Vec<_>>()[..], [arg] if self.is_variable_mention(arg))
             }
             hir::ExprKind::Ident(_) => match self.results.resolved_expr(expr) {
                 Some(hir::Res::Item(hir::ItemId::Variable(id))) => {
@@ -90,6 +104,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 Some(_) => true,
             },
             hir::ExprKind::Member(receiver, _) => {
+                // Reading an account's balance or code warms it, which changes later gas costs.
+                if let Some(hir::Res::Builtin(
+                    Builtin::AddressBalance | Builtin::AddressCode | Builtin::AddressCodehash,
+                )) = self.results.resolved_expr(expr)
+                {
+                    return false;
+                }
                 // Reading calldata decodes lazily and can revert on malformed data.
                 self.results
                     .type_of_expr(receiver.id)

@@ -1,3 +1,11 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:LL:CC
+   │
+LL │           (, uint256 x) = (fail().identity, 3);
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+LL │ ┃         return x;
+   ╰╴┗━━━━━━━━━━━━━━━━┛
+
 warning[6133]: statement has no effect
    ╭▸ ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:LL:CC
    │
@@ -21,12 +29,4 @@ warning[6133]: statement has no effect
    │
 LL │         gasleft;
    ╰╴        ━━━━━━━
-
-warning[5740]: unreachable code
-   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:LL:CC
-   │
-LL │           (, uint256 x) = (fail().identity, 3);
-   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-LL │ ┃         return x;
-   ╰╴┗━━━━━━━━━━━━━━━━┛
 

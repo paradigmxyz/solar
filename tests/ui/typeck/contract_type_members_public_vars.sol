@@ -11,8 +11,8 @@ contract PublicStateVarDerived is PublicStateVarBase {
         c = this.selfVar();
         d = this.baseVar();
 
-        this.selfVar; //~ WARN: statement has no effect
-        this.baseVar; //~ WARN: statement has no effect
+        this.selfVar;
+        this.baseVar;
 
         PublicStateVarDerived.selfVar(); //~ ERROR: expected function, found `uint256`
         PublicStateVarBase.baseVar(); //~ ERROR: expected function, found `uint256`

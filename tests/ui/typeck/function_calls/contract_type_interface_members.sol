@@ -14,7 +14,7 @@ contract C {
     function interfaceFunctionIsDeclaration() public pure {
         function() external pure fn = Executor.check; //~ ERROR: mismatched types
         Executor.check.address; //~ ERROR: member `address` not found
-        Executor.check.selector; //~ WARN: statement has no effect
+        Executor.check.selector;
     }
 
     function ownSelector() external pure returns (bytes4) {

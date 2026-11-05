@@ -3,10 +3,10 @@
 
 contract C {
     function f() public pure {
-        -1 == -2; //~ WARN: statement has no effect
-        1 < 2; //~ WARN: statement has no effect
-        1 == 300; //~ WARN: statement has no effect
-        -1000 > -1; //~ WARN: statement has no effect
+        -1 == -2;
+        1 < 2;
+        1 == 300;
+        -1000 > -1;
         -1 < 0; //~ ERROR: cannot apply builtin operator `<`
         -1 != 1; //~ ERROR: cannot apply builtin operator `!=`
         100 >= -200; //~ ERROR: cannot apply builtin operator `>=`

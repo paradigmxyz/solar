@@ -2,7 +2,6 @@
 
 contract C {
     receive() external payable { msg.data; } //~ ERROR: `msg.data` cannot be used inside of a `receive` function
-    //~^ WARN: statement has no effect
 }
 
 contract Members {
@@ -17,20 +16,20 @@ contract Members {
 // Only the body of `receive` itself is checked.
 contract Allowed {
     modifier m() {
-        msg.data; //~ WARN: statement has no effect
+        msg.data;
         _;
     }
 
     receive() external payable m {
-        msg.sig; //~ WARN: statement has no effect
+        msg.sig;
         f();
     }
 
     fallback() external {
-        msg.data; //~ WARN: statement has no effect
+        msg.data;
     }
 
     function f() internal pure {
-        msg.data; //~ WARN: statement has no effect
+        msg.data;
     }
 }

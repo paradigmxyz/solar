@@ -10,12 +10,6 @@ error: member `address` not found on type `function Executor.check() pure`
 LL │         Executor.check.address;
    ╰╴                       ━━━━━━━
 
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_interface_members.sol:LL:CC
-   │
-LL │         Executor.check.selector;
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━
-
 error: member `execute` not found on type `type(contract HiddenExecutor)`
    ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_interface_members.sol:LL:CC
    │
@@ -28,5 +22,5 @@ error: member `execute` not found on type `type(contract InheritedExecutor)`
 LL │         return InheritedExecutor.execute.selector;
    ╰╴                                 ━━━━━━━
 
-error: aborting due to 4 previous errors; 1 warning emitted
+error: aborting due to 4 previous errors
 

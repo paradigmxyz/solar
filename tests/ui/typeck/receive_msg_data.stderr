@@ -6,12 +6,6 @@ LL │     receive() external payable { msg.data; }
    │
    ╰ note: `receive` is only called with empty calldata
 
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
-   │
-LL │     receive() external payable { msg.data; }
-   ╰╴                                 ━━━━━━━━
-
 error[7139]: `msg.data` cannot be used inside of a `receive` function
    ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
    │
@@ -28,29 +22,5 @@ LL │         bytes calldata data = msg.data[0:0];
    │
    ╰ note: `receive` is only called with empty calldata
 
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
-   │
-LL │         msg.data;
-   ╰╴        ━━━━━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
-   │
-LL │         msg.sig;
-   ╰╴        ━━━━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
-   │
-LL │         msg.data;
-   ╰╴        ━━━━━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/receive_msg_data.sol:LL:CC
-   │
-LL │         msg.data;
-   ╰╴        ━━━━━━━━
-
-error: aborting due to 3 previous errors; 5 warnings emitted
+error: aborting due to 3 previous errors
 

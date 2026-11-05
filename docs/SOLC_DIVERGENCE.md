@@ -708,26 +708,17 @@ Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`
 `tests/ui/codegen/mir/optimize-function/` and
 `tests/ui/codegen/mir/inline/solar_inline_forms.sol`.
 
-### TYPECK-023: Statements with no effect
+### TYPECK-023: Bare references to `require`
 
 Status: intentional.
 
-Difference: `solc` warns `Statement has no effect` (6133) when an expression
-statement is a compile-time constant. `solar` reuses the code for any
-expression statement that can neither write state nor revert, such as `require;`,
-`msg.sender;`, `a == b;` and `(a == b, "msg");`. It does not warn on calls,
-assignments, checked arithmetic, division, indexing, enum conversions, reads
-from calldata or copies of it to memory, loads of storage that `solar`
-validates (enums, `bytes` and `string`) or copies of storage to memory, or a bare variable, `this` or `super`
-(`x;`, which `solc` accepts and code uses to silence unused variable warnings
-and to restrict state mutability). It also does not warn on builtin calls with
-constant arguments, such as `keccak256("a")` and `abi.decode(...)`, or on
-arithmetic and enum conversions of constants that can revert, such as
-`K + 1;` and `E(1);`, which `solc` reports.
+Difference: `solc` rejects a bare reference to `require`, as in `require;`,
+with error 2144, because it declares `require` once per arity. `solar`
+accepts it and reports a statement that has no effect (6133).
 
-Rationale: a slipped parenthesis, as in `require; (cond, "message");`, would
-otherwise drop a check without a diagnostic. The warning stays conservative so
-it never hides code that can revert.
+Rationale: `require` is one builtin here, so a reference to it has a type.
+The warning catches a slipped parenthesis, as in `require; (cond, "message");`,
+which would otherwise drop a check without a diagnostic.
 
 Coverage: `tests/ui/typeck/no_effect_statement.sol`.
 

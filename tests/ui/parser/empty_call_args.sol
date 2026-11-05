@@ -1,5 +1,5 @@
 function f() {
-    f; //~ WARN: statement has no effect
+    f;
     f ();
     f ({ });
 

@@ -1,44 +1,8 @@
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         LibraryTypes.BASE;
-   ╰╴        ━━━━━━━━━━━━━━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         LibraryTypes.Item(1);
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         LibraryTypes.Choice.A;
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         LibraryTypes.Problem.selector;
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         LibraryTypes.Signal.selector;
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 error: member `only` not found on type `type(library LibraryTypes)`
    ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
    │
 LL │         LibraryTypes.only;
    ╰╴                     ━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         LibraryTypes.check.selector;
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: member `BASE` not found on type `type(contract ContractTypes)`
    ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
@@ -46,41 +10,11 @@ error: member `BASE` not found on type `type(contract ContractTypes)`
 LL │         ContractTypes.BASE;
    ╰╴                      ━━━━
 
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         ContractTypes.Item(1);
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         ContractTypes.Choice.A;
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         ContractTypes.Problem.selector;
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         ContractTypes.Signal.selector;
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 error: member `only` not found on type `type(contract ContractTypes)`
    ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
    │
 LL │         ContractTypes.only;
    ╰╴                      ━━━━
 
-warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
-   │
-LL │         ContractTypes.check.selector;
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: aborting due to 3 previous errors; 11 warnings emitted
+error: aborting due to 3 previous errors
 
