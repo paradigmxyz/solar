@@ -173,3 +173,18 @@ contract UnnamedBase is W {
 
     function lock(uint id) external view override returns (uint amount) {}
 }
+
+interface Chain0 {
+    /// @notice Gets the share
+    /// @return amount The share
+    function share() external view returns (uint);
+}
+
+abstract contract Chain1 is Chain0 {
+    function share() external view virtual override returns (uint amount) {}
+}
+
+// The rename at each step of a chain applies to the tag the next override inherits.
+contract Chain2 is Chain1 {
+    function share() external view override returns (uint balance) {}
+}

@@ -83,6 +83,11 @@
 // CHECK: "stake": {
 // CHECK: "return": "amount The stake"
 // CHECK: "amount": "The stake"
+//
+// CHECK-LABEL: "Chain2": {
+// CHECK: "devdoc": {
+// CHECK: "share()": {
+// CHECK: "balance": "The share"
 {
   "language": "Solidity",
   "settings": {
@@ -129,6 +134,10 @@
           "devdoc"
         ],
         "UnnamedBase": [
+          "userdoc",
+          "devdoc"
+        ],
+        "Chain2": [
           "userdoc",
           "devdoc"
         ]

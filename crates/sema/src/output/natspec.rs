@@ -301,24 +301,14 @@ fn return_docs(
         .enumerate()
         .filter_map(|(index, item)| {
             let variable = gcx.hir.variable(*returns.get(index)?);
-            let mut content = item.content();
-            // Like solc, an inherited tag from an unnamed return that starts with the name of this
-            // return keeps that name as its own.
-            if matches!(item.kind, hir::NatSpecKind::Return { name: None })
-                && let Some(name) = variable.name
-                && let Some((word, rest)) = content.split_once([' ', '\t'])
-                && word == name.name.as_str()
-            {
-                content = rest;
-            }
             let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
-            Some((name, content.to_string()))
+            Some((name, item.content().to_string()))
         })
         .collect()
 }
 
 /// Returns the `return` of a state variable: the content of its only `@return` tag, headed by the
-/// name of the first value the getter returns like solc does, including for an inherited tag.
+/// name of the value it documents.
 fn state_variable_return(gcx: Gcx<'_>, variable_id: hir::VariableId) -> Option<String> {
     let mut items = gcx
         .natspec_resolution(variable_id.into())
@@ -329,34 +319,22 @@ fn state_variable_return(gcx: Gcx<'_>, variable_id: hir::VariableId) -> Option<S
     if items.next().is_some() {
         return None;
     }
-    let expected = gcx
-        .hir
-        .variable(variable_id)
-        .getter
-        .and_then(|getter| gcx.hir.function(getter).returns.first())
-        .and_then(|&id| gcx.hir.variable(id).name);
-    let documented = match item.kind {
-        hir::NatSpecKind::Return { name } => name,
-        _ => None,
-    };
-    let content = match (documented, expected) {
-        (Some(documented), Some(expected)) if documented.name == expected.name => {
-            raw_return_content(item).to_string()
-        }
-        (None, Some(expected))
-            if item.content().split([' ', '\t']).next() == Some(expected.name.as_str()) =>
-        {
-            item.content().to_string()
-        }
-        (_, Some(expected)) => format!("{} {}", expected.name, item.content()),
-        (_, None) => item.content().to_string(),
+    let content = match item.kind {
+        hir::NatSpecKind::Return { name: Some(name) } => match raw_return_content(item) {
+            Some(raw) => raw.to_string(),
+            // A tag of only the name keeps it as its description.
+            None if item.content() == name.name.as_str() => item.content().to_string(),
+            None => format!("{} {}", name.name, item.content()),
+        },
+        _ => item.content().to_string(),
     };
     (!content.is_empty()).then_some(content)
 }
 
 /// Returns the content of a `@return` tag with the name that lowering takes off its description,
-/// as solc keeps it for the `return` of a state variable.
-fn raw_return_content(item: &hir::NatSpecItem) -> &str {
+/// as solc keeps it for the `return` of a state variable, unless the tag was renamed on
+/// inheritance.
+fn raw_return_content(item: &hir::NatSpecItem) -> Option<&str> {
     let symbol = item.symbol.as_str();
     if let hir::NatSpecKind::Return { name: Some(name) } = item.kind {
         let name = name.name.as_str();
@@ -369,8 +347,8 @@ fn raw_return_content(item: &hir::NatSpecItem) -> &str {
                 .checked_sub(1)
                 .is_none_or(|before| symbol.as_bytes()[before].is_ascii_whitespace())
         {
-            return &symbol[name_start..item.content_end as usize];
+            return Some(&symbol[name_start..item.content_end as usize]);
         }
     }
-    item.content()
+    None
 }
