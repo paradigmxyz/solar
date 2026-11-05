@@ -584,12 +584,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 // A storage array, struct, or string is read after the arguments that follow it,
                 // as via-IR does; legacy hashes indexed topics before the data arguments run.
-                let operand = this.lower_deferred_operand(
-                    argument,
-                    parameter_ty,
-                    true,
-                    |this, value| Some((value, this.types.abi_type(parameter_ty)?)),
-                )?;
+                let operand =
+                    this.lower_deferred_operand(argument, parameter_ty, true, |this, value| {
+                        Some((value, this.types.abi_type(parameter_ty)?))
+                    })?;
                 Some((argument, operand))
             },
         )?;
