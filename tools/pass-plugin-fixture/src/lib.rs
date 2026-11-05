@@ -117,6 +117,19 @@ impl Plugin for Broken {
             });
         }
         let edit = match mode.as_str() {
+            "existing_helper_output" => Edit::SpliceEvmInstructions {
+                block: 3,
+                start: 0,
+                remove: 0,
+                instructions: vec![api::NewEvmInstruction::Opcode { opcode: 0x80, source: None }],
+            },
+            "unused_evm_block" => Edit::AddEvmBlocks {
+                blocks: vec![api::NewEvmBlock {
+                    instructions: Vec::new(),
+                    call_effect: None,
+                    terminator: EvmTerminator::Opcode { opcode: 0x00 },
+                }],
+            },
             "late_phi" => Edit::AddMirFunctions {
                 functions: vec![Function {
                     name: "late_phi".into(),
