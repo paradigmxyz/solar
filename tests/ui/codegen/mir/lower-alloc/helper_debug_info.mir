@@ -1,0 +1,17 @@
+//@ compile-flags: -Zmir-pipeline=lower-alloc -Zdebugify=check
+//@ normalize-stdout-test: "(?s).+" -> ""
+// The shared `alloc` helper belongs to no source construct, so its instructions carry
+// `compiler_generated` instead of lacking a location, and the check accepts the pass.
+@module HelperDebugInfo
+
+fn @first(arg0: i256) -> ptr<memory> {
+  bb0:
+    v1 = alloc zeroed checked arg0 !metadata(span=10..20, preserves_fmp, effect=memory_write)
+    ret v1 !metadata(span=30..40)
+}
+
+fn @second(arg0: i256) -> ptr<memory> {
+  bb0:
+    v1 = alloc zeroed checked arg0 !metadata(span=50..60, preserves_fmp, effect=memory_write)
+    ret v1 !metadata(span=70..80)
+}

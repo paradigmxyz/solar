@@ -1633,7 +1633,7 @@ fn fence_continues(builder: &mut FunctionBuilder<'_>, scan: &Scan, index: ValueI
             }
         });
         let (_, cloned) =
-            builder.append_instruction(Instruction::new(kind, result_ty).with_debug_info_dropped());
+            builder.append_instruction(Instruction::new(kind, result_ty).with_debug_loc_dropped());
         let result = builder.func().inst_result_value(inst);
         if let (Some(result), Some(cloned)) = (result, cloned) {
             values.insert(result, cloned);
@@ -1700,7 +1700,7 @@ fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
         Some(_) => {
             let (cast, word) = func.alloc_value_inst(
                 Instruction::new(InstKind::PtrToInt(address, 256), Some(MirType::I256))
-                    .with_debug_info_dropped(),
+                    .with_debug_loc_dropped(),
             );
             (word, Some(cast))
         }

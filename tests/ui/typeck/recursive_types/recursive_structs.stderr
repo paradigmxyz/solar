@@ -1,0 +1,18 @@
+error[2046]: recursive struct definition
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_structs.sol:LL:CC
+   │
+LL │ ┏ struct A {
+LL │ ┃     A a;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error[2046]: recursive struct definition
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_structs.sol:LL:CC
+   │
+LL │ ┏ struct C {
+LL │ ┃     A a;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: aborting due to 2 previous errors
+

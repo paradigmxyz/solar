@@ -609,7 +609,7 @@ impl<'gcx> Assembler<'gcx> {
                 ],
             };
             for inst in &mut replacement {
-                inst.metadata.copy_source_debug_from(&metadata);
+                inst.metadata.preserve_debug_loc(&metadata);
             }
             if let Some(function) = metadata.function_invoke()
                 && let Some(inst) = replacement.last_mut()
@@ -666,7 +666,7 @@ impl<'gcx> Assembler<'gcx> {
             } else {
                 let mut metadata = ir::Metadata::default();
                 if let Some(origin) = self.fallthrough_origins.remove(&block_id) {
-                    metadata.copy_source_debug_from(&origin);
+                    metadata.preserve_debug_loc(&origin);
                 }
                 (
                     next.map_or_else(ir::Terminator::implicit_stop, |target| {
@@ -677,7 +677,7 @@ impl<'gcx> Assembler<'gcx> {
                 )
             };
             block.instructions.truncate(block.instructions.len() - remove);
-            terminator.metadata.copy_source_debug_from(&metadata);
+            terminator.metadata.preserve_debug_loc(&metadata);
             if let Some(function) = metadata.function_invoke() {
                 terminator.metadata.set_function_invoke(function);
             }

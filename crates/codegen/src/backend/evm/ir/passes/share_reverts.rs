@@ -114,9 +114,9 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
         // push <shared>
         // jump <continuation>
         let mut push = Instruction::push_block(target_revert);
-        push.metadata.copy_source_debug_from(&target.metadata);
+        push.metadata.preserve_debug_loc(&target.metadata);
         let mut terminator = Terminator::new(TerminatorKind::Jump(continuation));
-        terminator.metadata.copy_source_debug_from(&term.metadata);
+        terminator.metadata.preserve_debug_loc(&term.metadata);
         block.terminator = Some(terminator);
         block.instructions[condition_end] = push;
         if let Some((start, bound, opposite)) = inverted {
@@ -130,7 +130,7 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 .replace_preserving_metadata(Instruction::opcode(opcode));
         } else {
             let mut iszero = Instruction::opcode(op::ISZERO);
-            iszero.metadata.copy_source_debug_from(&block.instructions[condition_end + 1].metadata);
+            iszero.metadata.preserve_debug_loc(&block.instructions[condition_end + 1].metadata);
             block.instructions.insert(condition_end, iszero);
         }
         changed = true;
