@@ -1,0 +1,50 @@
+error: expected a state variable declaration
+   ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
+   │
+LL │     function() external {}
+   │                         ━
+   │
+   ╰ note: this style of fallback function has been removed; use the `fallback` or `receive` keywords instead
+
+error: expected a state variable declaration
+   ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
+   │
+LL │     function() external {}
+   │                         ━
+   │
+   ╰ note: this style of fallback function has been removed; use the `fallback` or `receive` keywords instead
+
+error: expected a state variable declaration
+   ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
+   │
+LL │     function() external payable {}
+   │                                 ━
+   │
+   ╰ note: this style of fallback function has been removed; use the `fallback` or `receive` keywords instead
+
+error: member `g` not found on type `type(library L)`
+   ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
+   │
+LL │         L.g();
+   ╰╴          ━
+
+error: member `g` not found on type `uint256`
+   ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
+   │
+LL │         v.g();
+   ╰╴          ━
+
+error: member `g` not found on type `contract I`
+   ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
+   │
+LL │         i.g();
+   ╰╴          ━
+
+error: member `g` not found on type `contract B`
+   ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
+   │
+LL │         b.g();
+   ╰╴          ━
+
+error: aborting due to 7 previous errors
+
