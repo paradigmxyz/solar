@@ -77,6 +77,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
+use solar_evmir::debug::DebugLocKind;
 use std::cmp::Ordering;
 
 /// Function pass that converts small branch diamonds and triangles into selects.
@@ -501,7 +502,7 @@ fn convert(func: &mut Function, site: &Site) {
     }
     let hoisted = func.blocks[block].instructions.split_off(start);
     for &inst in &hoisted {
-        func.inst_mut(inst).metadata.copy_debug_context(&context);
+        func.inst_mut(inst).metadata.preserve_debug_loc(&context);
     }
     func.blocks[block].instructions.extend(hoisted);
     let then_pred = site.then_arm.unwrap_or(block);
@@ -514,7 +515,7 @@ fn convert(func: &mut Function, site: &Site) {
         let selected = select_value(func, block, condition, select);
         let generated = func.blocks[block].instructions[start..].to_vec();
         for inst in generated {
-            func.inst_mut(inst).metadata.copy_debug_context(&context);
+            func.inst_mut(inst).metadata.preserve_debug_loc(&context);
         }
         let InstKind::Phi(incoming) = &mut func.inst_mut(select.phi).kind else { continue };
         incoming.retain(|&(from, _)| from != then_pred && from != else_pred);
@@ -753,7 +754,7 @@ fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirTyp
     let value = ty.map_or(value, |ty| builder.cast(value, ty));
     let insts = builder.func().blocks[block].instructions[start..].to_vec();
     for inst in insts {
-        builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();
+        builder.func_mut().inst_mut(inst).metadata.drop_debug_loc(DebugLocKind::Dropped);
     }
     value
 }

@@ -108,8 +108,6 @@ fn lower_shift(
     {
         return None;
     }
-    let metadata = builder.func().inst(inst).metadata.debug_context();
-    builder.set_debug_context(&metadata);
     let factor = shift_factor(builder, target, factors, shift);
     if !arithmetic {
         // v = mul value, factor (shl)

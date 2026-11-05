@@ -62,7 +62,7 @@ impl MirPass for LowerChecks {
                     }
                 ) {
                     match &mut helper_context {
-                        Some(context) => context.merge_debug_context(&inst.metadata),
+                        Some(context) => context.merge_debug_locs([&inst.metadata]),
                         None => helper_context = Some(inst.metadata.debug_context()),
                     }
                 }
@@ -106,7 +106,6 @@ fn lower_function(
                 return false;
             }
             let inst = builder.func().inst(id).clone();
-            builder.set_debug_context(&inst.metadata);
             match inst.kind {
                 InstKind::ICall {
                     function: Callee::Builtin(Builtin::Check { is_zero, failure }),
