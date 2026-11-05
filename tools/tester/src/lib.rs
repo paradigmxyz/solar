@@ -709,14 +709,15 @@ impl Flag for FileCheck {
         // The runner drops the stdout of a revision that only runs calls, but not an IR dump.
         let mut stdout = normalized_stdout(config, &output.stdout);
         if stdout.is_empty() {
-            if !config
+            let dumps = config
                 .comments()
                 .flat_map(|comments| &comments.compile_flags)
-                .any(|flag| flag.starts_with("-Zdump="))
-            {
+                .any(|flag| flag.starts_with("-Zdump="));
+            if dumps {
+                stdout = output.stdout.clone();
+            } else if has_run_call(config) {
                 return Ok(());
             }
-            stdout = output.stdout.clone();
         }
 
         let error = |err| command_error("FileCheck".into(), err);
@@ -732,6 +733,13 @@ impl Flag for FileCheck {
 
 fn has_filecheck(config: &TestConfig) -> bool {
     config.comments().any(|comments| comments.custom.contains_key(FileCheck::NAME))
+}
+
+fn has_run_call(config: &TestConfig) -> bool {
+    config.comments().any(|comments| {
+        comments.custom.contains_key(run_call::RunCall::NAME)
+            || comments.custom.contains_key(run_call::RunCallFail::NAME)
+    })
 }
 
 fn is_stdout_snapshot(path: &Path) -> bool {

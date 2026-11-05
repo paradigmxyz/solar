@@ -61,8 +61,9 @@ usual. Standard JSON tests keep their `.stdout` snapshots.
 
 FileCheck reads stdout after the test's `normalize-stdout-test` rewrites and the
 runner's own filters, such as the ones that drop a run-call revision's compiler
-JSON. A revision whose stdout is empty after them is not checked, unless it passes
-`-Zdump=`, which FileCheck then reads unfiltered. To check the output of a test
+JSON. When that leaves a `-Zdump=` revision empty, FileCheck reads the unfiltered
+stdout instead. A revision that runs calls and has no dump is not checked; any
+other revision with empty stdout fails FileCheck. To check the output of a test
 that runs `run-call` directives, dump an IR with `-Zdump=` and add `CHECK` lines.
 
 ## MIR interpreter check
