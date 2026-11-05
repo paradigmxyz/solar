@@ -1,0 +1,131 @@
+; === ROOT/tests/ui/codegen/run-call/constants/receiver_selector.sol:C ===
+@module C
+; function selectorReturn() external pure returns (uint256) [selector 0x4b93ebc0]
+fn @selectorReturn() -> i256 [selector=0x4b93ebc0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_0
+    ret 0x26121ff0
+}
+
+; function selectorDiscarded() external pure returns (uint256) [selector 0x27b5b44b]
+fn @selectorDiscarded() -> i256 [selector=0x27b5b44b, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_0
+    ret 7
+}
+
+; function encodeCallHash() external pure returns (uint256) [selector 0x60ca64a9]
+fn @encodeCallHash() -> i256 [selector=0x60ca64a9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_0
+    v1 = abi_encode [], object, selector 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v2 = ptradd v1, 32
+    v3 = mload v1
+    v4 = keccak256 v2, v3
+    v5 = and v4, 1
+    ret v5
+}
+
+; function encodeCallRevert() external pure [selector 0x3e7d050f]
+fn @encodeCallRevert() [selector=0x3e7d050f, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = icall @constant_0
+    v1 = abi_encode [], object, selector 0x26121ff000000000000000000000000000000000000000000000000000000000
+    icall require<error_string>, false, v1
+    invalid
+}
+
+; function selectorStored() external returns (uint256) [selector 0x79077958]
+fn @selectorStored() -> i256 [selector=0x79077958, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 32
+    v1 = icall @constant_0
+    mstore v0, 0x26121ff000000000000000000000000000000000000000000000000000000000
+    v2 = mload v0
+    v3 = sload 0 !metadata(storage=slot(0))
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v5 = shr v2, 224
+    v6 = and v5, 0xffffffff
+    v7 = or v4, v6
+    sstore 0, v7 !metadata(storage=slot(0))
+    ret 7
+}
+
+; function selectorCompared() external pure returns (bool) [selector 0x64c2c312]
+fn @selectorCompared() -> i1 [selector=0x64c2c312, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @constant_0
+    v1 = eq 0x26121ff000000000000000000000000000000000000000000000000000000000, 0x26121ff000000000000000000000000000000000000000000000000000000000
+    ret v1
+}
+
+; function selectorConcat() external pure returns (uint256) [selector 0xb16ed24f]
+fn @selectorConcat() -> i256 [selector=0xb16ed24f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_0
+    v1 = abi_encode_packed (bytes4 0x26121ff000000000000000000000000000000000000000000000000000000000)
+    v2 = mload v1
+    ret v2
+}
+
+; function selectorLocal() external pure returns (uint256) [selector 0x7c0967c3]
+fn @selectorLocal() -> i256 [selector=0x7c0967c3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_0
+    v1 = eq 0x26121ff000000000000000000000000000000000000000000000000000000000, 0
+    jumpi v1, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v2 = phi [bb1: i8 1], [bb2: i8 7]
+    v3 = zext i8 v2 to i256
+    ret v3
+}
+
+; function selectorConstant() external pure returns (uint256) [selector 0x296cd77f]
+fn @selectorConstant() -> i256 [selector=0x296cd77f, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_2
+    v1 = shr v0, 224
+    v2 = trunc i256 v1 to i32
+    v3 = zext i32 v2 to i256
+    ret v3
+}
+
+; function interfaceSelector() external pure returns (uint32) [selector 0x2ff00ac2]
+fn @interfaceSelector() -> i32 [selector=0x2ff00ac2, pure, abi_params=[], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
+  bb0:
+    ret i32 0x26121ff0
+}
+
+; function thisSelector() external pure returns (uint32) [selector 0x46412a07]
+fn @thisSelector() -> i32 [selector=0x46412a07, pure, abi_params=[], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
+  bb0:
+    ret i32 0xe2179b8e
+}
+
+; function valueSelector() external pure returns (uint32) [selector 0xb1ab02f1]
+fn @valueSelector() -> i32 [selector=0xb1ab02f1, pure, abi_params=[], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
+  bb0:
+    ret i32 0x26121ff0
+}
+
+; function g() external [selector 0xe2179b8e]
+fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+fn @constant_0() -> i160 {
+  bb0:
+    v0 = checked_add uint160, i160 0xffffffffffffffffffffffffffffffffffffffff, i160 1
+    ret v0
+}
+
+fn @constant_2() -> i256 {
+  bb0:
+    v0 = icall @constant_0
+    ret 0x26121ff000000000000000000000000000000000000000000000000000000000
+}
