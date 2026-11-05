@@ -306,8 +306,8 @@ fixed-point types are excluded from solc parity testing.
 Status: intentional.
 
 Difference: `solc` accepts only plain decimal and hexadecimal integers in Yul
-and inline assembly, and rejects `1_000`, `0x1_0` and `1e5` with error 4828.
-`solar` accepts any number literal whose value is an integer, as in Solidity,
+and inline assembly, and rejects `1_000`, `0x1_0`, `1__0` and `1e5` with error
+4828. `solar` accepts any number literal whose value is an integer, as in Solidity,
 and rejects fractions such as `0.5` with error 4828.
 
 `solc` also accepts only a plain string literal or a single `hex` string
@@ -321,7 +321,8 @@ Rationale: these literals have one obvious value, so rejecting them only makes
 the language harder to use.
 
 Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol`,
-`tests/ui/codegen/lowering/run-call/assembly_string_literals.sol` and
+`tests/ui/codegen/lowering/run-call/assembly_string_literals.sol`,
+`tests/ui/parser/yul_number_underscores.sol` and
 `tests/ui/parser/yul_fractional_literal.sol`.
 
 ### PARSE-006: Number literals are limited to 4096 bits
@@ -460,7 +461,7 @@ form. Every program `solc` accepts here has the same meaning in `solar`.
 
 Coverage: `tests/ui/typeck/inheritance/base_arguments.sol`,
 `tests/ui/typeck/inheritance/modifier_arguments.sol`,
-`tests/ui/codegen/lowering/base_constructor_args.sol`,
+`tests/ui/codegen/run-call/constructors/base_constructor_args.sol`,
 `tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`, and
 `tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol`.
 
@@ -723,6 +724,20 @@ which would otherwise drop a check without a diagnostic.
 
 Coverage: `tests/ui/typeck/no_effect_statement.sol`.
 
+### TYPECK-024: Hexadecimal literals of 39 and 41 digits
+
+Status: intentional.
+
+Difference: `solc` rejects a hexadecimal literal of 39 or 41 digits with error
+9429, because it looks like an address that is not exactly 40 digits long.
+`solar` accepts it as an integer. Literals of 40 digits are still addresses
+with a checksum check.
+
+Rationale: a literal that is not 40 digits long is a number, and `solar`
+has no reason to guess that the author meant an address.
+
+Coverage: `tests/ui/typeck/hex_literal_39_41_digits.sol`.
+
 ## Contract-Level Checks
 
 ### CONTRACT-001: Base slots that solc does not evaluate
@@ -760,7 +775,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   validates it.
 - Rationale: All three cases need a word that inline assembly made invalid for
   its type, which the Solidity documentation leaves unspecified.
-- Coverage: the fixtures under `tests/ui/codegen/lowering/dirty/`, whose
+- Coverage: the fixtures under `tests/ui/codegen/run-call/dirty-values/`, whose
   expectations come from `solc --via-ir --optimize`.
 
 ### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
@@ -840,8 +855,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   in every edge case would require restructuring the decoder around solc's
   check order, which is not worth worse source or generated code.
 - Coverage: `tests/ui/standard-json/debug/`,
-  `tests/ui/codegen/lowering/revert-strings/`,
-  `tests/ui/codegen/lowering/library_delegatecall_guard.sol`.
+  `tests/ui/codegen/run-call/revert-strings/`,
+  `tests/ui/codegen/run-call/libraries/library_delegatecall_guard.sol`.
 
 ### CODEGEN-008: Environment snapshots across Foundry cheatcodes
 
@@ -1031,4 +1046,4 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/constant_eval_aggregates.sol`,
   `tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol`,
   `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol` and
-  `tests/ui/codegen/lowering/constant_values_too_large.sol`.
+  `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.

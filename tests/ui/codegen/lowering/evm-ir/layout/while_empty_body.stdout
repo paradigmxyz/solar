@@ -1,0 +1,34 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/layout/while_empty_body.sol:WhileEmptyBody (runtime) ===
+@module WhileEmptyBody_runtime
+bb0:                                              ; runtime dispatch entry + function f(uint256 x) public pure [selector 0xb3de648b]
+  callvalue
+  push bb3
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0xb3de648b
+  sub
+  push bb3
+  jumpi
+  push 36
+  calldatasize
+  lt
+  push bb3
+  jumpi
+  push 4
+  calldataload
+  push 0
+  lt
+  jump bb6
+bb6 [loop]:
+  dup 1
+  push bb6
+  jumpi
+  stop
+bb3 [cold]:
+  push 0
+  push 0
+  revert

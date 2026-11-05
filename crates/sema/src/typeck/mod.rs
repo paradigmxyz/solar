@@ -124,6 +124,7 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
     for f_id in gcx.hir.contract(id).functions() {
         let f = gcx.hir.function(f_id);
         check_payable_function(gcx, f);
+        check_fallback_mutability(gcx, f);
         check_fallback_signature(gcx, f);
     }
     for using in gcx.hir.contract(id).usings {
@@ -605,21 +606,31 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // Check state mutability
         if f.state_mutability != StateMutability::Payable {
             gcx.dcx()
-                .err_at(gcx.item_span(receive), "receive ether function must be payable")
+                .err_code_at(
+                    gcx.item_span(receive),
+                    error_code!(7793),
+                    "receive ether function must be payable",
+                )
                 .help("add `payable` state mutability")
                 .emit();
         }
 
         // Check parameters
         if !f.parameters.is_empty() {
-            gcx.dcx()
-                .emit_err(gcx.item_span(receive), "receive ether function cannot take parameters");
+            gcx.dcx().emit_err_code(
+                gcx.item_span(receive),
+                error_code!(6857),
+                "receive ether function cannot take parameters",
+            );
         }
 
         // Check return values
         if !f.returns.is_empty() {
-            gcx.dcx()
-                .emit_err(gcx.item_span(receive), "receive ether function cannot return values");
+            gcx.dcx().emit_err_code(
+                gcx.item_span(receive),
+                error_code!(6899),
+                "receive ether function cannot return values",
+            );
         }
     }
 }
@@ -811,6 +822,24 @@ fn check_payable_function(gcx: Gcx<'_>, f: &hir::Function<'_>) {
             return;
         };
     gcx.dcx().emit_err_code(f.span, code, msg);
+}
+
+/// Checks that a fallback function is payable or non-payable.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/1835d247de183f23e7b0e2bc4a50732af525b77c/libsolidity/analysis/TypeChecker.cpp#L2026-L2033>
+fn check_fallback_mutability(gcx: Gcx<'_>, f: &hir::Function<'_>) {
+    if f.kind.is_fallback()
+        && matches!(f.state_mutability, StateMutability::View | StateMutability::Pure)
+    {
+        gcx.dcx()
+            .err_code_at(
+                f.span,
+                error_code!(4575),
+                "fallback function must be payable or non-payable",
+            )
+            .help("remove `view` or `pure`, or add `payable`")
+            .emit();
+    }
 }
 
 /// Checks that a fallback function has one of the two signatures the dispatcher can route.

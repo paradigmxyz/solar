@@ -223,7 +223,6 @@ struct FunctionLowerer<'gcx, 'ctx> {
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
-    parameters: Vec<VariableId>,
     returns: Vec<VariableId>,
     prepared_constructors: FxHashSet<hir::FunctionId>,
     /// The base constructor argument list chosen for each base of the contract
@@ -322,7 +321,6 @@ struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
     body: hir::Block<'gcx>,
     next: usize,
-    parameters: BindingSnapshot,
     returns: BindingSnapshot,
     incoming_returns: BindingSnapshot,
 }
@@ -515,7 +513,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),
-            parameters: Vec::new(),
             returns: Vec::new(),
             prepared_constructors: FxHashSet::default(),
             base_args: Vec::new(),
