@@ -29,6 +29,9 @@
 //! stores a word that may come from a binding a function's pointer reaches,
 //! every pointer call dispatches over the exposed functions. Within a block,
 //! words can flow between any of its bindings, so they all count as one.
+//! Outside blocks, only copies and pointer edges carry such words, so a
+//! pointer that Solidity code masks or shifts into a different type before
+//! assembly stores it is not tracked.
 
 use super::*;
 use smallvec::SmallVec;
@@ -55,6 +58,20 @@ struct Exposure<'gcx> {
     assembly_edges: FxHashMap<VariableId, Vec<VariableId>>,
     /// Bindings whose words assembly stores to memory or storage.
     stored: Vec<VariableId>,
+}
+
+/// Collects the bindings an assembly expression mentions.
+fn assembly_bindings(gcx: Gcx<'_>, expr: &hir::Expr<'_>, out: &mut Vec<VariableId>) {
+    match expr.kind {
+        ExprKind::Ident(_) => out.extend(gcx.resolved_variable(expr)),
+        ExprKind::YulMember(base, _) => assembly_bindings(gcx, base, out),
+        ExprKind::Call(_, args) => {
+            for argument in args.exprs() {
+                assembly_bindings(gcx, argument, out);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// The bindings an assembly block mentions.
@@ -159,19 +176,6 @@ impl<'gcx> Exposure<'gcx> {
             }
         }
         self.connect_pointers(destinations, expr);
-    }
-
-    /// Collects the bindings an assembly expression mentions.
-    fn assembly_bindings(&self, expr: &hir::Expr<'_>, out: &mut Vec<VariableId>) {
-        match expr.kind {
-            ExprKind::Ident(_) => out.extend(self.gcx.resolved_variable(expr)),
-            ExprKind::Call(_, args) => {
-                for argument in args.exprs() {
-                    self.assembly_bindings(argument, out);
-                }
-            }
-            _ => {}
-        }
     }
 
     /// Returns the internal function whose pointer an expression takes.
@@ -355,7 +359,8 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
     }
 
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Never> {
-        if !self.visited.insert(id) {
+        // A Yul function is visited from its callers' assembly blocks.
+        if self.gcx.hir.function(id).is_yul && self.assembly.is_none() || !self.visited.insert(id) {
             return ControlFlow::Continue(());
         }
         let previous = self.returns;
@@ -386,7 +391,8 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Never> {
-        let is_assembly = matches!(stmt.kind, StmtKind::AssemblyBlock(..));
+        let is_assembly =
+            matches!(stmt.kind, StmtKind::AssemblyBlock(..)) && self.assembly.is_none();
         if is_assembly {
             self.assembly = Some(AssemblyBlock::default());
         }
@@ -427,9 +433,16 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                 )
                 && let Some(value) = args.exprs().nth(1)
             {
-                let mut stored = std::mem::take(&mut self.stored);
-                self.assembly_bindings(value, &mut stored);
-                self.stored = stored;
+                assembly_bindings(self.gcx, value, &mut self.stored);
+            } else if let ExprKind::Call(callee, _) = expr.kind
+                && let Some(id) = self.gcx.resolved_function(callee)
+                && self.gcx.hir.function(id).is_yul
+            {
+                // A Yul function's words flow through its parameters and returns, and its body
+                // belongs to the block that calls it.
+                let function = self.gcx.hir.function(id);
+                block.bindings.extend(function.parameters.iter().chain(function.returns));
+                let _ = self.visit_nested_function(id);
             }
         } else if let Some(id) = self.gcx.user_operator(expr.id) {
             let parameters = self.gcx.hir.function(id).parameters;
