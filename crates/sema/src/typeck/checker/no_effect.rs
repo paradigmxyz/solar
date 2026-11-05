@@ -5,6 +5,7 @@ use crate::{
     ty::{Ty, TyKind},
 };
 use solar_ast::{BinOpKind, DataLocation, ElementaryType, UnOpKind};
+use solar_data_structures::map::FxHashSet;
 
 impl<'gcx> TypeChecker<'gcx> {
     /// Returns whether an expression statement does nothing: evaluating it neither writes state
@@ -129,22 +130,25 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let in_storage = var.data_location == Some(DataLocation::Storage)
             || (var.is_state_variable() && !var.is_constant() && !var.is_immutable());
-        in_storage && self.validates_on_load(self.gcx.type_of_item(id.into()), 0)
+        in_storage
+            && self.validates_on_load(self.gcx.type_of_item(id.into()), &mut FxHashSet::default())
     }
 
-    fn validates_on_load(&self, ty: Ty<'gcx>, depth: usize) -> bool {
+    /// `visited` holds the structs already searched, so each is searched once.
+    fn validates_on_load(&self, ty: Ty<'gcx>, visited: &mut FxHashSet<hir::StructId>) -> bool {
         match ty.peel_refs().kind {
             TyKind::Enum(_)
             | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => true,
-            TyKind::Array(elem, _) | TyKind::DynArray(elem) => self.validates_on_load(elem, depth),
-            // Recursive structs end at a bound.
+            TyKind::Array(elem, _) | TyKind::DynArray(elem) => {
+                self.validates_on_load(elem, visited)
+            }
             TyKind::Struct(id) => {
-                depth > 4
-                    || self
+                visited.insert(id)
+                    && self
                         .gcx
                         .struct_field_types(id)
                         .iter()
-                        .any(|&field| self.validates_on_load(field, depth + 1))
+                        .any(|&field| self.validates_on_load(field, visited))
             }
             _ => false,
         }
