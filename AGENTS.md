@@ -161,6 +161,8 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 - Prefer UI tests (`tests/ui/`) over unit tests for end-to-end behavior,
   especially diagnostics, sema, and compiler output.
+- Frontend tests go in `parser/`, `resolve/`, and `typeck/`, in a topic
+  subdirectory when one fits, such as `typeck/conversions/` or `parser/using/`.
 - For codegen tests, use `//@ codegen-matrix: standard` (`mir`, `gas`, `size`
   revisions) unless it cannot express the test.
 - To test one source under different flags, passes, levels, EVM versions, or

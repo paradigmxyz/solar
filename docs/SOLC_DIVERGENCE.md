@@ -297,8 +297,8 @@ Coverage: `tests/ui/parser/fixed_point_type.sol`,
 `tests/ui/parser/fixed_point_type_default.sol`,
 `tests/ui/parser/fixed_mxn_types.sol`,
 `tests/ui/parser/fixed_mxn_declaration_names.sol`,
-`tests/ui/typeck/rational_literal_operators.sol`, and
-`tests/ui/typeck/rational_literal_mobile_type.sol`; the upstream fixtures that use
+`tests/ui/typeck/literals/rational_literal_operators.sol`, and
+`tests/ui/typeck/literals/rational_literal_mobile_type.sol`; the upstream fixtures that use
 fixed-point types are excluded from solc parity testing.
 
 ### PARSE-005: Yul literal forms
@@ -358,9 +358,9 @@ Rationale: a hard error would reject sources pinned to a different `solc`
 release even when `solar` can compile them. The warning still flags sources
 that ask for different language semantics.
 
-Coverage: `tests/ui/parser/pragma_version_mismatch.sol`,
-`tests/ui/parser/pragma_valid.sol` and
-`tests/ui/parser/pragma_version_component_above_signed_int.sol`; the upstream
+Coverage: `tests/ui/parser/pragma/pragma_version_mismatch.sol`,
+`tests/ui/parser/pragma/pragma_valid.sol` and
+`tests/ui/parser/pragma/pragma_version_component_above_signed_int.sol`; the upstream
 `wrong_compiler_*`, `broken_version_1` and `version_component_*_greater`
 fixtures remain excluded from solc parity testing.
 
@@ -458,8 +458,8 @@ language rule; these lists denote calls to a constructor or a modifier, and the
 named form has one unambiguous meaning. We deliberately support this extended
 form. Every program `solc` accepts here has the same meaning in `solar`.
 
-Coverage: `tests/ui/typeck/base_arguments.sol`,
-`tests/ui/typeck/modifier_arguments.sol`,
+Coverage: `tests/ui/typeck/inheritance/base_arguments.sol`,
+`tests/ui/typeck/inheritance/modifier_arguments.sol`,
 `tests/ui/codegen/lowering/base_constructor_args.sol`,
 `tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`, and
 `tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol`.
@@ -632,7 +632,7 @@ Rationale: code that walks struct types recurses along the longest chain, and
 the `solc` depth depends on field order. Real code does not nest structs this
 deeply.
 
-Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
+Coverage: `tests/ui/typeck/recursive_types/recursive_struct_deep_direct.sol`.
 
 ### TYPECK-020: Early constant evaluation
 
@@ -660,12 +660,12 @@ Rationale: the order of declarations does not change the value of a constant,
 and each error is reported once, where the expression is checked.
 
 Coverage: `tests/ui/codegen/lowering/run-call/array_len_const_eval.sol`,
-`tests/ui/typeck/array_len_eval_errors.sol`,
-`tests/ui/typeck/array_len_unsupported.sol`,
-`tests/ui/typeck/array_len_typed_negative_shift.sol`,
-`tests/ui/typeck/division_by_zero_solc_values.sol`,
-`tests/ui/typeck/literal_division_by_zero.sol` and
-`tests/ui/typeck/constant_depth_limit.sol`.
+`tests/ui/typeck/array_length/array_len_eval_errors.sol`,
+`tests/ui/typeck/array_length/array_len_unsupported.sol`,
+`tests/ui/typeck/array_length/array_len_typed_negative_shift.sol`,
+`tests/ui/typeck/constants/division_by_zero_solc_values.sol`,
+`tests/ui/typeck/constants/literal_division_by_zero.sol` and
+`tests/ui/typeck/constants/constant_depth_limit.sol`.
 
 ### TYPECK-021: Repeated Yul multi-assignment targets
 
@@ -725,8 +725,8 @@ compute.
 Rationale: the base slot has a well-defined value. Errors in a value that
 `solc` does not compute get `solc`'s code for it, 1505.
 
-Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`,
-`tests/ui/typeck/storage_layout_base_slot_erc7201.sol` and
+Coverage: `tests/ui/typeck/storage_layout/storage_layout_base_slot_ternary.sol`,
+`tests/ui/typeck/storage_layout/storage_layout_base_slot_erc7201.sol` and
 `tests/ui/codegen/lowering/run-call/storage_layout_base_slot_const_eval.sol`;
 upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
@@ -1000,7 +1000,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
   accepts the same way. A second coder would only change which types compile.
 - Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
-  `tests/ui/parser/pragma_valid.sol`.
+  `tests/ui/parser/pragma/pragma_valid.sol`.
 
 ### CODEGEN-012: External function pointer suffixes keep only their field bits
 
