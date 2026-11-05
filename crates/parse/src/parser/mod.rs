@@ -897,6 +897,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 if !continues_run {
                     // Like solc, only the last doc comment before a token documents it, and a run
                     // of adjacent `///` comments is one comment.
+                    self.reject_dropped_solar_tags();
                     self.docs.clear();
                 }
                 self.docs.push(DocComment { kind, span, symbol, natspec: BoxSlice::default() });
@@ -932,6 +933,28 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         head.strip_prefix("///") == Some(prev.1.as_str())
             && tail.strip_prefix("///") == Some(next.1.as_str())
             && natspec::continues_line_comment(gap)
+    }
+
+    /// Reports the `@custom:solar-*` tags of the doc comments that a later one replaces. Solc
+    /// ignores them, but they state requirements that would silently go unchecked.
+    #[cold]
+    fn reject_dropped_solar_tags(&mut self) {
+        if !self.docs.iter().any(|doc| doc.symbol.as_str().contains("solar-")) {
+            return;
+        }
+        // Unknown tags are ignored, as in Yul, so that the comment only reports its own tags.
+        let mut items = SmallVec::new();
+        natspec::parse_natspec(&self.docs, true, self.dcx(), &mut items);
+        for item in &items {
+            if let ast::NatSpecKind::Custom { name } = item.kind
+                && name.name.as_str().starts_with("solar-")
+            {
+                self.dcx()
+                    .err_at(item.span, "this doc comment is replaced by a later one")
+                    .help(format!("put `@custom:{}` in the doc comment of the item", name.name))
+                    .emit();
+            }
+        }
     }
 
     /// Parses the NatSpec items of the doc comments, which are one comment for solc, and gives
