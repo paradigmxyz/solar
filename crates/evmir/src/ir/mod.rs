@@ -975,7 +975,7 @@ impl Metadata {
     }
 
     /// Rule R1, preserve: copies the location (spans, modifier depth and kind) of the one
-    /// operation this one replaces, like LLVM's `setDebugLoc(I->getDebugLoc())` and solc's
+    /// operation this one stands for, like LLVM's `setDebugLoc(I->getDebugLoc())` and solc's
     /// `AssemblyItem(op, _x.debugData())`.
     pub fn preserve_debug_loc(&mut self, from: &Self) {
         self.set_source_spans(from.source_spans().iter().copied());
@@ -1054,8 +1054,8 @@ impl Metadata {
         );
     }
 
-    /// Rule E3, drop events: forgets the function events and checkpoint proofs when the transfer
-    /// that carried them disappears, as solc loses the `JumpType` of a deleted `JUMP`.
+    /// Rule E3, drop events: forgets the function events and checkpoint proofs, as solc loses the
+    /// `JumpType` of a deleted `JUMP`.
     pub fn drop_function_events(&mut self) {
         self.function_invoke = None;
         self.function_exit = None;
