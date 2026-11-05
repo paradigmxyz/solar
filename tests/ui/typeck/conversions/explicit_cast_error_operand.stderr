@@ -1,0 +1,14 @@
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/typeck/conversions/explicit_cast_error_operand.sol:LL:CC
+   │
+LL │         return bytes(Missing.get()).length;
+   ╰╴                     ━━━━━━━
+
+error[7576]: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/typeck/conversions/explicit_cast_error_operand.sol:LL:CC
+   │
+LL │         return string(Missing).length;
+   ╰╴                      ━━━━━━━
+
+error: aborting due to 2 previous errors
+
