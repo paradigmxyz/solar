@@ -106,4 +106,7 @@ contract C {
 
     /// @return amount The amount
     mapping(address owner => uint256 amount) public stateReturn;
+
+    /// @return turn
+    mapping(address owner => uint256 turn) public stateReturnName;
 }
