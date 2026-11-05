@@ -6,8 +6,10 @@
 //@ run-call-fail: divided() => Panic(0x12)
 //@ run-call-fail: viaLibrary() => Panic(0x11)
 //@ run-call-fail: inherited() => Panic(0x11)
-//@ run-call: unchecked_() => 1
+//@ run-call: uncheckedRead() => 1
 //@ run-call: folded() => 4
+//@ run-call: local 0x01 => 1
+//@ run-call: skippedBranch true => 4
 
 library L {
     bytes1 constant X = bytes1(uint8(255) + uint8(1));
@@ -53,7 +55,7 @@ contract C is Base {
         return Base.Y.length;
     }
 
-    function unchecked_() external pure returns (uint256) {
+    function uncheckedRead() external pure returns (uint256) {
         unchecked {
             return X.length;
         }
@@ -61,5 +63,13 @@ contract C is Base {
 
     function folded() external pure returns (uint256) {
         return FOLDED.length;
+    }
+
+    function local(bytes1 value) external pure returns (uint256) {
+        return value.length;
+    }
+
+    function skippedBranch(bool folded_) external pure returns (uint256) {
+        return (folded_ ? FOLDED : bytes4(X)).length;
     }
 }

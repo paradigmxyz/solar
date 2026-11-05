@@ -62,8 +62,8 @@ fn @inherited() -> i256 [selector=0x176161c1, pure, abi_params=[], abi_returns=[
     ret 2
 }
 
-; function unchecked_() external pure returns (uint256) [selector 0x4234bdfc]
-fn @unchecked_() -> i256 [selector=0x4234bdfc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+; function uncheckedRead() external pure returns (uint256) [selector 0xcb2b0c9b]
+fn @uncheckedRead() -> i256 [selector=0xcb2b0c9b, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @constant_2_unchecked
     ret 1
@@ -72,6 +72,26 @@ fn @unchecked_() -> i256 [selector=0x4234bdfc, pure, abi_params=[], abi_returns=
 ; function folded() external pure returns (uint256) [selector 0x10b19647]
 fn @folded() -> i256 [selector=0x10b19647, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
+    ret 4
+}
+
+; function local(bytes1 value) external pure returns (uint256) [selector 0x3be4063a]
+fn @local(arg0: i256) -> i256 [selector=0x3be4063a, pure, abi_params=[bytes1], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 1
+}
+
+; function skippedBranch(bool folded_) external pure returns (uint256) [selector 0x8b589b97]
+fn @skippedBranch(arg0: i1) -> i256 [selector=0x8b589b97, pure, abi_params=[bool], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v0 = icall @constant_2
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v1 = phi [bb1: 0x10b1964700000000000000000000000000000000000000000000000000000000], [bb2: v0]
     ret 4
 }
 
