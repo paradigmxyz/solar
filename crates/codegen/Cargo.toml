@@ -22,7 +22,7 @@ solar-data-structures.workspace = true
 solar-evmir.workspace = true
 solar-interface.workspace = true
 solar-mir.workspace = true
-solar-pass-plugin.workspace = true
+solar-pass-plugin = { workspace = true, features = ["host"] }
 solar-sema.workspace = true
 
 alloy-primitives.workspace = true
@@ -33,9 +33,6 @@ memchr.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
-
-[target.'cfg(any(unix, windows))'.dependencies]
-libloading.workspace = true
 
 [dev-dependencies]
 snapbox.workspace = true
