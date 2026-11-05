@@ -21,6 +21,7 @@ use alloy_primitives::U256;
 use solar_ast::TypeSize;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
     newtype_index,
@@ -195,6 +196,70 @@ impl Module {
         (next < self.blocks.len()).then(|| BlockId::from_usize(next))
     }
 
+    /// Returns the blocks whose lent function entry is still valid: the label has exactly one
+    /// reference, a direct jump or branch to it. An opaque label use, a physical fallthrough, the
+    /// program entry or a second incoming edge means the event no longer marks the transfer that
+    /// entered the function.
+    pub fn valid_lent_invokes(&self) -> DenseBitSet<BlockId> {
+        let mut seen = DenseBitSet::new_empty(self.blocks.len());
+        if !self.blocks.iter().any(|block| block.metadata.lent_invoke.is_some()) {
+            return seen;
+        }
+        let mut invalid = DenseBitSet::new_empty(self.blocks.len());
+        let mut reference = |target: BlockId, direct: bool| {
+            if !seen.insert(target) || !direct {
+                invalid.insert(target);
+            }
+        };
+        if !self.blocks.is_empty() {
+            reference(BlockId::ENTRY, false);
+        }
+        for (id, block) in self.blocks.iter_enumerated() {
+            for (index, inst) in block.instructions.iter().enumerate() {
+                if let Some(target) = inst.pushed_block() {
+                    let direct = block
+                        .instructions
+                        .get(index + 1)
+                        .is_some_and(|next| matches!(next.opcode, op::JUMP | op::JUMPI))
+                        || (index + 1 == block.instructions.len()
+                            && block.terminator.as_ref().is_some_and(|term| {
+                                matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))
+                            }));
+                    reference(target, direct);
+                }
+            }
+            if let Some(term) = &block.terminator {
+                let direct =
+                    matches!(term.kind, TerminatorKind::Jump(_) | TerminatorKind::JumpI { .. });
+                term.kind.visit_targets(|target| reference(target, direct));
+            }
+            let falls_through = match block.terminator.as_ref().map(|term| &term.kind) {
+                Some(TerminatorKind::Op(opcode)) => !op::is_terminal(*opcode),
+                Some(_) => false,
+                None => block.instructions.last().is_none_or(|inst| !op::is_terminal(inst.opcode)),
+            };
+            if falls_through && let Some(next) = self.next_block(id) {
+                reference(next, false);
+            }
+        }
+        seen.subtract(&invalid);
+        seen
+    }
+
+    /// Drops lent function entries as soon as a transform invalidates their exclusive-entry
+    /// check.
+    pub fn drop_invalid_lent_invokes(&mut self) {
+        if !self.blocks.iter().any(|block| block.metadata.lent_invoke.is_some()) {
+            return;
+        }
+        let valid = self.valid_lent_invokes();
+        for (id, block) in self.blocks.iter_mut_enumerated() {
+            if !valid.contains(id) {
+                block.metadata.lent_invoke = None;
+            }
+        }
+    }
+
     /// Controls debug-only fields in text dumps, independently of the metadata being audited.
     pub fn set_debug_info_visible(&mut self, visible: bool) {
         self.hide_debug_info = !visible;
@@ -277,6 +342,14 @@ pub struct BlockMetadata {
     /// Direct jumps to the block are calls, and the return address is a block's address that the
     /// caller pushed before them. See [`CallEffect`].
     pub call_effect: Option<CallEffect>,
+    /// A function entry lent to this block by a bypassed conditional thunk.
+    ///
+    /// NOTE: The event marks the callee's entry, so it sits on the destination only while the
+    /// bypassed edge is the label's only entry, which [`Module::valid_lent_invokes`] checks after
+    /// every pass. Where frame events belong is decision D2 in
+    /// <https://ampcode.com/artifacts/debug-info-across-rewrites-one-rule-per-case-vs-llvm-clang-r-e66f5371-2c50-4a89-8817-1460e914d7ff>
+    /// (§3 "Frame events", §7); the frame-event placement change settles it.
+    pub lent_invoke: Option<DebugFunction>,
 }
 
 /// How code returns to its caller through a dynamic `jump`.

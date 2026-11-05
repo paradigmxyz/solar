@@ -51,6 +51,16 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
                 function.declaration.hi().0
             ));
         }
+        if !module.hide_debug_info
+            && let Some(function) = metadata.lent_invoke
+        {
+            attributes.push(format!(
+                "lent_invoke={}@{}..{}",
+                function.identifier,
+                function.declaration.lo().0,
+                function.declaration.hi().0
+            ));
+        }
         if let Some(effect) = metadata.call_effect {
             attributes.push(format!(
                 "ret={}, inputs={}, outputs={}",

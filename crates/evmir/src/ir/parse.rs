@@ -24,6 +24,7 @@ struct ParsedBlockHeader {
     is_continuation: bool,
     external_entry: bool,
     function_invoke: Option<DebugFunction>,
+    lent_invoke: Option<DebugFunction>,
     entry_depth: Option<u16>,
     call_effect: Option<CallEffect>,
 }
@@ -69,6 +70,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parse_program_body(&mut module)?;
         let tracks_debug_info = module.blocks.iter().any(|block| {
             block.metadata.function_invoke.is_some()
+                || block.metadata.lent_invoke.is_some()
                 || block.instructions.iter().any(|inst| {
                     inst.metadata.source_span().is_some()
                         || inst.metadata.function_invoke().is_some()
@@ -111,6 +113,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 module.blocks[block_id].metadata.is_continuation = header.is_continuation;
                 module.blocks[block_id].metadata.external_entry = header.external_entry;
                 module.blocks[block_id].metadata.function_invoke = header.function_invoke;
+                module.blocks[block_id].metadata.lent_invoke = header.lent_invoke;
                 module.blocks[block_id].metadata.entry_depth = header.entry_depth;
                 module.blocks[block_id].metadata.call_effect = header.call_effect;
                 current_block = Some(block_id);
@@ -139,6 +142,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut is_continuation = false;
         let mut external_entry = false;
         let mut function_invoke = None;
+        let mut lent_invoke = None;
         let mut entry_depth = None;
         let mut ret = None;
         let mut inputs = None;
@@ -162,6 +166,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         identifier,
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
                     });
+                } else if self.parser.eat_keyword(sym::lent_invoke) {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let identifier = self.parser.parse_ident()?;
+                    self.parser.expect(TokenKind::At)?;
+                    let (lo, hi) = self.parser.parse_span_bounds()?;
+                    lent_invoke = Some(DebugFunction {
+                        identifier,
+                        declaration: Span::new(BytePos(lo), BytePos(hi)),
+                    });
                 } else if self.parser.eat_keyword(sym::stack) {
                     self.parser.expect(TokenKind::Eq)?;
                     entry_depth = Some(self.parser.parse_uint_as()?);
@@ -176,8 +189,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     outputs = Some(self.parser.parse_uint_as()?);
                 } else {
                     return Err(self.parser.error(
-                        "expected `cold`, `loop`, `continuation`, `entry`, `invoke`, `stack`, \
-                         `ret`, `inputs`, or `outputs` block attribute",
+                        "expected `cold`, `loop`, `continuation`, `entry`, `invoke`, `lent_invoke`, \
+                         `stack`, `ret`, `inputs`, or `outputs` block attribute",
                     ));
                 }
                 if !self.parser.eat(TokenKind::Comma) {
@@ -208,6 +221,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             is_continuation,
             external_entry,
             function_invoke,
+            lent_invoke,
             entry_depth,
             call_effect,
         }))

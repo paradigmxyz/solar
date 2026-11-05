@@ -1147,6 +1147,7 @@ symbols! {
         keep_with_next,
         layout,
         length,
+        lent_invoke,
         libraries,
         library_address,
         library_called_without_delegatecall,

@@ -240,6 +240,7 @@ fn lower_evm_ir_once(
         }
     }
     let mut program = Program::with_debug_info(capture_debug_info);
+    let valid_lent_invokes = module.valid_lent_invokes();
     let mut pending_block_invoke = None;
     for (block_id, block) in module.blocks.iter_enumerated() {
         program.set_source_span(None);
@@ -249,7 +250,11 @@ fn lower_evm_ir_once(
         );
         program.set_modifier_depth(block_modifier_depth);
         let original = block.label as usize;
-        if let Some(function) = block.metadata.function_invoke {
+        // A lent function entry depends on its exclusive-edge check. Sharing may revoke it without
+        // affecting a native block entry.
+        let lent =
+            valid_lent_invokes.contains(block_id).then_some(block.metadata.lent_invoke).flatten();
+        if let Some(function) = block.metadata.function_invoke.or(lent) {
             debug_assert!(
                 pending_block_invoke.is_none() || pending_block_invoke == Some(function),
                 "an instruction-free block cannot enter two functions"

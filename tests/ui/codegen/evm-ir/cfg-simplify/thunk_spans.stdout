@@ -13,7 +13,8 @@
     push 0
     mstore
     stop
-  bb3:
+- bb3:
++ bb3 [lent_invoke=callee@30..50]:
     push 2
     push 0
     mstore

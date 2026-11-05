@@ -50,7 +50,9 @@
 //!
 //! A bypassed thunk's jump takes its source origin with it, as a removed branch does in LLVM. Its
 //! function events move to an unconditional transfer that skips it, never to a conditional one,
-//! which also executes when that edge is not taken.
+//! which also executes when that edge is not taken. A conditional edge's function entry goes to its
+//! destination label instead, but only while that edge is the label's only entry; later passes drop
+//! it when the label becomes shared, falls through or acquires opaque address uses.
 
 use super::{
     EvmPass,
@@ -62,6 +64,7 @@ use super::{
     },
 };
 use crate::backend::evm::{
+    DebugFunction,
     ir::{
         Block, BlockId, CallEffect, Instruction, Metadata, Module, ModuleTarget, PushValue,
         StackEffect, Terminator, TerminatorKind, default_terminator_stack_effect,
@@ -422,7 +425,9 @@ fn redirect_jump_thunks(
     thread_shared_jumps: bool,
     state: &mut RunState,
 ) -> bool {
-    let RunState { thunks, addressed, jump_heads, forwarded_continuations, order, .. } = state;
+    let RunState {
+        thunks, addressed, jump_heads, forwarded_continuations, order, references, ..
+    } = state;
     // Redirect direct edges through empty blocks. Keep labels used as values distinct, and move
     // each removed thunk's debug event to its incoming edges. A thunk is an empty block that only
     // jumps on: redirect direct branches and explicitly unobservable return addresses; ordinary
@@ -483,7 +488,12 @@ fn redirect_jump_thunks(
     };
 
     let mut changed = false;
+    let mut lent = Vec::new();
+    if thunks.values().any(|thunk| thunk.metadata.function_invoke().is_some()) {
+        count_block_references(module, references);
+    }
     forwarded_continuations.clear_to(module.blocks.len());
+    let track_debug_info = module.debug_info_is_tracked();
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
             if let Some(PushValue::Block(target)) = block.instructions[at].value
@@ -493,6 +503,9 @@ fn redirect_jump_thunks(
                 if direct && let Some(thunk) = thunks.get(&target) {
                     let conditional =
                         block.instructions.get(at + 1).is_some_and(|inst| inst.opcode == op::JUMPI);
+                    if conditional && track_debug_info {
+                        lent.extend(thunk_chain_invoke(target, thunks, references));
+                    }
                     absorb_thunk_debug_info(
                         &mut block.instructions[at].metadata,
                         &thunk.metadata,
@@ -517,12 +530,23 @@ fn redirect_jump_thunks(
             let conditional = !matches!(term.kind, TerminatorKind::Jump(_));
             term.kind.visit_targets_mut(|target| {
                 if let Some(thunk) = thunks.get(target) {
+                    if conditional && track_debug_info {
+                        lent.extend(thunk_chain_invoke(*target, thunks, references));
+                    }
                     absorb_thunk_debug_info(&mut term.metadata, &thunk.metadata, conditional);
                 }
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
                 *target = resolved;
             });
+        }
+    }
+    for (target, function) in lent {
+        let metadata = &mut module.blocks[target].metadata;
+        if metadata.function_invoke.is_none()
+            && metadata.lent_invoke.is_none_or(|lent| lent == function)
+        {
+            metadata.lent_invoke = Some(function);
         }
     }
     // target: <unobservable control continuation>
@@ -757,4 +781,30 @@ fn absorb_thunk_debug_info(metadata: &mut Metadata, thunk: &Metadata, conditiona
     if !conditional {
         metadata.absorb_function_events(thunk);
     }
+}
+
+/// The function entry that a conditional edge through a thunk chain carries to its destination,
+/// with that destination, when the chain ends at an existing label that the edge exclusively
+/// reaches and every thunk of the chain that enters a function agrees on it.
+fn thunk_chain_invoke(
+    start: BlockId,
+    thunks: &FxHashMap<BlockId, Thunk>,
+    references: &IndexVec<BlockId, usize>,
+) -> Option<(BlockId, DebugFunction)> {
+    let mut function = None;
+    let mut target = start;
+    for _ in 0..thunks.len() {
+        let Some(thunk) = thunks.get(&target) else { break };
+        if references.get(thunk.next) != Some(&1) {
+            return None;
+        }
+        if let Some(entered) = thunk.metadata.function_invoke() {
+            if function.is_some_and(|other| other != entered) {
+                return None;
+            }
+            function = Some(entered);
+        }
+        target = thunk.next;
+    }
+    (!thunks.contains_key(&target)).then_some((target, function?))
 }
