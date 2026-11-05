@@ -795,6 +795,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Lit(lit) if self.in_yul => self.check_yul_lit(lit),
+            // The AST validator has already reported the length. Like solc, type it as an address
+            // to avoid follow-up errors. Yul literals are plain numbers.
+            hir::ExprKind::Lit(lit) if lit.almost_address_digits().is_some() => {
+                self.gcx.types.address
+            }
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
             hir::ExprKind::Member(receiver, ident) => {
                 let receiver_ty = self.check_expr_outside_lvalue_context(receiver, None);

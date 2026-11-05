@@ -24,4 +24,12 @@ contract C {
 
     // Prepending `00` to an address makes an integer.
     uint256 z42 = 0x001111111111111111111111111111111111111111;
+
+    // Yul literals are plain numbers, so any length is fine.
+    function f() public pure returns (uint256 r) {
+        assembly {
+            r := 0x111111111111111111111111111111111111111
+            r := 0x11111111111111111111111111111111111111111
+        }
+    }
 }

@@ -1231,13 +1231,6 @@ impl<'gcx> Gcx<'gcx> {
     pub fn type_of_lit(self, lit: &'gcx hir::Lit<'gcx>) -> Ty<'gcx> {
         match &lit.kind {
             solar_ast::LitKind::Str(_, s, _) => self.mk_ty_string_literal(s.as_byte_str()),
-            // The AST validator has already reported the length. Like solc, type it as an address
-            // to avoid follow-up errors.
-            solar_ast::LitKind::Number(_) | solar_ast::LitKind::BigNumber(_)
-                if lit.almost_address_digits().is_some() =>
-            {
-                self.types.address
-            }
             solar_ast::LitKind::Number(int) => {
                 let compatible_fixed_bytes = compatible_fixed_bytes_type(lit);
                 self.mk_ty_int_literal_with_fixed_bytes(

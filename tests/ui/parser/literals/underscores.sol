@@ -20,6 +20,10 @@ contract C {
         uint X2 = 0x1_; //~ ERROR: invalid use of underscores in number literal
         uint X3 = 0x1__0; //~ ERROR: invalid use of underscores in number literal
 
+        uint E1 = 1e_; //~ ERROR: invalid use of underscores in number literal
+        uint E2 = 1E_; //~ ERROR: invalid use of underscores in number literal
+        uint E3 = 1_0.; //~ ERROR: empty rational
+
         // A valid underscore between digits, and next to an uppercase exponent as in solc.
         uint V1 = 1_000;
         uint V2 = 0x1_0;

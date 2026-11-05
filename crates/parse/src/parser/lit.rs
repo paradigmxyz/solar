@@ -317,10 +317,12 @@ fn parse_rational<'ast>(
     if int.is_empty() {
         int = "0";
     }
-    // The AST validator reports the underscore in `1._`, as solc does.
-    if rat.is_some_and(str::is_empty) && !symbol.as_str_in(sess).contains('_') {
+    // The AST validator reports the underscores in `1._` and `1e_`, as solc does.
+    let underscored = symbol.as_str_in(sess).contains('_');
+    if rat.is_some_and(str::is_empty) && !symbol.as_str_in(sess).contains("._") {
         return Err(LitError::EmptyRational);
     }
+    let exp = exp.filter(|exp| !(exp.is_empty() && underscored));
     if let Some(exp) = exp {
         if exp.starts_with('+') {
             return Err(LitError::RationalPlusExponent);
