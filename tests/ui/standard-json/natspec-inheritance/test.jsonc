@@ -61,6 +61,11 @@
 // CHECK: "return": "The count"
 // CHECK: "_0": "The count"
 // CHECK: "total": {
+// CHECK: "pair": {
+// CHECK-NOT: "return":
+// CHECK: "returns": {
+// CHECK: "a": "The a"
+// CHECK: "b": "The b"
 //
 // CHECK-LABEL: "DocumentedVariable": {
 // CHECK: "count()": {

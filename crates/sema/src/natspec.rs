@@ -18,17 +18,13 @@ pub(crate) struct ResolvedNatSpec<'gcx> {
     local_len: usize,
     local_tags: LocalTags,
     inheritdoc_target: Option<(Span, hir::ItemId)>,
-    implicit_target: Option<hir::ItemId>,
+    /// The item whose documentation this item inherits, by `@inheritdoc` or implicitly.
+    inherited_target: Option<hir::ItemId>,
 }
 
 impl<'gcx> ResolvedNatSpec<'gcx> {
     pub(crate) fn items(self) -> &'gcx [hir::NatSpecItem] {
         self.items
-    }
-
-    /// Returns the item whose documentation this item inherits, by `@inheritdoc` or implicitly.
-    fn inherited_target(self) -> Option<hir::ItemId> {
-        self.inheritdoc_target.map(|(_, target)| target).or(self.implicit_target)
     }
 }
 
@@ -222,7 +218,7 @@ pub(crate) fn resolve_item<'gcx>(gcx: Gcx<'gcx>, item_id: hir::ItemId) -> Resolv
 
 pub(crate) fn resolve_view<'gcx>(gcx: Gcx<'gcx>, item_id: hir::ItemId) -> NatSpecView<'gcx> {
     let resolved = gcx.natspec_resolution(item_id);
-    let inherited = resolved.inherited_target().map(|target| gcx.natspec_view(target));
+    let inherited = resolved.inherited_target.map(|target| gcx.natspec_view(target));
     let local_items = &resolved.items[..resolved.local_len];
     let (parameters, returns) = Resolver::new(gcx).positional_sections(
         item_id,
@@ -309,7 +305,7 @@ impl<'gcx> Resolver<'gcx> {
             local_len: local_tags.len(),
             local_tags: local_sections,
             inheritdoc_target,
-            implicit_target,
+            inherited_target,
         }
     }
 

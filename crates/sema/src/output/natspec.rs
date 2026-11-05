@@ -118,16 +118,16 @@ impl<'gcx> Gcx<'gcx> {
         for variable_id in contract.variables() {
             let variable = self.hir.variable(variable_id);
             let mut documentation_item = dev_doc_item(self, variable_id.into());
-            let return_text = self
+            let mut return_items = self
                 .natspec_resolution(variable_id.into())
                 .items()
                 .iter()
-                .copied()
-                .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
-                .map(|item| item.content().to_string())
-                .collect::<String>();
-            if !return_text.is_empty() {
-                documentation_item.r#return = Some(return_text);
+                .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }));
+            if let Some(item) = return_items.next()
+                && return_items.next().is_none()
+                && !item.content().is_empty()
+            {
+                documentation_item.r#return = Some(item.content().to_string());
             }
             if let Some(getter) = variable.getter {
                 documentation_item.returns =

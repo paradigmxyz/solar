@@ -107,7 +107,17 @@ contract Chain is Plain {
     function k() external override {}
 }
 
+struct S {
+    uint a;
+    uint b;
+}
+
 interface V {
+    /// @notice Gets the pair
+    /// @return a The a
+    /// @return b The b
+    function pair(uint id) external view returns (uint a, uint b);
+
     /// @notice Gets the count
     /// @dev Details of count
     /// @return v The count
@@ -126,6 +136,7 @@ contract Variables is V {
     uint public override count;
     uint public override total;
     mapping(uint => address) public override owner;
+    mapping(uint => S) public override pair;
 }
 
 contract DocumentedVariable is V {
@@ -134,4 +145,5 @@ contract DocumentedVariable is V {
     /// @inheritdoc V
     uint public override total;
     mapping(uint => address) public override owner;
+    mapping(uint => S) public override pair;
 }

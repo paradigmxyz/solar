@@ -303,6 +303,9 @@
             },
             "owner(uint256)": {
               "notice": "Gets the owner"
+            },
+            "pair(uint256)": {
+              "notice": "Gets the pair"
             }
           },
           "version": 1
@@ -323,6 +326,12 @@
               "returns": {
                 "_0": "The total"
               }
+            },
+            "pair": {
+              "returns": {
+                "a": "The a",
+                "b": "The b"
+              }
             }
           },
           "version": 1
@@ -340,6 +349,9 @@
             },
             "owner(uint256)": {
               "notice": "Gets the owner"
+            },
+            "pair(uint256)": {
+              "notice": "Gets the pair"
             }
           },
           "version": 1
@@ -352,6 +364,12 @@
               "return": "The total",
               "returns": {
                 "_0": "The total"
+              }
+            },
+            "pair": {
+              "returns": {
+                "a": "The a",
+                "b": "The b"
               }
             }
           },
