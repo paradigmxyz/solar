@@ -18,11 +18,17 @@ pub(crate) struct ResolvedNatSpec<'gcx> {
     local_len: usize,
     local_tags: LocalTags,
     inheritdoc_target: Option<(Span, hir::ItemId)>,
+    implicit_target: Option<hir::ItemId>,
 }
 
 impl<'gcx> ResolvedNatSpec<'gcx> {
     pub(crate) fn items(self) -> &'gcx [hir::NatSpecItem] {
         self.items
+    }
+
+    /// Returns the item whose documentation this item inherits, by `@inheritdoc` or implicitly.
+    fn inherited_target(self) -> Option<hir::ItemId> {
+        self.inheritdoc_target.map(|(_, target)| target).or(self.implicit_target)
     }
 }
 
@@ -216,7 +222,7 @@ pub(crate) fn resolve_item<'gcx>(gcx: Gcx<'gcx>, item_id: hir::ItemId) -> Resolv
 
 pub(crate) fn resolve_view<'gcx>(gcx: Gcx<'gcx>, item_id: hir::ItemId) -> NatSpecView<'gcx> {
     let resolved = gcx.natspec_resolution(item_id);
-    let inherited = resolved.inheritdoc_target.map(|(_, target)| gcx.natspec_view(target));
+    let inherited = resolved.inherited_target().map(|target| gcx.natspec_view(target));
     let local_items = &resolved.items[..resolved.local_len];
     let (parameters, returns) = Resolver::new(gcx).positional_sections(
         item_id,
@@ -269,18 +275,30 @@ impl<'gcx> Resolver<'gcx> {
     }
 
     /// Resolves a NatSpec doc, validating all tags and expanding `@inheritdoc`.
+    ///
+    /// Like solc, an item without any valid tag inherits the documentation of the single base it
+    /// overrides, see [`Self::implicit_base`].
     fn resolve_item(&self, item_id: hir::ItemId) -> ResolvedNatSpec<'gcx> {
         let doc_id = self.gcx.hir.item(item_id).doc();
-        if doc_id.is_empty() {
+        let (local_tags, inheritdoc_target) = if doc_id.is_empty() {
+            Default::default()
+        } else {
+            let doc = self.gcx.hir.doc(doc_id);
+            self.validate_item_natspec(&doc.ast_comments, item_id, doc.source)
+        };
+        let implicit_target = if inheritdoc_target.is_none() && local_tags.is_empty() {
+            self.implicit_base(item_id)
+        } else {
+            None
+        };
+        let inherited_target = inheritdoc_target.map(|(_, target)| target).or(implicit_target);
+        if inherited_target.is_none() && local_tags.is_empty() {
             return ResolvedNatSpec::default();
         }
 
-        let doc = self.gcx.hir.doc(doc_id);
-        let (local_tags, inheritdoc_target) =
-            self.validate_item_natspec(&doc.ast_comments, item_id, doc.source);
         let local_sections = LocalTags::from_items(&local_tags);
-        let inherited = inheritdoc_target.map(|(_, target)| self.gcx.natspec_resolution(target));
-        let items: &'gcx [hir::NatSpecItem] = if let Some(inherited) = inherited {
+        let items: &'gcx [hir::NatSpecItem] = if let Some(target) = inherited_target {
+            let inherited = self.gcx.natspec_resolution(target);
             self.merge_natspec_tags(&local_tags, local_sections, inherited.items)
         } else {
             &*self.gcx.arena().alloc_slice_copy(&local_tags)
@@ -291,7 +309,34 @@ impl<'gcx> Resolver<'gcx> {
             local_len: local_tags.len(),
             local_tags: local_sections,
             inheritdoc_target,
+            implicit_target,
         }
+    }
+
+    /// Returns the base an item without documentation tags inherits from, if any.
+    ///
+    /// This is the one distinct base declaration the item overrides. A function also needs the
+    /// same parameter names as that base; a public state variable does not.
+    fn implicit_base(&self, item_id: hir::ItemId) -> Option<hir::ItemId> {
+        let bases = self.gcx.base_override_items(item_id);
+        let &base = bases.first()?;
+        if bases.iter().any(|&other| other != base) {
+            return None;
+        }
+        if let hir::ItemId::Function(id) = item_id {
+            let parameter_names = |id| {
+                self.gcx
+                    .hir
+                    .function(id)
+                    .parameters
+                    .iter()
+                    .map(|&id| self.gcx.hir.variable(id).name.map(|name| name.name))
+            };
+            if !parameter_names(id).eq(parameter_names(base.as_function()?)) {
+                return None;
+            }
+        }
+        Some(base)
     }
 
     /// Validates NatSpec tags for the given item.
