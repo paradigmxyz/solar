@@ -396,6 +396,8 @@ impl RunState {
                     && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
                 {
                     tail.label = module.blocks[representative_id].label;
+                    tail.label_metadata =
+                        std::mem::take(&mut module.blocks[representative_id].label_metadata);
                     module.blocks[representative_id] = tail;
                     representative_id
                 } else {

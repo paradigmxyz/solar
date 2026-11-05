@@ -1,0 +1,19 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/label_origins.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/label_origins.evmir (after tail-merge) ===
+  @module LabelOrigins
+  bb0:
+    push 1
+    jumpi bb1, bb2
+  bb1 !metadata(span=10..20):
+-   push 0x4d2 !metadata(span=11..15)
+-   push 0x162e !metadata(span=21..25)
+-   return !metadata(span=26..28)
++   push 0x4d2 !metadata(spans=[11..15, 31..35])
++   push 0x162e !metadata(spans=[21..25, 36..38])
++   return !metadata(spans=[26..28, 39..40])
+  bb2 !metadata(span=30..40):
+-   push 0x4d2 !metadata(span=31..35)
+-   push 0x162e !metadata(span=36..38)
+-   return !metadata(span=39..40)
++   jump bb1 !metadata(span=31..35)
+  
