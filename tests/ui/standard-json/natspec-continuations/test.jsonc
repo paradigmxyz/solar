@@ -17,6 +17,8 @@
 // CHECK: "notice": "start"
 // CHECK: "glued()": {
 // CHECK: "notice": "x** explanation @solidity memory-safe-assembly"
+// CHECK: "emptyTag()": {
+// CHECK: "notice": "x z** w @solidity memory-safe-assembly"
 // CHECK: "devdoc": {
 // CHECK: "register(address)": {
 // CHECK: "details": "Registers `operator` for the caller. This does NOT validate the  operator address, so the caller keeps full responsibility for it."

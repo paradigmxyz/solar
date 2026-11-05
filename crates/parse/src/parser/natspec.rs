@@ -168,6 +168,8 @@ pub(super) fn parse_natspec(
                 .map_or(text.len(), |offset| tag_start + offset);
             let tag = &text[tag_start..name_end];
             if tag.is_empty() {
+                // solc appends the rest of the logical line to the previous tag.
+                consumed = true;
                 continue;
             }
             let rest_start = skip_blanks(text, name_end);

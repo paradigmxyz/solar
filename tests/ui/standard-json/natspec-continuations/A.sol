@@ -61,4 +61,11 @@ contract C {
      ** @dev glued on first
      */
     function gluedFirst() external {}
+
+    /**
+     * @notice x
+     * y @ z
+     ** w @solidity memory-safe-assembly
+     */
+    function emptyTag() external {}
 }
