@@ -306,8 +306,8 @@ fixed-point types are excluded from solc parity testing.
 Status: intentional.
 
 Difference: `solc` accepts only plain decimal and hexadecimal integers in Yul
-and inline assembly, and rejects `1_000`, `0x1_0` and `1e5` with error 4828.
-`solar` accepts any number literal whose value is an integer, as in Solidity,
+and inline assembly, and rejects `1_000`, `0x1_0`, `1__0` and `1e5` with error
+4828. `solar` accepts any number literal whose value is an integer, as in Solidity,
 and rejects fractions such as `0.5` with error 4828.
 
 `solc` also accepts only a plain string literal or a single `hex` string
@@ -321,7 +321,8 @@ Rationale: these literals have one obvious value, so rejecting them only makes
 the language harder to use.
 
 Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol`,
-`tests/ui/codegen/lowering/run-call/assembly_string_literals.sol` and
+`tests/ui/codegen/lowering/run-call/assembly_string_literals.sol`,
+`tests/ui/parser/yul_number_underscores.sol` and
 `tests/ui/parser/yul_fractional_literal.sol`.
 
 ### PARSE-006: Number literals are limited to 4096 bits
@@ -708,6 +709,20 @@ Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`
 `tests/ui/typeck/solar_safe.sol`,
 `tests/ui/codegen/mir/optimize-function/` and
 `tests/ui/codegen/mir/inline/solar_inline_forms.sol`.
+
+### TYPECK-024: Hexadecimal literals of 39 and 41 digits
+
+Status: intentional.
+
+Difference: `solc` rejects a hexadecimal literal of 39 or 41 digits with error
+9429, because it looks like an address that is not exactly 40 digits long.
+`solar` accepts it as an integer. Literals of 40 digits are still addresses
+with a checksum check.
+
+Rationale: a literal that is not 40 digits long is a number, and `solar`
+has no reason to guess that the author meant an address.
+
+Coverage: `tests/ui/typeck/hex_literal_39_41_digits.sol`.
 
 ## Contract-Level Checks
 
