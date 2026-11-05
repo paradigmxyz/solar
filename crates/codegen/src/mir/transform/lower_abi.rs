@@ -462,8 +462,8 @@ impl LowerAbiCx {
         static_bytes_return: Option<StaticBytesReturn>,
         decoded_params: &[Option<ValueId>],
     ) {
-        let revert_strings = self.revert_strings;
         let Some(mut layout) = func.abi_returns.take() else { return };
+        let declaration = func.declaration_span;
         let return_blocks = func
             .blocks
             .indices()
@@ -534,11 +534,11 @@ impl LowerAbiCx {
                 Some(Terminator::Return { values }) => values.into_vec(),
                 _ => unreachable!("return block changed unexpectedly"),
             };
-            let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
+            let mut builder = self.wrapper_builder(func);
             builder.switch_to_block(block_id);
-            // abi_encode(values) !metadata(return span)
-            // returndata(encoded_ptr, encoded_len) !metadata(return span)
-            builder.inherit_terminator_debug_context(block_id);
+            // abi_encode(values) !metadata(declaration span)
+            // returndata(encoded_ptr, encoded_len) !metadata(declaration span)
+            set_return_packing_origin(&mut builder, block_id, declaration);
             let values = values
                 .into_iter()
                 .enumerate()
@@ -621,6 +621,18 @@ impl LowerAbiCx {
     /// Creates a builder for `func` that encodes revert reasons per the session's settings.
     fn builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
         FunctionBuilder::new(func).with_revert_strings(self.revert_strings)
+    }
+
+    /// Creates a builder for the entry code of `func`, which maps to its declaration, as solc emits
+    /// an external function's dispatch branch, ABI decoding, and return packing under
+    /// `LocationSetter(functionType->declaration())` (`ContractCompiler.cpp` L514), and a
+    /// constructor's argument decoding under `LocationSetter(_constructor)` (L288). Blocks the
+    /// builder places take the same origin as their labels.
+    fn wrapper_builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
+        let declaration = func.declaration_span;
+        let mut builder = self.builder(func).with_block_labels();
+        builder.replace_source_span(declaration);
+        builder
     }
 
     /// Lowers every `abi_decode` in `decode_functions`, whose layouts have valid head sizes.
@@ -1215,7 +1227,11 @@ impl LowerAbiCx {
         func.blocks[block].instructions.clear();
         crate::mir::utils::replace_terminator(func, block, Terminator::Invalid);
         func.blocks[block].terminator = None;
-        let mut builder = FunctionBuilder::new(func);
+        let declaration = func.declaration_span;
+        let mut builder = FunctionBuilder::new(func).with_block_labels();
+        // The call maps to the wrapped declaration, as solc jumps into the function under its
+        // location setter.
+        builder.replace_source_span(declaration);
         builder.switch_to_block(block);
         if let Some((&first, rest)) = return_types.split_first() {
             let mut values = Vec::with_capacity(return_types.len());
@@ -1271,7 +1287,9 @@ impl LowerAbiCx {
         wrapper.name_span = original.name_span;
         wrapper.attributes = original.attributes;
         {
-            let mut builder = FunctionBuilder::new(&mut wrapper);
+            let mut builder = FunctionBuilder::new(&mut wrapper).with_block_labels();
+            builder.replace_source_span(original.declaration_span);
+            builder.set_entry_label_span(original.declaration_span);
             let zero = builder.imm(0);
             let length = builder.calldatasize();
             let input = builder.make_slice(zero, length, PtrLocation::Calldata);
@@ -1321,7 +1339,7 @@ impl LowerAbiCx {
         let mut logical_values =
             abi_params.map_or_else(Vec::new, |layout| vec![None; layout.types.len()]);
         let guard = {
-            let mut builder = self.builder(func);
+            let mut builder = self.wrapper_builder(func);
             let guard = builder.create_block();
             let revert = builder.create_block();
             // solc's scalar validators revert with empty data even in debug mode, so they only
@@ -2595,7 +2613,7 @@ impl LowerAbiCx {
     /// been extracted, so internal callers never pay the check.
     fn inject_callvalue_check(&self, func: &mut Function) {
         let old_entry = BlockId::ENTRY;
-        let mut builder = self.builder(func);
+        let mut builder = self.wrapper_builder(func);
         let guard = builder.create_block();
         let revert = builder.create_block();
         builder.switch_to_block(guard);
@@ -3904,12 +3922,12 @@ fn encode_static_bytes_return(
 ) {
     let word_size = EvmMemoryLayout::WORD_SIZE;
     let return_size = word_size * 2 + value.len.next_multiple_of(word_size);
-    let return_context = func.blocks[return_block].terminator_metadata.debug_context();
+    let declaration = func.declaration_span;
     func.blocks[return_block].instructions.clear();
     func.blocks[return_block].terminator = None;
     let mut builder = FunctionBuilder::new(func);
     builder.switch_to_block(return_block);
-    builder.inherit_terminator_debug_context(return_block);
+    set_return_packing_origin(&mut builder, return_block, declaration);
     // mstore(0, 32)
     // mstore(32, len)
     // if length != 0 { mstore(64, word) }
@@ -3937,7 +3955,7 @@ fn encode_static_bytes_return(
         builder.set_debug_context(&value.debug[2]);
         builder.store(tail_offset, tail);
     }
-    builder.set_debug_context(&return_context);
+    set_return_packing_origin(&mut builder, return_block, declaration);
     builder.ret_data(offset, size);
 }
 
@@ -3948,6 +3966,18 @@ fn encode_static_bytes_return(
 fn returns_in_scratch(layout: &AbiLayout) -> bool {
     layout.head_size() <= EvmMemoryLayout::HEAP_START
         && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_) | AbiType::Function))
+}
+
+/// Gives the code that packs the return of `block` the origin of `declaration`, as solc's
+/// `appendReturnValuePacker` runs under the function's location setter. A function without a
+/// declaration, as in parsed MIR, keeps the origin of its return.
+fn set_return_packing_origin(builder: &mut FunctionBuilder<'_>, block: BlockId, declaration: Span) {
+    if declaration.is_dummy() {
+        builder.inherit_terminator_debug_context(block);
+    } else {
+        builder.replace_modifier_depth(0);
+        builder.replace_source_span(declaration);
+    }
 }
 
 fn materialize_calldata_return(

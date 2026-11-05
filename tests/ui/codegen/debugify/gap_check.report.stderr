@@ -1,18 +1,27 @@
-debugify: MIR GapCheck after heap-floor: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-checks: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-builtins: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-arithmetic: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after cfg-simplify: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-abi: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-abi: 6 without a location
-debugify: gap f bb0 inst0 `calldatasize`
-debugify: gap f bb0 inst1 `lt`
-debugify: gap f bb0 terminator `jumpi`
-debugify: gap f bb4 terminator `revert`
-debugify: gap f bb5 inst0 `calldataload`
-debugify: gap f bb5 terminator `jump`
-debugify: MIR GapCheck after lower-abi-encode: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-dispatch: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after heap-floor: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-checks: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-builtins: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-arithmetic: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after cfg-simplify: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-abi: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-abi: 15 without a location
+debugify: gap decode_calldata_slice bb0 inst0 `calldatasize`
+debugify: gap decode_calldata_slice bb0 inst1 `calldataload`
+debugify: gap decode_calldata_slice bb0 inst2 `add`
+debugify: gap decode_calldata_slice bb0 inst3 `sub`
+debugify: gap decode_calldata_slice bb0 inst4 `sub`
+debugify: gap decode_calldata_slice bb0 inst5 `lt`
+debugify: gap decode_calldata_slice bb0 inst6 `calldataload`
+debugify: gap decode_calldata_slice bb0 inst7 `add`
+debugify: gap decode_calldata_slice bb0 inst8 `sub`
+debugify: gap decode_calldata_slice bb0 inst9 `lt`
+debugify: gap decode_calldata_slice bb0 inst10 `or`
+debugify: gap decode_calldata_slice bb0 inst11 `zext`
+debugify: gap decode_calldata_slice bb0 terminator `jumpi`
+debugify: gap decode_calldata_slice bb1 terminator `revert`
+debugify: gap decode_calldata_slice bb2 terminator `return`
+debugify: MIR GapCheck after lower-abi-encode: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-dispatch: 4/4 origins retained, 0 lost
 debugify: MIR GapCheck after lower-dispatch: 8 without a location
 debugify: gap entry bb0 inst0 `callvalue`
 debugify: gap entry bb0 inst1 `ne`
@@ -22,17 +31,19 @@ debugify: gap entry bb1 inst1 `shr`
 debugify: gap entry bb1 terminator `switch`
 debugify: gap entry bb2 terminator `tail_call`
 debugify: gap entry bb3 terminator `revert`
-debugify: MIR GapCheck after lower-structs: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-frame-slots: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-mapping-slots: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-memory-objects: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-slices: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-immutables: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-mcopy: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-alloc: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-memory-zero: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-integers: 3/3 origins retained, 0 lost
-debugify: MIR GapCheck after lower-evm-shaped: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after lower-structs: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-frame-slots: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-mapping-slots: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-memory-objects: 4/4 origins retained, 0 lost
+debugify: MIR GapCheck after lower-slices: 2/4 origins retained, 2 lost
+debugify: lost 610..618
+debugify: lost 621..629
+debugify: MIR GapCheck after lower-immutables: 2/2 origins retained, 0 lost
+debugify: MIR GapCheck after lower-mcopy: 2/2 origins retained, 0 lost
+debugify: MIR GapCheck after lower-alloc: 2/2 origins retained, 0 lost
+debugify: MIR GapCheck after lower-memory-zero: 2/2 origins retained, 0 lost
+debugify: MIR GapCheck after lower-integers: 2/2 origins retained, 0 lost
+debugify: MIR GapCheck after lower-evm-shaped: 2/2 origins retained, 0 lost
 debugify: EVM IR GapCheck_runtime after cfg-simplify-early: 2/2 origins retained, 0 lost
 debugify: EVM IR GapCheck_runtime after block-layout: 2/2 origins retained, 0 lost
 debugify: EVM IR GapCheck_runtime after pack-data: 2/2 origins retained, 0 lost
@@ -43,8 +54,7 @@ debugify: EVM IR GapCheck_deployment after block-layout: 1/1 origins retained, 0
 debugify: EVM IR GapCheck_deployment after pack-data: 1/1 origins retained, 0 lost
 debugify: EVM IR GapCheck_deployment after compact-pushes: 1/1 origins retained, 0 lost
 debugify: EVM IR GapCheck_deployment after returndata-zero: 1/1 origins retained, 0 lost
-debugify: EVM IR GapCheck after stackify: 2/3 origins retained, 1 lost
-debugify: lost 602..608
+debugify: EVM IR GapCheck after stackify: 2/2 origins retained, 0 lost
 debugify: EVM IR GapCheck after stackify: 2 without a location
 debugify: gap GapCheck_runtime bb0 terminator `jump`
-debugify: gap GapCheck_runtime bb4 terminator `jump`
+debugify: gap GapCheck_runtime bb12 terminator `jump`

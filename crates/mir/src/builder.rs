@@ -120,12 +120,15 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Records the origin of each block's label, as solc gives a tag the location active where it
     /// is placed: the first switch to a block sets its [`crate::BasicBlock::label_metadata`] to the
-    /// current debug context. Rewrites do not ask for this, so the blocks they create start empty.
+    /// current debug context. Rewrites that do not ask for this create blocks with an empty label.
     ///
-    /// The entry block is placed from the start; [`Self::set_entry_label_span`] labels it.
+    /// Blocks that exist already are placed from the start and keep their labels; the entry block's
+    /// label is set by [`Self::set_entry_label_span`].
     pub fn with_block_labels(mut self) -> Self {
         let mut placed = GrowableBitSet::new_empty();
-        placed.insert(BlockId::ENTRY);
+        for block in self.func.blocks.indices() {
+            placed.insert(block);
+        }
         self.placed_blocks = Some(placed);
         self
     }
