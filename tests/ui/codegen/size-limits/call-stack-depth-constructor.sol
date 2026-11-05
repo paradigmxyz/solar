@@ -3,7 +3,6 @@
 // CHECK-DAG: :ConstructorFits":{"bin":"{{[0-9a-f]+}}"}
 // CHECK-DAG: :ConstructorDeep":{"bin":"{{[0-9a-f]+}}"}
 
-
 import {DeepChain} from "./auxiliary/deep-call-chain.sol";
 
 // Constructor code has its own call graph, which codegen checks against the

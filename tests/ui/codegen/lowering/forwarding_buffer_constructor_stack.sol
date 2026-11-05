@@ -6,7 +6,6 @@
 // CHECK-DAG: :C":{"bin":"{{[0-9a-f]+}}"}
 // CHECK-DAG: :F":{"bin":"{{[0-9a-f]+}}"}
 
-
 struct S {
     uint24 a;
     uint256 b;

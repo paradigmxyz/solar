@@ -54,8 +54,8 @@ run a zero-argument `setUp()` if the contract defines one.
 
 `//@ filecheck: ARGS` runs LLVM FileCheck on a test's stdout, with `ARGS` passed
 to FileCheck. FileCheck is the test's check of stdout: the runner neither
-compares nor writes a `.stdout` snapshot for it, and `cargo bless` deletes a
-stale one. `//@[rev] filecheck: ARGS` applies to one revision only; the other
+compares nor writes a `.stdout` snapshot for it, and a leftover one fails the
+test until `cargo bless` deletes it. `//@[rev] filecheck: ARGS` applies to one revision only; the other
 revisions keep their snapshots. Stderr snapshots and error annotations apply as
 usual. Standard JSON tests keep their `.stdout` snapshots.
 

@@ -5,7 +5,6 @@
 //@ normalize-stderr-test: "size is [0-9]+ bytes" -> "size is <SIZE> bytes"
 // CHECK: runtime-amsterdam.sol:RuntimeAmsterdam (runtime)
 
-
 contract A {}
 contract test {}
 

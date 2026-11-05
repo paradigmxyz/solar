@@ -746,6 +746,11 @@ fn check_unless_filecheck(
 ) {
     if !is_stdout_snapshot(path) || !has_filecheck(config) {
         ui_test::error_on_output_conflict(path, output, errors, config);
+    } else if path.exists() {
+        errors.push(ui_test::Error::ConfigError(format!(
+            "`{}` is a snapshot of a FileCheck test; run `cargo bless` to delete it",
+            path.display()
+        )));
     }
 }
 

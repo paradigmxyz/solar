@@ -6,7 +6,6 @@
 // CHECK: initcode-amsterdam.sol:AmsterdamPadding (creation)
 // CHECK: initcode-amsterdam.sol:InitcodeAmsterdam (creation)
 
-
 contract A {}
 contract B {}
 contract C {}

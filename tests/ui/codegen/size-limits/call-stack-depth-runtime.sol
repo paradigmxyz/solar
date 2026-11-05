@@ -3,7 +3,6 @@
 // CHECK-DAG: :RuntimeFits":{"bin":"{{[0-9a-f]+}}"}
 // CHECK-DAG: :RuntimeDeep":{"bin":"{{[0-9a-f]+}}"}
 
-
 import {DeepChain} from "./auxiliary/deep-call-chain.sol";
 
 // Codegen adds up the stack words that every call path keeps alive. Each
