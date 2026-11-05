@@ -13,7 +13,14 @@ fn requests_do_not_expose_debug_output_options() {
     for mode in ["observe_mir", "observe_evm"] {
         let plugin = broken(directory.path(), mode);
         let mut baseline = None;
-        for extra in [None, Some("-Zdump=mir"), Some("-Zdebugify=report")] {
+        for extra in [
+            None,
+            Some("-Zdump=mir"),
+            Some("-Zdump=evm-ir"),
+            Some("-Zdump=evm-ir-runtime"),
+            Some("-Zdump=evm-ir-runtime-scheduled"),
+            Some("-Zdebugify=report"),
+        ] {
             for emit in ["--emit=bin-runtime", "--emit=bin-runtime,srcmap-runtime,ethdebug-runtime"]
             {
                 let mut flags = vec!["-Ogas", emit];
@@ -173,4 +180,85 @@ fn plugin_binary_identity_reaches_metadata_and_ethdebug() {
     let relocated = compile(Some(&copy));
     assert_eq!(loaded["contracts"], relocated["contracts"]);
     assert_eq!(loaded["ethdebug"], relocated["ethdebug"]);
+}
+
+#[test]
+fn edits_preserve_untouched_helpers_with_spilled_returns() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("spilled.evmir");
+    fs::write(&path, "@module Spilled\nbb0:\n calldatasize\n not\n not\n pop\n push bb1\n jump bb2\nbb1:\n push 32\n push 0\n return\nbb2 [ret=0, inputs=1, outputs=0]:\n push 128\n mstore\n push 42\n push 0\n mstore\n push 128\n mload\n jump\n").unwrap();
+    let output = run(
+        &path,
+        &sample(),
+        &[
+            "-Ogas",
+            "-Zevm-ir-pipeline=example::create-evm-helper",
+            "-Zvalidate-ir=false",
+            "--emit=bin-runtime",
+        ],
+    );
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(
+        super::runtime::execute(&artifact(&output), &[]),
+        alloy_primitives::U256::from(42).to_be_bytes::<32>()
+    );
+}
+
+#[test]
+fn editing_a_helper_continuation_rechecks_its_contract() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("continuation.evmir");
+    fs::write(&path, "@module Continuation\nbb0:\n push bb1\n jump bb2\nbb1:\n stop\nbb2 [ret=0, inputs=1, outputs=0]:\n push bb3\n jump bb4\nbb3:\n jump\nbb4 [ret=0, inputs=1, outputs=0]:\n jump\n").unwrap();
+    let output = run(
+        &path,
+        &broken(directory.path(), "existing_helper_output"),
+        &["-Zevm-ir-pipeline=broken::fail", "-Zvalidate-ir=false", "--emit=bin-runtime"],
+    );
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert_data_eq!(
+        messages(&output),
+        str![[r#"
+[
+  "plugin pass `broken::fail` failed: helper bb2 return does not match its declared call effect",
+  "aborting due to 1 previous error"
+]
+"#]]
+    );
+}
+
+#[test]
+fn unrelated_edits_accept_backend_generated_helpers() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("backend.mir");
+    let mut source = "@module Backend\n@phase lowered\nfn @entry() [entry] {\nbb0:\n".to_owned();
+    for index in 0..20 {
+        source.push_str(&format!("v{index} = calldataload {}\n", index * 32));
+    }
+    source.push_str(&format!(
+        "v20 = icall @sum, {}\nmstore 0, v20\nreturndata 0, 32\n}}\n",
+        (0..20).map(|i| format!("v{i}")).collect::<Vec<_>>().join(", ")
+    ));
+    source.push_str(&format!(
+        "fn @sum({}) -> i256 {{\nbb0:\nv0 = add arg0, arg1\n",
+        (0..20).map(|i| format!("arg{i}: i256")).collect::<Vec<_>>().join(", ")
+    ));
+    for index in 2..20 {
+        source.push_str(&format!("v{} = add v{}, arg{index}\n", index - 1, index - 2));
+    }
+    source.push_str("ret v18\n}\n");
+    fs::write(&path, source).unwrap();
+    let output = run(
+        &path,
+        &broken(directory.path(), "unused_evm_block"),
+        &["-Onone", "-Zmir-pipeline=none", "-Zdump=evm-ir-runtime-scheduled", "--emit=bin-runtime"],
+    );
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let input = (0..20)
+        .flat_map(|_| alloy_primitives::U256::from(1).to_be_bytes::<32>())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        super::runtime::execute(&artifact(&output), &input),
+        alloy_primitives::U256::from(20).to_be_bytes::<32>()
+    );
 }

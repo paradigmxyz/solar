@@ -1,16 +1,19 @@
 //! Checks helper annotations before plugin-edited EVM IR is committed.
 //!
-//! Each declared helper starts with exactly its advertised inputs and a symbolic return word.
+//! Existing helper contracts remain trusted only when their instructions, control flow,
+//! continuations and nested call contracts are unchanged. In particular, backend return spills
+//! need not be re-proved by this stack-only checker after an unrelated edit. New and changed
+//! helpers start with exactly their advertised inputs and a symbolic return word.
 //! Direct edges propagate symbolic stacks; joins and loops must agree. Nested calls use their
-//! own annotations, all of which are checked separately, including recursive helpers. A return
-//! must consume the original return word and leave exactly the declared outputs. Unsupported
+//! annotations; new and changed callees are checked separately, including recursive helpers. A
+//! return must consume the original return word and leave exactly the declared outputs. Unsupported
 //! indirect transfers are rejected rather than accepting an annotation as a proof.
 
 use crate::backend::evm::{
     ir::{self, BlockId, Module, StackEffect, TerminatorKind},
     op,
 };
-use solar_data_structures::index::IndexVec;
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Word {
@@ -19,9 +22,12 @@ enum Word {
     Label(BlockId),
 }
 
-pub(super) fn verify(module: &Module) -> Result<(), String> {
+pub(super) fn verify(previous: &Module, module: &Module) -> Result<(), String> {
     for (entry, block) in module.blocks.iter_enumerated() {
         let Some(call) = block.metadata.call_effect else { continue };
+        if unchanged_helper(previous, module, entry) {
+            continue;
+        }
         let mut stack = vec![Word::Unknown; usize::from(call.effect.inputs)];
         let ret = stack
             .len()
@@ -149,4 +155,57 @@ fn check_return(entry: BlockId, stack: &[Word], outputs: u8) -> Result<(), Strin
         ));
     }
     Ok(())
+}
+
+/// Trust the input's contract only while all its code and continuation edges are unchanged.
+/// Nested helpers are contract boundaries: their bodies are checked separately by `verify`,
+/// while callers rely on the same annotation they used before the edit. Follow pushed labels
+/// too, since inline branches and return continuations need not appear as terminator targets.
+fn unchanged_helper(previous: &Module, module: &Module, entry: BlockId) -> bool {
+    let mut pending = vec![entry];
+    let mut seen = DenseBitSet::new_empty(module.blocks.len());
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        let Some(before) = previous.blocks.get(id) else { return false };
+        let after = &module.blocks[id];
+        // Debug context must never influence whether executable code is accepted.
+        if before.metadata.call_effect != after.metadata.call_effect
+            || before.terminator.as_ref().map(|term| &term.kind)
+                != after.terminator.as_ref().map(|term| &term.kind)
+            || before.instructions.len() != after.instructions.len()
+            || !before.instructions.iter().zip(&after.instructions).all(|(a, b)| {
+                a.opcode == b.opcode
+                    && a.encoding == b.encoding
+                    && a.value == b.value
+                    && a.as_stack_op() == b.as_stack_op()
+                    && a.metadata.keep_with_next == b.metadata.keep_with_next
+            })
+        {
+            return false;
+        }
+        let mut same_contracts = true;
+        let mut target = |target: BlockId| {
+            if target != entry && module.blocks[target].metadata.call_effect.is_some() {
+                same_contracts &=
+                    previous.blocks.get(target).and_then(|block| block.metadata.call_effect)
+                        == module.blocks[target].metadata.call_effect;
+            } else {
+                pending.push(target);
+            }
+        };
+        for inst in &after.instructions {
+            if let Some(label) = inst.pushed_block() {
+                target(label);
+            }
+        }
+        if let Some(term) = &after.terminator {
+            term.kind.visit_targets(&mut target);
+        }
+        if !same_contracts {
+            return false;
+        }
+    }
+    true
 }

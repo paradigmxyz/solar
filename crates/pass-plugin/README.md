@@ -60,7 +60,8 @@ solar -Zload-pass-plugin=./libacme.so -Zevm-ir-pipeline=acme::compact input.evmi
 
 A run request carries the selected EVM version, optimization objective, pass
 name, a text dump, and a structured snapshot of active instructions. MIR
-and EVM IR text excludes optional debug context; requesting dumps, source maps,
+and EVM IR text excludes optional debug context and dump-only block comments;
+requesting dumps, source maps,
 ETHDebug, or debugify does not change the request. MIR
 snapshots include types, operands, scalar constants, and each function's
 objective. IDs are local to that invocation. The plugin returns ordered
@@ -111,8 +112,12 @@ MIR copies retain semantic allocation obligations, while operand-dependent
 proofs are discarded. Edited MIR is treated as potentially containing raw
 assembly memory writes, so source-only placement assumptions cannot protect
 plugin-created accesses. Phis must precede other instructions in each block.
-Helper call annotations are checked against symbolic return-address and stack
-tracking; helpers whose indirect transfers cannot be proved are rejected.
+New or changed helper call annotations are checked against symbolic return-address
+and stack tracking. Existing contracts remain trusted when their code, reachable
+continuations and nested call contracts are unchanged, including backend helpers
+that spill return addresses to memory. Edits to those regions revoke this trust;
+unprovable indirect transfers in new or changed helpers are rejected. Editing a
+spilled-return helper still requires a form the stack-only checker can prove.
 
 Standard JSON metadata records the ordered plugin names, versions, and library
 content hashes in `settings.solar.plugins`. ETHDebug compilation IDs include
