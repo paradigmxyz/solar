@@ -198,14 +198,17 @@ impl<'gcx> Exposure<'gcx> {
     }
 
     /// Pairs the parameters of a modifier or base constructor with the arguments it is given.
+    ///
+    /// Named arguments follow the names of the declared function, which an override can rename.
     fn modifier_arguments<'hir>(
         &self,
         function: hir::FunctionId,
+        declared: hir::FunctionId,
         args: hir::CallArgs<'hir>,
     ) -> SmallVec<[(VariableId, &'hir hir::Expr<'hir>); 4]> {
         let names = matches!(args.kind, hir::CallArgsKind::Named(_)).then(|| {
             self.gcx.callable_param_names(CallableParamSource::Function {
-                id: function,
+                id: declared,
                 skips_receiver: false,
             })
         });
@@ -427,7 +430,8 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
     fn visit_modifier(&mut self, modifier: &'gcx hir::Modifier<'gcx>) -> ControlFlow<Never> {
         if let Some(id) = self.gcx.resolve_modifier_target(self.contract, modifier) {
             let function = self.gcx.hir.function(id);
-            for (parameter, argument) in self.modifier_arguments(id, modifier.args) {
+            let declared = modifier.id.as_function().unwrap_or(id);
+            for (parameter, argument) in self.modifier_arguments(id, declared, modifier.args) {
                 self.connect(&[parameter], argument);
             }
             if self.visited.insert(id) {
@@ -606,7 +610,8 @@ impl LoweringState {
                 .and_then(|index| contract_item.linearized_bases_args.get(index))
                 && let Some(ctor) = base.ctor
             {
-                for (parameter, argument) in exposure.modifier_arguments(ctor, modifier.args) {
+                for (parameter, argument) in exposure.modifier_arguments(ctor, ctor, modifier.args)
+                {
                     exposure.connect_pointers(&[parameter], argument);
                     let _ = exposure.visit_expr(argument);
                 }
