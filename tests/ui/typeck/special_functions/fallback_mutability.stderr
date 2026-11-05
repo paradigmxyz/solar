@@ -1,0 +1,306 @@
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external view { x = 2; }
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external pure { x = 2; }
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external view {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(bytes calldata) external view returns (bytes memory) {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external view {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external view {}
+   │              ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external view returns (uint256) {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external view returns (uint256) {}
+   │                                       ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external pure {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(bytes calldata) external pure returns (bytes memory) {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external pure {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external pure {}
+   │              ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external pure returns (uint256) {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external pure returns (uint256) {}
+   │                                       ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external view {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(bytes calldata) external view returns (bytes memory) {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external view {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external view {}
+   │              ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external view returns (uint256) {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external view returns (uint256) {}
+   │                                       ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external pure {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(bytes calldata) external pure returns (bytes memory) {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external pure {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external pure {}
+   │              ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external pure returns (uint256) {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external pure returns (uint256) {}
+   │                                       ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external view;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(bytes calldata) external view returns (bytes memory);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external view;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external view;
+   │              ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external view returns (uint256);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external view returns (uint256);
+   │                                       ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external pure;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(bytes calldata) external pure returns (bytes memory);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external pure;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback(uint256) external pure;
+   │              ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error[4575]: fallback function must be payable or non-payable
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external pure returns (uint256);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `view` or `pure`, or add `payable`
+
+error[5570]: invalid fallback function signature
+   ╭▸ ROOT/tests/ui/typeck/special_functions/fallback_mutability.sol:LL:CC
+   │
+LL │     fallback() external pure returns (uint256);
+   │                                       ━━━━━━━
+   │
+   ╰ help: use `fallback()` or `fallback(bytes calldata) returns (bytes memory)`
+
+error: aborting due to 38 previous errors
+

@@ -28,7 +28,7 @@ error[7708]: library functions cannot be payable
 LL │     receive() external payable {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: receive ether function must be payable
+error[7793]: receive ether function must be payable
    ╭▸ ROOT/tests/ui/typeck/receive.sol:LL:CC
    │
 LL │     receive() external {}
@@ -36,7 +36,7 @@ LL │     receive() external {}
    │
    ╰ help: add `payable` state mutability
 
-error: receive ether function cannot take parameters
+error[6857]: receive ether function cannot take parameters
    ╭▸ ROOT/tests/ui/typeck/receive.sol:LL:CC
    │
 LL │     receive(uint256 x) external payable {}
