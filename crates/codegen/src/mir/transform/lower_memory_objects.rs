@@ -274,7 +274,9 @@ fn constant_allocation(func: &Function, inst_id: crate::mir::InstId) -> Option<C
     let InstKind::Alloc { size, semantics } = func.inst(inst_id).kind else {
         return None;
     };
-    if semantics != AllocationSemantics::INTERNAL {
+    if semantics != AllocationSemantics::INTERNAL
+        || func.inst(inst_id).metadata.zero_slot_if_empty()
+    {
         return None;
     }
     Some(ConstantAllocation {

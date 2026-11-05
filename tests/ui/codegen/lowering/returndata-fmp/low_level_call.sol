@@ -10,6 +10,7 @@
 //@ run-call: callRevertData() => 160
 //@ run-call: stashedEmpty() => 0
 //@ run-call: pickedEmpty() => 0
+//@ run-call: capturedEmpty() => 0
 //@ run-call: forwardWord() => 1
 //@ run-call: forwardEmpty()
 //@ run-call-fail: forwardRevert() => 0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000568656c6c6f000000000000000000000000000000000000000000000000000000
@@ -156,5 +157,20 @@ contract C {
         bytes memory other = abi.encode(uint256(1), uint256(2));
         require(other.length == 64);
         return data.length;
+    }
+
+    function capture(bytes memory input) private returns (bytes memory data) {
+        bool ok;
+        (ok, data) = address(this).call(input);
+        require(ok);
+    }
+
+    // The capture sits in a function that inlining may fold into the caller.
+    function capturedEmpty() external returns (uint256) {
+        bytes memory input = abi.encodeWithSelector(this.noop.selector);
+        uint256 before = fmp();
+        bytes memory data = capture(input);
+        require(data.length == 0);
+        return fmp() - before;
     }
 }

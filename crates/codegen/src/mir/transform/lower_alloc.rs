@@ -465,10 +465,14 @@ fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool
             let uses_object = kind.operands().iter().any(|operand| derived.contains(operand));
             match kind.effect_kind() {
                 EffectKind::Pure => !matches!(kind, InstKind::Phi(_)) || !uses_object,
-                EffectKind::MemoryRead
-                | EffectKind::StorageRead
+                // Only a memory load takes the object as an address; any other read would turn
+                // the pointer word into a key, an offset or an account.
+                EffectKind::MemoryRead => {
+                    !uses_object || matches!(kind, InstKind::Load(_, PtrLocation::Memory))
+                }
+                EffectKind::StorageRead
                 | EffectKind::TransientRead
-                | EffectKind::EnvironmentRead => true,
+                | EffectKind::EnvironmentRead => !uses_object,
                 // `log(offset, size, topics...)` only reads the object through its offset.
                 EffectKind::Log => {
                     !kind.operands().iter().skip(1).any(|operand| derived.contains(operand))
@@ -488,11 +492,14 @@ fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool
         });
         keeps
             && match &data.terminator {
-                Some(Terminator::Return { values }) => {
-                    !values.iter().any(|value| derived.contains(value))
+                None | Some(Terminator::TailCall { .. }) => false,
+                // The offset reads the object; the size is a plain word.
+                Some(Terminator::Revert { size, .. } | Terminator::ReturnData { size, .. }) => {
+                    !derived.contains(size)
                 }
-                Some(Terminator::TailCall { .. }) | None => false,
-                Some(_) => true,
+                Some(terminator) => {
+                    !terminator.operands().iter().any(|value| derived.contains(value))
+                }
             }
     })
 }

@@ -1853,6 +1853,8 @@ impl<'a> InlineCloner<'a> {
                 let inst = self.callee.inst(inst_id);
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
                 instruction.metadata.copy_debug_context(&inst.metadata);
+                // An inlined capture of returndata is still the zero slot when it is empty.
+                instruction.metadata.set_zero_slot_if_empty(inst.metadata.zero_slot_if_empty());
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst_verbatim(instruction);
                     self.value_map.insert(callee_result, new_result);
