@@ -627,11 +627,33 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn block_ref_starts_here(&self) -> PResult<'sess, bool> {
-        Ok(self.current_block_label()?.is_some()
-            && !matches!(
-                self.parser.look_ahead(1).kind,
-                TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Bracket)
-            ))
+        Ok(self.current_block_label()?.is_some() && !self.block_header_follows(1))
+    }
+
+    /// Whether the tokens from `distance` ahead continue the block label just seen into a block
+    /// header: block attributes, label metadata, or the colon.
+    fn block_header_follows(&self, mut distance: usize) -> bool {
+        let kind = self.parser.look_ahead(distance).kind;
+        if kind == TokenKind::Not {
+            // label !metadata(...):
+            distance += 2;
+            let mut depth = 0usize;
+            loop {
+                match self.parser.look_ahead(distance).kind {
+                    TokenKind::OpenDelim(Delimiter::Parenthesis) => depth += 1,
+                    TokenKind::CloseDelim(Delimiter::Parenthesis) => {
+                        depth = depth.saturating_sub(1);
+                        if depth == 0 {
+                            return self.parser.look_ahead(distance + 1).kind == TokenKind::Colon;
+                        }
+                    }
+                    TokenKind::Eof => return false,
+                    _ => {}
+                }
+                distance += 1;
+            }
+        }
+        matches!(kind, TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Bracket))
     }
 }
 
