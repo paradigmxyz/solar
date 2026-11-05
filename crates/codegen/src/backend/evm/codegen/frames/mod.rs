@@ -1024,10 +1024,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         for &inst_id in &tail[base_offset + 1..] {
             let inst = func.inst(inst_id);
             match &inst.kind {
-                InstKind::Add(a, b) if *a == base_value || *b == base_value => {
-                    let imm = if *a == base_value { *b } else { *a };
+                InstKind::Add(base, imm) if *base == base_value => {
                     let index = func
-                        .value_u64(imm)
+                        .value_u64(*imm)
                         .filter(|offset| offset % EvmMemoryLayout::WORD_SIZE == 0)
                         .map(|offset| (offset / EvmMemoryLayout::WORD_SIZE) as usize)?;
                     let address = func.inst_result_value(inst_id)?;
@@ -1313,6 +1312,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 InstKind::ICall { function: Callee::Function(function), .. } => {
                     returned_offsets.get(&(*function, 0)).copied()
                 }
+                // NOTE: `heap_prefix_constant` evaluates constant expressions, which canonical
+                // order does not put on the right, so both sides are tried.
                 InstKind::Add(first, second) => {
                     if let Some(amount) = Self::heap_prefix_constant(func, *second, 0) {
                         shifted(*first, amount, visiting, memo)

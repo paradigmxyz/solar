@@ -149,6 +149,7 @@ fn create_checked_alloc(module: &mut Module) -> FunctionId {
         builder.switch_to_block(panic);
         builder.panic(PanicCode::MemoryAllocationOverflow);
     }
+    function.mark_unlocated_compiler_generated();
     module.add_function(function)
 }
 

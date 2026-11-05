@@ -1,0 +1,21 @@
+debugify: MIR GapCheck after heap-floor: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after lower-checks: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after lower-builtins: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after lower-arithmetic: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after cfg-simplify: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after lower-abi: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after lower-abi-encode: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after lower-dispatch: 3/3 origins retained, 0 lost
+debugify: MIR GapCheck after lower-dispatch: 8 without a location
+debugify: gap entry bb0 inst0 `callvalue`
+debugify: gap entry bb0 inst1 `ne`
+debugify: gap entry bb0 terminator `jumpi`
+debugify: gap entry bb1 inst0 `calldataload`
+debugify: gap entry bb1 inst1 `shr`
+debugify: gap entry bb1 terminator `switch`
+debugify: gap entry bb2 terminator `tail_call`
+debugify: gap entry bb3 terminator `revert`
+error: debugify: MIR pass `lower-dispatch` left 8 instructions without a location
+
+error: aborting due to 1 previous error
+

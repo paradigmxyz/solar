@@ -166,7 +166,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Inherits source context while replacing an instruction or control transfer.
     pub fn set_debug_context(&mut self, metadata: &InstructionMetadata) {
-        self.current_debug_context.copy_debug_context(metadata);
+        self.current_debug_context.preserve_debug_loc(metadata);
     }
 
     /// Inherits the source context of a terminator being lowered in this block.
@@ -176,7 +176,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn set_current_debug_context(&self, metadata: &mut InstructionMetadata) {
-        metadata.copy_debug_context(&self.current_debug_context);
+        metadata.preserve_debug_loc(&self.current_debug_context);
     }
 
     /// Returns the current block.
@@ -194,7 +194,7 @@ impl<'a> FunctionBuilder<'a> {
         if let Some(placed) = &mut self.placed_blocks
             && placed.insert(block)
         {
-            self.func.blocks[block].label_metadata.copy_debug_context(&self.current_debug_context);
+            self.func.blocks[block].label_metadata.preserve_debug_loc(&self.current_debug_context);
         }
     }
 
@@ -487,11 +487,11 @@ impl<'a> FunctionBuilder<'a> {
             // Shared revert body !metadata(union of all failed-check origins)
             for index in 0..self.func.blocks[block].instructions.len() {
                 let inst = self.func.blocks[block].instructions[index];
-                self.func.inst_mut(inst).metadata.merge_debug_context(&self.current_debug_context);
+                self.func.inst_mut(inst).metadata.merge_debug_locs([&self.current_debug_context]);
             }
             self.func.blocks[block]
                 .terminator_metadata
-                .merge_debug_context(&self.current_debug_context);
+                .merge_debug_locs([&self.current_debug_context]);
             return (block, false);
         }
         let block = self.create_block();

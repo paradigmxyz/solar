@@ -138,6 +138,49 @@ contract Events {
         emit DynamicData(id, data, "a literal string that is longer than a single word", count);
     }
 
+    event DirtyIndexed(uint8 indexed a, address indexed b, bool indexed c, bytes4 d);
+    event DirtyData(uint8 a, address b, bool c, bytes4 d, int8 e);
+    event DirtyIndexedChoice(Choice indexed choice);
+
+    // The dirty words and the expected logs below come from `solc --via-ir`.
+    function emitDirtyIndexed() external {
+        uint8 a;
+        address b;
+        bool c;
+        bytes4 d;
+        assembly {
+            a := 0xabcd1b
+            b := or(0x1234567890123456789012345678901234567890, shl(160, 0xabcd))
+            c := 0x100
+            d := or(shl(224, 0xdeadbeef), 0xabcdef)
+        }
+        emit DirtyIndexed(a, b, c, d);
+    }
+
+    function emitDirtyData() external {
+        uint8 a;
+        address b;
+        bool c;
+        bytes4 d;
+        int8 e;
+        assembly {
+            a := 0xabcd1b
+            b := or(0x1234567890123456789012345678901234567890, shl(160, 0xabcd))
+            c := 0x100
+            d := or(shl(224, 0xdeadbeef), 0xabcdef)
+            e := 0xabcdfd
+        }
+        emit DirtyData(a, b, c, d, e);
+    }
+
+    function emitDirtyIndexedChoice() external {
+        Choice choice;
+        assembly {
+            choice := 0x101
+        }
+        emit DirtyIndexedChoice(choice);
+    }
+
     struct Late {
         uint256 value;
     }

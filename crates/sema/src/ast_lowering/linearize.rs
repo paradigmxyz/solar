@@ -22,7 +22,11 @@ impl super::LoweringContext<'_> {
                 self.linearize_contract(contract_id, &mut linearizer);
                 if linearizer.result.is_empty() {
                     let msg = "linearization of inheritance graph impossible";
-                    self.dcx().emit_err(self.hir.contract(contract_id).name.span, msg);
+                    self.dcx().emit_err_code(
+                        self.hir.contract(contract_id).name.span,
+                        error_code!(5005),
+                        msg,
+                    );
                     // Always include the contract itself in the linearized bases.
                     linearizer.result.push(contract_id);
                 }
@@ -112,14 +116,22 @@ impl super::LoweringContext<'_> {
         linearizer.reset();
 
         for &base_id in contract.bases {
-            linearizer.insert(base_id);
             let base = self.hir.contract(base_id);
             let base_bases = base.linearized_bases;
+            // A base that is not linearized yet is a forward reference or a cycle. A base that
+            // failed to linearize has already been reported. Either way, the derived contract
+            // cannot be linearized, and neither can anything that inherits from it, which keeps
+            // inheritance cycles out of every later walk over the bases.
             if base_bases.is_empty() {
                 let msg = "definition of base has to precede definition of derived contract";
-                self.dcx().emit_err(contract.name.span, msg);
-                continue;
+                self.dcx().emit_err_code(contract.name.span, error_code!(2449), msg);
             }
+            if base.linearization_failed() {
+                linearizer.result.clear();
+                linearizer.result.push(contract_id);
+                return;
+            }
+            linearizer.insert(base_id);
             linearizer.insert_bases(base_bases);
         }
         linearizer.insert(contract_id);
