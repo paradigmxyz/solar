@@ -1671,6 +1671,15 @@ impl Target {
         let carry = self.runtime_gas(self.dup());
         if matches!(inst_data.kind, InstKind::Load(..)) { saving >= carry } else { saving > carry }
     }
+
+    /// Whether `x - ~x`, which is `DUP1 NOT SWAP1 SUB`, dominates `(x + x) | 1`, which is
+    /// `DUP1 ADD PUSH1 1 OR`.
+    pub(crate) fn complement_odd_dominates(&self) -> bool {
+        let before =
+            self.opcodes(&[op::DUP1, op::ADD]) + self.push(U256::ONE) + self.opcode(op::OR);
+        let after = self.opcodes(&[op::DUP1, op::NOT, op::SWAP1, op::SUB]);
+        self.dominates(after, before)
+    }
 }
 
 /// Estimates the instructions an `abi_encode` of `ty` expands into after `lower-abi-encode`.
@@ -1854,6 +1863,14 @@ mod tests {
         assert_eq!(target.ne_zero(), (Cost::new(5, 2).with_steps(2), true));
         let target = Target::with(EvmVersion::Istanbul, OptimizationMode::Gas, 200);
         assert_eq!(target.ne_zero(), (Cost::new(6, 2).with_steps(2), false));
+    }
+
+    #[test]
+    fn complement_odd_words_save_bytes_at_equal_gas() {
+        for optimization in [OptimizationMode::Gas, OptimizationMode::Size] {
+            let target = Target::with(EvmVersion::Osaka, optimization, 200);
+            assert!(target.complement_odd_dominates());
+        }
     }
 
     #[test]

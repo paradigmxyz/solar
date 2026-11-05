@@ -171,4 +171,35 @@ contract EventsTest {
         );
         require(count == 9);
     }
+
+    function test_EmitLateStorage() public {
+        vm.recordLogs();
+        events.emitLateStorage();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        (uint256[] memory values, uint256 late, uint256 count) =
+            abi.decode(logs[0].data, (uint256[], uint256, uint256));
+        require(values.length == 1 && values[0] == 7);
+        require(late == 9 && count == 3);
+    }
+
+    function test_EmitLateIndexed() public {
+        vm.recordLogs();
+        events.emitLateIndexed();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics.length == 4);
+        require(logs[0].topics[1] == keccak256(abi.encodePacked(uint256(7))));
+        require(logs[0].topics[2] == keccak256(abi.encode(uint256(9))));
+        require(logs[0].topics[3] == bytes32(uint256(3)));
+    }
+
+    function test_EmitLateIndexedText() public {
+        vm.recordLogs();
+        events.emitLateIndexedText();
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 1);
+        require(logs[0].topics[1] == keccak256("after"));
+        require(logs[0].topics[2] == bytes32(uint256(3)));
+    }
 }

@@ -14,6 +14,12 @@ pub struct BasicBlock {
     pub terminator: Option<Terminator>,
     /// Source context of the control transfer, independent of the last value instruction.
     pub terminator_metadata: InstructionMetadata,
+    /// Source context of the block's label, which is the origin of the `JUMPDEST` that marks the
+    /// block, as solc gives a tag the location active where the tag is placed
+    /// (`m_context << tag`). It holds only debug context: source spans and the modifier depth.
+    ///
+    /// Lowering sets it when it places the block; `docs/MIR.md` says what passes do with it.
+    pub label_metadata: InstructionMetadata,
     /// Predecessor blocks, each listed once.
     pub predecessors: SmallVec<[BlockId; 4]>,
     /// Whether the block is expected to run rarely. Computed by the hotness analysis, which the
@@ -21,6 +27,12 @@ pub struct BasicBlock {
     /// flow need not maintain it, but reads of it inside that pass can be stale, and new blocks
     /// start hot.
     pub hotness: Hotness,
+    /// Whether the source says the block runs rarely, as the block version of a function's
+    /// `cold_hint`: lowering sets it on the blocks of a `catch` clause. Unlike `hotness`, it is a
+    /// fact the analysis only reads. The block is always cold, and so is the code that only a cold
+    /// edge into a hinted block enters. A pass that copies a block copies the hint, splitting a
+    /// block gives both halves it, and merging blocks that run together keeps it.
+    pub cold_hint: bool,
 }
 
 impl BasicBlock {
@@ -56,8 +68,10 @@ impl BasicBlock {
             instructions: Vec::new(),
             terminator: None,
             terminator_metadata,
+            label_metadata: InstructionMetadata::EMPTY,
             predecessors: SmallVec::new(),
             hotness: Hotness::Hot,
+            cold_hint: false,
         }
     }
 }

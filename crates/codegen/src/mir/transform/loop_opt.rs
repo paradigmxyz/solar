@@ -811,10 +811,13 @@ impl LoopOptimizer {
         let aa = &self.alias;
         let load = Location::Immutable(load_id);
         loop_data.blocks.iter().any(|block_id| {
-            func.blocks[block_id]
-                .instructions
-                .iter()
-                .any(|&inst_id| aa.instruction_mod_ref(func, inst_id).may_write(aa, load))
+            func.blocks[block_id].instructions.iter().any(|&inst_id| {
+                let effects = aa.instruction_mod_ref(func, inst_id);
+                // `lower-immutables` turned an assignment in creation code into a store to the
+                // staging word, which the immutable's location no longer names.
+                effects.may_write(aa, load)
+                    || (func.attributes.creation_only && effects.writes_space(AddressSpace::Memory))
+            })
         })
     }
 

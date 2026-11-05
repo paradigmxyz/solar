@@ -1,9 +1,5 @@
-//@ revisions: report check
-//@ compile-flags: -Zevm-ir-pipeline=cfg-simplify
-//@[report] compile-flags: -Zdebugify=report
-//@[report] filecheck:
-//@[check] compile-flags: -Zdebugify=check
-//~[check]? ERROR: debugify: EVM IR pass `cfg-simplify` lost 2 source origins
+//@ compile-flags: -Zevm-ir-pipeline=cfg-simplify -Zdebugify=report
+//@ filecheck:
 // Two source calls reach the same body. Its label cannot identify either call site.
 // CHECK-NOT: checkpoint=
 @module SharedThunkSpans

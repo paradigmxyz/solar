@@ -215,9 +215,12 @@ fn terminal_liveness(
         let calls = |inst| {
             matches!(func.inst(inst).kind, InstKind::ICall { function: Callee::Function(_), .. })
         };
+        // The constructor runs a shared function that reads an immutable as a memory read of its
+        // staging word, which the function alone does not show.
+        let reads_immutable = |inst| matches!(func.inst(inst).kind, InstKind::LoadImmutable(_));
         if func.blocks.is_empty()
             || func.blocks.iter().any(returns)
-            || func.instructions().any(calls)
+            || func.instructions().any(|inst| calls(inst) || reads_immutable(inst))
         {
             continue;
         }

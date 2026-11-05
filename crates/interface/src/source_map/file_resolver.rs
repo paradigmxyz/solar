@@ -689,6 +689,7 @@ fn real_path(file: &SourceFile) -> &Path {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::source_map::FileLoader;
 
     #[cfg(windows)]
     #[test]
@@ -945,8 +946,6 @@ mod tests {
 
     #[test]
     fn direct_import_without_current_dir_uses_source_unit_name() {
-        use crate::source_map::FileLoader;
-
         struct Loader;
 
         impl FileLoader for Loader {

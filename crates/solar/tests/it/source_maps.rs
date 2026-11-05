@@ -209,8 +209,9 @@ fn debugify_sidecars_preserve_output() {
     for mode in ["none", "gas", "size"] {
         let directory = temp.path().join(mode);
         let flag = format!("-Zdebugify-output={}", directory.display());
-        let plain = compile(mode, "bin,bin-runtime");
-        let audited = compile_with(mode, "bin,bin-runtime", &[&flag]);
+        let outputs = "bin,bin-runtime,srcmap-runtime,ethdebug-runtime";
+        let plain = compile(mode, outputs);
+        let audited = compile_with(mode, outputs, &[&flag]);
         assert_eq!(plain, audited, "{mode}: sidecar auditing changed compiler output");
         let files = std::fs::read_dir(&directory).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
         assert_eq!(files.len(), 1, "one serialized audit file per compiler invocation");
@@ -226,6 +227,16 @@ fn debugify_sidecars_preserve_output() {
             .iter()
             .skip(1)
             .map(|record| {
+                if record["kind"] == "gaps" {
+                    let count = record["count"].as_u64().unwrap();
+                    assert!(count > 0);
+                    assert_eq!(
+                        record["omitted"].as_u64().unwrap()
+                            + record["sites"].as_array().unwrap().len() as u64,
+                        count
+                    );
+                    return record["ir"].as_str().unwrap();
+                }
                 assert_eq!(record["kind"], "pass");
                 assert_eq!(
                     record["before"].as_u64().unwrap(),
@@ -316,6 +327,55 @@ fn tail_call_thunk_chain_keeps_call_site() {
 }
 
 #[test]
+fn state_initializers_and_base_arguments_map_to_their_source() {
+    let source =
+        RealFileLoader.load_file(&Path::new(FIXTURES).join("src/Initializers.sol")).unwrap();
+    let compile = |mode: &str, outputs: &str| {
+        let output = Command::new(SOLAR)
+            .current_dir(FIXTURES)
+            .args(["src/Initializers.sol", "-O", mode])
+            .arg(format!("--emit={outputs}"))
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()
+    };
+    for mode in ["none", "gas", "size"] {
+        let plain = compile(mode, "bin,bin-runtime");
+        let debug = compile(mode, "bin,bin-runtime,srcmap,ethdebug");
+        let name = "src/Initializers.sol:Initializers";
+        for code in ["bin", "bin-runtime"] {
+            assert_eq!(plain["contracts"][name][code], debug["contracts"][name][code], "{mode}");
+        }
+        let entries = source_entries(debug["contracts"][name]["srcmap"].as_str().unwrap());
+        for declaration in [
+            "uint256 stored = 42",
+            "uint8 packed = 7",
+            "string text = \"initial\"",
+            "uint256 immutable limit = 100",
+            "uint8 immutable narrow = 5",
+        ] {
+            let start = source.find(declaration).unwrap();
+            let length = declaration.len() as i64;
+            assert!(
+                entries.iter().any(|&entry| entry[0] == start as i64 && entry[1] == length),
+                "{mode}: no creation code maps to `{declaration}`"
+            );
+        }
+        let entries = source_entries(
+            debug["contracts"]["src/Initializers.sol:Derived"]["srcmap"].as_str().unwrap(),
+        );
+        // solc maps the argument conversions to the base constructor's definition.
+        let start = source.find("constructor(string memory label_)").unwrap();
+        let length = source[start..].find("\n    }").unwrap() + "\n    }".len();
+        assert!(
+            entries.iter().any(|&entry| entry[0] == start as i64 && entry[1] == length as i64),
+            "{mode}: no creation code maps to the base constructor definition"
+        );
+    }
+}
+
+#[test]
 fn debugify_sidecars_separate_compilations() {
     let temp = tempfile::tempdir().unwrap();
     let cases = [
@@ -376,11 +436,14 @@ fn debugify_sidecars_separate_compilations() {
         assert_eq!(sources[0]["end"], source.len());
         let mut lost_count = 0;
         for record in &records[1..] {
-            assert_eq!(record["kind"], "pass");
             assert!(
                 record["module"].as_str().unwrap().starts_with(contract),
                 "{name}: mixed compilation records"
             );
+            if record["kind"] == "gaps" {
+                continue;
+            }
+            assert_eq!(record["kind"], "pass");
             for span in record["lost"].as_array().unwrap() {
                 let start = span[0].as_u64().unwrap();
                 let end = span[1].as_u64().unwrap();

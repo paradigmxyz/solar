@@ -280,7 +280,7 @@ impl LoopCopy {
 pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
     let mut copy = LoopCopy { blocks: FxHashMap::default(), values: FxHashMap::default() };
     for &block in blocks {
-        copy.blocks.insert(block, func.alloc_block());
+        copy.blocks.insert(block, func.alloc_block_like(block));
     }
     for &block in blocks {
         let originals = std::mem::take(&mut func.blocks[block].instructions);

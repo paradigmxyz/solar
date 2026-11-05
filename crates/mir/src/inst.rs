@@ -7,6 +7,7 @@ use crate::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
+use solar_ir::debug::DebugLocKind;
 use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
@@ -24,6 +25,8 @@ pub struct InstructionMetadata {
     hir_expr: Option<HirExprId>,
     /// Loop nesting depth attached by loop-aware analyses.
     pub loop_depth: u16,
+    /// Why the instruction has no origin, when it has none.
+    debug_loc_kind: DebugLocKind,
     /// Packed optional memory region, effect kind, and boolean flags.
     flags: MetadataFlags,
 }
@@ -37,6 +40,7 @@ impl InstructionMetadata {
         additional_source_spans: None,
         modifier_depth: 0,
         loop_depth: 0,
+        debug_loc_kind: DebugLocKind::Normal,
         flags: MetadataFlags::EMPTY,
     };
 
@@ -106,7 +110,11 @@ impl InstructionMetadata {
         }
         self.flags
             .set_display_source_span(self.displays_source_span() || other.displays_source_span());
-        self.flags.set_debug_info_handled();
+        self.debug_loc_kind = if self.source_spans().next().is_some() {
+            DebugLocKind::Normal
+        } else {
+            self.debug_loc_kind.merge(other.debug_loc_kind)
+        };
     }
 
     /// Copies all debug fields without copying semantic or analysis metadata.
@@ -115,7 +123,7 @@ impl InstructionMetadata {
         self.additional_source_spans = other.additional_source_spans.clone();
         self.modifier_depth = other.modifier_depth;
         self.flags.set_display_source_span(other.displays_source_span());
-        self.flags.set_debug_info_handled();
+        self.debug_loc_kind = other.debug_loc_kind;
     }
 
     /// Sets the source span that produced this instruction.
@@ -124,7 +132,7 @@ impl InstructionMetadata {
         self.source_span = span.unwrap_or(Span::DUMMY);
         self.additional_source_spans = None;
         self.flags.set_display_source_span(span.is_some());
-        self.flags.set_debug_info_handled();
+        self.debug_loc_kind = DebugLocKind::Normal;
     }
 
     /// Sets source debug information without adding it to canonical MIR text.
@@ -132,7 +140,7 @@ impl InstructionMetadata {
         self.source_span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
         self.additional_source_spans = None;
         self.flags.set_display_source_span(false);
-        self.flags.set_debug_info_handled();
+        self.debug_loc_kind = DebugLocKind::Normal;
     }
 
     /// Returns the source-map modifier nesting depth for this instruction.
@@ -144,19 +152,39 @@ impl InstructionMetadata {
     /// Sets the source-map modifier nesting depth for this instruction.
     pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
         self.modifier_depth = depth;
-        self.flags.set_debug_info_handled();
     }
 
-    /// Marks this instruction as intentionally having no source location.
+    /// Marks this instruction as intentionally having no source location, like LLVM's
+    /// `Instruction::dropLocation`.
     pub fn mark_debug_info_dropped(&mut self) {
         self.set_debug_source_span(None);
         self.modifier_depth = 0;
+        self.debug_loc_kind = DebugLocKind::Dropped;
     }
 
-    /// Returns whether source debug information was preserved or intentionally dropped.
+    /// Returns why this instruction has no source origin, when it has none.
     #[must_use]
-    pub fn debug_info_is_handled(&self) -> bool {
-        self.flags.debug_info_is_handled()
+    pub const fn debug_loc_kind(&self) -> DebugLocKind {
+        self.debug_loc_kind
+    }
+
+    /// Annotates the missing origin of this instruction.
+    pub fn set_debug_loc_kind(&mut self, kind: DebugLocKind) {
+        self.debug_loc_kind = kind;
+    }
+
+    /// Annotates the missing origin of this instruction and shows the annotation in canonical MIR
+    /// text.
+    pub(crate) fn set_displayed_debug_loc_kind(&mut self, kind: DebugLocKind) {
+        self.debug_loc_kind = kind;
+        self.flags.set_display_source_span(true);
+    }
+
+    /// Returns whether this instruction has neither a source origin nor a reason for lacking one,
+    /// which is what LLVM's `not-generate` check reports.
+    #[must_use]
+    pub fn lacks_debug_location(&self) -> bool {
+        self.debug_loc_kind == DebugLocKind::Normal && self.source_spans().next().is_none()
     }
 
     /// Returns whether canonical MIR text should include the source span.
@@ -281,7 +309,6 @@ impl MetadataFlags {
     const DISJOINT: u16 = 0b10_0000_0000;
     const PRESERVES_FMP: u16 = 0b100_0000_0000;
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
-    const DEBUG_INFO_HANDLED: u16 = 0b1_0000_0000_0000;
     const CHECKED_OBJECT_OFFSET: u16 = 0b10_0000_0000_0000;
     const ALLOC_PTR: u16 = 0b100_0000_0000_0000;
 
@@ -387,14 +414,6 @@ impl MetadataFlags {
         } else {
             self.0 &= !Self::DISPLAY_SOURCE_SPAN;
         }
-    }
-
-    fn debug_info_is_handled(self) -> bool {
-        self.0 & Self::DEBUG_INFO_HANDLED != 0
-    }
-
-    fn set_debug_info_handled(&mut self) {
-        self.0 |= Self::DEBUG_INFO_HANDLED;
     }
 
     fn effect(self) -> Option<EffectKind> {

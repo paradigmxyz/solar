@@ -50,6 +50,7 @@
   (EqIszeroJumpi)
   (SwapPair (first u8) (second u8))
   (MoveConstantThroughSwaps)
+  (OddWord)
 ))
 
 (decl pure rewrite (u8 Edit) Rewrite)
@@ -138,6 +139,9 @@
 (extern constructor u256_is_zero u256_is_zero)
 (decl pure u256_is_one (U256) bool)
 (extern constructor u256_is_one u256_is_one)
+;; `DUP1 NOT SWAP1 SUB` dominates `DUP1 ADD PUSH1 1 OR`.
+(decl pure complement_odd_dominates () bool)
+(extern constructor complement_odd_dominates complement_odd_dominates)
 ;; The shift pair of a `PUSH0 NOT PUSH s SHR AND` mask dominates it in gas and bytes.
 (decl pure shift_pair_mask_profitable (U256) bool)
 (extern constructor shift_pair_mask_profitable shift_pair_mask_profitable)

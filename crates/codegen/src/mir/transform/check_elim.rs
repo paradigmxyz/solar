@@ -1605,12 +1605,10 @@ impl<'a> CheckEliminator<'a> {
                         }
                         if let Some(merged) = &mut merged {
                             merged.ranges.retain(|value, range| {
-                                if let Some(other) = cx.ranges.get(value) {
+                                cx.ranges.get(value).is_some_and(|other| {
                                     *range = range.union(*other);
                                     *range != Range::FULL
-                                } else {
-                                    false
-                                }
+                                })
                             });
                             merged.relations.retain(|relation| cx.relations.contains(relation));
                         } else {
