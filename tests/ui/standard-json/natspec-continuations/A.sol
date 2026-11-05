@@ -39,4 +39,9 @@ contract C {
      * and a blank star line
      */
     function stars() external {}
+
+    /// @notice Notice.
+    /// @dev Dev line one
+    /// dev line two.
+    function devContinuation() external {}
 }

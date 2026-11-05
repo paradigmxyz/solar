@@ -11,6 +11,8 @@
 // CHECK: "notice": "Notice text"
 // CHECK: "stars()": {
 // CHECK: "notice": "Block text** glued and a blank star line"
+// CHECK: "devContinuation()": {
+// CHECK: "notice": "Notice."
 // CHECK: "devdoc": {
 // CHECK: "register(address)": {
 // CHECK: "details": "Registers `operator` for the caller. This does NOT validate the  operator address, so the caller keeps full responsibility for it."
@@ -23,6 +25,8 @@
 // CHECK: "last(uint256)": {
 // CHECK: "value": "Skips `@` blanks and drops it"
 // CHECK: "result": "  Keeps two blanks"
+// CHECK: "devContinuation()": {
+// CHECK: "details": "Dev line one dev line two."
 {
   "language": "Solidity",
   "settings": {

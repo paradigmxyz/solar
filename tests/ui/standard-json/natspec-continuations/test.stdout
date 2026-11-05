@@ -27,6 +27,9 @@
             },
             "stars()": {
               "notice": "Block text** glued and a blank star line"
+            },
+            "devContinuation()": {
+              "notice": "Notice."
             }
           },
           "version": 1
@@ -56,6 +59,9 @@
               "returns": {
                 "result": "  Keeps two blanks"
               }
+            },
+            "devContinuation()": {
+              "details": "Dev line one dev line two."
             }
           },
           "version": 1
