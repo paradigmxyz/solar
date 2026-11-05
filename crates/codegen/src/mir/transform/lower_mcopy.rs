@@ -208,6 +208,7 @@ fn copy_helper(shape: CopyShape) -> Function {
     emit_copy_loop(&mut builder, dest, src, len, exit, shape);
     builder.switch_to_block(exit);
     builder.ret([]);
+    function.mark_unlocated_compiler_generated();
     function
 }
 

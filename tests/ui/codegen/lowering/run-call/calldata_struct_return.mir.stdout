@@ -45,56 +45,54 @@ fn @roundTrip() -> struct2 [selector=0x6643a628, view, abi_params=[], abi_return
     mstore v2, 3
     v3 = ptradd v2, 32
     mstore v3, 0xaabbcc0000000000000000000000000000000000000000000000000000000000
-    v4 = ptrtoint ptr<memory> v2 to i256
-    v5 = alloc 64 !metadata(preserves_fmp)
-    mstore v5, 4
-    v6 = ptradd v5, 32
-    mstore v6, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
-    v7 = ptrtoint ptr<memory> v5 to i256
-    v8 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args 1, 2, 3, 4, v2, v5
-    v9 = abi_encode [memory_bytes], scratch, selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v8
-    v10 = extract_value slice<memory>, v9, 0
-    v11 = extract_value slice<memory>, v9, 1
-    v12 = zext i160 v0 to i256
-    v13 = staticcall v1, v12, v10, v11, 0, 0
-    jumpi v13, bb2, bb1
+    v4 = alloc 64 !metadata(preserves_fmp)
+    mstore v4, 4
+    v5 = ptradd v4, 32
+    mstore v5, 0x6a736f6e00000000000000000000000000000000000000000000000000000000
+    v6 = abi_encode [word, word, word, word, memory_bytes, memory_bytes], object, args 1, 2, 3, 4, v2, v4
+    v7 = abi_encode [memory_bytes], scratch, selector 0xe5c5e9a300000000000000000000000000000000000000000000000000000000, args v6
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
+    v10 = zext i160 v0 to i256
+    v11 = staticcall v1, v10, v8, v9, 0, 0
+    jumpi v11, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v14 = returndatasize
-    v15 = add v14, 31
-    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v17 = alloc v16
-    returndatacopy v17, 0, v14
-    v18 = make_memory_slice v17, v14
-    v19 = abi_decode [bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>], v18
-    v20 = extract_value struct3, v19, 0
-    v21 = extract_value struct3, v19, 1
-    v22 = insert_value struct3, undef struct3, 0, v20
-    v23 = insert_value struct3, v22, 1, v21
-    v24 = extract_value struct3, v23, 0
-    v25 = extract_value struct3, v23, 1
+    v12 = returndatasize
+    v13 = add v12, 31
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = alloc v14
+    returndatacopy v15, 0, v12
+    v16 = make_memory_slice v15, v12
+    v17 = abi_decode [bool, tuple<bytes32, bytes32, uint256, uint256, bytes, bytes>], v16
+    v18 = extract_value struct3, v17, 0
+    v19 = extract_value struct3, v17, 1
+    v20 = insert_value struct3, undef struct3, 0, v18
+    v21 = insert_value struct3, v20, 1, v19
+    v22 = extract_value struct3, v21, 0
+    v23 = extract_value struct3, v21, 1
+    v24 = mload v23
+    v25 = ptradd v23, 32
     v26 = mload v25
-    v27 = ptradd v25, 32
+    v27 = ptradd v23, 64
     v28 = mload v27
-    v29 = ptradd v25, 64
+    v29 = ptradd v23, 96
     v30 = mload v29
-    v31 = ptradd v25, 96
-    v32 = mload v31
-    v33 = ptradd v25, 128
-    v34 = mload v33, ptr<memory>
-    v35 = mload v34
-    v36 = ptradd v25, 160
-    v37 = mload v36, ptr<memory>
-    v38 = mload v37
-    v39 = insert_value struct2, undef struct2, 0, v24
-    v40 = insert_value struct2, v39, 1, v26
-    v41 = insert_value struct2, v40, 2, v28
-    v42 = insert_value struct2, v41, 3, v30
-    v43 = insert_value struct2, v42, 4, v32
-    v44 = insert_value struct2, v43, 5, v35
-    v45 = insert_value struct2, v44, 6, v38
-    ret v45
+    v31 = ptradd v23, 128
+    v32 = mload v31, ptr<memory>
+    v33 = mload v32
+    v34 = ptradd v23, 160
+    v35 = mload v34, ptr<memory>
+    v36 = mload v35
+    v37 = insert_value struct2, undef struct2, 0, v22
+    v38 = insert_value struct2, v37, 1, v24
+    v39 = insert_value struct2, v38, 2, v26
+    v40 = insert_value struct2, v39, 3, v28
+    v41 = insert_value struct2, v40, 4, v30
+    v42 = insert_value struct2, v41, 5, v33
+    v43 = insert_value struct2, v42, 6, v36
+    ret v43
 }
 
 ; function decode(bytes calldata input) internal pure returns (bool success, Auth calldata auth)

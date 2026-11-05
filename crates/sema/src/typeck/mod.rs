@@ -1,7 +1,9 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir::{self, Item, ItemId, Res, Visit},
-    ty::{ExprMap, Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind, TypeckResults},
+    ty::{
+        ExprMap, Gcx, Recursiveness, SameSourceFileLevelUserTypeError, Ty, TyKind, TypeckResults,
+    },
 };
 use alloy_primitives::{B256, Selector, U256};
 use rayon::prelude::*;
@@ -944,6 +946,9 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
         }
         TyKind::Struct(struct_id) => {
             // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L2303C1-L2309C2
+            if let Recursiveness::Infinite(guar) = gcx.struct_recursiveness(struct_id) {
+                return Err(guar);
+            }
             let mut total_size = U256::ONE;
             for t in gcx.struct_field_types(struct_id) {
                 let Some(size_contribution) = ty_storage_size_upper_bound(*t, gcx)? else {

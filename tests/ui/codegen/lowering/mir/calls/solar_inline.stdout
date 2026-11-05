@@ -8,7 +8,7 @@ fn @find(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x48838276, pure, abi_
     v0 = phi [bb0: arg0], [bb3: v0]
     v1 = phi [bb0: arg1], [bb3: v1]
     v2 = phi [bb0: 0], [bb3: v2]
-    v3 = phi [bb0: 0], [bb3: v10]
+    v3 = phi [bb0: 0], [bb3: v8]
     v4 = mload v0
     v5 = lt v3, v4
     jumpi v5, bb4, bb5
@@ -18,10 +18,8 @@ fn @find(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x48838276, pure, abi_
     ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   bb4:                                            ; preds = bb1
     v6 = icall @_at, v0, v3
-    v7 = and v6, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v8 = and v1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v9 = eq v7, v8
-    jumpi v9, bb7, bb8
+    v7 = eq v6, v1
+    jumpi v7, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb9
   bb9:                                            ; preds = bb8
@@ -29,7 +27,7 @@ fn @find(arg0: ptr<memory>, arg1: i256) -> i256 [selector=0x48838276, pure, abi_
   bb6:                                            ; preds = bb9
     jump bb3
   bb3:                                            ; preds = bb6
-    v10 = checked_add uint256, v3, 1
+    v8 = checked_add uint256, v3, 1
     jump bb1
   bb7:                                            ; preds = bb4
     ret v3

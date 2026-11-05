@@ -1590,6 +1590,9 @@ impl CommonSubexprEliminator {
     }
 
     /// Splits `a + b` into its non-constant operand and the constant it adds, trying `b` first.
+    ///
+    /// NOTE: Both sides are tried because a pending replacement can make `a` a constant: the pass
+    /// applies its replacements at the end, so the instruction still has its old operand order.
     fn const_addend(
         func: &Function,
         a: ValueId,
