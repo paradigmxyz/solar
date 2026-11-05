@@ -1457,8 +1457,7 @@ impl IndVarSimplifier {
                 lhs: a,
                 rhs: b,
             } if a == iv_value => self.value_i128(func, b),
-            InstKind::Add(a, b)
-            | InstKind::CheckedBinary {
+            InstKind::CheckedBinary {
                 op: CheckedOp::Add,
                 arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
@@ -1887,7 +1886,6 @@ fn implies_at_most(
         (&InstKind::Gt(a, x), false)
         | (&InstKind::Lt(x, a), false)
         | (&InstKind::Lt(a, x), true)
-        | (&InstKind::Gt(x, a), true)
             if a == value =>
         {
             unsigned_bounds(func, x).1 <= limit

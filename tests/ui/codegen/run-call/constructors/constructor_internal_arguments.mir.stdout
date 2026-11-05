@@ -3,20 +3,19 @@
 ; constructor(bytes3 name_, bool flag_) [creation entry]
 fn @constructor(arg0: i256, arg1: i1) [constructor, abi_params=[bytes3, bool]] {
   bb0:
-    v0 = and arg0, 0xffffff0000000000000000000000000000000000000000000000000000000000
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000
-    v3 = shr v0, 232
-    v4 = and v3, 0xffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ffffff
-    v8 = zext i1 arg1 to i256
-    v9 = and v8, 255
-    v10 = shl v9, 24
-    v11 = or v7, v10
-    sstore 0, v11 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000
+    v2 = shr arg0, 232
+    v3 = and v2, 0xffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ffffff
+    v7 = zext i1 arg1 to i256
+    v8 = and v7, 255
+    v9 = shl v8, 24
+    v10 = or v6, v9
+    sstore 0, v10 !metadata(storage=slot(0))
     ret
 }
 
@@ -46,26 +45,24 @@ fn @getFlag() -> i1 [selector=0xf9633930, view, abi_params=[], abi_returns=[word
 ; constructor() [creation entry]
 fn @constructor() [constructor] {
   bb0:
-    v0 = ne true, false
-    v1 = datasize ConstructorInternalArgumentsHelper_creation_code_0
-    v2 = fmp
-    datacopy ConstructorInternalArgumentsHelper_creation_code_0, v2, v1
-    v3 = ptradd v2, v1
-    v4 = zext i1 v0 to i256
-    v5 = abi_encode [word<bytes3>, word<bool>], scratch, base v3, args 0x6162630000000000000000000000000000000000000000000000000000000000, v4
-    v6 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 64
-    v7 = create 0, v2, v6
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize ConstructorInternalArgumentsHelper_creation_code_0
+    v1 = fmp
+    datacopy ConstructorInternalArgumentsHelper_creation_code_0, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word<bytes3>, word<bool>], scratch, base v2, args 0x6162630000000000000000000000000000000000000000000000000000000000, 1
+    v4 = datasize ConstructorInternalArgumentsHelper_creation_code_0, 64
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v9 = sload 0 !metadata(storage=slot(0))
-    v10 = and v9, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v11 = zext i160 v7 to i256
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffff
-    v13 = or v10, v12
-    sstore 0, v13 !metadata(storage=slot(0))
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = and v7, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v9 = zext i160 v5 to i256
+    v10 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = or v8, v10
+    sstore 0, v11 !metadata(storage=slot(0))
     ret
 }
 

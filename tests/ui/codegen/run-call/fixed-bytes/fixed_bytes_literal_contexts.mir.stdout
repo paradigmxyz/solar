@@ -7,13 +7,12 @@
 ; constructor(bytes2 value) [creation entry]
 fn @constructor(arg0: i256) [constructor, abi_params=[bytes2]] {
   bb0:
-    v0 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
-    v3 = shr v0, 240
-    v4 = and v3, 0xffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v2 = shr arg0, 240
+    v3 = and v2, 0xffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }
 

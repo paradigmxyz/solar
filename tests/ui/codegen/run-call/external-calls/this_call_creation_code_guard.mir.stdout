@@ -501,17 +501,15 @@ fn @viaTry() [selector=0x9369e272, abi_params=[], abi_returns=[], abi_return_par
 ; function viaShared() external [selector 0x86375232]
 fn @viaShared() [selector=0x86375232, abi_params=[], abi_returns=[], abi_return_params=[]] {
   bb0:
-    v0 = ne true, false
-    v1 = datasize SharedHelper_creation_code_6
-    v2 = fmp
-    datacopy SharedHelper_creation_code_6, v2, v1
-    v3 = ptradd v2, v1
-    v4 = zext i1 v0 to i256
-    v5 = abi_encode [word<bool>], scratch, base v3, args v4
-    v6 = datasize SharedHelper_creation_code_6, 32
-    v7 = create 0, v2, v6
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize SharedHelper_creation_code_6
+    v1 = fmp
+    datacopy SharedHelper_creation_code_6, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word<bool>], scratch, base v2, args 1
+    v4 = datasize SharedHelper_creation_code_6, 32
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0

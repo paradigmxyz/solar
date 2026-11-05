@@ -75,11 +75,9 @@ impl MaskUses {
                     }
                 }
             }
-            InstKind::Eq(a, b) => {
-                for (operand, constant) in [(a, b), (b, a)] {
-                    if let Some(constant) = func.value_u256(constant) {
-                        self.compared.entry(operand).or_default().push(constant);
-                    }
+            InstKind::Eq(operand, constant) => {
+                if let Some(constant) = func.value_u256(constant) {
+                    self.compared.entry(operand).or_default().push(constant);
                 }
             }
             _ => {}
@@ -112,11 +110,9 @@ impl MaskUses {
                     }
                 }
             }
-            InstKind::Eq(a, b) => {
-                for (operand, constant) in [(a, b), (b, a)] {
-                    if let Some(constant) = func.value_u256(constant) {
-                        swap_remove(self.compared.get_mut(&operand), &constant);
-                    }
+            InstKind::Eq(operand, constant) => {
+                if let Some(constant) = func.value_u256(constant) {
+                    swap_remove(self.compared.get_mut(&operand), &constant);
                 }
             }
             _ => {}

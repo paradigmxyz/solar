@@ -17,8 +17,9 @@ fn @f() -> i1 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word<bool>
   bb5:                                            ; preds = bb2
     jump bb4
   bb4:                                            ; preds = bb5, bb3
-    v0 = phi [bb5: true], [bb3: false]
+    v0 = phi [bb5: 1], [bb3: 0]
     jump bb1
   bb1:                                            ; preds = bb4
-    ret v0
+    v1 = ne v0, 0
+    ret v1
 }
