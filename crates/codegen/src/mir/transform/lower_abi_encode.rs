@@ -313,7 +313,8 @@ fn synthesize_tuple_helpers(
             shared.push((key, function));
         }
     }
-    for (key, function) in shared {
+    for (key, mut function) in shared {
+        function.mark_unlocated_compiler_generated();
         let helper = module.add_function(function);
         Arc::make_mut(&mut helpers.tuples).insert(key, helper);
     }
@@ -410,6 +411,7 @@ fn synthesize_array_helpers(
             builder.set_return_type(MirType::I256);
             builder.ret([length]);
         }
+        function.mark_unlocated_compiler_generated();
         let helper = module.add_function(function);
         Arc::make_mut(&mut helpers.arrays).insert(key, helper);
     }
@@ -520,6 +522,7 @@ fn calldata_helper(
         builder.set_return_type(MirType::I256);
         builder.ret([length]);
     }
+    function.mark_unlocated_compiler_generated();
     function
 }
 
