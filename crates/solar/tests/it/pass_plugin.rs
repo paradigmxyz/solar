@@ -11,6 +11,7 @@ use std::{
 
 mod artifact;
 mod graph_tests;
+mod review_tests;
 mod runtime;
 mod split_tests;
 use artifact::artifact;

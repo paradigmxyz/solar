@@ -1,0 +1,4 @@
+error: [fn0] [bb1, inst1] phi must precede non-phi instructions
+
+error: aborting due to 1 previous error
+

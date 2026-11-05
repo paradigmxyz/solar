@@ -54,10 +54,23 @@ impl MirPluginPass {
                 module.phase().name()
             ));
         }
+        let mut printable = module.clone();
+        for function in &mut printable.functions {
+            function.debug_signature = None;
+            for block in &mut function.blocks {
+                block.label_metadata.copy_debug_context(&mir::InstructionMetadata::EMPTY);
+                block.terminator_metadata.copy_debug_context(&mir::InstructionMetadata::EMPTY);
+            }
+            function.for_each_instruction_mut(|_, inst| {
+                inst.metadata.copy_debug_context(&mir::InstructionMetadata::EMPTY);
+                inst.metadata.set_hir_expr(None);
+            });
+        }
         let snapshot = Snapshot::Mir {
             name: module.name.to_string(),
             phase: module.phase().name().into(),
-            text: module.to_text().to_string(),
+            unsafe_assembly: module.has_unsafe_assembly(),
+            text: printable.to_text().to_string(),
             functions: module
                 .functions
                 .iter_enumerated()
@@ -127,6 +140,8 @@ impl MirPluginPass {
         }
         candidate.invalidate_lowered_check();
         candidate.backend_memory = None;
+        // Plugin operations do not carry the source lowerer's memory-placement proof.
+        candidate.set_unsafe_assembly(true);
         mir::validate(gcx.dcx(), &candidate);
         gcx.dcx().has_errors().map_err(|_| "produced invalid MIR")?;
         // module => verified candidate
