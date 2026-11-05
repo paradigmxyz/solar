@@ -242,6 +242,8 @@ impl<'gcx> Exposure<'gcx> {
                 self.pointer_sources(yes, bindings, functions);
                 self.pointer_sources(no, bindings, functions);
             }
+            // An assignment's value is its target.
+            ExprKind::Assign(lhs, None, _) => self.pointer_sources(lhs, bindings, functions),
             // A value loaded from an object comes from the reference that reaches it.
             ExprKind::Member(base, _) | ExprKind::Index(base, _) | ExprKind::Slice(base, ..) => {
                 self.pointer_sources(base, bindings, functions);
