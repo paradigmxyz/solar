@@ -64,6 +64,8 @@ impl<'ast> Expr<'ast> {
 /// A kind of expression.
 #[derive(Debug)]
 pub enum ExprKind<'ast> {
+    /// A registered pure uint256 plugin builtin, resolved before name resolution.
+    PluginBuiltin(Ident, Ident, BoxSlice<'ast, Box<'ast, Expr<'ast>>>),
     /// An array literal expression: `[a, b, c, d]`.
     Array(BoxSlice<'ast, Box<'ast, Expr<'ast>>>),
 

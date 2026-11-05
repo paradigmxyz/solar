@@ -39,6 +39,7 @@ pub struct Parser<'sess, 'ast, 'cb> {
     /// The arena where the AST nodes are allocated.
     pub arena: &'ast ast::Arena,
 
+    plugin_temporary: u64,
     #[allow(clippy::type_complexity)]
     plugin_expansion: Option<
         std::boxed::Box<
@@ -188,6 +189,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             recursion_depth: 0,
             import_callback: None,
             plugin_expansion: None,
+            plugin_temporary: 0,
         };
         parser.bump();
         parser

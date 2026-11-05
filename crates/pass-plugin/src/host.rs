@@ -2,9 +2,12 @@
 
 use crate::{
     __private::{ABI_SYMBOL, ENTRY_SYMBOL, Entry, Exports, Receiver, build_fingerprint},
-    Expansion, ExpansionRequest, FrontendManifest, Manifest, Request, Response,
+    BuiltinBody, Expansion, ExpansionRequest, FrontendManifest, Manifest, Request, Response,
 };
-use std::{path::Path, sync::Mutex};
+use std::{
+    path::Path,
+    sync::{Mutex, OnceLock},
+};
 
 #[cfg(any(unix, windows))]
 use libloading::Library;
@@ -13,6 +16,8 @@ use libloading::Library;
 pub struct NativePlugin {
     exports: &'static Exports,
     calls: Mutex<()>,
+    manifest: OnceLock<Result<Manifest, String>>,
+    frontend: OnceLock<Result<FrontendManifest, String>>,
     // Drop the library only after every borrowed export and callback has finished.
     #[cfg(any(unix, windows))]
     _library: Library,
@@ -50,7 +55,13 @@ impl NativePlugin {
                 )
             })?;
             let exports = entry();
-            Ok(Self { exports, calls: Mutex::new(()), _library: library })
+            Ok(Self {
+                exports,
+                calls: Mutex::new(()),
+                manifest: OnceLock::new(),
+                frontend: OnceLock::new(),
+                _library: library,
+            })
         }
         #[cfg(not(any(unix, windows)))]
         Err(format!("native pass plugins are not supported on this target: `{}`", path.display()))
@@ -58,8 +69,12 @@ impl NativePlugin {
 
     /// Returns the plugin's registration data.
     pub fn manifest(&self) -> Result<Manifest, String> {
-        let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
-        receive(|respond| (self.exports.manifest)(respond))
+        self.manifest
+            .get_or_init(|| {
+                let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
+                receive(|respond| (self.exports.manifest)(respond))
+            })
+            .clone()
     }
 
     /// Runs one pass and copies its response into the host.
@@ -68,10 +83,20 @@ impl NativePlugin {
         receive(|respond| (self.exports.run)(request, respond))
     }
 
+    /// Requests a builtin's MIR recipe from its owning library.
+    pub fn lower_builtin(&self, name: &str) -> Result<BuiltinBody, String> {
+        let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
+        receive(|respond| (self.exports.lower_builtin)(name, respond))
+    }
+
     /// Returns the syntax extensions registered by this library.
     pub fn frontend_manifest(&self) -> Result<FrontendManifest, String> {
-        let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
-        receive(|respond| (self.exports.frontend_manifest)(respond))
+        self.frontend
+            .get_or_init(|| {
+                let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
+                receive(|respond| (self.exports.frontend_manifest)(respond))
+            })
+            .clone()
     }
 
     /// Runs an extension and copies the result into the host.

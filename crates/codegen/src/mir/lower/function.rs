@@ -41,6 +41,7 @@ mod lvalues;
 mod memory_values;
 mod modifiers;
 mod operators;
+mod plugin;
 mod raw_scalars;
 mod statements;
 mod storage_values;
@@ -736,6 +737,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
         }
         match &expr.kind {
+            ExprKind::PluginBuiltin(call) => {
+                self.lower_plugin_builtin(expr, call.namespace, call.name, call.args)
+            }
             ExprKind::Lit(lit) if self.in_inline_assembly => {
                 Some(self.builder.imm(lit.kind.yul_word()?))
             }

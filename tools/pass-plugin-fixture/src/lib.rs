@@ -2,8 +2,9 @@
 //! This crate is only a compiler dev dependency; it is not a supported plugin example.
 
 use solar_pass_plugin::{
-    self as api, __private::Exports, Edit, EvmTerminator, Manifest, MirInstructionKind as Kind,
-    MirOperand as Operand, MirTerminator as Term, NewMirBlock as Block, NewMirFunction as Function,
+    self as api, __private::Exports, Edit, EvmTerminator, Expansion, ExpansionExpr as E,
+    ExpansionStmt as S, Manifest, MirInstructionKind as Kind, MirOperand as Operand,
+    MirTerminator as Term, NewMirBlock as Block, NewMirFunction as Function,
     NewMirInstruction as Instruction, Plugin, Request, Response, Type,
 };
 
@@ -35,17 +36,100 @@ impl Plugin for Broken {
             api_version: if mode == "bad_version" { 999 } else { api::API_VERSION },
             name: "broken".into(),
             version: "1".into(),
-            passes: vec![api::Pass {
-                name: "fail".into(),
-                ir: if phase.is_some() { api::Ir::Mir } else { api::Ir::EvmIr },
-                phase: phase.map(str::to_owned),
-                enabled_by_default: true,
+            passes: if mode.starts_with("frontend_") {
+                Vec::new()
+            } else {
+                vec![api::Pass {
+                    name: "fail".into(),
+                    ir: if phase.is_some() { api::Ir::Mir } else { api::Ir::EvmIr },
+                    phase: phase.map(str::to_owned),
+                    enabled_by_default: true,
+                }]
+            },
+        }
+    }
+
+    fn frontend_manifest(&self) -> api::FrontendManifest {
+        if !mode().starts_with("frontend_") {
+            return Default::default();
+        }
+        api::FrontendManifest {
+            extensions: if matches!(
+                mode().as_str(),
+                "frontend_body" | "frontend_discard" | "frontend_nested"
+            ) {
+                vec![api::FrontendExtension {
+                    name: "repeat".into(),
+                    kind: api::ExtensionKind::Statement,
+                }]
+            } else {
+                Vec::new()
+            },
+            builtins: vec![api::BuiltinDefinition {
+                name: "bad".into(),
+                signature: api::BuiltinSignature {
+                    parameters: if mode() == "frontend_constant" {
+                        Vec::new()
+                    } else {
+                        vec![api::BuiltinType::Uint256; 2]
+                    },
+                    result: api::BuiltinType::Uint256,
+                    effect: if mode() == "frontend_effect" {
+                        api::BuiltinEffect::Unknown
+                    } else {
+                        api::BuiltinEffect::Pure
+                    },
+                },
             }],
         }
     }
 
+    fn expand(&self, _: &api::ExpansionRequest) -> Result<api::Expansion, String> {
+        let recipe = match mode().as_str() {
+            "frontend_body" => S::Block(vec![S::Body, S::Body]),
+            "frontend_discard" => S::Block(Vec::new()),
+            "frontend_nested" => S::Repeat {
+                count: E::Argument(0),
+                body: Box::new(S::Repeat { count: E::Argument(1), body: Box::new(S::Body) }),
+            },
+            _ => return Err("unknown frontend extension".into()),
+        };
+        Ok(Expansion::Statement(recipe))
+    }
+
+    fn lower_builtin(&self, _: &str) -> Result<api::BuiltinBody, String> {
+        if mode() == "frontend_constant" {
+            return Ok(api::BuiltinBody {
+                instructions: Vec::new(),
+                result: api::BuiltinOperand::Constant("42".into()),
+            });
+        }
+        let (operation, operands) = match mode().as_str() {
+            "frontend_only" => {
+                ("add", vec![api::BuiltinOperand::Argument(0), api::BuiltinOperand::Argument(1)])
+            }
+            "frontend_local" => {
+                ("add", vec![api::BuiltinOperand::Local(0), api::BuiltinOperand::Argument(0)])
+            }
+            "frontend_argument" => {
+                ("add", vec![api::BuiltinOperand::Argument(8), api::BuiltinOperand::Argument(0)])
+            }
+            "frontend_gas" => ("gas", vec![]),
+            "frontend_memory" => ("mload", vec![api::BuiltinOperand::Argument(0)]),
+            "frontend_arity" => ("add", vec![]),
+            _ => ("not_an_op", vec![]),
+        };
+        Ok(api::BuiltinBody {
+            instructions: vec![api::BuiltinInstruction { operation: operation.into(), operands }],
+            result: api::BuiltinOperand::Local(0),
+        })
+    }
+
     fn run(&self, request: &Request) -> Result<Response, String> {
         let mode = mode();
+        if mode.starts_with("frontend_") {
+            return Ok(Response::default());
+        }
         if mode.starts_with("observe_") {
             eprintln!("SNAPSHOT:{request:?}");
             return Ok(Response::default());
@@ -302,6 +386,7 @@ pub static solar_rust_pass_plugin_abi_v1: [u8; 32] = api::ABI_FINGERPRINT;
 pub fn solar_rust_pass_plugin_v1() -> &'static Exports {
     static EXPORTS: Exports = Exports {
         manifest: |respond| api::__private::manifest(&Broken, respond),
+        lower_builtin: |name, respond| api::__private::lower_builtin(&Broken, name, respond),
         frontend_manifest: |respond| api::__private::frontend_manifest(&Broken, respond),
         expand: |request, respond| api::__private::expand(&Broken, request, respond),
         run: |request, respond| match mode().as_str() {

@@ -44,6 +44,8 @@ The [Rust plugin SDK](../crates/pass-plugin/README.md) defines the `Plugin` trai
 export macro, build compatibility checks, pipeline hooks, and supported edits. The
 [`solar-pass-plugin-example`](../tools/pass-plugin-example/src/lib.rs) package
 builds a working shared library without linking compiler internals.
+The [frontend guide](FrontendPlugins.md) covers syntax expansion and typed
+builtins whose recipes lower to existing MIR operations.
 
 ## Operation Schema and ISLE Rules
 

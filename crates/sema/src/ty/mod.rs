@@ -457,7 +457,8 @@ impl<'gcx> Gcx<'gcx> {
         self,
     ) -> solar_interface::Result<&'gcx [Arc<solar_pass_plugin::host::NativePlugin>]> {
         let plugins = self.0.plugins.get_or_init(|| {
-            self.sess
+            let plugins = self
+                .sess
                 .opts
                 .unstable
                 .load_pass_plugin
@@ -470,7 +471,9 @@ impl<'gcx> Gcx<'gcx> {
                     })?;
                     solar_pass_plugin::host::NativePlugin::load(&path).map(Arc::new)
                 })
-                .collect()
+                .collect::<Result<Vec<_>, String>>()?;
+            crate::plugins::validate(&plugins)?;
+            Ok(plugins)
         });
         plugins.as_deref().map_err(|error| self.dcx().err(error.clone()).emit())
     }

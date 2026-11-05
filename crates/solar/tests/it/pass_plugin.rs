@@ -10,6 +10,7 @@ use std::{
 };
 
 mod artifact;
+mod frontend;
 mod graph_tests;
 mod review_tests;
 mod runtime;
@@ -355,7 +356,8 @@ fn plugin_loading_precedes_parsing() {
         serde_json::to_string_pretty(&diagnostics).unwrap(),
         str![[r#"
 [
-  "pass plugin `$PLUGIN` was built with an incompatible Rust SDK or toolchain"
+  "pass plugin `$PLUGIN` was built with an incompatible Rust SDK or toolchain",
+  "aborting due to 1 previous error"
 ]
 "#]]
     );
@@ -423,19 +425,22 @@ fn invalid_native_plugins_fail_cleanly() {
   [
     "missing",
     [
-      "pass plugin `$PLUGIN` has no `solar_rust_pass_plugin_v1` entry point"
+      "pass plugin `$PLUGIN` has no `solar_rust_pass_plugin_v1` entry point",
+      "aborting due to 1 previous error"
     ]
   ],
   [
     "missing_abi",
     [
-      "pass plugin `$PLUGIN` is missing the Rust SDK fingerprint"
+      "pass plugin `$PLUGIN` is missing the Rust SDK fingerprint",
+      "aborting due to 1 previous error"
     ]
   ],
   [
     "wrong_abi",
     [
-      "pass plugin `$PLUGIN` was built with an incompatible Rust SDK or toolchain"
+      "pass plugin `$PLUGIN` was built with an incompatible Rust SDK or toolchain",
+      "aborting due to 1 previous error"
     ]
   ],
   [
@@ -560,7 +565,7 @@ fn invalid_mir_edits_and_duplicate_names_are_errors() {
         messages(&output),
         str![[r#"
 [
-  "invalid or duplicate plugin pass `example::simplify-add-zero`",
+  "duplicate plugin namespace `example`",
   "aborting due to 1 previous error"
 ]
 "#]]
@@ -613,7 +618,7 @@ fn plugin_option_survives_standard_json_settings() {
         serde_json::to_string_pretty(&errors).unwrap(),
         str![[r#"
 [
-  "invalid or duplicate plugin pass `example::simplify-add-zero`"
+  "duplicate plugin namespace `example`"
 ]
 "#]]
     );

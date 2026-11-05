@@ -1,6 +1,6 @@
 [package]
 name = "solar-pass-plugin"
-description = "Rust optimization pass plugin SDK"
+description = "Rust compiler plugin SDK"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

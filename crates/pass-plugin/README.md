@@ -139,3 +139,9 @@ observable effects, including gas and memory-size observations, and test their
 transformations against the interpreters and runtime tests. Library crashes
 can terminate the compiler. Plugin binaries and configuration are build inputs:
 when using external build caches, invalidate them after changing a plugin.
+
+## Frontend extensions
+
+The same library can register syntax extensions and pure typed builtins. See
+[Frontend plugins](../../docs/FrontendPlugins.md) for `repeat`, `rotl`, the
+expansion recipes, and the checked MIR fragment interface.
