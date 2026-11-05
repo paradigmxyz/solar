@@ -59,22 +59,20 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     sstore 0, v17 !metadata(storage=slot(0))
     jump bb15
   bb15:                                           ; preds = bb22, bb17
-    v18 = phi [bb22: v9], [bb17: v3]
-    v19 = phi [bb22: v15], [bb17: v7]
-    v20 = sload 0 !metadata(storage=slot(0))
-    v21 = checked_add uint256, v20, 1
-    sstore 0, v21 !metadata(storage=slot(0))
+    v18 = phi [bb22: v15], [bb17: v7]
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = checked_add uint256, v19, 1
+    sstore 0, v20 !metadata(storage=slot(0))
     jump bb8
   bb8:                                            ; preds = bb15, bb10
-    v22 = phi [bb15: v18], [bb10: v0]
-    v23 = phi [bb15: v19], [bb10: v4]
-    v24 = sload 0 !metadata(storage=slot(0))
-    v25 = checked_add uint256, v24, 1
-    sstore 0, v25 !metadata(storage=slot(0))
+    v21 = phi [bb15: v18], [bb10: v4]
+    v22 = sload 0 !metadata(storage=slot(0))
+    v23 = checked_add uint256, v22, 1
+    sstore 0, v23 !metadata(storage=slot(0))
     jump bb1
   bb1:                                            ; preds = bb8, bb3
-    v26 = phi [bb8: v23], [bb3: v1]
-    ret v26
+    v24 = phi [bb8: v21], [bb3: v1]
+    ret v24
   bb4:
     invalid
   bb7:
