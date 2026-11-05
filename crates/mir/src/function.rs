@@ -2,8 +2,8 @@
 
 use super::{
     AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
-    InstKind, Instruction, MangledSymbol, MirType, PtrLocation, StorageAlias, Value, ValueId,
-    memory::EvmMemoryLayout,
+    InstKind, Instruction, MangledSymbol, MirType, PtrLocation, StorageAlias, Terminator, Value,
+    ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -446,6 +446,40 @@ impl Function {
     #[must_use]
     pub fn value_u64(&self, id: ValueId) -> Option<u64> {
         self.value_u256(id).and_then(super::utils::u256_to_u64)
+    }
+
+    /// Visits physical memory ranges used by instructions and terminators.
+    /// Unknown lengths still expose their base to heap-prefix analysis.
+    pub fn for_each_memory_range(&self, mut visit: impl FnMut(ValueId, Option<u64>)) {
+        for inst_id in self.instructions() {
+            self.inst(inst_id)
+                .kind
+                .visit_raw_memory(|_, offset, size| visit(offset, size.constant(self)));
+        }
+        for block in &self.blocks {
+            if let Some(
+                Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size },
+            ) = &block.terminator
+            {
+                visit(*offset, self.value_u64(*size));
+            }
+        }
+    }
+
+    /// Returns where the local region ends, `HEAP_START` up to `internal_frame_size`, if the
+    /// function accesses it at absolute addresses: a constant range with a non-zero size starts
+    /// inside it. A frame the function reaches through `internal_frame_addr` does not count.
+    #[must_use]
+    pub fn absolute_local_end(&self) -> Option<u64> {
+        let end = EvmMemoryLayout::HEAP_START.saturating_add(self.internal_frame_size);
+        let mut named = false;
+        self.for_each_memory_range(|offset, size| {
+            named |= size != Some(0)
+                && self
+                    .value_u64(offset)
+                    .is_some_and(|start| (EvmMemoryLayout::HEAP_START..end).contains(&start));
+        });
+        named.then_some(end)
     }
 
     /// Returns whether the instruction stores a full word to the free-memory-pointer slot.
