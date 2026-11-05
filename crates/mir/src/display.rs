@@ -216,7 +216,7 @@ pub(crate) fn display_function_text<'a>(
                     (false, true) => write!(f, " [cold_hint]")?,
                     (true, true) => write!(f, " [cold, cold_hint]")?,
                 }
-                write!(f, ":")
+                write!(f, "{}:", display_metadata(&block.label_metadata, None, func))
             });
             let preds = (!block.predecessors.is_empty()).then(|| {
                 fmt::from_fn(|f| {
@@ -361,6 +361,9 @@ fn display_function_attributes(
         }
         if func.attributes.is_function_pointer_dispatcher {
             write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
+        }
+        if func.attributes.creation_only {
+            write_function_attribute(f, &mut first, "creation_only")?;
         }
         if func.attributes.always_inline {
             write_function_attribute(f, &mut first, "always_inline")?;

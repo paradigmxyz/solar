@@ -29,16 +29,17 @@ fn @aliasedStruct(arg0: ptr<memory>) -> i256 [selector=0x8c175a3d, pure, abi_par
     mstore v0, 0
     v1 = ptrtoint ptr<memory> arg0 to i256
     v2 = add v1, 32
-    mstore v2, 257
-    v3 = mload arg0
-    v4 = gt v3, 0
-    v5 = eq v4, false
-    icall panic_if<0x32>, v5
-    v6 = ptradd arg0, 32
-    v7 = mload v6
-    v8 = trunc i256 v7 to i8
-    v9 = zext i8 v8 to i256
-    ret v9
+    v3 = inttoptr i256 v2 to ptr<memory>
+    mstore v3, 257
+    v4 = mload arg0
+    v5 = gt v4, 0
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = ptradd arg0, 32
+    v8 = mload v7
+    v9 = trunc i256 v8 to i8
+    v10 = zext i8 v9 to i256
+    ret v10
 }
 
 ; function aliasedBytes(uint8[] memory a) external pure returns (uint256) [selector 0x4a6c046c]
@@ -50,7 +51,7 @@ fn @aliasedBytes(arg0: ptr<memory>) -> i256 [selector=0x4a6c046c, pure, abi_para
     v3 = eq v2, false
     icall panic_if<0x32>, v3
     v4 = byte 0, 0x100000000000000000000000000000000000000000000000000000000000000
-    v5 = add v0, 32
+    v5 = ptradd arg0, 32
     mstore8 v5, v4
     v6 = mload arg0
     v7 = gt v6, 0
@@ -70,19 +71,20 @@ fn @unalignedArray(arg0: ptr<memory>) -> i256 [selector=0xd621b19f, pure, abi_pa
     memory_zero v0, 32
     v1 = ptrtoint ptr<memory> arg0 to i256
     v2 = add v1, 33
-    v3 = lt 0, 1
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    mstore v2, 1
-    v5 = mload arg0
-    v6 = gt v5, 1
-    v7 = eq v6, false
-    icall panic_if<0x32>, v7
-    v8 = ptradd arg0, 64
-    v9 = mload v8
-    v10 = trunc i256 v9 to i8
-    v11 = zext i8 v10 to i256
-    ret v11
+    v3 = inttoptr i256 v2 to ptr<memory>
+    v4 = lt 0, 1
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    mstore v3, 1
+    v6 = mload arg0
+    v7 = gt v6, 1
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = ptradd arg0, 64
+    v10 = mload v9
+    v11 = trunc i256 v10 to i8
+    v12 = zext i8 v11 to i256
+    ret v12
 }
 
 ; function unalignedHelper(uint8[] memory a) external pure returns (uint256) [selector 0x29dcbdaa]
