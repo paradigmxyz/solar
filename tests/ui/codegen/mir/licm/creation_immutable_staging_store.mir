@@ -1,0 +1,47 @@
+//@compile-flags: -Zmir-pipeline=licm
+//@filecheck: --enable-var-scope
+@module LicmCreationImmutableStagingStore
+@immutables
+  value: uint256
+
+// `lower-immutables` turned the in-loop assignment into a store to the staging word that
+// `loadimmutable` reads in creation code, so the read, and the `addmod` that uses it, stay in the
+// loop. Without the `creation_only` flag both hoist.
+// CHECK-LABEL: @keep_creation_read
+// CHECK: {{^ +}}jumpi {{.*}}, [[BODY:bb[0-9]+]], {{bb[0-9]+}}
+// CHECK: {{^ +}}[[BODY]]:
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = loadimmutable value
+// CHECK-NEXT: {{^ +}}{{v[0-9]+}} = addmod
+// CHECK-NEXT: {{^ +}}mstore 192, arg0
+// CHECK-LABEL: @hoist_runtime_read
+// CHECK: +     {{v[0-9]+}} = loadimmutable value
+// CHECK: -     {{v[0-9]+}} = loadimmutable value
+fn @keep_creation_read(arg0: i256) -> i256 [constructor, creation_only] {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v0]
+    jumpi true, bb2, bb3
+  bb2:
+    v2 = loadimmutable value
+    v0 = addmod v2, v2, 7
+    mstore 192, arg0
+    jump bb1
+  bb3:
+    ret v1
+}
+
+fn @hoist_runtime_read(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v0]
+    jumpi true, bb2, bb3
+  bb2:
+    v2 = loadimmutable value
+    v0 = addmod v2, v2, 7
+    mstore 192, arg0
+    jump bb1
+  bb3:
+    ret v1
+}
