@@ -844,7 +844,9 @@ fn thunk_checkpoint(
 /// Returns whether the transfer already has every origin of a located thunk, so bypassing the
 /// thunk loses nothing and the thunk does not describe a removed source operation.
 fn represented_by(thunk: &Metadata, transfer: &Metadata) -> bool {
-    !thunk.source_spans().is_empty() && thunk.source_spans() == transfer.source_spans()
+    !thunk.source_spans().is_empty()
+        && thunk.source_spans() == transfer.source_spans()
+        && thunk.modifier_depth() == transfer.modifier_depth()
 }
 
 /// Collects the chain's origins and compatible function events, including beyond empty prefixes.

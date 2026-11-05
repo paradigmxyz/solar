@@ -346,17 +346,21 @@ fn build_entry(
             if let Some(immutable) = library_deploy_address
                 && super::utils::needs_delegatecall_guard(module.function(*target))
             {
-                builder.replace_source_span(module.function(*target).declaration_span);
+                let previous =
+                    builder.replace_source_span(module.function(*target).declaration_span);
                 let own = builder.load_immutable(immutable, MirType::I160);
                 let this = builder.address();
                 let direct_call = builder.eq(own, this);
                 builder.revert_if(direct_call, RevertReason::LibraryCalledWithoutDelegatecall);
-                builder.replace_source_span(contract_span);
+                builder.replace_source_span(previous);
             }
             builder.tail_call(*target, Vec::new());
         }
 
         builder.switch_to_block(revert_block);
+        // NOTE: Block tail merging can fuse this revert with a user `revert()`. The merged revert
+        // then has two origins and no source map entry, as the merge of two different locations
+        // does in LLVM, so the user's statement loses its mapping.
         // solc distinguishes a contract that can at least receive Ether from one that
         // rejects every call.
         builder.revert_with(if receive.is_some() {
