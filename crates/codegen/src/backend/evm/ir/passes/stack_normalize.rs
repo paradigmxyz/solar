@@ -52,6 +52,7 @@ use crate::{
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::FxHashMap;
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 use std::cell::RefCell;
 
@@ -246,18 +247,18 @@ impl Normalizer {
                 if let Some(mut inst) = replaced.next() {
                     replacement.metadata = std::mem::take(&mut inst.metadata);
                 } else if let Some(last) = instructions.get(first..).and_then(<[_]>::last) {
-                    replacement.metadata.copy_source_debug_from(&last.metadata);
+                    replacement.metadata.preserve_debug_loc(&last.metadata);
                 } else {
-                    replacement.metadata.mark_debug_info_dropped();
+                    replacement.metadata.drop_debug_loc(DebugLocKind::Dropped);
                 }
                 for inst in replaced {
-                    replacement.metadata.absorb_function_events(&inst.metadata);
+                    replacement.metadata.move_function_events(&inst.metadata);
                 }
                 instructions.push(replacement);
             }
             for inst in run {
                 if let Some(last) = instructions.last_mut() {
-                    last.metadata.absorb_function_events(&inst.metadata);
+                    last.metadata.move_function_events(&inst.metadata);
                 }
             }
         }

@@ -449,9 +449,10 @@ impl Instruction {
         self
     }
 
-    /// Replaces this instruction's source metadata with another operation's.
-    pub fn with_source_debug(mut self, metadata: &Metadata) -> Self {
-        self.metadata.copy_source_debug_from(metadata);
+    /// Rule R1: gives this instruction the location of the operation it replaces.
+    #[must_use]
+    pub fn with_debug_loc(mut self, from: &Metadata) -> Self {
+        self.metadata.preserve_debug_loc(from);
         self
     }
 
@@ -555,10 +556,10 @@ impl Instruction {
         }
     }
 
-    /// Marks this synthetic instruction as intentionally having no source location.
+    /// Rule R3: marks this synthetic instruction as intentionally having no source location.
     #[must_use]
-    pub fn with_debug_info_dropped(mut self) -> Self {
-        self.metadata.mark_debug_info_dropped();
+    pub fn with_debug_loc_dropped(mut self) -> Self {
+        self.metadata.drop_debug_loc(DebugLocKind::Dropped);
         self
     }
 
@@ -763,10 +764,10 @@ impl Terminator {
         }
     }
 
-    /// Marks this synthetic terminator as intentionally having no source location.
+    /// Rule R3: marks this synthetic terminator as intentionally having no source location.
     #[must_use]
-    pub fn with_debug_info_dropped(mut self) -> Self {
-        self.metadata.mark_debug_info_dropped();
+    pub fn with_debug_loc_dropped(mut self) -> Self {
+        self.metadata.drop_debug_loc(DebugLocKind::Dropped);
         self
     }
 }
@@ -973,49 +974,19 @@ impl Metadata {
         self.modifier_depth = depth;
     }
 
-    /// Copies source location metadata, including legacy modifier depth.
-    pub fn copy_source_debug_from(&mut self, other: &Self) {
-        self.set_source_spans(other.source_spans().iter().copied());
-        self.modifier_depth = other.modifier_depth;
-        self.debug_loc_kind = other.debug_loc_kind;
+    /// Rule R1, preserve: copies the location (spans, modifier depth and kind) of the one
+    /// operation this one replaces, like LLVM's `setDebugLoc(I->getDebugLoc())` and solc's
+    /// `AssemblyItem(op, _x.debugData())`.
+    pub fn preserve_debug_loc(&mut self, from: &Self) {
+        self.set_source_spans(from.source_spans().iter().copied());
+        self.modifier_depth = from.modifier_depth;
+        self.debug_loc_kind = from.debug_loc_kind;
     }
 
-    /// Copies debug information without copying machine properties such as `keep_with_next`.
-    pub fn copy_debug_info_from(&mut self, other: &Self) {
-        self.copy_source_debug_from(other);
-        self.function_invoke = other.function_invoke;
-        self.function_exit = other.function_exit;
-        self.checkpoint_transfers.clone_from(&other.checkpoint_transfers);
-    }
-
-    /// Absorbs another operation's debug information: its origins are added and its function
-    /// events are taken when this operation has none of its own.
-    pub fn absorb_debug_info(&mut self, other: &Self) {
-        self.merge_source_spans(other);
-        self.absorb_function_events(other);
-    }
-
-    /// Takes function events when this operation has none, without adding source origins.
-    pub fn absorb_function_events(&mut self, other: &Self) {
-        if self.function_invoke.is_none()
-            && let Some(function) = other.function_invoke()
-        {
-            self.set_function_invoke(function);
-        }
-        if self.function_exit.is_none()
-            && let Some(exit) = other.function_exit()
-        {
-            self.set_function_exit(exit);
-        }
-    }
-
-    /// Adds origins from another operation without changing machine semantics.
-    pub fn merge_source_spans(&mut self, other: &Self) {
-        self.merge_source_spans_from(std::iter::once(other));
-    }
-
-    /// Adds origins from several operations without changing machine semantics.
-    pub fn merge_source_spans_from<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+    /// Rule R2, merge: adds the spans of the equivalent operations `others` that this one now
+    /// stands for, like LLVM's `DILocation::getMergedLocation`, but keeping every span instead of
+    /// collapsing to line 0.
+    pub fn merge_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
         let mut distinct = DistinctSpans::default();
         for other in others {
             let had_source_spans = !self.source_spans.is_empty();
@@ -1035,22 +1006,58 @@ impl Metadata {
         }
     }
 
-    /// Merges source origins and function events across equivalent operations.
-    pub fn merge_equivalent_debug_info<'a>(
+    /// Rule R3, drop: clears the spans and records why the operation has no source origin, like
+    /// LLVM's `Instruction::dropLocation`. The modifier depth stays.
+    pub fn drop_debug_loc(&mut self, kind: DebugLocKind) {
+        self.set_source_span(None);
+        self.debug_loc_kind = kind;
+    }
+
+    /// Rule E1, move: takes the function events and checkpoint proofs of the operation that
+    /// carried this call or return before, like solc keeping a rewritten `JUMP`'s `JumpType`.
+    /// Fills only empty invoke and exit slots.
+    pub fn move_function_events(&mut self, from: &Self) {
+        if self.function_invoke.is_none()
+            && let Some(function) = from.function_invoke()
+        {
+            self.set_function_invoke(function);
+        }
+        if self.function_exit.is_none()
+            && let Some(exit) = from.function_exit()
+        {
+            self.set_function_exit(exit);
+        }
+        if !from.checkpoint_transfers.is_empty() {
+            self.add_checkpoint_transfers(from.checkpoint_transfers.iter().copied());
+        }
+    }
+
+    /// Rule E2, merge events: keeps an event only if every operation that has one agrees, like
+    /// solc's `BlockDeduplicator` keeping one block's `JumpType` for equivalent blocks.
+    pub fn merge_function_events<'a>(
         &mut self,
-        others: impl Iterator<Item = &'a Self> + Clone,
+        others: impl IntoIterator<Item = &'a Self> + Clone,
     ) {
         // NOTE: Missing events do not conflict with known ones. Conflicting events become
         // unknown across the whole group; a later known event must not resurrect them.
         self.function_invoke = common_debug_event(
             self.function_invoke
                 .into_iter()
-                .chain(others.clone().filter_map(Self::function_invoke)),
+                .chain(others.clone().into_iter().filter_map(Self::function_invoke)),
         );
         self.function_exit = common_debug_event(
-            self.function_exit.into_iter().chain(others.clone().filter_map(Self::function_exit)),
+            self.function_exit
+                .into_iter()
+                .chain(others.into_iter().filter_map(Self::function_exit)),
         );
-        self.merge_source_spans_from(others);
+    }
+
+    /// Rule E3, drop events: forgets the function events and checkpoint proofs when the transfer
+    /// that carried them disappears, as solc loses the `JumpType` of a deleted `JUMP`.
+    pub fn drop_function_events(&mut self) {
+        self.function_invoke = None;
+        self.function_exit = None;
+        self.checkpoint_transfers.clear();
     }
 
     /// Returns the function entered after this operation.
@@ -1078,13 +1085,6 @@ impl Metadata {
     /// Marks this operation as closing the active function.
     pub fn set_function_exit(&mut self, exit: DebugFunctionExit) {
         self.function_exit = Some(exit);
-    }
-
-    /// Marks this operation as intentionally having no source location, like LLVM's
-    /// `Instruction::dropLocation`.
-    pub fn mark_debug_info_dropped(&mut self) {
-        self.set_source_span(None);
-        self.debug_loc_kind = DebugLocKind::Dropped;
     }
 
     /// Returns why this operation has no source origin, when it has none.
