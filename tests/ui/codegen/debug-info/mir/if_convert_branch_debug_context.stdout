@@ -1,5 +1,5 @@
-- ; === ROOT/tests/ui/codegen/mir/if-convert/branch_debug_context.mir (before if-convert) ===
-+ ; === ROOT/tests/ui/codegen/mir/if-convert/branch_debug_context.mir (after if-convert) ===
+- ; === ROOT/tests/ui/codegen/debug-info/mir/if_convert_branch_debug_context.mir (before if-convert) ===
++ ; === ROOT/tests/ui/codegen/debug-info/mir/if_convert_branch_debug_context.mir (after if-convert) ===
   @module BranchDebugContext
   fn @diamond(arg0: i256, arg1: i1) -> i256 {
     bb0:

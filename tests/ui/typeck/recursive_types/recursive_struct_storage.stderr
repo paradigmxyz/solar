@@ -1,17 +1,17 @@
 error: getter must return at least one value
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │     S public s;
    │     ━━━━━━━━━━━
    ╰╴
 note: the struct has all its members omitted, therefore the getter cannot return any values
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │     S public s;
    ╰╴    ━
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct S {
 LL │ ┃         S f;
@@ -19,7 +19,7 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct S {
 LL │ ┃         S[2] f;
@@ -27,7 +27,7 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct A {
 LL │ ┃         B b;
@@ -35,7 +35,7 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct B {
 LL │ ┃         A a;
@@ -43,7 +43,7 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct S {
 LL │ ┃         S f;
@@ -51,7 +51,7 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct T {
 LL │ ┃         S s;
@@ -59,7 +59,7 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct S {
 LL │ ┃         S f;
@@ -67,7 +67,7 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct S {
 LL │ ┃         S f;
@@ -75,7 +75,7 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct S {
 LL │ ┃         S f;
@@ -83,7 +83,7 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct S {
 LL │ ┃         S f;
@@ -91,7 +91,7 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error[2046]: recursive struct definition
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │ ┏     struct S {
 LL │ ┃         S f;
@@ -99,19 +99,19 @@ LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error: recursive types cannot be parameter or return types of public functions
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │     function f(S memory s) public returns (S memory) {
    ╰╴               ━
 
 error: recursive types cannot be parameter or return types of public functions
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │     function f(S memory s) public returns (S memory) {
    ╰╴                                           ━
 
 error: recursive types cannot be parameter or return types of public functions
-   ╭▸ ROOT/tests/ui/typeck/recursive_struct_storage.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/recursive_types/recursive_struct_storage.sol:LL:CC
    │
 LL │     function f(S calldata) external {}
    ╰╴               ━
