@@ -417,6 +417,28 @@
           },
           "version": 1
         }
+      },
+      "Chain2": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "share()": {
+              "notice": "Gets the share"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "share()": {
+              "returns": {
+                "balance": "The share"
+              }
+            }
+          },
+          "version": 1
+        }
       }
     }
   }

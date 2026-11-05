@@ -295,7 +295,7 @@ impl<'gcx> Resolver<'gcx> {
         let local_sections = LocalTags::from_items(&local_tags);
         let items: &'gcx [hir::NatSpecItem] = if let Some(target) = inherited_target {
             let inherited = self.gcx.natspec_resolution(target);
-            self.merge_natspec_tags(&local_tags, local_sections, inherited.items)
+            self.merge_natspec_tags(item_id, &local_tags, local_sections, inherited.items)
         } else {
             &*self.gcx.arena().alloc_slice_copy(&local_tags)
         };
@@ -807,8 +807,12 @@ impl<'gcx> Resolver<'gcx> {
     /// - `@notice`, `@dev`, `@title`, `@author`: local overrides inherited.
     /// - `@param`, `@return`: local section overrides inherited section.
     /// - `@custom`: not inherited.
+    ///
+    /// An inherited `@return` is renamed to the return at its position, as solc does at each step
+    /// of an inheritance chain.
     fn merge_natspec_tags(
         &self,
+        item_id: hir::ItemId,
         items: &[hir::NatSpecItem],
         local_tags: LocalTags,
         inherited_tags: &'gcx [hir::NatSpecItem],
@@ -816,6 +820,8 @@ impl<'gcx> Resolver<'gcx> {
         use hir::NatSpecKind as HirKind;
 
         let mut merged = SmallVec::<[hir::NatSpecItem; 8]>::from_slice(items);
+        let returns = self.callable_variables(item_id).returns;
+        let mut return_index = 0;
 
         for item in inherited_tags.iter() {
             let should_inherit = match &item.kind {
@@ -829,12 +835,50 @@ impl<'gcx> Resolver<'gcx> {
                 HirKind::Inheritdoc { .. } => false,
             };
 
+            if matches!(item.kind, HirKind::Return { .. }) {
+                return_index += 1;
+            }
             if should_inherit {
-                merged.push(*item);
+                let mut item = *item;
+                if let HirKind::Return { name } = item.kind
+                    && let Some(&expected) = returns.get(return_index - 1)
+                {
+                    self.rename_inherited_return(
+                        &mut item,
+                        name,
+                        self.gcx.hir.variable(expected).name,
+                    );
+                }
+                merged.push(item);
             }
         }
 
         self.gcx.arena().alloc_slice_copy(&merged)
+    }
+
+    /// Renames an inherited `@return` to the name of the return it now documents.
+    ///
+    /// The description keeps its words, except that a first word equal to the new name becomes
+    /// the name.
+    fn rename_inherited_return(
+        &self,
+        item: &mut hir::NatSpecItem,
+        documented: Option<Ident>,
+        expected: Option<Ident>,
+    ) {
+        let Some(expected) = expected else {
+            item.kind = hir::NatSpecKind::Return { name: None };
+            return;
+        };
+        if documented.is_none()
+            && let Some((word, _)) = item.content().split_once([' ', '\t'])
+            && word == expected.name.as_str()
+        {
+            item.content_start += word.len() as u32 + 1;
+        }
+        if documented.is_none_or(|documented| documented.name != expected.name) {
+            item.kind = hir::NatSpecKind::Return { name: Some(expected) };
+        }
     }
 
     fn positional_sections(
