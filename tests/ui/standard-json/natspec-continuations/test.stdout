@@ -33,6 +33,9 @@
             },
             "midLine()": {
               "notice": "start"
+            },
+            "glued()": {
+              "notice": "x** explanation @solidity memory-safe-assembly"
             }
           },
           "version": 1

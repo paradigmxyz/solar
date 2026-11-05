@@ -1522,8 +1522,8 @@ contract Test {}
     }
 
     #[test]
-    fn parse_natspec_tag_on_glued_line() {
-        let src = "/**\n * text\n ** @custom:solar-safe arithmetic\n */\n";
+    fn parse_natspec_tag_on_glued_continuation_line() {
+        let src = "/**\n * text\n * more\n ** @custom:solar-safe arithmetic\n */\n";
 
         let sess =
             Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();

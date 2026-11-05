@@ -49,4 +49,10 @@ contract C {
     /// explanation @dev mid-line details
     /// more
     function midLine() external {}
+
+    /**
+     * @notice x
+     ** explanation @solidity memory-safe-assembly
+     */
+    function glued() external {}
 }

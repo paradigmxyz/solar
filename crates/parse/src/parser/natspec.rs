@@ -128,13 +128,23 @@ pub(super) fn parse_natspec(
     });
     // Whether the tag has no content on its line, so its content starts on the next one.
     let mut content_on_next_line = false;
+    // The first line of the logical line that solc reads, which includes the lines glued to it,
+    // and whether solc consumed it as the first line of an item, so that it does not look for tags
+    // in it again.
+    let mut logical_start = 0;
+    let mut consumed = false;
 
     // Iterate over each line and look for tags.
     for (index, line) in lines.iter().enumerate() {
         let text = line.text;
+        if !line.glued {
+            (logical_start, consumed) = (index, index == 0);
+        }
         // Like solc, a tag starts at the first `@` of a line, wherever it is, and drops the text
-        // before it.
-        let tag_offset = memchr::memchr(b'@', text.as_bytes());
+        // before it, including the lines glued before it.
+        let tag_offset =
+            if line.glued && consumed { None } else { memchr::memchr(b'@', text.as_bytes()) };
+        let end = if line.glued { logical_start } else { index };
         let starts_tag = tag_offset.is_some_and(|offset| {
             is_line_start(text, offset)
                 && text.as_bytes().get(offset + 1).is_some_and(|b| !matches!(b, b' ' | b'\t'))
@@ -145,6 +155,7 @@ pub(super) fn parse_natspec(
                 (item.line, item.offset) = (index, skip_blanks(text, 0));
             }
             content_on_next_line = false;
+            consumed = true;
         } else if let Some(tag_offset) = tag_offset {
             content_on_next_line = false;
             let tag_start = tag_offset + 1;
@@ -200,16 +211,18 @@ pub(super) fn parse_natspec(
                         }
                         // Like solc, the tag and its lines are not content of the previous tag.
                         if let Some(item) = pending.take() {
-                            push_item(items, &lines, item, index);
+                            push_item(items, &lines, item, end);
                         }
+                        consumed = true;
                         continue;
                     }
                 }
             };
 
             if let Some(item) = pending.take() {
-                push_item(items, &lines, item, index);
+                push_item(items, &lines, item, end);
             }
+            consumed = true;
             content_on_next_line = name_end == text.len() && !matches!(tag, "param" | "inheritdoc");
             pending = Some(PendingItem { kind, span, line: index, offset, implicit: false });
         }
