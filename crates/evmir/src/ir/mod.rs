@@ -1013,9 +1013,8 @@ impl Metadata {
         self.debug_loc_kind = kind;
     }
 
-    /// Rule E1, move: takes the function events and checkpoint proofs of the operation that
-    /// carried this call or return before, like solc keeping a rewritten `JUMP`'s `JumpType`.
-    /// Fills only empty invoke and exit slots.
+    /// Rule E1, move: takes the function events of the operation that carried this call or
+    /// return before, like solc keeping a rewritten `JUMP`'s `JumpType`. Fills only empty slots.
     pub fn move_function_events(&mut self, from: &Self) {
         if self.function_invoke.is_none()
             && let Some(function) = from.function_invoke()
@@ -1027,9 +1026,12 @@ impl Metadata {
         {
             self.set_function_exit(exit);
         }
-        if !from.checkpoint_transfers.is_empty() {
-            self.add_checkpoint_transfers(from.checkpoint_transfers.iter().copied());
-        }
+    }
+
+    /// Rule E1, move, for checkpoint proofs: adds the proofs of the operation they were recorded
+    /// on, which are not function events.
+    pub fn move_checkpoint_transfers(&mut self, from: &Self) {
+        self.add_checkpoint_transfers(from.checkpoint_transfers.iter().copied());
     }
 
     /// Rule E2, merge events: keeps an event only if every operation that has one agrees, like

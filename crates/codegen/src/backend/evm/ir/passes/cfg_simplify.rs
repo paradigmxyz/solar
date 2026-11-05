@@ -209,6 +209,7 @@ fn expose_shared_branches(module: &mut Module) -> bool {
             // removed, so their origins go with them and only function events move.
             branch.metadata.preserve_debug_loc(&jumpi.metadata);
             branch.metadata.move_function_events(&jumpi.metadata);
+            branch.metadata.move_checkpoint_transfers(&jumpi.metadata);
             branch.metadata.move_function_events(&pushed.metadata);
             branch.metadata.move_function_events(&jump.metadata);
             if branch.metadata.function_invoke().is_none()
@@ -335,6 +336,7 @@ fn normalize_triangle_branches(module: &mut Module) -> bool {
             // removed, so their origins go with them and only the label's events move.
             branch.metadata.preserve_debug_loc(&jumpi.metadata);
             branch.metadata.move_function_events(&jumpi.metadata);
+            branch.metadata.move_checkpoint_transfers(&jumpi.metadata);
             branch.metadata.move_function_events(&pushed.metadata);
             let block = &mut module.blocks[block_id];
             block.instructions.truncate(block.instructions.len() - 2);
@@ -402,6 +404,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             let mut terminator = Terminator::new(TerminatorKind::Jump(*then_block));
             terminator.metadata.preserve_debug_loc(metadata);
             terminator.metadata.move_function_events(metadata);
+            terminator.metadata.move_checkpoint_transfers(metadata);
             block.instructions.push(pop);
             block.terminator = Some(terminator);
             changed = true;
