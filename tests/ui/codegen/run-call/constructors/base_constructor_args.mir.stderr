@@ -1,0 +1,6 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/constructors/base_constructor_args.sol:LL:CC
+   │
+LL │         value = 3;
+   ╰╴        ━━━━━━━━━
+

@@ -460,7 +460,7 @@ form. Every program `solc` accepts here has the same meaning in `solar`.
 
 Coverage: `tests/ui/typeck/base_arguments.sol`,
 `tests/ui/typeck/modifier_arguments.sol`,
-`tests/ui/codegen/lowering/base_constructor_args.sol`,
+`tests/ui/codegen/run-call/constructors/base_constructor_args.sol`,
 `tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`, and
 `tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol`.
 
@@ -843,8 +843,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   in every edge case would require restructuring the decoder around solc's
   check order, which is not worth worse source or generated code.
 - Coverage: `tests/ui/standard-json/debug/`,
-  `tests/ui/codegen/lowering/revert-strings/`,
-  `tests/ui/codegen/lowering/library_delegatecall_guard.sol`.
+  `tests/ui/codegen/run-call/revert-strings/`,
+  `tests/ui/codegen/run-call/libraries/library_delegatecall_guard.sol`.
 
 ### CODEGEN-008: Environment snapshots across Foundry cheatcodes
 
@@ -1034,4 +1034,4 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/lowering/run-call/constant_eval_aggregates.sol`,
   `tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol`,
   `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol` and
-  `tests/ui/codegen/lowering/constant_values_too_large.sol`.
+  `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.

@@ -1,0 +1,17 @@
+; === ROOT/tests/ui/codegen/lowering/mir/storage-memory/storage_ref_parenthesized_init.sol:StorageRefParenthesizedInit ===
+@module StorageRefParenthesizedInit
+; function put(bytes32 itemHash, uint256 value) external returns (uint256) [selector 0xda4a9842]
+fn @put(arg0: i256, arg1: i256) -> i256 [selector=0xda4a9842, abi_params=[bytes32, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v3 = or v2, 1
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = add v0, 1
+    sstore v4, arg1 !metadata(storage=offset(v0, 1))
+    v5 = mapping_slot arg0, 0
+    v6 = add v5, 1
+    v7 = sload v6 !metadata(storage=offset(v5, 1))
+    ret v7
+}
