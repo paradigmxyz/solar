@@ -226,8 +226,8 @@ struct FunctionLowerer<'gcx, 'ctx> {
     parameters: Vec<VariableId>,
     returns: Vec<VariableId>,
     prepared_constructors: FxHashSet<hir::FunctionId>,
-    /// The pure struct constructors being inlined, outermost first.
-    inlined_struct_constructors: Vec<hir::FunctionId>,
+    /// The pure struct constructors being inlined.
+    inlined_struct_constructors: FxHashSet<hir::FunctionId>,
     /// The base constructor argument list chosen for each base of the contract
     /// being constructed, in evaluation order.
     base_args: Vec<(hir::ContractId, hir::CallArgs<'gcx>)>,
@@ -520,7 +520,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             parameters: Vec::new(),
             returns: Vec::new(),
             prepared_constructors: FxHashSet::default(),
-            inlined_struct_constructors: Vec::new(),
+            inlined_struct_constructors: FxHashSet::default(),
             base_args: Vec::new(),
             loops: Vec::new(),
             modifiers: Vec::new(),

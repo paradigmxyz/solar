@@ -11,10 +11,30 @@ fn @make() -> ptr<memory> [pure] {
     ret v1
 }
 
+; function make2() internal pure returns (S memory s)
+fn @make2() -> ptr<memory> [pure] {
+  bb0:
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = alloc 32
+    v2 = mload v0
+    v3 = checked_add uint256, 1, v2
+    mstore v1, v3
+    ret v1
+}
+
 ; function f() external pure returns (uint256) [selector 0x26121ff0]
 fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = icall @make
+    v1 = mload v0
+    ret v1
+}
+
+; function g() external pure returns (uint256) [selector 0xe2179b8e]
+fn @g() -> i256 [selector=0xe2179b8e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @make2
     v1 = mload v0
     ret v1
 }

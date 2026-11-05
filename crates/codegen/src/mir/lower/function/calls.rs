@@ -894,19 +894,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         // Only the parameters are bound here, so a read of a return variable needs the call.
         // A function already being inlined is recursive and needs it too.
-        let mut references_return =
-            ReferencesVariable { hir: &self.cx.gcx.hir, variables: function.returns };
-        if references_return.visit_expr(return_expr).is_break()
-            || self.inlined_struct_constructors.contains(&function_id)
+        if self.inlined_struct_constructors.contains(&function_id)
+            || (ReferencesVariable { hir: &self.cx.gcx.hir, variables: function.returns })
+                .visit_expr(return_expr)
+                .is_break()
         {
             return None;
         }
 
         let saved = self.snapshot_bindings(function.parameters);
         self.bind_inlined_parameters(function.parameters, values);
-        self.inlined_struct_constructors.push(function_id);
+        self.inlined_struct_constructors.insert(function_id);
         let result = self.lower_struct_constructor(return_expr, struct_id, *args);
-        self.inlined_struct_constructors.pop();
+        self.inlined_struct_constructors.remove(&function_id);
         self.restore_bindings(&saved);
         result
     }
