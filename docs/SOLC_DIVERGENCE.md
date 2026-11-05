@@ -746,7 +746,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   validates it.
 - Rationale: All three cases need a word that inline assembly made invalid for
   its type, which the Solidity documentation leaves unspecified.
-- Coverage: the fixtures under `tests/ui/codegen/lowering/dirty/`, whose
+- Coverage: the fixtures under `tests/ui/codegen/run-call/dirty-values/`, whose
   expectations come from `solc --via-ir --optimize`.
 
 ### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170

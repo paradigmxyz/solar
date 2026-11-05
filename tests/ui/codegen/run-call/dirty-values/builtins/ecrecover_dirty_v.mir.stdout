@@ -1,4 +1,4 @@
-; === ROOT/tests/ui/codegen/lowering/dirty/builtins/ecrecover_dirty_v.sol:C ===
+; === ROOT/tests/ui/codegen/run-call/dirty-values/builtins/ecrecover_dirty_v.sol:C ===
 @module C
 ; function dirtyV() internal pure returns (uint8 v)
 fn @dirtyV() -> i256 [pure] {
