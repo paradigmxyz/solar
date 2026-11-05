@@ -1,0 +1,19 @@
+; === ROOT/tests/ui/codegen/lowering/dirty/builtins/blockhash.sol:C ===
+@module C
+; function viaBlockhash(uint256 raw) external view returns (bytes32) [selector 0xefd53f61]
+fn @viaBlockhash(arg0: i256) -> i256 [selector=0xefd53f61, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = trunc i256 arg0 to i64
+    v1 = zext i64 v0 to i256
+    v2 = blockhash v1
+    ret v2
+}
+
+; function viaBlobhash(uint256 raw) external view returns (bytes32) [selector 0xa3b740d3]
+fn @viaBlobhash(arg0: i256) -> i256 [selector=0xa3b740d3, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = trunc i256 arg0 to i64
+    v1 = zext i64 v0 to i256
+    v2 = blobhash v1
+    ret v2
+}

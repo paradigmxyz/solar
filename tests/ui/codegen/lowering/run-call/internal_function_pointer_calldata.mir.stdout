@@ -33,7 +33,8 @@ fn @invoke(arg0: slice<calldata>) -> i256 [selector=0xa6514259, abi_params=[byte
     v1 = trunc i256 v0 to i64
     v2 = zext i64 v1 to i256
     v3 = icall @internal_dispatcher_p_slice_calldata_r_bytes1, v2, arg0
-    ret v3
+    v4 = and v3, 0xff00000000000000000000000000000000000000000000000000000000000000
+    ret v4
 }
 
 ; function run() external returns (uint8) [selector 0xc0406226]

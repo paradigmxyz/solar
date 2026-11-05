@@ -61,8 +61,9 @@ fn @unwrapped() -> i1 [selector=0x52e7751f, view, abi_params=[], abi_returns=[wo
   bb0:
     v0 = loadimmutable wrapped
     v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v2 = eq v1, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    ret v2
+    v2 = and v1, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v3 = eq v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v3
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/assembly_dirty_immutables.sol:Stored ===
@@ -75,11 +76,9 @@ fn @unwrapped() -> i1 [selector=0x52e7751f, view, abi_params=[], abi_returns=[wo
 fn @constructor() [constructor] {
   bb0:
     v0 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
-    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    storeimmutable stored, v1
-    v2 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
-    v3 = and v2, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    storeimmutable storedWrapped, v3
+    storeimmutable stored, v0
+    v1 = icall @internal_dispatcher_asm_p_uint256_r_bytes4, 1, 0
+    storeimmutable storedWrapped, v1
     ret
 }
 
@@ -87,14 +86,16 @@ fn @constructor() [constructor] {
 fn @stored() -> i256 [selector=0xe582dd31, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = loadimmutable stored
-    ret v0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
 ; getter for `Wrapped public immutable storedWrapped` [selector 0x5863c7b1]
 fn @storedWrapped() -> i256 [selector=0x5863c7b1, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = loadimmutable storedWrapped
-    ret v0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
 ; function full(uint256) pure returns (bytes32)
@@ -138,8 +139,7 @@ fn @constructor() [constructor] {
   bb5:                                            ; preds = bb1
     jump bb2
   bb2:                                            ; preds = bb5
-    v10 = and v3, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    storeimmutable looped, v10
+    storeimmutable looped, v3
     ret
   bb4:                                            ; preds = bb1
     jump bb6
@@ -154,7 +154,8 @@ fn @constructor() [constructor] {
 fn @looped() -> i256 [selector=0x2e6dedb7, view, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
     v0 = loadimmutable looped
-    ret v0
+    v1 = and v0, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    ret v1
 }
 
 ; function full(uint256) pure returns (bytes32)
