@@ -198,3 +198,13 @@ interface Renamed2 {
 contract Renamed2Impl is Renamed2 {
     mapping(uint => Amount) public override reward;
 }
+
+interface NameOnly {
+    /// @return amount
+    function income(uint id) external view returns (uint);
+}
+
+// A tag of only the name stays as it is.
+contract NameOnlyImpl is NameOnly {
+    mapping(uint => Amount) public override income;
+}

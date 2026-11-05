@@ -459,6 +459,26 @@
           },
           "version": 1
         }
+      },
+      "NameOnlyImpl": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "stateVariables": {
+            "income": {
+              "return": "amount",
+              "returns": {
+                "amount": "amount"
+              }
+            }
+          },
+          "version": 1
+        }
       }
     }
   }
