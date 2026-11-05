@@ -277,14 +277,14 @@ impl LoopCopy {
     }
 }
 
-/// Clones every loop block with its instructions, keeping edges that leave the loop. A clone keeps
-/// its original's metadata, which states facts about the instruction itself, such as an
-/// allocation whose address inline assembly observes, with the values a storage alias names
-/// renamed to their clones.
+/// Clones every loop block with its instructions, keeping edges that leave the loop. A cloned block
+/// keeps its original's label origin and its instructions keep their metadata, which states facts
+/// about the instruction itself, such as an allocation whose address inline assembly observes, with
+/// the values a storage alias names renamed to their clones.
 pub(super) fn clone_loop(func: &mut Function, blocks: &[BlockId]) -> LoopCopy {
     let mut copy = LoopCopy { blocks: FxHashMap::default(), values: FxHashMap::default() };
     for &block in blocks {
-        copy.blocks.insert(block, func.alloc_block_like(block));
+        copy.blocks.insert(block, func.alloc_block_copy(block));
     }
     for &block in blocks {
         let originals = std::mem::take(&mut func.blocks[block].instructions);

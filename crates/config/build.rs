@@ -120,27 +120,40 @@ fn vergen_env(key: &str) -> String {
     }
 }
 
-/// Returns whether this is a Cargo git checkout of `tag` at commit `sha`.
+/// Returns whether this is a Cargo git dependency pinned to `tag` at commit `sha`.
 ///
-/// Cargo checks out git dependencies without tags, but fetches a `tag = "..."` dependency into
-/// `refs/remotes/origin/tags/<tag>` of its local git database, which is the checkout's `origin`.
-/// Only the `file` protocol is allowed, so other remotes fail without network access.
+/// Cargo checks out git dependencies without tags. When it resolves a `tag = "..."` dependency, it
+/// fetches the tag into `refs/remotes/origin/tags/<tag>` of its local git database, which is the
+/// checkout's `origin`; only the `file` protocol is allowed, so other remotes fail without network
+/// access. A locked build with an empty cache fetches only the commit instead, but the dependent's
+/// `Cargo.lock` records the pin as `?tag=<tag>#<sha>`. It sits above `OUT_DIR` when the target
+/// directory is in the workspace, or above `PWD` when Cargo runs from the workspace with the
+/// target directory elsewhere.
 #[cfg(feature = "version")]
 fn is_cargo_checkout_of(tag: &str, sha: &str) -> bool {
     let tag_ref = format!("refs/remotes/origin/tags/{tag}");
-    let Ok(output) = Command::new("git")
+    let peeled = format!("{tag_ref}^{{}}");
+    let in_origin = Command::new("git")
         .args(["ls-remote", "origin", &format!("{tag_ref}*")])
         .env("GIT_ALLOW_PROTOCOL", "file")
         .output()
-    else {
-        return false;
-    };
-    // Annotated tags list the peeled commit as `<tag>^{}`.
-    let peeled = format!("{tag_ref}^{{}}");
-    String::from_utf8_lossy(&output.stdout).lines().any(|line| {
-        line.split_once('\t')
-            .is_some_and(|(id, name)| id == sha && (name == tag_ref || name == peeled))
-    })
+        .is_ok_and(|output| {
+            // Annotated tags list the peeled commit as `<tag>^{}`.
+            String::from_utf8_lossy(&output.stdout).lines().any(|line| {
+                line.split_once('\t')
+                    .is_some_and(|(id, name)| id == sha && (name == tag_ref || name == peeled))
+            })
+        });
+
+    let pin = format!("?tag={tag}#{sha}\"");
+    let dirs = [env::var_os("OUT_DIR"), env::var_os("PWD")];
+    in_origin
+        || dirs.iter().flatten().flat_map(|dir| Path::new(dir).ancestors()).any(|dir| {
+            let mut lock = String::new();
+            std::fs::File::open(dir.join("Cargo.lock"))
+                .and_then(|mut file| file.read_to_string(&mut lock))
+                .is_ok_and(|_| lock.contains(&pin))
+        })
 }
 
 fn solc_version() -> String {
