@@ -5,7 +5,7 @@
   _start: uint256
 
 ; constructor(uint256 start_) [creation entry]
-fn @constructor() [constructor] {
+fn @constructor() [constructor, creation_only] {
   bb0:
     v5 = callvalue
     v0 = constructor_args_base

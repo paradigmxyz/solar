@@ -2,7 +2,8 @@
 
 This file tracks intentional, user-visible differences from `solc`. The baseline is
 the `solc` version checked into `testdata/solidity`, unless an entry names a
-different upstream version.
+different upstream version. Where `solc`'s legacy and via-IR pipelines behave
+differently, we follow via-IR, and such cases are not listed.
 
 The goal is not to list every missing feature. A divergence belongs here when
 `solar` deliberately accepts, rejects, warns, or reports source locations
@@ -490,8 +491,8 @@ It still accepts their storage declarations, indexed accesses, and storage
 reference bindings. Solc 0.8.38 compiles the storage-to-storage array, tuple,
 and struct copies covered by the fixture, but those copies panic with code
 `0x41` at runtime. ABI-encoding the same array causes an internal compiler
-error in solc 0.8.38. These results hold with both code generators and with
-optimization enabled or disabled.
+error in solc 0.8.38. These results hold with optimization enabled or
+disabled.
 
 Rationale: report unsupported copies at their source during type checking,
 rather than fail during lowering or emit a runtime panic for a known oversized
@@ -816,9 +817,12 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   depth in the `m` field, preserving it through MIR and EVM IR lowering and
   optimization. Shared code with different modifier depths has no unique
   modifier frame and uses depth zero. Shared code with multiple source origins
-  is unmapped in legacy output; ETHDebug retains bounded source alternatives.
-  This policy applies equally to MIR and EVM IR sharing.
-- Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc`.
+  is unmapped in legacy output; ETHDebug retains every source alternative.
+  This policy applies equally to MIR and EVM IR sharing. Like solc, every entry
+  of a constructor's modifier list, including base constructor calls, adds one
+  level of depth to the code after it.
+- Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc` and
+  `tests/ui/standard-json/source-maps/modifier-constructor.jsonc`.
 
 ### CODEGEN-007: `revertStrings: debug` message parity is best effort
 
@@ -991,18 +995,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 - ID: CODEGEN-011
 - Status: intentional
-- Difference: `solc` honors `pragma abicoder v1` and generates ABI coder v1
-  encoders and decoders for that source unit. `solar` warns that ABI coder v1
-  is not supported and always generates ABI coder v2 code. Calldata decoding
-  validates arguments like v2, so a `bool` argument of `2` or a `uint8` or
-  `address` argument with dirty high bits reverts, where v1 cleans it and
-  continues. The type checker also does not apply v1's restrictions, so v1
-  source units may use structs and nested dynamic arrays at ABI boundaries,
-  which `solc` rejects. The warning reuses `solc`'s 9511 code, so
-  `--allow 9511` also hides this change.
+- Difference: `solc` applies ABI coder v1's restrictions to a source unit that
+  selects it, so that unit cannot use structs or nested dynamic arrays at ABI
+  boundaries. `solar` warns that ABI coder v1 is not supported, generates ABI
+  coder v2 code, and does not apply v1's restrictions. The warning reuses
+  `solc`'s 9511 code, so `--allow 9511` also hides this change.
 - Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
-  accepts the same way. A second coder would only change how malformed input
-  fails and which types compile.
+  accepts the same way. A second coder would only change which types compile.
 - Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
   `tests/ui/parser/pragma_valid.sol`.
 
@@ -1031,8 +1030,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `255`, or because `solar` does not compute it, such as
   `keccak256(type(C).creationCode)` or a byte array larger than 64 KiB, gets a
   helper function that runs its initializer, one per arithmetic mode. Each use
-  calls the one for its mode, as in `solc`'s IR codegen, so such a constant
-  wraps inside `unchecked`.
+  calls the one for its mode, so such a constant wraps inside `unchecked`.
 - Rationale: a constant is one value, and computing it once is cheaper than
   running its initializer at every use.
 - Coverage: `tests/ui/codegen/lowering/run-call/constant_reverting_initializer.sol`,

@@ -1,0 +1,24 @@
+//@ compile-flags: -Zmir-pipeline=inline
+//@ filecheck:
+@module CloneLabelsInline
+
+// Inlining copies each callee block with the origin of its label.
+// CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
+// CHECK: + {{bb[0-9]+}} !metadata(span=100..110):
+// CHECK: + {{bb[0-9]+}} !metadata(span=230..240):
+// CHECK: + {{bb[0-9]+}} !metadata(span=210..220):
+fn @caller(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall fn1, arg0 !metadata(span=10..20)
+    ret v0 !metadata(span=20..30)
+}
+
+fn @callee(arg0: i256) -> i256 {
+  bb0 !metadata(span=100..110):
+    v0 = lt arg0, 7
+    jumpi v0, bb1, bb2
+  bb1 !metadata(span=210..220):
+    ret 1
+  bb2 !metadata(span=230..240):
+    ret 2
+}

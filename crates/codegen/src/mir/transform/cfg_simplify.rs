@@ -38,7 +38,7 @@
 //! Terminal-block equivalence compares every non-operand instruction field, including semantic
 //! layouts and literal payloads, while comparing SSA operands by definition position. It ignores
 //! source context. Shared instructions and
-//! terminators retain the bounded union of their original locations instead. A shared block keeps
+//! terminators retain the union of their original locations instead. A shared block keeps
 //! `cold_hint` only if every block it replaces has it.
 
 use super::utils::{redirect_edge, redirect_successor_predecessors};
