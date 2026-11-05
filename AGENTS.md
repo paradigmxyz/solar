@@ -161,6 +161,8 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 - Prefer UI tests (`tests/ui/`) over unit tests for end-to-end behavior,
   especially diagnostics, sema, and compiler output.
+- Frontend tests go in `parser/`, `resolve/`, and `typeck/`, in a topic
+  subdirectory when one fits, such as `typeck/conversions/` or `parser/using/`.
 - For codegen tests, use `//@ codegen-matrix: standard` (`mir`, `gas`, `size`
   revisions) unless it cannot express the test.
 - To test one source under different flags, passes, levels, EVM versions, or
@@ -209,6 +211,10 @@ deliberate omissions. A one-line restatement of the name is not enough.
     `tests/ui/codegen/evm-ir/interp/`.
   - Round-trip, pipeline, and validation tests: existing `none/`, `pipeline/`,
     `validation/`.
+  - Source maps, debugify, origins, and debug info kept or dropped by a pass:
+    `tests/ui/codegen/debug-info/` for Solidity sources, and
+    `tests/ui/codegen/debug-info/mir/`, `debug-info/evm-ir/` for IR sources,
+    named `<pass>_<what>`.
 - Keep `.stdout`/`.stderr` expectations beside their source.
 - Never write Rust unit tests that run whole passes; unit-test only small pure
   helpers.

@@ -63,8 +63,6 @@ impl MirPass for LowerImmutables {
                     };
                     // word = zext integer or ptrtoint pointer to i256
                     // store staging_address, word
-                    let metadata = builder.func().inst(inst_id).metadata.debug_context();
-                    builder.set_debug_context(&metadata);
                     let value = builder.cast_word(value);
                     let addr = builder.imm(immutable_staging_addr(staging_base, id));
                     builder

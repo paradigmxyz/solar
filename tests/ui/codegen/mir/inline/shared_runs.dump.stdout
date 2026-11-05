@@ -68,25 +68,25 @@ fn @paintBool() -> i256 [may_return_memory] {
     v0 = gas
     mstore 0, 0x57177c8e !metadata(memory=scratch)
     mstore 32, 1
-    v3 = staticcall v0, 0x7109709ecfa91a80626ff3989d68f67f5b1dd12d, 28, 36, 0, 0
-    jumpi v3, bb2, bb1
+    v2 = staticcall v0, 0x7109709ecfa91a80626ff3989d68f67f5b1dd12d, 28, 36, 0, 0
+    jumpi v2, bb2, bb1
   bb1 [cold]:                                     ; preds = bb0
+    v12 = returndatasize
+    returndatacopy 0, 0, v12 !metadata(memory=abi_return)
     v13 = returndatasize
-    returndatacopy 0, 0, v13 !metadata(memory=abi_return)
-    v14 = returndatasize
-    revert 0, v14
+    revert 0, v13
   bb2:                                            ; preds = bb0
-    v4 = returndatasize
-    v5 = add v4, 31
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v19 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v20 = add v19, v6 !metadata(alloc_ptr)
-    mstore 64, v20 !metadata(memory=scratch)
-    returndatacopy v19, 0, v4
-    v12 = icall @decode_aggregate, v19, v4
-    v10 = icall @wrap, v12
-    v11 = icall @wrap, v10
-    ret v11
+    v3 = returndatasize
+    v4 = add v3, 31
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v18 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v19 = add v18, v5 !metadata(alloc_ptr)
+    mstore 64, v19 !metadata(memory=scratch)
+    returndatacopy v18, 0, v3
+    v11 = icall @decode_aggregate, v18, v3
+    v9 = icall @wrap, v11
+    v10 = icall @wrap, v9
+    ret v10
 }
 
 ; function wrap(string memory text) private pure returns (string memory)

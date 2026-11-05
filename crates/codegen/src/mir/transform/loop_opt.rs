@@ -1179,7 +1179,7 @@ fn reduce_product_checks(
         }
         // overflows = gt x, limit
         let mut overflows = Instruction::new(InstKind::Gt(x, limit), Some(MirType::I1));
-        overflows.metadata.copy_debug_context(&func.inst(inst).metadata);
+        overflows.metadata.preserve_debug_loc(&func.inst(inst).metadata);
         let (overflows_inst, overflows) = func.alloc_value_inst(overflows);
         let position = func.blocks[block].instructions.iter().position(|&id| id == inst);
         let position = position.expect("the check is in its block");
@@ -1223,12 +1223,10 @@ fn product_check(
     exact: ValueId,
 ) -> Option<(ValueId, ValueId, ValueId)> {
     let def = |value| func.value_inst_kind(value);
-    let InstKind::Eq(l, r) = *def(zero_test)? else { return None };
-    let divisor = match (func.value_u256(l), func.value_u256(r)) {
-        (None, Some(zero)) if zero.is_zero() => l,
-        (Some(zero), None) if zero.is_zero() => r,
-        _ => return None,
-    };
+    let InstKind::Eq(divisor, zero) = *def(zero_test)? else { return None };
+    if func.value_u256(divisor).is_some() || !func.value_u256(zero)?.is_zero() {
+        return None;
+    }
     let InstKind::Eq(l, r) = *def(exact)? else { return None };
     [(l, r), (r, l)].into_iter().find_map(|(quotient, other)| {
         let &InstKind::Div(product, by) = def(quotient)? else { return None };
@@ -1268,11 +1266,9 @@ fn reassociate_invariant_offsets(
     let readers = super::egraph::use_counts(func);
     // The sum `outer = (x + y) + c` with its single-reader inner sum, as `(x, c, outer, inner, y)`.
     let split = |outer: InstId| {
-        let InstKind::Add(first, second) = func.inst(outer).kind else { return None };
-        let (sum, c) = [(first, second), (second, first)]
-            .into_iter()
-            .find(|&(sum, c)| func.value_u256(c).is_some() && func.value_u256(sum).is_none())?;
+        let InstKind::Add(sum, c) = func.inst(outer).kind else { return None };
         let Value::Inst(inner) = *func.value(sum) else { return None };
+        func.value_u256(c)?;
         let InstKind::Add(a, b) = func.inst(inner).kind else { return None };
         (readers[sum] == 1
             && func.value_ty(sum) == Some(MirType::I256)
@@ -1368,7 +1364,7 @@ fn reassociate_invariant_offsets(
     for (preheader, x, c, sites) in plans {
         // preheader: t = add x, c
         let mut sum = Instruction::new(InstKind::Add(x, c), Some(MirType::I256));
-        sum.metadata.copy_debug_context(&func.inst(sites[0].0).metadata);
+        sum.metadata.preserve_debug_loc(&func.inst(sites[0].0).metadata);
         let (sum_inst, t) = func.alloc_value_inst(sum);
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {

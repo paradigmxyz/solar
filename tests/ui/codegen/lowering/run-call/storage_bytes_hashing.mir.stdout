@@ -22,39 +22,37 @@ fn @mappingEmpty() -> i1 [selector=0x20f98002, abi_params=[], abi_returns=[word<
 ; function mappingLong(bytes32 word, bytes1 tail) external returns (bool) [selector 0xa4972bce]
 fn @mappingLong(arg0: i256, arg1: i256) -> i1 [selector=0xa4972bce, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v0 = abi_encode_packed (bytes32 arg0, bytes1 arg1)
+    v1 = mapping_slot 0, 0
+    icall @store_storage_bytes, v1, v0
     v2 = mapping_slot 0, 0
-    icall @store_storage_bytes, v2, v1
-    v3 = mapping_slot 0, 0
-    v4 = icall @load_storage_bytes, v3
-    v5 = ptradd v4, 32
-    v6 = mload v4
-    v7 = keccak256 v5, v6
-    v8 = ptradd v1, 32
-    v9 = mload v1
-    v10 = keccak256 v8, v9
-    v11 = eq v7, v10
-    ret v11
+    v3 = icall @load_storage_bytes, v2
+    v4 = ptradd v3, 32
+    v5 = mload v3
+    v6 = keccak256 v4, v5
+    v7 = ptradd v0, 32
+    v8 = mload v0
+    v9 = keccak256 v7, v8
+    v10 = eq v6, v9
+    ret v10
 }
 
 ; function mappingShort(bytes31 value) external returns (bool) [selector 0xd17dedff]
 fn @mappingShort(arg0: i256) -> i1 [selector=0xd17dedff, abi_params=[bytes31], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v1 = abi_encode_packed (bytes31 v0)
+    v0 = abi_encode_packed (bytes31 arg0)
+    v1 = mapping_slot 1, 0
+    icall @store_storage_bytes, v1, v0
     v2 = mapping_slot 1, 0
-    icall @store_storage_bytes, v2, v1
-    v3 = mapping_slot 1, 0
-    v4 = icall @load_storage_bytes, v3
-    v5 = ptradd v4, 32
-    v6 = mload v4
-    v7 = keccak256 v5, v6
-    v8 = ptradd v1, 32
-    v9 = mload v1
-    v10 = keccak256 v8, v9
-    v11 = eq v7, v10
-    ret v11
+    v3 = icall @load_storage_bytes, v2
+    v4 = ptradd v3, 32
+    v5 = mload v3
+    v6 = keccak256 v4, v5
+    v7 = ptradd v0, 32
+    v8 = mload v0
+    v9 = keccak256 v7, v8
+    v10 = eq v6, v9
+    ret v10
 }
 
 ; function mappingWord(bytes32 value) external returns (bool) [selector 0x95027de5]
@@ -78,110 +76,104 @@ fn @mappingWord(arg0: i256) -> i1 [selector=0x95027de5, abi_params=[bytes32], ab
 ; function mappingTwoWords(bytes32 first, bytes32 second, bytes1 tail) external returns (bool) [selector 0xb0efa5db]
 fn @mappingTwoWords(arg0: i256, arg1: i256, arg2: i256) -> i1 [selector=0xb0efa5db, abi_params=[bytes32, bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and arg2, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes32 arg0, bytes32 arg1, bytes1 v0)
+    v0 = abi_encode_packed (bytes32 arg0, bytes32 arg1, bytes1 arg2)
+    v1 = mapping_slot 3, 0
+    icall @store_storage_bytes, v1, v0
     v2 = mapping_slot 3, 0
-    icall @store_storage_bytes, v2, v1
-    v3 = mapping_slot 3, 0
-    v4 = icall @load_storage_bytes, v3
-    v5 = ptradd v4, 32
-    v6 = mload v4
-    v7 = keccak256 v5, v6
-    v8 = ptradd v1, 32
-    v9 = mload v1
-    v10 = keccak256 v8, v9
-    v11 = eq v7, v10
-    ret v11
+    v3 = icall @load_storage_bytes, v2
+    v4 = ptradd v3, 32
+    v5 = mload v3
+    v6 = keccak256 v4, v5
+    v7 = ptradd v0, 32
+    v8 = mload v0
+    v9 = keccak256 v7, v8
+    v10 = eq v6, v9
+    ret v10
 }
 
 ; function mappingReference(bytes32 word, bytes1 tail) external returns (bool) [selector 0xe1bd71bc]
 fn @mappingReference(arg0: i256, arg1: i256) -> i1 [selector=0xe1bd71bc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v0 = abi_encode_packed (bytes32 arg0, bytes1 arg1)
+    v1 = mapping_slot 4, 0
+    icall @store_storage_bytes, v1, v0
     v2 = mapping_slot 4, 0
-    icall @store_storage_bytes, v2, v1
-    v3 = mapping_slot 4, 0
-    v4 = icall @load_storage_bytes, v3
-    v5 = ptradd v4, 32
-    v6 = mload v4
-    v7 = keccak256 v5, v6
-    v8 = ptradd v1, 32
-    v9 = mload v1
-    v10 = keccak256 v8, v9
-    v11 = eq v7, v10
-    ret v11
+    v3 = icall @load_storage_bytes, v2
+    v4 = ptradd v3, 32
+    v5 = mload v3
+    v6 = keccak256 v4, v5
+    v7 = ptradd v0, 32
+    v8 = mload v0
+    v9 = keccak256 v7, v8
+    v10 = eq v6, v9
+    ret v10
 }
 
 ; function nestedMapping(bytes32 word, bytes1 tail) external returns (bool) [selector 0x9670c676]
 fn @nestedMapping(arg0: i256, arg1: i256) -> i1 [selector=0x9670c676, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
-    v2 = mapping_slot 0, 1
-    v3 = mapping_slot 1, v2
-    icall @store_storage_bytes, v3, v1
-    v4 = mapping_slot 0, 1
-    v5 = mapping_slot 1, v4
-    v6 = icall @load_storage_bytes, v5
-    v7 = ptradd v6, 32
-    v8 = mload v6
-    v9 = keccak256 v7, v8
-    v10 = ptradd v1, 32
-    v11 = mload v1
-    v12 = keccak256 v10, v11
-    v13 = eq v9, v12
-    ret v13
+    v0 = abi_encode_packed (bytes32 arg0, bytes1 arg1)
+    v1 = mapping_slot 0, 1
+    v2 = mapping_slot 1, v1
+    icall @store_storage_bytes, v2, v0
+    v3 = mapping_slot 0, 1
+    v4 = mapping_slot 1, v3
+    v5 = icall @load_storage_bytes, v4
+    v6 = ptradd v5, 32
+    v7 = mload v5
+    v8 = keccak256 v6, v7
+    v9 = ptradd v0, 32
+    v10 = mload v0
+    v11 = keccak256 v9, v10
+    v12 = eq v8, v11
+    ret v12
 }
 
 ; function structField(bytes32 word, bytes1 tail) external returns (bool) [selector 0xc85878d4]
 fn @structField(arg0: i256, arg1: i256) -> i1 [selector=0xc85878d4, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
-    icall @store_storage_bytes, 3, v1
-    v2 = icall @load_storage_bytes, 3
-    v3 = ptradd v2, 32
-    v4 = mload v2
-    v5 = keccak256 v3, v4
-    v6 = ptradd v1, 32
-    v7 = mload v1
-    v8 = keccak256 v6, v7
-    v9 = eq v5, v8
-    ret v9
+    v0 = abi_encode_packed (bytes32 arg0, bytes1 arg1)
+    icall @store_storage_bytes, 3, v0
+    v1 = icall @load_storage_bytes, 3
+    v2 = ptradd v1, 32
+    v3 = mload v1
+    v4 = keccak256 v2, v3
+    v5 = ptradd v0, 32
+    v6 = mload v0
+    v7 = keccak256 v5, v6
+    v8 = eq v4, v7
+    ret v8
 }
 
 ; function directValue(bytes32 word, bytes1 tail) external returns (bool) [selector 0xdb5536af]
 fn @directValue(arg0: i256, arg1: i256) -> i1 [selector=0xdb5536af, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
-    icall @store_storage_bytes, 4, v1
-    v2 = icall @load_storage_bytes, 4
-    v3 = ptradd v2, 32
-    v4 = mload v2
-    v5 = keccak256 v3, v4
-    v6 = ptradd v1, 32
-    v7 = mload v1
-    v8 = keccak256 v6, v7
-    v9 = eq v5, v8
-    ret v9
+    v0 = abi_encode_packed (bytes32 arg0, bytes1 arg1)
+    icall @store_storage_bytes, 4, v0
+    v1 = icall @load_storage_bytes, 4
+    v2 = ptradd v1, 32
+    v3 = mload v1
+    v4 = keccak256 v2, v3
+    v5 = ptradd v0, 32
+    v6 = mload v0
+    v7 = keccak256 v5, v6
+    v8 = eq v4, v7
+    ret v8
 }
 
 ; function internalReference(bytes32 word, bytes1 tail) external returns (bool) [selector 0xd14b1bf5]
 fn @internalReference(arg0: i256, arg1: i256) -> i1 [selector=0xd14b1bf5, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v0 = abi_encode_packed (bytes32 arg0, bytes1 arg1)
+    v1 = mapping_slot 5, 0
+    icall @store_storage_bytes, v1, v0
     v2 = mapping_slot 5, 0
-    icall @store_storage_bytes, v2, v1
-    v3 = mapping_slot 5, 0
-    v4 = icall @hashStorageBytes, v3
-    v5 = ptradd v1, 32
-    v6 = mload v1
-    v7 = keccak256 v5, v6
-    v8 = eq v4, v7
-    ret v8
+    v3 = icall @hashStorageBytes, v2
+    v4 = ptradd v0, 32
+    v5 = mload v0
+    v6 = keccak256 v4, v5
+    v7 = eq v3, v6
+    ret v7
 }
 
 ; function hashStorageBytes(bytes storage value) internal pure returns (bytes32)
@@ -197,35 +189,33 @@ fn @hashStorageBytes(arg0: i256) -> i256 [pure] {
 ; function mappingString(bytes32 word, bytes1 tail) external returns (bool) [selector 0x4cbcb134]
 fn @mappingString(arg0: i256, arg1: i256) -> i1 [selector=0x4cbcb134, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v0 = abi_encode_packed (bytes32 arg0, bytes1 arg1)
+    v1 = mapping_slot 0, 2
+    icall @store_storage_bytes, v1, v0
     v2 = mapping_slot 0, 2
-    icall @store_storage_bytes, v2, v1
-    v3 = mapping_slot 0, 2
-    v4 = icall @load_storage_bytes, v3
-    v5 = ptradd v4, 32
-    v6 = mload v4
-    v7 = keccak256 v5, v6
-    v8 = ptradd v1, 32
-    v9 = mload v1
-    v10 = keccak256 v8, v9
-    v11 = eq v7, v10
-    ret v11
+    v3 = icall @load_storage_bytes, v2
+    v4 = ptradd v3, 32
+    v5 = mload v3
+    v6 = keccak256 v4, v5
+    v7 = ptradd v0, 32
+    v8 = mload v0
+    v9 = keccak256 v7, v8
+    v10 = eq v6, v9
+    ret v10
 }
 
 ; function mappingStringErc7201(bytes32 word, bytes1 tail) external returns (bool) [selector 0x55edb0fc]
 fn @mappingStringErc7201(arg0: i256, arg1: i256) -> i1 [selector=0x55edb0fc, abi_params=[bytes32, bytes1], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = and arg1, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes32 arg0, bytes1 v0)
+    v0 = abi_encode_packed (bytes32 arg0, bytes1 arg1)
+    v1 = mapping_slot 1, 2
+    icall @store_storage_bytes, v1, v0
     v2 = mapping_slot 1, 2
-    icall @store_storage_bytes, v2, v1
-    v3 = mapping_slot 1, 2
-    v4 = icall @load_storage_bytes, v3
-    v5 = icall erc7201<>, v4
-    v6 = icall erc7201<>, v1
-    v7 = eq v5, v6
-    ret v7
+    v3 = icall @load_storage_bytes, v2
+    v4 = icall erc7201<>, v3
+    v5 = icall erc7201<>, v0
+    v6 = eq v4, v5
+    ret v6
 }
 
 fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {

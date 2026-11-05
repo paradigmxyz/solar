@@ -1457,8 +1457,7 @@ impl IndVarSimplifier {
                 lhs: a,
                 rhs: b,
             } if a == iv_value => self.value_i128(func, b),
-            InstKind::Add(a, b)
-            | InstKind::CheckedBinary {
+            InstKind::CheckedBinary {
                 op: CheckedOp::Add,
                 arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
@@ -1533,7 +1532,7 @@ impl IndVarSimplifier {
         };
         let (phi_inst, phi_value) = func.alloc_value_inst(
             Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::I256))
-                .with_debug_info_dropped(),
+                .with_debug_loc_dropped(),
         );
         self.insert_header_phi(func, loop_data.header, phi_inst);
 
@@ -1601,12 +1600,12 @@ impl IndVarSimplifier {
         };
         let (phi_inst, phi_value) = func.alloc_value_inst(
             Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::I256))
-                .with_debug_info_dropped(),
+                .with_debug_loc_dropped(),
         );
         // update block: ...; counter' = update; next = ptr + delta; ...
         let (next_inst, next) = func.alloc_value_inst(
             Instruction::new(offset_kind(phi_value, magnitude, delta > 0), Some(MirType::I256))
-                .with_debug_info_dropped(),
+                .with_debug_loc_dropped(),
         );
         // block: start = phi [from: next], ..., [other: base + sum(...) + input * scale + ...]
         let start = match carried {
@@ -1622,7 +1621,7 @@ impl IndVarSimplifier {
                 }
                 let (start_inst, start) = func.alloc_value_inst(
                     Instruction::new(InstKind::Phi(starts), Some(MirType::I256))
-                        .with_debug_info_dropped(),
+                        .with_debug_loc_dropped(),
                 );
                 Some((block, start_inst, start))
             }
@@ -1887,7 +1886,6 @@ fn implies_at_most(
         (&InstKind::Gt(a, x), false)
         | (&InstKind::Lt(x, a), false)
         | (&InstKind::Lt(a, x), true)
-        | (&InstKind::Gt(x, a), true)
             if a == value =>
         {
             unsigned_bounds(func, x).1 <= limit

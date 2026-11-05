@@ -588,10 +588,10 @@ impl CommonSubexprEliminator {
             // The sunk expression runs exactly when one of the incoming expressions would have,
             // so it is shared code carrying the union of their origins.
             let mut sunk = Instruction::new(candidate.kind, Some(candidate.result_ty));
-            sunk.metadata.copy_debug_context(&func.inst(candidate.incoming[0].1).metadata);
-            for &(_, other) in &candidate.incoming[1..] {
-                sunk.metadata.merge_debug_context(&func.inst(other).metadata);
-            }
+            sunk.metadata.preserve_debug_loc(&func.inst(candidate.incoming[0].1).metadata);
+            sunk.metadata.merge_debug_locs(
+                candidate.incoming[1..].iter().map(|&(_, other)| &func.inst(other).metadata),
+            );
             let (new_inst, new_value) = func.alloc_value_inst(sunk);
 
             let phi_count = func.block_phi_count(candidate.block_id);
@@ -1590,6 +1590,9 @@ impl CommonSubexprEliminator {
     }
 
     /// Splits `a + b` into its non-constant operand and the constant it adds, trying `b` first.
+    ///
+    /// NOTE: Both sides are tried because a pending replacement can make `a` a constant: the pass
+    /// applies its replacements at the end, so the instruction still has its old operand order.
     fn const_addend(
         func: &Function,
         a: ValueId,

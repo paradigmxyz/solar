@@ -100,28 +100,35 @@ impl InstructionMetadata {
         }
     }
 
-    /// Unions origins without importing instruction-specific analysis facts.
-    pub fn merge_debug_context(&mut self, other: &Self) {
-        self.insert_source_spans(other.source_spans());
-        if self.modifier_depth != other.modifier_depth {
-            self.modifier_depth = 0;
+    /// Merges the locations of equivalent code that one instruction now stands for, like
+    /// LLVM's `DebugLoc::getMergedLocation` for hoisted or sunk code. Keeps the union of spans
+    /// instead of collapsing it to line 0.
+    pub fn merge_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        for other in others {
+            self.insert_source_spans(other.source_spans());
+            if self.modifier_depth != other.modifier_depth {
+                self.modifier_depth = 0;
+            }
+            self.flags.set_display_source_span(
+                self.displays_source_span() || other.displays_source_span(),
+            );
+            self.debug_loc_kind = if self.source_spans().next().is_some() {
+                DebugLocKind::Normal
+            } else {
+                self.debug_loc_kind.merge(other.debug_loc_kind)
+            };
         }
-        self.flags
-            .set_display_source_span(self.displays_source_span() || other.displays_source_span());
-        self.debug_loc_kind = if self.source_spans().next().is_some() {
-            DebugLocKind::Normal
-        } else {
-            self.debug_loc_kind.merge(other.debug_loc_kind)
-        };
     }
 
-    /// Copies all debug fields without copying semantic or analysis metadata.
-    pub fn copy_debug_context(&mut self, other: &Self) {
-        self.source_span = other.source_span;
-        self.additional_source_spans = other.additional_source_spans.clone();
-        self.modifier_depth = other.modifier_depth;
-        self.flags.set_display_source_span(other.displays_source_span());
-        self.debug_loc_kind = other.debug_loc_kind;
+    /// Preserves the location of the one instruction whose job this one does, like LLVM's
+    /// `setDebugLoc(I->getDebugLoc())` and solc's `AssemblyItem(op, x.debugData())`. Copies spans,
+    /// depth, display flag, and kind, but no analysis metadata.
+    pub fn preserve_debug_loc(&mut self, from: &Self) {
+        self.source_span = from.source_span;
+        self.additional_source_spans = from.additional_source_spans.clone();
+        self.modifier_depth = from.modifier_depth;
+        self.flags.set_display_source_span(from.displays_source_span());
+        self.debug_loc_kind = from.debug_loc_kind;
     }
 
     /// Sets the source span that produced this instruction.
@@ -152,12 +159,12 @@ impl InstructionMetadata {
         self.modifier_depth = depth;
     }
 
-    /// Marks this instruction as intentionally having no source location, like LLVM's
-    /// `Instruction::dropLocation`.
-    pub fn mark_debug_info_dropped(&mut self) {
+    /// Drops the location and records why, like LLVM's `Instruction::dropLocation`. Clears
+    /// spans and modifier depth.
+    pub fn drop_debug_loc(&mut self, kind: DebugLocKind) {
         self.set_debug_source_span(None);
         self.modifier_depth = 0;
-        self.debug_loc_kind = DebugLocKind::Dropped;
+        self.debug_loc_kind = kind;
     }
 
     /// Returns why this instruction has no source origin, when it has none.
@@ -166,7 +173,8 @@ impl InstructionMetadata {
         self.debug_loc_kind
     }
 
-    /// Annotates the missing origin of this instruction.
+    /// Annotates the missing origin of this instruction, for the MIR parser and the debugify audit.
+    /// Passes use [`Self::drop_debug_loc`], which also clears spans and depth.
     pub fn set_debug_loc_kind(&mut self, kind: DebugLocKind) {
         self.debug_loc_kind = kind;
     }
@@ -194,7 +202,7 @@ impl InstructionMetadata {
     /// Copies source context without carrying instruction-specific analysis facts.
     pub fn debug_context(&self) -> Self {
         let mut metadata = Self::EMPTY;
-        metadata.copy_debug_context(self);
+        metadata.preserve_debug_loc(self);
         metadata
     }
 
@@ -824,8 +832,8 @@ impl Instruction {
 
     /// Marks this synthetic instruction as intentionally having no source location.
     #[must_use]
-    pub fn with_debug_info_dropped(mut self) -> Self {
-        self.metadata.mark_debug_info_dropped();
+    pub fn with_debug_loc_dropped(mut self) -> Self {
+        self.metadata.drop_debug_loc(DebugLocKind::Dropped);
         self
     }
 
@@ -1016,7 +1024,6 @@ impl InstKind {
     pub fn zero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
         match *self {
             Self::Eq(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
-            Self::Eq(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
             _ => None,
         }
     }
@@ -1025,7 +1032,6 @@ impl InstKind {
     pub fn nonzero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
         match *self {
             Self::Ne(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
-            Self::Ne(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
             _ => None,
         }
     }
