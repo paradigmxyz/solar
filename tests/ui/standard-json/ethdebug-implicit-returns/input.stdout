@@ -121,12 +121,34 @@
                     "arguments": [
                       "0xd8"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 411
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 10,
                   "operation": {
                     "mnemonic": "DUP1"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 411
+                      }
+                    }
                   }
                 },
                 {
@@ -136,30 +158,85 @@
                     "arguments": [
                       "0x15"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 411
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 13,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 411
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 14,
                   "operation": {
                     "mnemonic": "CODECOPY"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 411
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 15,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 411
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 16,
                   "operation": {
                     "mnemonic": "RETURN"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 0,
+                        "length": 411
+                      }
+                    }
                   }
                 },
                 {
@@ -188,7 +265,7 @@
                 }
               ]
             },
-            "sourceMap": ":::-:0;;;20:17:0;;;-1:-1:-1;;;;;;;;;;"
+            "sourceMap": ":::-:0;;;20:17:0;;;0:411;;;;;;;-1:-1:-1;;;"
           },
           "deployedBytecode": {
             "ethdebug": {

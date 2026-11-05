@@ -2,7 +2,8 @@
 
 This file tracks intentional, user-visible differences from `solc`. The baseline is
 the `solc` version checked into `testdata/solidity`, unless an entry names a
-different upstream version.
+different upstream version. Where `solc`'s legacy and via-IR pipelines behave
+differently, we follow via-IR, and such cases are not listed.
 
 The goal is not to list every missing feature. A divergence belongs here when
 `solar` deliberately accepts, rejects, warns, or reports source locations
@@ -296,8 +297,8 @@ Coverage: `tests/ui/parser/fixed_point_type.sol`,
 `tests/ui/parser/fixed_point_type_default.sol`,
 `tests/ui/parser/fixed_mxn_types.sol`,
 `tests/ui/parser/fixed_mxn_declaration_names.sol`,
-`tests/ui/typeck/rational_literal_operators.sol`, and
-`tests/ui/typeck/rational_literal_mobile_type.sol`; the upstream fixtures that use
+`tests/ui/typeck/literals/rational_literal_operators.sol`, and
+`tests/ui/typeck/literals/rational_literal_mobile_type.sol`; the upstream fixtures that use
 fixed-point types are excluded from solc parity testing.
 
 ### PARSE-005: Yul literal forms
@@ -357,9 +358,9 @@ Rationale: a hard error would reject sources pinned to a different `solc`
 release even when `solar` can compile them. The warning still flags sources
 that ask for different language semantics.
 
-Coverage: `tests/ui/parser/pragma_version_mismatch.sol`,
-`tests/ui/parser/pragma_valid.sol` and
-`tests/ui/parser/pragma_version_component_above_signed_int.sol`; the upstream
+Coverage: `tests/ui/parser/pragma/pragma_version_mismatch.sol`,
+`tests/ui/parser/pragma/pragma_valid.sol` and
+`tests/ui/parser/pragma/pragma_version_component_above_signed_int.sol`; the upstream
 `wrong_compiler_*`, `broken_version_1` and `version_component_*_greater`
 fixtures remain excluded from solc parity testing.
 
@@ -457,8 +458,8 @@ language rule; these lists denote calls to a constructor or a modifier, and the
 named form has one unambiguous meaning. We deliberately support this extended
 form. Every program `solc` accepts here has the same meaning in `solar`.
 
-Coverage: `tests/ui/typeck/base_arguments.sol`,
-`tests/ui/typeck/modifier_arguments.sol`,
+Coverage: `tests/ui/typeck/inheritance/base_arguments.sol`,
+`tests/ui/typeck/inheritance/modifier_arguments.sol`,
 `tests/ui/codegen/lowering/base_constructor_args.sol`,
 `tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`, and
 `tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol`.
@@ -490,8 +491,8 @@ It still accepts their storage declarations, indexed accesses, and storage
 reference bindings. Solc 0.8.38 compiles the storage-to-storage array, tuple,
 and struct copies covered by the fixture, but those copies panic with code
 `0x41` at runtime. ABI-encoding the same array causes an internal compiler
-error in solc 0.8.38. These results hold with both code generators and with
-optimization enabled or disabled.
+error in solc 0.8.38. These results hold with optimization enabled or
+disabled.
 
 Rationale: report unsupported copies at their source during type checking,
 rather than fail during lowering or emit a runtime panic for a known oversized
@@ -631,7 +632,7 @@ Rationale: code that walks struct types recurses along the longest chain, and
 the `solc` depth depends on field order. Real code does not nest structs this
 deeply.
 
-Coverage: `tests/ui/typeck/recursive_struct_deep_direct.sol`.
+Coverage: `tests/ui/typeck/recursive_types/recursive_struct_deep_direct.sol`.
 
 ### TYPECK-020: Early constant evaluation
 
@@ -659,12 +660,12 @@ Rationale: the order of declarations does not change the value of a constant,
 and each error is reported once, where the expression is checked.
 
 Coverage: `tests/ui/codegen/lowering/run-call/array_len_const_eval.sol`,
-`tests/ui/typeck/array_len_eval_errors.sol`,
-`tests/ui/typeck/array_len_unsupported.sol`,
-`tests/ui/typeck/array_len_typed_negative_shift.sol`,
-`tests/ui/typeck/division_by_zero_solc_values.sol`,
-`tests/ui/typeck/literal_division_by_zero.sol` and
-`tests/ui/typeck/constant_depth_limit.sol`.
+`tests/ui/typeck/array_length/array_len_eval_errors.sol`,
+`tests/ui/typeck/array_length/array_len_unsupported.sol`,
+`tests/ui/typeck/array_length/array_len_typed_negative_shift.sol`,
+`tests/ui/typeck/constants/division_by_zero_solc_values.sol`,
+`tests/ui/typeck/constants/literal_division_by_zero.sol` and
+`tests/ui/typeck/constants/constant_depth_limit.sol`.
 
 ### TYPECK-021: Repeated Yul multi-assignment targets
 
@@ -724,36 +725,29 @@ compute.
 Rationale: the base slot has a well-defined value. Errors in a value that
 `solc` does not compute get `solc`'s code for it, 1505.
 
-Coverage: `tests/ui/typeck/storage_layout_base_slot_ternary.sol`,
-`tests/ui/typeck/storage_layout_base_slot_erc7201.sol` and
+Coverage: `tests/ui/typeck/storage_layout/storage_layout_base_slot_ternary.sol`,
+`tests/ui/typeck/storage_layout/storage_layout_base_slot_erc7201.sol` and
 `tests/ui/codegen/lowering/run-call/storage_layout_base_slot_const_eval.sol`;
 upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
 ## Code Generation
 
-### CODEGEN-001: Dirty bits do not survive assembly-assigned variables read from Solidity
+### CODEGEN-001: Immutables and tuple conditionals handle dirty bits differently
 
 - ID: CODEGEN-001
 - Status: intentional
-- Difference: When inline assembly assigns a variable whose type spans fewer
-  than 256 bits, `solc` leaves the raw word in the variable and cleans it at
-  each use site that needs a canonical value (comparisons, checked arithmetic,
-  ABI encoding). `solar` instead canonicalizes once, at every Solidity-level
-  read of such a variable; reads inside assembly see the raw word in both
-  compilers. Code that deliberately round-trips dirty upper bits through a
-  typed variable or an internal-function return back into assembly — solady's
-  `Brutalizer` test helpers assert exactly that — observes cleaned values
-  under `solar`.
-- Rationale: The Solidity documentation makes bits outside a type's width
-  unspecified after assembly assignments, so both models are conforming. A
-  single cleanup point at the assembly-to-Solidity boundary covers every
-  downstream consumer (comparisons, arithmetic, mapping keys, encodes) without
-  per-use-site masks, and keeps the in-assembly raw-scratch idiom
-  (`value := shl(96, value)` then reading `value` back) working exactly like
-  `solc`.
-- Coverage: `tests/ui/codegen/lowering/run-call/assembly_assign_cleanup.sol`;
-  external-suite canary: solady `BrutalizerTest::testBrutalizedAddress` and
-  `testBrutalizedBool` fail by asserting dirt survives.
+- Difference: When inline assembly leaves bits above a variable's type, `solar`
+  cleans the raw bits of an integer or fixed-bytes immutable when it stores
+  the immutable, so `uint8 immutable i = f()` reads back clean at run time
+  where `solc` via-IR keeps them. A `bool` or `address` immutable that the
+  constructor reads back keeps them where `solc` via-IR cleans them. A
+  conditional with tuple branches keeps an invalid enum, contract or
+  user-defined value type in its false branch raw, where `solc` via-IR
+  validates it.
+- Rationale: All three cases need a word that inline assembly made invalid for
+  its type, which the Solidity documentation leaves unspecified.
+- Coverage: the fixtures under `tests/ui/codegen/lowering/dirty/`, whose
+  expectations come from `solc --via-ir --optimize`.
 
 ### CODEGEN-002: Large ABI-heavy contracts can exceed EIP-170
 
@@ -795,19 +789,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   Solc tracks the getter's empty revert data in
   [issue #16660](https://github.com/argotorg/solidity/issues/16660).
 
-### CODEGEN-005: Narrow storage array indexes are cleaned
-
-- ID: CODEGEN-005
-- Status: intentional
-- Difference: When assembly assigns dirty upper bits to a narrow integer used
-  as a storage-array index, `solar` cleans the value before the bounds check.
-  `solc` uses the raw word, so `uint8(0x101)` indexes out of bounds instead of
-  selecting index `1`. Memory-array indexes are cleaned by both compilers.
-- Rationale: typed storage indexing converts its index to the array's word
-  index type before checking bounds. This preserves the normal implicit
-  conversion rule for narrow values.
-- Coverage: `tests/ui/codegen/lowering/run-call/dirty_storage_array_index.sol`.
-
 ### CODEGEN-006: Legacy source-map modifier depth
 
 - ID: CODEGEN-006
@@ -816,9 +797,12 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   depth in the `m` field, preserving it through MIR and EVM IR lowering and
   optimization. Shared code with different modifier depths has no unique
   modifier frame and uses depth zero. Shared code with multiple source origins
-  is unmapped in legacy output; ETHDebug retains bounded source alternatives.
-  This policy applies equally to MIR and EVM IR sharing.
-- Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc`.
+  is unmapped in legacy output; ETHDebug retains every source alternative.
+  This policy applies equally to MIR and EVM IR sharing. Like solc, every entry
+  of a constructor's modifier list, including base constructor calls, adds one
+  level of depth to the code after it.
+- Coverage: `tests/ui/standard-json/source-maps/modifier.jsonc` and
+  `tests/ui/standard-json/source-maps/modifier-constructor.jsonc`.
 
 ### CODEGEN-007: `revertStrings: debug` message parity is best effort
 
@@ -991,20 +975,15 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 - ID: CODEGEN-011
 - Status: intentional
-- Difference: `solc` honors `pragma abicoder v1` and generates ABI coder v1
-  encoders and decoders for that source unit. `solar` warns that ABI coder v1
-  is not supported and always generates ABI coder v2 code. Calldata decoding
-  validates arguments like v2, so a `bool` argument of `2` or a `uint8` or
-  `address` argument with dirty high bits reverts, where v1 cleans it and
-  continues. The type checker also does not apply v1's restrictions, so v1
-  source units may use structs and nested dynamic arrays at ABI boundaries,
-  which `solc` rejects. The warning reuses `solc`'s 9511 code, so
-  `--allow 9511` also hides this change.
+- Difference: `solc` applies ABI coder v1's restrictions to a source unit that
+  selects it, so that unit cannot use structs or nested dynamic arrays at ABI
+  boundaries. `solar` warns that ABI coder v1 is not supported, generates ABI
+  coder v2 code, and does not apply v1's restrictions. The warning reuses
+  `solc`'s 9511 code, so `--allow 9511` also hides this change.
 - Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
-  accepts the same way. A second coder would only change how malformed input
-  fails and which types compile.
+  accepts the same way. A second coder would only change which types compile.
 - Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
-  `tests/ui/parser/pragma_valid.sol`.
+  `tests/ui/parser/pragma/pragma_valid.sol`.
 
 ### CODEGEN-012: External function pointer suffixes keep only their field bits
 
@@ -1031,8 +1010,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `255`, or because `solar` does not compute it, such as
   `keccak256(type(C).creationCode)` or a byte array larger than 64 KiB, gets a
   helper function that runs its initializer, one per arithmetic mode. Each use
-  calls the one for its mode, as in `solc`'s IR codegen, so such a constant
-  wraps inside `unchecked`.
+  calls the one for its mode, so such a constant wraps inside `unchecked`.
 - Rationale: a constant is one value, and computing it once is cheaper than
   running its initializer at every use.
 - Coverage: `tests/ui/codegen/lowering/run-call/constant_reverting_initializer.sol`,

@@ -8,7 +8,7 @@ use crate::{
             assembly::DeferredAlloc,
         },
         evm::{
-            DebugFunction, DebugFunctionExit, DebugSpans,
+            DebugFunction, DebugFunctionExit,
             op::{self, push_len},
         },
     },
@@ -100,22 +100,20 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     /// Returns the source origins, location kind and modifier depth attached to new operations.
-    pub(crate) fn debug_origin(&self) -> (DebugSpans, DebugLocKind, u32) {
-        (
-            self.current_source_spans.clone(),
-            self.current_debug_loc_kind,
-            self.current_modifier_depth,
-        )
+    pub(crate) fn debug_origin(&self) -> ir::Metadata {
+        let mut origin = ir::Metadata::default();
+        origin.set_source_spans(self.current_source_spans.iter().copied());
+        origin.set_debug_loc_kind(self.current_debug_loc_kind);
+        origin.set_modifier_depth(self.current_modifier_depth);
+        origin
     }
 
     /// Restores the origins returned by [`Self::debug_origin`].
-    pub(crate) fn set_debug_origin(
-        &mut self,
-        (spans, kind, depth): (DebugSpans, DebugLocKind, u32),
-    ) {
-        self.current_source_spans = spans;
-        self.current_debug_loc_kind = kind;
-        self.current_modifier_depth = depth;
+    pub(crate) fn set_debug_origin(&mut self, origin: ir::Metadata) {
+        self.current_source_spans.clear();
+        self.current_source_spans.extend(origin.source_spans().iter().copied());
+        self.current_debug_loc_kind = origin.debug_loc_kind();
+        self.current_modifier_depth = origin.modifier_depth();
     }
 
     /// Attributes the jump to the next block, which ends the current block without an opcode, to
@@ -133,8 +131,7 @@ impl<'gcx> Assembler<'gcx> {
         if let Some(block) = self.current_block
             && !self.program.blocks[block].instructions.is_empty()
         {
-            self.fallthrough_origins
-                .insert(block, (self.current_source_spans.clone(), self.current_modifier_depth));
+            self.fallthrough_origins.insert(block, self.debug_origin());
         }
     }
 
@@ -612,7 +609,7 @@ impl<'gcx> Assembler<'gcx> {
                 ],
             };
             for inst in &mut replacement {
-                inst.metadata.copy_source_debug_from(&metadata);
+                inst.metadata.preserve_debug_loc(&metadata);
             }
             if let Some(function) = metadata.function_invoke()
                 && let Some(inst) = replacement.last_mut()
@@ -668,9 +665,8 @@ impl<'gcx> Assembler<'gcx> {
                 (ir::Terminator::new(ir::TerminatorKind::Op(last.opcode)), 1, last.metadata.clone())
             } else {
                 let mut metadata = ir::Metadata::default();
-                if let Some((spans, depth)) = self.fallthrough_origins.remove(&block_id) {
-                    metadata.set_source_spans(spans);
-                    metadata.set_modifier_depth(depth);
+                if let Some(origin) = self.fallthrough_origins.remove(&block_id) {
+                    metadata.preserve_debug_loc(&origin);
                 }
                 (
                     next.map_or_else(ir::Terminator::implicit_stop, |target| {
@@ -681,7 +677,7 @@ impl<'gcx> Assembler<'gcx> {
                 )
             };
             block.instructions.truncate(block.instructions.len() - remove);
-            terminator.metadata.copy_source_debug_from(&metadata);
+            terminator.metadata.preserve_debug_loc(&metadata);
             if let Some(function) = metadata.function_invoke() {
                 terminator.metadata.set_function_invoke(function);
             }

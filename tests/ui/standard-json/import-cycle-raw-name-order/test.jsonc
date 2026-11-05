@@ -1,0 +1,23 @@
+// Source unit names keep repeated separators, so `a//b/x.sol` sorts before
+// `a/b-y/y.sol` (`/` is below `b`), as in solc, although path components would
+// order them the other way and cut the cycle at the base.
+// CHECK: "sources": {
+// CHECK: "a/b-y/y.sol": {
+// CHECK-NEXT: "id": 0
+// CHECK: "a//b/x.sol": {
+// CHECK-NEXT: "id": 1
+// CHECK-NOT: definition of base has to precede definition of derived contract
+{
+  "language": "Solidity",
+  "sources": {
+    "a//b/x.sol": {
+      "content": "import \"a/b-y/y.sol\";\ncontract X is Y {}\n"
+    },
+    "a/b-y/y.sol": {
+      "content": "import \"a//b/x.sol\";\ncontract Y {}\n"
+    }
+  },
+  "settings": {
+    "outputSelection": {}
+  }
+}

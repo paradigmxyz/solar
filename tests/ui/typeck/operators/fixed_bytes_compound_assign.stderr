@@ -1,0 +1,90 @@
+error[7366]: cannot apply builtin operator `+` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         a += b;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[7366]: cannot apply builtin operator `-` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         a -= b;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[7366]: cannot apply builtin operator `*` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         a *= b;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[7366]: cannot apply builtin operator `/` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         a /= b;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[7366]: cannot apply builtin operator `%` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         a %= b;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[7366]: cannot apply builtin operator `+` to `bytes32` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         a += 1;
+   │         ┬ ━━ ─ int_literal[1]
+   │         │
+   ╰╴        bytes32
+
+error[7366]: cannot apply builtin operator `&` to `bytes4` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         c &= a;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes4
+
+error[7366]: cannot apply builtin operator `|` to `bytes4` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         c |= a;
+   │         ┬ ━━ ─ bytes32
+   │         │
+   ╰╴        bytes4
+
+error[7366]: cannot apply builtin operator `|` to `bytes32` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         a |= 1;
+   │         ┬ ━━ ─ int_literal[1]
+   │         │
+   ╰╴        bytes32
+
+error[7366]: cannot apply builtin operator `<<` to `bytes32` and `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         a <<= b;
+   │         ┬ ━━━ ─ bytes32
+   │         │
+   ╰╴        bytes32
+
+error[7366]: cannot apply builtin operator `>>>` to `bytes32` and `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/operators/fixed_bytes_compound_assign.sol:LL:CC
+   │
+LL │         a >>>= 1;
+   │         ┬ ━━━━ ─ int_literal[1]
+   │         │
+   ╰╴        bytes32
+
+error: aborting due to 11 previous errors
+

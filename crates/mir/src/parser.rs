@@ -716,6 +716,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::function_pointer_dispatcher => {
                     builder.func_mut().attributes.is_function_pointer_dispatcher = true;
                 }
+                sym::creation_only => builder.func_mut().attributes.creation_only = true,
                 sym::always_inline => builder.func_mut().attributes.always_inline = true,
                 sym::inline_hint => builder.func_mut().attributes.inline_hint = true,
                 sym::cold => builder.func_mut().attributes.hotness = Hotness::Cold,
@@ -1538,11 +1539,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let mut spans = SmallVec::<[Span; 2]>::new();
                     loop {
                         let (lo, hi) = self.parser.parse_span_bounds()?;
-                        let span = Span::new(BytePos(lo), BytePos(hi));
-                        if spans.len() < solar_ir::debug::MAX_DEBUG_SPANS && !spans.contains(&span)
-                        {
-                            spans.push(span);
-                        }
+                        spans.push(Span::new(BytePos(lo), BytePos(hi)));
                         if !self.parser.eat(TokenKind::Comma) {
                             break;
                         }
