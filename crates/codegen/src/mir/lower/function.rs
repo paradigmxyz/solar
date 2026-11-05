@@ -165,6 +165,8 @@ pub(super) fn lower(
     }
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
+    // solc tags a function's entry under the function definition.
+    lowerer.builder.set_entry_label_span(hir_function.span);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
@@ -194,6 +196,7 @@ pub(super) fn lower_synthetic_constructor(
     let span = context.gcx.hir.contract(contract_id).span;
     let mut mir = Function::new(Ident::with_dummy_span(kw::Constructor));
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
+    lowerer.builder.set_entry_label_span(span);
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;
     if !lowerer.is_terminated() {
@@ -268,6 +271,14 @@ struct CallArgumentParams<'a> {
     count: usize,
     names: Option<&'a [Option<Symbol>]>,
     reverse: bool,
+}
+
+/// The signature of `abi.encodeWithSignature` after lowering.
+enum SignatureOperand {
+    /// A selector known at once.
+    Selector(ValueId),
+    /// A `bytes` or `string` value, hashed after the other arguments ran.
+    Bytes(ValueId, PtrLocation),
 }
 
 /// An operand of an ABI encoding after lowering.
@@ -496,7 +507,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Self {
             cx,
             builder: FunctionBuilder::new_semantic(function)
-                .with_revert_strings(gcx.sess.opts.revert_strings),
+                .with_revert_strings(gcx.sess.opts.revert_strings)
+                .with_block_labels(),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
             unchecked_calldata_slices: FxHashSet::default(),

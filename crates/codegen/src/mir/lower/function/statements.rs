@@ -570,23 +570,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         AbiOperand::Ready((value, this.types.abi_type(parameter_ty)?)),
                     ));
                 }
-                if !this.cx.gcx.hir.variable(parameter).indexed {
-                    if this.is_dynamic_bytes_type(parameter_ty) {
-                        let (value, location) = this.lower_bytes_operand(argument, parameter_ty)?;
-                        return Some((
-                            argument,
-                            AbiOperand::Ready((value, AbiType::Bytes(location))),
-                        ));
-                    }
-                    let operand =
-                        this.lower_abi_operand(argument, parameter_ty, |this, value| {
-                            Some((value, this.types.abi_type(parameter_ty)?))
-                        })?;
-                    return Some((argument, operand));
+                if !this.cx.gcx.hir.variable(parameter).indexed
+                    && this.is_dynamic_bytes_type(parameter_ty)
+                {
+                    let (value, location) = this.lower_bytes_operand(argument, parameter_ty)?;
+                    return Some((argument, AbiOperand::Ready((value, AbiType::Bytes(location)))));
                 }
-                let value =
-                    this.lower_typed_expr(argument, parameter_ty)?.clean(this, parameter_ty);
-                Some((argument, AbiOperand::Ready((value, this.types.abi_type(parameter_ty)?))))
+                // A storage array, struct, or string is read after the arguments that follow it,
+                // as via-IR does; legacy hashes indexed topics before the data arguments run.
+                let operand = this.lower_abi_operand(argument, parameter_ty, |this, value| {
+                    Some((value, this.types.abi_type(parameter_ty)?))
+                })?;
+                Some((argument, operand))
             },
         )?;
         let mut data_values = Vec::new();

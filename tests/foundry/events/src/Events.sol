@@ -186,9 +186,21 @@ contract Events {
     }
 
     event LateStorage(uint256[] values, Late late, uint256 count);
+    event LateIndexed(uint256[] indexed values, Late indexed late, uint256 indexed count);
+    event LateIndexedText(string indexed text, uint256 indexed count);
 
     uint256[] internal lateValues;
     Late internal late;
+    string internal lateText = "before";
+
+    // Indexed storage topics are hashed after the indexed arguments that follow them ran.
+    function emitLateIndexed() public {
+        emit LateIndexed(lateValues, late, writeLate());
+    }
+
+    function emitLateIndexedText() public {
+        emit LateIndexedText(lateText, writeLate());
+    }
 
     // The data reads the storage array and struct after the last argument ran, as solc does.
     function emitLateStorage() public {
@@ -198,6 +210,7 @@ contract Events {
     function writeLate() internal returns (uint256) {
         lateValues.push(7);
         late.value = 9;
+        lateText = "after";
         return 3;
     }
 }

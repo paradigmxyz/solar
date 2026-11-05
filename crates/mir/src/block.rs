@@ -14,6 +14,12 @@ pub struct BasicBlock {
     pub terminator: Option<Terminator>,
     /// Source context of the control transfer, independent of the last value instruction.
     pub terminator_metadata: InstructionMetadata,
+    /// Source context of the block's label, which is the origin of the `JUMPDEST` that marks the
+    /// block, as solc gives a tag the location active where the tag is placed
+    /// (`m_context << tag`). It holds only debug context: source spans and the modifier depth.
+    ///
+    /// Lowering sets it when it places the block; `docs/MIR.md` says what passes do with it.
+    pub label_metadata: InstructionMetadata,
     /// Predecessor blocks, each listed once.
     pub predecessors: SmallVec<[BlockId; 4]>,
     /// Whether the block is expected to run rarely. Computed by the hotness analysis, which the
@@ -53,6 +59,17 @@ impl BasicBlock {
         (self.terminator.take(), metadata)
     }
 
+    /// Creates an empty block that copies this one, which may belong to another function: it keeps
+    /// the `cold_hint` and the label origin, as LLVM's `CloneBasicBlock` keeps the debug locations
+    /// of the code it clones. The caller fills in the instructions and the terminator.
+    #[must_use]
+    pub fn new_copy(&self) -> Self {
+        let mut copy = Self::new();
+        copy.cold_hint = self.cold_hint;
+        copy.label_metadata.copy_debug_context(&self.label_metadata);
+        copy
+    }
+
     /// Creates a new empty basic block.
     #[must_use]
     pub(crate) fn new() -> Self {
@@ -62,6 +79,7 @@ impl BasicBlock {
             instructions: Vec::new(),
             terminator: None,
             terminator_metadata,
+            label_metadata: InstructionMetadata::EMPTY,
             predecessors: SmallVec::new(),
             hotness: Hotness::Hot,
             cold_hint: false,

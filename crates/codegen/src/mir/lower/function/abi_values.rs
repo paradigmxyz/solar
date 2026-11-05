@@ -90,14 +90,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         let (signature, rest) =
             self.builtin_args_with_rest::<1>(Builtin::AbiEncodeWithSignature, &args)?;
-        let selector = self.lower_signature_selector(&signature[0])?;
-        self.lower_abi_encode_builtin_args(rest, Some(selector))
+        let signature = self.lower_signature(&signature[0])?;
+        let (layout, values) = self.lower_abi_encode_arguments(rest)?;
+        // The signature is read when the selector is hashed, after the arguments ran, as solc does.
+        let selector = self.signature_selector(signature);
+        Some(self.builder.abi_encode_bytes(layout, Some(selector), values))
     }
 
-    fn lower_signature_selector(&mut self, signature: &hir::Expr<'_>) -> Option<ValueId> {
+    fn lower_signature(&mut self, signature: &hir::Expr<'_>) -> Option<SignatureOperand> {
         if let Some(selector) = Self::literal_signature_selector(signature) {
             // selector = keccak256(literal)[0..4] << 224
-            return Some(self.builder.imm(selector));
+            return Some(SignatureOperand::Selector(self.builder.imm(selector)));
         }
 
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &signature.kind
@@ -108,24 +111,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let condition = self.operand(condition)?;
             let then_selector = self.builder.imm(then_selector);
             let else_selector = self.builder.imm(else_selector);
-            return Some(self.builder.select(condition, then_selector, else_selector));
+            let selector = self.builder.select(condition, then_selector, else_selector);
+            return Some(SignatureOperand::Selector(selector));
         }
 
-        // selector = keccak256(materialize(signature))[0..4] << 224
         let signature_ty = self.cx.gcx.type_of_expr(signature.id)?;
         let memory_ty = signature_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let signature = self.lower_typed_expr(signature, memory_ty)?.clean(self, memory_ty);
-        if let Some(abi_type) = self.types.abi_type(signature_ty) {
-            self.validate_calldata_bytes_argument(signature, &abi_type);
-        }
-        let signature = match self.builder.func().value_ty(signature) {
-            Some(MirType::Slice(_)) => self.materialize_memory_slice(signature),
-            _ => signature,
+        let (value, location) = self.lower_bytes_operand(signature, memory_ty)?;
+        Some(SignatureOperand::Bytes(value, location))
+    }
+
+    fn signature_selector(&mut self, signature: SignatureOperand) -> ValueId {
+        // selector = keccak256(materialize(signature))[0..4] << 224
+        let signature = match signature {
+            SignatureOperand::Selector(selector) => return selector,
+            SignatureOperand::Bytes(value, PtrLocation::Storage) => self.load_storage_bytes(value),
+            SignatureOperand::Bytes(value, location) => {
+                self.validate_calldata_bytes_argument(value, &AbiType::Bytes(location));
+                match self.builder.func().value_ty(value) {
+                    Some(MirType::Slice(_)) => self.materialize_memory_slice(value),
+                    _ => value,
+                }
+            }
         };
         let hash = self.builder.keccak256_bytes(signature);
         let shift = self.builder.imm(224);
         let selector = self.builder.shr(hash, shift);
-        Some(self.builder.shl(selector, shift))
+        self.builder.shl(selector, shift)
     }
 
     fn literal_signature_selector(signature: &hir::Expr<'_>) -> Option<U256> {

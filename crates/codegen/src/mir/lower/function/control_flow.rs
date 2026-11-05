@@ -61,6 +61,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         condition: ValueId,
         then_first: bool,
+        lower_then: impl FnMut(&mut Self) -> Option<T>,
+        lower_else: impl FnMut(&mut Self) -> Option<T>,
+    ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
+        self.lower_branches_labeled(condition, then_first, None, lower_then, lower_else)
+    }
+
+    /// Like [`Self::lower_branches`], with the branch blocks' labels at `label_span` rather than
+    /// at the span the builder has when it places them.
+    pub(super) fn lower_branches_labeled<T>(
+        &mut self,
+        condition: ValueId,
+        then_first: bool,
+        label_span: Option<Span>,
         mut lower_then: impl FnMut(&mut Self) -> Option<T>,
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
@@ -75,7 +88,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // branch(condition, then, else)
         self.builder.branch(condition, then_block, else_block);
 
-        self.builder.switch_to_block(then_block);
+        self.place_block(then_block, label_span);
         let then_value = lower_then(self)?;
         let then_terminated = self.is_terminated();
         let then_exit = self.builder.current_block();
@@ -87,7 +100,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.values = before_values.clone();
         self.storage_refs = before_storage_refs.clone();
-        self.builder.switch_to_block(else_block);
+        self.place_block(else_block, label_span);
         let else_value = lower_else(self)?;
         let else_terminated = self.is_terminated();
         let else_exit = self.builder.current_block();
@@ -99,7 +112,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // values = phi(then_values, else_values)
         // storage_refs = phi(then_storage_refs, else_storage_refs)
-        self.builder.switch_to_block(merge_block);
+        self.place_block(merge_block, label_span);
         self.values = self.merge_values(
             before_values,
             MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
@@ -135,9 +148,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // The transfer still evaluates the condition when its computation folds into the jump.
         // Keep its narrower origin so coverage can anchor the expression inside the `if`.
         let previous = self.builder.replace_source_span(condition_span);
-        let branches = self.lower_branches(
+        // solc places the else and end tags under the statement: `LocationSetter(m_context,
+        // _ifStatement)` at ContractCompiler.cpp L1157-1176. A loop condition desugars to
+        // `if (cond) body else break`, and solc places a loop's tags under the loop statement
+        // (`LocationSetter(m_context, _forStatement)`, L1224-1265), so those blocks take the span
+        // of the desugared `break`, which is the loop statement. A user `break` is narrower than
+        // its `if`.
+        let label_span = else_stmt
+            .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous))
+            .map_or(previous, |stmt| stmt.span);
+        let branches = self.lower_branches_labeled(
             condition,
             true,
+            Some(label_span),
             |this| {
                 this.builder.replace_source_span(previous);
                 this.lower_stmt(then_stmt)
@@ -153,6 +176,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.invalid();
         }
         Some(())
+    }
+
+    /// Switches to `block`, labeling it at `label_span` when it is placed for the first time.
+    fn place_block(&mut self, block: BlockId, label_span: Option<Span>) {
+        let previous = label_span.map(|span| self.builder.replace_source_span(span));
+        self.builder.switch_to_block(block);
+        if let Some(previous) = previous {
+            self.builder.replace_source_span(previous);
+        }
     }
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {

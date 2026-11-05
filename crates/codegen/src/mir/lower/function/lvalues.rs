@@ -312,7 +312,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if self.in_inline_assembly {
             let ty = self.cx.gcx.type_of_item(id.into());
-            self.assembly_writes_memory |= ty.is_ref_at(DataLocation::Memory);
+            if ty.is_ref_at(DataLocation::Memory) {
+                self.assembly_writes_memory = true;
+                // ptr = inttoptr word to ptr<memory>
+                if self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
+                {
+                    value = self.builder.cast(value, MirType::MEMPTR);
+                }
+            } else if self.builder.func().value_ty(value) == Some(MirType::MEMPTR) {
+                // word = ptrtoint ptr<memory>
+                value = self.builder.cast_word(value);
+            }
             if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
                 && ty.is_ref_at(DataLocation::Calldata)
             {
@@ -448,6 +458,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<()> {
+        // A suffix holds a word, so a memory reference assigned to it is its address.
+        let value = if self.builder.func().value_ty(value) == Some(MirType::MEMPTR) {
+            self.builder.cast_word(value)
+        } else {
+            value
+        };
         let value = match suffix {
             YulSuffix::StorageSlot if self.cx.gcx.hir.variable(id).is_state_variable() => {
                 return self.cx.report_unsupported(span, "Yul state-variable slot assignment");

@@ -11,7 +11,7 @@ use crate::{Callee, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
 use solar_config::RevertStrings;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::Span;
 use solar_ir::link::LibraryId;
 
@@ -81,6 +81,8 @@ pub struct FunctionBuilder<'a> {
     /// How compiler-generated reverts with a [`RevertReason`] are encoded.
     revert_strings: RevertStrings,
     semantic: bool,
+    /// The blocks the builder has switched to, when it records block label origins.
+    placed_blocks: Option<GrowableBitSet<BlockId>>,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -107,12 +109,25 @@ impl<'a> FunctionBuilder<'a> {
             current_debug_context: InstructionMetadata::EMPTY,
             revert_strings: RevertStrings::Default,
             semantic: false,
+            placed_blocks: None,
         }
     }
 
     /// Builds semantic MIR without expanding checks into control flow.
     pub fn new_semantic(func: &'a mut Function) -> Self {
         Self { semantic: true, ..Self::new(func) }
+    }
+
+    /// Records the origin of each block's label, as solc gives a tag the location active where it
+    /// is placed: the first switch to a block sets its [`crate::BasicBlock::label_metadata`] to the
+    /// current debug context. Rewrites do not ask for this, so the blocks they create start empty.
+    ///
+    /// The entry block is placed from the start; [`Self::set_entry_label_span`] labels it.
+    pub fn with_block_labels(mut self) -> Self {
+        let mut placed = GrowableBitSet::new_empty();
+        placed.insert(BlockId::ENTRY);
+        self.placed_blocks = Some(placed);
+        self
     }
 
     /// Selects how compiler-generated reverts with a [`RevertReason`] are encoded.
@@ -173,6 +188,16 @@ impl<'a> FunctionBuilder<'a> {
     /// of the instruction or terminator they replace after switching blocks.
     pub fn switch_to_block(&mut self, block: BlockId) {
         self.current_block = block;
+        if let Some(placed) = &mut self.placed_blocks
+            && placed.insert(block)
+        {
+            self.func.blocks[block].label_metadata.copy_debug_context(&self.current_debug_context);
+        }
+    }
+
+    /// Sets the label origin of the entry block, which is placed without a switch.
+    pub fn set_entry_label_span(&mut self, span: Span) {
+        self.func.blocks[BlockId::ENTRY].label_metadata.set_debug_source_span(Some(span));
     }
 
     /// Creates a new basic block for the code the current block reaches, so it keeps the current
