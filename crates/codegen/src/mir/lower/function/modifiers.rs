@@ -170,7 +170,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(contract_id) = contract_id {
             self.lower_state_initializers(contract_id)?;
         }
-         self.lower_function_body(constructor.modifiers, body, constructor.span)?;
+        self.lower_function_body(constructor.modifiers, body, constructor.span)?;
         if !self.is_terminated() {
             self.record_return_state();
             // jump continuation !metadata(base constructor definition)
