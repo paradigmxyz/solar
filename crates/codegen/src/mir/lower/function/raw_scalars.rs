@@ -35,9 +35,9 @@
 //! Outside blocks, only copies and pointer edges carry such words, so a
 //! pointer that Solidity code masks or shifts into a different type before
 //! assembly stores it is not tracked, nor is a word that assembly loads from
-//! an address and stores elsewhere, including by a call to the identity
-//! precompile or `returndatacopy`, or a pointer that a retyped call hands to a
-//! function that stores it.
+//! an address and stores elsewhere, or a pointer that a retyped call hands to a
+//! function that stores it. The input of an assembly call counts as stored, for
+//! the identity precompile.
 
 use super::*;
 use smallvec::SmallVec;
@@ -90,6 +90,21 @@ fn assembly_bindings(gcx: Gcx<'_>, expr: &hir::Expr<'_>, out: &mut Vec<VariableI
             }
         }
         _ => {}
+    }
+}
+
+/// Returns the operand of an assembly builtin whose words it writes to memory or storage, or
+/// copies through a call, such as the input of the identity precompile.
+fn stored_operand(builtin: Builtin) -> Option<usize> {
+    match builtin {
+        Builtin::YulMstore
+        | Builtin::YulMstore8
+        | Builtin::YulSstore
+        | Builtin::YulTstore
+        | Builtin::YulMcopy => Some(1),
+        Builtin::YulDelegatecall | Builtin::YulStaticcall => Some(2),
+        Builtin::YulCall | Builtin::YulCallcode => Some(3),
+        _ => None,
     }
 }
 
@@ -480,17 +495,9 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                 self.raw.insert(id);
                 block.bindings.push(id);
             } else if let ExprKind::Call(callee, args) = expr.kind
-                && matches!(
-                    self.gcx.resolved_builtin(callee),
-                    Some(
-                        Builtin::YulMstore
-                            | Builtin::YulMstore8
-                            | Builtin::YulSstore
-                            | Builtin::YulTstore
-                            | Builtin::YulMcopy
-                    )
-                )
-                && let Some(value) = args.exprs().nth(1)
+                && let Some(builtin) = self.gcx.resolved_builtin(callee)
+                && let Some(operand) = stored_operand(builtin)
+                && let Some(value) = args.exprs().nth(operand)
             {
                 assembly_bindings(self.gcx, value, &mut self.stored);
             } else if let ExprKind::Assign(target, ..) = expr.kind {
