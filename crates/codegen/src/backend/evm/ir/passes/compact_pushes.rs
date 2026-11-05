@@ -250,7 +250,7 @@ fn materialize(
             ImmediateMaterializationOp::Push(value) => Instruction::push_value(value),
             ImmediateMaterializationOp::Opcode(opcode) => Instruction::opcode(opcode),
         };
-        instructions.push(replacement.with_source_debug(source));
+        instructions.push(replacement.with_debug_loc(source));
     });
 }
 
