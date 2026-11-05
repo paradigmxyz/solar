@@ -1,0 +1,22 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/lent_invoke_opaque_use.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/lent_invoke_opaque_use.evmir (after cfg-simplify) ===
+  @module LentInvokeOpaqueUse
+  bb0:
+    push bb1
+    push 0
+    mstore
+    push 0
+    calldataload
+    jumpi bb1, bb2 !metadata(span=10..20)
+- bb1 [lent_invoke=callee@30..50]:
++ bb1:
+    push 1
+    push 0
+    mstore
+    stop
+  bb2 [lent_invoke=independent@80..120]:
+    push 2
+    push 0
+    mstore
+    stop
+  

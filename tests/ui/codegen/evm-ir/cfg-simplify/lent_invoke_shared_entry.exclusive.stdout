@@ -1,6 +1,6 @@
-- ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/checkpoint_shared_entry.evmir (before cfg-simplify) ===
-+ ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/checkpoint_shared_entry.evmir (after cfg-simplify) ===
-  @module CheckpointSharedEntry
+- ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/lent_invoke_shared_entry.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/cfg-simplify/lent_invoke_shared_entry.evmir (after cfg-simplify) ===
+  @module LentInvokeSharedEntry
   bb0:
     calldatasize
 -   jumpi bb1, bb2 !metadata(span=10..20)
