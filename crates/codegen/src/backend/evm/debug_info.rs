@@ -26,7 +26,7 @@ use solar_data_structures::{
 use solar_interface::{BytePos, Span};
 use std::iter::FusedIterator;
 
-pub use solar_evmir::debug::{DebugFunction, DebugFunctionExit, DebugSpans, MAX_DEBUG_SPANS};
+pub use solar_evmir::debug::{DebugFunction, DebugFunctionExit, DebugSpans};
 
 /// Source location state shared by a run of instructions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

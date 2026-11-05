@@ -22,7 +22,7 @@
         "evm": {
           "bytecode": {
             "object": "34600d5760a78060115f395ff35b5f5ffd346038575f3560e01c80631118b879146088578063a444f5e903603857602436106038576004355f5b60088110603c575f545f5260205ff35b5f5ffd5b8082146081578082146081575f5460010180156095575f55805f52816020527fb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc60405fa15b6001016028565b5f5b60019015608a575f5ffd5b6011602052634e487b715f526024601cfd",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;"
+            "sourceMap": ":::-:0;;;633:21:0;;;;;;;-1:-1:-1;;;"
           },
           "deployedBytecode": {
             "object": "346038575f3560e01c80631118b879146088578063a444f5e903603857602436106038576004355f5b60088110603c575f545f5260205ff35b5f5ffd5b8082146081578082146081575f5460010180156095575f55805f52816020527fb8ead7a4312aee6b04435df614582e3bfceaa60789e94048bd5ec0c5f0ddbecc60405fa15b6001016028565b5f5b60019015608a575f5ffd5b6011602052634e487b715f526024601cfd",
@@ -80,12 +80,34 @@
                     "arguments": [
                       "0xa7"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 655,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 6,
                   "operation": {
                     "mnemonic": "DUP1"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 655,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -95,30 +117,85 @@
                     "arguments": [
                       "0x11"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 655,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 9,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 655,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 10,
                   "operation": {
                     "mnemonic": "CODECOPY"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 655,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 11,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 655,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 12,
                   "operation": {
                     "mnemonic": "RETURN"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 655,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {

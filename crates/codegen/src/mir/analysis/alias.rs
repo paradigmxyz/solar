@@ -397,6 +397,10 @@ impl ModRef {
         aa: &AliasAnalysis,
         args: &[ValueId],
     ) {
+        // A creation-only caller reaches the staging stores through the callee's immutable reads.
+        if func.attributes.creation_only && summary.reads(AddressSpace::Immutable) {
+            self.read_any(AddressSpace::Memory);
+        }
         for space in AddressSpace::ALL {
             for write in [false, true] {
                 if !(if write { summary.writes(space) } else { summary.reads(space) }) {
@@ -1486,6 +1490,10 @@ impl AliasAnalysis {
             }
             InstKind::LoadImmutable(id) => {
                 effects.read(Access::Location(Location::Immutable(id)));
+                // Creation code loads the staging word that `lower-immutables` stores to.
+                if func.attributes.creation_only {
+                    effects.read_any(AddressSpace::Memory);
+                }
             }
             InstKind::StoreImmutable(id, _) => {
                 effects.write(Access::Location(Location::Immutable(id)));

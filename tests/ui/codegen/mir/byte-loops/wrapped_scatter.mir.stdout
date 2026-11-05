@@ -44,14 +44,13 @@ fn @scatter(arg0: ptr<memory>, arg1: i256, arg2: i256, arg3: i256, arg4: i256) -
     v1 = ne arg4, 0
     jumpi v1, bb1, bb2
   bb2:                                            ; preds = bb0
-    v2 = ptrtoint ptr<memory> arg0 to i256
     jump bb3
   bb1:                                            ; preds = bb0
+    v2 = inttoptr i256 arg4 to ptr<memory>
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v3 = phi [bb1: arg4], [bb2: v2]
-    v4 = inttoptr i256 v3 to ptr<memory>
-    icall @_scatter, v4, arg1, arg2, arg3
+    v3 = phi [bb1: v2], [bb2: arg0]
+    icall @_scatter, v3, arg1, arg2, arg3
     ret true
 }
 

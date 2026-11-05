@@ -359,15 +359,14 @@ impl RunState {
                     for instruction in &mut tail.instructions {
                         instruction.metadata.take_function_invoke();
                     }
-                    for site in sites.iter().filter(|site| site.common >= common) {
-                        let site_instructions = &module.blocks[site.block].instructions;
-                        let site_segment = &site_instructions[site_instructions.len() - common
-                            ..site_instructions.len() - previous_common];
-                        for (instruction, site_instruction) in
-                            tail.instructions.iter_mut().zip(site_segment)
-                        {
-                            instruction.metadata.merge_source_spans(&site_instruction.metadata);
-                        }
+                    for (index, instruction) in tail.instructions.iter_mut().enumerate() {
+                        instruction.metadata.merge_source_spans_from(
+                            sites.iter().filter(|site| site.common >= common).map(|site| {
+                                let site_instructions = &module.blocks[site.block].instructions;
+                                &site_instructions[site_instructions.len() - common + index]
+                                    .metadata
+                            }),
+                        );
                     }
                 }
                 tail.terminator = tails.last().map_or_else(
@@ -383,11 +382,13 @@ impl RunState {
                     && let Some(tail_terminator) = &mut tail.terminator
                 {
                     tail_terminator.metadata.take_function_invoke();
-                    for site in sites.iter().filter(|site| site.common >= common) {
-                        if let Some(site_terminator) = &module.blocks[site.block].terminator {
-                            tail_terminator.metadata.merge_source_spans(&site_terminator.metadata);
-                        }
-                    }
+                    tail_terminator.metadata.merge_source_spans_from(
+                        sites
+                            .iter()
+                            .filter(|site| site.common >= common)
+                            .filter_map(|site| module.blocks[site.block].terminator.as_ref())
+                            .map(|terminator| &terminator.metadata),
+                    );
                 }
                 // whole_body: suffix => whole_body: shared_suffix
                 // Shared entries drop path-specific invocation events.

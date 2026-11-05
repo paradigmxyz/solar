@@ -297,14 +297,6 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.define_label(label);
                 self.mark_block_label_origin(label, func, block);
             }
-            if self.capture_debug_info {
-                let depth = func.blocks[block]
-                    .instructions
-                    .first()
-                    .map(|&inst| func.inst(inst).metadata.modifier_depth())
-                    .unwrap_or(0);
-                self.asm.set_modifier_depth(depth);
-            }
             self.emit_stackified_block(
                 func_id,
                 func,
@@ -353,6 +345,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
         let cold = self.block_code_is_cold(func, block);
+        self.set_insertion_origin(func, block, body);
         for step in body {
             self.emit_stackified_step(func_id, func, step, cold);
         }
@@ -532,6 +525,27 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::MSTORE);
             }
         }
+    }
+
+    /// Attributes the code that precedes the first instruction that `steps` begin to that
+    /// instruction, or else to the block's terminator.
+    ///
+    /// Scheduler code, such as the pops that clean the stack at the start of a block, belongs to no
+    /// instruction of its own. It takes the location of the instruction it precedes, as rustc's
+    /// `MirPatch::source_info_for_index` gives inserted code the source info of the statement it
+    /// goes before, and LLVM puts a spill or copy at `findDebugLoc` of its insertion point.
+    fn set_insertion_origin(&mut self, func: &Function, block: BlockId, steps: &[Step]) {
+        if !self.capture_debug_info {
+            return;
+        }
+        let next = steps.iter().find_map(|step| match step {
+            Step::Begin(Some(inst)) => Some(&func.inst(*inst).metadata),
+            _ => None,
+        });
+        let metadata = next.unwrap_or(&func.blocks[block].terminator_metadata);
+        self.asm.set_source_spans(metadata.source_spans());
+        self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
+        self.asm.set_modifier_depth(metadata.modifier_depth());
     }
 
     /// Attributes the code that follows to the block's terminator.
