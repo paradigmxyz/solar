@@ -22,7 +22,7 @@ pub struct MultiByteChar {
 ///
 /// This is used as the key in the source map. See
 /// [`SourceMap::get_file`](crate::SourceMap::get_file).
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FileName {
     /// Files from the file system.
     Real(PathBuf),
@@ -123,13 +123,29 @@ impl FileName {
             _ => None,
         }
     }
+}
 
-    /// Compares the source unit names of two file names by their raw bytes, like solc's ordered
-    /// `m_sources` map. The names are those of [`FileName::display`], including `<stdin>` and
-    /// `<custom>`.
-    pub fn cmp_source_unit_name(&self, other: &Self) -> Ordering {
-        let roots = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.roots()))
-            .unwrap_or_else(|| arc_swap::Guard::from_inner(None));
+/// Orders file names by the raw bytes of their source unit names, like solc's ordered
+/// `m_sources` map. The names are those of [`FileName::display`], including `<stdin>` and
+/// `<custom>`. Names that are equal in this order are ordered by their path or string, to agree
+/// with `Eq`.
+impl Ord for FileName {
+    fn cmp(&self, other: &Self) -> Ordering {
+        #[derive(PartialEq, Eq, PartialOrd, Ord)]
+        enum Key<'a> {
+            Real(&'a Path),
+            Stdin,
+            Custom(&'a str),
+        }
+
+        fn key(name: &FileName) -> Key<'_> {
+            match name {
+                FileName::Real(path) => Key::Real(path),
+                FileName::Stdin => Key::Stdin,
+                FileName::Custom(s) => Key::Custom(s),
+            }
+        }
+
         fn bytes<'a>(name: &'a FileName, roots: Option<&SourceRoots>) -> [&'a [u8]; 3] {
             match name {
                 FileName::Real(path) => {
@@ -140,9 +156,18 @@ impl FileName {
                 FileName::Custom(s) => [b"<", s.as_bytes(), b">"],
             }
         }
+
+        let roots = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.roots()))
+            .unwrap_or_else(|| arc_swap::Guard::from_inner(None));
         let roots = roots.as_deref();
         let flat = |name| bytes(name, roots).into_iter().flatten();
-        flat(self).cmp(flat(other))
+        flat(self).cmp(flat(other)).then_with(|| key(self).cmp(&key(other)))
+    }
+}
+
+impl PartialOrd for FileName {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
