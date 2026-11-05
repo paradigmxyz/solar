@@ -537,7 +537,7 @@ impl LowerAbiCx {
             let mut builder = self.wrapper_builder(func);
             builder.switch_to_block(block_id);
             // abi_encode(values) !metadata(declaration span)
-            // returndata(encoded_ptr, encoded_len) !metadata(declaration span)
+            // returndata(encoded_ptr, encoded_len) !metadata(return span)
             set_return_packing_origin(&mut builder, block_id, declaration);
             let values = values
                 .into_iter()
@@ -598,6 +598,7 @@ impl LowerAbiCx {
                 let encoded = builder.abi_encode_scratch(layout.clone(), None, values);
                 let offset = builder.slice_ptr(encoded);
                 let size = builder.slice_len(encoded);
+                builder.inherit_terminator_debug_context(block_id);
                 builder.ret_data(offset, size);
             } else {
                 // A result that fits below the heap start never reaches the spill area.
@@ -613,6 +614,7 @@ impl LowerAbiCx {
                     &layout.types,
                     offset,
                 );
+                builder.inherit_terminator_debug_context(block_id);
                 builder.ret_data(offset, size);
             }
         }
@@ -1228,7 +1230,7 @@ impl LowerAbiCx {
         crate::mir::utils::replace_terminator(func, block, Terminator::Invalid);
         func.blocks[block].terminator = None;
         let declaration = func.declaration_span;
-        let mut builder = FunctionBuilder::new(func).with_block_labels();
+        let mut builder = FunctionBuilder::new(func);
         // The call maps to the wrapped declaration, as solc jumps into the function under its
         // location setter.
         builder.replace_source_span(declaration);
@@ -1285,9 +1287,10 @@ impl LowerAbiCx {
         let mut wrapper = Function::new(Ident::with_dummy_span(original.name.symbol));
         wrapper.name = original.name;
         wrapper.name_span = original.name_span;
+        wrapper.declaration_span = original.declaration_span;
         wrapper.attributes = original.attributes;
         {
-            let mut builder = FunctionBuilder::new(&mut wrapper).with_block_labels();
+            let mut builder = FunctionBuilder::new(&mut wrapper);
             builder.replace_source_span(original.declaration_span);
             builder.set_entry_label_span(original.declaration_span);
             let zero = builder.imm(0);
@@ -3955,7 +3958,7 @@ fn encode_static_bytes_return(
         builder.set_debug_context(&value.debug[2]);
         builder.store(tail_offset, tail);
     }
-    set_return_packing_origin(&mut builder, return_block, declaration);
+    builder.inherit_terminator_debug_context(return_block);
     builder.ret_data(offset, size);
 }
 
@@ -3971,6 +3974,10 @@ fn returns_in_scratch(layout: &AbiLayout) -> bool {
 /// Gives the code that packs the return of `block` the origin of `declaration`, as solc's
 /// `appendReturnValuePacker` runs under the function's location setter. A function without a
 /// declaration, as in parsed MIR, keeps the origin of its return.
+///
+/// NOTE: The final `returndata` keeps the origin of the `return` it replaces, not the
+/// declaration's. solc maps the `return` statement's jump into the packer to the statement, and
+/// that jump does not exist here, so the terminator is the only code left to carry the statement.
 fn set_return_packing_origin(builder: &mut FunctionBuilder<'_>, block: BlockId, declaration: Span) {
     if declaration.is_dummy() {
         builder.inherit_terminator_debug_context(block);
