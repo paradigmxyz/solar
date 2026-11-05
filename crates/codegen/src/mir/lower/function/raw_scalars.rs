@@ -639,16 +639,18 @@ impl LoweringState {
                 break;
             }
         }
-        // A retyped pointer passes an enum parameter any word, and solc checks the word where the
-        // function reads the enum, not on entry, so the parameter is a raw carrier.
-        let enum_parameters = exposed
+        // A retyped pointer passes a parameter any word, and solc cleans it, or checks an enum,
+        // where the function reads it, not on entry, so the parameter is a raw carrier.
+        let parameters = exposed
             .iter()
             .flat_map(|&function| gcx.hir.function(function).parameters)
             .copied()
-            .filter(|&id| matches!(gcx.type_of_item(id.into()).kind, TyKind::Enum(_)))
+            .filter(|&id| {
+                types::TypeLowerer::mir_type(gcx.type_of_item(id.into())).integer_bits().is_some()
+            })
             .collect::<Vec<_>>();
-        exposure.raw.extend(&enum_parameters);
-        exposure.close_raw(enum_parameters);
+        exposure.raw.extend(&parameters);
+        exposure.close_raw(parameters);
         // A retyped pointer returns any word, and a binding that receives it keeps the word
         // as it is, as via-IR copies it.
         let results = exposure
