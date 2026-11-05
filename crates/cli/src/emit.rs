@@ -15,7 +15,7 @@ use solar_codegen::{
 };
 use solar_config::{CompilerOutput, Dump, DumpKind};
 use solar_data_structures::map::FxHashMap;
-use solar_interface::Result;
+use solar_interface::{Result, diagnostics::SolcErrorKind};
 use solar_sema::{CompilerRef, Gcx, hir::ContractId};
 use std::{
     collections::BTreeMap,
@@ -67,6 +67,7 @@ pub(crate) fn emit_requested(
     capture_debug_info: ContractSelection,
 ) -> Result<Option<FxHashMap<ContractId, ContractArtifact>>> {
     let gcx = compiler.gcx();
+    gcx.dcx().set_default_solc_error_kind(Some(SolcErrorKind::CodeGenerationError));
     if !gcx.sess.opts.language.is_source() {
         emit_ir_input(gcx)?;
         return Ok(None);

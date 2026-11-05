@@ -7,7 +7,7 @@
         "end": 118
       },
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "DeclarationError",
       "component": "general",
       "severity": "error",
       "errorCode": "7576",
@@ -21,7 +21,7 @@
         "end": 68
       },
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "TypeError",
       "component": "general",
       "severity": "error",
       "errorCode": null,
@@ -35,7 +35,7 @@
         "end": 78
       },
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "TypeError",
       "component": "general",
       "severity": "error",
       "errorCode": null,

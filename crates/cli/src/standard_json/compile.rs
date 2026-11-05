@@ -24,7 +24,7 @@ use solar_config::{
 use solar_data_structures::map::{FxHashMap, FxIndexMap};
 use solar_interface::{
     SourceMap,
-    diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
+    diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic, SolcErrorKind},
     source_map::FileLoader,
 };
 use solar_sema::{Gcx, hir::ContractId};
@@ -77,7 +77,9 @@ pub fn compile_standard_json(
             );
         }
         Err(e) => {
-            dcx.err(format!("JSON parse error: {e}")).emit();
+            dcx.err(format!("JSON parse error: {e}"))
+                .set_solc_error_kind(SolcErrorKind::JSONError)
+                .emit();
         }
     }
 
@@ -166,6 +168,7 @@ fn apply_debug_settings(dcx: &DiagCtxt, opts: &mut CompileOpts, debug: &DebugSet
             dcx.err(
                 "only `default`, `strip` and `debug` are implemented for `settings.debug.revertStrings` for now",
             )
+            .set_solc_error_kind(SolcErrorKind::JSONError)
             .emit();
         }
         Some(revert_strings) => opts.revert_strings = revert_strings,
@@ -178,12 +181,14 @@ fn apply_debug_settings(dcx: &DiagCtxt, opts: &mut CompileOpts, debug: &DebugSet
         && !debug.selects_debug_info(DebugInfoComponent::Location)
     {
         dcx.err("to use `snippet` with `settings.debug.debugInfo` you must also select `location`")
+            .set_solc_error_kind(SolcErrorKind::JSONError)
             .emit();
     }
     if debug.selects_debug_info(DebugInfoComponent::Ethdebug)
         && !debug.selects_debug_info(DebugInfoComponent::AstId)
     {
         dcx.err("to use `ethdebug` with `settings.debug.debugInfo` you must also select `ast-id`")
+            .set_solc_error_kind(SolcErrorKind::JSONError)
             .emit();
     }
 }
@@ -213,6 +218,7 @@ fn compile(
         solar,
     } = &settings;
 
+    dcx.set_default_solc_error_kind(Some(SolcErrorKind::JSONError));
     if !metadata.append_cbor
         && metadata.bytecode_hash.is_explicit
         && metadata.bytecode_hash.value != MetadataHash::None

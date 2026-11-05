@@ -7,7 +7,7 @@
         "end": 37
       },
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "ParserError",
       "component": "general",
       "severity": "error",
       "errorCode": null,
@@ -21,7 +21,7 @@
         "end": 39
       },
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "ParserError",
       "component": "general",
       "severity": "error",
       "errorCode": null,

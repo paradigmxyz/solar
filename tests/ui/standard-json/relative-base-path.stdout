@@ -7,7 +7,7 @@
         "end": 20
       },
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "IOError",
       "component": "general",
       "severity": "error",
       "errorCode": null,

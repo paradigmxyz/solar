@@ -35,6 +35,9 @@ pub use emitter::{
 mod message;
 pub use message::{DiagMsg, MultiSpan, SpanLabel};
 
+mod solc_error_kind;
+pub use solc_error_kind::SolcErrorKind;
+
 /// Represents all the diagnostics emitted up to a certain point.
 ///
 /// Returned by [`DiagCtxt::emitted_diagnostics`].
@@ -652,6 +655,8 @@ pub struct Diag {
     pub children: Vec<SubDiagnostic>,
     pub code: Option<DiagId>,
     pub suggestions: Suggestions,
+    /// Solc Standard/JSON `errors[].type` when known.
+    pub solc_error_kind: Option<SolcErrorKind>,
 
     pub created_at: &'static Location<'static>,
 }
@@ -685,6 +690,7 @@ impl Diag {
             span: MultiSpan::new(),
             children: vec![],
             suggestions: Suggestions::default(),
+            solc_error_kind: None,
             // args: Default::default(),
             // sort_span: DUMMY_SP,
             // is_lint: false,
@@ -729,6 +735,12 @@ impl Diag {
         self.code.as_ref().map(|code| code.as_str())
     }
 
+    /// Returns the solc Standard/JSON error kind, if set.
+    #[inline]
+    pub fn solc_error_kind(&self) -> Option<SolcErrorKind> {
+        self.solc_error_kind
+    }
+
     /// Fields used for `PartialEq` and `Hash` implementations.
     fn keys(&self) -> impl PartialEq + Hash {
         (
@@ -738,6 +750,7 @@ impl Diag {
             &self.span,
             &self.children,
             &self.suggestions,
+            &self.solc_error_kind,
             // self.args().collect(),
             // omit self.sort_span
             // &self.is_lint,
@@ -757,6 +770,12 @@ impl Diag {
     /// Sets the code of this diagnostic.
     pub fn code(&mut self, code: impl Into<DiagId>) -> &mut Self {
         self.code = Some(code.into());
+        self
+    }
+
+    /// Sets the solc Standard/JSON error kind of this diagnostic.
+    pub fn set_solc_error_kind(&mut self, kind: SolcErrorKind) -> &mut Self {
+        self.solc_error_kind = Some(kind);
         self
     }
 

@@ -22,6 +22,9 @@ impl fmt::Display for SolcError {
     }
 }
 
+/// Solc Standard/JSON `errors[].type` vocabulary.
+///
+/// Keep in sync with `solar_interface::diagnostics::SolcErrorKind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SolcErrorKind {
     Info,

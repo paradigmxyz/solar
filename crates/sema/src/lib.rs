@@ -16,6 +16,7 @@ use solar_data_structures::map::FxHashMap;
 use solar_interface::{
     BytePos, Result, Session,
     config::{CompilerStage, DumpKind},
+    diagnostics::SolcErrorKind,
 };
 use std::ops::ControlFlow;
 
@@ -95,11 +96,13 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     compiler.gcx_mut().sources.topo_sort();
 
     debug_span!("all_ast_passes").in_scope(|| {
+        gcx.dcx().set_default_solc_error_kind(Some(SolcErrorKind::SyntaxError));
         gcx.dcx().par_for_each(gcx.sources.par_asts(), |ast| {
             ast_passes::run(gcx.sess, ast);
         });
     });
 
+    gcx.dcx().set_default_solc_error_kind(Some(SolcErrorKind::DeclarationError));
     ast_lowering::lower(compiler.gcx_mut());
 
     Ok(ControlFlow::Continue(()))
@@ -126,6 +129,7 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     }
 
     // Lower HIR types.
+    gcx.dcx().set_default_solc_error_kind(Some(SolcErrorKind::TypeError));
     debug_span!("item_types").in_scope(|| {
         let dcx = gcx.dcx();
         let (_, mut diagnostics) = dcx.par_defer(gcx.hir.par_item_ids(), |id| {

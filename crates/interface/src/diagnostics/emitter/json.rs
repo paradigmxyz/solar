@@ -276,7 +276,10 @@ impl JsonEmitter {
                 Severity::Error => match diagnostic.level {
                     Level::Bug => "InternalCompilerError",
                     Level::Fatal => "FatalError",
-                    Level::Error => "Exception",
+                    Level::Error => match diagnostic.solc_error_kind() {
+                        Some(kind) => kind.as_str(),
+                        None => "Exception",
+                    },
                     _ => unreachable!(),
                 },
                 Severity::Warning => "Warning",
@@ -533,6 +536,19 @@ mod tests {
         assert_eq!(span.line_end, 2);
         assert_eq!(span.column_end, 1);
         assert!(span.expansion.is_none());
+    }
+
+    #[test]
+    fn solc_diagnostic_error_type_uses_solc_error_kind() {
+        let source_map = Arc::new(SourceMap::empty());
+        let mut emitter = JsonEmitter::new(Box::new(io::sink()), source_map, ColorChoice::Never);
+
+        let mut with_kind = crate::diagnostics::Diag::new(Level::Error, "mismatched types");
+        with_kind.set_solc_error_kind(crate::diagnostics::SolcErrorKind::TypeError);
+        assert_eq!(emitter.solc_diagnostic(&with_kind).r#type, "TypeError");
+
+        let without_kind = crate::diagnostics::Diag::new(Level::Error, "unknown failure");
+        assert_eq!(emitter.solc_diagnostic(&without_kind).r#type, "Exception");
     }
 
     #[test]

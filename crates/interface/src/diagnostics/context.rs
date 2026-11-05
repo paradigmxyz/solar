@@ -5,7 +5,7 @@
 use super::{
     BugAbort, Diag, DiagBuilder, DiagId, DiagMsg, DynEmitter, EmissionGuarantee,
     EmittedDiagnostics, ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, MultiSpan,
-    SilentEmitter, emitter::HumanEmitter,
+    SilentEmitter, SolcErrorKind, emitter::HumanEmitter,
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
@@ -201,6 +201,8 @@ struct DiagCtxtInner {
 
     flags: DiagCtxtFlags,
     allowed_diagnostic_codes: FxHashSet<String>,
+    /// Default solc Standard/JSON error kind stamped onto diagnostics that omit one.
+    default_solc_error_kind: Option<SolcErrorKind>,
 
     /// The number of errors that have been emitted, including duplicates.
     ///
@@ -236,6 +238,7 @@ impl DiagCtxt {
                 emitter,
                 flags: DiagCtxtFlags::default(),
                 allowed_diagnostic_codes: FxHashSet::default(),
+                default_solc_error_kind: None,
                 err_count: 0,
                 deduplicated_err_count: 0,
                 warn_count: 0,
@@ -395,6 +398,16 @@ impl DiagCtxt {
     /// Adds diagnostic codes that should be allowed.
     pub fn set_allowed_diagnostic_codes_mut(&mut self, codes: impl IntoIterator<Item = String>) {
         self.set_allowed_diagnostic_codes(codes);
+    }
+
+    /// Returns the default solc Standard/JSON error kind stamped onto new diagnostics.
+    pub fn default_solc_error_kind(&self) -> Option<SolcErrorKind> {
+        self.inner.lock().default_solc_error_kind
+    }
+
+    /// Sets the default solc Standard/JSON error kind stamped onto diagnostics that omit one.
+    pub fn set_default_solc_error_kind(&self, kind: Option<SolcErrorKind>) {
+        self.inner.lock().default_solc_error_kind = kind;
     }
 
     /// Disables emitting warnings.
@@ -812,6 +825,12 @@ impl DiagCtxtInner {
         diagnostic: &mut Diag,
         deferral: Option<Withholding<'_>>,
     ) -> Result<(), ErrorGuaranteed> {
+        if diagnostic.solc_error_kind.is_none()
+            && let Some(kind) = self.default_solc_error_kind
+        {
+            diagnostic.set_solc_error_kind(kind);
+        }
+
         if self.is_allowed_diagnostic(diagnostic) {
             return Ok(());
         }

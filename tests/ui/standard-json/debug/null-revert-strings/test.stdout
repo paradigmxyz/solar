@@ -3,7 +3,7 @@
     {
       "sourceLocation": null,
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "JSONError",
       "component": "general",
       "severity": "error",
       "errorCode": null,

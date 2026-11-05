@@ -17,7 +17,7 @@
         "end": 19
       },
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "CodeGenerationError",
       "component": "general",
       "severity": "error",
       "errorCode": null,

@@ -10,7 +10,7 @@ use solar_data_structures::{
 use solar_interface::{
     Result, Session,
     config::CompilerStage,
-    diagnostics::{DeferredDiagnostics, DiagCtxt, ErrorGuaranteed},
+    diagnostics::{DeferredDiagnostics, DiagCtxt, ErrorGuaranteed, SolcErrorKind},
     source_map::{FileName, FileResolver, ResolveError, SourceFile},
 };
 use solar_parse::{Lexer, Parser, unescape};
@@ -223,6 +223,7 @@ impl<'gcx> ParsingContext<'gcx> {
     #[instrument(name = "parse", level = "debug", skip_all)]
     fn parse_inner(&mut self) {
         self.parsed = true;
+        self.dcx().set_default_solc_error_kind(Some(SolcErrorKind::ParserError));
         let _ = self.gcx.advance_stage(CompilerStage::Parsing);
 
         let mut sources = std::mem::take(self.sources);
@@ -466,7 +467,8 @@ impl<'gcx> ParsingContext<'gcx> {
         span: Option<Span>,
     ) -> impl FnOnce(ResolveError) -> ErrorGuaranteed {
         move |e| {
-            let mut err = self.dcx().err(e.to_string());
+            let mut err =
+                self.dcx().err(e.to_string()).set_solc_error_kind(SolcErrorKind::IOError);
             if let Some(span) = span {
                 err = err.span(span);
             }

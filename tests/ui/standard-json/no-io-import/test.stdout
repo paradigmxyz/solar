@@ -7,7 +7,7 @@
         "end": 53
       },
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "IOError",
       "component": "general",
       "severity": "error",
       "errorCode": null,
@@ -21,7 +21,7 @@
         "end": 76
       },
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "DeclarationError",
       "component": "general",
       "severity": "error",
       "errorCode": "7920",

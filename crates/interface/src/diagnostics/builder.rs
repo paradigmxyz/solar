@@ -209,6 +209,7 @@ impl<G: EmissionGuarantee> DiagBuilder<'_, G> {
     forward! {
         pub fn span(span: impl Into<MultiSpan>);
         pub fn code(code: impl Into<DiagId>);
+        pub fn set_solc_error_kind(kind: crate::diagnostics::SolcErrorKind);
         pub fn primary_message(msg: impl Into<DiagMsg>);
 
         pub fn span_label(span: Span, label: impl Into<DiagMsg>);

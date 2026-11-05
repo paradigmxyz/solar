@@ -7,7 +7,7 @@
         "end": 118
       },
       "secondarySourceLocations": [],
-      "type": "Exception",
+      "type": "DeclarationError",
       "component": "general",
       "severity": "error",
       "errorCode": "7576",

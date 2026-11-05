@@ -14,7 +14,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Span,
-    diagnostics::{DeferredDiagnostics, ErrorGuaranteed},
+    diagnostics::{DeferredDiagnostics, ErrorGuaranteed, SolcErrorKind},
     error_code, sym,
 };
 use std::ops::ControlFlow;
@@ -31,6 +31,7 @@ mod view_pure_checker;
 
 #[instrument(name = "typeck", level = "debug", skip_all)]
 pub(crate) fn check(gcx: Gcx<'_>) {
+    gcx.dcx().set_default_solc_error_kind(Some(SolcErrorKind::TypeError));
     let units = units(gcx);
     let dcx = gcx.dcx();
     let mut typeck_results = TypeckResults::default();

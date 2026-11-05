@@ -2,7 +2,7 @@
 // CHECK: "sourceLocation": {
 // CHECK: "file": "Bad.sol"
 // CHECK: "severity": "error"
-// CHECK: "type": "Exception"
+// CHECK: "type": "ParserError"
 // CHECK: "sources": {}
 // CHECK-NOT: "contracts"
 {
