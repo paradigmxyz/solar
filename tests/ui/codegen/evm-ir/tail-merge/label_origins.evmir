@@ -6,9 +6,9 @@ bb0:
   push 1
   jumpi bb1, bb2
 
-// Sharing a whole body rebuilds the representative block but keeps its label, so the label keeps
-// its origin. The other copy keeps its own and jumps to the representative.
-// CHECK-LABEL: {{^[ +].*}}bb1 !metadata(span=10..20):
+// Sharing a whole body rebuilds the representative block but keeps its label, which now carries
+// the origins of both copies. The other copy keeps its own and jumps to the representative.
+// CHECK-LABEL: {{^[ +].*}}bb1 !metadata(spans=[10..20, 30..40]):
 // CHECK: {{^[ +].*}}return
 // CHECK-LABEL: {{^[ +].*}}bb2 !metadata(span=30..40):
 // CHECK: + jump bb1
