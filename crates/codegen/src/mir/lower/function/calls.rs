@@ -175,7 +175,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let (word, length) = self.storage_bytes_first_word(access.slot);
                 return Some(CallResult::Value(self.bytes_prefix(word, length, size)));
             }
-            let value = self.operand(arg)?;
+            let value = self.operand(arg)?.id();
             return Some(CallResult::Value(self.coerce_value(value, source_ty, target_ty)));
         }
         if let ExprKind::New(ty) = &callee.kind {
@@ -390,7 +390,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if arg_exprs.len() != function.parameters.len() {
             return self.cx.report_unsupported(args.span, "external function argument list");
         }
-        let function_value = self.operand(callee)?;
+        let function_value = self.operand(callee)?.id();
         // address, selector = split_function_pointer(function)
         let (address, selector) = self.split_external_function_pointer(function_value);
 
@@ -449,7 +449,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if args.len() != function.parameters.len() {
             return self.cx.report_unsupported(expr.span, "internal function argument list");
         }
-        let function_value = self.operand(callee)?;
+        let function_value = self.operand(callee)?.id();
         let parameter_names = self
             .cx
             .gcx
