@@ -101,8 +101,10 @@ pub(super) fn turn_branches(gcx: Gcx<'_>, module: &mut Module) -> bool {
                     block.instructions.insert(push, iszero);
                 }
                 TurnedTest::Drops => {
+                    // NOTE: The removed `iszero` takes its origins with it; only its function
+                    // events move.
                     let removed = block.instructions.remove(push - 1);
-                    block.instructions[push - 1].metadata.absorb_debug_info(&removed.metadata);
+                    block.instructions[push - 1].metadata.absorb_function_events(&removed.metadata);
                 }
                 TurnedTest::Swaps => {
                     let condition = &mut block.instructions[push - 1];

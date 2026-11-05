@@ -221,10 +221,11 @@ impl Normalizer {
                 .by_ref()
                 .take(normalization.end - normalization.start)
                 .collect::<SmallVec<[_; MAX_STACK_RUN_LEN]>>();
-            // The final instance's folded cycles keep the debug information of the swaps they
-            // replace. Other replacements take the replaced operations' debug information
-            // positionally: a longer output repeats the last original's, and a shorter one
-            // absorbs the leftovers into its last operation.
+            // The final instance's folded cycles take the debug information of the first swap they
+            // replace, and the function events of the others. Other replacements take the replaced
+            // operations' debug information positionally: a longer output repeats the last
+            // original's, and a shorter one takes the leftovers' function events into its last
+            // operation. Leftover origins go with the deleted operations.
             let origins = exchanges
                 .then(|| {
                     let input =
@@ -250,13 +251,13 @@ impl Normalizer {
                     replacement.metadata.mark_debug_info_dropped();
                 }
                 for inst in replaced {
-                    replacement.metadata.absorb_debug_info(&inst.metadata);
+                    replacement.metadata.absorb_function_events(&inst.metadata);
                 }
                 instructions.push(replacement);
             }
             for inst in run {
                 if let Some(last) = instructions.last_mut() {
-                    last.metadata.absorb_debug_info(&inst.metadata);
+                    last.metadata.absorb_function_events(&inst.metadata);
                 }
             }
         }
