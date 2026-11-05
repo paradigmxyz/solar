@@ -722,7 +722,7 @@ with a checksum check.
 Rationale: a literal that is not 40 digits long is a number, and `solar`
 has no reason to guess that the author meant an address.
 
-Coverage: `tests/ui/typeck/hex_literal_39_41_digits.sol`.
+Coverage: `tests/ui/typeck/literals/hex_literal_39_41_digits.sol`.
 
 ## Contract-Level Checks
 
