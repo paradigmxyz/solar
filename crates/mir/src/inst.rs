@@ -300,6 +300,17 @@ impl InstructionMetadata {
     pub fn set_disjoint(&mut self, value: bool) {
         self.flags.set_disjoint(value);
     }
+
+    /// Drops memory facts that a foreign rewrite has not proved for the resulting program.
+    /// Allocation obligations and source context remain semantic requirements, not proofs.
+    pub fn clear_analysis_facts(&mut self) {
+        self.set_memory_region(None);
+        self.set_storage_alias(None);
+        self.set_effect(None);
+        self.flags.0 &= !(MetadataFlags::CHECKED_OBJECT_OFFSET
+            | MetadataFlags::ALLOC_PTR
+            | MetadataFlags::DISJOINT);
+    }
 }
 
 /// The origins of shared code after the first, in merge order.
