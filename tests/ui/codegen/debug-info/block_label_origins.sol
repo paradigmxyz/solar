@@ -7,6 +7,7 @@
 // and the internal function. The `for` starts nine bytes after the `if` ends.
 
 // CHECK-LABEL: (scheduled runtime) ===
+// CHECK: bb{{[0-9]+}} [entry, invoke=f@{{[0-9]+..[0-9]+}}]
 // CHECK: bb{{[0-9]+}} !metadata(span={{[0-9]+}}..[[#IF_END:]]):
 // CHECK: bb{{[0-9]+}} [loop] !metadata(span=[[#IF_END + 9]]..{{[0-9]+}}):
 // CHECK: bb{{[0-9]+}} [invoke=helper@[[HELPER:[0-9]+..[0-9]+]], ret=0, inputs=2, outputs=1] !metadata(span=[[HELPER]]):

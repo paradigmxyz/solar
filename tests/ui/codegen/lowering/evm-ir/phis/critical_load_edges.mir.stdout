@@ -1,0 +1,55 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/phis/critical_load_edges.sol:CriticalLoadEdges ===
+@module CriticalLoadEdges
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 17 !metadata(storage=slot(0))
+    ret
+}
+
+; function branch(bool store, bool join, uint256 value) external returns (uint256 result) [selector 0x5b2c5464]
+fn @branch(arg0: i1, arg1: i1, arg2: i256) -> i256 [selector=0x5b2c5464, abi_params=[bool, bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v0 = eq arg1, false
+    jumpi v0, bb4, bb5
+  bb5:                                            ; preds = bb2
+    jump bb6
+  bb6:                                            ; preds = bb5
+    jump bb3
+  bb4:                                            ; preds = bb2
+    ret 99
+  bb1:                                            ; preds = bb0
+    sstore 0, arg2 !metadata(storage=slot(0))
+    jump bb3
+  bb3:                                            ; preds = bb1, bb6
+    v1 = phi [bb1: 3], [bb6: 7]
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = add v2, v1
+    ret v3
+}
+
+; function transientRead(bool store, bool join, uint256 value) external returns (uint256 result) [selector 0xd519425a]
+fn @transientRead(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xd519425a, abi_params=[bool, bool, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    switch arg0, default bb3, [1 => bb2]
+  bb2:                                            ; preds = bb0
+    tstore 5, arg2
+    jump bb1
+  bb3:                                            ; preds = bb0
+    v0 = eq arg1, 0
+    v1 = zext i1 v0 to i256
+    v2 = ne v1, 0
+    jumpi v2, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb6:                                            ; preds = bb5
+    jump bb1
+  bb1:                                            ; preds = bb2, bb6
+    v3 = tload 5
+    ret v3
+  bb4:                                            ; preds = bb3
+    mstore 0, 99 !metadata(memory=scratch)
+    returndata 0, 32
+}
