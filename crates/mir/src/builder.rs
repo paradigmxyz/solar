@@ -386,12 +386,12 @@ impl<'a> FunctionBuilder<'a> {
         calldata_end: ValueId,
         stride: u64,
     ) -> ValueId {
-        // if length > 0xffffffffffffffff { revert }
+        // if length > 0xffffffffffffffff { revert | panic(0x41) for a copy }
         // data = start + data_offset
         // if data >s calldata_end - length * stride { revert }
         let max_length = self.imm(u64::MAX);
         let too_long = self.gt(length, max_length);
-        self.revert_if(too_long, tail.length_reason());
+        self.branch_to_revert(too_long, false, tail.length_kind());
         let size = if stride == 1 {
             length
         } else {
@@ -1033,14 +1033,8 @@ impl<'a> FunctionBuilder<'a> {
         let one = self.imm(1);
         let word_size = self.imm(EvmMemoryLayout::WORD_SIZE);
         let size = if semantics.failure == AllocationFailure::Checked {
-            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE, 0x41
             // size = (length + 1) * WORD_SIZE
-            //
-            // The limit is `2^59 - 1`, a width test. That length passes, but its size `2^64` ends
-            // past the allocation limit, which the checked allocation panics on with the same code.
-            let limit = self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE);
-            let invalid = self.gt(length, limit);
-            self.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
+            self.panic_if_word_array_too_long(length);
             let words = self.add(length, one);
             self.mul(words, word_size)
         } else {
@@ -1051,6 +1045,18 @@ impl<'a> FunctionBuilder<'a> {
         let object = self.alloc(size, semantics);
         self.set_memory_len(object, length);
         (object, layout)
+    }
+
+    /// Reverts with `PanicCode::MemoryAllocationOverflow` when a word array of `length` elements
+    /// cannot be allocated.
+    pub fn panic_if_word_array_too_long(&mut self, length: ValueId) {
+        // panic_if length > MAX_ALLOCATION_END / WORD_SIZE, 0x41
+        //
+        // The limit is `2^59 - 1`, a width test. That length passes, but its size `2^64` ends
+        // past the allocation limit, which the checked allocation panics on with the same code.
+        let limit = self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE);
+        let invalid = self.gt(length, limit);
+        self.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
     }
 
     /// Builds a memory slice of a dynamic memory object's payload, reading its length word.

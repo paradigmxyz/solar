@@ -2,7 +2,7 @@
 //@ filecheck:
 //@ run-call: decoded 0x0102 => 2
 //@ run-call: lengthSet 0x0102, 1 => 1
-//@ run-call-fail: lengthSet 0x0102, 0x10000000000000000
+//@ run-call-fail: lengthSet 0x0102, 0x10000000000000000 => Panic(0x41)
 //@ run-call: offsetSet 0x0102, 0 => 2
 //@ run-call: forwarded 0x0102 => 2
 

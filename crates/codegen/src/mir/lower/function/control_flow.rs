@@ -877,7 +877,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 value
             };
-            let phi = self.merge_value_phi(vec![(preheader, value)]);
+            let phi = self.builder.phi(vec![(preheader, value)]);
             header_values.insert(id, phi);
             header_phis.insert(id, phi);
         }
@@ -983,9 +983,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (&id, &phi) in header_phis {
             let value = state.values.get(&id).copied().unwrap_or(phi);
             self.builder.add_phi_incoming(phi, state.block, value);
-            if self.unchecked_calldata_slices.contains(&value) {
-                self.unchecked_calldata_slices.insert(phi);
-            }
         }
     }
 
@@ -1090,12 +1087,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 match (then_branch.terminated, else_branch.terminated, then_value, else_value) {
                     (true, false, _, value) | (false, true, value, _) => value,
                     (_, _, Some(lhs), Some(rhs)) if lhs == rhs => Some(lhs),
-                    (false, false, Some(lhs), Some(rhs)) => {
-                        Some(self.merge_value_phi(vec![
-                            (then_branch.block, lhs),
-                            (else_branch.block, rhs),
-                        ]))
-                    }
+                    (false, false, Some(lhs), Some(rhs)) => Some(
+                        self.builder.phi(vec![(then_branch.block, lhs), (else_branch.block, rhs)]),
+                    ),
                     _ => then_value.or(else_value),
                 };
             if let Some(value) = value {
@@ -1136,18 +1130,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             [] => None,
             [(_, value)] => Some(*value),
             [(_, first), rest @ ..] if rest.iter().all(|(_, value)| value == first) => Some(*first),
-            _ => Some(self.merge_value_phi(incoming)),
+            _ => Some(self.builder.phi(incoming)),
         }
-    }
-
-    pub(super) fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        let unchecked =
-            incoming.iter().any(|(_, value)| self.unchecked_calldata_slices.contains(value));
-        let value = self.builder.phi(incoming);
-        if unchecked {
-            self.unchecked_calldata_slices.insert(value);
-        }
-        value
     }
 
     pub(super) fn merge_storage_ref_states(

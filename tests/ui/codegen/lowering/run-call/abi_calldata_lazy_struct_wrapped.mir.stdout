@@ -87,7 +87,7 @@ fn @read(arg0: slice<calldata>) -> struct0 [selector=0x171e22c6, pure, abi_param
     v68 = extract_value slice<calldata>, v66, 1
     v69 = calldatasize
     v70 = gt v68, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v70
+    icall panic_if<0x41>, v70
     v71 = sub v69, v68
     v72 = ptrtoint ptr<calldata> v67 to i256
     v73 = slt v71, v72

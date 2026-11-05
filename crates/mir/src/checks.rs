@@ -204,28 +204,32 @@ pub enum CalldataTail {
     Encode,
     /// The ABI decoder's messages, used when a returned calldata value is copied to memory.
     Decode,
+    /// The calldata tail messages, except that a length beyond 64 bits panics with
+    /// `Panic(0x41)`: solc allocates the memory object before it checks the calldata range.
+    Copy,
 }
 
 impl CalldataTail {
     pub const fn offset_reason(self) -> RevertReason {
         match self {
-            Self::Access => RevertReason::InvalidCalldataTailOffset,
+            Self::Access | Self::Copy => RevertReason::InvalidCalldataTailOffset,
             Self::Encode => RevertReason::InvalidCalldataAccessOffset,
             Self::Decode => RevertReason::InvalidCalldataArrayOffset,
         }
     }
 
-    pub(crate) const fn length_reason(self) -> RevertReason {
+    pub(crate) const fn length_kind(self) -> RevertKind {
         match self {
-            Self::Access => RevertReason::InvalidCalldataTailLength,
-            Self::Encode => RevertReason::InvalidCalldataAccessLength,
-            Self::Decode => RevertReason::InvalidCalldataArrayLength,
+            Self::Access => RevertKind::Reason(RevertReason::InvalidCalldataTailLength),
+            Self::Encode => RevertKind::Reason(RevertReason::InvalidCalldataAccessLength),
+            Self::Decode => RevertKind::Reason(RevertReason::InvalidCalldataArrayLength),
+            Self::Copy => RevertKind::Panic(PanicCode::MemoryAllocationOverflow),
         }
     }
 
     pub(crate) const fn stride_reason(self) -> RevertReason {
         match self {
-            Self::Access => RevertReason::CalldataTailTooShort,
+            Self::Access | Self::Copy => RevertReason::CalldataTailTooShort,
             Self::Encode => RevertReason::InvalidCalldataAccessStride,
             Self::Decode => RevertReason::InvalidCalldataArrayStride,
         }

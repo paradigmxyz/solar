@@ -38,7 +38,7 @@ fn @first(arg0: slice<calldata>) -> ptr<memory> [selector=0xcf452bd8, pure, abi_
     v27 = extract_value slice<calldata>, v25, 1
     v28 = calldatasize
     v29 = gt v27, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v29
+    icall panic_if<0x41>, v29
     v30 = sub v28, v27
     v31 = ptrtoint ptr<calldata> v26 to i256
     v32 = slt v30, v31

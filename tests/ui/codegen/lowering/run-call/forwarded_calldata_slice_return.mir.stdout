@@ -39,29 +39,29 @@ fn @delegate(arg0: slice<calldata>) -> struct0 [selector=0x0ccfac9e, pure, abi_p
     v0 = icall @_delegate, arg0
     v1 = extract_value struct1, v0, 0
     v2 = extract_value struct1, v0, 1
-    v3 = extract_value slice<calldata>, v2, 1
-    v4 = add v3, 31
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v6 = add v5, 32
-    v7 = lt v6, v3
-    icall panic_if<0x41>, v7
-    v8 = alloc v6
-    mstore v8, v3
-    v9 = extract_value slice<calldata>, v2, 0
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = extract_value slice<calldata>, v2, 1
+    v5 = calldatasize
+    v6 = gt v4, 0xffffffffffffffff
+    icall panic_if<0x41>, v6
+    v7 = sub v5, v4
+    v8 = ptrtoint ptr<calldata> v3 to i256
+    v9 = slt v7, v8
+    icall revert_if<calldata_tail_too_short>, v9
     v10 = extract_value slice<calldata>, v2, 1
-    v11 = calldatasize
-    v12 = gt v10, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v12
-    v13 = sub v11, v10
-    v14 = ptrtoint ptr<calldata> v9 to i256
-    v15 = slt v13, v14
-    icall revert_if<calldata_tail_too_short>, v15
-    v16 = ptradd v8, 32
+    v11 = add v10, 31
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v13 = add v12, 32
+    v14 = lt v13, v10
+    icall panic_if<0x41>, v14
+    v15 = alloc v13
+    mstore v15, v10
+    v16 = ptradd v15, 32
     v17 = extract_value slice<calldata>, v2, 0
     v18 = extract_value slice<calldata>, v2, 1
     calldatacopy v16, v17, v18
     v19 = insert_value struct0, undef struct0, 0, v1
-    v20 = insert_value struct0, v19, 1, v8
+    v20 = insert_value struct0, v19, 1, v15
     ret v20
 }
 
@@ -72,30 +72,30 @@ fn @single(arg0: slice<calldata>) -> struct2 [selector=0xd61d3fe8, pure, abi_par
     v1 = extract_value struct3, v0, 0
     v2 = extract_value struct3, v0, 1
     v3 = extract_value struct3, v0, 2
-    v4 = extract_value slice<calldata>, v3, 1
-    v5 = add v4, 31
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v7 = add v6, 32
-    v8 = lt v7, v4
-    icall panic_if<0x41>, v8
-    v9 = alloc v7
-    mstore v9, v4
-    v10 = extract_value slice<calldata>, v3, 0
+    v4 = extract_value slice<calldata>, v3, 0
+    v5 = extract_value slice<calldata>, v3, 1
+    v6 = calldatasize
+    v7 = gt v5, 0xffffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = sub v6, v5
+    v9 = ptrtoint ptr<calldata> v4 to i256
+    v10 = slt v8, v9
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = extract_value slice<calldata>, v3, 1
-    v12 = calldatasize
-    v13 = gt v11, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v13
-    v14 = sub v12, v11
-    v15 = ptrtoint ptr<calldata> v10 to i256
-    v16 = slt v14, v15
-    icall revert_if<calldata_tail_too_short>, v16
-    v17 = ptradd v9, 32
+    v12 = add v11, 31
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v13, 32
+    v15 = lt v14, v11
+    icall panic_if<0x41>, v15
+    v16 = alloc v14
+    mstore v16, v11
+    v17 = ptradd v16, 32
     v18 = extract_value slice<calldata>, v3, 0
     v19 = extract_value slice<calldata>, v3, 1
     calldatacopy v17, v18, v19
     v20 = insert_value struct2, undef struct2, 0, v1
     v21 = insert_value struct2, v20, 1, v2
-    v22 = insert_value struct2, v21, 2, v9
+    v22 = insert_value struct2, v21, 2, v16
     ret v22
 }
 
@@ -106,30 +106,30 @@ fn @nested(arg0: slice<calldata>) -> struct2 [selector=0xb26b18a9, pure, abi_par
     v1 = extract_value struct3, v0, 0
     v2 = extract_value struct3, v0, 1
     v3 = extract_value struct3, v0, 2
-    v4 = extract_value slice<calldata>, v3, 1
-    v5 = add v4, 31
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v7 = add v6, 32
-    v8 = lt v7, v4
-    icall panic_if<0x41>, v8
-    v9 = alloc v7
-    mstore v9, v4
-    v10 = extract_value slice<calldata>, v3, 0
+    v4 = extract_value slice<calldata>, v3, 0
+    v5 = extract_value slice<calldata>, v3, 1
+    v6 = calldatasize
+    v7 = gt v5, 0xffffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = sub v6, v5
+    v9 = ptrtoint ptr<calldata> v4 to i256
+    v10 = slt v8, v9
+    icall revert_if<calldata_tail_too_short>, v10
     v11 = extract_value slice<calldata>, v3, 1
-    v12 = calldatasize
-    v13 = gt v11, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v13
-    v14 = sub v12, v11
-    v15 = ptrtoint ptr<calldata> v10 to i256
-    v16 = slt v14, v15
-    icall revert_if<calldata_tail_too_short>, v16
-    v17 = ptradd v9, 32
+    v12 = add v11, 31
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v14 = add v13, 32
+    v15 = lt v14, v11
+    icall panic_if<0x41>, v15
+    v16 = alloc v14
+    mstore v16, v11
+    v17 = ptradd v16, 32
     v18 = extract_value slice<calldata>, v3, 0
     v19 = extract_value slice<calldata>, v3, 1
     calldatacopy v17, v18, v19
     v20 = insert_value struct2, undef struct2, 0, v1
     v21 = insert_value struct2, v20, 1, v2
-    v22 = insert_value struct2, v21, 2, v9
+    v22 = insert_value struct2, v21, 2, v16
     ret v22
 }
 
@@ -231,7 +231,7 @@ fn @_splitSlices(arg0: slice<calldata>) -> struct6 [pure] {
     v9 = extract_value slice<calldata>, v7, 1
     v10 = calldatasize
     v11 = gt v9, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v11
+    icall panic_if<0x41>, v11
     v12 = sub v10, v9
     v13 = ptrtoint ptr<calldata> v8 to i256
     v14 = slt v12, v13
@@ -262,7 +262,7 @@ fn @_splitSlices(arg0: slice<calldata>) -> struct6 [pure] {
     v34 = extract_value slice<calldata>, v32, 1
     v35 = calldatasize
     v36 = gt v34, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v36
+    icall panic_if<0x41>, v36
     v37 = sub v35, v34
     v38 = ptrtoint ptr<calldata> v33 to i256
     v39 = slt v37, v38

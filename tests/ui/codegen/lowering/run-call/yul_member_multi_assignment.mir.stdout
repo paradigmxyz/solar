@@ -61,30 +61,30 @@ fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi
     v10 = extract_value slice<calldata>, v9, 1
     v11 = inttoptr i256 v5 to ptr<calldata>
     v12 = make_calldata_slice v11, v10
-    v13 = extract_value slice<calldata>, v12, 1
-    v14 = add v13, 31
-    v15 = and v14, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v16 = add v15, 32
-    v17 = lt v16, v13
-    icall panic_if<0x41>, v17
-    v18 = alloc v16
-    mstore v18, v13
-    v19 = extract_value slice<calldata>, v12, 0
+    v13 = extract_value slice<calldata>, v12, 0
+    v14 = extract_value slice<calldata>, v12, 1
+    v15 = calldatasize
+    v16 = gt v14, 0xffffffffffffffff
+    icall panic_if<0x41>, v16
+    v17 = sub v15, v14
+    v18 = ptrtoint ptr<calldata> v13 to i256
+    v19 = slt v17, v18
+    icall revert_if<calldata_tail_too_short>, v19
     v20 = extract_value slice<calldata>, v12, 1
-    v21 = calldatasize
-    v22 = gt v20, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v22
-    v23 = sub v21, v20
-    v24 = ptrtoint ptr<calldata> v19 to i256
-    v25 = slt v23, v24
-    icall revert_if<calldata_tail_too_short>, v25
-    v26 = ptradd v18, 32
+    v21 = add v20, 31
+    v22 = and v21, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v23 = add v22, 32
+    v24 = lt v23, v20
+    icall panic_if<0x41>, v24
+    v25 = alloc v23
+    mstore v25, v20
+    v26 = ptradd v25, 32
     v27 = extract_value slice<calldata>, v12, 0
     v28 = extract_value slice<calldata>, v12, 1
     calldatacopy v26, v27, v28
     v29 = insert_value struct2, undef struct2, 0, v4
     v30 = insert_value struct2, v29, 1, v7
-    v31 = insert_value struct2, v30, 2, v18
+    v31 = insert_value struct2, v30, 2, v25
     ret v31
 }
 
@@ -103,29 +103,29 @@ fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, ab
     v9 = extract_value slice<calldata>, v8, 1
     v10 = inttoptr i256 v4 to ptr<calldata>
     v11 = make_calldata_slice v10, v9
-    v12 = extract_value slice<calldata>, v11, 1
-    v13 = add v12, 31
-    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v15 = add v14, 32
-    v16 = lt v15, v12
-    icall panic_if<0x41>, v16
-    v17 = alloc v15
-    mstore v17, v12
-    v18 = extract_value slice<calldata>, v11, 0
+    v12 = extract_value slice<calldata>, v11, 0
+    v13 = extract_value slice<calldata>, v11, 1
+    v14 = calldatasize
+    v15 = gt v13, 0xffffffffffffffff
+    icall panic_if<0x41>, v15
+    v16 = sub v14, v13
+    v17 = ptrtoint ptr<calldata> v12 to i256
+    v18 = slt v16, v17
+    icall revert_if<calldata_tail_too_short>, v18
     v19 = extract_value slice<calldata>, v11, 1
-    v20 = calldatasize
-    v21 = gt v19, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v21
-    v22 = sub v20, v19
-    v23 = ptrtoint ptr<calldata> v18 to i256
-    v24 = slt v22, v23
-    icall revert_if<calldata_tail_too_short>, v24
-    v25 = ptradd v17, 32
+    v20 = add v19, 31
+    v21 = and v20, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v22 = add v21, 32
+    v23 = lt v22, v19
+    icall panic_if<0x41>, v23
+    v24 = alloc v22
+    mstore v24, v19
+    v25 = ptradd v24, 32
     v26 = extract_value slice<calldata>, v11, 0
     v27 = extract_value slice<calldata>, v11, 1
     calldatacopy v25, v26, v27
     v28 = insert_value struct4, undef struct4, 0, v5
-    v29 = insert_value struct4, v28, 1, v17
+    v29 = insert_value struct4, v28, 1, v24
     ret v29
 }
 

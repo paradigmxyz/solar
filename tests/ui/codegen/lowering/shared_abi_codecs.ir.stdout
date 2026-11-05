@@ -93,19 +93,20 @@ fn @roundTrip() {
     v176 = shr v175, 5
     v177 = lt v176, v173
     v228 = or v227, v177
-    jumpi v228, bb5, bb28
+    jumpi v228, bb6, bb28
   bb28:                                           ; preds = bb0
     v225 = heap_floor !metadata(alloc_ptr)
     v226 = add v225, 64
     mstore 64, v226
-    v3 = shl v173, 5
-    v8 = slt v175, v3
-    jumpi v8, bb5, bb6
-  bb6:                                            ; preds = bb28
-    v11 = add v3, 32
-    v12 = lt v11, 32
-    jumpi v12, bb4, bb7
-  bb7:                                            ; preds = bb6
+    v263 = shr v173, 59
+    v3 = ne v263, 0
+    jumpi v3, bb4, bb5
+  bb5:                                            ; preds = bb28
+    v4 = shl v173, 5
+    v8 = slt v175, v4
+    jumpi v8, bb6, bb7
+  bb7:                                            ; preds = bb5
+    v11 = add v4, 32
     v219 = mload 64 !metadata(alloc_ptr)
     v220 = add v219, v11 !metadata(alloc_ptr)
     mstore 64, v220
@@ -126,7 +127,7 @@ fn @roundTrip() {
     v96 = mload v58
     v98 = add v183, v96
     v99 = slt v96, 32
-    jumpi v99, bb5, bb17
+    jumpi v99, bb6, bb17
   bb17:                                           ; preds = bb3
     v100 = mload v183
     v102 = add v183, v100
@@ -134,7 +135,7 @@ fn @roundTrip() {
     v106 = sub v98, v102
     v107 = lt v106, 64
     v232 = or v105, v107
-    jumpi v232, bb5, bb18
+    jumpi v232, bb6, bb18
   bb18:                                           ; preds = bb17
     v223 = mload 64 !metadata(alloc_ptr)
     v224 = add v223, 64
@@ -150,7 +151,7 @@ fn @roundTrip() {
     v251 = zext i1 v116 to i256
     v252 = or v249, v251
     v117 = ne v252, 0
-    jumpi v117, bb5, bb19
+    jumpi v117, bb6, bb19
   bb19:                                           ; preds = bb18
     v119 = mload v112
     v254 = shr v119, 59
@@ -164,7 +165,7 @@ fn @roundTrip() {
     v126 = sub v98, v114
     v127 = shr v126, 5
     v128 = lt v127, v119
-    jumpi v128, bb5, bb21
+    jumpi v128, bb6, bb21
   bb21:                                           ; preds = bb20
     jump bb22
   bb22:                                           ; preds = bb21, bb27
@@ -227,7 +228,7 @@ fn @roundTrip() {
     v258 = zext i1 v138 to i256
     v259 = or v256, v258
     v139 = ne v259, 0
-    jumpi v139, bb5, bb25
+    jumpi v139, bb6, bb25
   bb25:                                           ; preds = bb23
     v141 = mload v134
     v261 = shr v141, 59
@@ -242,7 +243,7 @@ fn @roundTrip() {
     v148 = sub v98, v136
     v149 = shr v148, 5
     v150 = lt v149, v141
-    jumpi v150, bb5, bb27
+    jumpi v150, bb6, bb27
   bb27:                                           ; preds = bb26
     v200 = add v218, 32
     mcopy v200, v136, v147
@@ -278,7 +279,7 @@ fn @roundTrip() {
     v246 = zext i1 v40 to i256
     v247 = or v244, v246
     v231 = ne v247, 0
-    jumpi v231, bb5, bb8
+    jumpi v231, bb6, bb8
   bb8:                                            ; preds = bb2
     v43 = add v37, 32
     v221 = mload 64 !metadata(alloc_ptr)
@@ -293,11 +294,11 @@ fn @roundTrip() {
     v55 = add v14, 1
     v90 = sub v89, 32
     jump bb1
-  bb4 [cold]:                                     ; preds = bb6, bb19, bb25
+  bb4 [cold]:                                     ; preds = bb19, bb25, bb28
     mstore 32, 65
     mstore 0, 0x4e487b71
     revert 28, 36
-  bb5 [cold]:                                     ; preds = bb3, bb2, bb17, bb18, bb20, bb23, bb26, bb0, bb28
+  bb6 [cold]:                                     ; preds = bb3, bb5, bb2, bb17, bb18, bb20, bb23, bb26, bb0
     revert 0, 0
 }
 

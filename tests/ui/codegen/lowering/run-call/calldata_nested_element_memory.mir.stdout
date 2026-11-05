@@ -37,13 +37,13 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v26 = make_calldata_slice v25, v18
     v27 = extract_value slice<calldata>, v26, 1
     v28 = extract_value slice<calldata>, v26, 0
-    v29 = mul v27, 32
-    v30 = gt v27, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v30
+    v29 = gt v27, 0x7ffffffffffffff
+    icall panic_if<0x41>, v29
+    v30 = mul v27, 32
     v31 = calldatasize
     v32 = ptrtoint ptr<calldata> v28 to i256
     v33 = sub v31, v32
-    v34 = slt v33, v29
+    v34 = slt v33, v30
     icall revert_if<calldata_tail_too_short>, v34
     v35 = mul v27, 32
     v36 = gt v27, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -345,13 +345,13 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v26 = make_calldata_slice v25, v18
     v27 = extract_value slice<calldata>, v26, 1
     v28 = extract_value slice<calldata>, v26, 0
-    v29 = mul v27, 64
-    v30 = gt v27, 0x3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v30
+    v29 = gt v27, 0x7ffffffffffffff
+    icall panic_if<0x41>, v29
+    v30 = mul v27, 64
     v31 = calldatasize
     v32 = ptrtoint ptr<calldata> v28 to i256
     v33 = sub v31, v32
-    v34 = slt v33, v29
+    v34 = slt v33, v30
     icall revert_if<calldata_tail_too_short>, v34
     v35 = mul v27, 32
     v36 = gt v27, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

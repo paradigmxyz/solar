@@ -161,7 +161,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if !incoming.iter().any(|(_, word)| word.raw) {
             let incoming = incoming.iter().map(|&(block, word)| (block, word.value)).collect();
-            return Word::from_clean(self.merge_value_phi(incoming));
+            return Word::from_clean(self.builder.phi(incoming));
         }
         // word_i = widen value_i, in block_i
         // phi(words)
@@ -172,7 +172,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             words.push((block, word.carrier(self, ty)));
         }
         self.builder.switch_to_block(current);
-        Word::raw(self.merge_value_phi(words))
+        Word::raw(self.builder.phi(words))
     }
 
     /// Cleans a word to the canonical value of `ty`: an enum is range checked, a `bool` is tested

@@ -217,9 +217,6 @@ struct FunctionLowerer<'gcx, 'ctx> {
     types: types::TypeLowerer<'gcx>,
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
-    /// Calldata slices that inline assembly may have built or changed, which ABI decoding did not
-    /// range check.
-    unchecked_calldata_slices: FxHashSet<ValueId>,
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
@@ -511,7 +508,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .with_block_labels(),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
-            unchecked_calldata_slices: FxHashSet::default(),
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),
