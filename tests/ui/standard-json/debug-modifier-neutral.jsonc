@@ -1,0 +1,47 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ filecheck:
+// Modifier frames, the return tag after a modifier chain, and base constructor calls in a
+// modifier list only change debug info, so the bytecode is identical with and without a source map.
+// CHECK-LABEL: "A": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "C": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE]]"
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME]]"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract BaseA { uint256 public b; modifier pre() { b += 1; _; } constructor(uint256 v) pre { b = v; } } contract A is BaseA { uint256 public a; modifier m(uint256 v) { a = v; _; a += 1; } modifier post() { _; a += 2; } constructor(uint256 x) BaseA(x + 1) m(x * 3) { a = a * 7; } function f(uint256 y) external m(y) post returns (uint256 r) { r = a + y; } function g() external post { a = 9; } } contract BaseC { uint256 public b; modifier pre() { b += 1; _; } constructor(uint256 v) pre { b = v; } } contract C is BaseC { uint256 public a; modifier m(uint256 v) { a = v; _; a += 1; } modifier post() { _; a += 2; } constructor(uint256 x) BaseC(x + 1) m(x * 3) { a = a * 7; } function f(uint256 y) external m(y) post returns (uint256 r) { r = a + y; } function g() external post { a = 9; } }"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false,
+      "bytecodeHash": "none"
+    },
+    "optimizer": {
+      "enabled": true
+    },
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "evm.bytecode.object",
+          "evm.bytecode.sourceMap",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.sourceMap"
+        ],
+        "C": [
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

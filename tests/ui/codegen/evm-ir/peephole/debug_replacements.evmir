@@ -1,6 +1,6 @@
-//@ compile-flags: -Zevm-ir-pipeline=peephole -Zdebugify=check
-// Retained computations and branch tests keep their own origins, rather than the metadata
-// of a removed stack shuffle or operand. Intermediate permutation states remain unmapped.
+//@ compile-flags: -Zevm-ir-pipeline=peephole -Zdebugify=report
+// Retained computations and branch tests keep their own origins, and a removed stack shuffle or
+// operand takes its origins with it. Intermediate permutation states remain unmapped.
 @module DebugReplacements
 bb0:
   push 0
