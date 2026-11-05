@@ -150,6 +150,45 @@ fn @pureCall() -> i256 [selector=0x92f9a039, abi_params=[], abi_returns=[word], 
     ret v15
 }
 
+; function helper(Peek evil) internal pure returns (uint256)
+fn @helper(arg0: i160) -> i256 [pure] {
+  bb0:
+    v0 = gas
+    v1 = abi_encode [], selector 0x4bfdab7000000000000000000000000000000000000000000000000000000000
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
+    v4 = zext i160 arg0 to i256
+    v5 = extcodesize v4
+    v6 = eq v5, 0
+    icall revert_if<target_contract_has_no_code>, v6
+    v7 = zext i160 arg0 to i256
+    v8 = call v0, v7, 0, v2, v3, v2, 32
+    jumpi v8, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v9 = mload v2
+    ret v9
+}
+
+; function helperCall() external returns (uint256) [selector 0x131379cc]
+fn @helperCall() -> i256 [selector=0x131379cc, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize Evil_creation_code_0
+    v1 = fmp
+    datacopy Evil_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = icall @helper, v2
+    v5 = icall @load_storage_word_array, 0
+    v6 = icall @first, v5, v4
+    ret v6
+}
+
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
   bb0:
     v0 = load_storage_array uint256, arg0

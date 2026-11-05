@@ -314,12 +314,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Whether lowering `expr` can write storage: an assignment, `delete`, increment, decrement,
-    /// `push`, `pop`, or a call that is not `view` or `pure` (before Byzantium, an internal `pure`
-    /// call only). Only such an operand can change what an earlier storage operand copies.
+    /// `push`, `pop`, or a call that is not `view` or `pure` (before Byzantium, any call to a
+    /// non-builtin function). Only such an operand can change what an earlier storage operand
+    /// copies.
     pub(super) fn may_write_storage(&self, expr: &hir::Expr<'_>) -> bool {
         let gcx = self.cx.gcx;
-        // Without `STATICCALL`, a `view` call, or an external call to a `view` or `pure` function,
-        // can still reach a contract that writes.
+        // Without `STATICCALL`, any call to a function that is not a builtin can reach, through an
+        // external call even from a `view` or `pure` function, a contract that writes.
         let has_static_call = gcx.sess.opts.evm_version.has_static_call();
         let writes = match expr.kind {
             ExprKind::Assign(..) | ExprKind::Delete(_) => true,
@@ -332,9 +333,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             ty.state_mutability(),
                             Some(StateMutability::NonPayable | StateMutability::Payable)
                         ) || !has_static_call
-                            && matches!(ty.kind, TyKind::Fn(function)
-                                if function.state_mutability == StateMutability::View
-                                    || function.is_external() || function.is_delegate_call())
+                            && matches!(ty.kind, TyKind::Fn(_))
+                            && gcx.resolved_builtin(callee).is_none()
                     })
             }
             _ => false,
