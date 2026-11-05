@@ -349,6 +349,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         modifiers: &'gcx [hir::Modifier<'gcx>],
         body: hir::Block<'gcx>,
+        span: Span,
     ) -> Option<()> {
         // return_values = lower_body(modifiers)
         if modifiers.is_empty() {
@@ -363,7 +364,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             result?;
             if !self.is_terminated() {
                 self.record_return_state();
+                // solc maps the return tag after the modifier chain to the function definition.
+                // jump return_block !metadata(function definition)
+                let previous = self.builder.replace_source_span(span);
                 self.builder.jump(return_block);
+                self.builder.replace_source_span(previous);
             }
             self.finish_return_target(before_values, before_storage_refs);
             Some(())

@@ -174,7 +174,7 @@ pub(super) fn lower(
         lowerer.lower_state_initializers(contract_id)?;
     }
     if let Some(body) = hir_function.body {
-        lowerer.lower_function_body(hir_function.modifiers, body)?;
+        lowerer.lower_function_body(hir_function.modifiers, body, hir_function.span)?;
     }
     if !lowerer.is_terminated() {
         // ret named_returns !metadata(function definition)
