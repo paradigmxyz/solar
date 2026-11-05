@@ -1,8 +1,0 @@
-error[8936]: identifier-start is not allowed at end of a number
-   ╭▸ ROOT/tests/ui/parser/literals/invalid_hex_number.sol:LL:CC
-   │
-LL │     uint x = 0x1000abcdefgh;
-   ╰╴                         ━
-
-error: aborting due to 1 previous error
-

@@ -10,5 +10,5 @@ contract C {
     // Invalid underscores
     address public e = 0xB71c_b1A7_ab0B_6Bc6_c07f_5A3E_f2EA_3675_7968_A121_; //~ ERROR: invalid use of underscores
     address public f = 0xB71c__b1A7_ab0B_6Bc6_c07f_5A3E_f2EA_3675_7968_A121; //~ ERROR: invalid use of underscores
-    address public g = 0x_B71c_b1A7_ab0B_6Bc6_c07f_5A3E_f2EA_3675_7968_A121; //~ ERROR: hexadecimal digit missing or invalid
+    address public g = 0x_B71c_b1A7_ab0B_6Bc6_c07f_5A3E_f2EA_3675_7968_A121; //~ ERROR: invalid use of underscores
 }

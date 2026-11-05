@@ -115,7 +115,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         match parse_integer(self.sess, symbol, subdenomination) {
             Ok(l) => Ok(l),
             // User error.
-            Err(e @ IntegerTooLarge) => Err(self.dcx().err(e.to_string())),
+            Err(e @ (IntegerLeadingZeros | IntegerTooLarge)) => Err(self.dcx().err(e.to_string())),
             // User error, but already emitted.
             Err(EmptyInteger) => Ok(LitKind::Err(ErrorGuaranteed::new_unchecked())),
             // Lexer internal error.
@@ -140,7 +140,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             // User error.
             Err(
                 e @ (EmptyRational | RationalPlusExponent | IntegerTooLarge | RationalTooLarge
-                | ExponentTooLarge),
+                | ExponentTooLarge | IntegerLeadingZeros),
             ) => Err(self.dcx().err(e.to_string())),
             // User error, but already emitted.
             Err(InvalidRational | EmptyExponent) => {
@@ -211,6 +211,7 @@ enum LitError {
     IntegerTooLarge,
     RationalTooLarge,
     ExponentTooLarge,
+    IntegerLeadingZeros,
 }
 
 impl fmt::Display for LitError {
@@ -227,6 +228,7 @@ impl fmt::Display for LitError {
             Self::IntegerTooLarge => write!(f, "integer part too large"),
             Self::RationalTooLarge => write!(f, "rational part too large"),
             Self::ExponentTooLarge => write!(f, "exponent too large"),
+            Self::IntegerLeadingZeros => write!(f, "leading zeros are not allowed in integers"),
         }
     }
 }
@@ -237,7 +239,16 @@ fn parse_integer<'ast>(
     subdenomination: Option<SubDenomination>,
 ) -> Result<LitKind<'ast>, LitError> {
     let s = &strip_underscores(symbol, sess)[..];
-    let base = if s.starts_with("0x") { Base::Hexadecimal } else { Base::Decimal };
+    let base = match s.as_bytes() {
+        [b'0', b'x', ..] => Base::Hexadecimal,
+        [b'0', b'o', ..] => Base::Octal,
+        [b'0', b'b', ..] => Base::Binary,
+        _ => Base::Decimal,
+    };
+
+    if base == Base::Decimal && s.starts_with('0') && s.len() > 1 {
+        return Err(LitError::IntegerLeadingZeros);
+    }
 
     // Address literal. A denominated one is a number, which the AST validator rejects.
     if base == Base::Hexadecimal
@@ -270,7 +281,7 @@ fn parse_rational<'ast>(
     let s = &strip_underscores(symbol, sess)[..];
     debug_assert!(!s.is_empty());
 
-    if s.starts_with("0x") {
+    if matches!(s.get(..2), Some("0b" | "0o" | "0x")) {
         return Err(LitError::InvalidRational);
     }
 
@@ -317,12 +328,9 @@ fn parse_rational<'ast>(
     if int.is_empty() {
         int = "0";
     }
-    // The AST validator reports the underscores in `1._` and `1e_`, as solc does.
-    let underscored = symbol.as_str_in(sess).contains('_');
-    if rat.is_some_and(str::is_empty) && !symbol.as_str_in(sess).contains("._") {
+    if rat.is_some_and(str::is_empty) {
         return Err(LitError::EmptyRational);
     }
-    let exp = exp.filter(|exp| !(exp.is_empty() && underscored));
     if let Some(exp) = exp {
         if exp.starts_with('+') {
             return Err(LitError::RationalPlusExponent);
@@ -332,6 +340,9 @@ fn parse_rational<'ast>(
         }
     }
 
+    if int.starts_with('0') && int.len() > 1 {
+        return Err(LitError::IntegerLeadingZeros);
+    }
     // NOTE: leading zeros are allowed in the rational and exponent parts.
 
     let rat = rat.map(|rat| rat.trim_end_matches('0'));
@@ -418,12 +429,19 @@ const MAX_BITS: u32 = 4096;
 /// ```
 #[inline]
 const fn max_digits<const BITS: u32>(base: Base) -> usize {
+    if matches!(base, Base::Binary) {
+        return BITS as usize;
+    }
     match BITS {
         Primitive::BITS => match base {
+            Base::Binary => BITS as usize,
+            Base::Octal => 43,
             Base::Decimal => 39,
             Base::Hexadecimal => 32,
         },
         MAX_BITS => match base {
+            Base::Binary => BITS as usize,
+            Base::Octal => 1366,
             Base::Decimal => 1234,
             Base::Hexadecimal => 1024,
         },
@@ -547,6 +565,8 @@ mod tests {
 
     #[test]
     fn integer() {
+        use LitError::*;
+
         #[track_caller]
         fn check_int(src: &str, expected: Result<&str, LitError>) {
             lex_literal(src, false, |sess, symbol| {
@@ -579,9 +599,18 @@ mod tests {
             });
         }
 
+        check_int("00", Err(IntegerLeadingZeros));
+        check_int("01", Err(IntegerLeadingZeros));
+        check_int("00", Err(IntegerLeadingZeros));
+        check_int("001", Err(IntegerLeadingZeros));
+        check_int("000", Err(IntegerLeadingZeros));
+        check_int("0001", Err(IntegerLeadingZeros));
+
         check_int("0", Ok("0"));
         check_int("1", Ok("1"));
 
+        // check("0b10", Ok("2"));
+        // check("0o10", Ok("8"));
         check_int("10", Ok("10"));
         check_int("0x10", Ok("16"));
 
@@ -697,6 +726,15 @@ mod tests {
             before.to_string() + &"0".repeat(zeros)
         }
 
+        check_int("00", Err(IntegerLeadingZeros));
+        check_int("0_0", Err(IntegerLeadingZeros));
+        check_int("01", Err(IntegerLeadingZeros));
+        check_int("0_1", Err(IntegerLeadingZeros));
+        check_int("00", Err(IntegerLeadingZeros));
+        check_int("001", Err(IntegerLeadingZeros));
+        check_int("000", Err(IntegerLeadingZeros));
+        check_int("0001", Err(IntegerLeadingZeros));
+
         check_int("0.", Err(EmptyRational));
         check_int_full("0e-", true, Err(EmptyExponent));
         check_int_full("0e", true, Err(EmptyExponent));
@@ -749,6 +787,24 @@ mod tests {
         check_int("1.00e-0", Ok("1"));
         check_int("1.0e-00", Ok("1"));
         check_int("1.00e-00", Ok("1"));
+
+        check_int_full("0b", true, Err(InvalidRational));
+        check_int_full("0b0", true, Err(InvalidRational));
+        check_int_full("0b01", true, Err(InvalidRational));
+        check_int_full("0b01.0", true, Err(InvalidRational));
+        check_int_full("0b01.0e1", true, Err(InvalidRational));
+        check_int_full("0b0e", true, Err(InvalidRational));
+        // check_int_full("0b0e.0", true, Err(InvalidRational));
+        // check_int_full("0b0e.0e1", true, Err(InvalidRational));
+
+        check_int_full("0o", true, Err(InvalidRational));
+        check_int_full("0o0", true, Err(InvalidRational));
+        check_int_full("0o01", true, Err(InvalidRational));
+        check_int_full("0o01.0", true, Err(InvalidRational));
+        check_int_full("0o01.0e1", true, Err(InvalidRational));
+        check_int_full("0o0e", true, Err(InvalidRational));
+        // check_int_full("0o0e.0", true, Err(InvalidRational));
+        // check_int_full("0o0e.0e1", true, Err(InvalidRational));
 
         check_int_full("0x", true, Err(InvalidRational));
         check_int_full("0x0", false, Err(InvalidRational));

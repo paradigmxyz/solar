@@ -72,19 +72,6 @@ impl Lit<'_> {
         // SAFETY: We just handled the case with data, this is a POD copy.
         unsafe { std::mem::transmute::<Lit<'_>, Lit<'a>>(*self) }
     }
-
-    /// Returns the number of hex digits if this is a hexadecimal number that looks like an address
-    /// but does not have exactly 40 digits, which is 39 or 41, ignoring underscores.
-    ///
-    /// Like solc, this ignores subdenominations, which the caller must exclude.
-    pub fn almost_address_digits(&self) -> Option<usize> {
-        if !matches!(self.kind, LitKind::Number(_) | LitKind::BigNumber(_)) {
-            return None;
-        }
-        let digits = self.symbol.as_str().strip_prefix("0x")?;
-        let len = digits.bytes().filter(|&b| b != b'_').count();
-        matches!(len, 39 | 41).then_some(len)
-    }
 }
 
 /// A kind of literal.
@@ -435,6 +422,10 @@ impl TimeSubDenomination {
 /// Base of numeric literal encoding according to its prefix.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Base {
+    /// Literal starts with "0b".
+    Binary = 2,
+    /// Literal starts with "0o".
+    Octal = 8,
     /// Literal doesn't contain a prefix.
     Decimal = 10,
     /// Literal starts with "0x".
@@ -451,6 +442,8 @@ impl Base {
     /// Returns the name of the base as a string.
     pub fn to_str(self) -> &'static str {
         match self {
+            Self::Binary => "binary",
+            Self::Octal => "octal",
             Self::Decimal => "decimal",
             Self::Hexadecimal => "hexadecimal",
         }

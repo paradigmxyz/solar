@@ -93,10 +93,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_yul_lit(&mut self) -> PResult<'sess, Lit<'ast>> {
         let (mut lit, subdenomination) = self.parse_lit(false)?;
         assert!(subdenomination.is_none());
-        // Like solc, Yul numbers are plain decimal or `0x` hexadecimal integers.
-        if (lit.kind.is_number() || matches!(lit.kind, LitKind::Address(_)))
-            && !is_valid_yul_number(lit.symbol.as_str())
-        {
+        // Yul numbers are integers; see PARSE-005.
+        if let LitKind::Rational(..) = lit.kind {
             let guar =
                 self.dcx().emit_err_code(lit.span, error_code!(4828), "invalid number literal");
             lit.kind = LitKind::Err(guar);
@@ -417,13 +415,5 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn is_reserved_yul_expr_ident(&self, ident: Ident) -> bool {
         self.is_reserved_yul_ident(ident)
             && !(ident.name == kw::Difficulty && self.sess.opts.evm_version.has_prev_randao())
-    }
-}
-
-/// Returns `true` if `s` is a decimal or `0x` hexadecimal integer without underscores.
-fn is_valid_yul_number(s: &str) -> bool {
-    match s.strip_prefix("0x") {
-        Some(digits) => digits.bytes().all(|b| b.is_ascii_hexdigit()),
-        None => s.bytes().all(|b| b.is_ascii_digit()),
     }
 }

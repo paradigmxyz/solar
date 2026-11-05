@@ -349,20 +349,29 @@ impl<'a> Cursor<'a> {
         debug_assert!(self.prev().is_ascii_digit());
         let mut base = Base::Decimal;
         if first_digit == b'0' {
-            // Attempt to parse encoding base. Like solc, only `0x` is a prefix.
+            // Attempt to parse encoding base.
             let has_digits = match self.first() {
+                b'b' => {
+                    base = Base::Binary;
+                    self.bump();
+                    self.eat_decimal_digits()
+                }
+                b'o' => {
+                    base = Base::Octal;
+                    self.bump();
+                    self.eat_decimal_digits()
+                }
                 b'x' => {
                     base = Base::Hexadecimal;
                     self.bump();
-                    // The first digit after the prefix cannot be an underscore.
-                    is_hex_digit(self.first()) && self.eat_hexadecimal_digits()
+                    self.eat_hexadecimal_digits()
                 }
-                b'0'..=b'9' | b'.' | b'e' | b'E' => {
+                // Not a base prefix.
+                b'0'..=b'9' | b'_' | b'.' | b'e' | b'E' => {
                     self.eat_decimal_digits();
                     true
                 }
-                // Just a 0. Like solc, this includes `0_1`, `0b1` and `0o7`: the underscore or
-                // letter is an illegal number end.
+                // Just a 0.
                 _ => return RawLiteralKind::Int { base, empty_int: false },
             };
             // Base prefix was provided, but there were no digits after it, e.g. "0x".
@@ -456,28 +465,12 @@ impl<'a> Cursor<'a> {
     /// Eats the exponent. Returns `true` if any digits were encountered.
     fn eat_exponent(&mut self) -> bool {
         debug_assert!(self.prev() == b'e' || self.prev() == b'E');
-        match self.first() {
-            // Like solc, accept an underscore right after the `e` and let the AST validator
-            // reject it.
-            b'_' => {
-                self.eat_decimal_digits();
-                true
-            }
-            // b'+' is not a valid prefix for an exponent, but we accept it here and let the parser
-            // reject it later.
-            b'-' | b'+' => {
-                self.bump();
-                is_decimal_digit(self.first()) && self.eat_decimal_digits()
-            }
-            c => is_decimal_digit(c) && self.eat_decimal_digits(),
+        // b'+' is not a valid prefix for an exponent, but we accept it here and let the parser
+        // reject it later.
+        if matches!(self.first(), b'-' | b'+') {
+            self.bump();
         }
-    }
-
-    /// Eats identifier characters. Returns the number of bytes eaten.
-    pub(super) fn eat_id_continue(&mut self) -> u32 {
-        let before = self.as_bytes().len();
-        self.eat_while(is_id_continue_byte);
-        (before - self.as_bytes().len()) as u32
+        self.eat_decimal_digits()
     }
 
     /// Returns the remaining input as a byte slice.
