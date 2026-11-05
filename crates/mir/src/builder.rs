@@ -971,6 +971,15 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Alloc { size, semantics }, Some(MirType::MEMPTR))
     }
 
+    /// Returns a pointer to the zero slot, which holds an empty dynamic object that is only read.
+    pub fn zero_slot(&mut self) -> ValueId {
+        // value = ZERO_SLOT
+        self.alloc_value(Value::Immediate(Immediate::for_type(
+            Some(MirType::MEMPTR),
+            U256::from(EvmMemoryLayout::ZERO_SLOT),
+        )))
+    }
+
     /// Marks the allocation `allocation` as keeping its free-memory-pointer address and bump.
     pub fn mark_preserves_fmp(&mut self, allocation: ValueId) {
         let Value::Inst(inst) = *self.func.value(allocation) else {
@@ -978,6 +987,16 @@ impl<'a> FunctionBuilder<'a> {
         };
         // allocation !metadata(preserves_fmp)
         self.func.inst_mut(inst).metadata.set_preserves_fmp(true);
+    }
+
+    /// Marks the allocation `allocation` as returning the zero slot, without reserving anything,
+    /// when its size is one header word.
+    pub fn mark_zero_slot_if_empty(&mut self, allocation: ValueId) {
+        let Value::Inst(inst) = *self.func.value(allocation) else {
+            unreachable!("allocation result must reference its instruction")
+        };
+        // allocation !metadata(zero_slot_if_empty)
+        self.func.inst_mut(inst).metadata.set_zero_slot_if_empty(true);
     }
 
     /// Allocates a padded bytes object and records its logical length.

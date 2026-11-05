@@ -271,11 +271,18 @@ fn lower_address_call(
 }
 
 fn lower_returndata(builder: &mut FunctionBuilder<'_>, evm: EvmVersion) -> ValueId {
-    // length = supports_returndata ? returndatasize : 0
-    // object = bytes(length)
+    if !evm.supports_returndata() {
+        // object = ZERO_SLOT
+        return builder.zero_slot();
+    }
+    // length = returndatasize
+    // object = bytes(length) !metadata(zero_slot_if_empty)
     // copy(returndata(0, length), object.data)
-    let length = if evm.supports_returndata() { builder.returndatasize() } else { builder.imm(0) };
-    let object = builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
+    let length = builder.returndatasize();
+    // The length of returndata is far below `2^64`, so its padded size cannot wrap. Like solc,
+    // empty returndata is the zero slot and takes no memory, which lowering decides from the size.
+    let object = builder.alloc_bounded_bytes_object(length, AllocationSemantics::INTERNAL);
+    builder.mark_zero_slot_if_empty(object);
     let zero = builder.imm(0);
     let source = builder.make_slice(zero, length, PtrLocation::Returndata);
     builder.memory_copy_from_slice(object, source);

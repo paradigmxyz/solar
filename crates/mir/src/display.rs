@@ -819,6 +819,7 @@ fn display_metadata<'a>(
         Unchecked,
         DeferredAlloc,
         PreservesFmp,
+        ZeroSlotIfEmpty,
         AllocPtr,
         Disjoint,
         LoopDepth(u16),
@@ -848,6 +849,7 @@ fn display_metadata<'a>(
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
             MetadataField::PreservesFmp => write!(f, "preserves_fmp"),
+            MetadataField::ZeroSlotIfEmpty => write!(f, "zero_slot_if_empty"),
             MetadataField::AllocPtr => write!(f, "alloc_ptr"),
             MetadataField::Disjoint => write!(f, "disjoint"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
@@ -906,6 +908,9 @@ fn display_metadata<'a>(
         }
         if metadata.preserves_fmp() {
             fields.push(MetadataField::PreservesFmp);
+        }
+        if metadata.zero_slot_if_empty() {
+            fields.push(MetadataField::ZeroSlotIfEmpty);
         }
         if metadata.alloc_ptr() {
             fields.push(MetadataField::AllocPtr);

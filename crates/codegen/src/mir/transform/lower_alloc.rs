@@ -29,9 +29,9 @@
 //! it that nothing wrote before, are dead and dropped (see [`FreshHeap`]).
 
 use crate::mir::{
-    AllocationFailure, AllocationInitialization, AllocationSemantics, EffectKind, Function,
-    FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-    PtrLocation, Value, ValueId,
+    AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
+    Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module,
+    PanicCode, PtrLocation, Terminator, Value, ValueId,
     analysis::FreshHeap,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
@@ -193,6 +193,7 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
         });
     }
 
+    let stable_empty = stable_empty_allocs(func);
     let mut peek = FmpPeek::default();
     for block in func.blocks.indices() {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -248,6 +249,27 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
                 // The backend may still place a deferred allocation with a runtime bump.
                 InstKind::Alloc { .. } if builder.func().inst(inst).metadata.deferred_alloc() => {
                     builder.func_mut().blocks[block].instructions.push(inst);
+                }
+                InstKind::Alloc { size, semantics }
+                    if builder.func().inst(inst).metadata.zero_slot_if_empty() =>
+                {
+                    debug_assert_eq!(semantics, AllocationSemantics::INTERNAL);
+                    changed = true;
+                    if stable_empty.contains(&inst) {
+                        // ptr = mload 64 | heap_floor
+                        // empty = size == 32
+                        // mstore 64, ptr + (empty ? 0 : size)
+                        let ptr = builder
+                            .func()
+                            .inst_result_value(inst)
+                            .expect("allocation must produce a value");
+                        rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
+                        let (_, reserved) = reserved_unless_empty(&mut builder, size);
+                        let next = bump(&mut builder, ptr, reserved);
+                        store_fmp(&mut builder, next);
+                    } else {
+                        rewrite_as_zero_slot_alloc(&mut builder, inst, size, is_fresh(inst));
+                    }
                 }
                 InstKind::Alloc { size, semantics } => {
                     debug_assert_eq!(semantics.failure, AllocationFailure::Infallible);
@@ -361,6 +383,90 @@ fn initialize(
     }
 }
 
+/// The `zero_slot_if_empty` allocations whose empty object can stay unreserved.
+///
+/// An empty object that reserves nothing sits at the free-memory pointer, where the next
+/// allocation or staged write would overwrite its length. It is safe when nothing reachable from
+/// the allocation allocates, calls, or writes memory except through the object's own pointer,
+/// and the pointer neither leaves through a return or a phi nor is stored. Then the object is
+/// only read, as when a call's returndata is forwarded, and needs no pointer to the zero slot.
+fn stable_empty_allocs(func: &Function) -> FxHashSet<InstId> {
+    let mut stable = FxHashSet::default();
+    for block in func.blocks.indices() {
+        for (index, &inst) in func.blocks[block].instructions.iter().enumerate() {
+            if matches!(func.inst(inst).kind, InstKind::Alloc { .. })
+                && func.inst(inst).metadata.zero_slot_if_empty()
+                && empty_object_is_stable(func, block, index)
+            {
+                stable.insert(inst);
+            }
+        }
+    }
+    stable
+}
+
+/// Whether the object of the allocation at `index` in `block` is only read until the function
+/// ends or returns, as [`stable_empty_allocs`] defines.
+fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool {
+    let alloc = func.blocks[block].instructions[index];
+    let Some(result) = func.inst_result_value(alloc) else { return false };
+    let mut derived = FxHashSet::from_iter([result]);
+    let mut visited = FxHashSet::default();
+    let mut pending = vec![(block, index + 1)];
+    while let Some((block, start)) = pending.pop() {
+        if start == 0 && !visited.insert(block) {
+            continue;
+        }
+        let data = &func.blocks[block];
+        for &inst in &data.instructions[start..] {
+            let kind = &func.inst(inst).kind;
+            let uses_object = kind.operands().iter().any(|operand| derived.contains(operand));
+            let keeps = match kind.effect_kind() {
+                EffectKind::Pure => !matches!(kind, InstKind::Phi(_)) || !uses_object,
+                EffectKind::MemoryRead
+                | EffectKind::StorageRead
+                | EffectKind::StorageWrite
+                | EffectKind::TransientRead
+                | EffectKind::TransientWrite
+                | EffectKind::EnvironmentRead
+                | EffectKind::Log => true,
+                EffectKind::MemoryWrite => match *kind {
+                    InstKind::Store(ptr, value, PtrLocation::Memory) => {
+                        derived.contains(&ptr) && !derived.contains(&value)
+                    }
+                    InstKind::Store8(ptr, _)
+                    | InstKind::MemoryZero(ptr, _)
+                    | InstKind::Copy(ptr, ..) => derived.contains(&ptr),
+                    _ => false,
+                },
+                _ => false,
+            };
+            if !keeps {
+                return false;
+            }
+            if uses_object
+                && matches!(func.inst(inst).kind.effect_kind(), EffectKind::Pure)
+                && let Some(value) = func.inst_result_value(inst)
+            {
+                derived.insert(value);
+            }
+        }
+        let Some(terminator) = &data.terminator else { return false };
+        let escapes = match terminator {
+            Terminator::Return { .. } => {
+                terminator.operands().iter().any(|operand| derived.contains(operand))
+            }
+            Terminator::TailCall { .. } => true,
+            _ => false,
+        };
+        if escapes {
+            return false;
+        }
+        pending.extend(terminator.successors().into_iter().map(|successor| (successor, 0)));
+    }
+    true
+}
+
 /// Rewrites the detached `inst` to read the pointer from its slot, or the heap floor when nothing
 /// wrote the slot before it, and appends it to the current block after any pointer read it needs.
 fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: InstId, fresh: bool) {
@@ -387,6 +493,49 @@ fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: InstId, fresh: b
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
     instruction.metadata.set_alloc_ptr(is_load);
+    let block = builder.current_block();
+    builder.func_mut().blocks[block].instructions.push(inst);
+}
+
+/// Emits whether an allocation of `size` is an empty object, of one header word, and the size it
+/// reserves, which is nothing for an empty object.
+fn reserved_unless_empty(builder: &mut FunctionBuilder<'_>, size: ValueId) -> (ValueId, ValueId) {
+    // empty = size == 32
+    // reserved = empty ? 0 : size
+    let header = builder.imm(EvmMemoryLayout::DYNAMIC_HEADER_SIZE);
+    let empty = builder.eq(size, header);
+    let zero = builder.imm(0);
+    (empty, builder.select(empty, zero, size))
+}
+
+/// Rewrites the detached `inst`, an allocation that is the zero slot when `size` is one header
+/// word, to reserve nothing and return the zero slot in that case, and appends it to the current
+/// block after the pointer arithmetic it needs.
+fn rewrite_as_zero_slot_alloc(
+    builder: &mut FunctionBuilder<'_>,
+    inst: InstId,
+    size: ValueId,
+    fresh: bool,
+) {
+    // ptr = inttoptr (mload 64 | heap_floor)
+    // empty = size == 32
+    // mstore 64, ptr + (empty ? 0 : size)
+    // object = empty ? ZERO_SLOT : ptr
+    let word = if fresh {
+        builder.heap_floor()
+    } else {
+        let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
+        builder.load(slot, PtrLocation::Memory)
+    };
+    mark_alloc_ptr(builder, word);
+    let ptr = builder.cast(word, MirType::MEMPTR);
+    let (empty, reserved) = reserved_unless_empty(builder, size);
+    let next = bump(builder, ptr, reserved);
+    store_fmp(builder, next);
+    let zero_slot = builder.zero_slot();
+    builder.func_mut().set_inst_kind(inst, InstKind::Select(empty, zero_slot, ptr));
+    let instruction = builder.func_mut().inst_mut(inst);
+    instruction.metadata.set_effect(None);
     let block = builder.current_block();
     builder.func_mut().blocks[block].instructions.push(inst);
 }
