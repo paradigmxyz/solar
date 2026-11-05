@@ -1,0 +1,14 @@
+- ; === ROOT/tests/ui/codegen/debug-info/mir/none_block_label_metadata.mir (before none) ===
++ ; === ROOT/tests/ui/codegen/debug-info/mir/none_block_label_metadata.mir (after none) ===
+  @module BlockLabelMetadata
+  fn @test(arg0: i1) -> i256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+    bb2 !metadata(spans=[30..40, 50..60], modifier_depth=1): ; preds = bb0
+      jump bb3
+    bb1 [cold, cold_hint] !metadata(span=10..20):   ; preds = bb0
+      jump bb3
+    bb3:                                            ; preds = bb1, bb2
+      ret 0
+  }
+  

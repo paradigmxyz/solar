@@ -897,7 +897,7 @@ fn scan(func: &Function, l: &Loop) -> Option<Scan> {
     }
     let one = |value: ValueId| func.value_u64(value) == Some(1);
     let ascending = match func.inst(update).kind {
-        InstKind::Add(a, b) if a == counter && one(b) || b == counter && one(a) => true,
+        InstKind::Add(a, b) if a == counter && one(b) => true,
         InstKind::Sub(a, b) if a == counter && one(b) => false,
         InstKind::CheckedBinary {
             op: op @ (CheckedOp::Add | CheckedOp::Sub),
@@ -1110,13 +1110,12 @@ fn below_limit(
                 && below_limit(func, blocks, counter, limit, value, depth + 1)
         }
         Some(&InstKind::Add(a, b)) => {
-            let constant = |x: ValueId, k: ValueId| x == counter && func.value_u64(k).is_some();
             let sum = |value: ValueId| {
                 value == index
                     || matches!(func.value_inst_kind(value), Some(&InstKind::Add(x, y))
-                        if (x, y) == (a, b) || (x, y) == (b, a))
+                        if (x, y) == (a, b))
             };
-            (constant(a, b) || constant(b, a)) && blocks.iter().any(|&block| {
+            a == counter && func.value_u64(b).is_some() && blocks.iter().any(|&block| {
                 matches!(func.blocks[block].terminator, Some(Terminator::Branch { condition, .. })
                         if matches!(func.value_inst_kind(condition), Some(&InstKind::Lt(x, n))
                             if n == limit && sum(x)))
@@ -1634,7 +1633,7 @@ fn fence_continues(builder: &mut FunctionBuilder<'_>, scan: &Scan, index: ValueI
             }
         });
         let (_, cloned) =
-            builder.append_instruction(Instruction::new(kind, result_ty).with_debug_info_dropped());
+            builder.append_instruction(Instruction::new(kind, result_ty).with_debug_loc_dropped());
         let result = builder.func().inst_result_value(inst);
         if let (Some(result), Some(cloned)) = (result, cloned) {
             values.insert(result, cloned);
@@ -1701,7 +1700,7 @@ fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
         Some(_) => {
             let (cast, word) = func.alloc_value_inst(
                 Instruction::new(InstKind::PtrToInt(address, 256), Some(MirType::I256))
-                    .with_debug_info_dropped(),
+                    .with_debug_loc_dropped(),
             );
             (word, Some(cast))
         }

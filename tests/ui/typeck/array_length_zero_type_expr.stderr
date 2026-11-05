@@ -1,0 +1,8 @@
+error[1406]: array length must be greater than zero
+   ╭▸ ROOT/tests/ui/typeck/array_length_zero_type_expr.sol:LL:CC
+   │
+LL │         abi.decode(input, (uint256[0]));
+   ╰╴                                   ━
+
+error: aborting due to 1 previous error
+

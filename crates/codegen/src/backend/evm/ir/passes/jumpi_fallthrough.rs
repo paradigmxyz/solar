@@ -97,12 +97,14 @@ pub(super) fn turn_branches(gcx: Gcx<'_>, module: &mut Module) -> bool {
             match test {
                 TurnedTest::Adds => {
                     let mut iszero = Instruction::opcode(op::ISZERO);
-                    iszero.metadata.copy_source_debug_from(&block.instructions[push + 1].metadata);
+                    iszero.metadata.preserve_debug_loc(&block.instructions[push + 1].metadata);
                     block.instructions.insert(push, iszero);
                 }
                 TurnedTest::Drops => {
+                    // NOTE: The removed `iszero` takes its origins with it; only its function
+                    // events move.
                     let removed = block.instructions.remove(push - 1);
-                    block.instructions[push - 1].metadata.absorb_debug_info(&removed.metadata);
+                    block.instructions[push - 1].metadata.move_function_events(&removed.metadata);
                 }
                 TurnedTest::Swaps => {
                     let condition = &mut block.instructions[push - 1];
@@ -115,7 +117,7 @@ pub(super) fn turn_branches(gcx: Gcx<'_>, module: &mut Module) -> bool {
             // spans rather than put those events on the edge into `next`.
             let mut fallthrough = Terminator::new(TerminatorKind::Jump(next));
             if let Some(term) = &block.terminator {
-                fallthrough.metadata.copy_source_debug_from(&term.metadata);
+                fallthrough.metadata.preserve_debug_loc(&term.metadata);
             }
             block.terminator = Some(fallthrough);
             changed = true;

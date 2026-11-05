@@ -1,0 +1,17 @@
+//@ compile-flags: -Zmir-pipeline=if-convert -Zdebugify=report
+// Speculated arm operations run on both paths and lose their arm-specific origins.
+// They and the select take the join phi's origin instead of claiming either arm ran.
+@module DebugSpeculation
+fn @choose(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    jumpi arg1, bb1, bb2
+  bb1:
+    v0 = add arg0, 1 !metadata(span=10..20)
+    jump bb3
+  bb2:
+    v1 = sub arg0, 1 !metadata(span=30..40)
+    jump bb3
+  bb3:
+    v2 = phi [bb1: v0], [bb2: v1] !metadata(span=50..60)
+    ret v2
+}

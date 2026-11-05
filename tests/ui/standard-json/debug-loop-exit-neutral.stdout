@@ -22,7 +22,7 @@
         "evm": {
           "bytecode": {
             "object": "34600d5760328060115f395ff35b5f5ffd34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;"
+            "sourceMap": ":::-:0;;;262:21:0;;;;;;;-1:-1:-1;;;"
           },
           "deployedBytecode": {
             "object": "34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
@@ -80,12 +80,34 @@
                     "arguments": [
                       "0x32"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 284,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 6,
                   "operation": {
                     "mnemonic": "DUP1"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 284,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -95,30 +117,85 @@
                     "arguments": [
                       "0x11"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 284,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 9,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 284,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 10,
                   "operation": {
                     "mnemonic": "CODECOPY"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 284,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 11,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 284,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 12,
                   "operation": {
                     "mnemonic": "RETURN"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 284,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {

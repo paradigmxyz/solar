@@ -1,0 +1,15 @@
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/peephole_odd_word_debug.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/peephole_odd_word_debug.evmir (after peephole) ===
+  @module OddWordDebug
+  bb0:
+    calldatasize
+-   dup 1
+-   add
+-   push 1
+-   or !metadata(span=10..20)
++   dup 1 !metadata(span=10..20)
++   not !metadata(span=10..20)
++   swap 1 !metadata(span=10..20)
++   sub !metadata(span=10..20)
+    stop
+  

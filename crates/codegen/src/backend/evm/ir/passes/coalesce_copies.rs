@@ -79,7 +79,7 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 Instruction::push_value(destination),
                 Instruction::opcode(op::MCOPY),
             ]
-            .map(|inst| inst.with_source_debug(metadata));
+            .map(|inst| inst.with_debug_loc(metadata));
             edits.push((index, count * COPY_INSTRUCTIONS, replacement));
             groups += 1;
             words += count;

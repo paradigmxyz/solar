@@ -106,6 +106,8 @@ struct TypeChecker<'gcx> {
     value_position: ValuePosition,
     /// Whether each constant read in inline assembly is circular.
     circular_constants: FxHashMap<hir::VariableId, bool>,
+    /// The expression of the expression statement being checked, without parentheses.
+    statement_expr: Option<hir::ExprId>,
 }
 
 /// Where an expression's value is used, which selects the error code of a use of a pre-Byzantium
@@ -185,6 +187,7 @@ impl<'gcx> TypeChecker<'gcx> {
             discarded: FxHashMap::default(),
             value_position: ValuePosition::default(),
             circular_constants: FxHashMap::default(),
+            statement_expr: None,
         }
     }
 
@@ -749,9 +752,16 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                     let arr = if let Some(index) = index {
                         let index_ty = self.check_array_size(index);
-                        let len = index_ty
-                            .error_reported()
-                            .and_then(|()| self.gcx.early_const_eval().eval_expr_array_len(index));
+                        // Like solc, a statement may name a zero-length array type. Anywhere else
+                        // the type could reach code generation, so it needs a positive length.
+                        let early = self.gcx.early_const_eval();
+                        let len = index_ty.error_reported().and_then(|()| {
+                            if self.statement_expr == Some(expr.id) {
+                                early.eval_expr_array_len(index)
+                            } else {
+                                early.eval_array_len(index)
+                            }
+                        });
                         match len {
                             Ok(len) => TyKind::Array(elem_ty, len),
                             Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::ONE),
@@ -4022,6 +4032,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             hir::StmtKind::Expr(expr) => {
                 // An expression statement discards its value.
                 self.discard(expr, Discarded::All);
+                self.statement_expr = Some(expr.peel_parens().id);
                 let ty = self.check_expr(expr);
                 if self.has_no_effect(expr) {
                     self.results.no_effect_stmts.push(expr.span);
@@ -4358,10 +4369,14 @@ fn binop_common_type<'gcx>(
         }
 
         TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => {
+            use hir::BinOpKind::*;
+
             if op.is_shift() {
                 return valid_shift(gcx, ty, other, op);
             }
-            if let Some(common_type) = ty.common_type(other, gcx)
+            // Fixed bytes only compare and combine bitwise.
+            if (op.is_cmp() || matches!(op, BitAnd | BitOr | BitXor))
+                && let Some(common_type) = ty.common_type(other, gcx)
                 && common_type.is_fixed_bytes()
             {
                 return Some(common_type);

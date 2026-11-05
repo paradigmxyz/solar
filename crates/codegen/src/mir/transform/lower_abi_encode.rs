@@ -313,7 +313,8 @@ fn synthesize_tuple_helpers(
             shared.push((key, function));
         }
     }
-    for (key, function) in shared {
+    for (key, mut function) in shared {
+        function.mark_unlocated_compiler_generated();
         let helper = module.add_function(function);
         Arc::make_mut(&mut helpers.tuples).insert(key, helper);
     }
@@ -410,6 +411,7 @@ fn synthesize_array_helpers(
             builder.set_return_type(MirType::I256);
             builder.ret([length]);
         }
+        function.mark_unlocated_compiler_generated();
         let helper = module.add_function(function);
         Arc::make_mut(&mut helpers.arrays).insert(key, helper);
     }
@@ -520,6 +522,7 @@ fn calldata_helper(
         builder.set_return_type(MirType::I256);
         builder.ret([length]);
     }
+    function.mark_unlocated_compiler_generated();
     function
 }
 
@@ -647,8 +650,6 @@ fn lower_function(
             let layout = Arc::clone(layout);
             let mode = *mode;
             // abi_encode(args) !metadata(span) => icall or stores/copies !metadata(span)
-            let metadata = builder.func().inst(inst).metadata.clone();
-            builder.set_debug_context(&metadata);
             let result =
                 builder.func().inst_result_value(inst).expect("ABI encode must produce a value");
             let replacement = if let Some(&form) = zero_copy_returns.get(&inst) {
@@ -1702,7 +1703,7 @@ fn calldata_dynamic_value(
     // position = base + offset
     let offset = builder.load(head, PtrLocation::Calldata);
     let calldata_end = builder.calldatasize();
-    builder.check_calldata_tail_offset(tail, base, offset, calldata_end, ty.tail_size());
+    builder.check_calldata_tail_offset(tail, base, offset, calldata_end, ty.tail_size(), false);
     let position = builder.add(base, offset);
     let stride = match ty {
         AbiType::Bytes(_) => 1,

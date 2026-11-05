@@ -89,7 +89,7 @@ pub fn append_value_inst(
     ty: MirType,
 ) -> ValueId {
     let (inst, value) =
-        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped());
+        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_loc_dropped());
     func.blocks[block].instructions.push(inst);
     value
 }

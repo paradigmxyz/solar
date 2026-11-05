@@ -1059,6 +1059,7 @@ symbols! {
         continuation,
         creationCode,
         creation_code,
+        creation_only,
         custom_error,
         data,
         decode,

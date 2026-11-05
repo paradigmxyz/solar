@@ -1,0 +1,87 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/outline/entry_screen_runs.evmir (before outline) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/outline/entry_screen_runs.evmir (after outline) ===
+  @module EntryScreenRuns
+  bb0:
+    push 0
+    calldataload
+    push bb1
+    jumpi
+    push 32
+    calldataload
+    push bb2
+    jumpi
+    push 64
+    calldataload
+    push bb3
+    jumpi
+    push 96
+    calldataload
+    push bb4
+    jumpi
+    push 128
+    calldataload
+    push bb5
+    jumpi
+    stop
+  bb1 [entry]:
+-   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+-   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+-   add
+-   push 0xf1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+-   mul
+-   pop
+-   stop
++   push bb7
++   jump bb6
+  bb2 [entry]:
+-   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+-   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+-   add
+-   push 0xf1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+-   mul
+-   pop
+-   stop
++   push bb8
++   jump bb6
+  bb3 [entry]:
+-   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+-   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+-   add
+-   push 0xf1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+-   mul
+-   pop
+-   stop
++   push bb9
++   jump bb6
+  bb4 [entry]:
+-   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+-   push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+-   add
+-   push 0xf1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+-   mul
+-   pop
+-   stop
++   push bb10
++   jump bb6
+  bb5 [entry]:
++   push bb11
++   jump bb6
++ bb6 [ret=0, inputs=1, outputs=0]:
+    push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    push 0xfedcba9876543210fedcba9876543210fedcba9876543210fedcba987654321
+    add
+    push 0xf1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f
+    mul
+    pop
++   jump
++ bb7 [continuation]:
++   stop
++ bb8 [continuation]:
++   stop
++ bb9 [continuation]:
++   stop
++ bb10 [continuation]:
++   stop
++ bb11 [continuation]:
+    stop
+  

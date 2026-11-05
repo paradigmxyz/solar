@@ -1,0 +1,21 @@
+//@ compile-flags: -Osize --evm-version paris -Zmir-pipeline=lower-mcopy -Zdebugify=check
+//@ normalize-stdout-test: "(?s).+" -> ""
+// The shared `mcopy_words` helper belongs to no source construct, so its instructions carry
+// `compiler_generated` instead of lacking a location, and the check accepts the pass.
+@module CopyHelperDebugInfo
+
+fn @first() {
+  bb0:
+    v0 = alloc 64 !metadata(span=10..20)
+    v1 = alloc 64 !metadata(span=10..20)
+    mcopy v1, v0, 40 !metadata(span=30..40)
+    ret !metadata(span=50..60)
+}
+
+fn @second() {
+  bb0:
+    v0 = alloc 64 !metadata(span=110..120)
+    v1 = alloc 64 !metadata(span=110..120)
+    mcopy v1, v0, 40 !metadata(span=130..140)
+    ret !metadata(span=150..160)
+}
