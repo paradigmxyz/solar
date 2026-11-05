@@ -587,7 +587,7 @@ fn add_exit_phis(func: &mut Function, exit_phis: &[(BlockId, Vec<ValueId>)]) {
             // block: value' = phi [pred: value]
             let (phi, result) = func.alloc_value_inst(
                 Instruction::new(InstKind::Phi(vec![(pred, value)]), func.value_ty(value))
-                    .with_debug_info_dropped(),
+                    .with_debug_loc_dropped(),
             );
             phis.push(phi);
             replacements.insert(value, result);
@@ -729,19 +729,18 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
     // header: counter = phi [preheader: start], [latch: next]
     //         word = counter | ptrtoint counter
     //         jumpi (lt word, bound) | (ne word, bound) | (gt word, 0), body, exit
-    //         jumpi (gt word, bound) | (eq word, bound), exit, body
+    //         jumpi (gt word, bound) | (lt bound, word) | (eq word, bound), exit, body
     // latch:  next = add word, step | sub word, step | inttoptr (add|sub word, step)
     let reaches =
         |a, b| if defined_in_loop(a) { (Test::Reaches, a, b) } else { (Test::Reaches, b, a) };
-    let is_zero = |value| func.value_u256(value).is_some_and(|value| value.is_zero());
     let (test, word, bound) = match (func.value_inst_kind(condition)?, enters_on_true) {
         // A word above zero has not reached it.
-        (&InstKind::Gt(word, zero), true) | (&InstKind::Lt(zero, word), true) if is_zero(zero) => {
+        (&InstKind::Gt(word, zero), true)
+            if func.value_u256(zero).is_some_and(|zero| zero.is_zero()) =>
+        {
             (Test::Reaches, word, zero)
         }
-        (&InstKind::Lt(word, bound), true) | (&InstKind::Gt(bound, word), true) => {
-            (Test::Below, word, bound)
-        }
+        (&InstKind::Lt(word, bound), true) => (Test::Below, word, bound),
         (&InstKind::Gt(word, bound), false) | (&InstKind::Lt(bound, word), false) => {
             (Test::AtMost, word, bound)
         }
@@ -782,11 +781,7 @@ fn counter(func: &Function, l: &Loop, shape: &Shape) -> Option<Counter> {
         _ => return None,
     };
     let step = match *func.value_inst_kind(advance)? {
-        InstKind::Add(a, b) => match (func.value_u256(a), func.value_u256(b)) {
-            (_, Some(step)) if a == word => step,
-            (Some(step), _) if b == word => step,
-            _ => return None,
-        },
+        InstKind::Add(a, b) if a == word => func.value_u256(b)?,
         // Counting down by `m` steps by `-m`, modulo 2^256, which only a loop that runs until
         // its counter reaches the bound can do.
         InstKind::Sub(a, b) if a == word && matches!(test, Test::Reaches) => {
@@ -925,10 +920,7 @@ fn plan_reverse(
     if !l.blocks.contains(then_block) || l.blocks.contains(else_block) {
         return None;
     }
-    let (counter, bound) = match *func.value_inst_kind(condition)? {
-        InstKind::Lt(counter, bound) | InstKind::Gt(bound, counter) => (counter, bound),
-        _ => return None,
-    };
+    let &InstKind::Lt(counter, bound) = func.value_inst_kind(condition)? else { return None };
     // The reversed counter starts at the word `0 - n`.
     if func.value_ty(counter) != Some(MirType::I256) {
         return None;
@@ -950,10 +942,9 @@ fn plan_reverse(
     if !func.value_u256(start).is_some_and(|start| start.is_zero()) {
         return None;
     }
-    match *func.value_inst_kind(next)? {
-        InstKind::Add(a, b) | InstKind::Add(b, a)
-            if a == counter && func.value_u256(b) == Some(U256::ONE) => {}
-        _ => return None,
+    let &InstKind::Add(a, one) = func.value_inst_kind(next)? else { return None };
+    if a != counter || func.value_u256(one) != Some(U256::ONE) {
+        return None;
     }
     // The counter, its increment and its test have no other readers.
     let uses = uses.get_or_init(|| super::egraph::use_counts(func));
@@ -1151,7 +1142,6 @@ fn shifted_left(func: &Function, value: ValueId, bits: usize) -> Option<ValueId>
 fn literal_step(func: &Function, lhs: ValueId, rhs: ValueId) -> Option<(ValueId, U256)> {
     match (func.value_u256(lhs), func.value_u256(rhs)) {
         (None, Some(step)) => Some((lhs, step)),
-        (Some(step), None) => Some((rhs, step)),
         _ => None,
     }
 }
@@ -1438,7 +1428,7 @@ fn merge_entry(
                 ]),
                 func.value_ty(phi),
             )
-            .with_debug_info_dropped(),
+            .with_debug_loc_dropped(),
         );
         func.blocks[enter].instructions.push(merge);
         edit_phi(func, phi, |incoming| {

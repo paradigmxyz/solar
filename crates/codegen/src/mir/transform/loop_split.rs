@@ -106,12 +106,8 @@ fn split_function(func: &mut Function) -> bool {
 
 /// `value = base + literal`, as the base and the literal's value.
 fn literal_offset(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
-    let &InstKind::Add(a, b) = func.value_inst_kind(value)? else { return None };
-    match (func.value_u256(a), func.value_u256(b)) {
-        (_, Some(offset)) => Some((a, offset)),
-        (Some(offset), _) => Some((b, offset)),
-        _ => None,
-    }
+    let &InstKind::Add(base, offset) = func.value_inst_kind(value)? else { return None };
+    Some((base, func.value_u256(offset)?))
 }
 
 fn plan(func: &Function, loops: &LoopInfo, l: &Loop) -> Option<Split> {
@@ -235,11 +231,11 @@ fn apply(func: &mut Function, split: &Split) {
         func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), split.lookahead)));
     let (add, ahead) = func.alloc_value_inst(
         Instruction::new(InstKind::Add(mapped(split.counter), lookahead), Some(ty))
-            .with_debug_info_dropped(),
+            .with_debug_loc_dropped(),
     );
     let (lt, condition) = func.alloc_value_inst(
         Instruction::new(InstKind::Lt(ahead, split.bound), Some(MirType::I1))
-            .with_debug_info_dropped(),
+            .with_debug_loc_dropped(),
     );
     func.blocks[main_header].instructions.extend([add, lt]);
     branch(func, main_header, condition, copy.blocks[&split.body], split.header);

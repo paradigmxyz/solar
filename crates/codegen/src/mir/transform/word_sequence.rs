@@ -604,7 +604,7 @@ fn zero_tested_leaf(
             let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(bits))));
             let (inst, word) = func.alloc_value_inst(
                 Instruction::new(InstKind::Shr(shift, word), Some(MirType::I256))
-                    .with_debug_info_dropped(),
+                    .with_debug_loc_dropped(),
             );
             (word, Some((comparison, inst)))
         }

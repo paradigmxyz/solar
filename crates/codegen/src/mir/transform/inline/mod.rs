@@ -1264,8 +1264,8 @@ fn is_check_wrapper(func: &Function) -> bool {
     let call = match block.instructions.as_slice() {
         [call] => *call,
         [negation, call]
-            if matches!(func.inst(*negation).kind, InstKind::Eq(lhs, rhs)
-                if func.value_u64(lhs) == Some(0) || func.value_u64(rhs) == Some(0)) =>
+            if matches!(func.inst(*negation).kind, InstKind::Eq(_, zero)
+                if func.value_u64(zero) == Some(0)) =>
         {
             *call
         }
@@ -1518,16 +1518,13 @@ fn direct_dispatch_target(
         let Value::Inst(condition) = dispatcher.value(*condition) else {
             continue;
         };
-        let InstKind::Eq(lhs, rhs) = dispatcher.inst(*condition).kind else {
+        let InstKind::Eq(arg, value) = dispatcher.inst(*condition).kind else {
             continue;
         };
-        let matches_selector = [(lhs, rhs), (rhs, lhs)].into_iter().any(|(arg, value)| {
-            matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
-                && dispatcher.value_ty(arg) == Some(MirType::I256)
-                && dispatcher.value(value).as_immediate().and_then(Immediate::as_u256)
-                    == Some(selector)
-        });
-        if matches_selector {
+        if matches!(dispatcher.value(arg), Value::Arg(index) if index.index() == 0)
+            && dispatcher.value_ty(arg) == Some(MirType::I256)
+            && dispatcher.value_u256(value) == Some(selector)
+        {
             return direct_dispatch_case_target(module, dispatcher, *then_block);
         }
     }
@@ -1669,7 +1666,7 @@ fn inline_call_impl(
                 return None;
             }
             let (inst, value) = caller.alloc_value_inst(
-                Instruction::new(InstKind::IntToPtr(*arg), Some(ty)).with_debug_info_dropped(),
+                Instruction::new(InstKind::IntToPtr(*arg), Some(ty)).with_debug_loc_dropped(),
             );
             argument_views.push(inst);
             *arg = value;
@@ -1760,7 +1757,7 @@ fn inline_literal_call(
         let source = callee.inst(inst);
         let kind = cloner.clone_inst_kind(source.kind.clone())?;
         let mut instruction = Instruction::new(kind, source.result_ty);
-        instruction.metadata.copy_debug_context(&source.metadata);
+        instruction.metadata.preserve_debug_loc(&source.metadata);
         if matches!(instruction.kind, InstKind::Alloc { .. }) {
             // object = alloc size
             //   => object = alloc size !metadata(preserves_fmp)
@@ -1852,7 +1849,7 @@ impl<'a> InlineCloner<'a> {
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id);
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
-                instruction.metadata.copy_debug_context(&inst.metadata);
+                instruction.metadata.preserve_debug_loc(&inst.metadata);
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst_verbatim(instruction);
                     self.value_map.insert(callee_result, new_result);
@@ -2006,7 +2003,7 @@ fn build_return_values(
             .map(|(block, edge_values)| Some((*block, *edge_values.get(index)?)))
             .collect::<Option<Vec<_>>>()?;
         let (phi, value) = caller.alloc_value_inst(
-            Instruction::new(InstKind::Phi(incoming), Some(ty)).with_debug_info_dropped(),
+            Instruction::new(InstKind::Phi(incoming), Some(ty)).with_debug_loc_dropped(),
         );
         caller.blocks[continuation].instructions.insert(index, phi);
         values.push(value);

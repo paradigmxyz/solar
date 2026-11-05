@@ -51,17 +51,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 {
                     let expr_ty = self.cx.gcx.type_of_expr(expr.id)?;
                     let value = self.builder.imm(value);
-                    self.coerce_value(value, expr_ty, ty)
+                    Word::from_clean(self.coerce_value(value, expr_ty, ty))
                 } else if let Some(expr) = initializer {
                     self.lower_typed_expr(expr, ty)?
                 } else {
-                    self.default_binding_value(ty)
+                    Word::from_clean(self.default_binding_value(ty))
                 };
-                let value = self.materialize_scalar_carrier(
-                    *id,
-                    value,
-                    initializer.map_or(stmt.span, |expr| expr.span),
-                )?;
+                let value =
+                    self.bind_word(*id, value, initializer.map_or(stmt.span, |expr| expr.span))?;
                 self.values.insert(*id, value);
             }
             StmtKind::DeclMulti(ids, expr) => {
@@ -86,7 +83,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 // the reference itself only binds to a storage
                                 // variable.
                                 let span = self.cx.gcx.hir.variable(*id).span;
-                                let value = self.load_storage_object(ty, value, span)?;
+                                let value = self.load_storage_object(ty, access.slot, span)?;
                                 self.values.insert(*id, value);
                                 continue;
                             }
@@ -99,7 +96,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         } else {
                             let value =
                                 self.convert_tuple_component(value, source_ty, ty, expr.span)?;
-                            let value = self.materialize_raw_scalar(*id, value);
+                            let span = self.cx.gcx.hir.variable(*id).span;
+                            let value = self.bind_word(*id, value, span)?;
                             self.values.insert(*id, value);
                         }
                     }
@@ -130,7 +128,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         }
                         let span = value.span;
                         let value = self.lower_typed_expr(value, ty)?;
-                        let value = self.materialize_scalar_carrier(*id, value, span)?;
+                        let value = self.bind_word(*id, value, span)?;
                         self.values.insert(*id, value);
                     }
                     return Some(());
@@ -162,7 +160,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let target = self.cx.gcx.type_of_item((*id).into());
                         let value =
                             self.convert_tuple_component(value, source, target, expr.span)?;
-                        let value = self.materialize_raw_scalar(*id, value);
+                        let span = self.cx.gcx.hir.variable(*id).span;
+                        let value = self.bind_word(*id, value, span)?;
                         self.values.insert(*id, value);
                     }
                 }
@@ -219,10 +218,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         for (id, value) in return_ids.into_iter().zip(values) {
                             let ty = self.cx.gcx.type_of_item(id.into());
                             if ty.is_ref_at(DataLocation::Storage) {
-                                self.set_storage_ref_slot(id, value);
+                                let slot = value.clean(self, ty);
+                                self.set_storage_ref_slot(id, slot);
                             } else {
-                                let value =
-                                    self.materialize_scalar_carrier(id, value, stmt.span)?;
+                                let value = self.bind_word(id, value, stmt.span)?;
                                 self.values.insert(id, value);
                             }
                         }
@@ -241,9 +240,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             .map(|(id, value)| {
                                 let ty = self.cx.gcx.type_of_item(id.into());
                                 if ty.is_ref_at(DataLocation::Storage) {
-                                    Some(value)
+                                    Some(value.clean(self, ty))
                                 } else {
-                                    self.materialize_scalar_carrier(id, value, stmt.span)
+                                    self.bind_word(id, value, stmt.span)
                                 }
                             })
                             .collect::<Option<Vec<_>>>()?;
@@ -324,6 +323,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Ident(_) | ExprKind::New(_) => Some(()),
             // Neither does literal arithmetic, whose fractions have no runtime value.
             _ if expr.is_numeric_literal() => Some(()),
+            // An equal-type conversion only evaluates its operand.
+            ExprKind::Call(..) if let Some(argument) = self.equal_type_conversion(expr) => {
+                self.lower_discarded_expr(argument)
+            }
             ExprKind::Call(callee, args) => {
                 let (callee, options) = callee.split_call_options();
                 self.lower_call(expr, callee, *args, options, false).map(drop)
@@ -337,8 +340,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.type_of_expr(rhs.id)?.is_ref_at(DataLocation::Storage)
                 {
                     self.storage_access(expr).map(drop)
+                } else if let Some(ty) = self.cx.gcx.type_of_expr(expr.id)
+                    && ty.is_value_type()
+                {
+                    // The assigned value is discarded, so a raw word stays unvalidated, as in solc.
+                    self.lower_typed_expr(expr, ty).map(drop)
                 } else {
-                    self.lower_expr(expr).map(drop)
+                    self.operand(expr).map(drop)
                 }
             }
             ExprKind::Tuple(values) => {
@@ -348,7 +356,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
-                let condition = self.lower_expr(condition)?;
+                let condition = self.operand(condition)?;
                 let ty = self.cx.gcx.type_of_expr(expr.id)?;
                 let lower_branch = |this: &mut Self, branch| {
                     if ty.is_ref_at(DataLocation::Memory) {
@@ -386,7 +394,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             // Types, modules, events, and errors have no effects to evaluate.
             _ if self.is_item_reference(expr) => Some(()),
-            _ => self.lower_expr(expr).map(drop),
+            _ => self.operand(expr).map(drop),
         }
     }
 
@@ -444,7 +452,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
         let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let value = self.lower_typed_expr(expr, memory_ty)?;
+        let value = self.lower_typed_expr(expr, memory_ty)?.clean(self, memory_ty);
         let value = self.materialize_memory_argument(memory_ty, value, expr.span)?;
         Some(RevertPayload::ErrorString(value))
     }
@@ -744,7 +752,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
     ) -> ValueId {
         let expr = expr.peel_parens();
-        let value = self.normalize_dirty_scalar(value, ty);
         if let TyKind::Fn(function) = ty.peel_refs().kind
             && function.is_external()
         {
