@@ -512,7 +512,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_metadata(&mut self) -> PResult<'sess, Metadata> {
         let mut metadata = Metadata::default();
         if !self.parser.eat(TokenKind::Not) {
-            metadata.mark_debug_info_dropped();
+            metadata.drop_debug_loc(DebugLocKind::Dropped);
             return Ok(metadata);
         }
         let name = self.parser.parse_ident()?;
@@ -521,7 +521,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
-            metadata.mark_debug_info_dropped();
+            metadata.drop_debug_loc(DebugLocKind::Dropped);
             return Ok(metadata);
         }
 

@@ -2,7 +2,7 @@
 
 use super::{BlockId, InstId, InstructionMetadata, ValueId};
 use smallvec::SmallVec;
-use solar_ir::Hotness;
+use solar_ir::{Hotness, debug::DebugLocKind};
 use std::fmt;
 
 /// A basic block in the MIR.
@@ -47,14 +47,14 @@ impl BasicBlock {
     /// Replaces a transfer with compiler-generated control flow, dropping stale context.
     pub fn set_generated_terminator(&mut self, terminator: Terminator) {
         let mut metadata = InstructionMetadata::EMPTY;
-        metadata.mark_debug_info_dropped();
+        metadata.drop_debug_loc(DebugLocKind::Dropped);
         self.set_terminator(terminator, metadata);
     }
 
     /// Moves a control transfer out, leaving fresh generated-code context behind.
     pub fn take_terminator(&mut self) -> (Option<Terminator>, InstructionMetadata) {
         let mut generated = InstructionMetadata::EMPTY;
-        generated.mark_debug_info_dropped();
+        generated.drop_debug_loc(DebugLocKind::Dropped);
         let metadata = std::mem::replace(&mut self.terminator_metadata, generated);
         (self.terminator.take(), metadata)
     }
@@ -66,7 +66,7 @@ impl BasicBlock {
     pub fn new_copy(&self) -> Self {
         let mut copy = Self::new();
         copy.cold_hint = self.cold_hint;
-        copy.label_metadata.copy_debug_context(&self.label_metadata);
+        copy.label_metadata.preserve_debug_loc(&self.label_metadata);
         copy
     }
 
@@ -74,7 +74,7 @@ impl BasicBlock {
     #[must_use]
     pub(crate) fn new() -> Self {
         let mut terminator_metadata = InstructionMetadata::EMPTY;
-        terminator_metadata.mark_debug_info_dropped();
+        terminator_metadata.drop_debug_loc(DebugLocKind::Dropped);
         Self {
             instructions: Vec::new(),
             terminator: None,

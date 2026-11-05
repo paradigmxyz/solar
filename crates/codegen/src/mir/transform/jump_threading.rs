@@ -330,7 +330,7 @@ fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
         func.blocks[block].instructions.clear();
         replace_terminator(func, block, Terminator::Invalid);
         replace_terminator(func, pred, term);
-        func.blocks[pred].terminator_metadata.merge_debug_context(&context);
+        func.blocks[pred].terminator_metadata.merge_debug_locs([&context]);
         folded = true;
     }
     folded
