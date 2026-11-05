@@ -9,6 +9,7 @@
 //@ run-call: delegatecallWord() => 64
 //@ run-call: callRevertData() => 160
 //@ run-call: stashedEmpty() => 0
+//@ run-call: pickedEmpty() => 0
 //@ run-call: forwardWord() => 1
 //@ run-call: forwardEmpty()
 //@ run-call-fail: forwardRevert() => 0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000568656c6c6f000000000000000000000000000000000000000000000000000000
@@ -139,6 +140,21 @@ contract C {
         assembly {
             data := sload(0)
         }
+        return data.length;
+    }
+
+    function pick(bool useData) private returns (bytes memory picked) {
+        bytes memory input = abi.encodeWithSelector(this.noop.selector);
+        (bool ok, bytes memory data) = address(this).call(input);
+        require(ok);
+        picked = useData ? data : bytes("x");
+    }
+
+    // The object leaves `pick` through a phi, so it must not sit at the free memory pointer.
+    function pickedEmpty() external returns (uint256) {
+        bytes memory data = pick(true);
+        bytes memory other = abi.encode(uint256(1), uint256(2));
+        require(other.length == 64);
         return data.length;
     }
 }

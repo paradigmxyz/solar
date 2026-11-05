@@ -419,19 +419,51 @@ fn stable_empty_allocs(func: &Function) -> FxHashSet<InstId> {
 fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool {
     let alloc = func.blocks[block].instructions[index];
     let Some(result) = func.inst_result_value(alloc) else { return false };
-    let mut derived = FxHashSet::from_iter([result]);
+
+    // The reachable code after the allocation, as (block, first instruction) pairs. A loop back to
+    // the allocation's block reaches the allocation itself, which fails the check below.
+    let mut region = Vec::new();
     let mut visited = FxHashSet::default();
     let mut pending = vec![(block, index + 1)];
     while let Some((block, start)) = pending.pop() {
         if start == 0 && !visited.insert(block) {
             continue;
         }
+        region.push((block, start));
+        pending.extend(
+            func.blocks[block]
+                .terminator
+                .iter()
+                .flat_map(|terminator| terminator.successors())
+                .map(|successor| (successor, 0)),
+        );
+    }
+
+    // The values derived from the object, to a fixed point so that the order the blocks are
+    // visited in does not matter. Loads read the object and derive nothing.
+    let mut derived = FxHashSet::from_iter([result]);
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for &(block, start) in &region {
+            for &inst in &func.blocks[block].instructions[start..] {
+                let kind = &func.inst(inst).kind;
+                if kind.effect_kind() == EffectKind::Pure
+                    && kind.operands().iter().any(|operand| derived.contains(operand))
+                    && let Some(value) = func.inst_result_value(inst)
+                {
+                    changed |= derived.insert(value);
+                }
+            }
+        }
+    }
+
+    region.into_iter().all(|(block, start)| {
         let data = &func.blocks[block];
-        for &inst in &data.instructions[start..] {
+        let keeps = data.instructions[start..].iter().all(|&inst| {
             let kind = &func.inst(inst).kind;
             let uses_object = kind.operands().iter().any(|operand| derived.contains(operand));
-            let effect = kind.effect_kind();
-            let keeps = match effect {
+            match kind.effect_kind() {
                 EffectKind::Pure => !matches!(kind, InstKind::Phi(_)) || !uses_object,
                 EffectKind::MemoryRead
                 | EffectKind::StorageRead
@@ -449,31 +481,17 @@ fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool
                     _ => false,
                 },
                 _ => false,
-            };
-            if !keeps {
-                return false;
             }
-            if uses_object
-                && effect == EffectKind::Pure
-                && let Some(value) = func.inst_result_value(inst)
-            {
-                derived.insert(value);
+        });
+        keeps
+            && match &data.terminator {
+                Some(Terminator::Return { values }) => {
+                    !values.iter().any(|value| derived.contains(value))
+                }
+                Some(Terminator::TailCall { .. }) | None => false,
+                Some(_) => true,
             }
-        }
-        let Some(terminator) = &data.terminator else { return false };
-        let escapes = match terminator {
-            Terminator::Return { .. } => {
-                terminator.operands().iter().any(|operand| derived.contains(operand))
-            }
-            Terminator::TailCall { .. } => true,
-            _ => false,
-        };
-        if escapes {
-            return false;
-        }
-        pending.extend(terminator.successors().into_iter().map(|successor| (successor, 0)));
-    }
-    true
+    })
 }
 
 /// Rewrites the detached `inst` to read the pointer from its slot, or the heap floor when nothing
