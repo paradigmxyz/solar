@@ -101,7 +101,7 @@ fn abi_origins_and_conditional_thunks() {
         assert_data_eq!(
             format!("{mapped:?}"),
             str![[
-                r#"[("abi.decode(data, (Op, bytes))", true, true), ("op == Op.A", true, true), ("return (who, got)", false, false), ("return (address(0), 0)", false, false), ("abi.decode(rest, (address, uint256))", true, true)]"#
+                r#"[("abi.decode(data, (Op, bytes))", true, true), ("op == Op.A", true, true), ("return (who, got)", true, true), ("return (address(0), 0)", true, true), ("abi.decode(rest, (address, uint256))", true, true)]"#
             ]]
         );
 

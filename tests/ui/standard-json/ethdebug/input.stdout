@@ -388,18 +388,51 @@
                     "arguments": [
                       "0x24"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 13,
+                        "length": 74
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 21,
                   "operation": {
                     "mnemonic": "CALLDATASIZE"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 13,
+                        "length": 74
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 22,
                   "operation": {
                     "mnemonic": "LT"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 13,
+                        "length": 74
+                      }
+                    }
                   }
                 },
                 {
@@ -409,12 +442,34 @@
                     "arguments": [
                       "0x2b"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 13,
+                        "length": 74
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 25,
                   "operation": {
                     "mnemonic": "JUMPI"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 13,
+                        "length": 74
+                      }
+                    }
                   }
                 },
                 {
@@ -451,8 +506,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 79,
-                        "length": 5
+                        "offset": 13,
+                        "length": 74
                       }
                     }
                   }
@@ -468,8 +523,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 79,
-                        "length": 5
+                        "offset": 13,
+                        "length": 74
                       }
                     }
                   }
@@ -661,12 +716,34 @@
                   "offset": 44,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 13,
+                        "length": 74
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 45,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 13,
+                        "length": 74
+                      }
+                    }
                   }
                 },
                 {
@@ -675,6 +752,15 @@
                     "mnemonic": "REVERT"
                   },
                   "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 13,
+                        "length": 74
+                      }
+                    },
                     "revert": {}
                   }
                 },

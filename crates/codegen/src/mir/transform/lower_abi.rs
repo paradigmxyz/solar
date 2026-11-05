@@ -462,8 +462,8 @@ impl LowerAbiCx {
         static_bytes_return: Option<StaticBytesReturn>,
         decoded_params: &[Option<ValueId>],
     ) {
+        let revert_strings = self.revert_strings;
         let Some(mut layout) = func.abi_returns.take() else { return };
-        let declaration = func.declaration_span;
         let return_blocks = func
             .blocks
             .indices()
@@ -534,11 +534,11 @@ impl LowerAbiCx {
                 Some(Terminator::Return { values }) => values.into_vec(),
                 _ => unreachable!("return block changed unexpectedly"),
             };
-            let mut builder = self.wrapper_builder(func);
+            let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
             builder.switch_to_block(block_id);
-            // abi_encode(values) !metadata(declaration span)
+            // abi_encode(values) !metadata(return span)
             // returndata(encoded_ptr, encoded_len) !metadata(return span)
-            set_return_packing_origin(&mut builder, block_id, declaration);
+            builder.inherit_terminator_debug_context(block_id);
             let values = values
                 .into_iter()
                 .enumerate()
@@ -598,7 +598,6 @@ impl LowerAbiCx {
                 let encoded = builder.abi_encode_scratch(layout.clone(), None, values);
                 let offset = builder.slice_ptr(encoded);
                 let size = builder.slice_len(encoded);
-                builder.inherit_terminator_debug_context(block_id);
                 builder.ret_data(offset, size);
             } else {
                 // A result that fits below the heap start never reaches the spill area.
@@ -614,7 +613,6 @@ impl LowerAbiCx {
                     &layout.types,
                     offset,
                 );
-                builder.inherit_terminator_debug_context(block_id);
                 builder.ret_data(offset, size);
             }
         }
@@ -626,10 +624,14 @@ impl LowerAbiCx {
     }
 
     /// Creates a builder for the entry code of `func`, which maps to its declaration, as solc emits
-    /// an external function's dispatch branch, ABI decoding, and return packing under
+    /// an external function's callvalue check and ABI decoding under
     /// `LocationSetter(functionType->declaration())` (`ContractCompiler.cpp` L514), and a
     /// constructor's argument decoding under `LocationSetter(_constructor)` (L288). Blocks the
     /// builder places take the same origin as their labels.
+    ///
+    /// NOTE: Return encoding keeps the origin of the `return` it replaces. solc evaluates the
+    /// returned values under the statement, and the immediates and conversions that feed the
+    /// encoding are those values; only a wrapper that calls the body has no `return` of its own.
     fn wrapper_builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
         let declaration = func.declaration_span;
         let mut builder = self.builder(func).with_block_labels();
@@ -3925,12 +3927,12 @@ fn encode_static_bytes_return(
 ) {
     let word_size = EvmMemoryLayout::WORD_SIZE;
     let return_size = word_size * 2 + value.len.next_multiple_of(word_size);
-    let declaration = func.declaration_span;
+    let return_context = func.blocks[return_block].terminator_metadata.debug_context();
     func.blocks[return_block].instructions.clear();
     func.blocks[return_block].terminator = None;
     let mut builder = FunctionBuilder::new(func);
     builder.switch_to_block(return_block);
-    set_return_packing_origin(&mut builder, return_block, declaration);
+    builder.inherit_terminator_debug_context(return_block);
     // mstore(0, 32)
     // mstore(32, len)
     // if length != 0 { mstore(64, word) }
@@ -3958,7 +3960,7 @@ fn encode_static_bytes_return(
         builder.set_debug_context(&value.debug[2]);
         builder.store(tail_offset, tail);
     }
-    builder.inherit_terminator_debug_context(return_block);
+    builder.set_debug_context(&return_context);
     builder.ret_data(offset, size);
 }
 
@@ -3969,22 +3971,6 @@ fn encode_static_bytes_return(
 fn returns_in_scratch(layout: &AbiLayout) -> bool {
     layout.head_size() <= EvmMemoryLayout::HEAP_START
         && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_) | AbiType::Function))
-}
-
-/// Gives the code that packs the return of `block` the origin of `declaration`, as solc's
-/// `appendReturnValuePacker` runs under the function's location setter. A function without a
-/// declaration, as in parsed MIR, keeps the origin of its return.
-///
-/// NOTE: The final `returndata` keeps the origin of the `return` it replaces, not the
-/// declaration's. solc maps the `return` statement's jump into the packer to the statement, and
-/// that jump does not exist here, so the terminator is the only code left to carry the statement.
-fn set_return_packing_origin(builder: &mut FunctionBuilder<'_>, block: BlockId, declaration: Span) {
-    if declaration.is_dummy() {
-        builder.inherit_terminator_debug_context(block);
-    } else {
-        builder.replace_modifier_depth(0);
-        builder.replace_source_span(declaration);
-    }
 }
 
 fn materialize_calldata_return(

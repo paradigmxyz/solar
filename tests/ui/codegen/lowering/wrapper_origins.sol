@@ -8,9 +8,10 @@
 
 // An external function's wrapper belongs to its declaration, as in solc's `appendFunctionSelector`,
 // which emits the callvalue check, the head size and validation checks with their reverts, the
-// head loads and the return encoding under `LocationSetter(functionType->declaration())`. That is
-// the function definition, or the variable of a public getter. The constructor's argument decoding
-// belongs to the constructor, as in `appendConstructor`. The body keeps its own origins.
+// head loads under `LocationSetter(functionType->declaration())`. That is the function definition,
+// or the variable of a public getter. The constructor's argument decoding belongs to the
+// constructor, as in `appendConstructor`. The body keeps its own origins, and the encoding of a
+// `return` keeps the origin of the statement it replaces.
 
 // RUNTIME-LABEL: (scheduled runtime) ===
 // RUNTIME: [entry, invoke=total@[[GETTER:[0-9]+..[0-9]+]]]
@@ -23,8 +24,7 @@
 // RUNTIME: callvalue !metadata(span=[[F]])
 // RUNTIME: calldataload !metadata(span=[[F]])
 // RUNTIME: jumpi !metadata(span=[[F]])
-// RUNTIME: mstore !metadata(span=[[F]])
-// RUNTIME: return !metadata(span=[[F]], exit=return)
+// RUNTIME: return !metadata(span={{[0-9]+..[0-9]+}}, exit=return)
 // RUNTIME: revert !metadata(span=[[F]], exit=revert)
 
 // CREATION-LABEL: (creation) ===
