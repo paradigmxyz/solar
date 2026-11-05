@@ -288,8 +288,18 @@ fn return_docs(
         .enumerate()
         .filter_map(|(index, item)| {
             let variable = gcx.hir.variable(*returns.get(index)?);
+            let mut content = item.content();
+            // Like solc, an inherited tag from an unnamed return that starts with the name of this
+            // return keeps that name as its own.
+            if matches!(item.kind, hir::NatSpecKind::Return { name: None })
+                && let Some(name) = variable.name
+                && let Some((word, rest)) = content.split_once([' ', '\t'])
+                && word == name.name.as_str()
+            {
+                content = rest;
+            }
             let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
-            Some((name, item.content().to_string()))
+            Some((name, content.to_string()))
         })
         .collect()
 }
@@ -319,6 +329,11 @@ fn state_variable_return(gcx: Gcx<'_>, variable_id: hir::VariableId) -> Option<S
     let content = match (documented, expected) {
         (Some(documented), Some(expected)) if documented.name == expected.name => {
             raw_return_content(item).to_string()
+        }
+        (None, Some(expected))
+            if item.content().split([' ', '\t']).next() == Some(expected.name.as_str()) =>
+        {
+            item.content().to_string()
         }
         (_, Some(expected)) => format!("{} {}", expected.name, item.content()),
         (_, None) => item.content().to_string(),
