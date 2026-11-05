@@ -91,7 +91,6 @@ fn @skippedBranch(arg0: i1) -> i256 [selector=0x8b589b97, pure, abi_params=[bool
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v1 = phi [bb1: 0x10b1964700000000000000000000000000000000000000000000000000000000], [bb2: v0]
     ret 4
 }
 

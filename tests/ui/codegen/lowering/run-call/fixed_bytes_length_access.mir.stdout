@@ -7,14 +7,12 @@
 ; function f(bytes32 x) public view returns (uint256, uint256, uint256) [selector 0xd7da973a]
 fn @f(arg0: i256) -> struct0 [selector=0xd7da973a, view, abi_params=[bytes32], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = shl v0, 248
-    v2 = checked_add uint8, i8 1, i8 7
-    v3 = zext i8 v2 to i256
-    v4 = insert_value struct0, undef struct0, 0, 32
-    v5 = insert_value struct0, v4, 1, 16
-    v6 = insert_value struct0, v5, 2, v3
-    ret v6
+    v0 = checked_add uint8, i8 1, i8 7
+    v1 = zext i8 v0 to i256
+    v2 = insert_value struct0, undef struct0, 0, 32
+    v3 = insert_value struct0, v2, 1, 16
+    v4 = insert_value struct0, v3, 2, v1
+    ret v4
 }
 
 ; function sideEffect() external returns (uint256, uint256) [selector 0x3a058265]
