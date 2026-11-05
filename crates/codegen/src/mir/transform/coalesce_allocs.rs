@@ -350,12 +350,8 @@ impl GroupBounds {
                 return Some((member, offset));
             }
             let Value::Inst(inst) = *func.value(address) else { return None };
-            let InstKind::Add(first, second) = func.inst(inst).kind else { return None };
-            let (base, step) = if let Some(step) = func.value_u64(second) {
-                (first, step)
-            } else {
-                (second, func.value_u64(first)?)
-            };
+            let InstKind::Add(base, step) = func.inst(inst).kind else { return None };
+            let step = func.value_u64(step)?;
             if func.value_ty(address) != Some(MirType::I256) {
                 return None;
             }

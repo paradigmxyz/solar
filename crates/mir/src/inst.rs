@@ -1016,7 +1016,6 @@ impl InstKind {
     pub fn zero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
         match *self {
             Self::Eq(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
-            Self::Eq(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
             _ => None,
         }
     }
@@ -1025,7 +1024,6 @@ impl InstKind {
     pub fn nonzero_test_operand(&self, func: &super::Function) -> Option<ValueId> {
         match *self {
             Self::Ne(a, b) if func.value_u256(b).is_some_and(|v| v.is_zero()) => Some(a),
-            Self::Ne(a, b) if func.value_u256(a).is_some_and(|v| v.is_zero()) => Some(b),
             _ => None,
         }
     }

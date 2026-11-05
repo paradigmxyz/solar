@@ -502,9 +502,6 @@ fn is_initial_pointer_plus_constants(func: &Function, value: ValueId) -> bool {
         InstKind::Add(base, offset) | InstKind::PtrAdd(base, offset) if small(offset) => {
             is_initial_pointer_plus_constants(func, base)
         }
-        InstKind::Add(offset, base) if small(offset) => {
-            is_initial_pointer_plus_constants(func, base)
-        }
         _ => false,
     }
 }

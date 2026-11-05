@@ -282,14 +282,8 @@ fn select_form(
     let else_literal = func.value_u256(else_value);
     // A ? then : (base + c2 * k) with c => c2 and literal then, base, and k.
     if let Some(then) = then_literal
-        && let Some((base, scaled)) = binary_operands(func, else_value, |kind| match *kind {
-            InstKind::Add(a, b) => Some((a, b)),
-            _ => None,
-        })
-        && let Some((amount, c2)) = binary_operands(func, scaled, |kind| match *kind {
-            InstKind::Mul(a, b) => Some((a, b)),
-            _ => None,
-        })
+        && let Some(&InstKind::Add(scaled, base)) = func.value_inst_kind(else_value)
+        && let Some(&InstKind::Mul(c2, amount)) = func.value_inst_kind(scaled)
         && let Some(base) = func.value_u256(base)
         && let Some(amount) = func.value_u256(amount)
         && implies(func, condition, c2)
@@ -300,21 +294,6 @@ fn select_form(
         (Some(then), Some(else_)) => Some(then.wrapping_sub(else_)),
         _ => None,
     })
-}
-
-/// The operands of a commutative binary instruction defining `value`, ordered
-/// so the first is a literal when either is.
-fn binary_operands(
-    func: &Function,
-    value: ValueId,
-    operands: impl Fn(&InstKind) -> Option<(ValueId, ValueId)>,
-) -> Option<(ValueId, ValueId)> {
-    let (a, b) = operands(func.value_inst_kind(value)?)?;
-    if func.value_u256(a).is_some() || func.value_u256(b).is_none() {
-        Some((a, b))
-    } else {
-        Some((b, a))
-    }
 }
 
 /// Whether a nonzero `first` implies a nonzero `second`: the same value, or
@@ -661,11 +640,7 @@ fn agreeing_value(
 /// `(x, k)` for a value `x + k` or `x - (-k)`, with `k` a literal and `x` not.
 fn added_literal(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
     match *func.value_inst_kind(value)? {
-        InstKind::Add(a, b) => match (func.value_u256(a), func.value_u256(b)) {
-            (None, Some(k)) => Some((a, k)),
-            (Some(k), None) => Some((b, k)),
-            _ => None,
-        },
+        InstKind::Add(a, b) if func.value_u256(a).is_none() => Some((a, func.value_u256(b)?)),
         InstKind::Sub(a, b) if func.value_u256(a).is_none() => {
             Some((a, U256::ZERO.wrapping_sub(func.value_u256(b)?)))
         }
@@ -683,16 +658,12 @@ fn literal_comparison(
     condition: ValueId,
     negations: u32,
 ) -> Option<(ValueId, U256, bool)> {
-    let (a, b, equal) = match *func.value_inst_kind(condition)? {
-        InstKind::Eq(a, b) => (a, b, true),
-        InstKind::Ne(a, b) => (a, b, false),
+    let (x, c, equal) = match *func.value_inst_kind(condition)? {
+        InstKind::Eq(x, c) => (x, c, true),
+        InstKind::Ne(x, c) => (x, c, false),
         _ => return None,
     };
-    let (x, c) = match (func.value_u256(a), func.value_u256(b)) {
-        (None, Some(c)) => (a, c),
-        (Some(c), None) => (b, c),
-        _ => return None,
-    };
+    let (None, Some(c)) = (func.value_u256(x), func.value_u256(c)) else { return None };
     // eq(b, 0) of a boolean comparison b negates it.
     if c.is_zero()
         && negations != 0

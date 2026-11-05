@@ -330,10 +330,7 @@ impl FrameSlotPromoter {
                     || Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
             }
             InstKind::Add(a, b) => {
-                let exact_frame_addr = Self::internal_frame_add_offset(func, aa, a, b)
-                    .or_else(|| Self::internal_frame_add_offset(func, aa, b, a))
-                    .is_some();
-                !exact_frame_addr
+                Self::internal_frame_add_offset(func, aa, a, b).is_none()
                     && kind.operands().iter().any(|&value| {
                         Self::internal_frame_offset(func, aa, value) == Some(slot_offset)
                     })
