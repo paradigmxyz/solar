@@ -63,7 +63,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_block(body);
         };
         if modifier.id.as_contract().is_some() {
-            return self.lower_modifier_at(modifiers, body, index + 1);
+            return self.lower_skipped_modifier(modifiers, body, index);
         }
         let Some(modifier_id) = self.cx.gcx.resolve_modifier_target(self.cx.contract_id, modifier)
         else {
@@ -71,7 +71,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let modifier_function = self.cx.gcx.hir.function(modifier_id);
         if modifier_function.kind == hir::FunctionKind::Constructor {
-            return self.lower_modifier_at(modifiers, body, index + 1);
+            return self.lower_skipped_modifier(modifiers, body, index);
         }
         if !modifier_function.kind.is_modifier() {
             return self.cx.report_unsupported(modifier.span, "modifier target");
@@ -124,14 +124,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let access = this.require_storage_access(argument)?;
                     this.storage_refs.insert(parameter, access);
                 } else {
-                    let value = this.lower_typed_expr(argument, parameter_ty)?;
-                    // A raw parameter keeps the caller's bits, like any other call.
-                    let value = if this.cx.state.raw_scalars.contains(&parameter) {
-                        value
-                    } else {
-                        this.normalize_dirty_scalar(value, parameter_ty)
-                    };
-                    let value = this.materialize_scalar_carrier(parameter, value, argument.span)?;
+                    let carried = this.lower_typed_expr(argument, parameter_ty)?;
+                    let value = this.bind_word(parameter, carried, argument.span)?;
                     this.values.insert(parameter, value);
                 }
                 Some(())
@@ -154,6 +148,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.modifiers.pop();
         self.restore_bindings(&saved_parameters);
         self.restore_bindings(&saved_locals);
+        result
+    }
+
+    /// Lowers the rest of the chain after a base constructor call in the modifier list.
+    ///
+    /// Like solc's `appendModifierOrFunctionCode`, which counts every entry of the list,
+    /// the skipped call still adds one level of modifier depth.
+    fn lower_skipped_modifier(
+        &mut self,
+        modifiers: &'gcx [hir::Modifier<'gcx>],
+        body: hir::Block<'gcx>,
+        index: usize,
+    ) -> Option<()> {
+        self.modifier_depth = self.modifier_depth.saturating_add(1);
+        self.builder.replace_modifier_depth(self.modifier_depth);
+        let result = self.lower_modifier_at(modifiers, body, index + 1);
+        self.modifier_depth = self.modifier_depth.saturating_sub(1);
+        self.builder.replace_modifier_depth(self.modifier_depth);
         result
     }
 
@@ -197,12 +209,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let parameter_start = self.parameters.len();
         self.parameters.extend_from_slice(constructor.parameters);
-        let result = self.lower_function_body(constructor.modifiers, body);
+        let result = self.lower_function_body(constructor.modifiers, body, constructor.span);
         self.parameters.truncate(parameter_start);
         result?;
         if !self.is_terminated() {
             self.record_return_state();
+            // jump continuation !metadata(base constructor definition)
+            let previous = self.builder.replace_source_span(constructor.span);
             self.builder.jump(continuation);
+            self.builder.replace_source_span(previous);
         }
         self.finish_return_target(before_values, before_storage_refs);
         self.restore_bindings(&saved_parameters);

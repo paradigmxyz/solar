@@ -22,7 +22,7 @@
         "evm": {
           "bytecode": {
             "object": "34600d5760498060115f395ff35b5f5ffd346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;"
+            "sourceMap": ":::-:0;;;237:21:0;;;;;;;-1:-1:-1;;;"
           },
           "deployedBytecode": {
             "object": "346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd",
@@ -80,12 +80,34 @@
                     "arguments": [
                       "0x49"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 6,
                   "operation": {
                     "mnemonic": "DUP1"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -95,30 +117,85 @@
                     "arguments": [
                       "0x11"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 9,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 10,
                   "operation": {
                     "mnemonic": "CODECOPY"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 11,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 12,
                   "operation": {
                     "mnemonic": "RETURN"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {

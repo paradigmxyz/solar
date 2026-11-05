@@ -13,12 +13,11 @@ fn @hash(arg0: i256) -> i256 [selector=0xb189fd4c, pure, abi_params=[uint256], a
     mstore v1, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
     v2 = ptradd v0, 64
     mstore v2, 0x6f72647321000000000000000000000000000000000000000000000000000000
-    v3 = ptrtoint ptr<memory> v0 to i256
-    v4 = abi_encode [word, memory_bytes], scratch, args arg0, v0
-    v5 = extract_value slice<memory>, v4, 0
-    v6 = extract_value slice<memory>, v4, 1
-    v7 = keccak256 v5, v6
-    ret v7
+    v3 = abi_encode [word, memory_bytes], scratch, args arg0, v0
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    v6 = keccak256 v4, v5
+    ret v6
 }
 
 ; function observed(uint256 x) external pure returns (bool result) [selector 0x3a5fe8af]
@@ -31,33 +30,32 @@ fn @observed(arg0: i256) -> i256 [selector=0x3a5fe8af, pure, abi_params=[uint256
     mstore v2, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
     v3 = ptradd v1, 64
     mstore v3, 0x6f7264733f000000000000000000000000000000000000000000000000000000
-    v4 = ptrtoint ptr<memory> v1 to i256
-    v5 = abi_encode [word, memory_bytes], scratch, args arg0, v1
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = keccak256 v6, v7
-    v9 = add v0, 96
-    v10 = mload 64 !metadata(memory=scratch)
-    v11 = eq v10, v9
-    v12 = zext i1 v11 to i256
-    v13 = mload v0
-    v14 = eq v13, 37
-    v15 = zext i1 v14 to i256
-    v16 = and v15, v12
-    v17 = add v0, 32
-    v18 = mload v17
-    v19 = eq v18, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
-    v20 = zext i1 v19 to i256
-    v21 = and v16, v20
-    v22 = add v0, 64
-    v23 = mload v22
-    v24 = eq v23, 0x6f7264733f000000000000000000000000000000000000000000000000000000
-    v25 = zext i1 v24 to i256
-    v26 = and v21, v25
-    v27 = eq v8, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
-    v28 = eq v27, false
-    icall revert_if<empty>, v28
-    ret v26
+    v4 = abi_encode [word, memory_bytes], scratch, args arg0, v1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
+    v7 = keccak256 v5, v6
+    v8 = add v0, 96
+    v9 = mload 64 !metadata(memory=scratch)
+    v10 = eq v9, v8
+    v11 = zext i1 v10 to i256
+    v12 = mload v0
+    v13 = eq v12, 37
+    v14 = zext i1 v13 to i256
+    v15 = and v14, v11
+    v16 = add v0, 32
+    v17 = mload v16
+    v18 = eq v17, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
+    v19 = zext i1 v18 to i256
+    v20 = and v15, v19
+    v21 = add v0, 64
+    v22 = mload v21
+    v23 = eq v22, 0x6f7264733f000000000000000000000000000000000000000000000000000000
+    v24 = zext i1 v23 to i256
+    v25 = and v20, v24
+    v26 = eq v7, 0xf7ca02e8e7052e428c9661bb6f3f0ab0e7f87756e5e2172ef9b6c9f13bf7349c
+    v27 = eq v26, false
+    icall revert_if<empty>, v27
+    ret v25
 }
 
 ; function observedRevert(uint256 x) external pure [selector 0x8cf17d01]
@@ -70,16 +68,15 @@ fn @observedRevert(arg0: i256) [selector=0x8cf17d01, pure, abi_params=[uint256],
     mstore v2, 0x73637261746368206c69746572616c2074686174207370616e732074776f2077
     v3 = ptradd v1, 64
     mstore v3, 0x6f7264732e000000000000000000000000000000000000000000000000000000
-    v4 = ptrtoint ptr<memory> v1 to i256
-    v5 = abi_encode [word, memory_bytes], scratch, args arg0, v1
-    v6 = extract_value slice<memory>, v5, 0
-    v7 = extract_value slice<memory>, v5, 1
-    v8 = keccak256 v6, v7
-    v9 = lt v8, 1
-    v10 = zext i1 v9 to i256
-    v11 = shl v10, 5
-    v12 = add v11, 64
-    revert v0, v12
+    v4 = abi_encode [word, memory_bytes], scratch, args arg0, v1
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
+    v7 = keccak256 v5, v6
+    v8 = lt v7, 1
+    v9 = zext i1 v8 to i256
+    v10 = shl v9, 5
+    v11 = add v10, 64
+    revert v0, v11
 }
 
 ; function fail(uint256 x) external pure [selector 0x132e4f3c]

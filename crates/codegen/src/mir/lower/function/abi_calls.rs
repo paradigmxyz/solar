@@ -266,13 +266,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_typed_expr(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        ty: Ty<'gcx>,
-    ) -> Option<ValueId> {
+    /// Lowers `expr` and converts it to `ty`. A raw word of the same type stays raw.
+    pub(super) fn lower_typed_expr(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<Word> {
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
-            return Some(value);
+            return Some(Word::from_clean(value));
         }
         let source_expr = self.peel_bytes_conversion(expr);
         if let ExprKind::Lit(lit) = source_expr.peel_parens().kind
@@ -286,161 +283,56 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )
             )
         {
-            return self.lower_shared_bytes_literal(*bytes);
+            return self.lower_shared_bytes_literal(*bytes).map(Word::from_clean);
         }
         if self.is_storage_object_copy(source_expr, ty) {
             let access = self.require_storage_access(source_expr)?;
-            return self.load_storage_object(ty, access.slot, expr.span);
+            return self.load_storage_object(ty, access.slot, expr.span).map(Word::from_clean);
         }
-        let value = self.lower_expr(expr)?;
+        let word = self.lower_expr(expr)?;
         let source_ty = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
             let ExprKind::Lit(lit) = &expr.kind else { return None };
             let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
             Some(self.cx.gcx.mk_ty_string_literal(bytes.as_byte_str()))
         });
-        let value = source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, ty));
-        Some(value)
+        // A raw word of the same type passes through.
+        Some(match source_ty {
+            Some(source_ty) if !(word.is_raw() && source_ty == ty) => {
+                let value = word.clean(self, source_ty);
+                Word::from_clean(self.coerce_value(value, source_ty, ty))
+            }
+            _ => word,
+        })
     }
 
     /// Whether a value of type `ty` made from `source` copies a storage array or struct to memory.
     pub(super) fn is_storage_object_copy(&self, source: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
         !ty.is_ref_at(DataLocation::Storage)
+            && self.types.memory_layout(ty).is_some()
             && self
                 .cx
                 .gcx
                 .type_of_expr(source.id)
                 .is_some_and(|source| source.is_ref_at(DataLocation::Storage))
-            && self.types.memory_layout(ty).is_some()
     }
 
-    /// Whether lowering `expr` can write storage: an assignment, `delete`, increment, decrement,
-    /// `push`, `pop`, or a call that is not `view` or `pure` (before Byzantium, any call to a
-    /// non-builtin function). Only such an operand can change what an earlier storage operand
-    /// copies.
-    pub(super) fn may_write_storage(&self, expr: &hir::Expr<'_>) -> bool {
-        let gcx = self.cx.gcx;
-        // Without `STATICCALL`, any call to a function that is not a builtin can reach, through an
-        // external call even from a `view` or `pure` function, a contract that writes.
-        let has_static_call = gcx.sess.opts.evm_version.has_static_call();
-        let writes = match expr.kind {
-            ExprKind::Assign(..) | ExprKind::Delete(_) => true,
-            ExprKind::Unary(op, _) => op.kind.has_side_effects(),
-            ExprKind::Call(callee, _) => {
-                let callee = callee.split_call_options().0;
-                gcx.resolved_builtin(callee).is_some_and(Builtin::is_array_mutator)
-                    || gcx.type_of_expr(callee.id).is_some_and(|ty| {
-                        matches!(
-                            ty.state_mutability(),
-                            Some(StateMutability::NonPayable | StateMutability::Payable)
-                        ) || !has_static_call
-                            && matches!(ty.kind, TyKind::Fn(_))
-                            && gcx.resolved_builtin(callee).is_none()
-                    })
-            }
-            _ => false,
-        } || gcx.user_operator(expr.id).is_some_and(|id| {
-            !matches!(
-                gcx.hir.function(id).state_mutability,
-                StateMutability::View | StateMutability::Pure
-            )
-        });
-        writes
-            || match expr.kind {
-                ExprKind::Array(exprs) => exprs.iter().any(|expr| self.may_write_storage(expr)),
-                ExprKind::Tuple(exprs) => {
-                    exprs.iter().flatten().any(|expr| self.may_write_storage(expr))
-                }
-                ExprKind::Assign(lhs, _, rhs) | ExprKind::Binary(lhs, _, rhs) => {
-                    self.may_write_storage(lhs) || self.may_write_storage(rhs)
-                }
-                ExprKind::Call(callee, args) => {
-                    self.may_write_storage(callee)
-                        || args.exprs().any(|arg| self.may_write_storage(arg))
-                }
-                ExprKind::CallOptions(callee, options) => {
-                    self.may_write_storage(callee)
-                        || options.args.iter().any(|option| self.may_write_storage(&option.value))
-                }
-                ExprKind::Delete(inner)
-                | ExprKind::Member(inner, _)
-                | ExprKind::Payable(inner)
-                | ExprKind::Unary(_, inner)
-                | ExprKind::YulMember(inner, _) => self.may_write_storage(inner),
-                ExprKind::Index(base, index) => {
-                    self.may_write_storage(base) || index.is_some_and(|i| self.may_write_storage(i))
-                }
-                ExprKind::Slice(base, start, end) => {
-                    self.may_write_storage(base)
-                        || [start, end].into_iter().flatten().any(|e| self.may_write_storage(e))
-                }
-                ExprKind::Ternary(cond, then, els) => {
-                    self.may_write_storage(cond)
-                        || self.may_write_storage(then)
-                        || self.may_write_storage(els)
-                }
-                ExprKind::Ident(_)
-                | ExprKind::Lit(_)
-                | ExprKind::New(_)
-                | ExprKind::Type(_)
-                | ExprKind::TypeCall(_)
-                | ExprKind::Err(_) => false,
-            }
-    }
-
-    /// Lowers the operand `expr` as the memory type `ty`. When `defer` is set, a storage array,
-    /// struct, `bytes`, or `string` lowers to its slot, which [`Self::resolve_deferred_operand`]
-    /// copies after the operands that follow, as solc does; otherwise, and for any other operand,
-    /// it lowers to its value, which `finish` prepares. `defer` is false when no later operand
-    /// can write storage, so that the copy keeps its place.
-    pub(super) fn lower_deferred_operand<T>(
+    /// Lowers the operand `expr` of an ABI encoding that is not `bytes` or `string`, as the memory
+    /// type `ty`. A storage array or struct lowers to its slot, which
+    /// [`Self::resolve_abi_operands`] reads after the operands that follow, as solc does; any other
+    /// operand to its value, which `prepare` turns into the value to encode and its ABI type.
+    pub(super) fn lower_abi_operand(
         &mut self,
         expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-        defer: bool,
-        finish: impl FnOnce(&mut Self, ValueId) -> Option<T>,
-    ) -> Option<DeferredOperand<'gcx, T>> {
+        prepare: impl FnOnce(&mut Self, ValueId) -> Option<(ValueId, AbiType)>,
+    ) -> Option<AbiOperand<'gcx>> {
         let source = self.peel_bytes_conversion(expr);
-        if defer && self.is_storage_object_copy(source, ty) {
+        if self.is_storage_object_copy(source, ty) {
             let slot = self.require_storage_access(source)?.slot;
-            return Some(DeferredOperand::Storage(StorageCopy { slot, ty, span: expr.span }));
+            return Some(AbiOperand::Storage { slot, ty, span: expr.span });
         }
-        let value = self.lower_typed_expr(expr, ty)?;
-        finish(self, value).map(DeferredOperand::Ready)
-    }
-
-    /// Copies a storage operand out of storage, after every operand was lowered, and prepares the
-    /// copy with `finish`.
-    pub(super) fn resolve_deferred_operand<T>(
-        &mut self,
-        operand: DeferredOperand<'gcx, T>,
-        finish: impl FnOnce(&mut Self, ValueId, StorageCopy<'gcx>) -> Option<T>,
-    ) -> Option<T> {
-        match operand {
-            DeferredOperand::Ready(value) => Some(value),
-            DeferredOperand::Storage(copy) => {
-                // object = load_storage_object(ty, slot)
-                let object = self.load_storage_object(copy.ty, copy.slot, copy.span)?;
-                finish(self, object, copy)
-            }
-        }
-    }
-
-    /// Resolves each operand with [`Self::resolve_deferred_operand`]; `finish` also gets the
-    /// operand's index.
-    pub(super) fn resolve_deferred_operands(
-        &mut self,
-        operands: Vec<DeferredOperand<'gcx>>,
-        mut finish: impl FnMut(&mut Self, usize, ValueId, StorageCopy<'gcx>) -> Option<ValueId>,
-    ) -> Option<Vec<ValueId>> {
-        operands
-            .into_iter()
-            .enumerate()
-            .map(|(index, operand)| {
-                self.resolve_deferred_operand(operand, |this, object, copy| {
-                    finish(this, index, object, copy)
-                })
-            })
-            .collect()
+        let value = self.lower_typed_expr(expr, ty)?.clean(self, ty);
+        prepare(self, value).map(AbiOperand::Ready)
     }
 
     /// Reads the storage operands of an ABI encoding, after every operand was lowered.
@@ -459,9 +351,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         operand: AbiOperand<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
-        self.resolve_deferred_operand(operand, |this, object, copy| {
-            Some((object, Self::memory_abi_type(this.types.abi_type(copy.ty)?)))
-        })
+        match operand {
+            AbiOperand::Ready(operand) => Some(operand),
+            AbiOperand::Storage { slot, ty, span } => {
+                // object = load_storage_object(ty, slot)
+                let object = self.load_storage_object(ty, slot, span)?;
+                Some((object, Self::memory_abi_type(self.types.abi_type(ty)?)))
+            }
+        }
     }
 
     /// Lowers the `bytes` or `string` operand `expr` of an ABI encoding to the value its encoder
@@ -478,7 +375,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some((self.require_storage_access(source)?.slot, PtrLocation::Storage));
         }
-        let value = self.lower_typed_expr(expr, ty)?;
+        let value = self.lower_typed_expr(expr, ty)?.clean(self, ty);
         Some((
             value,
             self.builder.func().value_slice_location(value).unwrap_or(PtrLocation::Memory),
@@ -496,7 +393,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .prepare_abi_argument(argument, parameter_ty, value, AbiType::Bytes(location))
                 .map(AbiOperand::Ready);
         }
-        self.lower_deferred_operand(argument, parameter_ty, true, |this, value| {
+        self.lower_abi_operand(argument, parameter_ty, |this, value| {
             let abi_type = this.types.abi_type(parameter_ty)?;
             let abi_type = if this.cx.gcx.type_of_expr(argument.id).is_some_and(|ty| {
                 ty.is_ref_at(DataLocation::Memory) || ty.is_ref_at(DataLocation::Storage)
@@ -614,7 +511,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 //     validate_calldata_bytes(data)
                 //     object = materialize_calldata_bytes(data)
                 // }
-                if self.dirty_values.contains(&value) {
+                if self.unchecked_calldata_slices.contains(&value) {
                     let length = self.builder.slice_len(value);
                     let object =
                         self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);

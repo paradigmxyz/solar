@@ -49,9 +49,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // A storage element, such as `[flag ? a : b]`, lowers to its slot; copy it out.
                 // element = load_storage_object(element_ty, slot)
                 let slot = self.lower_component(element)?;
-                self.convert_tuple_component(slot, source_ty, element_ty, element.span)?
+                let slot =
+                    self.convert_tuple_component(slot, source_ty, element_ty, element.span)?;
+                slot.clean(self, element_ty)
             } else {
-                let value = self.lower_expr(element)?;
+                let value = self.operand(element)?;
                 let value = self.coerce_value(value, source_ty, element_ty);
                 self.materialize_memory_copy(element_ty, value, element.span)?
             };
@@ -77,17 +79,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parameter_names =
             self.cx.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
         let object = self.builder.alloc_word_struct(fields, AllocationSemantics::INTERNAL);
-        let defer = args.exprs().any(|arg| self.may_write_storage(arg));
-        let field_ty = |this: &Self, index: usize| {
-            this.cx
-                .gcx
-                .type_of_item(struct_fields[index].into())
-                .with_loc_if_ref(this.cx.gcx, DataLocation::Memory)
-        };
-        let field_value = |this: &mut Self, field_ty, value, span| {
-            let value = this.materialize_memory_copy(field_ty, value, span)?;
-            Some(this.encode_memory_scalar(field_ty, value))
-        };
         let arguments = self.lower_call_arguments(
             args,
             CallArgumentParams {
@@ -98,15 +89,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             args.span,
             "struct constructor argument",
             |this, index, argument| {
-                let field_ty = field_ty(this, index);
-                this.lower_deferred_operand(argument, field_ty, defer, |this, value| {
-                    field_value(this, field_ty, value, argument.span)
-                })
+                let field_ty = this
+                    .cx
+                    .gcx
+                    .type_of_item(struct_fields[index].into())
+                    .with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
+                let value = this.lower_typed_expr(argument, field_ty)?.clean(this, field_ty);
+                let value = this.materialize_memory_copy(field_ty, value, argument.span)?;
+                Some(this.encode_memory_scalar(field_ty, value))
             },
         )?;
-        let arguments = self.resolve_deferred_operands(arguments, |this, _, value, copy| {
-            field_value(this, copy.ty, value, copy.span)
-        })?;
         for (index, value) in arguments.into_iter().enumerate() {
             self.builder.memory_store_field(object, index as u64, value);
         }
@@ -135,7 +127,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let object = self.builder.alloc_word_struct(fields, initialization);
         for (index, value) in values.iter().enumerate() {
             let Some(value) = value else { continue };
-            let value = self.lower_expr(value)?;
+            let value = self.operand(value)?;
             let value = self.encode_memory_scalar(field_types[index], value);
             self.builder.memory_store_field(object, index as u64, value);
         }

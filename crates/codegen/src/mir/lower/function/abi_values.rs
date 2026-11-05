@@ -50,7 +50,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .prepare_abi_encode_argument(expr, ty, value, AbiType::Bytes(location))
                         .map(AbiOperand::Ready);
                 }
-                this.lower_deferred_operand(expr, memory_ty, true, |this, value| {
+                this.lower_abi_operand(expr, memory_ty, |this, value| {
                     let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
                         AbiType::Bytes(PtrLocation::Memory)
                     } else {
@@ -71,7 +71,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             self.lower_string_literal_word(bytes.as_byte_str())
         } else {
-            self.lower_expr(expr)?
+            self.operand(expr)?
         };
         let fixed_bytes =
             self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.peel_refs().is_fixed_bytes());
@@ -108,7 +108,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let Some(else_selector) = Self::literal_signature_selector(else_expr)
         {
             // selector = select(condition, selector(then), selector(else))
-            let condition = self.lower_expr(condition)?;
+            let condition = self.operand(condition)?;
             let then_selector = self.builder.imm(then_selector);
             let else_selector = self.builder.imm(else_selector);
             let selector = self.builder.select(condition, then_selector, else_selector);
@@ -164,7 +164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if !function_ty.is_external() {
                 return self.cx.report_unsupported(function.span, "abi.encodeCall function");
             }
-            let function_value = self.lower_expr(function)?;
+            let function_value = self.operand(function)?;
             let mask = self.builder.imm(u32::MAX);
             let selector = self.builder.and(function_value, mask);
             let shift = self.builder.imm(224);
@@ -195,7 +195,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         )
                         .map(AbiOperand::Ready);
                 }
-                this.lower_deferred_operand(expr, memory_ty, true, |this, value| {
+                this.lower_abi_operand(expr, memory_ty, |this, value| {
                     let abi_type = this.types.abi_type(memory_ty)?;
                     this.prepare_abi_encode_argument(expr, memory_ty, value, abi_type)
                 })
@@ -207,18 +207,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        let external_only = self.is_decoded_external_argument(value);
-        let dirty = self.dirty_values.contains(&value);
         match ty.peel_refs().kind {
             // Aggregates are cleaned and validated word by word while encoding; copying them
             // into a canonical object first would duplicate the whole tree at every call site.
             TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => value,
             _ => {
-                let value = if external_only && !dirty {
-                    value
-                } else {
-                    self.normalize_abi_scalar(value, ty)
-                };
                 let layout = types::TypeLowerer::value_layout(ty);
                 if matches!(layout, crate::mir::ValueLayout::Int(_)) {
                     raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
@@ -254,9 +247,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         // `abi_decode` reads a calldata slice in place, so calldata needs no copy.
         let data = if lies_in_calldata(data_ty) {
-            self.lower_expr(data_expr)?
+            self.operand(data_expr)?
         } else {
-            let data = self.lower_typed_expr(data_expr, memory_ty)?;
+            let data = self.lower_typed_expr(data_expr, memory_ty)?.clean(self, memory_ty);
             self.materialize_memory_argument(memory_ty, data, data_expr.span)?
         };
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
@@ -546,7 +539,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 storage.push((parts.len(), self.require_storage_access(source)?.slot, expr, ty));
                 parts.push(None);
             } else {
-                let value = self.lower_typed_expr(expr, memory_ty)?;
+                let value = self.lower_typed_expr(expr, memory_ty)?.clean(self, memory_ty);
                 parts.push(Some(self.lower_packed_part(expr, ty, value, None)?));
             }
         }
@@ -590,7 +583,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
                 return self.cx.report_unsupported(expr.span, "abi.encodePacked argument");
             };
-            let value = self.normalize_abi_scalar(value, ty);
             let size = TypeSize::new_int_bits((length * 8) as u16);
             let ty = if fixed_bytes {
                 crate::mir::ValueLayout::FixedBytes(size)
@@ -819,7 +811,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .cleanup(&mut self.builder, value)
             }
             _ => {
-                let value = self.normalize_abi_scalar(value, ty);
+                let value = self.normalize_memory_scalar(ty, value);
                 raw_scalars::cast_carrier(
                     &mut self.builder,
                     value,
@@ -952,10 +944,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // input = materialize(bytes)
         let input_ty = self.cx.gcx.type_of_expr(input.id)?;
         let input = if lies_in_calldata(input_ty) {
-            let input = self.lower_expr(input)?;
+            let input = self.operand(input)?;
             self.copy_calldata_bytes_unchecked(input)?
         } else {
-            let input = self.lower_typed_expr(input, memory_ty)?;
+            let input = self.lower_typed_expr(input, memory_ty)?.clean(self, memory_ty);
             self.materialize_memory_argument(memory_ty, input, span)?
         };
         // result = sha256(input) / ripemd160(input)
@@ -973,10 +965,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let v = &values[1];
         let r = &values[2];
         let s = &values[3];
-        let hash = self.lower_expr(hash)?;
-        let v = self.lower_expr(v)?;
-        let r = self.lower_expr(r)?;
-        let s = self.lower_expr(s)?;
+        let hash = self.operand(hash)?;
+        let v = self.operand(v)?;
+        let r = self.operand(r)?;
+        let s = self.operand(s)?;
 
         // result = ecrecover(hash, v, r, s)
         Some(self.builder.emit_inst(
@@ -1009,7 +1001,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .iter()
             .zip(tys)
             .map(|(expr, ty)| {
-                let value = self.lower_typed_expr(expr, ty)?;
+                let value = self.lower_typed_expr(expr, ty)?.clean(self, ty);
                 let value = self.canonicalize_abi_value(ty, value);
                 let value = self.builder.cast_word(value);
                 Some(PackedPart::Scalar { value, ty: crate::mir::ValueLayout::uint256() })

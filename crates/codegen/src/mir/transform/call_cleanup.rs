@@ -108,12 +108,9 @@ pub(super) fn cleanup(
         {
             replacements.insert(result, value);
         }
-        if let InstKind::And(a, b) = func.inst(inst).kind
+        if let InstKind::And(value, mask) = func.inst(inst).kind
             && native_effect(func, inst)
-            && let Some((value, mask)) = func
-                .value_u256(b)
-                .map(|mask| (a, mask))
-                .or_else(|| func.value_u256(a).map(|mask| (b, mask)))
+            && let Some(mask) = func.value_u256(mask)
             && (mask.wrapping_add(U256::ONE) & mask).is_zero()
             && word_bits(func, value, &argument_bits, returns) <= mask.bit_len() as u32
             && let Some(result) = func.inst_result_value(inst)
@@ -204,7 +201,7 @@ pub(super) fn cleanup(
             raw.unwrap_or_else(|| {
                 let (extension, value) = func.alloc_value_inst(
                     Instruction::new(InstKind::Zext(value), Some(MirType::I256))
-                        .with_debug_info_dropped(),
+                        .with_debug_loc_dropped(),
                 );
                 insertions.insert(inst, extension);
                 value
@@ -264,13 +261,10 @@ fn normalized_word(
     returns: &ReturnBits,
 ) -> Option<ValueId> {
     let Value::Inst(inst) = func.value(value) else { return None };
-    let InstKind::Ne(a, b) = func.inst(*inst).kind else { return None };
-    if !native_effect(func, *inst) {
+    let InstKind::Ne(word, zero) = func.inst(*inst).kind else { return None };
+    if !native_effect(func, *inst) || func.value_u64(zero) != Some(0) {
         return None;
     }
-    let word = [(a, b), (b, a)]
-        .into_iter()
-        .find_map(|(word, zero)| (func.value_u64(zero) == Some(0)).then_some(word))?;
     if func.value_ty(word) != Some(MirType::I256) {
         return None;
     }

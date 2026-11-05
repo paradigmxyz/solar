@@ -300,9 +300,10 @@ fn materialize_data(
         // The first store seeds it, so that a store whose location was dropped or explained keeps
         // that kind instead of merging into the default kind of an empty seed.
         let mut metadata = Metadata::default();
-        metadata.copy_source_debug_from(&instructions[rewrite.start].metadata);
+        metadata.preserve_debug_loc(&instructions[rewrite.start].metadata);
         for inst in &instructions[rewrite.start..rewrite.end] {
-            metadata.absorb_debug_info(&inst.metadata);
+            metadata.merge_debug_locs([&inst.metadata]);
+            metadata.move_function_events(&inst.metadata);
         }
         // <head>
         // push size
@@ -316,13 +317,14 @@ fn materialize_data(
                 data.map_or_else(|| Instruction::opcode(op::CALLDATASIZE), Instruction::push_data),
             ])
             .chain(rewrite.tail)
-            .map(|inst| inst.with_source_debug(&metadata))
+            .map(|inst| inst.with_debug_loc(&metadata))
             .collect::<Vec<_>>();
         let copy = replacement
             .iter()
             .rposition(|inst| matches!(inst.opcode, op::CODECOPY | op::CALLDATACOPY))
             .unwrap();
-        replacement[copy].metadata.absorb_debug_info(&metadata);
+        replacement[copy].metadata.merge_debug_locs([&metadata]);
+        replacement[copy].metadata.move_function_events(&metadata);
         instructions.splice(rewrite.start..rewrite.end, replacement);
     }
     changed

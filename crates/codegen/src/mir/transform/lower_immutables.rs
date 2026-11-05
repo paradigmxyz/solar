@@ -46,6 +46,7 @@ impl MirPass for LowerImmutables {
             return false;
         }
         let staging_base = immutable_staging_base(module);
+        module.set_immutable_staging_base(staging_base);
         let runtime_reachable = module.runtime_reachable_functions();
         let mut changed = false;
         for (func_id, func) in module.functions.iter_mut_enumerated() {
@@ -62,8 +63,6 @@ impl MirPass for LowerImmutables {
                     };
                     // word = zext integer or ptrtoint pointer to i256
                     // store staging_address, word
-                    let metadata = builder.func().inst(inst_id).metadata.debug_context();
-                    builder.set_debug_context(&metadata);
                     let value = builder.cast_word(value);
                     let addr = builder.imm(immutable_staging_addr(staging_base, id));
                     builder
