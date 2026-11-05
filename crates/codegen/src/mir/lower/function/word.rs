@@ -15,11 +15,24 @@
 use super::*;
 
 /// The value of an expression at its carrier type, and whether it may hold bits above its type.
-#[must_use]
+#[must_use = "use `lower_discarded_expr` to lower an expression only for its effects"]
 #[derive(Clone, Copy)]
 pub(super) struct Word {
     value: ValueId,
     raw: bool,
+}
+
+/// The canonical value of an operand. Discarding it is a bug: an expression lowered only for its
+/// effects goes through `lower_discarded_expr`, which skips the reads only its value needs.
+#[must_use = "use `lower_discarded_expr` to lower an expression only for its effects"]
+#[derive(Clone, Copy)]
+pub(super) struct Operand(ValueId);
+
+impl Operand {
+    /// Returns the value.
+    pub(super) fn id(self) -> ValueId {
+        self.0
+    }
 }
 
 impl Word {
@@ -107,13 +120,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// converts after the operand's `LocationSetter` has popped, and via-IR
     /// `endVisit(FunctionCall)` (IRGeneratorForStatements.cpp:961) sets the call's location
     /// before it converts.
-    pub(super) fn operand(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+    pub(super) fn operand(&mut self, expr: &hir::Expr<'_>) -> Option<Operand> {
         let word = self.lower_expr(expr)?;
         // Only an expression left untyped by a reported error has no type.
-        Some(match self.cx.gcx.type_of_expr(expr.id) {
+        Some(Operand(match self.cx.gcx.type_of_expr(expr.id) {
             Some(ty) => word.clean(self, ty),
             None => word.value,
-        })
+        }))
     }
 
     /// Lowers `lhs op rhs` for `&`, `|` and `^` on raw words, as via-IR does: it emits the
