@@ -303,7 +303,6 @@ fn synthesize_tuple_helpers(
             builder.set_return_type(result_ty);
             builder.ret([encoded]);
         }
-        function.mark_unlocated_compiler_generated();
         // A slice result returns its pointer and length.
         let returns = if matches!(function.return_type(), MirType::Slice(_)) { 2 } else { 1 };
         let body_bytes = target.code_estimate(&function).bytes;
@@ -314,7 +313,8 @@ fn synthesize_tuple_helpers(
             shared.push((key, function));
         }
     }
-    for (key, function) in shared {
+    for (key, mut function) in shared {
+        function.mark_unlocated_compiler_generated();
         let helper = module.add_function(function);
         Arc::make_mut(&mut helpers.tuples).insert(key, helper);
     }

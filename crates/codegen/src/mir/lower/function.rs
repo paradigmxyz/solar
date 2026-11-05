@@ -536,6 +536,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         name: Symbol,
         build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
     ) -> Option<FunctionId> {
+        self.lazy_helper_with(name, true, build)
+    }
+
+    /// Like [`Self::lazy_helper`], for a helper that no source construct lacks: `generated` is
+    /// false when `build` lowers user code, which keeps its own origins.
+    fn lazy_helper_with(
+        &mut self,
+        name: Symbol,
+        generated: bool,
+        build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
+    ) -> Option<FunctionId> {
         // if name in helpers { return helpers[name] }
         // id = add_function(name)
         // helpers[name] = id
@@ -558,7 +569,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         function.name = self.cx.module.function(id).name;
-        function.mark_unlocated_compiler_generated();
+        if generated {
+            function.mark_unlocated_compiler_generated();
+        }
         *self.cx.module.function_mut(id) = function;
         Some(id)
     }

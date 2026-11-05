@@ -290,7 +290,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let suffix = if unchecked { "_unchecked" } else { "" };
         let name = helper_name(kw::Constant, format_args!("{}{suffix}", id.index()));
         // fn @constant_N[_unchecked]() -> T { value = <initializer>; ret value }
-        let helper = self.lazy_helper(name, |this, function| {
+        let helper = self.lazy_helper_with(name, false, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             lowerer.unchecked = unchecked;
             lowerer.builder.replace_source_span(initializer.span);

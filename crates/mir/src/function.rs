@@ -971,8 +971,8 @@ impl Function {
     ///
     /// Call it only on a function the compiler synthesizes wholesale, such as a shared helper;
     /// never on a lowered user function, or on a function after inlining merged user code into it.
-    /// Solc maps such code to its generated `#utility.yul` source (`CompilerContext.h`), and LLVM
-    /// gives it `DebugLoc::getCompilerGenerated`.
+    /// Solc maps such code to its generated `#utility.yul` source (`CompilerContext.h` L178), and
+    /// LLVM gives it `DebugLoc::getCompilerGenerated`.
     pub fn mark_unlocated_compiler_generated(&mut self) {
         let mark = |metadata: &mut InstructionMetadata| {
             if metadata.lacks_debug_location() {
