@@ -44,4 +44,9 @@ contract C {
     /// @dev Dev line one
     /// dev line two.
     function devContinuation() external {}
+
+    /// @notice start
+    /// explanation @dev mid-line details
+    /// more
+    function midLine() external {}
 }

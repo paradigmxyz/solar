@@ -132,10 +132,12 @@ pub(super) fn parse_natspec(
     // Iterate over each line and look for tags.
     for (index, line) in lines.iter().enumerate() {
         let text = line.text;
-        let tag_offset =
-            memchr::memchr(b'@', text.as_bytes()).filter(|&offset| is_line_start(text, offset));
+        // Like solc, a tag starts at the first `@` of a line, wherever it is, and drops the text
+        // before it.
+        let tag_offset = memchr::memchr(b'@', text.as_bytes());
         let starts_tag = tag_offset.is_some_and(|offset| {
-            text.as_bytes().get(offset + 1).is_some_and(|b| !matches!(b, b' ' | b'\t'))
+            is_line_start(text, offset)
+                && text.as_bytes().get(offset + 1).is_some_and(|b| !matches!(b, b' ' | b'\t'))
         });
         if content_on_next_line && !starts_tag {
             // Like solc, a line after a tag without content is its content.
@@ -284,7 +286,8 @@ fn join_lines(first: &Line<'_>, offset: usize, rest: &[Line<'_>]) -> String {
         // An `@` that names no tag is dropped with the blank after it, and the text before it,
         // as solc does.
         let mut text = line.text;
-        if let Some(after) = text.trim_start_matches([' ', '\t']).strip_prefix('@')
+        if let Some(at) = text.find('@')
+            && let after = &text[at + 1..]
             && (after.is_empty() || after.starts_with([' ', '\t']))
         {
             // A lone `@` has no text to join.

@@ -30,6 +30,9 @@
             },
             "devContinuation()": {
               "notice": "Notice."
+            },
+            "midLine()": {
+              "notice": "start"
             }
           },
           "version": 1
@@ -62,6 +65,9 @@
             },
             "devContinuation()": {
               "details": "Dev line one dev line two."
+            },
+            "midLine()": {
+              "details": "mid-line details more"
             }
           },
           "version": 1
