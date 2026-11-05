@@ -468,8 +468,11 @@ fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool
                 EffectKind::MemoryRead
                 | EffectKind::StorageRead
                 | EffectKind::TransientRead
-                | EffectKind::EnvironmentRead
-                | EffectKind::Log => true,
+                | EffectKind::EnvironmentRead => true,
+                // `log(offset, size, topics...)` only reads the object through its offset.
+                EffectKind::Log => {
+                    !kind.operands().iter().skip(1).any(|operand| derived.contains(operand))
+                }
                 EffectKind::StorageWrite | EffectKind::TransientWrite => !uses_object,
                 EffectKind::MemoryWrite => match *kind {
                     InstKind::Store(ptr, value, PtrLocation::Memory)
