@@ -45,24 +45,22 @@ fn @conditional(arg0: i1) -> i256 [selector=0x9077f189, abi_params=[bool], abi_r
 ; function conditionalContinues() external returns (bool) [selector 0x828f9845]
 fn @conditionalContinues() -> i1 [selector=0x828f9845, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
-    v0 = ne false, false
-    v1 = datasize ConstructorStopConditional_creation_code_1
-    v2 = fmp
-    datacopy ConstructorStopConditional_creation_code_1, v2, v1
-    v3 = ptradd v2, v1
-    v4 = zext i1 v0 to i256
-    v5 = abi_encode [word<bool>], scratch, base v3, args v4
-    v6 = datasize ConstructorStopConditional_creation_code_1, 32
-    v7 = create 0, v2, v6
-    v8 = ne v7, i160 0
-    jumpi v8, bb2, bb1
+    v0 = datasize ConstructorStopConditional_creation_code_1
+    v1 = fmp
+    datacopy ConstructorStopConditional_creation_code_1, v1, v0
+    v2 = ptradd v1, v0
+    v3 = abi_encode [word<bool>], scratch, base v2, args 0
+    v4 = datasize ConstructorStopConditional_creation_code_1, 32
+    v5 = create 0, v1, v4
+    v6 = ne v5, i160 0
+    jumpi v6, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v9 = zext i160 v7 to i256
-    v10 = extcodesize v9
-    v11 = ne v10, 0
-    ret v11
+    v7 = zext i160 v5 to i256
+    v8 = extcodesize v7
+    v9 = ne v8, 0
+    ret v9
 }
 
 ; === ROOT/tests/ui/codegen/lowering/run-call/constructor_stop_runtime.sol:ConstructorStopAlways ===

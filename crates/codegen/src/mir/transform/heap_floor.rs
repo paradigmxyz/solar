@@ -297,7 +297,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             _ => instruction.kind.clone(),
         };
         let mut copy = Instruction::new(kind, instruction.result_ty);
-        copy.metadata.copy_debug_context(&instruction.metadata);
+        copy.metadata.preserve_debug_loc(&instruction.metadata);
         let (copy, copy_value) = func.alloc_value_inst(copy);
         copies.insert(value, copy_value);
         rewritten.push(copy);
@@ -368,7 +368,7 @@ fn clamp_slot(func: &mut Function, block: BlockId, before: Option<InstId>) {
     let metadata = before.map(|inst| func.inst(inst).metadata.clone()).unwrap_or_default();
     let emit = |kind, ty| {
         let mut instruction = Instruction::new(kind, ty);
-        instruction.metadata.copy_debug_context(&metadata);
+        instruction.metadata.preserve_debug_loc(&metadata);
         instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
         instruction
     };
@@ -397,7 +397,7 @@ fn floor_max(
 ) -> ([InstId; 3], ValueId) {
     let emit = |func: &mut Function, kind, ty| {
         let mut instruction = Instruction::new(kind, Some(ty));
-        instruction.metadata.copy_debug_context(metadata);
+        instruction.metadata.preserve_debug_loc(metadata);
         func.alloc_value_inst(instruction)
     };
     // floor = heap_floor

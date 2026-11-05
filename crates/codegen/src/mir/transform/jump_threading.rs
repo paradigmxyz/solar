@@ -330,7 +330,7 @@ fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
         func.blocks[block].instructions.clear();
         replace_terminator(func, block, Terminator::Invalid);
         replace_terminator(func, pred, term);
-        func.blocks[pred].terminator_metadata.merge_debug_context(&context);
+        func.blocks[pred].terminator_metadata.merge_debug_locs([&context]);
         folded = true;
     }
     folded
@@ -370,15 +370,11 @@ fn branch_zero_test(func: &Function, condition: ValueId) -> Option<(ValueId, boo
     {
         return None;
     }
-    let (InstKind::Eq(a, b) | InstKind::Ne(a, b)) = instruction.kind else { return None };
-    let value = if func.value_u64(a) == Some(0) {
-        b
-    } else if func.value_u64(b) == Some(0) {
-        a
-    } else {
+    let (InstKind::Eq(value, zero) | InstKind::Ne(value, zero)) = instruction.kind else {
         return None;
     };
-    Some((value, matches!(instruction.kind, InstKind::Eq(..))))
+    (func.value_u64(zero) == Some(0))
+        .then_some((value, matches!(instruction.kind, InstKind::Eq(..))))
 }
 
 fn incoming_value_for_pred(

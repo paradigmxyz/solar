@@ -162,9 +162,7 @@ fn rewrite_to_return(func: &mut Function, values: &[U256]) {
         || InstructionMetadata::EMPTY.debug_context(),
         |block| block.terminator_metadata.debug_context(),
     );
-    for block in origins {
-        metadata.merge_debug_context(&block.terminator_metadata);
-    }
+    metadata.merge_debug_locs(origins.map(|block| &block.terminator_metadata));
     for block_id in func.blocks.indices() {
         let block = &mut func.blocks[block_id];
         block.instructions.clear();

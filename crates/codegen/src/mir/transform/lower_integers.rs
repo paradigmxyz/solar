@@ -170,7 +170,6 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
                 return false;
             }
             let inst = inst.clone();
-            builder.set_debug_context(&inst.metadata.debug_context());
             let mut word = None;
             let replacement = match inst.kind {
                 InstKind::LoadImmutable(immutable) if narrow_immutable => {

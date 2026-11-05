@@ -395,9 +395,11 @@ fn apply_edits(
     let mut edits = edits.iter().peekable();
     for (index, inst) in scratch.drain(..).enumerate() {
         if let Some(edit) = edits.next_if(|edit| edit.index == index) {
-            instructions.extend(edit.replacement.iter().map(|&stack_op| {
-                Instruction::stack_op(stack_op).with_source_debug(&inst.metadata)
-            }));
+            instructions.extend(
+                edit.replacement.iter().map(|&stack_op| {
+                    Instruction::stack_op(stack_op).with_debug_loc(&inst.metadata)
+                }),
+            );
         } else {
             instructions.push(inst);
         }

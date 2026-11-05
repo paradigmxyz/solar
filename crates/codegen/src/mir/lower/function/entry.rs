@@ -18,10 +18,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             } else {
                 self.values.insert(param, value);
-                if ty.is_value_type() && self.builder.func().value_ty(value) == Some(MirType::I256)
-                {
-                    self.dirty_values.insert(value);
-                }
             }
         }
         let return_types = function
@@ -79,11 +75,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         let ty = self.cx.gcx.type_of_item(id.into());
         let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
-        let value = self.lower_typed_expr(initializer, ty)?;
+        let carried = self.lower_typed_expr(initializer, ty)?;
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
+            let span = self.cx.gcx.hir.variable(id).span;
+            let value = self.bind_word(id, carried, span)?;
             self.store_immutable_value(id, immutable_id, value);
             Some(())
         } else {
+            let value = carried.clean(self, ty);
             self.store_state_variable(id, value, source_ty, initializer.span)
         }
     }
@@ -159,7 +158,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if Self::is_storage_parameter(parameter_ty) {
                         return Some(this.require_storage_access(argument)?.slot);
                     }
-                    this.lower_typed_expr(argument, parameter_ty)
+                    let carried = this.lower_typed_expr(argument, parameter_ty)?;
+                    this.bind_word(constructor.parameters[index], carried, argument.span)
                 },
             )?;
             // Later bases may name an earlier base's parameters in their own
@@ -289,11 +289,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
-                values.push(self.materialize_scalar_carrier(
-                    id,
-                    value,
-                    self.cx.gcx.hir.variable(id).span,
-                )?);
+                let value = self.binding_word(value, id);
+                values.push(self.bind_word(id, value, self.cx.gcx.hir.variable(id).span)?);
             }
             self.builder.ret(values);
         }
@@ -382,6 +379,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         modifiers: &'gcx [hir::Modifier<'gcx>],
         body: hir::Block<'gcx>,
+        span: Span,
     ) -> Option<()> {
         // return_values = lower_body(modifiers)
         if modifiers.is_empty() {
@@ -396,7 +394,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             result?;
             if !self.is_terminated() {
                 self.record_return_state();
+                // solc maps the return tag after the modifier chain to the function definition.
+                // jump return_block !metadata(function definition)
+                let previous = self.builder.replace_source_span(span);
                 self.builder.jump(return_block);
+                self.builder.replace_source_span(previous);
             }
             self.finish_return_target(before_values, before_storage_refs);
             Some(())
