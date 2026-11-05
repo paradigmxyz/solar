@@ -32,10 +32,12 @@
 //! guarded loop with no other exit receive the trip-count weight. These are
 //! estimates, never legality facts.
 //!
-//! Callees with phis need a stack estimate: backward liveness gives the callee's
-//! peak live words and the caller words surviving the call, and their sum must fit
-//! twelve words, leaving headroom for operand staging. This bounds spills but does
-//! not promise the scheduler emits none.
+//! Clones that add joins, from callees with phis or branching callees in loops,
+//! need a stack estimate: backward liveness gives the callee's peak live words and
+//! the caller words surviving the call, and their sum must fit twelve words,
+//! leaving headroom for operand staging. This bounds spills but does not promise
+//! the scheduler emits none. A straight-line clone needs no estimate: the call it
+//! replaces holds the same caller words and its return address through the body.
 //!
 //! A callee documented `@custom:solar-inline always` skips every profitability test, the stack
 //! estimate below included: each call where cloning is legal is cloned, while the module's
@@ -278,13 +280,6 @@ impl MirInliner {
 
         let call_graph = CallGraphInfo::new(module);
         let mut call_counts = call_counts(module, &call_graph);
-        // Keep the initial candidate set stable as inlining removes call sites.
-        let memory_wrappers = module
-            .functions
-            .iter_enumerated()
-            .filter(|&(id, func)| call_counts[id] > 0 && is_memory_wrapper(func))
-            .map(|(id, func)| (id, scalar_stack_peak(func)))
-            .collect::<FxHashMap<_, _>>();
 
         let entries = module.external_entries();
         let mut summaries = self.summarize_module(module, &entries);
@@ -380,11 +375,12 @@ impl MirInliner {
                     continue;
                 }
 
+                // A straight-line clone holds one word fewer than the call it replaces.
                 if !always
+                    && summary.block_count > 1
                     && let Some(peak) = (summary.has_phi || site.loop_depth > 0)
                         .then_some(summary.phi_stack_peak)
                         .flatten()
-                        .or_else(|| memory_wrappers.get(&site.callee).copied())
                 {
                     let caller = module.function(caller_id);
                     let liveness =
