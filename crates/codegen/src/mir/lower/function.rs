@@ -558,6 +558,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         function.name = self.cx.module.function(id).name;
+        function.mark_unlocated_compiler_generated();
         *self.cx.module.function_mut(id) = function;
         Some(id)
     }
@@ -1176,6 +1177,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             // panic(InvalidInternalFunction)
             builder.panic(PanicCode::InvalidInternalFunction);
         }
+        function.mark_unlocated_compiler_generated();
         *module.function_mut(dispatcher) = function;
     }
 }

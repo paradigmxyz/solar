@@ -2,8 +2,8 @@
 
 use super::{
     AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
-    InstKind, Instruction, MangledSymbol, MirType, PtrLocation, StorageAlias, Terminator, Value,
-    ValueId, memory::EvmMemoryLayout,
+    InstKind, Instruction, InstructionMetadata, MangledSymbol, MirType, PtrLocation, StorageAlias,
+    Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -16,7 +16,7 @@ use solar_data_structures::{
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
-use solar_ir::Hotness;
+use solar_ir::{Hotness, debug::DebugLocKind};
 use std::fmt;
 
 /// A function in the MIR.
@@ -962,6 +962,29 @@ impl Function {
                 // sstore slot, value !metadata(storage=offset(deleted, n)) -> sstore slot, value
                 inst.metadata.set_storage_alias(None);
             }
+        }
+    }
+
+    /// Marks every instruction, terminator and block label that has neither a source origin nor a
+    /// reason for lacking one as [`DebugLocKind::CompilerGenerated`]. Code with an origin, or with
+    /// another kind, stays as it is.
+    ///
+    /// Call it only on a function the compiler synthesizes wholesale, such as a shared helper;
+    /// never on a lowered user function, or on a function after inlining merged user code into it.
+    /// Solc maps such code to its generated `#utility.yul` source (`CompilerContext.h`), and LLVM
+    /// gives it `DebugLoc::getCompilerGenerated`.
+    pub fn mark_unlocated_compiler_generated(&mut self) {
+        let mark = |metadata: &mut InstructionMetadata| {
+            if metadata.lacks_debug_location() {
+                metadata.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
+            }
+        };
+        for block in &mut self.blocks {
+            for &inst in &block.instructions {
+                mark(&mut self.instructions[inst].metadata);
+            }
+            mark(&mut block.terminator_metadata);
+            mark(&mut block.label_metadata);
         }
     }
 

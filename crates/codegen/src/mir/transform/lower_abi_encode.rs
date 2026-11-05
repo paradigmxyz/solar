@@ -303,6 +303,7 @@ fn synthesize_tuple_helpers(
             builder.set_return_type(result_ty);
             builder.ret([encoded]);
         }
+        function.mark_unlocated_compiler_generated();
         // A slice result returns its pointer and length.
         let returns = if matches!(function.return_type(), MirType::Slice(_)) { 2 } else { 1 };
         let body_bytes = target.code_estimate(&function).bytes;
@@ -410,6 +411,7 @@ fn synthesize_array_helpers(
             builder.set_return_type(MirType::I256);
             builder.ret([length]);
         }
+        function.mark_unlocated_compiler_generated();
         let helper = module.add_function(function);
         Arc::make_mut(&mut helpers.arrays).insert(key, helper);
     }
@@ -520,6 +522,7 @@ fn calldata_helper(
         builder.set_return_type(MirType::I256);
         builder.ret([length]);
     }
+    function.mark_unlocated_compiler_generated();
     function
 }
 

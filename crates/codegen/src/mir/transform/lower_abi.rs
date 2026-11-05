@@ -819,6 +819,7 @@ impl LowerAbiCx {
             builder.set_return_type(ty.mir_type());
             builder.ret([value]);
         }
+        function.mark_unlocated_compiler_generated();
         module.add_function(function)
     }
 
@@ -870,6 +871,7 @@ impl LowerAbiCx {
             builder.set_return_type(MirType::I256);
             builder.ret([base]);
         }
+        function.mark_unlocated_compiler_generated();
         module.add_function(function)
     }
 
@@ -906,6 +908,7 @@ impl LowerAbiCx {
             // ret insert_value(undef, field0), ...
             builder.ret(values);
         }
+        function.mark_unlocated_compiler_generated();
         module.add_function(function)
     }
 
@@ -2802,6 +2805,7 @@ fn synthesize_memory_decode_helper(
         builder.set_return_type(ty.mir_type());
         builder.ret([value]);
     }
+    function.mark_unlocated_compiler_generated();
     module.add_function(function)
 }
 
