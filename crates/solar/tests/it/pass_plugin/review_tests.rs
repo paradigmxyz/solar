@@ -14,9 +14,9 @@ fn frontend_callbacks_cross_library_boundary() {
         })
         .unwrap();
     assert_data_eq!(
-        format!("{manifest:?}\n{expansion:?}"),
+        format!("{:?}\n{expansion:?}", manifest.extensions),
         str![[
-            r#"FrontendManifest { extensions: [FrontendExtension { name: "sum", kind: Expression }, FrontendExtension { name: "repeat", kind: Statement }] }
+            r#"[FrontendExtension { name: "sum", kind: Expression }, FrontendExtension { name: "repeat", kind: Statement }]
 Statement(Repeat { count: Argument(0), body: Body })"#
         ]]
     );

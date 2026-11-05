@@ -223,10 +223,10 @@ impl<'gcx> ParsingContext<'gcx> {
     #[instrument(name = "parse", level = "debug", skip_all)]
     fn parse_inner(&mut self) {
         self.parsed = true;
+        let _ = self.gcx.advance_stage(CompilerStage::Parsing);
         if self.gcx.plugins().is_err() {
             return;
         }
-        let _ = self.gcx.advance_stage(CompilerStage::Parsing);
 
         let mut sources = std::mem::take(self.sources);
         if self.sess.opts.language.is_source() && !sources.is_empty() {
@@ -405,6 +405,16 @@ impl<'gcx> ParsingContext<'gcx> {
                 for plugin in plugins {
                     if plugin.manifest()?.name == namespace {
                         let manifest = plugin.frontend_manifest()?;
+                        if request.kind == solar_pass_plugin::ExtensionKind::Expression
+                            && let Some(builtin) = manifest
+                                .builtins
+                                .iter()
+                                .find(|builtin| builtin.name == request.name)
+                        {
+                            return Ok(solar_pass_plugin::Expansion::Builtin(
+                                builtin.signature.clone(),
+                            ));
+                        }
                         if manifest.extensions.iter().any(|extension| {
                             extension.name == request.name && extension.kind == request.kind
                         }) {

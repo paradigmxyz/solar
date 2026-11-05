@@ -434,6 +434,9 @@ declare_visitors! {
                 ExprKind::Delete(expr) => {
                     self.visit_expr #_mut(expr)?;
                 }
+                ExprKind::PluginBuiltin(_, _, args) => {
+                    for arg in args.iter #_mut() { self.visit_expr #_mut(arg)?; }
+                }
                 ExprKind::Ident(ident) => {
                     self.visit_ident #_mut(ident)?;
                 }

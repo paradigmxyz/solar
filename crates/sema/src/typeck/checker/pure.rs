@@ -22,7 +22,8 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Tuple(exprs) => {
                 exprs.iter().all(|expr| expr.is_some_and(|expr| self.is_pure(expr)))
             }
-            hir::ExprKind::Assign(..)
+            hir::ExprKind::PluginBuiltin(..)
+            | hir::ExprKind::Assign(..)
             | hir::ExprKind::CallOptions(..)
             | hir::ExprKind::Delete(_)
             | hir::ExprKind::YulMember(..) => false,

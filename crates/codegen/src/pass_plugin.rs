@@ -94,7 +94,12 @@ impl Registry {
                 manifest.name, manifest.api_version
             ));
         }
-        if !valid_name(&manifest.name) || manifest.version.is_empty() || manifest.passes.is_empty()
+        let frontend = plugin.frontend_manifest()?;
+        if !valid_name(&manifest.name)
+            || manifest.version.is_empty()
+            || (manifest.passes.is_empty()
+                && frontend.extensions.is_empty()
+                && frontend.builtins.is_empty())
         {
             return Err(format!(
                 "invalid plugin identity or empty pass list in `{}`",

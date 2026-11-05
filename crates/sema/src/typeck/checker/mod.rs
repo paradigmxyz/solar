@@ -961,6 +961,12 @@ impl<'gcx> TypeChecker<'gcx> {
                     ),
                 }
             }
+            hir::ExprKind::PluginBuiltin(call) => {
+                for arg in call.args {
+                    let _ = self.expect_ty(arg, self.gcx.types.uint(256));
+                }
+                self.gcx.types.uint(256)
+            }
             hir::ExprKind::Payable(expr) => {
                 let ty = self.check_expr(expr);
                 if ty.references_error() {
@@ -3646,7 +3652,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.results.builtin_callee(callee.id) == Some(Builtin::ArrayPush0)
             }
 
-            hir::ExprKind::Array(_)
+            hir::ExprKind::PluginBuiltin(..)
+            | hir::ExprKind::Array(_)
             | hir::ExprKind::Assign(..)
             | hir::ExprKind::Binary(..)
             | hir::ExprKind::Delete(_)

@@ -1,4 +1,4 @@
-//! Rust optimization pass plugins. Implement [`Plugin`] and use [`export_plugin!`] to build a
+//! Rust frontend and optimization plugins. Implement [`Plugin`] and use [`export_plugin!`] to build a
 //! loadable Rust library. Plugins and the compiler must use the same SDK source, Rust toolchain,
 //! target, profile, and Rust flags; the loader checks their fingerprints before calling Rust code.
 //!
@@ -21,7 +21,15 @@ pub const ABI_FINGERPRINT: [u8; 32] = __private::build_fingerprint(cfg!(panic = 
 /// macro lends their results to the compiler and drops them before returning to the host.
 pub trait Plugin: Sync {
     fn manifest(&self) -> Manifest;
-    fn run(&self, request: &Request) -> Result<Response, String>;
+    /// Runs an IR pass; frontend-only libraries may keep the default no-op implementation.
+    fn run(&self, _request: &Request) -> Result<Response, String> {
+        Ok(Response::default())
+    }
+
+    /// Lowers a registered builtin to an acyclic pure word fragment.
+    fn lower_builtin(&self, _name: &str) -> Result<BuiltinBody, String> {
+        Err("unknown plugin builtin".into())
+    }
 
     /// Describes frontend extensions made available by this plugin.
     fn frontend_manifest(&self) -> FrontendManifest {
@@ -38,6 +46,7 @@ pub trait Plugin: Sync {
 #[derive(Clone, Debug, Default)]
 pub struct FrontendManifest {
     pub extensions: Vec<FrontendExtension>,
+    pub builtins: Vec<BuiltinDefinition>,
 }
 
 #[derive(Clone, Debug)]
@@ -73,6 +82,7 @@ pub struct ExpansionRequest {
 pub enum Expansion {
     Expression(ExpansionExpr),
     Statement(ExpansionStmt),
+    Builtin(BuiltinSignature),
 }
 
 #[derive(Clone, Debug)]
@@ -91,6 +101,52 @@ pub enum ExpansionStmt {
         count: ExpansionExpr,
         body: Box<Self>,
     },
+}
+
+/// Typed scalar builtins. This version accepts only pure word-to-word fragments.
+#[derive(Clone, Debug)]
+pub struct BuiltinDefinition {
+    pub name: String,
+    pub signature: BuiltinSignature,
+}
+
+#[derive(Clone, Debug)]
+pub struct BuiltinSignature {
+    pub parameters: Vec<BuiltinType>,
+    pub result: BuiltinType,
+    pub effect: BuiltinEffect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BuiltinType {
+    Uint256,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BuiltinEffect {
+    #[default]
+    Unknown,
+    Pure,
+}
+
+/// Operands refer to arguments, prior instructions, or word constants.
+#[derive(Clone, Debug)]
+pub enum BuiltinOperand {
+    Argument(u32),
+    Local(u32),
+    Constant(String),
+}
+
+#[derive(Clone, Debug)]
+pub struct BuiltinInstruction {
+    pub operation: String,
+    pub operands: Vec<BuiltinOperand>,
+}
+
+#[derive(Clone, Debug)]
+pub struct BuiltinBody {
+    pub instructions: Vec<BuiltinInstruction>,
+    pub result: BuiltinOperand,
 }
 
 /// IR layer accepted by a pass.
@@ -401,6 +457,9 @@ macro_rules! export_plugin {
             static EXPORTS: $crate::__private::Exports = $crate::__private::Exports {
                 manifest: |respond| $crate::__private::manifest(&PLUGIN, respond),
                 run: |request, respond| $crate::__private::run(&PLUGIN, request, respond),
+                lower_builtin: |name, respond| {
+                    $crate::__private::lower_builtin(&PLUGIN, name, respond)
+                },
                 frontend_manifest: |respond| $crate::__private::frontend_manifest(&PLUGIN, respond),
                 expand: |request, respond| $crate::__private::expand(&PLUGIN, request, respond),
             };
@@ -423,6 +482,7 @@ pub mod __private {
     pub struct Exports {
         pub manifest: fn(&mut Receiver<'_, Manifest>),
         pub run: fn(&Request, &mut Receiver<'_, Response>),
+        pub lower_builtin: fn(&str, &mut Receiver<'_, BuiltinBody>),
         pub frontend_manifest: fn(&mut Receiver<'_, FrontendManifest>),
         pub expand: fn(&ExpansionRequest, &mut Receiver<'_, Expansion>),
     }
@@ -437,6 +497,18 @@ pub mod __private {
     pub fn manifest<P: Plugin>(plugin: &P, respond: &mut Receiver<'_, Manifest>) {
         match catch_unwind(AssertUnwindSafe(|| plugin.manifest())) {
             Ok(manifest) => respond(Ok(&manifest)),
+            Err(_) => respond(Err("plugin panicked")),
+        }
+    }
+
+    pub fn lower_builtin<P: Plugin>(
+        plugin: &P,
+        name: &str,
+        respond: &mut Receiver<'_, BuiltinBody>,
+    ) {
+        match catch_unwind(AssertUnwindSafe(|| plugin.lower_builtin(name))) {
+            Ok(Ok(response)) => respond(Ok(&response)),
+            Ok(Err(error)) => respond(Err(&error)),
             Err(_) => respond(Err("plugin panicked")),
         }
     }
