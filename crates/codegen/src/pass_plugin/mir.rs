@@ -229,9 +229,12 @@ fn replace_value(
 }
 
 /// Foreign edits can change an offset's producer or bypass its original bounds check without
-/// directly replacing the flagged instruction. Treat all retained memory proofs as unverified.
+/// directly replacing the flagged instruction. A callee's edits can also invalidate its callers'
+/// array widths. Treat all retained instruction and function memory proofs as unverified.
 fn clear_unverified_memory_proofs(module: &mut Module) {
     for function in &mut module.functions {
+        function.attributes.array_element_bits.clear();
+        function.attributes.array_return_element_bits = None;
         let instructions = function.instructions().collect::<Vec<_>>();
         for instruction in instructions {
             function.inst_mut(instruction).metadata.clear_analysis_facts();
@@ -310,6 +313,29 @@ mod tests {
             assert!(crate::mir::analysis::pointer_bases(&module.functions[id], sum, 0).is_empty());
             let metadata = &module.functions[id].inst(add).metadata;
             assert_eq!(metadata.debug_context(), debug);
+        });
+    }
+
+    #[test]
+    fn foreign_edits_drop_all_function_width_summaries() {
+        let sess = Session::builder().with_test_emitter().build();
+        sess.enter_sequential(|| {
+            let mut module = Module::new(Ident::from_str("M"));
+            for name in ["edited", "caller"] {
+                let mut function = mir::Function::new(Ident::from_str(name));
+                function.set_return_type(MirType::MEMPTR);
+                let mut builder = FunctionBuilder::new(&mut function);
+                let array = builder.add_param(MirType::MEMPTR);
+                builder.ret([array]);
+                function.attributes.array_element_bits.insert(mir::ArgIdx::new(0), 8);
+                function.attributes.array_return_element_bits = Some(8);
+                module.add_function(function);
+            }
+            clear_unverified_memory_proofs(&mut module);
+            for function in &module.functions {
+                assert!(function.attributes.array_element_bits.is_empty());
+                assert_eq!(function.attributes.array_return_element_bits, None);
+            }
         });
     }
 }
