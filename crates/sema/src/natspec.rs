@@ -860,7 +860,8 @@ impl<'gcx> Resolver<'gcx> {
     ///
     /// The description keeps its words, except that a first word equal to the new name becomes
     /// the name. A renamed tag gets its own text of the name and the description, so that its
-    /// name precedes its content like that of a tag written for the return.
+    /// name precedes its content like that of a tag written for the return, except for a tag of
+    /// only the name.
     fn rename_inherited_return(
         &self,
         item: &mut hir::NatSpecItem,
@@ -875,6 +876,11 @@ impl<'gcx> Resolver<'gcx> {
             return;
         }
         let mut content = item.content();
+        if documented.is_none() && content == expected.name.as_str() {
+            // Like solc, a description that is only the name stays as it is.
+            item.kind = hir::NatSpecKind::Return { name: Some(expected) };
+            return;
+        }
         if documented.is_none()
             && let Some((word, rest)) = content.split_once([' ', '\t'])
             && word == expected.name.as_str()

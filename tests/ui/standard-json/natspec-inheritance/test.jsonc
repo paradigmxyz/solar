@@ -92,6 +92,11 @@
 // CHECK-LABEL: "Renamed2Impl": {
 // CHECK: "devdoc": {
 // CHECK: "return": "amount amount"
+//
+// CHECK-LABEL: "NameOnlyImpl": {
+// CHECK: "devdoc": {
+// CHECK: "return": "amount"
+// CHECK: "amount": "amount"
 {
   "language": "Solidity",
   "settings": {
@@ -146,6 +151,10 @@
           "devdoc"
         ],
         "Renamed2Impl": [
+          "userdoc",
+          "devdoc"
+        ],
+        "NameOnlyImpl": [
           "userdoc",
           "devdoc"
         ]
