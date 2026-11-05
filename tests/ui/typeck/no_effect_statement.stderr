@@ -190,3 +190,15 @@ warning[6133]: statement has no effect
 LL │         (((1)));
    ╰╴        ━━━━━━━
 
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         x == 1;
+   ╰╴        ━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         owner == address(0);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+

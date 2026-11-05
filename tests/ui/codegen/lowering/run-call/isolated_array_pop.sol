@@ -16,7 +16,7 @@ contract IsolatedArrayPop {
         values.push();
         values.push();
         values[index++].pop;
-        data.pop; //~ WARN: statement has no effect
+        data.pop;
         arrayLength = values[0].length;
         bytesLength = data.length;
     }

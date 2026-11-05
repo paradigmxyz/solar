@@ -1,6 +1,10 @@
 use super::TypeChecker;
-use crate::{builtins::Builtin, hir, ty::TyKind};
-use solar_ast::{BinOpKind, DataLocation, UnOpKind};
+use crate::{
+    builtins::Builtin,
+    hir,
+    ty::{Ty, TyKind},
+};
+use solar_ast::{BinOpKind, DataLocation, ElementaryType, UnOpKind};
 
 impl<'gcx> TypeChecker<'gcx> {
     /// Returns whether an expression statement does nothing: evaluating it neither writes state
@@ -79,9 +83,11 @@ impl<'gcx> TypeChecker<'gcx> {
                         | TyKind::Udvt(..)
                 )
             }
-            hir::ExprKind::Ident(_) => {
-                !matches!(self.results.resolved_expr(expr), None | Some(hir::Res::Err(_)))
-            }
+            hir::ExprKind::Ident(_) => match self.results.resolved_expr(expr) {
+                None | Some(hir::Res::Err(_)) => false,
+                Some(hir::Res::Item(hir::ItemId::Variable(id))) => !self.is_validated_load(id),
+                Some(_) => true,
+            },
             hir::ExprKind::Member(receiver, _) => {
                 // Reading calldata decodes lazily and can revert on malformed data.
                 self.results
@@ -108,14 +114,40 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     /// Like [`Self::is_effect_free`], for an operand that an array literal, ternary, or struct
-    /// constructor can copy to memory. Copying calldata decodes it, which can revert on malformed
-    /// data.
+    /// constructor can copy to memory. Copying calldata decodes it, and copying storage validates
+    /// it and bounds dynamic lengths, so both can revert on malformed data.
     fn is_copied_effect_free(&self, expr: &hir::Expr<'gcx>) -> bool {
         self.is_effect_free(expr)
-            && self
-                .results
-                .type_of_expr(expr.id)
-                .is_some_and(|ty| !ty.is_ref_at(DataLocation::Calldata))
+            && self.results.type_of_expr(expr.id).is_some_and(|ty| {
+                !ty.is_ref_at(DataLocation::Calldata) && !ty.is_ref_at(DataLocation::Storage)
+            })
+    }
+
+    /// Returns whether reading a variable loads storage whose value is validated, which reverts
+    /// on malformed data: enums, and the headers of `bytes` and `string`.
+    fn is_validated_load(&self, id: hir::VariableId) -> bool {
+        let var = self.gcx.hir.variable(id);
+        let in_storage = var.data_location == Some(DataLocation::Storage)
+            || (var.is_state_variable() && !var.is_constant() && !var.is_immutable());
+        in_storage && self.validates_on_load(self.gcx.type_of_item(id.into()), 0)
+    }
+
+    fn validates_on_load(&self, ty: Ty<'gcx>, depth: usize) -> bool {
+        match ty.peel_refs().kind {
+            TyKind::Enum(_)
+            | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => true,
+            TyKind::Array(elem, _) | TyKind::DynArray(elem) => self.validates_on_load(elem, depth),
+            // Recursive structs end at a bound.
+            TyKind::Struct(id) => {
+                depth > 4
+                    || self
+                        .gcx
+                        .struct_field_types(id)
+                        .iter()
+                        .any(|&field| self.validates_on_load(field, depth + 1))
+            }
+            _ => false,
+        }
     }
 }
 

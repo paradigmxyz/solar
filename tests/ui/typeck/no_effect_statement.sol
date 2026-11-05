@@ -22,6 +22,13 @@ contract C {
     enum E { A, B }
     struct S { uint a; uint b; }
     uint constant K = 1;
+    bytes data;
+    E stored;
+    B box;
+    struct B {
+        bytes d;
+        E k;
+    }
 
     function g() internal returns (uint) {
         x++;
@@ -64,6 +71,8 @@ contract C {
         type(uint).max; //~ WARN: statement has no effect
         [a, b]; //~ WARN: statement has no effect
         (((1))); //~ WARN: statement has no effect
+        x == 1; //~ WARN: statement has no effect
+        owner == address(0); //~ WARN: statement has no effect
     }
 
     function placeholders(uint a, uint b) public view {
@@ -80,6 +89,17 @@ contract C {
         c ? cd : mem;
         T(cd);
         [cd, mem];
+    }
+
+    function storageLoads(bool c) public view {
+        // Storage loads validate bytes headers and enum values, and copying bounds lengths.
+        data.length;
+        stored == E.A;
+        box.k == E.A;
+        box.d.length;
+        B(data, stored);
+        c ? arr : arr;
+        [arr, arr];
     }
 
     function noWarn(uint a, uint b, uint[] memory mem, uint[] calldata cd, E e, S calldata s, int i) public {
