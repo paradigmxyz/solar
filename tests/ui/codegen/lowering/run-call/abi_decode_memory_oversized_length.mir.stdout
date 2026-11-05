@@ -59,23 +59,22 @@ fn @nestedArray() -> i1 [selector=0x810ef4b8, abi_params=[], abi_returns=[word<b
 ; function oversized(bytes4 selector) internal returns (bool)
 fn @oversized(arg0: i256) -> i1 {
   bb0:
-    v0 = and arg0, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v1 = abi_encode_packed (bytes4 v0, uint256 32, uint256 0xffffffffffffffff)
-    v2 = address
-    v3 = gas
-    v4 = address_call v2, v1, gas v3
-    v5 = icall returndata_bytes<>
-    v6 = eq v4, false
-    jumpi v6, bb1, bb2
+    v0 = abi_encode_packed (bytes4 arg0, uint256 32, uint256 0xffffffffffffffff)
+    v1 = address
+    v2 = gas
+    v3 = address_call v1, v0, gas v2
+    v4 = icall returndata_bytes<>
+    v5 = eq v3, false
+    jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    v7 = ptradd v5, 32
-    v8 = mload v5
-    v9 = keccak256 v7, v8
-    v10 = eq v9, 0x8e6896d848ce77893db8ffe49ed1a378c34c94cda53b83ae7938e28a946cb069
+    v6 = ptradd v4, 32
+    v7 = mload v4
+    v8 = keccak256 v6, v7
+    v9 = eq v8, 0x8e6896d848ce77893db8ffe49ed1a378c34c94cda53b83ae7938e28a946cb069
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    v11 = phi [bb1: v10], [bb2: false]
-    ret v11
+    v10 = phi [bb1: v9], [bb2: false]
+    ret v10
 }

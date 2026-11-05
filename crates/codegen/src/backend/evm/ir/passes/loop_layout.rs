@@ -285,7 +285,8 @@ fn invert_latch(module: &mut Module, latch: BlockId, header: BlockId) {
     let mut push = Instruction::push_block(cold);
     push.metadata = std::mem::take(&mut block.instructions[len - 3].metadata);
     block.instructions[len - 3] = push;
-    block.instructions[len - 2].metadata.absorb_debug_info(&test.metadata);
+    // NOTE: The removed `iszero` takes its origins with it; only its function events move.
+    block.instructions[len - 2].metadata.move_function_events(&test.metadata);
 }
 
 /// Fills `body` with the natural loop of the back edge `latch -> header`: the header and every

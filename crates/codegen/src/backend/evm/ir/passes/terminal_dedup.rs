@@ -40,6 +40,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHasher},
 };
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
@@ -99,7 +100,7 @@ impl EvmPass for TerminalDedup {
                 // duplicate terminal body -> jump canonical body
                 module.blocks[block].instructions.clear();
                 let mut terminator = Terminator::new(TerminatorKind::Jump(target));
-                terminator.metadata.mark_debug_info_dropped();
+                terminator.metadata.drop_debug_loc(DebugLocKind::Dropped);
                 module.blocks[block].terminator = Some(terminator);
             }
         }
@@ -112,23 +113,23 @@ fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
     // Every redirected path enters through the survivor's label. The redirected blocks keep
     // their own, since they remain as jump blocks.
     let mut label = module.blocks[target].label_metadata.clone();
-    label.merge_equivalent_debug_info(
-        redirects.iter().map(|&(block, _)| &module.blocks[block].label_metadata),
-    );
+    label
+        .merge_debug_locs(redirects.iter().map(|&(block, _)| &module.blocks[block].label_metadata));
     module.blocks[target].label_metadata = label;
     for index in 0..module.blocks[target].instructions.len() {
         let mut metadata = module.blocks[target].instructions[index].metadata.clone();
-        metadata.merge_equivalent_debug_info(
-            redirects.iter().map(|&(block, _)| &module.blocks[block].instructions[index].metadata),
-        );
+        let others =
+            redirects.iter().map(|&(block, _)| &module.blocks[block].instructions[index].metadata);
+        metadata.merge_debug_locs(others.clone());
+        metadata.merge_function_events(others);
         module.blocks[target].instructions[index].metadata = metadata;
     }
     let mut metadata = module.blocks[target].terminator.as_ref().unwrap().metadata.clone();
-    metadata.merge_equivalent_debug_info(
-        redirects
-            .iter()
-            .map(|&(block, _)| &module.blocks[block].terminator.as_ref().unwrap().metadata),
-    );
+    let others = redirects
+        .iter()
+        .map(|&(block, _)| &module.blocks[block].terminator.as_ref().unwrap().metadata);
+    metadata.merge_debug_locs(others.clone());
+    metadata.merge_function_events(others);
     module.blocks[target].terminator.as_mut().unwrap().metadata = metadata;
 }
 

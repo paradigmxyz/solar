@@ -19,11 +19,10 @@ fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[wo
 ; function leftByteShift(bytes6 value, uint256 shift) public pure returns (bytes6) [selector 0x49858898]
 fn @leftByteShift(arg0: i256, arg1: i256) -> i256 [selector=0x49858898, pure, abi_params=[bytes6, uint256], abi_returns=[word<bytes6>], abi_return_params=[bytes6]] {
   bb0:
-    v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    v1 = checked_mul uint256, arg1, 8
-    v2 = shl v0, v1
-    v3 = and v2, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    ret v3
+    v0 = checked_mul uint256, arg1, 8
+    v1 = shl arg0, v0
+    v2 = and v1, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    ret v2
 }
 
 ; function applyShift( function(bytes6, uint256) internal returns (bytes6) shiftOperator, uint256 bytesToShift ) internal
@@ -45,13 +44,12 @@ fn @applyShift(arg0: i256, arg1: i256) {
 ; function setName(bytes6 name_) private
 fn @setName(arg0: i256) {
   bb0:
-    v0 = and arg0, 0xffffffffffff0000000000000000000000000000000000000000000000000000
-    v1 = sload 0 !metadata(storage=slot(0))
-    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
-    v3 = shr v0, 208
-    v4 = and v3, 0xffffffffffff
-    v5 = or v2, v4
-    sstore 0, v5 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000
+    v2 = shr arg0, 208
+    v3 = and v2, 0xffffffffffff
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
     ret
 }
 
@@ -63,7 +61,8 @@ fn @internal_dispatcher_p_bytes6_r_none(arg0: i256, arg1: i256) [function_pointe
     icall panic_if<0x51>, true
     invalid
   bb1:                                            ; preds = bb0
-    icall @setName, arg1
+    v1 = and arg1, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    icall @setName, v1
     ret
 }
 
@@ -75,6 +74,7 @@ fn @internal_dispatcher_p_bytes6_uint256_r_bytes6(arg0: i256, arg1: i256, arg2: 
     icall panic_if<0x51>, true
     invalid
   bb1:                                            ; preds = bb0
-    v1 = icall @leftByteShift, arg1, arg2
-    ret v1
+    v1 = and arg1, 0xffffffffffff0000000000000000000000000000000000000000000000000000
+    v2 = icall @leftByteShift, v1, arg2
+    ret v2
 }

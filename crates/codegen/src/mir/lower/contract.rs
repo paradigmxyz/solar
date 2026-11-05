@@ -494,8 +494,8 @@ fn declaration_header(source: &str) -> String {
 }
 
 /// Orders the sources in the import closure of `source` the way `Sources::topo_sort` orders all
-/// sources: a depth-first post-order over imports from the closure's sources in file name order.
-/// Unlike the compilation-wide order, it does not depend on sources outside the closure.
+/// sources: a depth-first post-order over imports from the closure's sources in source unit name
+/// order. Unlike the compilation-wide order, it does not depend on sources outside the closure.
 fn import_closure_order(gcx: Gcx<'_>, source: hir::SourceId) -> FxIndexSet<hir::SourceId> {
     fn visit(
         gcx: Gcx<'_>,
@@ -514,7 +514,9 @@ fn import_closure_order(gcx: Gcx<'_>, source: hir::SourceId) -> FxIndexSet<hir::
     let mut closure = FxIndexSet::default();
     visit(gcx, source, &mut FxHashSet::default(), &mut closure);
     let mut roots = closure.into_iter().collect::<Vec<_>>();
-    roots.sort_by_key(|&id| &gcx.hir.source(id).file.name);
+    roots.sort_by(|&a, &b| {
+        gcx.hir.source(a).file.name.cmp_source_unit_name(&gcx.hir.source(b).file.name)
+    });
     let (mut seen, mut order) = (FxHashSet::default(), FxIndexSet::default());
     for id in roots {
         visit(gcx, id, &mut seen, &mut order);

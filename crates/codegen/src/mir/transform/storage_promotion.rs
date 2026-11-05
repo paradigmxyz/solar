@@ -447,7 +447,7 @@ fn retarget_to_temp(func: &mut Function, inst_id: InstId, temp: ValueId) {
 fn alloc_load(func: &mut Function, addr: ValueId, location: PtrLocation) -> (InstId, ValueId) {
     func.alloc_value_inst(
         Instruction::new(InstKind::Load(addr, location), Some(MirType::I256))
-            .with_debug_info_dropped(),
+            .with_debug_loc_dropped(),
     )
 }
 
@@ -459,7 +459,7 @@ fn alloc_store(
     location: PtrLocation,
 ) -> InstId {
     func.alloc_inst(
-        Instruction::new(InstKind::Store(addr, value, location), None).with_debug_info_dropped(),
+        Instruction::new(InstKind::Store(addr, value, location), None).with_debug_loc_dropped(),
     )
 }
 
@@ -499,7 +499,7 @@ fn insert_conditional_final_store(
     let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
     let (normalize, dirty_value) = func.alloc_value_inst(
         Instruction::new(InstKind::Ne(dirty_value, zero), Some(MirType::I1))
-            .with_debug_info_dropped(),
+            .with_debug_loc_dropped(),
     );
     exit_instructions.push(normalize);
 

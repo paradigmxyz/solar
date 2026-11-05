@@ -699,8 +699,6 @@ impl LowerAbiCx {
                     let layout = layout.clone();
                     let data = crate::mir::utils::resolve_replacement(*data, &replacements);
                     let result = builder.func().inst_result_value(inst);
-                    let debug = builder.func().inst(inst).metadata.debug_context();
-                    builder.set_debug_context(&debug);
                     let calldata =
                         builder.func().value_slice_location(data) == Some(PtrLocation::Calldata);
                     let values = if calldata {
@@ -819,6 +817,7 @@ impl LowerAbiCx {
             builder.set_return_type(ty.mir_type());
             builder.ret([value]);
         }
+        function.mark_unlocated_compiler_generated();
         module.add_function(function)
     }
 
@@ -870,6 +869,7 @@ impl LowerAbiCx {
             builder.set_return_type(MirType::I256);
             builder.ret([base]);
         }
+        function.mark_unlocated_compiler_generated();
         module.add_function(function)
     }
 
@@ -906,6 +906,7 @@ impl LowerAbiCx {
             // ret insert_value(undef, field0), ...
             builder.ret(values);
         }
+        function.mark_unlocated_compiler_generated();
         module.add_function(function)
     }
 
@@ -1080,7 +1081,7 @@ impl LowerAbiCx {
                 U256::ZERO,
             )));
             let test = Instruction::new(InstKind::Ne(word, zero), Some(MirType::I1))
-                .with_debug_info_dropped();
+                .with_debug_loc_dropped();
             let (test, value) = body.alloc_value_inst(test);
             tests.push(test);
             for &use_value in &uses[index] {
@@ -1127,7 +1128,7 @@ impl LowerAbiCx {
             }
             // arg = zext b, before the call
             let mut zext = Instruction::new(InstKind::Zext(arg), Some(MirType::I256));
-            zext.metadata.copy_debug_context(&func.inst(call).metadata);
+            zext.metadata.preserve_debug_loc(&func.inst(call).metadata);
             let (zext, word) = func.alloc_value_inst(zext);
             let instructions = &mut func.blocks[block].instructions;
             let position = instructions.iter().position(|&inst| inst == call).unwrap();
@@ -2802,6 +2803,7 @@ fn synthesize_memory_decode_helper(
         builder.set_return_type(ty.mir_type());
         builder.ret([value]);
     }
+    function.mark_unlocated_compiler_generated();
     module.add_function(function)
 }
 
