@@ -24,9 +24,20 @@
 //! exposed, and the parameters and returns of every exposed function are
 //! tainted. These rules feed each other and iterate to a fixpoint.
 //!
-//! NOTE: Pointers reach this graph only through bindings. Assembly that writes
-//! a pointer into memory or storage through an address it computed, rather
-//! than through a reference binding, is not tracked.
+//! Assembly can also write a pointer into memory or storage through an address
+//! it computed, which the graph cannot follow to a binding. So when a block
+//! stores a word that may come from a binding a function's pointer reaches,
+//! every pointer call dispatches over the exposed functions. So does a
+//! pointer that Solidity stores through a reference that assembly assigned,
+//! or whose `slot` or `offset` it assigned, since the store lands at a
+//! computed address. Within a block,
+//! words can flow between any of its bindings, so they all count as one.
+//! Outside blocks, only copies and pointer edges carry such words, so a
+//! pointer that Solidity code masks or shifts into a different type before
+//! assembly stores it is not tracked, nor is a word that assembly loads from
+//! an address and stores elsewhere, or a pointer that a retyped call hands to a
+//! function that stores it. The input of an assembly call counts as stored, for
+//! the identity precompile.
 
 use super::*;
 use smallvec::SmallVec;
@@ -48,7 +59,59 @@ struct Exposure<'gcx> {
     pointer_values: Vec<(hir::FunctionId, VariableId)>,
     pointer_calls: Vec<PointerCall<'gcx>>,
     returns: &'gcx [VariableId],
-    assembly: bool,
+    assembly: Option<AssemblyBlock>,
+    /// Chains the bindings of each assembly block, since its words can flow between them.
+    assembly_edges: FxHashMap<VariableId, Vec<VariableId>>,
+    /// Bindings whose words assembly stores to memory or storage.
+    stored: Vec<VariableId>,
+    /// References that assembly points at an address of its choosing.
+    retargeted: Vec<VariableId>,
+    /// The bindings whose pointers Solidity stores into the object of each reference.
+    store_edges: FxHashMap<VariableId, Vec<VariableId>>,
+}
+
+/// Collects the bindings an assembly expression mentions.
+fn assembly_bindings(gcx: Gcx<'_>, expr: &hir::Expr<'_>, out: &mut Vec<VariableId>) {
+    match expr.kind {
+        ExprKind::Ident(_) => out.extend(gcx.resolved_variable(expr)),
+        ExprKind::YulMember(base, _) => assembly_bindings(gcx, base, out),
+        ExprKind::Tuple(items) => {
+            for item in items.iter().flatten() {
+                assembly_bindings(gcx, item, out);
+            }
+        }
+        ExprKind::Call(callee, args) => {
+            // A Yul function can return a word it read itself.
+            if let Some(id) = gcx.resolved_function(callee) {
+                out.extend_from_slice(gcx.hir.function(id).returns);
+            }
+            for argument in args.exprs() {
+                assembly_bindings(gcx, argument, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Returns the operand of an assembly builtin whose words it writes to memory or storage, or
+/// copies through a call, such as the input of the identity precompile.
+fn stored_operand(builtin: Builtin) -> Option<usize> {
+    match builtin {
+        Builtin::YulMstore
+        | Builtin::YulMstore8
+        | Builtin::YulSstore
+        | Builtin::YulTstore
+        | Builtin::YulMcopy => Some(1),
+        Builtin::YulDelegatecall | Builtin::YulStaticcall => Some(2),
+        Builtin::YulCall | Builtin::YulCallcode => Some(3),
+        _ => None,
+    }
+}
+
+/// The bindings an assembly block mentions.
+#[derive(Default)]
+struct AssemblyBlock {
+    bindings: Vec<VariableId>,
 }
 
 /// An internal function pointer call with the pointers it reads.
@@ -149,6 +212,31 @@ impl<'gcx> Exposure<'gcx> {
         self.connect_pointers(destinations, expr);
     }
 
+    /// Pairs the parameters of a modifier or base constructor with the arguments it is given.
+    ///
+    /// Named arguments follow the names of the declared function, which an override can rename.
+    fn modifier_arguments<'hir>(
+        &self,
+        function: hir::FunctionId,
+        declared: hir::FunctionId,
+        args: hir::CallArgs<'hir>,
+    ) -> SmallVec<[(VariableId, &'hir hir::Expr<'hir>); 4]> {
+        let names = matches!(args.kind, hir::CallArgsKind::Named(_)).then(|| {
+            self.gcx.callable_param_names(CallableParamSource::Function {
+                id: declared,
+                skips_receiver: false,
+            })
+        });
+        let parameters = self.gcx.hir.function(function).parameters;
+        parameters
+            .iter()
+            .enumerate()
+            .filter_map(|(index, &parameter)| {
+                Some((parameter, args.argument_for_parameter(index, names.as_deref())?))
+            })
+            .collect()
+    }
+
     /// Returns the internal function whose pointer an expression takes.
     fn function_reference(&self, expr: &hir::Expr<'_>) -> Option<hir::FunctionId> {
         if !matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..)) {
@@ -194,6 +282,8 @@ impl<'gcx> Exposure<'gcx> {
                 self.pointer_sources(yes, bindings, functions);
                 self.pointer_sources(no, bindings, functions);
             }
+            // An assignment's value is its target.
+            ExprKind::Assign(lhs, None, _) => self.pointer_sources(lhs, bindings, functions),
             // A value loaded from an object comes from the reference that reaches it.
             ExprKind::Member(base, _) | ExprKind::Index(base, _) | ExprKind::Slice(base, ..) => {
                 self.pointer_sources(base, bindings, functions);
@@ -248,6 +338,16 @@ impl<'gcx> Exposure<'gcx> {
                     self.pointer_edges.entry(to).or_default().push(from);
                 }
             }
+        }
+    }
+
+    /// Records the pointers an expression stores into the objects of references.
+    fn connect_stores(&mut self, roots: &[VariableId], expr: &hir::Expr<'_>) {
+        self.connect_pointers(roots, expr);
+        let mut bindings = SmallVec::<[_; 4]>::new();
+        self.pointer_sources(expr, &mut bindings, &mut SmallVec::new());
+        for &root in roots {
+            self.store_edges.entry(root).or_default().extend_from_slice(&bindings);
         }
     }
 
@@ -330,7 +430,9 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
     }
 
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Never> {
-        if !self.visited.insert(id) {
+        // A Yul function is visited from its callers' assembly blocks.
+        if (self.gcx.hir.function(id).is_yul && self.assembly.is_none()) || !self.visited.insert(id)
+        {
             return ControlFlow::Continue(());
         }
         let previous = self.returns;
@@ -343,7 +445,8 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
     fn visit_modifier(&mut self, modifier: &'gcx hir::Modifier<'gcx>) -> ControlFlow<Never> {
         if let Some(id) = self.gcx.resolve_modifier_target(self.contract, modifier) {
             let function = self.gcx.hir.function(id);
-            for (&parameter, argument) in function.parameters.iter().zip(modifier.args.exprs()) {
+            let declared = modifier.id.as_function().unwrap_or(id);
+            for (parameter, argument) in self.modifier_arguments(id, declared, modifier.args) {
                 self.connect(&[parameter], argument);
             }
             if self.visited.insert(id) {
@@ -361,9 +464,12 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Never> {
-        let previous = self.assembly;
+        let is_assembly =
+            matches!(stmt.kind, StmtKind::AssemblyBlock(..)) && self.assembly.is_none();
+        if is_assembly {
+            self.assembly = Some(AssemblyBlock::default());
+        }
         match stmt.kind {
-            StmtKind::AssemblyBlock(..) => self.assembly = true,
             StmtKind::Return(Some(expr)) => self.connect(self.returns, expr),
             StmtKind::DeclMulti(ids, expr) => {
                 self.connect(&ids.iter().flatten().copied().collect::<SmallVec<[_; 4]>>(), expr);
@@ -371,17 +477,45 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
             _ => {}
         }
         let result = self.walk_stmt(stmt);
-        self.assembly = previous;
+        if is_assembly && let Some(block) = self.assembly.take() {
+            for pair in block.bindings.windows(2) {
+                self.assembly_edges.entry(pair[0]).or_default().push(pair[1]);
+                self.assembly_edges.entry(pair[1]).or_default().push(pair[0]);
+            }
+        }
         result
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
-        if self.assembly {
+        if let Some(block) = &mut self.assembly {
             if matches!(expr.kind, ExprKind::Ident(_))
                 && let Some(hir::Res::Item(hir::ItemId::Variable(id))) =
                     self.gcx.resolved_expr(expr)
             {
                 self.raw.insert(id);
+                block.bindings.push(id);
+            } else if let ExprKind::Call(callee, args) = expr.kind
+                && let Some(builtin) = self.gcx.resolved_builtin(callee)
+                && let Some(operand) = stored_operand(builtin)
+                && let Some(value) = args.exprs().nth(operand)
+            {
+                assembly_bindings(self.gcx, value, &mut self.stored);
+            } else if let ExprKind::Assign(target, ..) = expr.kind {
+                // Retargeting a reference makes Solidity stores through it computed.
+                let mut targets = Vec::new();
+                assembly_bindings(self.gcx, target, &mut targets);
+                self.retargeted.extend(targets.into_iter().filter(|&id| {
+                    matches!(self.gcx.type_of_item(id.into()).kind, TyKind::Ref(..))
+                }));
+            } else if let ExprKind::Call(callee, _) = expr.kind
+                && let Some(id) = self.gcx.resolved_function(callee)
+                && self.gcx.hir.function(id).is_yul
+            {
+                // A Yul function's words flow through its parameters and returns, and its body
+                // belongs to the block that calls it.
+                let function = self.gcx.hir.function(id);
+                block.bindings.extend(function.parameters.iter().chain(function.returns));
+                let _ = self.visit_nested_function(id);
             }
         } else if let Some(id) = self.gcx.user_operator(expr.id) {
             let parameters = self.gcx.hir.function(id).parameters;
@@ -401,7 +535,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                     self.connect(&ids, rhs);
                     let mut roots = SmallVec::new();
                     self.store_roots(lhs, &mut roots);
-                    self.connect_pointers(&roots, rhs);
+                    self.connect_stores(&roots, rhs);
                 }
                 ExprKind::Call(callee, args) => {
                     self.record_pointer_call(expr, callee, args);
@@ -411,7 +545,7 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                     {
                         let mut roots = SmallVec::new();
                         self.pointer_sources(base, &mut roots, &mut SmallVec::new());
-                        self.connect_pointers(&roots, value);
+                        self.connect_stores(&roots, value);
                     }
                     let callees = self.callees(callee);
                     if callees.is_empty() {
@@ -465,10 +599,32 @@ impl LoweringState {
             pointer_values: Vec::new(),
             pointer_calls: Vec::new(),
             returns: &[],
-            assembly: false,
+            assembly: None,
+            assembly_edges: FxHashMap::default(),
+            stored: Vec::new(),
+            retargeted: Vec::new(),
+            store_edges: FxHashMap::default(),
         };
         for &(id, _) in functions {
             let _ = exposure.visit_nested_function(id);
+        }
+        // The pointers each contract of the hierarchy gives the constructors of its bases.
+        for &writer in gcx.hir.contract(contract).linearized_bases {
+            let writer = gcx.hir.contract(writer);
+            for (&base, modifier) in
+                writer.linearized_bases.iter().skip(1).zip(writer.linearized_bases_args)
+            {
+                if let Some(modifier) = modifier
+                    && let Some(ctor) = gcx.hir.contract(base).ctor
+                {
+                    for (parameter, argument) in
+                        exposure.modifier_arguments(ctor, ctor, modifier.args)
+                    {
+                        exposure.connect_pointers(&[parameter], argument);
+                        let _ = exposure.visit_expr(argument);
+                    }
+                }
+            }
         }
         for &base in gcx.hir.contract(contract).linearized_bases {
             let base = gcx.hir.contract(base);
@@ -486,6 +642,7 @@ impl LoweringState {
                     } else {
                         exposure.connect_pointers(&[id], initializer);
                     }
+                    let _ = exposure.visit_expr(initializer);
                 }
             }
         }
@@ -499,6 +656,44 @@ impl LoweringState {
                 }
             }
         }
+
+        // Bindings whose words may reach a computed store.
+        let mut stored = FxHashSet::from_iter(exposure.stored.iter().copied());
+        // Solidity stores through a retargeted reference land at a computed address too.
+        let mut retargeted = FxHashSet::from_iter(exposure.retargeted.iter().copied());
+        let mut pending = retargeted.iter().copied().collect::<Vec<_>>();
+        // Copies, parameters and returns of a reference alias it, and so do the references
+        // loaded from its object.
+        while let Some(id) = pending.pop() {
+            let loaded =
+                exposure.pointer_edges.get(&id).into_iter().flatten().filter(|&&other| {
+                    matches!(gcx.type_of_item(other.into()).kind, TyKind::Ref(..))
+                });
+            for &alias in exposure.edges.get(&id).into_iter().flatten().chain(loaded) {
+                if retargeted.insert(alias) {
+                    pending.push(alias);
+                }
+            }
+        }
+        for root in &retargeted {
+            stored.extend(exposure.store_edges.get(root).into_iter().flatten().copied());
+        }
+        let mut pending = stored.iter().copied().collect::<Vec<_>>();
+        while let Some(id) = pending.pop() {
+            let neighbors = exposure.edges.get(&id).into_iter().flatten();
+            let pointers = exposure.pointer_edges.get(&id).into_iter().flatten();
+            let words = exposure.assembly_edges.get(&id).into_iter().flatten();
+            for &neighbor in neighbors.chain(pointers).chain(words) {
+                if stored.insert(neighbor) {
+                    pending.push(neighbor);
+                }
+            }
+        }
+        // A pointer stored through a computed address can sit behind any pointer call.
+        let escaped = exposure
+            .pointer_values
+            .iter()
+            .any(|(_, binding)| stored.contains(binding) || retargeted.contains(binding));
 
         let mut tainted = exposure.raw.clone();
         let mut pending = tainted.iter().copied().collect::<Vec<_>>();
@@ -528,7 +723,7 @@ impl LoweringState {
             // A tainted call can pass its arguments to an exposed function of another type.
             for call in &exposure.pointer_calls {
                 if !calls.contains(&call.call)
-                    && call.callee.iter().any(|binding| tainted.contains(binding))
+                    && (escaped || call.callee.iter().any(|binding| tainted.contains(binding)))
                 {
                     calls.insert(call.call);
                     pending.extend(call.arguments.iter().filter(|&&id| tainted.insert(id)));
