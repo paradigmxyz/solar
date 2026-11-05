@@ -582,7 +582,7 @@ impl<'gcx> Resolver<'gcx> {
     /// same function.
     fn check_solar_cold(&self, docs: &[ast::DocComment<'gcx>], tag_span: Span) {
         if let Some(natspec) = self.first_duplicate_free_tag(docs, sym::solar_dash_cold, tag_span)
-            && !natspec.content().trim().is_empty()
+            && !solar_tag_arguments(natspec).is_empty()
         {
             self.gcx
                 .dcx()
@@ -1073,7 +1073,7 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
 /// Returns what a `@custom:solar-inline` tag asks for, when it has no argument or exactly
 /// `always` or `never`.
 fn inline_tag(natspec: &ast::NatSpecItem) -> Option<InlineTag> {
-    let mut words = natspec.content().split_whitespace();
+    let mut words = solar_tag_arguments(natspec).split_whitespace();
     match (words.next(), words.next()) {
         (None, _) => Some(InlineTag::Hint),
         (Some("always"), None) => Some(InlineTag::Always),
@@ -1085,12 +1085,18 @@ fn inline_tag(natspec: &ast::NatSpecItem) -> Option<InlineTag> {
 /// Returns the objective a `@custom:solar-optimize` tag names, when it names exactly `gas` or
 /// `size`.
 fn optimize_objective(natspec: &ast::NatSpecItem) -> Option<OptimizationMode> {
-    let mut words = natspec.content().split_whitespace();
+    let mut words = solar_tag_arguments(natspec).split_whitespace();
     match (words.next(), words.next()) {
         (Some("gas"), None) => Some(OptimizationMode::Gas),
         (Some("size"), None) => Some(OptimizationMode::Size),
         _ => None,
     }
+}
+
+/// Returns the arguments of a `@custom:solar-*` tag, without the `*` of a `**/` that closes the
+/// comment.
+pub(crate) fn solar_tag_arguments(natspec: &ast::NatSpecItem) -> &str {
+    natspec.content().trim_end_matches(|c: char| c == '*' || c.is_whitespace())
 }
 
 /// Rejects reserved tags on syntax which has no documented HIR item or Solidity statement.

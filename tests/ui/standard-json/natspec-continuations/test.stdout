@@ -39,6 +39,9 @@
             },
             "emptyTag()": {
               "notice": "x z** w @solidity memory-safe-assembly"
+            },
+            "gluedEmptyTag()": {
+              "notice": "a z"
             }
           },
           "version": 1

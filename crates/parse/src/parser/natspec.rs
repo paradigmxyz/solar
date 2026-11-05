@@ -287,20 +287,29 @@ fn blanks_len(text: &str) -> usize {
     text.len() - text.trim_ascii_start().len()
 }
 
-/// Joins the lines of a tag's content like solc: a space goes before a line that does not start
-/// with a blank.
+/// Joins the lines of a tag's content like solc: a space goes before a logical line that does not
+/// start with a blank. A logical line is a line and the lines that the scanner glues to it.
 fn join_lines(first: &Line<'_>, offset: usize, rest: &[Line<'_>]) -> String {
     let capacity = rest.iter().map(|line| line.text.len() + 1).sum::<usize>();
     let mut joined = String::with_capacity(first.text.len() - offset + capacity);
     joined.push_str(&first.text[offset..]);
-    for line in rest {
-        if line.glued {
-            joined.push_str(line.text);
-            continue;
+
+    // The logical line of the first line is content as it is.
+    let mut rest = rest.iter().peekable();
+    while let Some(line) = rest.next_if(|line| line.glued) {
+        joined.push_str(line.text);
+    }
+    let mut logical = String::new();
+    while let Some(line) = rest.next() {
+        logical.clear();
+        logical.push_str(line.text);
+        while let Some(glued) = rest.next_if(|line| line.glued) {
+            logical.push_str(glued.text);
         }
+
         // An `@` that names no tag is dropped with the blank after it, and the text before it,
         // as solc does.
-        let mut text = line.text;
+        let mut text = logical.as_str();
         if let Some(at) = text.find('@')
             && let after = &text[at + 1..]
             && (after.is_empty() || after.starts_with([' ', '\t']))

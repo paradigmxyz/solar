@@ -68,4 +68,11 @@ contract C {
      ** w @solidity memory-safe-assembly
      */
     function emptyTag() external {}
+
+    /**
+     * @notice a
+     * memory-safe-assembly
+     ** @ z
+     */
+    function gluedEmptyTag() external {}
 }

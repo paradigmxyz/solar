@@ -894,15 +894,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
                 let span = self.token.span;
-                let continues_run = prev_line_doc.is_some_and(|prev: Span| {
-                    kind == ast::CommentKind::Line && self.is_adjacent(prev, span)
+                let continues_run = prev_line_doc.is_some_and(|prev: (Span, Symbol)| {
+                    kind == ast::CommentKind::Line && self.is_adjacent(prev, (span, symbol))
                 });
                 if !continues_run {
                     self.parse_natspec_run(run_start);
                     run_start = self.docs.len();
                 }
                 self.docs.push(DocComment { kind, span, symbol, natspec: BoxSlice::default() });
-                prev_line_doc = (kind == ast::CommentKind::Line).then_some(span);
+                prev_line_doc = (kind == ast::CommentKind::Line).then_some((span, symbol));
             } else {
                 prev_line_doc = None;
             }
@@ -914,12 +914,26 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         self.expected_tokens.clear();
     }
 
-    /// Returns whether only one line break and blanks separate the comments, which lets the second
-    /// continue the first, like in solc.
-    fn is_adjacent(&self, prev: Span, next: Span) -> bool {
-        let file = self.sess.source_map().lookup_source_file(prev.hi());
-        let (lo, hi) = (file.relative_position(prev.hi()), file.relative_position(next.lo()));
-        file.src.get(lo.to_usize()..hi.to_usize()).is_some_and(natspec::continues_line_comment)
+    /// Returns whether only one line break and blanks separate the `///` comments, which lets the
+    /// second continue the first, like in solc.
+    fn is_adjacent(&self, prev: (Span, Symbol), next: (Span, Symbol)) -> bool {
+        let files = self.sess.source_map().files();
+        if files.is_empty() {
+            return false;
+        }
+        // The source map has no source for tokens that the lexer made without registering it, or
+        // another one, so the text must be the comments.
+        let Ok(text) = files.span_to_snippet(prev.0.to(next.0)) else { return false };
+        let prev_len = prev.0.hi().to_usize() - prev.0.lo().to_usize();
+        let next_start = text.len().saturating_sub(next.0.hi().to_usize() - next.0.lo().to_usize());
+        let (Some(head), Some(gap), Some(tail)) =
+            (text.get(..prev_len), text.get(prev_len..next_start), text.get(next_start..))
+        else {
+            return false;
+        };
+        head.strip_prefix("///") == Some(prev.1.as_str())
+            && tail.strip_prefix("///") == Some(next.1.as_str())
+            && natspec::continues_line_comment(gap)
     }
 
     /// Parses the NatSpec items of the doc comments from `start` on, which are one comment for
