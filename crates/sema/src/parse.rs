@@ -223,6 +223,9 @@ impl<'gcx> ParsingContext<'gcx> {
     #[instrument(name = "parse", level = "debug", skip_all)]
     fn parse_inner(&mut self) {
         self.parsed = true;
+        if self.gcx.plugins().is_err() {
+            return;
+        }
         let _ = self.gcx.advance_stage(CompilerStage::Parsing);
 
         let mut sources = std::mem::take(self.sources);

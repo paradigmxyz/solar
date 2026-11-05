@@ -64,8 +64,9 @@ pub(crate) fn registry(gcx: Gcx<'_>) -> Result<Option<&Registry>, ErrorGuarantee
     }
     let loaded = gcx.codegen_state::<CodegenState>().plugins.get_or_init(|| {
         let mut registry = Registry::default();
-        for path in &gcx.sess.opts.unstable.load_pass_plugin {
-            registry.load(path)?;
+        let plugins = gcx.plugins().map_err(|_| "failed to load plugins".to_owned())?;
+        for (path, plugin) in gcx.sess.opts.unstable.load_pass_plugin.iter().zip(plugins) {
+            registry.load(path, Arc::clone(plugin))?;
         }
         Ok(registry)
     });
@@ -73,12 +74,11 @@ pub(crate) fn registry(gcx: Gcx<'_>) -> Result<Option<&Registry>, ErrorGuarantee
 }
 
 impl Registry {
-    fn load(&mut self, path: &Path) -> Result<(), String> {
+    fn load(&mut self, path: &Path, plugin: Arc<NativePlugin>) -> Result<(), String> {
         // Native libraries must exist on the host filesystem, outside virtual source loaders.
         #[allow(clippy::disallowed_methods)]
         let path = std::fs::canonicalize(path)
             .map_err(|error| format!("cannot open pass plugin `{}`: {error}", path.display()))?;
-        let plugin = Arc::new(NativePlugin::load(&path)?);
         // Native libraries are build inputs, outside the virtual Solidity source loader.
         #[allow(clippy::disallowed_methods)]
         let bytes =
