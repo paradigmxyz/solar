@@ -16,19 +16,16 @@ fn new_source_file_shared_preserves_source_allocation() {
 }
 
 #[test]
-fn file_name_order_agrees_with_eq() {
+fn source_unit_name_order_is_raw_bytes() {
     let name = |p: &str| FileName::Real(PathBuf::from(p));
-    let (plain, doubled) = (name("a/b.sol"), name("a//b.sol"));
-    assert_eq!(plain, doubled);
-    assert_eq!(plain.cmp(&doubled), Ordering::Equal);
 
     // Byte order of the names, not path components: `-` sorts before `/`.
-    assert_eq!(name("a-b/x.sol").cmp(&name("a/y.sol")), Ordering::Less);
-    assert_eq!(name("a-b/x.sol").cmp(&name("a//y.sol")), Ordering::Less);
+    assert_eq!(name("a-b/x.sol").cmp_source_unit_name(&name("a/y.sol")), Ordering::Less);
 
-    // Distinct names with the same bytes stay distinct.
-    assert_ne!(FileName::Stdin.cmp(&name("<stdin>")), Ordering::Equal);
-    assert_ne!(FileName::custom("x").cmp(&name("<x>")), Ordering::Equal);
+    // Repeated separators are part of the name, although `Eq` ignores them.
+    assert_eq!(name("a//b.sol"), name("a/b.sol"));
+    assert_eq!(name("a//b.sol").cmp_source_unit_name(&name("a/b.sol")), Ordering::Less);
+    assert_eq!(name("a//b/x.sol").cmp_source_unit_name(&name("a/b-y/y.sol")), Ordering::Less);
 }
 
 #[test]

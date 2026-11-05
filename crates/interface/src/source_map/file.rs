@@ -3,9 +3,9 @@ use std::{
     cmp::Ordering,
     fmt,
     hash::{Hash, Hasher},
-    io, mem,
+    io,
     ops::{Range, RangeInclusive},
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -22,7 +22,7 @@ pub struct MultiByteChar {
 ///
 /// This is used as the key in the source map. See
 /// [`SourceMap::get_file`](crate::SourceMap::get_file).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FileName {
     /// Files from the file system.
     Real(PathBuf),
@@ -123,70 +123,28 @@ impl FileName {
             _ => None,
         }
     }
-}
 
-/// Orders file names by the raw bytes of their source unit names, like solc's ordered
-/// `m_sources` map. The names are those of [`FileName::display`], including `<stdin>` and
-/// `<custom>`, and a real path is compared as its components joined by `/`, so paths that are
-/// equal as `Path`s compare equal. Names with the same bytes are ordered by their path or string,
-/// to agree with `Eq`.
-impl Ord for FileName {
-    fn cmp(&self, other: &Self) -> Ordering {
-        #[derive(PartialEq, Eq, PartialOrd, Ord)]
-        enum Key<'a> {
-            Real(&'a Path),
-            Stdin,
-            Custom(&'a str),
-        }
-
-        fn key(name: &FileName) -> Key<'_> {
+    /// Compares the source unit names of two file names by their raw bytes, like solc's ordered
+    /// `m_sources` map. The names are those of [`FileName::display`], including `<stdin>` and
+    /// `<custom>`. Unlike `Ord`, which agrees with `Eq`, it keeps repeated separators, so it
+    /// orders `a//b` and `a/b` differently.
+    pub fn cmp_source_unit_name(&self, other: &Self) -> Ordering {
+        fn bytes<'a>(name: &'a FileName, roots: Option<&SourceRoots>) -> [&'a [u8]; 3] {
             match name {
-                FileName::Real(path) => Key::Real(path),
-                FileName::Stdin => Key::Stdin,
-                FileName::Custom(s) => Key::Custom(s),
-            }
-        }
-
-        fn path_bytes(path: &Path) -> impl Iterator<Item = u8> + '_ {
-            let mut separate = false;
-            path.components().flat_map(move |component| {
-                let separator = mem::replace(&mut separate, component != Component::RootDir);
-                separator
-                    .then_some(b'/')
-                    .into_iter()
-                    .chain(component.as_os_str().as_encoded_bytes().iter().copied())
-            })
-        }
-
-        fn bytes<'a>(
-            name: &'a FileName,
-            roots: Option<&SourceRoots>,
-        ) -> impl Iterator<Item = u8> + 'a {
-            let (head, body, path, tail): (&[u8], &[u8], _, &[u8]) = match name {
                 FileName::Real(path) => {
                     let path = roots.map_or(&**path, |roots| roots.source_unit_name(path));
-                    (b"", b"", Some(path), b"")
+                    [path.as_os_str().as_encoded_bytes(), b"", b""]
                 }
-                FileName::Stdin => (b"<stdin>", b"", None, b""),
-                FileName::Custom(s) => (b"<", s.as_bytes(), None, b">"),
-            };
-            head.iter()
-                .chain(body)
-                .copied()
-                .chain(path.into_iter().flat_map(path_bytes))
-                .chain(tail.iter().copied())
+                FileName::Stdin => [b"<stdin>", b"", b""],
+                FileName::Custom(s) => [b"<", s.as_bytes(), b">"],
+            }
         }
 
         let roots = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.roots()))
             .unwrap_or_else(|| arc_swap::Guard::from_inner(None));
         let roots = roots.as_deref();
-        bytes(self, roots).cmp(bytes(other, roots)).then_with(|| key(self).cmp(&key(other)))
-    }
-}
-
-impl PartialOrd for FileName {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+        let flat = |name| bytes(name, roots).into_iter().flatten();
+        flat(self).cmp(flat(other)).then_with(|| self.cmp(other))
     }
 }
 
