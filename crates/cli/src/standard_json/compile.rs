@@ -351,7 +351,8 @@ fn compile(
                 let debug_info_contracts = requested_debug_info_contracts(gcx, output_selection);
                 let needs_metadata = output_selection.requests_metadata()
                     || metadata.append_cbor && !bytecode_contracts.is_empty();
-                let contract_metadata = needs_metadata.then(|| Metadata::new(gcx, &settings));
+                let contract_metadata =
+                    needs_metadata.then(|| Metadata::new(gcx, &settings)).transpose()?;
 
                 let source_map_outputs = OutputSelectionFlags::BYTECODE_SOURCE_MAP
                     | OutputSelectionFlags::DEPLOYED_BYTECODE_SOURCE_MAP;
@@ -401,13 +402,17 @@ fn compile(
                     | OutputSelectionFlags::DEPLOYED_BYTECODE_ETHDEBUG;
                 let compilation_requested = !global_ethdebug.is_empty()
                     || contract_output_requested(gcx, output_selection, ethdebug_outputs);
-                let compilation = compilation_requested.then(|| {
-                    // Metadata settings and `settings.solar` affect the CBOR trailer
-                    // independently of the code-generation options stored in the session.
-                    let metadata_identity =
-                        alloy_primitives::keccak256(format!("{metadata:?}{:?}", solar.unstable));
-                    make_ethdebug_compilation(gcx, Some(metadata_identity))
-                });
+                let compilation = compilation_requested
+                    .then(|| {
+                        // Metadata settings and `settings.solar` affect the CBOR trailer
+                        // independently of the code-generation options stored in the session.
+                        let metadata_identity = alloy_primitives::keccak256(format!(
+                            "{metadata:?}{:?}",
+                            solar.unstable
+                        ));
+                        make_ethdebug_compilation(gcx, Some(metadata_identity))
+                    })
+                    .transpose()?;
                 let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);
 
                 let contract_outputs = tracing::debug_span!("contract_outputs").in_scope(|| {

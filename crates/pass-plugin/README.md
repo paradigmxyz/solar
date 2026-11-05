@@ -60,6 +60,8 @@ solar -Zload-pass-plugin=./libacme.so -Zevm-ir-pipeline=acme::compact input.evmi
 
 A run request carries the selected EVM version, optimization objective, pass
 name, a text dump, and a structured snapshot of active instructions. MIR
+and EVM IR text excludes optional debug context; requesting dumps, source maps,
+ETHDebug, or debugify does not change the request. MIR
 snapshots include types, operands, scalar constants, and each function's
 objective. IDs are local to that invocation. The plugin returns ordered
 edits against those IDs, not a replacement text dump or a claimed `changed`
@@ -104,6 +106,17 @@ Copies retain known debug context; generated instructions and transfers are
 unmapped. Splits move the original terminator's context with it. Protected
 EVM instruction pairs cannot be split or copied individually. New operation
 definitions, type-table entries, and verbatim bytecode remain outside this API.
+
+MIR copies retain semantic allocation obligations, while operand-dependent
+proofs are discarded. Edited MIR is treated as potentially containing raw
+assembly memory writes, so source-only placement assumptions cannot protect
+plugin-created accesses. Phis must precede other instructions in each block.
+Helper call annotations are checked against symbolic return-address and stack
+tracking; helpers whose indirect transfers cannot be proved are rejected.
+
+Standard JSON metadata records the ordered plugin names, versions, and library
+content hashes in `settings.solar.plugins`. ETHDebug compilation IDs include
+the same identities. Moving an identical library does not change its identity.
 
 The example's `create-mir-helper`, `create-lowered-helper`, and
 `create-evm-helper` passes demonstrate these edits. They deliberately introduce

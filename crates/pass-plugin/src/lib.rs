@@ -60,8 +60,19 @@ pub struct Request {
 /// Read-only view. Numeric identities are invocation-local, not addresses or persistent IDs.
 #[derive(Clone, Debug)]
 pub enum Snapshot {
-    Mir { name: String, phase: String, text: String, functions: Vec<Function> },
-    EvmIr { name: String, text: String, blocks: Vec<EvmBlock> },
+    Mir {
+        name: String,
+        phase: String,
+        /// Whether memory writes must be treated as potentially unstructured.
+        unsafe_assembly: bool,
+        text: String,
+        functions: Vec<Function>,
+    },
+    EvmIr {
+        name: String,
+        text: String,
+        blocks: Vec<EvmBlock>,
+    },
 }
 
 /// MIR function with its active instructions and values.

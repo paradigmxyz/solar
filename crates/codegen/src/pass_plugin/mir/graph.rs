@@ -382,6 +382,12 @@ fn build_instruction(
     }
     if let Some(debug) = debug {
         inst.metadata.copy_debug_context(&debug);
+        // Allocation obligations survive even when the copied operands change. Proven alias
+        // facts (including alloc_ptr and disjoint) do not transfer to a new computation.
+        if debug.deferred_alloc() {
+            inst.metadata.set_deferred_alloc();
+        }
+        inst.metadata.set_preserves_fmp(debug.preserves_fmp());
     }
     // %local = operation(operands)
     Ok(match instruction.result {

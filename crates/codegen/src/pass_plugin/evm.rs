@@ -19,6 +19,8 @@ use solar_pass_plugin::{
 };
 use solar_sema::Gcx;
 
+mod calls;
+
 pub(crate) struct EvmPluginPass(pub(super) Pass);
 
 impl EvmPass for EvmPluginPass {
@@ -49,9 +51,11 @@ impl EvmPluginPass {
     }
 
     fn apply(&self, gcx: Gcx<'_>, module: &mut Module) -> Result<bool, String> {
+        let mut printable = module.clone();
+        printable.set_debug_info_visible(false);
         let snapshot = Snapshot::EvmIr {
             name: module.name().to_string(),
-            text: module.to_text().to_string(),
+            text: printable.to_text().to_string(),
             blocks: module
                 .blocks
                 .iter_enumerated()
@@ -89,6 +93,7 @@ impl EvmPluginPass {
         verifier.verify_module(&candidate);
         verifier.verify_between_passes(&candidate, &before);
         gcx.dcx().has_errors().map_err(|_| "produced invalid EVM IR")?;
+        calls::verify(&candidate)?;
         // module => verified candidate
         *module = candidate;
         Ok(true)
