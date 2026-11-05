@@ -1,7 +1,8 @@
 //! Lower semantic memory objects and pointer arithmetic to physical word operations.
 //!
-//! `ptradd` becomes an integer `add` between pointer casts. Every memory access is already a
-//! `mload`, `mstore`, or `mcopy` at an address, so nothing else changes here. An EVM opcode whose
+//! `ptradd` becomes a wrapping integer `add` between pointer casts. It establishes no bounds
+//! proof, so lowering must not mark the result as a checked object offset. Every memory access is
+//! already a `mload`, `mstore`, or `mcopy` at an address, so nothing else changes here. An EVM opcode whose
 //! operands do not match its types, as an integer `add` of a pointer, gets word operands and a word
 //! result cast back to the pointer, and the casts this leaves unused are removed;
 //! `lower-evm-shaped` later erases pointer types altogether. Unreachable blocks are removed first:
@@ -24,7 +25,7 @@ use crate::{
     backend::evm::select::InstKindOpcode,
     mir::{
         AllocationSemantics, Function, FunctionBuilder, Immediate, InstId, InstKind, MirType,
-        Module, PtrLocation, Value,
+        Module, PtrLocation, Value, ValueId,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
     },
 };
@@ -81,11 +82,7 @@ fn lower_function(func: &mut Function) -> bool {
             };
             // address = add (ptrtoint ptr), offset
             // result = inttoptr address
-            let base = builder.cast(ptr, MirType::I256);
-            let address = builder.add(base, offset);
-            if let Value::Inst(add) = *builder.func().value(address) {
-                builder.func_mut().inst_mut(add).metadata.set_checked_object_offset();
-            }
+            let address = lower_wrapping_address(builder, ptr, offset);
             builder.func_mut().set_inst_kind(inst, InstKind::IntToPtr(address));
             false
         });
@@ -321,6 +318,47 @@ pub(super) fn normalize_pointer_operands(func: &mut Function) {
                 builder.func_mut().set_inst_kind(id, kind);
             }
             false
+        });
+    }
+}
+
+/// Pointer types and pointer arithmetic do not prove that the address is in an allocation.
+fn lower_wrapping_address(
+    builder: &mut FunctionBuilder<'_>,
+    ptr: ValueId,
+    offset: ValueId,
+) -> ValueId {
+    // address = add (ptrtoint ptr), offset
+    let base = builder.cast(ptr, MirType::I256);
+    builder.add(base, offset)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::analysis::pointer_bases;
+    use solar_interface::{Ident, Session};
+
+    #[test]
+    fn unbounded_ptradd_does_not_create_heap_provenance() {
+        let sess = Session::builder().with_test_emitter().build();
+        sess.enter_sequential(|| {
+            let mut func = Function::new(Ident::from_str("offset"));
+            let mut builder = FunctionBuilder::new(&mut func);
+            let ptr = builder.add_param(MirType::MEMPTR);
+            let offset = builder.add_param(MirType::I256);
+            let raw = builder.ptradd(ptr, offset);
+            assert!(pointer_bases(builder.func(), raw, 0).is_empty());
+            let lowered = lower_wrapping_address(&mut builder, ptr, offset);
+            let Value::Inst(add) = *builder.func().value(lowered) else { unreachable!() };
+            assert!(!builder.func().inst(add).metadata.checked_object_offset());
+            assert!(pointer_bases(builder.func(), lowered, 0).is_empty());
+            // A small constant offset remains bounded on both sides of lowering.
+            let small = builder.imm(32);
+            let raw = builder.ptradd(ptr, small);
+            assert_eq!(pointer_bases(builder.func(), raw, 0).len(), 1);
+            let lowered = lower_wrapping_address(&mut builder, ptr, small);
+            assert_eq!(pointer_bases(builder.func(), lowered, 0).len(), 1);
         });
     }
 }
