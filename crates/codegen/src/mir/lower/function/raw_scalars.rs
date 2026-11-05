@@ -74,6 +74,11 @@ fn assembly_bindings(gcx: Gcx<'_>, expr: &hir::Expr<'_>, out: &mut Vec<VariableI
     match expr.kind {
         ExprKind::Ident(_) => out.extend(gcx.resolved_variable(expr)),
         ExprKind::YulMember(base, _) => assembly_bindings(gcx, base, out),
+        ExprKind::Tuple(items) => {
+            for item in items.iter().flatten() {
+                assembly_bindings(gcx, item, out);
+            }
+        }
         ExprKind::Call(callee, args) => {
             // A Yul function can return a word it read itself.
             if let Some(id) = gcx.resolved_function(callee) {
@@ -603,9 +608,14 @@ impl LoweringState {
         // Solidity stores through a retargeted reference land at a computed address too.
         let mut retargeted = FxHashSet::from_iter(exposure.retargeted.iter().copied());
         let mut pending = retargeted.iter().copied().collect::<Vec<_>>();
-        // Copies, parameters and returns of a reference alias it.
+        // Copies, parameters and returns of a reference alias it, and so do the references
+        // loaded from its object.
         while let Some(id) = pending.pop() {
-            for &alias in exposure.edges.get(&id).into_iter().flatten() {
+            let loaded =
+                exposure.pointer_edges.get(&id).into_iter().flatten().filter(|&&other| {
+                    matches!(gcx.type_of_item(other.into()).kind, TyKind::Ref(..))
+                });
+            for &alias in exposure.edges.get(&id).into_iter().flatten().chain(loaded) {
                 if retargeted.insert(alias) {
                     pending.push(alias);
                 }
