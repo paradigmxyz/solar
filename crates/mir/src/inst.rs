@@ -100,7 +100,7 @@ impl InstructionMetadata {
         }
     }
 
-    /// Merges the locations of equivalent code that one instruction now stands for (R2), like
+    /// Merges the locations of equivalent code that one instruction now stands for, like
     /// LLVM's `DebugLoc::getMergedLocation` for hoisted or sunk code. Keeps the union of spans
     /// instead of collapsing it to line 0.
     pub fn merge_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
@@ -120,7 +120,7 @@ impl InstructionMetadata {
         }
     }
 
-    /// Preserves the location of the one instruction whose job this one does (R1), like LLVM's
+    /// Preserves the location of the one instruction whose job this one does, like LLVM's
     /// `setDebugLoc(I->getDebugLoc())` and solc's `AssemblyItem(op, x.debugData())`. Copies spans,
     /// depth, display flag, and kind, but no analysis metadata.
     pub fn preserve_debug_loc(&mut self, from: &Self) {
@@ -159,7 +159,7 @@ impl InstructionMetadata {
         self.modifier_depth = depth;
     }
 
-    /// Drops the location and records why (R3), like LLVM's `Instruction::dropLocation`. Clears
+    /// Drops the location and records why, like LLVM's `Instruction::dropLocation`. Clears
     /// spans and modifier depth.
     pub fn drop_debug_loc(&mut self, kind: DebugLocKind) {
         self.set_debug_source_span(None);
