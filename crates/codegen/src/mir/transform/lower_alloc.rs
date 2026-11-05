@@ -17,6 +17,14 @@
 //! earlier pointer read in the same block reuses that read instead of loading the
 //! pointer again, as long as only writes addressed from the read word come between.
 //!
+//! A `zero_slot_if_empty` allocation, the capture of a call's returndata, is an empty `bytes`
+//! object when its size is one header word. Like solc, such an object is the zero slot and
+//! reserves nothing, so the pointer does not move: the allocation becomes `select(size == 32,
+//! ZERO_SLOT, ptr)` with a bump of `size == 32 ? 0 : size`. When nothing reachable after the
+//! allocation allocates, calls, or writes memory except through the object's own pointer, and the
+//! pointer does not escape, the empty object is only read and stays at the free-memory pointer
+//! without the `select`, which keeps forwarding code such as proxies as small as before.
+//!
 //! A read that returns the entry's initial pointer, because nothing before it may write the
 //! slot (see [`FreshHeap`]), takes the heap floor, which codegen knows, instead of loading
 //! the slot. Its allocation still stores the bumped pointer. An entry whose only reads of the
@@ -421,7 +429,8 @@ fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool
         for &inst in &data.instructions[start..] {
             let kind = &func.inst(inst).kind;
             let uses_object = kind.operands().iter().any(|operand| derived.contains(operand));
-            let keeps = match kind.effect_kind() {
+            let effect = kind.effect_kind();
+            let keeps = match effect {
                 EffectKind::Pure => !matches!(kind, InstKind::Phi(_)) || !uses_object,
                 EffectKind::MemoryRead
                 | EffectKind::StorageRead
@@ -445,7 +454,7 @@ fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool
                 return false;
             }
             if uses_object
-                && matches!(func.inst(inst).kind.effect_kind(), EffectKind::Pure)
+                && effect == EffectKind::Pure
                 && let Some(value) = func.inst_result_value(inst)
             {
                 derived.insert(value);
