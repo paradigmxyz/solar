@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: structs => 0x46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21, 0x5a4be9052f25ff6d33da572b95cd7cd5a1b35d87e5353835fb359783cff622f9
 //@ run-call: arrays => 0x6cce5286d246c8ed7cf3fd3b7e50a798e684660929923ac369039151ef8a27fc, 0x7cde746dfbb8dfd7721b5995769f873e3ff50416302673a354990b553bb0e208
 //@ run-call: zeroBytes => 3, 0x99ff0d9125e1fc9531a11262e15aeb2c60509a078c4cc4c64cefdfb06ff68647

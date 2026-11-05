@@ -1,6 +1,5 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // Each call consumes its gas, target, and argument pointer in place and takes the
 // rest of its operands from fresh pushes. Pushing each constant where it takes the

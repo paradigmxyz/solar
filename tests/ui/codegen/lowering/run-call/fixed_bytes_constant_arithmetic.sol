@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: narrowRoundTrip => 0x00345678
 //@ run-call: wideRoundTrip => 0x00000000000000000000000000000000000000000000000000000000000000ff
 //@ run-call: compare => true

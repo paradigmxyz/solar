@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: length => 65537
 //@ run-call: last => 0x00
 //@ run-call-fail: discardHuge() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000041

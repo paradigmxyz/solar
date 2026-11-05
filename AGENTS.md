@@ -248,7 +248,8 @@ Other directives: `//@ compile-flags: ...`, `//@[rev] compile-flags: ...`,
   cheatcodes, or complex setup. Lowered `.mir` and `.evmir` tests also run each
   call through the MIR or EVM IR interpreter and name the function by signature
   and outputs, as in `add(uint256,uint256)(uint256) 2, 3 => 5`.
-- `//@ filecheck: ARGS` runs LLVM FileCheck on the `.stdout` with `ARGS`.
+- `//@ filecheck: ARGS` runs LLVM FileCheck on the output with `ARGS` and replaces
+  the `.stdout` snapshot, so the test has no `.stdout` file.
 
 Use FileCheck when full snapshots are too brittle or the test checks order,
 presence, or absence. Put `// CHECK:` lines immediately above the function or

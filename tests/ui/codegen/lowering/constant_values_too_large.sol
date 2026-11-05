@@ -1,7 +1,6 @@
 //@ codegen-matrix: standard
 //@ compile-flags: --allow=5574 --allow=3860
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 // `bytes` and `string` values larger than 64 KiB do not fold, so doubling concatenations stay
 // cheap to compile. Their uses call helpers that compute them at runtime.
 bytes constant B0 = "0123456789abcdef0123456789abcdef";

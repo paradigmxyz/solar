@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: variant => 1
 
 // An enum variant can be named like the `selector` member, and constant evaluation folds it.

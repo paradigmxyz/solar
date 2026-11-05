@@ -1,6 +1,5 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // Both arrays stay on the stack across the low-memory copy, so staging the
 // child's creation code reaches its size and destination with `dup`s alone, no `pop`.

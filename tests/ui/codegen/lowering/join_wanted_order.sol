@@ -2,7 +2,6 @@
 //@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: one 3, 7 => 5
 //@ run-call: two 3, 7 => 6
 //@ run-call: three 3, 7 => 4

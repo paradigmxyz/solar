@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: ConstantDag::f => 354224848179261915075
 //@ run-call: AddmodDag::f => 102334155
 

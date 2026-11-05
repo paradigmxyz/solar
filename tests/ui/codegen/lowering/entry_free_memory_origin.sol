@@ -1,6 +1,5 @@
 //@ compile-flags: -Ogas --emit=srcmap-runtime -Zdump=evm-ir-runtime-scheduled
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // The code that starts the free memory pointer at an external entry belongs to no function. It maps
 // to the contract definition, as solc maps the code `compileContract` generates. `g` is the last function, so the contract's

@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: InlineArrayMixedElements::signed => [100, 0, -100]
 //@ run-call: InlineArrayMixedElements::widenedSigned => [-1, 300]
 //@ run-call: InlineArrayMixedElements::nested => [[1, -1], [-100, 0]]

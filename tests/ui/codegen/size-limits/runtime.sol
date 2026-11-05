@@ -3,8 +3,11 @@
 //@[spurious] compile-flags: -Zdump=evm-ir-runtime --evm-version spuriousDragon
 //@[spurious_allow] compile-flags: -Zdump=evm-ir-runtime --evm-version spuriousDragon --allow=5574
 //@[amsterdam] compile-flags: -Zdump=evm-ir-runtime --evm-version amsterdam --allow=3860,5574
-//@ normalize-stdout-test: "(?s).+" -> ""
+//@ filecheck:
 //@ normalize-stderr-test: "size is [0-9]+ bytes" -> "size is <SIZE> bytes"
+// CHECK: runtime.sol:test (runtime)
+// CHECK: runtime.sol:RuntimeLimit (runtime)
+
 pragma abicoder v2;
 
 contract test { //~[spurious] WARN: contract code size is

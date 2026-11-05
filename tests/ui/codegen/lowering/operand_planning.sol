@@ -2,7 +2,6 @@
 //@[gas] compile-flags: -O gas -Zdump=evm-ir-runtime
 //@[size] compile-flags: -O size -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // The sum is the only computed operand and dies at `log4`. The planner pushes
 // the other five operands in order and computes the sum last, on top, so it

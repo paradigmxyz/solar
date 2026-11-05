@@ -1,7 +1,6 @@
 //@ codegen-matrix: standard ir
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
-//@[ir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: scaled 0, 7 => 0
 //@ run-call: scaled 10, 7 => 315
 //@ run-call: ascii 0x => true

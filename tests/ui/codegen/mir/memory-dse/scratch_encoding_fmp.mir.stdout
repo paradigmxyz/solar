@@ -1,0 +1,29 @@
+; === ROOT/tests/ui/codegen/mir/memory-dse/scratch_encoding_fmp.sol:Test ===
+@module Test
+; function preserveDestination() external returns (uint256) [selector 0x402717f4]
+fn @preserveDestination() -> i256 [selector=0x402717f4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    mstore 128, 7
+    mstore 64, 256 !metadata(memory=scratch)
+    v0 = abi_encode [word, word, word], scratch, args 42, 43, 44
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    log v1, v2, 0x9067fce5a5580110f6dc28bca0f5464ba2d769f69ba77f31b5020ac96f83c20a
+    v3 = mload 128
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+; function preserveDynamicDestination(bytes calldata data) external returns (uint256) [selector 0x319e2c8e]
+fn @preserveDynamicDestination(arg0: slice<calldata>) -> i256 [selector=0x319e2c8e, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    mstore 128, 7
+    mstore 64, 256 !metadata(memory=scratch)
+    v0 = abi_encode [calldata_bytes], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    log v1, v2, 0xb76c48be4e2908f4c9d4eabaf7538e91577fd9ae26db46693fa8d861c6a42fb
+    v3 = mload 128
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
+}

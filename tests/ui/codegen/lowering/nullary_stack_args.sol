@@ -1,6 +1,5 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // A cheap environment read passed to an internal call is re-emitted right
 // below the return address as a stack argument. Storing it to the callee's

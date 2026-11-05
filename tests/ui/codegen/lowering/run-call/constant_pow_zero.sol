@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: powers => 1, 1, 1, 1, 1, 0
 //@ run-call: quorum 2 => 2
 //@ run-call-fail: quorum 1

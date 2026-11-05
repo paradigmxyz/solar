@@ -3,7 +3,6 @@
 //@[none] filecheck: --check-prefixes=CHECK,NONE
 //@[interpreter] compile-flags: -O gas -Ztune=interpreter -Zdump=evm-ir
 //@[interpreter] filecheck: --check-prefixes=CHECK,INTERPRETER
-//@ normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: run => 3
 
 contract DynamicSink {

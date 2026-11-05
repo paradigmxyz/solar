@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: Child::selectors => 0x26121ff0, 0x26121ff0
 //@ run-call: Child::precompile => 0x0000000000000000000000000000000000000000
 //@ run-call: Child::decoded => 7

@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: C::selector => 0xc1cd846c
 
 // A library function can take a recursive storage struct, so its signature has ABI types and its

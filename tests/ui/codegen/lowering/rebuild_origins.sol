@@ -1,6 +1,5 @@
 //@ compile-flags: -Ogas --emit=srcmap-runtime -Zdump=evm-ir-runtime-scheduled
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // A value rebuilt at its use instead of carried across a crowded stack keeps the origin of its
 // definition, not the one of the instruction that reads it.

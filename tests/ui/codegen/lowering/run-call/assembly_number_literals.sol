@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: f => 1036
 
 // Assembly accepts integer literals with underscores or exponents; see PARSE-005 in

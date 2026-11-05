@@ -1,6 +1,5 @@
 //@ compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: a 0x0000000000000000000000000000000000000005 => 6
 //@ run-call: b 0x0000000000000000000000000000000000000005 => 7
 //@ run-call: c 0x0000000000000000000000000000000000000005 => 8

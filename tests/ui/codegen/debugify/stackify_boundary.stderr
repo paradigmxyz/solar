@@ -44,7 +44,7 @@ debugify: EVM IR StackifyBoundary_deployment after pack-data: 0/0 origins retain
 debugify: EVM IR StackifyBoundary_deployment after compact-pushes: 0/0 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary_deployment after returndata-zero: 0/0 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary after stackify: 2/3 origins retained, 1 lost
-debugify: lost 424..430
+debugify: lost 450..456
 debugify: EVM IR StackifyBoundary after stackify: 2 without a location
 debugify: gap StackifyBoundary_runtime bb0 terminator `jump`
 debugify: gap StackifyBoundary_runtime bb4 terminator `jump`

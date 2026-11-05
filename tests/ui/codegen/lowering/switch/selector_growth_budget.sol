@@ -1,5 +1,4 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime -Zswitch-max-gas-code-growth=0
-//@ normalize-stdout-test: "(?s).+" -> ""
 //@ filecheck:
 
 // The external selector switch weighs its code against the expected calls, so

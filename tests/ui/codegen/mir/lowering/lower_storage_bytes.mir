@@ -4,7 +4,6 @@
 //@[expanded] filecheck:
 //@[expanded_size] compile-flags: -Zmir-pipeline=lower-builtins -Osize
 //@[expanded_size] filecheck:
-//@[expanded_size] normalize-stdout-test: "(?s).+" -> ""
 @module StorageBytes
 
 // CHECK-LABEL: fn @header(

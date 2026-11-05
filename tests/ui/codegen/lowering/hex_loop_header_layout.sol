@@ -1,6 +1,5 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // The hex loop of Solady's `LibString.toHexStringNoPrefix`. Its header lays the carried words out
 // with the input pointer on top, so the output pointer steps by two before the last `mstore8` and

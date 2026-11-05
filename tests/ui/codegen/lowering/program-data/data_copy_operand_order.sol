@@ -1,6 +1,5 @@
 //@ compile-flags: -O none -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 contract Child {
     uint256 public x;

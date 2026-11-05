@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@ filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: padded 0 => true
 //@ run-call: padded 1 => true
 //@ run-call: padded 2 => true

@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: C::noop => 0x08c379a000000000000000000000000000000000000000000000000000000000
 //@ run-call: C::shifted => 32
 //@ run-call: C::short => 0xaabbcc0000000000000000000000000000000000000000000000000000000000

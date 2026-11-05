@@ -2,7 +2,6 @@
 // CHECK: @module
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck: --check-prefix=SHORT
-//@[ir] normalize-stdout-test: "(?s).+" -> ""
 // SHORT-LABEL: @module StorageBytesPopCopyLong
 // SHORT: push 31{{[[:space:]]+}}dup 2{{[[:space:]]+}}gt
 // SHORT-NEXT: push bb{{[0-9]+}}

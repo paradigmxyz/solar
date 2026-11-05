@@ -2,7 +2,6 @@
 //@[parisgas] compile-flags: -Ogas --evm-version paris --emit=abi,bin
 //@[parissize] compile-flags: -Osize --evm-version paris --emit=abi,bin
 //@[mir] filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: padded 0, false => true
 //@ run-call: padded 1, false => true
 //@ run-call: padded 2, false => true

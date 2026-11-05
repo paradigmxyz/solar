@@ -1,6 +1,5 @@
 //@ compile-flags: -O gas --evm-version amsterdam -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // After `returndatacopy`, twenty live values sit on the stack with no dead word
 // below them out of `SWAP16` reach, so the reduction starts at once.

@@ -1,5 +1,8 @@
 //@ compile-flags: -Ogas --allow=2018 --emit=bin
-//@ normalize-stdout-test: "(?s).+" -> ""
+//@ filecheck:
+// CHECK-DAG: :Repro":{"bin":"{{[0-9a-f]+}}"}
+// CHECK-DAG: :MathA":{"bin":"{{[0-9a-f]+}}"}
+
 
 // A caller's words plus the callee's stack arguments must still form the argument tuple when a
 // copy would need DUP17.

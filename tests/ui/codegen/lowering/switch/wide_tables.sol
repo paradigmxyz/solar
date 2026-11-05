@@ -5,7 +5,6 @@
 //@[gas] filecheck: --check-prefixes=CHECK,PACKED
 //@[size] filecheck: --check-prefixes=CHECK,PACKED
 //@[jit] filecheck: --check-prefixes=CHECK,JIT
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 contract WideTables {
     // With `-Zpack-wide-jump-tables`, the planner prices four adjacent keys as a packed table

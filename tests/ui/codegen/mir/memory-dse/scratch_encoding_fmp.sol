@@ -2,7 +2,6 @@
 //@ run-call: preserveDestination => 7
 //@ run-call: preserveDynamicDestination 0x => 7
 //@ run-call: preserveDynamicDestination 0x1234 => 7
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 
 contract Test {
     event Words(uint256 a, uint256 b, uint256 c);

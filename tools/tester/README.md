@@ -50,6 +50,21 @@ and complex setup.
 Both use the EVM version from `--evm-version`. Calls to `test*` functions first
 run a zero-argument `setUp()` if the contract defines one.
 
+## FileCheck
+
+`//@ filecheck: ARGS` runs LLVM FileCheck on a test's stdout, with `ARGS` passed
+to FileCheck. FileCheck is the test's check of stdout: the runner neither
+compares nor writes a `.stdout` snapshot for it, and `cargo bless` deletes a
+stale one. `//@[rev] filecheck: ARGS` applies to one revision only; the other
+revisions keep their snapshots. Stderr snapshots and error annotations apply as
+usual. Standard JSON tests keep their `.stdout` snapshots.
+
+FileCheck reads stdout after the test's `normalize-stdout-test` rewrites and the
+runner's own filters, such as the ones that drop a run-call revision's compiler
+JSON. A revision whose stdout is empty after them is not checked, unless it passes
+`-Zdump=`, which FileCheck then reads unfiltered. To check the output of a test
+that runs `run-call` directives, dump an IR with `-Zdump=` and add `CHECK` lines.
+
 ## MIR interpreter check
 
 In a test written in lowered MIR, such as those in `tests/ui/codegen/mir/interp/`,

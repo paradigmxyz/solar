@@ -2,7 +2,6 @@
 //@ run-call: lengths => 32, 7, 6
 //@ run-call: later => 5
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 
 // Like solc, array lengths take number literals, integer constants named by identifiers at most 32
 // deep, and arithmetic on them. Unlike solc, a constant can be declared after the array type; see

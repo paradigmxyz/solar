@@ -1,5 +1,8 @@
 //@ compile-flags: -O none --emit=bin --allow=5574
-//@ normalize-stdout-test: "(?s).+" -> ""
+//@ filecheck:
+// CHECK-DAG: :ConstructorFits":{"bin":"{{[0-9a-f]+}}"}
+// CHECK-DAG: :ConstructorDeep":{"bin":"{{[0-9a-f]+}}"}
+
 
 import {DeepChain} from "./auxiliary/deep-call-chain.sol";
 

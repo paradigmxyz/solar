@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 // CHECK: @module
 //@ run-call: wrappedRead(uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 7
 

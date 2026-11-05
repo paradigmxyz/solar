@@ -1,6 +1,5 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // The stack entering the outer loop holds one value twice. The edge pops the
 // stale copy and reaches the loop layout with plain swaps, instead of `exchange`

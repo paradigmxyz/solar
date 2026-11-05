@@ -6,7 +6,6 @@
 //@[none] filecheck: --check-prefix=NONE
 //@[jit] filecheck: --check-prefix=JIT
 //@[many] filecheck: --check-prefix=MANY
-//@ normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: few 0 => 0
 //@ run-call: few 5 => 30
 //@ run-call: few 7 => 63

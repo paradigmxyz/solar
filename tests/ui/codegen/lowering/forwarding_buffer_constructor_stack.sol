@@ -2,7 +2,10 @@
 //@ compile-flags: --emit=bin
 //@[gas] compile-flags: -Ogas
 //@[size] compile-flags: -Osize
-//@ normalize-stdout-test: "(?s).+" -> ""
+//@ filecheck:
+// CHECK-DAG: :C":{"bin":"{{[0-9a-f]+}}"}
+// CHECK-DAG: :F":{"bin":"{{[0-9a-f]+}}"}
+
 
 struct S {
     uint24 a;

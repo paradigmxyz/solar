@@ -1,5 +1,4 @@
 //@ compile-flags: -Zmir-pipeline=lower-abi -Zdump=mir -Zdebugify=check
-//@ normalize-stdout-test: "(?s).+" -> ""
 //~? ERROR: debugify: MIR pass `lower-abi` left 6 instructions without a location
 // A MIR dump without code generation runs the same pipeline, so the audit must see the gaps that
 // `--emit=bin` reports.

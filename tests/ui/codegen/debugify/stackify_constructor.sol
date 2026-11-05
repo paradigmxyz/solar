@@ -1,5 +1,7 @@
 //@ compile-flags: --emit=bin -Onone -Zevm-ir-pipeline=none -Zdebugify=report
-//@ normalize-stdout-test: "(?s).+" -> ""
+//@ filecheck:
+// CHECK: StackifyConstructor":{"bin":"{{[0-9a-f]+}}"}
+
 // The constructor body only exists in the deployment EVM IR, so the `stackify` record must count
 // the deployment code as well as the runtime code to retain every MIR origin.
 contract StackifyConstructor {

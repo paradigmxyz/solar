@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@[mir] filecheck: --check-prefix=MIR
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: ConstantChainExpansion::head => 0x4c9d42f6ed5701ff2de66eb98531da3b11d09e3c3f7187274d0dea7e00c134a6
 //@ run-call: ConstantChainExpansion::freshCopy => true
 //@ run-call: ConstantChainMembers::last => 0

@@ -1,6 +1,5 @@
 //@ compile-flags: -O gas -Zdump=evm-ir-runtime
 //@ filecheck:
-//@ normalize-stdout-test: "(?s).+" -> ""
 
 // Spill protection is for modules with assembly that does not promise memory safety, which may
 // write to any address. `Safe` and `Unsafe` differ only in the `memory-safe` flag of an assembly

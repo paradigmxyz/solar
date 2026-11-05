@@ -1,8 +1,11 @@
 //@ revisions: warn allow
 //@[warn] compile-flags: -Zdump=evm-ir --evm-version amsterdam --allow=3860,5574
 //@[allow] compile-flags: -Zdump=evm-ir --evm-version amsterdam --allow=3860,5574
-//@ normalize-stdout-test: "(?s).+" -> ""
+//@ filecheck:
 //@ normalize-stderr-test: "size is [0-9]+ bytes" -> "size is <SIZE> bytes"
+// CHECK: initcode-amsterdam.sol:AmsterdamPadding (creation)
+// CHECK: initcode-amsterdam.sol:InitcodeAmsterdam (creation)
+
 
 contract A {}
 contract B {}

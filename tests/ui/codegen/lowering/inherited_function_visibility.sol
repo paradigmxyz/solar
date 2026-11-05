@@ -1,6 +1,5 @@
 //@ codegen-matrix: standard
 //@ filecheck:
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: Derived::check 0x0000000000000000000000000000000000000000 => false
 //@ run-call: Derived::check 0x00000000000000000000000000000000deadbeef => true
 //@ run-call: Derived::freeExternal => 3

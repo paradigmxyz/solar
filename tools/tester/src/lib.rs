@@ -249,6 +249,12 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
 
     config.with_args(args);
 
+    // A FileCheck test checks its stdout with FileCheck instead of a snapshot.
+    if matches!(mode, Mode::Ui | Mode::Mir | Mode::EvmIr) {
+        config.output_conflict_handling =
+            if args.bless && !args.check { bless_unless_filecheck } else { check_unless_filecheck };
+    }
+
     if mode.is_solc() {
         // Override `bless` handler, since we don't want to write Solc tests.
         config.output_conflict_handling = ui_test::ignore_output_conflict;
@@ -700,28 +706,77 @@ impl Flag for FileCheck {
         output: &std::process::Output,
         _build_manager: &BuildManager,
     ) -> std::result::Result<(), Errored> {
-        let stdout_path = config.status.path().with_extension(config.extension("stdout"));
-        if stdout_path.exists() {
-            return run_filecheck(config.status.path(), &self.args, &stdout_path);
-        }
-        if !config
-            .comments()
-            .flat_map(|comments| &comments.compile_flags)
-            .any(|flag| flag.starts_with("-Zdump="))
-        {
-            return Ok(());
+        // The runner drops the stdout of a revision that only runs calls, but not an IR dump.
+        let mut stdout = normalized_stdout(config, &output.stdout);
+        if stdout.is_empty() {
+            if !config
+                .comments()
+                .flat_map(|comments| &comments.compile_flags)
+                .any(|flag| flag.starts_with("-Zdump="))
+            {
+                return Ok(());
+            }
+            stdout = output.stdout.clone();
         }
 
-        // Runtime checks discard stdout snapshots, but their IR dumps still need FileCheck.
         let error = |err| command_error("FileCheck".into(), err);
-        let mut stdout = tempfile::NamedTempFile::new().map_err(error)?;
-        stdout.write_all(&output.stdout).map_err(error)?;
-        run_filecheck(config.status.path(), &self.args, stdout.path())
+        let mut file = tempfile::NamedTempFile::new().map_err(error)?;
+        file.write_all(&stdout).map_err(error)?;
+        run_filecheck(config.status.path(), &self.args, file.path())
     }
 
     fn must_be_unique(&self) -> bool {
         true
     }
+}
+
+fn has_filecheck(config: &TestConfig) -> bool {
+    config.comments().any(|comments| comments.custom.contains_key(FileCheck::NAME))
+}
+
+fn is_stdout_snapshot(path: &Path) -> bool {
+    path.extension().is_some_and(|ext| ext == "stdout")
+}
+
+fn check_unless_filecheck(
+    path: &Path,
+    output: &[u8],
+    errors: &mut Vec<ui_test::Error>,
+    config: &TestConfig,
+) {
+    if !is_stdout_snapshot(path) || !has_filecheck(config) {
+        ui_test::error_on_output_conflict(path, output, errors, config);
+    }
+}
+
+/// Like [`check_unless_filecheck`], and removes the snapshot of a FileCheck test.
+fn bless_unless_filecheck(
+    path: &Path,
+    output: &[u8],
+    errors: &mut Vec<ui_test::Error>,
+    config: &TestConfig,
+) {
+    if is_stdout_snapshot(path) && has_filecheck(config) {
+        let _ = std::fs::remove_file(path);
+    } else {
+        ui_test::bless_output_files(path, output, errors, config);
+    }
+}
+
+/// Returns `stdout` after the test's normalizations, which `ui_test` applies only when it
+/// compares output against a snapshot. Comparing against a file that does not exist reports the
+/// normalized output as the difference.
+fn normalized_stdout(config: &TestConfig, stdout: &[u8]) -> Vec<u8> {
+    let missing = config.status.path().with_extension("filecheck.stdout");
+    let mut errors = Vec::new();
+    ui_test::error_on_output_conflict(&missing, stdout, &mut errors, config);
+    errors
+        .into_iter()
+        .find_map(|error| match error {
+            ui_test::Error::OutputDiffers { actual, .. } => Some(actual),
+            _ => None,
+        })
+        .unwrap_or_default()
 }
 
 fn run_filecheck(

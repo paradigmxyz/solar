@@ -2,7 +2,6 @@
 //@[gas] compile-flags: -Zdump=mir
 //@[gas] filecheck:
 //@[mir] filecheck: --check-prefix=SEMANTIC
-//@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: concrete => "ConcreteTarget"
 //@ run-call: abstractContract => "AbstractTarget"
 //@ run-call: interfaceContract => "InterfaceTarget"

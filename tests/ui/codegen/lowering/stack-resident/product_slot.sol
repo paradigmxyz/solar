@@ -1,7 +1,6 @@
 //@ codegen-matrix: standard ir
 //@[ir] compile-flags: -Ogas -Zdump=evm-ir-runtime
 //@[ir] filecheck:
-//@[ir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: factorial 0 => 1
 //@ run-call: factorial 10 => 3628800
 //@ run-call-fail: factorial 58 => Panic(0x11)

@@ -3,8 +3,11 @@
 //@[shanghai] compile-flags: -Zdump=evm-ir --evm-version shanghai
 //@[shanghai_allow] compile-flags: -Zdump=evm-ir --evm-version shanghai --allow=3860
 //@[amsterdam] compile-flags: -Zdump=evm-ir --evm-version amsterdam --allow=3860
-//@ normalize-stdout-test: "(?s).+" -> ""
+//@ filecheck:
 //@ normalize-stderr-test: "size is [0-9]+ bytes" -> "size is <SIZE> bytes"
+// CHECK: initcode.sol:A (creation)
+// CHECK: initcode.sol:test (creation)
+
 contract A {
     function f() public pure returns (string memory ret) {
         // 20000 bytes long data

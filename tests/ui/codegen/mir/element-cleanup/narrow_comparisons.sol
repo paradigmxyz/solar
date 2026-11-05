@@ -1,7 +1,6 @@
 //@ codegen-matrix: standard opt
 //@[opt] compile-flags: -Ogas -Zdump=mir
 //@[opt] filecheck:
-//@[opt] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: search [1, 3, 5], 3 => 1
 //@ run-call: search [1, 3, 5], 6 => 3
 //@ run-call: search [], 4 => 0
