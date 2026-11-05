@@ -472,12 +472,13 @@ fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool
                 | EffectKind::Log => true,
                 EffectKind::StorageWrite | EffectKind::TransientWrite => !uses_object,
                 EffectKind::MemoryWrite => match *kind {
-                    InstKind::Store(ptr, value, PtrLocation::Memory) => {
+                    InstKind::Store(ptr, value, PtrLocation::Memory)
+                    | InstKind::Store8(ptr, value) => {
                         derived.contains(&ptr) && !derived.contains(&value)
                     }
-                    InstKind::Store8(ptr, _)
-                    | InstKind::MemoryZero(ptr, _)
-                    | InstKind::Copy(ptr, ..) => derived.contains(&ptr),
+                    InstKind::MemoryZero(ptr, _) | InstKind::Copy(ptr, ..) => {
+                        derived.contains(&ptr)
+                    }
                     _ => false,
                 },
                 _ => false,
