@@ -1,0 +1,122 @@
+; === ROOT/tests/ui/codegen/run-call/constants/fixed_bytes_length_constant.sol:L ===
+@module L
+@library
+
+; === ROOT/tests/ui/codegen/run-call/constants/fixed_bytes_length_constant.sol:Base ===
+@module Base
+
+; === ROOT/tests/ui/codegen/run-call/constants/fixed_bytes_length_constant.sol:C ===
+@module C
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    ret
+}
+
+; function f() external pure returns (uint256) [selector 0x26121ff0]
+fn @f() -> i256 [selector=0x26121ff0, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_2
+    ret 1
+}
+
+; function parenthesized() external pure returns (uint256) [selector 0xc8fb344e]
+fn @parenthesized() -> i256 [selector=0xc8fb344e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_2
+    ret 1
+}
+
+; function discarded() external pure returns (uint256) [selector 0x96dadfbc]
+fn @discarded() -> i256 [selector=0x96dadfbc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_2
+    ret 7
+}
+
+; function chained() external pure returns (uint256) [selector 0x749305c7]
+fn @chained() -> i256 [selector=0x749305c7, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_3
+    ret 1
+}
+
+; function divided() external pure returns (uint256) [selector 0x34390d45]
+fn @divided() -> i256 [selector=0x34390d45, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_5
+    ret 1
+}
+
+; function viaLibrary() external pure returns (uint256) [selector 0x14bbf91b]
+fn @viaLibrary() -> i256 [selector=0x14bbf91b, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_0
+    ret 1
+}
+
+; function inherited() external pure returns (uint256) [selector 0x176161c1]
+fn @inherited() -> i256 [selector=0x176161c1, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_1
+    ret 2
+}
+
+; function unchecked_() external pure returns (uint256) [selector 0x4234bdfc]
+fn @unchecked_() -> i256 [selector=0x4234bdfc, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_2_unchecked
+    ret 1
+}
+
+; function folded() external pure returns (uint256) [selector 0x10b19647]
+fn @folded() -> i256 [selector=0x10b19647, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 4
+}
+
+fn @constant_2() -> i256 {
+  bb0:
+    v0 = checked_add uint8, i8 255, i8 1
+    v1 = zext i8 v0 to i256
+    v2 = shl v1, 248
+    ret v2
+}
+
+fn @constant_3() -> i256 {
+  bb0:
+    v0 = icall @constant_2
+    ret v0
+}
+
+fn @constant_5() -> i256 {
+  bb0:
+    v0 = checked_div uint8, i8 1, i8 0
+    v1 = zext i8 v0 to i256
+    v2 = shl v1, 248
+    ret v2
+}
+
+fn @constant_0() -> i256 {
+  bb0:
+    v0 = checked_add uint8, i8 255, i8 1
+    v1 = zext i8 v0 to i256
+    v2 = shl v1, 248
+    ret v2
+}
+
+fn @constant_1() -> i256 {
+  bb0:
+    v0 = checked_add uint16, i16 0xffff, i16 1
+    v1 = zext i16 v0 to i256
+    v2 = shl v1, 240
+    ret v2
+}
+
+fn @constant_2_unchecked() -> i256 {
+  bb0:
+    v0 = add i8 255, i8 1
+    v1 = zext i8 v0 to i256
+    v2 = shl v1, 248
+    ret v2
+}

@@ -399,11 +399,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 else {
                     return self.cx.report_unsupported(expr.span, "fixed-bytes length");
                 };
-                match receiver.peel_parens().kind {
-                    ExprKind::Ident(_) => {}
-                    _ => {
-                        self.operand(receiver)?;
-                    }
+                // Reading a constant evaluates its initializer, which can revert.
+                let receiver = receiver.peel_parens();
+                let is_constant = self
+                    .cx
+                    .gcx
+                    .resolved_variable(receiver)
+                    .is_some_and(|id| self.cx.gcx.hir.variable(id).is_constant());
+                if is_constant || !matches!(receiver.kind, ExprKind::Ident(_)) {
+                    self.operand(receiver)?;
                 }
                 Some(self.builder.imm(u64::from(size.bytes())))
             }
