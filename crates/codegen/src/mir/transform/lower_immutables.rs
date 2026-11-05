@@ -10,6 +10,10 @@
 //! backend copies into the deployed code's placeholders. Only functions unreachable from the
 //! runtime entry, selectors, receive, and fallback are rewritten: an assignment left in runtime
 //! code stays semantic and fails the lowered-phase check rather than writing memory there.
+//!
+//! The backend emits a `loadimmutable` in those functions as a load from the same home. The pass
+//! marks them `creation_only`, so memory analyses count such a read, and a call that reaches one,
+//! as a read of memory and keep the stores. Reads in other functions are code placeholders.
 
 use super::utils::expand_block;
 use crate::mir::{
@@ -48,6 +52,7 @@ impl MirPass for LowerImmutables {
             if runtime_reachable.contains(func_id) {
                 continue;
             }
+            func.attributes.creation_only = true;
             for block in func.blocks.indices() {
                 let mut builder = FunctionBuilder::new(func);
                 expand_block(&mut builder, block, |builder, inst_id| {
