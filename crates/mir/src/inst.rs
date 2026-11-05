@@ -6,6 +6,7 @@ use super::{
 use crate::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_data_structures::map::FxHashSet;
 use solar_interface::Span;
 use solar_ir::debug::DebugLocKind;
 use std::fmt;
@@ -18,7 +19,7 @@ pub struct InstructionMetadata {
     /// Source span that produced this instruction, when the lowerer can preserve it.
     source_span: Span,
     /// Additional origins of shared code, allocated only after a debug-origin merge.
-    additional_source_spans: Option<Box<SmallVec<[Span; 2]>>>,
+    additional_source_spans: Option<Box<AdditionalSpans>>,
     /// Legacy source-map modifier nesting depth for this instruction.
     modifier_depth: u32,
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
@@ -74,37 +75,34 @@ impl InstructionMetadata {
 
     /// Returns every retained origin, in deterministic merge order.
     pub fn source_spans(&self) -> impl Iterator<Item = Span> + '_ {
-        self.source_span()
-            .into_iter()
-            .chain(self.additional_source_spans.iter().flat_map(|spans| spans.iter().copied()))
+        self.source_span().into_iter().chain(
+            self.additional_source_spans.iter().flat_map(|spans| spans.spans.iter().copied()),
+        )
     }
 
-    /// Sets explicit textual origins, bounding metadata growth in repeated merges.
+    /// Sets explicit textual origins.
     pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
         self.set_source_span(None);
-        for span in spans {
-            self.insert_source_span(span);
-        }
+        self.insert_source_spans(spans);
         self.flags.set_display_source_span(self.source_span().is_some());
     }
 
-    fn insert_source_span(&mut self, span: Span) {
-        // Keep the same bounded ambiguity representation in both IR layers.
-        if span.is_dummy() || self.source_spans().any(|old| old == span) {
-            return;
-        }
-        if self.source_span.is_dummy() {
-            self.source_span = span;
-        } else if self.source_spans().count() < solar_ir::debug::MAX_DEBUG_SPANS {
-            self.additional_source_spans.get_or_insert_default().push(span);
+    fn insert_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
+        for span in spans {
+            if span.is_dummy() || span == self.source_span {
+                continue;
+            }
+            if self.source_span.is_dummy() {
+                self.source_span = span;
+            } else {
+                self.additional_source_spans.get_or_insert_default().insert(span);
+            }
         }
     }
 
     /// Unions origins without importing instruction-specific analysis facts.
     pub fn merge_debug_context(&mut self, other: &Self) {
-        for span in other.source_spans() {
-            self.insert_source_span(span);
-        }
+        self.insert_source_spans(other.source_spans());
         if self.modifier_depth != other.modifier_depth {
             self.modifier_depth = 0;
         }
@@ -293,6 +291,50 @@ impl InstructionMetadata {
     /// Marks a copy whose source and destination ranges never overlap.
     pub fn set_disjoint(&mut self, value: bool) {
         self.flags.set_disjoint(value);
+    }
+}
+
+/// The origins of shared code after the first, in merge order.
+///
+/// Instructions that merge many origins, such as a shared revert body, keep a hash set beside the
+/// list once it passes [`Self::SCAN_LIMIT`], so merging them one origin at a time stays linear.
+#[derive(Clone, Debug, Default)]
+struct AdditionalSpans {
+    spans: SmallVec<[Span; 2]>,
+    seen: Option<FxHashSet<Span>>,
+}
+
+impl AdditionalSpans {
+    const SCAN_LIMIT: usize = 16;
+
+    /// Appends `span` unless the list has it.
+    fn insert(&mut self, span: Span) {
+        let is_new = match &mut self.seen {
+            Some(seen) => seen.insert(span),
+            None => !self.spans.contains(&span),
+        };
+        if !is_new {
+            return;
+        }
+        self.spans.push(span);
+        if self.seen.is_none() && self.spans.len() > Self::SCAN_LIMIT {
+            self.seen = Some(self.spans.iter().copied().collect());
+        }
+    }
+}
+
+// The set only speeds up lookups, so two lists are equal when their origins are.
+impl PartialEq for AdditionalSpans {
+    fn eq(&self, other: &Self) -> bool {
+        self.spans == other.spans
+    }
+}
+
+impl Eq for AdditionalSpans {}
+
+impl std::hash::Hash for AdditionalSpans {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.spans.hash(state);
     }
 }
 

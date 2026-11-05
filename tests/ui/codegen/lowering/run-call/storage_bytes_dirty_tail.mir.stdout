@@ -8,15 +8,15 @@
 fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
+    v1 = inttoptr i256 v0 to ptr<memory>
     mstore v0, 33
-    v1 = add v0, 32
-    mstore v1, 0x101010101010101010101010101010101010101010101010101010101010101
-    v2 = add v0, 64
-    mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v3 = add v0, 96
-    mstore 64, v3 !metadata(memory=scratch)
-    v4 = inttoptr i256 v0 to ptr<memory>
-    icall @store_storage_bytes, 0, v4
+    v2 = add v0, 32
+    mstore v2, 0x101010101010101010101010101010101010101010101010101010101010101
+    v3 = add v0, 64
+    mstore v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v4 = add v0, 96
+    mstore 64, v4 !metadata(memory=scratch)
+    icall @store_storage_bytes, 0, v1
     mstore 0, 0 !metadata(memory=scratch)
     v5 = keccak256 0, 32 !metadata(memory=scratch)
     v6 = sload v5 !metadata(storage=symbolic(v5))
@@ -40,13 +40,13 @@ fn @storeLong() -> struct0 [selector=0xc4a6ec73, abi_params=[], abi_returns=[wor
 fn @storeShort() -> struct1 [selector=0x5296e6c1, abi_params=[], abi_returns=[word, word], abi_return_params=[bytes32, uint256]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
+    v1 = inttoptr i256 v0 to ptr<memory>
     mstore v0, 5
-    v1 = add v0, 32
-    mstore v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v2 = add v0, 64
-    mstore 64, v2 !metadata(memory=scratch)
-    v3 = inttoptr i256 v0 to ptr<memory>
-    icall @store_storage_bytes, 0, v3
+    v2 = add v0, 32
+    mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = add v0, 64
+    mstore 64, v3 !metadata(memory=scratch)
+    icall @store_storage_bytes, 0, v1
     v4 = sload 0 !metadata(storage=slot(0))
     v5 = sload 0 !metadata(storage=slot(0))
     validate_storage_bytes v5

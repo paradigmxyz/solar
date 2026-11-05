@@ -59,6 +59,17 @@ impl BasicBlock {
         (self.terminator.take(), metadata)
     }
 
+    /// Creates an empty block that copies this one, which may belong to another function: it keeps
+    /// the `cold_hint` and the label origin, as LLVM's `CloneBasicBlock` keeps the debug locations
+    /// of the code it clones. The caller fills in the instructions and the terminator.
+    #[must_use]
+    pub fn new_copy(&self) -> Self {
+        let mut copy = Self::new();
+        copy.cold_hint = self.cold_hint;
+        copy.label_metadata.copy_debug_context(&self.label_metadata);
+        copy
+    }
+
     /// Creates a new empty basic block.
     #[must_use]
     pub(crate) fn new() -> Self {

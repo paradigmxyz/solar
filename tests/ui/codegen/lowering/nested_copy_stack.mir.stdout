@@ -17,68 +17,68 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
     v5 = eq v4, false
     icall revert_if<empty>, v5
     v6 = mload 64 !metadata(memory=scratch)
-    v7 = mul arg0, arg1
-    v8 = shl v7, 5
-    v9 = add v6, 32
-    mstore v6, v8
+    v7 = inttoptr i256 v6 to ptr<memory>
+    v8 = mul arg0, arg1
+    v9 = shl v8, 5
+    v10 = add v6, 32
+    mstore v6, v9
     jump bb4
   bb4:                                            ; preds = bb3, bb6
-    v10 = phi [bb3: arg0], [bb6: v43]
-    v11 = phi [bb3: arg1], [bb6: v44]
-    v12 = phi [bb3: arg2], [bb6: v45]
-    v13 = phi [bb3: v6], [bb6: v46]
-    v14 = phi [bb3: v8], [bb6: v47]
+    v11 = phi [bb3: arg0], [bb6: v44]
+    v12 = phi [bb3: arg1], [bb6: v45]
+    v13 = phi [bb3: arg2], [bb6: v46]
+    v14 = phi [bb3: v7], [bb6: v47]
     v15 = phi [bb3: v9], [bb6: v48]
-    v16 = phi [bb3: 0], [bb6: v50]
-    v17 = lt v16, v10
-    v18 = zext i1 v17 to i256
-    v19 = ne v18, 0
-    jumpi v19, bb7, bb8
+    v16 = phi [bb3: v10], [bb6: v49]
+    v17 = phi [bb3: 0], [bb6: v51]
+    v18 = lt v17, v11
+    v19 = zext i1 v18 to i256
+    v20 = ne v19, 0
+    jumpi v20, bb7, bb8
   bb8:                                            ; preds = bb4
     jump bb5
   bb5:                                            ; preds = bb8
-    v51 = add v15, v14
-    mstore v51, 0
-    v52 = add v15, v14
-    v53 = add v52, 32
-    mstore 64, v53 !metadata(memory=scratch)
-    v54 = inttoptr i256 v13 to ptr<memory>
-    ret v54
+    v52 = add v16, v15
+    mstore v52, 0
+    v53 = add v16, v15
+    v54 = add v53, 32
+    mstore 64, v54 !metadata(memory=scratch)
+    ret v14
   bb7:                                            ; preds = bb4
-    v20 = ne v11, 0
-    jumpi v20, bb10, bb11
+    v21 = ne v12, 0
+    jumpi v21, bb10, bb11
   bb11:                                           ; preds = bb7
     jump bb12
   bb10:                                           ; preds = bb7
-    v21 = mul v16, v11
-    v22 = shl v21, 5
+    v22 = mul v17, v12
+    v23 = shl v22, 5
     jump bb13
   bb13:                                           ; preds = bb10, bb17
-    v23 = phi [bb10: v10], [bb17: v23]
     v24 = phi [bb10: v11], [bb17: v24]
     v25 = phi [bb10: v12], [bb17: v25]
     v26 = phi [bb10: v13], [bb17: v26]
     v27 = phi [bb10: v14], [bb17: v27]
     v28 = phi [bb10: v15], [bb17: v28]
     v29 = phi [bb10: v16], [bb17: v29]
-    v30 = phi [bb10: v22], [bb17: v30]
-    v31 = phi [bb10: 0], [bb17: v36]
+    v30 = phi [bb10: v17], [bb17: v30]
+    v31 = phi [bb10: v23], [bb17: v31]
+    v32 = phi [bb10: 0], [bb17: v37]
     jumpi true, bb15, bb16
   bb16:                                           ; preds = bb13
     jump bb14
   bb15:                                           ; preds = bb13
-    v32 = shl v31, 5
-    v33 = add v32, v30
-    v34 = xor v33, v25
-    v35 = add v33, v28
-    mstore v35, v34
-    v36 = add v31, 1
-    v37 = lt v36, v24
-    v38 = zext i1 v37 to i256
-    v39 = eq v38, 0
-    v40 = zext i1 v39 to i256
-    v41 = ne v40, 0
-    jumpi v41, bb18, bb19
+    v33 = shl v32, 5
+    v34 = add v33, v31
+    v35 = xor v34, v26
+    v36 = add v34, v29
+    mstore v36, v35
+    v37 = add v32, 1
+    v38 = lt v37, v25
+    v39 = zext i1 v38 to i256
+    v40 = eq v39, 0
+    v41 = zext i1 v40 to i256
+    v42 = ne v41, 0
+    jumpi v42, bb18, bb19
   bb19:                                           ; preds = bb15
     jump bb20
   bb20:                                           ; preds = bb19
@@ -88,21 +88,21 @@ fn @copyGroups(arg0: i256, arg1: i256, arg2: i256) -> ptr<memory> [selector=0x03
   bb18:                                           ; preds = bb15
     jump bb14
   bb14:                                           ; preds = bb18, bb16
-    v42 = phi [bb18: v36], [bb16: v31]
+    v43 = phi [bb18: v37], [bb16: v32]
     jump bb12
   bb12:                                           ; preds = bb14, bb11
-    v43 = phi [bb14: v23], [bb11: v10]
     v44 = phi [bb14: v24], [bb11: v11]
     v45 = phi [bb14: v25], [bb11: v12]
     v46 = phi [bb14: v26], [bb11: v13]
     v47 = phi [bb14: v27], [bb11: v14]
     v48 = phi [bb14: v28], [bb11: v15]
     v49 = phi [bb14: v29], [bb11: v16]
+    v50 = phi [bb14: v30], [bb11: v17]
     jump bb9
   bb9:                                            ; preds = bb12
     jump bb6
   bb6:                                            ; preds = bb9
-    v50 = add v49, 1
+    v51 = add v50, 1
     jump bb4
 }
 

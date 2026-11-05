@@ -525,6 +525,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(metadata);
         }
 
+        let mut checkpoints = Vec::new();
         loop {
             let key = self.parser.parse_ident()?;
             if key == sym::stack {
@@ -552,7 +553,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             } else if key == sym::checkpoint {
                 self.parser.expect(TokenKind::Eq)?;
                 let (lo, hi) = self.parser.parse_span_bounds()?;
-                metadata.add_checkpoint_transfer(Span::new(BytePos(lo), BytePos(hi)));
+                checkpoints.push(Span::new(BytePos(lo), BytePos(hi)));
             } else if key == sym::invoke {
                 self.parser.expect(TokenKind::Eq)?;
                 let identifier = self.parser.parse_ident()?;
@@ -596,6 +597,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             break;
         }
+        metadata.add_checkpoint_transfers(checkpoints);
         if metadata.lacks_debug_location() {
             metadata.set_debug_loc_kind(DebugLocKind::Dropped);
         }
