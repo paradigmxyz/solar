@@ -3,7 +3,7 @@
 use super::DocumentationKind;
 use crate::{hir, ty::Gcx};
 use serde::Serialize;
-use solar_data_structures::map::{FxHashSet, FxIndexMap};
+use solar_data_structures::map::FxIndexMap;
 
 /// NatSpec documentation in solc's Standard JSON `userdoc` and `devdoc` output fields.
 ///
@@ -130,30 +130,20 @@ impl<'gcx> Gcx<'gcx> {
             }
         }
 
-        let mut event_signatures = FxHashSet::default();
-        for item in self.hir.contract_item_ids(contract_id) {
-            match item {
-                hir::ItemId::Event(event_id) => {
-                    let signature = self.item_signature(event_id.into()).to_string();
-                    if !event_signatures.insert(signature.clone()) {
-                        continue;
-                    }
-                    let documentation_item = dev_doc_item(self, event_id.into());
-                    if !documentation_item.is_empty() {
-                        documentation.events.insert(signature, documentation_item);
-                    }
-                }
-                hir::ItemId::Error(error_id) => {
-                    let documentation_item = dev_doc_item(self, error_id.into());
-                    if !documentation_item.is_empty() {
-                        documentation
-                            .errors
-                            .entry(self.item_signature(error_id.into()).to_string())
-                            .or_default()
-                            .push(documentation_item);
-                    }
-                }
-                _ => {}
+        for (signature, event_id) in unique_interface_events(self, contract_id) {
+            let documentation_item = dev_doc_item(self, event_id.into());
+            if !documentation_item.is_empty() {
+                documentation.events.insert(signature, documentation_item);
+            }
+        }
+        for error_id in self.interface_errors(contract_id).iter() {
+            let documentation_item = dev_doc_item(self, error_id.into());
+            if !documentation_item.is_empty() {
+                documentation
+                    .errors
+                    .entry(self.item_signature(error_id.into()).to_string())
+                    .or_default()
+                    .push(documentation_item);
             }
         }
 
@@ -191,40 +181,63 @@ impl<'gcx> Gcx<'gcx> {
             }
         }
 
-        let mut event_signatures = FxHashSet::default();
-        for item in self.hir.contract_item_ids(contract_id) {
-            match item {
-                hir::ItemId::Event(event_id) => {
-                    let signature = self.item_signature(event_id.into()).to_string();
-                    if !event_signatures.insert(signature.clone()) {
-                        continue;
-                    }
-                    if let Some(notice) = natspec_text(self, event_id.into(), |kind| {
-                        matches!(kind, hir::NatSpecKind::Notice)
-                    }) {
-                        documentation.events.insert(
-                            signature,
-                            DocumentationItem { notice: Some(notice), ..Default::default() },
-                        );
-                    }
-                }
-                hir::ItemId::Error(error_id) => {
-                    if let Some(notice) = natspec_text(self, error_id.into(), |kind| {
-                        matches!(kind, hir::NatSpecKind::Notice)
-                    }) {
-                        documentation
-                            .errors
-                            .entry(self.item_signature(error_id.into()).to_string())
-                            .or_default()
-                            .push(DocumentationItem { notice: Some(notice), ..Default::default() });
-                    }
-                }
-                _ => {}
+        for (signature, event_id) in unique_interface_events(self, contract_id) {
+            if let Some(notice) =
+                natspec_text(self, event_id.into(), |kind| matches!(kind, hir::NatSpecKind::Notice))
+            {
+                documentation.events.insert(
+                    signature,
+                    DocumentationItem { notice: Some(notice), ..Default::default() },
+                );
+            }
+        }
+        for error_id in self.interface_errors(contract_id).iter() {
+            if let Some(notice) =
+                natspec_text(self, error_id.into(), |kind| matches!(kind, hir::NatSpecKind::Notice))
+            {
+                documentation
+                    .errors
+                    .entry(self.item_signature(error_id.into()).to_string())
+                    .or_default()
+                    .push(DocumentationItem { notice: Some(notice), ..Default::default() });
             }
         }
 
         documentation
     }
+}
+
+/// Returns the events of a contract's interface by signature, as solc's `uniqueInterfaceEvents`.
+///
+/// An event defined in the contract or its bases wins over one with the same signature, and used
+/// events that share a signature are all dropped.
+fn unique_interface_events(
+    gcx: Gcx<'_>,
+    contract_id: hir::ContractId,
+) -> FxIndexMap<String, hir::EventId> {
+    let mut events = FxIndexMap::default();
+    for item in gcx.hir.contract_item_ids(contract_id) {
+        if let hir::ItemId::Event(event_id) = item {
+            events.entry(gcx.item_signature(event_id.into()).to_string()).or_insert(event_id);
+        }
+    }
+
+    let bases = &gcx.hir.contract(contract_id).linearized_bases;
+    let mut used = FxIndexMap::<String, Option<hir::EventId>>::default();
+    for event_id in gcx.interface_events(contract_id).iter() {
+        if gcx.hir.event(event_id).contract.is_some_and(|contract| bases.contains(&contract)) {
+            continue;
+        }
+        used.entry(gcx.item_signature(event_id.into()).to_string())
+            .and_modify(|event| *event = None)
+            .or_insert(Some(event_id));
+    }
+    for (signature, event_id) in used {
+        if let Some(event_id) = event_id {
+            events.entry(signature).or_insert(event_id);
+        }
+    }
+    events
 }
 
 fn natspec_text(
