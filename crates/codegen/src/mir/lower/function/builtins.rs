@@ -399,7 +399,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 else {
                     return self.cx.report_unsupported(expr.span, "fixed-bytes length");
                 };
-                // Reading a constant evaluates its initializer, which can revert.
                 self.operand(receiver)?;
                 Some(self.builder.imm(u64::from(size.bytes())))
             }
