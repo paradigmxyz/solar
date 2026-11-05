@@ -340,6 +340,24 @@ token.
 
 Coverage: `tests/ui/parser/number_literal_too_large.sol`.
 
+### PARSE-007: Receive function attributes follow the grammar
+
+Status: intentional.
+
+Difference: `solc` parses `receive` functions with any visibility, state
+mutability and `returns` clause, then rejects them during type checking with
+errors such as 7793 (`view` or `pure`), 4095 (visibility) and 6899 (return
+values). `solar` rejects the same inputs, but its parser does so, following the
+documented grammar of `receiveFunctionDefinition`, with errors that have no
+error code.
+
+Rationale: the parser enforces the attribute set of each function kind, as it
+does for constructors and function types; the checks in `typeck` only see what
+the grammar admits.
+
+Coverage: `tests/ui/typeck/special_functions/receive_mutability.sol`,
+`tests/ui/typeck/receive_returns.sol`.
+
 ## AST Validation
 
 ### AST-001: Version pragma mismatches are warnings

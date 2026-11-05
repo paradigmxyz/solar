@@ -1,6 +1,3 @@
-// ported-from: test/libsolidity/syntaxTests/receiveEther/view_modifier.sol
-// ported-from: test/libsolidity/syntaxTests/receiveEther/pure_modifier.sol
-
 // Only `payable` receive functions are accepted, in every kind of contract.
 
 contract ViewBody {
