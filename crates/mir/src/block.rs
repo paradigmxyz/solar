@@ -14,6 +14,12 @@ pub struct BasicBlock {
     pub terminator: Option<Terminator>,
     /// Source context of the control transfer, independent of the last value instruction.
     pub terminator_metadata: InstructionMetadata,
+    /// Source context of the block's label, which is the origin of the `JUMPDEST` that marks the
+    /// block, as solc gives a tag the location active where the tag is placed
+    /// (`m_context << tag`). It holds only debug context: source spans and the modifier depth.
+    ///
+    /// Lowering sets it when it places the block; `docs/MIR.md` says what passes do with it.
+    pub label_metadata: InstructionMetadata,
     /// Predecessor blocks, each listed once.
     pub predecessors: SmallVec<[BlockId; 4]>,
     /// Whether the block is expected to run rarely. Computed by the hotness analysis, which the
@@ -62,6 +68,7 @@ impl BasicBlock {
             instructions: Vec::new(),
             terminator: None,
             terminator_metadata,
+            label_metadata: InstructionMetadata::EMPTY,
             predecessors: SmallVec::new(),
             hotness: Hotness::Hot,
             cold_hint: false,
