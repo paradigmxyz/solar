@@ -320,39 +320,40 @@ fn @bad() [cold] {
 ; function dirtyLot(uint256 dirty) internal pure returns (Lot memory item)
 fn @dirtyLot(arg0: i256) -> i256 [may_return_memory] {
   bb0:
-    v39 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v40 = add v39, 64
-    v47 = shr v40, 64
-    v41 = lt v40, v39
-    v49 = zext i1 v41 to i256
-    v50 = or v47, v49
-    v43 = ne v50, 0
-    jumpi v43, bb2, bb1
+    v46 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v47 = add v46, 224 !metadata(alloc_ptr)
+    v41 = add v47, 64
+    v50 = shr v41, 64
+    v42 = lt v41, v47
+    v52 = zext i1 v42 to i256
+    v53 = or v50, v52
+    v44 = ne v53, 0
+    jumpi v44, bb2, bb1
   bb1:                                            ; preds = bb0
-    v46 = add v40, 224 !metadata(alloc_ptr)
-    mstore 64, v46 !metadata(memory=scratch)
-    v35 = add v39, 32
-    mstore v35, v40
-    mstore v40, arg0
-    v15 = shl arg0, 160
-    v16 = or v15, 160
-    v18 = add v40, 32
-    mstore v18, v16
-    v20 = add v40, 64
-    mstore v20, 1
-    v21 = shl arg0, 8
-    v23 = add v40, 96
-    mstore v23, v21
-    v25 = add v40, 128
-    mstore v25, 1
-    v26 = shr arg0, 16
-    v27 = or v26, 0x1122000000000000000000000000000000000000000000000000000000000000
-    v29 = add v40, 160
-    mstore v29, v27
-    v30 = xor arg0, 119
-    v32 = add v40, 192
-    mstore v32, v30
-    ret v40
+    v49 = add v41, 224
+    mstore 64, v49 !metadata(memory=scratch)
+    v36 = add v47, 32
+    mstore v36, v41
+    mstore v41, arg0
+    v16 = shl arg0, 160
+    v17 = or v16, 160
+    v19 = add v41, 32
+    mstore v19, v17
+    v21 = add v41, 64
+    mstore v21, 1
+    v22 = shl arg0, 8
+    v24 = add v41, 96
+    mstore v24, v22
+    v26 = add v41, 128
+    mstore v26, 1
+    v27 = shr arg0, 16
+    v28 = or v27, 0x1122000000000000000000000000000000000000000000000000000000000000
+    v30 = add v41, 160
+    mstore v30, v28
+    v31 = xor arg0, 119
+    v33 = add v41, 192
+    mstore v33, v31
+    ret v41
   bb2 [cold]:                                     ; preds = bb0
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

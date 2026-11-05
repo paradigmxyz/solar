@@ -47,26 +47,26 @@ fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_ret
 ; function auth() internal pure returns (Auth memory auth)
 fn @auth() -> ptr<memory> [pure] {
   bb0:
-    v0 = alloc 96 !metadata(preserves_fmp)
-    mstore v0, 62
+    v0 = alloc 192 !metadata(preserves_fmp)
+    memory_zero v0, 192
+    mstore v0, 96
     v1 = ptradd v0, 32
-    datacopy literal_0, v1, 64
-    v2 = alloc 192 !metadata(preserves_fmp)
-    memory_zero v2, 192
-    mstore v2, 96
+    mstore v1, 96
+    v2 = alloc 96 !metadata(preserves_fmp)
+    mstore v2, 62
     v3 = ptradd v2, 32
-    mstore v3, 96
-    v4 = ptrtoint ptr<memory> v0 to i256
-    mstore v2, v4
+    datacopy literal_0, v3, 64
+    v4 = ptrtoint ptr<memory> v2 to i256
+    mstore v0, v4
     v5 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
     v6 = ptrtoint ptr<memory> v5 to i256
-    v7 = ptradd v2, 32
+    v7 = ptradd v0, 32
     mstore v7, v6
-    v8 = ptradd v2, 64
+    v8 = ptradd v0, 64
     mstore v8, 27
-    v9 = ptradd v2, 96
+    v9 = ptradd v0, 96
     mstore v9, 2
-    ret v2
+    ret v0
 }
 
 ; function check(bool requireUserVerification, Auth memory auth) internal pure returns (bool result)

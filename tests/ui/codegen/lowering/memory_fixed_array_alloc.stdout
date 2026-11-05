@@ -229,20 +229,20 @@ fn @emptyWideNamedStruct() -> ptr<memory> [selector=0x27d08cee, pure, abi_params
 ; function fullyInitializedNamedStruct() public pure returns (DynamicHolder memory holder) [selector 0x03e8d290]
 fn @fullyInitializedNamedStruct() -> ptr<memory> [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, uint256>, bytes>]] {
   bb0:
-    v0 = alloc zeroed checked 64
-    mstore v0, 1
-    v1 = alloc 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 96
+    v1 = ptradd v0, 32
     mstore v1, 96
-    v2 = ptradd v1, 32
-    mstore v2, 96
-    v3 = ptrtoint ptr<memory> v0 to i256
-    mstore v1, v3
+    v2 = alloc zeroed checked 64
+    mstore v2, 1
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mstore v0, v3
     v4 = alloc zeroed checked 64
     mstore v4, 1
     v5 = ptrtoint ptr<memory> v4 to i256
-    v6 = ptradd v1, 32
+    v6 = ptradd v0, 32
     mstore v6, v5
-    ret v1
+    ret v0
 }
 
 ; function deleteRebind() public pure returns (uint256, uint256) [selector 0x81e51eb1]

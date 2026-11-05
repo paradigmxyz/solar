@@ -178,6 +178,10 @@ fn @dirtyUnusedStructField() -> i8 [selector=0xc1226a60, view, abi_params=[], ab
 ; function dirtyUnusedStructFieldTarget() external pure returns (Pair memory) [selector 0x38a62c01]
 fn @dirtyUnusedStructFieldTarget() -> ptr<memory> [selector=0x38a62c01, pure, abi_params=[], abi_returns=[tuple<word<uint8>, word<bool>>], abi_return_params=[tuple<uint8, bool>]] {
   bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
     mstore 0, 1 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
     returndata 0, 64
@@ -186,20 +190,20 @@ fn @dirtyUnusedStructFieldTarget() -> ptr<memory> [selector=0x38a62c01, pure, ab
 ; function dirtyStructBranch(bool overwrite) external pure returns (Scalar memory value) [selector 0x6dd0f9bf]
 fn @dirtyStructBranch(arg0: i1) -> ptr<memory> [selector=0x6dd0f9bf, pure, abi_params=[bool], abi_returns=[tuple<word<uint8>>], abi_return_params=[tuple<uint8>]] {
   bb0:
-    v0 = icall @dirtyValueInternal
-    v1 = alloc 32 !metadata(preserves_fmp)
-    mstore v1, 0
-    v2 = trunc i256 v0 to i8
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = icall @dirtyValueInternal
+    v2 = trunc i256 v1 to i8
     v3 = zext i8 v2 to i256
-    mstore v1, v3
+    mstore v0, v3
     jumpi arg0, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb1:                                            ; preds = bb0
-    mstore v1, 1
+    mstore v0, 1
     jump bb3
   bb3:                                            ; preds = bb1, bb2
-    ret v1
+    ret v0
 }
 
 ; function dirtyValueInternal() internal pure returns (uint8 value)

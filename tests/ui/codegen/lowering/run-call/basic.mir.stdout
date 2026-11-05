@@ -94,20 +94,20 @@ fn @testInline() [selector=0x2bb29eb9, view, abi_params=[], abi_returns=[], abi_
 ; function fullyInitializedNamedStruct() external pure returns (DynamicHolder memory holder) [selector 0x03e8d290]
 fn @fullyInitializedNamedStruct() -> ptr<memory> [selector=0x03e8d290, pure, abi_params=[], abi_returns=[tuple<memory_array<word>, memory_bytes>], abi_return_params=[tuple<array<_, uint256>, bytes>]] {
   bb0:
-    v0 = alloc zeroed checked 64
-    mstore v0, 1
-    v1 = alloc 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 96
+    v1 = ptradd v0, 32
     mstore v1, 96
-    v2 = ptradd v1, 32
-    mstore v2, 96
-    v3 = ptrtoint ptr<memory> v0 to i256
-    mstore v1, v3
+    v2 = alloc zeroed checked 64
+    mstore v2, 1
+    v3 = ptrtoint ptr<memory> v2 to i256
+    mstore v0, v3
     v4 = alloc zeroed checked 64
     mstore v4, 1
     v5 = ptrtoint ptr<memory> v4 to i256
-    v6 = ptradd v1, 32
+    v6 = ptradd v0, 32
     mstore v6, v5
-    ret v1
+    ret v0
 }
 
 ; function reservedSpillFreshness(bool first) external returns (uint256 out) [selector 0x45f98aed]
@@ -150,16 +150,16 @@ fn @pairInternal(arg0: i256) -> struct1 [pure] {
 ; function fill(uint256 length) external pure returns (uint256[4] memory values) [selector 0x3fda5389]
 fn @fill(arg0: i256) -> ptr<memory> [selector=0x3fda5389, pure, abi_params=[uint256], abi_returns=[array<4, word>], abi_return_params=[array<4, uint256>]] {
   bb0:
-    v0 = gt arg0, 4
-    v1 = eq v0, false
+    v0 = alloc 128 !metadata(preserves_fmp)
+    memory_zero v0, 128
+    v1 = gt arg0, 4
     v2 = eq v1, false
-    icall revert_if<empty>, v2
-    v3 = alloc 128 !metadata(preserves_fmp)
-    memory_zero v3, 128
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
     jump bb1
   bb1:                                            ; preds = bb0, bb3
     v4 = phi [bb0: arg0], [bb3: v4]
-    v5 = phi [bb0: v3], [bb3: v5]
+    v5 = phi [bb0: v0], [bb3: v5]
     v6 = phi [bb0: 0], [bb3: v12]
     v7 = lt v6, v4
     jumpi v7, bb4, bb5

@@ -1,0 +1,102 @@
+; === ROOT/tests/ui/codegen/lowering/run-call/memory_return_alloc_order.sol:C ===
+@module C
+@types
+  struct0: {ptr<memory>, i256}
+  struct1: {i256, i256}
+
+; function makeStruct() internal pure returns (P memory p)
+fn @makeStruct() -> ptr<memory> [pure] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    v2 = mload 64 !metadata(memory=scratch)
+    v3 = add v2, 32
+    mstore 64, v3 !metadata(memory=scratch)
+    v4 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v2
+    ret v0
+}
+
+; function makeStaticArray() internal pure returns (uint256[2] memory a)
+fn @makeStaticArray() -> ptr<memory> [pure] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = add v1, 32
+    mstore 64, v2 !metadata(memory=scratch)
+    v3 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v1
+    ret v0
+}
+
+; function makeDynamicArray() internal pure returns (uint256[] memory a, uint256 fmp)
+fn @makeDynamicArray() -> struct0 [pure] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = insert_value struct0, undef struct0, 0, ptr<memory> 96
+    v3 = insert_value struct0, v2, 1, v0
+    ret v3
+}
+
+; function structOrder() external pure returns (uint256) [selector 0x7b080b54]
+fn @structOrder() -> i256 [selector=0x7b080b54, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @makeStruct
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v0
+    v3 = checked_sub uint256, v2, v1
+    ret v3
+}
+
+; function staticArrayOrder() external pure returns (uint256) [selector 0xdfa10be6]
+fn @staticArrayOrder() -> i256 [selector=0xdfa10be6, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @makeStaticArray
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = lt 0, 2
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = mload v0
+    v5 = checked_sub uint256, v4, v1
+    ret v5
+}
+
+; function dynamicArrayZeroSlot() external pure returns (uint256 addr) [selector 0x20e9e664]
+fn @dynamicArrayZeroSlot() -> i256 [selector=0x20e9e664, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @makeDynamicArray
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = ptrtoint ptr<memory> v1 to i256
+    ret v3
+}
+
+; function precedingAllocationKept() external pure returns (uint256, uint256) [selector 0xe8b50d8e]
+fn @precedingAllocationKept() -> struct1 [selector=0xe8b50d8e, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
+    mstore v1, 0
+    mstore v0, 5
+    v2 = ptradd v0, 32
+    mstore v2, 7
+    v3 = icall @makeStruct
+    v4 = ptrtoint ptr<memory> v3 to i256
+    v5 = mload v3
+    v6 = sub v5, 64
+    mstore v6, 0xdead
+    v7 = sub v5, 32
+    mstore v7, 0xbeef
+    v8 = mload v0
+    v9 = ptradd v0, 32
+    v10 = mload v9
+    v11 = insert_value struct1, undef struct1, 0, v8
+    v12 = insert_value struct1, v11, 1, v10
+    ret v12
+}

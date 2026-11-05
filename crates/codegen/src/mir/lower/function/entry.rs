@@ -41,6 +41,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         offset: None,
                     },
                 );
+            } else if ty.is_ref_at(DataLocation::Memory)
+                && self.types.memory_layout(ty).is_some_and(|layout| {
+                    !matches!(
+                        layout,
+                        MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. }
+                    )
+                })
+            {
+                // Like solc's `ContractCompiler::visit(FunctionDefinition)`, which zero-initializes
+                // every return variable at function entry (ContractCompiler.cpp:638), allocate a
+                // memory struct or static array here rather than at its first use: inline assembly
+                // may read and bump the free memory pointer before it touches the variable.
+                // Dynamic arrays, bytes and strings point at the zero slot and allocate nothing,
+                // so they keep the lazy default. The location is the declaration, like solc's
+                // `appendStackVariableInitialisation`.
+                let span = self.cx.gcx.hir.variable(ret).span;
+                let previous = self.builder.replace_source_span(span);
+                let value = self.default_binding_value(ty);
+                let value = self.materialize_raw_scalar(ret, value);
+                self.builder.replace_source_span(previous);
+                self.values.insert(ret, value);
             } else {
                 self.default_bindings.insert(ret);
             }

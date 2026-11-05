@@ -3,12 +3,12 @@
 ; function build(uint256 n) public pure returns (P memory) [selector 0x77fc2b19]
 fn @build(arg0: i256) -> ptr<memory> [selector=0x77fc2b19, pure, abi_params=[uint256], abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint256, uint256>]] {
   bb0:
-    v0 = eq arg0, 0
-    v1 = alloc 64 !metadata(preserves_fmp)
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptradd v0, 32
     mstore v1, 0
-    v2 = ptradd v1, 32
-    mstore v2, 0
-    jumpi v0, bb1, bb2
+    v2 = eq arg0, 0
+    jumpi v2, bb1, bb2
   bb2:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb2

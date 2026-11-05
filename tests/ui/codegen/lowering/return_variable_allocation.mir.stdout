@@ -52,5 +52,5 @@ fn @i() -> ptr<memory> {
     memory_zero v0, 0x500
     v1 = alloc 0x500 !metadata(preserves_fmp)
     memory_zero v1, 0x500
-    ret v0
+    ret v1
 }

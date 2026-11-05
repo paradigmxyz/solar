@@ -14,26 +14,26 @@ fn @empty() -> ptr<memory> [pure] {
 ; function append(List memory list, uint256 x) internal pure returns (List memory result)
 fn @append.1(arg0: ptr<memory>, arg1: i256) -> ptr<memory> [pure] {
   bb0:
-    v0 = shl arg1, 48
-    v1 = alloc 32 !metadata(preserves_fmp)
-    mstore v1, 0
-    mstore v1, v0
-    icall @updateTail, arg0, v1
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = shl arg1, 48
+    mstore v0, v1
+    icall @updateTail, arg0, v0
     ret arg0
 }
 
 ; function append(List memory list, List memory x) internal pure returns (List memory result)
 fn @append.2(arg0: ptr<memory>, arg1: ptr<memory>) -> ptr<memory> [pure] {
   bb0:
-    v0 = ptrtoint ptr<memory> arg1 to i256
-    v1 = shl v0, 8
-    v2 = or v1, 3
-    v3 = shl v2, 40
-    v4 = alloc 32 !metadata(preserves_fmp)
-    mstore v4, 0
-    v5 = ptrtoint ptr<memory> v4 to i256
-    mstore v4, v3
-    icall @updateTail, arg0, v4
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 0
+    v1 = ptrtoint ptr<memory> arg1 to i256
+    v2 = shl v1, 8
+    v3 = or v2, 3
+    v4 = shl v3, 40
+    v5 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v4
+    icall @updateTail, arg0, v0
     ret arg0
 }
 
