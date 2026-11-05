@@ -1539,11 +1539,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let mut spans = SmallVec::<[Span; 2]>::new();
                     loop {
                         let (lo, hi) = self.parser.parse_span_bounds()?;
-                        let span = Span::new(BytePos(lo), BytePos(hi));
-                        if spans.len() < solar_ir::debug::MAX_DEBUG_SPANS && !spans.contains(&span)
-                        {
-                            spans.push(span);
-                        }
+                        spans.push(Span::new(BytePos(lo), BytePos(hi)));
                         if !self.parser.eat(TokenKind::Comma) {
                             break;
                         }

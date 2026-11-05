@@ -38,11 +38,11 @@ debugify: EVM IR StackifyBoundary_runtime after block-layout: 2/2 origins retain
 debugify: EVM IR StackifyBoundary_runtime after pack-data: 2/2 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary_runtime after compact-pushes: 2/2 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary_runtime after returndata-zero: 2/2 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary_deployment after cfg-simplify-early: 0/0 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary_deployment after block-layout: 0/0 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary_deployment after pack-data: 0/0 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary_deployment after compact-pushes: 0/0 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary_deployment after returndata-zero: 0/0 origins retained, 0 lost
+debugify: EVM IR StackifyBoundary_deployment after cfg-simplify-early: 1/1 origins retained, 0 lost
+debugify: EVM IR StackifyBoundary_deployment after block-layout: 1/1 origins retained, 0 lost
+debugify: EVM IR StackifyBoundary_deployment after pack-data: 1/1 origins retained, 0 lost
+debugify: EVM IR StackifyBoundary_deployment after compact-pushes: 1/1 origins retained, 0 lost
+debugify: EVM IR StackifyBoundary_deployment after returndata-zero: 1/1 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary after stackify: 2/3 origins retained, 1 lost
 debugify: lost 450..456
 debugify: EVM IR StackifyBoundary after stackify: 2 without a location

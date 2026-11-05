@@ -46,6 +46,7 @@ impl MirPass for LowerImmutables {
             return false;
         }
         let staging_base = immutable_staging_base(module);
+        module.set_immutable_staging_base(staging_base);
         let runtime_reachable = module.runtime_reachable_functions();
         let mut changed = false;
         for (func_id, func) in module.functions.iter_mut_enumerated() {

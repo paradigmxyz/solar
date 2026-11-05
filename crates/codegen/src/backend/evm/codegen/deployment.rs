@@ -459,9 +459,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let implicit_constructor_revert = constructor.is_none().then(|| self.asm.new_label());
         if let Some(revert) = implicit_constructor_revert {
-            self.asm.emit_op(op::CALLVALUE);
-            self.asm.emit_push_label(revert);
-            self.asm.emit_op(op::JUMPI);
+            // callvalue; push revert; jumpi
+            self.emit_with_contract_origin(|codegen| {
+                codegen.asm.emit_op(op::CALLVALUE);
+                codegen.asm.emit_push_label(revert);
+                codegen.asm.emit_op(op::JUMPI);
+            });
         }
 
         if let Some((ctor_id, ctor)) = constructor {
@@ -493,14 +496,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Constructor args are appended after generated deployment bytecode.
             // Copy the complete blob above every fixed compiler-owned region,
             // then place the free-memory pointer after its word-aligned end.
+            // solc copies the arguments in `appendConstructor`, in the location setter of the
+            // constructor, so that code maps to the constructor's declaration.
+            let constructor_span = Some(ctor.declaration_span);
             if let Some(arg_offset) = constructor_arg_offset {
                 self.constructor_args_base_const = Some(constructor_fixed_memory_end);
                 self.constructor_args_offset = Some(arg_offset);
-                self.emit_constructor_args_size(arg_offset);
-                self.asm.emit_stack_op(StackOp::Dup(1));
-                self.asm.emit_push_data(arg_offset); // code offset
-                self.asm.emit_push_deferred(constructor_fixed_memory_end);
-                self.asm.emit_op(op::CODECOPY);
+                self.emit_with_origin(constructor_span, |codegen| {
+                    codegen.emit_constructor_args_size(arg_offset);
+                    codegen.asm.emit_stack_op(StackOp::Dup(1));
+                    codegen.asm.emit_push_data(arg_offset); // code offset
+                    codegen.asm.emit_push_deferred(constructor_fixed_memory_end);
+                    codegen.asm.emit_op(op::CODECOPY);
+                });
             }
             // Without arguments to place above, the pointer matters only to code that reads it,
             // as in runtime entries.
@@ -512,9 +520,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             if needs_free_memory {
                 // mstore(FMP_SLOT, heap_start)
-                self.emit_constructor_heap_start();
-                self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-                self.asm.emit_op(op::MSTORE);
+                let span = if constructor_arg_offset.is_some() {
+                    constructor_span
+                } else {
+                    self.contract_span
+                };
+                self.emit_with_origin(span, |codegen| {
+                    codegen.emit_constructor_heap_start();
+                    codegen.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+                    codegen.asm.emit_op(op::MSTORE);
+                });
             }
 
             // Every ordinary completion of the constructor body (which includes SSTORE for
@@ -546,12 +561,23 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.define_label(constructor_exit);
         }
 
-        self.emit_deployment_postlude(module, runtime, runtime_len, copy_base, immutable_refs);
+        self.emit_with_contract_origin(|codegen| {
+            codegen.emit_deployment_postlude(
+                module,
+                runtime,
+                runtime_len,
+                copy_base,
+                immutable_refs,
+            );
+        });
         if let Some(revert) = implicit_constructor_revert {
             self.asm.define_label(revert);
-            self.asm.emit_push(U256::ZERO);
-            self.asm.emit_push(U256::ZERO);
-            self.asm.emit_op(op::REVERT);
+            // push 0; push 0; revert
+            self.emit_with_contract_origin(|codegen| {
+                codegen.asm.emit_push(U256::ZERO);
+                codegen.asm.emit_push(U256::ZERO);
+                codegen.asm.emit_op(op::REVERT);
+            });
         }
     }
 

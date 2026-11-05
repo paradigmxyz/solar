@@ -1,6 +1,6 @@
 //@ compile-flags: -Zmir-pipeline=if-convert -Zdebugify=report
 // Speculated arm operations run on both paths and lose their arm-specific origins.
-// The select inherits the phi's unconditional origin instead of claiming both arms ran.
+// They and the select take the join phi's origin instead of claiming either arm ran.
 @module DebugSpeculation
 fn @choose(arg0: i256, arg1: i1) -> i256 {
   bb0:
