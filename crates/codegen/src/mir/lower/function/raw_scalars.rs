@@ -27,7 +27,9 @@
 //! Assembly can also write a pointer into memory or storage through an address
 //! it computed, which the graph cannot follow to a binding. So when a block
 //! stores a word that may come from a binding a function's pointer reaches,
-//! every pointer call dispatches over the exposed functions. Within a block,
+//! every pointer call dispatches over the exposed functions. Assigning a
+//! reference's `slot` or `offset` counts the same, since Solidity stores
+//! through the reference then land at a computed address. Within a block,
 //! words can flow between any of its bindings, so they all count as one.
 //! Outside blocks, only copies and pointer edges carry such words, so a
 //! pointer that Solidity code masks or shifts into a different type before
@@ -442,6 +444,11 @@ impl<'gcx> Visit<'gcx> for Exposure<'gcx> {
                 && let Some(value) = args.exprs().nth(1)
             {
                 assembly_bindings(self.gcx, value, &mut self.stored);
+            } else if let ExprKind::Assign(target, ..) = expr.kind
+                && let ExprKind::YulMember(base, _) = target.kind
+            {
+                // Retargeting a reference makes Solidity stores through it computed.
+                assembly_bindings(self.gcx, base, &mut self.stored);
             } else if let ExprKind::Call(callee, _) = expr.kind
                 && let Some(id) = self.gcx.resolved_function(callee)
                 && self.gcx.hir.function(id).is_yul
