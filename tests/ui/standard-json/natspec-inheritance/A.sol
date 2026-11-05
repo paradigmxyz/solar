@@ -188,3 +188,13 @@ abstract contract Chain1 is Chain0 {
 contract Chain2 is Chain1 {
     function share() external view override returns (uint balance) {}
 }
+
+interface Renamed2 {
+    /// @return x amount
+    function reward(uint id) external view returns (uint x);
+}
+
+// A description equal to the new name still follows the name.
+contract Renamed2Impl is Renamed2 {
+    mapping(uint => Amount) public override reward;
+}

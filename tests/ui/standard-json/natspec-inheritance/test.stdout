@@ -439,6 +439,26 @@
           },
           "version": 1
         }
+      },
+      "Renamed2Impl": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "stateVariables": {
+            "reward": {
+              "return": "amount amount",
+              "returns": {
+                "amount": "amount"
+              }
+            }
+          },
+          "version": 1
+        }
       }
     }
   }
