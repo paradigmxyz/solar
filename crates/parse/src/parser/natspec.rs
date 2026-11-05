@@ -132,11 +132,8 @@ pub(super) fn parse_natspec(
     // Iterate over each line and look for tags.
     for (index, line) in lines.iter().enumerate() {
         let text = line.text;
-        let tag_offset = if line.glued {
-            None
-        } else {
-            memchr::memchr(b'@', text.as_bytes()).filter(|&offset| is_line_start(text, offset))
-        };
+        let tag_offset =
+            memchr::memchr(b'@', text.as_bytes()).filter(|&offset| is_line_start(text, offset));
         let starts_tag = tag_offset.is_some_and(|offset| {
             text.as_bytes().get(offset + 1).is_some_and(|b| !matches!(b, b' ' | b'\t'))
         });
@@ -198,6 +195,10 @@ pub(super) fn parse_natspec(
                         // Emit error for invalid solidity tags, but ignore in Yul.
                         if !in_yul {
                             invalid_tag(dcx, tag, comment_span);
+                        }
+                        // Like solc, the tag and its lines are not content of the previous tag.
+                        if let Some(item) = pending.take() {
+                            push_item(items, &lines, item, index);
                         }
                         continue;
                     }

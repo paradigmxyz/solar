@@ -1500,4 +1500,51 @@ contract Test {}
             );
         });
     }
+
+    #[test]
+    fn parse_natspec_unknown_tag_ends_previous_tag() {
+        let src = "/// @solidity\n/// @unknown memory-safe-assembly\n/// continued\n";
+
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let arena = ast::Arena::new();
+            let mut parser =
+                Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
+                    .expect("failed to create parser");
+
+            let sm = sess.source_map();
+            let docs = parser.parse_doc_comments();
+            let items = &docs[0].natspec;
+            assert_eq!(items.len(), 1);
+            check_natspec_item(sm, &items[0], "solidity", "internal", Some("solidity"), Some(""));
+        });
+    }
+
+    #[test]
+    fn parse_natspec_tag_on_glued_line() {
+        let src = "/**\n * text\n ** @custom:solar-safe arithmetic\n */\n";
+
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let arena = ast::Arena::new();
+            let mut parser =
+                Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
+                    .expect("failed to create parser");
+
+            let sm = sess.source_map();
+            let docs = parser.parse_doc_comments();
+            let items = &docs[0].natspec;
+            assert_eq!(items.len(), 2);
+            check_natspec_item(
+                sm,
+                &items[1],
+                "custom:solar-safe",
+                "custom",
+                Some("solar-safe"),
+                Some("arithmetic"),
+            );
+        });
+    }
 }
