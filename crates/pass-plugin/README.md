@@ -108,8 +108,9 @@ unmapped. Splits move the original terminator's context with it. Protected
 EVM instruction pairs cannot be split or copied individually. New operation
 definitions, type-table entries, and verbatim bytecode remain outside this API.
 
-MIR copies retain semantic allocation obligations, while operand-dependent
-proofs are discarded. Edited MIR is treated as potentially containing raw
+MIR copies retain semantic allocation obligations. Nonempty MIR edits discard
+retained memory proofs, including checked object offsets, allocator bounds and
+copy disjointness, since producer or CFG edits can invalidate them indirectly. Edited MIR is treated as potentially containing raw
 assembly memory writes, so source-only placement assumptions cannot protect
 plugin-created accesses. Phis must precede other instructions in each block.
 New or changed helper call annotations are checked against symbolic return-address

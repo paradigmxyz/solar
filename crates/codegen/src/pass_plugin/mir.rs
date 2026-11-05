@@ -138,6 +138,7 @@ impl MirPluginPass {
         for function in &mut candidate.functions {
             function.canonicalize_operands();
         }
+        clear_unverified_memory_proofs(&mut candidate);
         candidate.invalidate_lowered_check();
         candidate.backend_memory = None;
         // Plugin operations do not carry the source lowerer's memory-placement proof.
@@ -225,4 +226,90 @@ fn replace_value(
         }
     });
     Ok(())
+}
+
+/// Foreign edits can change an offset's producer or bypass its original bounds check without
+/// directly replacing the flagged instruction. Treat all retained memory proofs as unverified.
+fn clear_unverified_memory_proofs(module: &mut Module) {
+    for function in &mut module.functions {
+        let instructions = function.instructions().collect::<Vec<_>>();
+        for instruction in instructions {
+            function.inst_mut(instruction).metadata.clear_analysis_facts();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{
+        AllocationSemantics, FunctionBuilder, MemoryRegion, MirType, Value as MirValue,
+    };
+    use solar_interface::{Ident, Session};
+
+    #[test]
+    fn foreign_rewrites_drop_checked_offsets_and_dependent_proofs() {
+        let sess = Session::builder().with_test_emitter().build();
+        sess.enter_sequential(|| {
+            let mut function = mir::Function::new(Ident::from_str("offset"));
+            function.set_return_type(MirType::I256);
+            let mut builder = FunctionBuilder::new(&mut function);
+            let base = builder.add_param(MirType::I256);
+            let offset = builder.add_param(MirType::I256);
+            let replacement = builder.add_param(MirType::I256);
+            let sum = builder.add(base, offset);
+            let dependent = builder.add(sum, offset);
+            let size = builder.imm(32);
+            let allocation = builder.alloc(size, AllocationSemantics::INTERNAL);
+            builder.ret([dependent]);
+            let MirValue::Inst(add) = *function.value(sum) else { unreachable!() };
+            let MirValue::Inst(user) = *function.value(dependent) else { unreachable!() };
+            let MirValue::Inst(alloc) = *function.value(allocation) else { unreachable!() };
+            function.inst_mut(alloc).metadata.set_preserves_fmp(true);
+            function.inst_mut(alloc).metadata.set_deferred_alloc();
+            for instruction in [add, user] {
+                let metadata = &mut function.inst_mut(instruction).metadata;
+                metadata.set_checked_object_offset();
+                metadata.set_alloc_ptr(true);
+                metadata.set_disjoint(true);
+                metadata.set_memory_region(Some(MemoryRegion::Heap));
+                metadata.set_effect(Some(mir::EffectKind::Pure));
+                metadata.set_storage_alias(Some(mir::StorageAlias::Symbolic(base)));
+                metadata.mark_debug_info_dropped();
+            }
+            let debug = function.inst(add).metadata.debug_context();
+            let mut module = Module::new(Ident::from_str("M"));
+            let id = module.add_function(function);
+            apply_edit(
+                &mut module,
+                Edit::RewriteMirInstruction {
+                    function: id.index() as u32,
+                    instruction: add.index() as u32,
+                    operation: "add".into(),
+                    operands: vec![base.index() as u32, replacement.index() as u32],
+                },
+                &mut FxHashMap::default(),
+            )
+            .unwrap();
+            // The equivalent-rewrite API retains the original proof until the plugin boundary.
+            assert!(module.functions[id].inst(add).metadata.checked_object_offset());
+            clear_unverified_memory_proofs(&mut module);
+            for instruction in [add, user] {
+                let metadata = &module.functions[id].inst(instruction).metadata;
+                assert!(!metadata.checked_object_offset());
+                assert!(!metadata.alloc_ptr());
+                assert!(!metadata.disjoint());
+                assert_eq!(metadata.memory_region(), None);
+                assert_eq!(metadata.effect(), None);
+                assert_eq!(metadata.storage_alias(), None);
+                assert!(!metadata.preserves_fmp());
+                assert!(!metadata.deferred_alloc());
+            }
+            assert!(module.functions[id].inst(alloc).metadata.preserves_fmp());
+            assert!(module.functions[id].inst(alloc).metadata.deferred_alloc());
+            assert!(crate::mir::analysis::pointer_bases(&module.functions[id], sum, 0).is_empty());
+            let metadata = &module.functions[id].inst(add).metadata;
+            assert_eq!(metadata.debug_context(), debug);
+        });
+    }
 }
