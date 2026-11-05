@@ -22,6 +22,75 @@ pub const ABI_FINGERPRINT: [u8; 32] = __private::build_fingerprint(cfg!(panic = 
 pub trait Plugin: Sync {
     fn manifest(&self) -> Manifest;
     fn run(&self, request: &Request) -> Result<Response, String>;
+
+    /// Describes frontend extensions made available by this plugin.
+    fn frontend_manifest(&self) -> FrontendManifest {
+        FrontendManifest::default()
+    }
+
+    /// Expands a frontend invocation into host-allocated syntax.
+    fn expand(&self, _request: &ExpansionRequest) -> Result<Expansion, String> {
+        Err("unknown frontend extension".into())
+    }
+}
+
+/// Frontend extension registration, qualified by the plugin's manifest name.
+#[derive(Clone, Debug, Default)]
+pub struct FrontendManifest {
+    pub extensions: Vec<FrontendExtension>,
+}
+
+#[derive(Clone, Debug)]
+pub struct FrontendExtension {
+    pub name: String,
+    pub kind: ExtensionKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExtensionKind {
+    Expression,
+    Statement,
+}
+
+/// A source token's byte range is relative to the source file, with an exclusive end.
+#[derive(Clone, Debug)]
+pub struct FrontendToken {
+    pub text: String,
+    pub start: u32,
+    pub end: u32,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExpansionRequest {
+    pub name: String,
+    pub kind: ExtensionKind,
+    pub tokens: Vec<FrontendToken>,
+}
+
+/// Declarative syntax nodes. Inputs refer to parsed arguments or the parsed body; temporary
+/// variables are allocated by the compiler, so their names cannot collide with user names.
+#[derive(Clone, Debug)]
+pub enum Expansion {
+    Expression(ExpansionExpr),
+    Statement(ExpansionStmt),
+}
+
+#[derive(Clone, Debug)]
+pub enum ExpansionExpr {
+    Argument(u32),
+    Uint(String),
+    Binary { op: String, left: Box<Self>, right: Box<Self> },
+}
+
+#[derive(Clone, Debug)]
+pub enum ExpansionStmt {
+    Body,
+    Block(Vec<Self>),
+    /// Evaluate `count` once, then execute `body` that many times.
+    Repeat {
+        count: ExpansionExpr,
+        body: Box<Self>,
+    },
 }
 
 /// IR layer accepted by a pass.
@@ -332,6 +401,8 @@ macro_rules! export_plugin {
             static EXPORTS: $crate::__private::Exports = $crate::__private::Exports {
                 manifest: |respond| $crate::__private::manifest(&PLUGIN, respond),
                 run: |request, respond| $crate::__private::run(&PLUGIN, request, respond),
+                frontend_manifest: |respond| $crate::__private::frontend_manifest(&PLUGIN, respond),
+                expand: |request, respond| $crate::__private::expand(&PLUGIN, request, respond),
             };
             &EXPORTS
         }
@@ -352,6 +423,8 @@ pub mod __private {
     pub struct Exports {
         pub manifest: fn(&mut Receiver<'_, Manifest>),
         pub run: fn(&Request, &mut Receiver<'_, Response>),
+        pub frontend_manifest: fn(&mut Receiver<'_, FrontendManifest>),
+        pub expand: fn(&ExpansionRequest, &mut Receiver<'_, Expansion>),
     }
 
     pub const fn build_fingerprint(panic_unwind: bool) -> [u8; 32] {
@@ -364,6 +437,25 @@ pub mod __private {
     pub fn manifest<P: Plugin>(plugin: &P, respond: &mut Receiver<'_, Manifest>) {
         match catch_unwind(AssertUnwindSafe(|| plugin.manifest())) {
             Ok(manifest) => respond(Ok(&manifest)),
+            Err(_) => respond(Err("plugin panicked")),
+        }
+    }
+
+    pub fn frontend_manifest<P: Plugin>(plugin: &P, respond: &mut Receiver<'_, FrontendManifest>) {
+        match catch_unwind(AssertUnwindSafe(|| plugin.frontend_manifest())) {
+            Ok(manifest) => respond(Ok(&manifest)),
+            Err(_) => respond(Err("plugin panicked")),
+        }
+    }
+
+    pub fn expand<P: Plugin>(
+        plugin: &P,
+        request: &ExpansionRequest,
+        respond: &mut Receiver<'_, Expansion>,
+    ) {
+        match catch_unwind(AssertUnwindSafe(|| plugin.expand(request))) {
+            Ok(Ok(response)) => respond(Ok(&response)),
+            Ok(Err(error)) => respond(Err(&error)),
             Err(_) => respond(Err("plugin panicked")),
         }
     }
