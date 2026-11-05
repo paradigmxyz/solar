@@ -1,13 +1,15 @@
 //@ codegen-matrix: standard
 //@ run-call: plain => 0, 1, 2, 3, 7
-//@ run-call: staticArguments => 96, 1, 2, 3, 11
-//@ run-call: dynamicArguments => 192, 1, 2, 3, 99
+//@ run-call: staticArguments => 0, 1, 2, 3, 11
+//@ run-call: dynamicArguments => 0, 1, 2, 3, 99
 //@ run-call: salted => 0, 1, 2, 3, 7
+//@ run-call: saltedArguments => 0, 1, 2, 3, 11
 //@ run-call: repeated => 0, 7, 7
 
 // The initcode of `new C(...)` is staged at the free memory pointer without reserving it, as solc
-// does, and a constructor without arguments encodes nothing. Encoded arguments stay reserved. Memory
-// below the pointer stays intact, and the constructor sees its arguments.
+// does, and a constructor without arguments encodes nothing. Encoded arguments follow the initcode
+// at the pointer and are not reserved either. Memory below the pointer stays intact, and the
+// constructor sees its arguments.
 contract Plain {
     function value() external pure returns (uint256) {
         return 7;
@@ -62,8 +64,9 @@ contract CreateInputUnbumped {
 
     function dynamicArguments() external returns (uint256 moved, uint256, uint256, uint256, uint256 value) {
         uint256[] memory values = live();
+        bytes memory data = "abc";
         uint256 before = fmp();
-        Dynamic created = new Dynamic("abc", 96);
+        Dynamic created = new Dynamic(data, 96);
         moved = fmp() - before;
         return (moved, values[0], values[1], values[2], created.value());
     }
@@ -72,6 +75,14 @@ contract CreateInputUnbumped {
         uint256[] memory values = live();
         uint256 before = fmp();
         Plain created = new Plain{salt: bytes32(uint256(1))}();
+        moved = fmp() - before;
+        return (moved, values[0], values[1], values[2], created.value());
+    }
+
+    function saltedArguments() external returns (uint256 moved, uint256, uint256, uint256, uint256 value) {
+        uint256[] memory values = live();
+        uint256 before = fmp();
+        Arguments created = new Arguments{salt: bytes32(uint256(1))}(5, 6);
         moved = fmp() - before;
         return (moved, values[0], values[1], values[2], created.value());
     }

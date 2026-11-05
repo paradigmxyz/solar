@@ -8,7 +8,7 @@ use crate::{
             assembly::DeferredAlloc,
         },
         evm::{
-            DebugFunction, DebugFunctionExit,
+            DebugFunction, DebugFunctionExit, DebugSpans,
             op::{self, push_len},
         },
     },
@@ -17,6 +17,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
@@ -84,12 +85,57 @@ impl<'gcx> Assembler<'gcx> {
         self.program.track_debug_info();
         self.current_source_spans.clear();
         self.current_source_spans.extend(spans.into_iter().filter(|span| !span.is_dummy()));
+        self.current_debug_loc_kind = DebugLocKind::Normal;
+    }
+
+    /// Sets why subsequently emitted operations have no source origin, after the origins.
+    pub(crate) fn set_debug_loc_kind(&mut self, kind: DebugLocKind) {
+        self.current_debug_loc_kind = kind;
     }
 
     /// Sets the legacy source-map modifier nesting depth attached to new operations.
     pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
         self.program.track_debug_info();
         self.current_modifier_depth = depth;
+    }
+
+    /// Returns the source origins, location kind and modifier depth attached to new operations.
+    pub(crate) fn debug_origin(&self) -> (DebugSpans, DebugLocKind, u32) {
+        (
+            self.current_source_spans.clone(),
+            self.current_debug_loc_kind,
+            self.current_modifier_depth,
+        )
+    }
+
+    /// Restores the origins returned by [`Self::debug_origin`].
+    pub(crate) fn set_debug_origin(
+        &mut self,
+        (spans, kind, depth): (DebugSpans, DebugLocKind, u32),
+    ) {
+        self.current_source_spans = spans;
+        self.current_debug_loc_kind = kind;
+        self.current_modifier_depth = depth;
+    }
+
+    /// Attributes the jump to the next block, which ends the current block without an opcode, to
+    /// the current source origins.
+    ///
+    /// Like LLVM's instruction selection, which emits no branch for a fallthrough
+    /// (`SelectionDAGBuilder::visitBr`) and gives a branch that layout later needs the location
+    /// of the block's branch (`MachineBasicBlock::updateTerminator`, `findBranchDebugLoc`), the
+    /// jump keeps its own origins and nothing else receives them.
+    // NOTE: Without an open block nothing implements the jump, so its origins are dropped. Opening
+    // one would add an empty block, and debug information must not change the IR. An empty block
+    // is a thunk that `cfg-simplify` removes with its jump, as LLVM's
+    // `TryToSimplifyUncondBranchFromEmptyBlock` does, so it records nothing either.
+    pub(crate) fn mark_fallthrough(&mut self) {
+        if let Some(block) = self.current_block
+            && !self.program.blocks[block].instructions.is_empty()
+        {
+            self.fallthrough_origins
+                .insert(block, (self.current_source_spans.clone(), self.current_modifier_depth));
+        }
     }
 
     /// Marks the current block as entering a source-language function.
@@ -359,6 +405,7 @@ impl<'gcx> Assembler<'gcx> {
         let block = self.current_block.take().expect("indexed jump requires a current block");
         let mut metadata = ir::Metadata::default();
         metadata.set_source_spans(self.current_source_spans.iter().copied());
+        metadata.set_debug_loc_kind(self.current_debug_loc_kind);
         metadata.set_modifier_depth(self.current_modifier_depth);
         self.indexed_jump_relocations.push((block, targets, metadata));
         self.debug_assert_dataflow_relocations_sorted();
@@ -433,6 +480,13 @@ impl<'gcx> Assembler<'gcx> {
         self.program.blocks[block].metadata.call_effect = Some(call_effect);
     }
 
+    /// Defines the entry label of an external function, which the runtime dispatch jumps to.
+    pub(crate) fn define_external_entry_label(&mut self, label: Label) {
+        self.define_label(label);
+        let block = self.label_blocks[&label];
+        self.program.blocks[block].metadata.external_entry = true;
+    }
+
     /// Defines a hidden internal-call return label. The callee consumes its address with `JUMP`;
     /// MIR values cannot inspect the hidden word or observe the label's numeric identity.
     pub(crate) fn define_continuation_label(&mut self, label: Label) {
@@ -484,6 +538,7 @@ impl<'gcx> Assembler<'gcx> {
 
     fn push_ir_instruction(&mut self, mut instruction: ir::Instruction) -> (ir::BlockId, usize) {
         instruction.metadata.set_source_spans(self.current_source_spans.iter().copied());
+        instruction.metadata.set_debug_loc_kind(self.current_debug_loc_kind);
         instruction.metadata.set_modifier_depth(self.current_modifier_depth);
         let (block, index) = self.next_instruction_position();
         self.program.blocks[block].instructions.push(instruction);
@@ -612,12 +667,17 @@ impl<'gcx> Assembler<'gcx> {
             {
                 (ir::Terminator::new(ir::TerminatorKind::Op(last.opcode)), 1, last.metadata.clone())
             } else {
+                let mut metadata = ir::Metadata::default();
+                if let Some((spans, depth)) = self.fallthrough_origins.remove(&block_id) {
+                    metadata.set_source_spans(spans);
+                    metadata.set_modifier_depth(depth);
+                }
                 (
                     next.map_or_else(ir::Terminator::implicit_stop, |target| {
                         ir::Terminator::new(ir::TerminatorKind::Jump(target))
                     }),
                     0,
-                    ir::Metadata::default(),
+                    metadata,
                 )
             };
             block.instructions.truncate(block.instructions.len() - remove);

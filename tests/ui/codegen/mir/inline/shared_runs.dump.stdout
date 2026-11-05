@@ -131,25 +131,27 @@ fn @decode_aggregate(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v5 = mload arg0
     v7 = add v5, arg0
     v10 = add v7, 32
-    v11 = gt v5, 0xffffffffffffffff
+    v48 = shr v5, 64
     v12 = lt v3, v10
-    v13 = or v11, v12
+    v50 = zext i1 v12 to i256
+    v51 = or v48, v50
+    v13 = ne v51, 0
     jumpi v13, bb1, bb3
   bb3:                                            ; preds = bb2
     v15 = mload v7
-    v47 = add v15, 63
-    v19 = and v47, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v46 = add v15, 63
+    v19 = and v46, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v20 = lt v19, v15
     jumpi v20, bb4, bb5
   bb5:                                            ; preds = bb3
     v39 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v40 = add v39, v19 !metadata(alloc_ptr)
+    v53 = shr v40, 64
     v41 = lt v40, v39
-    v42 = zext i1 v41 to i256
-    v43 = shr v40, 64
-    v44 = or v43, v42
-    v45 = ne v44, 0
-    jumpi v45, bb4, bb7
+    v55 = zext i1 v41 to i256
+    v56 = or v53, v55
+    v43 = ne v56, 0
+    jumpi v43, bb4, bb7
   bb7:                                            ; preds = bb5
     mstore 64, v40 !metadata(memory=scratch)
     mstore v39, v15
@@ -161,9 +163,9 @@ fn @decode_aggregate(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     mcopy v34, v10, v15
     v31 = sub 0, v15
     v32 = and v31, 31
-    v46 = calldatasize
+    v45 = calldatasize
     v35 = add v34, v15
-    calldatacopy v35, v46, v32
+    calldatacopy v35, v45, v32
     ret v39
   bb4 [cold]:                                     ; preds = bb3, bb5
     mstore 32, 65 !metadata(memory=scratch)

@@ -22,6 +22,7 @@ use crate::{
     backend::assembler::{
         ArtifactKind, AssembledCode, Assembler, DeferredAlloc, DeferredConst, ImmutableRef, Label,
     },
+    debugify::Origins,
     link::{EmbeddedBytecodes, LibraryRelocation, Trailer},
     mir::{
         ArgIdx, BackendMemory, BlockId, Function, FunctionId, ImmutableEncoding, ImmutableId,
@@ -45,6 +46,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
 };
+use solar_interface::Span;
 use solar_sema::Gcx;
 
 mod stack;
@@ -155,6 +157,10 @@ pub struct EvmCodegen<'gcx> {
     capture_evm_ir: bool,
     capture_scheduled_evm_ir: bool,
     capture_debug_info: bool,
+    /// The span of the contract definition, which backend code without a MIR instruction of its
+    /// own is attributed to.
+    contract_span: Option<Span>,
+    display_debug_info: bool,
     /// Whether the MIR pipeline runs before code generation; MIR input has already run it.
     run_pipeline: bool,
     /// MIR sites of deferred runtime allocations, retained only when capturing MIR.
@@ -222,6 +228,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             capture_evm_ir: false,
             capture_scheduled_evm_ir: false,
             capture_debug_info: false,
+            contract_span: None,
+            display_debug_info: false,
             run_pipeline: true,
             allocation_sites: FxHashMap::default(),
             return_buffer_sites: FxHashMap::default(),
@@ -346,7 +354,30 @@ impl<'gcx> EvmCodegen<'gcx> {
 
     /// Controls whether generated artifacts include final instruction locations.
     pub fn set_capture_debug_info(&mut self, capture: bool) {
-        self.capture_debug_info = capture;
+        self.capture_debug_info = capture || crate::debugify::enabled(self.gcx);
+        self.display_debug_info = capture;
+    }
+
+    /// Sets the span of the contract definition, the origin of the code that no MIR instruction
+    /// owns.
+    pub fn set_contract_span(&mut self, span: Span) {
+        self.contract_span = Some(span);
+    }
+
+    /// Emits code that no MIR instruction owns under the origin of the contract definition.
+    ///
+    /// solc compiles the free memory pointer setup, and the code that wraps the constructor and the
+    /// runtime, in the `LocationSetter` of the contract (`ContractCompiler::compileContract` and
+    /// `compileConstructor`), so each instruction maps to the contract's range.
+    pub(super) fn emit_with_contract_origin(&mut self, emit: impl FnOnce(&mut Self)) {
+        let Some(span) = self.contract_span.filter(|_| self.capture_debug_info) else {
+            return emit(self);
+        };
+        let origin = self.asm.debug_origin();
+        self.asm.set_source_span(Some(span));
+        self.asm.set_modifier_depth(0);
+        emit(self);
+        self.asm.set_debug_origin(origin);
     }
 
     /// Controls whether modules without an external entry still run the MIR pipeline.
@@ -378,6 +409,9 @@ struct PendingRuntime {
     backend_memory: Option<BackendMemory>,
     /// The runtime EVM IR as stack scheduling emitted it, when captured.
     scheduled_evm_ir: Option<ir::Module>,
+    /// The origins of the MIR that stack scheduling consumed, and of the runtime EVM IR it
+    /// emitted, when auditing.
+    audit: Option<(Origins, Origins)>,
 }
 
 /// The artifact produced by the EVM backend.

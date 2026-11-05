@@ -208,7 +208,7 @@
     bb0:
       v0 = trunc i256 arg0 to i160
 -     v1 = eq v0, i160 0
--     v2 = ne i160 0, v0
+-     v2 = ne v0, i160 0
 +     v1 = eq arg0, 0
 +     v2 = ne arg0, 0
       v3 = select v1, v1, v2
@@ -219,7 +219,7 @@
     bb0:
       v0 = trunc i256 arg0 to i160
       v1 = eq v0, i160 0
-      v2 = ne i160 0, v0
+      v2 = ne v0, i160 0
       v3 = select v1, v1, v2
       ret v3
   }

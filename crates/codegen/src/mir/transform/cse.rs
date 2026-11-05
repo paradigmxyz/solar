@@ -23,15 +23,14 @@
 //! ```
 //!
 //! The pass performs dominator-tree CSE with path-local invalidation for
-//! alias-sensitive memory/storage reads, then runs a local cleanup pass. Cheap environment
-//! reads such as `calldatasize` and `caller` stay separate, since rereading costs less than a
-//! stack copy, but they key as one operand, so the bound checks and other non-cast
-//! expressions computed from different reads of the same word are shared. Slot hashes
-//! also write scratch memory; a repeated fixed-width hash can disappear only while
-//! its input and written ranges remain unchanged. Variable-width hashes can overwrite
-//! their source or the FMP itself, so they remain effectful until physical lowering. Check
-//! availability before applying the retained instruction's clobbers so an identical write does not
-//! invalidate itself.
+//! alias-sensitive memory/storage reads, then runs a local cleanup pass. Environment reads
+//! such as `calldatasize` and `caller` that are fixed for the call frame merge like any other
+//! expression; the backend rereads a cheap one at each use instead of copying a long-lived
+//! stack value. Slot hashes also write scratch memory; a repeated fixed-width hash can
+//! disappear only while its input and written ranges remain unchanged. Variable-width hashes can
+//! overwrite their source or the FMP itself, so they remain effectful until physical lowering.
+//! Check availability before applying the retained instruction's clobbers so an identical write
+//! does not invalidate itself.
 //!
 //! Loads at the base of a constant-size allocation stay local unless the cached value already
 //! crosses the block edge.
@@ -278,6 +277,9 @@ enum ExprKey {
     BlockHash(OperandKey),
     Balance(OperandKey),
     SelfBalance,
+    /// A nullary read that returns the same word throughout the call, such as `calldatasize` or
+    /// `caller`, keyed by its mnemonic.
+    FrameRead(&'static str),
     BlobHash(OperandKey),
     LoadImmutable(ImmutableId),
     Cast(CastKey, OperandKey, Option<MirType>),
@@ -293,15 +295,12 @@ enum CastKey {
     IntToPtr,
 }
 
-/// Derived order: immediates, then values by index, then frame constants, so that a commutative
-/// expression puts its constant operand first.
+/// Derived order: immediates, then values by index, so that a commutative expression puts its
+/// constant operand first.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum OperandKey {
     Immediate(Immediate),
     Value(ValueId),
-    /// A read that returns the same word throughout the call, such as `calldatasize` or
-    /// `caller`, keyed by its kind so that expressions over different reads match.
-    FrameConstant(&'static str),
 }
 
 /// Words of one `memory_zero` that seed the cache with zero, bounding the entries a large fill
@@ -586,10 +585,14 @@ impl CommonSubexprEliminator {
         let mut inserted_by_block = FxHashMap::<BlockId, usize>::default();
 
         for candidate in candidates {
-            let (new_inst, new_value) = func.alloc_value_inst(
-                Instruction::new(candidate.kind, Some(candidate.result_ty))
-                    .with_debug_info_dropped(),
-            );
+            // The sunk expression runs exactly when one of the incoming expressions would have,
+            // so it is shared code carrying the union of their origins.
+            let mut sunk = Instruction::new(candidate.kind, Some(candidate.result_ty));
+            sunk.metadata.copy_debug_context(&func.inst(candidate.incoming[0].1).metadata);
+            for &(_, other) in &candidate.incoming[1..] {
+                sunk.metadata.merge_debug_context(&func.inst(other).metadata);
+            }
+            let (new_inst, new_value) = func.alloc_value_inst(sunk);
 
             let phi_count = func.block_phi_count(candidate.block_id);
             let inserted = inserted_by_block.entry(candidate.block_id).or_default();
@@ -648,8 +651,8 @@ impl CommonSubexprEliminator {
                 return None;
             }
             expected_key = Some(key);
-            // Equal keys may still name different operands, such as two reads of one frame
-            // constant, so clone an incoming expression whose operands exist after the phis.
+            // Equal keys may still name different operands, such as `x + 4 + 32` and `x + 36`,
+            // so clone an incoming expression whose operands exist after the phis.
             if candidate_kind.is_none()
                 && Self::operands_available_after_phis(
                     func,
@@ -1219,16 +1222,7 @@ impl CommonSubexprEliminator {
         // Helper to get canonical operands after in-block replacements.
         let operand = |v: ValueId| Self::operand_key(func, v, replacements);
         let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
-        // A cast costs nothing, so sharing one over a frame constant would only trade a cheap
-        // reread for a stack copy: casts key each read separately.
-        let cast = |cast, v| {
-            let v = value(v);
-            let operand = match func.value(v) {
-                Value::Immediate(_) => operand(v),
-                _ => OperandKey::Value(v),
-            };
-            Some(ExprKey::Cast(cast, operand, func.inst(inst_id).result_ty))
-        };
+        let cast = |cast, v| Some(ExprKey::Cast(cast, operand(v), func.inst(inst_id).result_ty));
 
         match &*kind.less_than_form() {
             // A pure leaf call depends on its arguments alone, so no side effect invalidates it.
@@ -1367,6 +1361,7 @@ impl CommonSubexprEliminator {
             }
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
+            _ if let Some(mnemonic) = frame_read_key(kind) => Some(ExprKey::FrameRead(mnemonic)),
 
             InstKind::Zext(a) => cast(CastKey::Zext, *a),
             InstKind::Trunc(a, _) => cast(CastKey::Trunc, *a),
@@ -1375,7 +1370,6 @@ impl CommonSubexprEliminator {
             InstKind::IntToPtr(a) => cast(CastKey::IntToPtr, *a),
 
             // Don't cache these:
-            // - Cheap nullary reads usually cost less than their extra stack lifetime
             // - Memory size/gas/returndata-size reads can change inside a block
             // - Storage writes - side effects
             // - Phi nodes - not expressions
@@ -1651,9 +1645,6 @@ impl CommonSubexprEliminator {
         let value = mir_utils::resolve_replacement(value, replacements);
         match func.value(value) {
             Value::Immediate(imm) => OperandKey::Immediate(imm.clone()),
-            Value::Inst(inst) if let Some(key) = frame_constant_key(&func.inst(*inst).kind) => {
-                OperandKey::FrameConstant(key)
-            }
             _ => OperandKey::Value(value),
         }
     }
@@ -1730,12 +1721,12 @@ fn is_frame_function_of_arguments(kind: &InstKind) -> bool {
         kind.effect_kind(),
         EffectKind::Pure | EffectKind::MemoryRead | EffectKind::MemoryWrite
     );
-    (local && !reads_returndata) || reads_calldata || frame_constant_key(kind).is_some()
+    (local && !reads_returndata) || reads_calldata || frame_read_key(kind).is_some()
 }
 
 /// A key for an environment read whose word is fixed for the whole call frame: a nullary
 /// environment read the schema marks rematerializable, keyed by its mnemonic.
-fn frame_constant_key(kind: &InstKind) -> Option<&'static str> {
+fn frame_read_key(kind: &InstKind) -> Option<&'static str> {
     let definition = kind.op_def();
     (definition.effect == EffectKind::EnvironmentRead
         && definition.traits.contains(OpTraits::REMATERIALIZABLE)

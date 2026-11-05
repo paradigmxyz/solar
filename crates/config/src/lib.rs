@@ -624,6 +624,19 @@ fn get_threads() -> NonZeroUsize {
     *THREADS.get_or_init(|| std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN))
 }
 
+str_enum! {
+    /// Audits source debug information around compiler passes.
+    #[strum(serialize_all = "kebab-case")]
+    pub enum Debugify {
+        /// Report instructions without a location and lost source origins without rejecting the
+        /// compilation.
+        Report,
+        /// Reject a pass that leaves an instruction without a location, for focused metadata
+        /// tests.
+        Check,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

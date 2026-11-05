@@ -122,12 +122,12 @@ fn @liveTry() -> i256 [selector=0xc2e69a83, abi_params=[], abi_returns=[word], a
     v5 = zext i160 v2 to i256
     v6 = call v4, v5, 0, 28, 4, 0, 0
     jumpi v6, bb3, bb4
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jumpi true, bb6, bb7
-  bb7:                                            ; preds = bb4
+  bb7 [cold_hint]:                                ; preds = bb4
     icall revert_if<empty>, true
     invalid
-  bb6:                                            ; preds = bb4
+  bb6 [cold_hint]:                                ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
     v7 = returndatasize
@@ -335,12 +335,12 @@ fn @noCodeTry() -> i256 [selector=0x1908ad35, abi_params=[], abi_returns=[word],
     mstore 0, 0x7271bb2c !metadata(memory=scratch)
     v1 = call v0, 0, 0, 28, 4, 0, 0
     jumpi v1, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
     v2 = returndatasize

@@ -1,0 +1,24 @@
+//@ compile-flags: -Zmir-pipeline=lower-slices -Zdebugify=check
+// A slice select and a slice phi become two word operations. They retain their own origins.
+// The predecessor projections of the phi have no join checkpoint: their other edge can skip it.
+@module DebugSliceSplitting
+fn @select(arg0: slice<calldata>, arg1: slice<calldata>, arg2: i1) -> i256 {
+  bb0:
+    v0 = select arg2, arg0, arg1 !metadata(span=10..20)
+    v1 = extract_value slice<calldata>, v0, 1
+    ret v1
+}
+fn @phi(arg0: slice<calldata>, arg1: slice<calldata>, arg2: i1) -> i256 {
+  bb0:
+    jumpi arg2, bb1, bb2
+  bb1:
+    jumpi arg2, bb3, bb4
+  bb2:
+    jump bb3
+  bb3:
+    v0 = phi [bb1: arg0], [bb2: arg1] !metadata(span=30..40)
+    v1 = extract_value slice<calldata>, v0, 1
+    ret v1
+  bb4:
+    ret 0
+}

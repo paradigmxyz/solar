@@ -15,7 +15,8 @@
 //! Reading the header at the call site preserves forwarding from preceding storage writes.
 //! Loads derive each word's address from the index in every mode: carrying the address through the
 //! loop as a second phi measured 2,457 runtime bytes larger over the benchmark corpus. The loop
-//! counts words independently of address wraparound.
+//! counts words independently of address wraparound. The ABI and packed encoders reuse the word
+//! loop to copy storage bytes straight into their output.
 
 use crate::mir::{
     AllocationSemantics, Function, FunctionBuilder, FunctionId, MirType, Module, PanicCode, ValueId,
@@ -42,40 +43,65 @@ pub(super) fn load(builder: &mut FunctionBuilder<'_>, slot: ValueId) -> ValueId 
     // branch is_long, long, short
     let header = builder.sload(slot);
     let (is_long, length) = validate(builder, header);
+    let words = word_count(builder, length);
+    let object = builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+    // store_word(object, offset, word) for each data word
+    read_words(builder, slot, header, is_long, words, |builder, offset, word| {
+        builder.memory_store_word(object, offset, word);
+    });
+    object
+}
+
+/// Returns the number of data words of `length` bytes.
+pub(super) fn word_count(builder: &mut FunctionBuilder<'_>, length: ValueId) -> ValueId {
+    // words = (length + 31) / 32
     let thirty_two = builder.imm(32);
     let thirty_one = builder.imm(31);
     let rounded = builder.add(length, thirty_one);
-    let words = builder.div(rounded, thirty_two);
-    let object = builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
+    builder.div(rounded, thirty_two)
+}
 
+/// Reads the `words` data words of the storage bytes at `slot`, whose validated `header` and
+/// `is_long` flag the caller holds, and passes each word with its byte offset to `store`. Every
+/// word is whole, so a destination that takes them all holds the zero padding of the last one.
+/// Encoders share this loop with [`load`] to write storage bytes straight into their output.
+pub(super) fn read_words(
+    builder: &mut FunctionBuilder<'_>,
+    slot: ValueId,
+    header: ValueId,
+    is_long: ValueId,
+    words: ValueId,
+    mut store: impl FnMut(&mut FunctionBuilder<'_>, ValueId, ValueId),
+) {
+    // branch is_long, long, short
+    let thirty_two = builder.imm(32);
     let short_block = builder.create_block();
     let long_block = builder.create_block();
     let merge_block = builder.create_block();
     builder.branch(is_long, long_block, short_block);
 
-    // short: store_word(object, 0, header & ~0xff); jump merge
+    // short: store(0, header & ~0xff); jump merge
     builder.switch_to_block(short_block);
     let zero = builder.imm(0);
     let short_mask = builder.imm(U256::MAX << 8);
     let short_data = builder.and(header, short_mask);
-    builder.memory_store_word(object, zero, short_data);
+    store(builder, zero, short_data);
     builder.jump(merge_block);
 
     // long: data_slot = storage_array_data_slot(slot)
     builder.switch_to_block(long_block);
     let data_slot = builder.storage_array_data_slot(slot);
-    // for index < words { store_word(object, index * 32, sload(data_slot + index)) }
+    // for index < words { store(index * 32, sload(data_slot + index)) }
     // jump merge
     builder.counted_loop(words, |builder, index| {
         let element_slot = builder.add(data_slot, index);
         let value = builder.sload(element_slot);
         let byte_offset = builder.mul(index, thirty_two);
-        builder.memory_store_word(object, byte_offset, value);
+        store(builder, byte_offset, value);
     });
     builder.jump(merge_block);
 
     builder.switch_to_block(merge_block);
-    object
 }
 
 pub(super) fn clear_words(

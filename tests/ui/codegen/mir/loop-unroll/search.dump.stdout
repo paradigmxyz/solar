@@ -18,13 +18,12 @@ fn @entry() [entry] {
     v114 = calldataload 36
     switch v7, default bb1, [0x867025b4 => bb3, 0xb77153be => bb4, 0xc77230d0 => bb5]
   bb5:                                            ; preds = bb2
-    v50 = calldatasize
     v53 = add v113, 4
-    v54 = sub v50, 36
+    v54 = sub v1, 36
     v55 = lt v54, v113
     v63 = calldataload v53
     v64 = add v53, 32
-    v65 = sub v50, v64
+    v65 = sub v1, v64
     v66 = shr v65, 5
     v67 = lt v66, v63
     v112 = or v55, v67
@@ -71,13 +70,12 @@ fn @entry() [entry] {
     mstore 0, v75
     returndata 0, 32
   bb4:                                            ; preds = bb2
-    v29 = calldatasize
     v32 = add v113, 4
-    v33 = sub v29, 36
+    v33 = sub v1, 36
     v34 = lt v33, v113
     v43 = calldataload v32
     v44 = add v32, 32
-    v45 = sub v29, v44
+    v45 = sub v1, v44
     v46 = shr v45, 5
     v47 = lt v46, v43
     v111 = or v34, v47
@@ -104,13 +102,12 @@ fn @entry() [entry] {
     mstore 0, v35
     returndata 0, 32
   bb3:                                            ; preds = bb2
-    v8 = calldatasize
     v11 = add v113, 4
-    v12 = sub v8, 36
+    v12 = sub v1, 36
     v13 = lt v12, v113
     v22 = calldataload v11
     v23 = add v11, 32
-    v24 = sub v8, v23
+    v24 = sub v1, v23
     v25 = shr v24, 5
     v26 = lt v25, v22
     v110 = or v13, v26

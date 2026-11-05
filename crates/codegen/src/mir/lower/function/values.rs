@@ -82,7 +82,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let value = self.lower_typed_expr(expr, ty)?;
             let value = if ty.is_ref_at(DataLocation::Memory) {
-                self.materialize_memory_argument(ty, value, expr.span)?
+                self.materialize_memory_copy(ty, value, expr.span)?
             } else {
                 value
             };
@@ -105,7 +105,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         let span = value.span;
                         let value = self.lower_typed_expr(value, ty)?;
                         if ty.is_ref_at(DataLocation::Memory) {
-                            self.materialize_memory_argument(ty, value, span)
+                            self.materialize_memory_copy(ty, value, span)
                         } else {
                             Some(value)
                         }
@@ -173,7 +173,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.load_storage_object(target_ty, value, span);
         }
         let value = if target_ty.is_ref_at(DataLocation::Memory) {
-            self.materialize_memory_argument(target_ty, value, span)?
+            self.materialize_memory_copy(target_ty, value, span)?
         } else {
             value
         };
@@ -323,7 +323,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let source_ty = source_ty.unwrap_or(target_ty);
         let value = if target_ty.is_ref_at(DataLocation::Memory) {
-            self.materialize_memory_argument(target_ty, value, span)?
+            self.materialize_memory_copy(target_ty, value, span)?
         } else {
             value
         };

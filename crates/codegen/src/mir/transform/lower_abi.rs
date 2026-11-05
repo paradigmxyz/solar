@@ -66,6 +66,8 @@
 //! both typed word stores and their data-pointer/store form qualify. A single `abi_encode`
 //! of up to two constant words uses the same path while the encoding is still opaque. Other
 //! instructions, allocation policies, and literals longer than two words keep the general encoder.
+//! Fixed-buffer length and payload stores keep their value producer's source context; the outer
+//! ABI offset and return retain the return statement's context.
 //!
 //! The `fallback(bytes calldata) returns (bytes memory)` form is a separate
 //! raw-data boundary: it gets an argument-free dispatch wrapper and an
@@ -108,8 +110,8 @@ use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
     AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, CalldataTail, Callee,
     EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, InstId,
-    InstKind, Instruction, MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module,
-    PtrLocation, RevertReason, Terminator, Value, ValueId, ValueLayout,
+    InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectLayout, MirPhase,
+    MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId, ValueLayout,
     analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase, integers::integer_mask},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -221,6 +223,8 @@ struct StaticBytesReturn {
     len: u64,
     word: U256,
     tail: Option<U256>,
+    /// Length and two payload word contexts, in emitted order.
+    debug: [InstructionMetadata; 3],
 }
 
 impl DecodeOptions<'_> {
@@ -695,6 +699,8 @@ impl LowerAbiCx {
                     let layout = layout.clone();
                     let data = crate::mir::utils::resolve_replacement(*data, &replacements);
                     let result = builder.func().inst_result_value(inst);
+                    let debug = builder.func().inst(inst).metadata.debug_context();
+                    builder.set_debug_context(&debug);
                     let calldata =
                         builder.func().value_slice_location(data) == Some(PtrLocation::Calldata);
                     let values = if calldata {
@@ -951,11 +957,9 @@ impl LowerAbiCx {
             && original.abi_params.as_ref().is_some_and(|layout| {
                 layout.types.iter().filter(|ty| ty.is_dynamic()).count() >= 3
             });
-        let original_entry_inst = original.blocks[BlockId::ENTRY].instructions.first().copied();
         let call_body = !keep_external_body
             && needs_body
-            && Self::can_call_body(&original, original.abi_params.as_ref())
-            && original_entry_inst.is_some();
+            && Self::can_call_body(&original, original.abi_params.as_ref());
         let abi_params = Self::input_layout(&original);
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
@@ -981,7 +985,7 @@ impl LowerAbiCx {
             Self::bool_params_as_words(module.function_mut(body_id), &word_params);
         }
 
-        let logical_values =
+        let (logical_values, entry) =
             self.inject_abi_prologue(module.function_mut(wrapper_id), abi_params.as_ref(), false);
         // A wrapper that keeps its body in place returns values computed from these
         // decoded parameters; one that calls the body returns the call's results instead.
@@ -990,7 +994,7 @@ impl LowerAbiCx {
             Self::replace_body_with_call(
                 module.function_mut(wrapper_id),
                 body_id.expect("body clone for a calling wrapper"),
-                original_entry_inst.expect("calling wrapper has an entry instruction"),
+                entry,
                 original.return_components(),
                 logical_values.into_iter().map(Option::unwrap).collect(),
                 &word_params,
@@ -1010,6 +1014,7 @@ impl LowerAbiCx {
                 let aggregate = *aggregate;
                 let mut builder = FunctionBuilder::new(wrapper);
                 builder.switch_to_block(block);
+                builder.inherit_terminator_debug_context(block);
                 // field0 = extract_value result, 0
                 // ...
                 // ret field0, ...
@@ -1201,18 +1206,11 @@ impl LowerAbiCx {
     fn replace_body_with_call(
         func: &mut Function,
         body_id: FunctionId,
-        original_entry_inst: InstId,
+        block: BlockId,
         return_types: &[MirType],
         args: Vec<ValueId>,
         word_params: &[ArgIdx],
     ) {
-        let Some(block) = func
-            .blocks
-            .indices()
-            .find(|&block| func.blocks[block].instructions.first() == Some(&original_entry_inst))
-        else {
-            return;
-        };
         // body(args) -> icall body_id, args; return results
         func.blocks[block].instructions.clear();
         crate::mir::utils::replace_terminator(func, block, Terminator::Invalid);
@@ -1307,13 +1305,13 @@ impl LowerAbiCx {
         func: &mut Function,
         abi_params: Option<&AbiParamLayout>,
         constructor: bool,
-    ) -> Vec<Option<ValueId>> {
+    ) -> (Vec<Option<ValueId>>, BlockId) {
         let arg_types: Vec<_> = func.params.iter().copied().collect();
         if !constructor
             && arg_types.is_empty()
             && abi_params.is_none_or(|layout| layout.types.is_empty())
         {
-            return Vec::new();
+            return (Vec::new(), BlockId::ENTRY);
         }
 
         let old_entry = BlockId::ENTRY;
@@ -1376,9 +1374,9 @@ impl LowerAbiCx {
                     logical_values[index] = Some(word);
                 }
                 let Some(validator) = validator else { continue };
-                let valid = validator.condition_once(&mut builder, word);
+                let invalid = validator.violation(&mut builder, word);
                 let next = builder.create_block();
-                builder.branch(valid, next, validator_revert);
+                builder.branch(invalid, validator_revert, next);
                 current = next;
             }
 
@@ -1529,8 +1527,8 @@ impl LowerAbiCx {
         let order = std::iter::once(guard)
             .chain(func.blocks.indices().filter(|&block| block != guard))
             .collect::<Vec<_>>();
-        crate::mir::utils::remap_block_order(func, &order);
-        logical_values
+        let remap = crate::mir::utils::remap_block_order(func, &order);
+        (logical_values, remap[old_entry])
     }
 
     /// Validates the immediate ABI shape of a dynamic aggregate without
@@ -1900,7 +1898,7 @@ impl LowerAbiCx {
             // next = or folded, (load cursor)
             // next_cursor = add cursor, 32
             // jumpi (lt next_cursor, end), body, validate
-            // validate: revert_if_zero (valid next)
+            // validate: revert_if (invalid next)
             // jump done
             let zero = builder.imm(0);
             let start = builder.create_block();
@@ -2141,9 +2139,8 @@ impl LowerAbiCx {
         location: PtrLocation,
     ) -> ValueId {
         builder.switch_to_block(*current);
-        let mut valid = builder.imm(1);
-        let value = Self::decode_static_value(builder, ty, head, &mut valid, location);
-        let invalid = builder.eq_zero(valid);
+        let mut invalid = builder.imm_bool(false);
+        let value = Self::decode_static_value(builder, ty, head, &mut invalid, location);
         *current = builder.revert_if(invalid, RevertReason::Empty);
         value
     }
@@ -2152,13 +2149,13 @@ impl LowerAbiCx {
         builder: &mut FunctionBuilder<'_>,
         ty: &AbiParamType,
         head: ValueId,
-        valid: &mut ValueId,
+        invalid: &mut ValueId,
         location: PtrLocation,
     ) -> ValueId {
         if let Some(validator) = ty.word_validator() {
             let value = builder.load(head, location);
-            let condition = validator.condition(builder, value);
-            *valid = builder.and(*valid, condition);
+            let violation = validator.violation(builder, value);
+            *invalid = builder.or(*invalid, violation);
             return Self::normalize_abi_word(builder, ty, value);
         }
         if matches!(ty, AbiParamType::Scalar(_)) {
@@ -2587,8 +2584,8 @@ impl LowerAbiCx {
         value: ValueId,
         validator: AbiWordValidator,
     ) {
-        let valid = validator.condition(builder, value);
-        builder.revert_if_zero(valid, RevertReason::Empty);
+        let invalid = validator.violation(builder, value);
+        builder.revert_if(invalid, RevertReason::Empty);
     }
 
     /// Prepends `if callvalue() != 0 { revert(0, 0) }` to an external entry.
@@ -3829,8 +3826,9 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     let Some(Terminator::Return { values }) = &block.terminator else { return None };
     let [object] = values.as_slice() else { return None };
     if let [encode] = block.instructions.as_slice()
-        && let InstKind::AbiEncode { mode: AbiEncodeMode::Bytes, selector: None, args, layout } =
-            &func.inst(*encode).kind
+        && let InstKind::AbiEncode {
+            mode: AbiEncodeMode::Bytes, selector: None, args, layout, ..
+        } = &func.inst(*encode).kind
         && func.inst_result_value(*encode) == Some(*object)
         && args.len() == layout.types.len()
         && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(None)))
@@ -3841,7 +3839,13 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
             [word, tail] => (func.value_u256(*word)?, Some(func.value_u256(*tail)?)),
             _ => return None,
         };
-        return Some(StaticBytesReturn { len: args.len() as u64 * 32, word, tail });
+        let context = func.inst(*encode).metadata.debug_context();
+        return Some(StaticBytesReturn {
+            len: args.len() as u64 * 32,
+            word,
+            tail,
+            debug: [context.clone(), context.clone(), context],
+        });
     }
     let [alloc, initialization @ ..] = block.instructions.as_slice() else { return None };
     if !matches!(func.value(*object), Value::Inst(inst) if inst == alloc) {
@@ -3854,6 +3858,7 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     // Payload words by offset, after the length store.
     let mut len = None;
     let mut words = [None; 2];
+    let mut debug = [const { InstructionMetadata::EMPTY }; 3];
     for &inst in initialization {
         if func.is_object_derivation(inst) {
             continue;
@@ -3865,15 +3870,16 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
         if base != *object {
             return None;
         }
-        let slot = match offset {
-            0 => &mut len,
-            32 => &mut words[0],
-            64 => &mut words[1],
+        let (slot, index) = match offset {
+            0 => (&mut len, 0),
+            32 => (&mut words[0], 1),
+            64 => (&mut words[1], 2),
             _ => return None,
         };
         if slot.replace(stored).is_some() {
             return None;
         }
+        debug[index] = func.inst(inst).metadata.debug_context();
     }
     let (len, [Some(value), tail]) = (len?, words) else { return None };
     let len = func.value_u64(len)?;
@@ -3888,7 +3894,7 @@ fn static_bytes_return(func: &Function) -> Option<StaticBytesReturn> {
     let trailing_bits = usize::try_from((len.next_multiple_of(32) - len) * 8).ok()?;
     let last = tail.as_mut().unwrap_or(&mut word);
     *last = *last >> trailing_bits << trailing_bits;
-    Some(StaticBytesReturn { len, word, tail })
+    Some(StaticBytesReturn { len, word, tail, debug })
 }
 
 fn encode_static_bytes_return(
@@ -3898,6 +3904,7 @@ fn encode_static_bytes_return(
 ) {
     let word_size = EvmMemoryLayout::WORD_SIZE;
     let return_size = word_size * 2 + value.len.next_multiple_of(word_size);
+    let return_context = func.blocks[return_block].terminator_metadata.debug_context();
     func.blocks[return_block].instructions.clear();
     func.blocks[return_block].terminator = None;
     let mut builder = FunctionBuilder::new(func);
@@ -3914,19 +3921,23 @@ fn encode_static_bytes_return(
     let len = builder.imm(value.len);
     let size = builder.imm(return_size);
     builder.store(offset, data_offset);
+    builder.set_debug_context(&value.debug[0]);
     builder.store(len_offset, len);
     if value.len != 0 {
         // mstore(64, word)
         let word_offset = builder.imm(EvmMemoryLayout::SCRATCH_SLOT + word_size * 2);
         let word = builder.imm(value.word);
+        builder.set_debug_context(&value.debug[1]);
         builder.store(word_offset, word);
     }
     if let Some(tail) = value.tail {
         // mstore(96, tail)
         let tail_offset = builder.imm(EvmMemoryLayout::SCRATCH_SLOT + word_size * 3);
         let tail = builder.imm(tail);
+        builder.set_debug_context(&value.debug[2]);
         builder.store(tail_offset, tail);
     }
+    builder.set_debug_context(&return_context);
     builder.ret_data(offset, size);
 }
 
@@ -4064,9 +4075,8 @@ fn copy_calldata_member(
     // position = base + offset
     let tail = CalldataTail::Decode;
     let offset = builder.load(head, PtrLocation::Calldata);
-    // A fresh `calldatasize` per member keeps fewer values live across copy loops.
     let end = builder.calldatasize();
-    builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size());
+    builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size(), false);
     let position = builder.add(base, offset);
     let Some(stride) = ty.calldata_stride() else {
         return copy_calldata_value(builder, ty, position, None);

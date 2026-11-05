@@ -330,42 +330,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 this.lower_abi_call_argument(argument, parameter_ty)
             },
         )?;
-        let (values, types): (Vec<_>, Vec<_>) = arguments.into_iter().unzip();
-        // arguments = abi_encode(constructor_args) if constructor_args
+        let (values, types) = self.resolve_abi_operands(arguments)?;
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
-        let encoded = (!layout.types.is_empty())
-            .then(|| self.builder.abi_encode(Arc::clone(&layout), None, values.into_boxed_slice()));
         let static_len = (!layout.types.iter().any(AbiType::is_dynamic))
             .then(|| layout.head_size())
             .filter(|&len| EvmMemoryLayout::align_word(len).is_some());
-        let encoded_len = match static_len {
-            Some(len) => self.builder.imm(len),
-            None => {
-                self.builder.slice_len(encoded.expect("dynamic constructor arguments are encoded"))
-            }
-        };
 
         // len = datasize initcode(C)
         let bytecode_len_value = self.builder.data_size(bytecode, 0, false);
-        let total_len = if let Some(len) = static_len {
-            // total_len = datasize initcode(C), len
-            if len == 0 { bytecode_len_value } else { self.builder.data_size(bytecode, len, false) }
-        } else {
-            // total_len = checked_add len, encoded_len
-            self.builder.checked_add(bytecode_len_value, encoded_len)
-        };
         // CREATE consumes a raw byte range that nothing reads afterwards, so stage it at the free
         // memory pointer without reserving it, as solc does.
         let data = self.builder.fmp();
-
         // datacopy initcode(C), data, len
         self.builder.data_copy(DataRef::new(bytecode, 0), data, bytecode_len_value);
-        if let Some(encoded) = encoded {
-            let encoded_ptr = self.builder.slice_ptr(encoded);
-            let copy_dest = self.builder.add(data, bytecode_len_value);
-            // init = creation_bytecode ++ arguments
-            self.builder.copy_heap(copy_dest, encoded_ptr, encoded_len, PtrLocation::Memory);
-        }
+        // init = creation_bytecode ++ abi_encode(constructor_args), encoded in place after the code
+        let encoded = (!layout.types.is_empty()).then(|| {
+            let base = self.builder.ptradd(data, bytecode_len_value);
+            self.builder.abi_encode_scratch_at(layout, None, values.into_boxed_slice(), base)
+        });
+        let total_len = match (static_len, encoded) {
+            // total_len = datasize initcode(C), len
+            (Some(len), _) if len != 0 => self.builder.data_size(bytecode, len, false),
+            // total_len = checked_add len, encoded_len
+            (None, Some(encoded)) => {
+                let encoded_len = self.builder.slice_len(encoded);
+                self.builder.checked_add(bytecode_len_value, encoded_len)
+            }
+            _ => bytecode_len_value,
+        };
         // address = create|create2(value, init, init.length[, salt])
         let created = if let Some(salt) = salt {
             self.builder.create2(call_value, data, total_len, salt)
@@ -404,20 +396,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         let options = self.lower_call_options(call_opts, true, "call option")?;
 
-        let values_and_types = self.lower_argument_exprs(
+        let operands = self.lower_argument_exprs(
             CallArgumentParams { count: arg_exprs.len(), names: None, reverse: false },
             arg_exprs.iter().enumerate(),
             |this, index, argument| {
                 this.lower_abi_call_argument(argument, function.parameters[index])
             },
         )?;
+        let (values, types) = self.resolve_abi_operands(operands)?;
         let return_tys = self.external_return_types(function.returns);
         // ok = call|staticcall(address, selector, args)
         let (success, return_plan) = self.emit_external_call(
             self.external_call_kind(function.state_mutability),
             address,
             selector,
-            values_and_types.into_iter().unzip(),
+            (values, types),
             &return_tys,
             Some(options),
         );
@@ -944,7 +937,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let gcx = self.cx.gcx;
         let parameter_types =
             function.parameters.iter().map(move |&parameter| gcx.type_of_item(parameter.into()));
-        let (values, types) = self.lower_abi_call_arguments(
+        let operands = self.lower_abi_call_arguments(
             args,
             parameter_types,
             Some(&parameter_names),
@@ -952,6 +945,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "external function argument",
             false,
         )?;
+        let (values, types) = self.resolve_abi_operands(operands)?;
         let return_tys = function
             .returns
             .iter()
@@ -990,9 +984,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         error: &'static str,
         storage_parameters: bool,
-    ) -> Option<(Vec<ValueId>, Vec<AbiType>)> {
+    ) -> Option<Vec<AbiOperand<'gcx>>> {
         let parameter_types = parameter_types.collect::<Vec<_>>();
-        let values_and_types = self.lower_call_arguments(
+        self.lower_call_arguments(
             args,
             CallArgumentParams {
                 count: parameter_types.len(),
@@ -1009,9 +1003,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     this.lower_abi_call_argument(argument, parameter_ty)
                 }
             },
-        )?;
-        let (values, types) = values_and_types.into_iter().unzip();
-        Some((values, types))
+        )
     }
 
     fn linked_library_address(&self, contract_id: hir::ContractId) -> Option<U256> {
@@ -1073,14 +1065,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parameter_types =
             function.parameters.iter().map(move |&parameter| gcx.type_of_item(parameter.into()));
         let mut parameter_types = parameter_types.skip(receiver_count);
-        // receiver = lower_abi_receiver(receiver)
+        // receiver = lower_bound_receiver(receiver)
         let receiver = if let Some(receiver) = receiver {
             let parameter_ty = gcx.type_of_item(function.parameters[0].into());
-            Some(self.lower_abi_receiver(receiver, parameter_ty)?)
+            Some(self.lower_bound_receiver(receiver, parameter_ty)?)
         } else {
             None
         };
-        let (mut values, mut types) = self.lower_abi_call_arguments(
+        let mut operands = self.lower_abi_call_arguments(
             args,
             &mut parameter_types,
             Some(&parameter_names),
@@ -1088,10 +1080,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "library argument",
             true,
         )?;
-        if let Some((value, ty)) = receiver {
-            values.insert(0, value);
-            types.insert(0, ty);
+        if let Some(receiver) = receiver {
+            operands.insert(0, receiver);
         }
+        let (values, types) = self.resolve_abi_operands(operands)?;
 
         let return_types = function
             .returns
@@ -1128,13 +1120,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(values.into_iter().next().map_or(CallResult::Void, CallResult::Value))
     }
 
+    /// Lowers the receiver of an attached library call to a value read before the arguments run,
+    /// as solc copies it to memory when it evaluates the member access.
+    pub(super) fn lower_bound_receiver(
+        &mut self,
+        receiver: &hir::Expr<'_>,
+        parameter_ty: Ty<'gcx>,
+    ) -> Option<AbiOperand<'gcx>> {
+        let operand = self.lower_abi_receiver(receiver, parameter_ty)?;
+        let (value, abi_type) = self.resolve_abi_operand(operand)?;
+        if abi_type == AbiType::Bytes(PtrLocation::Storage) {
+            // object = load_storage_bytes(slot)
+            let object = self.load_storage_bytes(value);
+            return Some(AbiOperand::Ready((object, AbiType::Bytes(PtrLocation::Memory))));
+        }
+        Some(AbiOperand::Ready((value, abi_type)))
+    }
+
     pub(super) fn lower_abi_receiver(
         &mut self,
         receiver: &hir::Expr<'_>,
         parameter_ty: Ty<'gcx>,
-    ) -> Option<(ValueId, AbiType)> {
+    ) -> Option<AbiOperand<'gcx>> {
         if Self::is_storage_parameter(parameter_ty) {
-            Some((self.require_storage_access(receiver)?.slot, AbiType::Word(None)))
+            Some(AbiOperand::Ready((
+                self.require_storage_access(receiver)?.slot,
+                AbiType::Word(None),
+            )))
         } else {
             self.lower_abi_call_argument(receiver, parameter_ty)
         }
@@ -1573,9 +1585,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => AbiWordValidator::from_return_layout(types::TypeLowerer::value_layout(ty)),
         };
         let Some(validator) = validator else { return };
-        let valid = validator.condition_once(&mut self.builder, value);
-
-        let invalid = self.builder.eq_zero(valid);
+        let invalid = validator.violation(&mut self.builder, value);
         self.builder.revert_if(invalid, RevertReason::Empty);
     }
 

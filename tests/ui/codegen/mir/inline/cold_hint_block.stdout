@@ -1,0 +1,49 @@
+- ; === ROOT/tests/ui/codegen/mir/inline/cold_hint_block.mir (before inline) ===
++ ; === ROOT/tests/ui/codegen/mir/inline/cold_hint_block.mir (after inline) ===
+  @module ColdHintBlockInline
+  fn @caller(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+-     v0 = icall @try_call, arg1, arg0
+-     v1 = add v0, 1
+-     ret v1
+- }
+- 
+- fn @try_call(arg0: i1, arg1: i256) -> i256 {
+-   bb0:
+-     jumpi arg0, bb1, bb2
+-   bb2 [cold, cold_hint]:                          ; preds = bb0
+-     jump bb3
+-   bb3 [cold, cold_hint]:                          ; preds = bb2, bb4
+-     v0 = phi [bb2: 0], [bb4: v2]
+-     v1 = lt v0, arg1
+-     jumpi v1, bb4, bb5
+-   bb4 [cold, cold_hint]:                          ; preds = bb3
+-     v2 = add v0, 1
+-     jump bb3
+-   bb1:                                            ; preds = bb0
++     jump bb2
++   bb2:                                            ; preds = bb0
++     jumpi arg1, bb3, bb4
++   bb4 [cold, cold_hint]:                          ; preds = bb2
+      jump bb5
+-   bb5:                                            ; preds = bb1, bb3
+-     v3 = phi [bb1: 7], [bb3: v0]
+-     ret v3
++   bb5 [cold, cold_hint]:                          ; preds = bb4, bb6
++     v2 = phi [bb4: 0], [bb6: v4]
++     v3 = lt v2, arg0
++     jumpi v3, bb6, bb7
++   bb6 [cold, cold_hint]:                          ; preds = bb5
++     v4 = add v2, 1
++     jump bb5
++   bb3:                                            ; preds = bb2
++     jump bb7
++   bb7:                                            ; preds = bb3, bb5
++     v5 = phi [bb3: 7], [bb5: v2]
++     jump bb1
++   bb1:                                            ; preds = bb7
++     v6 = phi [bb7: v5]
++     v1 = add v6, 1
++     ret v1
+  }
+  

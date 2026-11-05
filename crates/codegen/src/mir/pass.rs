@@ -53,7 +53,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &inline::SpecializeFunctionPointers,
     &specialize::Specialize,
     &call_cleanup::CallCleanup,
-    &outline_reverts::OutlineReverts,
     &cfg_simplify::FunctionDce,
     &cfg_simplify::NoreturnCalls,
     &cfg_simplify::SimplifyTrivialPhis,
@@ -67,6 +66,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &egraph::Egraph,
     &word_sequence::WordSequence::Early,
     &word_sequence::WordSequence::Late,
+    &word_sequence::WordSequence::Spelling,
     &byte_loops::ByteLoops,
     &byte_run::ByteRunLoads,
     &cse::Cse::Storage,
@@ -123,40 +123,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
 /// Finds a MIR pass by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static dyn MirPass> {
     ALL_PASSES.iter().copied().find(|pass| pass.name() == name)
-}
-
-struct SizeOnly<P>(P);
-
-impl<P> SizeOnly<P> {
-    const fn new(pass: P) -> Self {
-        Self(pass)
-    }
-}
-
-impl<P: MirPass> MirPass for SizeOnly<P> {
-    fn name(&self) -> &'static str {
-        self.0.name()
-    }
-
-    fn is_enabled(&self, gcx: Gcx<'_>, module: &Module) -> bool {
-        self.covers(module) && self.0.is_enabled(gcx, module)
-    }
-
-    fn is_contract_wide(&self) -> bool {
-        self.0.is_contract_wide()
-    }
-
-    fn runs_on(&self, objective: OptimizationMode) -> bool {
-        objective.is_size() && self.0.runs_on(objective)
-    }
-
-    fn is_required(&self) -> bool {
-        self.0.is_required()
-    }
-
-    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
-        self.0.run_pass(gcx, module, analyses)
-    }
 }
 
 struct GasOnly<P>(P);
@@ -310,11 +276,7 @@ static SEMANTIC_PIPELINE: &[&dyn MirPass] = &[
 static LOWERING_PIPELINE: &[&dyn MirPass] = &[
     &lower_checks::LowerChecks,
     &lower_builtins::LowerBuiltins,
-    // Gas mode keeps arithmetic failure edges local for stack scheduling.
-    &GasOnly::new(outline_reverts::OutlineReverts),
     &lower_arithmetic::LowerArithmetic,
-    // Size mode shares arithmetic payloads too, before selecting stack layouts.
-    &SizeOnly::new(outline_reverts::OutlineReverts),
     // Expansion exposes scalar checks and object copies to this bounded cleanup group.
     // Peel the last groups of lookahead loops so the main loop's bound folds
     // the body guards in the check elimination below.
@@ -471,7 +433,13 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     // the copies again.
     &place_reads::PlaceReads,
     // Late lowering can leave pure address and length calculations unused.
-    // Remove their complete dependency chains before selecting physical stack order.
+    // Remove their complete dependency chains before the spelling reads the uses of a test.
+    &dce::Dce,
+    // A width test is a comparison with its limit until here, where its uses are final: a branch
+    // reads a shifted word for free, and a bound that is costly to push is cheaper as a shift.
+    &word_sequence::WordSequence::Spelling,
+    // The spelling leaves the tests it replaced unused. Remove their complete dependency chains
+    // before selecting physical stack order.
     &dce::Dce,
     // Targets without shift opcodes get arithmetic instead, so scheduling orders its operands.
     &lower_shifts::LowerShifts,

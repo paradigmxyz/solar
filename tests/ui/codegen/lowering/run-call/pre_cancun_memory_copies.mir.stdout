@@ -111,7 +111,7 @@ fn @concat() -> i1 [selector=0x6bdbf8e6, pure, abi_params=[], abi_returns=[word<
     mstore v3, 2
     v4 = ptradd v3, 32
     mstore v4, 0x2223000000000000000000000000000000000000000000000000000000000000
-    v5 = abi_encode_packed (bytes v0, bytes v3)
+    v5 = abi_encode_packed (memory_bytes v0, memory_bytes v3)
     v6 = mload v5
     v7 = eq v6, 35
     jumpi v7, bb1, bb2
@@ -132,23 +132,23 @@ fn @concat() -> i1 [selector=0x6bdbf8e6, pure, abi_params=[], abi_returns=[word<
 fn @assembled() -> i1 [selector=0xd1381062, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
+    v1 = inttoptr i256 v0 to ptr<memory>
     mstore v0, 70
-    v1 = add v0, 32
-    mstore v1, 0x101010101010101010101010101010101010101010101010101010101010101
-    v2 = add v0, 64
-    mstore v2, 0x202020202020202020202020202020202020202020202020202020202020202
-    v3 = add v0, 96
-    mstore v3, 0x303030303030303030303030303030303030303030303030303030303030303
-    v4 = add v0, 128
-    mstore 64, v4 !metadata(memory=scratch)
-    v5 = add v0, 32
-    v6 = keccak256 v5, 70
-    v7 = inttoptr i256 v0 to ptr<memory>
-    v8 = abi_encode [memory_bytes, word], object, args v7, 7
+    v2 = add v0, 32
+    mstore v2, 0x101010101010101010101010101010101010101010101010101010101010101
+    v3 = add v0, 64
+    mstore v3, 0x202020202020202020202020202020202020202020202020202020202020202
+    v4 = add v0, 96
+    mstore v4, 0x303030303030303030303030303030303030303030303030303030303030303
+    v5 = add v0, 128
+    mstore 64, v5 !metadata(memory=scratch)
+    v6 = add v0, 32
+    v7 = keccak256 v6, 70
+    v8 = abi_encode [memory_bytes, word], object, args v1, 7
     v9 = ptrtoint ptr<memory> v8 to i256
     v10 = add v9, 128
     v11 = keccak256 v10, 70
-    v12 = eq v11, v6
+    v12 = eq v11, v7
     ret v12
 }
 
@@ -166,7 +166,7 @@ fn @recycled() -> i1 [selector=0xa163996f, pure, abi_params=[], abi_returns=[wor
     v5 = ptrtoint ptr<memory> v0 to i256
     v6 = add v5, 32
     mstore 64, v6 !metadata(memory=scratch)
-    v7 = abi_encode_packed (bytes v0, data hex"")
+    v7 = abi_encode_packed (memory_bytes v0, data hex"")
     v8 = ptrtoint ptr<memory> v7 to i256
     v9 = add v8, 64
     v10 = mload v9
@@ -225,7 +225,7 @@ fn @recycledTail() -> i256 [selector=0x52eea5e4, pure, abi_params=[], abi_return
     v7 = ptrtoint ptr<memory> v0 to i256
     v8 = add v7, 32
     mstore 64, v8 !metadata(memory=scratch)
-    v9 = abi_encode_packed (bytes v0, data hex"")
+    v9 = abi_encode_packed (memory_bytes v0, data hex"")
     v10 = ptrtoint ptr<memory> v9 to i256
     v11 = add v10, 64
     v12 = mload v11

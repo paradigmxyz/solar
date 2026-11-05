@@ -63,8 +63,7 @@ fn @whole() {
     mcopy v81, v79, v0
     jump bb2
   bb6:                                            ; preds = bb4
-    v99 = calldatasize
-    calldatacopy v81, v99, v2
+    calldatacopy v81, v59, v2
     v53 = lt v81, v30
     v52 = add v81, v0
     v54 = lt v61, v52
@@ -94,7 +93,9 @@ fn @whole() {
     v20 = lt v9, v19
     jumpi v20, bb12, bb10
   bb10 [cold]:                                    ; preds = bb3, bb7, bb11
-    tail_call @revert_stub.11
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb12:                                           ; preds = bb11
     v90 = add v98, v9
     v91 = add v90, 32
@@ -113,7 +114,9 @@ fn @whole() {
     v72 = add v67, 64
     returndata v77, v72
   bb8 [cold]:                                     ; preds = bb15
-    tail_call @revert_stub.10
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb14 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
@@ -165,8 +168,7 @@ fn @rest() {
     mcopy v114, v112, v86
     jump bb2
   bb6:                                            ; preds = bb4
-    v133 = calldatasize
-    calldatacopy v114, v133, v3
+    calldatacopy v114, v90, v3
     v70 = lt v114, v43
     v69 = add v114, v86
     v71 = lt v93, v69
@@ -201,7 +203,9 @@ fn @rest() {
     v23 = lt v11, v22
     jumpi v23, bb12, bb10
   bb10 [cold]:                                    ; preds = bb3, bb7, bb11
-    tail_call @revert_stub.11
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb12:                                           ; preds = bb11
     v123 = add v132, v11
     v124 = add v123, 32
@@ -223,7 +227,9 @@ fn @rest() {
     v104 = add v99, 64
     returndata v109, v104
   bb8 [cold]:                                     ; preds = bb15
-    tail_call @revert_stub.10
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb14 [cold]:                                    ; preds = bb17
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -289,8 +295,7 @@ fn @slice() {
     mcopy v151, v149, v6
     jump bb2
   bb6:                                            ; preds = bb4
-    v176 = calldatasize
-    calldatacopy v151, v176, v8
+    calldatacopy v151, v121, v8
     v83 = lt v151, v53
     v82 = add v151, v6
     v84 = lt v125, v82
@@ -325,7 +330,9 @@ fn @slice() {
     v30 = lt v18, v29
     jumpi v30, bb14, bb12
   bb12 [cold]:                                    ; preds = bb3, bb5, bb7, bb13
-    tail_call @revert_stub.11
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb14:                                           ; preds = bb13
     v162 = add v174, v18
     v163 = add v162, 32
@@ -371,7 +378,9 @@ fn @slice() {
     v144 = sub v140, v47
     returndata v47, v144
   bb10 [cold]:                                    ; preds = bb18
-    tail_call @revert_stub.10
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb17 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
@@ -435,8 +444,8 @@ fn @lengthWordCovered() {
     v0 = mload 64 !metadata(memory=scratch)
     v1 = add v0, 48
     mstore v1, 20
-    v2 = add v1, 32
-    mstore v2, 0x101010101010101010101010101010101010101010101010101010101010101
+    v3 = add v1, 32
+    mstore v3, 0x101010101010101010101010101010101010101010101010101010101010101
     v4 = icall @_count, v1, 32
     v12 = mload v4
     v13 = add v12, 31
@@ -503,7 +512,9 @@ fn @_whole(arg0: i256) -> i256 [may_return_memory] {
     v20 = lt v9, v19
     jumpi v20, bb10, bb8
   bb8 [cold]:                                     ; preds = bb3, bb5, bb9
-    tail_call @revert_stub.11
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb10:                                           ; preds = bb9
     v58 = add v65, v9
     v59 = add v58, 32
@@ -513,7 +524,9 @@ fn @_whole(arg0: i256) -> i256 [may_return_memory] {
   bb2:                                            ; preds = bb1, bb7, bb11
     ret v65
   bb6 [cold]:                                     ; preds = bb0
-    tail_call @revert_stub.10
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
 }
 
 ; function _rest(bytes memory s, uint256 start) private pure returns (bytes memory r)
@@ -591,7 +604,7 @@ fn @_rest(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v15 = lt v91, v14
     jumpi v15, bb11, bb10
   bb11:                                           ; preds = bb3
-    v103 = add arg0, v91
+    v103 = add v91, arg0
     v104 = add v103, 32
     v19 = mload v104
     v20 = byte 0, v19
@@ -599,7 +612,9 @@ fn @_rest(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v23 = lt v11, v22
     jumpi v23, bb12, bb10
   bb10 [cold]:                                    ; preds = bb3, bb5, bb7, bb11
-    tail_call @revert_stub.11
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb12:                                           ; preds = bb11
     v106 = add v115, v11
     v107 = add v106, 32
@@ -613,7 +628,9 @@ fn @_rest(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     mstore v33, 0
     ret v115
   bb8 [cold]:                                     ; preds = bb16
-    tail_call @revert_stub.10
+    mstore 32, 65 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb15 [cold]:                                    ; preds = bb0
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
@@ -699,7 +716,9 @@ fn @_count(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v19 = lt v8, v18
     jumpi v19, bb12, bb10
   bb10 [cold]:                                    ; preds = bb3, bb5, bb7, bb11
-    tail_call @revert_stub.11
+    mstore 32, 50 !metadata(memory=scratch)
+    mstore 0, 0x4e487b71 !metadata(memory=scratch)
+    revert 28, 36
   bb12:                                           ; preds = bb11
     v69 = add v77, v8
     v70 = add v69, 32
@@ -713,19 +732,7 @@ fn @_count(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     mstore v29, 0
     ret v77
   bb8 [cold]:                                     ; preds = bb0
-    tail_call @revert_stub.10
-}
-
-fn @revert_stub.10() [cold] {
-  bb0 [cold]:
     mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @revert_stub.11() [cold] {
-  bb0 [cold]:
-    mstore 32, 50 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
 }
@@ -741,19 +748,19 @@ fn @decode_calldata_type() -> i256 [may_return_memory] {
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v36 = add v6, 63
-    v10 = and v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v35 = add v6, 63
+    v10 = and v35, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v11 = lt v10, v6
     v29 = heap_floor !metadata(alloc_ptr)
     v30 = add v29, v10 !metadata(alloc_ptr)
+    v38 = shr v30, 64
     v31 = lt v30, v29
-    v32 = zext i1 v31 to i256
-    v33 = shr v30, 64
-    v34 = or v33, v32
-    v38 = zext i1 v11 to i256
-    v39 = or v34, v38
-    v40 = ne v39, 0
-    jumpi v40, bb3, bb5
+    v40 = zext i1 v31 to i256
+    v41 = or v38, v40
+    v43 = zext i1 v11 to i256
+    v44 = or v41, v43
+    v37 = ne v44, 0
+    jumpi v37, bb3, bb5
   bb5:                                            ; preds = bb2
     mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v6
@@ -776,12 +783,12 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v7 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v5, v4
-    v7 = ne v6, 0
-    jumpi v7, bb1, bb2
+    v9 = zext i1 v3 to i256
+    v10 = or v7, v9
+    v5 = ne v10, 0
+    jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

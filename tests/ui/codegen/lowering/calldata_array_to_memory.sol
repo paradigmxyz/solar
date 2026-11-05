@@ -30,10 +30,10 @@ contract C {
     // CHECK: push 0x874b8e9d
     // CHECK: eq
     // CHECK-NEXT: push [[DECL_BODY:bb[0-9]+]]
-    // CHECK: [[ACC_BODY]]:
+    // CHECK: [[ACC_BODY]]{{( \[[a-z, ]+\])?}}:
     // CHECK: sload
     // CHECK: return
-    // CHECK: [[DECL_BODY]]:
+    // CHECK: [[DECL_BODY]]{{( \[[a-z, ]+\])?}}:
     // CHECK: sstore
     function viaDecl(uint256[] calldata xs) external returns (uint256) {
         uint256[] memory m = xs;
@@ -45,7 +45,7 @@ contract C {
         return s;
     }
 
-    // CHECK: [[ASSIGN_BODY]]:
+    // CHECK: [[ASSIGN_BODY]]{{( \[[a-z, ]+\])?}}:
     function viaAssign(uint256[] calldata xs) external pure returns (uint256) {
         uint256[] memory m;
         m = xs;
@@ -54,7 +54,7 @@ contract C {
 
     // Both fields are materialized by their own copy. The lengths the result
     // reads back are known once the copies store them, so no reload follows.
-    // CHECK: [[STRUCT_BODY]]:
+    // CHECK: [[STRUCT_BODY]]{{( \[[a-z, ]+\])?}}:
     // CHECK: calldatacopy
     // CHECK: calldatacopy
     function viaStructLiteral(uint256 base, uint256[] calldata xs, bytes calldata tag)

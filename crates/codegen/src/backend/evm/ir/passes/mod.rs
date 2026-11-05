@@ -254,7 +254,8 @@ fn run_passes(
         }
 
         if enabled {
-            assert_debug_info_handled(module, pass_name, "before");
+            let origins =
+                crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::evm(module));
             let errors_before = gcx.dcx().err_count();
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let cache_key = PassCacheKey::new(*pass);
@@ -272,13 +273,28 @@ fn run_passes(
             }
             timer.finish("EVM IR", module.name(), pass_name, pass_changed);
             changed |= pass_changed;
+            if module.debug_info_is_tracked() {
+                module.drop_invalid_entry_checkpoints();
+            }
             if gcx.dcx().err_count() != errors_before {
                 return changed;
             }
             if pass_changed && let Some(target_support_before) = target_support_before {
                 validate_module_after_pass(gcx, module, pass_name, &target_support_before);
             }
-            assert_debug_info_handled(module, pass_name, "after");
+            if let Some(origins) = origins
+                && origins
+                    .check(
+                        gcx,
+                        "EVM IR",
+                        module.name(),
+                        pass_name,
+                        crate::debugify::Origins::evm_after(module),
+                    )
+                    .is_err()
+            {
+                return changed;
+            }
         }
 
         if let Some(before) = before {
@@ -302,31 +318,6 @@ fn validate_module_after_pass(
         .verify_between_passes(module, target_support_before);
     if dcx.has_errors().is_err() {
         panic!("EVM IR validation failed after `{pass_name}`");
-    }
-}
-
-fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
-    // NOTE: These development-only checks catch missing metadata policy in new
-    // rewrites. Release builds must not abort just because debug output was
-    // requested; unclassified locations remain unknown.
-    if !module.debug_info_is_tracked() {
-        return;
-    }
-    for (block_id, block) in module.blocks.iter_enumerated() {
-        for (index, inst) in block.instructions.iter().enumerate() {
-            debug_assert!(
-                inst.metadata.debug_info_is_handled(),
-                "EVM IR debug information is unclassified {when} `{pass_name}` at bb{}, instruction {index}",
-                block_id.index(),
-            );
-        }
-        if let Some(term) = &block.terminator {
-            debug_assert!(
-                term.metadata.debug_info_is_handled(),
-                "EVM IR terminator debug information is unclassified {when} `{pass_name}` at bb{}",
-                block_id.index(),
-            );
-        }
     }
 }
 

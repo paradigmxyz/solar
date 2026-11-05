@@ -1,0 +1,82 @@
+//@compile-flags: -Zmir-pipeline=cse
+//@filecheck:
+@module FrameReadMerge
+
+// Every `calldatasize` reads the same word, so a second read merges into the first and the
+// bound computed from it merges too.
+// CHECK-LABEL: {{^[ +].*}}fn @repeated_bound{{[( ]}}
+// CHECK: - {{v[0-9]+}} = calldatasize
+// CHECK: - {{v[0-9]+}} = sub {{v[0-9]+}}, arg0
+// CHECK: - {{v[0-9]+}} = slt
+fn @repeated_bound(arg0: i256) -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, arg0
+    v2 = slt v1, 32
+    jumpi v2, bb2, bb1
+  bb1:
+    v3 = calldatasize
+    v4 = sub v3, arg0
+    v5 = slt v4, 32
+    jumpi v5, bb2, bb3
+  bb3:
+    ret v4
+  bb2:
+    revert 0, 0
+}
+
+// Widening a second `caller` read merges with the first widening.
+// CHECK-LABEL: {{^[ +].*}}fn @casts_merge{{[( ]}}
+// CHECK: - {{v[0-9]+}} = caller
+// CHECK: - {{v[0-9]+}} = zext
+fn @casts_merge() -> i256 {
+  bb0:
+    v0 = caller
+    v1 = zext i160 v0 to i256
+    v2 = caller
+    v3 = zext i160 v2 to i256
+    v4 = add v1, v3
+    ret v4
+}
+
+// A bound with an immediate offset from a second read reuses the first one.
+// CHECK-LABEL: {{^[ +].*}}fn @immediate_offset{{[( ]}}
+// CHECK: - {{v[0-9]+}} = calldatasize
+// CHECK: - {{v[0-9]+}} = sub {{v[0-9]+}}, 4
+fn @immediate_offset() -> i256 {
+  bb0:
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = calldatasize
+    v3 = sub v2, 4
+    v4 = add v1, v3
+    ret v4
+}
+
+// Nested immediate offsets fold to one offset from the read's kind.
+// CHECK-LABEL: {{^[ +].*}}fn @nested_offset{{[( ]}}
+// CHECK: - {{v[0-9]+}} = slotnum
+// CHECK: - {{v[0-9]+}} = add {{v[0-9]+}}, 36
+fn @nested_offset() -> i256 {
+  bb0:
+    v0 = slotnum
+    v1 = add v0, 4
+    v2 = add v1, 32
+    v3 = slotnum
+    v4 = add v3, 36
+    v5 = add v2, v4
+    ret v5
+}
+
+// `gas` changes within the call, so expressions over two reads stay apart.
+// CHECK-LABEL: {{^[ +].*}}fn @gas_stays_apart{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+fn @gas_stays_apart() -> i256 {
+  bb0:
+    v0 = gas
+    v1 = sub v0, 4
+    v2 = gas
+    v3 = sub v2, 4
+    v4 = add v1, v3
+    ret v4
+}

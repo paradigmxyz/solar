@@ -48,8 +48,9 @@ impl MirPass for LowerChecks {
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        let mut helper_context = InstructionMetadata::EMPTY;
-        let mut needs_helper = false;
+        // The first require seeds the context, so that locations explained as dropped keep their
+        // kind instead of merging into the gap of an empty seed.
+        let mut helper_context = None::<InstructionMetadata>;
         for function in &module.functions {
             for id in function.instructions() {
                 let inst = function.inst(id);
@@ -60,12 +61,14 @@ impl MirPass for LowerChecks {
                         ..
                     }
                 ) {
-                    needs_helper = true;
-                    helper_context.merge_debug_context(&inst.metadata);
+                    match &mut helper_context {
+                        Some(context) => context.merge_debug_context(&inst.metadata),
+                        None => helper_context = Some(inst.metadata.debug_context()),
+                    }
                 }
             }
         }
-        let helper = needs_helper.then(|| create_short_string_helper(module, &helper_context));
+        let helper = helper_context.map(|context| create_short_string_helper(module, &context));
         let mut changed = false;
         // Long strings intern their data in the module while a function is rewritten.
         let mut functions = std::mem::take(&mut module.functions);

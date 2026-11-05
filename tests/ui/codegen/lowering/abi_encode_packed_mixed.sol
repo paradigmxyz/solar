@@ -12,13 +12,13 @@ contract AbiEncodePackedMixed {
     }
 
     // CHECK-LABEL: fn @dynamicArg{{[( ]}}
-    // CHECK: keccak256_packed (bytes32 arg0, bytes arg1)
+    // CHECK: keccak256_packed (bytes32 arg0, memory_bytes arg1)
     function dynamicArg(bytes32 h, bytes memory tail) external pure returns (bytes32) {
         return keccak256(abi.encodePacked(h, tail));
     }
 
     // CHECK-LABEL: fn @materialized{{[( ]}}
-    // CHECK: abi_encode_packed (uint16 arg0, bytes arg1, uint8 {{v[0-9]+}})
+    // CHECK: abi_encode_packed (uint16 arg0, memory_bytes arg1, uint8 {{v[0-9]+}})
     function materialized(uint16 a, bytes memory mid, bool b) external pure returns (bytes memory) {
         return abi.encodePacked(a, mid, b);
     }

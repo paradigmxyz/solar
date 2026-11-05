@@ -18,7 +18,7 @@ fn @invoke(arg0: i256, arg1: ptr<memory>) {
     icall revert_if<target_contract_has_no_code>, v8
     v9 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v9, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     v10 = icall returndata_bytes<>
     v11 = ptradd v10, 32
     v12 = mload v10
@@ -29,9 +29,9 @@ fn @invoke(arg0: i256, arg1: ptr<memory>) {
     v17 = mload v16
     v18 = shr v17, 224
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     revert v14, v15
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     v19 = mload v10
     sstore 0, v19 !metadata(storage=slot(0))
     jump bb3
@@ -81,12 +81,12 @@ fn @invokePair(arg0: i256, arg1: ptr<memory>) -> struct0 {
     v6 = extract_value slice<memory>, v4, 1
     v7 = call v3, v2, 0, v5, v6, 0, 0
     jumpi v7, bb1, bb2
-  bb2:                                            ; preds = bb0
+  bb2 [cold_hint]:                                ; preds = bb0
     jumpi true, bb4, bb5
-  bb5:                                            ; preds = bb2
+  bb5 [cold_hint]:                                ; preds = bb2
     icall revert_if<empty>, true
     invalid
-  bb4:                                            ; preds = bb2
+  bb4 [cold_hint]:                                ; preds = bb2
     v18 = alloc 64 !metadata(preserves_fmp)
     mstore v18, 6
     v19 = ptradd v18, 32

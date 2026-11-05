@@ -61,18 +61,17 @@ fn @nestedArray(arg0: i256) -> ptr<memory> [selector=0x5abcbd75, pure, abi_param
     v15 = lt v14, v7
     icall panic_if<0x41>, v15
     v16 = mul v14, 32
-    v17 = shr v14, 251
-    v18 = ne v17, 0
-    icall panic_if<0x41>, v18
-    v19 = alloc zeroed checked v16
-    mstore v19, arg0
-    v20 = mload v0
-    v21 = gt v20, 0
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = ptrtoint ptr<memory> v19 to i256
-    v24 = ptradd v0, 32
-    mstore v24, v23
+    v17 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v17
+    v18 = alloc zeroed checked v16
+    mstore v18, arg0
+    v19 = mload v0
+    v20 = gt v19, 0
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = ptrtoint ptr<memory> v18 to i256
+    v23 = ptradd v0, 32
+    mstore v23, v22
     ret v0
   bb2:                                            ; preds = bb1
     v3 = shl v1, 5

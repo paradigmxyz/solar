@@ -66,7 +66,7 @@
 +     frame_store multi_return, word, 0, v9 !metadata(memory=scratch)
       v1 = mload 32
 -     v2 = add v0, v1
-+     v2 = add v5, v1
++     v2 = add v1, v5
       ret v2
   }
   

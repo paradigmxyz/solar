@@ -29,20 +29,18 @@ fn @entry() [entry] {
 fn @balance() {
   bb0:
     v12 = calldataload 68
-    v13 = shr v12, 160
-    v14 = eq v13, 0
-    jumpi v14, bb5, bb4
-  bb4 [cold]:                                     ; preds = bb0
-    revert 0, 0
+    v19 = shr v12, 160
+    v13 = ne v19, 0
+    jumpi v13, bb4, bb5
   bb5:                                            ; preds = bb0
-    v18 = calldataload 36
-    v17 = calldataload 4
-    v4 = add v17, v18
-    v5 = lt v4, v17
+    v17 = calldataload 36
+    v16 = calldataload 4
+    v4 = add v16, v17
+    v5 = lt v4, v16
     jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb5
-    v19 = calldataload 68
-    v2 = balance v19
+    v18 = calldataload 68
+    v2 = balance v18
     v6 = add v4, v2
     v7 = lt v6, v4
     jumpi v7, bb1, bb3
@@ -53,26 +51,26 @@ fn @balance() {
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+  bb4 [cold]:                                     ; preds = bb0
+    revert 0, 0
 }
 
 ; function codeSize(uint256 a, uint256 b, address target) external view returns (uint256) [selector 0x3ae86375]
 fn @codeSize() {
   bb0:
     v12 = calldataload 68
-    v13 = shr v12, 160
-    v14 = eq v13, 0
-    jumpi v14, bb5, bb4
-  bb4 [cold]:                                     ; preds = bb0
-    revert 0, 0
+    v19 = shr v12, 160
+    v13 = ne v19, 0
+    jumpi v13, bb4, bb5
   bb5:                                            ; preds = bb0
-    v18 = calldataload 36
-    v17 = calldataload 4
-    v4 = add v17, v18
-    v5 = lt v4, v17
+    v17 = calldataload 36
+    v16 = calldataload 4
+    v4 = add v16, v17
+    v5 = lt v4, v16
     jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb5
-    v19 = calldataload 68
-    v2 = extcodesize v19
+    v18 = calldataload 68
+    v2 = extcodesize v18
     v6 = add v4, v2
     v7 = lt v6, v4
     jumpi v7, bb1, bb3
@@ -83,26 +81,26 @@ fn @codeSize() {
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+  bb4 [cold]:                                     ; preds = bb0
+    revert 0, 0
 }
 
 ; function codeHash(uint256 a, uint256 b, address target) external view returns (uint256) [selector 0x76806d71]
 fn @codeHash() {
   bb0:
     v12 = calldataload 68
-    v13 = shr v12, 160
-    v14 = eq v13, 0
-    jumpi v14, bb5, bb4
-  bb4 [cold]:                                     ; preds = bb0
-    revert 0, 0
+    v19 = shr v12, 160
+    v13 = ne v19, 0
+    jumpi v13, bb4, bb5
   bb5:                                            ; preds = bb0
-    v18 = calldataload 36
-    v17 = calldataload 4
-    v4 = add v17, v18
-    v5 = lt v4, v17
+    v17 = calldataload 36
+    v16 = calldataload 4
+    v4 = add v16, v17
+    v5 = lt v4, v16
     jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb5
-    v19 = calldataload 68
-    v2 = extcodehash v19
+    v18 = calldataload 68
+    v2 = extcodehash v18
     v6 = add v4, v2
     v7 = lt v6, v4
     jumpi v7, bb1, bb3
@@ -113,4 +111,6 @@ fn @codeHash() {
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+  bb4 [cold]:                                     ; preds = bb0
+    revert 0, 0
 }

@@ -2,7 +2,7 @@
 //@filecheck: --enable-var-scope
 // CHECK-LABEL: @branch
 // CHECK-NOT: ;
-// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add 1, 2
+// CHECK: {{^ +}}[[SUM:v[0-9]+]] = add 2, 1
 // CHECK: {{^ +}}ret [[SUM]]
 @module Comments
 

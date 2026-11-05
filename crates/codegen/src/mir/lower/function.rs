@@ -162,6 +162,8 @@ pub(super) fn lower(
     }
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
+    // solc tags a function's entry under the function definition.
+    lowerer.builder.set_entry_label_span(hir_function.span);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
@@ -191,6 +193,7 @@ pub(super) fn lower_synthetic_constructor(
     let span = context.gcx.hir.contract(contract_id).span;
     let mut mir = Function::new(Ident::with_dummy_span(kw::Constructor));
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
+    lowerer.builder.set_entry_label_span(span);
     lowerer.lower_implicit_base_constructors(contract_id)?;
     lowerer.lower_state_initializers(contract_id)?;
     if !lowerer.is_terminated() {
@@ -263,6 +266,23 @@ struct CallArgumentParams<'a> {
     count: usize,
     names: Option<&'a [Option<Symbol>]>,
     reverse: bool,
+}
+
+/// The signature of `abi.encodeWithSignature` after lowering.
+enum SignatureOperand {
+    /// A selector known at once.
+    Selector(ValueId),
+    /// A `bytes` or `string` value, hashed after the other arguments ran.
+    Bytes(ValueId, PtrLocation),
+}
+
+/// An operand of an ABI encoding after lowering.
+enum AbiOperand<'gcx> {
+    /// A value to encode, with its ABI type.
+    Ready((ValueId, AbiType)),
+    /// A storage array or struct that the encoder reads after every operand ran, as solc does.
+    /// `ty` is the memory type it copies to.
+    Storage { slot: ValueId, ty: Ty<'gcx>, span: Span },
 }
 
 struct LoopTargets {
@@ -488,7 +508,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Self {
             cx,
             builder: FunctionBuilder::new_semantic(function)
-                .with_revert_strings(gcx.sess.opts.revert_strings),
+                .with_revert_strings(gcx.sess.opts.revert_strings)
+                .with_block_labels(),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
             dirty_values: FxHashSet::default(),
@@ -982,12 +1003,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = if preserve_calldata_slice {
                     rhs_value
                 } else {
-                    let materialize_ty = if lhs_ty.is_ref_at(DataLocation::Storage) {
-                        memory_rhs_ty
+                    if lhs_ty.is_ref_at(DataLocation::Storage) {
+                        self.materialize_memory_argument(memory_rhs_ty, rhs_value, rhs.span)?
                     } else {
-                        lhs_ty
-                    };
-                    self.materialize_memory_argument(materialize_ty, rhs_value, rhs.span)?
+                        self.materialize_memory_copy(lhs_ty, rhs_value, rhs.span)?
+                    }
                 };
                 let value = self.coerce_value(value, rhs_ty, lhs_ty);
                 self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;

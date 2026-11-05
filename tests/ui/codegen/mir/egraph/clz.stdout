@@ -13,17 +13,17 @@
       v1 = eq v0, 0
 -     v2 = eq v0, 0
       v3 = eq v0, 255
--     v4 = eq 256, v0
+-     v4 = eq v0, 256
 -     v5 = eq v0, 257
 -     v6 = gt v0, 255
--     v7 = lt 255, v0
+-     v7 = gt v0, 255
 +     v4 = eq arg0, 0
       v8 = lt v0, 256
--     v9 = gt 256, v0
+-     v9 = lt v0, 256
 -     v10 = lt v0, 257
 -     v11 = gt v0, 256
--     v12 = lt 256, v0
--     v13 = gt 257, v0
+-     v12 = gt v0, 256
+-     v13 = lt v0, 257
 -     ret v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13
 +     ret v1, v1, v3, v4, false, v4, v4, v8, v8, true, false, false, true
   }
@@ -34,7 +34,7 @@
       v1 = shr v0, 8
 -     v2 = shr v0, 9
 -     v3 = and v0, 511
--     v4 = and 0x3ff, v0
+-     v4 = and v0, 0x3ff
 -     v5 = signextend 1, v0
 -     v6 = byte 0, v0
 -     v7 = byte 29, v0

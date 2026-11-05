@@ -6,7 +6,7 @@
 //! explicit return in the callee returns that same value. Calls remain in place, including their
 //! effects and failure paths. Tail calls, mixed return values, and baked signature-frame addresses
 //! prevent forwarding. In `-Osize`, a tail call to a function that never returns, such as a revert
-//! helper from `outline-reverts`, returns nothing. In `-Ogas` such forwarding grew measured code:
+//! helper, returns nothing. In `-Ogas` such forwarding grew measured code:
 //! once the callee's result is pruned, every caller pushes the constant where the result used to
 //! arrive on the stack. No recursive summary or control-flow fixed point is needed.
 //!
@@ -874,7 +874,9 @@ fn equivalent_functions(
     let lhs_values = CanonValues::new(lhs);
     let rhs_values = CanonValues::new(rhs);
     for (lhs_block, rhs_block) in lhs.blocks.iter().zip(&rhs.blocks) {
-        if lhs_block.instructions.len() != rhs_block.instructions.len() {
+        if lhs_block.instructions.len() != rhs_block.instructions.len()
+            || lhs_block.cold_hint != rhs_block.cold_hint
+        {
             return false;
         }
         for (&lhs_inst, &rhs_inst) in lhs_block.instructions.iter().zip(&rhs_block.instructions) {

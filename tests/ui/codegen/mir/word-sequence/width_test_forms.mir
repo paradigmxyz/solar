@@ -1,0 +1,53 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=word-sequence
+//@ filecheck:
+@module WidthTestForms
+
+// A width test is the comparison with its limit, whatever shape it arrives in: the passes after
+// this one read only that form, and the pass that spells width tests writes it again where the
+// uses are known.
+
+// CHECK-LABEL: {{^[ +].*}}fn @shift_nonzero{{[( ]}}
+// CHECK: + {{v[0-9]+}} = gt arg0, 0xffffffffffffffff
+fn @shift_nonzero(arg0: i256) -> i1 {
+  bb0:
+    v0 = shr arg0, 64
+    v1 = ne v0, 0
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @shift_positive{{[( ]}}
+// CHECK: + {{v[0-9]+}} = gt arg0, 0xffffffffffffffffffffffffffffffff
+fn @shift_positive(arg0: i256) -> i1 {
+  bb0:
+    v0 = shr arg0, 128
+    v1 = gt v0, 0
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @shift_zero{{[( ]}}
+// CHECK: + {{v[0-9]+}} = lt arg0, 0x10000000000000000
+fn @shift_zero(arg0: i256) -> i1 {
+  bb0:
+    v0 = shr arg0, 64
+    v1 = eq v0, 0
+    ret v1
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @high_mask{{[( ]}}
+// CHECK: + {{v[0-9]+}} = gt arg0, 0xffffffff
+fn @high_mask(arg0: i256) -> i1 {
+  bb0:
+    v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v1 = ne v0, 0
+    ret v1
+}
+
+// A comparison that is not a width test keeps its shift.
+// CHECK-LABEL: {{^[ +].*}}fn @shift_by_zero_bits{{[( ]}}
+// CHECK-NOT: gt
+fn @shift_by_zero_bits(arg0: i256) -> i1 {
+  bb0:
+    v0 = shr arg0, 0
+    v1 = ne v0, 0
+    ret v1
+}

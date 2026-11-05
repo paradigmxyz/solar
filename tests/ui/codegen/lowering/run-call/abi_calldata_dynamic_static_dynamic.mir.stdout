@@ -124,14 +124,12 @@ fn @readNarrow(arg0: slice<calldata>) -> i256 [selector=0x49c9edea, pure, abi_pa
     v101 = ptrtoint ptr<calldata> v100 to i256
     v102 = add v101, 0
     v103 = calldataload v102
-    v104 = shr v103, 8
-    v105 = eq v104, 0
-    v106 = eq v105, false
-    icall revert_if<empty>, v106
-    v107 = trunc i256 v103 to i8
-    v108 = zext i8 v107 to i256
-    v109 = checked_add uint256, v49, v108
-    ret v109
+    v104 = gt v103, 255
+    icall revert_if<empty>, v104
+    v105 = trunc i256 v103 to i8
+    v106 = zext i8 v105 to i256
+    v107 = checked_add uint256, v49, v106
+    ret v107
 }
 
 ; function readWide(uint256[][2][] calldata value) external pure returns (uint256) [selector 0xb44a60df]

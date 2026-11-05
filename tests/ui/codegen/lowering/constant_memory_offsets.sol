@@ -8,7 +8,7 @@
 // CHECK-NEXT: push 64
 // CHECK-NEXT: dup 3
 // CHECK-NEXT: add
-// CHECK-LABEL: bb6:
+// CHECK-LABEL: bb6{{( \[[a-z, ]+\])?}}:
 // CHECK: push 7
 // CHECK-NEXT: push 96
 // CHECK-NEXT: dup 3

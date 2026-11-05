@@ -53,8 +53,8 @@
 //! from an argument, and constant arguments reach the loop bounds.
 //!
 //! Recursive calls, explicit no-inline functions, large helpers, and aggregate
-//! allocation semantics keep the call. A tail call to a helper that never returns,
-//! as `outline-reverts` leaves on failure paths, counts as a revert; any other tail
+//! allocation semantics keep the call. A tail call to a helper that never returns
+//! counts as a revert; any other tail
 //! call keeps its callee shared. A phi-free helper with one return may call such a
 //! failure helper, since caller values never survive the call; more complex helpers
 //! with calls stay shared rather than duplicating their diamonds under the scalar
@@ -1045,7 +1045,8 @@ fn summarize_function(
                     if parts.iter().any(|part| {
                         matches!(
                             part,
-                            crate::mir::PackedPart::Bytes(_) | crate::mir::PackedPart::Array { .. }
+                            crate::mir::PackedPart::Bytes { .. }
+                                | crate::mir::PackedPart::Array { .. }
                         )
                     }) =>
                 {
@@ -1083,9 +1084,9 @@ fn summarize_function(
                 summary.has_control_flow = true;
             }
             Terminator::Revert { .. } | Terminator::RevertReturndata => {}
-            // `outline-reverts` turns failure paths into tail calls to shared revert helpers.
-            // Such a jump ends the message wherever it is cloned, but a tail call to a function
-            // that returns would return from the caller instead.
+            // A tail call to a function that never returns, such as a revert helper, ends the
+            // message wherever it is cloned, but a tail call to a function that returns would
+            // return from the caller instead.
             Terminator::TailCall { function, .. } if never_returns(module.function(*function)) => {}
             Terminator::Invalid => continue,
             Terminator::ReturnData { .. }
@@ -1675,7 +1676,7 @@ fn inline_call_impl(
         }
     }
 
-    let continuation = caller.alloc_block();
+    let continuation = caller.alloc_block_like(call_block);
     let (old_terminator, metadata) = caller.blocks[call_block].take_terminator();
     let suffix = {
         let block = &mut caller.blocks[call_block];
@@ -1841,8 +1842,8 @@ impl<'a> InlineCloner<'a> {
     }
 
     fn clone_blocks(&mut self, continuation: BlockId) -> Option<BlockId> {
-        for _ in self.callee.blocks.indices() {
-            self.block_map.push(self.caller.alloc_block());
+        for block in self.callee.blocks.iter() {
+            self.block_map.push(self.caller.alloc_block_hinted(block.cold_hint));
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
@@ -1867,9 +1868,8 @@ impl<'a> InlineCloner<'a> {
             let caller_block = self.block_map[callee_block];
             for (index, &inst_id) in block.instructions.iter().enumerate() {
                 let kind = self.clone_inst_kind(self.callee.inst(inst_id).kind.clone())?;
-                let kind = self.caller.canonical_kind(kind);
                 let new_inst = self.caller.blocks[caller_block].instructions[index];
-                self.caller.inst_mut(new_inst).kind = kind;
+                self.caller.set_inst_kind(new_inst, kind);
             }
         }
 

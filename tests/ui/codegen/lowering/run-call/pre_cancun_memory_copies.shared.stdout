@@ -167,16 +167,16 @@ fn @assembled() {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
     mstore v0, 70
-    v1 = add v0, 32
-    mstore v1, 0x101010101010101010101010101010101010101010101010101010101010101
-    v2 = add v0, 64
-    mstore v2, 0x202020202020202020202020202020202020202020202020202020202020202
-    v3 = add v0, 96
-    mstore v3, 0x303030303030303030303030303030303030303030303030303030303030303
-    v4 = add v0, 128
-    mstore 64, v4
-    v6 = keccak256 v1, 70
-    v17 = add v4, 32
+    v2 = add v0, 32
+    mstore v2, 0x101010101010101010101010101010101010101010101010101010101010101
+    v3 = add v0, 64
+    mstore v3, 0x202020202020202020202020202020202020202020202020202020202020202
+    v4 = add v0, 96
+    mstore v4, 0x303030303030303030303030303030303030303030303030303030303030303
+    v5 = add v0, 128
+    mstore 64, v5
+    v7 = keccak256 v2, 70
+    v17 = add v5, 32
     v18 = add v17, 64
     mstore v17, 64
     v20 = mload v0
@@ -187,7 +187,7 @@ fn @assembled() {
     mstore v24, 0
     mstore v18, v20
     v26 = add v23, v22
-    icall @mcopy_words, v23, v1, v20
+    icall @mcopy_words, v23, v2, v20
     v27 = add v17, 32
     mstore v27, 7
     v28 = sub v26, v17
@@ -200,7 +200,7 @@ fn @assembled() {
     mstore v38, v28
     v10 = add v38, 128
     v11 = keccak256 v10, 70
-    v12 = eq v11, v6
+    v12 = eq v11, v7
     v14 = zext i1 v12 to i256
     mstore 0, v14
     returndata 0, 32
@@ -220,29 +220,20 @@ fn @recycled() {
     v4 = add v42, 64
     mstore v4, 0x2222222222222222222222222222222222222222222222222222222222222222
     mstore 64, v2
-    v13 = mload v42
-    v45 = add v13, 63
-    v20 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v21 = lt v20, v13
-    jumpi v21, bb1, bb2
-  bb2:                                            ; preds = bb0
     v43 = mload 64 !metadata(alloc_ptr)
-    v44 = add v43, v20 !metadata(alloc_ptr)
+    v44 = add v43, 96
     mstore 64, v44
-    mstore v43, v13
+    mstore v43, 64
     v34 = add v43, 32
-    icall @mcopy_words, v34, v2, v13
-    v36 = add v43, v13
-    v37 = add v36, 32
+    icall @mcopy_words, v34, v2, 64
+    v36 = add v43, 64
+    v37 = add v43, 96
     mstore v37, 0
-    v9 = add v43, 64
-    v10 = mload v9
+    v10 = mload v36
     v11 = eq v10, 0x2222222222222222222222222222222222222222222222222222222222222222
     v30 = zext i1 v11 to i256
     mstore 0, v30
     returndata 0, 32
-  bb1 [cold]:                                     ; preds = bb0
-    tail_call @revert_stub
 }
 
 ; function fresh() external pure returns (uint256[] memory values) [selector 0xb466b76f]
@@ -283,27 +274,18 @@ fn @recycledTail() {
     v6 = add v41, 96
     mstore v6, 0x3333333333333333333333333333333333333333333333333333333333333333
     mstore 64, v2
-    v14 = mload v41
-    v44 = add v14, 63
-    v21 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v22 = lt v21, v14
-    jumpi v22, bb1, bb2
-  bb2:                                            ; preds = bb0
     v42 = mload 64 !metadata(alloc_ptr)
-    v43 = add v42, v21 !metadata(alloc_ptr)
+    v43 = add v42, 96
     mstore 64, v43
-    mstore v42, v14
+    mstore v42, 63
     v33 = add v42, 32
-    icall @mcopy_words, v33, v2, v14
-    v35 = add v42, v14
-    v36 = add v35, 32
+    icall @mcopy_words, v33, v2, 63
+    v36 = add v42, 95
     mstore v36, 0
     v11 = add v42, 64
     v12 = mload v11
     mstore 0, v12
     returndata 0, 32
-  bb1 [cold]:                                     ; preds = bb0
-    tail_call @revert_stub
 }
 
 ; function pair(bytes memory payload) external pure returns (bytes32) [selector 0x9f4b9fa0]
@@ -362,13 +344,6 @@ fn @pair() {
     revert 28, 36
   bb1 [cold]:                                     ; preds = bb0, bb4
     revert 0, 0
-}
-
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
 }
 
 fn @mcopy_words(arg0: i256, arg1: i256, arg2: i256) {
@@ -447,12 +422,12 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v7 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v5, v4
-    v7 = ne v6, 0
-    jumpi v7, bb1, bb2
+    v9 = zext i1 v3 to i256
+    v10 = or v7, v9
+    v5 = ne v10, 0
+    jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

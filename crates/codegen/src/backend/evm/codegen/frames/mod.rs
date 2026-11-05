@@ -1463,9 +1463,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
 
         let id = self.asm.new_deferred_const();
-        self.asm.emit_push_deferred(id);
-        self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-        self.asm.emit_op(op::MSTORE);
+        // push heap_start; push FMP_SLOT; mstore
+        self.emit_with_contract_origin(|codegen| {
+            codegen.asm.emit_push_deferred(id);
+            codegen.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+            codegen.asm.emit_op(op::MSTORE);
+        });
         self.runtime_free_memory_consts.insert(entry, id);
         if self.capture_mir {
             self.entry_heap_sites.insert(entry, id);

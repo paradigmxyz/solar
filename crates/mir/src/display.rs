@@ -14,7 +14,7 @@ use solar_data_structures::{
     fmt::FmtIteratorExt,
     map::{FxHashMap, FxHashSet},
 };
-use solar_ir::link::display_u256;
+use solar_ir::{debug::DebugLocKind, link::display_u256};
 use std::fmt;
 
 /// Displays a DOT format CFG for a function.
@@ -210,10 +210,13 @@ pub(crate) fn display_function_text<'a>(
         fmt::from_fn(move |f| {
             let label = fmt::from_fn(|f| {
                 write!(f, "  bb{}", block_id.index())?;
-                if block.hotness.is_cold() {
-                    write!(f, " [cold]")?;
+                match (block.hotness.is_cold(), block.cold_hint) {
+                    (false, false) => {}
+                    (true, false) => write!(f, " [cold]")?,
+                    (false, true) => write!(f, " [cold_hint]")?,
+                    (true, true) => write!(f, " [cold, cold_hint]")?,
                 }
-                write!(f, ":")
+                write!(f, "{}:", display_metadata(&block.label_metadata, None, func))
             });
             let preds = (!block.predecessors.is_empty()).then(|| {
                 fmt::from_fn(|f| {
@@ -358,6 +361,9 @@ fn display_function_attributes(
         }
         if func.attributes.is_function_pointer_dispatcher {
             write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
+        }
+        if func.attributes.creation_only {
+            write_function_attribute(f, &mut first, "creation_only")?;
         }
         if func.attributes.always_inline {
             write_function_attribute(f, &mut first, "always_inline")?;
@@ -581,8 +587,8 @@ fn display_inst_kind<'a>(
                     super::PackedPart::Scalar { value, ty } => {
                         write!(f, "{ty} {}", display_val(*value, func))?
                     }
-                    super::PackedPart::Bytes(value) => {
-                        write!(f, "bytes {}", display_val(*value, func))?
+                    super::PackedPart::Bytes { value, location } => {
+                        write!(f, "{location}_bytes {}", display_val(*value, func))?
                     }
                     super::PackedPart::Array { value, element, source, wordwise } => {
                         write!(
@@ -645,12 +651,15 @@ fn display_inst_kind<'a>(
             }
             Ok(())
         }
-        InstKind::AbiEncode { mode, selector, args, layout } => {
+        InstKind::AbiEncode { mode, base, selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;
             match mode {
                 super::AbiEncodeMode::Slice => {}
                 super::AbiEncodeMode::Bytes => write!(f, ", object")?,
                 super::AbiEncodeMode::Scratch => write!(f, ", scratch")?,
+            }
+            if let Some(base) = base {
+                write!(f, ", base {}", display_val(*base, func))?;
             }
             if let Some(selector) = selector {
                 write!(f, ", selector {}", display_val(*selector, func))?;
@@ -808,6 +817,7 @@ fn display_metadata<'a>(
         Hir(HirExprId),
         Span { lo: u32, hi: u32 },
         Spans(&'a InstructionMetadata),
+        DebugLocKind(&'static str),
         ModifierDepth(u32),
         Unchecked,
         DeferredAlloc,
@@ -836,6 +846,7 @@ fn display_metadata<'a>(
                     span.hi().0
                 )),
             ),
+            MetadataField::DebugLocKind(keyword) => f.write_str(keyword),
             MetadataField::ModifierDepth(depth) => write!(f, "modifier_depth={depth}"),
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::DeferredAlloc => write!(f, "deferred_alloc"),
@@ -871,16 +882,23 @@ fn display_metadata<'a>(
         if let Some(hir_expr) = metadata.hir_expr() {
             fields.push(MetadataField::Hir(hir_expr));
         }
-        if metadata.displays_source_span()
-            && let Some(span) = metadata.source_span()
-        {
-            if metadata.source_spans().count() == 1 {
-                fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });
-            } else {
-                fields.push(MetadataField::Spans(metadata));
-            }
-            if metadata.modifier_depth() != 0 {
-                fields.push(MetadataField::ModifierDepth(metadata.modifier_depth()));
+        if metadata.displays_source_span() {
+            if let Some(span) = metadata.source_span() {
+                if metadata.source_spans().count() == 1 {
+                    fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });
+                } else {
+                    fields.push(MetadataField::Spans(metadata));
+                }
+                if metadata.modifier_depth() != 0 {
+                    fields.push(MetadataField::ModifierDepth(metadata.modifier_depth()));
+                }
+            } else if let kind @ (DebugLocKind::CompilerGenerated | DebugLocKind::Temporary) =
+                metadata.debug_loc_kind()
+                && let Some(keyword) = kind.keyword()
+            {
+                // `dropped` is what text without a location means, and the audit sets `unknown` on
+                // the gaps it reports, so neither is spelled out: an audit must not change text.
+                fields.push(MetadataField::DebugLocKind(keyword));
             }
         }
         if metadata.unchecked() {

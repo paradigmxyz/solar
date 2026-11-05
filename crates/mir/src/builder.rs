@@ -11,7 +11,7 @@ use crate::{Callee, memory::EvmMemoryLayout};
 use alloy_primitives::{Bytes, U256};
 use smallvec::SmallVec;
 use solar_config::RevertStrings;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use solar_interface::Span;
 use solar_ir::link::LibraryId;
 
@@ -81,6 +81,8 @@ pub struct FunctionBuilder<'a> {
     /// How compiler-generated reverts with a [`RevertReason`] are encoded.
     revert_strings: RevertStrings,
     semantic: bool,
+    /// The blocks the builder has switched to, when it records block label origins.
+    placed_blocks: Option<GrowableBitSet<BlockId>>,
 }
 
 /// A counted loop whose body is the builder's current block.
@@ -107,12 +109,25 @@ impl<'a> FunctionBuilder<'a> {
             current_debug_context: InstructionMetadata::EMPTY,
             revert_strings: RevertStrings::Default,
             semantic: false,
+            placed_blocks: None,
         }
     }
 
     /// Builds semantic MIR without expanding checks into control flow.
     pub fn new_semantic(func: &'a mut Function) -> Self {
         Self { semantic: true, ..Self::new(func) }
+    }
+
+    /// Records the origin of each block's label, as solc gives a tag the location active where it
+    /// is placed: the first switch to a block sets its [`crate::BasicBlock::label_metadata`] to the
+    /// current debug context. Rewrites do not ask for this, so the blocks they create start empty.
+    ///
+    /// The entry block is placed from the start; [`Self::set_entry_label_span`] labels it.
+    pub fn with_block_labels(mut self) -> Self {
+        let mut placed = GrowableBitSet::new_empty();
+        placed.insert(BlockId::ENTRY);
+        self.placed_blocks = Some(placed);
+        self
     }
 
     /// Selects how compiler-generated reverts with a [`RevertReason`] are encoded.
@@ -173,11 +188,22 @@ impl<'a> FunctionBuilder<'a> {
     /// of the instruction or terminator they replace after switching blocks.
     pub fn switch_to_block(&mut self, block: BlockId) {
         self.current_block = block;
+        if let Some(placed) = &mut self.placed_blocks
+            && placed.insert(block)
+        {
+            self.func.blocks[block].label_metadata.copy_debug_context(&self.current_debug_context);
+        }
     }
 
-    /// Creates a new basic block.
+    /// Sets the label origin of the entry block, which is placed without a switch.
+    pub fn set_entry_label_span(&mut self, span: Span) {
+        self.func.blocks[BlockId::ENTRY].label_metadata.set_debug_source_span(Some(span));
+    }
+
+    /// Creates a new basic block for the code the current block reaches, so it keeps the current
+    /// block's `cold_hint`.
     pub fn create_block(&mut self) -> BlockId {
-        self.func.alloc_block()
+        self.func.alloc_block_like(self.current_block)
     }
 
     /// Starts `for index in 0..length` and switches to its body.
@@ -316,6 +342,10 @@ impl<'a> FunctionBuilder<'a> {
     /// a statically sized aggregate. These are the checks of solc's `access_calldata_tail` and
     /// the ABI encoder's `calldata_access`; `tail` only picks the debug messages.
     ///
+    /// With `decoded`, the offset must also fit in 64 bits, as solc's ABI decoder requires of the
+    /// nested offsets of a value copied to memory. The signed bound alone accepts an offset above
+    /// `2**255`, which wraps `base + offset` back onto earlier calldata.
+    ///
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L2542-L2569>
     /// and <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/ABIFunctions.cpp#L1435-L1475>
     pub fn check_calldata_tail_offset(
@@ -325,13 +355,21 @@ impl<'a> FunctionBuilder<'a> {
         offset: ValueId,
         calldata_end: ValueId,
         tail_size: u64,
+        decoded: bool,
     ) {
-        // if !(offset <s calldata_end - base - (tail_size - 1)) { revert }
+        // if !(offset <s calldata_end - base - (tail_size - 1)) || offset > 0xffffffffffffffff {
+        //     revert
+        // }
         let available = self.sub(calldata_end, base);
         let slack = self.imm(tail_size - 1);
         let bound = self.sub(available, slack);
         let valid = self.slt(offset, bound);
-        let invalid = self.eq_zero(valid);
+        let mut invalid = self.eq_zero(valid);
+        if decoded {
+            let max_offset = self.imm(u64::MAX);
+            let too_large = self.gt(offset, max_offset);
+            invalid = self.or(invalid, too_large);
+        }
         self.revert_if(invalid, tail.offset_reason());
     }
 
@@ -546,18 +584,16 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Returns whether the 256-bit unsigned product of `lhs` and `rhs` wraps, when one factor is
-    /// a constant power of two 2 ** s, s >= 1: the other factor then needs a bit at or above
-    /// 256 - s. Other constants keep the quotient test.
+    /// a constant power of two 2 ** s, s >= 1: the other factor then exceeds `MAX >> s`. Other
+    /// constants keep the quotient test.
     pub fn power_of_two_mul_overflow(&mut self, lhs: ValueId, rhs: ValueId) -> Option<ValueId> {
         let (factor, c) = [(lhs, rhs), (rhs, lhs)].into_iter().find_map(|(factor, constant)| {
             let c = self.func.value_u256(constant)?;
             (c > U256::ONE && c.is_power_of_two()).then_some((factor, c))
         })?;
-        // high = shr factor, 256 - s
-        // overflow = ne high, 0
-        let shift = self.imm(U256::from(256 - c.trailing_zeros()));
-        let high = self.shr(factor, shift);
-        Some(self.ne_zero(high))
+        // overflow = gt factor, MAX >> s
+        let limit = self.imm(U256::MAX >> c.trailing_zeros());
+        Some(self.gt(factor, limit))
     }
 
     /// Rounds `rounded` down to a multiple of 32.
@@ -997,10 +1033,12 @@ impl<'a> FunctionBuilder<'a> {
         let one = self.imm(1);
         let word_size = self.imm(EvmMemoryLayout::WORD_SIZE);
         let size = if semantics.failure == AllocationFailure::Checked {
-            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE - 1, 0x41
+            // panic_if length > MAX_ALLOCATION_END / WORD_SIZE, 0x41
             // size = (length + 1) * WORD_SIZE
-            let limit =
-                self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE - 1);
+            //
+            // The limit is `2^59 - 1`, a width test. That length passes, but its size `2^64` ends
+            // past the allocation limit, which the checked allocation panics on with the same code.
+            let limit = self.imm(EvmMemoryLayout::MAX_ALLOCATION_END / EvmMemoryLayout::WORD_SIZE);
             let invalid = self.gt(length, limit);
             self.panic_if(invalid, PanicCode::MemoryAllocationOverflow);
             let words = self.add(length, one);
@@ -1288,7 +1326,7 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Slice)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Slice, None)
     }
 
     /// ABI-encodes `args` into a freshly allocated bytes object.
@@ -1298,7 +1336,7 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Bytes)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Bytes, None)
     }
 
     /// ABI-encodes `args` at the free-memory pointer without reserving the result.
@@ -1308,7 +1346,18 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
     ) -> ValueId {
-        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Scratch)
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Scratch, None)
+    }
+
+    /// ABI-encodes `args` at `base` without reserving the result.
+    pub fn abi_encode_scratch_at(
+        &mut self,
+        layout: crate::AbiLayoutRef,
+        selector: Option<ValueId>,
+        args: impl Into<Box<[ValueId]>>,
+        base: ValueId,
+    ) -> ValueId {
+        self.emit_abi_encode(layout, selector, args, AbiEncodeMode::Scratch, Some(base))
     }
 
     fn emit_abi_encode(
@@ -1317,9 +1366,10 @@ impl<'a> FunctionBuilder<'a> {
         selector: Option<ValueId>,
         args: impl Into<Box<[ValueId]>>,
         mode: AbiEncodeMode,
+        base: Option<ValueId>,
     ) -> ValueId {
         self.emit_inst(
-            InstKind::AbiEncode { mode, selector, args: args.into(), layout },
+            InstKind::AbiEncode { mode, base, selector, args: args.into(), layout },
             Some(mode.result_type()),
         )
     }

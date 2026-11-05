@@ -21,7 +21,7 @@ fn @entry() [entry] {
 // CHECK-LABEL: {{^[ +].*}}fn @count{{[( ]}}
 // CHECK: - {{v[0-9]+}} = phi [bb0: 9], [bb2: {{v[0-9]+}}]
 // CHECK: {{^ +}}{{v[0-9]+}} = phi [bb0: 0], [bb2: {{v[0-9]+}}]
-// CHECK: + {{v[0-9]+}} = add 9,
+// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, 9
 fn @count() {
   bb0:
     v0 = calldataload 4

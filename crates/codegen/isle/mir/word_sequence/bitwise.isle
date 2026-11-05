@@ -1,13 +1,5 @@
 ;; Bitwise identities and boolean combinations.
 
-;; (x << 1) | 1 => x - ~x.
-(rule (sequence_rewrite (Op.Or (shl (one) x) (one)))
-      (if-let complement (make (Op.Not x))) (sequence (Op.Sub x complement)))
-
-;; (x + x) | 1 => x - ~x.
-(rule (sequence_rewrite (Op.Or (add x x) (one)))
-      (if-let complement (make (Op.Not x))) (sequence (Op.Sub x complement)))
-
 ;; ~x & ~y => ~(x | y).
 (rule (sequence_rewrite (Op.And (bnot v0) (bnot v1))) (if-let r0 (make (Op.Or v0 v1))) (sequence (Op.Not r0)))
 
@@ -77,6 +69,18 @@
 ;; (x != 0) | (y != 0) => (x | y) != 0.
 (rule (sequence_rewrite (Op.Or (ne x (zero)) (ne y (zero))))
       (if-let combined (make (Op.Or x y))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Ne combined zero)))
+
+;; a | (w != 0) => (a | w) != 0.
+;; Requires: a is boolean.
+(rule (sequence_rewrite (Op.Or (and a (bool_value)) (ne w (zero))))
+      (if-let combined (make (Op.Or a w))) (if-let zero (imm (u256 0)))
+      (sequence (Op.Ne combined zero)))
+
+;; (w != 0) | a => (w | a) != 0.
+;; Requires: a is boolean.
+(rule (sequence_rewrite (Op.Or (ne w (zero)) (and a (bool_value))))
+      (if-let combined (make (Op.Or w a))) (if-let zero (imm (u256 0)))
       (sequence (Op.Ne combined zero)))
 
 ;; (x & ~a) & ~b => x & ~(a | b).

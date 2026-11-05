@@ -41,10 +41,10 @@ fn @sum() {
     jumpi v71, bb10, bb11
   bb11:                                           ; preds = bb0
     v49 = alloc 96 !metadata(deferred_alloc)
-    v50 = icall @decode_calldata_type.5, v44, v44
+    v50 = icall @decode_calldata_type.4, v44, v44
     mstore v49, v50
     v52 = add v44, 32
-    v53 = icall @decode_calldata_type.5, v52, v44
+    v53 = icall @decode_calldata_type.4, v52, v44
     v64 = add v49, 32
     mstore v64, v53
     v66 = add v49, 64
@@ -91,7 +91,9 @@ fn @sum() {
     v15 = add v2, 1
     jump bb1
   bb7 [cold]:                                     ; preds = bb3, bb6
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb10 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
@@ -185,7 +187,9 @@ fn @sumDecoded() {
     v17 = add v4, 1
     jump bb1
   bb7 [cold]:                                     ; preds = bb3, bb6
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb14 [cold]:                                    ; preds = bb13
     mstore 32, 65
     mstore 0, 0x4e487b71
@@ -208,10 +212,10 @@ fn @narrow() {
     jumpi v77, bb10, bb11
   bb11:                                           ; preds = bb0
     v53 = alloc 96 !metadata(deferred_alloc)
-    v54 = icall @decode_calldata_type.6, v48, v48
+    v54 = icall @decode_calldata_type.5, v48, v48
     mstore v53, v54
     v56 = add v48, 32
-    v57 = icall @decode_calldata_type.6, v56, v48
+    v57 = icall @decode_calldata_type.5, v56, v48
     v68 = add v53, 32
     mstore v68, v57
     v70 = add v53, 64
@@ -260,7 +264,9 @@ fn @narrow() {
     v17 = add v2, 1
     jump bb1
   bb7 [cold]:                                     ; preds = bb3, bb6
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb10 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
@@ -279,10 +285,10 @@ fn @grid() {
     jumpi v129, bb16, bb17
   bb17:                                           ; preds = bb0
     v99 = alloc 96 !metadata(deferred_alloc)
-    v100 = icall @decode_calldata_type.7, v94, v94
+    v100 = icall @decode_calldata_type.6, v94, v94
     mstore v99, v100
     v102 = add v94, 32
-    v103 = icall @decode_calldata_type.7, v102, v94
+    v103 = icall @decode_calldata_type.6, v102, v94
     v120 = add v99, 32
     mstore v120, v103
     v122 = add v99, 64
@@ -359,19 +365,14 @@ fn @grid() {
     v36 = add v9, 1
     jump bb5
   bb13 [cold]:                                    ; preds = bb6, bb12
-    tail_call @revert_stub
+    mstore 32, 17
+    mstore 0, 0x4e487b71
+    revert 28, 36
   bb16 [cold]:                                    ; preds = bb0
     revert 0, 0
 }
 
-fn @revert_stub() [cold] {
-  bb0 [cold]:
-    mstore 32, 17 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-}
-
-fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+fn @decode_calldata_type.4(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -383,7 +384,8 @@ fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = gt v6, 0x7fffffffffffffe
+    v26 = shr v6, 59
+    v8 = ne v26, 0
     jumpi v8, bb3, bb4
   bb4:                                            ; preds = bb2
     v9 = add v6, 1
@@ -407,7 +409,7 @@ fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_calldata_type.6(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+fn @decode_calldata_type.5(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -419,13 +421,14 @@ fn @decode_calldata_type.6(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = gt v6, 0x7fffffffffffffe
+    v36 = shr v6, 59
+    v8 = ne v36, 0
     jumpi v8, bb3, bb4
   bb4:                                            ; preds = bb2
     v9 = add v6, 1
     v10 = shl v9, 5
-    v36 = icall @alloc, v10
-    mstore v36, v6
+    v35 = icall @alloc, v10
+    mstore v35, v6
     v12 = shl v6, 5
     v13 = sub v0, v7
     v14 = shr v13, 5
@@ -446,13 +449,12 @@ fn @decode_calldata_type.6(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     v24 = lt v23, v18
     jumpi v24, bb7, bb8
   bb8:                                            ; preds = bb7
-    v25 = shr v22, 8
-    v26 = eq v25, 0
-    jumpi v26, bb9, bb1
+    v25 = gt v22, 255
+    jumpi v25, bb1, bb9
   bb9:                                            ; preds = bb5, bb8
-    v33 = add v36, 32
-    calldatacopy v33, v7, v12
-    ret v36
+    v32 = add v35, 32
+    calldatacopy v32, v7, v12
+    ret v35
   bb3 [cold]:                                     ; preds = bb2
     mstore 32, 65
     mstore 0, 0x4e487b71
@@ -461,7 +463,7 @@ fn @decode_calldata_type.6(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
     revert 0, 0
 }
 
-fn @decode_calldata_type.7(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
+fn @decode_calldata_type.6(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb0:
     v0 = calldatasize
     v1 = calldataload arg0
@@ -473,7 +475,8 @@ fn @decode_calldata_type.7(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb2:                                            ; preds = bb0
     v6 = calldataload v2
     v7 = add v2, 32
-    v8 = gt v6, 0x7fffffffffffffe
+    v33 = shr v6, 59
+    v8 = ne v33, 0
     jumpi v8, bb3, bb4
   bb4:                                            ; preds = bb2
     v9 = add v6, 1
@@ -495,7 +498,7 @@ fn @decode_calldata_type.7(arg0: i256, arg1: i256) -> i256 [may_return_memory] {
   bb8:                                            ; preds = bb6
     ret v32
   bb7:                                            ; preds = bb6
-    v20 = icall @decode_calldata_type.5, v17, v7
+    v20 = icall @decode_calldata_type.4, v17, v7
     v21 = shl v18, 5
     v29 = add v32, v21
     v30 = add v29, 32
@@ -517,13 +520,16 @@ fn @decode_memory_type(arg0: i256, arg1: i256, arg2: i256) -> i256 [may_return_m
     v0 = mload arg0
     v1 = add v0, arg1
     v3 = add v1, 32
-    v4 = gt v0, 0xffffffffffffffff
+    v28 = shr v0, 64
     v5 = lt arg2, v3
-    v6 = or v4, v5
+    v30 = zext i1 v5 to i256
+    v31 = or v28, v30
+    v6 = ne v31, 0
     jumpi v6, bb1, bb2
   bb2:                                            ; preds = bb0
     v8 = mload v1
-    v10 = gt v8, 0x7fffffffffffffe
+    v33 = shr v8, 59
+    v10 = ne v33, 0
     jumpi v10, bb3, bb4
   bb4:                                            ; preds = bb2
     v11 = add v8, 1
@@ -551,12 +557,12 @@ fn @alloc(arg0: i256) -> i256 {
   bb0:
     v0 = mload 64 !metadata(memory=scratch, alloc_ptr)
     v2 = add v0, arg0 !metadata(alloc_ptr)
+    v7 = shr v2, 64
     v3 = lt v2, v0
-    v4 = zext i1 v3 to i256
-    v5 = shr v2, 64
-    v6 = or v5, v4
-    v7 = ne v6, 0
-    jumpi v7, bb1, bb2
+    v9 = zext i1 v3 to i256
+    v10 = or v7, v9
+    v5 = ne v10, 0
+    jumpi v5, bb1, bb2
   bb2:                                            ; preds = bb0
     mstore 64, v2 !metadata(memory=scratch)
     ret v0

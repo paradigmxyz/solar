@@ -24,10 +24,20 @@
 //! blocks is no loop, and a share whose sites are all cold needs only to save bytes. In a share
 //! that also has hot sites, only those pay the transfer gas.
 //!
+//! A call runs one external function, so the sites that different external entries reach never
+//! run together. A gas-mode share charges the transfer gas of the entry whose sites pay the most,
+//! as [`EntryGroups`] finds them, plus the sites no entry reaches, rather than the sum over every
+//! site, which would count each call's jumps once per sibling entry point. A site that several
+//! entries reach, such as one in an internal function, counts for each of them. Code without
+//! entry blocks, such as creation code, pays for every site.
+//!
 //! Size mode shares a push inside a loop only when the bytes it saves there repay those jumps over
 //! the expected executions, at the target's estimate of a loop's iterations per execution, so a
 //! constant that enough other code repeats does not slow down every iteration of an unrelated
 //! loop.
+//!
+//! The shared body has no source location, as in LLVM's `MachineOutliner`. Each site's call
+//! sequence takes the first location in the run it replaces.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
@@ -58,8 +68,8 @@ use crate::{
     backend::evm::{
         DebugFunction,
         ir::{
-            Block, BlockId, CallEffect, Instruction, Module, ModuleTarget, StackEffect, Terminator,
-            TerminatorKind,
+            Block, BlockId, CallEffect, Instruction, Metadata, Module, ModuleTarget, StackEffect,
+            Terminator, TerminatorKind,
         },
         op,
     },
@@ -73,7 +83,10 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet, FxHasher},
 };
 use solar_sema::Gcx;
-use std::hash::{Hash, Hasher};
+use std::{
+    cell::OnceCell,
+    hash::{Hash, Hasher},
+};
 
 pub(super) struct Outline;
 
@@ -110,45 +123,63 @@ fn outline(gcx: Gcx<'_>, module: &mut Module) -> bool {
 /// Returns whether any repeated push could repay its call and return gas in gas mode.
 ///
 /// A share of `n` pushes, each at most a `PUSH32` and its immediate, saves fewer than
-/// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost `n` times the transfer gas
-/// at hot sites and nothing at cold ones.
+/// `n * (PUSH32 bytes - site bytes)` bytes, while its transfers cost at least `n` times the
+/// transfer gas at hot sites and nothing at cold ones, divided among the external entries.
 fn may_share_pushes(gcx: Gcx<'_>, module: &Module) -> bool {
     if !module.optimization.is_gas() {
         return true;
     }
     let target = module.target(gcx);
     let (site_bytes, _, transfer_gas) = push_share_costs(&target);
-    target.deposit_repays_gas(
+    ScreenPricing::new(&target, module, transfer_gas).repays(
+        &target,
         u64::from(target.opcode(op::PUSH32).bytes).saturating_sub(site_bytes as u64),
-        u64::from(screen_transfer_gas(&target, module, transfer_gas)),
     )
 }
 
-/// The transfer gas per site that a screen must assume: a share with a cold site pays less than
-/// `gas` for it, so a module with a cold block is screened as if every site were cold.
-fn screen_transfer_gas(target: &Target, module: &Module, gas: u32) -> u32 {
-    target.site_gas(module.blocks.iter().any(|block| block.metadata.hotness.is_cold()), gas)
+/// The least transfer gas per site that a module-wide screen must assume.
+///
+/// A share with a cold site pays less than `gas` for it, so a module with a cold block is
+/// screened as if every site were cold. In a module with several external entries, a share
+/// pays only for the busiest entry's sites, as [`sites_transfer_gas`] prices it. Each site is
+/// in some entry's group, so that is at least one entry's share of the sites, and the screen
+/// charges each site `gas` divided by the number of entries.
+struct ScreenPricing {
+    gas: u32,
+    entries: u64,
+}
+
+impl ScreenPricing {
+    fn new(target: &Target, module: &Module, gas: u32) -> Self {
+        let cold = module.blocks.iter().any(|block| block.metadata.hotness.is_cold());
+        let entries = external_entries(module).count().max(1) as u64;
+        Self { gas: target.site_gas(cold, gas), entries }
+    }
+
+    /// Whether a share that saves `bytes` per site could repay its transfers at this pricing.
+    fn repays(&self, target: &Target, bytes: u64) -> bool {
+        target.deposit_repays_gas(bytes.saturating_mul(self.entries), u64::from(self.gas))
+    }
 }
 
 /// Returns whether gas mode could share some closed machine run outside loops.
 ///
 /// A share of `n` runs of `size` bytes saves fewer than `n * (size - transfer bytes)` bytes,
 /// while its transfers cost at least `n` times the gas of two pushes, two jumps, and two
-/// labels, at hot sites only. Every candidate is a closed run of whitelisted instructions, and
-/// every site of a profitable share starts with the same shortest closed prefix that is large
-/// enough. Sharing is possible only if two starts have equal prefixes, which hashes can rule out.
-/// The screen shares the outliner's candidate budget and gives up, answering yes, once it is spent.
+/// labels, at hot sites only, divided among the external entries. Every candidate is a closed run
+/// of whitelisted instructions, and every site of a profitable share starts with the same shortest
+/// closed prefix that is large enough. Sharing is possible only if two starts have equal prefixes,
+/// which hashes can rule out. The screen shares the outliner's candidate budget and gives up,
+/// answering yes, once it is spent.
 fn may_share_machine_runs(gcx: Gcx<'_>, module: &Module) -> bool {
     if !module.optimization.is_gas() {
         return true;
     }
     let target = module.target(gcx);
     let transfer_size = transfer_size(&target);
-    let transfer_gas = screen_transfer_gas(&target, module, transfer_gas(&target));
-    let profitable = |size: usize| {
-        target
-            .deposit_repays_gas(size.saturating_sub(transfer_size) as u64, u64::from(transfer_gas))
-    };
+    let pricing = ScreenPricing::new(&target, module, transfer_gas(&target));
+    let profitable =
+        |size: usize| pricing.repays(&target, size.saturating_sub(transfer_size) as u64);
     let mut metrics = Vec::new();
     let mut prefixes = FxHashSet::default();
     let mut budget = MAX_MACHINE_RUN_CANDIDATES;
@@ -203,9 +234,101 @@ fn is_cold(module: &Module, site: &Site) -> bool {
     module.blocks[site.block].metadata.hotness.is_cold()
 }
 
-/// The transfer gas `sites` pay together, which a cold site does not.
-fn sites_transfer_gas(module: &Module, target: &Target, sites: &[Site], gas: u32) -> u64 {
-    sites.iter().map(|site| u64::from(target.site_gas(is_cold(module, site), gas))).sum()
+/// The blocks that an external function starts at.
+fn external_entries(module: &Module) -> impl Iterator<Item = BlockId> + '_ {
+    module
+        .blocks
+        .iter_enumerated()
+        .filter(|(_, block)| block.metadata.external_entry)
+        .map(|(entry, _)| entry)
+}
+
+/// What the external entries reach.
+struct EntryGroups {
+    /// The blocks that some entry reaches and the code outside the entries does not.
+    exclusive: DenseBitSet<BlockId>,
+    /// The blocks each entry reaches.
+    reach: Vec<DenseBitSet<BlockId>>,
+}
+
+impl EntryGroups {
+    /// Walks the blocks from the module's entry and from each external entry over jumps, branches,
+    /// and pushed block addresses, which include every call's return continuation. The walk from
+    /// the module's entry stops at external entries, so a block reached from both sides is not
+    /// exclusive, and an entry that an earlier pass merged away leaves its code shared rather
+    /// than undercounted.
+    fn new(module: &Module) -> Self {
+        let entries = external_entries(module).collect::<Vec<_>>();
+        if entries.len() < 2 {
+            return Self {
+                exclusive: DenseBitSet::new_empty(module.blocks.len()),
+                reach: Vec::new(),
+            };
+        }
+        let successors = module
+            .blocks
+            .iter()
+            .map(|block| {
+                let mut successors = SmallVec::<[BlockId; 4]>::new();
+                successors.extend(block.instructions.iter().filter_map(Instruction::pushed_block));
+                if let Some(terminator) = &block.terminator {
+                    terminator.kind.visit_targets(|target| successors.push(target));
+                }
+                successors
+            })
+            .collect::<IndexVec<BlockId, _>>();
+        let walk = |root: BlockId, stop_at_entries: bool| {
+            let mut reached = DenseBitSet::new_empty(module.blocks.len());
+            let mut pending = vec![root];
+            while let Some(block) = pending.pop() {
+                let stops = stop_at_entries
+                    && block != root
+                    && module.blocks[block].metadata.external_entry;
+                if !stops && reached.insert(block) {
+                    pending.extend(&successors[block]);
+                }
+            }
+            reached
+        };
+        let reach = entries.iter().map(|&entry| walk(entry, false)).collect::<Vec<_>>();
+        let mut exclusive = DenseBitSet::new_empty(module.blocks.len());
+        for reached in &reach {
+            exclusive.union(reached);
+        }
+        exclusive.subtract(&walk(BlockId::ENTRY, true));
+        Self { exclusive, reach }
+    }
+}
+
+/// The transfer gas that `sites` pay in one call, which a cold site does not.
+///
+/// A call runs one external function, so sites that only different entries reach never run
+/// together: the call pays for the entry whose sites cost the most. Other sites, such as the
+/// dispatch's own, may run in every call.
+fn sites_transfer_gas(
+    module: &Module,
+    entries: &OnceCell<EntryGroups>,
+    target: &Target,
+    sites: &[Site],
+    gas: u32,
+) -> u64 {
+    let site_gas = |site: &Site| u64::from(target.site_gas(is_cold(module, site), gas));
+    let EntryGroups { exclusive, reach } = entries.get_or_init(|| EntryGroups::new(module));
+    let (exclusive, shared) =
+        sites.iter().partition::<Vec<&Site>, _>(|site| exclusive.contains(site.block));
+    let busiest = reach
+        .iter()
+        .map(|reached| {
+            exclusive
+                .iter()
+                .filter(|site| reached.contains(site.block))
+                .map(|s| site_gas(s))
+                .sum::<u64>()
+        })
+        .max()
+        .unwrap_or(0);
+    let shared = shared.into_iter().map(site_gas).sum::<u64>();
+    shared + busiest
 }
 
 /// The blocks of the sites that run on a successful call.
@@ -274,6 +397,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
 
     let is_gas = target.optimization().is_gas();
     let is_size = target.optimization().is_size();
+    let entries = OnceCell::new();
     let metrics = hashes.metrics(module, |block, inst| {
         if is_gas && block.in_hot_loop() {
             return None;
@@ -343,7 +467,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                     * u32::from(first.outputs.saturating_add(first.inputs));
             if !target.deposit_repays_gas(
                 saved_bytes as u64,
-                sites_transfer_gas(module, &target, &free, transfer_gas),
+                sites_transfer_gas(module, &entries, &target, &free, transfer_gas),
             ) {
                 if let [value, address, store, ..] = run
                     && address.is_encoded_push()
@@ -356,7 +480,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
             }
         }
         let mut body = run.to_vec();
-        merge_site_source_spans(module, &mut body, &free);
+        drop_body_source_spans(&mut body);
         clear_function_invokes(&mut body);
         Some(Group { body, sites: free, parameters: Vec::new() })
     });
@@ -420,7 +544,7 @@ fn outline_parametric_machine_runs(
                 return None;
             }
             let mut body = run(&first).to_vec();
-            merge_site_source_spans(module, &mut body, &free);
+            drop_body_source_spans(&mut body);
             clear_function_invokes(&mut body);
             let body = parameterize_body(&body, &parameters)?;
             let inline_size = free.iter().map(|site| lower_bound(target, run(site))).sum::<usize>();
@@ -470,6 +594,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let target = module.target(gcx);
     let (site_bytes, body_bytes, transfer_gas) = push_share_costs(&target);
     let mut sites = FxHashMap::<U256, SmallVec<[Site; 2]>>::default();
+    let entries = OnceCell::new();
     let is_gas = target.optimization().is_gas();
     for (block_id, block) in module.blocks.iter_enumerated() {
         // Size mode prices every loop block, cold or not, by the iterations it may run.
@@ -520,7 +645,7 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             && (!target.optimization().is_gas()
                 || target.deposit_repays_gas(
                     saved_bytes as u64,
-                    sites_transfer_gas(module, &target, occurrences, transfer_gas),
+                    sites_transfer_gas(module, &entries, &target, occurrences, transfer_gas),
                 ))
     });
     let mut sites = sites.into_iter().collect::<Vec<_>>();
@@ -531,7 +656,6 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
             // The stub appends its output swap to the body.
             let mut body = Vec::with_capacity(2);
             body.push(Instruction::push_value(value).with_debug_info_dropped());
-            merge_site_source_spans(module, &mut body, &sites);
             Group { body, sites, parameters: Vec::new() }
         })
         .collect();
@@ -635,13 +759,14 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
     true
 }
 
-fn merge_site_source_spans(module: &Module, body: &mut [Instruction], sites: &[Site]) {
-    for site in sites {
-        let instructions =
-            &module.blocks[site.block].instructions[site.start..site.start + site.len];
-        for (body_instruction, site_instruction) in body.iter_mut().zip(instructions) {
-            body_instruction.metadata.merge_source_spans(&site_instruction.metadata);
-        }
+/// Drops the locations of a shared body.
+///
+/// Copies `MachineOutliner`, which gives every outlined instruction an empty location: "Don't keep
+/// debug information for outlined instructions." (`NewMI.setDebugLoc(DebugLoc())`,
+/// llvm/lib/CodeGen/MachineOutliner.cpp#L1035-L1045 at llvm-project e98b16a2710b).
+fn drop_body_source_spans(body: &mut [Instruction]) {
+    for instruction in body {
+        instruction.metadata.mark_debug_info_dropped();
     }
 }
 
@@ -660,6 +785,24 @@ fn range_function_invoke(instructions: &[Instruction]) -> Option<DebugFunction> 
 
 fn swap(depth: usize) -> Instruction {
     Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped()
+}
+
+/// The location of a call sequence that replaces `range`: the first instruction that has one.
+///
+/// Copies `MachineOutliner`, which takes "the first non-debug instruction with a non-zero source
+/// line" of the candidate, and gives "the whole sequence the same location"
+/// (llvm/lib/CodeGen/MachineOutliner.cpp#L1200-L1243 at llvm-project e98b16a2710b).
+///
+/// NOTE: LLVM prefers the merged location of the candidate's calls. A candidate has no calls here,
+/// since `CALL` and the other external calls observe gas, which `shared_body_effect` excludes, so
+/// only the first location applies.
+fn call_site_location(range: &[Instruction]) -> Metadata {
+    let mut location = Metadata::default();
+    location.mark_debug_info_dropped();
+    if let Some(first) = range.iter().find(|inst| inst.metadata.source_span().is_some()) {
+        location.copy_source_debug_from(&first.metadata);
+    }
+    location
 }
 
 /// Splits each site's block, applying a block's edits from its last site to its first so earlier
@@ -692,8 +835,9 @@ fn stub_call_effect(inputs: usize, outputs: u16) -> Option<CallEffect> {
 
 fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32) {
     let Site { block, start, len, inputs, .. } = edit.site;
-    let function_invoke =
-        range_function_invoke(&module.blocks[block].instructions[start..start + len]);
+    let range = &module.blocks[block].instructions[start..start + len];
+    let function_invoke = range_function_invoke(range);
+    let location = call_site_location(range);
     // prefix; push continuation; rotate return below inputs; push parameters; jump stub
     // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
@@ -701,15 +845,19 @@ fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32)
     continuation.metadata.is_continuation = true;
     // The call convention belongs to the function's entry block, not to the code after the stub.
     continuation.metadata.call_effect = None;
+    continuation.metadata.external_entry = false;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
     let instructions = &mut module.blocks[block].instructions;
-    instructions.push(Instruction::push_block(continuation).with_debug_info_dropped());
-    instructions.extend((1..=usize::from(inputs)).rev().map(swap));
+    instructions.push(Instruction::push_block(continuation).with_source_debug(&location));
+    instructions.extend(
+        (1..=usize::from(inputs)).rev().map(|depth| swap(depth).with_source_debug(&location)),
+    );
     instructions.extend_from_slice(&edit.parameters);
-    let mut terminator = Terminator::new(TerminatorKind::Jump(edit.stub)).with_debug_info_dropped();
+    let mut terminator = Terminator::new(TerminatorKind::Jump(edit.stub));
+    terminator.metadata.copy_source_debug_from(&location);
     if let Some(function) = function_invoke {
         terminator.metadata.set_function_invoke(function);
     }

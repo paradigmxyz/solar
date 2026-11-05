@@ -478,14 +478,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             "error argument",
             |this, index, argument| {
                 let parameter_ty = this.cx.gcx.type_of_item(parameters[index].into());
-                let (mut value, abi_type) = this.lower_abi_call_argument(argument, parameter_ty)?;
-                if matches!(abi_type, AbiType::Word(_)) {
-                    value = this.lower_word_value(parameter_ty, argument, value);
-                }
-                Some((value, abi_type))
+                Some(match this.lower_abi_call_argument(argument, parameter_ty)? {
+                    AbiOperand::Ready((value, abi_type @ AbiType::Word(_))) => AbiOperand::Ready((
+                        this.lower_word_value(parameter_ty, argument, value),
+                        abi_type,
+                    )),
+                    operand => operand,
+                })
             },
         )?;
-        let (values, types): (Vec<_>, Vec<_>) = arguments.into_iter().unzip();
+        let (values, types) = self.resolve_abi_operands(arguments)?;
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         let selector = self
             .builder
@@ -555,16 +557,29 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         AllocationSemantics::INTERNAL,
                         false,
                     )?;
-                    return Some((argument, value));
+                    return Some((
+                        argument,
+                        AbiOperand::Ready((value, this.types.abi_type(parameter_ty)?)),
+                    ));
                 }
-                let value = this.lower_typed_expr(argument, parameter_ty)?;
-                Some((argument, value))
+                if !this.cx.gcx.hir.variable(parameter).indexed
+                    && this.is_dynamic_bytes_type(parameter_ty)
+                {
+                    let (value, location) = this.lower_bytes_operand(argument, parameter_ty)?;
+                    return Some((argument, AbiOperand::Ready((value, AbiType::Bytes(location)))));
+                }
+                // A storage array, struct, or string is read after the arguments that follow it,
+                // as via-IR does; legacy hashes indexed topics before the data arguments run.
+                let operand = this.lower_abi_operand(argument, parameter_ty, |this, value| {
+                    Some((value, this.types.abi_type(parameter_ty)?))
+                })?;
+                Some((argument, operand))
             },
         )?;
         let mut data_values = Vec::new();
         let mut data_types = Vec::new();
-        for (index, &parameter) in event.parameters.iter().enumerate() {
-            let (argument, mut value) = arguments[index];
+        for (&parameter, (argument, operand)) in event.parameters.iter().zip(arguments) {
+            let (mut value, mut abi_type) = self.resolve_abi_operand(operand)?;
             let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
             let variable = self.cx.gcx.hir.variable(parameter);
             if variable.indexed {
@@ -581,7 +596,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     | TyKind::DynArray(_)
                     | TyKind::Slice(_)
                     | TyKind::Tuple(_) => {
-                        let mut abi_type = self.types.abi_type(parameter_ty)?;
                         abi_type = self.abi_type_for_value(value, abi_type);
                         self.validate_calldata_static_argument(value, parameter_ty);
                         let calldata_dynamic = self.builder.func().value_slice_location(value)
@@ -592,6 +606,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 parameter_ty,
                                 value,
                                 argument.span,
+                                false,
                             )?;
                             abi_type = self.abi_type_for_value(value, abi_type);
                         }
@@ -618,7 +633,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             } else {
                 // data_values += argument
-                let mut abi_type = self.types.abi_type(parameter_ty)?;
                 abi_type = self.abi_type_for_value(value, abi_type);
                 self.check_calldata_array_size(value, parameter_ty, &abi_type);
                 self.validate_calldata_static_argument(value, parameter_ty);

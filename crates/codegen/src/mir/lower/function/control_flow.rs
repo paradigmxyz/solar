@@ -61,6 +61,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         condition: ValueId,
         then_first: bool,
+        lower_then: impl FnMut(&mut Self) -> Option<T>,
+        lower_else: impl FnMut(&mut Self) -> Option<T>,
+    ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
+        self.lower_branches_labeled(condition, then_first, None, lower_then, lower_else)
+    }
+
+    /// Like [`Self::lower_branches`], with the branch blocks' labels at `label_span` rather than
+    /// at the span the builder has when it places them.
+    pub(super) fn lower_branches_labeled<T>(
+        &mut self,
+        condition: ValueId,
+        then_first: bool,
+        label_span: Option<Span>,
         mut lower_then: impl FnMut(&mut Self) -> Option<T>,
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
@@ -75,7 +88,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // branch(condition, then, else)
         self.builder.branch(condition, then_block, else_block);
 
-        self.builder.switch_to_block(then_block);
+        self.place_block(then_block, label_span);
         let then_value = lower_then(self)?;
         let then_terminated = self.is_terminated();
         let then_exit = self.builder.current_block();
@@ -87,7 +100,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.values = before_values.clone();
         self.storage_refs = before_storage_refs.clone();
-        self.builder.switch_to_block(else_block);
+        self.place_block(else_block, label_span);
         let else_value = lower_else(self)?;
         let else_terminated = self.is_terminated();
         let else_exit = self.builder.current_block();
@@ -99,7 +112,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // values = phi(then_values, else_values)
         // storage_refs = phi(then_storage_refs, else_storage_refs)
-        self.builder.switch_to_block(merge_block);
+        self.place_block(merge_block, label_span);
         self.values = self.merge_values(
             before_values,
             MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
@@ -130,17 +143,48 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_stmt: &hir::Stmt<'_>,
         else_stmt: Option<&hir::Stmt<'_>>,
     ) -> Option<()> {
+        let condition_span = condition.span;
         let condition = self.lower_expr(condition)?;
-        let (then_branch, else_branch) = self.lower_branches(
+        // The transfer still evaluates the condition when its computation folds into the jump.
+        // Keep its narrower origin so coverage can anchor the expression inside the `if`.
+        let previous = self.builder.replace_source_span(condition_span);
+        // solc places the else and end tags under the statement: `LocationSetter(m_context,
+        // _ifStatement)` at ContractCompiler.cpp L1157-1176. A loop condition desugars to
+        // `if (cond) body else break`, and solc places a loop's tags under the loop statement
+        // (`LocationSetter(m_context, _forStatement)`, L1224-1265), so those blocks take the span
+        // of the desugared `break`, which is the loop statement. A user `break` is narrower than
+        // its `if`.
+        let label_span = else_stmt
+            .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous))
+            .map_or(previous, |stmt| stmt.span);
+        let branches = self.lower_branches_labeled(
             condition,
             true,
-            |this| this.lower_stmt(then_stmt),
-            |this| else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt)),
-        )?;
+            Some(label_span),
+            |this| {
+                this.builder.replace_source_span(previous);
+                this.lower_stmt(then_stmt)
+            },
+            |this| {
+                this.builder.replace_source_span(previous);
+                else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt))
+            },
+        );
+        self.builder.replace_source_span(previous);
+        let (then_branch, else_branch) = branches?;
         if then_branch.terminated && else_branch.terminated {
             self.builder.invalid();
         }
         Some(())
+    }
+
+    /// Switches to `block`, labeling it at `label_span` when it is placed for the first time.
+    fn place_block(&mut self, block: BlockId, label_span: Option<Span>) {
+        let previous = label_span.map(|span| self.builder.replace_source_span(span));
+        self.builder.switch_to_block(block);
+        if let Some(previous) = previous {
+            self.builder.replace_source_span(previous);
+        }
     }
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
@@ -387,37 +431,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 TryCallee::Creation { .. } => unreachable!(),
             };
             let options = self.lower_call_options(call_opts, true, "try call option")?;
-            let (mut values, mut types) =
-                if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
-                    let capacity = args.len() + usize::from(receiver.is_some());
-                    let mut values = Vec::with_capacity(capacity);
-                    let mut types = Vec::with_capacity(capacity);
-                    if let Some(receiver) = receiver {
-                        let function = self.cx.gcx.hir.function(function);
-                        let Some(&parameter) = function.parameters.first() else {
-                            return self
-                                .cx
-                                .report_unsupported(receiver.span, "attached library receiver");
-                        };
-                        let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-                        let (value, ty) = self.lower_abi_receiver(receiver, parameter_ty)?;
-                        values.push(value);
-                        types.push(ty);
-                    }
-                    (values, types)
-                } else {
-                    (Vec::new(), Vec::new())
+            let mut operands = Vec::new();
+            if let TryCallee::LinkedLibrary { function, receiver: Some(receiver), .. } =
+                target.callee
+            {
+                let function = self.cx.gcx.hir.function(function);
+                let Some(&parameter) = function.parameters.first() else {
+                    return self.cx.report_unsupported(receiver.span, "attached library receiver");
                 };
-            let (argument_values, argument_types) = self.lower_abi_call_arguments(
+                let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
+                operands.push(self.lower_bound_receiver(receiver, parameter_ty)?);
+            }
+            operands.extend(self.lower_abi_call_arguments(
                 *args,
                 target.parameter_types.iter().copied(),
                 target.parameter_names.as_ref(),
                 args.span,
                 "try argument",
                 matches!(target.callee, TryCallee::LinkedLibrary { .. }),
-            )?;
-            values.extend(argument_values);
-            types.extend(argument_types);
+            )?);
+            let (values, types) = self.resolve_abi_operands(operands)?;
             let selector = match target.callee {
                 TryCallee::Member { selector, .. } => {
                     self.builder.imm(U256::from_be_slice(&selector) << 224)
@@ -490,6 +523,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
+        // The blocks the clauses create inherit the hint, so the whole catch side is cold, up to
+        // but not including the merge block.
+        self.builder.func_mut().blocks[catch_block].cold_hint = true;
         self.builder.switch_to_block(catch_block);
         let needs_data =
             catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());
