@@ -1,0 +1,30 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/no-origin-absorb/loop_exit.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/no-origin-absorb/loop_exit.evmir (after cfg-simplify) ===
+  @module LoopExit
+  bb0:
+    push 10
+    jump bb1
+  bb1:
+    dup 1
+-   iszero !metadata(span=1..5)
+-   push bb2 !metadata(span=11..15)
++   push bb4 !metadata(span=11..15)
+    jumpi
+-   push 0
+-   jump bb3
+- bb2:
+    push 1
+    sub
+    dup 1
+    push bb1
+    jumpi
+    push 1
+    jump bb3
+  bb3:
+    pop
+    pop
+    stop
++ bb4:
++   push 0
++   jump bb3
+  

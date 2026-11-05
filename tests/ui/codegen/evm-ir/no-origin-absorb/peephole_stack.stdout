@@ -1,0 +1,40 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/no-origin-absorb/peephole_stack.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/no-origin-absorb/peephole_stack.evmir (after peephole) ===
+  @module PeepholeStack
+  bb0:
+    calldatasize
+    push 1 !metadata(span=1..5)
+    swap 1 !metadata(span=11..15)
+    sub !metadata(span=21..25)
+    stop
+  bb1:
+    calldatasize
+    caller
+-   dup 2 !metadata(span=31..35)
++   swap 1 !metadata(span=31..35)
+    push 128 !metadata(span=36..40)
+    mstore !metadata(span=45..49)
+-   swap 1 !metadata(span=50..55)
+-   pop !metadata(span=56..60)
+    stop
+  
+- ; === ROOT/tests/ui/codegen/evm-ir/no-origin-absorb/peephole_stack.evmir (before late-word) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/no-origin-absorb/peephole_stack.evmir (after late-word) ===
+  @module PeepholeStack
+  bb0:
+    calldatasize
+-   push 1 !metadata(span=1..5)
+-   swap 1 !metadata(span=11..15)
+-   sub !metadata(span=21..25)
++   push 0 !metadata(span=21..25)
++   not !metadata(span=21..25)
++   add !metadata(span=21..25)
+    stop
+  bb1:
+    calldatasize
+    caller
+    swap 1 !metadata(span=31..35)
+    push 128 !metadata(span=36..40)
+    mstore !metadata(span=45..49)
+    stop
+  
