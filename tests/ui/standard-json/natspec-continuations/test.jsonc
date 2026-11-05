@@ -33,6 +33,8 @@
 // CHECK: "details": "Dev line one dev line two."
 // CHECK: "midLine()": {
 // CHECK: "details": "mid-line details more"
+// CHECK: "gluedFirst()": {
+// CHECK: "details": "glued on first"
 {
   "language": "Solidity",
   "settings": {

@@ -71,6 +71,9 @@
             },
             "midLine()": {
               "details": "mid-line details more"
+            },
+            "gluedFirst()": {
+              "details": "glued on first"
             }
           },
           "version": 1

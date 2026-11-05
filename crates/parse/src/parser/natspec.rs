@@ -138,7 +138,7 @@ pub(super) fn parse_natspec(
     for (index, line) in lines.iter().enumerate() {
         let text = line.text;
         if !line.glued {
-            (logical_start, consumed) = (index, index == 0);
+            (logical_start, consumed) = (index, false);
         }
         // Like solc, a tag starts at the first `@` of a line, wherever it is, and drops the text
         // before it, including the lines glued before it.

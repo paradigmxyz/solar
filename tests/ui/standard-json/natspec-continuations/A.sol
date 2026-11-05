@@ -55,4 +55,10 @@ contract C {
      ** explanation @solidity memory-safe-assembly
      */
     function glued() external {}
+
+    /**
+     * Vault
+     ** @dev glued on first
+     */
+    function gluedFirst() external {}
 }
