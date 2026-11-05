@@ -22,14 +22,14 @@ fn @loadThenAllocate() -> struct0 [selector=0xf84b9425, view, abi_params=[], abi
   bb0:
     v0 = icall @_copy, 1
     v1 = mload 64 !metadata(memory=scratch)
+    v2 = inttoptr i256 v1 to ptr<memory>
     mstore v1, 3
-    v2 = add v1, 32
-    mstore v2, 0x100000000000000000000000000000000000000000000000000000000000000
-    v3 = add v1, 64
-    mstore 64, v3 !metadata(memory=scratch)
-    v4 = inttoptr i256 v1 to ptr<memory>
+    v3 = add v1, 32
+    mstore v3, 0x100000000000000000000000000000000000000000000000000000000000000
+    v4 = add v1, 64
+    mstore 64, v4 !metadata(memory=scratch)
     v5 = insert_value struct0, undef struct0, 0, v0
-    v6 = insert_value struct0, v5, 1, v4
+    v6 = insert_value struct0, v5, 1, v2
     ret v6
 }
 
