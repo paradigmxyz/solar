@@ -25,7 +25,7 @@ use solar_data_structures::map::{FxHashMap, FxIndexMap};
 use solar_interface::{
     SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
-    source_map::FileLoader,
+    source_map::{FileLoader, RealFileLoader},
 };
 use solar_sema::{Gcx, hir::ContractId};
 use std::{
@@ -94,7 +94,10 @@ pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
         _ => unreachable!("standard JSON input count is validated during argument parsing"),
     });
     match result {
-        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout)?,
+        Ok(_) => {
+            let reader = Arc::new(FileReader::new(&opts));
+            compile_standard_json(&input, opts, Some(reader), &mut stdout)?
+        }
         Err(e) => standard_json_error_output(
             format!("failed to read standard JSON input: {e}"),
             &mut stdout,
@@ -515,6 +518,53 @@ impl StandardJsonFileLoader {
             ReadCallbackResult::Unsupported => {
                 Err(io::Error::new(io::ErrorKind::Unsupported, unsupported_callback_kind("source")))
             }
+        }
+    }
+}
+
+/// Reads imports from disk for the command line, like solc's file reader: only regular files in
+/// `--allow-paths`, the base path (or the current directory) and the include paths.
+///
+/// The file resolver joins each source unit name with the base path and include paths and
+/// reports ambiguous imports, so this only checks and reads the given path.
+// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/interface/FileReader.cpp>
+struct FileReader {
+    /// Canonical allowed directories.
+    allowed: Vec<PathBuf>,
+}
+
+impl FileReader {
+    fn new(opts: &CompileOpts) -> Self {
+        let base_path = opts.base_path.as_deref().unwrap_or(Path::new("."));
+        let allowed = opts
+            .allow_paths
+            .iter()
+            .chain(&opts.include_paths)
+            .map(PathBuf::as_path)
+            .chain([base_path])
+            .filter_map(|dir| RealFileLoader.canonicalize_path(dir).ok())
+            .collect();
+        Self { allowed }
+    }
+}
+
+impl StandardJsonReadCallback for FileReader {
+    fn read(&self, kind: &str, path: &str) -> ReadCallbackResult {
+        if kind != "source" {
+            return ReadCallbackResult::Unsupported;
+        }
+        let Ok(path) = RealFileLoader.canonicalize_path(Path::new(path)) else {
+            return ReadCallbackResult::Error("File not found.".into());
+        };
+        if !self.allowed.iter().any(|dir| path.starts_with(dir)) {
+            return ReadCallbackResult::Error("File outside of allowed directories.".into());
+        }
+        if !path.is_file() {
+            return ReadCallbackResult::Error("Not a valid file.".into());
+        }
+        match RealFileLoader.load_file(&path) {
+            Ok(contents) => ReadCallbackResult::Success(contents),
+            Err(e) => ReadCallbackResult::Error(e.to_string()),
         }
     }
 }

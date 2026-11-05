@@ -1,0 +1,33 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "../lib/dep/B.sol",
+        "start": 16,
+        "end": 25
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read ROOT/tests/ui/standard-json/monorepo/lib/dep/C.sol: File outside of allowed directories.",
+      "formattedMessage": "error: couldn't read ROOT/tests/ui/standard-json/monorepo/lib/dep/C.sol: File outside of allowed directories.\n   ╭▸ ../lib/dep/B.sol:LL:CC\n   │\nLL │ import {C} from \"./C.sol\";\n   ╰╴                ━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "../lib/dep/B.sol",
+        "start": 42,
+        "end": 43
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": "7920",
+      "message": "unresolved symbol `C`",
+      "formattedMessage": "error[7920]: unresolved symbol `C`\n   ╭▸ ../lib/dep/B.sol:LL:CC\n   │\nLL │ contract B is C {}\n   ╰╴              ━\n\n"
+    }
+  ],
+  "sources": {}
+}

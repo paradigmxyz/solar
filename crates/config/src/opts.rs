@@ -10,7 +10,7 @@ use std::{num::NonZeroUsize, path::PathBuf};
 #[cfg(feature = "clap")]
 use clap::{Parser, ValueHint};
 
-// TODO: implement `allow_paths`.
+// TODO: implement `allow_paths` outside of Standard JSON.
 
 /// Compilation configuration.
 #[derive(Clone, Debug, Default)]
