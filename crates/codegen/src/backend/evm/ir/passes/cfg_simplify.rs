@@ -74,7 +74,7 @@ use crate::backend::evm::{
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
-use solar_evmir::debug::DebugEntryCheckpoint;
+use solar_evmir::debug::{DebugEntryCheckpoint, DebugFunction};
 use solar_sema::Gcx;
 
 pub(super) struct CfgSimplify {
@@ -836,7 +836,7 @@ fn thunk_checkpoint(
     let mut target = start;
     for _ in 0..thunks.len() {
         let Some(thunk) = thunks.get(&target) else { return Some((target, checkpoint)) };
-        if !represented_by(&thunk.metadata, transfer)
+        if !represented_by(&thunk.metadata, transfer, chain.function_invoke())
             && (!thunk.metadata.source_spans().iter().all(|&span| span == checkpoint.source)
                 || (!thunk.metadata.source_spans().is_empty()
                     && thunk.metadata.modifier_depth() != checkpoint.modifier_depth))
@@ -849,19 +849,21 @@ fn thunk_checkpoint(
     (!thunks.contains_key(&target)).then_some((target, checkpoint))
 }
 
-/// Returns whether the transfer already has every origin and function event of a located thunk,
-/// so bypassing the thunk loses nothing and the thunk does not describe a removed source
-/// operation.
-fn represented_by(thunk: &Metadata, transfer: &Metadata) -> bool {
+/// Returns whether a located thunk adds nothing the transfer or the chain's function entry lacks.
+/// Bypassing it then loses nothing, and it does not describe a removed source operation. That
+/// holds for a thunk with every origin and function event of the transfer, and for a route into
+/// `invoke` placed under that function's declaration, as the dispatcher does.
+fn represented_by(thunk: &Metadata, transfer: &Metadata, invoke: Option<DebugFunction>) -> bool {
     !thunk.source_spans().is_empty()
-        && thunk.source_spans() == transfer.source_spans()
-        && thunk.modifier_depth() == transfer.modifier_depth()
-        && thunk.function_invoke().is_none_or(|invoke| Some(invoke) == transfer.function_invoke())
+        && thunk.function_invoke().is_none_or(|event| Some(event) == transfer.function_invoke())
+        && (thunk.source_spans() == transfer.source_spans()
+            && thunk.modifier_depth() == transfer.modifier_depth()
+            || invoke.is_some_and(|invoke| thunk.source_spans() == [invoke.declaration]))
 }
 
 /// Collects the chain's origins and compatible function events, including beyond empty prefixes.
 /// Its entry identity can validate an exclusive checkpoint without becoming a transfer event.
-/// Thunks the transfer already represents are left out.
+/// Thunks the transfer or the chain's function entry already represents are left out.
 fn thunk_chain_debug_info(
     start: BlockId,
     thunks: &FxHashMap<BlockId, Thunk>,
@@ -870,8 +872,9 @@ fn thunk_chain_debug_info(
     let chain =
         std::iter::successors(Some(start), |target| thunks.get(target).map(|thunk| thunk.next))
             .take(thunks.len())
-            .filter_map(|target| thunks.get(&target).map(|thunk| &thunk.metadata))
-            .filter(|thunk| !represented_by(thunk, transfer));
+            .filter_map(|target| thunks.get(&target).map(|thunk| &thunk.metadata));
+    let invoke = chain.clone().find_map(Metadata::function_invoke);
+    let chain = chain.filter(|thunk| !represented_by(thunk, transfer, invoke));
     let mut context = Metadata::default();
     context.mark_debug_info_dropped();
     context.merge_equivalent_debug_info(chain);
