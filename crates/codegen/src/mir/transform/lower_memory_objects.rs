@@ -2,11 +2,11 @@
 //!
 //! `ptradd` becomes a wrapping integer `add` between pointer casts. It establishes no bounds
 //! proof, so lowering must not mark the result as a checked object offset. Every memory access is
-//! already a `mload`, `mstore`, or `mcopy` at an address, so nothing else changes here. An EVM opcode whose
-//! operands do not match its types, as an integer `add` of a pointer, gets word operands and a word
-//! result cast back to the pointer, and the casts this leaves unused are removed;
-//! `lower-evm-shaped` later erases pointer types altogether. Unreachable blocks are removed first:
-//! their definitions need not obey SSA and can contain cast cycles.
+//! already a `mload`, `mstore`, or `mcopy` at an address, so nothing else changes here. An EVM
+//! opcode whose operands do not match its types, as an integer `add` of a pointer, gets word
+//! operands and a word result cast back to the pointer, and the casts this leaves unused are
+//! removed; `lower-evm-shaped` later erases pointer types altogether. Unreachable blocks are
+//! removed first: their definitions need not obey SSA and can contain cast cycles.
 //!
 //! Within a block, a run of constant-size internal allocations separated only by stores into them
 //! and their address arithmetic becomes one allocation and constant offsets from it, provided
