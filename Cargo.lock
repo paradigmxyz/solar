@@ -4706,6 +4706,7 @@ dependencies = [
  "solar-interface",
  "solar-macros",
  "solar-parse",
+ "solar-pass-plugin",
  "strum 0.28.0",
  "thread_local",
  "tracing",

@@ -392,6 +392,7 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) const_eval_cache: crate::eval::ConstEvalCache,
     pub(crate) override_index: OnceLock<crate::typeck::override_checker::OverrideIndex<'gcx>>,
     codegen_state: OnceLock<Box<dyn Any + Send + Sync>>,
+    plugins: OnceLock<Result<Vec<Arc<solar_pass_plugin::host::NativePlugin>>, String>>,
 }
 
 impl fmt::Debug for GlobalCtxt<'_> {
@@ -430,6 +431,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             const_eval_cache: Default::default(),
             override_index: OnceLock::new(),
             codegen_state: OnceLock::new(),
+            plugins: OnceLock::new(),
         }
     }
 }
@@ -450,6 +452,29 @@ impl<'gcx> Gcx<'gcx> {
     pub fn codegen_state<T: Any + Send + Sync + Default>(self) -> &'gcx T {
         let state = self.0.codegen_state.get_or_init(|| Box::new(T::default()));
         state.downcast_ref().expect("code generation state has another type")
+    }
+
+    /// Loads explicitly requested plugins once for all compiler stages.
+    pub fn plugins(
+        self,
+    ) -> solar_interface::Result<&'gcx [Arc<solar_pass_plugin::host::NativePlugin>]> {
+        let plugins = self.0.plugins.get_or_init(|| {
+            self.sess
+                .opts
+                .unstable
+                .load_pass_plugin
+                .iter()
+                .map(|path| {
+                    // Native plugins live on the host filesystem, not the source loader.
+                    #[allow(clippy::disallowed_methods)]
+                    let path = std::fs::canonicalize(path).map_err(|error| {
+                        format!("cannot open pass plugin `{}`: {error}", path.display())
+                    })?;
+                    solar_pass_plugin::host::NativePlugin::load(&path).map(Arc::new)
+                })
+                .collect()
+        });
+        plugins.as_deref().map_err(|error| self.dcx().err(error.clone()).emit())
     }
 
     /// Returns the current compiler stage.
