@@ -121,9 +121,8 @@ impl<'gcx> Gcx<'gcx> {
             let return_text = self
                 .natspec_doc_comments(variable.doc)
                 .iter()
-                .copied()
                 .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
-                .map(|item| item.content().to_string())
+                .map(raw_return_content)
                 .collect::<String>();
             if !return_text.is_empty() {
                 documentation_item.r#return = Some(return_text);
@@ -262,8 +261,9 @@ fn dev_doc_item(gcx: Gcx<'_>, doc_id: hir::DocId) -> DocumentationItem {
         match item.kind {
             hir::NatSpecKind::Author => append_doc(&mut documentation.author, content),
             hir::NatSpecKind::Dev => append_doc(&mut documentation.details, content),
+            // Like solc, the last `@param` of a name wins.
             hir::NatSpecKind::Param { name } => {
-                documentation.params.entry(name.name.to_string()).or_default().push_str(content);
+                documentation.params.insert(name.name.to_string(), content.to_string());
             }
             hir::NatSpecKind::Custom { name } => {
                 documentation
@@ -299,7 +299,21 @@ fn return_docs(
         .filter_map(|(index, item)| {
             let variable = gcx.hir.variable(*returns.get(index)?);
             let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
-            (!item.content().is_empty()).then_some((name, item.content().to_string()))
+            Some((name, item.content().to_string()))
         })
         .collect()
+}
+
+/// Returns the content of a `@return` tag with the name that lowering takes off its description,
+/// as solc keeps it for the `return` of a state variable.
+fn raw_return_content(item: &hir::NatSpecItem) -> &str {
+    let symbol = item.symbol.as_str();
+    if let hir::NatSpecKind::Return { name: Some(name) } = item.kind {
+        let name = name.name.as_str();
+        let start = item.content_start as usize;
+        if start > name.len() && symbol.get(start - 1 - name.len()..start - 1) == Some(name) {
+            return &symbol[start - 1 - name.len()..item.content_end as usize];
+        }
+    }
+    item.content()
 }

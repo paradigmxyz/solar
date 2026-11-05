@@ -530,9 +530,12 @@ impl<'gcx> Resolver<'gcx> {
 
         let mut item = natspec;
         item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(expected.name, name_span)) };
-        // Like solc, only one blank follows the name before the description.
+        // Like solc, the description starts after the name and one blank, if the content is more
+        // than the name.
+        let description = word_start + documented.len() + 1;
         item.content_start =
-            (word_start + documented.len() + 1).min(natspec.content_end as usize) as u32;
+            if description <= natspec.content_end as usize { description } else { word_start }
+                as u32;
         Some(item)
     }
 

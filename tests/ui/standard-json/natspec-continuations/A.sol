@@ -75,4 +75,35 @@ contract C {
      ** @ z
      */
     function gluedEmptyTag() external {}
+
+    /// @dev Dropped, a blank line ends the comment
+
+    /// @notice Only the last comment counts
+    function lastWins() external {}
+
+    /// @dev Dropped, a plain comment ends the comment
+    // plain
+    /// @notice Kept after a plain comment
+    function afterPlain() external {}
+
+    /** @dev Dropped, a block comment before a line comment */
+    /// @notice Kept after a block comment
+    function afterBlock() external {}
+
+    /// @notice Kept before a plain comment
+    // plain
+    function beforePlain() external {}
+
+    /// @param a first
+    /// @param a second
+    function dupParam(uint256 a) external {}
+
+    /// @return r
+    function returnName() external returns (uint256 r) {}
+
+    /// @return
+    function bareReturn() external returns (uint256) {}
+
+    /// @return amount The amount
+    mapping(address owner => uint256 amount) public stateReturn;
 }

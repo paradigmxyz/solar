@@ -886,9 +886,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
 
         debug_assert!(next.is_comment_or_doc());
         self.prev_token = std::mem::replace(&mut self.token, next);
-        // The doc comments before the current token. A run of adjacent `///` comments is read as
-        // one, like solc does, and `run_start` is the first comment of the current run.
-        let mut run_start = 0;
         // The span of the previous comment, if it is a `///` doc comment.
         let mut prev_line_doc = None;
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
@@ -898,8 +895,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                     kind == ast::CommentKind::Line && self.is_adjacent(prev, (span, symbol))
                 });
                 if !continues_run {
-                    self.parse_natspec_run(run_start);
-                    run_start = self.docs.len();
+                    // Like solc, only the last doc comment before a token documents it, and a run
+                    // of adjacent `///` comments is one comment.
+                    self.docs.clear();
                 }
                 self.docs.push(DocComment { kind, span, symbol, natspec: BoxSlice::default() });
                 prev_line_doc = (kind == ast::CommentKind::Line).then_some((span, symbol));
@@ -909,7 +907,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             // Don't set `prev_token` on purpose.
             self.token = self.next_token();
         }
-        self.parse_natspec_run(run_start);
+        self.parse_natspec_run();
 
         self.expected_tokens.clear();
     }
@@ -936,14 +934,16 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             && natspec::continues_line_comment(gap)
     }
 
-    /// Parses the NatSpec items of the doc comments from `start` on, which are one comment for
-    /// solc, and gives them to the first.
-    fn parse_natspec_run(&mut self, start: usize) {
-        let Some(docs) = self.docs.get(start..).filter(|docs| !docs.is_empty()) else { return };
+    /// Parses the NatSpec items of the doc comments, which are one comment for solc, and gives
+    /// them to the first.
+    fn parse_natspec_run(&mut self) {
+        if self.docs.is_empty() {
+            return;
+        }
         let mut items = SmallVec::new();
-        natspec::parse_natspec(docs, self.in_yul, self.dcx(), &mut items);
+        natspec::parse_natspec(&self.docs, self.in_yul, self.dcx(), &mut items);
         if !items.is_empty() {
-            self.docs[start].natspec = self.alloc_drain(&mut items);
+            self.docs[0].natspec = self.alloc_drain(&mut items);
         }
     }
 
@@ -1574,10 +1574,9 @@ contract Test {}
             let mut parser = Parser::from_lexer(&arena, Lexer::new(&sess, src));
 
             let docs = parser.parse_doc_comments();
-            assert_eq!(docs.len(), 2);
-            // The comments are not known to be adjacent.
+            // The comments are not known to be adjacent, so only the last documents the token.
+            assert_eq!(docs.len(), 1);
             assert_eq!(docs[0].natspec.len(), 1);
-            assert_eq!(docs[1].natspec.len(), 1);
         });
     }
 }

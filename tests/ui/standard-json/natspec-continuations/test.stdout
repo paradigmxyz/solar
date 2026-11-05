@@ -42,6 +42,18 @@
             },
             "gluedEmptyTag()": {
               "notice": "a z"
+            },
+            "lastWins()": {
+              "notice": "Only the last comment counts"
+            },
+            "afterPlain()": {
+              "notice": "Kept after a plain comment"
+            },
+            "afterBlock()": {
+              "notice": "Kept after a block comment"
+            },
+            "beforePlain()": {
+              "notice": "Kept before a plain comment"
             }
           },
           "version": 1
@@ -80,6 +92,29 @@
             },
             "gluedFirst()": {
               "details": "glued on first"
+            },
+            "dupParam(uint256)": {
+              "params": {
+                "a": "second"
+              }
+            },
+            "returnName()": {
+              "returns": {
+                "r": "r"
+              }
+            },
+            "bareReturn()": {
+              "returns": {
+                "_0": ""
+              }
+            }
+          },
+          "stateVariables": {
+            "stateReturn": {
+              "return": "amount The amount",
+              "returns": {
+                "amount": "The amount"
+              }
             }
           },
           "version": 1

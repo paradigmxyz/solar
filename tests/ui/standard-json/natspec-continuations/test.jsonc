@@ -21,6 +21,14 @@
 // CHECK: "notice": "x z** w @solidity memory-safe-assembly"
 // CHECK: "gluedEmptyTag()": {
 // CHECK: "notice": "a z"
+// CHECK: "lastWins()": {
+// CHECK: "notice": "Only the last comment counts"
+// CHECK: "afterPlain()": {
+// CHECK: "notice": "Kept after a plain comment"
+// CHECK: "afterBlock()": {
+// CHECK: "notice": "Kept after a block comment"
+// CHECK: "beforePlain()": {
+// CHECK: "notice": "Kept before a plain comment"
 // CHECK: "devdoc": {
 // CHECK: "register(address)": {
 // CHECK: "details": "Registers `operator` for the caller. This does NOT validate the  operator address, so the caller keeps full responsibility for it."
@@ -39,6 +47,15 @@
 // CHECK: "details": "mid-line details more"
 // CHECK: "gluedFirst()": {
 // CHECK: "details": "glued on first"
+// CHECK: "dupParam(uint256)": {
+// CHECK: "a": "second"
+// CHECK: "returnName()": {
+// CHECK: "r": "r"
+// CHECK: "bareReturn()": {
+// CHECK: "_0": ""
+// CHECK: "stateVariables": {
+// CHECK: "return": "amount The amount"
+// CHECK: "amount": "The amount"
 {
   "language": "Solidity",
   "settings": {
