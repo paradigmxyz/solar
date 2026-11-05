@@ -49,6 +49,11 @@
 //! ABI wrapper markers, the ABI layouts, and the proved array element widths, and the verifier
 //! rejects them from then on.
 //!
+//! Every instruction, terminator, and block label of `entry` takes the contract definition's span,
+//! as solc places the dispatcher under the contract's location (`compileContract`'s
+//! `LocationSetter` over `appendFunctionSelector`). The library guard is the exception: it takes
+//! the routed function's declaration span, as solc's per-function `LocationSetter` covers it.
+//!
 //! The backend only consumes the final `lowered` module.
 
 use crate::mir::{
@@ -189,9 +194,14 @@ fn build_entry(
     // but the selective form avoids it when no route can collide.
     let needs_short_calldata_guard = routes.iter().any(|(selector, _)| selector & 0xff == 0);
 
+    let contract_span = module.contract_span;
     let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
     {
-        let mut builder = FunctionBuilder::new(&mut entry).with_revert_strings(revert_strings);
+        let mut builder = FunctionBuilder::new(&mut entry)
+            .with_revert_strings(revert_strings)
+            .with_block_labels();
+        builder.set_entry_label_span(contract_span);
+        builder.replace_source_span(contract_span);
 
         let combine_dispatch_guards =
             hoist_callvalue && minimum_calldata.is_some() && !revert_strings.is_debug();
@@ -336,10 +346,12 @@ fn build_entry(
             if let Some(immutable) = library_deploy_address
                 && super::utils::needs_delegatecall_guard(module.function(*target))
             {
+                builder.replace_source_span(module.function(*target).declaration_span);
                 let own = builder.load_immutable(immutable, MirType::I160);
                 let this = builder.address();
                 let direct_call = builder.eq(own, this);
                 builder.revert_if(direct_call, RevertReason::LibraryCalledWithoutDelegatecall);
+                builder.replace_source_span(contract_span);
             }
             builder.tail_call(*target, Vec::new());
         }

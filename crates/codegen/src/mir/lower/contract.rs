@@ -22,6 +22,7 @@ use crate::mir::{Function, FunctionAttributes, FunctionBuilder, HirVariableId, M
 pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut module = Module::new(contract.name);
+    module.contract_span = contract.span;
     module.set_unsafe_assembly(false);
     // Every decision about the contract's code reads the objective its tag selects.
     module.optimization = gcx

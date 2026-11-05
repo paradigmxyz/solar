@@ -13,38 +13,28 @@ debugify: gap f bb5 inst0 `calldataload`
 debugify: gap f bb5 terminator `jump`
 debugify: MIR StackifyBoundary after lower-abi-encode: 3/3 origins retained, 0 lost
 debugify: MIR StackifyBoundary after lower-dispatch: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-dispatch: 8 without a location
-debugify: gap entry bb0 inst0 `callvalue`
-debugify: gap entry bb0 inst1 `ne`
-debugify: gap entry bb0 terminator `jumpi`
-debugify: gap entry bb1 inst0 `calldataload`
-debugify: gap entry bb1 inst1 `shr`
-debugify: gap entry bb1 terminator `switch`
-debugify: gap entry bb2 terminator `tail_call`
-debugify: gap entry bb3 terminator `revert`
-debugify: MIR StackifyBoundary after lower-structs: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-frame-slots: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-mapping-slots: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-memory-objects: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-slices: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-immutables: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-mcopy: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-alloc: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-memory-zero: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-integers: 3/3 origins retained, 0 lost
-debugify: MIR StackifyBoundary after lower-evm-shaped: 3/3 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary_runtime after cfg-simplify-early: 2/2 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary_runtime after block-layout: 2/2 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary_runtime after pack-data: 2/2 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary_runtime after compact-pushes: 2/2 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary_runtime after returndata-zero: 2/2 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-structs: 4/4 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-frame-slots: 4/4 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-mapping-slots: 4/4 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-memory-objects: 4/4 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-slices: 4/4 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-immutables: 4/4 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-mcopy: 4/4 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-alloc: 4/4 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-memory-zero: 4/4 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-integers: 4/4 origins retained, 0 lost
+debugify: MIR StackifyBoundary after lower-evm-shaped: 4/4 origins retained, 0 lost
+debugify: EVM IR StackifyBoundary_runtime after cfg-simplify-early: 3/3 origins retained, 0 lost
+debugify: EVM IR StackifyBoundary_runtime after block-layout: 3/3 origins retained, 0 lost
+debugify: EVM IR StackifyBoundary_runtime after pack-data: 3/3 origins retained, 0 lost
+debugify: EVM IR StackifyBoundary_runtime after compact-pushes: 3/3 origins retained, 0 lost
+debugify: EVM IR StackifyBoundary_runtime after returndata-zero: 3/3 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary_deployment after cfg-simplify-early: 1/1 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary_deployment after block-layout: 1/1 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary_deployment after pack-data: 1/1 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary_deployment after compact-pushes: 1/1 origins retained, 0 lost
 debugify: EVM IR StackifyBoundary_deployment after returndata-zero: 1/1 origins retained, 0 lost
-debugify: EVM IR StackifyBoundary after stackify: 2/3 origins retained, 1 lost
+debugify: EVM IR StackifyBoundary after stackify: 3/4 origins retained, 1 lost
 debugify: lost 424..430
-debugify: EVM IR StackifyBoundary after stackify: 2 without a location
-debugify: gap StackifyBoundary_runtime bb0 terminator `jump`
+debugify: EVM IR StackifyBoundary after stackify: 1 without a location
 debugify: gap StackifyBoundary_runtime bb4 terminator `jump`
