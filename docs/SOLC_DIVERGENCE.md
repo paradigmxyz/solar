@@ -300,16 +300,11 @@ Coverage: `tests/ui/parser/fixed_point_type.sol`,
 `tests/ui/typeck/rational_literal_mobile_type.sol`; the upstream fixtures that use
 fixed-point types are excluded from solc parity testing.
 
-### PARSE-005: Yul literal forms
+### PARSE-005: Yul string literal forms
 
 Status: intentional.
 
-Difference: `solc` accepts only plain decimal and hexadecimal integers in Yul
-and inline assembly, and rejects `1_000`, `0x1_0` and `1e5` with error 4828.
-`solar` accepts any number literal whose value is an integer, as in Solidity,
-and rejects fractions such as `0.5` with error 4828.
-
-`solc` also accepts only a plain string literal or a single `hex` string
+Difference: `solc` accepts only a plain string literal or a single `hex` string
 literal in Yul and inline assembly. It rejects `unicode"é"` with error 1856
 and adjacent literals such as `"a" "b"` and `hex"ab" hex"cd"` with error 6913.
 `solar` accepts all three as in Solidity: `unicode` literals are UTF-8,
@@ -319,9 +314,7 @@ left-aligned word, such as `0x6162…` for `"a" "b"`.
 Rationale: these literals have one obvious value, so rejecting them only makes
 the language harder to use.
 
-Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol`,
-`tests/ui/codegen/lowering/run-call/assembly_string_literals.sol` and
-`tests/ui/parser/yul_fractional_literal.sol`.
+Coverage: `tests/ui/codegen/lowering/run-call/assembly_string_literals.sol`.
 
 ### PARSE-006: Number literals are limited to 4096 bits
 
@@ -339,6 +332,20 @@ a wider literal has no use, and the limit bounds the parser's work on one
 token.
 
 Coverage: `tests/ui/parser/number_literal_too_large.sol`.
+
+### PARSE-007: Scanner error codes in Yul
+
+Status: parity debt.
+
+Difference: `solc` reports scanner errors in Yul and inline assembly, such as
+`0b1` or `0x`, as error 1465 with the prefix `Illegal token:`. `solar` lexes
+Solidity and Yul with one lexer that does not know which one it is in, so it
+reports the Solidity code 8936 for both.
+
+Rationale: the messages and the rejected sources are the same; only the code
+differs.
+
+Coverage: `tests/ui/parser/literals/yul_numbers.sol`.
 
 ## AST Validation
 

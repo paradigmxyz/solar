@@ -3,8 +3,10 @@
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
 use solar_interface::{
-    Ident, Session, Span, config::version::solc_semver_version, diagnostics::DiagCtxt, error_code,
-    sym,
+    Ident, Session, Span,
+    config::version::solc_semver_version,
+    diagnostics::{DiagCtxt, DiagId},
+    error_code, sym,
 };
 use std::ops::ControlFlow;
 
@@ -68,10 +70,9 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         if !lit.kind.is_number() && !matches!(lit.kind, ast::LitKind::Address(_)) {
             return;
         }
-        for help in number_literal_underscore_errors(lit.symbol.as_str()) {
-            let _ = self
-                .dcx()
-                .err_at(lit.span, "invalid use of underscores in number literal")
+        for (code, help) in number_literal_underscore_errors(lit.symbol.as_str()) {
+            self.dcx()
+                .err_code_at(lit.span, code, "invalid use of underscores in number literal")
                 .help(help)
                 .emit();
         }
@@ -123,6 +124,26 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
                     "use the correctly checksummed address",
                     suggestion,
                     solar_interface::diagnostics::Applicability::MachineApplicable,
+                )
+                .note("if this is not used as an address, please prepend \"00\"")
+                .emit();
+        }
+    }
+
+    /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L3944-L3973>
+    fn check_address_length(
+        &self,
+        lit: &ast::Lit<'_>,
+        subdenomination: &Option<ast::SubDenomination>,
+    ) {
+        if subdenomination.is_none()
+            && let Some(digits) = lit.almost_address_digits()
+        {
+            self.dcx()
+                .err_code_at(
+                    lit.span,
+                    error_code!(9429),
+                    format!("this looks like an address but has {digits} hex digits instead of 40"),
                 )
                 .note("if this is not used as an address, please prepend \"00\"")
                 .emit();
@@ -559,6 +580,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             self.check_underscores_in_number_literals(lit);
             self.check_subdenominations_for_number_literals(lit, subdenomination);
             self.check_address_checksums(lit);
+            self.check_address_length(lit, subdenomination);
         }
         self.walk_expr(expr)
     }
@@ -604,37 +626,37 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     }
 }
 
-/// Returns the help message of each invalid use of underscores in a number literal.
-pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<&'static str> {
+/// Returns the error code and help message of each invalid use of underscores in a number
+/// literal.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/SyntaxChecker.cpp#L328-L355>
+pub(crate) fn number_literal_underscore_errors(value: &str) -> Vec<(DiagId, &'static str)> {
     if value.ends_with('_') {
-        return vec!["remove trailing underscores"];
+        return vec![(error_code!(2090), "remove trailing underscores")];
     }
     if value.contains("__") {
-        return vec!["only 1 consecutive underscore `_` is allowed between digits"];
-    }
-    if value.starts_with("0x_") {
-        return vec!["remove underscores after the `0x` prefix"];
-    }
-    // Like solc, reject underscores after a leading zero, as in `0_E5`.
-    if value.starts_with("0_") {
-        return vec!["remove underscores after the leading zero"];
+        return vec![(
+            error_code!(2990),
+            "only 1 consecutive underscore `_` is allowed between digits",
+        )];
     }
 
-    let mut errors = Vec::new();
     if value.starts_with("0x") {
-        return errors;
+        return Vec::new();
     }
-    if value.contains("._") || value.contains("_.") {
-        errors.push("remove underscores in front of the fraction part");
+    let mut errors = Vec::new();
+    if value.contains("._") {
+        errors.push((error_code!(3891), "remove underscores in front of the fraction part"));
     }
-    // Accept underscores next to an uppercase `E` exponent.
-    // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/SyntaxChecker.cpp#L349-L353>
+    if value.contains("_.") {
+        errors.push((error_code!(1023), "remove underscores in front of the fraction part"));
+    }
+    // Like solc, accept underscores next to an uppercase `E` exponent.
     if value.contains("_e") {
-        errors.push("remove underscores at the end of the mantissa");
+        errors.push((error_code!(6415), "remove underscores at the end of the mantissa"));
     }
-    // Also reject underscores after the sign of either exponent, as in `1E-_2`.
-    if value.contains("e_") || value.contains("e-_") || value.contains("E-_") {
-        errors.push("remove underscores in front of the exponent");
+    if value.contains("e_") {
+        errors.push((error_code!(6165), "remove underscores in front of the exponent"));
     }
     errors
 }

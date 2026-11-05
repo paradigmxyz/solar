@@ -1,0 +1,32 @@
+error[8936]: octal numbers not allowed
+   ╭▸ ROOT/tests/ui/parser/literals/octal.sol:LL:CC
+   │
+LL │     uint a = 098;
+   ╰╴             ━
+
+error[8936]: octal numbers not allowed
+   ╭▸ ROOT/tests/ui/parser/literals/octal.sol:LL:CC
+   │
+LL │     uint b = 0100;
+   ╰╴             ━
+
+error[8936]: octal numbers not allowed
+   ╭▸ ROOT/tests/ui/parser/literals/octal.sol:LL:CC
+   │
+LL │     uint c = 01gwei;
+   ╰╴             ━
+
+error[8936]: octal numbers not allowed
+   ╭▸ ROOT/tests/ui/parser/literals/octal.sol:LL:CC
+   │
+LL │     uint d = 00.5;
+   ╰╴             ━
+
+error[8936]: octal numbers not allowed
+   ╭▸ ROOT/tests/ui/parser/literals/octal.sol:LL:CC
+   │
+LL │     uint e = 01e1;
+   ╰╴             ━
+
+error: aborting due to 5 previous errors
+

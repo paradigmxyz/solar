@@ -1,0 +1,50 @@
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/underscore_after_zero.sol:LL:CC
+   │
+LL │     uint a = 0_;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/underscore_after_zero.sol:LL:CC
+   │
+LL │     uint b = 0_1;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/underscore_after_zero.sol:LL:CC
+   │
+LL │     uint c = 0_0;
+   ╰╴              ━
+
+error[8936]: hexadecimal digit missing or invalid
+   ╭▸ ROOT/tests/ui/parser/literals/underscore_after_zero.sol:LL:CC
+   │
+LL │     uint f = 0x;
+   ╰╴             ━━
+
+error[8936]: hexadecimal digit missing or invalid
+   ╭▸ ROOT/tests/ui/parser/literals/underscore_after_zero.sol:LL:CC
+   │
+LL │     uint g = 0x_;
+   ╰╴             ━━
+
+error[8936]: hexadecimal digit missing or invalid
+   ╭▸ ROOT/tests/ui/parser/literals/underscore_after_zero.sol:LL:CC
+   │
+LL │     uint h = 0x_1;
+   ╰╴             ━━
+
+error[8936]: hexadecimal digit missing or invalid
+   ╭▸ ROOT/tests/ui/parser/literals/underscore_after_zero.sol:LL:CC
+   │
+LL │     uint i = 0x_a;
+   ╰╴             ━━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/underscore_after_zero.sol:LL:CC
+   │
+LL │     uint j = 0x0X1;
+   ╰╴                ━
+
+error: aborting due to 8 previous errors
+

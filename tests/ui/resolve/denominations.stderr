@@ -1,14 +1,8 @@
-error: expected at least one digit in exponent
+error[8936]: invalid exponent
    ╭▸ ROOT/tests/ui/resolve/denominations.sol:LL:CC
    │
 LL │     uint256 public n = 1e+ seconds;
    ╰╴                       ━━━
-
-error: `+` is not allowed in the exponent
-   ╭▸ ROOT/tests/ui/resolve/denominations.sol:LL:CC
-   │
-LL │     uint256 public n = 1e+ seconds;
-   ╰╴                       ━━━━━━━━━━━
 
 error: hexadecimal numbers cannot be used with unit denominations
    ╭▸ ROOT/tests/ui/resolve/denominations.sol:LL:CC
@@ -32,5 +26,5 @@ error: using "years" as a unit denomination is deprecated
 LL │     uint256 public h = 1 years;
    ╰╴                       ━━━━━━━
 
-error: aborting due to 5 previous errors
+error: aborting due to 4 previous errors
 

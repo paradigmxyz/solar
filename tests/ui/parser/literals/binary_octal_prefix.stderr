@@ -1,0 +1,74 @@
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint a = 0b;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint b = 0b1;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint c = 0b2;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint d = 0b_1;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint e = 0b1_0;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint f = 0o;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint g = 0o7;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint h = 0o8;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint i = 0o_7;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint j = 0B1;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint k = 0O7;
+   ╰╴              ━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/parser/literals/binary_octal_prefix.sol:LL:CC
+   │
+LL │     uint l = 0X1;
+   ╰╴              ━
+
+error: aborting due to 12 previous errors
+

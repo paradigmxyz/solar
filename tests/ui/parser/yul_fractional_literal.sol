@@ -1,4 +1,4 @@
-// Yul has no fractions; see PARSE-005.
+// Yul has no fractions.
 contract C {
     function f() public pure {
         assembly {

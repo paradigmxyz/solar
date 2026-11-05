@@ -12,7 +12,7 @@ LL │     function() returns (uint r) f;
    │                             │
    ╰╴                            help: remove `r`
 
-error: invalid use of underscores in number literal
+error[2990]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/struct_field_checks.sol:LL:CC
    │
 LL │     uint[1__0] a;

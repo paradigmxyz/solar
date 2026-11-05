@@ -6,7 +6,10 @@ use solar_ast::{
 };
 use solar_data_structures::hint::cold_path;
 use solar_interface::{
-    BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, error_code, source_map::SourceFile,
+    BytePos, Session, Span, Symbol,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    error_code,
+    source_map::SourceFile,
 };
 
 mod cursor;
@@ -152,16 +155,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     TokenKind::Ident(sym)
                 }
                 RawTokenKind::Literal { kind } => {
-                    if matches!(kind, RawLiteralKind::Int { .. } | RawLiteralKind::Rational { .. })
-                        && self.cursor.as_bytes().first().is_some_and(|&c| is_id_start_byte(c))
-                    {
-                        self.dcx().emit_err_code(
-                            self.new_span(self.pos, self.pos + 1),
-                            error_code!(8936),
-                            "identifier-start is not allowed at end of a number",
-                        );
-                    }
-                    let (kind, symbol) = self.cook_literal(start, self.pos, kind);
+                    let (kind, symbol) = self.cook_literal(start, kind);
                     TokenKind::Literal(kind, symbol)
                 }
 
@@ -297,12 +291,8 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         TokenKind::Comment(is_doc, comment_kind, self.intern(content))
     }
 
-    fn cook_literal(
-        &self,
-        start: BytePos,
-        end: BytePos,
-        kind: RawLiteralKind,
-    ) -> (TokenLitKind, Symbol) {
+    fn cook_literal(&mut self, start: BytePos, kind: RawLiteralKind) -> (TokenLitKind, Symbol) {
+        let end = self.pos;
         match kind {
             RawLiteralKind::Str { kind, terminated } => {
                 if !terminated {
@@ -314,55 +304,73 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     (kind.into(), self.cook_quoted(kind, start, end))
                 }
             }
-            RawLiteralKind::Int { base, empty_int } => {
-                if empty_int {
+            RawLiteralKind::Int { empty_int, .. } => {
+                let guar = if empty_int {
                     cold_path();
                     let span = self.new_span(start, end);
-                    self.dcx().emit_err(span, "no valid digits found for number");
-                    (TokenLitKind::Integer, self.symbol_from_to(start, end))
+                    let msg = "hexadecimal digit missing or invalid";
+                    Some(self.dcx().emit_err_code(span, error_code!(8936), msg))
                 } else {
-                    if matches!(base, Base::Binary | Base::Octal) {
-                        cold_path();
-                        let start = start + 2;
-                        // To uncomment if binary and octal literals are ever supported.
-                        /*
-                        let base = base as u32;
-                        let s = self.str_from_to(start, end);
-                        for (i, c) in s.char_indices() {
-                            if c != '_' && c.to_digit(base).is_none() {
-                                cold_path();
-                                let msg = format!("invalid digit for a base {base} literal");
-                                let lo = start + BytePos::from_usize(i);
-                                let hi = lo + BytePos::from_usize(c.len_utf8());
-                                let span = self.new_span(lo, hi);
-                                self.dcx().emit_err(span, msg);
-                            }
-                        }
-                        */
-                        let msg = format!("integers in base {base} are not supported");
-                        self.dcx().emit_err(self.new_span(start, end), msg);
-                    }
-                    (TokenLitKind::Integer, self.symbol_from_to(start, end))
-                }
+                    self.check_octal(start)
+                };
+                self.cook_number(start, guar, TokenLitKind::Integer)
             }
             RawLiteralKind::Rational { base, empty_exponent } => {
-                if empty_exponent {
+                let exponent_guar = empty_exponent.then(|| {
                     cold_path();
-                    let span = self.new_span(start, self.pos);
-                    self.dcx().emit_err(span, "expected at least one digit in exponent");
-                }
+                    let span = self.new_span(start, end);
+                    self.dcx().emit_err_code(span, error_code!(8936), "invalid exponent")
+                });
 
-                let unsupported_base =
-                    matches!(base, Base::Binary | Base::Octal | Base::Hexadecimal);
-                if unsupported_base {
+                let base_guar = (base == Base::Hexadecimal).then(|| {
                     cold_path();
                     let msg = format!("{base} rational numbers are not supported");
-                    self.dcx().emit_err(self.new_span(start, end), msg);
-                }
+                    self.dcx().emit_err(self.new_span(start, end), msg)
+                });
 
-                (TokenLitKind::Rational, self.symbol_from_to(start, end))
+                let guar = base_guar.or(exponent_guar).or_else(|| self.check_octal(start));
+                self.cook_number(start, guar, TokenLitKind::Rational)
             }
         }
+    }
+
+    /// Rejects a decimal number with a leading zero, as in `01` or `00.5`.
+    fn check_octal(&self, start: BytePos) -> Option<ErrorGuaranteed> {
+        let [b'0', b'0'..=b'9', ..] = self.str_from_to(start, self.pos).as_bytes() else {
+            return None;
+        };
+        cold_path();
+        let span = self.new_span(start, start + 1);
+        Some(self.dcx().emit_err_code(span, error_code!(8936), "octal numbers not allowed"))
+    }
+
+    /// Finishes a number literal token.
+    ///
+    /// Like solc, a number cannot be followed by an identifier start, as in `0b1` or `0_1`. After
+    /// any number error, the rest of the identifier is part of the token, so that the parser
+    /// reports only one error.
+    fn cook_number(
+        &mut self,
+        start: BytePos,
+        guar: Option<ErrorGuaranteed>,
+        kind: TokenLitKind,
+    ) -> (TokenLitKind, Symbol) {
+        let guar = guar.or_else(|| {
+            let c = *self.cursor.as_bytes().first()?;
+            is_id_start_byte(c).then(|| {
+                cold_path();
+                self.dcx().emit_err_code(
+                    self.new_span(self.pos, self.pos + 1),
+                    error_code!(8936),
+                    "identifier-start is not allowed at end of a number",
+                )
+            })
+        });
+        let Some(guar) = guar else {
+            return (kind, self.symbol_from_to(start, self.pos));
+        };
+        self.pos += self.cursor.eat_id_continue();
+        (TokenLitKind::Err(guar), self.symbol_from_to(start, self.pos))
     }
 
     fn cook_quoted(&self, kind: StrKind, start: BytePos, end: BytePos) -> Symbol {
@@ -537,6 +545,10 @@ mod tests {
         Literal(kind, sym(symbol))
     }
 
+    fn err() -> TokenLitKind {
+        TokenLitKind::Err(ErrorGuaranteed::new_unchecked())
+    }
+
     fn id(symbol: &str) -> TokenKind {
         Ident(sym(symbol))
     }
@@ -594,13 +606,16 @@ mod tests {
         ];
 
         checks_full![
-            ("0a", true, &[(0..1, lit(Integer, "0")), (1..2, id("a"))]),
-            ("0b0", true, &[(0..3, lit(Integer, "0b0"))]),
-            ("0B0", true, &[(0..1, lit(Integer, "0")), (1..3, id("B0"))]),
-            ("0o0", true, &[(0..3, lit(Integer, "0o0"))]),
-            ("0O0", true, &[(0..1, lit(Integer, "0")), (1..3, id("O0"))]),
+            ("0a", true, &[(0..2, lit(err(), "0a"))]),
+            ("0b0", true, &[(0..3, lit(err(), "0b0"))]),
+            ("0B0", true, &[(0..3, lit(err(), "0B0"))]),
+            ("0o0", true, &[(0..3, lit(err(), "0o0"))]),
+            ("0O0", true, &[(0..3, lit(err(), "0O0"))]),
             ("0xa", false, &[(0..3, lit(Integer, "0xa"))]),
-            ("0Xa", true, &[(0..1, lit(Integer, "0")), (1..3, id("Xa"))]),
+            ("0Xa", true, &[(0..3, lit(err(), "0Xa"))]),
+            ("0_1", true, &[(0..3, lit(err(), "0_1"))]),
+            ("0x_1", true, &[(0..4, lit(err(), "0x_1"))]),
+            ("1e-_1", true, &[(0..5, lit(err(), "1e-_1"))]),
         ];
     }
 

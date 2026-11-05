@@ -12,7 +12,7 @@ LL │         function() external returns (uint x) f;
    │                                          │
    ╰╴                                         help: remove `x`
 
-error: invalid use of underscores in number literal
+error[2990]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/struct_field_ast_checks.sol:LL:CC
    │
 LL │         uint[1__0] a;

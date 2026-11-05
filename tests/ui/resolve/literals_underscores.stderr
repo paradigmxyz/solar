@@ -1,10 +1,34 @@
-error: empty rational
+error[8936]: hexadecimal digit missing or invalid
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
-LL │     uint F6 = 1._;
+LL │     uint X2 = 0x_1234;
+   ╰╴              ━━
+
+error[8936]: identifier-start is not allowed at end of a number
+   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
+   │
+LL │     uint D7 = 0_E5;
+   ╰╴               ━
+
+error[8936]: invalid exponent
+   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
+   │
+LL │     uint D8 = 1e-_0;
    ╰╴              ━━━
 
-error: invalid use of underscores in number literal
+error[8936]: invalid exponent
+   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
+   │
+LL │     uint D9 = 1E-_0;
+   ╰╴              ━━━
+
+error[8936]: invalid exponent
+   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
+   │
+LL │     uint F7 = 1.5e-_1 * 20;
+   ╰╴              ━━━━━
+
+error[2090]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint a = 1000_;
@@ -12,7 +36,7 @@ LL │     uint a = 1000_;
    │
    ╰ help: remove trailing underscores
 
-error: invalid use of underscores in number literal
+error[2990]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint b = 100__0;
@@ -20,7 +44,7 @@ LL │     uint b = 100__0;
    │
    ╰ help: only 1 consecutive underscore `_` is allowed between digits
 
-error: invalid use of underscores in number literal
+error[1023]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint c = 1_.4e10;
@@ -28,7 +52,7 @@ LL │     uint c = 1_.4e10;
    │
    ╰ help: remove underscores in front of the fraction part
 
-error: invalid use of underscores in number literal
+error[6415]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint d = 3.4_e10;
@@ -36,7 +60,7 @@ LL │     uint d = 3.4_e10;
    │
    ╰ help: remove underscores at the end of the mantissa
 
-error: invalid use of underscores in number literal
+error[6165]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint e = 3.4e_10;
@@ -44,7 +68,7 @@ LL │     uint e = 3.4e_10;
    │
    ╰ help: remove underscores in front of the exponent
 
-error: invalid use of underscores in number literal
+error[1023]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint g = 1_.4e10 + 3.4e_10;
@@ -52,7 +76,7 @@ LL │     uint g = 1_.4e10 + 3.4e_10;
    │
    ╰ help: remove underscores in front of the fraction part
 
-error: invalid use of underscores in number literal
+error[6165]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint g = 1_.4e10 + 3.4e_10;
@@ -60,7 +84,7 @@ LL │     uint g = 1_.4e10 + 3.4e_10;
    │
    ╰ help: remove underscores in front of the exponent
 
-error: invalid use of underscores in number literal
+error[2990]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint X1 = 0x1234__1234__1234__123;
@@ -68,15 +92,7 @@ LL │     uint X1 = 0x1234__1234__1234__123;
    │
    ╰ help: only 1 consecutive underscore `_` is allowed between digits
 
-error: invalid use of underscores in number literal
-   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
-   │
-LL │     uint X2 = 0x_1234;
-   │               ━━━━━━━
-   │
-   ╰ help: remove underscores after the `0x` prefix
-
-error: invalid use of underscores in number literal
+error[2090]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint D1 = 1234_;
@@ -84,7 +100,7 @@ LL │     uint D1 = 1234_;
    │
    ╰ help: remove trailing underscores
 
-error: invalid use of underscores in number literal
+error[2990]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint D2 = 12__34;
@@ -92,7 +108,7 @@ LL │     uint D2 = 12__34;
    │
    ╰ help: only 1 consecutive underscore `_` is allowed between digits
 
-error: invalid use of underscores in number literal
+error[6415]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint D3 = 12_e34;
@@ -100,7 +116,7 @@ LL │     uint D3 = 12_e34;
    │
    ╰ help: remove underscores at the end of the mantissa
 
-error: invalid use of underscores in number literal
+error[6165]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint D4 = 12e_34;
@@ -108,31 +124,7 @@ LL │     uint D4 = 12e_34;
    │
    ╰ help: remove underscores in front of the exponent
 
-error: invalid use of underscores in number literal
-   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
-   │
-LL │     uint D7 = 0_E5;
-   │               ━━━━
-   │
-   ╰ help: remove underscores after the leading zero
-
-error: invalid use of underscores in number literal
-   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
-   │
-LL │     uint D8 = 1e-_0;
-   │               ━━━━━
-   │
-   ╰ help: remove underscores in front of the exponent
-
-error: invalid use of underscores in number literal
-   ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
-   │
-LL │     uint D9 = 1E-_0;
-   │               ━━━━━
-   │
-   ╰ help: remove underscores in front of the exponent
-
-error: invalid use of underscores in number literal
+error[2090]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint F1 = 3.1415_;
@@ -140,7 +132,7 @@ LL │     uint F1 = 3.1415_;
    │
    ╰ help: remove trailing underscores
 
-error: invalid use of underscores in number literal
+error[2990]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint F2 = 3__1.4__15;
@@ -148,7 +140,7 @@ LL │     uint F2 = 3__1.4__15;
    │
    ╰ help: only 1 consecutive underscore `_` is allowed between digits
 
-error: invalid use of underscores in number literal
+error[1023]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint F3 = 1_.2;
@@ -156,7 +148,7 @@ LL │     uint F3 = 1_.2;
    │
    ╰ help: remove underscores in front of the fraction part
 
-error: invalid use of underscores in number literal
+error[3891]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint F4 = 1._2;
@@ -164,7 +156,7 @@ LL │     uint F4 = 1._2;
    │
    ╰ help: remove underscores in front of the fraction part
 
-error: invalid use of underscores in number literal
+error[6165]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
 LL │     uint F5 = 1.2e_12;
@@ -172,13 +164,13 @@ LL │     uint F5 = 1.2e_12;
    │
    ╰ help: remove underscores in front of the exponent
 
-error: invalid use of underscores in number literal
+error[2090]: invalid use of underscores in number literal
    ╭▸ ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
    │
-LL │     uint F7 = 1.5e-_1 * 20;
-   │               ━━━━━━━
+LL │     uint F6 = 1._;
+   │               ━━━
    │
-   ╰ help: remove underscores in front of the exponent
+   ╰ help: remove trailing underscores
 
 error: aborting due to 23 previous errors
 
