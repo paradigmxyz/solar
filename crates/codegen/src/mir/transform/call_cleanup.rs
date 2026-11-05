@@ -204,7 +204,7 @@ pub(super) fn cleanup(
             raw.unwrap_or_else(|| {
                 let (extension, value) = func.alloc_value_inst(
                     Instruction::new(InstKind::Zext(value), Some(MirType::I256))
-                        .with_debug_info_dropped(),
+                        .with_debug_loc_dropped(),
                 );
                 insertions.insert(inst, extension);
                 value

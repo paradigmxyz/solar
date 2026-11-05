@@ -587,7 +587,7 @@ fn add_exit_phis(func: &mut Function, exit_phis: &[(BlockId, Vec<ValueId>)]) {
             // block: value' = phi [pred: value]
             let (phi, result) = func.alloc_value_inst(
                 Instruction::new(InstKind::Phi(vec![(pred, value)]), func.value_ty(value))
-                    .with_debug_info_dropped(),
+                    .with_debug_loc_dropped(),
             );
             phis.push(phi);
             replacements.insert(value, result);
@@ -1438,7 +1438,7 @@ fn merge_entry(
                 ]),
                 func.value_ty(phi),
             )
-            .with_debug_info_dropped(),
+            .with_debug_loc_dropped(),
         );
         func.blocks[enter].instructions.push(merge);
         edit_phi(func, phi, |incoming| {

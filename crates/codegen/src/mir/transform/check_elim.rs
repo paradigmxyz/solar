@@ -1780,7 +1780,7 @@ impl<'a> CheckEliminator<'a> {
                 _ => InstKind::Xor(a, b),
             };
             let mut word = Instruction::new(kind, Some(MirType::I256));
-            word.metadata.copy_debug_context(&func.inst(id).metadata);
+            word.metadata.preserve_debug_loc(&func.inst(id).metadata);
             let (word_inst, word_value) = func.alloc_value_inst(word);
             let zero = func.alloc_value(Value::Immediate(Immediate::for_type(
                 Some(MirType::I256),

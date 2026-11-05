@@ -62,7 +62,7 @@ enum ParamRepr {
 
 /// Allocates an instruction of type `ty` and its result value, returning both.
 fn new_inst(func: &mut Function, kind: InstKind, ty: MirType) -> (InstId, ValueId) {
-    func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped())
+    func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_loc_dropped())
 }
 
 /// Allocates a word-typed instruction and its result value, returning both.
@@ -165,7 +165,7 @@ impl LowerSlices {
                         MirType::Slice(location),
                     );
                     for id in [ia, ib, ila, ilb, isp, isl, ims] {
-                        func.inst_mut(id).metadata.copy_debug_context(&context);
+                        func.inst_mut(id).metadata.preserve_debug_loc(&context);
                     }
                     out.extend([ia, ib, ila, ilb, isp, isl, ims]);
                     replacements.insert(old, new_slice);
@@ -212,7 +212,7 @@ impl LowerSlices {
                 // NOTE: Predecessor projections can run on edges that skip the join. Only the
                 // replacement phis and reconstruction inherit the original phi's location.
                 for id in [ptr_phi, len_phi, make] {
-                    func.inst_mut(id).metadata.copy_debug_context(&context);
+                    func.inst_mut(id).metadata.preserve_debug_loc(&context);
                 }
                 let old = func.inst_result_value(inst_id).expect("phi has a result");
                 replacements.insert(old, new_slice);

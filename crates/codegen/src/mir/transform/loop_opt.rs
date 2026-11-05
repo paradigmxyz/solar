@@ -1179,7 +1179,7 @@ fn reduce_product_checks(
         }
         // overflows = gt x, limit
         let mut overflows = Instruction::new(InstKind::Gt(x, limit), Some(MirType::I1));
-        overflows.metadata.copy_debug_context(&func.inst(inst).metadata);
+        overflows.metadata.preserve_debug_loc(&func.inst(inst).metadata);
         let (overflows_inst, overflows) = func.alloc_value_inst(overflows);
         let position = func.blocks[block].instructions.iter().position(|&id| id == inst);
         let position = position.expect("the check is in its block");
@@ -1368,7 +1368,7 @@ fn reassociate_invariant_offsets(
     for (preheader, x, c, sites) in plans {
         // preheader: t = add x, c
         let mut sum = Instruction::new(InstKind::Add(x, c), Some(MirType::I256));
-        sum.metadata.copy_debug_context(&func.inst(sites[0].0).metadata);
+        sum.metadata.preserve_debug_loc(&func.inst(sites[0].0).metadata);
         let (sum_inst, t) = func.alloc_value_inst(sum);
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {

@@ -1329,7 +1329,7 @@ impl<'a> Eliminator<'a> {
             _ => {
                 let (phi_inst, phi_value) = func.alloc_value_inst(
                     Instruction::new(InstKind::Phi(incoming), Some(result_ty))
-                        .with_debug_info_dropped(),
+                        .with_debug_loc_dropped(),
                 );
                 let phi_count = func.block_phi_count(target);
                 func.blocks[target].instructions.insert(phi_count, phi_inst);

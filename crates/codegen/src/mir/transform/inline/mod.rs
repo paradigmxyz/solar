@@ -1669,7 +1669,7 @@ fn inline_call_impl(
                 return None;
             }
             let (inst, value) = caller.alloc_value_inst(
-                Instruction::new(InstKind::IntToPtr(*arg), Some(ty)).with_debug_info_dropped(),
+                Instruction::new(InstKind::IntToPtr(*arg), Some(ty)).with_debug_loc_dropped(),
             );
             argument_views.push(inst);
             *arg = value;
@@ -1760,7 +1760,7 @@ fn inline_literal_call(
         let source = callee.inst(inst);
         let kind = cloner.clone_inst_kind(source.kind.clone())?;
         let mut instruction = Instruction::new(kind, source.result_ty);
-        instruction.metadata.copy_debug_context(&source.metadata);
+        instruction.metadata.preserve_debug_loc(&source.metadata);
         if matches!(instruction.kind, InstKind::Alloc { .. }) {
             // object = alloc size
             //   => object = alloc size !metadata(preserves_fmp)
@@ -1852,7 +1852,7 @@ impl<'a> InlineCloner<'a> {
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id);
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
-                instruction.metadata.copy_debug_context(&inst.metadata);
+                instruction.metadata.preserve_debug_loc(&inst.metadata);
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst_verbatim(instruction);
                     self.value_map.insert(callee_result, new_result);
@@ -2006,7 +2006,7 @@ fn build_return_values(
             .map(|(block, edge_values)| Some((*block, *edge_values.get(index)?)))
             .collect::<Option<Vec<_>>>()?;
         let (phi, value) = caller.alloc_value_inst(
-            Instruction::new(InstKind::Phi(incoming), Some(ty)).with_debug_info_dropped(),
+            Instruction::new(InstKind::Phi(incoming), Some(ty)).with_debug_loc_dropped(),
         );
         caller.blocks[continuation].instructions.insert(index, phi);
         values.push(value);

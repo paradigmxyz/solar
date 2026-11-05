@@ -58,8 +58,6 @@ impl MirPass for LowerArithmetic {
                     else {
                         return false;
                     };
-                    let context = builder.func().inst(id).metadata.debug_context();
-                    builder.set_debug_context(&context);
                     // result = scalar arithmetic(lhs, rhs); check overflow/zero
                     let result = ArithmeticLowerer { builder: &mut *builder }
                         .binary(op, lhs, rhs, arithmetic);
