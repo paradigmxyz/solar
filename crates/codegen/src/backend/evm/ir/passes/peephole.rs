@@ -48,9 +48,6 @@
 //!
 //! Equivalent replacements keep the root operation's source context on their result-producing
 //! instruction. Removed operand locations are dropped, and function events are moved once.
-//! A branch that absorbs a boolean test can keep its origin on the existing target push when
-//! that push has no independent location. The branch keeps its own location, so the legacy
-//! source map does not mistake two checkpoints on the same path for ambiguous shared code.
 
 use super::{
     EvmPass, block_layout::terminator_kind, compact_pushes::materialize_immediate,
@@ -430,13 +427,14 @@ impl Edit {
             }
             Self::AddNegated { value } => {
                 // push -c; add
-                // NOTE: The materialized constant takes the source context of the subtraction,
-                // the root; the `ADD` keeps the spans of the removed push, swap, and subtraction.
+                // NOTE: The materialized constant takes the source context of the subtraction, the
+                // root. The `ADD` replaces the subtraction and keeps its context; the removed push
+                // and swap take their origins with them, and only their function events move.
                 let mut add = instructions.pop().expect("matched SUB");
                 overwrite(&mut add, op::ADD);
                 let root = add.metadata.clone();
                 for removed in instructions.drain(start..) {
-                    add.metadata.absorb_debug_info(&removed.metadata);
+                    add.metadata.absorb_function_events(&removed.metadata);
                 }
                 materialize_immediate(instructions, target.evm_version(), value, &root);
                 instructions.push(add);
@@ -489,22 +487,36 @@ impl Edit {
                 // SWAP(n-1); PUSH address; MSTORE
                 instructions[start]
                     .replace_preserving_metadata(Instruction::stack_op(op::StackOp::Swap(depth)));
+                // The removed swap and pop take their origins with them.
                 let (retained, removed) = instructions[start..].split_at_mut(3);
                 for inst in removed {
-                    retained[2].metadata.absorb_debug_info(&inst.metadata);
+                    retained[2].metadata.absorb_function_events(&inst.metadata);
                 }
                 instructions.truncate(start + 3);
             }
             Self::InvertComparison { value, opcode } => {
                 // PUSH c; independent operands; compare; ISZERO
                 // => PUSH adjusted; independent operands; opposite compare
+                // NOTE: The opposite compare keeps the comparison's context, as solc's `sub` keeps
+                // the `eq`'s when `eq; iszero; push; jumpi` fuses (`_eq.debugData()`,
+                // libevmasm/PeepholeOptimiser.cpp#L349). The removed `iszero` takes its origins
+                // with it; only its function events move.
                 instructions[start].replace_preserving_metadata(Instruction::push_value(value));
-                fuse_iszero(instructions, opcode);
+                let iszero = instructions.pop().expect("matched ISZERO");
+                let comparison = instructions.last_mut().expect("matched comparison");
+                overwrite(comparison, opcode);
+                comparison.metadata.absorb_function_events(&iszero.metadata);
             }
             Self::ZeroLessIszero => {
                 // PUSH 0; LT; ISZERO => ISZERO
-                instructions.remove(start);
-                fuse_iszero(instructions, op::ISZERO);
+                // NOTE: The comparison is removed and the surviving `iszero` keeps its own
+                // context. The removed push and `lt` take their origins with them; only their
+                // function events move.
+                let pushed = instructions.remove(start);
+                let comparison = instructions.remove(start);
+                let iszero = instructions.last_mut().expect("matched ISZERO");
+                iszero.metadata.absorb_function_events(&pushed.metadata);
+                iszero.metadata.absorb_function_events(&comparison.metadata);
             }
             Self::ReloadStoredValue => {
                 instructions.swap(start, start + 3);
@@ -513,15 +525,20 @@ impl Edit {
                 instructions.truncate(start + 3);
             }
             Self::DropNonzeroTest => {
+                // The removed test takes its origins with it; its function events move to the
+                // branch's label.
                 let predicate = replacement_debug_info(&instructions[start..start + 2], 1);
                 instructions.drain(start..start + 2);
-                preserve_branch_test_debug_info(&mut instructions[start..], &predicate);
+                instructions[start].metadata.absorb_function_events(&predicate);
                 overwrite(&mut instructions[start + 1], op::JUMPI);
             }
             Self::EqIszeroJumpi => {
+                // The `sub` keeps the `eq`'s context, as solc's peephole optimizer gives it
+                // (`_eq.debugData()`, libevmasm/PeepholeOptimiser.cpp#L349). The removed `iszero`
+                // takes its origins with it; its function events move to the branch's label.
                 overwrite(&mut instructions[start], op::SUB);
                 let removed = instructions.remove(start + 1);
-                preserve_branch_test_debug_info(&mut instructions[start + 1..], &removed.metadata);
+                instructions[start + 1].metadata.absorb_function_events(&removed.metadata);
                 overwrite(&mut instructions[start + 2], op::JUMPI);
             }
             Self::SwapPair { first, second } => {
@@ -538,9 +555,10 @@ impl Edit {
                 // SWAPn; SWAP1; PUSH c; binop
                 let window = &mut instructions[start..start + 6];
                 let root = window[2].metadata.clone();
+                // The swaps take their origins with them.
                 for swap in [0, 3, 4, 5] {
                     let metadata = std::mem::take(&mut window[swap].metadata);
-                    window[2].metadata.absorb_debug_info(&metadata);
+                    window[2].metadata.absorb_function_events(&metadata);
                 }
                 window[..4].rotate_right(1);
                 // NOTE: The intermediate stack layouts differ even though the final one agrees.
@@ -576,14 +594,6 @@ fn overwrite(inst: &mut Instruction, opcode: u8) {
     inst.replace_preserving_metadata(Instruction::opcode(opcode));
 }
 
-/// Replaces the comparison before the trailing `ISZERO` with `opcode`, merging its debug info.
-fn fuse_iszero(instructions: &mut Vec<Instruction>, opcode: u8) {
-    let iszero = instructions.pop().expect("matched ISZERO");
-    let comparison = instructions.last_mut().expect("matched comparison");
-    overwrite(comparison, opcode);
-    comparison.metadata.absorb_debug_info(&iszero.metadata);
-}
-
 fn instruction_sequence(instructions: &[Instruction]) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
         for (index, inst) in instructions.iter().enumerate() {
@@ -613,23 +623,4 @@ fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata
     context.merge_equivalent_debug_info(instructions.iter().map(|inst| &inst.metadata));
     context.copy_source_debug_from(origin);
     context
-}
-
-/// Keeps a folded predicate checkpoint on its branch's existing label operand when available.
-fn preserve_branch_test_debug_info(instructions: &mut [Instruction], predicate: &Metadata) {
-    let [target, branch] = instructions else { unreachable!("matched branch pair") };
-    let origin = if !predicate.source_spans().is_empty()
-        && (target.metadata.source_spans().is_empty()
-            || target.metadata.source_spans() == branch.metadata.source_spans())
-    {
-        // NOTE: Both instructions execute after the original test, regardless of its outcome.
-        // Reuse an unmapped or duplicate checkpoint, never an independently located operand.
-        predicate
-    } else {
-        &target.metadata
-    };
-    let mut context = target.metadata.clone();
-    context.merge_equivalent_debug_info(std::iter::once(predicate));
-    context.copy_source_debug_from(origin);
-    target.metadata.copy_debug_info_from(&context);
 }
