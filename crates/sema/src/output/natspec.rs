@@ -118,17 +118,7 @@ impl<'gcx> Gcx<'gcx> {
         for variable_id in contract.variables() {
             let variable = self.hir.variable(variable_id);
             let mut documentation_item = dev_doc_item(self, variable_id.into());
-            let mut return_items = self
-                .natspec_resolution(variable_id.into())
-                .items()
-                .iter()
-                .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }));
-            if let Some(item) = return_items.next()
-                && return_items.next().is_none()
-                && !item.content().is_empty()
-            {
-                documentation_item.r#return = Some(item.content().to_string());
-            }
+            documentation_item.r#return = state_variable_return(self, variable_id);
             if let Some(getter) = variable.getter {
                 documentation_item.returns =
                     return_docs(self, variable_id.into(), self.hir.function(getter).returns);
@@ -260,8 +250,9 @@ fn dev_doc_item(gcx: Gcx<'_>, item_id: hir::ItemId) -> DocumentationItem {
         match item.kind {
             hir::NatSpecKind::Author => append_doc(&mut documentation.author, content),
             hir::NatSpecKind::Dev => append_doc(&mut documentation.details, content),
+            // Like solc, the last `@param` of a name wins.
             hir::NatSpecKind::Param { name } => {
-                documentation.params.entry(name.name.to_string()).or_default().push_str(content);
+                documentation.params.insert(name.name.to_string(), content.to_string());
             }
             hir::NatSpecKind::Custom { name } => {
                 documentation
@@ -298,7 +289,53 @@ fn return_docs(
         .filter_map(|(index, item)| {
             let variable = gcx.hir.variable(*returns.get(index)?);
             let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
-            (!item.content().is_empty()).then_some((name, item.content().to_string()))
+            Some((name, item.content().to_string()))
         })
         .collect()
+}
+
+/// Returns the `return` of a state variable: the content of its only `@return` tag, headed by the
+/// name of the first value the getter returns like solc does, including for an inherited tag.
+fn state_variable_return(gcx: Gcx<'_>, variable_id: hir::VariableId) -> Option<String> {
+    let mut items = gcx
+        .natspec_resolution(variable_id.into())
+        .items()
+        .iter()
+        .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }));
+    let item = items.next()?;
+    if items.next().is_some() {
+        return None;
+    }
+    let expected = gcx
+        .hir
+        .variable(variable_id)
+        .getter
+        .and_then(|getter| gcx.hir.function(getter).returns.first())
+        .and_then(|&id| gcx.hir.variable(id).name);
+    let documented = match item.kind {
+        hir::NatSpecKind::Return { name } => name,
+        _ => None,
+    };
+    let content = match (documented, expected) {
+        (Some(documented), Some(expected)) if documented.name == expected.name => {
+            raw_return_content(item).to_string()
+        }
+        (_, Some(expected)) => format!("{} {}", expected.name, item.content()),
+        (_, None) => item.content().to_string(),
+    };
+    (!content.is_empty()).then_some(content)
+}
+
+/// Returns the content of a `@return` tag with the name that lowering takes off its description,
+/// as solc keeps it for the `return` of a state variable.
+fn raw_return_content(item: &hir::NatSpecItem) -> &str {
+    let symbol = item.symbol.as_str();
+    if let hir::NatSpecKind::Return { name: Some(name) } = item.kind {
+        let name = name.name.as_str();
+        let start = item.content_start as usize;
+        if start > name.len() && symbol.get(start - 1 - name.len()..start - 1) == Some(name) {
+            return &symbol[start - 1 - name.len()..item.content_end as usize];
+        }
+    }
+    item.content()
 }

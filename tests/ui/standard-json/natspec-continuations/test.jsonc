@@ -1,0 +1,71 @@
+// CHECK: "userdoc": {
+// CHECK: "block()": {
+// CHECK: "notice": "Does a thing   across lines."
+// CHECK: "notice()": {
+// CHECK: "notice": "Notice text   continued."
+// CHECK: "untagged()": {
+// CHECK: "notice": "Untagged text   that continues."
+// CHECK: "mixed()": {
+// CHECK: "notice": "Intro text"
+// CHECK: "last(uint256)": {
+// CHECK: "notice": "Notice text"
+// CHECK: "stars()": {
+// CHECK: "notice": "Block text** glued and a blank star line"
+// CHECK: "devContinuation()": {
+// CHECK: "notice": "Notice."
+// CHECK: "midLine()": {
+// CHECK: "notice": "start"
+// CHECK: "glued()": {
+// CHECK: "notice": "x** explanation @solidity memory-safe-assembly"
+// CHECK: "emptyTag()": {
+// CHECK: "notice": "x z** w @solidity memory-safe-assembly"
+// CHECK: "gluedEmptyTag()": {
+// CHECK: "notice": "a z"
+// CHECK: "lastWins()": {
+// CHECK: "notice": "Only the last comment counts"
+// CHECK: "afterPlain()": {
+// CHECK: "notice": "Kept after a plain comment"
+// CHECK: "afterBlock()": {
+// CHECK: "notice": "Kept after a block comment"
+// CHECK: "beforePlain()": {
+// CHECK: "notice": "Kept before a plain comment"
+// CHECK: "devdoc": {
+// CHECK: "register(address)": {
+// CHECK: "details": "Registers `operator` for the caller. This does NOT validate the  operator address, so the caller keeps full responsibility for it."
+// CHECK: "operator": "The operator   address to register."
+// CHECK: "ok": "Whether it   worked."
+// CHECK: "block()": {
+// CHECK: "details": "Dev text   continued."
+// CHECK: "mixed()": {
+// CHECK: "details": "Details after an untagged notice."
+// CHECK: "last(uint256)": {
+// CHECK: "value": "Skips `@` blanks and drops it"
+// CHECK: "result": "  Keeps two blanks"
+// CHECK: "devContinuation()": {
+// CHECK: "details": "Dev line one dev line two."
+// CHECK: "midLine()": {
+// CHECK: "details": "mid-line details more"
+// CHECK: "gluedFirst()": {
+// CHECK: "details": "glued on first"
+// CHECK: "dupParam(uint256)": {
+// CHECK: "a": "second"
+// CHECK: "returnName()": {
+// CHECK: "r": "r"
+// CHECK: "bareReturn()": {
+// CHECK: "_0": ""
+// CHECK: "stateVariables": {
+// CHECK: "return": "amount The amount"
+// CHECK: "amount": "The amount"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "C": [
+          "userdoc",
+          "devdoc"
+        ]
+      }
+    }
+  }
+}
