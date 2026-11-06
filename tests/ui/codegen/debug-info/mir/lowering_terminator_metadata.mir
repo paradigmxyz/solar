@@ -1,4 +1,5 @@
-//@ compile-flags: -Zmir-pipeline=lower-abi,lower-abi-encode
+//@ compile-flags: -Zmir-pipeline=lower-abi,lower-abi-encode -Zdebugify=check
+//@ normalize-stderr-test: "debugify: [^\n]*\n" -> ""
 //@ filecheck:
 @module TerminatorMetadata
 

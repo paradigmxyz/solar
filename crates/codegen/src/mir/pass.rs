@@ -157,6 +157,10 @@ impl<P: MirPass> MirPass for GasOnly<P> {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         self.0.run_pass(gcx, module, analyses)
     }
+
+    fn preserves_debugify_sites(&self) -> bool {
+        self.0.preserves_debugify_sites()
+    }
 }
 
 /// Runs one pipeline slot at `-O none` too, for cheap cleanups whose bytecode savings repay their
@@ -196,6 +200,10 @@ impl<P: MirPass> MirPass for RunsAtNone<P> {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         self.0.run_pass(gcx, module, analyses)
+    }
+
+    fn preserves_debugify_sites(&self) -> bool {
+        self.0.preserves_debugify_sites()
     }
 }
 

@@ -658,6 +658,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn finalize_evm_ir(&mut self, module: &mut ir::Module) {
+        let track_debug_info = module.debug_info_is_tracked();
         for block_id in module.blocks.indices() {
             let next = (block_id.index() + 1 < module.blocks.len())
                 .then(|| ir::BlockId::from_usize(block_id.index() + 1));
@@ -684,6 +685,11 @@ impl<'gcx> Assembler<'gcx> {
                 let mut metadata = ir::Metadata::default();
                 if let Some(origin) = self.fallthrough_origins.remove(&block_id) {
                     metadata.preserve_debug_loc(&origin);
+                } else if track_debug_info {
+                    // NOTE: A source fallthrough records its own context above. An implicit
+                    // edge between assembler fragments, such as a call continuation and the
+                    // next block, has no source operation: LLVM's `getCompilerGenerated`.
+                    metadata.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
                 }
                 (
                     next.map_or_else(ir::Terminator::implicit_stop, |target| {

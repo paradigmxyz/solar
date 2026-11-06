@@ -696,10 +696,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if self.is_terminated() {
                 break;
             }
-            if let Some(args) = self.immediate_packed_hash_return_args(stmt, stmts.peek().copied())
+            if let Some((args, hash_span)) =
+                self.immediate_packed_hash_return_args(stmt, stmts.peek().copied())
             {
+                // The fused operation replaces the hash call, whose location solc sets in
+                // `ExpressionCompiler.cpp` L636. The erased bytes declaration contributes no
+                // location; the return keeps its own statement context.
+                let previous = self.builder.replace_source_span(hash_span);
                 let hash = self.lower_keccak_abi_encode_packed(args)?;
+                self.builder.replace_source_span(stmts.peek().unwrap().span);
                 self.builder.ret(vec![hash]);
+                self.builder.replace_source_span(previous);
                 break;
             }
             self.lower_stmt(stmt)?;
@@ -711,7 +718,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &self,
         stmt: &hir::Stmt<'_>,
         next: Option<&hir::Stmt<'_>>,
-    ) -> Option<hir::CallArgs<'gcx>> {
+    ) -> Option<(hir::CallArgs<'gcx>, Span)> {
         if !self.return_targets.is_empty() {
             return None;
         }
@@ -739,7 +746,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (Some(Builtin::Keccak256), hir::CallArgsKind::Unnamed([arg]), [_])
                 if self.cx.gcx.resolved_variable(arg) == Some(id) =>
             {
-                Some(*args)
+                Some((*args, expr.span))
             }
             _ => None,
         }
