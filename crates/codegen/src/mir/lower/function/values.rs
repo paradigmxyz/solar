@@ -641,9 +641,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .enumerate()
             .map(|(index, &field)| {
                 // field = extract_value result, index
-                let result = self.builder.extract_value(id, value, index as u32, field);
-                self.mark_unchecked_calldata_slice(result, field);
-                result
+                self.builder.extract_value(id, value, index as u32, field)
             })
             .collect()
     }

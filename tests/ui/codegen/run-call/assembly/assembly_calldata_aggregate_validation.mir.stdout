@@ -304,13 +304,13 @@ fn @loggedIndexed(arg0: i256) -> i256 [selector=0x1d045b60, abi_params=[uint256]
     v4 = make_calldata_slice v3, 1
     v5 = extract_value slice<calldata>, v4, 1
     v6 = extract_value slice<calldata>, v4, 0
-    v7 = mul v5, 32
-    v8 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v8
+    v7 = gt v5, 0x7ffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = mul v5, 32
     v9 = calldatasize
     v10 = ptrtoint ptr<calldata> v6 to i256
     v11 = sub v9, v10
-    v12 = slt v11, v7
+    v12 = slt v11, v8
     icall revert_if<calldata_tail_too_short>, v12
     v13 = mul v5, 32
     v14 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

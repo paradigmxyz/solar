@@ -7,13 +7,13 @@ fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_p
     mstore v0, 96
     v1 = extract_value slice<calldata>, arg0, 1
     v2 = extract_value slice<calldata>, arg0, 0
-    v3 = mul v1, 32
-    v4 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v4
+    v3 = gt v1, 0x7ffffffffffffff
+    icall panic_if<0x41>, v3
+    v4 = mul v1, 32
     v5 = calldatasize
     v6 = ptrtoint ptr<calldata> v2 to i256
     v7 = sub v5, v6
-    v8 = slt v7, v3
+    v8 = slt v7, v4
     icall revert_if<calldata_tail_too_short>, v8
     v9 = mul v1, 32
     v10 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

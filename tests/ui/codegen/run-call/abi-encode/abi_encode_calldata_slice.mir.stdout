@@ -166,13 +166,13 @@ fn @encPackedUint8(arg0: slice<calldata>, arg1: i256, arg2: i256) -> ptr<memory>
     v10 = make_calldata_slice v9, v6
     v11 = extract_value slice<calldata>, v10, 1
     v12 = extract_value slice<calldata>, v10, 0
-    v13 = mul v11, 32
-    v14 = gt v11, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v14
+    v13 = gt v11, 0x7ffffffffffffff
+    icall panic_if<0x41>, v13
+    v14 = mul v11, 32
     v15 = calldatasize
     v16 = ptrtoint ptr<calldata> v12 to i256
     v17 = sub v15, v16
-    v18 = slt v17, v13
+    v18 = slt v17, v14
     icall revert_if<calldata_tail_too_short>, v18
     v19 = mul v11, 32
     v20 = gt v11, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

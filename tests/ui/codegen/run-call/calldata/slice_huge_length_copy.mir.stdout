@@ -1,0 +1,490 @@
+; === ROOT/tests/ui/codegen/run-call/calldata/slice_huge_length_copy.sol:C ===
+@module C
+; function bytesCopy() external pure returns (bytes memory) [selector 0x6310efb6]
+fn @bytesCopy() -> ptr<memory> [selector=0x6310efb6, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x10000000000000000
+    v5 = extract_value slice<calldata>, v4, 0
+    v6 = extract_value slice<calldata>, v4, 1
+    v7 = calldatasize
+    v8 = gt v6, 0xffffffffffffffff
+    icall panic_if<0x41>, v8
+    v9 = sub v7, v6
+    v10 = ptrtoint ptr<calldata> v5 to i256
+    v11 = slt v9, v10
+    icall revert_if<calldata_tail_too_short>, v11
+    v12 = extract_value slice<calldata>, v4, 1
+    v13 = add v12, 31
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v14, 32
+    v16 = lt v15, v12
+    icall panic_if<0x41>, v16
+    v17 = alloc v15
+    mstore v17, v12
+    v18 = ptradd v17, 32
+    v19 = extract_value slice<calldata>, v4, 0
+    v20 = extract_value slice<calldata>, v4, 1
+    calldatacopy v18, v19, v20
+    ret v17
+}
+
+; function stringCopy() external pure returns (string memory) [selector 0xd12b1ec0]
+fn @stringCopy() -> ptr<memory> [selector=0xd12b1ec0, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x10000000000000000
+    v5 = extract_value slice<calldata>, v4, 0
+    v6 = extract_value slice<calldata>, v4, 1
+    v7 = calldatasize
+    v8 = gt v6, 0xffffffffffffffff
+    icall panic_if<0x41>, v8
+    v9 = sub v7, v6
+    v10 = ptrtoint ptr<calldata> v5 to i256
+    v11 = slt v9, v10
+    icall revert_if<calldata_tail_too_short>, v11
+    v12 = extract_value slice<calldata>, v4, 1
+    v13 = add v12, 31
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v15 = add v14, 32
+    v16 = lt v15, v12
+    icall panic_if<0x41>, v16
+    v17 = alloc v15
+    mstore v17, v12
+    v18 = ptradd v17, 32
+    v19 = extract_value slice<calldata>, v4, 0
+    v20 = extract_value slice<calldata>, v4, 1
+    calldatacopy v18, v19, v20
+    ret v17
+}
+
+; function wordArrayCopy() external pure returns (uint256[] memory) [selector 0xab438f11]
+fn @wordArrayCopy() -> ptr<memory> [selector=0xab438f11, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x10000000000000000
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = extract_value slice<calldata>, v4, 0
+    v7 = gt v5, 0x7ffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = mul v5, 32
+    v9 = calldatasize
+    v10 = ptrtoint ptr<calldata> v6 to i256
+    v11 = sub v9, v10
+    v12 = slt v11, v8
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = mul v5, 32
+    v14 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 32
+    v16 = lt v15, 32
+    icall panic_if<0x41>, v16
+    v17 = alloc v15
+    mstore v17, v5
+    v18 = make_calldata_slice v6, v13
+    v19 = ptradd v17, 32
+    v20 = extract_value slice<calldata>, v18, 0
+    v21 = extract_value slice<calldata>, v18, 1
+    calldatacopy v19, v20, v21
+    ret v17
+}
+
+; function wordArrayBelowLimit() external pure returns (uint256[] memory) [selector 0x65925d3c]
+fn @wordArrayBelowLimit() -> ptr<memory> [selector=0x65925d3c, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x800000000000000
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = extract_value slice<calldata>, v4, 0
+    v7 = gt v5, 0x7ffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = mul v5, 32
+    v9 = calldatasize
+    v10 = ptrtoint ptr<calldata> v6 to i256
+    v11 = sub v9, v10
+    v12 = slt v11, v8
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = mul v5, 32
+    v14 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 32
+    v16 = lt v15, 32
+    icall panic_if<0x41>, v16
+    v17 = alloc v15
+    mstore v17, v5
+    v18 = make_calldata_slice v6, v13
+    v19 = ptradd v17, 32
+    v20 = extract_value slice<calldata>, v18, 0
+    v21 = extract_value slice<calldata>, v18, 1
+    calldatacopy v19, v20, v21
+    ret v17
+}
+
+; function narrowArrayCopy() external pure returns (uint8[] memory) [selector 0xe1ca8712]
+fn @narrowArrayCopy() -> ptr<memory> [selector=0xe1ca8712, pure, abi_params=[], abi_returns=[memory_array<word<uint8>>], abi_return_params=[array<_, uint8>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x10000000000000000
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = extract_value slice<calldata>, v4, 0
+    v7 = gt v5, 0x7ffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = mul v5, 32
+    v9 = calldatasize
+    v10 = ptrtoint ptr<calldata> v6 to i256
+    v11 = sub v9, v10
+    v12 = slt v11, v8
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = mul v5, 32
+    v14 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 32
+    v16 = lt v15, 32
+    icall panic_if<0x41>, v16
+    v17 = alloc v15
+    mstore v17, v5
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v18 = phi [bb0: 0], [bb2: v28]
+    v19 = lt v18, v5
+    jumpi v19, bb2, bb3
+  bb3:                                            ; preds = bb1
+    ret v17
+  bb2:                                            ; preds = bb1
+    v20 = mul v18, 32
+    v21 = ptrtoint ptr<calldata> v6 to i256
+    v22 = add v21, v20
+    v23 = calldataload v22
+    v24 = gt v23, 255
+    icall revert_if<empty>, v24
+    v25 = shl v18, 5
+    v26 = ptradd v17, v25
+    v27 = ptradd v26, 32
+    mstore v27, v23
+    v28 = add v18, 1
+    jump bb1
+}
+
+; function nestedArrayCopy() external pure returns (uint256[][] memory) [selector 0x303d9e81]
+fn @nestedArrayCopy() -> ptr<memory> [selector=0x303d9e81, pure, abi_params=[], abi_returns=[memory_array<memory_array<word>>], abi_return_params=[array<_, array<_, uint256>>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x10000000000000000
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = extract_value slice<calldata>, v4, 0
+    v7 = gt v5, 0x7ffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = mul v5, 32
+    v9 = calldatasize
+    v10 = ptrtoint ptr<calldata> v6 to i256
+    v11 = sub v9, v10
+    v12 = slt v11, v8
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = mul v5, 32
+    v14 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 32
+    v16 = lt v15, 32
+    icall panic_if<0x41>, v16
+    v17 = alloc v15
+    mstore v17, v5
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v18 = phi [bb0: 0], [bb2: v60]
+    v19 = lt v18, v5
+    jumpi v19, bb2, bb3
+  bb3:                                            ; preds = bb1
+    ret v17
+  bb2:                                            ; preds = bb1
+    v20 = mul v18, 32
+    v21 = ptrtoint ptr<calldata> v6 to i256
+    v22 = add v21, v20
+    v23 = calldatasize
+    v24 = sub v23, v22
+    v25 = slt v24, 32
+    icall revert_if<calldata_tail_too_short>, v25
+    v26 = calldataload v22
+    v27 = ptrtoint ptr<calldata> v6 to i256
+    v28 = add v27, v26
+    v29 = calldatasize
+    v30 = ptrtoint ptr<calldata> v6 to i256
+    v31 = sub v29, v30
+    v32 = sub v31, 31
+    v33 = slt v26, v32
+    v34 = eq v33, false
+    v35 = gt v26, 0xffffffffffffffff
+    v36 = or v34, v35
+    v37 = zext i1 v36 to i256
+    icall revert_if<invalid_calldata_tail_offset>, v36
+    v38 = calldataload v28
+    v39 = gt v38, 0x7ffffffffffffff
+    icall panic_if<0x41>, v39
+    v40 = calldatasize
+    v41 = gt v38, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v41
+    v42 = mul v38, 32
+    v43 = add v28, 32
+    v44 = sub v40, v42
+    v45 = slt v44, v43
+    icall revert_if<calldata_tail_too_short>, v45
+    v46 = mul v38, 32
+    v47 = gt v38, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v47
+    v48 = add v46, 32
+    v49 = lt v48, 32
+    icall panic_if<0x41>, v49
+    v50 = alloc v48
+    mstore v50, v38
+    v51 = inttoptr i256 v43 to ptr<calldata>
+    v52 = make_calldata_slice v51, v46
+    v53 = ptradd v50, 32
+    v54 = extract_value slice<calldata>, v52, 0
+    v55 = extract_value slice<calldata>, v52, 1
+    calldatacopy v53, v54, v55
+    v56 = ptrtoint ptr<memory> v50 to i256
+    v57 = shl v18, 5
+    v58 = ptradd v17, v57
+    v59 = ptradd v58, 32
+    mstore v59, v56
+    v60 = add v18, 1
+    jump bb1
+}
+
+; function structArrayCopy() external pure returns (S[] memory) [selector 0x5ff8f59c]
+fn @structArrayCopy() -> ptr<memory> [selector=0x5ff8f59c, pure, abi_params=[], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<uint256, uint256>>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x10000000000000000
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = extract_value slice<calldata>, v4, 0
+    v7 = gt v5, 0x7ffffffffffffff
+    icall panic_if<0x41>, v7
+    v8 = mul v5, 64
+    v9 = calldatasize
+    v10 = ptrtoint ptr<calldata> v6 to i256
+    v11 = sub v9, v10
+    v12 = slt v11, v8
+    icall revert_if<calldata_tail_too_short>, v12
+    v13 = mul v5, 32
+    v14 = gt v5, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = add v13, 32
+    v16 = lt v15, 32
+    icall panic_if<0x41>, v16
+    v17 = alloc v15
+    mstore v17, v5
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v18 = phi [bb0: 0], [bb2: v33]
+    v19 = lt v18, v5
+    jumpi v19, bb2, bb3
+  bb3:                                            ; preds = bb1
+    ret v17
+  bb2:                                            ; preds = bb1
+    v20 = mul v18, 64
+    v21 = gt v18, 0x3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v21
+    v22 = ptrtoint ptr<calldata> v6 to i256
+    v23 = add v22, v20
+    v24 = alloc 64
+    v25 = calldataload v23
+    mstore v24, v25
+    v26 = add v23, 32
+    v27 = calldataload v26
+    v28 = ptradd v24, 32
+    mstore v28, v27
+    v29 = ptrtoint ptr<memory> v24 to i256
+    v30 = shl v18, 5
+    v31 = ptradd v17, v30
+    v32 = ptradd v31, 32
+    mstore v32, v29
+    v33 = add v18, 1
+    jump bb1
+}
+
+; function bytesSliceCopy() external pure returns (bytes memory) [selector 0xae8ed216]
+fn @bytesSliceCopy() -> ptr<memory> [selector=0xae8ed216, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x20000000000000000
+    v5 = extract_value slice<calldata>, v4, 0
+    v6 = extract_value slice<calldata>, v4, 1
+    v7 = lt v6, v6
+    v8 = lt v6, 1
+    v9 = or v7, v8
+    v10 = zext i1 v9 to i256
+    icall revert_if<empty>, v9
+    v11 = sub v6, 1
+    v12 = ptradd v5, 1
+    v13 = make_calldata_slice v12, v11
+    v14 = extract_value slice<calldata>, v13, 0
+    v15 = extract_value slice<calldata>, v13, 1
+    v16 = calldatasize
+    v17 = gt v15, 0xffffffffffffffff
+    icall panic_if<0x41>, v17
+    v18 = sub v16, v15
+    v19 = ptrtoint ptr<calldata> v14 to i256
+    v20 = slt v18, v19
+    icall revert_if<calldata_tail_too_short>, v20
+    v21 = extract_value slice<calldata>, v13, 1
+    v22 = add v21, 31
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v24 = add v23, 32
+    v25 = lt v24, v21
+    icall panic_if<0x41>, v25
+    v26 = alloc v24
+    mstore v26, v21
+    v27 = ptradd v26, 32
+    v28 = extract_value slice<calldata>, v13, 0
+    v29 = extract_value slice<calldata>, v13, 1
+    calldatacopy v27, v28, v29
+    ret v26
+}
+
+; function arraySliceCopy() external pure returns (uint256[] memory) [selector 0x736de98d]
+fn @arraySliceCopy() -> ptr<memory> [selector=0x736de98d, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x10000000000000000
+    v5 = extract_value slice<calldata>, v4, 0
+    v6 = extract_value slice<calldata>, v4, 1
+    v7 = lt v6, v6
+    v8 = lt v6, 1
+    v9 = or v7, v8
+    v10 = zext i1 v9 to i256
+    icall revert_if<empty>, v9
+    v11 = sub v6, 1
+    v12 = ptradd v5, 32
+    v13 = make_calldata_slice v12, v11
+    v14 = extract_value slice<calldata>, v13, 1
+    v15 = extract_value slice<calldata>, v13, 0
+    v16 = gt v14, 0x7ffffffffffffff
+    icall panic_if<0x41>, v16
+    v17 = mul v14, 32
+    v18 = calldatasize
+    v19 = ptrtoint ptr<calldata> v15 to i256
+    v20 = sub v18, v19
+    v21 = slt v20, v17
+    icall revert_if<calldata_tail_too_short>, v21
+    v22 = mul v14, 32
+    v23 = gt v14, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v23
+    v24 = add v22, 32
+    v25 = lt v24, 32
+    icall panic_if<0x41>, v25
+    v26 = alloc v24
+    mstore v26, v14
+    v27 = make_calldata_slice v15, v22
+    v28 = ptradd v26, 32
+    v29 = extract_value slice<calldata>, v27, 0
+    v30 = extract_value slice<calldata>, v27, 1
+    calldatacopy v28, v29, v30
+    ret v26
+}
+
+; function copyBytes(bytes calldata b) internal pure returns (bytes memory)
+fn @copyBytes(arg0: slice<calldata>) -> ptr<memory> [pure] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = calldatasize
+    v3 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v3
+    v4 = sub v2, v1
+    v5 = ptrtoint ptr<calldata> v0 to i256
+    v6 = slt v4, v5
+    icall revert_if<calldata_tail_too_short>, v6
+    v7 = extract_value slice<calldata>, arg0, 1
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = add v9, 32
+    v11 = lt v10, v7
+    icall panic_if<0x41>, v11
+    v12 = alloc v10
+    mstore v12, v7
+    v13 = ptradd v12, 32
+    v14 = extract_value slice<calldata>, arg0, 0
+    v15 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v13, v14, v15
+    ret v12
+}
+
+; function internalBytesCopy() external pure returns (bytes memory) [selector 0x50404fea]
+fn @internalBytesCopy() -> ptr<memory> [selector=0x50404fea, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x10000000000000000
+    v5 = icall @copyBytes, v4
+    ret v5
+}
+
+; function copyArray(uint256[] calldata a) internal pure returns (uint256[] memory)
+fn @copyArray(arg0: slice<calldata>) -> ptr<memory> [pure] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
+    v2 = gt v0, 0x7ffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = mul v0, 32
+    v4 = calldatasize
+    v5 = ptrtoint ptr<calldata> v1 to i256
+    v6 = sub v4, v5
+    v7 = slt v6, v3
+    icall revert_if<calldata_tail_too_short>, v7
+    v8 = mul v0, 32
+    v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v9
+    v10 = add v8, 32
+    v11 = lt v10, 32
+    icall panic_if<0x41>, v11
+    v12 = alloc v10
+    mstore v12, v0
+    v13 = make_calldata_slice v1, v8
+    v14 = ptradd v12, 32
+    v15 = extract_value slice<calldata>, v13, 0
+    v16 = extract_value slice<calldata>, v13, 1
+    calldatacopy v14, v15, v16
+    ret v12
+}
+
+; function internalArrayCopy() external pure returns (uint256[] memory) [selector 0xb2236cb9]
+fn @internalArrayCopy() -> ptr<memory> [selector=0xb2236cb9, pure, abi_params=[], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0x10000000000000000
+    v5 = icall @copyArray, v4
+    ret v5
+}

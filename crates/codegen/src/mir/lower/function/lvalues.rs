@@ -343,9 +343,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 value = self.builder.make_slice(value, length, PtrLocation::Calldata);
             }
-            if ty.is_ref_at(DataLocation::Calldata) {
-                self.unchecked_calldata_slices.insert(value);
-            }
         }
         if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
             entry.insert(value);
