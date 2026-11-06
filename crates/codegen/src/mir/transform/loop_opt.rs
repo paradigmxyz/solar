@@ -62,8 +62,8 @@
 use crate::{
     mir::{
         BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
-        Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
-        ValueId,
+        Instruction, InstructionMetadata, MirType, Module, OpTraits, PtrLocation, StorageAlias,
+        Terminator, Value, ValueId,
         analysis::{
             AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, DominatorTree, Location,
             LocationSize, Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef,
@@ -81,6 +81,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::{cmp::Reverse, rc::Rc};
 
 /// Function pass for loop-invariant code motion.
@@ -1155,13 +1156,17 @@ fn reduce_product_checks(
     let uses = super::egraph::use_counts(func);
     let mut limits = FxHashMap::default();
     for &(block, inst, x, y, zero) in &checks {
-        let context = func.inst(inst).metadata.debug_context();
         let limit = *limits.entry(y).or_insert_with(|| {
             // preheader: zero = eq y, 0
             //            limit = sub (div MAX, y), (zext zero)
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(preheader);
-            builder.set_debug_context(&context);
+            // The limit is hoisted out of the loop and shared by every check on `y`, so it has no
+            // single source. Drop its location, like LLVM's LICM (`updateLocationAfterHoist` in
+            // `LICM.cpp`, which is `dropLocation` in `DebugInfo.cpp`).
+            let mut hoisted = InstructionMetadata::EMPTY;
+            hoisted.drop_debug_loc(DebugLocKind::Dropped);
+            builder.set_debug_context(&hoisted);
             let zero = match zero {
                 Some(zero) if outside(builder.func(), zero) => zero,
                 _ => builder.eq_zero(y),
@@ -1363,8 +1368,10 @@ fn reassociate_invariant_offsets(
     let mut rewritten = 0;
     for (preheader, x, c, sites) in plans {
         // preheader: t = add x, c
-        let mut sum = Instruction::new(InstKind::Add(x, c), Some(MirType::I256));
-        sum.metadata.preserve_debug_loc(&func.inst(sites[0].0).metadata);
+        // Hoisted and shared by every site, so it has no single source: drop its location, as
+        // above.
+        let sum =
+            Instruction::new(InstKind::Add(x, c), Some(MirType::I256)).with_debug_loc_dropped();
         let (sum_inst, t) = func.alloc_value_inst(sum);
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {

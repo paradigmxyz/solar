@@ -1,0 +1,73 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=licm
+//@ filecheck: --enable-var-scope
+@module LicmHoistedOrigin
+
+// The bound is hoisted out of the loop and shared by two checks with distinct locations, so it
+// has no single source and keeps none, instead of the first check's.
+// CHECK-LABEL: @shared_limit
+// CHECK: + [[ZERO:v[0-9]+]] = eq arg1, 0{{$}}
+// CHECK-NEXT: + [[QUOTIENT:v[0-9]+]] = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1{{$}}
+// CHECK-NEXT: + [[WIDE:v[0-9]+]] = zext i1 [[ZERO]] to i256{{$}}
+// CHECK-NEXT: + [[LIMIT:v[0-9]+]] = sub [[QUOTIENT]], [[WIDE]]{{$}}
+// CHECK: + {{v[0-9]+}} = lt [[LIMIT]], v1 !metadata(span=10..20)
+// CHECK: + {{v[0-9]+}} = lt [[LIMIT]], v3 !metadata(span=30..40)
+fn @shared_limit(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb4: v14]
+    v1 = phi [bb0: arg0], [bb4: v3]
+    v2 = lt v0, arg2
+    jumpi v2, bb2, bb7
+  bb2:
+    v3 = mul v1, arg1
+    v4 = eq arg1, 0
+    v5 = div v3, arg1
+    v6 = eq v5, v1
+    v7 = or v4, v6 !metadata(span=10..20)
+    jumpi v7, bb3, bb6
+  bb3:
+    v8 = mul v3, arg1
+    v9 = eq arg1, 0
+    v10 = div v8, arg1
+    v11 = eq v10, v3
+    v12 = or v9, v11 !metadata(span=30..40)
+    jumpi v12, bb4, bb6
+  bb4:
+    v14 = add v0, 1
+    jump bb1
+  bb6:
+    revert 0, 0
+  bb7:
+    ret v1
+}
+
+// The sum is hoisted out of the loop and replaces two inner adds, so it keeps no location,
+// instead of the first outer add's.
+// CHECK-LABEL: @shared_offset
+// CHECK: + [[T:v[0-9]+]] = add v0, 32{{$}}
+// CHECK: + {{v[0-9]+}} = add [[T]], {{v[0-9]+}} !metadata(span=30..40)
+// CHECK: + {{v[0-9]+}} = add [[T]], {{v[0-9]+}} !metadata(span=10..20)
+fn @shared_offset(arg0: i256) {
+  bb0:
+    v0 = mload 64
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 1], [bb2: v8]
+    v2 = lt v1, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = shl v1, 5
+    v4 = add v0, v3
+    v5 = add v4, 32 !metadata(span=10..20)
+    v6 = mload v5
+    v7 = shl v1, 1
+    v8 = or v7, v6
+    jump bb1
+  bb3:
+    v9 = shl v1, 5
+    v10 = add v0, v9
+    v11 = add v10, 32 !metadata(span=30..40)
+    mstore v11, 0
+    stop
+}
