@@ -942,14 +942,14 @@ fn @fillSome() {
     v49 = ne v48, 0
     jumpi v49, bb3, bb4
   bb4:                                            ; preds = bb0
-    v50 = calldataload 36
     v26 = icall @decode_calldata_type.18, 4
-    v12 = byte 0, v50
-    v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
     v14 = mload v26
     v15 = lt v14, 4
     jumpi v15, bb1, bb2
   bb2:                                            ; preds = bb4
+    v50 = calldataload 36
+    v12 = byte 0, v50
+    v13 = mul v12, 0x101010101010101010101010101010101010101010101010101010101010101
     v43 = add v26, 32
     v17 = mload v43
     v39 = xor v17, v13

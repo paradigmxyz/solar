@@ -1,0 +1,16 @@
+- ; === ROOT/tests/ui/codegen/mir/place-reads/guard_checked_arithmetic.mir (before place-reads) ===
++ ; === ROOT/tests/ui/codegen/mir/place-reads/guard_checked_arithmetic.mir (after place-reads) ===
+  @module SinkPastGuardsChecked
+  fn @checked(arg0: i256) {
+    bb0:
+      v0 = calldataload 4
+      v1 = checked_add uint256, v0, 1
+      v2 = lt arg0, 10
+      jumpi v2, bb1, bb2
+    bb2 [cold]:                                     ; preds = bb0
+      revert 0, 0
+    bb1:                                            ; preds = bb0
+      mstore 0, v1
+      stop
+  }
+  

@@ -58,6 +58,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         receiver: &hir::Expr<'_>,
         name: Ident,
+    ) -> Option<Word> {
+        if let Some(access) = self.storage_access(expr) {
+            // value = load_storage(member_slot)
+            return self.load_storage_access(expr, access);
+        }
+        self.lower_object_member(expr, receiver, name).map(Word::from_clean)
+    }
+
+    fn lower_object_member(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        name: Ident,
     ) -> Option<ValueId> {
         if let Some(builtin) = self.cx.gcx.resolved_builtin(expr) {
             // value = lower_builtin(member)
@@ -78,10 +91,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let selector = self.cx.gcx.function_selector(function_id).0;
             let selector = self.builder.imm(U256::from_be_slice(&selector));
             return Some(self.builder.or(address, selector));
-        }
-        if let Some(access) = self.storage_access(expr) {
-            // value = load_storage(member_slot)
-            return self.load_storage_access(expr, access);
         }
         // A declaration named `length` wins over the builtin member, the way
         // name resolution bound it: `enum E { length }` has `E.length`.

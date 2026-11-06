@@ -429,11 +429,8 @@ fn @dirtyEnumStorageRead() -> i256 [selector=0xb2fb782c, abi_params=[], abi_retu
     v2 = lt v1, i8 2
     v3 = eq v2, false
     icall panic_if<0x21>, v3
-    v4 = lt v1, i8 2
-    v5 = eq v4, false
-    icall panic_if<0x21>, v5
-    v6 = zext i8 v1 to i256
-    ret v6
+    v4 = zext i8 v1 to i256
+    ret v4
 }
 
 ; function dirtyEnumExternalArg() external view returns (uint256) [selector 0x0ca35a15]

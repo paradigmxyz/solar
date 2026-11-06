@@ -51,6 +51,8 @@ struct Exposure<'gcx> {
     pointer_results: Vec<(hir::ExprId, SmallVec<[VariableId; 4]>)>,
     /// The pointer calls `sources` met in the expression it last walked.
     result_calls: SmallVec<[hir::ExprId; 1]>,
+    /// Whether the expression `sources` last walked may copy an enum out of storage.
+    reads_storage_enum: bool,
     returns: &'gcx [VariableId],
     assembly: bool,
 }
@@ -98,6 +100,18 @@ impl<'gcx> Exposure<'gcx> {
             .clone()
     }
 
+    fn is_enum(&self, expr: &hir::Expr<'_>) -> bool {
+        self.gcx.type_of_expr(expr.id).is_some_and(|ty| matches!(ty.kind, TyKind::Enum(..)))
+    }
+
+    fn is_storage_enum_variable(&self, expr: &hir::Expr<'_>) -> bool {
+        self.is_enum(expr)
+            && self.gcx.resolved_variable(expr).is_some_and(|id| {
+                let variable = self.gcx.hir.variable(id);
+                variable.is_state_variable() && !variable.is_constant() && !variable.is_immutable()
+            })
+    }
+
     fn sources(&mut self, expr: &hir::Expr<'_>, out: &mut SmallVec<[VariableId; 4]>) {
         if let Some(id) = self.gcx.user_operator(expr.id) {
             out.extend_from_slice(self.gcx.hir.function(id).returns);
@@ -109,8 +123,20 @@ impl<'gcx> Exposure<'gcx> {
                     self.gcx.resolved_expr(expr)
                 {
                     out.push(id);
+                    self.reads_storage_enum |= self.is_storage_enum_variable(expr);
                 }
             }
+            // An enum member of a storage object, such as `s.e` or `Base.e`, or an element of a
+            // storage array or mapping.
+            ExprKind::Member(base, _) | ExprKind::Index(base, _) => {
+                self.reads_storage_enum |= self.is_storage_enum_variable(expr)
+                    || self.is_enum(expr)
+                        && self.gcx.type_of_expr(base.id).is_some_and(|ty| {
+                            ty.is_ref_at(DataLocation::Storage)
+                                || matches!(ty.peel_refs().kind, TyKind::Mapping(..))
+                        });
+            }
+
             ExprKind::Tuple(items) => {
                 for expr in items.iter().flatten() {
                     self.sources(expr, out);
@@ -172,12 +198,18 @@ impl<'gcx> Exposure<'gcx> {
     fn connect(&mut self, destinations: &[VariableId], expr: &hir::Expr<'_>) {
         let mut sources = SmallVec::new();
         self.result_calls.clear();
+        self.reads_storage_enum = false;
         self.sources(expr, &mut sources);
         for &call in &self.result_calls {
             self.pointer_results.push((call, destinations.iter().copied().collect()));
         }
         for &to in destinations {
             let ty = self.gcx.type_of_item(to.into());
+            // A storage enum is not range checked at the load, so a binding that copies it holds
+            // the raw word.
+            if self.reads_storage_enum && matches!(ty.kind, TyKind::Enum(..)) {
+                self.raw.insert(to);
+            }
             for &from in &sources {
                 if ty == self.gcx.type_of_item(from.into()) {
                     self.edges.entry(from).or_default().push(to);
@@ -555,6 +587,7 @@ impl LoweringState {
             pointer_calls: Vec::new(),
             pointer_results: Vec::new(),
             result_calls: SmallVec::new(),
+            reads_storage_enum: false,
             returns: &[],
             assembly: false,
         };

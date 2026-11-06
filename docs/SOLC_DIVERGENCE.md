@@ -1033,3 +1033,17 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
+
+### CODEGEN-015: Storage copies bound corrupted lengths
+
+- ID: CODEGEN-015
+- Status: intentional
+- Difference: when assembly writes a length of `2^64` or more into a storage
+  `bytes`, `string` or dynamic array, copying it to memory runs out of gas
+  under `solc` via-IR, which encodes the copy into unbounded memory. `solar`
+  reverts with `Panic(0x41)`, the panic for an allocation past the memory
+  limit.
+- Rationale: the check costs one comparison and fails at once instead of
+  burning all gas. No program that reaches it can succeed under `solc` either.
+- Coverage:
+  `tests/ui/codegen/run-call/dirty-values/memory-storage/storage_copy_huge_length.sol`.

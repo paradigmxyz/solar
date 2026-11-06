@@ -91,9 +91,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     jump bb22
   bb22:                                           ; preds = bb21, bb24
     v183 = phi [bb21: v2], [bb24: v230]
-    v184 = phi [bb21: v182], [bb24: v241]
+    v184 = phi [bb21: v182], [bb24: v242]
     v185 = phi [bb21: v4], [bb24: v185]
-    v186 = phi [bb21: 0], [bb24: v242]
+    v186 = phi [bb21: 0], [bb24: v243]
     v187 = phi [bb21: v5], [bb24: v187]
     v188 = phi [bb21: v6], [bb24: v188]
     v189 = phi [bb21: v59], [bb24: v189]
@@ -102,9 +102,9 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
   bb26:                                           ; preds = bb22
     jump bb23
   bb23:                                           ; preds = bb26
-    v243 = insert_value struct0, undef struct0, 0, v183
-    v244 = insert_value struct0, v243, 1, v184
-    ret v244
+    v244 = insert_value struct0, undef struct0, 0, v183
+    v245 = insert_value struct0, v244, 1, v184
+    ret v245
   bb25:                                           ; preds = bb22
     v191 = lt 0, 1
     v192 = eq v191, false
@@ -169,15 +169,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v237 = add v236, 3
     v238 = sload v237 !metadata(storage=offset(v236, 3))
     v239 = trunc i256 v238 to i8
-    v240 = ne v239, i8 0
+    v240 = zext i8 v239 to i256
     jump bb30
   bb30:                                           ; preds = bb28, bb29
-    v241 = phi [bb28: v240], [bb29: false]
+    v241 = phi [bb28: v240], [bb29: 0]
+    v242 = ne v241, 0
     jump bb27
   bb27:                                           ; preds = bb30
     jump bb24
   bb24:                                           ; preds = bb27
-    v242 = checked_add uint256, v186, 1
+    v243 = checked_add uint256, v186, 1
     jump bb22
   bb17:                                           ; preds = bb16
     v165 = mul v163, 4

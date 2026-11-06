@@ -268,6 +268,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Lowers `expr` and converts it to `ty`. A raw word of the same type stays raw.
     pub(super) fn lower_typed_expr(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<Word> {
+        self.lower_typed_expr_as(expr, ty, false)
+    }
+
+    /// Lowers `expr` as the value of the binding `id`, which cleans it unless it is a raw carrier.
+    pub(super) fn lower_typed_expr_into(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+        id: VariableId,
+    ) -> Option<Word> {
+        self.lower_typed_expr_as(expr, ty, !self.is_raw_binding(id))
+    }
+
+    /// Lowers `expr` as a value of type `ty`; see [`Self::lower_expr_as`] for `cleaned`.
+    fn lower_typed_expr_as(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+        cleaned: bool,
+    ) -> Option<Word> {
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
             return Some(Word::from_clean(value));
         }
@@ -289,7 +309,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let access = self.require_storage_access(source_expr)?;
             return self.load_storage_object(ty, access.slot, expr.span).map(Word::from_clean);
         }
-        let word = self.lower_expr(expr)?;
+        let word = self.lower_expr_as(expr, cleaned)?;
         let source_ty = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
             let ExprKind::Lit(lit) = &expr.kind else { return None };
             let LitKind::Str(_, bytes, _) = &lit.kind else { return None };

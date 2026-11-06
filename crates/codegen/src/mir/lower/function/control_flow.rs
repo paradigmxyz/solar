@@ -733,26 +733,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lhs_expr: &hir::Expr<'_>,
         op: BinOpKind,
         rhs_expr: &hir::Expr<'_>,
+        cleaned: bool,
     ) -> Option<Word> {
         // if && { branch(lhs, rhs, false) }
         // if || { branch(lhs, lhs, rhs) }
         // result = phi(rhs_value, short_circuit_value)
         let ty = self.cx.gcx.type_of_expr(lhs_expr.id)?;
-        let lhs = self.lower_expr(lhs_expr)?;
+        // A caller that cleans the result gets the same bool from cleaned operands, joined before
+        // the cleaning instead of after it. Otherwise the join keeps raw words, as via-IR does.
+        let lhs = self.lower_expr_as(lhs_expr, cleaned)?;
         let condition = lhs.clean(self, ty);
         let is_and = op == BinOpKind::And;
         let short = |this: &mut Self| {
-            if lhs.is_raw() && !is_and {
+            if lhs.is_raw() && !is_and && !cleaned {
                 Some(lhs)
             } else {
                 Some(Word::from_clean(this.builder.imm_bool(!is_and)))
             }
         };
+        let rhs_value = |this: &mut Self| {
+            if cleaned {
+                this.operand(rhs_expr).map(Word::from_clean)
+            } else {
+                this.lower_expr(rhs_expr)
+            }
+        };
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             is_and,
-            |this| if is_and { this.lower_expr(rhs_expr) } else { short(this) },
-            |this| if is_and { short(this) } else { this.lower_expr(rhs_expr) },
+            |this| if is_and { rhs_value(this) } else { short(this) },
+            |this| if is_and { short(this) } else { rhs_value(this) },
         )?;
         let (rhs, short) =
             if is_and { (then_branch, else_branch) } else { (else_branch, then_branch) };

@@ -707,9 +707,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// [`Self::operand`], or hand the word to a sink that copies it, [`Self::bind_word`] or
     /// [`Self::store_word`].
     pub(super) fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<Word> {
+        self.lower_expr_as(expr, false)
+    }
+
+    /// Lowers `expr` like [`Self::lower_expr`]. When the caller cleans the word at once,
+    /// `cleaned`, a `&&` or `||` joins cleaned operands instead of raw words, since cleaning the
+    /// join gives the same bool.
+    pub(super) fn lower_expr_as(&mut self, expr: &hir::Expr<'_>, cleaned: bool) -> Option<Word> {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
-        let result = self.lower_expr_inner(expr).map(|word| word.into_native(self, expr));
+        let result = self.lower_expr_inner(expr, cleaned).map(|word| word.into_native(self, expr));
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result
@@ -729,7 +736,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         .then_some(argument)
     }
 
-    fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<Word> {
+    fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>, cleaned: bool) -> Option<Word> {
         // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
         // be fractions or may not fit any integer type. Constant names fold in
         // `lower_constant_variable`.
@@ -797,7 +804,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             ExprKind::Binary(lhs, op, rhs) => {
                 self.assert_operand_ty_registered(expr);
                 if op.kind.is_logical() {
-                    return self.lower_logical(lhs, op.kind, rhs);
+                    return self.lower_logical(lhs, op.kind, rhs, cleaned);
                 }
                 if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
                     let lhs = self.lower_expr(lhs)?;
@@ -1083,18 +1090,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let ty = self.cx.gcx.type_of_expr(expr.id)?;
                 self.lower_ternary(cond, then_expr, else_expr, ty)
             }
-            ExprKind::Tuple([Some(inner)]) => self.lower_expr(inner),
+            ExprKind::Tuple([Some(inner)]) => self.lower_expr_as(inner, cleaned),
             ExprKind::Tuple(values) => self.lower_tuple(expr, values).map(Word::from_clean),
-            ExprKind::Member(receiver, name) => {
-                self.lower_member(expr, receiver, *name).map(Word::from_clean)
-            }
+            ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
             ExprKind::YulMember(..) => {
                 let place = self.resolve_lvalue_place(expr)?;
                 self.load_lvalue_place(&place).map(Word::from_clean)
             }
-            ExprKind::Index(receiver, index) => {
-                self.lower_index(expr, receiver, *index).map(Word::from_clean)
-            }
+            ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             ExprKind::Slice(receiver, start, end) => {
                 self.lower_slice(expr, receiver, *start, *end).map(Word::from_clean)
             }
