@@ -640,16 +640,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Lowers `args` and converts them with `finish`. A storage reference whose `waits` entry, by
     /// evaluation order, is set waits until every argument is lowered, as via-IR converts a
     /// call's arguments; any other operand is converted as soon as it is lowered.
-    fn lower_converted_arguments<'a, T>(
+    fn lower_converted_arguments<T>(
         &mut self,
-        waits: &[bool],
-        args: hir::CallArgs<'a>,
+        args: hir::CallArgs<'gcx>,
         params: CallArgumentParams<'_>,
         span: Span,
         error: &'static str,
-        mut lower: impl FnMut(&mut Self, usize, &'a hir::Expr<'a>) -> Option<Lowered<'gcx>>,
+        mut lower: impl FnMut(&mut Self, usize, &'gcx hir::Expr<'gcx>) -> Option<Lowered<'gcx>>,
         mut finish: impl FnMut(&mut Self, usize, Lowered<'gcx>) -> Option<T>,
     ) -> Option<Vec<T>> {
+        let waits = self.operands_wait(args.exprs());
         let mut position = 0;
         let steps =
             self.lower_call_arguments(args, params, span, error, |this, index, argument| {

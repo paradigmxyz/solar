@@ -455,9 +455,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .gcx
             .call_param_source(callee)
             .map(|source| self.cx.gcx.callable_param_names(source));
-        let waits = self.operands_wait(args.exprs());
         let mut values = self.lower_converted_arguments(
-            &waits,
             args,
             CallArgumentParams {
                 count: function.parameters.len(),
@@ -795,9 +793,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             values.push(self.bind_word(function.parameters[0], value, receiver.span)?);
         }
-        let waits = self.operands_wait(args.exprs());
         let arguments = self.lower_converted_arguments(
-            &waits,
             args,
             CallArgumentParams {
                 count: function.parameters.len() - receiver_count,
