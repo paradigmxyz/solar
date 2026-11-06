@@ -124,12 +124,14 @@ impl<'gcx> Assembler<'gcx> {
     /// of the block's branch (`MachineBasicBlock::updateTerminator`, `findBranchDebugLoc`), the
     /// jump keeps its own origins and nothing else receives them.
     // NOTE: Without an open block nothing implements the jump, so its origins are dropped. Opening
-    // one would add an empty block, and debug information must not change the IR. An empty block
-    // is a thunk that `cfg-simplify` removes with its jump, as LLVM's
-    // `TryToSimplifyUncondBranchFromEmptyBlock` does, so it records nothing either.
+    // one would add an empty block, and debug information must not change the IR. An empty open
+    // block, such as the continuation of a call that ends its MIR block, still records them: its
+    // jump is its only code and a return target keeps the block alive. When `cfg-simplify` removes
+    // an empty thunk with its jump, as LLVM's `TryToSimplifyUncondBranchFromEmptyBlock` does, the
+    // origins are lost with it.
     pub(crate) fn mark_fallthrough(&mut self) {
-        if let Some(block) = self.current_block
-            && !self.program.blocks[block].instructions.is_empty()
+        if self.program.debug_info_is_tracked()
+            && let Some(block) = self.current_block
         {
             self.fallthrough_origins.insert(block, self.debug_origin());
         }
@@ -464,6 +466,15 @@ impl<'gcx> Assembler<'gcx> {
         }
         block.metadata.repeats = self.repeating_code;
         block.metadata.optimization = self.block_optimization;
+        // The open block falls into the label unless it ends in a jump or a terminal opcode, so its
+        // implicit jump gets the origins of the code that falls through, unless it has marked its
+        // own.
+        if self.program.debug_info_is_tracked()
+            && let Some(open) = self.current_block
+            && !self.fallthrough_origins.contains_key(&open)
+        {
+            self.fallthrough_origins.insert(open, self.debug_origin());
+        }
         let block = self.add_current_block(block);
         self.block_labels.push(Some(label));
         self.label_blocks.insert(label, block);

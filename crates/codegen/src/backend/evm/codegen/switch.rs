@@ -1831,7 +1831,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         if !self.emitting_entry {
             self.asm.emit_stack_op(StackOp::Pop);
         }
-        if !can_fallthrough {
+        if can_fallthrough {
+            // The implicit jump to the default belongs to the switch.
+            self.asm.mark_fallthrough();
+        } else {
             self.asm.emit_push_label(self.block_labels[&default]);
             self.asm.emit_op(op::JUMP);
         }
