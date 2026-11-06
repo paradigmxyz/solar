@@ -3,7 +3,6 @@
 //@[report] compile-flags: -Zdebugify=report
 //@[check] compile-flags: -Zdebugify=check
 //@ normalize-stdout-test: "(?s).+" -> ""
-//@ normalize-stderr-test: "debugify: [^\n]*\n" -> ""
 // solc maps library deployment-address staging to the contract (ContractCompiler.cpp L231).
 // Its setup and ABI prologue keep that origin, so both audit modes accept the whole pipeline.
 library GapCheck {
