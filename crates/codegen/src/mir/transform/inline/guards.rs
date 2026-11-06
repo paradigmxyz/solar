@@ -107,7 +107,7 @@ fn profitable(target: &Target, guard: &Guard) -> bool {
         (prefix + target.jump()).bytes as usize,
         0,
         u64::from(savings),
-        Target::UNCOUNTED_LOOP_ITERATIONS,
+        target.uncounted_loop_iterations(),
     )
 }
 
