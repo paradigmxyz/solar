@@ -195,6 +195,7 @@ pub(super) fn lower_synthetic_constructor(
 ) -> Option<Function> {
     let span = context.gcx.hir.contract(contract_id).span;
     let mut mir = Function::new(Ident::with_dummy_span(kw::Constructor));
+    mir.declaration_span = span;
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.builder.set_entry_label_span(span);
     lowerer.lower_implicit_base_constructors(contract_id)?;

@@ -1,0 +1,28 @@
+; === ROOT/tests/ui/codegen/run-call/storage-references/storage_return_pointer_direct.sol:StorageReturnPointerDirect ===
+@module StorageReturnPointerDirect
+@types
+  struct0: {i256, i256}
+
+; function pick(bool useB) internal view returns (S storage result)
+fn @pick(arg0: i1) -> i256 [view] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    ret 0
+  bb1:                                            ; preds = bb0
+    ret 1
+}
+
+; function test(bool useB, uint256 value) external returns (uint256, uint256) [selector 0xc6a64c1f]
+fn @test(arg0: i1, arg1: i256) -> struct0 [selector=0xc6a64c1f, abi_params=[bool, uint256], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall @pick, arg0
+    sstore v0, arg1 !metadata(storage=symbolic(v0))
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = sload 1 !metadata(storage=slot(1))
+    v3 = insert_value struct0, undef struct0, 0, v1
+    v4 = insert_value struct0, v3, 1, v2
+    ret v4
+}

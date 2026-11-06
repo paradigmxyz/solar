@@ -205,6 +205,10 @@ deliberate omissions. A one-line restatement of the name is not enough.
     frames, switches, program data), checked with an explicit
     `-Zdump=evm-ir*` or `disasm*`, or with `run-call` when the bug is in stack
     scheduling: `tests/ui/codegen/lowering/evm-ir/<topic>/`.
+  - Runtime behaviour of a Solidity feature, checked with `run-call` and no
+    explicit dump: `tests/ui/codegen/run-call/<feature>/`, such as
+    `abi-decode`, `storage-arrays`, or `modifiers`. FileCheck on the codegen
+    matrix's `mir` revision does not make a test a lowering test.
   - MIR passes: `tests/ui/codegen/mir/<pass-name>/` (command-line pass name).
     A test that runs one pass with `-Zmir-pipeline=<pass>` belongs there.
   - `lower-abi`, `lower-dispatch`, `lower-evm-shaped`:

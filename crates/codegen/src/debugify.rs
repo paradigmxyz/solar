@@ -267,6 +267,7 @@ impl Origins {
             {
                 spans.insert(checkpoint.source);
             }
+            spans.extend(block.label_metadata.source_spans());
             for inst in &block.instructions {
                 spans.extend(inst.metadata.source_spans());
             }
