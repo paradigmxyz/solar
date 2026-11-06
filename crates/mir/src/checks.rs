@@ -198,7 +198,7 @@ impl RevertReason {
 /// [`FunctionBuilder::check_calldata_tail_offset`]: super::FunctionBuilder::check_calldata_tail_offset
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CalldataTail {
-    /// The calldata tail messages, used when HIR lowering accesses or copies calldata.
+    /// The calldata tail messages, used when HIR lowering accesses calldata.
     Access,
     /// The "Invalid calldata access" messages, used when the encoder copies `bytes[]`.
     Encode,
