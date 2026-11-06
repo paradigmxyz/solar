@@ -106,7 +106,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let ExprKind::Tuple(values) = &expr.peel_parens().kind
                     && values.len() == ids.len()
                 {
-                    let late = self.converts_late(values.iter().flatten().copied());
+                    let waits = self.operands_wait(values.iter().flatten().copied());
+                    let mut position = 0;
                     let mut pending = Vec::new();
                     for (id, value) in ids.iter().zip(values.iter()) {
                         let Some(value) = value else {
@@ -117,6 +118,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             }
                             continue;
                         };
+                        position += 1;
+                        let waits = waits[position - 1];
                         let Some(id) = id else {
                             // The declaration drops this component, so its value needs no read.
                             self.lower_discarded_expr(value)?;
@@ -129,7 +132,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             continue;
                         }
                         let operand = self.lower_operand(value, ty)?;
-                        if late {
+                        if waits && operand.waits() {
                             pending.push((*id, operand));
                         } else {
                             self.bind_operand(*id, operand)?;

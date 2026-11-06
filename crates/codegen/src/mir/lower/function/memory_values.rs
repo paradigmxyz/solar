@@ -81,9 +81,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .type_of_item(struct_fields[index].into())
                 .with_loc_if_ref(this.cx.gcx, DataLocation::Memory)
         };
-        let late = self.converts_late(args.exprs());
+        let waits = self.operands_wait(args.exprs());
         let arguments = self.lower_converted_arguments(
-            late,
+            &waits,
             args,
             CallArgumentParams {
                 count: struct_fields.len(),

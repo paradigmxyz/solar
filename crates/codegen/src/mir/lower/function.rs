@@ -639,12 +639,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// Lowers `args` and converts them with `finish`. When `late`, a storage reference waits
-    /// until every argument is lowered, as via-IR converts a call's arguments; any other operand
-    /// and every operand of an `early` call is converted as soon as it is lowered.
+    /// Lowers `args` and converts them with `finish`. A storage reference whose `waits` entry, by
+    /// evaluation order, is set waits until every argument is lowered, as via-IR converts a
+    /// call's arguments; any other operand is converted as soon as it is lowered.
     fn lower_converted_arguments<'a, T>(
         &mut self,
-        late: bool,
+        waits: &[bool],
         args: hir::CallArgs<'a>,
         params: CallArgumentParams<'_>,
         span: Span,
@@ -652,10 +652,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut lower: impl FnMut(&mut Self, usize, &'a hir::Expr<'a>) -> Option<Lowered<'gcx>>,
         mut finish: impl FnMut(&mut Self, usize, Lowered<'gcx>) -> Option<T>,
     ) -> Option<Vec<T>> {
+        let mut position = 0;
         let steps =
             self.lower_call_arguments(args, params, span, error, |this, index, argument| {
                 let operand = lower(this, index, argument)?;
-                if late && operand.waits() {
+                position += 1;
+                if waits[position - 1] && operand.waits() {
                     Some(Step::Wait(operand))
                 } else {
                     finish(this, index, operand).map(Step::Done)
@@ -668,7 +670,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// [`Self::lower_converted_arguments`] does.
     fn lower_converted_operands<T>(
         &mut self,
-        late: bool,
+        waits: &[bool],
         count: usize,
         mut lower: impl FnMut(&mut Self, usize) -> Option<Lowered<'gcx>>,
         mut finish: impl FnMut(&mut Self, usize, Lowered<'gcx>) -> Option<T>,
@@ -676,7 +678,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let steps = (0..count)
             .map(|index| {
                 let operand = lower(self, index)?;
-                if late && operand.waits() {
+                if waits[index] && operand.waits() {
                     Some(Step::Wait(operand))
                 } else {
                     finish(self, index, operand).map(Step::Done)
@@ -1111,7 +1113,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
-                    if self.converts_late([*lhs]) {
+                    if self.may_write_state(lhs) {
                         // The place, and any index it evaluates, runs before the copy.
                         let operand = self.lower_operand(rhs, memory_rhs_ty)?;
                         place = Some(self.resolve_lvalue_place(lhs)?);

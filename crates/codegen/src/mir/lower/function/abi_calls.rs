@@ -311,22 +311,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(Lowered { word, source, target: ty, span })
     }
 
-    /// Whether a consumer must convert its operands after all of them were lowered. A storage
-    /// aggregate it converts early is copied before a later operand ran, so only an operand that
-    /// can write state, as sema's view and pure checker finds, makes the copy wait. Before
-    /// Byzantium a `view` call is a plain `CALL`, which can write too.
-    pub(super) fn converts_late(
-        &self,
-        operands: impl IntoIterator<Item = &'gcx hir::Expr<'gcx>>,
-    ) -> bool {
+    /// Whether lowering `operand` can write state, as sema's view and pure checker finds. Before
+    /// Byzantium a `view` call is a plain `CALL`, which can write too. A storage aggregate that a
+    /// consumer converts at once is copied before such an operand ran, so it waits for one.
+    pub(super) fn may_write_state(&self, operand: &'gcx hir::Expr<'gcx>) -> bool {
         let gcx = self.cx.gcx;
         !gcx.sess.opts.evm_version.has_static_call()
-            || operands.into_iter().any(|operand| {
-                matches!(
-                    gcx.expr_state_mutability(operand),
-                    StateMutability::NonPayable | StateMutability::Payable
-                )
-            })
+            || matches!(
+                gcx.expr_state_mutability(operand),
+                StateMutability::NonPayable | StateMutability::Payable
+            )
+    }
+
+    /// For each of `operands`, in evaluation order, whether a later operand can write state.
+    pub(super) fn operands_wait(
+        &self,
+        operands: impl IntoIterator<Item = &'gcx hir::Expr<'gcx>>,
+    ) -> Vec<bool> {
+        let operands = operands.into_iter().collect::<Vec<_>>();
+        let mut waits = vec![false; operands.len()];
+        let mut later = false;
+        for (wait, operand) in waits.iter_mut().zip(&operands).rev() {
+            *wait = later;
+            later |= self.may_write_state(operand);
+        }
+        waits
     }
 
     /// Whether `ty` is a storage reference to an aggregate, which an expression lowers to its slot

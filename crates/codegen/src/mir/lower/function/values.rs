@@ -130,9 +130,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let returns = self.returns.clone();
             let return_ty =
                 |this: &Self, index: usize| this.cx.gcx.type_of_item(returns[index].into());
-            let late = self.converts_late(values.iter().flatten().copied());
+            let waits = self.operands_wait(values.iter().flatten().copied());
             return self.lower_converted_operands(
-                late,
+                &waits,
                 values.len(),
                 |this, index| {
                     let value = values[index]?;
