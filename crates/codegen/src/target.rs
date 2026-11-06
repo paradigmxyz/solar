@@ -171,8 +171,13 @@ impl Target {
     pub(crate) const MAX_TRIP_COUNT_BITS: usize = 64;
     /// How many times a loop without a computable trip count is assumed to
     /// run per invocation when weighing code growth inside it: GCC's estimate
-    /// for such loops.
-    pub(crate) const UNCOUNTED_LOOP_ITERATIONS: u64 = 10;
+    /// for such loops. This is the baseline value used when optimizer runs is at default (200).
+    pub(crate) const UNCOUNTED_LOOP_ITERATIONS_BASE: u64 = 10;
+    
+    /// The optimizer runs threshold above which uncounted loop iterations scale with expected
+    /// executions. Below this threshold, we use the conservative baseline to avoid code bloat
+    /// in size-sensitive contracts.
+    pub(crate) const LOOP_SCALING_MIN_RUNS: u64 = 10_000;
     /// Gas an interpreter's dispatch of one instruction is worth, charged per executed
     /// instruction under [`Tune::Interpreter`]. Measured on evm2's interpreter (AMD Zen 5,
     /// tail-call dispatch): every opcode costs about 7.3 cycles whatever its push width or
@@ -340,6 +345,21 @@ impl Target {
         self.expected_executions
     }
 
+    /// How many times an uncounted loop is estimated to execute per invocation.
+    /// At high optimizer runs (>= 10,000), this scales with expected executions to recognize
+    /// hot paths, addressing https://github.com/paradigmxyz/solar/issues/2469.
+    /// Below that threshold, we use a conservative baseline to preserve code size.
+    pub(crate) fn uncounted_loop_iterations(&self) -> u64 {
+        if self.expected_executions >= Self::LOOP_SCALING_MIN_RUNS {
+            // Scale iterations with expected executions, capped at a reasonable maximum.
+            // At 10M runs, estimate 100 iterations; at 200 runs, use baseline 10.
+            let scaled = (self.expected_executions / 100_000).max(Self::UNCOUNTED_LOOP_ITERATIONS_BASE);
+            scaled.min(1000) // Cap at 1000 iterations to avoid extreme code bloat
+        } else {
+            Self::UNCOUNTED_LOOP_ITERATIONS_BASE
+        }
+    }
+
     /// The weight of a block of `hotness` outside every loop. Gas in a cold block is not paid by a
     /// call that succeeds, so the gas objective weighs it at zero, whatever loops enclose it, and
     /// only its bytes count. Other objectives weigh every block alike.
@@ -396,11 +416,11 @@ impl Target {
 
     /// The bytes a copy of a loop block whose code costs `copy`, entered on `paths` paths, adds
     /// beyond the label push and `JUMP` it replaces, and the gas it saves on each execution: the
-    /// jump on [`Self::UNCOUNTED_LOOP_ITERATIONS`] iterations, shared equally by the paths.
+    /// jump on [`Self::uncounted_loop_iterations`] iterations, shared equally by the paths.
     pub(crate) fn loop_block_copy(&self, copy: Cost, paths: u32) -> (u64, u64) {
         let removed = self.label_push() + self.opcode(op::JUMP);
         let saved =
-            u64::from(self.jump().gas) * Self::UNCOUNTED_LOOP_ITERATIONS / u64::from(paths.max(1));
+            u64::from(self.jump().gas) * self.uncounted_loop_iterations() / u64::from(paths.max(1));
         (u64::from(copy.bytes.saturating_sub(removed.bytes)), saved)
     }
 
@@ -903,7 +923,7 @@ impl Target {
     /// `extra_gas` dearer to run, is the better code. Size builds, and cold code priced by
     /// [`Self::priced_for_cold`], always take the bytes.
     /// Gas and `-O none` builds take them when the deposit they save covers the extra gas over
-    /// the expected executions, [`Self::UNCOUNTED_LOOP_ITERATIONS`] times over for a push inside a
+    /// the expected executions, [`Self::uncounted_loop_iterations`] times over for a push inside a
     /// loop, so a hot loop pushes a mask as a literal rather than rebuilding it on every
     /// iteration; a tie takes the bytes, which cost no more over the deployment's lifetime.
     ///
@@ -922,7 +942,7 @@ impl Target {
         if self.optimization.is_size() {
             return true;
         }
-        let iterations = if in_loop { Self::UNCOUNTED_LOOP_ITERATIONS } else { 1 };
+        let iterations = if in_loop { self.uncounted_loop_iterations() } else { 1 };
         let executions = self.expected_executions.min(Self::DEFAULT_EXPECTED_EXECUTIONS);
         saved_bytes != 0
             && u128::from(saved_bytes) * u128::from(self.byte_gas())
@@ -1257,7 +1277,7 @@ impl Target {
     /// constant stores the fold leaves dead, which only they read. The hash saves gas on every
     /// execution but costs a `PUSH32` per use where the result would stay on the stack and be
     /// duplicated, so it needs the stores to pay for those bytes. Inside a loop, the gas saved
-    /// on [`Self::UNCOUNTED_LOOP_ITERATIONS`] iterations may repay the deposit of the bytes
+    /// on [`Self::uncounted_loop_iterations`] iterations may repay the deposit of the bytes
     /// instead.
     pub(crate) fn folds_constant_keccak(
         &self,
@@ -1277,20 +1297,20 @@ impl Target {
                 && gas_saving > 0
                 && !self.deposit_repays_gas(
                     byte_saving.unsigned_abs(),
-                    gas_saving.unsigned_abs() * Self::UNCOUNTED_LOOP_ITERATIONS,
+                    gas_saving.unsigned_abs() * self.uncounted_loop_iterations(),
                 )
     }
 
     /// Whether code shared from a site inside a loop pays for itself when the bytes it saves at
     /// that site, `saved_bytes`, cost `transfer_gas` more on every iteration: the deposit of the
     /// bytes against the transfers over the expected executions,
-    /// [`Self::UNCOUNTED_LOOP_ITERATIONS`] times per execution. This holds in size builds too,
+    /// [`Self::uncounted_loop_iterations`] times per execution. This holds in size builds too,
     /// which otherwise take the bytes, so a hot loop keeps code that only its size made worth
     /// sharing.
     pub(crate) fn shares_in_loop(&self, saved_bytes: u64, transfer_gas: u64) -> bool {
         self.deposit_repays_gas(
             saved_bytes,
-            transfer_gas.saturating_mul(Self::UNCOUNTED_LOOP_ITERATIONS),
+            transfer_gas.saturating_mul(self.uncounted_loop_iterations()),
         )
     }
 

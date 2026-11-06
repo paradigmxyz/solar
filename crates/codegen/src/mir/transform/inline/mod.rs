@@ -665,7 +665,7 @@ impl MirInliner {
         let loop_executions = if !target.optimization().is_gas() {
             1
         } else if site.loop_depth > 0 && !site.loop_counted {
-            Target::UNCOUNTED_LOOP_ITERATIONS
+            target.uncounted_loop_iterations()
         } else {
             site.loop_executions
         };

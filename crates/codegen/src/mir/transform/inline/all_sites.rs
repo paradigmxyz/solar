@@ -128,6 +128,11 @@ fn reference_counts(module: &Module) -> (IndexVec<FunctionId, usize>, IndexVec<F
 
 /// Whether every operation of `func` is pure or a call that never returns, and no block joins
 /// values, switches, or returns more than one word along more than one path.
+///
+/// This heuristic admits:
+/// - Pure arithmetic/comparison operations that return a single word
+/// - Small pure helpers (e.g., user-defined value-type comparisons)
+/// - Functions without phis, selects, or switches that complicate stack layout
 fn is_arithmetic_leaf(module: &Module, func: &Function) -> bool {
     func.return_components().iter().all(|ty| ty.is_word())
         && func.return_components().len() <= 1

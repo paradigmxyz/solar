@@ -371,7 +371,7 @@ fn taken_share(
     rest: Continuation,
     weight: u64,
 ) -> u64 {
-    let exit = weight / Target::UNCOUNTED_LOOP_ITERATIONS;
+    let exit = weight / Target::UNCOUNTED_LOOP_ITERATIONS_BASE;
     match (Continuation::of_target(module, body, to), rest) {
         (Continuation::Cold, _) => 0,
         (_, Continuation::Cold) => weight,
