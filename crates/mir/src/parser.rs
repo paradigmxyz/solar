@@ -82,9 +82,14 @@ pub(super) fn parse_candidate(
     source: &SourceFile,
     module: &Module,
 ) -> Result<Function> {
+    let errors_before = sess.dcx.err_count();
     let arena = Arena::new();
     let mut parser = Parser::new(sess, &arena, source);
-    parser.parse_candidate(module).map_err(PErr::emit)
+    let function = parser.parse_candidate(module).map_err(PErr::emit)?;
+    if sess.dcx.err_count() != errors_before {
+        sess.dcx.has_errors()?;
+    }
+    Ok(function)
 }
 
 #[cfg(test)]
@@ -441,7 +446,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .collect();
         self.immutable_names = module
             .iter_immutables()
-            .map(|(id, immutable)| (immutable.name.name, (id, immutable.ty.mir_type())))
+            .map(|(id, immutable)| {
+                let name = super::display::immutable_display_name(module, id).unwrap();
+                (Symbol::intern(&name), (id, immutable.ty.mir_type()))
+            })
             .collect();
         self.parser.libraries = module.libraries.clone();
 
@@ -469,6 +477,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .parser
                     .error_at(span, "cast source type does not match its operand"));
             }
+        }
+        // An unchanged printed function can safely retain its compiler-owned metadata and frame
+        // reservations. Never transfer those facts to a changed body.
+        let mut originals =
+            module.functions.iter().filter(|original| original.name == function.name);
+        if let Some(original) = originals.next()
+            && originals.next().is_none()
+        {
+            if module.candidate_text(original).to_string()
+                == module.candidate_text(&function).to_string()
+            {
+                return Ok(original.clone());
+            }
+            function.internal_frame_size = original.internal_frame_size;
+            function.external_static_return_size = original.external_static_return_size;
         }
         Ok(function)
     }
@@ -2199,6 +2222,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::trunc | sym::zext | sym::sext | sym::ptrtoint | sym::inttoptr => {
                 let from = self.parse_type()?;
                 let value = if self.parser.eat_keyword(sym::undef) {
+                    if self.candidate {
+                        return Err(self.parser.error("candidates may not use `undef`"));
+                    }
                     builder.undef(from)
                 } else if matches!(self.parser.token().kind, TokenKind::Literal(..)) {
                     let (value, span) = self.parser.parse_uint_spanned()?;
@@ -2470,6 +2496,140 @@ mod candidate_tests {
         source_map::{FileName, SourceMap},
     };
     use std::sync::Arc;
+
+    #[test]
+    fn rejects_undefined_casts_and_lexer_errors() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(&sess, "@module M\nfn @f() { bb0: ret }").unwrap();
+            for input in [
+                "fn @f() -> i256 { bb0: v0 = zext i1 undef to i256 ret v0 }",
+                "fn @f() { bb0: ret } /*",
+            ] {
+                assert!(parse_candidate(&sess, &module, input).is_err());
+            }
+        });
+    }
+
+    #[test]
+    fn fork_reports_candidate_errors_with_empty_parent_source_map() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = Module::new(Ident::from_str("M"));
+            assert!(parse_candidate(&sess, &module, "fn @f() { bb0: ret undef i256 }").is_err());
+        });
+    }
+
+    #[test]
+    fn unchanged_candidate_keeps_frame_and_allocation_metadata() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let mut module = parse_module(
+                &sess,
+                "@module M\nfn @f() -> ptr<memory> { bb0: v0 = alloc 64 !metadata(deferred_alloc, preserves_fmp) ret v0 }",
+            )
+            .unwrap();
+            let id = FunctionId::new(0);
+            module.functions[id].internal_frame_size = 128;
+            let text = module.candidate_text(&module.functions[id]).to_string();
+            let candidate = parse_candidate(&sess, &module, &text).unwrap();
+            assert_eq!(candidate.internal_frame_size, 128);
+            let alloc = candidate.instructions().next().unwrap();
+            assert!(candidate.inst(alloc).metadata.deferred_alloc());
+            assert!(candidate.inst(alloc).metadata.preserves_fmp());
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(crate::analysis::validate_function_at_phase(
+                &dcx,
+                &module,
+                id,
+                &candidate,
+                crate::MirPhase::Lowered,
+            )
+            .is_ok());
+            let changed = text.replace("alloc 64", "alloc 96");
+            assert_ne!(text, changed);
+            let candidate = parse_candidate(&sess, &module, &changed).unwrap();
+            assert_eq!(candidate.internal_frame_size, 128);
+        });
+    }
+
+    #[test]
+    fn replacement_rechecks_callers_with_new_returnability() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(
+                &sess,
+                "@module M\nfn @f(arg0: i1) -> i256 { bb0: stop }\nfn @g() { bb0: tail_call @f, true }",
+            )
+            .unwrap();
+            let candidate = parse_candidate(
+                &sess,
+                &module,
+                "fn @f(arg0: i1) -> i256 { bb0: jumpi arg0, bb1, bb2 bb1: ret 1 bb2: tail_call @g }",
+            )
+            .unwrap();
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(crate::analysis::validate_function_at_phase(
+                &dcx,
+                &module,
+                FunctionId::new(0),
+                &candidate,
+                crate::MirPhase::Semantic,
+            )
+            .is_err());
+        });
+    }
+
+    #[test]
+    fn replacement_cannot_drop_compiler_owned_attributes() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let mut module = parse_module(&sess, "@module M\nfn @f() { bb0: ret }").unwrap();
+            let id = FunctionId::new(0);
+            module.functions[id].attributes.creation_only = true;
+            let mut candidate = module.functions[id].clone();
+            candidate.attributes.creation_only = false;
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(
+                crate::analysis::validate_function_at_phase(
+                    &dcx,
+                    &module,
+                    id,
+                    &candidate,
+                    crate::MirPhase::Semantic,
+                )
+                .is_err()
+            );
+        });
+    }
+
+    #[test]
+    fn rejects_invalid_replacement_interfaces_and_control_flow() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(
+                &sess,
+                "@module M\nfn @f(arg0: i256) -> i256 { bb0: ret arg0 }",
+            )
+            .unwrap();
+            for input in [
+                "fn @f() -> i256 { bb0: ret 1 }",
+                "fn @f(arg0: i256) -> i256 { bb0: jump bb1 bb1: v0 = add arg0, 1 v1 = phi [bb0: arg0] ret v1 }",
+                "fn @f(arg0: i256) -> i256 { bb0: switch arg0, default bb1, [arg0 => bb1] bb1: ret arg0 }",
+            ] {
+                let candidate = parse_candidate(&sess, &module, input).unwrap();
+                let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+                assert!(crate::analysis::validate_function_at_phase(
+                    &dcx,
+                    &module,
+                    FunctionId::new(0),
+                    &candidate,
+                    crate::MirPhase::Semantic,
+                )
+                .is_err());
+            }
+        });
+    }
     #[test]
     fn candidate_restrictions() {
         const MODULE: &str = "@module Candidates

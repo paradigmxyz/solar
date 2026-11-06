@@ -1033,7 +1033,7 @@ impl Iterator for LiveValues<'_> {
 }
 
 /// Function attributes.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FunctionAttributes {
     /// Visibility modifier.
     pub visibility: Visibility,

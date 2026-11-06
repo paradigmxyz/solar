@@ -192,6 +192,8 @@ impl Module {
     ///
     /// Candidates cannot declare types or other functions, attach metadata, use undefined
     /// values, or refer to functions by numeric ID. [`Self::candidate_text`] prints this grammar.
+    /// Installing an edited candidate also requires invalidating derived module facts and
+    /// conservatively accounting for its memory writes; parsing and validation do not do that.
     pub fn parse_function(
         &self,
         sess: &solar_interface::Session,
