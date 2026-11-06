@@ -35,6 +35,10 @@
 //@ run-call-fail: C::t_copy_struct => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: C::t_copy_array => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 //@ run-call-fail: C::t_copy_fixed_array => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
+//@ run-call: D::t_qualified_unused => 1
+//@ run-call: D::t_qualified_asm => 5
+//@ run-call: D::t_qualified_transient_asm => 5
+//@ run-call-fail: D::t_qualified_compare => 0x4e487b710000000000000000000000000000000000000000000000000000000000000021
 
 // Every expectation was captured by running the same source through
 // solc 0.8.38 via-IR (`--via-ir --optimize`) on anvil. A storage or transient enum is only masked
@@ -133,4 +137,23 @@ contract C {
     function t_copy_fixed_array() external returns (uint256) { dirty(); E[2] memory m = fixedArr; return 1; }
 
     mapping(E => uint256) mk;
+}
+
+contract Base {
+    E e;
+    E transient te;
+}
+
+contract D is Base {
+    function dirty() internal {
+        assembly {
+            sstore(e.slot, 5)
+            tstore(te.slot, 5)
+        }
+    }
+
+    function t_qualified_unused() external returns (uint256) { dirty(); E x = Base.e; return 1; }
+    function t_qualified_asm() external returns (uint256 r) { dirty(); E x = Base.e; assembly { r := x } }
+    function t_qualified_transient_asm() external returns (uint256 r) { dirty(); E x = Base.te; assembly { r := x } }
+    function t_qualified_compare() external returns (uint256) { dirty(); return Base.e == E.A ? 1 : 2; }
 }

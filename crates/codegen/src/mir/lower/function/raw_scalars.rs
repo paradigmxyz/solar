@@ -104,6 +104,14 @@ impl<'gcx> Exposure<'gcx> {
         self.gcx.type_of_expr(expr.id).is_some_and(|ty| matches!(ty.kind, TyKind::Enum(..)))
     }
 
+    fn is_storage_enum_variable(&self, expr: &hir::Expr<'_>) -> bool {
+        self.is_enum(expr)
+            && self.gcx.resolved_variable(expr).is_some_and(|id| {
+                let variable = self.gcx.hir.variable(id);
+                variable.is_state_variable() && !variable.is_constant() && !variable.is_immutable()
+            })
+    }
+
     fn sources(&mut self, expr: &hir::Expr<'_>, out: &mut SmallVec<[VariableId; 4]>) {
         if let Some(id) = self.gcx.user_operator(expr.id) {
             out.extend_from_slice(self.gcx.hir.function(id).returns);
@@ -115,21 +123,20 @@ impl<'gcx> Exposure<'gcx> {
                     self.gcx.resolved_expr(expr)
                 {
                     out.push(id);
-                    let variable = self.gcx.hir.variable(id);
-                    self.reads_storage_enum |= variable.is_state_variable()
-                        && !variable.is_constant()
-                        && !variable.is_immutable()
-                        && self.is_enum(expr);
+                    self.reads_storage_enum |= self.is_storage_enum_variable(expr);
                 }
             }
-            // An enum member of a storage object, or an element of a storage array or mapping.
+            // An enum member of a storage object, such as `s.e` or `Base.e`, or an element of a
+            // storage array or mapping.
             ExprKind::Member(base, _) | ExprKind::Index(base, _) => {
-                self.reads_storage_enum |= self.is_enum(expr)
-                    && self.gcx.type_of_expr(base.id).is_some_and(|ty| {
-                        ty.is_ref_at(DataLocation::Storage)
-                            || matches!(ty.peel_refs().kind, TyKind::Mapping(..))
-                    });
+                self.reads_storage_enum |= self.is_storage_enum_variable(expr)
+                    || self.is_enum(expr)
+                        && self.gcx.type_of_expr(base.id).is_some_and(|ty| {
+                            ty.is_ref_at(DataLocation::Storage)
+                                || matches!(ty.peel_refs().kind, TyKind::Mapping(..))
+                        });
             }
+
             ExprKind::Tuple(items) => {
                 for expr in items.iter().flatten() {
                     self.sources(expr, out);
