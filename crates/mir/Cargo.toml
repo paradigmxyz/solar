@@ -46,6 +46,3 @@ nightly = [
     "solar-ir/nightly",
     "solar-parse/nightly",
 ]
-
-[dev-dependencies]
-snapbox.workspace = true

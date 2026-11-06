@@ -970,7 +970,15 @@ impl Module {
     /// Displays `function` as candidate text: its textual MIR without metadata, naming callees
     /// from this module. [`Self::parse_function`] parses it back.
     pub fn candidate_text<'a>(&'a self, function: &'a Function) -> impl fmt::Display + 'a {
-        super::display::display_function_text(function, Some(self), false, false, false, false, false)
+        super::display::display_function_text(
+            function,
+            Some(self),
+            false,
+            false,
+            false,
+            false,
+            false,
+        )
     }
 }
 
