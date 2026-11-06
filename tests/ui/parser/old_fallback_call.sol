@@ -3,6 +3,9 @@
 
 library L {
     function() external {} //~ ERROR: expected a state variable declaration
+    // Parameterized recovery still yields a nameless state variable.
+    function (uint256 x) public {} //~ ERROR: expected a state variable declaration
+    //~^ WARN: named function type parameters are deprecated
     function h() internal {}
 }
 
