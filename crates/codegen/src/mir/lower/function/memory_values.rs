@@ -12,8 +12,8 @@ const MIN_BULK_ZERO_STRUCT_FIELDS: usize = 4;
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_array(
         &mut self,
-        expr: &hir::Expr<'_>,
-        elements: &[hir::Expr<'_>],
+        expr: &'gcx hir::Expr<'gcx>,
+        elements: &'gcx [hir::Expr<'gcx>],
     ) -> Option<ValueId> {
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
         let TyKind::Array(element_ty, _) = ty.peel_refs().kind else {
@@ -46,12 +46,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (index, element) in elements.iter().enumerate() {
             let source_ty = self.cx.gcx.type_of_expr(element.id)?;
             let value = if source_ty.is_ref_at(DataLocation::Storage) {
-                // A storage element, such as `[flag ? a : b]`, lowers to its slot; copy it out.
-                // element = load_storage_object(element_ty, slot)
-                let slot = self.lower_component(element)?;
-                let slot =
-                    self.convert_tuple_component(slot, source_ty, element_ty, element.span)?;
-                slot.clean(self, element_ty)
+                // A storage element, such as `[flag ? a : b]`, is copied out as it is evaluated.
+                self.lower_typed_expr(element, element_ty)?.clean(self, element_ty)
             } else {
                 let value = self.operand(element)?;
                 let value = self.coerce_value(value, source_ty, element_ty);
@@ -65,9 +61,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_struct_constructor(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         struct_id: hir::StructId,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<ValueId> {
         // object = alloc(struct_layout)
         // for field { value = lower_typed(argument); object[field] = value }
@@ -79,7 +75,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let parameter_names =
             self.cx.gcx.callable_param_names(CallableParamSource::Struct(struct_id));
         let object = self.builder.alloc_word_struct(fields, AllocationSemantics::INTERNAL);
-        let arguments = self.lower_call_arguments(
+        let field_ty = |this: &Self, index: usize| {
+            this.cx
+                .gcx
+                .type_of_item(struct_fields[index].into())
+                .with_loc_if_ref(this.cx.gcx, DataLocation::Memory)
+        };
+        let arguments = self.lower_converted_arguments(
             args,
             CallArgumentParams {
                 count: struct_fields.len(),
@@ -89,13 +91,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             args.span,
             "struct constructor argument",
             |this, index, argument| {
-                let field_ty = this
-                    .cx
-                    .gcx
-                    .type_of_item(struct_fields[index].into())
-                    .with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
-                let value = this.lower_typed_expr(argument, field_ty)?.clean(this, field_ty);
-                let value = this.materialize_memory_copy(field_ty, value, argument.span)?;
+                let field_ty = field_ty(this, index);
+                this.lower_operand(argument, field_ty)
+            },
+            |this, index, operand| {
+                let field_ty = field_ty(this, index);
+                let span = operand.span;
+                let value = this.convert_operand(operand)?.clean(this, field_ty);
+                let value = this.materialize_memory_copy(field_ty, value, span)?;
                 Some(this.encode_memory_scalar(field_ty, value))
             },
         )?;
@@ -107,8 +110,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_tuple(
         &mut self,
-        expr: &hir::Expr<'_>,
-        values: &[Option<&hir::Expr<'_>>],
+        expr: &'gcx hir::Expr<'gcx>,
+        values: &[Option<&'gcx hir::Expr<'gcx>>],
     ) -> Option<ValueId> {
         // object = alloc(tuple_layout, zeroed_if_omitted)
         // for present field { object[field] = value }

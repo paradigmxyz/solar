@@ -631,6 +631,12 @@ impl<'gcx> Gcx<'gcx> {
         self.resolved_expr(expr)?.as_function()
     }
 
+    /// Returns the state mutability that evaluating an expression requires, as the view and pure
+    /// checker infers it: `NonPayable` or `Payable` when the expression can write state.
+    pub fn expr_state_mutability(self, expr: &'gcx hir::Expr<'gcx>) -> StateMutability {
+        crate::typeck::view_pure_checker::expr_mutability(self, expr)
+    }
+
     /// Returns the builtin selected for an expression, if available.
     #[inline]
     pub fn resolved_builtin(self, expr: &hir::Expr<'_>) -> Option<Builtin> {

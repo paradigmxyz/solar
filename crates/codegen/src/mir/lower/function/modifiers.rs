@@ -142,7 +142,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_base_constructor(
         &mut self,
-        modifier: &hir::Modifier<'_>,
+        modifier: &hir::Modifier<'gcx>,
         constructor_id: hir::FunctionId,
         constructor: &'gcx hir::Function<'gcx>,
     ) -> Option<()> {

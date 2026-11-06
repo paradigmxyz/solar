@@ -71,18 +71,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_state_initializer(
         &mut self,
         id: VariableId,
-        initializer: &hir::Expr<'_>,
+        initializer: &'gcx hir::Expr<'gcx>,
     ) -> Option<()> {
         let ty = self.cx.gcx.type_of_item(id.into());
         let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
-        let carried = self.lower_typed_expr(initializer, ty)?;
+        // A storage source is copied to memory with its own layout first; the store then writes
+        // the object.
+        let target = if source_ty.is_ref_at(DataLocation::Storage) {
+            source_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory)
+        } else {
+            ty
+        };
+        let carried = self.lower_typed_expr(initializer, target)?;
         if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
             let span = self.cx.gcx.hir.variable(id).span;
             let value = self.bind_word(id, carried, span)?;
             self.store_immutable_value(id, immutable_id, value);
             Some(())
         } else {
-            let value = carried.clean(self, ty);
+            let value = carried.clean(self, target);
             self.store_state_variable(id, value, source_ty, initializer.span)
         }
     }

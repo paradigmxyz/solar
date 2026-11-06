@@ -273,21 +273,41 @@ struct CallArgumentParams<'a> {
     reverse: bool,
 }
 
+/// An operand lowered at the type of its own expression, before its consumer converts it.
+///
+/// A storage aggregate is its slot, so a consumer that converts after its later operands ran, as
+/// via-IR does, copies it then.
+struct Lowered<'gcx> {
+    word: Word,
+    /// The type of the expression, or `None` for a literal that was built at its target type.
+    source: Option<Ty<'gcx>>,
+    /// The type the consumer converts it to.
+    target: Ty<'gcx>,
+    span: Span,
+}
+
+impl Lowered<'_> {
+    /// Whether the operand is a storage reference, which a consumer that converts late copies
+    /// only after its later operands ran.
+    fn waits(&self) -> bool {
+        self.source.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+    }
+}
+
+/// An operand that was converted, or that waits for its later operands.
+///
+/// An ABI encoding holds its operands as a `Step` of the value to encode and its ABI type.
+enum Step<'gcx, T> {
+    Done(T),
+    Wait(Lowered<'gcx>),
+}
+
 /// The signature of `abi.encodeWithSignature` after lowering.
 enum SignatureOperand {
     /// A selector known at once.
     Selector(ValueId),
     /// A `bytes` or `string` value, hashed after the other arguments ran.
     Bytes(ValueId, PtrLocation),
-}
-
-/// An operand of an ABI encoding after lowering.
-enum AbiOperand<'gcx> {
-    /// A value to encode, with its ABI type.
-    Ready((ValueId, AbiType)),
-    /// A storage array or struct that the encoder reads after every operand ran, as solc does.
-    /// `ty` is the memory type it copies to.
-    Storage { slot: ValueId, ty: Ty<'gcx>, span: Span },
 }
 
 struct LoopTargets {
@@ -617,6 +637,71 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
+    /// Lowers `args` and converts them with `finish`. A storage reference whose `waits` entry, by
+    /// evaluation order, is set waits until every argument is lowered, as via-IR converts a
+    /// call's arguments; any other operand is converted as soon as it is lowered.
+    fn lower_converted_arguments<T>(
+        &mut self,
+        args: hir::CallArgs<'gcx>,
+        params: CallArgumentParams<'_>,
+        span: Span,
+        error: &'static str,
+        mut lower: impl FnMut(&mut Self, usize, &'gcx hir::Expr<'gcx>) -> Option<Lowered<'gcx>>,
+        mut finish: impl FnMut(&mut Self, usize, Lowered<'gcx>) -> Option<T>,
+    ) -> Option<Vec<T>> {
+        let waits = self.operands_wait(args.exprs());
+        let mut position = 0;
+        let steps =
+            self.lower_call_arguments(args, params, span, error, |this, index, argument| {
+                let operand = lower(this, index, argument)?;
+                position += 1;
+                if waits[position - 1] && operand.waits() {
+                    Some(Step::Wait(operand))
+                } else {
+                    finish(this, index, operand).map(Step::Done)
+                }
+            })?;
+        self.finish_steps(steps, finish)
+    }
+
+    /// Lowers `count` operands and converts them with `finish`, as
+    /// [`Self::lower_converted_arguments`] does.
+    fn lower_converted_operands<T>(
+        &mut self,
+        waits: &[bool],
+        count: usize,
+        mut lower: impl FnMut(&mut Self, usize) -> Option<Lowered<'gcx>>,
+        mut finish: impl FnMut(&mut Self, usize, Lowered<'gcx>) -> Option<T>,
+    ) -> Option<Vec<T>> {
+        let steps = (0..count)
+            .map(|index| {
+                let operand = lower(self, index)?;
+                if waits[index] && operand.waits() {
+                    Some(Step::Wait(operand))
+                } else {
+                    finish(self, index, operand).map(Step::Done)
+                }
+            })
+            .collect::<Option<Vec<_>>>()?;
+        self.finish_steps(steps, finish)
+    }
+
+    /// Converts the operands that waited, in order.
+    fn finish_steps<T>(
+        &mut self,
+        steps: Vec<Step<'gcx, T>>,
+        mut finish: impl FnMut(&mut Self, usize, Lowered<'gcx>) -> Option<T>,
+    ) -> Option<Vec<T>> {
+        steps
+            .into_iter()
+            .enumerate()
+            .map(|(index, step)| match step {
+                Step::Done(value) => Some(value),
+                Step::Wait(operand) => finish(self, index, operand),
+            })
+            .collect()
+    }
+
     fn lower_argument_exprs<'a, T, I>(
         &mut self,
         params: CallArgumentParams<'_>,
@@ -645,7 +730,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_call_options(
         &mut self,
-        options: Option<&hir::CallOptions<'_>>,
+        options: Option<&hir::CallOptions<'gcx>>,
         allow_value: bool,
         diagnostic: &'static str,
     ) -> Option<LoweredCallOptions> {
@@ -693,7 +778,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// silently drops the overflow check instead of wrapping or panicking, so the type must be
     /// present whenever the expression is well-formed.
     #[track_caller]
-    fn assert_operand_ty_registered(&self, expr: &hir::Expr<'_>) {
+    fn assert_operand_ty_registered(&self, expr: &'gcx hir::Expr<'gcx>) {
         debug_assert!(
             self.cx.gcx.type_of_expr(expr.id).is_some() || self.cx.gcx.dcx().has_errors().is_err(),
             "operator expression has no registered type: {:?}",
@@ -706,7 +791,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// This is the only function that lowers an expression. Take the value with
     /// [`Self::operand`], or hand the word to a sink that copies it, [`Self::bind_word`] or
     /// [`Self::store_word`].
-    pub(super) fn lower_expr(&mut self, expr: &hir::Expr<'_>) -> Option<Word> {
+    pub(super) fn lower_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Word> {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_expr_inner(expr).map(|word| word.into_native(self, expr));
@@ -729,7 +814,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         .then_some(argument)
     }
 
-    fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<Word> {
+    fn lower_expr_inner(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Word> {
         // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
         // be fractions or may not fit any integer type. Constant names fold in
         // `lower_constant_variable`.
@@ -762,6 +847,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(value) = self.lower_const_value(value, expr.span) {
                 return Some(Word::from_clean(value));
             }
+        }
+        // A storage aggregate is its slot, whatever expression names it; its consumer converts it.
+        if !self.in_inline_assembly
+            && (matches!(
+                expr.kind,
+                ExprKind::Ident(_)
+                    | ExprKind::Member(..)
+                    | ExprKind::Index(..)
+                    | ExprKind::Ternary(..)
+            ) || matches!(&expr.kind, ExprKind::Call(callee, arguments)
+                if arguments.is_empty()
+                    && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0))
+                || matches!(expr.kind, ExprKind::Assign(_, None, rhs)
+                if self.cx.gcx.type_of_expr(rhs.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))))
+            && self
+                .cx
+                .gcx
+                .type_of_expr(expr.id)
+                .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
+        {
+            return Some(Word::from_clean(self.require_storage_access(expr)?.slot));
         }
         match &expr.kind {
             ExprKind::Lit(lit) if self.in_inline_assembly => {
@@ -1006,14 +1112,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let fixed_bytes_literal = (fixed_bytes.is_some() && compound_op.is_none())
                     .then(|| self.lower_fixed_bytes_literal(lhs_ty, rhs))
                     .flatten();
+                let mut place = None;
                 let rhs_value = if let Some(word) = fixed_bytes_literal {
                     Word::from_clean(word)
                 } else if self.types.memory_layout(memory_rhs_ty).is_some()
                     && rhs_ty.is_ref_at(DataLocation::Storage)
                 {
-                    Word::from_clean(
-                        self.lower_typed_expr(rhs, memory_rhs_ty)?.clean(self, memory_rhs_ty),
-                    )
+                    if self.may_write_state(lhs) {
+                        // The place, and any index it evaluates, runs before the copy.
+                        let operand = self.lower_operand(rhs, memory_rhs_ty)?;
+                        place = Some(self.resolve_lvalue_place(lhs)?);
+                        Word::from_clean(self.convert_operand(operand)?.clean(self, memory_rhs_ty))
+                    } else {
+                        Word::from_clean(
+                            self.lower_typed_expr(rhs, memory_rhs_ty)?.clean(self, memory_rhs_ty),
+                        )
+                    }
                 } else if compound_op.is_some_and(|op| {
                     !matches!(op, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar)
                 }) {
@@ -1076,7 +1190,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                 };
                 let value = self.coerce_value(value, rhs_ty, lhs_ty);
-                self.store_lvalue_with_source(lhs, value, Some(rhs_ty))?;
+                let place = match place {
+                    Some(place) => place,
+                    None => self.resolve_lvalue_place(lhs)?,
+                };
+                self.store_lvalue_place_with_source(&place, value, Some(rhs_ty))?;
+                // The value of an assignment to a storage aggregate is its storage reference.
+                if let LValuePlace::Storage { access, .. } = place
+                    && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
+                        ty.is_ref_at(DataLocation::Storage)
+                            && self.types.memory_layout(ty).is_some()
+                    })
+                {
+                    return Some(Word::from_clean(access.slot));
+                }
                 Some(Word::from_clean(value))
             }
             ExprKind::Ternary(cond, then_expr, else_expr) => {
