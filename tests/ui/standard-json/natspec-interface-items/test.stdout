@@ -1,0 +1,129 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "Used": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "events": {
+            "Transfer(uint256)": {
+              "notice": "Emitted on transfer"
+            },
+            "Logged(uint256)": {
+              "notice": "Emitted by the library"
+            }
+          },
+          "errors": {
+            "Insufficient(uint256)": [
+              {
+                "notice": "Insufficient funds"
+              }
+            ],
+            "Failed(uint256)": [
+              {
+                "notice": "Library failure"
+              }
+            ]
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "events": {
+            "Transfer(uint256)": {
+              "details": "Transfer details",
+              "params": {
+                "amount": "The amount"
+              }
+            }
+          },
+          "errors": {
+            "Insufficient(uint256)": [
+              {
+                "details": "Error details"
+              }
+            ]
+          },
+          "version": 1
+        }
+      },
+      "Clashing": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      },
+      "Defined": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "events": {
+            "Clash(uint256)": {
+              "notice": "Defined clash"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "version": 1
+        }
+      },
+      "Unreferenced": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {},
+          "events": {
+            "Transfer(uint256)": {
+              "notice": "Emitted on transfer"
+            },
+            "Unused(uint256)": {
+              "notice": "Never emitted"
+            }
+          },
+          "errors": {
+            "Insufficient(uint256)": [
+              {
+                "notice": "Insufficient funds"
+              }
+            ]
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "events": {
+            "Transfer(uint256)": {
+              "details": "Transfer details",
+              "params": {
+                "amount": "The amount"
+              }
+            }
+          },
+          "errors": {
+            "Insufficient(uint256)": [
+              {
+                "details": "Error details"
+              }
+            ]
+          },
+          "version": 1
+        }
+      }
+    }
+  }
+}

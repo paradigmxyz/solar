@@ -70,11 +70,7 @@ fn profile(gcx: Gcx<'_>, id: hir::ContractId) -> Option<Profile> {
     let (mut memory, mut arithmetic) = (false, false);
     for natspec in tags {
         let (mut tag_memory, mut tag_arithmetic) = (false, false);
-        let content = crate::natspec::solar_tag_content(
-            &gcx.hir.doc(contract.doc).ast_comments,
-            natspec.span,
-        );
-        for property in content.split_whitespace() {
+        for property in crate::natspec::solar_tag_arguments(natspec).split_whitespace() {
             match property {
                 "memory" => tag_memory = true,
                 "arithmetic" => tag_arithmetic = true,

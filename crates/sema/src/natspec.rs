@@ -18,6 +18,8 @@ pub(crate) struct ResolvedNatSpec<'gcx> {
     local_len: usize,
     local_tags: LocalTags,
     inheritdoc_target: Option<(Span, hir::ItemId)>,
+    /// The item whose documentation this item inherits, by `@inheritdoc` or implicitly.
+    inherited_target: Option<hir::ItemId>,
 }
 
 impl<'gcx> ResolvedNatSpec<'gcx> {
@@ -216,7 +218,7 @@ pub(crate) fn resolve_item<'gcx>(gcx: Gcx<'gcx>, item_id: hir::ItemId) -> Resolv
 
 pub(crate) fn resolve_view<'gcx>(gcx: Gcx<'gcx>, item_id: hir::ItemId) -> NatSpecView<'gcx> {
     let resolved = gcx.natspec_resolution(item_id);
-    let inherited = resolved.inheritdoc_target.map(|(_, target)| gcx.natspec_view(target));
+    let inherited = resolved.inherited_target.map(|target| gcx.natspec_view(target));
     let local_items = &resolved.items[..resolved.local_len];
     let (parameters, returns) = Resolver::new(gcx).positional_sections(
         item_id,
@@ -269,19 +271,31 @@ impl<'gcx> Resolver<'gcx> {
     }
 
     /// Resolves a NatSpec doc, validating all tags and expanding `@inheritdoc`.
+    ///
+    /// Like solc, an item without any valid tag inherits the documentation of the single base it
+    /// overrides, see [`Self::implicit_base`].
     fn resolve_item(&self, item_id: hir::ItemId) -> ResolvedNatSpec<'gcx> {
         let doc_id = self.gcx.hir.item(item_id).doc();
-        if doc_id.is_empty() {
+        let (local_tags, inheritdoc_target) = if doc_id.is_empty() {
+            Default::default()
+        } else {
+            let doc = self.gcx.hir.doc(doc_id);
+            self.validate_item_natspec(&doc.ast_comments, item_id, doc.source)
+        };
+        let implicit_target = if inheritdoc_target.is_none() && local_tags.is_empty() {
+            self.implicit_base(item_id)
+        } else {
+            None
+        };
+        let inherited_target = inheritdoc_target.map(|(_, target)| target).or(implicit_target);
+        if inherited_target.is_none() && local_tags.is_empty() {
             return ResolvedNatSpec::default();
         }
 
-        let doc = self.gcx.hir.doc(doc_id);
-        let (local_tags, inheritdoc_target) =
-            self.validate_item_natspec(&doc.ast_comments, item_id, doc.source);
         let local_sections = LocalTags::from_items(&local_tags);
-        let inherited = inheritdoc_target.map(|(_, target)| self.gcx.natspec_resolution(target));
-        let items: &'gcx [hir::NatSpecItem] = if let Some(inherited) = inherited {
-            self.merge_natspec_tags(&local_tags, local_sections, inherited.items)
+        let items: &'gcx [hir::NatSpecItem] = if let Some(target) = inherited_target {
+            let inherited = self.gcx.natspec_resolution(target);
+            self.merge_natspec_tags(item_id, &local_tags, local_sections, inherited.items)
         } else {
             &*self.gcx.arena().alloc_slice_copy(&local_tags)
         };
@@ -291,7 +305,34 @@ impl<'gcx> Resolver<'gcx> {
             local_len: local_tags.len(),
             local_tags: local_sections,
             inheritdoc_target,
+            inherited_target,
         }
+    }
+
+    /// Returns the base an item without documentation tags inherits from, if any.
+    ///
+    /// This is the one distinct base declaration the item overrides. A function also needs the
+    /// same parameter names as that base; a public state variable does not.
+    fn implicit_base(&self, item_id: hir::ItemId) -> Option<hir::ItemId> {
+        let bases = self.gcx.base_override_items(item_id);
+        let &base = bases.first()?;
+        if bases.iter().any(|&other| other != base) {
+            return None;
+        }
+        if let hir::ItemId::Function(id) = item_id {
+            let parameter_names = |id| {
+                self.gcx
+                    .hir
+                    .function(id)
+                    .parameters
+                    .iter()
+                    .map(|&id| self.gcx.hir.variable(id).name.map(|name| name.name))
+            };
+            if !parameter_names(id).eq(parameter_names(base.as_function()?)) {
+                return None;
+            }
+        }
+        Some(base)
     }
 
     /// Validates NatSpec tags for the given item.
@@ -487,7 +528,7 @@ impl<'gcx> Resolver<'gcx> {
         };
 
         let content = natspec.symbol.as_str();
-        let Some((documented, content_start)) = solar_parse::natspec::first_word(
+        let Some((documented, word_start)) = solar_parse::natspec::first_word(
             content,
             natspec.content_start as usize,
             natspec.content_end as usize,
@@ -500,11 +541,7 @@ impl<'gcx> Resolver<'gcx> {
             return None;
         };
 
-        // Content offsets are relative to the comment, while `span` covers only the tag name.
-        let tag_end = content[..natspec.content_start as usize].trim_ascii_end().len();
-        let name_end = content[..content_start].trim_ascii_end().len();
-        let name_start = name_end - documented.len();
-        let name_lo = natspec.span.hi() + (name_start - tag_end) as u32;
+        let name_lo = natspec.content_lo;
         let name_span = Span::new(name_lo, name_lo + documented.len() as u32);
 
         let documented_name = Symbol::intern(documented);
@@ -534,7 +571,12 @@ impl<'gcx> Resolver<'gcx> {
 
         let mut item = natspec;
         item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(expected.name, name_span)) };
-        item.content_start = content_start as u32;
+        // Like solc, the description starts after the name and one blank, if the content is more
+        // than the name.
+        let description = word_start + documented.len() + 1;
+        item.content_start =
+            if description <= natspec.content_end as usize { description } else { word_start }
+                as u32;
         Some(item)
     }
 
@@ -583,8 +625,8 @@ impl<'gcx> Resolver<'gcx> {
     /// Reports a `@custom:solar-cold` tag that takes an argument, or that follows another on the
     /// same function.
     fn check_solar_cold(&self, docs: &[ast::DocComment<'gcx>], tag_span: Span) {
-        if self.first_duplicate_free_tag(docs, sym::solar_dash_cold, tag_span).is_some()
-            && !solar_tag_content(docs, tag_span).trim().is_empty()
+        if let Some(natspec) = self.first_duplicate_free_tag(docs, sym::solar_dash_cold, tag_span)
+            && !solar_tag_arguments(natspec).is_empty()
         {
             self.gcx
                 .dcx()
@@ -601,7 +643,7 @@ impl<'gcx> Resolver<'gcx> {
         else {
             return;
         };
-        if inline_tag(docs, natspec).is_none() {
+        if inline_tag(natspec).is_none() {
             self.gcx
                 .dcx()
                 .err_at(tag_span, "`@custom:solar-inline` takes no argument, `always` or `never`")
@@ -617,7 +659,7 @@ impl<'gcx> Resolver<'gcx> {
         else {
             return;
         };
-        if optimize_objective(docs, natspec).is_none() {
+        if optimize_objective(natspec).is_none() {
             self.gcx
                 .dcx()
                 .err_at(
@@ -765,8 +807,12 @@ impl<'gcx> Resolver<'gcx> {
     /// - `@notice`, `@dev`, `@title`, `@author`: local overrides inherited.
     /// - `@param`, `@return`: local section overrides inherited section.
     /// - `@custom`: not inherited.
+    ///
+    /// An inherited `@return` is renamed to the return at its position, as solc does at each step
+    /// of an inheritance chain.
     fn merge_natspec_tags(
         &self,
+        item_id: hir::ItemId,
         items: &[hir::NatSpecItem],
         local_tags: LocalTags,
         inherited_tags: &'gcx [hir::NatSpecItem],
@@ -774,6 +820,8 @@ impl<'gcx> Resolver<'gcx> {
         use hir::NatSpecKind as HirKind;
 
         let mut merged = SmallVec::<[hir::NatSpecItem; 8]>::from_slice(items);
+        let returns = self.callable_variables(item_id).returns;
+        let mut return_index = 0;
 
         for item in inherited_tags.iter() {
             let should_inherit = match &item.kind {
@@ -787,12 +835,63 @@ impl<'gcx> Resolver<'gcx> {
                 HirKind::Inheritdoc { .. } => false,
             };
 
+            if matches!(item.kind, HirKind::Return { .. }) {
+                return_index += 1;
+            }
             if should_inherit {
-                merged.push(*item);
+                let mut item = *item;
+                if let HirKind::Return { name } = item.kind
+                    && let Some(&expected) = returns.get(return_index - 1)
+                {
+                    self.rename_inherited_return(
+                        &mut item,
+                        name,
+                        self.gcx.hir.variable(expected).name,
+                    );
+                }
+                merged.push(item);
             }
         }
 
         self.gcx.arena().alloc_slice_copy(&merged)
+    }
+
+    /// Renames an inherited `@return` to the name of the return it now documents.
+    ///
+    /// The description keeps its words, except that a first word equal to the new name becomes
+    /// the name. A renamed tag gets its own text of the name and the description, so that its
+    /// name precedes its content like that of a tag written for the return, except for a tag of
+    /// only the name.
+    fn rename_inherited_return(
+        &self,
+        item: &mut hir::NatSpecItem,
+        documented: Option<Ident>,
+        expected: Option<Ident>,
+    ) {
+        let Some(expected) = expected else {
+            item.kind = hir::NatSpecKind::Return { name: None };
+            return;
+        };
+        if documented.is_some_and(|documented| documented.name == expected.name) {
+            return;
+        }
+        let mut content = item.content();
+        if documented.is_none() && content == expected.name.as_str() {
+            // Like solc, a description that is only the name stays as it is.
+            item.kind = hir::NatSpecKind::Return { name: Some(expected) };
+            return;
+        }
+        if documented.is_none()
+            && let Some((word, rest)) = content.split_once([' ', '\t'])
+            && word == expected.name.as_str()
+        {
+            content = rest;
+        }
+        let symbol = Symbol::intern(&format!("{} {content}", expected.name));
+        item.kind = hir::NatSpecKind::Return { name: Some(expected) };
+        item.symbol = symbol;
+        item.content_start = expected.name.as_str().len() as u32 + 1;
+        item.content_end = symbol.as_str().len() as u32;
     }
 
     fn positional_sections(
@@ -1059,10 +1158,10 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
         if let ast::NatSpecKind::Custom { name } = natspec.kind {
             match SolarTag::from_custom(name.name) {
                 Some(SolarTag::Inline) if tags.inline.is_none() => {
-                    tags.inline = inline_tag(&gcx.hir.doc(doc).ast_comments, natspec);
+                    tags.inline = inline_tag(natspec);
                 }
                 Some(SolarTag::Optimize) if tags.optimize.is_none() => {
-                    tags.optimize = optimize_objective(&gcx.hir.doc(doc).ast_comments, natspec);
+                    tags.optimize = optimize_objective(natspec);
                 }
                 Some(SolarTag::Cold) => tags.cold = true,
                 _ => {}
@@ -1074,9 +1173,8 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
 
 /// Returns what a `@custom:solar-inline` tag asks for, when it has no argument or exactly
 /// `always` or `never`.
-fn inline_tag(docs: &[ast::DocComment<'_>], natspec: &ast::NatSpecItem) -> Option<InlineTag> {
-    let content = solar_tag_content(docs, natspec.span);
-    let mut words = content.split_whitespace();
+fn inline_tag(natspec: &ast::NatSpecItem) -> Option<InlineTag> {
+    let mut words = solar_tag_arguments(natspec).split_whitespace();
     match (words.next(), words.next()) {
         (None, _) => Some(InlineTag::Hint),
         (Some("always"), None) => Some(InlineTag::Always),
@@ -1087,12 +1185,8 @@ fn inline_tag(docs: &[ast::DocComment<'_>], natspec: &ast::NatSpecItem) -> Optio
 
 /// Returns the objective a `@custom:solar-optimize` tag names, when it names exactly `gas` or
 /// `size`.
-fn optimize_objective(
-    docs: &[ast::DocComment<'_>],
-    natspec: &ast::NatSpecItem,
-) -> Option<OptimizationMode> {
-    let content = solar_tag_content(docs, natspec.span);
-    let mut words = content.split_whitespace();
+fn optimize_objective(natspec: &ast::NatSpecItem) -> Option<OptimizationMode> {
+    let mut words = solar_tag_arguments(natspec).split_whitespace();
     match (words.next(), words.next()) {
         (Some("gas"), None) => Some(OptimizationMode::Gas),
         (Some("size"), None) => Some(OptimizationMode::Size),
@@ -1100,36 +1194,10 @@ fn optimize_objective(
     }
 }
 
-/// Reads a tag's arguments without block-comment decoration, including adjacent line-comment
-/// continuations. An explicit next tag ends the arguments, even when it is `@notice`.
-pub(crate) fn solar_tag_content(docs: &[ast::DocComment<'_>], span: Span) -> String {
-    let mut content = String::new();
-    let mut found = false;
-    for doc in docs {
-        for item in doc.natspec.iter() {
-            if item.span == span {
-                found = true;
-            } else if !found {
-                continue;
-            } else if !(doc.kind == ast::CommentKind::Line
-                && item.kind == ast::NatSpecKind::Notice
-                && item.span == doc.span)
-            {
-                return content;
-            }
-            for (index, line) in item.content().lines().enumerate() {
-                let line = line.trim();
-                let line = if doc.kind == ast::CommentKind::Block && index > 0 {
-                    line.strip_prefix('*').unwrap_or(line).trim_start()
-                } else {
-                    line
-                };
-                content.push_str(line);
-                content.push(' ');
-            }
-        }
-    }
-    content
+/// Returns the arguments of a `@custom:solar-*` tag, without the `*` of a `**/` that closes the
+/// comment.
+pub(crate) fn solar_tag_arguments(natspec: &ast::NatSpecItem) -> &str {
+    natspec.content().trim_end_matches(|c: char| c == '*' || c.is_whitespace())
 }
 
 /// Rejects reserved tags on syntax which has no documented HIR item or Solidity statement.

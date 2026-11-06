@@ -1,6 +1,6 @@
 use super::BoxSlice;
 use crate::token::CommentKind;
-use solar_interface::{Ident, Span, Symbol};
+use solar_interface::{BytePos, Ident, Span, Symbol};
 use std::fmt;
 
 /// A single doc-comment: `/// foo`, `/** bar */`.
@@ -13,7 +13,10 @@ pub struct DocComment<'ast> {
     /// The comment's contents excluding its "quotes" (`//`, `/**`)
     /// similarly to symbols in string literal tokens.
     pub symbol: Symbol,
-    /// The comment's natspec items
+    /// The comment's natspec items.
+    ///
+    /// Adjacent `///` comments are one comment for solc: the items of all of them are on the
+    /// first, and the others have none.
     pub natspec: BoxSlice<'ast, NatSpecItem>,
 }
 
@@ -32,15 +35,23 @@ pub struct NatSpecItem {
     /// Span of the tag. '@' is not included.
     pub span: Span,
     /// The symbol containing this tag's content.
+    ///
+    /// Like solc, the content of a tag that spans several lines is joined, without the comment's
+    /// decoration: the lines of a `///` comment or the `*` of a `/** */` comment.
     pub symbol: Symbol,
-    /// Byte offset into the doc comment's symbol where this tag's content starts.
+    /// Source position of the first non-blank byte of this tag's content.
+    ///
+    /// This is the end of [`Self::span`] if the content is blank. `@return` lowering reads it for
+    /// the span of the documented name.
+    pub content_lo: BytePos,
+    /// Byte offset into [`Self::symbol`] where this tag's content starts.
     pub content_start: u32,
-    /// Byte offset into the doc comment's symbol where this tag's content ends.
+    /// Byte offset into [`Self::symbol`] where this tag's content ends.
     pub content_end: u32,
 }
 
 impl NatSpecItem {
-    /// Returns the byte range of this item's content within the doc comment's symbol.
+    /// Returns the byte range of this item's content within its symbol.
     pub fn content_range(&self) -> std::ops::Range<usize> {
         self.content_start as usize..self.content_end as usize
     }

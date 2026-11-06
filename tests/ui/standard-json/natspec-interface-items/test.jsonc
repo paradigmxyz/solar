@@ -1,0 +1,58 @@
+// CHECK-LABEL: "Used": {
+// CHECK: "events": {
+// CHECK: "Transfer(uint256)": {
+// CHECK: "notice": "Emitted on transfer"
+// CHECK: "Logged(uint256)": {
+// CHECK: "notice": "Emitted by the library"
+// CHECK-NOT: "Unused(uint256)"
+// CHECK: "errors": {
+// CHECK: "Insufficient(uint256)": [
+// CHECK: "notice": "Insufficient funds"
+// CHECK: "Failed(uint256)": [
+// CHECK: "notice": "Library failure"
+// CHECK: "devdoc": {
+// CHECK: "Transfer(uint256)": {
+// CHECK: "details": "Transfer details"
+// CHECK: "amount": "The amount"
+// CHECK: "Insufficient(uint256)": [
+// CHECK: "details": "Error details"
+//
+// CHECK-LABEL: "Clashing": {
+// CHECK-NOT: "Clash(uint256)"
+// CHECK: "devdoc": {
+// CHECK-NOT: "Clash(uint256)"
+//
+// CHECK-LABEL: "Defined": {
+// CHECK: "Clash(uint256)": {
+// CHECK: "notice": "Defined clash"
+// CHECK-NOT: "Clash in another interface"
+//
+// CHECK-LABEL: "Unreferenced": {
+// CHECK: "Transfer(uint256)": {
+// CHECK: "Unused(uint256)": {
+// CHECK: "Insufficient(uint256)": [
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "A.sol": {
+        "Used": [
+          "userdoc",
+          "devdoc"
+        ],
+        "Clashing": [
+          "userdoc",
+          "devdoc"
+        ],
+        "Defined": [
+          "userdoc",
+          "devdoc"
+        ],
+        "Unreferenced": [
+          "userdoc",
+          "devdoc"
+        ]
+      }
+    }
+  }
+}
