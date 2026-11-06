@@ -1,5 +1,5 @@
 warning[5740]: unreachable code
-   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/discarded_function_references.sol:LL:CC
    │
 LL │           (, uint256 x) = (fail().identity, 3);
    │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
@@ -7,25 +7,25 @@ LL │ ┃         return x;
    ╰╴┗━━━━━━━━━━━━━━━━┛
 
 warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/discarded_function_references.sol:LL:CC
    │
 LL │         selfdestruct;
    ╰╴        ━━━━━━━━━━━━
 
 warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/discarded_function_references.sol:LL:CC
    │
 LL │         keccak256;
    ╰╴        ━━━━━━━━━
 
 warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/discarded_function_references.sol:LL:CC
    │
 LL │         blockhash;
    ╰╴        ━━━━━━━━━
 
 warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/discarded_function_references.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/discarded_function_references.sol:LL:CC
    │
 LL │         gasleft;
    ╰╴        ━━━━━━━

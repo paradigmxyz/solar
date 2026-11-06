@@ -1,11 +1,11 @@
 warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol:LL:CC
    │
 LL │         B;
    ╰╴        ━
 
 warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol:LL:CC
    │
 LL │         HUGE;
    ╰╴        ━━━━

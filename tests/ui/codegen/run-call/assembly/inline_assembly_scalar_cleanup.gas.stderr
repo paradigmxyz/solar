@@ -1,5 +1,5 @@
 warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/codegen/lowering/run-call/inline_assembly_scalar_cleanup.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/run-call/assembly/inline_assembly_scalar_cleanup.sol:LL:CC
    │
 LL │         value == Choice.Zero;
    ╰╴        ━━━━━━━━━━━━━━━━━━━━

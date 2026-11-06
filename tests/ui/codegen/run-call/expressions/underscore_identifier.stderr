@@ -1,5 +1,5 @@
 warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/codegen/run-call/underscore_identifier.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/run-call/expressions/underscore_identifier.sol:LL:CC
    │
 LL │         _;
    ╰╴        ━
