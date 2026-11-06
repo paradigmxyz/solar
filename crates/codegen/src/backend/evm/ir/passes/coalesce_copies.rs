@@ -9,7 +9,7 @@
 use super::EvmPass;
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, ModuleTarget},
+        ir::{Instruction, Metadata, Module, ModuleTarget},
         op::{self, WORD_BYTES},
     },
     target::Target,
@@ -72,14 +72,20 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 continue;
             }
 
-            let metadata = &block.instructions[index].metadata;
+            // The first copy seeds the location, so that a copy whose location was dropped or
+            // explained keeps that kind instead of merging into the default kind of an empty
+            // seed. The run's function events are dropped.
+            let run = &block.instructions[index..index + count * COPY_INSTRUCTIONS];
+            let mut metadata = Metadata::default();
+            metadata.preserve_debug_loc(&run[0].metadata);
+            metadata.merge_debug_locs(run.iter().map(|inst| &inst.metadata));
             let replacement = [
                 Instruction::push_value(length),
                 Instruction::push_value(source),
                 Instruction::push_value(destination),
                 Instruction::opcode(op::MCOPY),
             ]
-            .map(|inst| inst.with_debug_loc(metadata));
+            .map(|inst| inst.with_debug_loc(&metadata));
             edits.push((index, count * COPY_INSTRUCTIONS, replacement));
             groups += 1;
             words += count;

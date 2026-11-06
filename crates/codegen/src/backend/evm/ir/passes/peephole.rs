@@ -397,9 +397,13 @@ impl Edit {
             Self::ShiftPairMask => {
                 // push s; shl; push s; shr
                 // The root is the `and`, which the last shift replaces. The copied shift count and
-                // the first shift take its source context.
+                // the first shift take its source context. The original shift count keeps its
+                // function events.
                 let root = instructions.last().unwrap().metadata.clone();
-                instructions[start] = instructions[start + 2].clone().with_debug_loc(&root);
+                instructions[start] = instructions[start + 2]
+                    .clone()
+                    .with_metadata(Metadata::default())
+                    .with_debug_loc(&root);
                 overwrite(&mut instructions[start + 1], op::SHL);
                 instructions[start + 1].metadata.preserve_debug_loc(&root);
                 instructions.remove(start + 3);
