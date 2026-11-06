@@ -268,7 +268,12 @@ fn lower_evm_ir_once(
             pending_block_invoke = Some(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
-            if let Some(checkpoint) = checkpoint {
+            // The label's own origin wins over a checkpoint, which only lends one to a label
+            // that has none.
+            if !block.label_metadata.source_spans().is_empty() {
+                program.set_source_spans(block.label_metadata.source_spans());
+                program.set_modifier_depth(block.label_metadata.modifier_depth());
+            } else if let Some(checkpoint) = checkpoint {
                 program.set_source_span(Some(checkpoint.source));
                 program.set_modifier_depth(checkpoint.modifier_depth);
             }
