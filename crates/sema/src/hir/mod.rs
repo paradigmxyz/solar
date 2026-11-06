@@ -1282,6 +1282,16 @@ impl<'hir> Variable<'hir> {
         }
     }
 
+    /// Returns the range solc gives the variable's declaration: it ends with the initializer, or
+    /// with the name when there is none, before the semicolon.
+    pub fn declaration_span(&self) -> Span {
+        let end = self
+            .initializer
+            .map(|initializer| initializer.span)
+            .or(self.name.map(|name| name.span));
+        end.map_or(self.span, |end| self.span.with_hi(end.hi()))
+    }
+
     /// Creates a new variable statement.
     pub fn new_stmt(
         source: SourceId,
