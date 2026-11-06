@@ -124,7 +124,7 @@ fn apply_edit(module: &mut Module, edit: Edit) -> Result<(), String> {
         next.terminator = module.blocks[block].terminator.take();
         let next = module.add_block(next);
         module.blocks[block].terminator =
-            Some(Terminator::new(TerminatorKind::Jump(next)).with_debug_info_dropped());
+            Some(Terminator::new(TerminatorKind::Jump(next)).with_debug_loc_dropped());
         return Ok(());
     }
     if let Edit::AddEvmBlocks { blocks } = edit {
@@ -208,8 +208,7 @@ fn materialize(
             }
             NewEvmInstruction::BlockAddress { block } => {
                 replacement.push(
-                    Instruction::push_block(checked_block(module, block)?)
-                        .with_debug_info_dropped(),
+                    Instruction::push_block(checked_block(module, block)?).with_debug_loc_dropped(),
                 );
                 continue;
             }
@@ -217,19 +216,20 @@ fn materialize(
                 if op::definition(opcode).is_none() || (op::PUSH1..=op::PUSH32).contains(&opcode) {
                     return Err("unknown opcode or missing push immediate".into());
                 }
-                (Instruction::opcode(opcode).with_debug_info_dropped(), source)
+                (Instruction::opcode(opcode).with_debug_loc_dropped(), source)
             }
             NewEvmInstruction::Push { value, source } => {
                 let value = value.parse::<U256>().map_err(|_| "invalid 256-bit push value")?;
-                (Instruction::push_value(value).with_debug_info_dropped(), source)
+                (Instruction::push_value(value).with_debug_loc_dropped(), source)
             }
         };
         if let Some(source) = source {
             if !(start..end).contains(&(source as usize)) {
                 return Err("debug source must belong to the replaced instruction window".into());
             }
-            inst.metadata
-                .copy_debug_info_from(&module.blocks[block].instructions[source as usize].metadata);
+            let source = &module.blocks[block].instructions[source as usize].metadata;
+            inst.metadata.preserve_debug_loc(source);
+            inst.metadata.move_function_events(source);
         }
         replacement.push(inst);
     }
@@ -279,5 +279,5 @@ fn build_terminator(module: &Module, term: EvmTerminator) -> Result<Terminator, 
             TerminatorKind::Op(opcode)
         }
     };
-    Ok(Terminator::new(kind).with_debug_info_dropped())
+    Ok(Terminator::new(kind).with_debug_loc_dropped())
 }

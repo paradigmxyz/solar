@@ -58,11 +58,11 @@ impl MirPluginPass {
         for function in &mut printable.functions {
             function.debug_signature = None;
             for block in &mut function.blocks {
-                block.label_metadata.copy_debug_context(&mir::InstructionMetadata::EMPTY);
-                block.terminator_metadata.copy_debug_context(&mir::InstructionMetadata::EMPTY);
+                block.label_metadata.preserve_debug_loc(&mir::InstructionMetadata::EMPTY);
+                block.terminator_metadata.preserve_debug_loc(&mir::InstructionMetadata::EMPTY);
             }
             function.for_each_instruction_mut(|_, inst| {
-                inst.metadata.copy_debug_context(&mir::InstructionMetadata::EMPTY);
+                inst.metadata.preserve_debug_loc(&mir::InstructionMetadata::EMPTY);
                 inst.metadata.set_hir_expr(None);
             });
         }
@@ -248,6 +248,7 @@ mod tests {
     use crate::mir::{
         AllocationSemantics, FunctionBuilder, MemoryRegion, MirType, Value as MirValue,
     };
+    use solar_evmir::debug::DebugLocKind;
     use solar_interface::{Ident, Session};
 
     #[test]
@@ -278,7 +279,7 @@ mod tests {
                 metadata.set_memory_region(Some(MemoryRegion::Heap));
                 metadata.set_effect(Some(mir::EffectKind::Pure));
                 metadata.set_storage_alias(Some(mir::StorageAlias::Symbolic(base)));
-                metadata.mark_debug_info_dropped();
+                metadata.drop_debug_loc(DebugLocKind::Dropped);
             }
             let debug = function.inst(add).metadata.debug_context();
             let mut module = Module::new(Ident::from_str("M"));

@@ -376,12 +376,12 @@ fn build_instruction(
             kind
         }
     };
-    let mut inst = Instruction::new(kind, ty).with_debug_info_dropped();
+    let mut inst = Instruction::new(kind, ty).with_debug_loc_dropped();
     if !inst.can_replace_kind(&inst.kind) {
         return Err("invalid new MIR result representation".into());
     }
     if let Some(debug) = debug {
-        inst.metadata.copy_debug_context(&debug);
+        inst.metadata.preserve_debug_loc(&debug);
         // Allocation obligations survive even when the copied operands change. Proven alias
         // facts (including alloc_ptr and disjoint) do not transfer to a new computation.
         if debug.deferred_alloc() {
