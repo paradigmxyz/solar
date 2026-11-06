@@ -508,7 +508,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .iter()
             .map(|&ty| self.cx.state.pointer_carrier(types::TypeLowerer::mir_type(ty)))
             .collect::<Vec<_>>();
-        let result_ty = self.cx.module.intern_return_type(return_types.clone())?;
+        let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(dispatcher, function, args)
         let result = self.builder.icall(dispatcher, values, result_ty);
         if let [ret] = function.returns {
@@ -819,7 +819,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .iter()
             .map(|&ret| self.cx.state.scalar_carrier(self.cx.gcx, ret))
             .collect::<Vec<_>>();
-        let result_ty = self.cx.module.intern_return_type(return_types.clone())?;
+        let result_ty = self.cx.module.intern_return_type(return_types)?;
         // result = icall(function, call_args)
         let result = self.builder.icall(mir_id, values, result_ty);
         if let [ret] = function.returns {
