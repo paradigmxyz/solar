@@ -2612,10 +2612,10 @@ mod candidate_tests {
                 "@module M\nfn @f(arg0: i256) -> i256 { bb0: ret arg0 }",
             )
             .unwrap();
-            for input in [
-                "fn @f() -> i256 { bb0: ret 1 }",
-                "fn @f(arg0: i256) -> i256 { bb0: jump bb1 bb1: v0 = add arg0, 1 v1 = phi [bb0: arg0] ret v1 }",
-                "fn @f(arg0: i256) -> i256 { bb0: switch arg0, default bb1, [arg0 => bb1] bb1: ret arg0 }",
+            for (input, phase) in [
+                ("fn @f() -> i256 { bb0: ret 1 }", crate::MirPhase::Semantic),
+                ("fn @f(arg0: i256) -> i256 { bb0: jump bb1 bb1: v0 = add arg0, 1 v1 = phi [bb0: arg0] ret v1 }", crate::MirPhase::Semantic),
+                ("fn @f(arg0: i256) -> i256 { bb0: switch arg0, default bb1, [arg0 => bb1] bb1: ret arg0 }", crate::MirPhase::Lowered),
             ] {
                 let candidate = parse_candidate(&sess, &module, input).unwrap();
                 let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
@@ -2624,10 +2624,13 @@ mod candidate_tests {
                     &module,
                     FunctionId::new(0),
                     &candidate,
-                    crate::MirPhase::Semantic,
+                    phase,
                 )
                 .is_err());
             }
+            let candidate = parse_candidate(&sess, &module, "fn @f(arg0: i256) -> i256 { bb0: switch arg0, default bb1, [arg0 => bb1] bb1: ret arg0 }").unwrap();
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(crate::analysis::validate_function_at_phase(&dcx, &module, FunctionId::new(0), &candidate, crate::MirPhase::Semantic).is_ok());
         });
     }
     #[test]
