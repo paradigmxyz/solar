@@ -1,0 +1,37 @@
+; === ROOT/tests/ui/codegen/run-call/constants/wide_number_literals.sol:C ===
+@module C
+; function quotient() external pure returns (uint256) [selector 0xf360110b]
+fn @quotient() -> i256 [selector=0xf360110b, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x161bcca7119915b50764b4abe86529797775a5f1719510000000000000000000
+}
+
+; function fraction() external pure returns (uint256) [selector 0xd8894bb5]
+fn @fraction() -> i256 [selector=0xd8894bb5, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0xe4e1c0
+}
+
+; function hexLiteral() external pure returns (uint256) [selector 0xc28036be]
+fn @hexLiteral() -> i256 [selector=0xc28036be, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x1000000000000000000000000000000000000000000000000000000000000000
+}
+
+; function denominated() external pure returns (uint256) [selector 0x842800d8]
+fn @denominated() -> i256 [selector=0x842800d8, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x5f5e100
+}
+
+; function negative() external pure returns (int256) [selector 0x1cb3ef1f]
+fn @negative() -> i256 [selector=0x1cb3ef1f, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffdabf41c00
+}
+
+; function remainder() external pure returns (uint256) [selector 0xa0684251]
+fn @remainder() -> i256 [selector=0xa0684251, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 8
+}

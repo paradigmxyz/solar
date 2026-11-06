@@ -1,0 +1,28 @@
+; === ROOT/tests/ui/codegen/lowering/mir/calls/creation_code.sol:CreationCodeChild ===
+@module CreationCodeChild
+; constructor(uint256 value) [creation entry]
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    ret
+}
+
+; === ROOT/tests/ui/codegen/lowering/mir/calls/creation_code.sol:CreationCodeFactory ===
+@module CreationCodeFactory
+@data
+  CreationCodeChild_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/mir/calls/creation_code.sol:CreationCodeChild"
+
+; function creationCode() external pure returns (bytes memory) [selector 0x7213edad]
+fn @creationCode() -> ptr<memory> [selector=0x7213edad, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = datasize CreationCodeChild_creation_code_0
+    v1 = datasize CreationCodeChild_creation_code_0, 63, aligned
+    v2 = alloc v1 !metadata(preserves_fmp)
+    mstore v2, v0
+    v3 = ptradd v2, 32
+    v4 = datasize CreationCodeChild_creation_code_0, 31, aligned
+    v5 = ptrtoint ptr<memory> v2 to i256
+    v6 = add v5, v4
+    mstore v6, 0
+    datacopy CreationCodeChild_creation_code_0, v3, v0
+    ret v2
+}

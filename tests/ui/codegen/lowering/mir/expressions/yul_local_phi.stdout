@@ -1,0 +1,15 @@
+; === ROOT/tests/ui/codegen/lowering/mir/expressions/yul_local_phi.sol:YulLocalPhi ===
+@module YulLocalPhi
+; function branchLocal(uint256 flag) public pure returns (uint256 result) [selector 0xd9935fb1]
+fn @branchLocal(arg0: i256) -> i256 [selector=0xd9935fb1, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = ne arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v1 = phi [bb1: 2], [bb2: 1]
+    ret v1
+}

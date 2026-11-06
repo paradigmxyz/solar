@@ -1,0 +1,6 @@
+warning[5740]: unreachable code
+   ╭▸ ROOT/tests/ui/codegen/run-call/dispatch/internal_stop_runtime.sol:LL:CC
+   │
+LL │         revert();
+   ╰╴        ━━━━━━━━
+

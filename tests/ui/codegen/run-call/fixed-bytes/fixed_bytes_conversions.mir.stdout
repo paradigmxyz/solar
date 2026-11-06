@@ -1,0 +1,23 @@
+; === ROOT/tests/ui/codegen/run-call/fixed-bytes/fixed_bytes_conversions.sol:FixedBytesConversions ===
+@module FixedBytesConversions
+@types
+  struct0: {i256, i256, i256}
+  struct1: {i16, i32, i48}
+
+; function narrow() external pure returns (bytes2, bytes4, bytes6) [selector 0xe3b21a7a]
+fn @narrow() -> struct0 [selector=0xe3b21a7a, pure, abi_params=[], abi_returns=[word<bytes2>, word<bytes4>, word<bytes6>], abi_return_params=[bytes2, bytes4, bytes6]] {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, 0x1234000000000000000000000000000000000000000000000000000000000000
+    v1 = insert_value struct0, v0, 1, 0x1234567800000000000000000000000000000000000000000000000000000000
+    v2 = insert_value struct0, v1, 2, 0x1234567800000000000000000000000000000000000000000000000000000000
+    ret v2
+}
+
+; function numeric() external pure returns (uint16, uint32, uint48) [selector 0x9d8f2cea]
+fn @numeric() -> struct1 [selector=0x9d8f2cea, pure, abi_params=[], abi_returns=[word<uint16>, word<uint32>, word<uint48>], abi_return_params=[uint16, uint32, uint48]] {
+  bb0:
+    v0 = insert_value struct1, undef struct1, 0, i16 0x1234
+    v1 = insert_value struct1, v0, 1, i32 0x12345678
+    v2 = insert_value struct1, v1, 2, i48 0x123456780000
+    ret v2
+}

@@ -1,0 +1,26 @@
+; === ROOT/tests/ui/codegen/run-call/modifiers/modifier_init_return.sol:ModifierInitReturn ===
+@module ModifierInitReturn
+; function f(uint256 x) external pure onlyWhenLarge(x >= 10) returns (uint256[5] memory r) [selector 0xb3de648b]
+fn @f(arg0: i256) -> ptr<memory> [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[array<5, word>], abi_return_params=[array<5, uint256>]] {
+  bb0:
+    v0 = alloc 160 !metadata(preserves_fmp)
+    memory_zero v0, 160
+    v1 = lt arg0, 10
+    v2 = eq v1, false
+    jumpi v2, bb2, bb3
+  bb3:                                            ; preds = bb0
+    jump bb4
+  bb2:                                            ; preds = bb0
+    v3 = lt 2, 5
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 64
+    mstore v5, 3
+    jump bb5
+  bb5:                                            ; preds = bb2
+    jump bb4
+  bb4:                                            ; preds = bb5, bb3
+    jump bb1
+  bb1:                                            ; preds = bb4
+    ret v0
+}
