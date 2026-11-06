@@ -87,7 +87,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         let constructor_label = self.asm.new_label();
         if !info.internal.is_empty() {
             // solc emits the code that enters the constructor in the location setter of the
-            // constructor, so it maps to the constructor's declaration. See
+            // constructor, so the closest solc scope is the constructor's declaration. See
             // `ContractCompiler::appendConstructor` in solc v0.8.38,
             // libsolidity/codegen/ContractCompiler.cpp L286-L288.
             self.emit_with_origin(Some(func.declaration_span), |codegen| {

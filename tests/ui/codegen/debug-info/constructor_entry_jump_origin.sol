@@ -4,7 +4,7 @@
 
 // The jump over the constructor's helpers enters the constructor, so it maps to the constructor's
 // declaration, as solc maps the code `appendConstructor` emits in the location setter of the
-// constructor. The constructor spans 134..187; `helper` spans 40..128.
+// constructor.
 
 // CHECK-LABEL: @module C_deployment
 // CHECK: mstore !metadata(span=[[#CTOR_START:]]..[[#CTOR_END:]])
