@@ -160,7 +160,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(access) = self.storage_access(arg) else {
                     return self.cx.report_unsupported(arg.span, "storage access");
                 };
-                return self.load_storage_access(expr, access).map(CallResult::Value);
+                return Some(CallResult::Value(access.slot));
             }
             if source_ty.is_ref_at(DataLocation::Storage)
                 && let Some(size) = fixed_bytes_size(target_ty)

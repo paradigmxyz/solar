@@ -394,7 +394,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             // Types, modules, events, and errors have no effects to evaluate.
             _ if self.is_item_reference(expr) => Some(()),
-            _ => self.operand(expr).map(drop),
+            // The value is discarded, so a raw word stays unvalidated, as in solc.
+            _ => self.lower_expr(expr).map(drop),
         }
     }
 

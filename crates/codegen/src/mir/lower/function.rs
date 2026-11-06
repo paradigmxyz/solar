@@ -1084,16 +1084,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             ExprKind::Tuple([Some(inner)]) => self.lower_expr(inner),
             ExprKind::Tuple(values) => self.lower_tuple(expr, values).map(Word::from_clean),
-            ExprKind::Member(receiver, name) => {
-                self.lower_member(expr, receiver, *name).map(Word::from_clean)
-            }
+            ExprKind::Member(receiver, name) => self.lower_member(expr, receiver, *name),
             ExprKind::YulMember(..) => {
                 let place = self.resolve_lvalue_place(expr)?;
                 self.load_lvalue_place(&place).map(Word::from_clean)
             }
-            ExprKind::Index(receiver, index) => {
-                self.lower_index(expr, receiver, *index).map(Word::from_clean)
-            }
+            ExprKind::Index(receiver, index) => self.lower_index(expr, receiver, *index),
             ExprKind::Slice(receiver, start, end) => {
                 self.lower_slice(expr, receiver, *start, *end).map(Word::from_clean)
             }

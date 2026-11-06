@@ -430,10 +430,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         TupleAssignmentRhs::Materialized { value, source_ty, .. } => {
                             (value, source_ty)
                         }
-                        TupleAssignmentRhs::StorageCopy { access, source_ty, span } => (
-                            Word::from_clean(self.load_storage_value(source_ty, access, span)?),
-                            Some(source_ty),
-                        ),
+                        TupleAssignmentRhs::StorageCopy { access, source_ty, span } => {
+                            (self.load_storage_word(source_ty, access, span)?, Some(source_ty))
+                        }
                         TupleAssignmentRhs::StorageReference { .. } => {
                             unreachable!("storage reference reached value assignment")
                         }

@@ -262,9 +262,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if ty.is_ref_at(DataLocation::Storage) {
                 return Some(access.slot);
             }
-            let value = self.cx.storage.load_at(&mut self.builder, access.location, access.slot);
-            self.validate_enum(ty, value);
-            return Some(value);
+            return Some(self.cx.storage.load_at(&mut self.builder, access.location, access.slot));
         }
         let var = self.cx.gcx.hir.variable(id);
         if var.is_constant() {
@@ -276,11 +274,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return Some(self.builder.imm(location.slot));
             }
             let slot = self.builder.imm(location.slot);
-            return self.load_storage_value(
-                ty,
-                StorageAccess { slot, location, offset: None },
-                span,
-            );
+            // The word of an enum or `bool` is raw: `binding_word` marks it.
+            return self
+                .load_storage_word(ty, StorageAccess { slot, location, offset: None }, span)
+                .map(Word::raw_operand);
         }
         self.cx.report_unsupported(span, "identifier")
     }

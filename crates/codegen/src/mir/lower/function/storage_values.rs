@@ -923,14 +923,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
         access: StorageAccess,
-    ) -> Option<ValueId> {
+    ) -> Option<Word> {
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
         if ty.is_ref_at(DataLocation::Storage) {
-            return Some(access.slot);
+            return Some(Word::from_clean(access.slot));
         }
-        self.load_storage_value(ty, access, expr.span)
+        self.load_storage_word(ty, access, expr.span)
     }
 
+    /// Loads a storage value as a word. A `bool` or enum keeps the bits of its storage bytes and
+    /// the consumers clean it, as in via-IR, whose `cleanup_from_storage` only masks.
+    pub(super) fn load_storage_word(
+        &mut self,
+        ty: Ty<'gcx>,
+        access: StorageAccess,
+        span: Span,
+    ) -> Option<Word> {
+        if self.types.memory_layout(ty).is_some() {
+            return self.load_storage_object(ty, access.slot, span).map(Word::from_clean);
+        }
+        let value = self.load_storage_scalar(access);
+        let raw = matches!(ty.peel_refs().kind, TyKind::Enum(..))
+            || types::TypeLowerer::value_layout(ty) == crate::mir::ValueLayout::Bool;
+        Some(if raw { Word::raw(value) } else { Word::from_clean(value) })
+    }
+
+    /// Loads a storage value as its canonical value: an enum is range checked.
     pub(super) fn load_storage_value(
         &mut self,
         ty: Ty<'gcx>,
@@ -940,13 +958,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.types.memory_layout(ty).is_some() {
             return self.load_storage_object(ty, access.slot, span);
         }
-        let value = if let Some(offset) = access.offset {
+        let value = self.load_storage_scalar(access);
+        self.validate_enum(ty, value);
+        Some(value)
+    }
+
+    fn load_storage_scalar(&mut self, access: StorageAccess) -> ValueId {
+        if let Some(offset) = access.offset {
             self.cx.storage.load_at_offset(&mut self.builder, access.location, access.slot, offset)
         } else {
             self.cx.storage.load_at(&mut self.builder, access.location, access.slot)
-        };
-        self.validate_enum(ty, value);
-        Some(value)
+        }
     }
 
     pub(super) fn store_storage_value(

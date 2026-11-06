@@ -43,15 +43,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &hir::Expr<'_>,
         receiver: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
-    ) -> Option<ValueId> {
+    ) -> Option<Word> {
         if let Some(place) = self.resolve_storage_byte_place(expr) {
             // value = load_storage_byte(place)
-            return self.load_lvalue_place(&place);
+            return self.load_lvalue_place(&place).map(Word::from_clean);
         }
         if let Some(access) = self.storage_access(expr) {
             // value = load_storage(access)
             return self.load_storage_access(expr, access);
         }
+        self.lower_object_index(expr, receiver, index).map(Word::from_clean)
+    }
+
+    fn lower_object_index(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        receiver: &hir::Expr<'_>,
+        index: Option<&hir::Expr<'_>>,
+    ) -> Option<ValueId> {
         let Some(index) = index else {
             return self.cx.report_unsupported(expr.span, "index");
         };

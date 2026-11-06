@@ -176,8 +176,14 @@ impl<'gcx> Exposure<'gcx> {
         for &call in &self.result_calls {
             self.pointer_results.push((call, destinations.iter().copied().collect()));
         }
+        let from_storage = self.reads_storage_enum(expr);
         for &to in destinations {
             let ty = self.gcx.type_of_item(to.into());
+            // A storage enum is not range checked at the load, so a binding that copies it holds
+            // the raw word.
+            if from_storage && matches!(ty.kind, TyKind::Enum(..)) {
+                self.raw.insert(to);
+            }
             for &from in &sources {
                 if ty == self.gcx.type_of_item(from.into()) {
                     self.edges.entry(from).or_default().push(to);
@@ -186,6 +192,47 @@ impl<'gcx> Exposure<'gcx> {
             }
         }
         self.connect_pointers(destinations, expr);
+    }
+
+    /// Returns whether an expression may copy an enum out of storage: a state variable, or a
+    /// member or element of a storage object or mapping.
+    fn reads_storage_enum(&self, expr: &hir::Expr<'_>) -> bool {
+        let is_enum = |expr: &hir::Expr<'_>| {
+            self.gcx.type_of_expr(expr.id).is_some_and(|ty| matches!(ty.kind, TyKind::Enum(..)))
+        };
+        let in_storage = |base: &hir::Expr<'_>| {
+            self.gcx.type_of_expr(base.id).is_some_and(|ty| {
+                ty.is_ref_at(DataLocation::Storage)
+                    || matches!(ty.peel_refs().kind, TyKind::Mapping(..))
+            })
+        };
+        match expr.kind {
+            ExprKind::Ident(_) => {
+                is_enum(expr)
+                    && self.gcx.resolved_variable(expr).is_some_and(|id| {
+                        let variable = self.gcx.hir.variable(id);
+                        variable.is_state_variable()
+                            && !variable.is_constant()
+                            && !variable.is_immutable()
+                    })
+            }
+            ExprKind::Member(base, _) | ExprKind::Index(base, _) => {
+                is_enum(expr) && in_storage(base)
+            }
+            ExprKind::Tuple(items) => {
+                items.iter().flatten().any(|expr| self.reads_storage_enum(expr))
+            }
+            ExprKind::Ternary(_, yes, no) => {
+                self.reads_storage_enum(yes) || self.reads_storage_enum(no)
+            }
+            ExprKind::Call(callee, args)
+                if let hir::CallArgsKind::Unnamed([argument]) = args.kind
+                    && expressions::is_type_conversion(self.gcx, callee) =>
+            {
+                self.reads_storage_enum(argument)
+            }
+            _ => false,
+        }
     }
 
     /// Returns the internal function whose pointer an expression takes.
