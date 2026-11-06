@@ -83,13 +83,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.register_stackified_functions(module, call_graph, info, &plans);
 
         // push constructor; jump; <helpers>; constructor:
+        let func = &module.functions[constructor];
         let constructor_label = self.asm.new_label();
         if !info.internal.is_empty() {
-            self.asm.emit_push_label(constructor_label);
-            self.asm.emit_op(op::JUMP);
+            // solc emits the code that enters the constructor in the location setter of the
+            // constructor, so it maps to the constructor's declaration. See
+            // `ContractCompiler::appendConstructor` in solc v0.8.38,
+            // libsolidity/codegen/ContractCompiler.cpp L286-L288.
+            self.emit_with_origin(Some(func.declaration_span), |codegen| {
+                codegen.asm.emit_push_label(constructor_label);
+                codegen.asm.emit_op(op::JUMP);
+            });
         }
         self.emit_internal_bodies(module, info, &mut plans);
-        let func = &module.functions[constructor];
         self.enter_function(module, func);
         if !info.internal.is_empty() {
             self.asm.define_label(constructor_label);
