@@ -128,7 +128,7 @@ pub(super) fn turn_branches(gcx: Gcx<'_>, module: &mut Module) -> bool {
 
 /// How often a branch of `block` enters `next` and `other` relative to each other: never a cold
 /// block, and otherwise equally, except in a loop. A branch enters `next`
-/// [`Target::UNCOUNTED_LOOP_ITERATIONS_BASE`] times for each time it enters `other` when `next` is in
+/// [`Target::UNCOUNTED_LOOP_ITERATIONS`] times for each time it enters `other` when `next` is in
 /// a loop, and the reverse when only `other` is and the branch is too, as at the latch of a loop
 /// whose exit follows it. When both edges are in loops, as at the header of an inner loop whose
 /// exit continues the outer one, this guesses that the branch stays in `next`, so gas builds keep
@@ -140,8 +140,8 @@ fn edge_runs(module: &Module, block: BlockId, next: BlockId, other: BlockId) -> 
     match (next.hotness.is_cold(), other.hotness.is_cold()) {
         (true, _) => (0, 1),
         (_, true) => (1, 0),
-        _ if next.in_loop => (Target::UNCOUNTED_LOOP_ITERATIONS_BASE, 1),
-        _ if in_loop && other.in_loop => (1, Target::UNCOUNTED_LOOP_ITERATIONS_BASE),
+        _ if next.in_loop => (Target::UNCOUNTED_LOOP_ITERATIONS, 1),
+        _ if in_loop && other.in_loop => (1, Target::UNCOUNTED_LOOP_ITERATIONS),
         _ => (1, 1),
     }
 }

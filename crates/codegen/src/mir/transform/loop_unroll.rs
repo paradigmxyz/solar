@@ -661,8 +661,8 @@ fn plan(
     // the main loop's declined test to every entry.
     let trips = trips.unwrap_or_else(|| {
         max_trips(func, test, start, bound, step, returns)
-            .map_or(Target::UNCOUNTED_LOOP_ITERATIONS_BASE, |max| {
-                max.min(Target::UNCOUNTED_LOOP_ITERATIONS_BASE)
+            .map_or(Target::UNCOUNTED_LOOP_ITERATIONS, |max| {
+                max.min(Target::UNCOUNTED_LOOP_ITERATIONS)
             })
     });
     // The counter travels at most `step << MAX_TRIP_COUNT_BITS` from a literal start, so
@@ -1010,7 +1010,7 @@ fn plan_peel(
     // one more header and body.
     let test = target.loop_exit_jump();
     let skipped = test.times(u32::try_from(tests.len()).unwrap_or(u32::MAX));
-    let iterations = u32::try_from(Target::UNCOUNTED_LOOP_ITERATIONS_BASE - 1).unwrap_or(u32::MAX);
+    let iterations = u32::try_from(Target::UNCOUNTED_LOOP_ITERATIONS - 1).unwrap_or(u32::MAX);
     let saving = target.runtime_gas(skipped.times(iterations));
     let growth: Cost = l.blocks.iter().map(|block| target.block_code_estimate(func, block)).sum();
     (target.lifetime_gas(Cost::new(saving, 0)) > target.lifetime_gas(Cost::new(0, growth.bytes)))
