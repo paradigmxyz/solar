@@ -372,8 +372,20 @@ impl<'a> Validator<'a> {
 
             // ----- Walk instructions in this block -----
             let block_preds = &block.predecessors;
+            let mut seen_non_phi = false;
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
+                if matches!(inst.kind, InstKind::Phi(_)) {
+                    if seen_non_phi {
+                        self.emit_at_inst(
+                            "phi must precede non-phi instructions",
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                } else {
+                    seen_non_phi = true;
+                }
 
                 if !inst.kind.scalar_types_match(func, inst.result_ty) {
                     self.emit_at_inst(
@@ -786,6 +798,10 @@ impl<'a> Validator<'a> {
         if !module.functions.iter().any(|func| func.return_abi().is_some()) {
             return;
         }
+        self.count_return_fields(module);
+    }
+
+    fn count_return_fields(&mut self, module: &Module) {
         for (id, structure) in module.struct_types.iter_enumerated() {
             let count = structure.fields.iter().try_fold(0usize, |count, &field| {
                 let fields = match field {
@@ -1486,6 +1502,13 @@ impl<'a> Validator<'a> {
                 ));
             }
             for (block_id, block) in func.blocks.iter_enumerated() {
+                if let Some(Terminator::Switch { cases, .. }) = &block.terminator
+                    && cases
+                        .iter()
+                        .any(|&(value, _)| !matches!(func.value(value), Value::Immediate(_)))
+                {
+                    self.emit_at_block("switch cases must be constants", block_id);
+                }
                 if matches!(block.terminator, Some(crate::Terminator::RevertReturndata)) {
                     self.emit_at_block(
                         "returndata bubbling survives the `lowered` phase boundary",
@@ -1544,6 +1567,46 @@ pub(crate) fn validate_phase(
     } else {
         validator.validate_phase_contract(module, phase);
     }
+    validator.error.map_or(Ok(()), Err)
+}
+
+/// Checks `function` against the requested phase as a replacement for function `id` of `module`.
+///
+/// Checks the replacement's interface and validates it with its callers in a private module.
+pub fn validate_function_at_phase(
+    dcx: &DiagCtxt,
+    module: &Module,
+    id: FunctionId,
+    function: &Function,
+    phase: MirPhase,
+) -> solar_interface::Result<()> {
+    let mut validator = Validator::new(dcx);
+    validator.function = Some(id);
+    let Some(original) = module.functions.get(id) else {
+        validator.emit("replacement function does not exist");
+        return validator.error.map_or(Ok(()), Err);
+    };
+    if function.name != original.name
+        || function.params != original.params
+        || function.return_type() != original.return_type()
+        || function.return_components() != original.return_components()
+        || function.return_abi() != original.return_abi()
+        || function.selector != original.selector
+        || function.abi_params != original.abi_params
+        || function.abi_returns != original.abi_returns
+        || function.abi_return_params != original.abi_return_params
+        || function.attributes != original.attributes
+        || function.internal_frame_size != original.internal_frame_size
+        || function.external_static_return_size != original.external_static_return_size
+    {
+        validator.emit("replacement changes the function interface or compiler attributes");
+        return validator.error.map_or(Ok(()), Err);
+    }
+    let mut candidate = module.clone();
+    candidate.functions[id] = function.clone();
+    validate(dcx, &candidate);
+    dcx.has_errors()?;
+    validator.validate_function_phase(&candidate, phase, function);
     validator.error.map_or(Ok(()), Err)
 }
 

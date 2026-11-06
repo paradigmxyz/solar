@@ -188,6 +188,20 @@ impl Module {
         super::parser::parse(sess, source)
     }
 
+    /// Parses one function as a candidate replacement for one of this module's functions.
+    ///
+    /// Candidates cannot declare types or other functions, attach metadata, use undefined
+    /// values, or refer to functions by numeric ID. [`Self::candidate_text`] prints this grammar.
+    /// Installing an edited candidate also requires invalidating derived module facts and
+    /// conservatively accounting for its memory writes; parsing and validation do not do that.
+    pub fn parse_function(
+        &self,
+        sess: &solar_interface::Session,
+        source: &solar_interface::source_map::SourceFile,
+    ) -> solar_interface::Result<Function> {
+        super::parser::parse_candidate(sess, source, self)
+    }
+
     /// Creates a new module.
     #[must_use]
     pub fn new(name: Ident) -> Self {
@@ -931,6 +945,7 @@ impl Module {
                             self.dispatch_entry == Some(id),
                             receive == Some(id),
                             fallback == Some(id),
+                            true,
                         )
                     })
                     .format("\n")
@@ -952,6 +967,20 @@ impl Module {
                     .format("\n\n")
             )
         })
+    }
+
+    /// Displays `function` as candidate text: its textual MIR without metadata, naming callees
+    /// from this module. [`Self::parse_function`] parses it back.
+    pub fn candidate_text<'a>(&'a self, function: &'a Function) -> impl fmt::Display + 'a {
+        super::display::display_function_text(
+            function,
+            Some(self),
+            false,
+            false,
+            false,
+            false,
+            false,
+        )
     }
 }
 

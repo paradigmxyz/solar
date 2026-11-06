@@ -25,6 +25,8 @@ pub struct Session {
     pub dcx: DiagCtxt,
     /// The globals.
     globals: Arc<SessionGlobals>,
+    /// Source map used by this session's diagnostics and parser.
+    source_map: Arc<SourceMap>,
     /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
     /// one with `SessionBuilder`.
     thread_pool: OnceLock<rayon::ThreadPool>,
@@ -179,6 +181,7 @@ impl SessionBuilder {
         let mut opts = opts.unwrap_or_default();
         Session::infer_language(&mut opts);
         let sess = Session {
+            source_map: globals.source_map.clone(),
             globals,
             dcx,
             opts,
@@ -230,6 +233,24 @@ impl Session {
     /// See [`builder`](Self::builder) for a more flexible way to create a session.
     pub fn new(opts: CompileOpts) -> Self {
         Self::builder().opts(opts).build()
+    }
+
+    /// Creates a session that shares this session's globals, including the symbol interner, but
+    /// reports its diagnostics to `dcx`.
+    ///
+    /// Symbols are the same in both sessions, so code running inside this session's
+    /// [`enter`](Self::enter) can parse through the fork and keep what it parses, while every
+    /// diagnostic stays in `dcx`, for example a buffer the caller inspects instead of failing the
+    /// compilation. The fork uses the diagnostics context's source map when it has one.
+    pub fn with_diagnostics(&self, dcx: DiagCtxt) -> Self {
+        Self {
+            opts: self.opts.clone(),
+            source_map: dcx.source_map().unwrap_or_else(|| self.source_map.clone()),
+            dcx,
+            globals: self.globals.clone(),
+            thread_pool: OnceLock::new(),
+            queued_jobs: AtomicUsize::new(0),
+        }
     }
 
     /// Validates the session options.
@@ -363,13 +384,13 @@ impl Session {
     /// Returns a reference to the source map.
     #[inline]
     pub fn source_map(&self) -> &SourceMap {
-        &self.globals.source_map
+        &self.source_map
     }
 
     /// Clones the source map.
     #[inline]
     pub fn clone_source_map(&self) -> Arc<SourceMap> {
-        self.globals.source_map.clone()
+        self.source_map.clone()
     }
 
     /// Returns `true` if compilation should stop after the given stage.
@@ -914,5 +935,19 @@ mod tests {
                 ..Default::default()
             })
             .build();
+    }
+
+    #[test]
+    fn with_diagnostics() {
+        let sess = enter_tests_session();
+        let fork = sess.with_diagnostics(DiagCtxt::with_buffer_emitter(None, ColorChoice::Never));
+        sess.enter(|| {
+            assert!(fork.is_entered());
+            assert_eq!(fork.intern("shared"), sess.intern("shared"));
+            fork.dcx.err("private").emit();
+        });
+        assert!(sess.dcx.emitted_errors().unwrap().is_ok());
+        let err = fork.dcx.emitted_errors().unwrap().unwrap_err();
+        assert!(err.to_string().contains("error: private"), "{err:?}");
     }
 }

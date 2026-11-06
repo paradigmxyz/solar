@@ -8,5 +8,5 @@ mod cfg;
 pub use cfg::{CfgInfo, DominatorTree};
 
 mod validator;
-pub use validator::validate;
+pub use validator::{validate, validate_function_at_phase};
 pub(crate) use validator::{validate_legal_shifts, validate_phase};
