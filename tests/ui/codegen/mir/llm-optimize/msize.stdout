@@ -1,6 +1,6 @@
 llm-optimize MSize: offers nothing: the module reads `msize`
-- // === ROOT/tests/ui/codegen/mir/llm-optimize/msize.mir (before llm-optimize) ===
-+ // === ROOT/tests/ui/codegen/mir/llm-optimize/msize.mir (after llm-optimize) ===
+- ; === ROOT/tests/ui/codegen/mir/llm-optimize/msize.mir (before llm-optimize) ===
++ ; === ROOT/tests/ui/codegen/mir/llm-optimize/msize.mir (after llm-optimize) ===
   @module MSize
   @phase lowered
   ; runtime dispatch entry

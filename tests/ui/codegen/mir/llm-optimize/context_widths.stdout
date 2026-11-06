@@ -7,8 +7,8 @@ llm-optimize ContextWidths @sender: offered at 54 gas, 21 bytes
 llm-optimize ContextWidths @sender: round 1: accepted at 37 gas, 14 bytes
 llm-optimize ContextWidths @sender: round 2: nothing cheaper
 llm-optimize ContextWidths @sender: rewritten from 54 gas, 21 bytes to 37 gas, 14 bytes
-- // === ROOT/tests/ui/codegen/mir/llm-optimize/context_widths.mir (before llm-optimize) ===
-+ // === ROOT/tests/ui/codegen/mir/llm-optimize/context_widths.mir (after llm-optimize) ===
+- ; === ROOT/tests/ui/codegen/mir/llm-optimize/context_widths.mir (before llm-optimize) ===
++ ; === ROOT/tests/ui/codegen/mir/llm-optimize/context_widths.mir (after llm-optimize) ===
   @module ContextWidths
   @phase lowered
   ; runtime dispatch entry
