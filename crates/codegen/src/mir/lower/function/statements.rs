@@ -53,7 +53,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let value = self.builder.imm(value);
                     Word::from_clean(self.coerce_value(value, expr_ty, ty))
                 } else if let Some(expr) = initializer {
-                    self.lower_typed_expr(expr, ty)?
+                    self.lower_typed_expr_into(expr, ty, *id)?
                 } else {
                     Word::from_clean(self.default_binding_value(ty))
                 };

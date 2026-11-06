@@ -1,25 +1,36 @@
 //! Sinks computations on calldata words past a guard into the block that continues after it.
 //!
 //! A guard is a conditional branch with one successor that only reverts: a range check, an
-//! overflow test, a panic. Code that runs before the guard in source order, but whose result is
-//! only read after it, computes that result on the way to the guard, so the value stays live
-//! across the branch and the stack scheduler spends a `DUP` or `SWAP` on it. This pass moves such
-//! a computation to the start of the continuing block, where its readers are, so nothing carries
-//! it across the guard and the revert path no longer computes it.
+//! overflow test, a panic. Code that runs before the guard in source order but is read only after
+//! it, such as `Role next = allowed ? A : B;` ahead of a check that an enum read from storage is
+//! in range, computes its result on the way to the guard. The value then stays live across the
+//! branch, which costs the stack scheduler a `DUP` or `SWAP`, and the revert path computes it for
+//! nothing. Value checks that sit at a use, as via-IR places them, create this shape often.
 //!
-//! The computation is a set of pure instructions and calldata reads at constant offsets: a
-//! calldata word cannot change during the call, so reading it after the guard gives the same
-//! word. The set is closed: its operands are constants, its own results, and calldata words that
-//! nothing else in the block reads, which `place-reads` reads again where they are used, so
-//! moving it carries no other value across the guard in their place and adds no read. A computation
-//! on a value that lives on across the guard, such as a memory pointer plus a constant, does not
-//! move: reaching the operand after the guard costs what carrying the result costs, and the
-//! schedule that results is not smaller. Every reader of a result outside the set sits in a block
-//! the continuing block dominates. The reverting block reads none of the results then, and the
-//! continuing block has the guard's block as its only predecessor, so the computation runs once per
-//! entry, as it did before.
+//! **What moves.** A set of instructions in the guard's block moves to the start of the block that
+//! continues after the guard, in their original order. Members are pure instructions and reads of
+//! calldata at constant offsets: a calldata word cannot change during the call, so reading it after
+//! the guard gives the same word. Zero tests stay: `place-reads` places a test by its reader. A
+//! member's every reader is another member, or sits in a block the continuing block dominates. The
+//! reverting successor then reads none of the results. The continuing block must have the guard's
+//! block as its only predecessor, so a loop header is never a target and the set runs once per
+//! entry, as before.
 //!
-//! The pass runs before `place-reads`, after the last pass that creates guards.
+//! **Closure.** A set may only have operands that are constants, results of its own members, or
+//! calldata words that nothing else in the block reads. Such a set carries no other value across
+//! the guard in place of its results, and adds no read: `place-reads` reads the calldata word again
+//! where it is used, which replaces the read that was carried. A set that reads any other value,
+//! for example `add ptr, 32` on a memory pointer or `add arg, 64` on an argument, does not move.
+//! Moving it makes the operand, which lives on past the guard anyway, be reached again after the
+//! guard with a `DUP`, which costs what carrying the result cost, and it changes the order the
+//! scheduler sees. An earlier version moved every pure instruction whose result was read only
+//! after the guard, and it grew the corpus: solady-lib-string by 111 bytes at `-Ogas`, and
+//! tempo-zones-portal's runtime gas by 20. Closed sets add no carried value and no read, so they
+//! need no price from the target; the pass takes no profitability decision.
+//!
+//! **Placement.** The pass runs once in the lowered pipeline, after the last pass that creates
+//! guards and before `place-reads`, which then places the calldata words the moved computation
+//! left behind by their remaining readers.
 
 use super::word_sequence::is_pure;
 use crate::mir::{
@@ -144,11 +155,14 @@ fn run(func: &mut Function) -> bool {
 }
 
 /// Whether an instruction can run after a guard it ran before: a pure instruction, or a read of
-/// calldata at a constant offset.
+/// calldata at a constant offset. A zero test stays, since `place-reads` places it by its reader.
 fn movable(func: &Function, inst: InstId) -> bool {
     let instruction = func.inst(inst);
     let Some(result) = func.inst_result_value(inst) else { return false };
+    let zero_test = matches!(instruction.kind, InstKind::Eq(a, b) | InstKind::Ne(a, b)
+        if [a, b].iter().any(|&operand| func.value_u256(operand).is_some_and(|word| word.is_zero())));
     !matches!(instruction.kind, InstKind::Phi(_))
+        && !zero_test
         && !instruction.kind.effects().observes_execution()
         && (is_pure(instruction) || func.is_constant_calldata_load(result))
 }

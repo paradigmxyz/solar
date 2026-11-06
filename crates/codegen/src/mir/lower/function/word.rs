@@ -108,7 +108,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// `endVisit(FunctionCall)` (IRGeneratorForStatements.cpp:961) sets the call's location
     /// before it converts.
     pub(super) fn operand(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        let word = self.lower_expr(expr)?;
+        let word = self.lower_expr_as(expr, true)?;
         // Only an expression left untyped by a reported error has no type.
         Some(match self.cx.gcx.type_of_expr(expr.id) {
             Some(ty) => word.clean(self, ty),
@@ -217,7 +217,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Returns whether the variable `id` is a raw carrier holding a scalar word.
-    fn is_raw_binding(&self, id: VariableId) -> bool {
+    pub(super) fn is_raw_binding(&self, id: VariableId) -> bool {
         self.cx.state.is_raw_scalar(self.cx.gcx, id)
     }
 

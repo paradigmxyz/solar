@@ -23,6 +23,18 @@
 //@ run-call: C::t_mapping_not => 0
 //@ run-call: C::t_mapping_encode => 1
 //@ run-call: C::t_field_external_return => true
+//@ run-call: C::t_and_asm => 3
+//@ run-call: C::t_or_asm => 3
+//@ run-call: C::t_and_field_asm => 3
+//@ run-call: C::t_and_internal_return => 3
+//@ run-call: C::t_and_internal_argument => 3
+//@ run-call: C::t_and_ternary => 3
+//@ run-call: C::t_and_if => 1
+//@ run-call: C::t_and_field_if => 1
+//@ run-call: C::t_and_not => 0
+//@ run-call: C::t_and_eq_true => 1
+//@ run-call: C::t_and_encode => 1
+//@ run-call: C::t_and_external_return => true
 
 // Every expectation was captured by running the same source through
 // solc 0.8.38 via-IR (`--via-ir --optimize`) on anvil. A storage `bool` keeps the masked byte at
@@ -37,6 +49,13 @@ contract C {
     bool sb;
     bool transient tb;
     S s;
+    bool la;
+    bool lb;
+    struct T {
+        bool a;
+        bool b;
+    }
+    T t;
     bool[] arr;
     bool[2] fixedArr;
     mapping(uint256 => bool) mp;
@@ -52,6 +71,8 @@ contract C {
         fixedArr[0] = false;
         assembly {
             sstore(sb.slot, 2)
+            sstore(la.slot, 0x0301)
+            sstore(t.slot, 0x0301)
             tstore(tb.slot, 2)
             sstore(s.slot, 0x0200)
             sstore(p.slot, 0x020000)
@@ -62,6 +83,10 @@ contract C {
             mstore(32, mp.slot)
             sstore(keccak256(0, 64), 2)
         }
+    }
+
+    function both() internal view returns (bool) {
+        return la && lb;
     }
 
     function pass() internal view returns (bool) {
@@ -96,4 +121,17 @@ contract C {
     function t_mapping_not() external returns (uint256) { dirty(); return !mp[1] ? 1 : 0; }
     function t_mapping_encode() external returns (uint256) { dirty(); return uint256(bytes32(abi.encode(mp[1]))); }
     function t_field_external_return() external returns (bool) { dirty(); return s.b; }
+
+    function t_and_asm() external returns (uint256 r) { dirty(); bool x = la && lb; assembly { r := x } }
+    function t_or_asm() external returns (uint256 r) { dirty(); bool x = lb || la; assembly { r := x } }
+    function t_and_field_asm() external returns (uint256 r) { dirty(); bool x = t.a && t.b; assembly { r := x } }
+    function t_and_internal_return() external returns (uint256 r) { dirty(); bool x = both(); assembly { r := x } }
+    function t_and_internal_argument() external returns (uint256) { dirty(); return take(la && lb); }
+    function t_and_ternary() external returns (uint256 r) { dirty(); bool x = gasleft() > 0 ? la && lb : false; assembly { r := x } }
+    function t_and_if() external returns (uint256) { dirty(); if (la && lb) return 1; return 0; }
+    function t_and_field_if() external returns (uint256) { dirty(); if (t.a && t.b) return 1; return 0; }
+    function t_and_not() external returns (uint256) { dirty(); return !(la && lb) ? 1 : 0; }
+    function t_and_eq_true() external returns (uint256) { dirty(); return (la && lb) == true ? 1 : 0; }
+    function t_and_encode() external returns (uint256) { dirty(); return uint256(bytes32(abi.encode(la && lb))); }
+    function t_and_external_return() external returns (bool) { dirty(); return t.a && t.b; }
 }

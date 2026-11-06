@@ -109,7 +109,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if ty.is_ref_at(DataLocation::Storage) {
                 return Some(vec![Word::from_clean(self.require_storage_access(expr)?.slot)]);
             }
-            let carried = self.lower_typed_expr(expr, ty)?;
+            let carried = self.lower_typed_expr_into(expr, ty, self.returns[0])?;
             let carried = if ty.is_ref_at(DataLocation::Memory) {
                 let value = carried.clean(self, ty);
                 Word::from_clean(self.materialize_memory_copy(ty, value, expr.span)?)

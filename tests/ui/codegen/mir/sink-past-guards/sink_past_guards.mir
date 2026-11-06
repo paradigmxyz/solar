@@ -140,3 +140,23 @@ fn @impure(arg0: i256) {
   bb2:
     revert 0, 0
 }
+
+// A zero test of a calldata word stays: `place-reads` places it by its reader.
+// CHECK-LABEL: fn @zero_test(
+// CHECK-NOT: {{^[+-] }}
+fn @zero_test(arg0: i256) {
+  bb0:
+    v0 = calldataload 36
+    v1 = ne v0, 0
+    v2 = lt arg0, 10
+    jumpi v2, bb1, bb2
+  bb1:
+    jumpi v1, bb3, bb4
+  bb3:
+    mstore 0, 1
+    stop
+  bb4:
+    stop
+  bb2:
+    revert 0, 0
+}
