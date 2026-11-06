@@ -8,10 +8,10 @@
 fn @assignmentValue() -> struct0 [selector=0x454887fb, abi_params=[], abi_returns=[memory_bytes, word], abi_return_params=[bytes, uint256]] {
   bb0:
     v0 = icall @literal_bytes_word, 0x6162630000000000000000000000000000000000000000000000000000000000, 3
-    v1 = icall @accessState
-    v2 = ptrtoint ptr<memory> v0 to i256
-    icall @store_storage_bytes, v1, v0
-    v3 = load_storage_bytes v1
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = icall @accessState
+    icall @store_storage_bytes, v2, v0
+    v3 = load_storage_bytes v2
     v4 = sload 1 !metadata(storage=slot(1))
     v5 = insert_value struct0, undef struct0, 0, v3
     v6 = insert_value struct0, v5, 1, v4

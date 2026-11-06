@@ -72,7 +72,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_state_initializer(
         &mut self,
         id: VariableId,
-        initializer: &hir::Expr<'_>,
+        initializer: &'gcx hir::Expr<'gcx>,
     ) -> Option<()> {
         let ty = self.cx.gcx.type_of_item(id.into());
         let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;

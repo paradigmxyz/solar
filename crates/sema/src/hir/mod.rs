@@ -1990,7 +1990,7 @@ impl<'hir> CallArgs<'hir> {
     /// Returns an iterator over the expressions.
     pub fn exprs(
         &self,
-    ) -> impl ExactSizeIterator<Item = &Expr<'hir>> + DoubleEndedIterator + Clone {
+    ) -> impl ExactSizeIterator<Item = &'hir Expr<'hir>> + DoubleEndedIterator + Clone {
         self.kind.exprs()
     }
 
@@ -2052,7 +2052,7 @@ impl<'hir> CallArgsKind<'hir> {
     /// Returns an iterator over the expressions.
     pub fn exprs(
         &self,
-    ) -> impl ExactSizeIterator<Item = &Expr<'hir>> + DoubleEndedIterator + Clone {
+    ) -> impl ExactSizeIterator<Item = &'hir Expr<'hir>> + DoubleEndedIterator + Clone {
         match self {
             Self::Unnamed(exprs) => Either::Left(exprs.iter()),
             Self::Named(args) => Either::Right(args.iter().map(|arg| &arg.value)),

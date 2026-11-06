@@ -53,8 +53,8 @@ fn build_storage_bytes_store_helper(function: &mut Function) {
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn is_constant_storage_assignment(
         &self,
-        lhs: &hir::Expr<'_>,
-        rhs: &hir::Expr<'_>,
+        lhs: &'gcx hir::Expr<'gcx>,
+        rhs: &'gcx hir::Expr<'gcx>,
     ) -> bool {
         let mut root = lhs.peel_parens();
         while let ExprKind::Member(receiver, _) | ExprKind::Index(receiver, Some(_)) = &root.kind {
@@ -85,7 +85,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn is_constant_storage_value(&self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> bool {
+    fn is_constant_storage_value(&self, expr: &'gcx hir::Expr<'gcx>, ty: Ty<'gcx>) -> bool {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 self.constant_bytes(expr).is_some()
@@ -127,8 +127,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_constant_storage_assignment(
         &mut self,
-        lhs: &hir::Expr<'_>,
-        rhs: &hir::Expr<'_>,
+        lhs: &'gcx hir::Expr<'gcx>,
+        rhs: &'gcx hir::Expr<'gcx>,
     ) -> Option<()> {
         let ty = self.cx.gcx.type_of_expr(lhs.id)?.peel_refs();
         // A constant that does not fold can revert, so lower the field values before the
@@ -142,7 +142,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lower_constant_storage_fields(
         &mut self,
         ty: Ty<'gcx>,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         values: &mut Vec<ValueId>,
     ) -> Option<()> {
         match ty.peel_refs().kind {
@@ -195,7 +195,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         ty: Ty<'gcx>,
         access: StorageAccess,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         values: &mut std::vec::IntoIter<ValueId>,
     ) -> Option<()> {
         match ty.peel_refs().kind {
@@ -238,12 +238,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Like [`Self::storage_access`], but reports an unsupported error when it fails.
-    pub(super) fn require_storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
+    pub(super) fn require_storage_access(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+    ) -> Option<StorageAccess> {
         self.storage_access(expr)
             .or_else(|| self.cx.report_unsupported(expr.span, "storage access"))
     }
 
-    pub(super) fn storage_access(&mut self, expr: &hir::Expr<'_>) -> Option<StorageAccess> {
+    pub(super) fn storage_access(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<StorageAccess> {
         let expr = self.peel_storage_conversions(expr);
         if matches!(expr.kind, ExprKind::Member(..))
             && let Some(id) = self.cx.gcx.resolved_variable(expr)
@@ -374,7 +377,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
-    fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
+    fn call_returns_storage_ref(&self, callee: &'gcx hir::Expr<'gcx>) -> bool {
         self.cx.gcx.type_of_expr(callee.id).is_some_and(|ty| {
             matches!(ty.kind, TyKind::Fn(function)
                 if function.returns.first().is_some_and(|ret| ret.is_ref_at(DataLocation::Storage)))
@@ -383,9 +386,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn storage_access_ternary(
         &mut self,
-        condition: &hir::Expr<'_>,
-        then_expr: &hir::Expr<'_>,
-        else_expr: &hir::Expr<'_>,
+        condition: &'gcx hir::Expr<'gcx>,
+        then_expr: &'gcx hir::Expr<'gcx>,
+        else_expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<StorageAccess> {
         let condition = self.operand(condition)?;
         let (then_branch, else_branch) = self.lower_branches(
@@ -404,7 +407,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.merge_storage_accesses(incoming)
     }
 
-    pub(super) fn is_storage_reference_binding(&self, expr: &hir::Expr<'_>) -> bool {
+    pub(super) fn is_storage_reference_binding(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
         if !matches!(expr.peel_parens().kind, ExprKind::Ident(_)) {
             return false;
         }
@@ -525,9 +528,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_storage_array_push(
         &mut self,
-        expr: &hir::Expr<'_>,
-        callee: &hir::Expr<'_>,
-        argument: Option<&hir::Expr<'_>>,
+        expr: &'gcx hir::Expr<'gcx>,
+        callee: &'gcx hir::Expr<'gcx>,
+        argument: Option<&'gcx hir::Expr<'gcx>>,
         capture_value: bool,
     ) -> Option<CallResult> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
@@ -631,8 +634,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L1730>
     fn lower_storage_bytes_push(
         &mut self,
-        receiver: &hir::Expr<'_>,
-        argument: Option<&hir::Expr<'_>>,
+        receiver: &'gcx hir::Expr<'gcx>,
+        argument: Option<&'gcx hir::Expr<'gcx>>,
         capture_value: bool,
     ) -> Option<CallResult> {
         let slot = self.require_storage_access(receiver)?.slot;
@@ -730,8 +733,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_storage_array_pop(
         &mut self,
-        expr: &hir::Expr<'_>,
-        callee: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
+        callee: &'gcx hir::Expr<'gcx>,
     ) -> Option<()> {
         let ExprKind::Member(receiver, _) = &callee.kind else {
             return self.cx.report_unsupported(expr.span, "storage array pop target");
@@ -838,7 +841,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn storage_array_base(
         &mut self,
-        receiver: &hir::Expr<'_>,
+        receiver: &'gcx hir::Expr<'gcx>,
     ) -> Option<(StorageAccess, Ty<'gcx>)> {
         let base = self.require_storage_access(receiver)?;
         let ty = self.cx.gcx.type_of_expr(receiver.id)?.peel_refs();
@@ -921,7 +924,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn load_storage_access(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         access: StorageAccess,
     ) -> Option<ValueId> {
         let ty = self.cx.gcx.type_of_expr(expr.id)?;

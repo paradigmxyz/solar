@@ -29,7 +29,7 @@ mod control_flow;
 pub(crate) mod override_checker;
 mod safe_profile;
 mod udvt;
-mod view_pure_checker;
+pub(crate) mod view_pure_checker;
 
 #[instrument(name = "typeck", level = "debug", skip_all)]
 pub(crate) fn check(gcx: Gcx<'_>) {
