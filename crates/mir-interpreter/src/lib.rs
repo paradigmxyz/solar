@@ -308,3 +308,11 @@ fn @twice(arg0: i256) -> i256 {
         );
     }
 }
+
+/// Instrumented single-function execution for testing proposed rewrites.
+pub mod testing {
+    pub use super::machine::{
+        Effects, Limit, Limits, MEMORY_LIMIT, Machine, Memory, Meter, Outcome, ProbeExecution,
+        StorageAccess, mix64,
+    };
+}
