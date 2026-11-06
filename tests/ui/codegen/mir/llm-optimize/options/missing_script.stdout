@@ -1,5 +1,5 @@
-- // === ROOT/tests/ui/codegen/mir/llm-optimize/options/missing_script.mir (before llm-optimize) ===
-+ // === ROOT/tests/ui/codegen/mir/llm-optimize/options/missing_script.mir (after llm-optimize) ===
+- ; === ROOT/tests/ui/codegen/mir/llm-optimize/options/missing_script.mir (before llm-optimize) ===
++ ; === ROOT/tests/ui/codegen/mir/llm-optimize/options/missing_script.mir (after llm-optimize) ===
   @module MissingScript
   @phase lowered
   ; runtime dispatch entry

@@ -7,8 +7,8 @@ llm-optimize StorageWrites @rewrite_transient: offered at 233 gas, 15 bytes
 llm-optimize StorageWrites @rewrite_transient: round 1: rejected at equivalence: the original writes transient storage slot 0x7, which the candidate never writes; the write fails in a static call even when it stores what the slot held
   on free memory pointer 0x140, transient storage slot 0x7 = 0x3e0639cf0c6df84fad7ef8d799834d7ab6130632
 llm-optimize StorageWrites @rewrite_transient: round 2: nothing cheaper
-- // === ROOT/tests/ui/codegen/mir/llm-optimize/storage_writes.mir (before llm-optimize) ===
-+ // === ROOT/tests/ui/codegen/mir/llm-optimize/storage_writes.mir (after llm-optimize) ===
+- ; === ROOT/tests/ui/codegen/mir/llm-optimize/storage_writes.mir (before llm-optimize) ===
++ ; === ROOT/tests/ui/codegen/mir/llm-optimize/storage_writes.mir (after llm-optimize) ===
   @module StorageWrites
   @phase lowered
   ; runtime dispatch entry

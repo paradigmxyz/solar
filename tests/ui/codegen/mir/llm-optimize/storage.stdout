@@ -7,17 +7,17 @@ llm-optimize Storage @credit: round 2: rejected at equivalence: the candidate wr
 llm-optimize Storage @credit: round 3: accepted at 10455 gas, 76 bytes
 llm-optimize Storage @credit: round 4: nothing cheaper
 llm-optimize Storage @credit: rewritten from 10558 gas, 78 bytes to 10455 gas, 76 bytes
-llm-optimize Storage @move: offered at 12617 gas, 63 bytes
-llm-optimize Storage @move: round 1: rejected at equivalence: storage slot 0x55a5bd2f1561a275dba97a3e23bf64b586a74cc4c4a2dc9f1c147ffdbbce1122, which held 0xa43bee2780e71c8aa2a1c7dc870f9befdadc53ef56f8c5828f0ee2b26c5df3f7, ends as 0xa43bee2780e71c8aa2a1c7dc870f9befdadc53ef56f8c5828f0ee2b26c5df3f7 in the original but 0xa43bee2780e71c8aa2a1c7dc870f9befdadc53ef56f8c5828f0ee2b26c5df426 in the candidate
-  on arg0 = 0x40, arg1 = 0x2f, free memory pointer 0xde, `caller` = 0x40, storage slot 0x55a5bd2f1561a275dba97a3e23bf64b586a74cc4c4a2dc9f1c147ffdbbce1122 = 0xa43bee2780e71c8aa2a1c7dc870f9befdadc53ef56f8c5828f0ee2b26c5df3f7
+llm-optimize Storage @move: offered at 12771 gas, 63 bytes
+llm-optimize Storage @move: round 1: rejected at equivalence: storage slot 0x232699771976f70eeb0c2b3465d56eab54e6bde930d613853e97672f7a448ff3, which held 0x41, ends as 0x41 in the original but 0x42 in the candidate
+  on arg0 = 0x1db00, arg1 = 0x1, free memory pointer 0x1da80, `caller` = 0x1db00, storage slot 0x232699771976f70eeb0c2b3465d56eab54e6bde930d613853e97672f7a448ff3 = 0x41
 llm-optimize Storage @move: round 2: nothing cheaper
 llm-optimize Storage @locked: not offered: never sees its `tload` in bb0 come out nonzero in a test that does not revert
 llm-optimize Storage @burn: offered at 58 gas, 29 bytes
 llm-optimize Storage @burn: round 1: rejected at equivalence: the original writes storage slot 0x9, which the candidate never writes; the write fails in a static call even when it stores what the slot held
-  on arg0 = 0x0, free memory pointer 0x180, storage slot 0x9 = 0xfa79439adf260bf702931b6f1856327f8d8c26a1c17b34c2c9f480045f4c353a
+  on arg0 = 0x35, free memory pointer 0x240, storage slot 0x9 = 0x6400000000000000000000000000000000000000000000000000000000000000
 llm-optimize Storage @burn: round 2: nothing cheaper
-- // === ROOT/tests/ui/codegen/mir/llm-optimize/storage.mir (before llm-optimize) ===
-+ // === ROOT/tests/ui/codegen/mir/llm-optimize/storage.mir (after llm-optimize) ===
+- ; === ROOT/tests/ui/codegen/mir/llm-optimize/storage.mir (before llm-optimize) ===
++ ; === ROOT/tests/ui/codegen/mir/llm-optimize/storage.mir (after llm-optimize) ===
   @module Storage
   @phase lowered
   ; runtime dispatch entry
@@ -57,7 +57,7 @@ llm-optimize Storage @burn: round 2: nothing cheaper
       v2 = sload v1
       v3 = lt v2, arg1
       jumpi v3, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       v4 = sub v2, arg1
       sstore v1, v4
       mstore 0, arg0
@@ -66,7 +66,7 @@ llm-optimize Storage @burn: round 2: nothing cheaper
       v7 = add v6, arg1
       sstore v5, v7
       ret
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   
@@ -75,12 +75,12 @@ llm-optimize Storage @burn: round 2: nothing cheaper
       v0 = tload 0
       v1 = ne v0, 0
       jumpi v1, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       tstore 0, 1
       sstore 5, arg0
       tstore 0, 0
       ret
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       revert 0, 0
   }
   
@@ -88,9 +88,9 @@ llm-optimize Storage @burn: round 2: nothing cheaper
     bb0:
       v0 = lt arg0, 100
       jumpi v0, bb1, bb2
-    bb2:  ; preds = bb0
+    bb2:                                            ; preds = bb0
       ret
-    bb1 [cold]:  ; preds = bb0
+    bb1 [cold]:                                     ; preds = bb0
       sstore 9, arg0
       revert 0, 0
   }

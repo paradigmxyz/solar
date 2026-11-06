@@ -9,8 +9,8 @@ llm-optimize Basics @identity: round 1: rejected at equivalence: the original re
 llm-optimize Basics @identity: round 2: accepted at 43 gas, 17 bytes
 llm-optimize Basics @identity: round 3: nothing cheaper
 llm-optimize Basics @identity: rewritten from 62 gas, 24 bytes to 43 gas, 17 bytes
-- // === ROOT/tests/ui/codegen/mir/llm-optimize/basics.mir (before llm-optimize) ===
-+ // === ROOT/tests/ui/codegen/mir/llm-optimize/basics.mir (after llm-optimize) ===
+- ; === ROOT/tests/ui/codegen/mir/llm-optimize/basics.mir (before llm-optimize) ===
++ ; === ROOT/tests/ui/codegen/mir/llm-optimize/basics.mir (after llm-optimize) ===
   @module Basics
   @phase lowered
   ; runtime dispatch entry
