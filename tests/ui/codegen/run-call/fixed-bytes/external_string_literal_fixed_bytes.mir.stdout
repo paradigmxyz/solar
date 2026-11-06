@@ -1,0 +1,27 @@
+; === ROOT/tests/ui/codegen/run-call/fixed-bytes/external_string_literal_fixed_bytes.sol:ExternalStringLiteralFixedBytes ===
+@module ExternalStringLiteralFixedBytes
+; function take(bytes32 value) external pure returns (bytes32) [selector 0xcc9ae693]
+fn @take(arg0: i256) -> i256 [selector=0xcc9ae693, pure, abi_params=[bytes32], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    ret arg0
+}
+
+; function callLiteral() external view returns (bytes32) [selector 0x74903211]
+fn @callLiteral() -> i256 [selector=0x74903211, view, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    mstore 0, 0xcc9ae693 !metadata(memory=scratch)
+    mstore 32, 0x312e302e31000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 36, 0, 32
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = mload 0 !metadata(memory=scratch)
+    ret v6
+}

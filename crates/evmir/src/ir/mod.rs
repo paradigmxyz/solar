@@ -13,10 +13,7 @@
 //! is not defined by that serialization, and `verify` checks its invariants.
 
 use crate::{
-    debug::{
-        DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugLocKind, DebugSpans,
-        DistinctSpans,
-    },
+    debug::{DebugFunction, DebugFunctionExit, DebugLocKind, DebugSpans, DistinctSpans},
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
     op::{self, StackOp, TrackedWord},
 };
@@ -199,32 +196,23 @@ impl Module {
         (next < self.blocks.len()).then(|| BlockId::from_usize(next))
     }
 
-    /// Returns checkpoints whose labels still have one direct incoming reference from the
-    /// recorded transfer. Opaque label uses, physical fallthrough and shared entries cannot prove
-    /// that execution reached the removed source operation.
-    pub fn valid_entry_checkpoints(&self) -> DenseBitSet<BlockId> {
+    /// Returns the blocks whose lent function entry is still valid: the label has exactly one
+    /// reference, a direct jump or branch to it. An opaque label use, a physical fallthrough, the
+    /// program entry or a second incoming edge means the event no longer marks the transfer that
+    /// entered the function.
+    pub fn valid_lent_invokes(&self) -> DenseBitSet<BlockId> {
         let mut seen = DenseBitSet::new_empty(self.blocks.len());
-        if !self.blocks.iter().any(|block| block.metadata.entry_checkpoint.is_some()) {
+        if !self.blocks.iter().any(|block| block.metadata.lent_invoke.is_some()) {
             return seen;
         }
         let mut invalid = DenseBitSet::new_empty(self.blocks.len());
-        let mut reference = |target: BlockId, metadata: Option<&Metadata>| {
-            let Some(checkpoint) = self.blocks[target].metadata.entry_checkpoint else { return };
-            if !seen.insert(target)
-                || !metadata.is_some_and(|metadata| {
-                    metadata.source_spans() == [checkpoint.transfer]
-                        || (metadata.source_spans().is_empty()
-                            && (metadata.checkpoint_transfers().contains(&checkpoint.transfer)
-                                || metadata.function_invoke().is_some_and(|function| {
-                                    function.declaration == checkpoint.transfer
-                                })))
-                })
-            {
+        let mut reference = |target: BlockId, direct: bool| {
+            if !seen.insert(target) || !direct {
                 invalid.insert(target);
             }
         };
         if !self.blocks.is_empty() {
-            reference(BlockId::ENTRY, None);
+            reference(BlockId::ENTRY, false);
         }
         for (id, block) in self.blocks.iter_enumerated() {
             for (index, inst) in block.instructions.iter().enumerate() {
@@ -237,14 +225,13 @@ impl Module {
                             && block.terminator.as_ref().is_some_and(|term| {
                                 matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))
                             }));
-                    reference(target, direct.then_some(&inst.metadata));
+                    reference(target, direct);
                 }
             }
             if let Some(term) = &block.terminator {
                 let direct =
                     matches!(term.kind, TerminatorKind::Jump(_) | TerminatorKind::JumpI { .. });
-                term.kind
-                    .visit_targets(|target| reference(target, direct.then_some(&term.metadata)));
+                term.kind.visit_targets(|target| reference(target, direct));
             }
             let falls_through = match block.terminator.as_ref().map(|term| &term.kind) {
                 Some(TerminatorKind::Op(opcode)) => !op::is_terminal(*opcode),
@@ -252,22 +239,23 @@ impl Module {
                 None => block.instructions.last().is_none_or(|inst| !op::is_terminal(inst.opcode)),
             };
             if falls_through && let Some(next) = self.next_block(id) {
-                reference(next, None);
+                reference(next, false);
             }
         }
         seen.subtract(&invalid);
         seen
     }
 
-    /// Drops checkpoints as soon as a transform invalidates their exclusive-entry proof.
-    pub fn drop_invalid_entry_checkpoints(&mut self) {
-        if !self.blocks.iter().any(|block| block.metadata.entry_checkpoint.is_some()) {
+    /// Drops lent function entries as soon as a transform invalidates their exclusive-entry
+    /// check.
+    pub fn drop_invalid_lent_invokes(&mut self) {
+        if !self.blocks.iter().any(|block| block.metadata.lent_invoke.is_some()) {
             return;
         }
-        let valid = self.valid_entry_checkpoints();
+        let valid = self.valid_lent_invokes();
         for (id, block) in self.blocks.iter_mut_enumerated() {
             if !valid.contains(id) {
-                block.metadata.entry_checkpoint = None;
+                block.metadata.lent_invoke = None;
             }
         }
     }
@@ -286,6 +274,11 @@ pub struct Block {
     /// Block metadata. The hot/cold field is present before it is consumed by
     /// layout so fixtures can pin the format early.
     pub metadata: BlockMetadata,
+    /// Source origin of this block's `JUMPDEST`, the location active where its label is placed.
+    /// Only the source spans and the modifier depth are meaningful. Like instruction origins it
+    /// is debug information: it never changes the executable code, and a block without a label
+    /// has none.
+    pub label_metadata: Metadata,
     /// Non-terminating EVM backend instructions.
     pub instructions: Vec<Instruction>,
     /// Optional control-flow terminator.
@@ -299,6 +292,7 @@ impl Block {
         Self {
             label,
             metadata: BlockMetadata::default(),
+            label_metadata: Metadata::default(),
             instructions: Vec::new(),
             terminator: None,
         }
@@ -354,8 +348,14 @@ pub struct BlockMetadata {
     /// Direct jumps to the block are calls, and the return address is a block's address that the
     /// caller pushed before them. See [`CallEffect`].
     pub call_effect: Option<CallEffect>,
-    /// A removed transfer's checkpoint on this block's existing leading `JUMPDEST`.
-    pub entry_checkpoint: Option<DebugEntryCheckpoint>,
+    /// A function entry lent to this block by a bypassed conditional thunk.
+    ///
+    /// NOTE: The event marks the callee's entry, so it sits on the destination only while the
+    /// bypassed edge is the label's only entry, which [`Module::valid_lent_invokes`] checks after
+    /// every pass. Where frame events belong is decision D2 in
+    /// <https://ampcode.com/artifacts/debug-info-across-rewrites-one-rule-per-case-vs-llvm-clang-r-e66f5371-2c50-4a89-8817-1460e914d7ff>
+    /// (§3 "Frame events", §7); the frame-event placement change settles it.
+    pub lent_invoke: Option<DebugFunction>,
 }
 
 /// How code returns to its caller through a dynamic `jump`.
@@ -921,9 +921,6 @@ pub struct Metadata {
     modifier_depth: u32,
     /// Why the operation has no source origin, when it has none.
     debug_loc_kind: DebugLocKind,
-    /// Identities of removed thunk entries reached by this transfer, not function events.
-    /// These only validate exclusive destination checkpoints and are never emitted as calls.
-    checkpoint_transfers: DebugSpans,
 }
 
 fn common_debug_event<T: Eq>(mut events: impl Iterator<Item = T>) -> Option<T> {
@@ -1028,12 +1025,6 @@ impl Metadata {
         }
     }
 
-    /// Rule E1, move, for checkpoint proofs: adds the proofs of the operation they were recorded
-    /// on, which are not function events.
-    pub fn move_checkpoint_transfers(&mut self, from: &Self) {
-        self.add_checkpoint_transfers(from.checkpoint_transfers.iter().copied());
-    }
-
     /// Rule E2, merge events: keeps an event only if every operation that has one agrees, like
     /// solc's `BlockDeduplicator` keeping one block's `JumpType` for equivalent blocks.
     pub fn merge_function_events<'a>(
@@ -1054,12 +1045,11 @@ impl Metadata {
         );
     }
 
-    /// Rule E3, drop events: forgets the function events and checkpoint proofs, as solc loses the
+    /// Rule E3, drop events: forgets the function events, as solc loses the
     /// `JumpType` of a deleted `JUMP`.
     pub fn drop_function_events(&mut self) {
         self.function_invoke = None;
         self.function_exit = None;
-        self.checkpoint_transfers.clear();
     }
 
     /// Returns the function entered after this operation.
@@ -1105,29 +1095,6 @@ impl Metadata {
     #[must_use]
     pub fn lacks_debug_location(&self) -> bool {
         self.debug_loc_kind == DebugLocKind::Normal && self.source_spans.is_empty()
-    }
-
-    /// Returns identities used only to validate removed entry checkpoints.
-    #[must_use]
-    pub fn checkpoint_transfers(&self) -> &[Span] {
-        &self.checkpoint_transfers
-    }
-
-    /// Records a checkpoint proof without describing a function activation.
-    pub fn add_checkpoint_transfer(&mut self, span: Span) {
-        self.add_checkpoint_transfers([span]);
-    }
-
-    /// Records several checkpoint proofs, keeping the work linear in their number.
-    pub fn add_checkpoint_transfers(&mut self, spans: impl IntoIterator<Item = Span>) {
-        let mut distinct = DistinctSpans::default();
-        for span in spans {
-            if !span.is_dummy()
-                && distinct.is_new(span, || self.checkpoint_transfers.iter().copied())
-            {
-                self.checkpoint_transfers.push(span);
-            }
-        }
     }
 }
 

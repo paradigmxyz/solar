@@ -65,25 +65,6 @@ pub enum DebugFunctionExit {
     Revert,
 }
 
-/// A removed transfer's source checkpoint carried by an existing destination label.
-/// The label must still have exactly one direct incoming reference with `transfer` as its sole
-/// source origin, or as an explicit checkpoint identity when it has no source origin. An existing
-/// function invocation's declaration also identifies an unlocated transfer. This proof is
-/// rechecked after transformations; it never keeps a label alive or invents a function event.
-/// Any borrowed function entry is owned by this checkpoint and disappears with its proof.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DebugEntryCheckpoint {
-    /// Source operation executed on entry to the label.
-    pub source: Span,
-    /// Source or checkpoint identity of the transfer that exclusively reaches this label.
-    pub transfer: Span,
-    /// Modifier depth of the source operation.
-    pub modifier_depth: u32,
-    /// Function entry that is valid only while this checkpoint's exclusive-entry proof holds.
-    /// Native block entries are independent and must not be stored here.
-    pub function_invoke: Option<DebugFunction>,
-}
-
 /// Why an instruction or terminator has the source origins it has, or none.
 ///
 /// This copies LLVM's `DebugLoc::Kind` (`llvm/include/llvm/IR/DebugLoc.h` L51-L73). Only

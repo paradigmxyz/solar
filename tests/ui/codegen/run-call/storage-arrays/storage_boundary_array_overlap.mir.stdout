@@ -1,0 +1,85 @@
+; === ROOT/tests/ui/codegen/run-call/storage-arrays/storage_boundary_array_overlap.sol:StorageBoundaryArrayOverlap ===
+@module StorageBoundaryArrayOverlap
+@types
+  struct0: {i256, i256, i256}
+
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    ret
+}
+
+; getter for `uint256 public y` [selector 0xa56dfe4a]
+fn @y() -> i256 [selector=0xa56dfe4a, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; function getArray() internal pure returns (uint256[10][1] storage arr)
+fn @getArray() -> i256 [pure] {
+  bb0:
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
+}
+
+; function test() public returns (uint256 beforeFill, uint256 afterFill, uint256 afterClear) [selector 0xf8a8fd6d]
+fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = icall @getArray
+    v1 = lt 0, 1
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = lt 5, 10
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = add v0, 5
+    v6 = sload v5 !metadata(storage=offset(v0, 5))
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v7 = phi [bb0: v6], [bb3: v7]
+    v8 = phi [bb0: 0], [bb3: v8]
+    v9 = phi [bb0: 0], [bb3: v9]
+    v10 = phi [bb0: 1], [bb3: v18]
+    v11 = phi [bb0: v0], [bb3: v11]
+    v12 = lt v10, 10
+    jumpi v12, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    v19 = sload 0 !metadata(storage=slot(0))
+    v20 = lt 0, 1
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    jump bb7
+  bb7:                                            ; preds = bb2, bb8
+    v22 = phi [bb2: 0], [bb8: v25]
+    v23 = lt v22, 10
+    jumpi v23, bb8, bb9
+  bb9:                                            ; preds = bb7
+    v26 = sload 0 !metadata(storage=slot(0))
+    v27 = insert_value struct0, undef struct0, 0, v7
+    v28 = insert_value struct0, v27, 1, v19
+    v29 = insert_value struct0, v28, 2, v26
+    ret v29
+  bb8:                                            ; preds = bb7
+    v24 = add v11, v22
+    sstore v24, 0 !metadata(storage=symbolic(v24))
+    v25 = add v22, 1
+    jump bb7
+  bb4:                                            ; preds = bb1
+    v13 = lt 0, 1
+    v14 = eq v13, false
+    icall panic_if<0x32>, v14
+    v15 = lt v10, 10
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = add v11, v10
+    sstore v17, v10 !metadata(storage=symbolic(v17))
+    jump bb6
+  bb6:                                            ; preds = bb4
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v18 = checked_add uint256, v10, 1
+    jump bb1
+}

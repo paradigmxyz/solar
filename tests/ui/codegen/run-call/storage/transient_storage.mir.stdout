@@ -1,0 +1,136 @@
+; === ROOT/tests/ui/codegen/run-call/storage/transient_storage.sol:TransientStorage ===
+@module TransientStorage
+@types
+  struct0: {i256, i256, i256, i256, i256, i256}
+  struct1: {i256, i256, i256}
+  struct2: {i256, i256}
+
+; getter for `uint256 public transient temporary` [selector 0x52099d8b]
+fn @temporary() -> i256 [selector=0x52099d8b, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = tload 0
+    ret v0
+}
+
+; function separateSpaces(uint256 stored, uint256 temporaryValue) external returns ( uint256 storedValue, uint256 transientValue, uint256 storedWord, uint256 transientWord, uint256 storedSlot, uint256 transientSlot ) [selector 0x9ef32708]
+fn @separateSpaces(arg0: i256, arg1: i256) -> struct0 [selector=0x9ef32708, abi_params=[uint256, uint256], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
+  bb0:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    tstore 0, arg1
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = tload 0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = tload 0
+    v4 = insert_value struct0, undef struct0, 0, v0
+    v5 = insert_value struct0, v4, 1, v1
+    v6 = insert_value struct0, v5, 2, v2
+    v7 = insert_value struct0, v6, 3, v3
+    v8 = insert_value struct0, v7, 4, 0
+    v9 = insert_value struct0, v8, 5, 0
+    ret v9
+}
+
+; function packed() external returns (uint16, uint16, uint256 word) [selector 0x8f23d5f6]
+fn @packed() -> struct1 [selector=0x8f23d5f6, abi_params=[], abi_returns=[word<uint16>, word<uint16>, word], abi_return_params=[uint16, uint16, uint256]] {
+  bb0:
+    v0 = tload 1
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v2 = or v1, 0x1122
+    tstore 1, v2
+    v3 = tload 1
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000ffff
+    v5 = or v4, 0x33440000
+    tstore 1, v5
+    v6 = tload 1
+    v7 = tload 1
+    v8 = trunc i256 v7 to i16
+    v9 = tload 1
+    v10 = shr v9, 16
+    v11 = trunc i256 v10 to i16
+    v12 = zext i16 v8 to i256
+    v13 = zext i16 v11 to i256
+    v14 = insert_value struct1, undef struct1, 0, v12
+    v15 = insert_value struct1, v14, 1, v13
+    v16 = insert_value struct1, v15, 2, v6
+    ret v16
+}
+
+; function signed() external returns (int16) [selector 0x232a6b9d]
+fn @signed() -> i16 [selector=0x232a6b9d, abi_params=[], abi_returns=[word<int16>], abi_return_params=[int16]] {
+  bb0:
+    v0 = tload 1
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffff0000ffffffff
+    v2 = or v1, 0xfffe00000000
+    tstore 1, v2
+    v3 = tload 1
+    v4 = shr v3, 32
+    v5 = signextend 1, v4
+    v6 = trunc i256 v5 to i16
+    ret v6
+}
+
+; function clear() external returns (uint256 value, uint256 word) [selector 0x52efea6e]
+fn @clear() -> struct2 [selector=0x52efea6e, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    tstore 0, 42
+    tstore 0, 0
+    v0 = tload 0
+    v1 = tload 0
+    v2 = insert_value struct2, undef struct2, 0, v0
+    v3 = insert_value struct2, v2, 1, v1
+    ret v3
+}
+
+; function getter() external returns (uint256) [selector 0x993a04b7]
+fn @getter() -> i256 [selector=0x993a04b7, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    tstore 0, 77
+    v0 = address
+    v1 = gas
+    mstore 0, 0x52099d8b !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = staticcall v1, v2, 28, 4, 0, 32
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = returndatasize
+    v5 = lt v4, 32
+    icall revert_if<tuple_data_too_short>, v5
+    v6 = mload 0 !metadata(memory=scratch)
+    ret v6
+}
+
+; === ROOT/tests/ui/codegen/run-call/storage/transient_storage.sol:TransientModifier ===
+@module TransientModifier
+; function run() external bump(value) returns (uint16) [selector 0xc0406226]
+fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint16>], abi_return_params=[uint16]] {
+  bb0:
+    v0 = tload 0
+    v1 = trunc i256 v0 to i16
+    v2 = tload 0
+    v3 = trunc i256 v2 to i16
+    v4 = checked_add uint16, v3, i16 10
+    v5 = tload 0
+    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v7 = zext i16 v4 to i256
+    v8 = and v7, 0xffff
+    v9 = or v6, v8
+    tstore 0, v9
+    v10 = tload 0
+    v11 = trunc i256 v10 to i16
+    v12 = checked_mul uint16, v11, i16 10
+    v13 = tload 0
+    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
+    v15 = zext i16 v12 to i256
+    v16 = and v15, 0xffff
+    v17 = or v14, v16
+    tstore 0, v17
+    v18 = tload 0
+    v19 = trunc i256 v18 to i16
+    jump bb2
+  bb2:                                            ; preds = bb0
+    jump bb1
+  bb1:                                            ; preds = bb2
+    ret v19
+}

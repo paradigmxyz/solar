@@ -1,0 +1,144 @@
+; === ROOT/tests/ui/codegen/run-call/storage/state_string_initializers.sol:StateStringInitializers ===
+@module StateStringInitializers
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 11
+    v1 = ptradd v0, 32
+    mstore v1, 0x4e61746976654552433230000000000000000000000000000000000000000000
+    icall @store_storage_bytes, 0, v0
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 6
+    v3 = ptradd v2, 32
+    mstore v3, 0x4e45524332300000000000000000000000000000000000000000000000000000
+    icall @store_storage_bytes, 1, v2
+    v4 = sload 2 !metadata(storage=slot(2))
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v6 = or v5, 18
+    sstore 2, v6 !metadata(storage=slot(2))
+    ret
+}
+
+; getter for `string public name` [selector 0x06fdde03]
+fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 0
+    ret v0
+}
+
+; getter for `string public symbol` [selector 0x95d89b41]
+fn @symbol() -> ptr<memory> [selector=0x95d89b41, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 1
+    ret v0
+}
+
+; getter for `uint8 public decimals` [selector 0x313ce567]
+fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    v1 = trunc i256 v0 to i8
+    ret v1
+}
+
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}
+
+; === ROOT/tests/ui/codegen/run-call/storage/state_string_initializers.sol:DeployStateStringInitializers ===
+@module DeployStateStringInitializers
+@types
+  struct0: {ptr<memory>, ptr<memory>, i8}
+
+@data
+  StateStringInitializers_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/storage/state_string_initializers.sol:StateStringInitializers"
+
+; function deploys() external returns (bool) [selector 0x225b4d71]
+fn @deploys() -> i1 [selector=0x225b4d71, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = datasize StateStringInitializers_creation_code_0
+    v1 = fmp
+    datacopy StateStringInitializers_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = zext i160 v2 to i256
+    v5 = extcodesize v4
+    v6 = ne v5, 0
+    ret v6
+}
+
+; function deploy() external returns (string memory, string memory, uint8) [selector 0x775c300c]
+fn @deploy() -> struct0 [selector=0x775c300c, abi_params=[], abi_returns=[memory_bytes, memory_bytes, word<uint8>], abi_return_params=[bytes, bytes, uint8]] {
+  bb0:
+    v0 = datasize StateStringInitializers_creation_code_0
+    v1 = fmp
+    datacopy StateStringInitializers_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = gas
+    mstore 0, 0x6fdde03 !metadata(memory=scratch)
+    v5 = zext i160 v2 to i256
+    v6 = staticcall v4, v5, 28, 4, 0, 0
+    jumpi v6, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v7 = returndatasize
+    v8 = add v7, 31
+    v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v10 = alloc v9
+    returndatacopy v10, 0, v7
+    v11 = make_memory_slice v10, v7
+    v12 = abi_decode [bytes], v11
+    v13 = gas
+    mstore 0, 0x95d89b41 !metadata(memory=scratch)
+    v14 = zext i160 v2 to i256
+    v15 = staticcall v13, v14, 28, 4, 0, 0
+    jumpi v15, bb6, bb5
+  bb5:                                            ; preds = bb4
+    revert_returndata
+  bb6:                                            ; preds = bb4
+    v16 = returndatasize
+    v17 = add v16, 31
+    v18 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v19 = alloc v18
+    returndatacopy v19, 0, v16
+    v20 = make_memory_slice v19, v16
+    v21 = abi_decode [bytes], v20
+    v22 = gas
+    mstore 0, 0x313ce567 !metadata(memory=scratch)
+    v23 = zext i160 v2 to i256
+    v24 = staticcall v22, v23, 28, 4, 0, 32
+    jumpi v24, bb8, bb7
+  bb7:                                            ; preds = bb6
+    revert_returndata
+  bb8:                                            ; preds = bb6
+    v25 = returndatasize
+    v26 = lt v25, 32
+    icall revert_if<tuple_data_too_short>, v26
+    v27 = mload 0 !metadata(memory=scratch)
+    v28 = gt v27, 255
+    icall revert_if<empty>, v28
+    v29 = trunc i256 v27 to i8
+    v30 = insert_value struct0, undef struct0, 0, v12
+    v31 = insert_value struct0, v30, 1, v21
+    v32 = insert_value struct0, v31, 2, v29
+    ret v32
+}

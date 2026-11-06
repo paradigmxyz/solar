@@ -14,7 +14,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{Ident, Session, Symbol, config::OptimizationMode, sym};
+use solar_interface::{Ident, Session, Span, Symbol, config::OptimizationMode, sym};
 use solar_ir::link::{ContractCode, LibraryTable, QualifiedName, Trailer};
 use std::{borrow::Cow, fmt, sync::Arc};
 
@@ -87,6 +87,10 @@ pub struct Module {
     pub libraries: LibraryTable,
     /// Module/contract name.
     pub name: Ident,
+    /// Source span of the complete contract definition, or dummy for modules not lowered from
+    /// Solidity. Code the compiler adds for the whole contract, such as the dispatcher, takes it
+    /// as its origin.
+    pub contract_span: Span,
     /// Fixed aggregate types, with nested types declared before their users.
     pub struct_types: IndexVec<StructId, StructType>,
     /// All functions in this module.
@@ -189,6 +193,7 @@ impl Module {
     pub fn new(name: Ident) -> Self {
         Self {
             name,
+            contract_span: Span::DUMMY,
             functions: IndexVec::new(),
             struct_types: IndexVec::new(),
             dispatch_entry: None,
