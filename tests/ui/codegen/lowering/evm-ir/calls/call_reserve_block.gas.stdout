@@ -1,0 +1,124 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/calls/call_reserve_block.sol:ReserveCallee (runtime) ===
+@module ReserveCallee_runtime
+bb0:                                              ; runtime dispatch entry + function value() external pure returns (uint256) [selector 0x3fa4f245]
+  callvalue
+  push bb3
+  jumpi
+  push 224
+  push 2
+  exp
+  push 0
+  calldataload
+  div
+  dup 1
+  push 0x3fa4f245
+  sub
+  push bb3
+  jumpi
+  push 42
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb3 [cold]:
+  push 0
+  dup 1
+  invalid
+; === ROOT/tests/ui/codegen/lowering/evm-ir/calls/call_reserve_block.sol:ReserveBlock (runtime) ===
+@module ReserveBlock_runtime
+bb0:                                              ; runtime dispatch entry + function fixedGas() external returns (uint256) [selector 0x9a1f63d8]
+  callvalue
+  push bb4
+  jumpi
+  push 224
+  push 2
+  exp
+  push 0
+  calldataload
+  div
+  dup 1
+  push 0x2f5f3b3c
+  eq
+  push bb9
+  jumpi
+  dup 1
+  push 0x9a1f63d8
+  sub
+  push bb4
+  jumpi
+  push 0
+  sload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  and
+  push 128
+  push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+  dup 2
+  mstore
+  dup 2
+  extcodesize
+  iszero
+  push bb4
+  jumpi
+  push 32
+  dup 2
+  push 4
+  dup 2
+  push 0
+  dup 7
+  push 0xc350
+  call
+  iszero
+  push bb4
+  jumpi
+  mload
+  push 0
+  mstore
+  push 32
+  push 0
+  return
+bb4 [cold]:
+  push 0
+  dup 1
+  invalid
+bb9 [entry]:                                      ; function pointer() external returns (uint256) [selector 0x2f5f3b3c]
+  push 0
+  sload
+  push 0
+  push 160
+  mstore
+  push 128
+  push 32
+  dup 2
+  add
+  push 64
+  mstore
+  push 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+  dup 2
+  mstore
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  dup 3
+  and
+  extcodesize
+  iszero
+  push bb4
+  jumpi
+  push 32
+  dup 2
+  push 4
+  dup 2
+  push 0
+  dup 7
+  push 50
+  gas !metadata(keep_with_next)
+  sub !metadata(keep_with_next)
+  call
+  iszero
+  push bb4
+  jumpi
+  mload
+  push 0
+  mstore
+  push 32
+  push 0
+  return

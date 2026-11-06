@@ -1,0 +1,409 @@
+; === ROOT/tests/ui/codegen/lowering/mir/calls/try_bare_catch_evm_version.sol:TryCallee ===
+@module TryCallee
+@types
+  struct0: {i256, i256}
+
+; function value() external pure returns (uint256) [selector 0x3fa4f245]
+fn @value() -> i256 [selector=0x3fa4f245, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 42
+}
+
+; function pair() external pure returns (uint256, uint256) [selector 0xa8aa1b31]
+fn @pair() -> struct0 [selector=0xa8aa1b31, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, 1
+    v1 = insert_value struct0, v0, 1, 2
+    ret v1
+}
+
+; function agg() external pure returns (uint256[2] memory r) [selector 0xf5e34bfa]
+fn @agg() -> ptr<memory> [selector=0xf5e34bfa, pure, abi_params=[], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = lt 0, 2
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    mstore v0, 11
+    v3 = lt 1, 2
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v0, 32
+    mstore v5, 22
+    ret v0
+}
+
+; function noop() external [selector 0x5dfc2e4a]
+fn @noop() [selector=0x5dfc2e4a, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function fail() external payable returns (uint256) [selector 0xa9cc4718]
+fn @fail() -> i256 [selector=0xa9cc4718, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    icall revert_if<empty>, true
+    invalid
+}
+
+; === ROOT/tests/ui/codegen/lowering/mir/calls/try_bare_catch_evm_version.sol:TryBareCatch ===
+@module TryBareCatch
+@data
+  TryCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/mir/calls/try_bare_catch_evm_version.sol:TryCallee"
+
+; function live() external returns (uint256 r) [selector 0x957aa58c]
+fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = fmp
+    v5 = ptrtoint ptr<memory> v4 to i256
+    v6 = add v5, 32
+    mstore v6, 0
+    v7 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
+    v10 = zext i160 v2 to i256
+    v11 = extcodesize v10
+    v12 = eq v11, 0
+    icall revert_if<target_contract_has_no_code>, v12
+    v13 = gas
+    v14 = sub v13, 50
+    v15 = zext i160 v2 to i256
+    v16 = call v14, v15, 0, v8, v9, v8, 32
+    jumpi v16, bb3, bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jumpi true, bb6, bb7
+  bb7 [cold_hint]:                                ; preds = bb4
+    icall revert_if<empty>, true
+    invalid
+  bb6 [cold_hint]:                                ; preds = bb4
+    jump bb5
+  bb3:                                            ; preds = bb2
+    v17 = mload v8
+    jump bb5
+  bb5:                                            ; preds = bb3, bb6
+    v18 = phi [bb3: v17], [bb6: 7]
+    ret v18
+}
+
+; function liveTwo() external returns (uint256 r) [selector 0xa9b44a2a]
+fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = fmp
+    v5 = ptrtoint ptr<memory> v4 to i256
+    v6 = add v5, 64
+    mstore v6, 0
+    v7 = abi_encode [], selector 0xa8aa1b3100000000000000000000000000000000000000000000000000000000
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
+    v10 = zext i160 v2 to i256
+    v11 = extcodesize v10
+    v12 = eq v11, 0
+    icall revert_if<target_contract_has_no_code>, v12
+    v13 = gas
+    v14 = sub v13, 50
+    v15 = zext i160 v2 to i256
+    v16 = call v14, v15, 0, v8, v9, v8, 64
+    jumpi v16, bb3, bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jumpi true, bb6, bb7
+  bb7 [cold_hint]:                                ; preds = bb4
+    icall revert_if<empty>, true
+    invalid
+  bb6 [cold_hint]:                                ; preds = bb4
+    jump bb5
+  bb3:                                            ; preds = bb2
+    v17 = mload v8
+    v18 = ptrtoint ptr<memory> v8 to i256
+    v19 = add v18, 32
+    v20 = mload v19
+    v21 = checked_add uint256, v17, v20
+    jump bb5
+  bb5:                                            ; preds = bb3, bb6
+    v22 = phi [bb3: v21], [bb6: 7]
+    ret v22
+}
+
+; function liveAggregate() external returns (uint256 r) [selector 0xc64a4ee9]
+fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = alloc 64
+    v5 = fmp
+    v6 = ptrtoint ptr<memory> v5 to i256
+    v7 = add v6, 64
+    mstore v7, 0
+    v8 = abi_encode [], selector 0xf5e34bfa00000000000000000000000000000000000000000000000000000000
+    v9 = extract_value slice<memory>, v8, 0
+    v10 = extract_value slice<memory>, v8, 1
+    v11 = zext i160 v2 to i256
+    v12 = extcodesize v11
+    v13 = eq v12, 0
+    icall revert_if<target_contract_has_no_code>, v13
+    v14 = gas
+    v15 = sub v14, 50
+    v16 = zext i160 v2 to i256
+    v17 = call v15, v16, 0, v9, v10, v9, 64
+    jumpi v17, bb3, bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jumpi true, bb6, bb7
+  bb7 [cold_hint]:                                ; preds = bb4
+    icall revert_if<empty>, true
+    invalid
+  bb6 [cold_hint]:                                ; preds = bb4
+    jump bb5
+  bb3:                                            ; preds = bb2
+    mcopy v4, v9, 64
+    v18 = make_memory_slice v4, 64
+    v19 = abi_decode [array<2, uint256>], v18
+    v20 = lt 0, 2
+    v21 = eq v20, false
+    icall panic_if<0x32>, v21
+    v22 = mload v19
+    v23 = lt 1, 2
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = ptradd v19, 32
+    v26 = mload v25
+    v27 = checked_add uint256, v22, v26
+    jump bb5
+  bb5:                                            ; preds = bb3, bb6
+    v28 = phi [bb3: v27], [bb6: 7]
+    ret v28
+}
+
+; function liveNoReturn() external returns (uint256 r) [selector 0x0f81fb69]
+fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v5 = extract_value slice<memory>, v4, 0
+    v6 = extract_value slice<memory>, v4, 1
+    v7 = zext i160 v2 to i256
+    v8 = extcodesize v7
+    v9 = eq v8, 0
+    icall revert_if<target_contract_has_no_code>, v9
+    v10 = gas
+    v11 = sub v10, 50
+    v12 = zext i160 v2 to i256
+    v13 = call v11, v12, 0, v5, v6, v5, 0
+    jumpi v13, bb3, bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jumpi true, bb6, bb7
+  bb7 [cold_hint]:                                ; preds = bb4
+    icall revert_if<empty>, true
+    invalid
+  bb6 [cold_hint]:                                ; preds = bb4
+    jump bb5
+  bb3:                                            ; preds = bb2
+    jump bb5
+  bb5:                                            ; preds = bb3, bb6
+    v14 = phi [bb3: 1], [bb6: 7]
+    ret v14
+}
+
+; function liveCatch() external returns (uint256 r) [selector 0x852bf1e6]
+fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = fmp
+    v5 = ptrtoint ptr<memory> v4 to i256
+    v6 = add v5, 32
+    mstore v6, 0
+    v7 = abi_encode [], selector 0xa9cc471800000000000000000000000000000000000000000000000000000000
+    v8 = extract_value slice<memory>, v7, 0
+    v9 = extract_value slice<memory>, v7, 1
+    v10 = zext i160 v2 to i256
+    v11 = extcodesize v10
+    v12 = eq v11, 0
+    icall revert_if<target_contract_has_no_code>, v12
+    v13 = gas
+    v14 = sub v13, 0x235a
+    v15 = zext i160 v2 to i256
+    v16 = call v14, v15, 1, v8, v9, v8, 32
+    jumpi v16, bb3, bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jumpi true, bb6, bb7
+  bb7 [cold_hint]:                                ; preds = bb4
+    icall revert_if<empty>, true
+    invalid
+  bb6 [cold_hint]:                                ; preds = bb4
+    jump bb5
+  bb3:                                            ; preds = bb2
+    v17 = mload v8
+    jump bb5
+  bb5:                                            ; preds = bb3, bb6
+    v18 = phi [bb3: v17], [bb6: 7]
+    ret v18
+}
+
+; function livePointer() external returns (uint256 r) [selector 0x6347cf88]
+fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = zext i160 v2 to i256
+    v5 = shl v4, 32
+    v6 = or v5, 0x3fa4f245
+    v7 = and v6, 0xffffffff
+    v8 = shl v7, 224
+    v9 = shr v6, 32
+    v10 = fmp
+    v11 = ptrtoint ptr<memory> v10 to i256
+    v12 = add v11, 32
+    mstore v12, 0
+    v13 = abi_encode [], selector v8
+    v14 = extract_value slice<memory>, v13, 0
+    v15 = extract_value slice<memory>, v13, 1
+    v16 = extcodesize v9
+    v17 = eq v16, 0
+    icall revert_if<target_contract_has_no_code>, v17
+    v18 = gas
+    v19 = sub v18, 50
+    v20 = call v19, v9, 0, v14, v15, v14, 32
+    jumpi v20, bb3, bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jumpi true, bb6, bb7
+  bb7 [cold_hint]:                                ; preds = bb4
+    icall revert_if<empty>, true
+    invalid
+  bb6 [cold_hint]:                                ; preds = bb4
+    jump bb5
+  bb3:                                            ; preds = bb2
+    v21 = mload v14
+    jump bb5
+  bb5:                                            ; preds = bb3, bb6
+    v22 = phi [bb3: v21], [bb6: 7]
+    ret v22
+}
+
+; function liveCreation() external returns (uint256 r) [selector 0xb217934d]
+fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize TryCallee_creation_code_0
+    v1 = fmp
+    datacopy TryCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jumpi true, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2
+    icall revert_if<empty>, true
+    invalid
+  bb4 [cold_hint]:                                ; preds = bb2
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    v4 = phi [bb1: 1], [bb4: 7]
+    ret v4
+}
+
+; function noCode() external returns (uint256 r) [selector 0x96c56dce]
+fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = fmp
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = add v1, 32
+    mstore v2, 0
+    v3 = abi_encode [], selector 0x3fa4f24500000000000000000000000000000000000000000000000000000000
+    v4 = extract_value slice<memory>, v3, 0
+    v5 = extract_value slice<memory>, v3, 1
+    v6 = extcodesize 0
+    v7 = eq v6, 0
+    icall revert_if<target_contract_has_no_code>, v7
+    v8 = gas
+    v9 = sub v8, 50
+    v10 = call v9, 0, 0, v4, v5, v4, 32
+    jumpi v10, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jumpi true, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2
+    icall revert_if<empty>, true
+    invalid
+  bb4 [cold_hint]:                                ; preds = bb2
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v11 = mload v4
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    v12 = phi [bb1: v11], [bb4: 7]
+    ret v12
+}
+
+; function noCodeNoReturn() external returns (uint256 r) [selector 0xac1b26c4]
+fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = abi_encode [], selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    v3 = extcodesize 0
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
+    v5 = gas
+    v6 = sub v5, 50
+    v7 = call v6, 0, 0, v1, v2, v1, 0
+    jumpi v7, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jumpi true, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2
+    icall revert_if<empty>, true
+    invalid
+  bb4 [cold_hint]:                                ; preds = bb2
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    v8 = phi [bb1: 1], [bb4: 7]
+    ret v8
+}

@@ -1,0 +1,61 @@
+; === ROOT/tests/ui/codegen/lowering/mir/storage-memory/storage_bytes_from_calldata.sol:StorageBytesFromCalldata ===
+@module StorageBytesFromCalldata
+; function setText(string calldata value) external [selector 0x5d3a1f9d]
+fn @setText(arg0: slice<calldata>) [selector=0x5d3a1f9d, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = add v0, 31
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 32
+    v4 = alloc v3
+    mstore v4, v0
+    v5 = ptradd v4, 32
+    v6 = extract_value slice<calldata>, arg0, 0
+    v7 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v5, v6, v7
+    icall @store_storage_bytes, 0, v4
+    ret
+}
+
+; function setBlob(bytes calldata value) external [selector 0xdd7d5edb]
+fn @setBlob(arg0: slice<calldata>) [selector=0xdd7d5edb, abi_params=[bytes], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = add v0, 31
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v3 = add v2, 32
+    v4 = alloc v3
+    mstore v4, v0
+    v5 = ptradd v4, 32
+    v6 = extract_value slice<calldata>, arg0, 0
+    v7 = extract_value slice<calldata>, arg0, 1
+    calldatacopy v5, v6, v7
+    icall @store_storage_bytes, 1, v4
+    ret
+}
+
+; function getText() external view returns (string memory) [selector 0xe00fe2eb]
+fn @getText() -> ptr<memory> [selector=0xe00fe2eb, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 0
+    ret v0
+}
+
+; function getBlob() external view returns (bytes memory) [selector 0x32db030e]
+fn @getBlob() -> ptr<memory> [selector=0x32db030e, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = icall @load_storage_bytes, 1
+    ret v0
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}
+
+fn @load_storage_bytes(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_bytes arg0
+    ret v0
+}

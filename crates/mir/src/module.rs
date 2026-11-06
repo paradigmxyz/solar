@@ -14,7 +14,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_interface::{Ident, Session, Symbol, config::OptimizationMode, sym};
+use solar_interface::{Ident, Session, Span, Symbol, config::OptimizationMode, sym};
 use solar_ir::link::{ContractCode, LibraryTable, QualifiedName, Trailer};
 use std::{borrow::Cow, fmt, sync::Arc};
 
@@ -87,6 +87,10 @@ pub struct Module {
     pub libraries: LibraryTable,
     /// Module/contract name.
     pub name: Ident,
+    /// Source span of the complete contract definition, or dummy for modules not lowered from
+    /// Solidity. Code the compiler adds for the whole contract, such as the dispatcher, takes it
+    /// as its origin.
+    pub contract_span: Span,
     /// Fixed aggregate types, with nested types declared before their users.
     pub struct_types: IndexVec<StructId, StructType>,
     /// All functions in this module.
@@ -107,6 +111,8 @@ pub struct Module {
     pub(crate) abi_param_layouts: Vec<AbiParamLayoutRef>,
     /// Named immutable declarations indexed by their stable MIR identifiers.
     immutables: IndexVec<ImmutableId, Immutable>,
+    /// The first immutable staging word that `lower-immutables` stored to, which codegen keeps.
+    immutable_staging_base: Option<u64>,
     /// Constant byte strings embedded in generated code.
     pub data: IndexVec<DataId, Data>,
     /// Exact data lookup used before the final subslice-packing pass.
@@ -187,6 +193,7 @@ impl Module {
     pub fn new(name: Ident) -> Self {
         Self {
             name,
+            contract_span: Span::DUMMY,
             functions: IndexVec::new(),
             struct_types: IndexVec::new(),
             dispatch_entry: None,
@@ -197,6 +204,7 @@ impl Module {
             abi_layouts: Vec::new(),
             abi_param_layouts: Vec::new(),
             immutables: IndexVec::new(),
+            immutable_staging_base: None,
             data: IndexVec::new(),
             data_index: FxHashMap::default(),
             libraries: LibraryTable::default(),
@@ -774,6 +782,17 @@ impl Module {
                     && immutable.name.name == sym::library_deploy_address
             })
             .map(|(id, _)| id)
+    }
+
+    /// Returns the staging base that `lower-immutables` fixed, if it ran.
+    #[must_use]
+    pub fn immutable_staging_base(&self) -> Option<u64> {
+        self.immutable_staging_base
+    }
+
+    /// Records the staging base that the lowered immutable stores use.
+    pub fn set_immutable_staging_base(&mut self, base: u64) {
+        self.immutable_staging_base = Some(base);
     }
 
     /// Returns the number of immutable declarations.

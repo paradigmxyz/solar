@@ -52,6 +52,7 @@ use crate::{
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::FxHashMap;
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 use std::cell::RefCell;
 
@@ -221,10 +222,11 @@ impl Normalizer {
                 .by_ref()
                 .take(normalization.end - normalization.start)
                 .collect::<SmallVec<[_; MAX_STACK_RUN_LEN]>>();
-            // The final instance's folded cycles keep the debug information of the swaps they
-            // replace. Other replacements take the replaced operations' debug information
-            // positionally: a longer output repeats the last original's, and a shorter one
-            // absorbs the leftovers into its last operation.
+            // The final instance's folded cycles take the debug information of the first swap they
+            // replace, and the function events of the others. Other replacements take the replaced
+            // operations' debug information positionally: a longer output repeats the last
+            // original's, and a shorter one takes the leftovers' function events into its last
+            // operation. Leftover origins go with the deleted operations.
             let origins = exchanges
                 .then(|| {
                     let input =
@@ -245,18 +247,18 @@ impl Normalizer {
                 if let Some(mut inst) = replaced.next() {
                     replacement.metadata = std::mem::take(&mut inst.metadata);
                 } else if let Some(last) = instructions.get(first..).and_then(<[_]>::last) {
-                    replacement.metadata.copy_source_debug_from(&last.metadata);
+                    replacement.metadata.preserve_debug_loc(&last.metadata);
                 } else {
-                    replacement.metadata.mark_debug_info_dropped();
+                    replacement.metadata.drop_debug_loc(DebugLocKind::Dropped);
                 }
                 for inst in replaced {
-                    replacement.metadata.absorb_debug_info(&inst.metadata);
+                    replacement.metadata.move_function_events(&inst.metadata);
                 }
                 instructions.push(replacement);
             }
             for inst in run {
                 if let Some(last) = instructions.last_mut() {
-                    last.metadata.absorb_debug_info(&inst.metadata);
+                    last.metadata.move_function_events(&inst.metadata);
                 }
             }
         }

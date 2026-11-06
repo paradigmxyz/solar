@@ -1,29 +1,6 @@
 //! Modifier and base-constructor expansion.
 
 use super::*;
-use solar_data_structures::Never;
-use solar_sema::hir::Visit;
-use std::ops::ControlFlow;
-
-struct ModifierLocalIds<'hir> {
-    hir: &'hir hir::Hir<'hir>,
-    ids: FxHashSet<hir::VariableId>,
-}
-
-impl<'hir> hir::Visit<'hir> for ModifierLocalIds<'hir> {
-    type BreakValue = Never;
-
-    fn hir(&self) -> &'hir hir::Hir<'hir> {
-        self.hir
-    }
-
-    fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
-        if matches!(self.hir.variable(id).kind, hir::VarKind::Statement | hir::VarKind::TryCatch) {
-            self.ids.insert(id);
-        }
-        ControlFlow::Continue(())
-    }
-}
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn snapshot_bindings(&self, ids: &[hir::VariableId]) -> BindingSnapshot {
@@ -63,7 +40,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_block(body);
         };
         if modifier.id.as_contract().is_some() {
-            return self.lower_modifier_at(modifiers, body, index + 1);
+            return self.lower_skipped_modifier(modifiers, body, index);
         }
         let Some(modifier_id) = self.cx.gcx.resolve_modifier_target(self.cx.contract_id, modifier)
         else {
@@ -71,7 +48,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let modifier_function = self.cx.gcx.hir.function(modifier_id);
         if modifier_function.kind == hir::FunctionKind::Constructor {
-            return self.lower_modifier_at(modifiers, body, index + 1);
+            return self.lower_skipped_modifier(modifiers, body, index);
         }
         if !modifier_function.kind.is_modifier() {
             return self.cx.report_unsupported(modifier.span, "modifier target");
@@ -83,8 +60,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(modifier.span, "modifier argument list");
         }
         let incoming_returns = self.snapshot_bindings(&self.returns);
-        let local_ids = self.modifier_local_ids(modifier_body);
-        let saved_locals = self.snapshot_bindings(&local_ids);
         // Named arguments name the parameters of the modifier the invocation
         // statically refers to, which is the declaration the type checker
         // validated them against. An override's signature does not carry
@@ -107,7 +82,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             hir::CallArgsKind::Unnamed(_) => None,
         };
-        let saved_parameters = self.snapshot_bindings(modifier_function.parameters);
         self.lower_call_arguments(
             modifier.args,
             CallArgumentParams {
@@ -124,14 +98,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let access = this.require_storage_access(argument)?;
                     this.storage_refs.insert(parameter, access);
                 } else {
-                    let value = this.lower_typed_expr(argument, parameter_ty)?;
-                    // A raw parameter keeps the caller's bits, like any other call.
-                    let value = if this.cx.state.raw_scalars.contains(&parameter) {
-                        value
-                    } else {
-                        this.normalize_dirty_scalar(value, parameter_ty)
-                    };
-                    let value = this.materialize_scalar_carrier(parameter, value, argument.span)?;
+                    let carried = this.lower_typed_expr(argument, parameter_ty)?;
+                    let value = this.bind_word(parameter, carried, argument.span)?;
                     this.values.insert(parameter, value);
                 }
                 Some(())
@@ -142,7 +110,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             modifiers,
             body,
             next: index + 1,
-            parameters: self.snapshot_bindings(&self.parameters),
             returns: self.snapshot_bindings(&self.returns),
             incoming_returns,
         };
@@ -152,17 +119,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.modifiers.push(context);
         let result = self.lower_block(modifier_body);
         self.modifiers.pop();
-        self.restore_bindings(&saved_parameters);
-        self.restore_bindings(&saved_locals);
         result
     }
 
-    fn modifier_local_ids(&self, body: hir::Block<'gcx>) -> Vec<hir::VariableId> {
-        let mut visitor = ModifierLocalIds { hir: &self.cx.gcx.hir, ids: FxHashSet::default() };
-        for stmt in body.stmts {
-            let _ = visitor.visit_stmt(stmt);
-        }
-        visitor.ids.into_iter().collect()
+    /// Lowers the rest of the chain after a base constructor call in the modifier list.
+    ///
+    /// Like solc's `appendModifierOrFunctionCode`, which counts every entry of the list,
+    /// the skipped call still adds one level of modifier depth.
+    fn lower_skipped_modifier(
+        &mut self,
+        modifiers: &'gcx [hir::Modifier<'gcx>],
+        body: hir::Block<'gcx>,
+        index: usize,
+    ) -> Option<()> {
+        self.modifier_depth = self.modifier_depth.saturating_add(1);
+        self.builder.replace_modifier_depth(self.modifier_depth);
+        let result = self.lower_modifier_at(modifiers, body, index + 1);
+        self.modifier_depth = self.modifier_depth.saturating_sub(1);
+        self.builder.replace_modifier_depth(self.modifier_depth);
+        result
     }
 
     pub(super) fn lower_base_constructor(
@@ -195,14 +170,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some(contract_id) = contract_id {
             self.lower_state_initializers(contract_id)?;
         }
-        let parameter_start = self.parameters.len();
-        self.parameters.extend_from_slice(constructor.parameters);
-        let result = self.lower_function_body(constructor.modifiers, body);
-        self.parameters.truncate(parameter_start);
-        result?;
+        self.lower_function_body(constructor.modifiers, body, constructor.span)?;
         if !self.is_terminated() {
             self.record_return_state();
+            // jump continuation !metadata(base constructor definition)
+            let previous = self.builder.replace_source_span(constructor.span);
             self.builder.jump(continuation);
+            self.builder.replace_source_span(previous);
         }
         self.finish_return_target(before_values, before_storage_refs);
         self.restore_bindings(&saved_parameters);
@@ -217,7 +191,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let continuation = self.builder.create_block();
         let before_values = self.values.clone();
         let before_storage_refs = self.storage_refs.clone();
-        self.restore_bindings(&context.parameters);
         self.restore_bindings(&context.returns);
         self.push_return_target(continuation);
         self.modifier_depth = self.modifier_depth.saturating_add(1);
@@ -230,10 +203,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.record_return_state();
             self.builder.jump(continuation);
         }
-        self.finish_return_target(before_values, before_storage_refs);
-        // Function parameters are inputs to every body expansion. Return
-        // bindings, in contrast, carry the selected body's result onward.
-        self.restore_bindings(&context.parameters);
+        self.finish_placeholder_target(before_values, before_storage_refs);
         self.modifiers.push(context);
         self.builder.replace_modifier_depth(self.modifier_depth);
         Some(())

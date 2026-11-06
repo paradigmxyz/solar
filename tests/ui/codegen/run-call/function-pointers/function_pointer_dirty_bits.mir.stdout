@@ -1,0 +1,69 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/function_pointer_dirty_bits.sol:FunctionPointerDirtyBits ===
+@module FunctionPointerDirtyBits
+; function g() external [selector 0xe2179b8e]
+fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function comparison() external view returns (bool) [selector 0xaae103ad]
+fn @comparison() -> i1 [selector=0xaae103ad, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    v2 = shl v1, 32
+    v3 = or v2, 0xe2179b8e
+    v4 = shr v3, 32
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = or v5, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = shl v7, 32
+    v9 = and v3, 0xffffffff
+    v10 = or v8, v9
+    v11 = and v10, 0xffffffff
+    v12 = or v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v13 = and v12, 0xffffffff
+    v14 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v15 = or v14, v13
+    v16 = address
+    v17 = zext i160 v16 to i256
+    v18 = shl v17, 32
+    v19 = or v18, 0xe2179b8e
+    v20 = eq v19, v15
+    ret v20
+}
+
+; function abiEncoding() external view returns (bool) [selector 0xe9e87e69]
+fn @abiEncoding() -> i1 [selector=0xe9e87e69, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    v2 = shl v1, 32
+    v3 = or v2, 0xe2179b8e
+    v4 = shr v3, 32
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = or v5, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = shl v7, 32
+    v9 = and v3, 0xffffffff
+    v10 = or v8, v9
+    v11 = and v10, 0xffffffff
+    v12 = or v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v13 = and v12, 0xffffffff
+    v14 = and v10, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
+    v15 = or v14, v13
+    v16 = abi_encode [function], scratch, args v15
+    v17 = extract_value slice<memory>, v16, 0
+    v18 = extract_value slice<memory>, v16, 1
+    v19 = keccak256 v17, v18
+    v20 = address
+    v21 = zext i160 v20 to i256
+    v22 = shl v21, 32
+    v23 = or v22, 0xe2179b8e
+    v24 = abi_encode [function], scratch, args v23
+    v25 = extract_value slice<memory>, v24, 0
+    v26 = extract_value slice<memory>, v24, 1
+    v27 = keccak256 v25, v26
+    v28 = eq v19, v27
+    ret v28
+}

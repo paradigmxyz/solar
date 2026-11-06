@@ -98,7 +98,6 @@ impl MirPass for LowerBuiltins {
                         return false;
                     }
                     let inst = builder.func().inst(id).clone();
-                    builder.set_debug_context(&inst.metadata);
                     match inst.kind {
                         InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), args } => {
                             let [address, amount] = builtin_args(&args);

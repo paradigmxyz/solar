@@ -262,14 +262,7 @@ fn candidate_uses_are_safe(
                 InstKind::PtrToInt(base, 256) | InstKind::IntToPtr(base) => {
                     derived.get(&base).copied()
                 }
-                InstKind::Add(a, b) | InstKind::PtrAdd(a, b) => {
-                    // Either `add` operand may be the pointer; `ptradd` takes it first.
-                    let (base, offset) =
-                        if matches!(kind, InstKind::Add(..)) && !derived.contains_key(&a) {
-                            (b, a)
-                        } else {
-                            (a, b)
-                        };
+                InstKind::Add(base, offset) | InstKind::PtrAdd(base, offset) => {
                     let (Some(base_offset), Some(offset)) =
                         (derived.get(&base).copied(), func.value_u64(offset))
                     else {

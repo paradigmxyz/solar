@@ -1,0 +1,33 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/internal_function_pointer_void.sol:InternalFunctionPointerVoid ===
+@module InternalFunctionPointerVoid
+; function setFlag() internal
+fn @setFlag() {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = or v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
+    ret
+}
+
+; function f() external returns (bool) [selector 0x26121ff0]
+fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    icall @internal_dispatcher_p_none_r_none, 1
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i8
+    v2 = ne v1, i8 0
+    ret v2
+}
+
+fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    icall panic_if<0x51>, true
+    invalid
+  bb1:                                            ; preds = bb0
+    icall @setFlag
+    ret
+}

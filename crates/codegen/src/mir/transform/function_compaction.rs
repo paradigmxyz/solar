@@ -816,9 +816,9 @@ fn merge_function_debug_origins(
     for (block, (instructions, terminator)) in target.blocks.indices().zip(origins) {
         for (index, metadata) in instructions.into_iter().enumerate() {
             let inst = target.blocks[block].instructions[index];
-            target.inst_mut(inst).metadata.merge_debug_context(&metadata);
+            target.inst_mut(inst).metadata.merge_debug_locs([&metadata]);
         }
-        target.blocks[block].terminator_metadata.merge_debug_context(&terminator);
+        target.blocks[block].terminator_metadata.merge_debug_locs([&terminator]);
     }
 }
 

@@ -1,0 +1,8 @@
+debugify: MIR MirOnly at input: 3 without a location
+debugify: gap constructor bb0 inst0 `address`
+debugify: gap constructor bb0 inst1 `storeimmutable`
+debugify: gap constructor bb0 terminator `return`
+error: debugify: MIR module arrived with 3 instructions without a location
+
+error: aborting due to 1 previous error
+

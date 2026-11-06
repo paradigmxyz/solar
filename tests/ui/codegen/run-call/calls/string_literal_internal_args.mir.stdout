@@ -1,0 +1,137 @@
+; === ROOT/tests/ui/codegen/run-call/calls/string_literal_internal_args.sol:Errors ===
+@module Errors
+@library
+
+; === ROOT/tests/ui/codegen/run-call/calls/string_literal_internal_args.sol:L ===
+@module L
+@library
+
+; === ROOT/tests/ui/codegen/run-call/calls/string_literal_internal_args.sol:StringLiteralInternalArgs ===
+@module StringLiteralInternalArgs
+; function libLiteral() external pure returns (uint256) [selector 0x71bacd94]
+fn @libLiteral() -> i256 [selector=0x71bacd94, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 2
+    v1 = ptradd v0, 32
+    mstore v1, 0x6869000000000000000000000000000000000000000000000000000000000000
+    v2 = icall @lenPlus, v0, 1
+    ret v2
+}
+
+; function libConstant() external pure returns (uint256) [selector 0x4f548a6c]
+fn @libConstant() -> i256 [selector=0x4f548a6c, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 20
+    v1 = ptradd v0, 32
+    mstore v1, 0x6d61782075696e74313238206578636565646564000000000000000000000000
+    v2 = icall @lenPlus, v0, 0
+    ret v2
+}
+
+; function libHex() external pure returns (uint256) [selector 0xed6b01e9]
+fn @libHex() -> i256 [selector=0xed6b01e9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 2
+    v1 = ptradd v0, 32
+    mstore v1, 0xaabb000000000000000000000000000000000000000000000000000000000000
+    v2 = icall @lenBytes, v0
+    ret v2
+}
+
+; function libLong() external pure returns (uint256) [selector 0x7a8edc4e]
+fn @libLong() -> i256 [selector=0x7a8edc4e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @literal_bytes_0
+    v1 = icall @lenPlus, v0, 0
+    ret v1
+}
+
+; function sharedLong() external pure returns (uint256) [selector 0xd83f9e13]
+fn @sharedLong() -> i256 [selector=0xd83f9e13, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @literal_bytes_0
+    v1 = icall @lenPlus, v0, 0
+    v2 = icall @literal_bytes_0
+    v3 = icall @lenPlus, v2, 0
+    v4 = checked_add uint256, v1, v3
+    v5 = icall @literal_bytes_0
+    v6 = icall @lenPlus, v5, 0
+    v7 = checked_add uint256, v4, v6
+    v8 = icall @literal_bytes_0
+    v9 = icall @lenPlus, v8, 0
+    v10 = checked_add uint256, v7, v9
+    ret v10
+}
+
+; function literalContent() external pure returns (bytes32) [selector 0x4ab72711]
+fn @literalContent() -> i256 [selector=0x4ab72711, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 2
+    v1 = ptradd v0, 32
+    mstore v1, 0x6869000000000000000000000000000000000000000000000000000000000000
+    v2 = icall @firstWord, v0
+    ret v2
+}
+
+; function encodeConstant() external pure returns (uint256) [selector 0xbffc53ff]
+fn @encodeConstant() -> i256 [selector=0xbffc53ff, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 20
+    v1 = ptradd v0, 32
+    mstore v1, 0x6d61782075696e74313238206578636565646564000000000000000000000000
+    v2 = abi_encode [memory_bytes, word], object, selector 0xb60e72cc00000000000000000000000000000000000000000000000000000000, args v0, 1
+    v3 = mload v2
+    ret v3
+}
+
+; function encodeConstantCast() external pure returns (uint256) [selector 0x355fad3a]
+fn @encodeConstantCast() -> i256 [selector=0x355fad3a, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 20
+    v1 = ptradd v0, 32
+    mstore v1, 0x6d61782075696e74313238206578636565646564000000000000000000000000
+    v2 = abi_encode [memory_bytes], object, selector 0xd45754f800000000000000000000000000000000000000000000000000000000, args v0
+    v3 = mload v2
+    ret v3
+}
+
+; function lenPlus(string memory s, uint256 x) internal pure returns (uint256)
+fn @lenPlus(arg0: ptr<memory>, arg1: i256) -> i256 [pure] {
+  bb0:
+    v0 = mload arg0
+    v1 = checked_add uint256, v0, arg1
+    ret v1
+}
+
+; function lenBytes(bytes memory b) internal pure returns (uint256)
+fn @lenBytes(arg0: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}
+
+; function firstWord(string memory s) internal pure returns (bytes32 w)
+fn @firstWord(arg0: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg0 to i256
+    v1 = add v0, 32
+    v2 = mload v1
+    ret v2
+}
+
+fn @literal_bytes_0() -> ptr<memory> {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 40
+    v1 = ptradd v0, 32
+    mstore v1, 0x3031323334353637383930313233343536373839303132333435363738393031
+    v2 = ptradd v0, 64
+    mstore v2, 0x3233343536373839000000000000000000000000000000000000000000000000
+    ret v0
+}

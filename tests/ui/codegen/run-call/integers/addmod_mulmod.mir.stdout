@@ -1,0 +1,37 @@
+; === ROOT/tests/ui/codegen/run-call/integers/addmod_mulmod.sol:AddmodMulmod ===
+@module AddmodMulmod
+; function am(uint256 x, uint256 y, uint256 modulus) external pure returns (uint256) [selector 0xc1013215]
+fn @am(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xc1013215, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall checked_addmod<>, arg0, arg1, arg2
+    ret v0
+}
+
+; function mm(uint256 x, uint256 y, uint256 modulus) external pure returns (uint256) [selector 0x91b121df]
+fn @mm(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x91b121df, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall checked_mulmod<>, arg0, arg1, arg2
+    ret v0
+}
+
+; function yulAm(uint256 x, uint256 y, uint256 modulus) external pure returns (uint256 result) [selector 0x7432e972]
+fn @yulAm(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x7432e972, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = addmod arg0, arg1, arg2
+    ret v0
+}
+
+; function yulMm(uint256 x, uint256 y, uint256 modulus) external pure returns (uint256 result) [selector 0x97001426]
+fn @yulMm(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0x97001426, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mulmod arg0, arg1, arg2
+    ret v0
+}
+
+; function unused(uint256 modulus) external pure [selector 0xbef217cc]
+fn @unused(arg0: i256) [selector=0xbef217cc, pure, abi_params=[uint256], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = icall checked_addmod<>, 0, 0, arg0
+    v1 = icall checked_mulmod<>, 0, 0, arg0
+    ret
+}
