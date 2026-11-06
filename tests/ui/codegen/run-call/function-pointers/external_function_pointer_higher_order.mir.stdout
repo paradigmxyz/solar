@@ -1,0 +1,104 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrderTarget ===
+@module ExternalFunctionPointerHigherOrderTarget
+; function addTwo(uint256 value) external pure returns (uint256) [selector 0xcae57913]
+fn @addTwo(arg0: i256) -> i256 [selector=0xcae57913, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_add uint256, arg0, 2
+    ret v0
+}
+
+; === ROOT/tests/ui/codegen/run-call/function-pointers/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrder ===
+@module ExternalFunctionPointerHigherOrder
+@data
+  ExternalFunctionPointerHigherOrderTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/function-pointers/external_function_pointer_higher_order.sol:ExternalFunctionPointerHigherOrderTarget"
+
+; function store(function(uint256) external returns (uint256) value) public [selector 0xf018a0a7]
+fn @store(arg0: i256) [selector=0xf018a0a7, abi_params=[function], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffff
+    v2 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = shl v2, 64
+    v4 = or v1, v3
+    sstore 0, v4 !metadata(storage=slot(0))
+    ret
+}
+
+; function eval(function(uint256) external returns (uint256) value) public returns (uint256) [selector 0xd54e4ce7]
+fn @eval(arg0: i256) -> i256 [selector=0xd54e4ce7, abi_params=[function], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = and arg0, 0xffffffff
+    v1 = shl v0, 224
+    v2 = shr arg0, 32
+    v3 = gas
+    v4 = shr v1, 224
+    mstore 0, v4 !metadata(memory=scratch)
+    mstore 32, 7 !metadata(memory=scratch)
+    v5 = call v3, v2, 0, 28, 36, 0, 32
+    jumpi v5, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v6 = returndatasize
+    v7 = lt v6, 32
+    icall revert_if<tuple_data_too_short>, v7
+    v8 = mload 0 !metadata(memory=scratch)
+    ret v8
+}
+
+; function t() external returns (uint256) [selector 0x92d0d153]
+fn @t() -> i256 [selector=0x92d0d153, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v2 = or v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
+    v3 = address
+    v4 = gas
+    v5 = datasize ExternalFunctionPointerHigherOrderTarget_creation_code_0
+    v6 = fmp
+    datacopy ExternalFunctionPointerHigherOrderTarget_creation_code_0, v6, v5
+    v7 = create 0, v6, v5
+    v8 = ne v7, i160 0
+    jumpi v8, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v9 = zext i160 v7 to i256
+    v10 = shl v9, 32
+    v11 = or v10, 0xcae57913
+    mstore 0, 0xf018a0a7 !metadata(memory=scratch)
+    v12 = shl v11, 64
+    mstore 32, v12 !metadata(memory=scratch)
+    v13 = zext i160 v3 to i256
+    v14 = extcodesize v13
+    v15 = eq v14, 0
+    icall revert_if<target_contract_has_no_code>, v15
+    v16 = zext i160 v3 to i256
+    v17 = call v4, v16, 0, 28, 36, 0, 0
+    jumpi v17, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v18 = sload 0 !metadata(storage=slot(0))
+    v19 = trunc i256 v18 to i64
+    v20 = zext i64 v19 to i256
+    v21 = sload 0 !metadata(storage=slot(0))
+    v22 = shr v21, 64
+    v23 = trunc i256 v22 to i192
+    v24 = zext i192 v23 to i256
+    v25 = icall @internal_dispatcher_p_function_r_uint256, v20, v24
+    ret v25
+}
+
+fn @internal_dispatcher_p_function_r_uint256(arg0: i256, arg1: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    icall panic_if<0x51>, true
+    invalid
+  bb1:                                            ; preds = bb0
+    v1 = icall @eval, arg1
+    ret v1
+}

@@ -1,0 +1,268 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/program-data/splat_precancun.sol:C ===
+@module C
+@phase lowered
+@data
+  literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb6, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb6, [0x6793283 => bb2, 0x9bd5a60 => bb3, 0xc6b2786 => bb4, 0x58653188 => bb5]
+  bb5:                                            ; preds = bb1
+    tail_call @fullWordsHash
+  bb4:                                            ; preds = bb1
+    tail_call @shortHash
+  bb3:                                            ; preds = bb1
+    tail_call @hash
+  bb2:                                            ; preds = bb1
+    tail_call @paddingIsZero
+  bb6 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function data() internal pure returns (bytes memory)
+fn @data() -> i256 [may_return_memory] {
+  bb0:
+    v8 = heap_floor !metadata(alloc_ptr)
+    v9 = add v8, 224 !metadata(alloc_ptr)
+    mstore 64, v9 !metadata(memory=scratch)
+    mstore v8, 161
+    v6 = add v8, 32
+    datacopy literal_0, v6, 161
+    ret v8
+}
+
+; function hash() external pure returns (bytes32) [selector 0x09bd5a60]
+fn @hash() {
+  bb0:
+    v0 = icall @data
+    v2 = mload v0
+    v5 = add v0, 32
+    v3 = keccak256 v5, v2
+    mstore 0, v3 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+; function paddingIsZero() external pure returns (bool result) [selector 0x06793283]
+fn @paddingIsZero() {
+  bb0:
+    v0 = icall @data
+    v2 = mload v0
+    v4 = add v0, 32
+    v5 = add v4, v2
+    v6 = mload v5
+    v8 = lt v6, 256
+    v9 = zext i1 v8 to i256
+    mstore 0, v9
+    returndata 0, 32
+}
+
+; function shortHash() external pure returns (bytes32) [selector 0x0c6b2786]
+fn @shortHash() {
+  bb0:
+    v10 = heap_floor !metadata(alloc_ptr)
+    v7 = add v10, 32
+    mstore v7, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v9 = add v10, 64
+    mstore v9, 0x100000000000000000000000000000000000000000000000000000000000000
+    v5 = keccak256 v7, 33
+    mstore 0, v5 !metadata(memory=scratch)
+    returndata 0, 32
+}
+
+; function fullWordsHash() external pure returns (bytes32) [selector 0x58653188]
+fn @fullWordsHash() {
+  bb0:
+    v21 = heap_floor !metadata(alloc_ptr)
+    v22 = add v21, 128 !metadata(alloc_ptr)
+    mstore 64, v22 !metadata(memory=scratch)
+    v9 = add v21, 32
+    mstore v9, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v11 = add v21, 64
+    mstore v11, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    v13 = add v21, 96
+    jump bb2
+  bb2:                                            ; preds = bb0, bb3
+    v15 = phi [bb0: 0], [bb3: v20]
+    v16 = lt v15, 32
+    jumpi v16, bb3, bb1
+  bb1:                                            ; preds = bb2
+    v7 = keccak256 v9, 96
+    mstore 0, v7 !metadata(memory=scratch)
+    returndata 0, 32
+  bb3:                                            ; preds = bb2
+    v17 = add v9, v15
+    v18 = mload v17
+    v19 = add v13, v15
+    mstore v19, v18
+    v20 = add v15, 32
+    jump bb2
+}
+; === ROOT/tests/ui/codegen/lowering/evm-ir/program-data/splat_precancun.sol:C (runtime) ===
+@module C_runtime
+@data
+  literal_0: hex"112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011"
+
+bb0:                                              ; runtime dispatch entry
+  callvalue
+  push bb6
+  jumpi
+  returndatasize
+  calldataload
+  push 224
+  shr
+  dup 1
+  push 0x6793283
+  eq
+  push bb9
+  jumpi
+  dup 1
+  push 0x9bd5a60
+  eq
+  push bb7
+  jumpi
+  dup 1
+  push 0xc6b2786
+  eq
+  push bb11
+  jumpi
+  dup 1
+  push 0x58653188
+  eq
+  push bb12
+  jumpi
+  jump bb6
+bb6 [cold]:
+  returndatasize
+  returndatasize
+  revert
+bb7 [entry]:                                      ; function hash() external pure returns (bytes32) [selector 0x09bd5a60]
+  push bb8
+  jump bb16
+bb16 [ret=0, inputs=1, outputs=1]:                ; function data() internal pure returns (bytes memory)
+  push 128
+  push 224
+  dup 2
+  add
+  push 64
+  mstore
+  push 161
+  dup 2
+  mstore
+  push 161
+  push 32
+  dup 3
+  add
+  push_data literal_0
+  swap 1
+  codecopy
+  swap 1
+  jump
+bb8 [continuation]:
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  jump bb18
+bb18 [loop]:
+  keccak256
+  jump bb17
+bb17 [loop]:
+  returndatasize
+  mstore
+  push 32
+  returndatasize
+  return
+bb9 [entry]:                                      ; function paddingIsZero() external pure returns (bool result) [selector 0x06793283]
+  push bb10
+  jump bb16
+bb10 [continuation]:
+  dup 1
+  mload
+  swap 1
+  push 32
+  add
+  add
+  mload
+  push 256
+  gt
+  jump bb17
+bb11 [entry]:                                     ; function shortHash() external pure returns (bytes32) [selector 0x0c6b2786]
+  push bb20
+  push 128
+  jump bb19
+bb19 [ret=1, inputs=2, outputs=3]:
+  push 32
+  dup 2
+  add
+  push 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+  swap 1
+  swap 2
+  swap 3
+  jump
+bb12 [entry]:                                     ; function fullWordsHash() external pure returns (bytes32) [selector 0x58653188]
+  push 128
+  dup 1
+  add
+  push 64
+  mstore
+  push bb21
+  push 128
+  jump bb19
+bb15 [loop]:
+  dup 1
+  dup 4
+  add
+  mload
+  dup 2
+  dup 4
+  add
+  mstore
+  push 32
+  add
+  jump bb13
+bb13 [loop]:
+  push 32
+  dup 2
+  lt
+  push bb15
+  jumpi
+  pop
+  pop
+  push 96
+  swap 1
+  jump bb18
+bb20 [continuation]:
+  dup 2
+  mstore
+  swap 1
+  push 64
+  add
+  push 1
+  push 248
+  shl
+  swap 1
+  mstore
+  push 33
+  swap 1
+  jump bb18
+bb21 [continuation]:
+  dup 1
+  dup 3
+  mstore
+  push 64
+  dup 4
+  add
+  mstore
+  swap 1
+  push 96
+  add
+  returndatasize
+  jump bb13

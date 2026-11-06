@@ -195,6 +195,7 @@ pub(super) fn lower_synthetic_constructor(
 ) -> Option<Function> {
     let span = context.gcx.hir.contract(contract_id).span;
     let mut mir = Function::new(Ident::with_dummy_span(kw::Constructor));
+    mir.declaration_span = span;
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.builder.set_entry_label_span(span);
     lowerer.lower_implicit_base_constructors(contract_id)?;
@@ -220,7 +221,6 @@ struct FunctionLowerer<'gcx, 'ctx> {
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
-    parameters: Vec<VariableId>,
     returns: Vec<VariableId>,
     prepared_constructors: FxHashSet<hir::FunctionId>,
     /// The base constructor argument list chosen for each base of the contract
@@ -319,7 +319,6 @@ struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
     body: hir::Block<'gcx>,
     next: usize,
-    parameters: BindingSnapshot,
     returns: BindingSnapshot,
     incoming_returns: BindingSnapshot,
 }
@@ -511,7 +510,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),
-            parameters: Vec::new(),
             returns: Vec::new(),
             prepared_constructors: FxHashSet::default(),
             base_args: Vec::new(),
@@ -529,6 +527,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lazy_helper(
         &mut self,
         name: Symbol,
+        build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
+    ) -> Option<FunctionId> {
+        self.lazy_helper_with(name, true, build)
+    }
+
+    /// Like [`Self::lazy_helper`], for a helper that no source construct lacks: `generated` is
+    /// false when `build` lowers user code, which keeps its own origins.
+    fn lazy_helper_with(
+        &mut self,
+        name: Symbol,
+        generated: bool,
         build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
     ) -> Option<FunctionId> {
         // if name in helpers { return helpers[name] }
@@ -553,6 +562,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         function.name = self.cx.module.function(id).name;
+        if generated {
+            function.mark_unlocated_compiler_generated();
+        }
         *self.cx.module.function_mut(id) = function;
         Some(id)
     }
@@ -1251,6 +1263,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             // panic(InvalidInternalFunction)
             builder.panic(PanicCode::InvalidInternalFunction);
         }
+        function.mark_unlocated_compiler_generated();
         *module.function_mut(dispatcher) = function;
     }
 }

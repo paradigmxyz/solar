@@ -1,16 +1,16 @@
-error: linearization of inheritance graph impossible
+error[5005]: linearization of inheritance graph impossible
    ╭▸ ROOT/tests/ui/resolve/impossible_linearization.sol:LL:CC
    │
 LL │ contract ListsA is Sub, ParentA {}
    ╰╴         ━━━━━━
 
-error: linearization of inheritance graph impossible
+error[5005]: linearization of inheritance graph impossible
    ╭▸ ROOT/tests/ui/resolve/impossible_linearization.sol:LL:CC
    │
 LL │ contract ListsB is Sub, ParentB {}
    ╰╴         ━━━━━━
 
-error: linearization of inheritance graph impossible
+error[5005]: linearization of inheritance graph impossible
    ╭▸ ROOT/tests/ui/resolve/impossible_linearization.sol:LL:CC
    │
 LL │ contract ListsBoth is Sub, ParentA, ParentB {}

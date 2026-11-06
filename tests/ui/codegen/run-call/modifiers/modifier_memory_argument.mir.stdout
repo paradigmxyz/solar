@@ -1,0 +1,48 @@
+; === ROOT/tests/ui/codegen/run-call/modifiers/modifier_memory_argument.sol:ModifierMemoryArgument ===
+@module ModifierMemoryArgument
+; function f(uint256[] calldata values) external pure rewrite(values) returns (uint256) [selector 0x7bc5bbbf]
+fn @f(arg0: slice<calldata>) -> i256 [selector=0x7bc5bbbf, pure, abi_params=[array<_, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
+    v2 = gt v0, 0x7ffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = mul v0, 32
+    v4 = calldatasize
+    v5 = ptrtoint ptr<calldata> v1 to i256
+    v6 = sub v4, v5
+    v7 = slt v6, v3
+    icall revert_if<calldata_tail_too_short>, v7
+    v8 = mul v0, 32
+    v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v9
+    v10 = add v8, 32
+    v11 = lt v10, 32
+    icall panic_if<0x41>, v11
+    v12 = alloc v10
+    mstore v12, v0
+    v13 = make_calldata_slice v1, v8
+    v14 = ptradd v12, 32
+    v15 = extract_value slice<calldata>, v13, 0
+    v16 = extract_value slice<calldata>, v13, 1
+    calldatacopy v14, v15, v16
+    v17 = mload v12
+    v18 = gt v17, 0
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = ptradd v12, 32
+    mstore v20, 9
+    v21 = extract_value slice<calldata>, arg0, 1
+    v22 = gt v21, 0
+    v23 = eq v22, false
+    icall panic_if<0x32>, v23
+    v24 = extract_value slice<calldata>, arg0, 0
+    v25 = ptrtoint ptr<calldata> v24 to i256
+    v26 = add v25, 0
+    v27 = calldataload v26
+    jump bb2
+  bb2:                                            ; preds = bb0
+    jump bb1
+  bb1:                                            ; preds = bb2
+    ret v27
+}

@@ -126,6 +126,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
                     report_misplaced_solar_tags(self.dcx(), &item.docs);
                     continue;
                 }
+                // The parser reports an error for a nameless state variable, which is how it
+                // recovers a removed old-style fallback function, and nothing can refer to it.
+                ast::ItemKind::Variable(var) if var.name.is_none() => continue,
                 ast::ItemKind::Variable(_) => {
                     let hir::ItemId::Variable(id) = self.lower_item(item) else { unreachable!() };
                     items.push(hir::ItemId::Variable(id));

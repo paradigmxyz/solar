@@ -22,11 +22,11 @@
         "evm": {
           "bytecode": {
             "object": "34600d5760498060115f395ff35b5f5ffd346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd",
-            "sourceMap": ":::-:0;;;237:21:0;;;;;;;-1:-1:-1;;;"
+            "sourceMap": "237:21:0:-:0;;;;;;;;;;-1:-1:-1;237:21:0;;"
           },
           "deployedBytecode": {
             "object": "346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd",
-            "sourceMap": ":::-:0;;;;;;;;;;;;;;;;;;;;;;;212:15:0;;;;;195;;;;;;188:43;181:51;;;;;-1:-1:-1;;;"
+            "sourceMap": "237:21:0:-:0;;;;;;;;;;;;114:120;;;;;;;-1:-1:-1;;;;212:15:0;;;;;195;114:120;;195:15;;;188:43;181:51;;;;;-1:-1:-1;;;"
           }
         }
       },
@@ -56,6 +56,17 @@
                   "offset": 0,
                   "operation": {
                     "mnemonic": "CALLVALUE"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -65,12 +76,34 @@
                     "arguments": [
                       "0x0d"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 3,
                   "operation": {
                     "mnemonic": "JUMPI"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -208,18 +241,51 @@
                   "offset": 14,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 15,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 16,
                   "operation": {
                     "mnemonic": "REVERT"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 }
               ]
@@ -249,6 +315,17 @@
                   "offset": 0,
                   "operation": {
                     "mnemonic": "CALLVALUE"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -258,24 +335,68 @@
                     "arguments": [
                       "0x45"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 3,
                   "operation": {
                     "mnemonic": "JUMPI"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 4,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 5,
                   "operation": {
                     "mnemonic": "CALLDATALOAD"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -285,18 +406,51 @@
                     "arguments": [
                       "0xe0"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 8,
                   "operation": {
                     "mnemonic": "SHR"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 9,
                   "operation": {
                     "mnemonic": "DUP1"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -306,12 +460,34 @@
                     "arguments": [
                       "0x13d1aa2e"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 15,
                   "operation": {
                     "mnemonic": "SUB"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -321,12 +497,34 @@
                     "arguments": [
                       "0x45"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 18,
                   "operation": {
                     "mnemonic": "JUMPI"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -336,18 +534,51 @@
                     "arguments": [
                       "0x44"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 114,
+                        "length": 120
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 21,
                   "operation": {
                     "mnemonic": "CALLDATASIZE"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 114,
+                        "length": 120
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 22,
                   "operation": {
                     "mnemonic": "LT"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 114,
+                        "length": 120
+                      }
+                    }
                   }
                 },
                 {
@@ -357,12 +588,34 @@
                     "arguments": [
                       "0x45"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 114,
+                        "length": 120
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 25,
                   "operation": {
                     "mnemonic": "JUMPI"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 114,
+                        "length": 120
+                      }
+                    }
                   }
                 },
                 {
@@ -372,12 +625,34 @@
                     "arguments": [
                       "0x04"
                     ]
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 114,
+                        "length": 120
+                      }
+                    }
                   }
                 },
                 {
                   "offset": 28,
                   "operation": {
                     "mnemonic": "CALLDATALOAD"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 114,
+                        "length": 120
+                      }
+                    }
                   }
                 },
                 {
@@ -526,8 +801,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 195,
-                        "length": 15
+                        "offset": 114,
+                        "length": 120
                       }
                     }
                   }
@@ -543,8 +818,8 @@
                         "id": 0
                       },
                       "range": {
-                        "offset": 195,
-                        "length": 15
+                        "offset": 114,
+                        "length": 120
                       }
                     }
                   }
@@ -716,12 +991,64 @@
                   "offset": 70,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 259,
+                            "length": 21
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 114,
+                            "length": 120
+                          }
+                        }
+                      }
+                    ]
                   }
                 },
                 {
                   "offset": 71,
                   "operation": {
                     "mnemonic": "PUSH0"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 259,
+                            "length": 21
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 114,
+                            "length": 120
+                          }
+                        }
+                      }
+                    ]
                   }
                 },
                 {
@@ -730,6 +1057,30 @@
                     "mnemonic": "REVERT"
                   },
                   "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 259,
+                            "length": 21
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 114,
+                            "length": 120
+                          }
+                        }
+                      }
+                    ],
                     "revert": {}
                   }
                 }

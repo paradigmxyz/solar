@@ -1,0 +1,207 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget ===
+@module ExternalFunctionPointerStructCopyTarget
+; function copy(function() external[] calldata functions) external pure returns (Holder memory) [selector 0x0bf8d45f]
+fn @copy(arg0: slice<calldata>) -> ptr<memory> [selector=0x0bf8d45f, pure, abi_params=[array<_, function>], abi_returns=[tuple<memory_array<function>>], abi_return_params=[tuple<array<_, function>>]] {
+  bb0:
+    v0 = alloc 32 !metadata(preserves_fmp)
+    mstore v0, 96
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = extract_value slice<calldata>, arg0, 0
+    v3 = gt v1, 0x7ffffffffffffff
+    icall panic_if<0x41>, v3
+    v4 = mul v1, 32
+    v5 = calldatasize
+    v6 = ptrtoint ptr<calldata> v2 to i256
+    v7 = sub v5, v6
+    v8 = slt v7, v4
+    icall revert_if<calldata_tail_too_short>, v8
+    v9 = mul v1, 32
+    v10 = gt v1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v10
+    v11 = add v9, 32
+    v12 = lt v11, 32
+    icall panic_if<0x41>, v12
+    v13 = alloc v11
+    mstore v13, v1
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v14 = phi [bb0: 0], [bb2: v27]
+    v15 = lt v14, v1
+    jumpi v15, bb2, bb3
+  bb3:                                            ; preds = bb1
+    v28 = ptrtoint ptr<memory> v13 to i256
+    mstore v0, v28
+    v29 = alloc 32 !metadata(preserves_fmp)
+    mstore v29, 96
+    ret v0
+  bb2:                                            ; preds = bb1
+    v16 = mul v14, 32
+    v17 = ptrtoint ptr<calldata> v2 to i256
+    v18 = add v17, v16
+    v19 = calldataload v18
+    v20 = shl v19, 192
+    v21 = ne v20, 0
+    icall revert_if<empty>, v21
+    v22 = shr v19, 64
+    v23 = shl v22, 64
+    v24 = shl v14, 5
+    v25 = ptradd v13, v24
+    v26 = ptradd v25, 32
+    mstore v26, v23
+    v27 = add v14, 1
+    jump bb1
+}
+
+; === ROOT/tests/ui/codegen/run-call/function-pointers/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopy ===
+@module ExternalFunctionPointerStructCopy
+@data
+  ExternalFunctionPointerStructCopyTarget_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/function-pointers/external_function_pointer_struct_copy.sol:ExternalFunctionPointerStructCopyTarget"
+
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = datasize ExternalFunctionPointerStructCopyTarget_creation_code_0
+    v1 = fmp
+    datacopy ExternalFunctionPointerStructCopyTarget_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v6 = zext i160 v2 to i256
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = or v5, v7
+    sstore 0, v8 !metadata(storage=slot(0))
+    ret
+}
+
+; function test() external view returns (bool) [selector 0xf8a8fd6d]
+fn @test() -> i1 [selector=0xf8a8fd6d, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = alloc zeroed checked 128
+    mstore v0, 3
+    v1 = address
+    v2 = zext i160 v1 to i256
+    v3 = shl v2, 32
+    v4 = or v3, 0xd24c5a36
+    v5 = mload v0
+    v6 = gt v5, 0
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = shl v4, 64
+    v9 = ptradd v0, 32
+    mstore v9, v8
+    v10 = address
+    v11 = zext i160 v10 to i256
+    v12 = shl v11, 32
+    v13 = or v12, 0xc5337ed4
+    v14 = mload v0
+    v15 = gt v14, 1
+    v16 = eq v15, false
+    icall panic_if<0x32>, v16
+    v17 = shl v13, 64
+    v18 = ptradd v0, 64
+    mstore v18, v17
+    v19 = address
+    v20 = zext i160 v19 to i256
+    v21 = shl v20, 32
+    v22 = or v21, 0xafb0db5f
+    v23 = mload v0
+    v24 = gt v23, 2
+    v25 = eq v24, false
+    icall panic_if<0x32>, v25
+    v26 = shl v22, 64
+    v27 = ptradd v0, 96
+    mstore v27, v26
+    v28 = sload 0 !metadata(storage=slot(0))
+    v29 = trunc i256 v28 to i160
+    v30 = gas
+    v31 = abi_encode [memory_array<function>], scratch, selector 0xbf8d45f00000000000000000000000000000000000000000000000000000000, args v0
+    v32 = extract_value slice<memory>, v31, 0
+    v33 = extract_value slice<memory>, v31, 1
+    v34 = zext i160 v29 to i256
+    v35 = staticcall v30, v34, v32, v33, 0, 0
+    jumpi v35, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v36 = returndatasize
+    v37 = add v36, 31
+    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v39 = alloc v38
+    returndatacopy v39, 0, v36
+    v40 = make_memory_slice v39, v36
+    v41 = abi_decode [tuple<array<_, function>>], v40
+    v42 = mload v41, ptr<memory>
+    v43 = mload v42
+    v44 = eq v43, 3
+    v45 = eq v44, false
+    icall revert_if<empty>, v45
+    v46 = mload v41, ptr<memory>
+    v47 = mload v46
+    v48 = gt v47, 0
+    v49 = eq v48, false
+    icall panic_if<0x32>, v49
+    v50 = ptradd v46, 32
+    v51 = mload v50
+    v52 = shr v51, 64
+    v53 = address
+    v54 = zext i160 v53 to i256
+    v55 = shl v54, 32
+    v56 = or v55, 0xd24c5a36
+    v57 = eq v52, v56
+    v58 = eq v57, false
+    icall revert_if<empty>, v58
+    v59 = mload v41, ptr<memory>
+    v60 = mload v59
+    v61 = gt v60, 1
+    v62 = eq v61, false
+    icall panic_if<0x32>, v62
+    v63 = ptradd v59, 64
+    v64 = mload v63
+    v65 = shr v64, 64
+    v66 = address
+    v67 = zext i160 v66 to i256
+    v68 = shl v67, 32
+    v69 = or v68, 0xc5337ed4
+    v70 = eq v65, v69
+    v71 = eq v70, false
+    icall revert_if<empty>, v71
+    v72 = mload v41, ptr<memory>
+    v73 = mload v72
+    v74 = gt v73, 2
+    v75 = eq v74, false
+    icall panic_if<0x32>, v75
+    v76 = ptradd v72, 96
+    v77 = mload v76
+    v78 = shr v77, 64
+    v79 = address
+    v80 = zext i160 v79 to i256
+    v81 = shl v80, 32
+    v82 = or v81, 0xafb0db5f
+    v83 = eq v78, v82
+    v84 = eq v83, false
+    icall revert_if<empty>, v84
+    ret true
+}
+
+; function random1() external pure [selector 0xd24c5a36]
+fn @random1() [selector=0xd24c5a36, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function random2() external pure [selector 0xc5337ed4]
+fn @random2() [selector=0xc5337ed4, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function random3() external pure [selector 0xafb0db5f]
+fn @random3() [selector=0xafb0db5f, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}

@@ -297,7 +297,7 @@ fn static_bytes_origins_survive_direct_returns() {
 #[test]
 fn tail_call_thunk_chain_keeps_call_site() {
     let path =
-        Path::new(FIXTURES).join("../../ui/codegen/lowering/run-call/internal_stop_runtime.sol");
+        Path::new(FIXTURES).join("../../ui/codegen/run-call/dispatch/internal_stop_runtime.sol");
     let source = RealFileLoader.load_file(&path).unwrap();
     let start = source.find("halt();").unwrap();
     let end = start + "halt()".len();

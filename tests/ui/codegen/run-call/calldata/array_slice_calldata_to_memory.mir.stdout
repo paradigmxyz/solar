@@ -1,0 +1,159 @@
+; === ROOT/tests/ui/codegen/run-call/calldata/array_slice_calldata_to_memory.sol:ArraySliceCalldataToMemory ===
+@module ArraySliceCalldataToMemory
+; function copy(uint256[] calldata values, uint256 start, uint256 end) external pure returns (uint256) [selector 0x65750e30]
+fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x65750e30, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = lt v1, arg2
+    v3 = lt arg2, arg1
+    v4 = or v2, v3
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v4
+    v6 = sub arg2, arg1
+    v7 = mul arg1, 32
+    v8 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v8
+    v9 = ptradd v0, v7
+    v10 = make_calldata_slice v9, v6
+    v11 = extract_value slice<calldata>, v10, 1
+    v12 = extract_value slice<calldata>, v10, 0
+    v13 = gt v11, 0x7ffffffffffffff
+    icall panic_if<0x41>, v13
+    v14 = mul v11, 32
+    v15 = calldatasize
+    v16 = ptrtoint ptr<calldata> v12 to i256
+    v17 = sub v15, v16
+    v18 = slt v17, v14
+    icall revert_if<calldata_tail_too_short>, v18
+    v19 = mul v11, 32
+    v20 = gt v11, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v20
+    v21 = add v19, 32
+    v22 = lt v21, 32
+    icall panic_if<0x41>, v22
+    v23 = alloc v21
+    mstore v23, v11
+    v24 = make_calldata_slice v12, v19
+    v25 = ptradd v23, 32
+    v26 = extract_value slice<calldata>, v24, 0
+    v27 = extract_value slice<calldata>, v24, 1
+    calldatacopy v25, v26, v27
+    v28 = mload v23
+    v29 = gt v28, 0
+    v30 = eq v29, false
+    icall panic_if<0x32>, v30
+    v31 = ptradd v23, 32
+    v32 = mload v31
+    ret v32
+}
+
+; function first(uint256[] memory values) internal pure returns (uint256)
+fn @first(arg0: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = mload arg0
+    v1 = gt v0, 0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = ptradd arg0, 32
+    v4 = mload v3
+    ret v4
+}
+
+; function forward(uint256[] calldata values, uint256 start, uint256 end) external pure returns (uint256) [selector 0x4b1f0a4b]
+fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x4b1f0a4b, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = lt v1, arg2
+    v3 = lt arg2, arg1
+    v4 = or v2, v3
+    v5 = zext i1 v4 to i256
+    icall revert_if<empty>, v4
+    v6 = sub arg2, arg1
+    v7 = mul arg1, 32
+    v8 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v8
+    v9 = ptradd v0, v7
+    v10 = make_calldata_slice v9, v6
+    v11 = extract_value slice<calldata>, v10, 1
+    v12 = extract_value slice<calldata>, v10, 0
+    v13 = gt v11, 0x7ffffffffffffff
+    icall panic_if<0x41>, v13
+    v14 = mul v11, 32
+    v15 = calldatasize
+    v16 = ptrtoint ptr<calldata> v12 to i256
+    v17 = sub v15, v16
+    v18 = slt v17, v14
+    icall revert_if<calldata_tail_too_short>, v18
+    v19 = mul v11, 32
+    v20 = gt v11, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v20
+    v21 = add v19, 32
+    v22 = lt v21, 32
+    icall panic_if<0x41>, v22
+    v23 = alloc v21
+    mstore v23, v11
+    v24 = make_calldata_slice v12, v19
+    v25 = ptradd v23, 32
+    v26 = extract_value slice<calldata>, v24, 0
+    v27 = extract_value slice<calldata>, v24, 1
+    calldatacopy v25, v26, v27
+    v28 = icall @first, v23
+    ret v28
+}
+
+; function literal(uint256[] calldata values, uint256 start, uint256 end) external pure returns (uint256) [selector 0x75a8bc6f]
+fn @literal(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x75a8bc6f, pure, abi_params=[array<_, uint256>, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = alloc 32
+    v1 = extract_value slice<calldata>, arg0, 0
+    v2 = extract_value slice<calldata>, arg0, 1
+    v3 = lt v2, arg2
+    v4 = lt arg2, arg1
+    v5 = or v3, v4
+    v6 = zext i1 v5 to i256
+    icall revert_if<empty>, v5
+    v7 = sub arg2, arg1
+    v8 = mul arg1, 32
+    v9 = gt arg1, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v9
+    v10 = ptradd v1, v8
+    v11 = make_calldata_slice v10, v7
+    v12 = extract_value slice<calldata>, v11, 1
+    v13 = extract_value slice<calldata>, v11, 0
+    v14 = gt v12, 0x7ffffffffffffff
+    icall panic_if<0x41>, v14
+    v15 = mul v12, 32
+    v16 = calldatasize
+    v17 = ptrtoint ptr<calldata> v13 to i256
+    v18 = sub v16, v17
+    v19 = slt v18, v15
+    icall revert_if<calldata_tail_too_short>, v19
+    v20 = mul v12, 32
+    v21 = gt v12, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v21
+    v22 = add v20, 32
+    v23 = lt v22, 32
+    icall panic_if<0x41>, v23
+    v24 = alloc v22
+    mstore v24, v12
+    v25 = make_calldata_slice v13, v20
+    v26 = ptradd v24, 32
+    v27 = extract_value slice<calldata>, v25, 0
+    v28 = extract_value slice<calldata>, v25, 1
+    calldatacopy v26, v27, v28
+    v29 = ptrtoint ptr<memory> v24 to i256
+    mstore v0, v29
+    v30 = lt 0, 1
+    v31 = eq v30, false
+    icall panic_if<0x32>, v31
+    v32 = mload v0, ptr<memory>
+    v33 = mload v32
+    v34 = gt v33, 0
+    v35 = eq v34, false
+    icall panic_if<0x32>, v35
+    v36 = ptradd v32, 32
+    v37 = mload v36
+    ret v37
+}

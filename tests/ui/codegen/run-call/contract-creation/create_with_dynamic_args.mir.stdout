@@ -1,0 +1,101 @@
+; === ROOT/tests/ui/codegen/run-call/contract-creation/create_with_dynamic_args.sol:Token ===
+@module Token
+; constructor(string memory n, uint8 d) [creation entry]
+fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, uint8]] {
+  bb0:
+    icall @store_storage_bytes, 0, arg0
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = zext i8 arg1 to i256
+    v3 = and v2, 255
+    v4 = or v1, v3
+    sstore 1, v4 !metadata(storage=slot(1))
+    ret
+}
+
+; getter for `string public name` [selector 0x06fdde03]
+fn @name() -> ptr<memory> [selector=0x06fdde03, view, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = load_storage_bytes 0
+    ret v0
+}
+
+; getter for `uint8 public decimals` [selector 0x313ce567]
+fn @decimals() -> i8 [selector=0x313ce567, view, abi_params=[], abi_returns=[word<uint8>], abi_return_params=[uint8]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = trunc i256 v0 to i8
+    ret v1
+}
+
+fn @store_storage_bytes(arg0: i256, arg1: ptr<memory>) {
+  bb0:
+    store_storage_bytes arg0, arg1
+    ret
+}
+
+; === ROOT/tests/ui/codegen/run-call/contract-creation/create_with_dynamic_args.sol:Factory ===
+@module Factory
+@types
+  struct0: {i256, i8}
+
+@data
+  Token_creation_code_0: creation_code "ROOT/tests/ui/codegen/run-call/contract-creation/create_with_dynamic_args.sol:Token"
+
+; function makeAndRead() external returns (uint256, uint8) [selector 0x42c589ac]
+fn @makeAndRead() -> struct0 [selector=0x42c589ac, abi_params=[], abi_returns=[word, word<uint8>], abi_return_params=[uint256, uint8]] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 5
+    v1 = ptradd v0, 32
+    mstore v1, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v2 = datasize Token_creation_code_0
+    v3 = fmp
+    datacopy Token_creation_code_0, v3, v2
+    v4 = ptradd v3, v2
+    v5 = abi_encode [memory_bytes, word<uint8>], scratch, base v4, args v0, 18
+    v6 = extract_value slice<memory>, v5, 1
+    v7 = add v2, v6
+    v8 = lt v7, v2
+    icall panic_if<0x41>, v8
+    v9 = create 0, v3, v7
+    v10 = ne v9, i160 0
+    jumpi v10, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v11 = gas
+    mstore 0, 0x6fdde03 !metadata(memory=scratch)
+    v12 = zext i160 v9 to i256
+    v13 = staticcall v11, v12, 28, 4, 0, 0
+    jumpi v13, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v14 = returndatasize
+    v15 = add v14, 31
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v17 = alloc v16
+    returndatacopy v17, 0, v14
+    v18 = make_memory_slice v17, v14
+    v19 = abi_decode [bytes], v18
+    v20 = mload v19
+    v21 = gas
+    mstore 0, 0x313ce567 !metadata(memory=scratch)
+    v22 = zext i160 v9 to i256
+    v23 = staticcall v21, v22, 28, 4, 0, 32
+    jumpi v23, bb6, bb5
+  bb5:                                            ; preds = bb4
+    revert_returndata
+  bb6:                                            ; preds = bb4
+    v24 = returndatasize
+    v25 = lt v24, 32
+    icall revert_if<tuple_data_too_short>, v25
+    v26 = mload 0 !metadata(memory=scratch)
+    v27 = gt v26, 255
+    icall revert_if<empty>, v27
+    v28 = trunc i256 v26 to i8
+    v29 = insert_value struct0, undef struct0, 0, v20
+    v30 = insert_value struct0, v29, 1, v28
+    ret v30
+}
