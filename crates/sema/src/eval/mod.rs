@@ -444,7 +444,7 @@ impl<'gcx> ConstEval<'gcx> {
             while let hir::ExprKind::Member(base, _) = receiver.kind {
                 receiver = base.peel_parens();
                 if let Some(id) = self.constant_reference(receiver) {
-                    self.var_result(id).as_ref().map_err(|&err| err)?;
+                    self.eval_var(id)?;
                 }
             }
         }

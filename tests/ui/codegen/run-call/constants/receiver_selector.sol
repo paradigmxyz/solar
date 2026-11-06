@@ -8,6 +8,7 @@
 //@ run-call-fail: selectorConcat() => Panic(0x11)
 //@ run-call-fail: selectorLocal() => Panic(0x11)
 //@ run-call-fail: selectorConstant() => Panic(0x11)
+//@ run-call-fail: selectorParenthesized() => Panic(0x11)
 //@ run-call: interfaceSelector() => 0x26121ff0
 //@ run-call: thisSelector() => 0xe2179b8e
 //@ run-call: valueSelector() => 0x26121ff0
@@ -65,6 +66,10 @@ contract C {
 
     function selectorConstant() external pure returns (uint256) {
         return uint32(FROM_K);
+    }
+
+    function selectorParenthesized() external pure returns (uint256) {
+        return uint32((K).f.selector);
     }
 
     function interfaceSelector() external pure returns (uint32) {

@@ -94,6 +94,13 @@ fn @selectorConstant() -> i256 [selector=0x296cd77f, pure, abi_params=[], abi_re
     ret v3
 }
 
+; function selectorParenthesized() external pure returns (uint256) [selector 0xc6097a73]
+fn @selectorParenthesized() -> i256 [selector=0xc6097a73, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @constant_0
+    ret 0x26121ff0
+}
+
 ; function interfaceSelector() external pure returns (uint32) [selector 0x2ff00ac2]
 fn @interfaceSelector() -> i32 [selector=0x2ff00ac2, pure, abi_params=[], abi_returns=[word<uint32>], abi_return_params=[uint32]] {
   bb0:
