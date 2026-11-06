@@ -6,6 +6,20 @@ LL │     function() external {}
    │
    ╰ note: this style of fallback function has been removed; use the `fallback` or `receive` keywords instead
 
+warning[6162]: named function type parameters are deprecated
+   ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
+   │
+LL │     function (uint256 x) public {}
+   ╰╴                      ━
+
+error: expected a state variable declaration
+   ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
+   │
+LL │     function (uint256 x) public {}
+   │                                 ━
+   │
+   ╰ note: this style of fallback function has been removed; use the `fallback` or `receive` keywords instead
+
 error: expected a state variable declaration
    ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
    │
@@ -46,5 +60,4 @@ error: member `g` not found on type `contract B`
 LL │         b.g();
    ╰╴          ━
 
-error: aborting due to 7 previous errors
-
+error: aborting due to 8 previous errors; 1 warning emitted

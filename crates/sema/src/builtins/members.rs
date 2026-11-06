@@ -159,13 +159,15 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_>
     }
     gcx.interface_functions(id)
         .iter()
-        .map(|f| {
+        .filter_map(|f| {
             let id = hir::ItemId::from(f.id);
-            Member::with_res(
-                gcx.item_name(id).name,
+            // Skip nameless items left by parse recovery; never call `item_name` on them.
+            let name = gcx.item_name_opt(id)?.name;
+            Some(Member::with_res(
+                name,
                 f.ty.as_externally_callable_function(false, gcx),
                 id,
-            )
+            ))
         })
         .collect()
 }
@@ -297,9 +299,10 @@ fn contract_type(
                     .iter()
                     .map(|f| hir::ItemId::from(f.id))
                     .filter(|&item| gcx.hir.item(item).is_visible_via_contract_type_access())
-                    .map(|item| {
+                    .filter_map(|item| {
+                        let name = gcx.item_name_opt(item)?.name;
                         let ty = declaration_function_ty(gcx, gcx.type_of_item(item));
-                        Member::with_res(gcx.item_name(item).name, ty, item)
+                        Some(Member::with_res(name, ty, item))
                     }),
             );
         }
@@ -307,7 +310,8 @@ fn contract_type(
             members.extend(contract.functions().filter_map(|id| {
                 let ty = contract_type_own_function(gcx, id, access)?;
                 let item = hir::ItemId::from(id);
-                Some(Member::with_res(gcx.item_name(item).name, ty, item))
+                let name = gcx.item_name_opt(item)?.name;
+                Some(Member::with_res(name, ty, item))
             }));
         }
     }
@@ -318,7 +322,9 @@ fn contract_type(
         {
             return None;
         }
-        Some(Member::with_res(gcx.item_name(item).name, gcx.type_of_res(item.into()), item))
+        // Old-style fallback recovery can leave a nameless state variable; skip it.
+        let name = gcx.item_name_opt(item)?.name;
+        Some(Member::with_res(name, gcx.type_of_res(item.into()), item))
     }));
 
     members
@@ -439,7 +445,9 @@ fn super_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
             }
 
             let item = hir::ItemId::from(function);
-            let name = gcx.item_name(item).name;
+            let Some(name) = gcx.item_name_opt(item).map(|name| name.name) else {
+                continue;
+            };
             let params = gcx.item_parameter_types(item);
             // Keep only the most-derived implementation for each override signature.
             if members.iter().any(|member: &Member<'_>| match member.res {
