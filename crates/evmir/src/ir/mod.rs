@@ -14,7 +14,7 @@
 
 use crate::{
     debug::{
-        DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugLocKind, DebugSpans,
+        DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugLoc, DebugLocKind, DebugSpans,
         DistinctSpans,
     },
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
@@ -212,8 +212,8 @@ impl Module {
             let Some(checkpoint) = self.blocks[target].metadata.entry_checkpoint else { return };
             if !seen.insert(target)
                 || !metadata.is_some_and(|metadata| {
-                    metadata.source_spans() == [checkpoint.transfer]
-                        || (metadata.source_spans().is_empty()
+                    metadata.only_source_span() == Some(checkpoint.transfer)
+                        || (!metadata.has_source_spans()
                             && (metadata.checkpoint_transfers().contains(&checkpoint.transfer)
                                 || metadata.function_invoke().is_some_and(|function| {
                                     function.declaration == checkpoint.transfer
@@ -911,16 +911,12 @@ pub struct Metadata {
     /// a block that ends inside it. Transforms still check the boundary themselves, through
     /// `is_split_point`, rather than leaving a split for the verifier to catch.
     pub keep_with_next: bool,
-    /// Solidity source span associated with this machine operation.
-    source_spans: DebugSpans,
+    /// Source origins, modifier depth, and why there are no origins, when there are none.
+    debug_loc: DebugLoc,
     /// Function activation entered after this operation.
     function_invoke: Option<DebugFunction>,
     /// Function activation closed after this operation.
     function_exit: Option<DebugFunctionExit>,
-    /// Legacy source-map modifier nesting depth for this operation.
-    modifier_depth: u32,
-    /// Why the operation has no source origin, when it has none.
-    debug_loc_kind: DebugLocKind,
     /// Identities of removed thunk entries reached by this transfer, not function events.
     /// These only validate exclusive destination checkpoints and are never emitted as calls.
     checkpoint_transfers: DebugSpans,
@@ -935,82 +931,60 @@ impl Metadata {
     /// Returns the source span associated with this operation.
     #[must_use]
     pub fn source_span(&self) -> Option<Span> {
-        self.source_spans.first().copied()
+        self.debug_loc.span()
     }
 
     /// Returns every source origin associated with this operation.
+    pub fn source_spans(&self) -> impl Iterator<Item = Span> + Clone + '_ {
+        self.debug_loc.spans()
+    }
+
+    /// Returns the source origin of this operation if it has exactly one.
     #[must_use]
-    pub fn source_spans(&self) -> &[Span] {
-        &self.source_spans
+    pub fn only_source_span(&self) -> Option<Span> {
+        self.debug_loc.only_span()
+    }
+
+    /// Returns whether this operation has a source origin.
+    #[must_use]
+    pub fn has_source_spans(&self) -> bool {
+        self.debug_loc.has_spans()
     }
 
     /// Sets the source span associated with this operation.
     pub fn set_source_span(&mut self, span: Option<Span>) {
-        self.source_spans.clear();
-        self.source_spans.extend(span.filter(|span| !span.is_dummy()));
-        self.debug_loc_kind = DebugLocKind::Normal;
+        self.debug_loc.set_span(span);
     }
 
     /// Sets all source origins associated with this operation.
     pub fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
-        self.source_spans.clear();
-        let mut distinct = DistinctSpans::default();
-        for span in spans {
-            if !span.is_dummy() && distinct.is_new(span, || self.source_spans.iter().copied()) {
-                self.source_spans.push(span);
-            }
-        }
-        self.debug_loc_kind = DebugLocKind::Normal;
+        self.debug_loc.set_spans(spans);
     }
 
     /// Returns the legacy source-map modifier nesting depth for this operation.
     #[must_use]
     pub const fn modifier_depth(&self) -> u32 {
-        self.modifier_depth
+        self.debug_loc.modifier_depth()
     }
 
     /// Sets the legacy source-map modifier nesting depth for this operation.
     pub fn set_modifier_depth(&mut self, depth: u32) {
-        self.modifier_depth = depth;
+        self.debug_loc.set_modifier_depth(depth);
     }
 
-    /// Rule R1, preserve: copies the location (spans, modifier depth and kind) of the one
-    /// operation this one stands for, like LLVM's `setDebugLoc(I->getDebugLoc())` and solc's
-    /// `AssemblyItem(op, _x.debugData())`.
+    /// Rule R1, preserve: see [`DebugLoc::preserve`].
     pub fn preserve_debug_loc(&mut self, from: &Self) {
-        self.set_source_spans(from.source_spans().iter().copied());
-        self.modifier_depth = from.modifier_depth;
-        self.debug_loc_kind = from.debug_loc_kind;
+        self.debug_loc.preserve(&from.debug_loc);
     }
 
-    /// Rule R2, merge: adds the spans of the equivalent operations `others` that this one now
-    /// stands for, like LLVM's `DILocation::getMergedLocation`, but keeping every span instead of
-    /// collapsing to line 0.
+    /// Rule R2, merge: see [`DebugLoc::merge`].
     pub fn merge_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
-        let mut distinct = DistinctSpans::default();
-        for other in others {
-            let had_source_spans = !self.source_spans.is_empty();
-            for &span in other.source_spans() {
-                if distinct.is_new(span, || self.source_spans.iter().copied()) {
-                    self.source_spans.push(span);
-                }
-            }
-            if !had_source_spans && !self.source_spans.is_empty() {
-                self.modifier_depth = other.modifier_depth;
-            }
-            self.debug_loc_kind = if self.source_spans.is_empty() {
-                self.debug_loc_kind.merge(other.debug_loc_kind)
-            } else {
-                DebugLocKind::Normal
-            };
-        }
+        self.debug_loc.merge(others.into_iter().map(|other| &other.debug_loc));
     }
 
-    /// Rule R3, drop: clears the spans and records why the operation has no source origin, like
-    /// LLVM's `Instruction::dropLocation`. The modifier depth stays.
+    /// Rule R3, drop: see [`DebugLoc::drop`].
     pub fn drop_debug_loc(&mut self, kind: DebugLocKind) {
-        self.set_source_span(None);
-        self.debug_loc_kind = kind;
+        self.debug_loc.drop(kind);
     }
 
     /// Rule E1, move: takes the function events of the operation that carried this call or
@@ -1092,19 +1066,19 @@ impl Metadata {
     /// Returns why this operation has no source origin, when it has none.
     #[must_use]
     pub const fn debug_loc_kind(&self) -> DebugLocKind {
-        self.debug_loc_kind
+        self.debug_loc.kind()
     }
 
     /// Annotates the missing origin of this operation.
     pub fn set_debug_loc_kind(&mut self, kind: DebugLocKind) {
-        self.debug_loc_kind = kind;
+        self.debug_loc.set_kind(kind);
     }
 
     /// Returns whether this operation has neither a source origin nor a reason for lacking one,
     /// which is what LLVM's `not-generate` check reports.
     #[must_use]
     pub fn lacks_debug_location(&self) -> bool {
-        self.debug_loc_kind == DebugLocKind::Normal && self.source_spans.is_empty()
+        self.debug_loc.is_gap()
     }
 
     /// Returns identities used only to validate removed entry checkpoints.

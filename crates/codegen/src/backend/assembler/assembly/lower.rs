@@ -332,19 +332,12 @@ fn lower_evm_ir_once(
         |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),
     );
     if !emitted_data.is_empty() && !ends_with_terminal {
-        let spans = module
-            .blocks
-            .last()
-            .and_then(|block| block.terminator.as_ref())
-            .map_or(&[][..], |term| term.metadata.source_spans());
-        program.set_source_spans(spans);
-        program.set_modifier_depth(
-            module
-                .blocks
-                .last()
-                .and_then(|block| block.terminator.as_ref())
-                .map_or(0, |term| term.metadata.modifier_depth()),
+        let last_terminator = module.blocks.last().and_then(|block| block.terminator.as_ref());
+        program.set_source_spans(
+            last_terminator.into_iter().flat_map(|term| term.metadata.source_spans()),
         );
+        program
+            .set_modifier_depth(last_terminator.map_or(0, |term| term.metadata.modifier_depth()));
         program.push_op(op::STOP);
     }
     program.data.clone_from(&module.data);
