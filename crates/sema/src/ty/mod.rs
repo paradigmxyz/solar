@@ -103,6 +103,8 @@ pub struct TypeckResults<'gcx> {
     pub(crate) user_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
     /// Contracts whose base slot is a constant integer, for `constant_values` to evaluate.
     pub(crate) base_slots: Vec<(hir::ContractId, &'gcx hir::Expr<'gcx>)>,
+    /// The spans of expression statements that have no effect, reported after type checking.
+    pub(crate) no_effect_stmts: Vec<Span>,
 }
 
 /// The target selected for a call callee expression.
@@ -791,6 +793,10 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns the contracts whose base slot is a constant integer, with the base slot.
+    pub(crate) fn typeck_no_effect_stmts(self) -> &'gcx [Span] {
+        self.typeck_results.get().map_or(&[], |results| &results.no_effect_stmts)
+    }
+
     pub(crate) fn typeck_base_slots(self) -> &'gcx [(hir::ContractId, &'gcx hir::Expr<'gcx>)] {
         self.typeck_results.get().map_or(&[], |results| &results.base_slots)
     }

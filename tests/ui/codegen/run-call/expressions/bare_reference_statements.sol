@@ -29,30 +29,30 @@ contract BareReferenceStatements {
 
     function references() external payable returns (uint256, uint256) {
         address payable to = payable(address(0xdead));
-        block;
-        msg;
-        tx;
-        abi;
-        Withdrawn;
-        Failed;
-        IToken;
-        Module;
-        Module.helper;
-        Module.IModule.f;
-        Module.IModule.f.selector;
-        type(IToken);
-        MAX;
-        BareReferenceStatements.MAX;
-        NAME;
-        new uint256[];
-        to.transfer;
-        to.send;
-        to.call;
-        to.delegatecall;
-        to.staticcall;
-        abi.encode;
-        abi.decode;
-        (block, msg.sender, Withdrawn);
+        block; //~ WARN: statement has no effect
+        msg; //~ WARN: statement has no effect
+        tx; //~ WARN: statement has no effect
+        abi; //~ WARN: statement has no effect
+        Withdrawn; //~ WARN: statement has no effect
+        Failed; //~ WARN: statement has no effect
+        IToken; //~ WARN: statement has no effect
+        Module; //~ WARN: statement has no effect
+        Module.helper; //~ WARN: statement has no effect
+        Module.IModule.f; //~ WARN: statement has no effect
+        Module.IModule.f.selector; //~ WARN: statement has no effect
+        type(IToken); //~ WARN: statement has no effect
+        MAX; //~ WARN: statement has no effect
+        BareReferenceStatements.MAX; //~ WARN: statement has no effect
+        NAME; //~ WARN: statement has no effect
+        new uint256[]; //~ WARN: statement has no effect
+        to.transfer; //~ WARN: statement has no effect
+        to.send; //~ WARN: statement has no effect
+        to.call; //~ WARN: statement has no effect
+        to.delegatecall; //~ WARN: statement has no effect
+        to.staticcall; //~ WARN: statement has no effect
+        abi.encode; //~ WARN: statement has no effect
+        abi.decode; //~ WARN: statement has no effect
+        (block, msg.sender, Withdrawn); //~ WARN: statement has no effect
         return (address(this).balance, count);
     }
 
@@ -90,7 +90,7 @@ contract BareReferenceStatements {
     }
 
     receive() external payable {
-        Withdrawn;
+        Withdrawn; //~ WARN: statement has no effect
     }
 
     function next() internal returns (address payable) {
