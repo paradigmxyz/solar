@@ -1,6 +1,6 @@
-- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_checkpoint_shared_entry.evmir (before cfg-simplify) ===
-+ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_checkpoint_shared_entry.evmir (after cfg-simplify) ===
-  @module CheckpointSharedEntry
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_lent_invoke_shared_entry.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_lent_invoke_shared_entry.evmir (after cfg-simplify) ===
+  @module LentInvokeSharedEntry
   bb0:
     calldatasize
 -   jumpi bb1, bb2 !metadata(span=10..20)
@@ -12,7 +12,7 @@
     calldataload
     jumpi bb5, bb6 !metadata(span=50..60)
 - bb4:
-+ bb4 [checkpoint=30..40@10..20@0@callee@30..70]:
++ bb4 [lent_invoke=callee@30..70]:
     push 2
     push 0
     mstore
@@ -28,9 +28,9 @@
     mstore
     stop
   
-- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_checkpoint_shared_entry.evmir (before terminal-dedup) ===
-+ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_checkpoint_shared_entry.evmir (after terminal-dedup) ===
-  @module CheckpointSharedEntry
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_lent_invoke_shared_entry.evmir (before terminal-dedup) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_lent_invoke_shared_entry.evmir (after terminal-dedup) ===
+  @module LentInvokeSharedEntry
   bb0:
     calldatasize
     jumpi bb4, bb2 !metadata(span=10..20)
@@ -38,7 +38,7 @@
     push 0
     calldataload
     jumpi bb5, bb6 !metadata(span=50..60)
-- bb4 [checkpoint=30..40@10..20@0@callee@30..70]:
+- bb4 [lent_invoke=callee@30..70]:
 + bb4:
     push 2
     push 0
@@ -56,9 +56,9 @@
 -   stop
 +   jump bb4
   
-- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_checkpoint_shared_entry.evmir (before cfg-simplify) ===
-+ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_checkpoint_shared_entry.evmir (after cfg-simplify) ===
-  @module CheckpointSharedEntry
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_lent_invoke_shared_entry.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/cfg_simplify_lent_invoke_shared_entry.evmir (after cfg-simplify) ===
+  @module LentInvokeSharedEntry
   bb0:
     calldatasize
     jumpi bb4, bb2 !metadata(span=10..20)
