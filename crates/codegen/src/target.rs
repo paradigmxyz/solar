@@ -171,13 +171,10 @@ impl Target {
     pub(crate) const MAX_TRIP_COUNT_BITS: usize = 64;
     /// How many times a loop without a computable trip count is assumed to
     /// run per invocation when weighing code growth inside it: GCC's estimate
-    /// for such loops. This is the baseline value used when optimizer runs is at default (200).
-    pub(crate) const UNCOUNTED_LOOP_ITERATIONS_BASE: u64 = 10;
-    
-    /// The optimizer runs threshold above which uncounted loop iterations scale with expected
-    /// executions. Below this threshold, we use the conservative baseline to avoid code bloat
-    /// in size-sensitive contracts.
-    pub(crate) const LOOP_SCALING_MIN_RUNS: u64 = 10_000;
+    /// for such loops. Independent of [`Self::expected_executions`]: optimizer
+    /// runs amortize deposit against lifetime gas, they do not change how often
+    /// the body runs on one call.
+    pub(crate) const UNCOUNTED_LOOP_ITERATIONS: u64 = 10;
     /// Gas an interpreter's dispatch of one instruction is worth, charged per executed
     /// instruction under [`Tune::Interpreter`]. Measured on evm2's interpreter (AMD Zen 5,
     /// tail-call dispatch): every opcode costs about 7.3 cycles whatever its push width or
@@ -346,18 +343,14 @@ impl Target {
     }
 
     /// How many times an uncounted loop is estimated to execute per invocation.
-    /// At high optimizer runs (>= 10,000), this scales with expected executions to recognize
-    /// hot paths, addressing https://github.com/paradigmxyz/solar/issues/2469.
-    /// Below that threshold, we use a conservative baseline to preserve code size.
+    ///
+    /// This is the per-call trip count, not a function of optimizer runs. Consumers such as
+    /// [`Self::loop_block_copy`] pass it to [`Self::deposit_repays_gas`], which already
+    /// multiplies by [`Self::expected_executions`]. Scaling the estimate with runs would price
+    /// a 10M-run deployment as a billion loop traversals of a loop that still runs about ten
+    /// times per call.
     pub(crate) fn uncounted_loop_iterations(&self) -> u64 {
-        if self.expected_executions >= Self::LOOP_SCALING_MIN_RUNS {
-            // Scale iterations with expected executions, capped at a reasonable maximum.
-            // At 10M runs, estimate 100 iterations; at 200 runs, use baseline 10.
-            let scaled = (self.expected_executions / 100_000).max(Self::UNCOUNTED_LOOP_ITERATIONS_BASE);
-            scaled.min(1000) // Cap at 1000 iterations to avoid extreme code bloat
-        } else {
-            Self::UNCOUNTED_LOOP_ITERATIONS_BASE
-        }
+        Self::UNCOUNTED_LOOP_ITERATIONS
     }
 
     /// The weight of a block of `hotness` outside every loop. Gas in a cold block is not paid by a
@@ -2403,6 +2396,39 @@ mod tests {
             assert!(target(1).shares_in_loop(25, 27));
             assert!(!target(1).shares_in_loop(0, 27));
         }
+    }
+
+    #[test]
+    fn uncounted_loop_iterations_are_per_invocation() {
+        let gas = |runs| Target::with(EvmVersion::Cancun, OptimizationMode::Gas, runs);
+        let default = gas(200);
+        let hot = gas(10_000_000);
+        // A loop that runs about ten times on each call is still ten times at 10M optimizer
+        // runs: runs amortize deposit, they do not change the per-invocation estimate.
+        assert_eq!(default.uncounted_loop_iterations(), Target::UNCOUNTED_LOOP_ITERATIONS);
+        assert_eq!(gas(10_000).uncounted_loop_iterations(), Target::UNCOUNTED_LOOP_ITERATIONS);
+        assert_eq!(hot.uncounted_loop_iterations(), Target::UNCOUNTED_LOOP_ITERATIONS);
+
+        // `loop_block_copy` reports the gas saved on one execution; `deposit_repays_gas` then
+        // multiplies by expected executions. Scaling the per-call estimate with runs would
+        // price 10M-run copies as a billion loop traversals of a ten-iteration loop.
+        let copy = Cost::new(30, 12);
+        assert_eq!(hot.loop_block_copy(copy, 3), default.loop_block_copy(copy, 3));
+        let (added, saved) = hot.loop_block_copy(copy, 3);
+        assert_eq!(added, 8);
+        assert_eq!(saved, u64::from(hot.jump().gas) * Target::UNCOUNTED_LOOP_ITERATIONS / 3);
+        // Eight bytes deposit 1,600 gas; ten iterations of the jump on a third of the paths,
+        // over 10M executions, repay it. The same copy at one execution does not.
+        assert!(!hot.deposit_repays_gas(added, saved));
+        assert!(gas(1).deposit_repays_gas(added, saved));
+
+        // Immediate compaction prices a push at most `DEFAULT_EXPECTED_EXECUTIONS` times, ten
+        // times over in a loop, even at 10M runs. Inflating the per-call estimate to 100 would
+        // make `not(31)` keep the 32-byte literal (6,000 deposit against 60,000 extra gas)
+        // instead of tying.
+        assert!(hot.compacts_immediate(30, 3, true));
+        assert!(!hot.compacts_immediate(12, 8, true));
+        assert!(!hot.shares_in_loop(25, 27));
     }
 
     #[test]
