@@ -60,16 +60,16 @@ fn debug_output_selection_and_bytecode_neutrality() {
 #[test]
 fn debug_output_selection_preserves_optimized_bytecode() {
     for source in [
-        "../../codegen/lowering/run-call/external_call_returndata_size.sol",
-        "../../codegen/lowering/empty_code_external_call.sol",
-        "../../codegen/lowering/storage_checked_arithmetic.sol",
-        "../../codegen/lowering/library_address.sol",
+        "../../codegen/run-call/external-calls/external_call_returndata_size.sol",
+        "../../codegen/run-call/external-calls/empty_code_external_call.sol",
+        "../../codegen/mir/lower-arithmetic/storage_checked_arithmetic.sol",
+        "../../codegen/run-call/libraries/library_address.sol",
         "../../../foundry/libraries/test/OverloadLib.t.sol",
         "../../codegen/mir/byte-loops/shapes.sol",
         "../../codegen/mir/if-convert/boolean_selects_runtime.sol",
-        "../../codegen/lowering/mapping.sol",
-        "../../codegen/lowering/calldata_slice_ternary.sol",
-        "../../codegen/lowering/run-call/internal_stop_runtime.sol",
+        "../../codegen/lowering/mir/storage-memory/mapping.sol",
+        "../../codegen/lowering/mir/abi/calldata_slice_ternary.sol",
+        "../../codegen/run-call/dispatch/internal_stop_runtime.sol",
     ] {
         for mode in ["none", "gas", "size"] {
             let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
@@ -168,7 +168,7 @@ fn debug_outputs_match_standard_json() {
 #[test]
 fn inlined_dispatch_debug_outputs_are_bytecode_neutral() {
     assert_debug_outputs_are_bytecode_neutral(
-        "../../codegen/lowering/run-call/scalar_dispatch.sol",
+        "../../codegen/lowering/mir/calls/scalar_dispatch.sol",
     );
 }
 

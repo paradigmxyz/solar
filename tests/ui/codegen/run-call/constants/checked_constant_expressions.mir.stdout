@@ -1,0 +1,22 @@
+; === ROOT/tests/ui/codegen/run-call/constants/checked_constant_expressions.sol:CheckedConstants ===
+@module CheckedConstants
+; function underflow() external pure returns (uint256) [selector 0xdc75bec7]
+fn @underflow() -> i256 [selector=0xdc75bec7, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_sub uint256, 100, 150
+    ret v0
+}
+
+; function uncheckedNarrow() external pure returns (bool) [selector 0x005e3fdf]
+fn @uncheckedNarrow() -> i1 [selector=0x005e3fdf, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = add i8 250, i8 10
+    v1 = eq v0, i8 4
+    ret v1
+}
+
+; function narrowShift() external pure returns (bool) [selector 0xca932146]
+fn @narrowShift() -> i1 [selector=0xca932146, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    ret true
+}

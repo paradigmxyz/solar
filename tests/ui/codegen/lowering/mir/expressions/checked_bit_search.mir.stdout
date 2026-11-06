@@ -1,0 +1,158 @@
+; === ROOT/tests/ui/codegen/lowering/mir/expressions/checked_bit_search.sol:LibBit ===
+@module LibBit
+@library
+
+; === ROOT/tests/ui/codegen/lowering/mir/expressions/checked_bit_search.sol:CheckedBitSearch ===
+@module CheckedBitSearch
+; function fls(uint256 x) external pure returns (uint256) [selector 0x27be8b2d]
+fn @fls.0(arg0: i256) -> i256 [selector=0x27be8b2d, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @fls.3, arg0
+    ret v0
+}
+
+; function clz(uint256 x) external pure returns (uint256) [selector 0x30244f7a]
+fn @clz.1(arg0: i256) -> i256 [selector=0x30244f7a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @clz.4, arg0
+    ret v0
+}
+
+; function ffs(uint256 x) external pure returns (uint256) [selector 0x2297890a]
+fn @ffs.2(arg0: i256) -> i256 [selector=0x2297890a, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @ffs.5, arg0
+    ret v0
+}
+
+; function fls(uint256 x) internal pure returns (uint256 r)
+fn @fls.3(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v1 = shr arg0, 128
+    v2 = ne v1, 0
+    jumpi v2, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v3 = shr arg0, 128
+    jump bb6
+  bb6:                                            ; preds = bb4, bb5
+    v4 = phi [bb4: v3], [bb5: arg0]
+    v5 = phi [bb4: 128], [bb5: 0]
+    v6 = shr v4, 64
+    v7 = ne v6, 0
+    jumpi v7, bb7, bb8
+  bb8:                                            ; preds = bb6
+    jump bb9
+  bb7:                                            ; preds = bb6
+    v8 = shr v4, 64
+    v9 = or v5, 64
+    jump bb9
+  bb9:                                            ; preds = bb7, bb8
+    v10 = phi [bb7: v8], [bb8: v4]
+    v11 = phi [bb7: v9], [bb8: v5]
+    v12 = shr v10, 32
+    v13 = ne v12, 0
+    jumpi v13, bb10, bb11
+  bb11:                                           ; preds = bb9
+    jump bb12
+  bb10:                                           ; preds = bb9
+    v14 = shr v10, 32
+    v15 = or v11, 32
+    jump bb12
+  bb12:                                           ; preds = bb10, bb11
+    v16 = phi [bb10: v14], [bb11: v10]
+    v17 = phi [bb10: v15], [bb11: v11]
+    v18 = shr v16, 16
+    v19 = ne v18, 0
+    jumpi v19, bb13, bb14
+  bb14:                                           ; preds = bb12
+    jump bb15
+  bb13:                                           ; preds = bb12
+    v20 = shr v16, 16
+    v21 = or v17, 16
+    jump bb15
+  bb15:                                           ; preds = bb13, bb14
+    v22 = phi [bb13: v20], [bb14: v16]
+    v23 = phi [bb13: v21], [bb14: v17]
+    v24 = shr v22, 8
+    v25 = ne v24, 0
+    jumpi v25, bb16, bb17
+  bb17:                                           ; preds = bb15
+    jump bb18
+  bb16:                                           ; preds = bb15
+    v26 = shr v22, 8
+    v27 = or v23, 8
+    jump bb18
+  bb18:                                           ; preds = bb16, bb17
+    v28 = phi [bb16: v26], [bb17: v22]
+    v29 = phi [bb16: v27], [bb17: v23]
+    v30 = shr v28, 4
+    v31 = ne v30, 0
+    jumpi v31, bb19, bb20
+  bb20:                                           ; preds = bb18
+    jump bb21
+  bb19:                                           ; preds = bb18
+    v32 = shr v28, 4
+    v33 = or v29, 4
+    jump bb21
+  bb21:                                           ; preds = bb19, bb20
+    v34 = phi [bb19: v32], [bb20: v28]
+    v35 = phi [bb19: v33], [bb20: v29]
+    v36 = shr v34, 2
+    v37 = ne v36, 0
+    jumpi v37, bb22, bb23
+  bb23:                                           ; preds = bb21
+    jump bb24
+  bb22:                                           ; preds = bb21
+    v38 = shr v34, 2
+    v39 = or v35, 2
+    jump bb24
+  bb24:                                           ; preds = bb22, bb23
+    v40 = phi [bb22: v38], [bb23: v34]
+    v41 = phi [bb22: v39], [bb23: v35]
+    v42 = shr v40, 1
+    v43 = or v42, v41
+    ret v43
+  bb1:                                            ; preds = bb0
+    ret 256
+}
+
+; function clz(uint256 x) internal pure returns (uint256 r)
+fn @clz.4(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v1 = icall @fls.3, arg0
+    v2 = checked_sub uint256, 255, v1
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v3 = phi [bb1: 256], [bb2: v2]
+    ret v3
+}
+
+; function ffs(uint256 x) internal pure returns (uint256 r)
+fn @ffs.5(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v1 = not arg0
+    v2 = checked_add uint256, v1, 1
+    v3 = and v2, arg0
+    v4 = icall @fls.3, v3
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v5 = phi [bb1: 256], [bb2: v4]
+    ret v5
+}

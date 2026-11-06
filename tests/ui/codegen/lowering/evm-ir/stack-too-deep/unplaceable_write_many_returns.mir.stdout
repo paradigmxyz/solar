@@ -1,0 +1,151 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/stack-too-deep/unplaceable_write_many_returns.sol:UnplaceableWriteManyReturns ===
+@module UnplaceableWriteManyReturns
+@types
+  struct0: {i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256, i256}
+
+; function w(uint256 p) internal pure
+fn @w(arg0: i256) [pure] {
+  bb0:
+    mstore arg0, arg0
+    ret
+}
+
+; function g(uint256 p) internal pure returns (uint256 r0, uint256 r1, uint256 r2, uint256 r3, uint256 r4, uint256 r5, uint256 r6, uint256 r7, uint256 r8, uint256 r9, uint256 r10, uint256 r11, uint256 r12, uint256 r13, uint256 r14, uint256 r15, uint256 r16, uint256 r17)
+fn @g(arg0: i256) -> struct0 [pure] {
+  bb0:
+    icall @w, arg0
+    v0 = checked_add uint256, arg0, 2
+    v1 = checked_add uint256, arg0, 3
+    v2 = checked_add uint256, arg0, 5
+    v3 = insert_value struct0, undef struct0, 0, 0
+    v4 = insert_value struct0, v3, 1, 0
+    v5 = insert_value struct0, v4, 2, v0
+    v6 = insert_value struct0, v5, 3, v1
+    v7 = insert_value struct0, v6, 4, 0
+    v8 = insert_value struct0, v7, 5, v2
+    v9 = insert_value struct0, v8, 6, 0
+    v10 = insert_value struct0, v9, 7, 0
+    v11 = insert_value struct0, v10, 8, 0
+    v12 = insert_value struct0, v11, 9, 0
+    v13 = insert_value struct0, v12, 10, 0
+    v14 = insert_value struct0, v13, 11, 0
+    v15 = insert_value struct0, v14, 12, 0
+    v16 = insert_value struct0, v15, 13, 0
+    v17 = insert_value struct0, v16, 14, 0
+    v18 = insert_value struct0, v17, 15, 0
+    v19 = insert_value struct0, v18, 16, 0
+    v20 = insert_value struct0, v19, 17, 0
+    ret v20
+}
+
+; function f(uint256 x) external pure returns (uint256) [selector 0xb3de648b]
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @g, arg0
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = extract_value struct0, v0, 2
+    v4 = extract_value struct0, v0, 3
+    v5 = extract_value struct0, v0, 4
+    v6 = extract_value struct0, v0, 5
+    v7 = extract_value struct0, v0, 6
+    v8 = extract_value struct0, v0, 7
+    v9 = extract_value struct0, v0, 8
+    v10 = extract_value struct0, v0, 9
+    v11 = extract_value struct0, v0, 10
+    v12 = extract_value struct0, v0, 11
+    v13 = extract_value struct0, v0, 12
+    v14 = extract_value struct0, v0, 13
+    v15 = extract_value struct0, v0, 14
+    v16 = extract_value struct0, v0, 15
+    v17 = extract_value struct0, v0, 16
+    v18 = extract_value struct0, v0, 17
+    v19 = icall @g, v4
+    v20 = extract_value struct0, v19, 0
+    v21 = extract_value struct0, v19, 1
+    v22 = extract_value struct0, v19, 2
+    v23 = extract_value struct0, v19, 3
+    v24 = extract_value struct0, v19, 4
+    v25 = extract_value struct0, v19, 5
+    v26 = extract_value struct0, v19, 6
+    v27 = extract_value struct0, v19, 7
+    v28 = extract_value struct0, v19, 8
+    v29 = extract_value struct0, v19, 9
+    v30 = extract_value struct0, v19, 10
+    v31 = extract_value struct0, v19, 11
+    v32 = extract_value struct0, v19, 12
+    v33 = extract_value struct0, v19, 13
+    v34 = extract_value struct0, v19, 14
+    v35 = extract_value struct0, v19, 15
+    v36 = extract_value struct0, v19, 16
+    v37 = extract_value struct0, v19, 17
+    v38 = checked_add uint256, v6, v22
+    ret v38
+}
+
+; function h(uint256 p0, uint256 p1, uint256 p2, uint256 p3, uint256 p4, uint256 p5, uint256 p6, uint256 p7, uint256 p8, uint256 p9, uint256 p10, uint256 p11, uint256 p12, uint256 p13, uint256 p14, uint256 p15) internal pure returns (uint256)
+fn @h(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256, arg13: i256, arg14: i256, arg15: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v1 = icall @u, arg1
+    v2 = extract_value struct0, v1, 0
+    v3 = extract_value struct0, v1, 1
+    v4 = extract_value struct0, v1, 2
+    v5 = extract_value struct0, v1, 3
+    v6 = extract_value struct0, v1, 4
+    v7 = extract_value struct0, v1, 5
+    v8 = extract_value struct0, v1, 6
+    v9 = extract_value struct0, v1, 7
+    v10 = extract_value struct0, v1, 8
+    v11 = extract_value struct0, v1, 9
+    v12 = extract_value struct0, v1, 10
+    v13 = extract_value struct0, v1, 11
+    v14 = extract_value struct0, v1, 12
+    v15 = extract_value struct0, v1, 13
+    v16 = extract_value struct0, v1, 14
+    v17 = extract_value struct0, v1, 15
+    v18 = extract_value struct0, v1, 16
+    v19 = extract_value struct0, v1, 17
+    v20 = checked_sub uint256, arg0, 1
+    v21 = icall @h, v20, 1, 1, 1, arg11, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+    v22 = checked_add uint256, v19, v21
+    ret v22
+  bb1:                                            ; preds = bb0
+    ret arg11
+}
+
+; function u(uint256 p) internal pure returns (uint256 r0, uint256 r1, uint256 r2, uint256 r3, uint256 r4, uint256 r5, uint256 r6, uint256 r7, uint256 r8, uint256 r9, uint256 r10, uint256 r11, uint256 r12, uint256 r13, uint256 r14, uint256 r15, uint256 r16, uint256 r17)
+fn @u(arg0: i256) -> struct0 [pure] {
+  bb0:
+    icall @w, arg0
+    v0 = insert_value struct0, undef struct0, 0, 0
+    v1 = insert_value struct0, v0, 1, 0
+    v2 = insert_value struct0, v1, 2, 0
+    v3 = insert_value struct0, v2, 3, 0
+    v4 = insert_value struct0, v3, 4, 0
+    v5 = insert_value struct0, v4, 5, 0
+    v6 = insert_value struct0, v5, 6, 0
+    v7 = insert_value struct0, v6, 7, 0
+    v8 = insert_value struct0, v7, 8, 0
+    v9 = insert_value struct0, v8, 9, 0
+    v10 = insert_value struct0, v9, 10, 0
+    v11 = insert_value struct0, v10, 11, 0
+    v12 = insert_value struct0, v11, 12, 0
+    v13 = insert_value struct0, v12, 13, 0
+    v14 = insert_value struct0, v13, 14, 0
+    v15 = insert_value struct0, v14, 15, 0
+    v16 = insert_value struct0, v15, 16, 0
+    v17 = insert_value struct0, v16, 17, arg0
+    ret v17
+}
+
+; function k(uint256 x) external pure returns (uint256) [selector 0x443ddba2]
+fn @k(arg0: i256) -> i256 [selector=0x443ddba2, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @h, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0, arg0
+    ret v0
+}

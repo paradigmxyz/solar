@@ -27,6 +27,7 @@ struct ParsedBlockHeader {
     lent_invoke: Option<DebugFunction>,
     entry_depth: Option<u16>,
     call_effect: Option<CallEffect>,
+    label_metadata: Metadata,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -71,6 +72,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let tracks_debug_info = module.blocks.iter().any(|block| {
             block.metadata.function_invoke.is_some()
                 || block.metadata.lent_invoke.is_some()
+                || block.label_metadata.source_span().is_some()
                 || block.instructions.iter().any(|inst| {
                     inst.metadata.source_span().is_some()
                         || inst.metadata.function_invoke().is_some()
@@ -116,6 +118,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 module.blocks[block_id].metadata.lent_invoke = header.lent_invoke;
                 module.blocks[block_id].metadata.entry_depth = header.entry_depth;
                 module.blocks[block_id].metadata.call_effect = header.call_effect;
+                module.blocks[block_id].label_metadata = header.label_metadata;
                 current_block = Some(block_id);
                 continue;
             }
@@ -200,6 +203,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
         }
 
+        let label_metadata = if self.parser.token().kind == TokenKind::Not {
+            self.parse_metadata()?
+        } else {
+            Metadata::default()
+        };
         self.parser.expect(TokenKind::Colon)?;
 
         let call_effect = match (ret, inputs, outputs) {
@@ -224,6 +232,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             lent_invoke,
             entry_depth,
             call_effect,
+            label_metadata,
         }))
     }
 
@@ -595,11 +604,35 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn block_ref_starts_here(&self) -> PResult<'sess, bool> {
-        Ok(self.current_block_label()?.is_some()
-            && !matches!(
-                self.parser.look_ahead(1).kind,
-                TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Bracket)
-            ))
+        Ok(self.current_block_label()?.is_some() && !self.block_header_follows())
+    }
+
+    /// Whether the tokens after the block label just seen continue it into a block header:
+    /// block attributes, label metadata, or the colon.
+    fn block_header_follows(&self) -> bool {
+        let mut tokens = self.parser.tokens_ahead().map(|token| token.kind);
+        match tokens.next() {
+            Some(TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Bracket)) => true,
+            // label !metadata(...):
+            Some(TokenKind::Not) => {
+                let mut depth = 0usize;
+                // Skip `metadata`, then the balanced parentheses.
+                for kind in tokens.by_ref().skip(1) {
+                    match kind {
+                        TokenKind::OpenDelim(Delimiter::Parenthesis) => depth += 1,
+                        TokenKind::CloseDelim(Delimiter::Parenthesis) => {
+                            depth = depth.saturating_sub(1);
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                tokens.next() == Some(TokenKind::Colon)
+            }
+            _ => false,
+        }
     }
 }
 

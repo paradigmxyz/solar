@@ -262,6 +262,11 @@ fn lower_evm_ir_once(
             pending_block_invoke = Some(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
+            // The label's own origin.
+            if !block.label_metadata.source_spans().is_empty() {
+                program.set_source_spans(block.label_metadata.source_spans());
+                program.set_modifier_depth(block.label_metadata.modifier_depth());
+            }
             program.define_label(label);
             program.mark_last_function_invoke(pending_block_invoke.take());
         }

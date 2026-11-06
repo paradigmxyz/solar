@@ -261,6 +261,7 @@ impl Origins {
     pub(crate) fn evm(module: &solar_evmir::ir::Module) -> Self {
         let mut spans = FxHashSet::default();
         for block in &module.blocks {
+            spans.extend(block.label_metadata.source_spans());
             for inst in &block.instructions {
                 spans.extend(inst.metadata.source_spans());
             }

@@ -1,0 +1,21 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=cfg-simplify
+//@ filecheck:
+@module LabelOrigins
+
+// A block that survives keeps the origin of its `JUMPDEST`: `bb2` has two predecessors, so it
+// stays a block. `bb3` is only reached by the jump out of `bb2`, so it merges into it, which
+// removes its label and its origin.
+// CHECK-LABEL: bb2
+// CHECK: - bb3 !metadata(span=40..50):
+// CHECK-NOT: bb3
+bb0:
+  calldatasize
+  jumpi bb1, bb2
+bb1:
+  push 1
+  jump bb2
+bb2 !metadata(span=20..30):
+  calldatasize
+  jump bb3
+bb3 !metadata(span=40..50):
+  stop

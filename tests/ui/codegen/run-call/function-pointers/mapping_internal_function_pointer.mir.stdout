@@ -1,0 +1,92 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/mapping_internal_function_pointer.sol:MappingInternalFunctionPointer ===
+@module MappingInternalFunctionPointer
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = mapping_slot 0x1234, 1
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v3 = or v2, 1
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    ret
+}
+
+; function stage0() internal
+fn @stage0() {
+  bb0:
+    v0 = mapping_slot 0x1234, 1
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v3 = or v2, 2
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    ret
+}
+
+; function stage1() internal
+fn @stage1() {
+  bb0:
+    v0 = mapping_slot 0x1234, 1
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000
+    v3 = or v2, 3
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    ret
+}
+
+; function stage2() internal
+fn @stage2() {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v2 = or v1, 1
+    sstore 0, v2 !metadata(storage=slot(0))
+    ret
+}
+
+; function run() external returns (bool) [selector 0xc0406226]
+fn @run() -> i1 [selector=0xc0406226, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = mapping_slot 0x1234, 1
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = trunc i256 v1 to i64
+    v3 = zext i64 v2 to i256
+    icall @internal_dispatcher_p_none_r_none, v3
+    v4 = mapping_slot 0x1234, 1
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = trunc i256 v5 to i64
+    v7 = zext i64 v6 to i256
+    icall @internal_dispatcher_p_none_r_none, v7
+    v8 = mapping_slot 0x1234, 1
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    v10 = trunc i256 v9 to i64
+    v11 = zext i64 v10 to i256
+    icall @internal_dispatcher_p_none_r_none, v11
+    v12 = sload 0 !metadata(storage=slot(0))
+    v13 = trunc i256 v12 to i8
+    v14 = ne v13, i8 0
+    ret v14
+}
+
+fn @internal_dispatcher_p_none_r_none(arg0: i256) [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v1 = eq arg0, 2
+    jumpi v1, bb3, bb4
+  bb4:                                            ; preds = bb2
+    v2 = eq arg0, 3
+    jumpi v2, bb5, bb6
+  bb6:                                            ; preds = bb4
+    icall panic_if<0x51>, true
+    invalid
+  bb5:                                            ; preds = bb4
+    icall @stage2
+    ret
+  bb3:                                            ; preds = bb2
+    icall @stage1
+    ret
+  bb1:                                            ; preds = bb0
+    icall @stage0
+    ret
+}
