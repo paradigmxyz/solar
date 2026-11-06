@@ -1,0 +1,10 @@
+//@ compile-flags: -Zllm-optimize=live
+// UI tests run a compiler built without its `llm` feature.
+@module Options
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    stop
+}
+
+//~? ERROR: `-Zllm-optimize=live` requires the compiler's `llm` feature
