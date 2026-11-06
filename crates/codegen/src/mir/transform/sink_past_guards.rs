@@ -39,7 +39,7 @@ use crate::mir::{
     pass::{MirPass, ModuleAnalyses, run_function_pass},
 };
 use smallvec::SmallVec;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::Gcx;
 
 pub(crate) struct SinkPastGuards;
@@ -85,45 +85,69 @@ fn run(func: &mut Function) -> bool {
         // The instructions that could follow the guard: each is movable, and read only after
         // the guard or by another of them. Dropping one that is not closed drops the
         // instructions that feed it, and the readers of one dropped for its operands.
-        let mut sunk = func.blocks[block]
+        let mut producers = FxHashMap::<ValueId, InstId>::default();
+        let mut members = FxHashSet::<InstId>::default();
+        for &inst in &func.blocks[block].instructions {
+            if let Some(result) = func.inst_result_value(inst)
+                && movable(func, inst)
+            {
+                producers.insert(result, inst);
+                members.insert(inst);
+            }
+        }
+        let mut pending = members.iter().copied().collect::<Vec<_>>();
+        while let Some(inst) = pending.pop() {
+            if !members.contains(&inst) {
+                continue;
+            }
+            let result = func.inst_result_value(inst).expect("movable instructions have results");
+            let readers = uses.get(&result).map_or(&[][..], SmallVec::as_slice);
+            let read_after = !readers.is_empty()
+                && readers.iter().all(|&(reader, by)| {
+                    by.is_some_and(|by| members.contains(&by))
+                        || cfg.dominators().dominates(next, reader)
+                });
+            let mut operands = SmallVec::<[ValueId; 3]>::new();
+            func.inst(inst).kind.visit_operands(|operand| operands.push(operand));
+            let closed = operands.iter().all(|&operand| {
+                // A calldata word read in an earlier block is read again after the guard only
+                // when nothing in this block still reads it, so that no read is added.
+                let read_again = func.is_constant_calldata_load(operand)
+                    && uses.get(&operand).is_none_or(|readers| {
+                        readers.iter().all(|&(reader, by)| {
+                            reader != block || by.is_some_and(|by| members.contains(&by))
+                        })
+                    });
+                func.value_u256(operand).is_some()
+                    || is_member_result(&producers, &members, operand)
+                    || read_again
+            });
+            if read_after && closed {
+                continue;
+            }
+            members.remove(&inst);
+            // The instructions that feed this one, read its result, or share its operands may no
+            // longer qualify.
+            let mut touched = operands.clone();
+            touched.push(result);
+            let neighbors = operands
+                .iter()
+                .filter_map(|operand| producers.get(operand).copied())
+                .chain(
+                    touched
+                        .iter()
+                        .flat_map(|value| uses.get(value).into_iter().flatten())
+                        .filter_map(|&(_, by)| by),
+                )
+                .collect::<Vec<_>>();
+            pending.extend(neighbors.into_iter().filter(|neighbor| members.contains(neighbor)));
+        }
+        let sunk = func.blocks[block]
             .instructions
             .iter()
             .copied()
-            .filter(|&inst| movable(func, inst))
+            .filter(|inst| members.contains(inst))
             .collect::<Vec<_>>();
-        loop {
-            let members = sunk.clone();
-            sunk.retain(|&inst| {
-                let result =
-                    func.inst_result_value(inst).expect("movable instructions have results");
-                let readers = uses.get(&result).map_or(&[][..], SmallVec::as_slice);
-                let read_after = !readers.is_empty()
-                    && readers.iter().all(|&(reader, by)| {
-                        by.is_some_and(|by| members.contains(&by))
-                            || cfg.dominators().dominates(next, reader)
-                    });
-                let mut closed = true;
-                func.inst(inst).kind.visit_operands(|operand| {
-                    // A calldata word read in an earlier block is read again after the guard
-                    // only when nothing in this block still reads it, so that no read is added.
-                    let read_again = func.is_constant_calldata_load(operand)
-                        && uses.get(&operand).is_none_or(|readers| {
-                            readers.iter().all(|&(reader, by)| {
-                                reader != block || by.is_some_and(|by| members.contains(&by))
-                            })
-                        });
-                    closed &= func.value_u256(operand).is_some()
-                        || read_again
-                        || members
-                            .iter()
-                            .any(|&other| func.inst_result_value(other) == Some(operand));
-                });
-                read_after && closed
-            });
-            if sunk.len() == members.len() {
-                break;
-            }
-        }
         // A computation of constants alone is not worth a move, and a calldata read alone is
         // placed by `place-reads`.
         if !sunk.iter().any(|&inst| is_pure(func.inst(inst))) {
@@ -141,7 +165,7 @@ fn run(func: &mut Function) -> bool {
             }
         }
         let (moving, staying) =
-            func.blocks[block].instructions.iter().partition(|inst| sunk.contains(inst));
+            func.blocks[block].instructions.iter().partition(|inst| members.contains(inst));
         func.blocks[block].instructions = staying;
         let start = func.blocks[next]
             .instructions
@@ -154,6 +178,15 @@ fn run(func: &mut Function) -> bool {
     moved
 }
 
+/// Whether `operand` is the result of an instruction that is still a member.
+fn is_member_result(
+    producers: &FxHashMap<ValueId, InstId>,
+    members: &FxHashSet<InstId>,
+    operand: ValueId,
+) -> bool {
+    producers.get(&operand).is_some_and(|producer| members.contains(producer))
+}
+
 /// Whether an instruction can run after a guard it ran before: a pure instruction, or a read of
 /// calldata at a constant offset. A zero test stays, since `place-reads` places it by its reader.
 fn movable(func: &Function, inst: InstId) -> bool {
@@ -164,6 +197,7 @@ fn movable(func: &Function, inst: InstId) -> bool {
     !matches!(instruction.kind, InstKind::Phi(_))
         && !zero_test
         && !instruction.kind.effects().observes_execution()
+        && !instruction.kind.effects().control.any()
         && (is_pure(instruction) || func.is_constant_calldata_load(result))
 }
 

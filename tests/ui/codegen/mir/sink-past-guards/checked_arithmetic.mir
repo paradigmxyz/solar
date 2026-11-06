@@ -1,0 +1,22 @@
+//@compile-flags: -Zmir-pipeline=sink-past-guards
+//@filecheck:
+@module SinkPastGuardsChecked
+@phase semantic
+
+// A checked operation may panic, so it keeps its place before the guard: past it, a failing guard
+// would hide the overflow panic.
+// CHECK-LABEL: {{^[ +].*}}after sink-past-guards
+// CHECK-LABEL: fn @checked(
+// CHECK-NOT: {{^[+-] }}
+fn @checked(arg0: i256) {
+  bb0:
+    v0 = calldataload 4
+    v1 = checked_add uint256, v0, 1
+    v2 = lt arg0, 10
+    jumpi v2, bb1, bb2
+  bb1:
+    mstore 0, v1
+    stop
+  bb2:
+    revert 0, 0
+}
