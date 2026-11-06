@@ -278,7 +278,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let slot = self.builder.imm(location.slot);
             // A storage aggregate is its slot, like any other storage reference; the consumer
             // converts it.
-            if self.types.memory_layout(ty).is_some() {
+            if ty.is_ref_at(DataLocation::Storage) {
                 return Some(slot);
             }
             return self.load_storage_value(

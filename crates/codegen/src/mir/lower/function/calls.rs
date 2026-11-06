@@ -165,8 +165,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if source_ty.is_ref_at(DataLocation::Storage)
                 && let Some(size) = fixed_bytes_size(target_ty)
             {
-                // `lower_expr` yields a slot for most storage `bytes` arguments but copies a
-                // storage state variable to memory, so read the first data word from the slot.
+                // `lower_expr` yields the slot of a storage `bytes` argument, so read the first
+                // data word from it.
                 // word, length = storage_bytes_first_word(slot(arg))
                 // result = word & mask(min(length, width))
                 let Some(access) = self.storage_access(arg) else {

@@ -308,15 +308,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Lowers an expression whose value is dropped, such as a tuple declaration or assignment
     /// hole, so that it can skip the reads only its value would need.
-    /// Converts a lowered operand to the type of the variable `id` and binds it.
-    fn bind_operand(&mut self, id: VariableId, operand: Lowered<'gcx>) -> Option<()> {
-        let span = operand.span;
-        let value = self.convert_operand(operand)?;
-        let value = self.bind_word(id, value, span)?;
-        self.values.insert(id, value);
-        Some(())
-    }
-
     pub(super) fn lower_discarded_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<()> {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
@@ -324,6 +315,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.replace_modifier_depth(previous_modifier_depth);
         self.builder.replace_source_span(previous);
         result
+    }
+
+    /// Converts a lowered operand to the type of the variable `id` and binds it.
+    fn bind_operand(&mut self, id: VariableId, operand: Lowered<'gcx>) -> Option<()> {
+        let span = operand.span;
+        let value = self.convert_operand(operand)?;
+        let value = self.bind_word(id, value, span)?;
+        self.values.insert(id, value);
+        Some(())
     }
 
     fn lower_discarded_expr_inner(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<()> {

@@ -861,7 +861,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0))
                 || matches!(expr.kind, ExprKind::Assign(_, None, rhs)
                 if self.cx.gcx.type_of_expr(rhs.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))))
-            && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| self.is_storage_aggregate(ty))
+            && self
+                .cx
+                .gcx
+                .type_of_expr(expr.id)
+                .is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
         {
             return Some(Word::from_clean(self.require_storage_access(expr)?.slot));
         }
