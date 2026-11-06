@@ -976,7 +976,7 @@ impl Function {
     pub fn mark_unlocated_compiler_generated(&mut self) {
         let mark = |metadata: &mut InstructionMetadata| {
             if metadata.lacks_debug_location() {
-                metadata.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
+                metadata.drop_debug_loc(DebugLocKind::CompilerGenerated);
             }
         };
         for block in &mut self.blocks {

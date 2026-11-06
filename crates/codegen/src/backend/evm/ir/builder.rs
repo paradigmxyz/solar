@@ -111,7 +111,7 @@ impl<'gcx> Assembler<'gcx> {
     /// Restores the origins returned by [`Self::debug_origin`].
     pub(crate) fn set_debug_origin(&mut self, origin: ir::Metadata) {
         self.current_source_spans.clear();
-        self.current_source_spans.extend(origin.source_spans().iter().copied());
+        self.current_source_spans.extend(origin.source_spans());
         self.current_debug_loc_kind = origin.debug_loc_kind();
         self.current_modifier_depth = origin.modifier_depth();
     }

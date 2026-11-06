@@ -55,7 +55,6 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_evmir::debug::DebugLocKind;
 use std::cell::OnceCell;
 
 /// Function pass for CFG simplification.
@@ -339,7 +338,8 @@ fn canonicalize_terminal_block(
         }
         let mut metadata = inst.metadata.clone();
         metadata.set_hir_expr(None);
-        metadata.drop_debug_loc(DebugLocKind::Dropped);
+        // The key ignores the whole location, modifier depth included.
+        metadata.preserve_debug_loc(&InstructionMetadata::EMPTY);
         metadata.loop_depth = 0;
         insts.push(CanonInst {
             kind: inst.kind.clone_without_operands(),
