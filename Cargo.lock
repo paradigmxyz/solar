@@ -2801,6 +2801,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
+name = "libloading"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
+
+[[package]]
 name = "libm"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4369,7 +4379,6 @@ dependencies = [
  "bitflags 2.13.2",
  "bs58",
  "clap",
- "indexmap 2.14.2",
  "libc",
  "mimalloc",
  "rayon",
@@ -4411,6 +4420,7 @@ dependencies = [
  "solar-evmir",
  "solar-interface",
  "solar-mir",
+ "solar-pass-plugin",
  "solar-sema",
  "tempfile",
  "tracing",
@@ -4420,8 +4430,11 @@ dependencies = [
 name = "solar-compiler"
 version = "0.3.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-primitives",
+ "evm2",
  "idna_adapter",
+ "libloading",
  "serde_json",
  "snapbox",
  "solar-ast",
@@ -4430,10 +4443,15 @@ dependencies = [
  "solar-config",
  "solar-data-structures",
  "solar-evmir",
+ "solar-evmir-interpreter",
  "solar-interface",
  "solar-lint",
  "solar-macros",
+ "solar-mir-interpreter",
  "solar-parse",
+ "solar-pass-plugin",
+ "solar-pass-plugin-example",
+ "solar-pass-plugin-fixture",
  "solar-sema",
  "solar-tester",
  "tempfile",
@@ -4636,7 +4654,29 @@ dependencies = [
  "solar-ast",
  "solar-data-structures",
  "solar-interface",
+ "solar-pass-plugin",
  "tracing",
+]
+
+[[package]]
+name = "solar-pass-plugin"
+version = "0.3.0"
+dependencies = [
+ "libloading",
+]
+
+[[package]]
+name = "solar-pass-plugin-example"
+version = "0.3.0"
+dependencies = [
+ "solar-pass-plugin",
+]
+
+[[package]]
+name = "solar-pass-plugin-fixture"
+version = "0.3.0"
+dependencies = [
+ "solar-pass-plugin",
 ]
 
 [[package]]
@@ -4667,6 +4707,7 @@ dependencies = [
  "solar-interface",
  "solar-macros",
  "solar-parse",
+ "solar-pass-plugin",
  "strum 0.28.0",
  "thread_local",
  "tracing",

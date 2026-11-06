@@ -630,6 +630,16 @@ impl<'gcx, W: fmt::Write> HirPrinter<'gcx, W> {
                 }
                 self.out.write_char(']')?;
             }
+            ExprKind::PluginBuiltin(call) => {
+                write!(self.out, "@{}.{}(", call.namespace, call.name)?;
+                for (index, arg) in call.args.iter().enumerate() {
+                    if index != 0 {
+                        write!(self.out, ", ")?;
+                    }
+                    self.print_expr(arg)?;
+                }
+                write!(self.out, ")")?;
+            }
             ExprKind::Lit(lit) => write!(self.out, "{lit}")?,
             ExprKind::Member(expr, ident) | ExprKind::YulMember(expr, ident) => {
                 self.print_expr(expr)?;

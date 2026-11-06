@@ -22,6 +22,7 @@ solar-data-structures.workspace = true
 solar-evmir.workspace = true
 solar-interface.workspace = true
 solar-mir.workspace = true
+solar-pass-plugin = { workspace = true, features = ["host"] }
 solar-sema.workspace = true
 
 alloy-primitives.workspace = true

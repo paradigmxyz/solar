@@ -994,6 +994,11 @@ impl<'a, 'gcx> Builder<'a, 'gcx> {
                     self.expr(expr);
                 }
             }
+            ExprKind::PluginBuiltin(call) => {
+                for expr in call.args {
+                    self.expr(expr);
+                }
+            }
             ExprKind::Array(exprs) => {
                 for expr in exprs {
                     self.expr(expr);

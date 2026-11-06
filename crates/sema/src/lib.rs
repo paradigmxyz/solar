@@ -35,6 +35,7 @@ mod compiler;
 pub use compiler::{Compiler, CompilerRef};
 
 mod parse;
+mod plugins;
 pub use parse::{ParsingContext, Source, Sources};
 
 pub mod builtins;

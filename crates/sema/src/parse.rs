@@ -224,6 +224,9 @@ impl<'gcx> ParsingContext<'gcx> {
     fn parse_inner(&mut self) {
         self.parsed = true;
         let _ = self.gcx.advance_stage(CompilerStage::Parsing);
+        if self.gcx.plugins().is_err() {
+            return;
+        }
 
         let mut sources = std::mem::take(self.sources);
         if self.sess.opts.language.is_source() && !sources.is_empty() {
@@ -396,6 +399,33 @@ impl<'gcx> ParsingContext<'gcx> {
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
+        if !self.sess.opts.unstable.load_pass_plugin.is_empty() {
+            let plugins = self.gcx.plugins().ok()?;
+            parser.set_plugin_expansion(move |namespace, request| {
+                for plugin in plugins {
+                    if plugin.manifest()?.name == namespace {
+                        let manifest = plugin.frontend_manifest()?;
+                        if request.kind == solar_pass_plugin::ExtensionKind::Expression
+                            && let Some(builtin) = manifest
+                                .builtins
+                                .iter()
+                                .find(|builtin| builtin.name == request.name)
+                        {
+                            return Ok(solar_pass_plugin::Expansion::Builtin(
+                                builtin.signature.clone(),
+                            ));
+                        }
+                        if manifest.extensions.iter().any(|extension| {
+                            extension.name == request.name && extension.kind == request.kind
+                        }) {
+                            return plugin.expand(request);
+                        }
+                    }
+                }
+                Err(format!("unknown frontend extension `@{namespace}.{}`", request.name))
+            });
+        }
+
         if self.resolve_imports {
             parser.set_import_callback(import_callback);
         }

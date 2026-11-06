@@ -38,6 +38,7 @@ impl EnumVariantSize for hir::StmtKind<'_> {
 impl EnumVariantSize for hir::ExprKind<'_> {
     fn variant_payload_size(&self) -> usize {
         match self {
+            Self::PluginBuiltin(call) => variant_payload_size!(self, call),
             Self::Array(exprs) => variant_payload_size!(self, exprs),
             Self::Assign(lhs, op, rhs) => variant_payload_size!(self, lhs, op, rhs),
             Self::Binary(lhs, op, rhs) => variant_payload_size!(self, lhs, op, rhs),
@@ -352,6 +353,7 @@ impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
         record_hir_variants!(
             (self, expr, expr.kind, hir, Expr, ExprKind),
             [
+                PluginBuiltin,
                 Array,
                 Assign,
                 Binary,
@@ -411,6 +413,12 @@ impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
                 self.visit_expr(cond)?;
                 self.visit_expr(true_)?;
                 self.visit_expr(false_)?;
+            }
+            hir::ExprKind::PluginBuiltin(call) => {
+                self.record("PluginBuiltin", *call);
+                for expr in call.args {
+                    self.visit_expr(expr)?;
+                }
             }
             hir::ExprKind::Array(exprs) => {
                 for expr in *exprs {

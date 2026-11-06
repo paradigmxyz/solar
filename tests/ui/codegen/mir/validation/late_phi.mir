@@ -1,0 +1,11 @@
+//@ compile-flags: -Zmir-pipeline=none
+//~? ERROR: phi must precede non-phi instructions
+@module LatePhi
+fn @f(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = add arg0, arg0
+    v1 = phi [bb0: arg0]
+    ret v1
+}

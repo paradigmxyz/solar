@@ -66,6 +66,9 @@ impl EnumVariantSize for ast::StmtKind<'_> {
 impl EnumVariantSize for ast::ExprKind<'_> {
     fn variant_payload_size(&self) -> usize {
         match self {
+            Self::PluginBuiltin(namespace, name, args) => {
+                variant_payload_size!(self, namespace, name, args)
+            }
             Self::Array(exprs) => variant_payload_size!(self, exprs),
             Self::Assign(lhs, op, rhs) => variant_payload_size!(self, lhs, op, rhs),
             Self::Binary(lhs, op, rhs) => variant_payload_size!(self, lhs, op, rhs),
@@ -445,6 +448,7 @@ impl<'ast> Visit<'ast> for StatCollector {
         record_variants!(
             (self, expr, expr.kind, None, ast, Expr, ExprKind),
             [
+                PluginBuiltin,
                 Array,
                 Assign,
                 Binary,

@@ -1820,6 +1820,11 @@ impl<'hir> Expr<'hir> {
                 true_.visit(f)?;
                 false_.visit(f)?;
             }
+            ExprKind::PluginBuiltin(call) => {
+                for expr in call.args {
+                    expr.visit(f)?;
+                }
+            }
             ExprKind::Array(exprs) => {
                 for expr in *exprs {
                     expr.visit(f)?;
@@ -1857,9 +1862,19 @@ impl<'hir> Expr<'hir> {
     }
 }
 
+/// A registered pure word builtin and its source arguments.
+#[derive(Debug)]
+pub struct PluginBuiltin<'hir> {
+    pub namespace: Ident,
+    pub name: Ident,
+    pub args: &'hir [Expr<'hir>],
+}
+
 /// A kind of expression.
 #[derive(Debug)]
 pub enum ExprKind<'hir> {
+    /// A pure uint256 plugin builtin.
+    PluginBuiltin(&'hir PluginBuiltin<'hir>),
     /// An array literal expression: `[a, b, c, d]`.
     Array(&'hir [Expr<'hir>]),
 

@@ -185,6 +185,9 @@ pub trait Visit<'hir> {
                 self.visit_expr(true_)?;
                 self.visit_expr(false_)?;
             }
+            ExprKind::PluginBuiltin(call) => {
+                for expr in call.args { self.visit_expr(expr)?; }
+            }
             ExprKind::Array(exprs) => {
                 for expr in exprs {
                     self.visit_expr(expr)?;
