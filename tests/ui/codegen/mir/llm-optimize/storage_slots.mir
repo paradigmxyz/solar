@@ -1,0 +1,18 @@
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/storage_slots.script
+// Every storage slot holds a value of its own in the tests: a candidate reading slot 0 in place of
+// a slot whose bits fold onto 0's in a 64-bit hash still reads another value.
+@module StorageSlots
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    v0 = icall @read
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @read() -> i256 {
+  bb0:
+    v0 = sload 0xad64d6cb4d28af3b0000000000000001
+    ret v0
+}

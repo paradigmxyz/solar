@@ -32,3 +32,5 @@ mod isle_log;
 mod debugify;
 pub(crate) mod target;
 mod timing;
+
+pub mod llm;

@@ -993,6 +993,15 @@ impl Function {
     pub fn is_public(&self) -> bool {
         matches!(self.attributes.visibility, Visibility::Public | Visibility::External)
     }
+
+    /// Replaces the executable body while retaining the original signature and attributes.
+    pub fn replace_body(&mut self, body: Self) {
+        debug_assert_eq!(self.params, body.params);
+        self.arg_types = body.arg_types;
+        self.values = body.values;
+        self.instructions = body.instructions;
+        self.blocks = body.blocks;
+    }
 }
 
 /// Iterator for [`Function::live_values`], refilling one buffer per instruction or terminator.

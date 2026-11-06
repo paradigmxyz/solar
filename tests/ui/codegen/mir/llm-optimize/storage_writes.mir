@@ -1,0 +1,26 @@
+//@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/storage_writes.script
+// A write fails in a static call whatever it stores, so a candidate must keep a write that stores
+// the value a slot already holds, in persistent and in transient storage.
+@module StorageWrites
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    icall @rewrite
+    icall @rewrite_transient
+    stop
+}
+
+fn @rewrite() {
+  bb0:
+    v0 = sload 7
+    sstore 7, v0
+    ret
+}
+
+fn @rewrite_transient() {
+  bb0:
+    v0 = tload 7
+    tstore 7, v0
+    ret
+}

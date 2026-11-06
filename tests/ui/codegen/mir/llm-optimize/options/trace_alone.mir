@@ -1,0 +1,9 @@
+//@ compile-flags: -Zllm-trace
+@module Options
+@phase lowered
+fn @main() [entry] {
+  bb0:
+    stop
+}
+
+//~? ERROR: `-Zllm-trace` requires `-Zllm-optimize`
