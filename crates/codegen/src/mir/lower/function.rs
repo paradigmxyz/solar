@@ -114,6 +114,7 @@ pub(super) fn lower(
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function, context.module.optimization);
+    let declaration_span = mir.declaration_span;
     if !expose_selector {
         mir.selector = None;
     }
@@ -166,7 +167,7 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     // solc tags a function's entry under the function definition.
-    lowerer.builder.set_entry_label_span(hir_function.span);
+    lowerer.builder.set_entry_label_span(declaration_span);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
@@ -181,7 +182,7 @@ pub(super) fn lower(
     }
     if !lowerer.is_terminated() {
         // ret named_returns !metadata(function definition)
-        lowerer.builder.replace_source_span(hir_function.span);
+        lowerer.builder.replace_source_span(declaration_span);
         lowerer.finish(hir_function.returns)?;
     }
     Some(mir)
