@@ -856,7 +856,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     | ExprKind::Member(..)
                     | ExprKind::Index(..)
                     | ExprKind::Ternary(..)
-            ) || matches!(expr.kind, ExprKind::Assign(_, None, rhs)
+            ) || matches!(&expr.kind, ExprKind::Call(callee, arguments)
+                if arguments.is_empty()
+                    && self.cx.gcx.resolved_builtin(callee) == Some(Builtin::ArrayPush0))
+                || matches!(expr.kind, ExprKind::Assign(_, None, rhs)
                 if self.cx.gcx.type_of_expr(rhs.id).is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))))
             && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| self.is_storage_aggregate(ty))
         {
