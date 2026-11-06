@@ -324,10 +324,6 @@ impl<'a> Validator<'a> {
                 if cases.iter().any(|&(value, _)| func.value_ty(value) != ty) {
                     self.emit_at_block("switch cases must have the selector type", block);
                 }
-                if cases.iter().any(|&(value, _)| !matches!(func.value(value), Value::Immediate(_)))
-                {
-                    self.emit_at_block("switch cases must be constants", block);
-                }
             }
             Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
                 if !matches!(func.value_ty(*offset), Some(MirType::I256 | MirType::MEMPTR))
@@ -1506,6 +1502,13 @@ impl<'a> Validator<'a> {
                 ));
             }
             for (block_id, block) in func.blocks.iter_enumerated() {
+                if let Some(Terminator::Switch { cases, .. }) = &block.terminator
+                    && cases
+                        .iter()
+                        .any(|&(value, _)| !matches!(func.value(value), Value::Immediate(_)))
+                {
+                    self.emit_at_block("switch cases must be constants", block_id);
+                }
                 if matches!(block.terminator, Some(crate::Terminator::RevertReturndata)) {
                     self.emit_at_block(
                         "returndata bubbling survives the `lowered` phase boundary",
