@@ -1,0 +1,131 @@
+; === ROOT/tests/ui/codegen/run-call/constructors/constructor_state_variable_order.sol:ConstructorStateOrderBase ===
+@module ConstructorStateOrderBase
+; constructor(uint256 x) [creation entry]
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    sstore 1, v0 !metadata(storage=slot(1))
+    sstore 0, arg0 !metadata(storage=slot(0))
+    ret
+}
+
+; getter for `uint256 public a` [selector 0x0dbe671f]
+fn @a() -> i256 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; getter for `uint256 public b` [selector 0x4df7e3d0]
+fn @b() -> i256 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+; getter for `uint256 public c` [selector 0xc3da42b8]
+fn @c() -> i256 [selector=0xc3da42b8, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
+}
+
+; function f(uint256 x) public returns (uint256) [selector 0xb3de648b]
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_mul uint256, arg0, 3
+    sstore 2, v0 !metadata(storage=slot(2))
+    ret 23
+}
+
+; === ROOT/tests/ui/codegen/run-call/constructors/constructor_state_variable_order.sol:ConstructorStateOrderDerived ===
+@module ConstructorStateOrderDerived
+; constructor() ConstructorStateOrderBase(17) [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 42 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    sstore 1, v0 !metadata(storage=slot(1))
+    sstore 0, 17 !metadata(storage=slot(0))
+    jump bb1
+  bb1:                                            ; preds = bb0
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = icall @f, v1
+    sstore 3, v2 !metadata(storage=slot(3))
+    v3 = sload 1 !metadata(storage=slot(1))
+    sstore 4, v3 !metadata(storage=slot(4))
+    v4 = sload 0 !metadata(storage=slot(0))
+    sstore 5, v4 !metadata(storage=slot(5))
+    v5 = sload 1 !metadata(storage=slot(1))
+    sstore 6, v5 !metadata(storage=slot(6))
+    v6 = sload 2 !metadata(storage=slot(2))
+    sstore 7, v6 !metadata(storage=slot(7))
+    jump bb2
+  bb2:                                            ; preds = bb1
+    ret
+}
+
+; getter for `uint256 public d` [selector 0x8a054ac2]
+fn @d() -> i256 [selector=0x8a054ac2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    ret v0
+}
+
+; getter for `uint256 public e` [selector 0xffae15ba]
+fn @e() -> i256 [selector=0xffae15ba, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 4 !metadata(storage=slot(4))
+    ret v0
+}
+
+; getter for `uint256 public bA` [selector 0x56026c37]
+fn @bA() -> i256 [selector=0x56026c37, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 5 !metadata(storage=slot(5))
+    ret v0
+}
+
+; getter for `uint256 public bB` [selector 0x1706eb89]
+fn @bB() -> i256 [selector=0x1706eb89, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 6 !metadata(storage=slot(6))
+    ret v0
+}
+
+; getter for `uint256 public bC` [selector 0xed73bda9]
+fn @bC() -> i256 [selector=0xed73bda9, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 7 !metadata(storage=slot(7))
+    ret v0
+}
+
+; getter for `uint256 public a` [selector 0x0dbe671f]
+fn @a() -> i256 [selector=0x0dbe671f, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    ret v0
+}
+
+; getter for `uint256 public b` [selector 0x4df7e3d0]
+fn @b() -> i256 [selector=0x4df7e3d0, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    ret v0
+}
+
+; getter for `uint256 public c` [selector 0xc3da42b8]
+fn @c() -> i256 [selector=0xc3da42b8, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 2 !metadata(storage=slot(2))
+    ret v0
+}
+
+; function f(uint256 x) public returns (uint256) [selector 0xb3de648b]
+fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_mul uint256, arg0, 3
+    sstore 2, v0 !metadata(storage=slot(2))
+    ret 23
+}
