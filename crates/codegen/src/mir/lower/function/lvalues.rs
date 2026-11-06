@@ -274,7 +274,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return Some(self.builder.imm(location.slot));
             }
             let slot = self.builder.imm(location.slot);
-            // The word of an enum or `bool` is raw: `binding_word` marks it.
+            // An enum word is raw: `load_binding_word` marks it.
             return self
                 .load_storage_word(ty, StorageAccess { slot, location, offset: None }, span)
                 .map(Word::raw_operand);

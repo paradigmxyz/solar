@@ -60,8 +60,7 @@ impl Word {
     /// Returns the word as an operand of an instruction that ignores the bits above the type.
     ///
     /// Use it only for EVM address operands, which the EVM truncates, for the index of a storage
-    /// array or `bytes`, which via-IR checks as a raw word, for a slot that holds raw words, and
-    /// for a binding read that [`FunctionLowerer::binding_word`] wraps as a word itself.
+    /// array or `bytes`, which via-IR checks as a raw word, and for a slot that holds raw words.
     pub(super) fn raw_operand(self) -> ValueId {
         self.value
     }
@@ -225,10 +224,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Wraps `value`, which the binding `id` holds or an internal call returned in it: raw for a
     /// raw carrier.
     pub(super) fn binding_word(&self, value: ValueId, id: VariableId) -> Word {
-        let ty = self.cx.gcx.type_of_item(id.into());
-        let stored = (self.cx.storage.get(id).is_some() || self.storage_refs.contains_key(&id))
-            && matches!(ty.kind, TyKind::Enum(..));
-        Word { value, raw: stored || self.is_raw_binding(id) }
+        Word { value, raw: self.is_raw_binding(id) }
     }
 
     /// Wraps the result of type `ty` of an internal function pointer call.
@@ -240,7 +236,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Reads a binding as a word: raw for a raw carrier.
     pub(super) fn load_binding_word(&mut self, id: VariableId, span: Span) -> Option<Word> {
         let value = self.load_variable_word(id, span)?;
-        Some(self.binding_word(value, id))
+        let word = self.binding_word(value, id);
+        // An enum in storage is not range checked at the load.
+        let stored = (self.cx.storage.get(id).is_some() || self.storage_refs.contains_key(&id))
+            && matches!(self.cx.gcx.type_of_item(id.into()).kind, TyKind::Enum(..));
+        Some(if stored { Word::raw(word.value) } else { word })
     }
 
     /// Reads the place as a word: only a raw-carrier variable is raw.
