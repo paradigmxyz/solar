@@ -2,7 +2,7 @@
   "contracts": {
     "ROOT/tests/ui/cli/debug_outputs.sol:C": {
       "srcmap": "375:43:0:-:0;;;;;;;;;;-1:-1:-1;375:43:0;;",
-      "srcmap-runtime": "375:43:0:-:0;;;;;;;;;;;;392:24;-1:-1:-1;375:43:0;;"
+      "srcmap-runtime": "375:43:0:-:0;;;;;;;;;;;;392:24;375:43;;;"
     }
   },
   "sourceList": [
