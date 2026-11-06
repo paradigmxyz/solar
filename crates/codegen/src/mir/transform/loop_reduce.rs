@@ -162,7 +162,7 @@ fn plan(func: &Function, l: &Loop, target: Target) -> Option<ClosedForm> {
     let after = target.loop_closed_form(recurrences.len() as u32, quadratic);
     let header_cost = target.block_code_estimate(func, header);
     let body_cost = body.iter().map(|&block| target.block_code_estimate(func, block)).sum::<Cost>();
-    let trips = func.value_u64(count).unwrap_or(Target::UNCOUNTED_LOOP_ITERATIONS);
+    let trips = func.value_u64(count).unwrap_or(Target::UNCOUNTED_LOOP_ITERATIONS_BASE);
     let looped = (header_cost + body_cost).times(u32::try_from(trips).unwrap_or(u32::MAX));
     let before =
         Cost::new(looped.gas.saturating_add(header_cost.gas), header_cost.bytes + body_cost.bytes)
