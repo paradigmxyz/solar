@@ -1,0 +1,29 @@
+; === ROOT/tests/ui/codegen/run-call/abi-encode/abi_encode_shared_tuple.sol:AbiEncodeSharedTuple ===
+@module AbiEncodeSharedTuple
+; function first(uint256 a, bytes memory b) external pure returns (bytes memory) [selector 0xa743b805]
+fn @first(arg0: i256, arg1: ptr<memory>) -> ptr<memory> [selector=0xa743b805, pure, abi_params=[uint256, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_encode [word, memory_bytes], object, args arg0, arg1
+    ret v0
+}
+
+; function second(uint256 a, bytes memory b) external pure returns (bytes memory) [selector 0x0a9ef4d7]
+fn @second(arg0: i256, arg1: ptr<memory>) -> ptr<memory> [selector=0x0a9ef4d7, pure, abi_params=[uint256, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_encode [word, memory_bytes], object, args arg0, arg1
+    ret v0
+}
+
+; function tagged(uint256 a, bytes memory b) external pure returns (bytes memory) [selector 0x33be8de9]
+fn @tagged(arg0: i256, arg1: ptr<memory>) -> ptr<memory> [selector=0x33be8de9, pure, abi_params=[uint256, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_encode [word, memory_bytes], object, selector 0xaabbccdd00000000000000000000000000000000000000000000000000000000, args arg0, arg1
+    ret v0
+}
+
+; function retagged(uint256 a, bytes memory b) external pure returns (bytes memory) [selector 0x7e81c32c]
+fn @retagged(arg0: i256, arg1: ptr<memory>) -> ptr<memory> [selector=0x7e81c32c, pure, abi_params=[uint256, bytes], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = abi_encode [word, memory_bytes], object, selector 0xaabbccdd00000000000000000000000000000000000000000000000000000000, args arg0, arg1
+    ret v0
+}

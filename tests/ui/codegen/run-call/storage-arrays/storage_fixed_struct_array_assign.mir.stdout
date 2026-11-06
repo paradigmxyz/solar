@@ -1,0 +1,153 @@
+; === ROOT/tests/ui/codegen/run-call/storage-arrays/storage_fixed_struct_array_assign.sol:StorageFixedStructArrayAssign ===
+@module StorageFixedStructArrayAssign
+@types
+  struct0: {i256, i256, i256}
+
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 24, 1 !metadata(storage=slot(24))
+    ret
+}
+
+; function setUp() public [selector 0x0a9254e4]
+fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = sload 24 !metadata(storage=slot(24))
+    v1 = lt v0, 4
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = mul v0, 3
+    v4 = add v3, 0
+    sstore v4, 1 !metadata(storage=symbolic(v3))
+    v5 = add v4, 1
+    sstore v5, 2 !metadata(storage=offset(v3, 1))
+    v6 = add v4, 2
+    v7 = sload v6 !metadata(storage=offset(v3, 2))
+    v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v9 = or v8, 1
+    sstore v6, v9 !metadata(storage=offset(v3, 2))
+    ret
+}
+
+; function read(uint256 base) internal view returns (uint256 a, uint256 b, uint256 c)
+fn @read(arg0: i256) -> struct0 [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = add arg0, 1
+    v2 = sload v1 !metadata(storage=offset(arg0, 1))
+    v3 = add arg0, 2
+    v4 = sload v3 !metadata(storage=offset(arg0, 2))
+    v5 = insert_value struct0, undef struct0, 0, v0
+    v6 = insert_value struct0, v5, 1, v2
+    v7 = insert_value struct0, v6, 2, v4
+    ret v7
+}
+
+; function testDynamicIndex() public view returns (uint256, uint256, uint256) [selector 0x8fa50415]
+fn @testDynamicIndex() -> struct0 [selector=0x8fa50415, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = icall @read, 3
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = extract_value struct0, v0, 2
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v2
+    v6 = insert_value struct0, v5, 2, v3
+    ret v6
+}
+
+; function testConstantIndex() public returns (uint256, uint256, uint256) [selector 0xb6aa0fa8]
+fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = lt 3, 4
+    v1 = eq v0, false
+    icall panic_if<0x32>, v1
+    sstore 9, 1 !metadata(storage=slot(9))
+    sstore 10, 2 !metadata(storage=slot(10))
+    v2 = sload 11 !metadata(storage=slot(11))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v4 = or v3, 1
+    sstore 11, v4 !metadata(storage=slot(11))
+    v5 = icall @read, 9
+    v6 = extract_value struct0, v5, 0
+    v7 = extract_value struct0, v5, 1
+    v8 = extract_value struct0, v5, 2
+    v9 = insert_value struct0, undef struct0, 0, v6
+    v10 = insert_value struct0, v9, 1, v7
+    v11 = insert_value struct0, v10, 2, v8
+    ret v11
+}
+
+; function testFromMemory() public returns (uint256, uint256, uint256) [selector 0xfebd1e0e]
+fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = alloc 96
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 2
+    v2 = ptradd v0, 64
+    mstore v2, 1
+    v3 = sload 24 !metadata(storage=slot(24))
+    v4 = checked_add uint256, v3, 1
+    v5 = lt v4, 4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = mul v4, 3
+    v8 = add v7, 0
+    v9 = mload v0
+    sstore v8, v9 !metadata(storage=symbolic(v7))
+    v10 = add v8, 1
+    v11 = ptradd v0, 32
+    v12 = mload v11
+    sstore v10, v12 !metadata(storage=offset(v7, 1))
+    v13 = add v8, 2
+    v14 = ptradd v0, 64
+    v15 = mload v14
+    v16 = sload v13 !metadata(storage=offset(v7, 2))
+    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v18 = and v15, 255
+    v19 = or v17, v18
+    sstore v13, v19 !metadata(storage=offset(v7, 2))
+    v20 = icall @read, 6
+    v21 = extract_value struct0, v20, 0
+    v22 = extract_value struct0, v20, 1
+    v23 = extract_value struct0, v20, 2
+    v24 = insert_value struct0, undef struct0, 0, v21
+    v25 = insert_value struct0, v24, 1, v22
+    v26 = insert_value struct0, v25, 2, v23
+    ret v26
+}
+
+; function testNested() public returns (uint256, uint256, uint256) [selector 0xfbd4b8cc]
+fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = sload 24 !metadata(storage=slot(24))
+    v1 = lt v0, 2
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = mul v0, 6
+    v4 = add v3, 12
+    v5 = sload 24 !metadata(storage=slot(24))
+    v6 = lt v5, 2
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = mul v5, 3
+    v9 = add v4, v8
+    sstore v9, 8 !metadata(storage=symbolic(v9))
+    v10 = add v9, 1
+    sstore v10, 9 !metadata(storage=offset(v9, 1))
+    v11 = add v9, 2
+    v12 = sload v11 !metadata(storage=offset(v9, 2))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v14 = or v13, 1
+    sstore v11, v14 !metadata(storage=offset(v9, 2))
+    v15 = icall @read, 21
+    v16 = extract_value struct0, v15, 0
+    v17 = extract_value struct0, v15, 1
+    v18 = extract_value struct0, v15, 2
+    v19 = insert_value struct0, undef struct0, 0, v16
+    v20 = insert_value struct0, v19, 1, v17
+    v21 = insert_value struct0, v20, 2, v18
+    ret v21
+}
