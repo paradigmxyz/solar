@@ -5,9 +5,14 @@ use solar::{
     cli::standard_json::{ReadCallbackResult, StandardJsonReadCallback, compile_standard_json},
     config::CompileOpts,
 };
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
+use solar_interface::source_map::{FileLoader, RealFileLoader};
+use std::{
+    path::Path,
+    process::Command,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 /// Source keys are opaque source unit names: `--base-path` must not shorten them, or the output
@@ -371,4 +376,89 @@ fn compact_output_keeps_contract_order() {
             r#""A":{"abi":[{"type":"function","name":"a","inputs":[],"outputs":[],"stateMutability":"nonpayable"}]}}}}"#,
         )
     );
+}
+
+/// Reads extra sources through the same filesystem callback the CLI installs.
+struct Disk;
+
+impl StandardJsonReadCallback for Disk {
+    fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
+        assert_eq!(kind, "source");
+        match RealFileLoader.load_file(Path::new(data)) {
+            Ok(contents) => ReadCallbackResult::Success(contents),
+            Err(error) => ReadCallbackResult::Error(error.to_string()),
+        }
+    }
+}
+
+/// A Foundry monorepo whose `lib/` sits above the package: only the package source is in the
+/// Standard JSON, remappings point at `../../lib`, and a dependency uses a relative import.
+/// https://github.com/paradigmxyz/solar/issues/2455
+fn monorepo_outside_package_root(relative_remap: bool) -> (tempfile::TempDir, String, String) {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = dir.path().join("lib/oz/contracts");
+    std::fs::create_dir_all(lib.join("access")).unwrap();
+    std::fs::create_dir_all(lib.join("utils")).unwrap();
+    std::fs::write(lib.join("utils/Context.sol"), "contract Context {}").unwrap();
+    std::fs::write(
+        lib.join("access/Ownable.sol"),
+        "import \"../utils/Context.sol\"; abstract contract Ownable is Context {}",
+    )
+    .unwrap();
+    let package = dir.path().join("packages/app");
+    std::fs::create_dir_all(package.join("src")).unwrap();
+    let app = "import \"@openzeppelin/contracts/access/Ownable.sol\"; contract App is Ownable {}";
+    std::fs::write(package.join("src/App.sol"), app).unwrap();
+    let remapping = if relative_remap {
+        // Foundry writes remappings relative to the package, as in issue 2455.
+        "@openzeppelin/contracts/=../../lib/oz/contracts/".to_string()
+    } else {
+        format!("@openzeppelin/contracts/={}/", lib.display().to_string().replace('\\', "/"))
+    };
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"src/App.sol": {"content": app}},
+        "settings": {
+            "remappings": [remapping],
+            "outputSelection": {"*": {"*": ["abi"]}}
+        }
+    })
+    .to_string();
+    (dir, package.display().to_string(), input)
+}
+
+/// Library callers without a callback stay sandboxed. The CLI installs a filesystem
+/// callback so the same input compiles, like solc.
+#[test]
+fn disk_imports_need_a_filesystem_callback() {
+    let (_dir, _package, input) = monorepo_outside_package_root(false);
+    let mut sandboxed = Vec::new();
+    compile_standard_json(&input, CompileOpts::default(), None, &mut sandboxed).unwrap();
+    let sandboxed = serde_json::from_slice::<Value>(&sandboxed).unwrap();
+    let message = sandboxed["errors"][0]["message"].as_str().unwrap();
+    assert!(message.contains("File import callback not supported"), "{message}");
+
+    let mut loaded = Vec::new();
+    compile_standard_json(&input, CompileOpts::default(), Some(Arc::new(Disk)), &mut loaded)
+        .unwrap();
+    let loaded = serde_json::from_slice::<Value>(&loaded).unwrap();
+    assert!(loaded["errors"].is_null(), "{loaded}");
+    assert!(loaded["contracts"]["src/App.sol"]["App"]["abi"].is_array(), "{loaded}");
+}
+
+/// `solar --standard-json` reads dependency files that sit outside the package root.
+#[test]
+fn cli_standard_json_reads_imports_outside_the_package() {
+    let (_dir, package, input) = monorepo_outside_package_root(true);
+    let json_path = Path::new(&package).join("input.json");
+    std::fs::write(&json_path, &input).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_solar"))
+        .current_dir(&package)
+        .args(["--standard-json", "input.json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let output = serde_json::from_slice::<Value>(&output.stdout).unwrap();
+    assert!(output["errors"].is_null(), "{output}");
+    assert!(output["contracts"]["src/App.sol"]["App"]["abi"].is_array(), "{output}");
 }

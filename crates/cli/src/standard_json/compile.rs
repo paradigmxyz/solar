@@ -25,7 +25,7 @@ use solar_data_structures::map::{FxHashMap, FxIndexMap};
 use solar_interface::{
     SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
-    source_map::FileLoader,
+    source_map::{FileLoader, RealFileLoader},
 };
 use solar_sema::{Gcx, hir::ContractId};
 use std::{
@@ -94,7 +94,14 @@ pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
         _ => unreachable!("standard JSON input count is validated during argument parsing"),
     });
     match result {
-        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout)?,
+        // The CLI matches solc: missing sources are read from the host filesystem. Library
+        // callers that omit a callback stay sandboxed, as libsolc does. `-Zui-testing` keeps
+        // the sandbox so Standard JSON UI tests stay hermetic and OS-independent.
+        Ok(_) => {
+            let callback = (!opts.unstable.ui_testing)
+                .then(|| Arc::new(CliFilesystemCallback) as Arc<dyn StandardJsonReadCallback>);
+            compile_standard_json(&input, opts, callback, &mut stdout)?
+        }
         Err(e) => standard_json_error_output(
             format!("failed to read standard JSON input: {e}"),
             &mut stdout,
@@ -470,6 +477,21 @@ fn compile(
 
     output_result
         .unwrap_or_else(|| write_empty_standard_json_output(source_map, opts, diagnostics, out))
+}
+
+/// Reads extra Standard JSON sources from the host filesystem, like solc's CLI.
+struct CliFilesystemCallback;
+
+impl StandardJsonReadCallback for CliFilesystemCallback {
+    fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
+        if kind != "source" {
+            return ReadCallbackResult::Unsupported;
+        }
+        match RealFileLoader.load_file(Path::new(data)) {
+            Ok(contents) => ReadCallbackResult::Success(contents),
+            Err(error) => ReadCallbackResult::Error(error.to_string()),
+        }
+    }
 }
 
 struct StandardJsonFileLoader {
