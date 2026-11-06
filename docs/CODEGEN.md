@@ -37,6 +37,14 @@ output. It can be combined with either diagnostic mode. The
 [UI runner](../tools/tester/README.md#debug-info-differential-suite) uses this to audit the full
 suite without changing its diagnostic snapshots.
 
+## Native pass plugins
+
+`-Zload-pass-plugin=/path/to/library` loads out-of-tree MIR and EVM IR passes.
+The [Rust plugin SDK](../crates/pass-plugin/README.md) defines the `Plugin` trait,
+export macro, build compatibility checks, pipeline hooks, and supported edits. The
+[`solar-pass-plugin-example`](../tools/pass-plugin-example/src/lib.rs) package
+builds a working shared library without linking compiler internals.
+
 ## Operation Schema and ISLE Rules
 
 Declare each MIR operation once, as a row in `crates/mir/src/op_schema.rs`:

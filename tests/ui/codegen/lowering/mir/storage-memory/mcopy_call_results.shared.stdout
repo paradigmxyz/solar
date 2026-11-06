@@ -137,24 +137,29 @@ fn @overlapping() {
 ; function padding(uint256 n) internal pure returns (bytes memory result)
 fn @padding(arg0: i256) -> i256 [may_return_memory] {
   bb0:
-    v24 = add arg0, 63
-    v2 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v28 = add arg0, 63
+    v2 = and v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v3 = lt v2, arg0
     jumpi v3, bb4, bb5
   bb5:                                            ; preds = bb0
-    v21 = icall @alloc, v2
-    v23 = calldatasize
-    calldatacopy v21, v23, v2
-    mstore v21, arg0
+    v16 = mload 64 !metadata(memory=scratch)
+    v17 = heap_floor
+    v18 = lt v16, v17
+    v19 = select v18, v17, v16
+    mstore 64, v19 !metadata(memory=scratch)
+    v25 = icall @alloc, v2
+    v27 = calldatasize
+    calldatacopy v25, v27, v2
+    mstore v25, arg0
     jump bb1
   bb1:                                            ; preds = bb5, bb7
     v7 = phi [bb5: 0], [bb7: v15]
     v8 = lt v7, arg0
     jumpi v8, bb3, bb2
   bb2:                                            ; preds = bb1
-    ret v21
+    ret v25
   bb3:                                            ; preds = bb1
-    v9 = mload v21
+    v9 = mload v25
     v10 = lt v7, v9
     jumpi v10, bb7, bb6
   bb6 [cold]:                                     ; preds = bb3
@@ -162,9 +167,9 @@ fn @padding(arg0: i256) -> i256 [may_return_memory] {
     mstore 0, 0x4e487b71
     revert 28, 36
   bb7:                                            ; preds = bb3
-    v17 = add v21, v7
-    v18 = add v17, 32
-    mstore8 v18, 97
+    v21 = add v25, v7
+    v22 = add v21, 32
+    mstore8 v22, 97
     v15 = add v7, 1
     jump bb1
   bb4 [cold]:                                     ; preds = bb0
@@ -218,17 +223,22 @@ fn @digits(arg0: i256) -> i256 [may_return_memory] {
   bb0:
     jump bb1
   bb1:                                            ; preds = bb0, bb3
-    v2 = phi [bb0: 1], [bb3: v33]
+    v2 = phi [bb0: 1], [bb3: v37]
     v3 = phi [bb0: arg0], [bb3: v7]
     v5 = gt v3, 9
     jumpi v5, bb3, bb2
   bb2:                                            ; preds = bb1
-    v45 = add v2, 63
-    v10 = and v45, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v42 = icall @alloc, v10
-    v44 = calldatasize
-    calldatacopy v42, v44, v10
-    mstore v42, v2
+    v49 = add v2, 63
+    v10 = and v49, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v33 = mload 64 !metadata(memory=scratch)
+    v34 = heap_floor
+    v35 = lt v33, v34
+    v36 = select v35, v34, v33
+    mstore 64, v36 !metadata(memory=scratch)
+    v46 = icall @alloc, v10
+    v48 = calldatasize
+    calldatacopy v46, v48, v10
+    mstore v46, v2
     jump bb4
   bb4:                                            ; preds = bb2, bb8
     v13 = phi [bb2: arg0], [bb8: v31]
@@ -236,12 +246,12 @@ fn @digits(arg0: i256) -> i256 [may_return_memory] {
     v18 = ne v17, 0
     jumpi v18, bb6, bb5
   bb5:                                            ; preds = bb4
-    ret v42
+    ret v46
   bb6:                                            ; preds = bb4
     v19 = mod v13, 10
-    v35 = add v19, 48
+    v39 = add v19, 48
     v24 = sub v17, 1
-    v25 = mload v42
+    v25 = mload v46
     v26 = lt v24, v25
     jumpi v26, bb8, bb7
   bb7 [cold]:                                     ; preds = bb6
@@ -249,13 +259,13 @@ fn @digits(arg0: i256) -> i256 [may_return_memory] {
     mstore 0, 0x4e487b71
     revert 28, 36
   bb8:                                            ; preds = bb6
-    v38 = add v42, v24
-    v39 = add v38, 32
-    mstore8 v39, v35
+    v42 = add v46, v24
+    v43 = add v42, 32
+    mstore8 v43, v39
     v31 = div v13, 10
     jump bb4
   bb3:                                            ; preds = bb1
-    v33 = add v2, 1
+    v37 = add v2, 1
     v7 = div v3, 10
     jump bb1
 }

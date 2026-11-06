@@ -389,6 +389,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "PASS[,PASS...]"))]
     pub evm_ir_pipeline: Option<String>,
 
+    /// Load a trusted Rust MIR/EVM IR pass plugin (command line only). Repeat for multiple
+    /// libraries.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "PATH"))]
+    pub load_pass_plugin: Vec<PathBuf>,
+
     /// Print MIR or EVM IR after every optimization pass.
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_after_each: bool,
@@ -520,6 +525,8 @@ impl UnstableOpts {
             no_resolve_imports,
             mir_pipeline,
             evm_ir_pipeline,
+            // Native loading is authorized by the driver, never by compiler input.
+            load_pass_plugin: _,
             codegen_all_functions,
             switch_lowering,
             switch_max_gas_code_growth,

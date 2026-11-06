@@ -786,11 +786,7 @@ impl Function {
     }
 
     /// Allocates a value-producing instruction for a preallocated undefined result value.
-    pub(crate) fn alloc_inst_with_result(
-        &mut self,
-        mut inst: Instruction,
-        result: ValueId,
-    ) -> InstId {
+    pub fn alloc_inst_with_result(&mut self, mut inst: Instruction, result: ValueId) -> InstId {
         assert!(inst.result_ty.is_some(), "value-producing instruction must have a result type");
         assert!(
             matches!(self.values[result], Value::Undef(_)),

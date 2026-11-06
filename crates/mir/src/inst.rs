@@ -300,6 +300,17 @@ impl InstructionMetadata {
     pub fn set_disjoint(&mut self, value: bool) {
         self.flags.set_disjoint(value);
     }
+
+    /// Drops memory facts that a foreign rewrite has not proved for the resulting program.
+    /// Allocation obligations and source context remain semantic requirements, not proofs.
+    pub fn clear_analysis_facts(&mut self) {
+        self.set_memory_region(None);
+        self.set_storage_alias(None);
+        self.set_effect(None);
+        self.flags.0 &= !(MetadataFlags::CHECKED_OBJECT_OFFSET
+            | MetadataFlags::ALLOC_PTR
+            | MetadataFlags::DISJOINT);
+    }
 }
 
 /// The origins of shared code after the first, in merge order.
@@ -867,11 +878,8 @@ impl Instruction {
     /// rewrite; allocation markers are dropped only when allocation is lowered away.
     /// The caller must prove equivalence and preserve the result representation.
     pub(crate) fn replace_kind(&mut self, kind: InstKind) {
-        let result = kind.op_def().result;
         debug_assert!(
-            (result == super::ResultKind::Custom
-                || result.produces_value() == self.result_ty.is_some())
-                && self.result_ty.is_none_or(|ty| kind.admits_result_type(ty)),
+            self.can_replace_kind(&kind),
             "replacement must preserve the result representation"
         );
         // %result = old(operands) -> %result = equivalent(new_operands)
@@ -882,6 +890,14 @@ impl Instruction {
             self.metadata.clear_deferred_alloc();
             self.metadata.set_preserves_fmp(false);
         }
+    }
+
+    /// Returns whether a replacement preserves this instruction's result representation.
+    #[must_use]
+    pub fn can_replace_kind(&self, kind: &InstKind) -> bool {
+        let result = kind.op_def().result;
+        (result == super::ResultKind::Custom || result.produces_value() == self.result_ty.is_some())
+            && self.result_ty.is_none_or(|ty| kind.admits_result_type(ty))
     }
 
     /// Visits operands during an equivalence-preserving rewrite and invalidates

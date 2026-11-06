@@ -155,7 +155,7 @@ impl EthdebugCompilation {
 pub(crate) fn make_ethdebug_compilation(
     gcx: Gcx<'_>,
     metadata_identity: Option<alloy_primitives::B256>,
-) -> EthdebugCompilation {
+) -> solar_interface::Result<EthdebugCompilation> {
     let language = if gcx.sess.opts.language.is_yul() { "Yul" } else { "Solidity" };
     let sources = gcx
         .hir
@@ -225,14 +225,21 @@ pub(crate) fn make_ethdebug_compilation(
         append_length_prefixed(&mut identity, &source.contents);
         append_length_prefixed(&mut identity, &source.language);
     }
+    let plugins = solar_codegen::pass_plugin_build_inputs(gcx)?;
+    if !plugins.is_empty() {
+        append_length_prefixed(&mut identity, "plugins");
+        for plugin in plugins {
+            append_length_prefixed(&mut identity, &plugin);
+        }
+    }
     let digest = alloy_primitives::keccak256(identity.as_bytes());
     let id = format!("solar-{}", alloy_primitives::hex::display(digest));
 
-    EthdebugCompilation {
+    Ok(EthdebugCompilation {
         id: EthdebugId::Text(id),
         compiler: EthdebugCompiler { name: "solar".to_owned(), version },
         sources,
-    }
+    })
 }
 
 fn append_length_prefixed(output: &mut String, value: &str) {
