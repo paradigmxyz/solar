@@ -274,7 +274,7 @@ fn run_passes(
             timer.finish("EVM IR", module.name(), pass_name, pass_changed);
             changed |= pass_changed;
             if module.debug_info_is_tracked() {
-                module.drop_invalid_entry_checkpoints();
+                module.drop_invalid_lent_invokes();
             }
             if gcx.dcx().err_count() != errors_before {
                 return changed;

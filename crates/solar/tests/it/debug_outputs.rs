@@ -475,9 +475,10 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
         ("peephole", "peephole_debug_replacements.evmir", "report"),
         ("cfg-simplify", "cfg_simplify_branch_entry_inversion.evmir", "check"),
         ("cfg-simplify", "cfg_simplify_thunk_chain_spans.evmir", "check"),
+        ("cfg-simplify", "cfg_simplify_thunk_spans.evmir", "check"),
         (
             "cfg-simplify,terminal-dedup,cfg-simplify",
-            "cfg_simplify_checkpoint_shared_entry.evmir",
+            "cfg_simplify_lent_invoke_shared_entry.evmir",
             "report",
         ),
     ] {
