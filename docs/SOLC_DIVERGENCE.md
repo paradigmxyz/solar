@@ -544,6 +544,74 @@ needs to number its AST.
 
 Coverage: `tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol`.
 
+### TYPECK-023: AST JSON
+
+Status: parity debt for the types of a few expressions; intentional for the
+rest.
+
+Difference: `solar` writes the compact AST JSON of `solc` (the `ast` output of
+Standard JSON and `--emit=ast`). Node IDs do not follow the numbering of
+`solc`: items take the IDs that `immutableReferences`, the storage layout and
+ETHDebug report, source units and imports follow them, and every other node
+takes the next free ID. `internalFunctionIDs` numbers the functions that
+function values reach by source name and position, as `solc` numbers its nodes.
+`solar` leaves out the `EnumValue` documentation, which its AST does not keep, and reads
+`contractDependencies`, `usedEvents` and `usedErrors` from the call graph used for
+code generation. The source index in a `src` and the `id` of a source follow the
+order of the sources after sorting them by their imports, where `solc` sorts them
+by name, and the IDs of the nodes that are no items depend on the order in which
+the sources are written. `solar` includes a comment between a variable and its `;`
+in the location of the variable.
+
+The attributes of expressions come from the type checker, and differ in these
+cases:
+
+- a builtin function that is the component of a tuple, such as `abi.encode` in
+  `(abi.encode, 2)`, has the kind `internal` and no call options, and
+  `abi.decode` there keeps its parameters, where `solc` gives the kind of the
+  builtin and `function () pure`;
+- `isPure` of `type(L.E)`, `type(L.E).min` and `type(L.E).max` is `true` for an
+  enum `E` that a library or contract `L` declares, where `solc` has `false` for
+  the name `L.E`, which lowering reduces to the type;
+- `solc` types `require` and the functions attached to a type from the call, which
+  `solar` rebuilds from the arguments and the declared receiver;
+- before Byzantium, only the call of an external function with one dynamically
+  encoded return value gets the inaccessible dynamic type; a tuple of returns
+  and a bare `call` keep the types of their components;
+- the names before the last one in the callee of `emit` and `revert`, and in the
+  argument of `type(...)`, take their resolution from name resolution alone.
+
+`solar` returns no AST for `settings.stopAfter: "parsing"`, and warns that the
+AST needs analysis, where `solc` returns the parse-only AST: the same nodes
+without `typeDescriptions`, references, scopes and the attributes that type
+checking sets. A `stopAfter` of `lowering` or `analysis` has no such counterpart
+in `solc`, which accepts `parsing` only; `solar` attaches the AST when analysis
+ran.
+
+Rationale: IDs must agree across the outputs of one compilation, not with
+`solc`. Consumers that look up declarations by ID do not need `solc`'s
+numbering, and the differences of the types do not change what an expression
+refers to. The writer walks the AST and reads the IDs, types and resolutions of
+each node from the HIR in lockstep, which undoes what lowering rewrites, so that
+no second classifier of nodes exists. A parse-only AST has no HIR, and about 50
+serializers would need an AST-only variant of every field they read from it, in
+effect a second walker. The use that needs the AST, matching `immutableReferences`
+and the storage layout to declarations, needs a compiled contract.
+
+Coverage: `tests/ui/standard-json/ast/test.jsonc`,
+`tests/ui/standard-json/ast-attached/test.jsonc`,
+`tests/ui/standard-json/ast-ids/test.jsonc`,
+`tests/ui/standard-json/ast-immutables/test.jsonc`,
+`tests/ui/standard-json/ast-import-aliases/test.jsonc`,
+`tests/ui/standard-json/ast-inaccessible/test.jsonc`,
+`tests/ui/standard-json/ast-internal-function-ids/test.jsonc`,
+`tests/ui/standard-json/ast-is-pure/test.jsonc`,
+`tests/ui/standard-json/ast-license/test.jsonc`,
+`tests/ui/standard-json/ast-tuples/test.jsonc`,
+`tests/ui/standard-json/ast-yul/test.jsonc`,
+`tests/ui/standard-json/ast-yul-hosts/test.jsonc` and
+`tests/ui/cli/emit_ast.sol`.
+
 ### TYPECK-011: Module-typed conditionals
 
 Status: intentional.

@@ -471,6 +471,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub pack_wide_jump_tables: bool,
 
+    /// Keeps the ASTs after lowering, which the `ast` outputs need and which are dropped otherwise
+    /// to free memory.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub keep_asts: bool,
+
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
@@ -526,6 +531,7 @@ impl UnstableOpts {
             switch_max_bit_slice_gas_code_growth,
             tune,
             pack_wide_jump_tables,
+            keep_asts: _,
             ui_testing: _,
             track_diagnostics: _,
             recover_incomplete_input: _,

@@ -1,0 +1,80 @@
+//@ filecheck:
+// Assembly blocks in a free function, a modifier, a constructor, `receive` and a function with an
+// `unchecked` block, which define Yul functions of the same name, and a constant of another source.
+// CHECK: ".28"
+// CHECK-NEXT: ]
+// CHECK-NEXT: },
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": [[OTHER:[0-9]+]],
+// CHECK-NEXT: "src": "{{.*}}",
+// CHECK-NEXT: "nodeType": "VariableDeclaration",
+// CHECK-NEXT: "name": "OTHER",
+// CHECK: "absolutePath": "Hosts.sol"
+// CHECK: "referencedDeclaration": [[OTHER]],
+// CHECK-NEXT: "typeDescriptions": {}
+// CHECK-NEXT: },
+// CHECK-NEXT: "nameLocation": "{{.*}}"
+// CHECK-NEXT: }
+// CHECK-NEXT: ]
+// CHECK-NEXT: },
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": [[LIMIT:[0-9]+]],
+// CHECK-NEXT: "src": "{{.*}}",
+// CHECK-NEXT: "nodeType": "VariableDeclaration",
+// CHECK-NEXT: "name": "LIMIT",
+// The first block of `free` reads `LIMIT`, and the second reads `OTHER`.
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "helper"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": [[LIMIT]]
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "helper"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": [[OTHER]]
+// CHECK: "name": "Hosts"
+// CHECK: "nodes": [
+// CHECK-NEXT: {
+// CHECK-NEXT: "id": [[WORD:[0-9]+]],
+// CHECK-NEXT: "src": "{{.*}}",
+// CHECK-NEXT: "nodeType": "VariableDeclaration",
+// CHECK-NEXT: "name": "word",
+// The modifier, the constructor, `receive` and the two blocks of `hosted`.
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "check"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": [[WORD]]
+// CHECK: "suffix": "slot"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "init"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": [[OTHER]]
+// CHECK: "declaration": [[WORD]]
+// CHECK: "suffix": "slot"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "ping"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": [[LIMIT]]
+// CHECK: "nodeType": "UncheckedBlock"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "one"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": [[LIMIT]]
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "one"
+// CHECK: "name": "two"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": [[OTHER]]
+// CHECK: "declaration": [[WORD]]
+// CHECK: "suffix": "slot"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

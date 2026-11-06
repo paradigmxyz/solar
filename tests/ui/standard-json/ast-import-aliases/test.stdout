@@ -1,0 +1,1102 @@
+{
+  "sources": {
+    "Common.sol": {
+      "id": 0,
+      "ast": {
+        "id": 15,
+        "src": "0:21:0",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Common.sol",
+        "exportedSymbols": {
+          "common": [
+            3
+          ]
+        },
+        "nodes": [
+          {
+            "id": 3,
+            "src": "0:20:0",
+            "nodeType": "FunctionDefinition",
+            "name": "common",
+            "nameLocation": "9:6:0",
+            "kind": "freeFunction",
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "parameters": {
+              "id": 39,
+              "src": "15:2:0",
+              "nodeType": "ParameterList",
+              "parameters": []
+            },
+            "returnParameters": {
+              "id": 38,
+              "src": "18:0:0",
+              "nodeType": "ParameterList",
+              "parameters": []
+            },
+            "modifiers": [],
+            "implemented": true,
+            "scope": 15,
+            "visibility": "internal",
+            "body": {
+              "id": 40,
+              "src": "18:2:0",
+              "nodeType": "Block",
+              "statements": []
+            }
+          }
+        ]
+      }
+    },
+    "auxiliary/Id.sol": {
+      "id": 1,
+      "ast": {
+        "id": 16,
+        "src": "0:20:1",
+        "nodeType": "SourceUnit",
+        "absolutePath": "auxiliary/Id.sol",
+        "exportedSymbols": {
+          "Id": [
+            13
+          ]
+        },
+        "nodes": [
+          {
+            "id": 13,
+            "src": "0:19:1",
+            "nodeType": "UserDefinedValueTypeDefinition",
+            "name": "Id",
+            "nameLocation": "5:2:1",
+            "underlyingType": {
+              "id": 41,
+              "src": "11:7:1",
+              "nodeType": "ElementaryTypeName",
+              "name": "uint256",
+              "typeDescriptions": {
+                "typeIdentifier": "t_uint256",
+                "typeString": "uint256"
+              }
+            },
+            "canonicalName": "Id"
+          }
+        ]
+      }
+    },
+    "auxiliary/Lib.sol": {
+      "id": 2,
+      "ast": {
+        "id": 17,
+        "src": "0:203:2",
+        "nodeType": "SourceUnit",
+        "absolutePath": "auxiliary/Lib.sol",
+        "exportedSymbols": {
+          "Cycle": [
+            1
+          ],
+          "Glob": [
+            28
+          ],
+          "Lib": [
+            0
+          ],
+          "Plain": [
+            27
+          ]
+        },
+        "nodes": [
+          {
+            "id": 26,
+            "src": "0:37:2",
+            "nodeType": "ImportDirective",
+            "file": "../Cycle.sol",
+            "sourceUnit": 18,
+            "scope": 17,
+            "absolutePath": "Cycle.sol",
+            "unitAlias": "",
+            "nameLocation": "-1:-1:-1",
+            "symbolAliases": [
+              {
+                "foreign": {
+                  "id": 42,
+                  "src": "9:5:2",
+                  "nodeType": "Identifier",
+                  "name": "Cycle",
+                  "overloadedDeclarations": [],
+                  "referencedDeclaration": 1,
+                  "typeDescriptions": {}
+                },
+                "nameLocation": "-1:-1:-1"
+              }
+            ]
+          },
+          {
+            "id": 27,
+            "src": "38:27:2",
+            "nodeType": "ImportDirective",
+            "file": "./Id.sol",
+            "sourceUnit": 16,
+            "scope": 17,
+            "absolutePath": "auxiliary/Id.sol",
+            "unitAlias": "Plain",
+            "nameLocation": "59:5:2",
+            "symbolAliases": []
+          },
+          {
+            "id": 28,
+            "src": "66:33:2",
+            "nodeType": "ImportDirective",
+            "file": "./Id.sol",
+            "sourceUnit": 16,
+            "scope": 17,
+            "absolutePath": "auxiliary/Id.sol",
+            "unitAlias": "Glob",
+            "nameLocation": "78:4:2",
+            "symbolAliases": []
+          },
+          {
+            "id": 0,
+            "src": "101:101:2",
+            "nodeType": "ContractDefinition",
+            "name": "Lib",
+            "nameLocation": "109:3:2",
+            "contractKind": "library",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Lib",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 4,
+                "src": "119:81:2",
+                "nodeType": "FunctionDefinition",
+                "name": "id",
+                "nameLocation": "128:2:2",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 44,
+                  "src": "130:12:2",
+                  "nodeType": "ParameterList",
+                  "parameters": [
+                    {
+                      "id": 9,
+                      "src": "131:10:2",
+                      "nodeType": "VariableDeclaration",
+                      "name": "x",
+                      "nameLocation": "140:1:2",
+                      "typeName": {
+                        "id": 45,
+                        "src": "131:8:2",
+                        "nodeType": "UserDefinedTypeName",
+                        "pathNode": {
+                          "id": 46,
+                          "src": "131:8:2",
+                          "nodeType": "IdentifierPath",
+                          "name": "Plain.Id",
+                          "nameLocations": [
+                            "131:5:2",
+                            "137:2:2"
+                          ],
+                          "referencedDeclaration": 13
+                        },
+                        "referencedDeclaration": 13,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                          "typeString": "Id"
+                        }
+                      },
+                      "constant": false,
+                      "mutability": "mutable",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "visibility": "internal",
+                      "scope": 4,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                        "typeString": "Id"
+                      }
+                    }
+                  ]
+                },
+                "returnParameters": {
+                  "id": 43,
+                  "src": "165:9:2",
+                  "nodeType": "ParameterList",
+                  "parameters": [
+                    {
+                      "id": 10,
+                      "src": "166:7:2",
+                      "nodeType": "VariableDeclaration",
+                      "name": "",
+                      "nameLocation": "-1:-1:-1",
+                      "typeName": {
+                        "id": 47,
+                        "src": "166:7:2",
+                        "nodeType": "UserDefinedTypeName",
+                        "pathNode": {
+                          "id": 48,
+                          "src": "166:7:2",
+                          "nodeType": "IdentifierPath",
+                          "name": "Glob.Id",
+                          "nameLocations": [
+                            "166:4:2",
+                            "171:2:2"
+                          ],
+                          "referencedDeclaration": 13
+                        },
+                        "referencedDeclaration": 13,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                          "typeString": "Id"
+                        }
+                      },
+                      "constant": false,
+                      "mutability": "mutable",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "visibility": "internal",
+                      "scope": 4,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                        "typeString": "Id"
+                      }
+                    }
+                  ]
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 0,
+                "visibility": "internal",
+                "body": {
+                  "id": 49,
+                  "src": "175:25:2",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 50,
+                      "src": "185:8:2",
+                      "nodeType": "Return",
+                      "expression": {
+                        "id": 51,
+                        "src": "192:1:2",
+                        "nodeType": "Identifier",
+                        "name": "x",
+                        "referencedDeclaration": 9,
+                        "overloadedDeclarations": [],
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                          "typeString": "Id"
+                        }
+                      },
+                      "functionReturnParameters": 43
+                    }
+                  ]
+                }
+              }
+            ],
+            "scope": 17,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              0
+            ]
+          }
+        ]
+      }
+    },
+    "Cycle.sol": {
+      "id": 3,
+      "ast": {
+        "id": 18,
+        "src": "0:169:3",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Cycle.sol",
+        "exportedSymbols": {
+          "Cycle": [
+            1
+          ],
+          "Glob": [
+            28
+          ],
+          "Lib": [
+            0
+          ],
+          "Plain": [
+            27
+          ]
+        },
+        "nodes": [
+          {
+            "id": 29,
+            "src": "0:55:3",
+            "nodeType": "ImportDirective",
+            "file": "./auxiliary/Lib.sol",
+            "sourceUnit": 17,
+            "scope": 18,
+            "absolutePath": "auxiliary/Lib.sol",
+            "unitAlias": "",
+            "nameLocation": "-1:-1:-1",
+            "symbolAliases": [
+              {
+                "foreign": {
+                  "id": 52,
+                  "src": "9:3:3",
+                  "nodeType": "Identifier",
+                  "name": "Lib",
+                  "overloadedDeclarations": [],
+                  "referencedDeclaration": 0,
+                  "typeDescriptions": {}
+                },
+                "nameLocation": "-1:-1:-1"
+              },
+              {
+                "foreign": {
+                  "id": 53,
+                  "src": "14:5:3",
+                  "nodeType": "Identifier",
+                  "name": "Plain",
+                  "overloadedDeclarations": [],
+                  "referencedDeclaration": 27,
+                  "typeDescriptions": {}
+                },
+                "nameLocation": "-1:-1:-1"
+              },
+              {
+                "foreign": {
+                  "id": 54,
+                  "src": "21:4:3",
+                  "nodeType": "Identifier",
+                  "name": "Glob",
+                  "overloadedDeclarations": [],
+                  "referencedDeclaration": 28,
+                  "typeDescriptions": {}
+                },
+                "nameLocation": "-1:-1:-1"
+              }
+            ]
+          },
+          {
+            "id": 1,
+            "src": "57:111:3",
+            "nodeType": "ContractDefinition",
+            "name": "Cycle",
+            "nameLocation": "66:5:3",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Cycle",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [
+              {
+                "id": 5,
+                "src": "78:88:3",
+                "nodeType": "FunctionDefinition",
+                "name": "f",
+                "nameLocation": "87:1:3",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 56,
+                  "src": "88:12:3",
+                  "nodeType": "ParameterList",
+                  "parameters": [
+                    {
+                      "id": 11,
+                      "src": "89:10:3",
+                      "nodeType": "VariableDeclaration",
+                      "name": "x",
+                      "nameLocation": "98:1:3",
+                      "typeName": {
+                        "id": 57,
+                        "src": "89:8:3",
+                        "nodeType": "UserDefinedTypeName",
+                        "pathNode": {
+                          "id": 58,
+                          "src": "89:8:3",
+                          "nodeType": "IdentifierPath",
+                          "name": "Plain.Id",
+                          "nameLocations": [
+                            "89:5:3",
+                            "95:2:3"
+                          ],
+                          "referencedDeclaration": 13
+                        },
+                        "referencedDeclaration": 13,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                          "typeString": "Id"
+                        }
+                      },
+                      "constant": false,
+                      "mutability": "mutable",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "visibility": "internal",
+                      "scope": 5,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                        "typeString": "Id"
+                      }
+                    }
+                  ]
+                },
+                "returnParameters": {
+                  "id": 55,
+                  "src": "123:9:3",
+                  "nodeType": "ParameterList",
+                  "parameters": [
+                    {
+                      "id": 12,
+                      "src": "124:7:3",
+                      "nodeType": "VariableDeclaration",
+                      "name": "",
+                      "nameLocation": "-1:-1:-1",
+                      "typeName": {
+                        "id": 59,
+                        "src": "124:7:3",
+                        "nodeType": "UserDefinedTypeName",
+                        "pathNode": {
+                          "id": 60,
+                          "src": "124:7:3",
+                          "nodeType": "IdentifierPath",
+                          "name": "Glob.Id",
+                          "nameLocations": [
+                            "124:4:3",
+                            "129:2:3"
+                          ],
+                          "referencedDeclaration": 13
+                        },
+                        "referencedDeclaration": 13,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                          "typeString": "Id"
+                        }
+                      },
+                      "constant": false,
+                      "mutability": "mutable",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "visibility": "internal",
+                      "scope": 5,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                        "typeString": "Id"
+                      }
+                    }
+                  ]
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 1,
+                "visibility": "external",
+                "body": {
+                  "id": 61,
+                  "src": "133:33:3",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 62,
+                      "src": "143:16:3",
+                      "nodeType": "Return",
+                      "expression": {
+                        "id": 63,
+                        "src": "150:9:3",
+                        "nodeType": "FunctionCall",
+                        "expression": {
+                          "id": 64,
+                          "src": "150:6:3",
+                          "nodeType": "MemberAccess",
+                          "memberName": "id",
+                          "memberLocation": "154:2:3",
+                          "expression": {
+                            "id": 65,
+                            "src": "150:3:3",
+                            "nodeType": "Identifier",
+                            "name": "Lib",
+                            "referencedDeclaration": 0,
+                            "overloadedDeclarations": [],
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_type$_t_contract$_Lib_$0_$",
+                              "typeString": "type(library Lib)"
+                            }
+                          },
+                          "referencedDeclaration": 4,
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_pure$_t_userDefinedValueType$_Id_$13_$returns$_t_userDefinedValueType$_Id_$13_$",
+                            "typeString": "function (Id) pure returns (Id)"
+                          },
+                          "argumentTypes": [
+                            {
+                              "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                              "typeString": "Id"
+                            }
+                          ],
+                          "isLValue": false,
+                          "isPure": false,
+                          "isConstant": false,
+                          "lValueRequested": false
+                        },
+                        "names": [],
+                        "nameLocations": [],
+                        "arguments": [
+                          {
+                            "id": 66,
+                            "src": "157:1:3",
+                            "nodeType": "Identifier",
+                            "name": "x",
+                            "referencedDeclaration": 11,
+                            "overloadedDeclarations": [],
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                              "typeString": "Id"
+                            }
+                          }
+                        ],
+                        "tryCall": false,
+                        "kind": "functionCall",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_userDefinedValueType$_Id_$13",
+                          "typeString": "Id"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      },
+                      "functionReturnParameters": 55
+                    }
+                  ]
+                },
+                "functionSelector": "b3de648b"
+              }
+            ],
+            "scope": 18,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    "Errors.sol": {
+      "id": 4,
+      "ast": {
+        "id": 19,
+        "src": "0:18:4",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Errors.sol",
+        "exportedSymbols": {
+          "E": [
+            14
+          ]
+        },
+        "nodes": [
+          {
+            "id": 14,
+            "src": "0:17:4",
+            "nodeType": "ErrorDefinition",
+            "name": "E",
+            "nameLocation": "6:1:4",
+            "parameters": {
+              "id": 67,
+              "src": "7:9:4",
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "id": 8,
+                  "src": "8:7:4",
+                  "nodeType": "VariableDeclaration",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "typeName": {
+                    "id": 68,
+                    "src": "8:7:4",
+                    "nodeType": "ElementaryTypeName",
+                    "name": "uint256",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "constant": false,
+                  "mutability": "mutable",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "visibility": "internal",
+                  "scope": 14,
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                }
+              ]
+            },
+            "errorSelector": "002ff067"
+          }
+        ]
+      }
+    },
+    "First.sol": {
+      "id": 5,
+      "ast": {
+        "id": 20,
+        "src": "0:33:5",
+        "nodeType": "SourceUnit",
+        "absolutePath": "First.sol",
+        "exportedSymbols": {
+          "Common": [
+            30
+          ]
+        },
+        "nodes": [
+          {
+            "id": 30,
+            "src": "0:32:5",
+            "nodeType": "ImportDirective",
+            "file": "./Common.sol",
+            "sourceUnit": 15,
+            "scope": 20,
+            "absolutePath": "Common.sol",
+            "unitAlias": "Common",
+            "nameLocation": "25:6:5",
+            "symbolAliases": []
+          }
+        ]
+      }
+    },
+    "Mid.sol": {
+      "id": 6,
+      "ast": {
+        "id": 21,
+        "src": "0:28:6",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Mid.sol",
+        "exportedSymbols": {
+          "S": [
+            31
+          ]
+        },
+        "nodes": [
+          {
+            "id": 31,
+            "src": "0:27:6",
+            "nodeType": "ImportDirective",
+            "file": "./Errors.sol",
+            "sourceUnit": 19,
+            "scope": 21,
+            "absolutePath": "Errors.sol",
+            "unitAlias": "S",
+            "nameLocation": "25:1:6",
+            "symbolAliases": []
+          }
+        ]
+      }
+    },
+    "Second.sol": {
+      "id": 7,
+      "ast": {
+        "id": 22,
+        "src": "0:33:7",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Second.sol",
+        "exportedSymbols": {
+          "Common": [
+            32
+          ]
+        },
+        "nodes": [
+          {
+            "id": 32,
+            "src": "0:32:7",
+            "nodeType": "ImportDirective",
+            "file": "./Common.sol",
+            "sourceUnit": 15,
+            "scope": 22,
+            "absolutePath": "Common.sol",
+            "unitAlias": "Common",
+            "nameLocation": "25:6:7",
+            "symbolAliases": []
+          }
+        ]
+      }
+    },
+    "Top.sol": {
+      "id": 8,
+      "ast": {
+        "id": 23,
+        "src": "0:227:8",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Top.sol",
+        "exportedSymbols": {
+          "E": [
+            14
+          ],
+          "S": [
+            33
+          ],
+          "T": [
+            34
+          ],
+          "Top": [
+            2
+          ]
+        },
+        "nodes": [
+          {
+            "id": 33,
+            "src": "0:27:8",
+            "nodeType": "ImportDirective",
+            "file": "./Errors.sol",
+            "sourceUnit": 19,
+            "scope": 23,
+            "absolutePath": "Errors.sol",
+            "unitAlias": "S",
+            "nameLocation": "25:1:8",
+            "symbolAliases": []
+          },
+          {
+            "id": 34,
+            "src": "28:24:8",
+            "nodeType": "ImportDirective",
+            "file": "./Mid.sol",
+            "sourceUnit": 21,
+            "scope": 23,
+            "absolutePath": "Mid.sol",
+            "unitAlias": "T",
+            "nameLocation": "50:1:8",
+            "symbolAliases": []
+          },
+          {
+            "id": 35,
+            "src": "53:22:8",
+            "nodeType": "ImportDirective",
+            "file": "./Errors.sol",
+            "sourceUnit": 19,
+            "scope": 23,
+            "absolutePath": "Errors.sol",
+            "unitAlias": "",
+            "nameLocation": "-1:-1:-1",
+            "symbolAliases": []
+          },
+          {
+            "id": 2,
+            "src": "77:149:8",
+            "nodeType": "ContractDefinition",
+            "name": "Top",
+            "nameLocation": "86:3:8",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Top",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [
+              14
+            ],
+            "nodes": [
+              {
+                "id": 6,
+                "src": "96:60:8",
+                "nodeType": "FunctionDefinition",
+                "name": "viaOwn",
+                "nameLocation": "105:6:8",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 70,
+                  "src": "111:2:8",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 69,
+                  "src": "126:0:8",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 2,
+                "visibility": "public",
+                "body": {
+                  "id": 71,
+                  "src": "126:30:8",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 72,
+                      "src": "136:13:8",
+                      "nodeType": "RevertStatement",
+                      "errorCall": {
+                        "id": 73,
+                        "src": "143:6:8",
+                        "nodeType": "FunctionCall",
+                        "expression": {
+                          "id": 74,
+                          "src": "143:3:8",
+                          "nodeType": "MemberAccess",
+                          "memberName": "E",
+                          "memberLocation": "145:1:8",
+                          "expression": {
+                            "id": 75,
+                            "src": "143:1:8",
+                            "nodeType": "Identifier",
+                            "name": "S",
+                            "referencedDeclaration": 33,
+                            "overloadedDeclarations": [],
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_module_19",
+                              "typeString": "module \"Errors.sol\""
+                            }
+                          },
+                          "referencedDeclaration": 14,
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_error_pure$_t_uint256_$returns$_t_error_$",
+                            "typeString": "function (uint256) pure returns (error)"
+                          },
+                          "argumentTypes": [
+                            {
+                              "typeIdentifier": "t_rational_1_by_1",
+                              "typeString": "int_const 1"
+                            }
+                          ],
+                          "isLValue": false,
+                          "isPure": true,
+                          "isConstant": false,
+                          "lValueRequested": false
+                        },
+                        "names": [],
+                        "nameLocations": [],
+                        "arguments": [
+                          {
+                            "id": 76,
+                            "src": "147:1:8",
+                            "nodeType": "Literal",
+                            "kind": "number",
+                            "value": "1",
+                            "hexValue": "31",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_rational_1_by_1",
+                              "typeString": "int_const 1"
+                            },
+                            "isLValue": false,
+                            "isPure": true,
+                            "isConstant": false,
+                            "lValueRequested": false
+                          }
+                        ],
+                        "tryCall": false,
+                        "kind": "functionCall",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_error",
+                          "typeString": "error"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    }
+                  ]
+                },
+                "functionSelector": "47d19480"
+              },
+              {
+                "id": 7,
+                "src": "162:62:8",
+                "nodeType": "FunctionDefinition",
+                "name": "viaMid",
+                "nameLocation": "171:6:8",
+                "kind": "function",
+                "stateMutability": "pure",
+                "virtual": false,
+                "parameters": {
+                  "id": 78,
+                  "src": "177:2:8",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "returnParameters": {
+                  "id": 77,
+                  "src": "192:0:8",
+                  "nodeType": "ParameterList",
+                  "parameters": []
+                },
+                "modifiers": [],
+                "implemented": true,
+                "scope": 2,
+                "visibility": "public",
+                "body": {
+                  "id": 79,
+                  "src": "192:32:8",
+                  "nodeType": "Block",
+                  "statements": [
+                    {
+                      "id": 80,
+                      "src": "202:15:8",
+                      "nodeType": "RevertStatement",
+                      "errorCall": {
+                        "id": 81,
+                        "src": "209:8:8",
+                        "nodeType": "FunctionCall",
+                        "expression": {
+                          "id": 82,
+                          "src": "209:5:8",
+                          "nodeType": "MemberAccess",
+                          "memberName": "E",
+                          "memberLocation": "213:1:8",
+                          "expression": {
+                            "id": 83,
+                            "src": "209:3:8",
+                            "nodeType": "MemberAccess",
+                            "memberName": "S",
+                            "memberLocation": "211:1:8",
+                            "expression": {
+                              "id": 84,
+                              "src": "209:1:8",
+                              "nodeType": "Identifier",
+                              "name": "T",
+                              "referencedDeclaration": 34,
+                              "overloadedDeclarations": [],
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_module_21",
+                                "typeString": "module \"Mid.sol\""
+                              }
+                            },
+                            "referencedDeclaration": 31,
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_module_19",
+                              "typeString": "module \"Errors.sol\""
+                            },
+                            "isLValue": false,
+                            "isPure": true,
+                            "isConstant": false,
+                            "lValueRequested": false
+                          },
+                          "referencedDeclaration": 14,
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_error_pure$_t_uint256_$returns$_t_error_$",
+                            "typeString": "function (uint256) pure returns (error)"
+                          },
+                          "argumentTypes": [
+                            {
+                              "typeIdentifier": "t_rational_2_by_1",
+                              "typeString": "int_const 2"
+                            }
+                          ],
+                          "isLValue": false,
+                          "isPure": true,
+                          "isConstant": false,
+                          "lValueRequested": false
+                        },
+                        "names": [],
+                        "nameLocations": [],
+                        "arguments": [
+                          {
+                            "id": 85,
+                            "src": "215:1:8",
+                            "nodeType": "Literal",
+                            "kind": "number",
+                            "value": "2",
+                            "hexValue": "32",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_rational_2_by_1",
+                              "typeString": "int_const 2"
+                            },
+                            "isLValue": false,
+                            "isPure": true,
+                            "isConstant": false,
+                            "lValueRequested": false
+                          }
+                        ],
+                        "tryCall": false,
+                        "kind": "functionCall",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_error",
+                          "typeString": "error"
+                        },
+                        "isLValue": false,
+                        "isPure": false,
+                        "isConstant": false,
+                        "lValueRequested": false
+                      }
+                    }
+                  ]
+                },
+                "functionSelector": "cdc91239"
+              }
+            ],
+            "scope": 23,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              2
+            ]
+          }
+        ]
+      }
+    },
+    "ViaFirst.sol": {
+      "id": 9,
+      "ast": {
+        "id": 24,
+        "src": "0:22:9",
+        "nodeType": "SourceUnit",
+        "absolutePath": "ViaFirst.sol",
+        "exportedSymbols": {
+          "Common": [
+            30
+          ]
+        },
+        "nodes": [
+          {
+            "id": 36,
+            "src": "0:21:9",
+            "nodeType": "ImportDirective",
+            "file": "./First.sol",
+            "sourceUnit": 20,
+            "scope": 24,
+            "absolutePath": "First.sol",
+            "unitAlias": "",
+            "nameLocation": "-1:-1:-1",
+            "symbolAliases": []
+          }
+        ]
+      }
+    },
+    "ViaSecond.sol": {
+      "id": 10,
+      "ast": {
+        "id": 25,
+        "src": "0:23:10",
+        "nodeType": "SourceUnit",
+        "absolutePath": "ViaSecond.sol",
+        "exportedSymbols": {
+          "Common": [
+            32
+          ]
+        },
+        "nodes": [
+          {
+            "id": 37,
+            "src": "0:22:10",
+            "nodeType": "ImportDirective",
+            "file": "./Second.sol",
+            "sourceUnit": 22,
+            "scope": 25,
+            "absolutePath": "Second.sol",
+            "unitAlias": "",
+            "nameLocation": "-1:-1:-1",
+            "symbolAliases": []
+          }
+        ]
+      }
+    }
+  }
+}

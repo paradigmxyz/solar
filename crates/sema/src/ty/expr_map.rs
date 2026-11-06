@@ -51,6 +51,14 @@ impl<V> ExprMap<V> {
     }
 }
 
+impl<V: Default> ExprMap<V> {
+    /// Updates the value of `id`, which starts as the default.
+    #[inline]
+    pub(crate) fn update(&mut self, id: ExprId, f: impl FnOnce(&mut V)) {
+        f(self.shards[id.index() % SHARDS].entry(id).or_default());
+    }
+}
+
 impl<V: Copy + Send> ExprMap<V> {
     /// Merges `maps`, calling `duplicate` with the previous and the new value for every id that
     /// more than one map has.

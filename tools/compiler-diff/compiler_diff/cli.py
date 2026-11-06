@@ -2,7 +2,9 @@
 
 import argparse
 import hashlib
+import io
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -12,6 +14,7 @@ import unittest
 import uuid
 from collections import Counter
 from pathlib import Path
+from unittest.mock import patch
 
 import duckdb
 
@@ -44,6 +47,28 @@ def load_rules(path):
         ):
             raise ValueError(
                 "invalid expectation: require comparator, version, policy, exact difference and reason"
+            )
+    return rules
+
+
+def load_ast_rules(path):
+    rules = read_json(path) if path else []
+    if not isinstance(rules, list):
+        raise ValueError("AST rules must be an array")
+    for rule in rules:
+        if (
+            not isinstance(rule, dict)
+            or set(rule) != {"version", "nodeType", "field", "action", "reason"}
+            or type(rule["version"]) is not int
+            or rule["version"] != compare.AST_RULE_VERSION
+            or rule["action"] not in ("ignore", "presence")
+            or not all(
+                isinstance(rule[k], str) for k in ("nodeType", "field", "reason")
+            )
+            or not rule["reason"].strip()
+        ):
+            raise ValueError(
+                f"invalid AST rule: require version {compare.AST_RULE_VERSION}, nodeType (or *), field, action (ignore or presence) and reason"
             )
     return rules
 
@@ -107,7 +132,14 @@ def import_input(db, path, target, version, *, request=None, quiet=False):
     return identifier
 
 
-def compare_pair(left, right, selected, policy):
+def link_or_copy(source, destination):
+    try:
+        os.link(source, destination)
+    except OSError:
+        shutil.copyfile(source, destination)
+
+
+def compare_pair(left, right, selected, policy, ast_rules=()):
     outputs = []
     inputs = []
     try:
@@ -125,7 +157,7 @@ def compare_pair(left, right, selected, policy):
         ):
             raise ValueError("compiler attempts used different inputs")
         return [
-            compare.compare_outputs(outputs[0], outputs[1], kind, policy)
+            compare.compare_outputs(outputs[0], outputs[1], kind, policy, ast_rules)
             for kind in selected
         ]
     except (ValueError, OSError, TypeError, AttributeError) as error:
@@ -147,6 +179,7 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
         rules = load_rules(args.expectations)
         expectations = rules, compare.rule_index(rules)
     rules, rule_index = expectations
+    ast_rules = load_ast_rules(args.ast_rules)
     if bool(args.left) != bool(args.right):
         raise ValueError("--left and --right must be supplied together")
     selected = args.check or ["abi", "methods"]
@@ -165,9 +198,15 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
         """,
             [args.reference, args.candidate, compilation_id, compilation_id],
         ).fetchall()
-        by_id = {}
+        by_id = {
+            identifier: {}
+            for (identifier,) in db.execute(
+                "SELECT id FROM compilations WHERE ? IS NULL OR id = ? ORDER BY id",
+                [compilation_id, compilation_id],
+            ).fetchall()
+        }
         for identifier, compiler, directory in rows:
-            by_id.setdefault(identifier, {})[compiler] = Path(directory)
+            by_id[identifier][compiler] = Path(directory)
         pairs = [
             (identifier, paths.get(args.reference), paths.get(args.candidate))
             for identifier, paths in by_id.items()
@@ -180,6 +219,7 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
         "reference": args.reference,
         "candidate": args.candidate,
         "expectations": rules,
+        "ast_rules": ast_rules,
         "pairs": [],
         "summary": {},
         "failed": False,
@@ -189,20 +229,28 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
     matched = set()
     counts = Counter()
     groups = Counter()
+    ast_summary = compare.AstSummary()
     for identifier, left, right in pairs:
         pair = {
             "id": identifier,
             "left": str(left) if left else None,
             "right": str(right) if right else None,
-            "results": compare_pair(left, right, selected, args.policy),
+            "results": compare_pair(left, right, selected, args.policy, ast_rules),
         }
         matched.update(compare.expectations(pair, rules, rule_index))
         report["pairs"].append(pair)
         report["failed"] = report["failed"] or bool(pair["failed"])
         for result in pair["results"]:
             counts[result["comparator"] + ":" + result["status"]] += 1
-            for diff in result["differences"]:
-                groups[result["comparator"] + ":" + diff["path"]] += 1
+            if "groups" in result:
+                for group, count in result["groups"].items():
+                    groups[f"ast:{group}"] += count
+            else:
+                for diff in result["differences"]:
+                    groups[result["comparator"] + ":" + diff["path"]] += 1
+            if "fields" in result:
+                ast_summary.add(result)
+                del result["fields"], result["node_types"]
         if any(r["status"] != "equal" for r in pair["results"]):
             bundle = directory / str(len(report["pairs"]))
             bundle.mkdir()
@@ -224,7 +272,13 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
                             "import.json",
                         ):
                             if (source / name).is_file():
-                                shutil.copyfile(source / name, destination / name)
+                                # Output is large; link it, copy the rest.
+                                copy = (
+                                    link_or_copy
+                                    if name == "stdout.txt"
+                                    else shutil.copyfile
+                                )
+                                copy(source / name, destination / name)
                     else:
                         destination = bundle / (label + ".json")
                         shutil.copyfile(source, destination)
@@ -232,6 +286,7 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
             pair["bundle"] = str(bundle)
             if len(copied) == 2:
                 corpus.write_json(bundle / "expectations.json", rules)
+                corpus.write_json(bundle / "ast-rules.json", ast_rules)
                 command = [
                     "uv",
                     "run",
@@ -253,6 +308,8 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
                     args.policy,
                     "--expectations",
                     str(bundle / "expectations.json"),
+                    "--ast-rules",
+                    str(bundle / "ast-rules.json"),
                 ]
                 for check in selected:
                     command.extend(["--check", check])
@@ -268,6 +325,8 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
         display.show_pair(pair, getattr(args, "full", False))
         if pair["failed"] and not args.continue_on_failure:
             break
+    if ast_summary.results:
+        report["ast"] = ast_summary.report()
     report["summary"] = dict(counts)
     report["difference_groups"] = dict(groups)
     report["available_pairs"] = len(pairs)
@@ -297,6 +356,8 @@ def compare_saved(db, root, args, *, compilation_id=None, expectations=None):
         "Checks: "
         + ", ".join(f"{key}={count}" for key, count in sorted(counts.items()))
     )
+    if "ast" in report:
+        display.show_ast_summary(report["ast"])
     print(f"Policy: {args.policy}; comparator version: {compare.VERSION}")
     print(f"report: {directory / 'report.json'}")
     if report["unused_expectations"]:
@@ -566,6 +627,11 @@ def add_comparison_arguments(parser):
         help="Print every difference and complete JSON values",
     )
     parser.add_argument("--expectations", type=Path)
+    parser.add_argument(
+        "--ast-rules",
+        type=Path,
+        help="Fields the ast check ignores or compares for presence only",
+    )
     parser.add_argument("--continue-on-failure", action="store_true")
 
 
@@ -917,6 +983,64 @@ class Tests(corpus.Tests):
         with self.assertRaisesRegex(ValueError, "inline content"):
             import_input(self.db, path, "C.sol:C", corpus.DEFAULT_VERSION)
 
+    def test_ast_comparison(self):
+        self.seed()
+        output = compare.Tests().output()
+        output["contracts"]["../C.sol"] = output["contracts"].pop("C.sol")
+        output["contracts"]["../C.sol"]["C"]["evm"].update(
+            bytecode={"object": ""}, deployedBytecode={"object": ""}
+        )
+        output["sources"] = compare.Tests().ast_output()["sources"]
+        specs = [
+            self.fake(name, "print(" + repr(json.dumps(output)) + ")")
+            for name in ("solc", "solar")
+        ]
+        arguments = self.arguments(*specs)
+        arguments.ast = True
+        self.assertEqual(corpus.run(self.db, self.root, arguments), 0)
+        rules = self.root / "rules.json"
+        corpus.write_json(
+            rules,
+            [
+                {
+                    "version": 1,
+                    "nodeType": "*",
+                    "field": "name",
+                    "action": "ignore",
+                    "reason": "test",
+                }
+            ],
+        )
+        args = argparse.Namespace(
+            left=None,
+            right=None,
+            reference="solc",
+            candidate="solar",
+            check=["ast"],
+            policy="interface",
+            expectations=None,
+            ast_rules=rules,
+            continue_on_failure=True,
+        )
+        with patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.assertEqual(compare_saved(self.db, self.root, args), 0)
+        self.assertIn("AST: ", output.getvalue())
+        report_path = Path(
+            self.db.execute(
+                "SELECT directory FROM comparisons ORDER BY started DESC LIMIT 1"
+            ).fetchone()[0]
+        )
+        report = read_json(report_path / "report.json")
+        self.assertEqual(report["summary"], {"ast:equal": 1})
+        self.assertEqual(report["ast"]["unused_rules"], [])
+        self.assertNotIn("fields", report["pairs"][0]["results"][0])
+        self.assertEqual(report["ast_rules"][0]["field"], "name")
+        for bad in ({"version": 2}, {"action": "drop"}, {"reason": " "}, {"extra": 1}):
+            rule = {**read_json(rules)[0], **bad}
+            corpus.write_json(rules, [rule])
+            with self.assertRaisesRegex(ValueError, "invalid AST rule"):
+                load_ast_rules(rules)
+
     def test_saved_comparisons_and_bundles(self):
         self.seed()
         output = compare.Tests().output()
@@ -937,6 +1061,7 @@ class Tests(corpus.Tests):
             check=None,
             policy="interface",
             expectations=None,
+            ast_rules=None,
             continue_on_failure=True,
         )
         self.assertEqual(compare_saved(self.db, self.root, args), 0)
@@ -983,3 +1108,21 @@ class Tests(corpus.Tests):
         self.assertEqual(
             compare_pair(None, right, ["abi"], "interface")[0]["status"], "error"
         )
+        # A compilation that was never run is an error, not a skipped pair.
+        self.db.execute(
+            "INSERT INTO compilations VALUES ('two', ?, 'D', '../C.sol:C', '{}', 'null', '{}')",
+            [corpus.DEFAULT_VERSION],
+        )
+        self.assertEqual(compare_saved(self.db, self.root, args), 1)
+        report = read_json(
+            Path(
+                self.db.execute(
+                    "SELECT directory FROM comparisons ORDER BY started DESC LIMIT 1"
+                ).fetchone()[0]
+            )
+            / "report.json"
+        )
+        statuses = {
+            p["id"]: [r["status"] for r in p["results"]] for p in report["pairs"]
+        }
+        self.assertEqual(statuses["two"], ["error", "error"])

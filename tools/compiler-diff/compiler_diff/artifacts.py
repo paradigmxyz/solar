@@ -3,7 +3,7 @@
 import json
 
 
-def contract_outputs(output):
+def contract_outputs(output, require_contracts=True):
     if not isinstance(output, dict):
         raise ValueError("standard JSON output is not an object")
     errors = output.get("errors", [])
@@ -19,8 +19,11 @@ def contract_outputs(output):
         if len(failures) > 3:
             detail += f"\n... {len(failures) - 3} more errors in stdout.txt"
         raise ValueError("compiler error diagnostics:\n" + detail)
-    contracts = output.get("contracts")
-    if not isinstance(contracts, dict) or not contracts:
+    contracts = output.get("contracts", {})
+    # Sources without contracts, such as only free enums, still have an AST.
+    if not isinstance(contracts, dict) or not (
+        contracts or (not require_contracts and output.get("sources"))
+    ):
         raise ValueError("missing contract outputs")
     return contracts
 
@@ -38,5 +41,5 @@ def read_attempt(directory):
     output = json.loads((directory / "stdout.txt").read_text(encoding="utf-8"))
     if not isinstance(request, dict):
         raise ValueError("standard JSON input is not an object")
-    contract_outputs(output)
+    contract_outputs(output, require_contracts=False)
     return request, output

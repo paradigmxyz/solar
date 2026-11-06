@@ -43,7 +43,7 @@ use thread_local::ThreadLocal;
 pub use crate::natspec::NatSpecView;
 
 mod print;
-pub(crate) use print::TySolcPrinter;
+pub(crate) use print::{Component, TySolcPrinter};
 pub use print::{TyAbiPrinter, TyAbiPrinterMode};
 
 mod common;
@@ -103,6 +103,47 @@ pub struct TypeckResults<'gcx> {
     pub(crate) user_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
     /// Contracts whose base slot is a constant integer, for `constant_values` to evaluate.
     pub(crate) base_slots: Vec<(hir::ContractId, &'gcx hir::Expr<'gcx>)>,
+    /// What the AST JSON reads back, recorded only when the ASTs are kept.
+    pub(crate) ast: AstFacts<'gcx>,
+}
+
+/// What type checking records for the AST JSON, so that the writer never works it out again.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AstFacts<'gcx> {
+    /// What is known of each expression, which only exists when the ASTs are kept.
+    pub(crate) exprs: Option<ExprMap<ExprFlags>>,
+    /// The type solc gives an expression where it differs from the type of type checking: the
+    /// memory array of the common mobile type of an inline array, and the common type of the
+    /// operands of a comparison or a logical operation.
+    pub(crate) solc_tys: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    /// The conditions of the `for` loops whose counter cannot overflow, in solc's sense.
+    pub(crate) simple_counter_loops: FxHashSet<hir::ExprId>,
+    /// The Yul identifiers that name a variable, with their suffix, ordered by position.
+    pub(crate) yul_references: Vec<YulReference>,
+}
+
+bitflags::bitflags! {
+    /// What type checking knows of an expression, for the AST JSON.
+    #[derive(Clone, Copy, Debug, Default)]
+    pub(crate) struct ExprFlags: u8 {
+        /// The expression is pure.
+        const PURE = 1 << 0;
+        /// The expression is not pure.
+        const IMPURE = 1 << 1;
+        /// The expression is an lvalue, in solc's sense.
+        const LVALUE = 1 << 2;
+    }
+}
+
+/// A Yul identifier that names a variable, such as `x` or `x.slot`.
+#[derive(Clone, Copy, Debug)]
+pub struct YulReference {
+    /// The span of the identifier, with its suffix.
+    pub span: Span,
+    /// The suffix of the identifier: `slot`, `offset`, `length`, `address` or `selector`.
+    pub suffix: Option<Symbol>,
+    /// The variable the identifier names.
+    pub declaration: hir::VariableId,
 }
 
 /// The target selected for a call callee expression.
@@ -202,6 +243,38 @@ impl<'gcx> TypeckResults<'gcx> {
     #[inline]
     pub fn user_operator(&self, id: hir::ExprId) -> Option<hir::FunctionId> {
         self.user_operators.get(&id).copied()
+    }
+
+    /// Returns whether the expression is an lvalue, if the ASTs are kept.
+    #[inline]
+    pub fn is_lvalue(&self, id: hir::ExprId) -> bool {
+        self.ast
+            .exprs
+            .as_ref()
+            .and_then(|exprs| exprs.get(&id))
+            .is_some_and(|flags| flags.contains(ExprFlags::LVALUE))
+    }
+
+    /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`],
+    /// if the ASTs are kept.
+    #[inline]
+    pub fn solc_ty(&self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.ast.solc_tys.get(&id).copied()
+    }
+
+    /// Returns whether the `for` loop with this condition cannot overflow its counter, if the ASTs
+    /// are kept.
+    #[inline]
+    pub fn is_simple_counter_loop(&self, condition: hir::ExprId) -> bool {
+        self.ast.simple_counter_loops.contains(&condition)
+    }
+
+    /// Returns the Yul identifiers in `span` that name a variable, if the ASTs are kept.
+    pub fn yul_references(&self, span: Span) -> &[YulReference] {
+        let references = &self.ast.yul_references;
+        let start = references.partition_point(|r| r.span.lo() < span.lo());
+        let len = references[start..].partition_point(|r| r.span.hi() <= span.hi());
+        &references[start..start + len]
     }
 }
 
@@ -783,11 +856,41 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get().is_some_and(|results| results.unsupported_udvt_operator(id))
     }
 
+    /// Returns whether the type-checked expression is a compile-time constant.
+    pub fn is_pure(self, expr: &hir::Expr<'gcx>) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_pure(self, expr))
+    }
+
     /// Returns the user-defined operator function this operator expression
     /// resolves to, if any.
     #[inline]
     pub fn user_operator(self, id: hir::ExprId) -> Option<hir::FunctionId> {
         self.typeck_results.get()?.user_operator(id)
+    }
+
+    /// Returns whether the type-checked expression is an lvalue, if the ASTs are kept.
+    #[inline]
+    pub fn is_lvalue(self, id: hir::ExprId) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_lvalue(id))
+    }
+
+    /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`], if
+    /// the ASTs are kept.
+    #[inline]
+    pub fn solc_ty(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.typeck_results.get()?.solc_ty(id)
+    }
+
+    /// Returns whether the `for` loop with this condition cannot overflow its counter, if the ASTs
+    /// are kept.
+    #[inline]
+    pub fn is_simple_counter_loop(self, condition: hir::ExprId) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_simple_counter_loop(condition))
+    }
+
+    /// Returns the Yul identifiers in `span` that name a variable, if the ASTs are kept.
+    pub fn yul_references(self, span: Span) -> &'gcx [YulReference] {
+        self.typeck_results.get().map_or(&[], |results| results.yul_references(span))
     }
 
     /// Returns the contracts whose base slot is a constant integer, with the base slot.
@@ -1598,6 +1701,25 @@ impl<'gcx> Gcx<'gcx> {
             functions.insert(function);
         }
         functions
+    }
+
+    /// Returns the functions that function values of the given contract can reach, which solc
+    /// calls its internal dispatch targets: those that code generation dispatches to, and those a
+    /// call names in parentheses.
+    ///
+    /// Creation code reaches a subset of what the runtime code reaches.
+    pub fn contract_internal_dispatch_targets(
+        self,
+        id: hir::ContractId,
+    ) -> DenseBitSet<hir::FunctionId> {
+        let items = self.interface_items(id);
+        let mut targets = items.deployed.internal_dispatch_targets.clone();
+        for &function in
+            items.creation.parenthesized_targets.iter().chain(&items.deployed.parenthesized_targets)
+        {
+            targets.insert(function);
+        }
+        targets
     }
 
     /// Returns the contracts whose bytecode is referenced by the given contract.

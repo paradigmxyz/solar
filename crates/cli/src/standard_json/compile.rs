@@ -15,6 +15,7 @@ use crate::{
     ethdebug::{EthdebugCompilation, make_ethdebug_compilation, make_ethdebug_program},
 };
 use rayon::prelude::*;
+use serde::Serialize;
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
 use solar_config::{
@@ -30,6 +31,7 @@ use solar_interface::{
 use solar_sema::{Gcx, hir::ContractId};
 use std::{
     borrow::Cow,
+    cell::OnceCell,
     fs::File,
     io::{self, Read, Write},
     path::{Path, PathBuf},
@@ -121,14 +123,14 @@ fn write_empty_standard_json_output(
     diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
-    let output = CompilerOutput::default();
+    let output: CompilerOutput<'_> = CompilerOutput::default();
     let diagnostics = diagnostics.read();
     finish_standard_json_output(output, source_map, opts, &diagnostics, out)
 }
 
 #[tracing::instrument(name = "write_output", level = "debug", skip_all)]
-fn finish_standard_json_output<'a>(
-    mut output: CompilerOutput<'a>,
+fn finish_standard_json_output<'a, S: Serialize>(
+    mut output: CompilerOutput<'a, ContractOutput<'a>, S>,
     source_map: Arc<SourceMap>,
     opts: &CompileOpts,
     diagnostics: &'a [solar_interface::diagnostics::Diag],
@@ -300,6 +302,7 @@ fn compile(
         }));
     }
     opts.input = sources.keys().map(ToString::to_string).collect();
+    opts.unstable.keep_asts = output_selection.requests_ast();
 
     let sess = solar_interface::Session::builder()
         .source_map(Arc::clone(&source_map))
@@ -311,6 +314,8 @@ fn compile(
     let _ = crate::commands::compile::run_compiler_session_with(
         sess,
         |compiler| {
+            // The AST JSON must outlive the output that borrows it.
+            let ast_json = OnceCell::new();
             let mut output = CompilerOutput::default();
             let result = (|| {
                 let mut parsed_sources = FxIndexMap::default();
@@ -336,6 +341,27 @@ fn compile(
                 )?;
                 compiler.gcx().dcx().has_errors()?;
                 output.sources = Some(parsed_sources);
+                if output_selection.requests_ast() {
+                    let gcx = compiler.gcx();
+                    // The AST JSON takes its types and references from analysis.
+                    if let Some(stage) = gcx.sess.opts.stop_after
+                        && stage < CompilerStage::Analysis
+                    {
+                        gcx.dcx()
+                            .warn(format!(
+                                "AST output needs analysis, but compilation stops after {stage}"
+                            ))
+                            .emit();
+                    } else {
+                        let ast_json = ast_json.get_or_init(|| gcx.ast_json(opts.pretty_json));
+                        let sources = output.sources.iter_mut().flatten();
+                        for ((name, source), id) in sources.zip(gcx.hir.source_ids()) {
+                            if output_selection.ast(name) {
+                                source.ast = ast_json.source(id);
+                            }
+                        }
+                    }
+                }
                 if control_flow.is_break() {
                     return Ok(());
                 }
@@ -532,14 +558,17 @@ fn disallowed_io(path: &Path) -> io::Error {
 }
 
 #[tracing::instrument(name = "source_outputs", level = "debug", skip_all)]
-fn source_outputs_from_compiler(
+fn source_outputs_from_compiler<'a, 'gcx>(
     compiler: &solar_sema::CompilerRef<'_>,
-) -> FxIndexMap<String, SourceOutput> {
+) -> FxIndexMap<String, SourceOutput<'a, 'gcx>> {
     let gcx = compiler.gcx();
     gcx.sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
+            (
+                source.file.name.display().to_string(),
+                SourceOutput { id: id.index() as u32, ast: None },
+            )
         })
         .collect()
 }

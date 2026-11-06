@@ -1,0 +1,241 @@
+{
+  "sources": {
+    "Block.sol": {
+      "id": 0,
+      "ast": {
+        "id": 6,
+        "src": "44:18:0",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Block.sol",
+        "exportedSymbols": {
+          "Block": [
+            0
+          ]
+        },
+        "license": "GPL-2.0-only",
+        "nodes": [
+          {
+            "id": 0,
+            "src": "44:17:0",
+            "nodeType": "ContractDefinition",
+            "name": "Block",
+            "nameLocation": "53:5:0",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Block",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [],
+            "scope": 6,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              0
+            ]
+          }
+        ]
+      }
+    },
+    "Bottom.sol": {
+      "id": 1,
+      "ast": {
+        "id": 7,
+        "src": "0:55:1",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Bottom.sol",
+        "exportedSymbols": {
+          "Bottom": [
+            1
+          ]
+        },
+        "license": "GPL-3.0",
+        "nodes": [
+          {
+            "id": 1,
+            "src": "0:18:1",
+            "nodeType": "ContractDefinition",
+            "name": "Bottom",
+            "nameLocation": "9:6:1",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Bottom",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [],
+            "scope": 7,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    "Doc.sol": {
+      "id": 2,
+      "ast": {
+        "id": 8,
+        "src": "33:16:2",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Doc.sol",
+        "exportedSymbols": {
+          "Doc": [
+            2
+          ]
+        },
+        "license": "MIT",
+        "nodes": [
+          {
+            "id": 2,
+            "src": "33:15:2",
+            "nodeType": "ContractDefinition",
+            "documentation": {
+              "id": 12,
+              "src": "0:33:2",
+              "nodeType": "StructuredDocumentation",
+              "text": "SPDX-License-Identifier: MIT"
+            },
+            "name": "Doc",
+            "nameLocation": "42:3:2",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Doc",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [],
+            "scope": 8,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              2
+            ]
+          }
+        ]
+      }
+    },
+    "Inside.sol": {
+      "id": 3,
+      "ast": {
+        "id": 9,
+        "src": "0:56:3",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Inside.sol",
+        "exportedSymbols": {
+          "Inside": [
+            3
+          ]
+        },
+        "nodes": [
+          {
+            "id": 3,
+            "src": "0:55:3",
+            "nodeType": "ContractDefinition",
+            "name": "Inside",
+            "nameLocation": "9:6:3",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Inside",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [],
+            "scope": 9,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              3
+            ]
+          }
+        ]
+      }
+    },
+    "NoNewline.sol": {
+      "id": 4,
+      "ast": {
+        "id": 10,
+        "src": "0:53:4",
+        "nodeType": "SourceUnit",
+        "absolutePath": "NoNewline.sol",
+        "exportedSymbols": {
+          "NoNewline": [
+            4
+          ]
+        },
+        "nodes": [
+          {
+            "id": 4,
+            "src": "0:21:4",
+            "nodeType": "ContractDefinition",
+            "name": "NoNewline",
+            "nameLocation": "9:9:4",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "NoNewline",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [],
+            "scope": 10,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              4
+            ]
+          }
+        ]
+      }
+    },
+    "Pragma.sol": {
+      "id": 5,
+      "ast": {
+        "id": 11,
+        "src": "0:84:5",
+        "nodeType": "SourceUnit",
+        "absolutePath": "Pragma.sol",
+        "exportedSymbols": {
+          "Pragma": [
+            5
+          ]
+        },
+        "license": "Apache-2.0",
+        "nodes": [
+          {
+            "id": 13,
+            "src": "0:24:5",
+            "nodeType": "PragmaDirective",
+            "literals": [
+              "solidity",
+              ">=",
+              "0.8",
+              ".0"
+            ]
+          },
+          {
+            "id": 5,
+            "src": "65:18:5",
+            "nodeType": "ContractDefinition",
+            "name": "Pragma",
+            "nameLocation": "74:6:5",
+            "contractKind": "contract",
+            "abstract": false,
+            "baseContracts": [],
+            "canonicalName": "Pragma",
+            "contractDependencies": [],
+            "usedEvents": [],
+            "usedErrors": [],
+            "nodes": [],
+            "scope": 11,
+            "fullyImplemented": true,
+            "linearizedBaseContracts": [
+              5
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

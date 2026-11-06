@@ -1,0 +1,101 @@
+//@ filecheck:
+// Every node type of a declaration, and some of their fields, in order of appearance.
+// CHECK: "nodeType": "SourceUnit"
+// CHECK: "license": "MIT"
+// CHECK: "nodeType": "PragmaDirective"
+// CHECK: ".20"
+// CHECK: "nodeType": "ContractDefinition"
+// CHECK: "nodeType": "FunctionDefinition"
+// CHECK: "nodeType": "ParameterList"
+// CHECK: "nodeType": "VariableDeclaration"
+// CHECK: "nodeType": "ElementaryTypeName"
+// CHECK: "nodeType": "ImportDirective"
+// CHECK: "nodeType": "Identifier"
+// CHECK: "unitAlias": "B"
+// CHECK: "nodeType": "UserDefinedValueTypeDefinition"
+// CHECK: "nodeType": "StructDefinition"
+// CHECK: "nodeType": "EnumDefinition"
+// CHECK: "nodeType": "EnumValue"
+// CHECK: "nodeType": "ErrorDefinition"
+// CHECK: "errorSelector": "{{[0-9a-f]+}}"
+// CHECK: "nodeType": "UserDefinedTypeName"
+// CHECK: "nodeType": "IdentifierPath"
+// CHECK: "nodeType": "UsingForDirective"
+// CHECK: "operator": "+"
+// CHECK: "libraryName": {
+// CHECK: "functionSelector": "{{[0-9a-f]+}}"
+// CHECK: "nodeType": "ModifierDefinition"
+// CHECK: "nodeType": "StructuredDocumentation"
+// CHECK: "text": "@title A vault"
+// CHECK: "nodeType": "InheritanceSpecifier"
+// CHECK: "nodeType": "ArrayTypeName"
+// CHECK: "nodeType": "Mapping"
+// CHECK: "nodeType": "FunctionTypeName"
+// CHECK: "typeIdentifier": "t_function_external_nonpayable$_t_uint256_$returns$__$"
+// CHECK: "nodeType": "EventDefinition"
+// CHECK: "eventSelector": "{{[0-9a-f]+}}"
+// CHECK: "typeIdentifier": "t_array$_t_struct$_Point_${{[0-9]+}}_storage_$2_storage"
+// CHECK: "nodeType": "OverrideSpecifier"
+// CHECK: "nodeType": "ModifierInvocation"
+// CHECK: "kind": "modifierInvocation"
+// Every statement and expression node of a function, in order of appearance.
+// CHECK: "name": "Statements"
+// CHECK: "nodeType": "VariableDeclaration"
+// CHECK: "nodeType": "ArrayTypeName"
+// CHECK: "length": {
+// CHECK: "nodeType": "Identifier"
+// CHECK: "nodeType": "Literal"
+// CHECK: "subdenomination": "ether"
+// CHECK: "typeIdentifier": "t_rational_1000000000000000000_by_1"
+// CHECK: "nodeType": "ModifierDefinition"
+// CHECK: "nodeType": "Block"
+// CHECK: "nodeType": "ExpressionStatement"
+// CHECK: "nodeType": "FunctionCall"
+// CHECK: "nodeType": "BinaryOperation"
+// CHECK: "commonType": {
+// CHECK: "nodeType": "PlaceholderStatement"
+// CHECK: "nodeType": "Return"
+// CHECK: "nodeType": "TupleExpression"
+// CHECK: "nodeType": "ModifierInvocation"
+// CHECK: "arguments": [
+// CHECK: "nodeType": "VariableDeclarationStatement"
+// CHECK: "assignments": [
+// CHECK: "nodeType": "UnaryOperation"
+// CHECK: "nodeType": "UncheckedBlock"
+// CHECK: "nodeType": "Assignment"
+// CHECK: "nodeType": "IfStatement"
+// CHECK: "nodeType": "ForStatement"
+// CHECK: "nodeType": "Continue"
+// CHECK: "nodeType": "Break"
+// CHECK: "isSimpleCounterLoop": true
+// CHECK: "nodeType": "WhileStatement"
+// CHECK: "nodeType": "DoWhileStatement"
+// CHECK: "nodeType": "Conditional"
+// CHECK: "nodeType": "NewExpression"
+// CHECK: "nodeType": "IndexAccess"
+// CHECK: "lValueRequested": true
+// CHECK: "nodeType": "IndexRangeAccess"
+// CHECK: "nodeType": "FunctionCallOptions"
+// CHECK: "nodeType": "ElementaryTypeNameExpression"
+// CHECK: "nodeType": "EmitStatement"
+// CHECK: "nodeType": "TryStatement"
+// CHECK: "nodeType": "TryCatchClause"
+// CHECK: "errorName": "Error"
+// CHECK: "nodeType": "RevertStatement"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "flags": [
+// CHECK: "typeString": "type(enum Statements.Mode)"
+// CHECK: "nodeType": "StorageLayoutSpecifier"
+// CHECK: "baseSlotExpression": {
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "": [
+          "ast"
+        ]
+      }
+    }
+  }
+}

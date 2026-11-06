@@ -8,7 +8,10 @@ pub(super) struct ReferencedItems {
     pub(super) events: DenseBitSet<hir::EventId>,
     pub(super) errors: DenseBitSet<hir::ErrorId>,
     pub(super) bytecode_dependencies: DenseBitSet<hir::ContractId>,
-    internal_dispatch_targets: DenseBitSet<hir::FunctionId>,
+    pub(super) internal_dispatch_targets: DenseBitSet<hir::FunctionId>,
+    /// The functions that a call names in parentheses, which solc counts as dispatch targets but
+    /// code generation does not need to.
+    pub(super) parenthesized_targets: Vec<hir::FunctionId>,
 }
 
 pub(super) struct InterfaceItems {
@@ -24,6 +27,7 @@ impl ReferencedItems {
             errors: DenseBitSet::new_empty(gcx.hir.error_ids().count()),
             bytecode_dependencies: DenseBitSet::new_empty(gcx.hir.contract_ids().count()),
             internal_dispatch_targets: DenseBitSet::new_empty(gcx.hir.function_ids().count()),
+            parenthesized_targets: Vec::new(),
         }
     }
 }
@@ -231,16 +235,17 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         self.graph.internal_dispatch_targets.insert(function);
     }
 
-    fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>) -> bool {
+    /// Collects what a call of `callee` reaches, and returns the function it calls directly.
+    fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>) -> Option<hir::FunctionId> {
         if let Some(function) = self.gcx.internal_call_target(Some(self.contract), callee) {
             let named = self.gcx.internal_call_target(None, callee).expect("the call names it");
             self.enqueue_dispatched(named, function);
-            return true;
+            return Some(function);
         }
         if let Some(TyKind::Error(_, error)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind) {
             self.graph.errors.insert(error);
         }
-        false
+        None
     }
 
     fn collect_function_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {
@@ -309,7 +314,14 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
         }
 
         if let Some((callee, args, options)) = expr.as_call() {
-            let direct = self.collect_call(callee);
+            let target = self.collect_call(callee);
+            let direct = target.is_some();
+            // Lowering drops the parentheses of a callee, which leaves it starting after its call.
+            if let Some(function) = target
+                && callee.span.lo() > expr.span.lo()
+            {
+                self.graph.parenthesized_targets.push(function);
+            }
             let previous = self.direct_callee;
             if direct {
                 self.direct_callee = Some(callee.id);
