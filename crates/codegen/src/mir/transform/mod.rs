@@ -54,6 +54,7 @@ pub(crate) mod pre;
 pub(crate) mod pure_eval;
 pub(crate) mod readonly_eval;
 pub(crate) mod sccp;
+pub(crate) mod sink_past_guards;
 pub(crate) mod specialize;
 pub(crate) mod sroa;
 pub(crate) mod static_alloc;
