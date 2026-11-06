@@ -53,7 +53,7 @@ LL │         assembly { sstore(0, result) }
    ╰╴                   ━━━━━━━━━━━━━━━━━
 
 warning[6133]: statement has no effect
-   ╭▸ ROOT/tests/ui/codegen/lowering/terminated_control_flow.sol:LL:CC
+   ╭▸ ROOT/tests/ui/codegen/run-call/control-flow/terminated_control_flow.sol:LL:CC
    │
 LL │ ┏                 ecrecover(
 LL │ ┃                     bytes32(uint256(1)),
