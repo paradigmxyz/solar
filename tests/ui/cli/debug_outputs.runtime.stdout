@@ -257,6 +257,17 @@
             "offset": 20,
             "operation": {
               "mnemonic": "JUMPDEST"
+            },
+            "context": {
+              "code": {
+                "source": {
+                  "id": 0
+                },
+                "range": {
+                  "offset": 375,
+                  "length": 43
+                }
+              }
             }
           },
           {

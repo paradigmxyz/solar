@@ -17,8 +17,8 @@
 use super::{
     ArgIdx, Body, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
     EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
-    MemoryRegion, MirType, Module, RelayoutAddress, Terminator, U256, Value, ValueId, WORD_BYTES,
-    immutable_staging_end, index_vec, ir, op, preserves_push_width,
+    Label, MemoryRegion, MirType, Module, RelayoutAddress, Terminator, U256, Value, ValueId,
+    WORD_BYTES, immutable_staging_end, index_vec, ir, op, preserves_push_width,
 };
 use crate::mir::{
     BlockId, Callee, EffectKind, PtrLocation, RawMemoryAccess,
@@ -120,6 +120,43 @@ impl<'gcx> EvmCodegen<'gcx> {
                 identifier,
                 declaration: func.declaration_span,
             });
+        }
+    }
+
+    /// Gives the entry label of the external function `func` the source location of its
+    /// declaration when debug output is requested, as solc places the tag under the function
+    /// (`ContractCompiler::appendFunctionSelector`).
+    pub(in crate::backend::evm::codegen) fn mark_debug_external_entry_label(
+        &mut self,
+        label: Label,
+        func: &Function,
+    ) {
+        if self.capture_debug_info
+            && !func.declaration_span.is_dummy()
+            && func.debug_identifier.is_some()
+        {
+            self.asm.set_label_origin(label, func.declaration_span, 0);
+        }
+    }
+
+    /// Gives `label`, which starts `block` of `func`, the origin that MIR placed the block's label
+    /// under: the statement a block opens, or the function for its entry (solc's `LocationSetter`
+    /// scopes). A label with several origins gets none, as the source map writes a union as `-1`.
+    pub(in crate::backend::evm::codegen) fn mark_block_label_origin(
+        &mut self,
+        label: Label,
+        func: &Function,
+        block: BlockId,
+    ) {
+        if !self.capture_debug_info {
+            return;
+        }
+        let metadata = &func.blocks[block].label_metadata;
+        let mut spans = metadata.source_spans();
+        if let Some(span) = spans.next()
+            && spans.next().is_none()
+        {
+            self.asm.set_label_origin(label, span, metadata.modifier_depth());
         }
     }
 

@@ -16,7 +16,7 @@
 // CHECK-NEXT: push {{bb[0-9]+}} !metadata(span=[[WRITE]])
 // CHECK-NEXT: jumpi !metadata(span=[[WRITE]])
 // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(span=[[WRITE]])
-// CHECK-NEXT: {{bb[0-9]+}}:
+// CHECK-NEXT: {{bb[0-9]+}} !metadata(span=[[WRITE]]):
 // CHECK-NEXT: jump {{bb[0-9]+}} !metadata(span=[[WRITE]])
 library L {
     function read(uint256 x) external pure returns (uint256) {

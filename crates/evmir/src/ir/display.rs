@@ -88,7 +88,7 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
             if !attributes.is_empty() {
                 write!(f, " [{}]", attributes.iter().format(", "))?;
             }
-            write!(f, ":")
+            write!(f, "{}:", display_metadata(&block.label_metadata, !module.hide_debug_info))
         });
         let comment = module.comments.get(block.label);
         writeln!(f, "{}", solar_ir::comment::display_label_comment(label, comment))?;
