@@ -2,7 +2,8 @@
 @module C
 @types
   struct0: {i256, i256, i256, i256}
-  struct1: {i256, i256}
+  struct1: {i256, i256, i256}
+  struct2: {i256, i256}
 
 ; creation entry
 fn @constructor() [constructor] {
@@ -190,7 +191,56 @@ fn @constructor() [constructor] {
     v148 = lt v147, 2
     jumpi v148, bb59, bb60
   bb60:                                           ; preds = bb58
+    v155 = alloc checked 64
+    jump bb64
+  bb64:                                           ; preds = bb60, bb65
+    v156 = phi [bb60: 0], [bb65: v162]
+    v157 = lt v156, 2
+    jumpi v157, bb65, bb66
+  bb66:                                           ; preds = bb64
+    v163 = sload 15 !metadata(storage=slot(15))
+    v164 = gt v163, 2
+    jumpi v164, bb67, bb68
+  bb67:                                           ; preds = bb66
+    jump bb69
+  bb69:                                           ; preds = bb67, bb70
+    v165 = phi [bb67: 2], [bb70: v169]
+    v166 = lt v165, v163
+    jumpi v166, bb70, bb71
+  bb71:                                           ; preds = bb69
+    jump bb68
+  bb68:                                           ; preds = bb66, bb71
+    sstore 15, 2 !metadata(storage=slot(15))
+    jump bb72
+  bb72:                                           ; preds = bb68, bb73
+    v170 = phi [bb68: 0], [bb73: v177]
+    v171 = lt v170, 2
+    jumpi v171, bb73, bb74
+  bb74:                                           ; preds = bb72
     ret
+  bb73:                                           ; preds = bb72
+    v172 = shl v170, 5
+    v173 = ptradd v155, v172
+    v174 = mload v173
+    v175 = storage_array_data_slot 15
+    v176 = add v175, v170
+    sstore v176, v174 !metadata(storage=symbolic(v176))
+    v177 = add v170, 1
+    jump bb72
+  bb70:                                           ; preds = bb69
+    v167 = storage_array_data_slot 15
+    v168 = add v167, v165
+    sstore v168, 0 !metadata(storage=symbolic(v168))
+    v169 = add v165, 1
+    jump bb69
+  bb65:                                           ; preds = bb64
+    v158 = add v156, 11
+    v159 = sload v158 !metadata(storage=offset(v156, 11))
+    v160 = shl v156, 5
+    v161 = ptradd v155, v160
+    mstore v161, v159
+    v162 = add v156, 1
+    jump bb64
   bb59:                                           ; preds = bb58
     v149 = add v147, 13
     v150 = lt v147, 2
@@ -361,8 +411,31 @@ fn @array() -> struct0 [selector=0xb0ec2ae1, view, abi_params=[], abi_returns=[w
     ret v11
 }
 
+; function dynamic() public view returns (uint256, uint256, uint256) [selector 0x4bd54f04]
+fn @dynamic() -> struct1 [selector=0x4bd54f04, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = sload 15 !metadata(storage=slot(15))
+    v1 = sload 15 !metadata(storage=slot(15))
+    v2 = gt v1, 0
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = storage_array_data_slot 15
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = sload 15 !metadata(storage=slot(15))
+    v7 = gt v6, 1
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = storage_array_data_slot 15
+    v10 = add v9, 1
+    v11 = sload v10 !metadata(storage=offset(v9, 1))
+    v12 = insert_value struct1, undef struct1, 0, v0
+    v13 = insert_value struct1, v12, 1, v5
+    v14 = insert_value struct1, v13, 2, v11
+    ret v14
+}
+
 ; function text() public view returns (uint256, uint256) [selector 0x1f1bd692]
-fn @text() -> struct1 [selector=0x1f1bd692, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @text() -> struct2 [selector=0x1f1bd692, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 7 !metadata(storage=slot(7))
     validate_storage_bytes v0
@@ -380,13 +453,13 @@ fn @text() -> struct1 [selector=0x1f1bd692, view, abi_params=[], abi_returns=[wo
     v11 = or v10, 127
     v12 = shr v7, 1
     v13 = and v12, v11
-    v14 = insert_value struct1, undef struct1, 0, v6
-    v15 = insert_value struct1, v14, 1, v13
+    v14 = insert_value struct2, undef struct2, 0, v6
+    v15 = insert_value struct2, v14, 1, v13
     ret v15
 }
 
 ; function pair() public view returns (uint256, uint256) [selector 0xa8aa1b31]
-fn @pair() -> struct1 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+fn @pair() -> struct2 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
   bb0:
     v0 = sload 10 !metadata(storage=slot(10))
     v1 = sload 9 !metadata(storage=slot(9))
@@ -396,8 +469,8 @@ fn @pair() -> struct1 [selector=0xa8aa1b31, view, abi_params=[], abi_returns=[wo
     v4 = storage_array_data_slot 9
     v5 = add v4, 1
     v6 = sload v5 !metadata(storage=offset(v4, 1))
-    v7 = insert_value struct1, undef struct1, 0, v0
-    v8 = insert_value struct1, v7, 1, v6
+    v7 = insert_value struct2, undef struct2, 0, v0
+    v8 = insert_value struct2, v7, 1, v6
     ret v8
 }
 

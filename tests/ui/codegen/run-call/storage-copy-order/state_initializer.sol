@@ -1,5 +1,6 @@
 //@ codegen-matrix: standard
 //@ run-call: array => 3, 3, 2, 3
+//@ run-call: dynamic => 2, 5, 6
 //@ run-call: text => 5, 5
 //@ run-call: pair => 7, 2
 // A state variable initialized from other storage copies the contents of the array, string, or
@@ -22,6 +23,7 @@ contract C {
     S copiedHolder = holder;
     uint256[2] fixedSource = [5, 6];
     uint256[2] fixedCopy = fixedSource;
+    uint256[] dynamicCopy = fixedSource;
 
     function pick() internal view returns (uint256[] storage) {
         return source;
@@ -33,6 +35,10 @@ contract C {
 
     function array() public view returns (uint256, uint256, uint256, uint256) {
         return (byName.length, byMember.length, fixedCopy.length, byCall[2]);
+    }
+
+    function dynamic() public view returns (uint256, uint256, uint256) {
+        return (dynamicCopy.length, dynamicCopy[0], dynamicCopy[1]);
     }
 
     function text() public view returns (uint256, uint256) {

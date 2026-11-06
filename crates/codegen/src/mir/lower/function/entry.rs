@@ -75,9 +75,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         let ty = self.cx.gcx.type_of_item(id.into());
         let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
-        // A storage source is copied to memory first; the store then writes the object.
+        // A storage source is copied to memory with its own layout first; the store then writes
+        // the object.
         let target = if source_ty.is_ref_at(DataLocation::Storage) {
-            ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory)
+            source_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory)
         } else {
             ty
         };
