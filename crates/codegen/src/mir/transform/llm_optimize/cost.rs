@@ -215,7 +215,7 @@ fn instruction(
     let operation = match kind {
         InstKind::Phi(_) => return Cost::ZERO,
         // Conditions are `i1`, so the emitted sequence needs no normalization.
-        InstKind::Select(..) => target.select(false),
+        InstKind::Select(..) => target.select(),
         // icall f, args; ret => jump f
         InstKind::ICall { function: Callee::Function(_), .. }
             if is_tail_position(module, function, inst) =>

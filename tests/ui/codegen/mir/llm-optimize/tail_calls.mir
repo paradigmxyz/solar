@@ -1,11 +1,10 @@
 //@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
 //@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/tail_calls.script
-// A candidate may tail call only as `lower-evm-shaped` would, to a function that never returns:
-// the backend jumps to the target without expecting it back, and recursive functions and entry
-// points cannot be tail call targets.
+// Candidates keep the conservative policy of tail calling only nonreturning internal bodies.
+// Returning, recursive, and entry targets stay outside the candidate policy.
 @module TailCalls
 @phase lowered
-fn @constructor() [constructor, abi_wrapper] {
+fn @constructor() [constructor] {
   bb0:
     v0 = icall @shared, 7
     sstore 0, v0

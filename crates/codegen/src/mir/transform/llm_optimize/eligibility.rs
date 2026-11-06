@@ -41,7 +41,7 @@ pub(super) fn exclusion(module: &Module, graph: &CallGraphInfo, id: FunctionId) 
     if module.dispatch_entry() == Some(id) {
         return Some("is the dispatch entry".into());
     }
-    if function.is_external_entry() || function.attributes.is_abi_wrapper {
+    if module.external_entries().contains(id) || function.attributes.is_abi_wrapper {
         return Some("is an external entry".into());
     }
     if function.attributes.is_function_pointer_dispatcher {

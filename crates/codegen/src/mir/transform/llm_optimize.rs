@@ -75,6 +75,7 @@ use crate::{
 use alloy_primitives::{B256, keccak256};
 use solar_config::{LlmOptimizeMode, OptimizationMode};
 use solar_data_structures::map::FxHashSet;
+use solar_evmir::debug::DebugLocKind;
 use solar_interface::{
     ColorChoice,
     diagnostics::DiagCtxt,
@@ -551,14 +552,12 @@ fn constraints(
         match terminator {
             Terminator::TailCall { function, .. } => {
                 callee(*function)?;
-                // The backend lowers only the tail calls `lower-evm-shaped` forms.
+                // Keep candidate tail transfers limited to nonrecursive internal bodies.
                 let graph = CallGraphInfo::new(module);
                 let name = module.function(*function).name;
                 let callee = module.function(*function);
                 if callee.blocks.is_empty()
-                    || callee.selector.is_some()
-                    || callee.attributes.is_receive
-                    || callee.attributes.is_fallback
+                    || module.external_entries().contains(*function)
                     || graph.is_recursive(*function)
                 {
                     return Err(format!(
@@ -566,8 +565,8 @@ fn constraints(
                          instead"
                     ));
                 }
-                // The backend never expects a tail call's target back, and a returning callee
-                // leaves its results where its own caller would read them.
+                // Returning tail calls remain outside the candidate policy, even though the
+                // backend supports them. Candidates can keep the call and explicit return.
                 if module.returning_functions().contains(*function) {
                     return Err(format!(
                         "tail calls `@{name}`, which returns; call it and return its results \
@@ -607,11 +606,11 @@ fn drop_metadata(function: &mut Function) {
     for inst in instructions {
         let metadata = &mut function.inst_mut(inst).metadata;
         *metadata = InstructionMetadata::EMPTY;
-        metadata.mark_debug_info_dropped();
+        metadata.drop_debug_loc(DebugLocKind::Dropped);
     }
     for block in &mut function.blocks {
         block.terminator_metadata = InstructionMetadata::EMPTY;
-        block.terminator_metadata.mark_debug_info_dropped();
+        block.terminator_metadata.drop_debug_loc(DebugLocKind::Dropped);
     }
 }
 
