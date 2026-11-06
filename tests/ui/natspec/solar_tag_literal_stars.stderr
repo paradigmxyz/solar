@@ -1,0 +1,26 @@
+error: `@custom:solar-optimize` must name one objective, `gas` or `size`
+   ╭▸ ROOT/tests/ui/natspec/solar_tag_literal_stars.sol:LL:CC
+   │
+LL │     /// @custom:solar-optimize gas*
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-optimize size` to optimize this code for size
+
+error: `@custom:solar-cold` takes no argument
+   ╭▸ ROOT/tests/ui/natspec/solar_tag_literal_stars.sol:LL:CC
+   │
+LL │     /// @custom:solar-cold *
+   │          ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-cold` alone to mark the function as rarely run
+
+error: `@custom:solar-optimize` must name one objective, `gas` or `size`
+   ╭▸ ROOT/tests/ui/natspec/solar_tag_literal_stars.sol:LL:CC
+   │
+LL │     /** @custom:solar-optimize gas* **/
+   │          ━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: write `@custom:solar-optimize size` to optimize this code for size
+
+error: aborting due to 3 previous errors
+

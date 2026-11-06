@@ -487,7 +487,7 @@ impl<'gcx> Resolver<'gcx> {
         };
 
         let content = natspec.symbol.as_str();
-        let Some((documented, content_start)) = solar_parse::natspec::first_word(
+        let Some((documented, word_start)) = solar_parse::natspec::first_word(
             content,
             natspec.content_start as usize,
             natspec.content_end as usize,
@@ -500,11 +500,7 @@ impl<'gcx> Resolver<'gcx> {
             return None;
         };
 
-        // Content offsets are relative to the comment, while `span` covers only the tag name.
-        let tag_end = content[..natspec.content_start as usize].trim_ascii_end().len();
-        let name_end = content[..content_start].trim_ascii_end().len();
-        let name_start = name_end - documented.len();
-        let name_lo = natspec.span.hi() + (name_start - tag_end) as u32;
+        let name_lo = natspec.content_lo;
         let name_span = Span::new(name_lo, name_lo + documented.len() as u32);
 
         let documented_name = Symbol::intern(documented);
@@ -534,7 +530,10 @@ impl<'gcx> Resolver<'gcx> {
 
         let mut item = natspec;
         item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(expected.name, name_span)) };
-        item.content_start = content_start as u32;
+        let name_end = word_start + documented.len();
+        item.content_start =
+            return_description_start(content, name_end, natspec.content_end as usize)
+                .unwrap_or(word_start) as u32;
         Some(item)
     }
 
@@ -583,8 +582,8 @@ impl<'gcx> Resolver<'gcx> {
     /// Reports a `@custom:solar-cold` tag that takes an argument, or that follows another on the
     /// same function.
     fn check_solar_cold(&self, docs: &[ast::DocComment<'gcx>], tag_span: Span) {
-        if self.first_duplicate_free_tag(docs, sym::solar_dash_cold, tag_span).is_some()
-            && !solar_tag_content(docs, tag_span).trim().is_empty()
+        if let Some(natspec) = self.first_duplicate_free_tag(docs, sym::solar_dash_cold, tag_span)
+            && !natspec.content().trim().is_empty()
         {
             self.gcx
                 .dcx()
@@ -601,7 +600,7 @@ impl<'gcx> Resolver<'gcx> {
         else {
             return;
         };
-        if inline_tag(docs, natspec).is_none() {
+        if inline_tag(natspec).is_none() {
             self.gcx
                 .dcx()
                 .err_at(tag_span, "`@custom:solar-inline` takes no argument, `always` or `never`")
@@ -617,7 +616,7 @@ impl<'gcx> Resolver<'gcx> {
         else {
             return;
         };
-        if optimize_objective(docs, natspec).is_none() {
+        if optimize_objective(natspec).is_none() {
             self.gcx
                 .dcx()
                 .err_at(
@@ -1059,10 +1058,10 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
         if let ast::NatSpecKind::Custom { name } = natspec.kind {
             match SolarTag::from_custom(name.name) {
                 Some(SolarTag::Inline) if tags.inline.is_none() => {
-                    tags.inline = inline_tag(&gcx.hir.doc(doc).ast_comments, natspec);
+                    tags.inline = inline_tag(natspec);
                 }
                 Some(SolarTag::Optimize) if tags.optimize.is_none() => {
-                    tags.optimize = optimize_objective(&gcx.hir.doc(doc).ast_comments, natspec);
+                    tags.optimize = optimize_objective(natspec);
                 }
                 Some(SolarTag::Cold) => tags.cold = true,
                 _ => {}
@@ -1074,9 +1073,8 @@ pub(crate) fn solar_tags(gcx: Gcx<'_>, item: hir::ItemId) -> SolarTags {
 
 /// Returns what a `@custom:solar-inline` tag asks for, when it has no argument or exactly
 /// `always` or `never`.
-fn inline_tag(docs: &[ast::DocComment<'_>], natspec: &ast::NatSpecItem) -> Option<InlineTag> {
-    let content = solar_tag_content(docs, natspec.span);
-    let mut words = content.split_whitespace();
+fn inline_tag(natspec: &ast::NatSpecItem) -> Option<InlineTag> {
+    let mut words = natspec.content().split_whitespace();
     match (words.next(), words.next()) {
         (None, _) => Some(InlineTag::Hint),
         (Some("always"), None) => Some(InlineTag::Always),
@@ -1087,12 +1085,8 @@ fn inline_tag(docs: &[ast::DocComment<'_>], natspec: &ast::NatSpecItem) -> Optio
 
 /// Returns the objective a `@custom:solar-optimize` tag names, when it names exactly `gas` or
 /// `size`.
-fn optimize_objective(
-    docs: &[ast::DocComment<'_>],
-    natspec: &ast::NatSpecItem,
-) -> Option<OptimizationMode> {
-    let content = solar_tag_content(docs, natspec.span);
-    let mut words = content.split_whitespace();
+fn optimize_objective(natspec: &ast::NatSpecItem) -> Option<OptimizationMode> {
+    let mut words = natspec.content().split_whitespace();
     match (words.next(), words.next()) {
         (Some("gas"), None) => Some(OptimizationMode::Gas),
         (Some("size"), None) => Some(OptimizationMode::Size),
@@ -1100,36 +1094,24 @@ fn optimize_objective(
     }
 }
 
-/// Reads a tag's arguments without block-comment decoration, including adjacent line-comment
-/// continuations. An explicit next tag ends the arguments, even when it is `@notice`.
-pub(crate) fn solar_tag_content(docs: &[ast::DocComment<'_>], span: Span) -> String {
-    let mut content = String::new();
-    let mut found = false;
-    for doc in docs {
-        for item in doc.natspec.iter() {
-            if item.span == span {
-                found = true;
-            } else if !found {
-                continue;
-            } else if !(doc.kind == ast::CommentKind::Line
-                && item.kind == ast::NatSpecKind::Notice
-                && item.span == doc.span)
-            {
-                return content;
-            }
-            for (index, line) in item.content().lines().enumerate() {
-                let line = line.trim();
-                let line = if doc.kind == ast::CommentKind::Block && index > 0 {
-                    line.strip_prefix('*').unwrap_or(line).trim_start()
-                } else {
-                    line
-                };
-                content.push_str(line);
-                content.push(' ');
-            }
-        }
+/// Returns whether a line of a tag's content follows the previous line as it is, when solc joins
+/// them. Other lines have a space put before them, as they lost their first space.
+pub(crate) fn follows_as_is(line: &str) -> bool {
+    line.starts_with(['\t']) || line.starts_with(" \t") || line.trim_ascii().is_empty()
+}
+
+/// Returns where the description of a `@return` starts, when the name ends at `name_end`: after
+/// the blank that solc takes off, which is the one after the name or the first of the next line
+/// when it joins it. It is `None` if the name is all the content, which solc keeps.
+fn return_description_start(content: &str, name_end: usize, end: usize) -> Option<usize> {
+    let rest = &content[name_end..end];
+    if rest.starts_with([' ', '\t']) {
+        return Some(name_end + 1);
     }
-    content
+    let next_lines = rest.strip_prefix('\n')?.trim_start_matches('\n');
+    let start = end - next_lines.len();
+    let line = next_lines.split('\n').next().filter(|line| !line.is_empty())?;
+    Some(start + follows_as_is(line) as usize)
 }
 
 /// Rejects reserved tags on syntax which has no documented HIR item or Solidity statement.
