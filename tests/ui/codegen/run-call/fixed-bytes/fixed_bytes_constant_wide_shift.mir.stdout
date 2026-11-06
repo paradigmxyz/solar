@@ -1,0 +1,13 @@
+; === ROOT/tests/ui/codegen/run-call/fixed-bytes/fixed_bytes_constant_wide_shift.sol:FixedBytesConstantWideShift ===
+@module FixedBytesConstantWideShift
+; function shiftOut() external pure returns (bytes32) [selector 0x937035d7]
+fn @shiftOut() -> i256 [selector=0x937035d7, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    ret 0xff00
+}
+
+; function shiftRoundTrip() external pure returns (bytes32) [selector 0xabb727a8]
+fn @shiftRoundTrip() -> i256 [selector=0xabb727a8, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    ret 255
+}

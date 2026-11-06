@@ -9,7 +9,8 @@
 
 // CHECK-LABEL: (scheduled runtime) ===
 // CHECK: bb{{[0-9]+}} [entry, invoke=f@[[F:[0-9]+]]..[[FEND:[0-9]+]]] !metadata(span=[[F]]..[[FEND]]):
-// CHECK: push bb[[RET:[0-9]+]] !metadata(span=[[CALL:[0-9]+]]..[[CALLEND:[0-9]+]])
+// CHECK: calldataload
+// CHECK-NEXT: push bb[[RET:[0-9]+]] !metadata(span=[[CALL:[0-9]+]]..[[CALLEND:[0-9]+]])
 // CHECK: bb[[RET]] [continuation] !metadata(span=[[CALL]]..[[CALLEND]]):
 contract C {
     uint256 s;

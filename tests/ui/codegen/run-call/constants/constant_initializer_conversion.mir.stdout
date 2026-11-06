@@ -1,0 +1,19 @@
+; === ROOT/tests/ui/codegen/run-call/constants/constant_initializer_conversion.sol:C ===
+@module C
+; function negative() external pure returns (int256) [selector 0x1cb3ef1f]
+fn @negative() -> i256 [selector=0x1cb3ef1f, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
+}
+
+; function allOnes() external pure returns (int256) [selector 0xa0f75bc9]
+fn @allOnes() -> i256 [selector=0xa0f75bc9, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+; function narrowUnsigned() external pure returns (uint256) [selector 0x5e6924e9]
+fn @narrowUnsigned() -> i256 [selector=0x5e6924e9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 255
+}

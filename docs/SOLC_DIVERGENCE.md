@@ -320,8 +320,8 @@ left-aligned word, such as `0x6162…` for `"a" "b"`.
 Rationale: these literals have one obvious value, so rejecting them only makes
 the language harder to use.
 
-Coverage: `tests/ui/codegen/lowering/run-call/assembly_number_literals.sol`,
-`tests/ui/codegen/lowering/run-call/assembly_string_literals.sol`,
+Coverage: `tests/ui/codegen/run-call/assembly/assembly_number_literals.sol`,
+`tests/ui/codegen/run-call/assembly/assembly_string_literals.sol`,
 `tests/ui/parser/yul_number_underscores.sol` and
 `tests/ui/parser/yul_fractional_literal.sol`.
 
@@ -438,8 +438,8 @@ program `solc` accepts here has the same meaning in `solar`.
 Coverage: `tests/ui/typeck/inline_array_reference_elements.sol`,
 `tests/ui/typeck/inline_array_common_type.sol`,
 `tests/ui/typeck/array_push_element_locations.sol`,
-`tests/ui/codegen/lowering/run-call/inline_array_mixed_elements.sol`, and
-`tests/ui/codegen/lowering/run-call/nested_array_storage_memory.sol`.
+`tests/ui/codegen/run-call/arrays/inline_array_mixed_elements.sol`, and
+`tests/ui/codegen/run-call/storage/nested_array_storage_memory.sol`.
 
 ### TYPECK-004: Named arguments in base constructor and modifier invocations
 
@@ -462,8 +462,8 @@ form. Every program `solc` accepts here has the same meaning in `solar`.
 Coverage: `tests/ui/typeck/inheritance/base_arguments.sol`,
 `tests/ui/typeck/inheritance/modifier_arguments.sol`,
 `tests/ui/codegen/run-call/constructors/base_constructor_args.sol`,
-`tests/ui/codegen/lowering/run-call/named_arguments_extended.sol`, and
-`tests/ui/codegen/lowering/run-call/modifier_named_arguments_override.sol`.
+`tests/ui/codegen/run-call/calls/named_arguments_extended.sol`, and
+`tests/ui/codegen/run-call/modifiers/modifier_named_arguments_override.sol`.
 
 ### TYPECK-005: Parenthesized `try` targets
 
@@ -480,7 +480,7 @@ one unambiguous meaning; rejecting it would be a grammar restriction rather
 than a language rule. The checker and lowering peel them identically, so an
 accepted statement always compiles.
 
-Coverage: `tests/ui/codegen/lowering/run-call/try_parenthesized_target.sol`.
+Coverage: `tests/ui/codegen/run-call/try-catch/try_parenthesized_target.sol`.
 
 ### TYPECK-006: Oversized fixed-array copies
 
@@ -501,7 +501,7 @@ copy. The restriction applies to copying the values, not to addressing their
 storage.
 
 Coverage: `tests/ui/typeck/storage_oversized_copy.sol` and
-`tests/ui/codegen/lowering/run-call/full_width_storage_layout.sol`.
+`tests/ui/codegen/run-call/storage/full_width_storage_layout.sol`.
 
 ### TYPECK-007: Uninitialized storage pointers are reported once per location
 
@@ -580,9 +580,9 @@ same value Solidity sees. An initializer reads the declaration its own `let`
 shadows: `uint x = 5; assembly { let x := add(x, 1) }` sets the Yul `x` to 6.
 The parser also serves formatters and linters, which should accept the names.
 
-Coverage: `tests/ui/codegen/lowering/run-call/assembly_constant_expressions.sol`,
-`tests/ui/codegen/lowering/run-call/assembly_let_initializer_scope.sol`,
-`tests/ui/codegen/lowering/run-call/assembly_names.sol` and
+Coverage: `tests/ui/codegen/run-call/assembly/assembly_constant_expressions.sol`,
+`tests/ui/codegen/run-call/assembly/assembly_let_initializer_scope.sol`,
+`tests/ui/codegen/run-call/assembly/assembly_names.sol` and
 `tests/ui/typeck/assembly_unfolded_constant.sol`.
 
 ### TYPECK-016: ABI heads are bounded as a whole
@@ -660,7 +660,7 @@ like `solc`'s `ConstantEvaluator`, with these exceptions:
 Rationale: the order of declarations does not change the value of a constant,
 and each error is reported once, where the expression is checked.
 
-Coverage: `tests/ui/codegen/lowering/run-call/array_len_const_eval.sol`,
+Coverage: `tests/ui/codegen/run-call/constants/array_len_const_eval.sol`,
 `tests/ui/typeck/array_length/array_len_eval_errors.sol`,
 `tests/ui/typeck/array_length/array_len_unsupported.sol`,
 `tests/ui/typeck/array_length/array_len_typed_negative_shift.sol`,
@@ -680,7 +680,7 @@ Rationale: targets are written right to left, so the result is well defined,
 and rejecting the code would only block programs we compile correctly.
 
 Coverage:
-`tests/ui/codegen/lowering/run-call/yul_multi_assignment_duplicate_targets.sol`.
+`tests/ui/codegen/run-call/assembly/yul_multi_assignment_duplicate_targets.sol`.
 
 ### TYPECK-022: `@custom:solar-` tags are requirements
 
@@ -722,7 +722,7 @@ with a checksum check.
 Rationale: a literal that is not 40 digits long is a number, and `solar`
 has no reason to guess that the author meant an address.
 
-Coverage: `tests/ui/typeck/hex_literal_39_41_digits.sol`.
+Coverage: `tests/ui/typeck/literals/hex_literal_39_41_digits.sol`.
 
 ## Contract-Level Checks
 
@@ -742,7 +742,7 @@ Rationale: the base slot has a well-defined value. Errors in a value that
 
 Coverage: `tests/ui/typeck/storage_layout/storage_layout_base_slot_ternary.sol`,
 `tests/ui/typeck/storage_layout/storage_layout_base_slot_erc7201.sol` and
-`tests/ui/codegen/lowering/run-call/storage_layout_base_slot_const_eval.sol`;
+`tests/ui/codegen/run-call/storage/storage_layout_base_slot_const_eval.sol`;
 upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.sol`.
 
 ## Code Generation
@@ -893,11 +893,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   pointer within one assembly block as memory-safe. Static frames make internal
   calls cheaper than a memory stack, and memory-safe assembly never reaches
   them.
-- Coverage: `tests/ui/codegen/lowering/run-call/pre_cancun_memory_copies.sol`
+- Coverage: `tests/ui/codegen/lowering/mir/storage-memory/pre_cancun_memory_copies.sol`
   encodes an object that assembly allocates through the shared copy helper.
-  `tests/ui/codegen/lowering/run-call/mcopy_call_results.sol` copies call
+  `tests/ui/codegen/lowering/mir/storage-memory/mcopy_call_results.sol` copies call
   results through it, and
-  `tests/ui/codegen/lowering/run-call/mcopy_shared_helper_raw.sol` keeps a
+  `tests/ui/codegen/run-call/memory/mcopy_shared_helper_raw.sol` keeps a
   constant address inline. `tests/ui/codegen/mir/lower-mcopy/helper_eligibility.mir`
   pins which copies may call it.
 
@@ -968,17 +968,17 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   The compiler checks a memory object's element and field offsets against the
   object's bounds and trusts them, so assembly that forges a length can make a
   checked access wrap below the object, which both compilers allow.
-- Coverage: `tests/ui/codegen/lowering/run-call/assembly_low_memory_layouts.sol`,
-  `tests/ui/codegen/lowering/run-call/assembly_low_memory_routes.sol`,
-  `tests/ui/codegen/lowering/run-call/assembly_low_memory_recursive_routes.sol`,
-  `tests/ui/codegen/lowering/run-call/assembly_low_memory_places_nothing.sol`,
-  `tests/ui/codegen/lowering/run-call/assembly_low_memory_places_something.sol`,
-  `tests/ui/codegen/lowering/run-call/constructor_constant_write_spills.sol`,
-  `tests/ui/codegen/lowering/run-call/folded_guard_spills.sol`,
-  `tests/ui/codegen/lowering/run-call/folded_hazard_spills.sol`,
-  `tests/ui/codegen/lowering/run-call/folded_operand_spills.sol`,
-  `tests/ui/codegen/lowering/run-call/folded_tail_call_spills.sol`,
-  `tests/ui/codegen/lowering/run-call/spill_write_provenance.sol`,
+- Coverage: `tests/ui/codegen/run-call/assembly/assembly_low_memory_layouts.sol`,
+  `tests/ui/codegen/run-call/assembly/assembly_low_memory_routes.sol`,
+  `tests/ui/codegen/run-call/assembly/assembly_low_memory_recursive_routes.sol`,
+  `tests/ui/codegen/run-call/assembly/assembly_low_memory_places_nothing.sol`,
+  `tests/ui/codegen/run-call/assembly/assembly_low_memory_places_something.sol`,
+  `tests/ui/codegen/lowering/evm-ir/spills/constructor_constant_write_spills.sol`,
+  `tests/ui/codegen/lowering/evm-ir/spills/folded_guard_spills.sol`,
+  `tests/ui/codegen/lowering/evm-ir/spills/folded_hazard_spills.sol`,
+  `tests/ui/codegen/lowering/evm-ir/spills/folded_operand_spills.sol`,
+  `tests/ui/codegen/lowering/evm-ir/spills/folded_tail_call_spills.sol`,
+  `tests/ui/codegen/lowering/evm-ir/spills/spill_write_provenance.sol`,
   `tests/ui/codegen/mir/heap-floor/checked_counter_offset.mir`,
   `tests/ui/codegen/mir/heap-floor/heap_floor.mir`,
   `tests/ui/codegen/mir/heap-floor/raised_by_callee.mir`, and Seaport's own suite in
@@ -997,7 +997,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `solc`'s 9511 code, so `--allow 9511` also hides this change.
 - Rationale: ABI coder v1 is deprecated, and both coders encode the types v1
   accepts the same way. A second coder would only change which types compile.
-- Coverage: `tests/ui/codegen/lowering/run-call/abicoder_v1_uses_v2.sol` and
+- Coverage: `tests/ui/codegen/run-call/abi-decode/abicoder_v1_uses_v2.sol` and
   `tests/ui/parser/pragma/pragma_valid.sol`.
 
 ### CODEGEN-012: External function pointer suffixes keep only their field bits
@@ -1012,7 +1012,7 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   cleaned values. Solidity-level reads match in both compilers.
 - Rationale: the packed word cannot hold two raw 256-bit values.
 - Coverage:
-  `tests/ui/codegen/lowering/run-call/yul_function_pointer_suffix_dirty_bits.sol`.
+  `tests/ui/codegen/run-call/function-pointers/yul_function_pointer_suffix_dirty_bits.sol`.
 
 ### CODEGEN-013: Constants are values
 
@@ -1028,8 +1028,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   calls the one for its mode, so such a constant wraps inside `unchecked`.
 - Rationale: a constant is one value, and computing it once is cheaper than
   running its initializer at every use.
-- Coverage: `tests/ui/codegen/lowering/run-call/constant_reverting_initializer.sol`,
-  `tests/ui/codegen/lowering/run-call/constant_eval_aggregates.sol`,
-  `tests/ui/codegen/lowering/run-call/constant_runtime_initializer.sol`,
-  `tests/ui/codegen/lowering/run-call/constant_bytes_too_large.sol` and
+- Coverage: `tests/ui/codegen/run-call/events-errors/constant_reverting_initializer.sol`,
+  `tests/ui/codegen/run-call/constants/constant_eval_aggregates.sol`,
+  `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
+  `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
