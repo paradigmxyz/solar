@@ -70,8 +70,8 @@ use crate::{
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
         FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate, InstId,
-        InstKind, Instruction, MirModuleTarget, MirPhase, MirType, Module, PtrLocation,
-        StorageAlias, Terminator, Value, ValueId,
+        InstKind, Instruction, InstructionMetadata, MirModuleTarget, MirPhase, MirType, Module,
+        PtrLocation, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
             direct_callees,
@@ -1654,10 +1654,14 @@ fn inline_call_impl(
         );
     }
 
-    // object_arg = inttoptr raw_arg
-    // jump cloned_entry(object_arg)
     // Calls can carry raw pointer words; cloned semantic operations still require
     // the callee's pointer parameters. Materialize the zero-cost cast at the cloned entry.
+    // The cast is inliner glue, so it takes the call site's location, like LLVM giving inlined
+    // code without a location the call's (`fixupLineNumbers` in `InlineFunction.cpp`) and
+    // rustc's `callsite.source_info` for glue (`inline_call` in `inline.rs`).
+    let call_metadata = caller.inst(call_inst).metadata.debug_context();
+    // object_arg = inttoptr raw_arg !metadata(call)
+    // jump cloned_entry(object_arg)
     let mut args = args;
     let mut argument_views = Vec::new();
     for (arg, &ty) in args.iter_mut().zip(&callee.params) {
@@ -1665,9 +1669,9 @@ fn inline_call_impl(
             if !caller.value_ty(*arg).is_some_and(MirType::is_word) {
                 return None;
             }
-            let (inst, value) = caller.alloc_value_inst(
-                Instruction::new(InstKind::IntToPtr(*arg), Some(ty)).with_debug_loc_dropped(),
-            );
+            let mut view = Instruction::new(InstKind::IntToPtr(*arg), Some(ty));
+            view.metadata.preserve_debug_loc(&call_metadata);
+            let (inst, value) = caller.alloc_value_inst(view);
             argument_views.push(inst);
             *arg = value;
         }
@@ -1708,8 +1712,7 @@ fn inline_call_impl(
 
     // icall @callee !metadata(call) => jump cloned_entry !metadata(call)
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
-    cloner.caller.blocks[call_block].terminator_metadata =
-        cloner.caller.inst(call_inst).metadata.debug_context();
+    cloner.caller.blocks[call_block].terminator_metadata = call_metadata.clone();
 
     let mut replacements = FxHashMap::default();
     if returns > 0 {
@@ -1727,6 +1730,7 @@ fn inline_call_impl(
             callee.return_components(),
             caller_is_external,
             caller_frame_prefix,
+            &call_metadata,
         )?;
     }
 
@@ -2018,6 +2022,7 @@ fn insert_return_buffer_stores(
     return_tys: &[MirType],
     caller_is_external: bool,
     caller_frame_prefix: u64,
+    call_metadata: &InstructionMetadata,
 ) -> Option<()> {
     debug_assert_eq!(values.len(), return_tys.len());
     if values.len() < 2 {
@@ -2029,6 +2034,8 @@ fn insert_return_buffer_stores(
     let instructions = {
         let mut builder = FunctionBuilder::new(caller);
         builder.switch_to_block(continuation);
+        // The buffer stores are inliner glue, so they take the call site's location, as above.
+        builder.set_debug_context(call_metadata);
         let mut stored_values = Vec::with_capacity(return_tys.len());
         for (index, (&value, &ty)) in values.iter().zip(return_tys).enumerate() {
             if let MirType::Slice(_) = ty {

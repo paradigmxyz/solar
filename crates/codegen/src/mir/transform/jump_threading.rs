@@ -330,7 +330,11 @@ fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
         func.blocks[block].instructions.clear();
         replace_terminator(func, block, Terminator::Invalid);
         replace_terminator(func, pred, term);
-        func.blocks[pred].terminator_metadata.merge_debug_locs([&context]);
+        // The deleted `jump block` keeps no location and the moved branch keeps its own, like
+        // LLVM's `MergeBlockIntoPredecessor` (`BasicBlockUtils.cpp`), which erases the
+        // predecessor's `br` with its `DebugLoc`, and rustc's `merge_successor` (`simplify.rs`),
+        // which takes the successor's terminator whole.
+        func.blocks[pred].terminator_metadata.preserve_debug_loc(&context);
         folded = true;
     }
     folded
