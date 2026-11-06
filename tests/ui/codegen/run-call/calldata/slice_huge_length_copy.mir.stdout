@@ -208,7 +208,7 @@ fn @nestedArrayCopy() -> ptr<memory> [selector=0x303d9e81, pure, abi_params=[], 
     mstore v17, v5
     jump bb1
   bb1:                                            ; preds = bb0, bb2
-    v18 = phi [bb0: 0], [bb2: v59]
+    v18 = phi [bb0: 0], [bb2: v60]
     v19 = lt v18, v5
     jumpi v19, bb2, bb3
   bb3:                                            ; preds = bb1
@@ -235,34 +235,36 @@ fn @nestedArrayCopy() -> ptr<memory> [selector=0x303d9e81, pure, abi_params=[], 
     v37 = zext i1 v36 to i256
     icall revert_if<invalid_calldata_tail_offset>, v36
     v38 = calldataload v28
-    v39 = calldatasize
-    v40 = gt v38, 0xffffffffffffffff
-    icall revert_if<invalid_calldata_tail_length>, v40
-    v41 = mul v38, 32
-    v42 = add v28, 32
-    v43 = sub v39, v41
-    v44 = slt v43, v42
-    icall revert_if<calldata_tail_too_short>, v44
-    v45 = mul v38, 32
-    v46 = gt v38, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    icall panic_if<0x41>, v46
-    v47 = add v45, 32
-    v48 = lt v47, 32
-    icall panic_if<0x41>, v48
-    v49 = alloc v47
-    mstore v49, v38
-    v50 = inttoptr i256 v42 to ptr<calldata>
-    v51 = make_calldata_slice v50, v45
-    v52 = ptradd v49, 32
-    v53 = extract_value slice<calldata>, v51, 0
-    v54 = extract_value slice<calldata>, v51, 1
-    calldatacopy v52, v53, v54
-    v55 = ptrtoint ptr<memory> v49 to i256
-    v56 = shl v18, 5
-    v57 = ptradd v17, v56
-    v58 = ptradd v57, 32
-    mstore v58, v55
-    v59 = add v18, 1
+    v39 = gt v38, 0x7ffffffffffffff
+    icall panic_if<0x41>, v39
+    v40 = calldatasize
+    v41 = gt v38, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v41
+    v42 = mul v38, 32
+    v43 = add v28, 32
+    v44 = sub v40, v42
+    v45 = slt v44, v43
+    icall revert_if<calldata_tail_too_short>, v45
+    v46 = mul v38, 32
+    v47 = gt v38, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v47
+    v48 = add v46, 32
+    v49 = lt v48, 32
+    icall panic_if<0x41>, v49
+    v50 = alloc v48
+    mstore v50, v38
+    v51 = inttoptr i256 v43 to ptr<calldata>
+    v52 = make_calldata_slice v51, v46
+    v53 = ptradd v50, 32
+    v54 = extract_value slice<calldata>, v52, 0
+    v55 = extract_value slice<calldata>, v52, 1
+    calldatacopy v53, v54, v55
+    v56 = ptrtoint ptr<memory> v50 to i256
+    v57 = shl v18, 5
+    v58 = ptradd v17, v57
+    v59 = ptradd v58, 32
+    mstore v59, v56
+    v60 = add v18, 1
     jump bb1
 }
 

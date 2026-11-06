@@ -691,7 +691,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) if is_calldata => {
                 // value = calldata_slice(position + 32, calldataload(position))
                 let length = self.builder.load(value_pos, PtrLocation::Calldata);
-                let data = self.calldata_tail_data(value_pos, length, validate_bounds.then_some(1));
+                let data = self.calldata_tail_data(
+                    value_pos,
+                    length,
+                    validate_bounds.then_some(1),
+                    CalldataTail::Access,
+                );
                 Some(self.builder.make_slice(data, length, PtrLocation::Calldata))
             }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
@@ -702,7 +707,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let length = self.builder.load(value_pos, PtrLocation::Calldata);
                 let element_type = self.types.abi_type(element)?;
                 let stride = validate_bounds.then(|| element_type.head_size());
-                let data = self.calldata_tail_data(value_pos, length, stride);
+                if !is_calldata {
+                    // solc allocates the memory array before it checks the calldata range.
+                    // panic_if length > MAX_ALLOCATION_END / 32, 0x41
+                    self.builder.panic_if_word_array_too_long(length);
+                }
+                let data = self.calldata_tail_data(value_pos, length, stride, CalldataTail::Access);
                 if is_calldata {
                     // value = calldata_slice(position + 32, calldataload(position))
                     return Some(self.builder.make_slice(data, length, PtrLocation::Calldata));
@@ -838,18 +848,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value_pos: ValueId,
         length: ValueId,
         stride: Option<u64>,
+        tail: CalldataTail,
     ) -> ValueId {
         let Some(stride) = stride else { return self.builder.add_offset(value_pos, 32) };
         // calldata_tail_data(value_pos + 32, length, stride)
         let calldata_size = self.builder.calldatasize();
-        self.builder.calldata_tail_data(
-            CalldataTail::Access,
-            value_pos,
-            32,
-            length,
-            calldata_size,
-            stride,
-        )
+        self.builder.calldata_tail_data(tail, value_pos, 32, length, calldata_size, stride)
     }
 
     fn decode_calldata_word(
@@ -903,7 +907,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // slice = calldata(data, len)
         // return materialize_memory_slice(slice)
         let length = self.builder.load(position, PtrLocation::Calldata);
-        let data = self.calldata_tail_data(position, length, validate_bounds.then_some(1));
+        let data = self.calldata_tail_data(
+            position,
+            length,
+            validate_bounds.then_some(1),
+            CalldataTail::Copy,
+        );
         let slice = self.builder.make_slice(data, length, PtrLocation::Calldata);
         self.materialize_memory_slice(slice)
     }

@@ -1023,10 +1023,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 - ID: CODEGEN-014
 - Status: parity debt
-- Difference: copying a calldata `bytes`, `string`, or array slice to memory
-  reverts with `Panic(0x41)` in `solc` whenever the memory object does not fit
-  below `2**64`, before it checks the slice against calldata. A length that
-  inline assembly sets can reach that limit. `solar` panics with `0x41` when a
+- Difference: copying a calldata `bytes`, `string`, or array to memory, or a
+  struct or array that holds one, reverts with `Panic(0x41)` in `solc`
+  whenever the memory object does not fit below `2**64`, before it checks the
+  value against calldata. A length word in calldata, or one that inline
+  assembly sets, can reach that limit. `solar` panics with `0x41` when a
   `bytes` or `string` length exceeds `2**64 - 1`, or an array length exceeds
   `2**59 - 1`; these are the bounds its range checks already test. A length
   below the bound whose object still ends past `2**64` because of the free
@@ -1035,4 +1036,5 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Rationale: an exact check needs the free memory pointer on the path of every
   calldata copy, and costs gas and code size on lengths that calldata already
   bounds.
-- Coverage: `tests/ui/codegen/run-call/calldata/slice_huge_length_copy.sol`.
+- Coverage: `tests/ui/codegen/run-call/calldata/slice_huge_length_copy.sol` and
+  `tests/ui/codegen/run-call/calldata/nested_huge_length_copy.sol`.
