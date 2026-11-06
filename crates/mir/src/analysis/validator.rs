@@ -324,6 +324,10 @@ impl<'a> Validator<'a> {
                 if cases.iter().any(|&(value, _)| func.value_ty(value) != ty) {
                     self.emit_at_block("switch cases must have the selector type", block);
                 }
+                if cases.iter().any(|&(value, _)| !matches!(func.value(value), Value::Immediate(_)))
+                {
+                    self.emit_at_block("switch cases must be constants", block);
+                }
             }
             Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
                 if !matches!(func.value_ty(*offset), Some(MirType::I256 | MirType::MEMPTR))
@@ -372,8 +376,20 @@ impl<'a> Validator<'a> {
 
             // ----- Walk instructions in this block -----
             let block_preds = &block.predecessors;
+            let mut seen_non_phi = false;
             for &inst_id in &block.instructions {
                 let inst = func.inst(inst_id);
+                if matches!(inst.kind, InstKind::Phi(_)) {
+                    if seen_non_phi {
+                        self.emit_at_inst(
+                            "phi must precede non-phi instructions",
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                } else {
+                    seen_non_phi = true;
+                }
 
                 if !inst.kind.scalar_types_match(func, inst.result_ty) {
                     self.emit_at_inst(
@@ -1553,7 +1569,7 @@ pub(crate) fn validate_phase(
 
 /// Checks `function` against the requested phase as a replacement for function `id` of `module`.
 ///
-/// Calls resolve against the rest of the module, which is not checked again.
+/// Checks the replacement's interface and validates it with its callers in a private module.
 pub fn validate_function_at_phase(
     dcx: &DiagCtxt,
     module: &Module,
@@ -1562,12 +1578,32 @@ pub fn validate_function_at_phase(
     phase: MirPhase,
 ) -> solar_interface::Result<()> {
     let mut validator = Validator::new(dcx);
-    validator.returning_functions = Some(module.returning_functions());
-    if function.return_abi().is_some() {
-        validator.count_return_fields(module);
-    }
     validator.function = Some(id);
-    validator.validate_function(module, function, phase);
+    let Some(original) = module.functions.get(id) else {
+        validator.emit("replacement function does not exist");
+        return validator.error.map_or(Ok(()), Err);
+    };
+    if function.name != original.name
+        || function.params != original.params
+        || function.return_type() != original.return_type()
+        || function.return_components() != original.return_components()
+        || function.return_abi() != original.return_abi()
+        || function.selector != original.selector
+        || function.abi_params != original.abi_params
+        || function.abi_returns != original.abi_returns
+        || function.abi_return_params != original.abi_return_params
+        || function.attributes != original.attributes
+        || function.internal_frame_size != original.internal_frame_size
+        || function.external_static_return_size != original.external_static_return_size
+    {
+        validator.emit("replacement changes the function interface or compiler attributes");
+        return validator.error.map_or(Ok(()), Err);
+    }
+    let mut candidate = module.clone();
+    candidate.functions[id] = function.clone();
+    validate(dcx, &candidate);
+    dcx.has_errors()?;
+    validator.validate_function_phase(&candidate, phase, function);
     validator.error.map_or(Ok(()), Err)
 }
 

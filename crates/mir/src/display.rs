@@ -769,7 +769,7 @@ pub(super) fn display_immutable_ref(
     })
 }
 
-fn immutable_display_name(module: &Module, id: super::ImmutableId) -> Option<String> {
+pub(super) fn immutable_display_name(module: &Module, id: super::ImmutableId) -> Option<String> {
     let immutable = module.get_immutable(id)?;
     let mut counts = FxHashMap::default();
     let mut reserved = FxHashSet::default();
