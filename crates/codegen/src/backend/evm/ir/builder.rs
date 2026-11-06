@@ -471,9 +471,9 @@ impl<'gcx> Assembler<'gcx> {
         // own.
         if self.program.debug_info_is_tracked()
             && let Some(open) = self.current_block
+            && !self.fallthrough_origins.contains_key(&open)
         {
-            let origin = self.debug_origin();
-            self.fallthrough_origins.entry(open).or_insert(origin);
+            self.fallthrough_origins.insert(open, self.debug_origin());
         }
         let block = self.add_current_block(block);
         self.block_labels.push(Some(label));
