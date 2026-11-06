@@ -1,6 +1,6 @@
-- ; === ROOT/tests/ui/codegen/mir/sink-past-guards/sink_past_guards.mir (before sink-past-guards) ===
-+ ; === ROOT/tests/ui/codegen/mir/sink-past-guards/sink_past_guards.mir (after sink-past-guards) ===
-  @module SinkPastGuards
+- ; === ROOT/tests/ui/codegen/mir/place-reads/guard_computations.mir (before place-reads) ===
++ ; === ROOT/tests/ui/codegen/mir/place-reads/guard_computations.mir (after place-reads) ===
+  @module GuardComputations
   @phase lowered
   fn @sinks(arg0: i256) {
     bb0:
@@ -110,12 +110,14 @@
   fn @zero_test(arg0: i256) {
     bb0:
       v0 = calldataload 36
-      v1 = ne v0, 0
+-     v1 = ne v0, 0
       v2 = lt arg0, 10
       jumpi v2, bb1, bb4
     bb4 [cold]:                                     ; preds = bb0
       revert 0, 0
     bb1:                                            ; preds = bb0
++     v3 = calldataload 36
++     v1 = ne v3, 0
       jumpi v1, bb2, bb3
     bb3:                                            ; preds = bb1
       stop

@@ -1,5 +1,5 @@
-- ; === ROOT/tests/ui/codegen/mir/sink-past-guards/checked_arithmetic.mir (before sink-past-guards) ===
-+ ; === ROOT/tests/ui/codegen/mir/sink-past-guards/checked_arithmetic.mir (after sink-past-guards) ===
+- ; === ROOT/tests/ui/codegen/mir/place-reads/guard_checked_arithmetic.mir (before place-reads) ===
++ ; === ROOT/tests/ui/codegen/mir/place-reads/guard_checked_arithmetic.mir (after place-reads) ===
   @module SinkPastGuardsChecked
   fn @checked(arg0: i256) {
     bb0:

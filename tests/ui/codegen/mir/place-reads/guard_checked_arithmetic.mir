@@ -1,11 +1,11 @@
-//@compile-flags: -Zmir-pipeline=sink-past-guards
+//@compile-flags: -Zmir-pipeline=place-reads
 //@filecheck:
 @module SinkPastGuardsChecked
 @phase semantic
 
 // A checked operation may panic, so it keeps its place before the guard: past it, a failing guard
 // would hide the overflow panic.
-// CHECK-LABEL: {{^[ +].*}}after sink-past-guards
+// CHECK-LABEL: {{^[ +].*}}after place-reads
 // CHECK-LABEL: fn @checked(
 // CHECK-NOT: {{^[+-] }}
 fn @checked(arg0: i256) {

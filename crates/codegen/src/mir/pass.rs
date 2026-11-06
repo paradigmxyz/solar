@@ -73,7 +73,6 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &storage_dse::StorageDse,
     &pre::Pre::Reads,
     &loop_canonicalize::LoopCanonicalize,
-    &sink_past_guards::SinkPastGuards,
     &place_reads::PlaceReads,
     &loop_reduce::LoopReduce,
     &loop_split::LoopSplit,
@@ -430,9 +429,6 @@ static LOWERING_PIPELINE: &[&dyn MirPass] = &[
 static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &const_fold::ConstFold,
     &cfg_simplify::BranchSimplify,
-    // A calldata computation read only after a guard follows it, so the branch does not carry
-    // its result.
-    &sink_past_guards::SinkPastGuards,
     // Give each calldata read the block that dominates its uses, after the last CSE could merge
     // the copies again.
     &place_reads::PlaceReads,

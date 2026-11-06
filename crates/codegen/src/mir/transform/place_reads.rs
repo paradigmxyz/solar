@@ -2,9 +2,9 @@
 //! beside the uses a guard no longer shares.
 //!
 //! A word at a constant offset, such as an ABI head word, is read by the guard that checks it, by
-//! the body that uses it, and in a dispatcher by every route. Two moves put those reads where the
-//! backend can price them. Calldata reads cannot trap or change during a call, so both moves keep
-//! every path's result.
+//! the body that uses it, and in a dispatcher by every route. Three moves put those reads where
+//! the backend can price them, and a fourth moves what is computed from them. Calldata reads cannot
+//! trap or change during a call, so both moves keep every path's result.
 //!
 //! **Hoisting.** A word that every continuing path out of a branching block reads is read once in
 //! that block, and each read the block dominates uses that value. A block that only reverts does
@@ -31,6 +31,31 @@
 //! read. A word whose first use sits after a branch is then not read on the path that leaves at
 //! the branch. The copy never lands inside a loop that does not contain the original.
 //!
+//! **Computations.** Code that runs before a guard in source order but is read only after it, such
+//! as `Role next = allowed ? A : B;` ahead of a check that an enum read from storage is in range,
+//! keeps its result live across the guard's branch, which costs the stack scheduler a `DUP` or
+//! `SWAP`, and the revert path computes it for nothing. A guard is a conditional branch with one
+//! successor that only reverts. A set of instructions in the guard's block moves, in order, to the
+//! start of the block that continues after it. Members are pure instructions and reads of calldata
+//! at constant offsets, which cannot change during the call; zero tests stay, since the test move
+//! below places them. Every reader of a member is another member, or sits in a block the
+//! continuing block dominates, so the reverting successor reads none of the results. The
+//! continuing block must have the guard's block as its only predecessor, so a loop header is never
+//! a target and the set runs once per entry, as before. Instructions with control effects, such
+//! as checked arithmetic, never move: past the guard, a failing guard would hide their panic.
+//!
+//! The set must also be closed: its operands are constants, results of its own members, or
+//! calldata words that nothing else in the block reads. Such a set carries no other value across
+//! the guard in place of its results and adds no read; the placement above reads the calldata word
+//! again where it is used, which replaces the read that was carried. A set that reads any other
+//! value, for example `add ptr, 32` on a memory pointer or `add arg, 64` on an argument, does not
+//! move. Moving it makes the operand, which lives on past the guard anyway, be reached again after
+//! the guard with a `DUP`, which costs what carrying the result cost, and it changes the order the
+//! scheduler sees. A first version moved every pure instruction read only after a guard, and it
+//! grew the corpus: solady-lib-string by 111 bytes at `-Ogas`, and tempo-zones-portal's runtime
+//! gas by 20. Closed sets add no carried value and no read, so they need no price from the
+//! target. This move runs first, so the placement below sees the readers it left.
+//!
 //! **Tests.** ABI lowering normalizes a validated bool at the guard, as `word != 0`, so the test
 //! sits above the branches that read it. A zero test of a read whose only use is in another block
 //! moves to that block first. The branch then tests the word itself, as the backend peels, rather
@@ -39,9 +64,11 @@
 //! The pass runs once, after the last CSE and before the backend, so no later pass merges the
 //! copies again.
 
+use super::word_sequence::is_pure;
 use crate::{
     mir::{
-        BlockId, Function, InstId, InstKind, Instruction, MirModuleTarget, Module, Value, ValueId,
+        BlockId, Function, InstId, InstKind, Instruction, MirModuleTarget, Module, Terminator,
+        Value, ValueId,
         analysis::CfgInfo,
         pass::{MirPass, ModuleAnalyses, run_function_pass},
     },
@@ -51,7 +78,7 @@ use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
-    map::FxHashMap,
+    map::{FxHashMap, FxHashSet},
 };
 use solar_sema::Gcx;
 
@@ -65,9 +92,10 @@ impl MirPass for PlaceReads {
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let target = module.target(gcx);
         run_function_pass(module, analyses, |func, _| {
+            let sunk = sink_guarded(func);
             let tested = sink_tests(func);
             let hoisted = hoist(func, &target);
-            run(func) || hoisted || tested
+            run(func) || hoisted || tested || sunk
         })
     }
 }
@@ -358,4 +386,176 @@ fn run(func: &mut Function) -> bool {
         }
     }
     true
+}
+
+/// Moves computations on calldata words past the guard that precedes their readers; see the
+/// module docs.
+fn sink_guarded(func: &mut Function) -> bool {
+    let guards = guards(func);
+    if guards.is_empty() {
+        return false;
+    }
+    // The readers of each value: an instruction, or `None` for a phi, which reads its input on
+    // the edge from the predecessor in the block, and for a terminator.
+    let mut uses = FxHashMap::<ValueId, SmallVec<[(BlockId, Option<InstId>); 2]>>::default();
+    for (block, data) in func.blocks.iter_enumerated() {
+        for &inst in &data.instructions {
+            match &func.inst(inst).kind {
+                InstKind::Phi(incoming) => {
+                    for &(pred, operand) in incoming {
+                        uses.entry(operand).or_default().push((pred, None));
+                    }
+                }
+                kind => kind.visit_operands(|operand| {
+                    uses.entry(operand).or_default().push((block, Some(inst)));
+                }),
+            }
+        }
+        if let Some(term) = &data.terminator {
+            term.visit_operands(|operand| uses.entry(operand).or_default().push((block, None)));
+        }
+    }
+    let cfg = CfgInfo::new(func);
+    let mut moved = false;
+    for (block, next) in guards {
+        // The instructions that could follow the guard: each is movable, and read only after
+        // the guard or by another of them. Dropping one that is not closed drops the
+        // instructions that feed it, and the readers of one dropped for its operands.
+        let mut producers = FxHashMap::<ValueId, InstId>::default();
+        let mut members = FxHashSet::<InstId>::default();
+        for &inst in &func.blocks[block].instructions {
+            if let Some(result) = func.inst_result_value(inst)
+                && movable(func, inst)
+            {
+                producers.insert(result, inst);
+                members.insert(inst);
+            }
+        }
+        let mut pending = members.iter().copied().collect::<Vec<_>>();
+        while let Some(inst) = pending.pop() {
+            if !members.contains(&inst) {
+                continue;
+            }
+            let result = func.inst_result_value(inst).expect("movable instructions have results");
+            let readers = uses.get(&result).map_or(&[][..], SmallVec::as_slice);
+            let read_after = !readers.is_empty()
+                && readers.iter().all(|&(reader, by)| {
+                    by.is_some_and(|by| members.contains(&by))
+                        || cfg.dominators().dominates(next, reader)
+                });
+            let mut operands = SmallVec::<[ValueId; 3]>::new();
+            func.inst(inst).kind.visit_operands(|operand| operands.push(operand));
+            let closed = operands.iter().all(|&operand| {
+                // A calldata word read in an earlier block is read again after the guard only
+                // when nothing in this block still reads it, so that no read is added.
+                let read_again = func.is_constant_calldata_load(operand)
+                    && uses.get(&operand).is_none_or(|readers| {
+                        readers.iter().all(|&(reader, by)| {
+                            reader != block || by.is_some_and(|by| members.contains(&by))
+                        })
+                    });
+                func.value_u256(operand).is_some()
+                    || is_member_result(&producers, &members, operand)
+                    || read_again
+            });
+            if read_after && closed {
+                continue;
+            }
+            members.remove(&inst);
+            // The instructions that feed this one, read its result, or share its operands may no
+            // longer qualify.
+            let mut touched = operands.clone();
+            touched.push(result);
+            let neighbors = operands
+                .iter()
+                .filter_map(|operand| producers.get(operand).copied())
+                .chain(
+                    touched
+                        .iter()
+                        .flat_map(|value| uses.get(value).into_iter().flatten())
+                        .filter_map(|&(_, by)| by),
+                )
+                .collect::<Vec<_>>();
+            pending.extend(neighbors.into_iter().filter(|neighbor| members.contains(neighbor)));
+        }
+        let sunk = func.blocks[block]
+            .instructions
+            .iter()
+            .copied()
+            .filter(|inst| members.contains(inst))
+            .collect::<Vec<_>>();
+        // A computation of constants alone is not worth a move, and a calldata read alone is
+        // placed by `place-reads`.
+        if !sunk.iter().any(|&inst| is_pure(func.inst(inst))) {
+            continue;
+        }
+        for &inst in &sunk {
+            let mut operands = SmallVec::<[ValueId; 3]>::new();
+            func.inst(inst).kind.visit_operands(|operand| operands.push(operand));
+            for operand in operands {
+                for reader in uses.get_mut(&operand).into_iter().flatten() {
+                    if *reader == (block, Some(inst)) {
+                        reader.0 = next;
+                    }
+                }
+            }
+        }
+        let (moving, staying) =
+            func.blocks[block].instructions.iter().partition(|inst| members.contains(inst));
+        func.blocks[block].instructions = staying;
+        let start = func.blocks[next]
+            .instructions
+            .iter()
+            .position(|&inst| !matches!(func.inst(inst).kind, InstKind::Phi(_)))
+            .unwrap_or(func.blocks[next].instructions.len());
+        func.blocks[next].instructions.splice(start..start, moving);
+        moved = true;
+    }
+    moved
+}
+
+/// Whether `operand` is the result of an instruction that is still a member.
+fn is_member_result(
+    producers: &FxHashMap<ValueId, InstId>,
+    members: &FxHashSet<InstId>,
+    operand: ValueId,
+) -> bool {
+    producers.get(&operand).is_some_and(|producer| members.contains(producer))
+}
+
+/// Whether an instruction can run after a guard it ran before: a pure instruction, or a read of
+/// calldata at a constant offset. A zero test stays, since `place-reads` places it by its reader.
+fn movable(func: &Function, inst: InstId) -> bool {
+    let instruction = func.inst(inst);
+    let Some(result) = func.inst_result_value(inst) else { return false };
+    let zero_test = matches!(instruction.kind, InstKind::Eq(a, b) | InstKind::Ne(a, b)
+        if [a, b].iter().any(|&operand| func.value_u256(operand).is_some_and(|word| word.is_zero())));
+    !matches!(instruction.kind, InstKind::Phi(_))
+        && !zero_test
+        && !instruction.kind.effects().observes_execution()
+        && !instruction.kind.effects().control.any()
+        && (is_pure(instruction) || func.is_constant_calldata_load(result))
+}
+
+/// Each block that ends in a guard, with the block that continues after it: a branch with one
+/// successor that only reverts, and another that this block alone enters.
+fn guards(func: &Function) -> Vec<(BlockId, BlockId)> {
+    let reverts =
+        |block: BlockId| func.blocks[block].terminator.as_ref().is_some_and(Terminator::reverts);
+    func.blocks
+        .iter_enumerated()
+        .filter_map(|(block, data)| {
+            let Some(&Terminator::Branch { then_block, else_block, .. }) = data.terminator.as_ref()
+            else {
+                return None;
+            };
+            let next = match (reverts(then_block), reverts(else_block)) {
+                (true, false) => else_block,
+                (false, true) => then_block,
+                _ => return None,
+            };
+            (next != block && func.blocks[next].predecessors.as_slice() == [block])
+                .then_some((block, next))
+        })
+        .collect()
 }

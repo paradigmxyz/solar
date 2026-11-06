@@ -1,11 +1,11 @@
-//@compile-flags: -Zmir-pipeline=sink-past-guards
+//@compile-flags: -Zmir-pipeline=place-reads
 //@filecheck:
-@module SinkPastGuards
+@module GuardComputations
 @phase lowered
 
 // The product and the calldata word it reads are used only after the guard, so both follow it
 // instead of being carried across the branch.
-// CHECK-LABEL: {{^[ +].*}}after sink-past-guards
+// CHECK-LABEL: {{^[ +].*}}after place-reads
 // CHECK-LABEL: fn @sinks(
 // CHECK: - [[WORD:v[0-9]+]] = calldataload 36
 // CHECK: - [[PRODUCT:v[0-9]+]] = mul [[WORD]], 3
@@ -141,9 +141,13 @@ fn @impure(arg0: i256) {
     revert 0, 0
 }
 
-// A zero test of a calldata word stays: `place-reads` places it by its reader.
+// A zero test of a calldata word is not part of a moved set: the test move places it with a copy
+// of its read, beside its reader.
 // CHECK-LABEL: fn @zero_test(
-// CHECK-NOT: {{^[+-] }}
+// CHECK: - [[TEST:v[0-9]+]] = ne {{v[0-9]+}}, 0
+// CHECK: bb1:
+// CHECK: + [[COPY:v[0-9]+]] = calldataload 36
+// CHECK: + [[TEST]] = ne [[COPY]], 0
 fn @zero_test(arg0: i256) {
   bb0:
     v0 = calldataload 36
