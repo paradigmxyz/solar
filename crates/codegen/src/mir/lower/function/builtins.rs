@@ -154,7 +154,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Ok(ConstValue::Bytes(bytes, _)) if bytes.as_byte_str().is_empty()
         ) {
             // An empty input is only read, so it needs no allocation.
-            self.zero_slot()
+            self.builder.zero_slot()
         } else if is_calldata_bytes(data_ty) {
             // solc copies calldata `bytes` input past the free memory pointer, which the call
             // reads at once, so it stays unreserved, and without checking that it lies within

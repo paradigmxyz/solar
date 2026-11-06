@@ -1,0 +1,17 @@
+//@compile-flags: -Zmir-pipeline=coalesce-allocs,lower-memory-objects,defer-alloc
+//@filecheck:
+@module ZeroSlotIfEmpty
+
+// An allocation that is the zero slot when empty keeps its own size and pointer: it is neither
+// fused with the allocation after it nor placed statically.
+// CHECK-LABEL: fn @keeps_empty_allocation
+// CHECK: v0 = alloc 32 !metadata(zero_slot_if_empty)
+// CHECK-NEXT: v1 = alloc 32
+// CHECK-NOT: alloc 64
+fn @keeps_empty_allocation() -> i256 {
+  bb0:
+    v0 = alloc 32 !metadata(zero_slot_if_empty)
+    v1 = alloc 32
+    v2 = ptrtoint ptr<memory> v0 to i256
+    ret v2
+}

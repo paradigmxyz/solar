@@ -202,16 +202,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(object)
     }
 
-    /// Returns a pointer to the zero slot, which holds an empty dynamic object that is only read.
-    pub(super) fn zero_slot(&mut self) -> ValueId {
-        // value = ZERO_SLOT
-        let value = crate::mir::Immediate::for_type(
-            Some(MirType::MEMPTR),
-            U256::from(EvmMemoryLayout::ZERO_SLOT),
-        );
-        self.builder.alloc_value(Value::Immediate(value))
-    }
-
     /// Lowers the creation or runtime bytecode of a contract to a `bytes` object.
     pub(super) fn lower_contract_code(
         &mut self,
@@ -349,7 +339,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if preserve_fmp
             && matches!(layout, MemoryObjectLayout::Bytes | MemoryObjectLayout::DynamicArray { .. })
         {
-            return Some(self.zero_slot());
+            return Some(self.builder.zero_slot());
         }
 
         // object = alloc(default_layout)

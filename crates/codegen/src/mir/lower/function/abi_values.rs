@@ -345,108 +345,106 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_error_catch_string(&mut self, data: ValueId) -> Option<ValueId> {
-        // payload = data[4:]
-        // message = abi_decode(bytes, payload)
-        let data_len = self.builder.memory_len(data);
-        let four = self.builder.imm(4);
-        let payload_ptr = self.builder.memory_data_at(data, 4);
-        let payload_len = self.builder.sub(data_len, four);
-        let payload = self.builder.make_slice(payload_ptr, payload_len, PtrLocation::Memory);
-        let layout = self.cx.module.intern_abi_param_layout(AbiParamLayout::new(
-            vec![AbiParamType::Bytes].into_boxed_slice(),
-        ));
-        Some(self.builder.abi_decode(layout, payload, MirType::MEMPTR))
-    }
-
-    /// Checks whether an `Error(string)` payload can be decoded without reverting.
-    pub(super) fn lower_error_catch_match(
+    /// Decodes the message of an `Error(string)` payload in the returndata into a `string`, or
+    /// yields zero when the selector does not match or the payload is malformed.
+    pub(super) fn lower_error_catch_message(
         &mut self,
-        data_ptr: ValueId,
-        data_len: ValueId,
+        size: ValueId,
         selector_matches: ValueId,
     ) -> ValueId {
-        // valid = selector_matches ? try_decode_error_message(data) : false
-        let validate = self.builder.create_block();
+        // message = selector_matches ? try_decode_error_message(size) : 0
+        let decode = self.builder.create_block();
         let no_match = self.builder.create_block();
         let done = self.builder.create_block();
-        self.builder.branch(selector_matches, validate, no_match);
+        self.builder.branch(selector_matches, decode, no_match);
 
-        self.builder.switch_to_block(validate);
-        let helper = self.ensure_error_catch_match_helper();
-        // pointer = ptrtoint data to i256
-        // valid = icall try_decode_error_message, pointer, length
-        let data_ptr = self.builder.cast(data_ptr, MirType::I256);
-        let valid = self.builder.icall(helper, vec![data_ptr, data_len], MirType::I1);
-        let valid_block = self.builder.current_block();
+        self.builder.switch_to_block(decode);
+        let helper = self.ensure_error_catch_message_helper();
+        let message = self.builder.icall(helper, vec![size], MirType::I256);
+        let decode_block = self.builder.current_block();
         self.builder.jump(done);
 
         self.builder.switch_to_block(no_match);
-        let no_match_value = self.builder.imm_bool(false);
+        let no_message = self.builder.imm(0);
         let no_match_block = self.builder.current_block();
         self.builder.jump(done);
 
         self.builder.switch_to_block(done);
-        self.builder.phi(vec![(valid_block, valid), (no_match_block, no_match_value)])
+        self.builder.phi(vec![(decode_block, message), (no_match_block, no_message)])
     }
 
-    /// Synthesizes the shared equivalent of Solc's `try_decode_error_message` helper.
+    /// Synthesizes the shared equivalent of Solc's `try_decode_error_message` helper, which
+    /// stages the payload at the free-memory pointer and reserves only the bytes up to the end of
+    /// the message, so the message points into the reserved range.
     ///
     /// <https://github.com/ethereum/solidity/blob/develop/libsolidity/codegen/YulUtilFunctions.cpp#L4676-L4714>
-    fn ensure_error_catch_match_helper(&mut self) -> FunctionId {
-        // valid = len >= 68
-        // offset = mload(data + 4)
-        // valid &= offset <= len - 36
-        // msg_len = mload(data + 4 + offset)
-        // valid &= msg_len <= u64::MAX && msg_len <= len - (offset + 36)
+    fn ensure_error_catch_message_helper(&mut self) -> FunctionId {
+        // if size < 68 { return 0 }
+        // data = fmp
+        // returndatacopy(data, 4, size - 4)
+        // offset = mload(data)
+        // if offset > size - 36 { return 0 }
+        // length = mload(data + offset)
+        // if length > u64::MAX || length > size - (offset + 36) { return 0 }
+        // object = alloc pad32(offset + 32 + length) !metadata(preserves_fmp)
+        // return object + offset
         self.lazy_helper(sym::try_decode_error_message, |_, function| {
             let mut builder = FunctionBuilder::new_semantic(function);
-            let data_ptr = builder.add_param(MirType::I256);
-            let data_len = builder.add_param(MirType::I256);
-            builder.set_return_type(MirType::I1);
+            let size = builder.add_param(MirType::I256);
+            builder.set_return_type(MirType::I256);
 
             let check_offset = builder.create_block();
             let check_length = builder.create_block();
+            let decode = builder.create_block();
             let no_match = builder.create_block();
 
             let min_size = builder.imm(68);
-            let short = builder.lt(data_len, min_size);
+            let short = builder.lt(size, min_size);
             let has_head = builder.eq_zero(short);
             builder.branch(has_head, check_offset, no_match);
 
             builder.switch_to_block(check_offset);
-            let payload_ptr = builder.add_offset(data_ptr, 4);
-            let offset = builder.load(payload_ptr, PtrLocation::Memory);
-            // `data_len >= 68` from the check above, so `data_len - 36` cannot wrap. It also
-            // rejects offsets above `u64::MAX`, as returndata is far shorter.
+            let data = builder.fmp();
+            let selector_size = builder.imm(4);
+            let payload_size = builder.sub(size, selector_size);
+            builder.copy(data, selector_size, payload_size, PtrLocation::Returndata);
+            let data = builder.cast_word(data);
+            let offset = builder.load(data, PtrLocation::Memory);
+            // `size >= 68` from the check above, so `size - 36` cannot wrap. It also rejects
+            // offsets above `u64::MAX`, as returndata is far shorter.
             let head_size = builder.imm(36);
-            let max_offset = builder.sub(data_len, head_size);
+            let max_offset = builder.sub(size, head_size);
             let invalid_offset = builder.gt(offset, max_offset);
             builder.branch(invalid_offset, no_match, check_length);
 
             builder.switch_to_block(check_length);
-            let message_ptr = builder.add(payload_ptr, offset);
-            let length = builder.load(message_ptr, PtrLocation::Memory);
+            let message = builder.add(data, offset);
+            let length = builder.load(message, PtrLocation::Memory);
             let max_u64 = builder.imm(u64::MAX);
             let message_data_offset = builder.add_offset(offset, 36);
             let length_too_large = builder.gt(length, max_u64);
-            let remaining = builder.sub(data_len, message_data_offset);
+            let remaining = builder.sub(size, message_data_offset);
             let data_out_of_range = builder.gt(length, remaining);
             let invalid_length = builder.or(length_too_large, data_out_of_range);
-            let valid = builder.eq_zero(invalid_length);
-            builder.ret([valid]);
+            builder.branch(invalid_length, no_match, decode);
+
+            builder.switch_to_block(decode);
+            // The message fits the payload, so the sum cannot wrap.
+            let header_end = builder.add_offset(offset, 32);
+            let end = builder.add(header_end, length);
+            let reserved = builder.pad_to_word(end);
+            let object = builder.alloc(reserved, AllocationSemantics::INTERNAL);
+            builder.mark_preserves_fmp(object);
+            let object = builder.cast_word(object);
+            let message = builder.add(object, offset);
+            builder.ret([message]);
 
             builder.switch_to_block(no_match);
-            let no_match = builder.imm_bool(false);
-            builder.ret([no_match]);
+            let no_message = builder.imm(0);
+            builder.ret([no_message]);
             Some(())
         })
-        .expect("error catch match helper construction cannot fail")
-    }
-
-    pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
-        let payload_ptr = self.builder.memory_data_at(data, 4);
-        self.builder.load(payload_ptr, PtrLocation::Memory)
+        .expect("error catch message helper construction cannot fail")
     }
 
     pub(super) fn lower_abi_encode_packed(

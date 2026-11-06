@@ -172,6 +172,7 @@ fn eligible_static_allocations(
             };
             if semantics != AllocationSemantics::INTERNAL
                 || func.inst(alloc).metadata.preserves_fmp()
+                || func.inst(alloc).metadata.zero_slot_if_empty()
             {
                 continue;
             }

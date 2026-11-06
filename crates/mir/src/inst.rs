@@ -278,6 +278,19 @@ impl InstructionMetadata {
         self.flags.set_preserves_fmp(value);
     }
 
+    /// Returns whether this allocation of exactly one header word, an empty `bytes` object,
+    /// returns the zero slot and reserves nothing.
+    #[must_use]
+    pub fn zero_slot_if_empty(&self) -> bool {
+        self.flags.zero_slot_if_empty()
+    }
+
+    /// Marks an allocation whose empty object is the zero slot, which lowering resolves from the
+    /// allocation size.
+    pub fn set_zero_slot_if_empty(&mut self, value: bool) {
+        self.flags.set_zero_slot_if_empty(value);
+    }
+
     /// Returns whether this sum is an allocator bump that does not wrap.
     #[must_use]
     pub fn alloc_ptr(&self) -> bool {
@@ -361,6 +374,7 @@ impl MetadataFlags {
     const DISPLAY_SOURCE_SPAN: u16 = 0b1000_0000_0000;
     const CHECKED_OBJECT_OFFSET: u16 = 0b10_0000_0000_0000;
     const ALLOC_PTR: u16 = 0b100_0000_0000_0000;
+    const ZERO_SLOT_IF_EMPTY: u16 = 0b1000_0000_0000_0000;
 
     fn memory_region(self) -> Option<MemoryRegion> {
         match self.0 & Self::MEMORY_MASK {
@@ -439,6 +453,18 @@ impl MetadataFlags {
             self.0 |= Self::PRESERVES_FMP;
         } else {
             self.0 &= !Self::PRESERVES_FMP;
+        }
+    }
+
+    fn zero_slot_if_empty(self) -> bool {
+        self.0 & Self::ZERO_SLOT_IF_EMPTY != 0
+    }
+
+    fn set_zero_slot_if_empty(&mut self, value: bool) {
+        if value {
+            self.0 |= Self::ZERO_SLOT_IF_EMPTY;
+        } else {
+            self.0 &= !Self::ZERO_SLOT_IF_EMPTY;
         }
     }
 
@@ -881,6 +907,7 @@ impl Instruction {
         if !matches!(self.kind, InstKind::Alloc { .. }) {
             self.metadata.clear_deferred_alloc();
             self.metadata.set_preserves_fmp(false);
+            self.metadata.set_zero_slot_if_empty(false);
         }
     }
 

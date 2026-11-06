@@ -1,0 +1,33 @@
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/zero_slot_if_empty.mir (before coalesce-allocs) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/zero_slot_if_empty.mir (after coalesce-allocs) ===
+  @module ZeroSlotIfEmpty
+  fn @keeps_empty_allocation() -> i256 {
+    bb0:
+      v0 = alloc 32 !metadata(zero_slot_if_empty)
+      v1 = alloc 32
+      v2 = ptrtoint ptr<memory> v0 to i256
+      ret v2
+  }
+  
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/zero_slot_if_empty.mir (before lower-memory-objects) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/zero_slot_if_empty.mir (after lower-memory-objects) ===
+  @module ZeroSlotIfEmpty
+  fn @keeps_empty_allocation() -> i256 {
+    bb0:
+      v0 = alloc 32 !metadata(zero_slot_if_empty)
+      v1 = alloc 32
+      v2 = ptrtoint ptr<memory> v0 to i256
+      ret v2
+  }
+  
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/zero_slot_if_empty.mir (before defer-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/zero_slot_if_empty.mir (after defer-alloc) ===
+  @module ZeroSlotIfEmpty
+  fn @keeps_empty_allocation() -> i256 {
+    bb0:
+      v0 = alloc 32 !metadata(zero_slot_if_empty)
+      v1 = alloc 32
+      v2 = ptrtoint ptr<memory> v0 to i256
+      ret v2
+  }
+  
