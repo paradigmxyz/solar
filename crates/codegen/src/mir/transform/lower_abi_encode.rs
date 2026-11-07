@@ -35,6 +35,8 @@
 //! gas mode folds before Cancun, where the copy is a loop; size mode folds
 //! every unobserved literal and any other whose stores take fewer bytes than
 //! the length computation and copy they replace, with or without native MCOPY.
+//! A selected literal fold takes precedence over a generic tuple helper, whose pointer
+//! parameter would otherwise force the source object to remain allocated.
 //!
 //! Storage bytes. A `bytes` or `string` operand in storage (`AbiType::Bytes(Storage)`) arrives as
 //! its slot. The encoder validates the header, writes the length, and copies the data words from
@@ -257,6 +259,7 @@ fn synthesize_tuple_helpers(
     // Per shape: its sites, the order of its first site, and whether any site is hot.
     let mut counts = FxHashMap::<TupleHelperKey, (usize, usize, bool)>::default();
     for (func_id, func) in module.functions.iter_enumerated() {
+        let literals = literal_objects_at_encodes(func);
         for block in func.blocks.iter() {
             for &inst in &block.instructions {
                 let InstKind::AbiEncode { mode, base, selector, args, layout } =
@@ -266,6 +269,7 @@ fn synthesize_tuple_helpers(
                 };
                 if zero_copy_returns[func_id].contains_key(&inst)
                     || base.is_some()
+                    || has_inline_input_literal(func, args, &literals)
                     || (*mode == AbiEncodeMode::Scratch && ends_function(block.terminator.as_ref()))
                 {
                     continue;
@@ -657,6 +661,7 @@ fn lower_function(
             } else {
                 let helper = (!helpers.tuples.is_empty()
                     && base.is_none()
+                    && !has_inline_input_literal(builder.func(), &args, &helpers.literal_objects)
                     && !(mode == AbiEncodeMode::Scratch && terminal))
                     .then(|| {
                         let key =
@@ -2282,4 +2287,19 @@ fn remove_literal_objects(
     for block in &mut func.blocks {
         block.instructions.retain(|inst| !removed.contains(inst));
     }
+}
+
+/// A generic helper would need a materialized pointer for this otherwise folded input.
+fn has_inline_input_literal(
+    func: &Function,
+    args: &[ValueId],
+    literals: &FxHashSet<ValueId>,
+) -> bool {
+    args.iter().any(|&arg| {
+        literals.contains(&arg)
+            && matches!(func.value(arg), Value::Inst(inst)
+                if !func.inst(*inst).metadata.preserves_fmp()
+                    && defining_block(func, *inst)
+                        .and_then(|block| literal_bytes(func, arg, block)).is_some())
+    })
 }

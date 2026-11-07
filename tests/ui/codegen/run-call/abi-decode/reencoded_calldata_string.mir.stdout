@@ -47,7 +47,7 @@ fn @test() -> ptr<memory> [selector=0xf8a8fd6d, abi_params=[], abi_returns=[memo
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc 64 !metadata(preserves_fmp)
+    v2 = alloc 64
     mstore v2, 3
     v3 = ptradd v2, 32
     mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000

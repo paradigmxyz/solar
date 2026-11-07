@@ -288,6 +288,8 @@ enum AbiOperand<'gcx> {
     /// A storage array or struct that the encoder reads after every operand ran, as solc does.
     /// `ty` is the memory type it copies to.
     Storage { slot: ValueId, ty: Ty<'gcx>, span: Span },
+    /// Constant call input needs no source-level memory object. Materialize it at encoding.
+    Literal { bytes: ByteSymbol, span: Span },
 }
 
 struct LoopTargets {

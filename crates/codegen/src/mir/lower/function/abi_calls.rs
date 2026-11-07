@@ -353,6 +353,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<(ValueId, AbiType)> {
         match operand {
             AbiOperand::Ready(operand) => Some(operand),
+            AbiOperand::Literal { bytes, span } => {
+                let previous = self.builder.replace_source_span(span);
+                // object = alloc literal_size
+                // mstore object, length
+                // mstore (object + 32 + offset), word
+                let object = self.lower_call_input_literal(bytes.as_byte_str());
+                self.builder.replace_source_span(previous);
+                object.map(|object| (object, AbiType::Bytes(PtrLocation::Memory)))
+            }
             AbiOperand::Storage { slot, ty, span } => {
                 // object = load_storage_object(ty, slot)
                 let object = self.load_storage_object(ty, slot, span)?;
@@ -404,6 +413,30 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             this.prepare_abi_argument(argument, parameter_ty, value, abi_type)
         })
+    }
+
+    /// Defers immutable literal inputs until the call's argument expressions have all run.
+    pub(super) fn lower_call_input_argument(
+        &mut self,
+        argument: &hir::Expr<'_>,
+        parameter_ty: Ty<'gcx>,
+    ) -> Option<AbiOperand<'gcx>> {
+        let source = self.peel_bytes_conversion(argument).peel_parens();
+        let literal = matches!(source.kind, ExprKind::Lit(_))
+            || self
+                .cx
+                .gcx
+                .resolved_variable(source)
+                .is_some_and(|id| self.cx.gcx.hir.variable(id).is_constant());
+        if literal
+            && self.is_dynamic_bytes_type(parameter_ty)
+            && let Some(bytes) = self.constant_bytes(argument)
+        {
+            // A literal has no memory reference to retain. The encoder can embed its words
+            // in call input and remove the temporary without preserving a pointer bump.
+            return Some(AbiOperand::Literal { bytes, span: argument.span });
+        }
+        self.lower_abi_call_argument(argument, parameter_ty)
     }
 
     pub(super) fn prepare_abi_encode_argument(
