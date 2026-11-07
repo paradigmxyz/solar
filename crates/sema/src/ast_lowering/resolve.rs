@@ -1869,9 +1869,7 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::Assign(lhs, op, rhs) => {
                 hir::ExprKind::Assign(self.lower_expr(lhs), *op, self.lower_expr(rhs))
             }
-            ast::ExprKind::Binary(lhs, op, rhs) => {
-                hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
-            }
+            ast::ExprKind::Binary(..) => return self.lower_left_assoc_binary(expr),
             ast::ExprKind::Call(callee, args) => hir::ExprKind::Call(
                 self.lower_expr(callee.peel_parens()),
                 self.lower_call_args(args),
@@ -1947,6 +1945,49 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::Err(guar) => hir::ExprKind::Err(*guar),
         };
         self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
+    }
+
+    /// Lowers a left-associative binary chain without recursing down the left spine.
+    ///
+    /// The parser builds `a+b+c+d` iteratively as `Binary(Binary(Binary(a, +, b), +, c), +, d)`,
+    /// so a recursive walk overflows on a few thousand operands. Walk the spine with a heap
+    /// vector instead:
+    ///
+    /// ```text
+    /// v0 = a
+    /// v1 = binary v0, +, b
+    /// v2 = binary v1, +, c
+    /// v3 = binary v2, +, d
+    /// ```
+    fn lower_left_assoc_binary(&mut self, expr: &ast::Expr<'_>) -> hir::Expr<'gcx> {
+        let mut tail = Vec::new();
+        let mut cur = expr;
+        while let ast::ExprKind::Binary(lhs, op, rhs) = &cur.kind {
+            tail.push((*op, &**rhs, cur.span));
+            cur = lhs;
+        }
+        // Innermost first, outermost last, so the returned node stays owned.
+        tail.reverse();
+        let (last_op, last_rhs, last_span) = tail.pop().expect("Binary chain");
+        // v0 = lower(a)
+        let mut left = self.lower_expr(cur);
+        // v1 = binary v0, op, b
+        // v2 = binary v1, op, c
+        for (op, rhs, span) in tail {
+            let right = self.lower_expr(rhs);
+            left = self.arena.alloc(self.hir_builder().expr_owned(
+                self.next_id(),
+                hir::ExprKind::Binary(left, op, right),
+                span,
+            ));
+        }
+        // vn = binary v{n-1}, op, last
+        let right = self.lower_expr(last_rhs);
+        self.hir_builder().expr_owned(
+            self.next_id(),
+            hir::ExprKind::Binary(left, last_op, right),
+            last_span,
+        )
     }
 
     fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {

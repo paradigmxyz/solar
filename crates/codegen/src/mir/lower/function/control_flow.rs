@@ -733,12 +733,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lhs_expr: &hir::Expr<'_>,
         op: BinOpKind,
         rhs_expr: &hir::Expr<'_>,
+        pre_lhs: Option<Word>,
     ) -> Option<Word> {
         // if && { branch(lhs, rhs, false) }
         // if || { branch(lhs, lhs, rhs) }
         // result = phi(rhs_value, short_circuit_value)
         let ty = self.cx.gcx.type_of_expr(lhs_expr.id)?;
-        let lhs = self.lower_expr(lhs_expr)?;
+        let lhs = match pre_lhs {
+            Some(word) => word,
+            None => self.lower_expr(lhs_expr)?,
+        };
         let condition = lhs.clean(self, ty);
         let is_and = op == BinOpKind::And;
         let short = |this: &mut Self| {

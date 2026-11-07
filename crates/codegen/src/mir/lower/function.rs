@@ -14,7 +14,7 @@ use crate::mir::{
     memory::EvmMemoryLayout,
 };
 use alloy_primitives::{U256, keccak256};
-use solar_ast::{BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
+use solar_ast::{BinOp, BinOpKind, DataLocation, LitKind, StateMutability, TypeSize, UnOpKind};
 use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet, FxIndexSet, StdEntry},
@@ -729,6 +729,201 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         .then_some(argument)
     }
 
+    /// Lowers a left-associative binary chain without recursing down the left spine.
+    ///
+    /// HIR keeps `Binary(Binary(a, +, b), +, c)`, so a recursive `lower_expr` overflows on a few
+    /// thousand operands. Walk the spine with a heap vector instead:
+    ///
+    /// ```text
+    /// v0 = lower(a)
+    /// v1 = binary v0, +, b
+    /// v2 = binary v1, +, c
+    /// ```
+    fn lower_left_assoc_binary(&mut self, expr: &hir::Expr<'_>) -> Option<Word> {
+        let mut tail = Vec::new();
+        let mut cur = expr;
+        while let ExprKind::Binary(lhs, op, rhs) = &cur.kind {
+            tail.push((cur, *op, *rhs));
+            cur = lhs;
+        }
+        let mut acc = None;
+        for (bin, op, rhs) in tail.into_iter().rev() {
+            let ExprKind::Binary(lhs, _, _) = &bin.kind else { unreachable!() };
+            let inner = bin.id != expr.id;
+            let previous = inner.then(|| {
+                (
+                    self.builder.replace_source_span(bin.span),
+                    self.builder.replace_modifier_depth(self.modifier_depth),
+                )
+            });
+            let word = if inner {
+                match self.try_fold_computes(bin) {
+                    Some(None) => return None,
+                    Some(Some(word)) => word,
+                    None => self.lower_one_binary(bin, acc, op, lhs, rhs)?,
+                }
+            } else {
+                self.lower_one_binary(bin, acc, op, lhs, rhs)?
+            };
+            let word = if inner { word.into_native(self, bin) } else { word };
+            if let Some((previous_span, previous_modifier_depth)) = previous {
+                self.builder.replace_modifier_depth(previous_modifier_depth);
+                self.builder.replace_source_span(previous_span);
+            }
+            acc = Some(word);
+        }
+        acc
+    }
+
+    /// `Some(None)` is a fold that cannot become a runtime value, `Some(Some(w))` is a folded
+    /// word, and `None` means the expression does not fold.
+    fn try_fold_computes(&mut self, expr: &hir::Expr<'_>) -> Option<Option<Word>> {
+        let solidity_value = !self.in_inline_assembly
+            && self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_value_type());
+        if !(solidity_value || is_literal_operation(self.cx.gcx, expr)) {
+            return None;
+        }
+        let Ok(value) = self.cx.gcx.const_eval().eval_expr(expr) else { return None };
+        if matches!(value, ConstValue::Bytes(..)) {
+            return None;
+        }
+        if let ConstValue::Rational(_) = value {
+            return Some(self.cx.report_unsupported(expr.span, "fractional value"));
+        }
+        self.lower_const_value(value, expr.span).map(|value| Some(Word::from_clean(value)))
+    }
+
+    fn lower_one_binary(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        pre_lhs: Option<Word>,
+        op: BinOp,
+        lhs: &hir::Expr<'_>,
+        rhs: &hir::Expr<'_>,
+    ) -> Option<Word> {
+        self.assert_operand_ty_registered(expr);
+        if op.kind.is_logical() {
+            return self.lower_logical(lhs, op.kind, rhs, pre_lhs);
+        }
+        if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
+            let lhs = match pre_lhs {
+                Some(word) => word,
+                None => self.lower_expr(lhs)?,
+            };
+            let rhs = self.lower_expr(rhs)?;
+            return self.lower_user_operator(expr.span, function_id, &[lhs, rhs]);
+        }
+        if self.cx.gcx.unsupported_udvt_operator(expr.id) {
+            return self.report_unsupported_udvt_operator(expr.span);
+        }
+        let lhs_ty = self.cx.gcx.type_of_expr(lhs.id);
+        let rhs_ty = self.cx.gcx.type_of_expr(rhs.id);
+        let fixed_bytes =
+            |ty: Option<Ty<'gcx>>| ty.is_some_and(|ty| ty.peel_refs().is_fixed_bytes());
+        let rhs_literal =
+            rhs_ty.is_some_and(|ty| {
+                matches!(ty.peel_refs().kind, TyKind::IntLiteral(..) | TyKind::StringLiteral(..))
+            }) && !matches!(op.kind, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar);
+        let lhs_literal =
+            lhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)));
+        // A literal operand of a fixed-bytes operation is that word.
+        // Build it directly instead of allocating a memory literal and
+        // reading its first word back through a helper call.
+        let rhs_word = if fixed_bytes(lhs_ty) && rhs_literal {
+            lhs_ty.and_then(|ty| self.lower_fixed_bytes_literal(ty, rhs))
+        } else {
+            None
+        };
+        let lhs_imm = if pre_lhs.is_none() && fixed_bytes(rhs_ty) && lhs_literal {
+            rhs_ty.and_then(|ty| self.lower_fixed_bytes_literal(ty, lhs))
+        } else {
+            None
+        };
+        let lhs_value = match (pre_lhs, lhs_imm) {
+            (Some(word), _) => word,
+            (None, Some(word)) => Word::from_clean(word),
+            (None, None) => self.lower_expr(lhs)?,
+        };
+        let rhs_value = match rhs_word {
+            Some(word) => Word::from_clean(word),
+            None => self.lower_expr(rhs)?,
+        };
+        // A bitwise operation of same-type operands keeps raw bits, as via-IR does.
+        let expr_ty = self.cx.gcx.type_of_expr(expr.id);
+        if let Some(ty) = expr_ty
+            && let Some(word) = self.raw_bitwise(op.kind, (lhs, lhs_value), (rhs, rhs_value), ty)
+        {
+            return Some(word);
+        }
+        let lhs_v = lhs_value.clean(self, lhs_ty?);
+        let rhs_v = rhs_value.clean(self, rhs_ty?);
+        let (lhs_v, rhs_v) = match (lhs_ty, rhs_ty) {
+            (Some(lhs_ty), Some(rhs_ty))
+                if rhs_word.is_none() && fixed_bytes(Some(lhs_ty)) && rhs_literal =>
+            {
+                (lhs_v, self.coerce_value(rhs_v, rhs_ty, lhs_ty))
+            }
+            (Some(lhs_ty), Some(rhs_ty))
+                if lhs_imm.is_none() && lhs_literal && fixed_bytes(Some(rhs_ty)) =>
+            {
+                (self.coerce_value(lhs_v, lhs_ty, rhs_ty), rhs_v)
+            }
+            _ => (lhs_v, rhs_v),
+        };
+        let lhs_is_literal =
+            lhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::IntLiteral(..)));
+        let rhs_is_literal =
+            rhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::IntLiteral(..)));
+        let signed_literal_arithmetic = lhs_is_literal
+            && rhs_is_literal
+            && lhs_ty.zip(rhs_ty).is_some_and(|(lhs, rhs)| lhs.is_signed() || rhs.is_signed());
+        let ty = if signed_literal_arithmetic {
+            Some(self.cx.gcx.types.int(256))
+        } else {
+            match op.kind {
+                BinOpKind::Eq
+                | BinOpKind::Ne
+                | BinOpKind::Lt
+                | BinOpKind::Gt
+                | BinOpKind::Le
+                | BinOpKind::Ge => {
+                    if lhs_is_literal && rhs_is_literal {
+                        rhs_ty
+                    } else {
+                        lhs_ty.zip(rhs_ty).and_then(|(lhs, rhs)| lhs.common_type(rhs, self.cx.gcx))
+                    }
+                }
+                BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar if lhs_is_literal => expr_ty,
+                BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar => lhs_ty,
+                _ => expr_ty,
+            }
+        };
+        let (lhs_v, rhs_v) = if let Some(ty) = ty
+            && arithmetic_kind(ty).is_some()
+        {
+            let lhs_v = lhs_ty.map_or(lhs_v, |source| self.coerce_value(lhs_v, source, ty));
+            let rhs_v = if matches!(
+                op.kind,
+                BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar | BinOpKind::Pow
+            ) {
+                rhs_v
+            } else {
+                rhs_ty.map_or(rhs_v, |source| self.coerce_value(rhs_v, source, ty))
+            };
+            (lhs_v, rhs_v)
+        } else {
+            (lhs_v, rhs_v)
+        };
+        let result = self.binary(op.kind, lhs_v, rhs_v, ty);
+        Some(Word::from_clean(
+            if let Some(bytes) = expr_ty.and_then(operators::fixed_bytes_width) {
+                self.clean_fixed_bytes(result, bytes)
+            } else {
+                result
+            },
+        ))
+    }
+
     fn lower_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<Word> {
         // Fold pure value expressions. Literal arithmetic is exact, so its intermediate values may
         // be fractions or may not fit any integer type. Constant names fold in
@@ -794,135 +989,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     Some(word)
                 }
             }
-            ExprKind::Binary(lhs, op, rhs) => {
-                self.assert_operand_ty_registered(expr);
-                if op.kind.is_logical() {
-                    return self.lower_logical(lhs, op.kind, rhs);
-                }
-                if let Some(function_id) = self.cx.gcx.user_operator(expr.id) {
-                    let lhs = self.lower_expr(lhs)?;
-                    let rhs = self.lower_expr(rhs)?;
-                    return self.lower_user_operator(expr.span, function_id, &[lhs, rhs]);
-                }
-                if self.cx.gcx.unsupported_udvt_operator(expr.id) {
-                    return self.report_unsupported_udvt_operator(expr.span);
-                }
-                let lhs_ty = self.cx.gcx.type_of_expr(lhs.id);
-                let rhs_ty = self.cx.gcx.type_of_expr(rhs.id);
-                let fixed_bytes =
-                    |ty: Option<Ty<'gcx>>| ty.is_some_and(|ty| ty.peel_refs().is_fixed_bytes());
-                let rhs_literal =
-                    rhs_ty.is_some_and(|ty| {
-                        matches!(
-                            ty.peel_refs().kind,
-                            TyKind::IntLiteral(..) | TyKind::StringLiteral(..)
-                        )
-                    }) && !matches!(op.kind, BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar);
-                let lhs_literal = lhs_ty
-                    .is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)));
-                // A literal operand of a fixed-bytes operation is that word.
-                // Build it directly instead of allocating a memory literal and
-                // reading its first word back through a helper call.
-                let rhs_word = if fixed_bytes(lhs_ty) && rhs_literal {
-                    lhs_ty.and_then(|ty| self.lower_fixed_bytes_literal(ty, rhs))
-                } else {
-                    None
-                };
-                let lhs_word = if fixed_bytes(rhs_ty) && lhs_literal {
-                    rhs_ty.and_then(|ty| self.lower_fixed_bytes_literal(ty, lhs))
-                } else {
-                    None
-                };
-                let lhs_value = match lhs_word {
-                    Some(word) => Word::from_clean(word),
-                    None => self.lower_expr(lhs)?,
-                };
-                let rhs_value = match rhs_word {
-                    Some(word) => Word::from_clean(word),
-                    None => self.lower_expr(rhs)?,
-                };
-                // A bitwise operation of same-type operands keeps raw bits, as via-IR does.
-                let expr_ty = self.cx.gcx.type_of_expr(expr.id);
-                if let Some(ty) = expr_ty
-                    && let Some(word) =
-                        self.raw_bitwise(op.kind, (lhs, lhs_value), (rhs, rhs_value), ty)
-                {
-                    return Some(word);
-                }
-                let lhs = lhs_value.clean(self, lhs_ty?);
-                let rhs = rhs_value.clean(self, rhs_ty?);
-                let (lhs, rhs) = match (lhs_ty, rhs_ty) {
-                    (Some(lhs_ty), Some(rhs_ty))
-                        if rhs_word.is_none() && fixed_bytes(Some(lhs_ty)) && rhs_literal =>
-                    {
-                        (lhs, self.coerce_value(rhs, rhs_ty, lhs_ty))
-                    }
-                    (Some(lhs_ty), Some(rhs_ty))
-                        if lhs_word.is_none() && lhs_literal && fixed_bytes(Some(rhs_ty)) =>
-                    {
-                        (self.coerce_value(lhs, lhs_ty, rhs_ty), rhs)
-                    }
-                    _ => (lhs, rhs),
-                };
-                let lhs_is_literal =
-                    lhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::IntLiteral(..)));
-                let rhs_is_literal =
-                    rhs_ty.is_some_and(|ty| matches!(ty.peel_refs().kind, TyKind::IntLiteral(..)));
-                let signed_literal_arithmetic = lhs_is_literal
-                    && rhs_is_literal
-                    && lhs_ty
-                        .zip(rhs_ty)
-                        .is_some_and(|(lhs, rhs)| lhs.is_signed() || rhs.is_signed());
-                let ty = if signed_literal_arithmetic {
-                    Some(self.cx.gcx.types.int(256))
-                } else {
-                    match op.kind {
-                        BinOpKind::Eq
-                        | BinOpKind::Ne
-                        | BinOpKind::Lt
-                        | BinOpKind::Gt
-                        | BinOpKind::Le
-                        | BinOpKind::Ge => {
-                            if lhs_is_literal && rhs_is_literal {
-                                rhs_ty
-                            } else {
-                                lhs_ty
-                                    .zip(rhs_ty)
-                                    .and_then(|(lhs, rhs)| lhs.common_type(rhs, self.cx.gcx))
-                            }
-                        }
-                        BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar if lhs_is_literal => {
-                            expr_ty
-                        }
-                        BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar => lhs_ty,
-                        _ => expr_ty,
-                    }
-                };
-                let (lhs, rhs) = if let Some(ty) = ty
-                    && arithmetic_kind(ty).is_some()
-                {
-                    let lhs = lhs_ty.map_or(lhs, |source| self.coerce_value(lhs, source, ty));
-                    let rhs = if matches!(
-                        op.kind,
-                        BinOpKind::Shl | BinOpKind::Shr | BinOpKind::Sar | BinOpKind::Pow
-                    ) {
-                        rhs
-                    } else {
-                        rhs_ty.map_or(rhs, |source| self.coerce_value(rhs, source, ty))
-                    };
-                    (lhs, rhs)
-                } else {
-                    (lhs, rhs)
-                };
-                let result = self.binary(op.kind, lhs, rhs, ty);
-                Some(Word::from_clean(
-                    if let Some(bytes) = expr_ty.and_then(operators::fixed_bytes_width) {
-                        self.clean_fixed_bytes(result, bytes)
-                    } else {
-                        result
-                    },
-                ))
-            }
+            ExprKind::Binary(..) => self.lower_left_assoc_binary(expr),
             // An equal-type conversion passes its operand through.
             ExprKind::Call(..) if let Some(argument) = self.equal_type_conversion(expr) => {
                 self.lower_expr(argument)

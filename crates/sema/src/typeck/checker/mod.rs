@@ -518,41 +518,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     ty
                 }
             }
-            hir::ExprKind::Binary(lhs_e, op, rhs_e) => {
-                let lhs = self.check_expr(lhs_e);
-                let rhs = self.check_expr(rhs_e);
-
-                // Literal arithmetic is exact, and its type comes from the resulting value. Only
-                // literal arithmetic has literal types, so checking the operand types is enough.
-                if lhs.is_number_literal()
-                    && rhs.is_number_literal()
-                    && !op.kind.is_cmp()
-                    && !op.kind.is_logical()
-                {
-                    match self.gcx.early_const_eval().eval_expr(expr) {
-                        Ok(value) => {
-                            if let Some(ty) = value.literal_ty(self.gcx) {
-                                return ty;
-                            }
-                        }
-                        // The array length's evaluation reports its own error instead.
-                        Err(err)
-                            if self.in_failed_array_len && err.kind.is_undefined_literal_op() =>
-                        {
-                            return lhs;
-                        }
-                        // Like solc, reject literal operations that have no value, such as `1 / 0`.
-                        Err(err) if err.kind.is_undefined_literal_op() => {
-                            let guar =
-                                self.gcx.early_const_eval().emit_literal_op_error(expr, err.kind);
-                            return self.gcx.mk_ty_err(guar);
-                        }
-                        Err(_) => {}
-                    }
-                }
-
-                self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
-            }
+            hir::ExprKind::Binary(..) => self.check_left_assoc_binary(expr),
             hir::ExprKind::Call(wrapped_callee, ref args) => {
                 let (callee, opts) = wrapped_callee.split_call_options();
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
@@ -1270,6 +1236,68 @@ impl<'gcx> TypeChecker<'gcx> {
             return Ok(());
         };
         Err(self.dcx().emit_err_code(expr.span, code, msg))
+    }
+
+    /// Checks a left-associative binary chain without recursing down the left spine.
+    ///
+    /// HIR lowering preserves the parser's `Binary(Binary(a, +, b), +, c)` shape, so a recursive
+    /// `check_expr` on the left operand overflows on a few thousand operands. Walk the spine with
+    /// a heap vector and type-check from the inside out, registering each inner node.
+    fn check_left_assoc_binary(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        let mut tail = Vec::new();
+        let mut cur = expr;
+        while let hir::ExprKind::Binary(lhs, op, rhs) = cur.kind {
+            tail.push((lhs, op, rhs, cur));
+            cur = lhs;
+        }
+        let mut lhs_ty = self.check_expr(cur);
+        for &(lhs_e, op, rhs_e, bin) in tail.iter().rev() {
+            let rhs_ty = self.check_expr(rhs_e);
+            lhs_ty = self.finish_binary(bin, lhs_e, lhs_ty, rhs_e, rhs_ty, op);
+            if bin.id != expr.id {
+                self.register_ty(bin, lhs_ty);
+            }
+        }
+        lhs_ty
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn finish_binary(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        lhs_e: &'gcx hir::Expr<'gcx>,
+        lhs: Ty<'gcx>,
+        rhs_e: &'gcx hir::Expr<'gcx>,
+        rhs: Ty<'gcx>,
+        op: hir::BinOp,
+    ) -> Ty<'gcx> {
+        // Literal arithmetic is exact, and its type comes from the resulting value. Only
+        // literal arithmetic has literal types, so checking the operand types is enough.
+        if lhs.is_number_literal()
+            && rhs.is_number_literal()
+            && !op.kind.is_cmp()
+            && !op.kind.is_logical()
+        {
+            match self.gcx.early_const_eval().eval_expr(expr) {
+                Ok(value) => {
+                    if let Some(ty) = value.literal_ty(self.gcx) {
+                        return ty;
+                    }
+                }
+                // The array length's evaluation reports its own error instead.
+                Err(err) if self.in_failed_array_len && err.kind.is_undefined_literal_op() => {
+                    return lhs;
+                }
+                // Like solc, reject literal operations that have no value, such as `1 / 0`.
+                Err(err) if err.kind.is_undefined_literal_op() => {
+                    let guar = self.gcx.early_const_eval().emit_literal_op_error(expr, err.kind);
+                    return self.gcx.mk_ty_err(guar);
+                }
+                Err(_) => {}
+            }
+        }
+
+        self.check_binop(Some(expr.id), lhs_e, lhs, rhs_e, rhs, op, false)
     }
 
     #[allow(clippy::too_many_arguments)]
