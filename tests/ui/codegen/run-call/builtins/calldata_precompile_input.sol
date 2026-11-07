@@ -1,7 +1,10 @@
-//@ codegen-matrix: standard
+//@ codegen-matrix: standard ordered
+//@[ordered] compile-flags: -Ogas -Zmir-pipeline=lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-structs,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped
 //@ normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: hash(bytes,uint256) 0x616263, 100 => 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad, 0
 //@ run-call: hash(bytes,uint256) 0x, 100 => 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, 0
+//@ run-call: hash(bytes,uint256) 0x0000000000000000000000000000000000000000000000000000000000000000, 1 => 0x66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925, 0
+//@ run-call: ripemd(bytes) 0x0000000000000000000000000000000000000000000000000000000000000000 => 0xd1a70126ff7a149ca6f9b638db084480440ff842, 0
 //@ run-call: hashSlice(bytes,uint256,uint256) 0x0061626300, 1, 4 => 0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 //@ run-call: forged(uint256,uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0 => 0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, 0x9c1185a5c5e9fc54612808977ee8f548b2258d31
 //@ run-call: forged(uint256,uint256) 0x100000000000000000000000000000000, 32 => 0x66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925, 0xd1a70126ff7a149ca6f9b638db084480440ff842
