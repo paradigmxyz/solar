@@ -1,0 +1,21 @@
+//@ revisions: paris amsterdam
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@[paris] compile-flags: --evm-version=paris
+//@[amsterdam] compile-flags: --evm-version=amsterdam
+@module PushSwapPairLimit
+
+// The merged swap needs an extended stack operation, so a fork without one keeps both swaps.
+bb0 [stack=16]:
+  push 3
+  swap 16
+  push 5
+  swap 1
+  stop
+
+// Fifteen is the deepest first swap every fork can merge.
+bb1 [stack=15]:
+  push 3
+  swap 15
+  push 5
+  swap 1
+  stop

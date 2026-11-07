@@ -1,0 +1,71 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/push_swap_pair.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/push_swap_pair.evmir (after peephole) ===
+  @module PushSwapPair
+  bb0 [stack=2]:
+-   push 3
+-   swap 2
+    push 5
+-   swap 1
++   push 3
++   swap 3
+    stop
+  bb1 [stack=4]:
+-   push 3
+-   swap 4
+    push 5
+-   swap 1
++   push 3
++   swap 5
+    stop
+  bb2 [stack=1022]:
+-   push 3
+-   swap 15
+    push 5
+-   swap 1
++   push 3
++   swap 16
+    stop
+  bb3 [stack=2]:
+-   push bb0
+-   swap 2
+    push 5
+-   swap 1
++   push bb0
++   swap 3
+    stop
+  bb4 [stack=2]:
+-   push_immutable 0, 32
+-   swap 2
+    push 5
+-   swap 1
++   push_immutable 0, 32
++   swap 3
+    stop
+  bb5 [stack=2]:
+    push 3
+    swap 2
+    push 5
+    swap 2
+    stop
+  bb6 [stack=3]:
+    dup 3
+    swap 2
+    push 5
+    swap 1
+    stop
+  bb7 [stack=3]:
+    dup 3
+-   push 3
+-   swap 2
+    push 5
+-   swap 1
++   push 3
++   swap 3
+    stop
+  bb8 [stack=2]:
+    push 3
+    push 5
+    swap 2
+    swap 1
+    stop
+  

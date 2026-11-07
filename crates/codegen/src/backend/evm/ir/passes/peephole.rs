@@ -24,6 +24,12 @@
 //! A pure binary operation with a constant operand moves through a `SWAPn SWAP1 SWAPn`
 //! permutation, which removes two swaps.
 //!
+//! Two pushes separated by a swap move together and their two swaps merge into one swap that
+//! is one deeper, which removes an instruction and leaves the push pair adjacent for the rules
+//! that fold or move constants. The merged swap must be lowerable and no more expensive on the
+//! target, so a `SWAP16` followed by a `SWAP1` merges only where extended stack operations
+//! exist.
+//!
 //! The separate `late-word` entry point runs only after structural cleanup. It
 //! replaces a low-mask construction with a shorter complement/shift form. A closed
 //! count window cannot read the surrounding stack; a protected-base window may
@@ -356,6 +362,10 @@ enum Edit {
     MoveConstantThroughSwaps,
     /// DUP1; NOT; SWAP1; SUB.
     OddWord,
+    /// PUSH X; SWAPn; PUSH Y; SWAP1 => PUSH Y; PUSH X; SWAP(n+1).
+    MergeSwapsThroughPushes {
+        depth: u8,
+    },
 }
 
 impl Edit {
@@ -599,6 +609,31 @@ impl Edit {
                 let sub = &mut instructions[start + 3].metadata;
                 sub.preserve_debug_loc(&context);
                 sub.move_function_events(&context);
+            }
+            Self::MergeSwapsThroughPushes { depth } => {
+                // PUSH X; SWAPn; PUSH Y; SWAP1
+                // => PUSH Y; PUSH X; SWAP(n+1)
+                // The rule prices the merged swap before it matches, so the depth cannot wrap.
+                let merged = depth.checked_add(1).expect("priced merged swap");
+                debug_assert!(
+                    matches!(instructions[start + 1].as_stack_op(),
+                        Some(op::StackOp::Swap(d)) if d == depth),
+                    "the window does not swap {depth}"
+                );
+                // NOTE: Each pushed word keeps its own origin as it moves within the block, as
+                // remapped code keeps its location, and the merged swap keeps the deeper swap's own
+                // origin, as the merged swap of `MergeSwapPop` does. The dropped `swap 1` takes its
+                // origin with it; only its function events move. The intermediate stack layouts
+                // differ even though the final one agrees.
+                let pushed = instructions.remove(start + 2);
+                instructions.insert(start, pushed);
+                instructions[start + 2]
+                    .replace_preserving_metadata(Instruction::stack_op(op::StackOp::Swap(merged)));
+                let (retained, removed) = instructions[start..].split_at_mut(3);
+                for inst in removed {
+                    retained[2].metadata.move_function_events(&inst.metadata);
+                }
+                instructions.truncate(start + 3);
             }
         }
     }

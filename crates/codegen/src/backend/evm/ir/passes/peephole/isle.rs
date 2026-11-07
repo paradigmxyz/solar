@@ -666,6 +666,20 @@ impl generated::Context for PeepContext<'_> {
         target.dominates(after, before)
     }
 
+    /// Returns whether `SWAPn` and the `SWAP1` two instructions later merge into a `SWAP(n+1)` that
+    /// this target can lower and that costs no more than the two swaps it replaces.
+    fn merged_swap_supported(&mut self, depth: u8) -> bool {
+        let target = self.target;
+        let Some(merged) =
+            depth.checked_add(1).and_then(|depth| target.stack_op(StackOp::Swap(depth)))
+        else {
+            return false;
+        };
+        let Some(deeper) = target.stack_op(StackOp::Swap(depth)) else { return false };
+        let Some(shallower) = target.stack_op(StackOp::Swap(1)) else { return false };
+        target.dominates(merged, deeper.plus(shallower))
+    }
+
     fn invert_comparison(&mut self, _: Window) -> Option<(u8, U256, u8)> {
         let (iszero, comparison) = self.instructions.split_last()?;
         if iszero.as_evm_opcode() != Some(ISZERO) || iszero.keeps_with_next() {

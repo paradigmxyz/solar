@@ -1,0 +1,28 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@ run-call: f(uint256,uint256,uint256)(uint256,uint256,uint256,uint256) 1, 2, 3 => 2, 8, 1, 9
+//@ run-call: f(uint256,uint256,uint256)(uint256,uint256,uint256,uint256) 4, 5, 6 => 5, 8, 4, 9
+
+// Computes `(b, 8, a, 9)`: the merged swap reaches past both pushes to the second loaded word.
+@module push_swap_pair_run
+bb0:
+  push 68
+  calldataload
+  push 36
+  calldataload
+  push 4
+  calldataload
+  push 9
+  swap 2
+  push 8
+  swap 1
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  mstore
+  push 96
+  mstore
+  push 128
+  push 0
+  return

@@ -1,0 +1,28 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/push_swap_pair_run.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/push_swap_pair_run.evmir (after peephole) ===
+  @module push_swap_pair_run
+  bb0:
+    push 68
+    calldataload
+    push 36
+    calldataload
+    push 4
+    calldataload
+-   push 9
+-   swap 2
+    push 8
+-   swap 1
++   push 9
++   swap 3
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    mstore
+    push 96
+    mstore
+    push 128
+    push 0
+    return
+  

@@ -1,0 +1,77 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+
+@module PushSwapPair
+
+// The two pushes come together and the two swaps merge into one that is one deeper.
+bb0 [stack=2]:
+  push 3
+  swap 2
+  push 5
+  swap 1
+  stop
+
+// A deeper first swap merges one deeper, and the entry depth does not change.
+bb1 [stack=4]:
+  push 3
+  swap 4
+  push 5
+  swap 1
+  stop
+
+// Both forms peak two words above the entry depth, so the merged swap stays in reach at the stack
+// limit, and fifteen is the deepest first swap a fork without extended stack operations can merge.
+bb2 [stack=1022]:
+  push 3
+  swap 15
+  push 5
+  swap 1
+  stop
+
+// No immediate is read, so a symbolic code address moves like a literal.
+bb3 [stack=2]:
+  push bb0
+  swap 2
+  push 5
+  swap 1
+  stop
+
+// An immutable placeholder is a push too, and it keeps its own placeholder as it moves.
+bb4 [stack=2]:
+  push_immutable 0, 32
+  swap 2
+  push 5
+  swap 1
+  stop
+
+// The last swap must be one deep, which is what makes the merged swap one deeper than the first.
+bb5 [stack=2]:
+  push 3
+  swap 2
+  push 5
+  swap 2
+  stop
+
+// A duplicated word is not a push, so the window does not start there.
+bb6 [stack=3]:
+  dup 3
+  swap 2
+  push 5
+  swap 1
+  stop
+
+// A window that does not start the block merges the same way.
+bb7 [stack=3]:
+  dup 3
+  push 3
+  swap 2
+  push 5
+  swap 1
+  stop
+
+// Adjacent pushes leave nothing to bring together, and two swaps in a row are not this window.
+bb8 [stack=2]:
+  push 3
+  push 5
+  swap 2
+  swap 1
+  stop

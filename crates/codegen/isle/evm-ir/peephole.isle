@@ -51,6 +51,7 @@
   (SwapPair (first u8) (second u8))
   (MoveConstantThroughSwaps)
   (OddWord)
+  (MergeSwapsThroughPushes (depth u8))
 ))
 
 (decl pure rewrite (u8 Edit) Rewrite)
@@ -135,6 +136,8 @@
 (extern constructor is_pure_binop is_pure_binop)
 (decl pure is_deep_swap (u8) bool)
 (extern constructor is_deep_swap is_deep_swap)
+(decl pure merged_swap_supported (u8) bool)
+(extern constructor merged_swap_supported merged_swap_supported)
 (decl pure u256_is_zero (U256) bool)
 (extern constructor u256_is_zero u256_is_zero)
 (decl pure u256_is_one (U256) bool)
@@ -278,6 +281,17 @@
 (rule 80 (peep_swap (last2 (exchange n m) (swap m))) (rewrite 2 (Edit.SwapPair m n)))
 (rule 70 (peep_exchange (last2 (swap n) (exchange n m))) (rewrite 2 (Edit.SwapPair m n)))
 (rule 60 (peep_exchange (last2 (swap m) (exchange n m))) (rewrite 2 (Edit.SwapPair n m)))
+
+;; `PUSH X SWAPn PUSH Y SWAP1 -> PUSH Y PUSH X SWAP(n+1)`: the swaps merge into one that is
+;; one deeper and the pushes become adjacent for the rules that fold or move a push pair. The
+;; merged swap must be lowerable and no more expensive than the two it replaces, so `SWAP16`
+;; with `SWAP1` merges only where the target has extended stack operations. Neither form needs
+;; a deeper stack than the other, and no immediate is read, so a block-label push moves like
+;; any other. The suffix alone is not an identity: the first push is what makes the merged
+;; swap one deeper.
+(rule 56 (peep_swap (unprotected_last4 (any_push) (swap n) (any_push) (swap 1)))
+         (if-let true (merged_swap_supported n))
+         (rewrite 4 (Edit.MergeSwapsThroughPushes n)))
 
 ;; SWAP1; PUSH c; pure_binop; SWAPn; SWAP1; SWAPn => SWAPn; SWAP1; PUSH c; pure_binop
 ;; For n > 1 both sides apply the operation to the same two words and leave the same stack.
