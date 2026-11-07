@@ -145,9 +145,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
-    /// Stages constant ABI input in the encoder's word form, without an observable allocation.
-    /// Keep the initialization explicit until `lower-abi-encode` folds it into the output;
-    /// program-data copying here would hide the bytes from that proof.
+    /// Stages raw literal ABI input in the encoder's word form, without an observable allocation.
+    /// Keep initialization explicit until `lower-abi-encode` proves the bytes, then selects
+    /// stores or a program-data copy directly into the output using the data-copy cost model.
     pub(super) fn lower_call_input_literal(&mut self, bytes: &[u8]) -> Option<ValueId> {
         // object = alloc (32 + padded_length)
         // mstore object, length

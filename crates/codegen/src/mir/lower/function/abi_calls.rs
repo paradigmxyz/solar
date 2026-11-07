@@ -415,20 +415,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
-    /// Defers immutable literal inputs until the call's argument expressions have all run.
+    /// Defers raw literal inputs until the call's argument expressions have all run.
     pub(super) fn lower_call_input_argument(
         &mut self,
         argument: &hir::Expr<'_>,
         parameter_ty: Ty<'gcx>,
     ) -> Option<AbiOperand<'gcx>> {
-        let source = self.peel_bytes_conversion(argument).peel_parens();
-        let literal = matches!(source.kind, ExprKind::Lit(_))
-            || self
-                .cx
-                .gcx
-                .resolved_variable(source)
-                .is_some_and(|id| self.cx.gcx.hir.variable(id).is_constant());
-        if literal
+        // Constants and explicit conversions materialize at their evaluation point; a later
+        // argument can observe their allocation by reading the free-memory pointer.
+        if matches!(argument.peel_parens().kind, ExprKind::Lit(_))
             && self.is_dynamic_bytes_type(parameter_ty)
             && let Some(bytes) = self.constant_bytes(argument)
         {
