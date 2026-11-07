@@ -317,8 +317,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ids.sort_unstable();
         for id in ids {
             let ty = self.cx.gcx.type_of_item(id.into());
+            // Named returns are initialized on entry, under their declarations in solc
+            // (`ContractCompiler.cpp` L638-639, L1519-1534). A deferred local keeps its current
+            // context: its original declaration might not dominate this materialization.
+            let previous = self
+                .default_bindings
+                .contains(&id)
+                .then(|| self.builder.replace_source_span(self.cx.gcx.hir.variable(id).span));
             let value = self.default_binding_value(ty);
             let value = self.materialize_raw_scalar(id, value);
+            if let Some(previous) = previous {
+                self.builder.replace_source_span(previous);
+            }
             self.values.insert(id, value);
         }
     }
