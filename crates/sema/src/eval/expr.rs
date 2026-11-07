@@ -89,34 +89,7 @@ fn eval_inner(cx: ConstEval<'_>, expr: &hir::Expr<'_>) -> EvalResult {
             }
             Ok(value.unop(op.kind)?)
         }
-        hir::ExprKind::Binary(lhs, op, rhs) => {
-            // Evaluate both operands, even of `&&` and `||`; see the module docs.
-            let (l, r) = both(ev(lhs), ev(rhs))?;
-            let mut solc = Ok(());
-            if early {
-                // solc's evaluator takes no comparison or logical operator.
-                if op.kind.is_cmp() || op.kind.is_logical() {
-                    return Err(EE::UnsupportedExpr.into());
-                }
-                if let (ConstValue::Int(l), ConstValue::Int(r)) = (&l, &r) {
-                    solc = l.solc_binop(r, op.kind);
-                }
-            } else if let (hir::BinOpKind::And, Some(false)) | (hir::BinOpKind::Or, Some(true)) =
-                (op.kind, l.as_bool())
-            {
-                return Ok(l);
-            }
-            // Only an untyped literal next to a typed operand can be too large.
-            let literal =
-                if matches!(&l, ConstValue::Int(l) if l.is_literal()) { lhs } else { rhs };
-            // A literal too large for its operation is a type error, which comes first, then solc's
-            // error, if any.
-            match (l.binop(r, op.kind), solc) {
-                (Err(EE::LiteralTooLarge), _) => Err(EE::LiteralTooLarge.spanned(literal.span)),
-                (_, Err(kind)) | (Err(kind), _) => Err(kind.into()),
-                (Ok(value), Ok(())) => Ok(value),
-            }
-        }
+        hir::ExprKind::Binary(..) => eval_left_assoc_binary(cx, expr),
         hir::ExprKind::Call(callee, args) if early => match (cx.res(callee), args.kind) {
             (Some(hir::Res::Builtin(Builtin::Erc7201)), hir::CallArgsKind::Unnamed([arg])) => {
                 Ok(builtins::call(gcx, Builtin::Erc7201, &[ev(arg)?])?)
@@ -515,6 +488,88 @@ fn has_selector(gcx: Gcx<'_>, id: hir::ItemId) -> bool {
         _ => false,
     };
     kind_has_selector && gcx.has_abi_signature(id)
+}
+
+/// Evaluates a left-associative binary chain without recursing down the left spine.
+///
+/// The parser builds `a+b+c` as `Binary(Binary(a, +, b), +, c)`, so a recursive `eval` overflows
+/// on a few thousand operands. Walk the spine with a heap vector, reuse memoized inner results,
+/// and evaluate from the inside out:
+///
+/// ```text
+/// v0 = eval(a)
+/// v1 = v0 + eval(b)
+/// v2 = v1 + eval(c)
+/// ```
+fn eval_left_assoc_binary(cx: ConstEval<'_>, expr: &hir::Expr<'_>) -> EvalResult {
+    let ev = |expr| cx.expr_result(expr).clone();
+    let mut tail = Vec::new();
+    let mut cur = expr;
+    let mut left = None;
+    while let hir::ExprKind::Binary(lhs, op, rhs) = cur.kind {
+        if cur.id != expr.id
+            && let Some(result) = cx.cached_expr_result(cur.id)
+        {
+            left = Some(result.clone());
+            break;
+        }
+        tail.push((cur, op, rhs));
+        cur = lhs;
+    }
+    let mut left = left.unwrap_or_else(|| ev(cur));
+    for (bin, op, rhs) in tail.into_iter().rev() {
+        let hir::ExprKind::Binary(lhs, _, _) = bin.kind else { unreachable!() };
+        left = match both(left, ev(rhs)) {
+            Ok((l, r)) => eval_binary_values(cx, lhs, l, op, r, rhs),
+            Err(err) => Err(err),
+        };
+        // `eval` maps dummy spans onto the node it was asked to evaluate. Apply that here
+        // so an inner overflow keeps the inner node's span instead of the outermost chain.
+        left = left.map_err(|mut err| {
+            if err.span.is_dummy() {
+                err.span = bin.span;
+            }
+            err
+        });
+        if bin.id != expr.id {
+            cx.store_expr_result(bin.id, left.clone());
+        }
+    }
+    left
+}
+
+fn eval_binary_values(
+    cx: ConstEval<'_>,
+    lhs: &hir::Expr<'_>,
+    l: ConstValue,
+    op: hir::BinOp,
+    r: ConstValue,
+    rhs: &hir::Expr<'_>,
+) -> EvalResult {
+    let early = cx.mode == Mode::Early;
+    let mut solc = Ok(());
+    if early {
+        // solc's evaluator takes no comparison or logical operator.
+        if op.kind.is_cmp() || op.kind.is_logical() {
+            return Err(EE::UnsupportedExpr.into());
+        }
+        if let (ConstValue::Int(l), ConstValue::Int(r)) = (&l, &r) {
+            solc = l.solc_binop(r, op.kind);
+        }
+    } else if let (hir::BinOpKind::And, Some(false)) | (hir::BinOpKind::Or, Some(true)) =
+        (op.kind, l.as_bool())
+    {
+        return Ok(l);
+    }
+    // Only an untyped literal next to a typed operand can be too large.
+    let literal = if matches!(&l, ConstValue::Int(l) if l.is_literal()) { lhs } else { rhs };
+    // A literal too large for its operation is a type error, which comes first, then solc's
+    // error, if any.
+    match (l.binop(r, op.kind), solc) {
+        (Err(EE::LiteralTooLarge), _) => Err(EE::LiteralTooLarge.spanned(literal.span)),
+        (_, Err(kind)) | (Err(kind), _) => Err(kind.into()),
+        (Ok(value), Ok(())) => Ok(value),
+    }
 }
 
 /// Returns the values of two operands that both must evaluate, see [`operands`].

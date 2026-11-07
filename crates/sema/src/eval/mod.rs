@@ -316,6 +316,24 @@ impl<'gcx> ConstEval<'gcx> {
         cache.insert(expr.id, |_| Box::new(result))
     }
 
+    /// Returns a memoized result of `id` in this mode, or a successful early result in full mode.
+    pub(crate) fn cached_expr_result(self, id: hir::ExprId) -> Option<&'gcx EvalResult> {
+        if let Some(result) = self.cache().exprs.get(&id) {
+            return Some(result);
+        }
+        if self.mode == Mode::Full
+            && let Some(result @ Ok(_)) = self.gcx.const_eval_cache.early.exprs.get(&id)
+        {
+            return Some(result);
+        }
+        None
+    }
+
+    /// Records the result of an inner expression evaluated as part of another expression.
+    pub(crate) fn store_expr_result(self, id: hir::ExprId, result: EvalResult) -> &'gcx EvalResult {
+        self.cache().exprs.insert(id, |_| Box::new(result))
+    }
+
     pub(crate) fn var_result(self, id: hir::VariableId) -> &'gcx EvalResult {
         let cache = &self.cache().vars;
         if let Some(result) = cache.get(&id) {
