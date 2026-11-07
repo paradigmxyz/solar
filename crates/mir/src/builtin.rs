@@ -19,9 +19,9 @@ pub enum Builtin {
         is_zero: bool,
         failure: super::RevertKind,
     },
-    /// SHA-256 of a bytes object, read from scratch memory; a failed precompile call reverts.
+    /// SHA-256 of a memory bytes object or slice; a failed precompile call reverts.
     Sha256,
-    /// Left-aligned RIPEMD-160 of a bytes object, with the same effects as `sha256`.
+    /// Left-aligned RIPEMD-160 of a memory bytes object or slice; the same effects as `sha256`.
     Ripemd160,
     /// Recover an address from hash, recovery ID, and signature words.
     EcRecover,
