@@ -124,15 +124,16 @@ impl Serialize for Uncached<'_, '_, '_> {
 /// The `typeDescriptions` of an expression, which are empty if the expression has no type.
 pub(super) struct ExprType<'a, 'b, 'gcx> {
     cx: Cx<'a, 'gcx>,
-    expr: &'b hir::Expr<'gcx>,
+    /// The expression, which only exists with sema.
+    expr: Option<&'b hir::Expr<'gcx>>,
     /// The arguments of the call that the expression is the callee of, which give `require` its
     /// type.
     args: Option<hir::CallArgs<'gcx>>,
 }
 
 impl<'a, 'b, 'gcx> ExprType<'a, 'b, 'gcx> {
-    pub(super) fn new(cx: Cx<'a, 'gcx>, expr: &'b hir::Expr<'gcx>) -> Self {
-        Self { cx, expr, args: None }
+    pub(super) fn new(cx: Cx<'a, 'gcx>, expr: impl Into<Option<&'b hir::Expr<'gcx>>>) -> Self {
+        Self { cx, expr: expr.into(), args: None }
     }
 
     pub(super) fn args(mut self, args: Option<hir::CallArgs<'gcx>>) -> Self {
@@ -145,6 +146,7 @@ impl Serialize for ExprType<'_, '_, '_> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self { cx, expr, args } = *self;
         let gcx = cx.gcx;
+        let Some(expr) = expr else { return Empty.serialize(s) };
         let Some(mut ty) = expr_ty(gcx, expr) else { return Empty.serialize(s) };
         if let hir::ExprKind::Call(callee, _) = expr.peel_parens().kind
             && let Some(callee_ty) = gcx.type_of_expr(callee.id)
@@ -334,14 +336,30 @@ fn is_pointer(gcx: Gcx<'_>, expr: &hir::Expr<'_>) -> bool {
     }
 }
 
-impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Type<'_>, &hir::Type<'gcx>)> {
+/// The `typeDescriptions` of a type name, which are empty without sema.
+struct NameType<'a, 'gcx>(Option<TypeDescriptions<'a, 'gcx>>);
+
+impl Serialize for NameType<'_, '_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match &self.0 {
+            Some(descriptions) => descriptions.serialize(s),
+            None => Empty.serialize(s),
+        }
+    }
+}
+
+impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Type<'_>, Option<&hir::Type<'gcx>>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (ty, hir_ty)) = self;
         let gcx = cx.gcx;
         // The type of a type name is a pointer when it is a reference type.
-        let descriptions = TypeDescriptions::new(*cx, gcx.type_of_hir_ty(hir_ty), true);
-        match (&ty.kind, &hir_ty.kind) {
-            (ast::TypeKind::Elementary(elementary), _) => {
+        let descriptions =
+            hir_ty.map(|hir_ty| TypeDescriptions::new(*cx, gcx.type_of_hir_ty(hir_ty), true));
+        let descriptions = NameType(descriptions);
+        let hir_kind = hir_ty.map(|hir_ty| &hir_ty.kind);
+        let mismatch = || -> ! { unreachable!("lowering does not match the AST: {ty:?}") };
+        match &ty.kind {
+            ast::TypeKind::Elementary(elementary) => {
                 cx.write(s, "ElementaryTypeName", ty.span, |m| {
                     m.entry("name", &elementary_name(*elementary));
                     m.entry("typeDescriptions", &descriptions);
@@ -352,50 +370,83 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Type<'_>, &hir::Type<'gcx>)> {
                     }
                 })
             }
-            (ast::TypeKind::Custom(path), hir::TypeKind::Custom(item)) => {
+            ast::TypeKind::Custom(path) => {
+                let declaration = match hir_kind {
+                    Some(hir::TypeKind::Custom(item)) => Some(cx.item_id(*item)),
+                    None => None,
+                    Some(_) => mismatch(),
+                };
                 cx.write(s, "UserDefinedTypeName", ty.span, |m| {
-                    let declaration = Some(cx.item_id(*item));
                     m.entry("pathNode", &cx.w(IdentPath { path, declaration }));
-                    m.entry("referencedDeclaration", &declaration);
+                    m.opt("referencedDeclaration", declaration);
                     m.entry("typeDescriptions", &descriptions);
                 })
             }
-            (ast::TypeKind::Array(array), hir::TypeKind::Array(hir_array)) => {
+            ast::TypeKind::Array(array) => {
+                let hir_array = match hir_kind {
+                    Some(hir::TypeKind::Array(hir_array)) => Some(hir_array),
+                    None => None,
+                    Some(_) => mismatch(),
+                };
                 cx.write(s, "ArrayTypeName", ty.span, |m| {
                     let element = Cx { in_mapping_key: cx.in_mapping_key || cx.in_local, ..*cx };
-                    m.entry("baseType", &element.w((&array.element, &hir_array.element)));
-                    let length = array.size.as_deref().zip(hir_array.size);
-                    m.opt("length", length.map(|exprs| cx.w(exprs)));
+                    m.entry(
+                        "baseType",
+                        &element.w((&array.element, hir_array.map(|hir| &hir.element))),
+                    );
+                    let size = array.size.as_deref();
+                    m.opt(
+                        "length",
+                        size.map(|size| cx.expr(size, hir_array.and_then(|hir| hir.size))),
+                    );
                     m.entry("typeDescriptions", &descriptions);
                 })
             }
-            (ast::TypeKind::Mapping(mapping), hir::TypeKind::Mapping(hir_mapping)) => {
+            ast::TypeKind::Mapping(mapping) => {
+                let hir_mapping = match hir_kind {
+                    Some(hir::TypeKind::Mapping(hir_mapping)) => Some(hir_mapping),
+                    None => None,
+                    Some(_) => mismatch(),
+                };
                 cx.write(s, "Mapping", ty.span, |m| {
                     m.entry(
                         "keyType",
-                        &Cx { in_mapping_key: true, ..*cx }.w((&mapping.key, &hir_mapping.key)),
+                        &Cx { in_mapping_key: true, ..*cx }
+                            .w((&mapping.key, hir_mapping.map(|hir| &hir.key))),
                     );
                     m.entry("keyName", &name(mapping.key_name));
                     m.entry("keyNameLocation", &cx.src(span_of(mapping.key_name)));
-                    m.entry("valueType", &cx.w((&mapping.value, &hir_mapping.value)));
+                    m.entry(
+                        "valueType",
+                        &cx.w((&mapping.value, hir_mapping.map(|hir| &hir.value))),
+                    );
                     m.entry("valueName", &name(mapping.value_name));
                     m.entry("valueNameLocation", &cx.src(span_of(mapping.value_name)));
                     m.entry("typeDescriptions", &descriptions);
                 })
             }
-            (ast::TypeKind::Function(function), hir::TypeKind::Function(hir_function)) => {
-                // solc ends a function type with the next token, which also holds its empty list of
-                // returns.
+            ast::TypeKind::Function(function) => {
+                let hir_function = match hir_kind {
+                    Some(hir::TypeKind::Function(hir_function)) => Some(hir_function),
+                    None => None,
+                    Some(_) => mismatch(),
+                };
+                // solc ends a function type with the next token, which also holds its empty list
+                // of returns.
                 let next = cx.token_after(ty.span);
                 let (mut m, id) = cx.node(s, "FunctionTypeName", ty.span.with_hi(next.hi()))?;
-                m.entry("visibility", hir_function.visibility.to_str());
-                m.entry("stateMutability", hir_function.state_mutability.to_str());
+                // The AST validator reports invalid visibilities, which are internal here.
+                let visibility =
+                    function.visibility().filter(|&vis| vis == ast::Visibility::External);
+                m.entry("visibility", visibility.unwrap_or(ast::Visibility::Internal).to_str());
+                m.entry("stateMutability", function.state_mutability().to_str());
+                let scope = cx.sema().then_some(id);
                 let parameters = Params {
                     id: None,
                     span: function.parameters.span,
                     ast: function.parameters.vars,
-                    hir: hir_function.parameters,
-                    scope: id,
+                    hir: hir_function.map(|hir| hir.parameters),
+                    scope,
                 };
                 m.entry("parameterTypes", &cx.w(parameters));
                 let span = function.returns.as_ref().map_or(next.shrink_to_lo(), |r| r.span);
@@ -403,14 +454,13 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Type<'_>, &hir::Type<'gcx>)> {
                     id: None,
                     span,
                     ast: function.returns(),
-                    hir: hir_function.returns,
-                    scope: id,
+                    hir: hir_function.map(|hir| hir.returns),
+                    scope,
                 };
                 m.entry("returnParameterTypes", &cx.w(returns));
                 m.entry("typeDescriptions", &descriptions);
                 m.end()
             }
-            _ => unreachable!("lowering does not match the AST: {ty:?}"),
         }
     }
 }

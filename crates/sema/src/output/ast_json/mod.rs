@@ -7,13 +7,19 @@
 //! small view that writes its fields straight to the serializer; nothing is cloned or collected
 //! into a JSON value tree.
 //!
-//! IDs agree with every other ID the compiler reports, such as the keys of `immutableReferences`
-//! and the `astId` of the storage layout, but not with solc's numbering:
+//! The HIR side of every pair is optional: when the compilation stops before lowering the ASTs
+//! (`stopAfter: parsing`), only the parsed AST exists, and the writers leave out what needs sema,
+//! like solc. Its types are empty, and it has no resolutions, scopes or attributes that type
+//! checking sets. Everything else is written from the AST, with or without sema.
+//!
+//! With sema, IDs agree with every other ID the compiler reports, such as the keys of
+//! `immutableReferences` and the `astId` of the storage layout, but not with solc's numbering:
 //!
 //! - items, including variables, enum values and struct fields, use [`Hir::global_item_id`];
 //! - source units follow the items, and import directives follow the source units;
-//! - every other node takes the next ID when its writer reaches it, so a node writes the fields
-//!   that need its ID, such as the scope of its children, after allocating it.
+//! - every other node takes the next ID of the range that its source reserves, when its writer
+//!   reaches it, so a node writes the fields that need its ID, such as the scope of its children,
+//!   after allocating it. Without sema, that is every node.
 //!
 //! A node's writer states its fields in order inside [`Cx::write`], [`Cx::write_item`] or a similar
 //! method: the method starts the node (`id`, `src`, `nodeType`), passes a [`Node`] to a closure and
@@ -36,32 +42,56 @@ use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde_json::value::RawValue;
 use solar_ast::{self as ast, CommentKind, DocComments, token::TokenLitKind};
 use solar_data_structures::index::IndexVec;
-use solar_interface::{BytePos, Ident, Span, Symbol, kw, source_map::SourceFile};
+use solar_interface::{
+    BytePos, Ident, Span, Symbol, config::CompilerStage, kw, source_map::SourceFile,
+};
 use solar_parse::Lexer;
 use std::{borrow::Cow, cell::Cell, collections::BTreeMap, fmt, ops::Range, sync::OnceLock};
+
+/// Destructures the HIR node that pairs with an AST node: `None` without sema, and what the arm
+/// builds from a node of the expected kind.
+macro_rules! paired {
+    ($hir:expr, $pat:pat => $out:expr) => {
+        match $hir {
+            Some($pat) => Some($out),
+            None => None,
+            Some(other) => unreachable!("lowering does not match the AST: {other:?}"),
+        }
+    };
+}
 
 mod expr;
 mod ty;
 mod yul;
 
 impl<'gcx> Gcx<'gcx> {
-    /// Returns the AST JSON of the compilation, which must have passed analysis.
+    /// Returns the AST JSON of the compilation.
     ///
     /// Matches the `ast` output of solc's Standard JSON and combined JSON. `pretty` says whether
     /// the output is indented, which takes more work to write than compact output.
     ///
+    /// The compilation either passed analysis, or stopped before lowering the ASTs. Only the
+    /// former gives the nodes their IDs, types and resolutions; the latter gives the parsed AST,
+    /// like solc with `stopAfter: parsing`.
+    ///
     /// Reference: <https://docs.soliditylang.org/en/develop/using-the-compiler.html#output-description>
     pub fn ast_json(self, pretty: bool) -> AstJson<'gcx> {
+        let sema = self.sess.opts.stop_after.is_none_or(|stage| stage >= CompilerStage::Analysis);
         let hir = &self.hir;
-        let mut next_id = hir.item_count() + hir.sources.len();
-        let first_imports = hir
-            .sources()
-            .map(|source| {
-                let first = next_id;
-                next_id += source.imports.len();
-                first
-            })
-            .collect();
+        // Items, source units and import directives have the IDs that the compiler reports
+        // elsewhere, which only exist with sema.
+        let mut next_id = if sema { hir.item_count() + hir.sources.len() } else { 0 };
+        let first_imports = if sema {
+            hir.sources()
+                .map(|source| {
+                    let first = next_id;
+                    next_id += source.imports.len();
+                    first
+                })
+                .collect()
+        } else {
+            IndexVec::new()
+        };
         // Every source gets its own range of IDs for the nodes that are no items, so that the
         // sources can be written in any order, or at the same time, to the same output.
         let id_ranges = self
@@ -75,6 +105,7 @@ impl<'gcx> Gcx<'gcx> {
             .collect();
         AstJson {
             gcx: self,
+            sema,
             first_imports,
             id_ranges,
             pretty,
@@ -98,7 +129,9 @@ const ID_RANGE_SLACK: usize = 16;
 /// write them.
 pub struct AstJson<'gcx> {
     gcx: Gcx<'gcx>,
-    /// The ID of the first import directive of each source.
+    /// Whether the compilation passed analysis, which gives the nodes IDs, types and resolutions.
+    sema: bool,
+    /// The ID of the first import directive of each source, with sema.
     first_imports: IndexVec<SourceId, usize>,
     /// The IDs of each source for the nodes that are no items, source units or import directives.
     id_ranges: IndexVec<SourceId, Range<usize>>,
@@ -113,10 +146,10 @@ impl<'gcx> AstJson<'gcx> {
     /// Returns the AST JSON of the source, or `None` if it has no AST, or if its imports were not
     /// resolved (`-Zno-resolve-imports`), since an import directive needs the source it imports.
     pub fn source(&self, id: SourceId) -> Option<SourceAstJson<'_, 'gcx>> {
-        let ast = self.gcx.sources[id].ast.as_ref()?;
+        let source = &self.gcx.sources[id];
+        let ast = source.ast.as_ref()?;
         let imports = ast.items.iter().filter(|item| matches!(item.kind, ast::ItemKind::Import(_)));
-        (imports.count() == self.gcx.hir.source(id).imports.len())
-            .then_some(SourceAstJson { json: self, id })
+        (imports.count() == source.imports.len()).then_some(SourceAstJson { json: self, id })
     }
 
     /// Writes the sources ahead, in parallel, so that writing the output only copies them. Compact
@@ -133,6 +166,7 @@ impl<'gcx> AstJson<'gcx> {
         });
     }
 
+    /// Returns the ID of a source unit, with sema.
     fn source_unit_id(&self, id: SourceId) -> usize {
         self.gcx.hir.source_unit_id(id)
     }
@@ -157,9 +191,11 @@ impl Serialize for SourceAstJson<'_, '_> {
             return rendered.serialize(s);
         }
         let gcx = json.gcx;
-        let file = &gcx.hir.source(id).file;
+        let source = &gcx.sources[id];
+        let file = &source.file;
         let ids = Ids { next: Cell::new(json.id_ranges[id].start), end: json.id_ranges[id].end };
         let types = (!json.pretty).then(Default::default);
+        let unit_id = if json.sema { json.source_unit_id(id) } else { ids.fresh() };
         let cx = Cx {
             json,
             ids: &ids,
@@ -167,35 +203,38 @@ impl Serialize for SourceAstJson<'_, '_> {
             gcx,
             source: id,
             start: file.start_pos,
+            in_contract: false,
             in_event: false,
             in_mapping_key: false,
             in_local: false,
-            block: json.source_unit_id(id),
+            block: unit_id,
             returns: None,
             parent: expr::Parent::default(),
             for_init: false,
         };
-        let ast = gcx.sources[id].ast.as_ref().unwrap();
+        let ast = source.ast.as_ref().unwrap();
 
         let mut m = Node::object(s)?;
-        m.entry("id", &json.source_unit_id(id));
+        m.entry("id", &unit_id);
         let start = source_start(gcx, file);
         let (lo, hi) = (start.to_u32() - file.start_pos.to_u32(), file.source_len.to_u32());
         m.entry("src", &format_args!("{lo}:{}:{}", hi - lo, id.index()));
         m.entry("nodeType", "SourceUnit");
         m.entry("absolutePath", &file.name.display().to_string());
-        m.entry("exportedSymbols", &cx.w(ExportedSymbols));
+        if json.sema {
+            m.entry("exportedSymbols", &cx.w(ExportedSymbols));
+        }
         if let Some(license) = license(file, &ast.items.raw) {
             m.entry("license", &license);
         }
-        let source = gcx.hir.source(id);
+        let hir = json.sema.then(|| gcx.hir.source(id));
         m.entry(
             "nodes",
             &cx.w(Items {
                 ast: &ast.items.raw,
-                hir: source.items,
-                usings: source.usings,
-                imports: source.imports,
+                hir: hir.map(|source| source.items),
+                usings: hir.map_or(&[], |source| source.usings),
+                imports: &source.imports,
             }),
         );
         let written = m.end()?;
@@ -272,6 +311,8 @@ struct Cx<'a, 'gcx> {
     /// Whether the node is the key type of a mapping, which solc parses without the state
     /// mutability of `address`.
     in_mapping_key: bool,
+    /// Whether the node is an item of a contract.
+    in_contract: bool,
     /// Whether the node is the type of a local variable, whose array elements solc parses as
     /// expressions and so gives no state mutability to an `address`.
     in_local: bool,
@@ -423,20 +464,34 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
     }
 
     /// Writes the node of an item: the fields that `fields` writes.
+    ///
+    /// Without sema, an item has no ID of its own, but takes the next free one.
     fn write_item<S: Serializer>(
         self,
         s: S,
-        id: impl Into<ItemId>,
+        id: Option<impl Into<ItemId>>,
         node_type: &str,
         span: Span,
         fields: impl FnOnce(&mut Node<S::SerializeMap>),
     ) -> Result<S::Ok, S::Error> {
-        self.write_with_id(s, self.item_id(id), node_type, span, fields)
+        let id = id.map_or_else(|| self.ids.fresh(), |id| self.item_id(id));
+        self.write_with_id(s, id, node_type, span, fields)
+    }
+
+    /// Returns whether the compilation passed analysis, which gives the nodes IDs, types and
+    /// resolutions.
+    fn sema(self) -> bool {
+        self.json.sema
+    }
+
+    /// Returns the source file.
+    fn file(self) -> &'gcx SourceFile {
+        &self.gcx.sources[self.source].file
     }
 
     /// Returns the span of the first token after `span`, which is empty if there is none.
     fn token_after(&self, span: Span) -> Span {
-        let file = &self.gcx.hir.source(self.source).file;
+        let file = self.file();
         let rest = &file.src[(span.hi() - file.start_pos).to_usize()..];
         let mut tokens = Lexer::with_start_pos(self.gcx.sess, rest, span.hi());
         tokens
@@ -460,7 +515,7 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
 
     /// Returns the source text of a span.
     fn text(&self, span: Span) -> &str {
-        let file = &self.gcx.hir.source(self.source).file;
+        let file = self.file();
         &file.src[(span.lo() - file.start_pos).to_usize()..(span.hi() - file.start_pos).to_usize()]
     }
 
@@ -672,8 +727,8 @@ impl Serialize for W<'_, '_, ExportedSymbols> {
 /// The items of a source or a contract.
 struct Items<'a, 'ast, 'gcx> {
     ast: &'a [ast::Item<'ast>],
-    /// The HIR items, which also hold the getters and Yul functions lowering adds.
-    hir: &'a [ItemId],
+    /// The HIR items, which also hold the getters and Yul functions lowering adds, with sema.
+    hir: Option<&'a [ItemId]>,
     usings: &'a [hir::UsingDirective<'gcx>],
     /// The imports of the source.
     imports: &'a [(ast::ItemId, SourceId)],
@@ -683,18 +738,22 @@ impl<'gcx> Serialize for W<'_, 'gcx, Items<'_, '_, 'gcx>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, items) = self;
         let hir = &cx.gcx.hir;
-        let mut hir_items = items.hir.iter().copied().filter(|&id| match id {
-            ItemId::Function(id) => !hir.function(id).is_yul && hir.function(id).gettee.is_none(),
-            _ => true,
+        let mut hir_items = items.hir.map(|ids| {
+            ids.iter().copied().filter(|&id| match id {
+                ItemId::Function(id) => {
+                    !hir.function(id).is_yul && hir.function(id).gettee.is_none()
+                }
+                _ => true,
+            })
         });
         let mut usings = items.usings.iter();
         let mut imports = items.imports.iter().enumerate();
         macro_rules! next_hir {
             ($kind:ident) => {
-                match hir_items.next() {
+                hir_items.as_mut().map(|items| match items.next() {
                     Some(ItemId::$kind(id)) => id,
                     id => unreachable!("lowering does not match the AST: {id:?}"),
-                }
+                })
             };
         }
 
@@ -705,11 +764,14 @@ impl<'gcx> Serialize for W<'_, 'gcx, Items<'_, '_, 'gcx>> {
                 ast::ItemKind::Import(import) => {
                     let (position, &(ast_id, source)) = imports.next().unwrap();
                     debug_assert_eq!(ast_id.index(), index);
-                    let id = cx.json.first_imports[cx.source] + position;
+                    let id = match cx.sema() {
+                        true => cx.json.first_imports[cx.source] + position,
+                        false => cx.ids.fresh(),
+                    };
                     seq.serialize_element(&cx.w(Import { item, import, id, source }))?;
                 }
                 ast::ItemKind::Using(using) => {
-                    seq.serialize_element(&cx.w((item, using, usings.next().unwrap())))?
+                    seq.serialize_element(&cx.w((item, using, usings.next())))?
                 }
                 ast::ItemKind::Contract(contract) => {
                     seq.serialize_element(&cx.w((item, contract, next_hir!(Contract))))?
@@ -721,11 +783,15 @@ impl<'gcx> Serialize for W<'_, 'gcx, Items<'_, '_, 'gcx>> {
                     let id = next_hir!(Variable);
                     // File-level variables are no state variables, so solc leaves their
                     // documentation out.
-                    let docs = hir.variable(id).is_state_variable().then_some(&item.docs);
-                    let scope = cx.scope(hir.variable(id).contract);
+                    let docs = match id {
+                        Some(id) => hir.variable(id).is_state_variable().then_some(&item.docs),
+                        None => None,
+                    };
+                    let scope = id.map(|id| cx.scope(hir.variable(id).contract));
                     seq.serialize_element(&cx.w(Var {
                         ast: variable,
                         id,
+                        node: None,
                         value: true,
                         docs,
                         scope,
@@ -790,9 +856,11 @@ impl Serialize for W<'_, '_, Import<'_, '_>> {
         let json = cx.json;
         cx.write_with_id(s, *id, "ImportDirective", item.span, |m| {
             m.entry("file", &Sym(import.path.value));
-            m.entry("sourceUnit", &json.source_unit_id(*source));
-            m.entry("scope", &json.source_unit_id(cx.source));
-            let file_name = &cx.gcx.hir.source(*source).file.name;
+            if cx.sema() {
+                m.entry("sourceUnit", &json.source_unit_id(*source));
+                m.entry("scope", &json.source_unit_id(cx.source));
+            }
+            let file_name = &cx.gcx.sources[*source].file.name;
             m.entry("absolutePath", &format_args!("{}", file_name.display()));
             let alias = import.source_alias();
             m.entry("unitAlias", &name(alias));
@@ -842,20 +910,19 @@ impl Serialize for W<'_, '_, (Ident, SourceId)> {
         cx.write(s, "Identifier", foreign.span, |m| {
             m.entry("name", foreign.as_str());
             m.entry("overloadedDeclarations", &[(); 0]);
-            let declaration = cx.gcx.symbol_resolver.source_scopes[*imported]
-                .resolve(*foreign)
-                .and_then(|declarations| match declarations {
-                    [declaration] => Some(declaration),
+            let declaration = cx.sema().then(|| {
+                let declarations =
+                    cx.gcx.symbol_resolver.source_scopes[*imported].resolve(*foreign);
+                match declarations? {
+                    [declaration] => match declaration.res {
+                        hir::Res::Item(id) => Some(cx.item_id(id)),
+                        hir::Res::Namespace(_) => cx.import_id(declaration),
+                        _ => None,
+                    },
                     _ => None,
-                })
-                .and_then(|declaration| match declaration.res {
-                    hir::Res::Item(id) => Some(cx.item_id(id)),
-                    hir::Res::Namespace(_) => cx.import_id(declaration),
-                    _ => None,
-                });
-            if let Some(declaration) = declaration {
-                m.entry("referencedDeclaration", &declaration);
-            }
+                }
+            });
+            m.opt("referencedDeclaration", declaration.flatten());
             m.entry("typeDescriptions", &Empty);
         })
     }
@@ -871,29 +938,29 @@ impl Serialize for Empty {
 }
 
 impl<'gcx> Serialize
-    for W<'_, 'gcx, (&ast::Item<'_>, &ast::UsingDirective<'_>, &hir::UsingDirective<'gcx>)>
+    for W<'_, 'gcx, (&ast::Item<'_>, &ast::UsingDirective<'_>, Option<&hir::UsingDirective<'gcx>>)>
 {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (item, using, hir)) = self;
         cx.write(s, "UsingForDirective", item.span, |m| {
-            if let (Some(ty), Some(hir_ty)) = (&using.ty, &hir.ty) {
-                m.entry("typeName", &cx.w((ty, hir_ty)));
+            if let Some(ty) = &using.ty {
+                m.entry("typeName", &cx.w((ty, hir.and_then(|hir| hir.ty.as_ref()))));
             }
             match &using.list {
                 ast::UsingList::Single(path) => {
-                    let library = match hir.entries[0].kind {
+                    let library = hir.and_then(|hir| match hir.entries[0].kind {
                         hir::UsingEntryKind::Library(id) => Some(cx.item_id(id)),
                         _ => None,
-                    };
+                    });
                     m.entry("libraryName", &cx.w(IdentPath { path, declaration: library }));
                 }
                 ast::UsingList::Multiple(paths) => {
                     let list = Seq(|| {
-                        paths.iter().zip(hir.entries).map(|((path, operator), entry)| {
-                            let function = match entry.kind {
+                        paths.iter().enumerate().map(|(i, (path, operator))| {
+                            let function = hir.and_then(|hir| match hir.entries[i].kind {
                                 hir::UsingEntryKind::Functions(&[id]) => Some(cx.item_id(id)),
                                 _ => None,
-                            };
+                            });
                             cx.w(UsingFunction { path, function, operator: *operator })
                         })
                     });
@@ -949,112 +1016,130 @@ impl Serialize for W<'_, '_, IdentPath<'_>> {
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemContract<'_>, ContractId)> {
+impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemContract<'_>, Option<ContractId>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (item, contract, id)) = self;
         let gcx = cx.gcx;
-        let c = gcx.hir.contract(*id);
+        let c = id.map(|id| gcx.hir.contract(id));
         cx.write_item(s, *id, "ContractDefinition", item.span, |m| {
             m.docs(*cx, &item.docs);
-            m.name(*cx, c.name);
+            m.name(*cx, contract.name);
             m.entry(
                 "contractKind",
-                match c.kind {
+                match contract.kind {
                     ast::ContractKind::Interface => "interface",
                     ast::ContractKind::Library => "library",
                     ast::ContractKind::Contract | ast::ContractKind::AbstractContract => "contract",
                 },
             );
-            m.entry("abstract", &c.is_abstract());
+            m.entry("abstract", &contract.kind.is_abstract_contract());
             let bases = Seq(|| {
                 contract
                     .bases
                     .iter()
-                    .zip(c.bases_args)
-                    .map(|(base, hir)| cx.w(Inheritance(base, hir)))
+                    .enumerate()
+                    .map(|(i, base)| cx.w(Inheritance(base, c.map(|c| &c.bases_args[i]))))
             });
             m.entry("baseContracts", &bases);
-            m.entry("canonicalName", c.name.as_str());
+            if cx.sema() {
+                m.entry("canonicalName", contract.name.as_str());
+            }
+            // Without sema, the lists are empty.
+            let deps = id.map(|id| gcx.contract_bytecode_dependencies(id));
             m.entry(
                 "contractDependencies",
-                &sorted_ids(*cx, gcx.contract_bytecode_dependencies(*id).iter()),
+                &sorted_ids(*cx, deps.iter().flat_map(|deps| deps.iter())),
             );
-            m.entry("usedEvents", &sorted_ids(*cx, gcx.interface_events(*id).iter()));
-            m.entry("usedErrors", &sorted_ids(*cx, gcx.interface_errors(*id).iter()));
-            let items = Items { ast: contract.body, hir: c.items, usings: c.usings, imports: &[] };
-            m.entry("nodes", &cx.w(items));
-            m.entry("scope", &cx.scope(None));
-            if let (Some(layout), Some(slot)) = (&contract.layout, c.layout) {
+            let events = id.map(|id| gcx.interface_events(id));
+            m.entry("usedEvents", &sorted_ids(*cx, events.iter().flat_map(|events| events.iter())));
+            let errors = id.map(|id| gcx.interface_errors(id));
+            m.entry("usedErrors", &sorted_ids(*cx, errors.iter().flat_map(|errors| errors.iter())));
+            let items = Items {
+                ast: contract.body,
+                hir: c.map(|c| c.items),
+                usings: c.map_or(&[], |c| c.usings),
+                imports: &[],
+            };
+            m.entry("nodes", &Cx { in_contract: true, ..*cx }.w(items));
+            if cx.sema() {
+                m.entry("scope", &cx.scope(None));
+            }
+            if let Some(layout) = &contract.layout {
+                let slot = c.and_then(|c| c.layout);
                 m.entry("storageLayout", &cx.w(expr::StorageLayout(layout, slot)));
             }
-            m.entry("fullyImplemented", &is_fully_implemented(gcx, *id));
-            if !c.linearization_failed() {
-                let linearized = c.linearized_bases.iter().map(|&base| cx.item_id(base));
-                m.entry("linearizedBaseContracts", &linearized.collect::<Vec<_>>());
-            }
-            // Functions that function pointers reach are numbered from 1 in the order solc creates
-            // their nodes: by source name, then by position.
-            let mut targets =
-                gcx.contract_internal_dispatch_targets(*id).iter().collect::<Vec<_>>();
-            targets.sort_by_cached_key(|&function| {
-                let function = gcx.hir.function(function);
-                (
-                    gcx.hir.source(function.source).file.name.display().to_string(),
-                    function.span.lo(),
-                )
-            });
-            if !targets.is_empty() {
-                let ids = targets
-                    .iter()
-                    .zip(1..)
-                    .map(|(&function, n)| (cx.item_id(function).to_string(), n));
-                m.entry("internalFunctionIDs", &ids.collect::<BTreeMap<_, usize>>());
+            if let (Some(id), Some(c)) = (id, c) {
+                m.entry("fullyImplemented", &is_fully_implemented(gcx, *id));
+                if !c.linearization_failed() {
+                    let linearized = c.linearized_bases.iter().map(|&base| cx.item_id(base));
+                    m.entry("linearizedBaseContracts", &linearized.collect::<Vec<_>>());
+                }
+                // Functions that function pointers reach are numbered from 1 in the order solc
+                // creates their nodes: by source name, then by position.
+                let mut targets =
+                    gcx.contract_internal_dispatch_targets(*id).iter().collect::<Vec<_>>();
+                targets.sort_by_cached_key(|&function| {
+                    let function = gcx.hir.function(function);
+                    (
+                        gcx.hir.source(function.source).file.name.display().to_string(),
+                        function.span.lo(),
+                    )
+                });
+                if !targets.is_empty() {
+                    let ids = targets
+                        .iter()
+                        .zip(1..)
+                        .map(|(&function, n)| (cx.item_id(function).to_string(), n));
+                    m.entry("internalFunctionIDs", &ids.collect::<BTreeMap<_, usize>>());
+                }
             }
         })
     }
 }
 
 /// A base contract in the inheritance list: an `InheritanceSpecifier` node.
-struct Inheritance<'a, 'ast, 'gcx>(&'a ast::Modifier<'ast>, &'a hir::Modifier<'gcx>);
+struct Inheritance<'a, 'ast, 'gcx>(&'a ast::Modifier<'ast>, Option<&'a hir::Modifier<'gcx>>);
 
 impl<'gcx> Serialize for W<'_, 'gcx, Inheritance<'_, '_, 'gcx>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, Inheritance(base, hir)) = self;
         cx.write(s, "InheritanceSpecifier", base.span(), |m| {
-            let declaration = Some(cx.item_id(hir.id));
+            let declaration = hir.map(|hir| cx.item_id(hir.id));
             m.entry("baseName", &cx.w(IdentPath { path: &base.name, declaration }));
             if !base.arguments.is_dummy() {
-                m.entry("arguments", &cx.w(expr::Args(&base.arguments, &hir.args)));
+                m.entry("arguments", &cx.w(expr::Args(&base.arguments, hir.map(|hir| &hir.args))));
             }
         })
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, hir::FunctionId)> {
+impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, Option<hir::FunctionId>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (item, function, id)) = self;
         let gcx = cx.gcx;
-        let f = gcx.hir.function(*id);
+        let f = id.map(|id| gcx.hir.function(id));
         let header = &function.header;
-        let item_id = cx.item_id(*id);
-        let is_modifier = f.kind.is_modifier();
+        let item_id = id.map_or_else(|| cx.ids.fresh(), |id| cx.item_id(id));
+        // The scope of the parameters and variables of the function, with sema.
+        let scope = cx.sema().then_some(item_id);
+        let is_modifier = function.kind.is_modifier();
         let node_type = if is_modifier { "ModifierDefinition" } else { "FunctionDefinition" };
         let mut m = cx.node_with_id(s, item_id, node_type, item.span)?;
         m.docs(*cx, &item.docs);
-        m.name(*cx, f.name);
+        m.name(*cx, header.name);
         // The `return` statements of the body refer to the list of return parameters.
         let returns_id = (!is_modifier).then(|| cx.ids.fresh());
         if !is_modifier {
-            let kind = if f.is_free() { "freeFunction" } else { f.kind.to_str() };
-            m.entry("kind", kind);
-            m.entry("stateMutability", f.state_mutability.to_str());
+            let free = !cx.in_contract && function.kind.is_ordinary();
+            m.entry("kind", if free { "freeFunction" } else { function.kind.to_str() });
+            m.entry("stateMutability", header.state_mutability().to_str());
         }
-        m.entry("virtual", &f.marked_virtual);
+        m.entry("virtual", &header.virtual_());
         if let Some(overrides) = &header.override_ {
-            m.entry("overrides", &cx.w((overrides, f.overrides)));
+            m.entry("overrides", &cx.w((overrides, f.map(|f| f.overrides))));
         }
         // A modifier without `()` has an empty list at the token after its name.
-        let span = match f.name {
+        let span = match header.name {
             Some(name) if header.parameters.span.is_dummy() => {
                 cx.token_after(name.span).shrink_to_lo()
             }
@@ -1064,8 +1149,8 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, hir::Funct
             id: None,
             span,
             ast: header.parameters.vars,
-            hir: f.parameters,
-            scope: item_id,
+            hir: f.map(|f| f.parameters),
+            scope,
         };
         m.entry("parameters", &cx.w(parameters));
         if !is_modifier {
@@ -1076,78 +1161,88 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, hir::Funct
                 id: returns_id,
                 span,
                 ast: header.returns(),
-                hir: f.returns,
-                scope: item_id,
+                hir: f.map(|f| f.returns),
+                scope,
             };
             m.entry("returnParameters", &cx.w(returns));
-            let modifiers =
-                Seq(|| header.modifiers.iter().zip(f.modifiers).map(|(m, hir)| cx.w((m, hir))));
+            let modifiers = Seq(|| {
+                header
+                    .modifiers
+                    .iter()
+                    .enumerate()
+                    .map(|(i, modifier)| cx.w((modifier, f.map(|f| &f.modifiers[i]))))
+            });
             m.entry("modifiers", &modifiers);
             m.entry("implemented", &function.is_implemented());
-            m.entry("scope", &cx.scope(f.contract));
-        }
-        // A constructor of an abstract contract can only be called by derived contracts.
-        let visibility = match f.contract {
-            Some(c) if f.kind.is_constructor() => {
-                if gcx.hir.contract(c).is_abstract() {
-                    "internal"
-                } else {
-                    "public"
-                }
+            if let Some(f) = f {
+                m.entry("scope", &cx.scope(f.contract));
             }
-            _ => f.visibility.to_str(),
+        }
+        // A constructor of an abstract contract can only be called by derived contracts. Without
+        // sema, it has no visibility.
+        let visibility = match function.kind.is_constructor() {
+            true => f
+                .and_then(|f| f.contract)
+                .map(|c| if gcx.hir.contract(c).is_abstract() { "internal" } else { "public" }),
+            false => Some(function.visibility_or_default(!cx.in_contract).to_str()),
         };
-        m.entry("visibility", visibility);
-        if let (Some(ast_body), Some(hir_body)) = (&function.body, &f.body) {
+        m.opt("visibility", visibility);
+        if let Some(ast_body) = &function.body {
             let body = expr::Block {
                 docs: None,
                 span: ast_body.span,
                 ast: ast_body,
-                hir: hir_body,
+                hir: f.and_then(|f| f.body.as_ref()),
                 unchecked: false,
             };
             m.entry("body", &Cx { returns: returns_id, ..*cx }.w(body));
         }
-        if f.is_part_of_external_interface() {
-            m.entry("functionSelector", &hex::encode(gcx.function_selector(*id)));
-        }
-        let bases = gcx.base_override_items((*id).into());
-        if !bases.is_empty() {
-            let key = if is_modifier { "baseModifiers" } else { "baseFunctions" };
-            m.entry(key, &sorted_ids(*cx, bases.iter().copied()));
+        if let (Some(id), Some(f)) = (id, f) {
+            if f.is_part_of_external_interface() {
+                m.entry("functionSelector", &hex::encode(gcx.function_selector(*id)));
+            }
+            let bases = gcx.base_override_items((*id).into());
+            if !bases.is_empty() {
+                let key = if is_modifier { "baseModifiers" } else { "baseFunctions" };
+                m.entry(key, &sorted_ids(*cx, bases.iter().copied()));
+            }
         }
         m.end()
     }
 }
 
-impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Modifier<'_>, &hir::Modifier<'gcx>)> {
+impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Modifier<'_>, Option<&hir::Modifier<'gcx>>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (modifier, hir)) = self;
         cx.write(s, "ModifierInvocation", modifier.span(), |m| {
-            let declaration = Some(cx.item_id(hir.id));
+            let declaration = hir.map(|hir| cx.item_id(hir.id));
             m.entry("modifierName", &cx.w(IdentPath { path: &modifier.name, declaration }));
             if !modifier.arguments.is_dummy() {
-                m.entry("arguments", &cx.w(expr::Args(&modifier.arguments, &hir.args)));
+                m.entry(
+                    "arguments",
+                    &cx.w(expr::Args(&modifier.arguments, hir.map(|hir| &hir.args))),
+                );
             }
-            let kind = match hir.id {
-                ItemId::Contract(_) => "baseConstructorSpecifier",
-                _ => "modifierInvocation",
-            };
-            m.entry("kind", kind);
+            if let Some(hir) = hir {
+                let kind = match hir.id {
+                    ItemId::Contract(_) => "baseConstructorSpecifier",
+                    _ => "modifierInvocation",
+                };
+                m.entry("kind", kind);
+            }
         })
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Override<'_>, &[ContractId])> {
+impl Serialize for W<'_, '_, (&ast::Override<'_>, Option<&[ContractId]>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (overrides, ids)) = self;
         cx.write(s, "OverrideSpecifier", overrides.span, |m| {
-            let paths =
-                Seq(|| {
-                    overrides.paths.iter().zip(*ids).map(|(path, &id)| {
-                        cx.w(IdentPath { path, declaration: Some(cx.item_id(id)) })
-                    })
-                });
+            let paths = Seq(|| {
+                overrides.paths.iter().enumerate().map(|(i, path)| {
+                    cx.w(IdentPath { path, declaration: ids.map(|ids| cx.item_id(ids[i])) })
+                })
+            });
             m.entry("overrides", &paths);
         })
     }
@@ -1159,9 +1254,9 @@ struct Params<'a, 'ast> {
     id: Option<usize>,
     span: Span,
     ast: &'a [ast::VariableDefinition<'ast>],
-    hir: &'a [VariableId],
-    /// The ID of the node that declares the parameters.
-    scope: usize,
+    hir: Option<&'a [VariableId]>,
+    /// The ID of the node that declares the parameters, with sema.
+    scope: Option<usize>,
 }
 
 impl Serialize for W<'_, '_, Params<'_, '_>> {
@@ -1169,7 +1264,7 @@ impl Serialize for W<'_, '_, Params<'_, '_>> {
         let Self(cx, Params { id, span, ast, hir, scope }) = self;
         let id = id.unwrap_or_else(|| cx.ids.fresh());
         cx.write_with_id(s, id, "ParameterList", *span, |m| {
-            m.entry("parameters", &cx.w(Vars { ast, hir, scope: *scope }));
+            m.entry("parameters", &cx.w(Vars { ast, hir: *hir, scope: *scope }));
         })
     }
 }
@@ -1177,141 +1272,155 @@ impl Serialize for W<'_, '_, Params<'_, '_>> {
 /// The variables of a parameter list, a struct or an event.
 struct Vars<'a, 'ast> {
     ast: &'a [ast::VariableDefinition<'ast>],
-    hir: &'a [VariableId],
-    scope: usize,
+    hir: Option<&'a [VariableId]>,
+    scope: Option<usize>,
 }
 
 impl Serialize for W<'_, '_, Vars<'_, '_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, Vars { ast, hir, scope }) = self;
-        s.collect_seq(
-            ast.iter()
-                .zip(*hir)
-                .map(|(ast, &id)| cx.w(Var { ast, id, value: false, docs: None, scope: *scope })),
-        )
+        s.collect_seq(ast.iter().enumerate().map(|(i, ast)| {
+            let id = hir.map(|hir| hir[i]);
+            cx.w(Var { ast, id, node: None, value: false, docs: None, scope: *scope })
+        }))
     }
 }
 
 /// A variable of any kind.
 struct Var<'a, 'ast> {
     ast: &'a ast::VariableDefinition<'ast>,
-    id: VariableId,
+    /// The variable, with sema.
+    id: Option<VariableId>,
+    /// The ID of the node, if it was allocated before.
+    node: Option<usize>,
     /// Whether the variable has its initial value, which a local variable leaves to its
     /// declaration statement.
     value: bool,
     /// The documentation, for state variables.
     docs: Option<&'a DocComments<'ast>>,
-    /// The ID of the node that declares the variable.
-    scope: usize,
+    /// The ID of the node that declares the variable, with sema.
+    scope: Option<usize>,
 }
 
 impl Serialize for W<'_, '_, Var<'_, '_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self(cx, Var { ast, id, value, docs, scope }) = self;
+        let Self(cx, Var { ast, id, node, value, docs, scope }) = self;
         let gcx = cx.gcx;
-        let var = gcx.hir.variable(*id);
+        let var = id.map(|id| gcx.hir.variable(id));
         let span = cx.without_semicolon(ast.span);
         // The end of a function type is the end of the next token, which an unnamed variable
         // of the type shares.
         let span = match ast.ty.kind {
-            ast::TypeKind::Function(_) if var.name.is_none() => {
+            ast::TypeKind::Function(_) if ast.name.is_none() => {
                 span.with_hi(cx.token_after(ast.ty.span).hi())
             }
             _ => span,
         };
         // A local variable leaves its initial value to the declaration statement.
-        let span = match (&ast.initializer, var.name) {
+        let span = match (&ast.initializer, ast.name) {
             (Some(_), Some(name)) if !*value => span.with_hi(name.span.hi()),
             _ => span,
         };
-        cx.write_item(s, *id, "VariableDeclaration", span, |m| {
+        let node = node.unwrap_or_else(|| id.map_or_else(|| cx.ids.fresh(), |id| cx.item_id(id)));
+        cx.write_with_id(s, node, "VariableDeclaration", span, |m| {
             if let Some(docs) = docs {
                 m.docs(*cx, docs);
             }
-            m.name(*cx, var.name);
-            m.entry("typeName", &cx.w((&ast.ty, &var.ty)));
-            m.entry("constant", &var.is_constant());
-            let mutability = match var.mutability {
-                None => "mutable",
-                Some(mutability) => mutability.to_str(),
-            };
-            m.entry("mutability", mutability);
-            m.entry("stateVariable", &var.is_state_variable());
-            m.entry("storageLocation", var.data_location.map_or("default", |loc| loc.to_str()));
+            m.name(*cx, ast.name);
+            m.entry("typeName", &cx.w((&ast.ty, var.map(|var| &var.ty))));
+            m.entry("constant", &(ast.mutability == Some(ast::VarMut::Constant)));
+            m.entry("mutability", ast.mutability.map_or("mutable", ast::VarMut::to_str));
+            // Without sema, solc does not know a state variable by its scope either.
+            m.entry("stateVariable", &var.is_some_and(|var| var.is_state_variable()));
+            m.entry("storageLocation", ast.data_location.map_or("default", |loc| loc.to_str()));
             if let Some(overrides) = &ast.override_ {
-                m.entry("overrides", &cx.w((overrides, var.overrides)));
+                m.entry("overrides", &cx.w((overrides, var.map(|var| var.overrides))));
             }
-            m.entry("visibility", var.visibility.unwrap_or(ast::Visibility::Internal).to_str());
-            if *value && let (Some(ast), Some(hir)) = (&ast.initializer, var.initializer) {
-                m.entry("value", &cx.w((&**ast, hir)));
+            m.entry("visibility", ast.visibility.unwrap_or(ast::Visibility::Internal).to_str());
+            if *value && let Some(initializer) = &ast.initializer {
+                m.entry("value", &cx.expr(initializer, var.and_then(|var| var.initializer)));
             }
-            m.entry("scope", scope);
-            // solc marks the reference types of every variable but a storage state variable as
-            // pointers.
-            let pointer = !var.is_state_variable() || var.mutability.is_some();
-            let ty = gcx.type_of_item((*id).into());
-            m.entry("typeDescriptions", &ty::TypeDescriptions::new(*cx, ty, pointer));
-            if let Some(getter) = var.getter {
-                m.entry("functionSelector", &hex::encode(gcx.function_selector(getter)));
-                let bases = gcx.base_override_items((*id).into());
-                if !bases.is_empty() {
-                    m.entry("baseFunctions", &sorted_ids(*cx, bases.iter().copied()));
+            m.opt("scope", *scope);
+            if let (Some(id), Some(var)) = (id, var) {
+                // solc marks the reference types of every variable but a storage state variable
+                // as pointers.
+                let pointer = !var.is_state_variable() || var.mutability.is_some();
+                let ty = gcx.type_of_item((*id).into());
+                m.entry("typeDescriptions", &ty::TypeDescriptions::new(*cx, ty, pointer));
+                if let Some(getter) = var.getter {
+                    m.entry("functionSelector", &hex::encode(gcx.function_selector(getter)));
+                    let bases = gcx.base_override_items((*id).into());
+                    if !bases.is_empty() {
+                        m.entry("baseFunctions", &sorted_ids(*cx, bases.iter().copied()));
+                    }
                 }
+            } else {
+                m.entry("typeDescriptions", &Empty);
             }
             if cx.in_event {
-                m.entry("indexed", &var.indexed);
+                m.entry("indexed", &ast.indexed);
             }
         })
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemStruct<'_>, hir::StructId)> {
+impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemStruct<'_>, Option<hir::StructId>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (item, strukt, id)) = self;
         let gcx = cx.gcx;
-        let hir = gcx.hir.strukt(*id);
-        let item_id = cx.item_id(*id);
+        let hir = id.map(|id| gcx.hir.strukt(id));
+        let item_id = id.map_or_else(|| cx.ids.fresh(), |id| cx.item_id(id));
         cx.write_with_id(s, item_id, "StructDefinition", item.span, |m| {
             m.docs(*cx, &item.docs);
-            m.name(*cx, hir.name);
+            m.name(*cx, strukt.name);
             m.entry("visibility", "public");
-            m.entry("members", &cx.w(Vars { ast: strukt.fields, hir: hir.fields, scope: item_id }));
-            m.entry("scope", &cx.scope(hir.contract));
-            m.entry("canonicalName", &format_args!("{}", gcx.item_canonical_name(*id)));
+            let scope = cx.sema().then_some(item_id);
+            m.entry(
+                "members",
+                &cx.w(Vars { ast: strukt.fields, hir: hir.map(|hir| hir.fields), scope }),
+            );
+            if let (Some(id), Some(hir)) = (id, hir) {
+                m.entry("scope", &cx.scope(hir.contract));
+                m.entry("canonicalName", &format_args!("{}", gcx.item_canonical_name(*id)));
+            }
         })
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemEnum<'_>, hir::EnumId)> {
+impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemEnum<'_>, Option<hir::EnumId>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self(cx, (item, _, id)) = self;
+        let Self(cx, (item, enumm, id)) = self;
         let gcx = cx.gcx;
-        let hir = gcx.hir.enumm(*id);
         cx.write_item(s, *id, "EnumDefinition", item.span, |m| {
             m.docs(*cx, &item.docs);
-            m.name(*cx, hir.name);
-            m.entry("members", &cx.w(EnumValues(hir.variants)));
-            m.entry("canonicalName", &format_args!("{}", gcx.item_canonical_name(*id)));
+            m.name(*cx, enumm.name);
+            let variants = id.map(|id| gcx.hir.enumm(id).variants);
+            m.entry("members", &cx.w(EnumValues { ast: enumm.variants, hir: variants }));
+            if let Some(id) = id {
+                m.entry("canonicalName", &format_args!("{}", gcx.item_canonical_name(*id)));
+            }
         })
     }
 }
 
 /// The variants of an enum: `EnumValue` nodes.
-struct EnumValues<'a>(&'a [VariableId]);
+struct EnumValues<'a> {
+    ast: &'a [Ident],
+    hir: Option<&'a [VariableId]>,
+}
 
 impl Serialize for W<'_, '_, EnumValues<'_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self(cx, EnumValues(variants)) = self;
-        let mut seq = s.serialize_seq(Some(variants.len()))?;
-        for &id in *variants {
-            let variant = cx.gcx.hir.variable(id).name.unwrap();
-            seq.serialize_element(&cx.w((id, variant)))?;
+        let Self(cx, EnumValues { ast, hir }) = self;
+        let mut seq = s.serialize_seq(Some(ast.len()))?;
+        for (i, &variant) in ast.iter().enumerate() {
+            seq.serialize_element(&cx.w((hir.map(|hir| hir[i]), variant)))?;
         }
         seq.end()
     }
 }
 
-impl Serialize for W<'_, '_, (VariableId, Ident)> {
+impl Serialize for W<'_, '_, (Option<VariableId>, Ident)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (id, name)) = self;
         cx.write_item(s, *id, "EnumValue", name.span, |m| {
@@ -1320,60 +1429,66 @@ impl Serialize for W<'_, '_, (VariableId, Ident)> {
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemUdvt<'_>, hir::UdvtId)> {
+impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemUdvt<'_>, Option<hir::UdvtId>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (item, udvt, id)) = self;
         let gcx = cx.gcx;
-        let hir = gcx.hir.udvt(*id);
         cx.write_item(s, *id, "UserDefinedValueTypeDefinition", item.span, |m| {
-            m.name(*cx, hir.name);
-            m.entry("underlyingType", &cx.w((&udvt.ty, &hir.ty)));
-            m.entry("canonicalName", &format_args!("{}", gcx.item_canonical_name(*id)));
+            m.name(*cx, udvt.name);
+            let hir = id.map(|id| gcx.hir.udvt(id));
+            m.entry("underlyingType", &cx.w((&udvt.ty, hir.map(|hir| &hir.ty))));
+            if let Some(id) = id {
+                m.entry("canonicalName", &format_args!("{}", gcx.item_canonical_name(*id)));
+            }
         })
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemEvent<'_>, hir::EventId)> {
+impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemEvent<'_>, Option<hir::EventId>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (item, event, id)) = self;
         let gcx = cx.gcx;
-        let hir = gcx.hir.event(*id);
-        let item_id = cx.item_id(*id);
+        let hir = id.map(|id| gcx.hir.event(id));
+        let item_id = id.map_or_else(|| cx.ids.fresh(), |id| cx.item_id(id));
         cx.write_with_id(s, item_id, "EventDefinition", item.span, |m| {
             m.docs(*cx, &item.docs);
-            m.name(*cx, hir.name);
+            m.name(*cx, event.name);
             let parameters = Params {
                 id: None,
                 span: event.parameters.span,
                 ast: event.parameters.vars,
-                hir: hir.parameters,
-                scope: item_id,
+                hir: hir.map(|hir| hir.parameters),
+                scope: cx.sema().then_some(item_id),
             };
             m.entry("parameters", &Cx { in_event: true, ..*cx }.w(parameters));
-            m.entry("anonymous", &hir.anonymous);
-            m.entry("eventSelector", &hex::encode(gcx.event_selector(*id)));
+            m.entry("anonymous", &event.anonymous);
+            if let Some(id) = id {
+                m.entry("eventSelector", &hex::encode(gcx.event_selector(*id)));
+            }
         })
     }
 }
 
-impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemError<'_>, hir::ErrorId)> {
+impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemError<'_>, Option<hir::ErrorId>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (item, error, id)) = self;
         let gcx = cx.gcx;
-        let hir = gcx.hir.error(*id);
-        let item_id = cx.item_id(*id);
+        let hir = id.map(|id| gcx.hir.error(id));
+        let item_id = id.map_or_else(|| cx.ids.fresh(), |id| cx.item_id(id));
         cx.write_with_id(s, item_id, "ErrorDefinition", item.span, |m| {
             m.docs(*cx, &item.docs);
-            m.name(*cx, hir.name);
+            m.name(*cx, error.name);
             let parameters = Params {
                 id: None,
                 span: error.parameters.span,
                 ast: error.parameters.vars,
-                hir: hir.parameters,
-                scope: item_id,
+                hir: hir.map(|hir| hir.parameters),
+                scope: cx.sema().then_some(item_id),
             };
             m.entry("parameters", &cx.w(parameters));
-            m.entry("errorSelector", &hex::encode(gcx.function_selector(*id)));
+            if let Some(id) = id {
+                m.entry("errorSelector", &hex::encode(gcx.function_selector(*id)));
+            }
         })
     }
 }
@@ -1389,7 +1504,7 @@ impl Serialize for W<'_, '_, Doc> {
         let Self(cx, Doc { span, text }) = self;
         // solc includes the line break that ends a line comment, unless an indentation follows.
         let mut span = *span;
-        let end = cx.gcx.hir.source(cx.source).file.end_position();
+        let end = cx.file().end_position();
         let rest = cx.text(span.shrink_to_hi().with_hi(end));
         if cx.text(span).starts_with("//") {
             let line_break =

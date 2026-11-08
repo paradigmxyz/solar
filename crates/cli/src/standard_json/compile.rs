@@ -343,27 +343,16 @@ fn compile(
                 output.sources = Some(parsed_sources);
                 if output_selection.requests_ast() {
                     let gcx = compiler.gcx();
-                    // The AST JSON takes its types and references from analysis.
-                    if let Some(stage) = gcx.sess.opts.stop_after
-                        && stage < CompilerStage::Analysis
-                    {
-                        gcx.dcx()
-                            .warn(format!(
-                                "AST output needs analysis, but compilation stops after {stage}"
-                            ))
-                            .emit();
-                    } else {
-                        let ast_json = ast_json.get_or_init(|| gcx.ast_json(opts.pretty_json));
-                        let sources = output.sources.iter_mut().flatten();
-                        let mut selected = Vec::new();
-                        for ((name, source), id) in sources.zip(gcx.hir.source_ids()) {
-                            if output_selection.ast(name) {
-                                source.ast = ast_json.source(id);
-                                selected.push(id);
-                            }
+                    let ast_json = ast_json.get_or_init(|| gcx.ast_json(opts.pretty_json));
+                    let sources = output.sources.iter_mut().flatten();
+                    let mut selected = Vec::new();
+                    for ((name, source), id) in sources.zip(gcx.sources.indices()) {
+                        if output_selection.ast(name) {
+                            source.ast = ast_json.source(id);
+                            selected.push(id);
                         }
-                        ast_json.render(selected);
                     }
+                    ast_json.render(selected);
                 }
                 if control_flow.is_break() {
                     return Ok(());

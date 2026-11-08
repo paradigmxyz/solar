@@ -27,6 +27,10 @@ pub(super) struct ExternalReferences {
 impl<'gcx> Serialize for W<'_, 'gcx, ExternalReferences> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, ExternalReferences { span }) = self;
+        // Without sema, nothing resolved the names.
+        if !cx.sema() {
+            return s.collect_seq(std::iter::empty::<()>());
+        }
         let hir = &cx.gcx.hir;
         // The declarations of the block, which are the Yul variables, lie within its span.
         let mut refs = cx

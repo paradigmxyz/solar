@@ -397,3 +397,33 @@ fn ast_json_matches_when_pretty() {
     assert!(compact["sources"]["A.sol"]["ast"]["nodes"].as_array().is_some_and(|n| !n.is_empty()));
     assert_eq!(compact, compile(true));
 }
+
+/// The sources are written in parallel with the IDs that each of them reserves, so the output does
+/// not depend on the number of threads, with and without sema.
+#[test]
+fn ast_json_matches_across_thread_counts() {
+    for stop_after in [None, Some("parsing")] {
+        let mut settings = json!({"outputSelection": {"*": {"": ["ast"]}}});
+        if let Some(stop_after) = stop_after {
+            settings["stopAfter"] = json!(stop_after);
+        }
+        let input = json!({
+            "language": "Solidity",
+            "sources": {
+                "A.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/A.sol")},
+                "B.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/B.sol")},
+                "C.sol": {"content": include_str!("../../../../tests/ui/standard-json/ast/C.sol")},
+            },
+            "settings": settings,
+        });
+        let compile = |threads: usize| {
+            let opts = CompileOpts { threads: threads.into(), ..Default::default() };
+            let mut output = Vec::new();
+            compile_standard_json(&input.to_string(), opts, None, &mut output).unwrap();
+            String::from_utf8(output).unwrap()
+        };
+        let sequential = compile(1);
+        assert!(sequential.contains("\"nodeType\":\"SourceUnit\""), "{sequential}");
+        assert_eq!(sequential, compile(4), "stopAfter: {stop_after:?}");
+    }
+}

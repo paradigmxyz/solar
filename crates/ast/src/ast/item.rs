@@ -502,6 +502,16 @@ impl ItemFunction<'_> {
     pub fn is_implemented(&self) -> bool {
         self.body.is_some()
     }
+
+    /// Returns the visibility of the function, which is `internal` if it is a modifier or free,
+    /// and `public` if the header has none.
+    pub fn visibility_or_default(&self, free: bool) -> Visibility {
+        self.header.visibility().unwrap_or(if self.kind.is_modifier() || free {
+            Visibility::Internal
+        } else {
+            Visibility::Public
+        })
+    }
 }
 
 /// A function header: `function helloWorld() external pure returns(string memory)`.

@@ -203,7 +203,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             span: _,
             name,
             parameters: _,
-            visibility,
+            visibility: _,
             state_mutability,
             modifiers: _,
             virtual_,
@@ -229,14 +229,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                     .is_some_and(|id| self.hir.contract(id).kind.is_interface()),
             override_: override_.is_some(),
             overrides: &[],
-            visibility: visibility.map(|vis| vis.data).unwrap_or_else(|| {
-                let is_free = self.current_contract_id.is_none();
-                if kind.is_modifier() || is_free {
-                    ast::Visibility::Internal
-                } else {
-                    ast::Visibility::Public
-                }
-            }),
+            visibility: i.visibility_or_default(self.current_contract_id.is_none()),
             state_mutability: state_mutability
                 .map(|s| s.data)
                 .unwrap_or(ast::StateMutability::NonPayable),

@@ -544,7 +544,7 @@ needs to number its AST.
 
 Coverage: `tests/ui/typeck/constant_cycles/cross_source_dependency_order.sol`.
 
-### TYPECK-023: AST JSON
+### TYPECK-025: AST JSON
 
 Status: parity debt for the types of a few expressions; intentional for the
 rest.
@@ -584,22 +584,16 @@ cases:
   `fallback` or `receive` function, so it is `true` for a contract that declares or
   inherits one, where `solc` has `false`.
 
-`solar` returns no AST for `settings.stopAfter: "parsing"`, and warns that the
-AST needs analysis, where `solc` returns the parse-only AST: the same nodes
-without `typeDescriptions`, references, scopes and the attributes that type
-checking sets. A `stopAfter` of `lowering` or `analysis` has no such counterpart
-in `solc`, which accepts `parsing` only; `solar` attaches the AST when analysis
-ran.
+With `settings.stopAfter` of `parsing`, `solar` writes the parsed AST like `solc`: the nodes
+have no IDs of declarations, types, resolutions or scopes. It also does so for
+`lowering`, which `solc` rejects, since type checking has not run. A source that
+imports a file that `solar` cannot read fails with an error, where `solc` still returns
+the AST of the source.
 
 Rationale: IDs must agree across the outputs of one compilation, not with
 `solc`. Consumers that look up declarations by ID do not need `solc`'s
 numbering, and the differences of the types do not change what an expression
-refers to. The writer walks the AST and reads the IDs, types and resolutions of
-each node from the HIR in lockstep, which undoes what lowering rewrites, so that
-no second classifier of nodes exists. A parse-only AST has no HIR, and about 50
-serializers would need an AST-only variant of every field they read from it, in
-effect a second walker. The use that needs the AST, matching `immutableReferences`
-and the storage layout to declarations, needs a compiled contract.
+refers to.
 
 Coverage: `tests/ui/standard-json/ast/test.jsonc`,
 `tests/ui/standard-json/ast-attached/test.jsonc`,
@@ -610,6 +604,7 @@ Coverage: `tests/ui/standard-json/ast/test.jsonc`,
 `tests/ui/standard-json/ast-internal-function-ids/test.jsonc`,
 `tests/ui/standard-json/ast-is-pure/test.jsonc`,
 `tests/ui/standard-json/ast-license/test.jsonc`,
+`tests/ui/standard-json/ast-parse-only/test.jsonc`,
 `tests/ui/standard-json/ast-tuples/test.jsonc`,
 `tests/ui/standard-json/ast-yul/test.jsonc`,
 `tests/ui/standard-json/ast-yul-hosts/test.jsonc` and
