@@ -1048,8 +1048,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   below the bound whose object still ends past `2**64` because of the free
   memory pointer, a few bytes below the `bytes` bound or a few words below the
   array bound, reverts with empty data at the calldata range check instead.
+  An event argument that is an `indexed` array whose assembly-set length
+  exceeds `2**59 - 1` also panics with `0x41`, because `solar` copies the
+  calldata array to memory before it packs it; `solc` packs it in place and
+  runs out of gas.
 - Rationale: an exact check needs the free memory pointer on the path of every
   calldata copy, and costs gas and code size on lengths that calldata already
   bounds.
 - Coverage: `tests/ui/codegen/run-call/calldata/slice_huge_length_copy.sol` and
-  `tests/ui/codegen/run-call/calldata/nested_huge_length_copy.sol`.
+  `tests/ui/codegen/run-call/calldata/nested_huge_length_copy.sol` and
+  `tests/ui/codegen/run-call/calldata/nested_huge_length_storage_copy.sol`.
