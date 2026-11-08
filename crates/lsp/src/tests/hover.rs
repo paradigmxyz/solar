@@ -602,7 +602,7 @@ $7 declaration: <none>
 
 #[test]
 fn builtin_hover_uses_concrete_receiver_names() {
-    let fixture = RequestFixture::new(
+    let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Names.sol open
         type Price is uint256;

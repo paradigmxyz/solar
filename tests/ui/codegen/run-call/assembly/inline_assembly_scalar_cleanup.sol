@@ -216,7 +216,7 @@ contract InlineAssemblyScalarCleanup {
         assembly {
             value := 2
         }
-        value == Choice.Zero;
+        value == Choice.Zero; //~ WARN: statement has no effect
     }
 
     function assemblyRead() external pure returns (uint256 raw) {

@@ -211,10 +211,29 @@ impl<'gcx> ConstEval<'gcx> {
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/DeclarationTypeChecker.cpp#L336-L366>
     pub fn eval_array_len(self, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
         debug_assert_eq!(self.mode, Mode::Early, "array lengths use the early evaluator");
-        self.gcx.const_eval_cache.array_lens.insert_cloned(size.id, |_| self.check_array_len(size))
+        self.gcx
+            .const_eval_cache
+            .array_lens
+            .insert_cloned(size.id, |_| self.check_array_len(size, false))
     }
 
-    fn check_array_len(self, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
+    /// Like [`eval_array_len`](Self::eval_array_len), for the length in an array type expression
+    /// such as `uint[0];`, where solc does not require a positive length.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/1835d247de183f23e7b0e2bc4a50732af525b77c/libsolidity/analysis/TypeChecker.cpp#L3641-L3650>
+    pub fn eval_expr_array_len(self, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
+        debug_assert_eq!(self.mode, Mode::Early, "array lengths use the early evaluator");
+        self.gcx
+            .const_eval_cache
+            .array_lens
+            .insert_cloned(size.id, |_| self.check_array_len(size, true))
+    }
+
+    fn check_array_len(
+        self,
+        size: &hir::Expr<'_>,
+        allow_zero: bool,
+    ) -> Result<U256, ErrorGuaranteed> {
         let cx = ConstContext::ArrayLength;
         let dcx = self.gcx.dcx();
         let int = match self.eval_with_depth_limit(size) {
@@ -235,7 +254,7 @@ impl<'gcx> ConstEval<'gcx> {
             };
             return Err(err.emit());
         };
-        if int.is_zero() {
+        if int.is_zero() && !allow_zero {
             let msg = "array length must be greater than zero";
             Err(dcx.emit_err_code(size.span, error_code!(1406), msg))
         } else {
@@ -427,7 +446,28 @@ impl<'gcx> ConstEval<'gcx> {
 
     /// Returns the constant variable that the given expression names.
     fn constant_reference(self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
-        self.res(expr)?.as_variable().filter(|&id| self.gcx.hir.variable(id).is_constant())
+        self.path_res(expr)?.as_variable().filter(|&id| self.gcx.hir.variable(id).is_constant())
+    }
+
+    /// Returns the declaration that the given path names, if every constant that its receivers
+    /// name has a value, and otherwise the error of the first one that has none.
+    ///
+    /// Reading a constant evaluates its initializer, so a path through a constant without a value
+    /// has no value either, even where the declaration it names does, such as the `.selector` of
+    /// `K.f`. A receiver that is a type, a contract, a module, `this` or a variable has no
+    /// effects.
+    fn res(self, expr: &hir::Expr<'_>) -> Result<Option<hir::Res>, EvalError> {
+        let res = self.path_res(expr);
+        if res.is_some() {
+            let mut receiver = expr.peel_parens();
+            while let hir::ExprKind::Member(base, _) = receiver.kind {
+                receiver = base.peel_parens();
+                if let Some(id) = self.constant_reference(receiver) {
+                    self.eval_var(id)?;
+                }
+            }
+        }
+        Ok(res)
     }
 
     /// Returns the declaration that the given path names: in the early mode only identifiers,
@@ -436,7 +476,7 @@ impl<'gcx> ConstEval<'gcx> {
     ///
     /// A member access of another expression, such as `h().f`, names nothing: evaluating it would
     /// drop the effects of its base.
-    fn res(self, expr: &hir::Expr<'_>) -> Option<hir::Res> {
+    fn path_res(self, expr: &hir::Expr<'_>) -> Option<hir::Res> {
         fn is_path(expr: &hir::Expr<'_>) -> bool {
             match expr.peel_parens().kind {
                 hir::ExprKind::Ident(_) => true,

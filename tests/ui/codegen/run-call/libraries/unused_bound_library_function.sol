@@ -12,6 +12,6 @@ contract UnusedBoundLibraryFunction {
     using D for uint256;
 
     function f(uint256 a) external pure {
-        a.double;
+        a.double; //~ WARN: statement has no effect
     }
 }

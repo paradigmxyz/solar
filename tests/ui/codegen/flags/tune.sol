@@ -30,27 +30,21 @@ contract DynamicCaller {
     }
 
     function recordFirst(DynamicSink sink) internal {
-        sink.record(
-            address(1),
-            "xxxxxxxxxxxxxxx1",
-            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1"
-        );
+        string memory a = "xxxxxxxxxxxxxxx1";
+        string memory b = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1";
+        sink.record(address(1), a, b);
     }
 
     function recordSecond(DynamicSink sink) internal {
-        sink.record(
-            address(2),
-            "xxxxxxxxxxxxxxx2",
-            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx2"
-        );
+        string memory a = "xxxxxxxxxxxxxxx2";
+        string memory b = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx2";
+        sink.record(address(2), a, b);
     }
 
     function recordThird(DynamicSink sink) internal {
-        sink.record(
-            address(3),
-            "xxxxxxxxxxxxxxx3",
-            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx3"
-        );
+        string memory a = "xxxxxxxxxxxxxxx3";
+        string memory b = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx3";
+        sink.record(address(3), a, b);
     }
 }
 
