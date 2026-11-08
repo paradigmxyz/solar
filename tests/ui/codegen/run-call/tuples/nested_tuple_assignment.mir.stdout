@@ -86,11 +86,11 @@ fn @sliceChoice(arg0: i1) -> struct2 [selector=0xdc4067fd, view, abi_params=[boo
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc 64 !metadata(preserves_fmp)
+    v2 = alloc 64
     mstore v2, 2
     v3 = ptradd v2, 32
     mstore v3, 0x708000000000000000000000000000000000000000000000000000000000000
-    v4 = alloc 64 !metadata(preserves_fmp)
+    v4 = alloc 64
     mstore v4, 2
     v5 = ptradd v4, 32
     mstore v5, 0x90a000000000000000000000000000000000000000000000000000000000000

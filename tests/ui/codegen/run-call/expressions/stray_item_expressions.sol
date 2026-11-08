@@ -23,10 +23,10 @@ library Lib {
 
 contract StrayItemExpressions {
     function f(uint256 x) external pure returns (uint256) {
-        Lib;
-        Lib.Kind;
-        Lib.Item;
-        Lib.multiply;
+        Lib; //~ WARN: statement has no effect
+        Lib.Kind; //~ WARN: statement has no effect
+        Lib.Item; //~ WARN: statement has no effect
+        Lib.multiply; //~ WARN: statement has no effect
         return x + 9;
     }
 }

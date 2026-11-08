@@ -12,7 +12,7 @@ contract C {
     }
 
     function bareReference() public pure returns (uint256) {
-        _;
+        _; //~ WARN: statement has no effect
         return 33;
     }
 

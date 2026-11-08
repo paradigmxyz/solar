@@ -86,8 +86,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         // push constructor; jump; <helpers>; constructor:
         let constructor_label = self.asm.new_label();
         if !info.internal.is_empty() {
+            let origin = self.asm.debug_origin();
+            if self.capture_debug_info {
+                // NOTE: Skipping the out-of-line helpers is generated deployment control flow,
+                // with no source operation, as LLVM's `DebugLoc::getCompilerGenerated` describes.
+                self.asm.set_source_span(None);
+                self.asm.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
+            }
             self.asm.emit_push_label(constructor_label);
             self.asm.emit_op(op::JUMP);
+            self.asm.set_debug_origin(origin);
         }
         self.emit_internal_bodies(module, info, &mut plans);
         let func = &module.functions[constructor];
