@@ -122,13 +122,15 @@ impl<'gcx> Assembler<'gcx> {
     // the resumption of a call's continuation into that terminator, or the `switch` that a compare
     // chain implements. Layout emits a `JUMP` opcode only when it separates the two blocks, so the
     // jump takes that terminator's origins, which the caller must have set; the origins of the
-    // code before or after the terminator would name the wrong source. Stackify sets them with
-    // `set_terminator_origin` and its terminator steps never change them, so they are current at
-    // every call. Without an open block nothing implements the jump, so its origins are dropped:
-    // opening one would add an empty block, and debug information must not change the IR. An
-    // empty open block, such as the continuation of a call that ends its MIR block, still records
-    // them, since a return target keeps the block alive. When `cfg-simplify` removes an empty thunk
-    // with its jump, the origins are lost with it.
+    // code before or after the terminator would name the wrong source. When layout makes the jump
+    // real, it runs on exactly that edge, so we keep the origin. LLVM differs: it gives a
+    // re-created pure-fallthrough branch an empty location (`MachineBasicBlock::updateTerminator`).
+    // Stackify sets the origins with `set_terminator_origin` and its terminator steps never change
+    // them, so they are current at every call. Without an open block nothing implements the jump,
+    // so its origins are dropped: opening one would add an empty block, and debug information must
+    // not change the IR. An empty open block, such as the continuation of a call that ends its MIR
+    // block, still records them, since a return target keeps the block alive. When `cfg-simplify`
+    // removes an empty thunk with its jump, the origins are lost with it.
     pub(crate) fn mark_fallthrough(&mut self) {
         if self.program.debug_info_is_tracked()
             && let Some(block) = self.current_block
