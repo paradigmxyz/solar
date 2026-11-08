@@ -70,9 +70,9 @@ use crate::{
     mir::{
         AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, CallFailure, CallPolicy, Callee,
         EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-        FunctionId as MirFunctionId, Immediate, InstId, InstKind, Instruction, InstructionMetadata, MirModuleTarget,
-        MirPhase, MirType, Module,
-        PtrLocation, StorageAlias, Terminator, Value, ValueId,
+        FunctionId as MirFunctionId, Immediate, InstId, InstKind, Instruction, InstructionMetadata,
+        MirModuleTarget, MirPhase, MirType, Module, PtrLocation, StorageAlias, Terminator, Value,
+        ValueId,
         analysis::{
             AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
             direct_callees,
