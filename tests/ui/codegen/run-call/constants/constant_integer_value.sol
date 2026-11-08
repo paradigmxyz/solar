@@ -61,7 +61,7 @@ contract ConstantIntegerValue {
         }
     }
 
-    function zeroNegativePower() external pure returns (uint) { 0.5; return 0 ** -1; }
+    function zeroNegativePower() external pure returns (uint) { 0.5; return 0 ** -1; } //~ WARN: statement has no effect
 
     function decimal() external pure returns (uint) { return 0.3 * 10**18; }
     function negativeExponent() external pure returns (uint) { return 50 * 10**8 * 10**-9; }

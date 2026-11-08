@@ -125,7 +125,7 @@ contract TerminatedControlFlow {
             } else if (kind == 1) {
                 ripemd160(abi.encode(i));
             } else {
-                ecrecover(
+                ecrecover( //~ WARN: statement has no effect
                     bytes32(uint256(1)),
                     28,
                     0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898,

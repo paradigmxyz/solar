@@ -127,6 +127,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::ops::BitOrAssign;
 
 pub(crate) struct HeapFloor;
@@ -365,7 +366,13 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
 
 /// Raises the slot's word to the heap floor before `before`, or before the block's terminator.
 fn clamp_slot(func: &mut Function, block: BlockId, before: Option<InstId>) {
-    let metadata = before.map(|inst| func.inst(inst).metadata.clone()).unwrap_or_default();
+    let metadata = before.map(|inst| func.inst(inst).metadata.clone()).unwrap_or_else(|| {
+        // NOTE: Raising the pointer for the compiler frame on return has no source operation
+        // in solc. This is compiler-generated bookkeeping, not the return's source location.
+        let mut metadata = InstructionMetadata::EMPTY;
+        metadata.drop_debug_loc(DebugLocKind::CompilerGenerated);
+        metadata
+    });
     let emit = |kind, ty| {
         let mut instruction = Instruction::new(kind, ty);
         instruction.metadata.preserve_debug_loc(&metadata);

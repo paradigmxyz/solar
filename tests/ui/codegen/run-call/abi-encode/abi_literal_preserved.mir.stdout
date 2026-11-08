@@ -15,11 +15,11 @@ fn @probe() -> i256 [selector=0xb74af5a9, view, abi_params=[], abi_returns=[word
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc 64 !metadata(preserves_fmp)
+    v2 = alloc 64
     mstore v2, 2
     v3 = ptradd v2, 32
     mstore v3, 0x123000000000000000000000000000000000000000000000000000000000000
-    v4 = alloc 64 !metadata(preserves_fmp)
+    v4 = alloc 64
     mstore v4, 3
     v5 = ptradd v4, 32
     mstore v5, 0x6162630000000000000000000000000000000000000000000000000000000000
@@ -43,21 +43,21 @@ fn @probe() -> i256 [selector=0xb74af5a9, view, abi_params=[], abi_returns=[word
 fn @observed() -> i256 [selector=0xba210709, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
   bb0:
     v0 = mload 64 !metadata(memory=scratch)
-    v1 = address
-    v2 = gas
+    v1 = alloc 64 !metadata(preserves_fmp)
+    mstore v1, 2
+    v2 = ptradd v1, 32
+    mstore v2, 0x123000000000000000000000000000000000000000000000000000000000000
     v3 = alloc 64 !metadata(preserves_fmp)
-    mstore v3, 2
+    mstore v3, 3
     v4 = ptradd v3, 32
-    mstore v4, 0x123000000000000000000000000000000000000000000000000000000000000
-    v5 = alloc 64 !metadata(preserves_fmp)
-    mstore v5, 3
-    v6 = ptradd v5, 32
-    mstore v6, 0x6162630000000000000000000000000000000000000000000000000000000000
-    v7 = abi_encode [memory_bytes, memory_bytes], scratch, selector 0x8f831ae700000000000000000000000000000000000000000000000000000000, args v3, v5
+    mstore v4, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v5 = address
+    v6 = gas
+    v7 = abi_encode [memory_bytes, memory_bytes], scratch, selector 0x8f831ae700000000000000000000000000000000000000000000000000000000, args v1, v3
     v8 = extract_value slice<memory>, v7, 0
     v9 = extract_value slice<memory>, v7, 1
-    v10 = zext i160 v1 to i256
-    v11 = staticcall v2, v10, v8, v9, 0, 32
+    v10 = zext i160 v5 to i256
+    v11 = staticcall v6, v10, v8, v9, 0, 32
     jumpi v11, bb2, bb1
   bb1:                                            ; preds = bb0
     revert_returndata

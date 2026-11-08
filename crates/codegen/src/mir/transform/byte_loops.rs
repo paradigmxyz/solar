@@ -181,6 +181,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 
 /// One in the low bit of every byte, which spreads a byte over a word.
 const LANES_01: U256 = U256::from_limbs([0x0101_0101_0101_0101; 4]);
@@ -284,7 +285,7 @@ enum Overlap {
 enum Shape {
     /// The leading bytes of a buffer from an offset, left-aligned into the accumulator `result`;
     /// `width` is the most bytes the result type holds.
-    Gather { access: Access, width: u64, result: ValueId },
+    Gather { access: Access, width: u64, result: ValueId, load: InstId },
     /// Bytes written into a memory object; `width` is the most bytes the value's index check
     /// admits.
     Scatter { access: Access, stored: Scattered, width: u64 },
@@ -807,11 +808,14 @@ fn gather(func: &Function, l: &Loop, lp: &Counted) -> Option<Shape> {
         return None;
     }
     let (access, read) = byte_read(func, l, lp, byte)?;
+    let (_, &InstKind::Byte(_, word)) = body_def(func, lp, byte)? else { return None };
+    let (load, _) = body_def(func, lp, word)?;
     used.extend(read);
     only_pattern_effects(func, lp, &used).then_some(Shape::Gather {
         access,
         width,
         result: *result,
+        load,
     })
 }
 
@@ -1468,9 +1472,15 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
     // A gather that skips an empty count keeps its result phi, now joining the skip and the setup.
     let mut kept_phi = None;
     let mut builder = FunctionBuilder::new_semantic(func);
+    // NOTE: These guards and bulk-address formulas are introduced for the replacement, not
+    // source expressions from one loop iteration. LLVM's compiler-generated location keeps
+    // them distinct from the loads and stores whose computations are preserved below.
+    let mut generated = InstructionMetadata::EMPTY;
+    generated.drop_debug_loc(DebugLocKind::CompilerGenerated);
+    builder.set_debug_context(&generated);
     builder.switch_to_block(lp.preheader);
     match shape {
-        Shape::Gather { access, width, result } => {
+        Shape::Gather { access, width, result, load } => {
             let calldata = matches!(access.buffer, Buffer::Calldata(_));
             let wraps = matches!(access.buffer, Buffer::Calldata(slice)
                 if !decoded_argument(builder.func(), slice));
@@ -1491,7 +1501,18 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
             let nonzero = (literal.is_none() && !skips).then(|| builder.ne_zero(lp.bound));
             let fails = range_fails(&mut builder, &access, lp.bound, nonzero);
             builder.panic_if(fails, PanicCode::ArrayOutOfBounds);
-            let word = load_word(&mut builder, &access);
+            // The first iteration loaded exactly this word. Preserve that load's location
+            // only when this path proves the old body ran, as with LLVM rematerialization.
+            let context = if skips || literal.is_some_and(|bound| bound > 0) {
+                builder.func().inst(load).metadata.debug_context()
+            } else {
+                // A zero-length calldata gather may execute this new load speculatively.
+                let mut context = InstructionMetadata::EMPTY;
+                context.drop_debug_loc(DebugLocKind::Dropped);
+                context
+            };
+            let word = load_word(&mut builder, &access, &context);
+            builder.set_debug_context(&generated);
             let mask = leading_mask(&mut builder, lp.bound, literal, width);
             let value = match mask {
                 Some(mask) => builder.and(word, mask),
@@ -1605,7 +1626,7 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 builder.set_debug_context(context);
             }
             builder.store(address, stored);
-            builder.set_debug_context(&InstructionMetadata::EMPTY);
+            builder.set_debug_context(&generated);
             if guarded {
                 // fast: ...; jump exit
                 builder.jump(lp.exit);
@@ -1647,7 +1668,10 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
             if let (Some(fresh), Overlap::Guarded, Buffer::Memory(_)) =
                 (&fresh, &overlap, src.buffer)
             {
-                fresh_guarded_copy(&mut builder, &lp, &src, &dst, fresh, tested);
+                let context = store_context
+                    .as_ref()
+                    .filter(|_| tested || literal.is_some_and(|count| count > 0));
+                fresh_guarded_copy(&mut builder, &lp, &src, &dst, fresh, tested, context);
                 replace_after_loop(func, &lp, None, &replacements);
                 return;
             }
@@ -1735,7 +1759,7 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 builder.set_debug_context(context);
             }
             builder.copy(to, from, size, location);
-            builder.set_debug_context(&InstructionMetadata::EMPTY);
+            builder.set_debug_context(&generated);
             if fast.is_some() {
                 // fast: ...; jump exit
                 // The loop stays for a destination that leads into its source, or a calldata range
@@ -1788,11 +1812,14 @@ fn fresh_guarded_copy(
     dst: &Access,
     fresh: &FreshDestination,
     tested: bool,
+    store_context: Option<&InstructionMetadata>,
 ) {
     let (Buffer::Memory(source), Buffer::Memory(object)) = (src.buffer, dst.buffer) else {
         unreachable!("a guarded copy reads and writes memory")
     };
     let entry = builder.current_block();
+    let mut generated = InstructionMetadata::EMPTY;
+    generated.drop_debug_loc(DebugLocKind::CompilerGenerated);
     let from = memory_data_address(builder, src);
     let data = memory_data_address(builder, dst);
     let from = builder.cast(from, MirType::I256);
@@ -1827,7 +1854,12 @@ fn fresh_guarded_copy(
         source_check(builder);
     }
     clear_padding(builder, dst, fresh);
+    if let Some(context) = store_context {
+        builder.set_debug_context(context);
+    }
+    // mcopy data, from, bound
     builder.copy(data, from, lp.bound, PtrLocation::Memory);
+    builder.set_debug_context(&generated);
     builder.jump(lp.exit);
     builder.switch_to_block(slow);
     let header = builder.imm(EvmMemoryLayout::WORD_SIZE);
@@ -1841,7 +1873,12 @@ fn fresh_guarded_copy(
     enter_from(builder.func_mut(), lp.header, entry, slow);
     builder.switch_to_block(again);
     source_check(builder);
+    if let Some(context) = store_context {
+        builder.set_debug_context(context);
+    }
+    // mcopy data, from, bound
     builder.copy(data, from, lp.bound, PtrLocation::Memory);
+    builder.set_debug_context(&generated);
     builder.jump(lp.exit);
 }
 
@@ -1976,19 +2013,26 @@ fn buffer_len(builder: &mut FunctionBuilder<'_>, access: &Access) -> ValueId {
 }
 
 /// Emits the word at the access's first byte.
-fn load_word(builder: &mut FunctionBuilder<'_>, access: &Access) -> ValueId {
-    match access.buffer {
+fn load_word(
+    builder: &mut FunctionBuilder<'_>,
+    access: &Access,
+    context: &InstructionMetadata,
+) -> ValueId {
+    let (address, location) = match access.buffer {
         Buffer::Memory(_) => {
             // word = mload (object + offset + 32)
             let address = memory_data_address(builder, access);
-            builder.load(address, PtrLocation::Memory)
+            (address, PtrLocation::Memory)
         }
         Buffer::Calldata(slice) => {
             // word = calldataload (ptrtoint slice.ptr + offset)
             let address = calldata_data_address(builder, slice, access.offset);
-            builder.load(address, PtrLocation::Calldata)
+            (address, PtrLocation::Calldata)
         }
-    }
+    };
+    builder.set_debug_context(context);
+    // word = mload address | calldataload address
+    builder.load(address, location)
 }
 
 /// Emits `object + (offset << shift) + 32`, the address of a memory access's first byte.

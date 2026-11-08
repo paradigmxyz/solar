@@ -58,7 +58,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object = lower(receiver)
         // index = lower(index)
         let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
-        let object = self.operand(receiver)?;
+        let object = self.operand(receiver)?.id();
         let uint256 = self.cx.gcx.types.uint(256);
         let index = self.lower_typed_expr(index, uint256)?.clean(self, uint256);
         if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
@@ -164,7 +164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         end: Option<&hir::Expr<'_>>,
     ) -> Option<ValueId> {
         let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
-        let value = self.operand(receiver)?;
+        let value = self.operand(receiver)?.id();
         let (source, location) = match self.builder.func().value_ty(value) {
             Some(MirType::Slice(location)) => (value, location),
             _ => {

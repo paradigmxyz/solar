@@ -109,7 +109,8 @@ use super::{egraph::max_bits_with_args, loop_opt::LoopOptimizer};
 use crate::{
     mir::{
         ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
-        Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
+        Instruction, InstructionMetadata, MemoryRegion, MirType, Module, Terminator, Value,
+        ValueId,
         analysis::{
             AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer,
             ScalarEvolution, integers::unsigned_bounds,
@@ -124,6 +125,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::rc::Rc;
 
 /// Function pass for induction-variable simplification and strength reduction.
@@ -1805,6 +1807,11 @@ impl IndVarSimplifier {
 
     fn word_value(&self, func: &mut Function, block: BlockId, value: ValueId) -> ValueId {
         let mut builder = FunctionBuilder::new(func);
+        // NOTE: Address-recurrence setup can run outside the original address expression's
+        // block. Drop its location, as for the adjacent arithmetic setup instructions.
+        let mut context = InstructionMetadata::default();
+        context.drop_debug_loc(DebugLocKind::Dropped);
+        builder.set_debug_context(&context);
         builder.switch_to_block(block);
         builder.cast_word(value)
     }

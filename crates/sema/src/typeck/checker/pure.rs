@@ -123,9 +123,12 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn is_constant_res(&self, expr: &hir::Expr<'gcx>) -> bool {
-        self.results
-            .resolved_expr(expr)
-            .and_then(|res| res.as_variable())
-            .is_some_and(|id| self.gcx.hir.variable(id).is_constant())
+        self.constant_var(expr).is_some()
+    }
+
+    /// Returns the constant variable that an expression resolves to, if any.
+    pub(super) fn constant_var(&self, expr: &hir::Expr<'gcx>) -> Option<hir::VariableId> {
+        let id = self.results.resolved_expr(expr)?.as_variable()?;
+        self.gcx.hir.variable(id).is_constant().then_some(id)
     }
 }
