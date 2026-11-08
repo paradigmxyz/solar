@@ -1669,16 +1669,7 @@ fn rewrite(func: &mut Function, plan: Plan, tests_empty_copies: bool) {
                 let context = store_context
                     .as_ref()
                     .filter(|_| tested || literal.is_some_and(|count| count > 0));
-                fresh_guarded_copy(
-                    &mut builder,
-                    &lp,
-                    &src,
-                    &dst,
-                    fresh,
-                    tested,
-                    context,
-                    &generated,
-                );
+                fresh_guarded_copy(&mut builder, &lp, &src, &dst, fresh, tested, context);
                 replace_after_loop(func, &lp, None, &replacements);
                 return;
             }
@@ -1820,12 +1811,13 @@ fn fresh_guarded_copy(
     fresh: &FreshDestination,
     tested: bool,
     store_context: Option<&InstructionMetadata>,
-    generated: &InstructionMetadata,
 ) {
     let (Buffer::Memory(source), Buffer::Memory(object)) = (src.buffer, dst.buffer) else {
         unreachable!("a guarded copy reads and writes memory")
     };
     let entry = builder.current_block();
+    let generated =
+        terminator_debug_context(builder.func(), lp.preheader, DebugLocKind::CompilerGenerated);
     let from = memory_data_address(builder, src);
     let data = memory_data_address(builder, dst);
     let from = builder.cast(from, MirType::I256);
@@ -1865,7 +1857,7 @@ fn fresh_guarded_copy(
     }
     // mcopy data, from, bound
     builder.copy(data, from, lp.bound, PtrLocation::Memory);
-    builder.set_debug_context(generated);
+    builder.set_debug_context(&generated);
     builder.jump(lp.exit);
     builder.switch_to_block(slow);
     let header = builder.imm(EvmMemoryLayout::WORD_SIZE);
@@ -1884,7 +1876,7 @@ fn fresh_guarded_copy(
     }
     // mcopy data, from, bound
     builder.copy(data, from, lp.bound, PtrLocation::Memory);
-    builder.set_debug_context(generated);
+    builder.set_debug_context(&generated);
     builder.jump(lp.exit);
 }
 
