@@ -1,0 +1,40 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=loop-version -Zdebugify=check
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// The new version-selection test has no source counterpart. Its loads and comparisons must
+// not claim that a loop iteration ran, while the cloned store keeps its own source location.
+@module VersionDebugInfo
+
+// CHECK-LABEL: {{^[ +].*}}fn @copy{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mload arg0
+// CHECK: + {{v[0-9]+}} = lt
+// CHECK: + jumpi
+// CHECK: + mstore {{v[0-9]+}}, {{v[0-9]+}} !metadata(span=40..50)
+fn @copy(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) {
+  bb0:
+    v0 = mload arg0 !metadata(span=10..20)
+    v1 = mload arg1 !metadata(span=20..30)
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v14]
+    v3 = lt v2, arg2
+    jumpi v3, bb2, bb3
+  bb2:
+    v4 = mload arg0 !metadata(span=10..20)
+    v5 = lt v2, v4
+    icall panic_if_zero<0x32>, v5
+    v6 = shl v2, 5
+    v7 = ptradd arg0, v6
+    v8 = ptradd v7, 32
+    v9 = mload v8 !metadata(span=30..40)
+    v10 = mload arg1 !metadata(span=20..30)
+    v11 = lt v2, v10
+    icall panic_if_zero<0x32>, v11
+    v12 = ptradd arg1, v6
+    v13 = ptradd v12, 32
+    mstore v13, v9 !metadata(span=40..50)
+    v14 = add v2, 1
+    jump bb1
+  bb3:
+    ret
+}

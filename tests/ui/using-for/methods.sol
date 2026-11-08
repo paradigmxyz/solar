@@ -33,7 +33,7 @@ contract C {
     function f(S memory s) public pure {
         uint256 x = 1;
         x.inc();
-        x.inc;
+        x.inc; //~ WARN: statement has no effect
         x.twice();
         x.add(2);
         s.field();

@@ -23,6 +23,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_evmir::debug::DebugLocKind;
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -83,13 +84,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.register_stackified_functions(module, call_graph, info, &plans);
 
         // push constructor; jump; <helpers>; constructor:
+        let func = &module.functions[constructor];
         let constructor_label = self.asm.new_label();
         if !info.internal.is_empty() {
-            self.asm.emit_push_label(constructor_label);
-            self.asm.emit_op(op::JUMP);
+            // NOTE: This jump is part of entering the constructor: it runs once, after the argument
+            // copy, which already maps to the constructor's declaration, and before the body, and
+            // it only reaches the body. It therefore maps to the same declaration, which is the
+            // contract's for the synthesized constructor. solc has no such jump, but it emits the
+            // code that enters the constructor under the same location, in `appendConstructor`
+            // (libsolidity/codegen/ContractCompiler.cpp L286-L288 at v0.8.38).
+            self.emit_with_origin(Some(func.declaration_span), |codegen| {
+                codegen.asm.emit_push_label(constructor_label);
+                codegen.asm.emit_op(op::JUMP);
+            });
         }
         self.emit_internal_bodies(module, info, &mut plans);
-        let func = &module.functions[constructor];
         self.enter_function(module, func);
         if !info.internal.is_empty() {
             self.asm.define_label(constructor_label);
@@ -497,8 +506,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                         self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
                         self.asm.set_modifier_depth(metadata.modifier_depth());
                     } else {
-                        // NOTE: A retained constant has no single source consumer.
+                        // NOTE: A retained constant has no single source consumer, so its
+                        // ambiguous location is LLVM's `DebugLoc::getUnknown`.
                         self.asm.set_source_span(None);
+                        self.asm.set_debug_loc_kind(DebugLocKind::Unknown);
                         self.asm.set_modifier_depth(0);
                     }
                 }

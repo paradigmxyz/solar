@@ -114,6 +114,7 @@ pub(super) fn lower(
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function, context.module.optimization);
+    let declaration_span = mir.declaration_span;
     if !expose_selector {
         mir.selector = None;
     }
@@ -166,7 +167,7 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     // solc tags a function's entry under the function definition.
-    lowerer.builder.set_entry_label_span(hir_function.span);
+    lowerer.builder.set_entry_label_span(declaration_span);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
@@ -181,7 +182,7 @@ pub(super) fn lower(
     }
     if !lowerer.is_terminated() {
         // ret named_returns !metadata(function definition)
-        lowerer.builder.replace_source_span(hir_function.span);
+        lowerer.builder.replace_source_span(declaration_span);
         lowerer.finish(hir_function.returns)?;
     }
     Some(mir)
@@ -288,6 +289,8 @@ enum AbiOperand<'gcx> {
     /// A storage array or struct that the encoder reads after every operand ran, as solc does.
     /// `ty` is the memory type it copies to.
     Storage { slot: ValueId, ty: Ty<'gcx>, span: Span },
+    /// Constant call input needs no source-level memory object. Materialize it at encoding.
+    Literal { bytes: ByteSymbol, span: Span },
 }
 
 struct LoopTargets {
@@ -936,7 +939,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             ExprKind::CallOptions(callee, options) => {
-                let value = self.operand(callee)?;
+                let value = self.operand(callee)?.id();
                 for option in options.args {
                     self.lower_discarded_expr(&option.value)?;
                 }
@@ -975,7 +978,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
-                let value = self.operand(value)?;
+                let value = self.operand(value)?.id();
                 Some(Word::from_clean(self.unary(
                     op.kind,
                     value,
@@ -1021,7 +1024,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else if compound_op.is_none() && rhs_ty.is_value_type() {
                     self.lower_typed_expr(rhs, rhs_ty)?
                 } else {
-                    Word::from_clean(self.operand(rhs)?)
+                    Word::from_clean(self.operand(rhs)?.id())
                 };
                 // The literal word above is already the place's type, so the
                 // conversion below must not widen or shift it a second time.
@@ -1104,7 +1107,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 self.lower_expr(value)
             }
-            ExprKind::Payable(value) => self.operand(value).map(Word::from_clean),
+            ExprKind::Payable(value) => {
+                self.operand(value).map(|value| Word::from_clean(value.id()))
+            }
             _ if self.cx.gcx.dcx().has_errors().is_err() => None,
             _ => self.cx.report_unsupported(expr.span, "expression"),
         }

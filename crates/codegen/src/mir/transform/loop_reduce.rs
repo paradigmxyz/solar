@@ -24,8 +24,8 @@
 
 use crate::{
     mir::{
-        BlockId, Function, FunctionBuilder, InstId, InstKind, MirType, Module, Terminator, Value,
-        ValueId,
+        BlockId, Function, FunctionBuilder, InstId, InstKind, InstructionMetadata, MirType, Module,
+        Terminator, Value, ValueId,
         analysis::{Loop, LoopAnalyzer},
         pass::{MirPass, ModuleAnalyses, run_function_pass},
         utils::{fold_terminator_to_jump, invalidate_unreachable_block},
@@ -33,6 +33,7 @@ use crate::{
     target::{Cost, Target},
 };
 use solar_data_structures::map::FxHashMap;
+use solar_evmir::debug::DebugLocKind;
 
 /// Evaluates linear and quadratic additive recurrences at loop exits.
 pub(crate) struct LoopReduce;
@@ -176,6 +177,11 @@ fn plan(func: &Function, l: &Loop, target: Target) -> Option<ClosedForm> {
 fn rewrite(func: &mut Function, plan: ClosedForm) {
     let mut replacements = FxHashMap::default();
     let mut builder = FunctionBuilder::new(func);
+    // NOTE: These summaries are hoisted out of the body and run even for zero iterations.
+    // LLVM's dropLocation rule forbids attributing them to an iteration that did not execute.
+    let mut context = InstructionMetadata::default();
+    context.drop_debug_loc(DebugLocKind::Dropped);
+    builder.set_debug_context(&context);
     builder.switch_to_block(plan.preheader);
     let mut triangular = None;
     for r in &plan.recurrences {

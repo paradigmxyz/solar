@@ -51,13 +51,13 @@ contract C {
     }
 
     function discarded() external pure returns (uint256) {
-        C.OVERFLOW;
+        C.OVERFLOW; //~ WARN: statement has no effect
         return 1;
     }
 
     // The tuple reads its elements in order.
     function discardedTuple() external pure returns (uint256) {
-        (DIVIDED, OVERFLOW);
+        (DIVIDED, OVERFLOW); //~ WARN: statement has no effect
         return 1;
     }
 

@@ -17,7 +17,7 @@ contract C {
     // CHECK: [[BYTES:v[0-9]+]] = alloc zeroed
     // CHECK: mstore [[BYTES]], 0x10001
     function length() public pure returns (uint256) {
-        B;
+        B; //~ WARN: statement has no effect
         return B.length;
     }
 
@@ -27,6 +27,6 @@ contract C {
 
     // A discarded read still calls the helper, which reverts.
     function discardHuge() public pure {
-        HUGE;
+        HUGE; //~ WARN: statement has no effect
     }
 }
