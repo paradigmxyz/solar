@@ -305,14 +305,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         let bypassed_origins = bypassed
             .iter()
             .map(|(&target, blocks)| {
-                let predecessors = &func.blocks[target].predecessors;
-                let origin = match blocks[..] {
-                    [only]
-                        if target != BlockId::ENTRY
-                            && predecessors.iter().all(|&pred| pred == only) =>
-                    {
-                        func.blocks[only].label_metadata.clone()
-                    }
+                // The blocks of a chain that one bypassed block heads are not entries themselves.
+                let heads = blocks
+                    .iter()
+                    .copied()
+                    .filter(|&block| {
+                        let predecessors = &func.blocks[block].predecessors;
+                        predecessors.iter().any(|pred| !blocks.contains(pred))
+                    })
+                    .collect::<Vec<_>>();
+                let only_bypassed_entries = target != BlockId::ENTRY
+                    && func.blocks[target].predecessors.iter().all(|pred| blocks.contains(pred));
+                let origin = match heads[..] {
+                    [head] if only_bypassed_entries => func.blocks[head].label_metadata.clone(),
                     _ => {
                         let mut union = func.blocks[target].label_metadata.clone();
                         union.merge_debug_locs(
