@@ -15,7 +15,7 @@
 //! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order,
 //! and loop-only paths do not create sharing groups.
 //! The shared tail merges the origins of its sites. Each replacement jump copies the location of
-//! the first instruction it replaces, as LLVM's `ReplaceTailWithBranchTo` does.
+//! the first instruction it replaces that has one.
 //! In gas mode, hot sharing must repay its transfer over the optimizer run count.
 //! Size mode prices the jump that a shared suffix removes with at least a `PUSH1` label unless it
 //! targets the entry block, the only block that can start at offset 0.
@@ -517,21 +517,29 @@ fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
 
 /// The debug information of the jump that replaces the last `len` instructions of `block`.
 ///
-/// Copies `TargetInstrInfo::ReplaceTailWithBranchTo`, which saves "the debug loc before erasing the
-/// instruction", `Tail->getDebugLoc()` of the first instruction it removes, and gives the new
-/// branch that location as is (llvm/lib/CodeGen/TargetInstrInfo.cpp#L175-L189 at llvm-project
-/// e98b16a2710b). A suffix has at least one instruction. Function events keep their own rule: a
-/// jump takes the one invoke all removed operations agree on.
+/// The jump takes the location of the first removed instruction or terminator that has one, with
+/// all its origins and its modifier depth, and the first removed instruction's as is when none
+/// has. A suffix has at least one instruction. Function events keep their own rule: a jump takes
+/// the one invoke all removed operations agree on.
+///
+/// NOTE: `TargetInstrInfo::ReplaceTailWithBranchTo` gives the branch the location of the first
+/// instruction it removes, even without one (`Tail->getDebugLoc()`,
+/// llvm/lib/CodeGen/TargetInstrInfo.cpp#L175-L189 at llvm-project e98b16a2710b), which is rare in
+/// LLVM. Our scheduler leaves stack operations unlocated, and this jump is the only instruction
+/// left on its site's path, so it takes the first located one, as `outline::call_site_location`
+/// does.
 fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
     let suffix = &block.instructions[block.instructions.len() - len..];
-    let mut metadata = Metadata::default();
-    // The first removed instruction, as is: all its origins, its modifier depth, and no origin if
-    // it has none.
-    metadata.preserve_debug_loc(&suffix[0].metadata);
     let all = suffix
         .iter()
         .map(|inst| &inst.metadata)
         .chain(block.terminator.iter().map(|term| &term.metadata));
+    let mut metadata = Metadata::default();
+    metadata.preserve_debug_loc(
+        all.clone()
+            .find(|metadata| metadata.source_span().is_some())
+            .unwrap_or(&suffix[0].metadata),
+    );
     let mut functions = all.filter_map(Metadata::function_invoke);
     if let Some(function) = functions.next()
         && functions.all(|other| other == function)

@@ -36,7 +36,8 @@
 //! constant that enough other code repeats does not slow down every iteration of an unrelated
 //! loop.
 //!
-//! The shared body has no source location, as in LLVM's `MachineOutliner`. Each site's call
+//! Each shared body instruction takes the merged locations of the sites' instructions at its
+//! position, and the stub's return jump takes the merged call-site locations. Each site's call
 //! sequence takes the first location in the run it replaces.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
@@ -480,10 +481,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 return None;
             }
         }
-        let mut body = run.to_vec();
-        drop_body_source_spans(&mut body);
-        clear_function_invokes(&mut body);
-        Some(Group { body, sites: free, parameters: Vec::new() })
+        Some(Group { body: shared_body(module, &free), sites: free, parameters: Vec::new() })
     });
     install_groups(module, state, chosen)
 }
@@ -544,10 +542,7 @@ fn outline_parametric_machine_runs(
             if parameters.is_empty() || parameters.len() > MAX_PARAMETERS {
                 return None;
             }
-            let mut body = run(&first).to_vec();
-            drop_body_source_spans(&mut body);
-            clear_function_invokes(&mut body);
-            let body = parameterize_body(&body, &parameters)?;
+            let body = parameterize_body(&shared_body(module, &free), &parameters)?;
             let inline_size = free.iter().map(|site| lower_bound(target, run(site))).sum::<usize>();
             let parameter_bytes = free
                 .iter()
@@ -654,9 +649,15 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let groups = sites
         .into_iter()
         .map(|(value, sites)| {
+            let mut push = Instruction::push_value(value);
+            push.metadata.preserve_debug_loc(&merged_debug_loc(
+                sites
+                    .iter()
+                    .map(|site| &module.blocks[site.block].instructions[site.start].metadata),
+            ));
             // The stub appends its output swap to the body.
             let mut body = Vec::with_capacity(2);
-            body.push(Instruction::push_value(value).with_debug_loc_dropped());
+            body.push(push);
             Group { body, sites, parameters: Vec::new() }
         })
         .collect();
@@ -738,8 +739,18 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
         stub.metadata.repeats = repeats(module, group.sites.iter().map(|site| site.block));
         stub.instructions = group.body;
         stub.instructions.extend((1..=usize::from(outputs)).map(swap));
-        stub.terminator =
-            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_loc_dropped());
+        let mut jump = Terminator::new(TerminatorKind::Op(op::JUMP));
+        let call_sites = group
+            .sites
+            .iter()
+            .map(|site| {
+                call_site_location(
+                    &module.blocks[site.block].instructions[site.start..][..site.len],
+                )
+            })
+            .collect::<Vec<_>>();
+        jump.metadata.preserve_debug_loc(&merged_debug_loc(&call_sites));
+        stub.terminator = Some(jump);
         stub.metadata.call_effect =
             stub_call_effect(usize::from(inputs) + group.parameters.len(), outputs);
         let stub = module.add_block(stub);
@@ -760,15 +771,37 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
     true
 }
 
-/// Drops the locations of a shared body.
+/// Builds the shared body from the first site's run, giving each instruction the merged locations
+/// of the sites' instructions at its position.
 ///
-/// Copies `MachineOutliner`, which gives every outlined instruction an empty location: "Don't keep
-/// debug information for outlined instructions." (`NewMI.setDebugLoc(DebugLoc())`,
-/// llvm/lib/CodeGen/MachineOutliner.cpp#L1035-L1045 at llvm-project e98b16a2710b).
-fn drop_body_source_spans(body: &mut [Instruction]) {
-    for instruction in body {
-        instruction.metadata.drop_debug_loc(DebugLocKind::Dropped);
+/// The body runs for one of its call sites, so each instruction's origin is one of theirs, which
+/// is how tail merging and terminal deduplication merge equivalent code.
+///
+/// NOTE: LLVM's `MachineOutliner` drops outlined locations (`NewMI.setDebugLoc(DebugLoc())`,
+/// llvm/lib/CodeGen/MachineOutliner.cpp#L1035-L1045 at llvm-project e98b16a2710b) because a DWARF
+/// row holds one location and the outlined function has its own scope. Our metadata keeps several
+/// origins, which ethdebug writes as a `pick`: the shared body runs for one of its call sites.
+fn shared_body(module: &Module, sites: &[Site]) -> Vec<Instruction> {
+    let run = |site: &Site| &module.blocks[site.block].instructions[site.start..][..site.len];
+    let mut body = run(&sites[0]).to_vec();
+    for (index, instruction) in body.iter_mut().enumerate() {
+        instruction
+            .metadata
+            .merge_debug_locs(sites[1..].iter().map(|site| &run(site)[index].metadata));
     }
+    clear_function_invokes(&mut body);
+    body
+}
+
+/// The location of the first of `locations`, merged with the others.
+fn merged_debug_loc<'a>(locations: impl IntoIterator<Item = &'a Metadata>) -> Metadata {
+    let mut locations = locations.into_iter();
+    let mut merged = Metadata::default();
+    if let Some(first) = locations.next() {
+        merged.preserve_debug_loc(first);
+        merged.merge_debug_locs(locations);
+    }
+    merged
 }
 
 fn clear_function_invokes(instructions: &mut [Instruction]) {
