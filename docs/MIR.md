@@ -180,9 +180,9 @@ HIR lowering should evaluate operands, resolve types and layouts, and emit a
 semantic operation for each runtime builtin. Builtins can stay opaque to
 passes that do not understand their internals while still exposing signatures,
 effects, and constant-folding rules. `ICall` targets distinguish function definitions
-from typed builtins. Require, conditional checks, hashing precompiles,
-checked modular arithmetic, ERC-7201, send/transfer, and returndata capture pass
-evaluated values in the ordinary argument list. The builtin identity carries
+from typed builtins. Require, conditional checks, checked modular arithmetic,
+ERC-7201, and returndata capture pass evaluated values in the ordinary argument
+list. The builtin identity carries
 only static specialization data; runtime values never live in the callee.
 Specializations print in angle brackets, including empty `<>` for fixed targets.
 Return signatures come from the callee. Expansion adds no runtime call overhead.
@@ -233,12 +233,17 @@ Payload reads retain prior memory stores, including stores to nested child objec
 Range-based check elimination learns facts from these operations before expansion;
 constant checks fold only when they pass. Revert outlining runs after check and
 builtin expansion, before checked arithmetic expands.
-Payable `send` and `transfer` retain their address and amount until builtin
-conversion emits the stipend calculation and call. A failed transfer reverts
-with returndata; a send returns success. Their external-call effects invalidate
-account observations and storage reads even while the call remains opaque.
-Low-level address calls retain a bytes input and evaluated gas/value options.
-Conversion exposes the input buffer and computes any pre-EIP-150 gas reserve.
+Every call to an address that sends bytes and reads at most one word back is an
+`address_call`: the low-level calls, `send` and `transfer`, and the `ecrecover`,
+`sha256` and `ripemd160` precompiles. Its policy, printed in angle brackets,
+names the call kind, whether the output is a scratch word (zeroed first or not),
+whether a failed call returns the success flag or reverts with the returndata,
+and whether the default pre-EIP-150 gas reserves the callee's account creation.
+The operation retains its address, an optional bytes input or memory slice, and
+evaluated gas and value options. Its external-call effects invalidate account
+observations and storage reads even while the call remains opaque. Conversion
+exposes the input range and computes any pre-EIP-150 gas reserve; the one
+emitter that does so also serves the external calls the frontend emits itself.
 A separate returndata capture operation allocates a fresh bytes object at its
 original position, before another call can replace the returndata. External calls
 encode their arguments before checking for target code; even an empty selector
@@ -277,9 +282,8 @@ message())` evaluates `message()` even on success; only failure-path encoding
 may be deferred. Checked arithmetic and ABI validation can revert even when
 their result is unused. Keep those checks as semantic effects until proved
 redundant. Low-level calls and precompiles retain their gas, returndata, and
-failure behavior. Opaque SHA-256, RIPEMD-160, and ecrecover operations carry
-external-call effects before expansion, so loop motion cannot reuse an older
-return-data size across them. Gas observations also include the implicit reads
+failure behavior. Address calls carry external-call effects before expansion, so
+loop motion cannot reuse an older return-data size across them. Gas observations also include the implicit reads
 in precompiles and address calls without an explicit gas argument. LICM
 respects those reads before expansion. Solidity's checked division and Yul's
 division by zero must not share a folding rule that changes their distinct

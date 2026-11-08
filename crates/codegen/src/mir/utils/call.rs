@@ -30,23 +30,19 @@ pub(crate) fn emit_call(
     value: Option<ValueId>,
     output: Option<(ValueId, ValueId)>,
 ) -> Option<ValueId> {
-    // store(scratch, 0)
-    // gas = explicit_gas | gas() | gas() - pre_tangerine_reserve
-    // success = call/staticcall/delegatecall(gas, address, value?, input, output)
-    // branch success, done, failed
-    // failed: revert_returndata
-    // done: result = load(scratch)
     let zero = builder.imm(0);
     let scratch = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
     let output = match policy.output {
         CallOutput::None => output,
         CallOutput::ScratchWord { clear } => {
             if clear {
+                // mstore(scratch, 0)
                 builder.store(scratch, zero);
             }
             Some((scratch, builder.imm(EvmMemoryLayout::WORD_SIZE)))
         }
     };
+    // gas = explicit | gas() | sub(gas(), pre_tangerine_reserve)
     let gas = gas.unwrap_or_else(|| {
         if evm.can_overcharge_gas_for_call() {
             builder.gas()
@@ -56,6 +52,9 @@ pub(crate) fn emit_call(
     });
     let (input_offset, input_size) = input.unwrap_or((zero, zero));
     let (output_offset, output_size) = output.unwrap_or((zero, zero));
+    // success = call(gas, address, value, input, output)
+    //         | staticcall(gas, address, input, output)
+    //         | delegatecall(gas, address, input, output)
     let success = match policy.kind {
         AddressCallKind::Call => builder.call(
             gas,
@@ -79,10 +78,15 @@ pub(crate) fn emit_call(
     match (policy.on_failure, policy.output) {
         (CallFailure::Return, _) => Some(success),
         (CallFailure::Revert, CallOutput::None) => {
+            // branch success, done, failed
+            // failed: revert_returndata
             builder.revert_returndata_unless(success);
             None
         }
         (CallFailure::Revert, CallOutput::ScratchWord { .. }) => {
+            // branch success, done, failed
+            // failed: revert_returndata
+            // done: result = mload(scratch)
             builder.revert_returndata_unless(success);
             Some(builder.load(scratch, PtrLocation::Memory))
         }

@@ -1115,10 +1115,11 @@ impl<'a> FunctionBuilder<'a> {
         else {
             return value;
         };
+        // source = extract_value value, 0
+        // len = extract_value value, 1
         // data = fmp
-        // mcopy|calldatacopy|returndatacopy data, (extract_value value, 0), (extract_value value,
-        // 1)
-        // staged = make_slice data, (extract_value value, 1)
+        // mcopy|calldatacopy|returndatacopy data, source, len
+        // staged = make_slice data, len
         let source = self.slice_ptr(value);
         let len = self.slice_len(value);
         let data = self.fmp();
