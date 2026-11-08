@@ -143,7 +143,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         else_stmt: Option<&hir::Stmt<'_>>,
     ) -> Option<()> {
         let condition_span = condition.span;
-        let condition = self.operand(condition)?;
+        let condition = self.operand(condition)?.id();
         // The transfer still evaluates the condition when its computation folds into the jump.
         // Keep its narrower origin so coverage can anchor the expression inside the `if`.
         let previous = self.builder.replace_source_span(condition_span);
@@ -342,7 +342,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
             && function.function_id.is_none()
         {
-            let function_value = self.operand(callee)?;
+            let function_value = self.operand(callee)?.id();
             let (address, selector) = self.split_external_function_pointer(function_value);
             TryTarget {
                 callee: TryCallee::FunctionPointer { address, selector },
@@ -424,7 +424,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (self.builder.ne_zero(created), Some(created), None)
         } else {
             let address = match target.callee {
-                TryCallee::Member { receiver, .. } => self.operand(receiver)?,
+                TryCallee::Member { receiver, .. } => self.operand(receiver)?.id(),
                 TryCallee::LinkedLibrary { address, .. } => address,
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
@@ -647,7 +647,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_yul_word_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        let value = self.operand(expr)?;
+        let value = self.operand(expr)?.id();
         let ty = self
             .cx
             .gcx
@@ -717,7 +717,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Word> {
         // branch(condition, then, else)
         // value = then_value | else_value | phi(then_value, else_value)
-        let condition = self.operand(condition)?;
+        let condition = self.operand(condition)?.id();
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
@@ -789,7 +789,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let TyKind::Tuple(types) = ty.kind else {
             return self.lower_ternary(condition, then_expr, else_expr, ty).map(|word| vec![word]);
         };
-        let condition = self.operand(condition)?;
+        let condition = self.operand(condition)?.id();
         // branch(condition, then, else)
         let (then_branch, else_branch) = self.lower_branches(
             condition,

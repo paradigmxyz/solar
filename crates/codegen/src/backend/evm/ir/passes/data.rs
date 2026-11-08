@@ -302,7 +302,7 @@ fn materialize_data(
         let mut metadata = Metadata::default();
         metadata.preserve_debug_loc(&instructions[rewrite.start].metadata);
         for inst in &instructions[rewrite.start..rewrite.end] {
-            metadata.merge_debug_locs([&inst.metadata]);
+            metadata.combine_debug_locs([&inst.metadata]);
             metadata.move_function_events(&inst.metadata);
         }
         // <head>
@@ -323,7 +323,7 @@ fn materialize_data(
             .iter()
             .rposition(|inst| matches!(inst.opcode, op::CODECOPY | op::CALLDATACOPY))
             .unwrap();
-        replacement[copy].metadata.merge_debug_locs([&metadata]);
+        replacement[copy].metadata.combine_debug_locs([&metadata]);
         replacement[copy].metadata.move_function_events(&metadata);
         instructions.splice(rewrite.start..rewrite.end, replacement);
     }

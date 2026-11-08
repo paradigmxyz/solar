@@ -208,7 +208,7 @@ fn @calldataSliceCast() -> i256 [selector=0x93f40587, view, abi_params=[], abi_r
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc 64 !metadata(preserves_fmp)
+    v2 = alloc 64
     mstore v2, 9
     v3 = ptradd v2, 32
     mstore v3, 0x1122334455667788990000000000000000000000000000000000000000000000

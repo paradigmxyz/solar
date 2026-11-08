@@ -1,3 +1,21 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/special_functions.sol:LL:CC
+   │
+LL │         msg.value;
+   ╰╴        ━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/special_functions.sol:LL:CC
+   │
+LL │         msg.value;
+   ╰╴        ━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/special_functions.sol:LL:CC
+   │
+LL │         msg.value;
+   ╰╴        ━━━━━━━━━
+
 error[4006]: this modifier uses `msg.value` or `callvalue()` and thus the constructor has to be payable
    ╭▸ ROOT/tests/ui/typeck/view_pure_checker/special_functions.sol:LL:CC
    │
@@ -16,5 +34,5 @@ error[5887]: `msg.value` and `callvalue()` can only be used in payable public fu
 LL │         msg.value;
    ╰╴        ━━━━━━━━━
 
-error: aborting due to 2 previous errors
+error: aborting due to 2 previous errors; 3 warnings emitted
 

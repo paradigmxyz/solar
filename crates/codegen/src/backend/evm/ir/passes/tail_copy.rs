@@ -23,10 +23,9 @@
 //! and so do opcodes the target lacks, whose new uses the checks between passes reject.
 //!
 //! NOTE: A copy keeps its instructions' source locations and function events, but not the
-//! checkpoints of the removed transfer or the function entry event of the tail's `JUMPDEST`,
-//! which no longer run on that path. Keeping an executable jump for them would defeat the
-//! rewrite; recording one on the caller's last instruction could overwrite that instruction's
-//! own transition. Debug origins never affect eligibility.
+//! function entry event of the tail's `JUMPDEST`, which no longer runs on that path. Keeping an
+//! executable jump for it would defeat the rewrite; recording it on the caller's last instruction
+//! could overwrite that instruction's own transition. Debug origins never affect eligibility.
 //!
 //! # `copy-loop-blocks`: loop blocks
 //!
