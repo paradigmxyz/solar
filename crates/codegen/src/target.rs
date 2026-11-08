@@ -20,9 +20,10 @@
 use crate::{
     backend::evm::{ir::compact_pushes, op, select},
     mir::{
-        AbiLayout, AbiType, BlockId, Builtin, Callee, CheckedOp, Function, FunctionAttributes,
-        Hotness, ImmutableEncoding, InstId, InstKind, MirType, Module, Op, Terminator, ValueId,
-        analysis::AddressSpace, immutable::immutable_push_type_size, memory::EvmMemoryLayout,
+        AbiLayout, AbiType, BlockId, Builtin, CallFailure, CallOutput, CallPolicy, Callee,
+        CheckedOp, Function, FunctionAttributes, Hotness, ImmutableEncoding, InstId, InstKind,
+        MirType, Module, Op, Terminator, ValueId, analysis::AddressSpace,
+        immutable::immutable_push_type_size, memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
@@ -1504,13 +1505,6 @@ impl Target {
                 function: Callee::Builtin(Builtin::CheckedAddMod | Builtin::CheckedMulMod),
                 ..
             } => Cost::new(32, 9),
-            InstKind::ICall {
-                function: Callee::Builtin(Builtin::Sha256 | Builtin::Ripemd160),
-                ..
-            } => Cost::new(800, 64),
-            InstKind::ICall { function: Callee::Builtin(Builtin::EcRecover), .. } => {
-                Cost::new(900, 100)
-            }
             InstKind::ICall { function: Callee::Builtin(Builtin::Check { .. }), .. } => {
                 Cost::new(24, 8)
             }
@@ -1529,13 +1523,9 @@ impl Target {
             | InstKind::StorageArrayElementSlot { .. } => {
                 self.slot_expansion(func, kind).expect("a slot hash is priced")
             }
-            InstKind::AddressCall { .. } => Cost::new(720, 12),
+            InstKind::AddressCall { policy, .. } => self.address_call(*policy),
             InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
                 Cost::new(60, 24)
-            }
-            InstKind::ICall { function: Callee::Builtin(Builtin::Send), .. } => Cost::new(720, 12),
-            InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), .. } => {
-                Cost::new(740, 20)
             }
             InstKind::Call { .. }
             | InstKind::CallCode { .. }
@@ -1602,6 +1592,24 @@ impl Target {
     /// `[f, c, t]`, `dup3; swap1` leaves `[f, c, f, t]` for `sub; mul; add`.
     pub(crate) fn select_stack_ops(&self) -> Cost {
         self.opcode(op::DUP3) + self.opcode(op::SWAP1)
+    }
+
+    /// Estimated code of an `address_call`, as `lower-builtins` expands it, excluding the staging
+    /// of its input: the call with its gas and ranges, the branch to the shared revert of a
+    /// failure that forwards returndata, and the scratch word that a result is read from, and
+    /// that may be zeroed first.
+    pub(crate) fn address_call(&self, policy: CallPolicy) -> Cost {
+        let mut cost = Cost::new(720, 12);
+        if policy.on_failure == CallFailure::Revert {
+            cost += self.branch();
+        }
+        if let CallOutput::ScratchWord { clear } = policy.output {
+            cost += self.push(U256::ZERO) + self.opcode(op::MLOAD);
+            if clear {
+                cost += self.push(U256::ZERO).times(2) + self.opcode(op::MSTORE);
+            }
+        }
+        cost
     }
 
     /// Estimated code of an operation that hashes a storage slot, as the opcode sequence
@@ -1707,7 +1715,7 @@ fn abi_layout_expansion(layout: &AbiLayout) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Immediate, Instruction, PtrLocation, Value};
+    use crate::mir::{AddressCallKind, Immediate, Instruction, PtrLocation, Value};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -1829,6 +1837,33 @@ mod tests {
                 assert_eq!(target.op_has_variable_gas(&kind.op()), version >= EvmVersion::Berlin);
             }
         }
+    }
+
+    #[test]
+    fn address_calls_price_their_policy() {
+        let target = Target::with(
+            EvmVersion::Cancun,
+            OptimizationMode::Gas,
+            Target::DEFAULT_EXPECTED_EXECUTIONS,
+        );
+        let price = |on_failure, output| {
+            target.address_call(CallPolicy {
+                kind: AddressCallKind::Static,
+                output,
+                on_failure,
+                may_create_account: true,
+            })
+        };
+        let call = price(CallFailure::Return, CallOutput::None);
+        assert_eq!(call, Cost::new(720, 12));
+        // A failure that reverts adds one branch to the shared revert.
+        let revert = price(CallFailure::Revert, CallOutput::None);
+        assert_eq!(revert, call + target.branch());
+        // A scratch word is loaded after the call, and zeroed before it when asked.
+        let word = price(CallFailure::Revert, CallOutput::ScratchWord { clear: false });
+        assert_eq!(word, revert + target.push(U256::ZERO) + target.opcode(op::MLOAD));
+        let cleared = price(CallFailure::Revert, CallOutput::ScratchWord { clear: true });
+        assert_eq!(cleared, word + target.push(U256::ZERO).times(2) + target.opcode(op::MSTORE));
     }
 
     #[test]

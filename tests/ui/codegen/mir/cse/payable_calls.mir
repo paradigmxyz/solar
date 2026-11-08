@@ -8,12 +8,12 @@ fn @observe(arg0: i256) -> i256 {
     v1 = selfbalance
     v2 = sload 0
     v3 = tload 0
-    v4 = icall send<>, v24, 1
+    v4 = address_call<> v24, gas 0, value 1
     v5 = balance arg0
     v6 = selfbalance
     v7 = sload 0
     v8 = tload 0
-    icall transfer<>, v24, 1
+    address_call<revert> v24, gas 0, value 1
     v9 = balance arg0
     v10 = selfbalance
     v11 = sload 0

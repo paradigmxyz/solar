@@ -36,11 +36,11 @@
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
     AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
-    BackendMemory, BlockId, DataId, DataRef, DataSize, Disambiguator, EffectKind, FrameMode,
-    FrameSlotKind, Function, FunctionBuilder, FunctionId, HirExprId, Immediate, ImmutableId,
-    InstId, InstKind, Instruction, InstructionMetadata, LogTopics, MangledSymbol, MemoryObjectKind,
-    MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StructId, StructType, Terminator,
-    Value, ValueId,
+    BackendMemory, BlockId, CallFailure, CallOutput, CallPolicy, DataId, DataRef, DataSize,
+    Disambiguator, EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId,
+    HirExprId, Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata,
+    LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
+    StorageAlias, StructId, StructType, Terminator, Value, ValueId,
 };
 use crate::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
 use smallvec::SmallVec;
@@ -1988,28 +1988,57 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 inst!(StorageBytesLoad(a) => MirType::MEMPTR)
             }
             sym::address_call | sym::address_staticcall | sym::address_delegatecall => {
-                operands!(address, input);
-                let kind = match mnemonic {
-                    sym::address_call => AddressCallKind::Call,
-                    sym::address_staticcall => AddressCallKind::Static,
-                    _ => AddressCallKind::Delegate,
+                let mut policy = CallPolicy {
+                    kind: match mnemonic {
+                        sym::address_call => AddressCallKind::Call,
+                        sym::address_staticcall => AddressCallKind::Static,
+                        _ => AddressCallKind::Delegate,
+                    },
+                    output: CallOutput::None,
+                    on_failure: CallFailure::Return,
+                    may_create_account: false,
                 };
+                self.parser.expect(TokenKind::Lt)?;
+                let mut first = true;
+                while !self.eat_gt() {
+                    if !first {
+                        self.parser.expect(TokenKind::Comma)?;
+                    }
+                    first = false;
+                    match self.parser.parse_ident()? {
+                        sym::scratch => policy.output = CallOutput::ScratchWord { clear: false },
+                        sym::scratch_clear => {
+                            policy.output = CallOutput::ScratchWord { clear: true }
+                        }
+                        kw::Revert => policy.on_failure = CallFailure::Revert,
+                        kw::Create => policy.may_create_account = true,
+                        _ => return Err(self.parser.error("invalid address call policy")),
+                    }
+                }
+                let address = self.parse_value(builder)?;
+                let mut input = None;
                 let mut gas = None;
                 let mut value = None;
                 while self.parser.eat(TokenKind::Comma) {
-                    let option = self.parser.parse_ident()?;
-                    let operand = self.parse_value(builder)?;
-                    match option {
-                        kw::Gas if gas.is_none() => gas = Some(operand),
-                        sym::value if value.is_none() => value = Some(operand),
-                        _ => {
-                            return Err(self
-                                .parser
-                                .error("invalid or duplicate address call option"));
+                    if self.parser.check_keyword(kw::Gas) || self.parser.check_keyword(sym::value) {
+                        let option = self.parser.parse_ident()?;
+                        let operand = self.parse_value(builder)?;
+                        match option {
+                            kw::Gas if gas.is_none() => gas = Some(operand),
+                            sym::value if value.is_none() => value = Some(operand),
+                            _ => {
+                                return Err(self
+                                    .parser
+                                    .error("invalid or duplicate address call option"));
+                            }
                         }
+                    } else if input.is_none() && gas.is_none() && value.is_none() {
+                        input = Some(self.parse_value(builder)?);
+                    } else {
+                        return Err(self.parser.error("invalid or duplicate address call input"));
                     }
                 }
-                (InstKind::AddressCall { kind, address, input, gas, value }, Some(MirType::I1))
+                (InstKind::AddressCall { policy, address, input, gas, value }, policy.result_type())
             }
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::I256),
             sym::mapping_slot_bytes => inst!(MappingSlotBytes(key, slot) => MirType::I256),
@@ -2072,14 +2101,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     super::Callee::Builtin(super::Builtin::Require(kind))
                 } else if let Some(builtin) = self.parser.token().ident().and_then(|ident| {
                     Some(match ident.name {
-                        sym::sha256 => super::Builtin::Sha256,
-                        sym::ripemd160 => super::Builtin::Ripemd160,
-                        sym::ecrecover => super::Builtin::EcRecover,
                         sym::erc7201 => super::Builtin::Erc7201,
                         sym::checked_addmod => super::Builtin::CheckedAddMod,
                         sym::checked_mulmod => super::Builtin::CheckedMulMod,
-                        sym::send => super::Builtin::Send,
-                        sym::transfer => super::Builtin::Transfer,
                         sym::returndata_bytes => super::Builtin::ReturndataBytes,
                         _ => return None,
                     })
@@ -2095,18 +2119,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     super::Callee::Builtin(
                         super::Builtin::Require(_) | super::Builtin::Check { .. },
                     ) => None,
-                    super::Callee::Builtin(super::Builtin::Transfer) => None,
                     super::Callee::Builtin(super::Builtin::ReturndataBytes) => {
                         Some(MirType::MEMPTR)
                     }
                     super::Callee::Builtin(
-                        super::Builtin::Sha256
-                        | super::Builtin::Ripemd160
-                        | super::Builtin::EcRecover
-                        | super::Builtin::Erc7201
+                        super::Builtin::Erc7201
                         | super::Builtin::CheckedAddMod
-                        | super::Builtin::CheckedMulMod
-                        | super::Builtin::Send,
+                        | super::Builtin::CheckedMulMod,
                     ) => Some(MirType::I256),
                     super::Callee::Function(_) => Some(MirType::I256),
                 };

@@ -1231,6 +1231,7 @@ symbols! {
         runtime_code,
         salt,
         scratch,
+        scratch_clear,
         select,
         selector,
         semantic,

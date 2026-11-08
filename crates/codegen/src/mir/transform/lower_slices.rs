@@ -9,7 +9,10 @@
 //! declared type.
 //!
 //! The pass is required and runs after `lower-memory-objects` and before `lower-alloc`; the
-//! backend accepts no slice value.
+//! backend accepts no slice value. Builtins that consume slices must expand in `lower-builtins`
+//! first: they read a slice's length, and a headerless memory slice replaced by its pointer
+//! would be mistaken for an object whose length is the word it points to. The pass rejects such
+//! a builtin before it edits anything.
 //!
 //! Slice-typed `select` and `phi` first split into pointer and length operations. An internal
 //! slice parameter becomes a pointer and a length word. A returned slice whose producer is a real
@@ -24,7 +27,7 @@
 
 use crate::mir::{
     ArgIdx, BlockId, Callee, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
-    MirType, Module, PtrLocation, Terminator, Value, ValueId,
+    MirType, Module, PhaseCategory, PtrLocation, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
 };
@@ -46,7 +49,24 @@ impl MirPass for LowerSlices {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+        if module.functions.iter().any(|func| {
+            func.instructions().any(|id| {
+                let kind = &func.inst(id).kind;
+                kind.op_def().phase_category == Some(PhaseCategory::Builtin)
+                    && kind
+                        .operands()
+                        .iter()
+                        .any(|&operand| func.value_slice_location(operand).is_some())
+            })
+        }) {
+            analyses.fail(
+                gcx.dcx()
+                    .err("`lower-slices` requires expanded builtins; run `lower-builtins` first")
+                    .emit(),
+            );
+            return false;
+        }
         // NOTE: Rewriting a projection of a lowered memory object into a load is not reported
         // as a change on its own.
         analyses.note_unreported_module_edit();

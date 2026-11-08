@@ -109,11 +109,13 @@
       stop
   }
   
-  fn @precompiles(arg0: ptr<memory>) -> i256 {
+  fn @precompiles(arg0: ptr<memory>, arg1: i160) -> i256 {
     bb0:
-      v0 = icall sha256<>, arg0
-      v1 = icall ripemd160<>, arg0
-      v2 = icall ecrecover<>, 0, 0, 0, 0
+      v0 = address_staticcall<scratch, revert, create> i160 2, arg0
+      v1 = address_staticcall<scratch, revert, create> i160 3, arg0
+      v2 = address_staticcall<scratch_clear, revert, create> i160 1, arg0
+      v3 = address_call<> arg1, arg0, gas 0x8fc, value 1
+      address_call<revert> arg1, gas 0x8fc, value 1
       ret v2
   }
   

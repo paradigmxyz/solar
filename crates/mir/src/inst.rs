@@ -921,6 +921,57 @@ pub enum AddressCallKind {
     Delegate,
 }
 
+/// Where an address call's output lands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CallOutput {
+    /// The call discards its output: it expands to an empty output range.
+    None,
+    /// The call writes a 32-byte word at the start of scratch memory, which becomes the result.
+    /// With `clear`, the word is zeroed first, since a failed callee can return no data.
+    ScratchWord { clear: bool },
+}
+
+/// What an address call does when the callee fails.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CallFailure {
+    /// The success flag is the result.
+    Return,
+    /// The caller reverts with the callee's returndata.
+    Revert,
+}
+
+/// Everything an `address_call` expansion decides apart from its operands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CallPolicy {
+    /// `CALL`, `STATICCALL` (a zero-value `CALL` before Byzantium), or `DELEGATECALL`.
+    pub kind: AddressCallKind,
+    pub output: CallOutput,
+    pub on_failure: CallFailure,
+    /// Whether the default gas of a pre-EIP-150 call reserves the callee's account creation, as
+    /// a call that no code check guards must.
+    pub may_create_account: bool,
+}
+
+impl CallPolicy {
+    /// Whether the policy names one result. Only a call that reverts on failure can return its
+    /// output word, because a call that returns on failure returns its success flag.
+    pub const fn is_valid(self) -> bool {
+        !matches!(
+            (self.output, self.on_failure),
+            (CallOutput::ScratchWord { .. }, CallFailure::Return)
+        )
+    }
+
+    /// The type of the call's result: the success flag, the output word, or nothing.
+    pub const fn result_type(self) -> Option<MirType> {
+        match (self.on_failure, self.output) {
+            (CallFailure::Return, _) => Some(MirType::I1),
+            (CallFailure::Revert, CallOutput::ScratchWord { .. }) => Some(MirType::I256),
+            (CallFailure::Revert, CallOutput::None) => None,
+        }
+    }
+}
+
 impl InstKind {
     /// Infers integer results from the operation's declared operand signature.
     pub(crate) fn inferred_result_type(&self, func: &Function) -> Option<MirType> {
@@ -994,6 +1045,7 @@ impl InstKind {
                     && ty(b) == result
             }
             Self::AbiDecode { ref layout, .. } => result.is_some() != layout.types.is_empty(),
+            Self::AddressCall { policy, .. } => result == policy.result_type(),
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
             | Self::StorageBytesLoad(..)
@@ -1095,9 +1147,11 @@ impl InstKind {
                     "abi_encode_packed"
                 }
             }
-            Self::AddressCall { kind: AddressCallKind::Call, .. } => "address_call",
-            Self::AddressCall { kind: AddressCallKind::Static, .. } => "address_staticcall",
-            Self::AddressCall { kind: AddressCallKind::Delegate, .. } => "address_delegatecall",
+            Self::AddressCall { policy, .. } => match policy.kind {
+                AddressCallKind::Call => "address_call",
+                AddressCallKind::Static => "address_staticcall",
+                AddressCallKind::Delegate => "address_delegatecall",
+            },
             _ => self.op_def().mnemonic,
         }
     }
@@ -1118,11 +1172,6 @@ impl InstKind {
                 }
                 Builtin::Erc7201 | Builtin::ReturndataBytes => EffectKind::MemoryWrite,
                 Builtin::Require(_) => EffectKind::MemoryRead,
-                Builtin::Sha256
-                | Builtin::Ripemd160
-                | Builtin::EcRecover
-                | Builtin::Send
-                | Builtin::Transfer => EffectKind::ExternalCall,
             },
             _ => self.op_def().effect,
         }

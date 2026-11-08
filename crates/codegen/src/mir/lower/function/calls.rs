@@ -1,7 +1,10 @@
 //! Function calls, conversions, and call-target resolution.
 
 use super::*;
-use crate::{link::CodeKind, mir::Immediate};
+use crate::{
+    link::CodeKind,
+    mir::{Immediate, utils::emit_call},
+};
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
@@ -1339,23 +1342,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // gas = gas() | sub(gas(), reserve)
         let gas = self.call_gas(options.gas, options.value_set, false);
         // ok = call|staticcall|delegatecall(gas, address, [value,] input, ret_offset, ret_size)
-        let success = match kind {
-            AddressCallKind::Call => self.builder.call(
-                gas,
-                address,
-                options.value,
-                input,
-                input_size,
-                plan.offset,
-                plan.size,
-            ),
-            AddressCallKind::Static => {
-                self.builder.staticcall(gas, address, input, input_size, plan.offset, plan.size)
-            }
-            AddressCallKind::Delegate => {
-                self.builder.delegatecall(gas, address, input, input_size, plan.offset, plan.size)
-            }
+        let policy = CallPolicy {
+            kind,
+            output: CallOutput::None,
+            on_failure: CallFailure::Return,
+            may_create_account: false,
         };
+        let success = emit_call(
+            &mut self.builder,
+            self.cx.gcx.sess.opts.evm_version,
+            policy,
+            address,
+            Some((input, input_size)),
+            Some(gas),
+            Some(options.value),
+            Some((plan.offset, plan.size)),
+        )
+        .expect("a returning call yields its success flag");
         (success, plan)
     }
 

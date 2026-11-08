@@ -20,8 +20,8 @@
 
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
-    AbiLayout, AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, Callee,
-    FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
+    AbiLayout, AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, CallOutput,
+    Callee, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
     MAX_SCRATCH_ERROR_WORDS, MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RawMemorySize,
     RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
@@ -1147,7 +1147,7 @@ impl AliasAnalysis {
             | InstKind::Keccak256(dest, _)
             | InstKind::Log { offset: dest, .. } => operand != *dest,
             InstKind::ExtCodeCopy(_, dest, _, _) => operand != *dest,
-            InstKind::AddressCall { input, .. } => operand != *input,
+            InstKind::AddressCall { input, .. } => *input != Some(operand),
             InstKind::Call { args_offset, ret_offset, .. }
             | InstKind::CallCode { args_offset, ret_offset, .. }
             | InstKind::StaticCall { args_offset, ret_offset, .. }
@@ -1253,6 +1253,7 @@ impl AliasAnalysis {
             | InstKind::StorageArrayDataSlot(..)
             | InstKind::StorageArrayElementSlot { .. } => 1,
             InstKind::MappingSlot(..) => 2,
+            InstKind::AddressCall { policy, .. } if policy.output != CallOutput::None => 1,
             _ => 0,
         };
         if scratch_words != 0 {
@@ -1372,16 +1373,7 @@ impl AliasAnalysis {
                 effects.read_write_any([AddressSpace::Memory]);
             }
             InstKind::ICall { function: Callee::Builtin(Builtin::Erc7201), .. }
-            | InstKind::ICall {
-                function:
-                    Callee::Builtin(
-                        Builtin::Sha256
-                        | Builtin::Ripemd160
-                        | Builtin::EcRecover
-                        | Builtin::ReturndataBytes,
-                    ),
-                ..
-            } => {
+            | InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
                 effects.read_write_any([AddressSpace::Memory]);
             }
             InstKind::ICall { function: Callee::Builtin(Builtin::Require(_)), .. } => {
@@ -1498,20 +1490,19 @@ impl AliasAnalysis {
             InstKind::StoreImmutable(id, _) => {
                 effects.write(Access::Location(Location::Immutable(id)));
             }
-            InstKind::AddressCall { kind, .. } => {
-                effects.read_any(AddressSpace::Memory);
+            InstKind::AddressCall { policy, input, .. } => {
+                if input.is_some() {
+                    effects.read_any(AddressSpace::Memory);
+                }
+                if policy.output != CallOutput::None {
+                    effects.write_any(AddressSpace::Memory);
+                }
                 effects.read_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);
-                if kind != AddressCallKind::Static {
+                if policy.kind != AddressCallKind::Static {
                     effects.write_any(AddressSpace::Storage);
                     effects.write_any(AddressSpace::Transient);
                 }
-            }
-            InstKind::ICall {
-                function: Callee::Builtin(Builtin::Send | Builtin::Transfer),
-                ..
-            } => {
-                effects.read_write_any(AddressSpace::SLOTS);
             }
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
             | InstKind::CallCode { args_offset, args_size, ret_offset, ret_size, .. }

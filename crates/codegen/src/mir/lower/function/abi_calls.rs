@@ -1030,22 +1030,4 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         Some(object)
     }
-
-    /// Copies bytes for consumers that use zero-padded calldata reads rather than source-range
-    /// validation. Ordinary calldata-to-memory conversions retain their checked path.
-    pub(super) fn copy_calldata_bytes_unchecked(&mut self, value: ValueId) -> Option<ValueId> {
-        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
-            return Some(value);
-        }
-        // length = slice_len(value)
-        // source = slice_ptr(value)
-        // object = alloc_bytes(length)
-        // copy(memory_data(object), source, length, calldata)
-        let length = self.builder.slice_len(value);
-        let source = self.builder.slice_ptr(value);
-        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
-        let dest = self.builder.memory_data(object);
-        self.builder.copy_heap(dest, source, length, PtrLocation::Calldata);
-        Some(object)
-    }
 }

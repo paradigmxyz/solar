@@ -102,6 +102,6 @@ fn @staticTouch() -> i1 [selector=0x7a96c521, view, abi_params=[], abi_returns=[
     v0 = address
     v1 = gas
     v2 = abi_encode [word, word], object, selector 0x7cb6ded300000000000000000000000000000000000000000000000000000000, args 1, 9
-    v3 = address_staticcall v0, v2, gas v1
+    v3 = address_staticcall<create> v0, v2, gas v1
     ret v3
 }

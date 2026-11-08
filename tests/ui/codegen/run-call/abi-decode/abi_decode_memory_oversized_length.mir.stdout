@@ -62,7 +62,7 @@ fn @oversized(arg0: i256) -> i1 {
     v0 = abi_encode_packed (bytes4 arg0, uint256 32, uint256 0xffffffffffffffff)
     v1 = address
     v2 = gas
-    v3 = address_call v1, v0, gas v2
+    v3 = address_call<create> v1, v0, gas v2
     v4 = icall returndata_bytes<>
     v5 = eq v3, false
     jumpi v5, bb1, bb2

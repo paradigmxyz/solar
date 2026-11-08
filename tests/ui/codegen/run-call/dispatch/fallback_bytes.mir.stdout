@@ -24,7 +24,7 @@ fn @invoke(arg0: ptr<memory>) -> struct0 [selector=0xa6514259, abi_params=[bytes
   bb0:
     v0 = address
     v1 = gas
-    v2 = address_call v0, arg0, gas v1
+    v2 = address_call<create> v0, arg0, gas v1
     v3 = icall returndata_bytes<>
     v4 = eq v2, false
     icall revert_if<empty>, v4

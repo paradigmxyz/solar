@@ -1,6 +1,6 @@
 //! Builtin call and value lowering.
 
-use super::*;
+use super::{abi_values::lies_in_calldata, *};
 use crate::link::CodeKind;
 use solar_interface::error_code;
 
@@ -155,17 +155,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ) {
             // An empty input is only read, so it needs no allocation.
             self.zero_slot()
-        } else if is_calldata_bytes(data_ty) {
+        } else if lies_in_calldata(data_ty) {
             // solc copies calldata `bytes` input past the free memory pointer, which the call
             // reads at once, so it stays unreserved, and without checking that it lies within
             // the calldata, so the copy reads zeros past its end.
-            // input = memory_slice(fmp, data.len); calldatacopy(fmp, data.offset, data.len)
-            let slice = self.operand(data)?;
-            let length = self.builder.slice_len(slice);
-            let source = self.builder.slice_ptr(slice);
-            let base = self.builder.fmp();
-            self.builder.copy_heap(base, source, length, PtrLocation::Calldata);
-            self.builder.make_slice(base, length, PtrLocation::Memory)
+            let data = self.operand(data)?;
+            self.builder.stage_bytes(data)
         } else {
             // input = materialize_memory(arg)
             let data = self.lower_typed_expr(data, memory_ty)?.clean(self, memory_ty);
@@ -178,13 +173,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => unreachable!(),
         };
         // success = address_call(address, data, gas?, value?)
-        let success = self.builder.address_call(
+        let policy = CallPolicy {
             kind,
-            address,
-            data,
-            options.gas,
-            options.value_set.then_some(options.value),
-        );
+            output: CallOutput::None,
+            on_failure: CallFailure::Return,
+            may_create_account: true,
+        };
+        let success = self
+            .builder
+            .address_call(
+                policy,
+                address,
+                Some(data),
+                options.gas,
+                options.value_set.then_some(options.value),
+            )
+            .expect("a returning call yields its success flag");
         // data = capture ? returndata() : none
         let returndata = capture_returndata.then(|| self.materialize_returndata_bytes());
         Some((success, returndata))
@@ -200,18 +204,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let address = self.lower_expr(receiver)?.raw_operand();
         let uint256 = self.cx.gcx.types.uint(256);
         let amount = self.lower_typed_expr(amount, uint256)?.clean(self, uint256);
-        match builtin {
-            Builtin::AddressPayableTransfer => {
-                // transfer(address, amount)
-                self.builder.transfer(address, amount);
-                Some(CallResult::Void)
-            }
-            Builtin::AddressPayableSend => {
-                // success = send(address, amount)
-                Some(CallResult::Value(self.builder.send(address, amount)))
-            }
-            _ => unreachable!(),
-        }
+        // gas = amount == 0 ? 2300 : 0
+        let zero = self.builder.imm(0);
+        let stipend = self.builder.imm(2300);
+        let amount_is_zero = self.builder.eq_zero(amount);
+        let gas = self.builder.select(amount_is_zero, stipend, zero);
+        let policy = CallPolicy {
+            kind: AddressCallKind::Call,
+            output: CallOutput::None,
+            on_failure: if builtin == Builtin::AddressPayableTransfer {
+                CallFailure::Revert
+            } else {
+                CallFailure::Return
+            },
+            may_create_account: false,
+        };
+        // success? = address_call(address, gas, value amount)
+        let success = self.builder.address_call(policy, address, None, Some(gas), Some(amount));
+        Some(success.map_or(CallResult::Void, CallResult::Value))
     }
 
     pub(super) fn low_level_call_builtin(&self, expr: &hir::Expr<'_>) -> Option<Builtin> {
@@ -1069,14 +1079,4 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.cx.gcx.dcx().emit_err(span, format!("unsupported builtin call `{}`", builtin.name()));
         None
     }
-}
-
-/// Whether `ty` is `bytes` in calldata, as a reference or a slice.
-fn is_calldata_bytes(ty: Ty<'_>) -> bool {
-    let ty = match ty.kind {
-        TyKind::Slice(inner) => inner,
-        _ => ty,
-    };
-    ty.is_ref_at(DataLocation::Calldata)
-        && matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
 }

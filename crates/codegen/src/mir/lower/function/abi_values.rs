@@ -941,40 +941,54 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input = &self.builtin_args::<1>(builtin, &args)?[0];
         let span = input.span;
         let memory_ty = self.cx.gcx.types.bytes_ref.memory;
-        // input = materialize(bytes)
+        // input = stage(bytes)
         let input_ty = self.cx.gcx.type_of_expr(input.id)?;
         let input = if lies_in_calldata(input_ty) {
             let input = self.operand(input)?;
-            self.copy_calldata_bytes_unchecked(input)?
+            self.builder.stage_bytes(input)
         } else {
             let input = self.lower_typed_expr(input, memory_ty)?.clean(self, memory_ty);
             self.materialize_memory_argument(memory_ty, input, span)?
         };
-        // result = sha256(input) / ripemd160(input)
-        let kind = if builtin == Builtin::Sha256 {
-            InstKind::builtin(crate::mir::Builtin::Sha256, [input])
-        } else {
-            InstKind::builtin(crate::mir::Builtin::Ripemd160, [input])
+        // The digest is a full word, so it can land in scratch memory.
+        // result = address_call<scratch, revert, create>(sha256 ? 2 : 3, input)
+        let ripemd = builtin == Builtin::Ripemd160;
+        let address = self.builder.imm(if ripemd { 3 } else { 2 });
+        let policy = CallPolicy {
+            kind: AddressCallKind::Static,
+            output: CallOutput::ScratchWord { clear: false },
+            on_failure: CallFailure::Revert,
+            may_create_account: true,
         };
-        Some(self.builder.emit_inst(kind, Some(MirType::I256)))
+        let digest = self
+            .builder
+            .address_call(policy, address, Some(input), None, None)
+            .expect("a scratch word call yields its word");
+        if ripemd {
+            // result = digest << 96
+            let scale = self.builder.imm(1_u128 << 96);
+            Some(self.builder.mul(scale, digest))
+        } else {
+            Some(digest)
+        }
     }
 
     pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
         let values = self.builtin_args::<4>(Builtin::EcRecover, &args)?;
-        let hash = &values[0];
-        let v = &values[1];
-        let r = &values[2];
-        let s = &values[3];
-        let hash = self.operand(hash)?;
-        let v = self.operand(v)?;
-        let r = self.operand(r)?;
-        let s = self.operand(s)?;
-
-        // result = ecrecover(hash, v, r, s)
-        Some(self.builder.emit_inst(
-            InstKind::builtin(crate::mir::Builtin::EcRecover, [hash, v, r, s]),
-            Some(MirType::I256),
-        ))
+        let words = values.iter().map(|value| self.operand(value)).collect::<Option<Box<[_]>>>()?;
+        // A rejected signature returns no data, so the output word is cleared first.
+        // input = abi_encode_scratch(hash, v, r, s)
+        // result = address_call<scratch_clear, revert, create>(1, input)
+        let layout = Arc::new(AbiLayout::new(vec![AbiType::Word(None); 4].into_boxed_slice()));
+        let input = self.builder.abi_encode_scratch(layout, None, words);
+        let address = self.builder.imm(1);
+        let policy = CallPolicy {
+            kind: AddressCallKind::Static,
+            output: CallOutput::ScratchWord { clear: true },
+            on_failure: CallFailure::Revert,
+            may_create_account: true,
+        };
+        self.builder.address_call(policy, address, Some(input), None, None)
     }
 
     /// `keccak256(abi.encode(..))` of one or two value-type words, hashed in scratch space like
@@ -1016,7 +1030,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 }
 
 /// Whether the type is a calldata reference or a slice of one.
-fn lies_in_calldata(ty: Ty<'_>) -> bool {
+pub(super) fn lies_in_calldata(ty: Ty<'_>) -> bool {
     match ty.kind {
         TyKind::Slice(inner) => inner.is_ref_at(DataLocation::Calldata),
         _ => ty.is_ref_at(DataLocation::Calldata),

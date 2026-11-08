@@ -77,7 +77,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     mstore8 v31, 1
     v32 = address
     v33 = gas
-    v34 = address_call v32, v29, gas v33
+    v34 = address_call<create> v32, v29, gas v33
     v35 = eq v34, false
     icall require<short_string>, v35, 13, 0x64697274792070616464696e6700000000000000000000000000000000000000
     v36 = alloc 64

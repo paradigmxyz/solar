@@ -43,7 +43,8 @@ mod canonical;
 mod inst;
 pub use inst::{
     AbiEncodeMode, AddressCallKind, AllocationFailure, AllocationInitialization,
-    AllocationSemantics, EffectKind, Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
+    AllocationSemantics, CallFailure, CallOutput, CallPolicy, EffectKind, Instruction,
+    InstructionMetadata, MemoryRegion, StorageAlias,
 };
 
 mod arithmetic;

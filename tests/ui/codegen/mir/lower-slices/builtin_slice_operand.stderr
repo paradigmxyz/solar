@@ -1,0 +1,4 @@
+error: `lower-slices` requires expanded builtins; run `lower-builtins` first
+
+error: aborting due to 1 previous error
+

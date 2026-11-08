@@ -24,8 +24,8 @@
 //~? ERROR: [fn12] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn13] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn16] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn18] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
-//~? ERROR: [fn18] [bb0, inst1] `icall` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn18] [bb0, inst0] `address_call` has incompatible scalar types; use an explicit cast
+//~? ERROR: [fn18] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
 //~? ERROR: [fn19] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
 @module ValidateMemoryBoundary
 @phase lowered
@@ -84,10 +84,11 @@ fn @dynamic_deferred(arg0: i256) -> ptr<memory> {
     ret v0
 }
 
-//~? ERROR: [fn9] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
-fn @unlowered_precompile() -> i256 {
+//~? ERROR: [fn9] non-word type `i160` survives the `lowered` phase boundary
+//~? ERROR: [fn9] [bb0, inst0] builtin instruction `address_staticcall` survives the `lowered` phase boundary
+fn @unlowered_precompile(arg0: ptr<memory>) -> i256 {
   bb0:
-    v0 = icall ecrecover<>, 0, 0, 0, 0
+    v0 = address_staticcall<scratch_clear, revert, create> i160 1, arg0
     ret v0
 }
 
@@ -147,12 +148,12 @@ fn @unlowered_storage_header(arg0: i256) -> i256 {
     ret arg0
 }
 
-//~? ERROR: [fn18] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
-//~? ERROR: [fn18] [bb0, inst1] builtin instruction `icall` survives the `lowered` phase boundary
+//~? ERROR: [fn18] [bb0, inst0] builtin instruction `address_call` survives the `lowered` phase boundary
+//~? ERROR: [fn18] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
 fn @payable(arg0: i256) {
   bb0:
-    v0 = icall send<>, arg0, 0
-    icall transfer<>, arg0, 0
+    v0 = address_call<> arg0, gas 0, value 0
+    address_call<revert> arg0, gas 0, value 0
     ret
 }
 
@@ -161,6 +162,6 @@ fn @payable(arg0: i256) {
 fn @unlowered_address_call(arg0: i256) {
   bb0:
     v0 = icall returndata_bytes<>
-    v1 = address_call arg0, v0
+    v1 = address_call<create> arg0, v0
     ret
 }

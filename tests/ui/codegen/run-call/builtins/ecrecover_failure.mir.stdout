@@ -3,18 +3,20 @@
 ; function recover() external pure returns (address) [selector 0xce746024]
 fn @recover() -> i160 [selector=0xce746024, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
-    v0 = icall ecrecover<>, 1, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
-    v1 = trunc i256 v0 to i160
-    ret v1
+    v0 = abi_encode [word, word, word, word], scratch, args 1, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    v1 = address_staticcall<scratch_clear, revert, create> i160 1, v0
+    v2 = trunc i256 v1 to i160
+    ret v2
 }
 
 ; function recoverInvalidDirtyScratch() external pure returns (address) [selector 0x5721fb2d]
 fn @recoverInvalidDirtyScratch() -> i160 [selector=0x5721fb2d, pure, abi_params=[], abi_returns=[word<uint160>], abi_return_params=[address]] {
   bb0:
     mstore 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(memory=scratch)
-    v0 = icall ecrecover<>, 0, 0, 0, 0
-    v1 = trunc i256 v0 to i160
-    ret v1
+    v0 = abi_encode [word, word, word, word], scratch, args 0, 0, 0, 0
+    v1 = address_staticcall<scratch_clear, revert, create> i160 1, v0
+    v2 = trunc i256 v1 to i160
+    ret v2
 }
 
 ; function recoverUnderGasPressure() external view returns (uint256 zeros) [selector 0x8ea61220]

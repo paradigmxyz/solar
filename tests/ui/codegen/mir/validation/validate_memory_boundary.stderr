@@ -42,7 +42,9 @@ error: [fn7] [bb0, inst0] abstract allocation instruction `alloc` survives the `
 
 error: [fn8] [bb0, inst0] deferred allocation requires a constant size
 
-error: [fn9] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
+error: [fn9] non-word type `i160` survives the `lowered` phase boundary
+
+error: [fn9] [bb0, inst0] builtin instruction `address_staticcall` survives the `lowered` phase boundary
 
 error: [fn10] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
 
@@ -66,13 +68,13 @@ error: [fn16] [bb0, inst0] builtin instruction `icall` survives the `lowered` ph
 
 error: [fn17] [bb0, inst0] builtin instruction `validate_storage_bytes` survives the `lowered` phase boundary
 
-error: [fn18] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
+error: [fn18] [bb0, inst0] `address_call` has incompatible scalar types; use an explicit cast
 
-error: [fn18] [bb0, inst1] `icall` has incompatible scalar types; use an explicit cast
+error: [fn18] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
 
-error: [fn18] [bb0, inst0] builtin instruction `icall` survives the `lowered` phase boundary
+error: [fn18] [bb0, inst0] builtin instruction `address_call` survives the `lowered` phase boundary
 
-error: [fn18] [bb0, inst1] builtin instruction `icall` survives the `lowered` phase boundary
+error: [fn18] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
 
 error: [fn19] [bb0, inst1] `address_call` has incompatible scalar types; use an explicit cast
 
@@ -80,5 +82,5 @@ error: [fn19] [bb0, inst0] builtin instruction `icall` survives the `lowered` ph
 
 error: [fn19] [bb0, inst1] builtin instruction `address_call` survives the `lowered` phase boundary
 
-error: aborting due to 41 previous errors
+error: aborting due to 42 previous errors
 

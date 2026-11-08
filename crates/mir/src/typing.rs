@@ -94,16 +94,16 @@ pub fn memory_object(func: &Function, value: ValueId) -> MirType {
     }
 }
 
-/// The operands of `address_call`: its input is a bytes object, or a memory slice the call reads
-/// where it lies.
+/// The operands of `address_call`: its input, when present, is a bytes object, or a memory slice
+/// the call reads where it lies.
 pub(super) fn address_call_types(
     func: &Function,
-    input: ValueId,
+    input: Option<ValueId>,
     gas: bool,
     value: bool,
 ) -> SmallVec<[MirType; 8]> {
-    let input = memory_object(func, input);
-    let mut types = smallvec![MirType::I160, input];
+    let mut types = smallvec![MirType::I160];
+    types.extend(input.map(|input| memory_object(func, input)));
     types.extend(std::iter::repeat_n(MirType::I256, usize::from(gas) + usize::from(value)));
     types
 }
@@ -167,9 +167,7 @@ pub(super) fn callee_types(
             }
             types
         }
-        Builtin::Sha256 | Builtin::Ripemd160 | Builtin::Erc7201 => smallvec![bytes],
-        Builtin::Send | Builtin::Transfer => smallvec![MirType::I160, MirType::I256],
-        Builtin::EcRecover => smallvec![MirType::I256; 4],
+        Builtin::Erc7201 => smallvec![bytes],
         Builtin::CheckedAddMod | Builtin::CheckedMulMod => smallvec![MirType::I256; 3],
         Builtin::ReturndataBytes => smallvec![],
     })

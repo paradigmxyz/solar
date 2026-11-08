@@ -1145,15 +1145,11 @@ impl<'a> Validator<'a> {
                 let valid = match &inst.kind {
                     InstKind::ICall { function: Callee::Builtin(builtin), args } => {
                         let result = match builtin {
-                            Builtin::Require(_) | Builtin::Check { .. } | Builtin::Transfer => None,
+                            Builtin::Require(_) | Builtin::Check { .. } => None,
                             Builtin::ReturndataBytes => Some(MirType::MEMPTR),
-                            Builtin::CheckedAddMod
-                            | Builtin::CheckedMulMod
-                            | Builtin::Sha256
-                            | Builtin::Ripemd160
-                            | Builtin::Erc7201
-                            | Builtin::EcRecover
-                            | Builtin::Send => Some(MirType::I256),
+                            Builtin::CheckedAddMod | Builtin::CheckedMulMod | Builtin::Erc7201 => {
+                                Some(MirType::I256)
+                            }
                         };
                         let metadata_valid = match builtin {
                             Builtin::Require(RequireKind::ShortString) => args
@@ -1223,8 +1219,9 @@ impl<'a> Validator<'a> {
                         }) && inst.result_ty == Some(MirType::MEMPTR)
                     }
                     InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MEMPTR),
-                    InstKind::AddressCall { kind, value, .. } => {
-                        *kind == AddressCallKind::Call || value.is_none()
+                    InstKind::AddressCall { policy, value, .. } => {
+                        policy.is_valid()
+                            && (policy.kind == AddressCallKind::Call || value.is_none())
                     }
                     InstKind::Load(.., location) => *location != PtrLocation::Returndata,
                     InstKind::Store(.., location) => {

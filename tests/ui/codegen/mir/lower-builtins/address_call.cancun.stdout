@@ -1,0 +1,97 @@
+- ; === ROOT/tests/ui/codegen/mir/lower-builtins/address_call.mir (before lower-builtins) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-builtins/address_call.mir (after lower-builtins) ===
+  @module AddressCallExpansion
+  fn @hash_object(arg0: ptr<memory>) -> i256 {
+    bb0:
+-     v0 = address_staticcall<scratch, revert, create> i160 2, arg0
+-     ret v0
++     v1 = ptradd arg0, 32
++     v2 = mload arg0
++     v3 = gas
++     v4 = staticcall v3, 2, v1, v2, 0, 32
++     jumpi v4, bb2, bb1
++   bb1 [cold]:                                     ; preds = bb0
++     revert_returndata
++   bb2:                                            ; preds = bb0
++     v5 = mload 0 !metadata(memory=scratch)
++     ret v5
+  }
+  
+  fn @hash_slice(arg0: slice<memory>) -> i256 {
+    bb0:
+-     v0 = address_staticcall<scratch, revert, create> i160 3, arg0
+-     ret v0
++     v1 = extract_value slice<memory>, arg0, 0
++     v2 = extract_value slice<memory>, arg0, 1
++     v3 = gas
++     v4 = staticcall v3, 3, v1, v2, 0, 32
++     jumpi v4, bb2, bb1
++   bb1 [cold]:                                     ; preds = bb0
++     revert_returndata
++   bb2:                                            ; preds = bb0
++     v5 = mload 0 !metadata(memory=scratch)
++     ret v5
+  }
+  
+  fn @recover(arg0: slice<memory>) -> i256 {
+    bb0:
+-     v0 = address_staticcall<scratch_clear, revert, create> i160 1, arg0
+-     ret v0
++     v1 = extract_value slice<memory>, arg0, 0
++     v2 = extract_value slice<memory>, arg0, 1
++     mstore 0, 0 !metadata(memory=scratch)
++     v3 = gas
++     v4 = staticcall v3, 1, v1, v2, 0, 32
++     jumpi v4, bb2, bb1
++   bb1 [cold]:                                     ; preds = bb0
++     revert_returndata
++   bb2:                                            ; preds = bb0
++     v5 = mload 0 !metadata(memory=scratch)
++     ret v5
+  }
+  
+  fn @send(arg0: i160, arg1: i256, arg2: i256) -> i1 {
+    bb0:
+-     v0 = address_call<> arg0, gas arg2, value arg1
+-     ret v0
++     v1 = zext i160 arg0 to i256
++     v2 = call arg2, v1, arg1, 0, 0, 0, 0
++     ret v2
+  }
+  
+  fn @transfer(arg0: i160, arg1: i256, arg2: i256) {
+    bb0:
+-     address_call<revert> arg0, gas arg2, value arg1
++     v0 = zext i160 arg0 to i256
++     v1 = call arg2, v0, arg1, 0, 0, 0, 0
++     jumpi v1, bb2, bb1
++   bb1 [cold]:                                     ; preds = bb0
++     revert_returndata
++   bb2:                                            ; preds = bb0
+      ret
+  }
+  
+  fn @bare_with_value(arg0: i160, arg1: ptr<memory>, arg2: i256) -> i1 {
+    bb0:
+-     v0 = address_call<create> arg0, arg1, value arg2
+-     ret v0
++     v1 = ptradd arg1, 32
++     v2 = mload arg1
++     v3 = gas
++     v4 = zext i160 arg0 to i256
++     v5 = call v3, v4, arg2, v1, v2, 0, 0
++     ret v5
+  }
+  
+  fn @bare_delegate(arg0: i160, arg1: ptr<memory>) -> i1 {
+    bb0:
+-     v0 = address_delegatecall<create> arg0, arg1
+-     ret v0
++     v1 = ptradd arg1, 32
++     v2 = mload arg1
++     v3 = gas
++     v4 = zext i160 arg0 to i256
++     v5 = delegatecall v3, v4, v1, v2, 0, 0
++     ret v5
+  }
+  

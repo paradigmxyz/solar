@@ -7,7 +7,7 @@ use super::{
     Immediate, InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias,
     Terminator, Value, ValueId,
 };
-use crate::{Builtin, Callee, RequireKind, analysis::CfgInfo};
+use crate::{Builtin, CallFailure, CallOutput, Callee, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
 use solar_ast::StateMutability;
 use solar_data_structures::{
@@ -462,14 +462,26 @@ fn display_inst_kind<'a>(
     }
 
     fmt::from_fn(move |f| match kind {
-        InstKind::AddressCall { address, input, gas, value, .. } => {
+        InstKind::AddressCall { policy, address, input, gas, value } => {
+            write!(f, "{}<", kind.mnemonic())?;
+            let flags = [
+                match policy.output {
+                    CallOutput::None => None,
+                    CallOutput::ScratchWord { clear: false } => Some("scratch"),
+                    CallOutput::ScratchWord { clear: true } => Some("scratch_clear"),
+                },
+                (policy.on_failure == CallFailure::Revert).then_some("revert"),
+                policy.may_create_account.then_some("create"),
+            ];
             write!(
                 f,
-                "{} {}, {}",
-                kind.mnemonic(),
-                display_val(*address, func),
-                display_val(*input, func)
+                "{}> {}",
+                flags.into_iter().flatten().format(", "),
+                display_val(*address, func)
             )?;
+            if let Some(input) = input {
+                write!(f, ", {}", display_val(*input, func))?;
+            }
             if let Some(gas) = gas {
                 write!(f, ", gas {}", display_val(*gas, func))?;
             }
@@ -609,14 +621,9 @@ fn display_inst_kind<'a>(
         InstKind::ICall { function: Callee::Builtin(builtin), args } => {
             write!(f, "icall ")?;
             match builtin {
-                Builtin::Sha256 => write!(f, "sha256<>")?,
-                Builtin::Ripemd160 => write!(f, "ripemd160<>")?,
-                Builtin::EcRecover => write!(f, "ecrecover<>")?,
                 Builtin::Erc7201 => write!(f, "erc7201<>")?,
                 Builtin::CheckedAddMod => write!(f, "checked_addmod<>")?,
                 Builtin::CheckedMulMod => write!(f, "checked_mulmod<>")?,
-                Builtin::Send => write!(f, "send<>")?,
-                Builtin::Transfer => write!(f, "transfer<>")?,
                 Builtin::ReturndataBytes => write!(f, "returndata_bytes<>")?,
                 Builtin::Check { is_zero, failure } => {
                     let name = match failure {

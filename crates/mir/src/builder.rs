@@ -1,7 +1,7 @@
 //! MIR function builder.
 
 use super::{
-    AbiEncodeMode, AddressCallKind, AllocationFailure, AllocationSemantics, BlockId, CalldataTail,
+    AbiEncodeMode, AllocationFailure, AllocationSemantics, BlockId, CallPolicy, CalldataTail,
     FrameMode, FrameSlotKind, Function, FunctionId, Immediate, ImmutableId, InstId, InstKind,
     Instruction, InstructionMetadata, LogTopics, MemoryObjectLayout, MemoryRegion, MirType,
     PanicCode, PtrLocation, RevertKind, RevertPayload, RevertReason, StorageAlias, StructId,
@@ -1106,22 +1106,31 @@ impl<'a> FunctionBuilder<'a> {
         self.address_value(value, EvmMemoryLayout::DYNAMIC_HEADER_SIZE.saturating_add(offset))
     }
 
+    /// Stages the bytes of a dynamic memory object or slice for a consumer that reads them at
+    /// once. Calldata and returndata bytes are copied to free memory without reserving them, as
+    /// a memory slice; memory bytes are read where they lie.
+    pub fn stage_bytes(&mut self, value: ValueId) -> ValueId {
+        let Some(location @ (PtrLocation::Calldata | PtrLocation::Returndata)) =
+            self.func.value_slice_location(value)
+        else {
+            return value;
+        };
+        // data = fmp
+        // mcopy|calldatacopy|returndatacopy data, (extract_value value, 0), (extract_value value,
+        // 1)
+        // staged = make_slice data, (extract_value value, 1)
+        let source = self.slice_ptr(value);
+        let len = self.slice_len(value);
+        let data = self.fmp();
+        self.copy_heap(data, source, len, location);
+        self.make_slice(data, len, PtrLocation::Memory)
+    }
+
     /// Hashes the bytes of a dynamic memory object or slice. Calldata and returndata bytes are
     /// first copied to free memory.
     pub fn keccak256_bytes(&mut self, value: ValueId) -> ValueId {
-        let (data, len) = match self.func.value_slice_location(value) {
-            Some(location @ (PtrLocation::Calldata | PtrLocation::Returndata)) => {
-                // data = fmp
-                // mcopy|calldatacopy|returndatacopy data, (extract_value value, 0), (extract_value
-                // value, 1)
-                let source = self.slice_ptr(value);
-                let len = self.slice_len(value);
-                let data = self.fmp();
-                self.copy_heap(data, source, len, location);
-                (data, len)
-            }
-            _ => (self.memory_data(value), self.memory_len(value)),
-        };
+        let value = self.stage_bytes(value);
+        let (data, len) = (self.memory_data(value), self.memory_len(value));
         // hash = keccak256 data, len
         self.keccak256(data, len)
     }
@@ -1743,20 +1752,26 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::SlotNum, Some(MirType::I256))
     }
 
-    /// Emits a low-level address call over a bytes object.
+    /// Emits an address call over a bytes object or memory slice, or over no bytes at all.
+    ///
+    /// Returns the success flag, the output word, or nothing, as `policy` says.
     pub fn address_call(
         &mut self,
-        kind: AddressCallKind,
+        policy: CallPolicy,
         address: ValueId,
-        input: ValueId,
+        input: Option<ValueId>,
         gas: Option<ValueId>,
         value: Option<ValueId>,
-    ) -> ValueId {
-        // success = address_call(address, input, gas?, value?)
-        self.emit_inst(
-            InstKind::AddressCall { kind, address, input, gas, value },
-            Some(MirType::I1),
-        )
+    ) -> Option<ValueId> {
+        // result? = address_call<policy>(address, input?, gas?, value?)
+        let kind = InstKind::AddressCall { policy, address, input, gas, value };
+        match policy.result_type() {
+            Some(ty) => Some(self.emit_inst(kind, Some(ty))),
+            None => {
+                self.emit_void_inst(kind);
+                None
+            }
+        }
     }
 
     /// Copies the current returndata into a fresh bytes object.
@@ -1766,21 +1781,6 @@ impl<'a> FunctionBuilder<'a> {
             InstKind::builtin(crate::Builtin::ReturndataBytes, []),
             Some(MirType::MEMPTR),
         )
-    }
-
-    /// Sends value with the Solidity stipend, returning success.
-    pub fn send(&mut self, address: ValueId, amount: ValueId) -> ValueId {
-        // success = send address, amount
-        self.emit_inst(
-            InstKind::builtin(crate::Builtin::Send, [address, amount]),
-            Some(MirType::I256),
-        )
-    }
-
-    /// Transfers value with the Solidity stipend and propagates failure returndata.
-    pub fn transfer(&mut self, address: ValueId, amount: ValueId) {
-        // transfer address, amount
-        self.emit_void_inst(InstKind::builtin(crate::Builtin::Transfer, [address, amount]));
     }
 
     /// Emits a call instruction (external call).

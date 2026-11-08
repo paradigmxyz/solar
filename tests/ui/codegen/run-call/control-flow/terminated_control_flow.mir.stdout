@@ -268,7 +268,7 @@ fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, p
     v0 = phi [bb0: arg0], [bb10: v0]
     v1 = phi [bb0: arg1], [bb10: v1]
     v2 = phi [bb0: 0], [bb10: v6]
-    v3 = phi [bb0: 0], [bb10: v14]
+    v3 = phi [bb0: 0], [bb10: v16]
     v4 = returndatasize
     v5 = mul v4, 3
     v6 = add v5, v2
@@ -278,24 +278,26 @@ fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, p
     v10 = eq v1, 1
     jumpi v10, bb7, bb8
   bb8:                                            ; preds = bb5
-    v13 = icall ecrecover<>, 1, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    v14 = abi_encode [word, word, word, word], scratch, args 1, 28, 0x6673ffad2147741f04772b6f921f0ba6af0c1e77fc439e65c36dedf4092e8898, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
+    v15 = address_staticcall<scratch_clear, revert, create> i160 1, v14
     jump bb9
   bb7:                                            ; preds = bb5
     v11 = abi_encode [word], object, args v3
-    v12 = icall ripemd160<>, v11
+    v12 = address_staticcall<scratch, revert, create> i160 3, v11
+    v13 = mul v12, 0x1000000000000000000000000
     jump bb9
   bb9:                                            ; preds = bb7, bb8
     jump bb6
   bb4:                                            ; preds = bb1
     v8 = abi_encode [word], object, args v3
-    v9 = icall sha256<>, v8
+    v9 = address_staticcall<scratch, revert, create> i160 2, v8
     jump bb6
   bb6:                                            ; preds = bb4, bb9
-    v14 = checked_add uint256, v3, 1
+    v16 = checked_add uint256, v3, 1
     jump bb3
   bb3:                                            ; preds = bb6
-    v15 = lt v14, v0
-    jumpi v15, bb10, bb11
+    v17 = lt v16, v0
+    jumpi v17, bb10, bb11
   bb11:                                           ; preds = bb3
     jump bb2
   bb2:                                            ; preds = bb11
