@@ -84,21 +84,21 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.register_stackified_functions(module, call_graph, info, &plans);
 
         // push constructor; jump; <helpers>; constructor:
+        let func = &module.functions[constructor];
         let constructor_label = self.asm.new_label();
         if !info.internal.is_empty() {
-            let origin = self.asm.debug_origin();
-            if self.capture_debug_info {
-                // NOTE: Skipping the out-of-line helpers is generated deployment control flow,
-                // with no source operation, as LLVM's `DebugLoc::getCompilerGenerated` describes.
-                self.asm.set_source_span(None);
-                self.asm.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
-            }
-            self.asm.emit_push_label(constructor_label);
-            self.asm.emit_op(op::JUMP);
-            self.asm.set_debug_origin(origin);
+            // NOTE: This jump is part of entering the constructor: it runs once, after the argument
+            // copy, which already maps to the constructor's declaration, and before the body, and
+            // it only reaches the body. It therefore maps to the same declaration, which is the
+            // contract's for the synthesized constructor. solc has no such jump, but it emits the
+            // code that enters the constructor under the same location, in `appendConstructor`
+            // (libsolidity/codegen/ContractCompiler.cpp L286-L288 at v0.8.38).
+            self.emit_with_origin(Some(func.declaration_span), |codegen| {
+                codegen.asm.emit_push_label(constructor_label);
+                codegen.asm.emit_op(op::JUMP);
+            });
         }
         self.emit_internal_bodies(module, info, &mut plans);
-        let func = &module.functions[constructor];
         self.enter_function(module, func);
         if !info.internal.is_empty() {
             self.asm.define_label(constructor_label);
