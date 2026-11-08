@@ -3,10 +3,10 @@
 //@ normalize-stderr-test: "debugify: [^\n]*\n" -> ""
 //@ filecheck:
 
-// The jump over constructor helpers and implicit edges between assembler fragments are generated
-// control flow. Neither has a source operation, unlike an explicitly located MIR fallthrough.
+// The jump over constructor helpers is part of entering the constructor, so it maps to the
+// constructor's declaration. See `constructor_entry_jump_origin.sol`.
 // CHECK-LABEL: (creation) ===
-// CHECK: jump {{bb[0-9]+}} !metadata(compiler_generated)
+// CHECK: jump {{bb[0-9]+}} !metadata(span={{[0-9]+}}..{{[0-9]+}})
 contract GeneratedEdges {
     uint256 public value;
 
