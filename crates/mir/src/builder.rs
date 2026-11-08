@@ -484,7 +484,7 @@ impl<'a> FunctionBuilder<'a> {
             kind => kind,
         };
         if let Some(&block) = self.revert_blocks.0.get(&kind) {
-            // Shared revert body !metadata(union of all failed-check origins)
+            // Shared revert body !metadata(origins of all failed checks, none if one has none)
             for index in 0..self.func.blocks[block].instructions.len() {
                 let inst = self.func.blocks[block].instructions[index];
                 self.func.inst_mut(inst).metadata.merge_debug_locs([&self.current_debug_context]);
