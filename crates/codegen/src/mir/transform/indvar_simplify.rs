@@ -1801,8 +1801,8 @@ impl IndVarSimplifier {
     fn word_value(&self, func: &mut Function, block: BlockId, value: ValueId) -> ValueId {
         let context = terminator_debug_context(func, block, DebugLocKind::Dropped);
         let mut builder = FunctionBuilder::new(func);
-        // NOTE: Preheader code runs when the loop statement starts, never for one iteration, so it
-        // takes the loop statement's location, which the preheader's terminator carries.
+        // NOTE: Code in a block runs when its terminator runs, so it takes the terminator's
+        // location: the loop statement's for a preheader, which runs when the statement starts.
         builder.set_debug_context(&context);
         builder.switch_to_block(block);
         builder.cast_word(value)
@@ -1907,8 +1907,8 @@ fn preheader_value(func: &Function, phi: ValueId, preheader: BlockId) -> Option<
     incoming.iter().find_map(|&(from, value)| (from == preheader).then_some(value))
 }
 
-/// Appends a pointer-recurrence setup instruction to `block`, which takes the location of the
-/// block's terminator: the loop statement's for a preheader.
+/// Appends a pointer-recurrence instruction to `block`, which takes the location of the block's
+/// terminator: the loop statement's for a preheader or latch.
 fn append_setup_inst(func: &mut Function, block: BlockId, kind: InstKind, ty: MirType) -> ValueId {
     let context = terminator_debug_context(func, block, DebugLocKind::Dropped);
     let mut instruction = Instruction::new(kind, Some(ty));
