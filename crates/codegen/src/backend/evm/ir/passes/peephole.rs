@@ -517,10 +517,18 @@ impl Edit {
                 // the `eq`'s when `eq; iszero; push; jumpi` fuses (`_eq.debugData()`,
                 // libevmasm/PeepholeOptimiser.cpp#L349). The removed `iszero` takes its origins
                 // with it; only its function events move.
+                // NOTE: LLVM's InstCombine root always has a location, but ours can lack one where
+                // lowering left a gap. Then the compare computes the removed `iszero`'s value, so
+                // it takes that location.
                 instructions[start].replace_preserving_metadata(Instruction::push_value(value));
                 let iszero = instructions.pop().expect("matched ISZERO");
                 let comparison = instructions.last_mut().expect("matched comparison");
                 overwrite(comparison, opcode);
+                if comparison.metadata.source_spans().is_empty()
+                    && !iszero.metadata.source_spans().is_empty()
+                {
+                    comparison.metadata.preserve_debug_loc(&iszero.metadata);
+                }
                 comparison.metadata.move_function_events(&iszero.metadata);
             }
             Self::ZeroLessIszero => {
@@ -528,9 +536,17 @@ impl Edit {
                 // NOTE: The comparison is removed and the surviving `iszero` keeps its own
                 // context. The removed push and `lt` take their origins with them; only their
                 // function events move.
+                // NOTE: LLVM's InstCombine root always has a location, but ours can lack one where
+                // lowering left a gap. Then the `iszero` computes the removed `lt`'s value, so it
+                // takes that location.
                 let pushed = instructions.remove(start);
                 let comparison = instructions.remove(start);
                 let iszero = instructions.last_mut().expect("matched ISZERO");
+                if iszero.metadata.source_spans().is_empty()
+                    && !comparison.metadata.source_spans().is_empty()
+                {
+                    iszero.metadata.preserve_debug_loc(&comparison.metadata);
+                }
                 iszero.metadata.move_function_events(&pushed.metadata);
                 iszero.metadata.move_function_events(&comparison.metadata);
             }

@@ -1,0 +1,57 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/fusion_origin_fallback.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/fusion_origin_fallback.evmir (after peephole) ===
+  @module FusionOriginFallback
+  bb0:
+    calldatasize
++   iszero !metadata(span=1..3)
+    push 0
+-   lt !metadata(span=1..3)
+-   iszero
+-   push 0
+    mstore
+    stop
+  bb1:
+    calldatasize
+-   push 31
++   push 32
+    dup 2
+-   gt !metadata(span=4..6)
+-   iszero
++   lt !metadata(span=4..6)
+    push 0
+    mstore
+    pop
+    stop
+  bb2:
+    calldatasize
+-   push 31
++   push 32
+    dup 2
+-   gt
+-   iszero !metadata(span=7..9)
++   lt !metadata(span=7..9)
+    push 0
+    mstore
+    pop
+    stop
+  bb3:
+    calldatasize
+-   push 0
+-   lt !metadata(span=10..12)
+    iszero !metadata(span=13..15)
+    push 0
+    mstore
+    stop
+  bb4:
+    calldatasize
+-   push 31
++   push 32
+    dup 2
+-   gt !metadata(span=16..18)
+-   iszero !metadata(span=19..21)
++   lt !metadata(span=16..18)
+    push 0
+    mstore
+    pop
+    stop
+  
