@@ -979,6 +979,11 @@ impl Metadata {
         self.debug_loc.merge(others.into_iter().map(|other| &other.debug_loc));
     }
 
+    /// Rule R2b, combine: see [`DebugLoc::combine`].
+    pub fn combine_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        self.debug_loc.combine(others.into_iter().map(|other| &other.debug_loc));
+    }
+
     /// Rule R3, drop: see [`DebugLoc::drop`].
     pub fn drop_debug_loc(&mut self, kind: DebugLocKind) {
         self.debug_loc.drop(kind);

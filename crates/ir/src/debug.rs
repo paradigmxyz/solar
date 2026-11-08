@@ -191,19 +191,45 @@ impl DebugLoc {
         self.clone_from(from);
     }
 
-    /// Rule R2, merge: adds the origins of the equivalent instructions `others` that this one now
-    /// stands for, like LLVM's `DILocation::getMergedLocation`, but keeping every origin instead
-    /// of collapsing to line 0.
+    /// Rule R2, merge: the code of equivalent instructions `others`, which run on different paths,
+    /// is now this one, like LLVM's `DILocation::getMergedLocation`, but keeping every origin
+    /// instead of collapsing to line 0.
+    ///
+    /// If every input, this one included, has origins, the result has all of them. If any input
+    /// has none, the result has none and its kind is [`DebugLocKind::Unknown`]: the shared code
+    /// also runs for the path that has no origin, and the origins of the other paths would claim
+    /// a source for it. Without any origin on any input the kind is [`DebugLocKind::merge`] of
+    /// the kinds.
     ///
     /// The depth stays when it is the same on every input, this one included, and becomes 0
-    /// otherwise. Without any origin the kind becomes [`DebugLocKind::merge`] of the kinds, and
-    /// [`DebugLocKind::Normal`] with one.
+    /// otherwise.
+    ///
+    /// NOTE: Callers must not select one of the origins, such as with a source-map `pick` or a
+    /// single span: that claims one path's source on every path.
     pub fn merge<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
         for other in others {
-            self.insert_spans(other.spans());
-            if self.modifier_depth != other.modifier_depth {
-                self.modifier_depth = 0;
+            self.vote_depth(other);
+            match (self.has_spans(), other.has_spans()) {
+                (true, true) => self.insert_spans(other.spans()),
+                (false, false) => self.kind = self.kind.merge(other.kind),
+                _ => {
+                    self.set_span(None);
+                    self.kind = DebugLocKind::Unknown;
+                }
             }
+        }
+    }
+
+    /// Rule R2b, combine: one instruction now does the work of the instructions `others`, which
+    /// all run on one path, such as several stores folded into one copy. It keeps the union of
+    /// their origins, and an input without origins adds none.
+    ///
+    /// Without any origin the kind becomes [`DebugLocKind::merge`] of the kinds, and
+    /// [`DebugLocKind::Normal`] with one. The depth follows the same rule as in [`Self::merge`].
+    pub fn combine<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        for other in others {
+            self.vote_depth(other);
+            self.insert_spans(other.spans());
             self.kind =
                 if self.has_spans() { DebugLocKind::Normal } else { self.kind.merge(other.kind) };
         }
@@ -214,6 +240,12 @@ impl DebugLoc {
     pub fn drop(&mut self, kind: DebugLocKind) {
         self.set_span(None);
         self.kind = kind;
+    }
+
+    fn vote_depth(&mut self, other: &Self) {
+        if self.modifier_depth != other.modifier_depth {
+            self.modifier_depth = 0;
+        }
     }
 
     fn insert_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
@@ -301,18 +333,55 @@ mod tests {
     #[test]
     fn merge_keeps_agreeing_depth_and_zeroes_conflicts() {
         let mut merged = loc([span(1)], 2);
-        merged.merge([&loc([span(2)], 2), &loc([], 2)]);
-        assert_eq!(merged.spans().collect::<Vec<_>>(), [span(1), span(2)]);
+        merged.merge([&loc([span(2)], 2), &loc([span(3)], 2)]);
         assert_eq!(merged.modifier_depth(), 2);
 
-        // A spanless input votes too.
-        merged.merge([&DebugLoc::EMPTY]);
+        merged.merge([&loc([span(4)], 1)]);
         assert_eq!(merged.modifier_depth(), 0);
 
         // Once the depths conflict, a later agreeing input does not bring the depth back.
         merged.set_modifier_depth(2);
-        merged.merge([&loc([], 1), &loc([], 2)]);
+        merged.merge([&loc([span(5)], 1), &loc([span(6)], 2)]);
         assert_eq!(merged.modifier_depth(), 0);
+    }
+
+    #[test]
+    fn merge_votes_depth_of_inputs_without_spans() {
+        let mut merged = loc([], 2);
+        merged.merge([&loc([], 2)]);
+        assert_eq!(merged.modifier_depth(), 2);
+        merged.merge([&DebugLoc::EMPTY]);
+        assert_eq!(merged.modifier_depth(), 0);
+    }
+
+    #[test]
+    fn merge_with_an_unlocated_input_has_no_spans() {
+        let mut merged = loc([span(1), span(2)], 0);
+        merged.merge([&DebugLoc::EMPTY, &loc([span(3)], 0)]);
+        assert!(!merged.has_spans());
+        assert_eq!(merged.kind(), DebugLocKind::Unknown);
+
+        let mut unlocated = DebugLoc::EMPTY;
+        unlocated.merge([&loc([span(1)], 0)]);
+        assert!(!unlocated.has_spans());
+        assert_eq!(unlocated.kind(), DebugLocKind::Unknown);
+    }
+
+    #[test]
+    fn merge_unions_the_spans_of_located_inputs() {
+        let mut merged = loc([span(1)], 0);
+        merged.merge([&loc([span(2), span(1)], 0)]);
+        assert_eq!(merged.spans().collect::<Vec<_>>(), [span(1), span(2)]);
+        assert_eq!(merged.kind(), DebugLocKind::Normal);
+    }
+
+    #[test]
+    fn combine_unions_spans_and_ignores_unlocated_inputs() {
+        let mut combined = loc([span(1)], 2);
+        combined.combine([&DebugLoc::EMPTY.clone(), &loc([span(2)], 2)]);
+        assert_eq!(combined.spans().collect::<Vec<_>>(), [span(1), span(2)]);
+        assert_eq!(combined.kind(), DebugLocKind::Normal);
+        assert_eq!(combined.modifier_depth(), 0);
     }
 
     #[test]
@@ -332,7 +401,7 @@ mod tests {
         other.drop(DebugLocKind::CompilerGenerated);
         merged.merge([&other]);
         assert_eq!(merged.kind(), DebugLocKind::Unknown);
-        merged.merge([&loc([span(1)], 0)]);
+        merged.combine([&loc([span(1)], 0)]);
         assert_eq!(merged.kind(), DebugLocKind::Normal);
     }
 }
