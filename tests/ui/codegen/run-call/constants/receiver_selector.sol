@@ -34,7 +34,7 @@ contract C {
     }
 
     function selectorDiscarded() external pure returns (uint256) {
-        K.f.selector;
+        K.f.selector; //~ WARN: statement has no effect
         return 7;
     }
 
