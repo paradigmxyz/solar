@@ -2,15 +2,15 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// The code that starts the free memory pointer at an external entry belongs to no function. It maps
-// to the contract definition, as solc maps the code `compileContract` generates. `g` is the last function, so the contract's
-// range ends two bytes after the function's, at the closing brace.
+// The code that starts the free memory pointer at an external entry stores that entry's own heap
+// floor, after dispatch. It maps to the entry's declaration, not to the contract: solc runs one
+// contract-wide preamble before dispatch, and ours runs per entry.
 
 // CHECK-LABEL: (scheduled runtime) ===
-// CHECK: [entry, invoke=g@{{[0-9]+}}..[[#G_END:]]]
-// CHECK-NEXT: push 128 !metadata(span={{[0-9]+}}..[[#G_END + 2]])
-// CHECK-NEXT: push 64 !metadata(span={{[0-9]+}}..[[#G_END + 2]])
-// CHECK-NEXT: mstore !metadata(span={{[0-9]+}}..[[#G_END + 2]])
+// CHECK: [entry, invoke=g@[[G:[0-9]+..[0-9]+]]]
+// CHECK-NEXT: push 128 !metadata(span=[[G]])
+// CHECK-NEXT: push 64 !metadata(span=[[G]])
+// CHECK-NEXT: mstore !metadata(span=[[G]])
 contract C {
     function f(bytes memory a) public pure returns (uint256) {
         return a.length;

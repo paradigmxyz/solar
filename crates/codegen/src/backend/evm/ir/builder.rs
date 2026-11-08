@@ -119,10 +119,10 @@ impl<'gcx> Assembler<'gcx> {
     /// Attributes the jump to the next block, which ends the current block without an opcode, to
     /// the current source origins.
     ///
-    /// Like LLVM's instruction selection, which emits no branch for a fallthrough
-    /// (`SelectionDAGBuilder::visitBr`) and gives a branch that layout later needs the location
-    /// of the block's branch (`MachineBasicBlock::updateTerminator`, `findBranchDebugLoc`), the
-    /// jump keeps its own origins and nothing else receives them.
+    /// The jump keeps its own origins and nothing else receives them.
+    // NOTE: We keep the MIR terminator's origin because, when layout makes the jump real, it runs
+    // on exactly that edge; LLVM drops it: `MachineBasicBlock::updateTerminator` re-creates a
+    // branch at `findBranchDebugLoc`, which is empty for a block that ends in a pure fallthrough.
     // NOTE: Without an open block nothing implements the jump, so its origins are dropped. Opening
     // one would add an empty block, and debug information must not change the IR. An empty block
     // is a thunk that `cfg-simplify` removes with its jump, as LLVM's
@@ -492,22 +492,28 @@ impl<'gcx> Assembler<'gcx> {
         let block = self.label_blocks[&label];
         self.program.blocks[block].metadata.is_continuation = true;
         // The return tag is placed under the call's own location.
-        if let [span] = self.current_source_spans[..] {
-            self.set_label_origin(label, span, self.current_modifier_depth);
-        }
+        self.set_label_origin_from_current(label);
     }
 
-    /// Sets the source origin of the `JUMPDEST` of the block that `label` started.
-    pub(crate) fn set_label_origin(
+    /// Sets the source origins of the `JUMPDEST` of the block that `label` started.
+    pub(crate) fn set_label_origins(
         &mut self,
         label: Label,
-        span: solar_interface::Span,
+        spans: impl IntoIterator<Item = solar_interface::Span>,
         modifier_depth: u32,
     ) {
         let block = self.label_blocks[&label];
         let metadata = &mut self.program.blocks[block].label_metadata;
-        metadata.set_source_span(Some(span));
+        metadata.set_source_spans(spans);
         metadata.set_modifier_depth(modifier_depth);
+    }
+
+    /// Sets the source origin of the `JUMPDEST` of the block that `label` started to the current
+    /// origin, when it is a single span.
+    pub(crate) fn set_label_origin_from_current(&mut self, label: Label) {
+        if let [span] = self.current_source_spans[..] {
+            self.set_label_origins(label, [span], self.current_modifier_depth);
+        }
     }
 
     /// Marks a label-started block as cold for EVM IR layout passes.

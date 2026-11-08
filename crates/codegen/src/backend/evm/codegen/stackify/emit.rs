@@ -15,8 +15,8 @@ use crate::{
         },
     },
     mir::{
-        BlockId, Callee, Function, FunctionId, InstId, InstKind, Module, PtrLocation, StackReturn,
-        Terminator, Value, ValueId,
+        BlockId, Callee, Function, FunctionId, InstId, InstKind, InstructionMetadata, Module,
+        PtrLocation, StackReturn, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
     },
@@ -93,7 +93,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.enter_function(module, func);
         if !info.internal.is_empty() {
             self.asm.define_label(constructor_label);
-            self.mark_block_label_origin(constructor_label, func, BlockId::ENTRY);
+            self.mark_block_label_origin(
+                constructor_label,
+                &func.blocks[BlockId::ENTRY].label_metadata,
+            );
         }
         self.mark_debug_function_invoke(func);
         self.comment_function_entry(func, false, true);
@@ -152,7 +155,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Some(effect) => self.asm.define_function_label(label, effect),
                 None => self.asm.define_label(label),
             }
-            self.mark_block_label_origin(label, func, BlockId::ENTRY);
+            self.mark_block_label_origin(label, &func.blocks[BlockId::ENTRY].label_metadata);
             self.mark_debug_function_invoke(func);
             self.comment_function_entry(func, false, false);
             self.body = Body::Internal(func_id);
@@ -279,6 +282,39 @@ impl<'gcx> EvmCodegen<'gcx> {
             let label = self.block_labels[&target];
             self.block_labels.insert(block, label);
         }
+        // NOTE: A bypassed block's label marked where control entered; its predecessors now enter
+        // the target, so the target's label takes that origin, or the union.
+        let mut bypassed = FxHashMap::<BlockId, Vec<BlockId>>::default();
+        for block in func.blocks.indices() {
+            if self.capture_debug_info
+                && let Some(&target) = forward.get(&block)
+                && !func.blocks[block].predecessors.is_empty()
+            {
+                bypassed.entry(target).or_default().push(block);
+            }
+        }
+        let bypassed_origins = bypassed
+            .iter()
+            .map(|(&target, blocks)| {
+                let predecessors = &func.blocks[target].predecessors;
+                let origin = match blocks[..] {
+                    [only]
+                        if target != BlockId::ENTRY
+                            && predecessors.iter().all(|&pred| pred == only) =>
+                    {
+                        func.blocks[only].label_metadata.clone()
+                    }
+                    _ => {
+                        let mut union = func.blocks[target].label_metadata.clone();
+                        union.merge_debug_locs(
+                            blocks.iter().map(|&block| &func.blocks[block].label_metadata),
+                        );
+                        union
+                    }
+                };
+                (target, origin)
+            })
+            .collect::<FxHashMap<_, _>>();
         let resolve = |block: BlockId| forward.get(&block).copied().unwrap_or(block);
 
         let mut order = self.block_layout_order(func, &cfg);
@@ -292,15 +328,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             let Some(block_plan) = plan.blocks[block].as_ref() else { continue };
             let next = order.get(pos + 1).copied();
             self.asm.repeating_code = repeating || in_loop(self, block);
+            let label_origin =
+                bypassed_origins.get(&block).unwrap_or(&func.blocks[block].label_metadata);
             if !func.blocks[block].predecessors.is_empty() {
                 let label = self.block_labels[&block];
                 self.asm.define_label(label);
-                self.mark_block_label_origin(label, func, block);
+                self.mark_block_label_origin(label, label_origin);
             }
             self.emit_stackified_block(
                 func_id,
                 func,
                 block,
+                label_origin,
                 block_plan,
                 next,
                 &resolve,
@@ -315,6 +354,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.repeating_code = repeating || in_loop(self, source);
             self.asm.define_label(label);
             self.set_terminator_origin(func, source);
+            self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
             for step in &steps {
                 self.emit_stackified_step(func_id, func, step, cold);
@@ -338,6 +378,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func_id: FunctionId,
         func: &Function,
         block: BlockId,
+        label_origin: &InstructionMetadata,
         plan: &BlockPlan,
         next: Option<BlockId>,
         resolve: &dyn Fn(BlockId) -> BlockId,
@@ -346,8 +387,28 @@ impl<'gcx> EvmCodegen<'gcx> {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
         let cold = self.block_code_is_cold(func, block);
         self.set_insertion_origin(func, block, body);
-        for step in body {
-            self.emit_stackified_step(func_id, func, step, cold);
+        let leading = body.iter().take_while(|step| !matches!(step, Step::Begin(_))).count();
+        let mut label_spans = label_origin.source_spans();
+        let label_span = label_spans.next().filter(|_| label_spans.next().is_none());
+        for (index, step) in body.iter().enumerate() {
+            // NOTE: rustc gives inserted code the source info of the statement it precedes
+            // (`MirPatch`), but a `pop` or return-slot save at a block start ends a value of the
+            // construct the block's label closes, as solc pops scope variables under the
+            // statement it leaves, so it takes the label origin; the shuffles that prepare the
+            // next instruction take that instruction's.
+            if self.capture_debug_info
+                && index < leading
+                && matches!(step, Step::Stack(StackOp::Pop) | Step::SpillRet)
+                && let Some(span) = label_span
+            {
+                let insertion = self.asm.debug_origin();
+                self.asm.set_source_span(Some(span));
+                self.asm.set_modifier_depth(label_origin.modifier_depth());
+                self.emit_stackified_step(func_id, func, step, cold);
+                self.asm.set_debug_origin(insertion);
+            } else {
+                self.emit_stackified_step(func_id, func, step, cold);
+            }
         }
         self.set_terminator_origin(func, block);
         for step in terminator {
