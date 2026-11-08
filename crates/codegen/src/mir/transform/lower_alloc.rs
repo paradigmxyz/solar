@@ -41,7 +41,7 @@ use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
 use solar_sema::Gcx;
 
-/// Lowers `fmp`, `set_fmp`, and `alloc` instructions.
+/// Lowers `fmp` and `alloc` instructions.
 pub(crate) struct LowerAlloc;
 
 impl MirPass for LowerAlloc {
@@ -155,9 +155,9 @@ fn create_checked_alloc(module: &mut Module) -> FunctionId {
 
 fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> bool {
     let is_fresh = |inst| fresh.contains(id, inst);
-    let has_abstract_memory = func.instructions().any(|inst| {
-        matches!(func.inst(inst).kind, InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. })
-    });
+    let has_abstract_memory = func
+        .instructions()
+        .any(|inst| matches!(func.inst(inst).kind, InstKind::Fmp | InstKind::Alloc { .. }));
     if !has_abstract_memory {
         return false;
     }
@@ -203,11 +203,8 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
         for inst in instructions {
             let context = builder.func().inst(inst).metadata.debug_context();
             builder.set_debug_context(&context);
-            // Allocations and pointer updates move the pointer past any earlier read.
-            let moves_fmp = matches!(
-                builder.func().inst(inst).kind,
-                InstKind::Alloc { .. } | InstKind::SetFmp(_)
-            );
+            // Allocations move the pointer past any earlier read.
+            let moves_fmp = matches!(builder.func().inst(inst).kind, InstKind::Alloc { .. });
             match builder.func().inst(inst).kind {
                 InstKind::Fmp => {
                     changed = true;
@@ -240,11 +237,6 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
                     if fresh.skips_zero_fill(id, inst) =>
                 {
                     changed = true;
-                }
-                InstKind::SetFmp(ptr) => {
-                    changed = true;
-                    rewrite_as_fmp_store(&mut builder, inst, ptr);
-                    builder.func_mut().blocks[block].instructions.push(inst);
                 }
                 // The backend may still place a deferred allocation with a runtime bump.
                 InstKind::Alloc { .. } if builder.func().inst(inst).metadata.deferred_alloc() => {
@@ -280,8 +272,8 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
 /// Encoders read the pointer, write the encoding at and above it, and then reserve
 /// those bytes with an `alloc !preserves_fmp` that must return the same address.
 /// Lowering that reservation reuses the read word instead of loading slot 64 again,
-/// as solc's `allocate_unbounded` does. Any call, allocation, pointer update, or
-/// memory write not addressed from the read word ends the peek.
+/// as solc's `allocate_unbounded` does. Any call, allocation, or memory write
+/// not addressed from the read word ends the peek.
 #[derive(Default)]
 struct FmpPeek {
     word: Option<ValueId>,
@@ -390,18 +382,6 @@ fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: InstId, fresh: b
     instruction.metadata.set_alloc_ptr(is_load);
     let block = builder.current_block();
     builder.func_mut().blocks[block].instructions.push(inst);
-}
-
-fn rewrite_as_fmp_store(builder: &mut FunctionBuilder<'_>, inst: InstId, ptr: ValueId) {
-    // word = ptrtoint ptr to i256
-    // set_fmp ptr -> mstore 64, word
-    let ptr = builder.cast(ptr, MirType::I256);
-    let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
-    builder.func_mut().set_inst_kind(inst, InstKind::Store(slot, ptr, PtrLocation::Memory));
-    let instruction = builder.func_mut().inst_mut(inst);
-    instruction.metadata.set_effect(None);
-    instruction.metadata.set_preserves_fmp(false);
-    instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
 }
 
 /// Emits `ptr + size`, marked so the sum keeps the bound of `ptr`. A wrapped sum is unreachable:
