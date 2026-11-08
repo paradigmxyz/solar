@@ -975,12 +975,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_ecrecover_call(&mut self, args: hir::CallArgs<'_>) -> Option<ValueId> {
         let values = self.builtin_args::<4>(Builtin::EcRecover, &args)?;
-        let words = values.iter().map(|value| self.operand(value)).collect::<Option<Box<[_]>>>()?;
+        let values = values.iter().map(|value| self.operand(value)).collect::<Option<Vec<_>>>()?;
         // A rejected signature returns no data, so the output word is cleared first.
-        // input = abi_encode_scratch(hash, v, r, s)
+        // base = fmp
+        // mstore(base, hash), mstore(base + 32, v), mstore(base + 64, r), mstore(base + 96, s)
+        // input = make_memory_slice base, 128
         // result = address_call<scratch_clear, revert, create>(1, input)
-        let layout = Arc::new(AbiLayout::new(vec![AbiType::Word(None); 4].into_boxed_slice()));
-        let input = self.builder.abi_encode_scratch(layout, None, words);
+        let base = self.builder.fmp();
+        let words = self.builder.cast_word(base);
+        for (offset, value) in (0..).step_by(32).zip(values) {
+            let address = self.builder.add_offset(words, offset);
+            let value = self.builder.cast_word(value);
+            self.builder.store(address, value);
+        }
+        let size = self.builder.imm(128);
+        let input = self.builder.make_slice(base, size, PtrLocation::Memory);
         let address = self.builder.imm(1);
         let policy = CallPolicy {
             kind: AddressCallKind::Static,

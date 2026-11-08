@@ -1494,9 +1494,6 @@ impl AliasAnalysis {
                 if input.is_some() {
                     effects.read_any(AddressSpace::Memory);
                 }
-                if policy.output != CallOutput::None {
-                    effects.write_any(AddressSpace::Memory);
-                }
                 effects.read_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);
                 if policy.kind != AddressCallKind::Static {
