@@ -14,8 +14,10 @@ fn @same_origin() -> i256 {
     ret 7 !metadata(span=10..20, modifier_depth=1, effect=pure)
 }
 
+// Only the return the evaluator reached produced the folded values, so the folded `ret` keeps its
+// location.
 // CHECK-LABEL: {{^[ +].*}}fn @distinct_origins{{[( ]}}
-// CHECK: + ret 7 !metadata(spans=[30..40, 50..60])
+// CHECK: {{^(\+ | )}}ret 7 !metadata(span=30..40)
 fn @distinct_origins() -> i256 {
   bb0:
     jumpi true, bb1, bb2
@@ -23,4 +25,15 @@ fn @distinct_origins() -> i256 {
     ret 7 !metadata(span=30..40)
   bb2:
     ret 7 !metadata(span=50..60)
+}
+
+// CHECK-LABEL: {{^[ +].*}}fn @reached_second_return{{[( ]}}
+// CHECK: {{^(\+ | )}}ret 7 !metadata(span=90..100, modifier_depth=1)
+fn @reached_second_return() -> i256 {
+  bb0:
+    jumpi false, bb1, bb2
+  bb1:
+    ret 7 !metadata(span=70..80)
+  bb2:
+    ret 7 !metadata(span=90..100, modifier_depth=1)
 }
