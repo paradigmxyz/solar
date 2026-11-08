@@ -15,7 +15,7 @@
 //! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order,
 //! and loop-only paths do not create sharing groups.
 //! The shared tail merges the origins of its sites. Each replacement jump copies the location of
-//! the first instruction it replaces that has one.
+//! the first instruction or terminator it replaces that has one.
 //! In gas mode, hot sharing must repay its transfer over the optimizer run count.
 //! Size mode prices the jump that a shared suffix removes with at least a `PUSH1` label unless it
 //! targets the entry block, the only block that can start at offset 0.

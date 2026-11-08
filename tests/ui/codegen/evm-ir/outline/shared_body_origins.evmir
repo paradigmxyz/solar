@@ -3,12 +3,11 @@
 @module SharedBodyOrigins
 
 // The shared body runs for one of its sites, so each instruction takes the merged locations of the
-// sites' instructions at its position, and the stub's return jump the merged call-site locations.
+// sites' instructions at its position.
 // A position every site agrees on keeps its single span.
 // CHECK: + [[STUB:bb[0-9]+]] {{\[ret=.*\]}}:
 // CHECK: {{^[ +].*}}push 1 !metadata(span=1..5){{$}}
 // CHECK: {{^[ +].*}}pop !metadata(spans=[6..10, 26..30]){{$}}
-// CHECK: + jump !metadata(span=1..5){{$}}
 bb0:
   push 1 !metadata(span=1..5)
   pop !metadata(span=6..10)

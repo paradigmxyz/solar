@@ -650,11 +650,11 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
         .into_iter()
         .map(|(value, sites)| {
             let mut push = Instruction::push_value(value);
-            push.metadata.preserve_debug_loc(&merged_debug_loc(
+            push.metadata = merged_debug_loc(
                 sites
                     .iter()
                     .map(|site| &module.blocks[site.block].instructions[site.start].metadata),
-            ));
+            );
             // The stub appends its output swap to the body.
             let mut body = Vec::with_capacity(2);
             body.push(push);
@@ -749,7 +749,7 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
                 )
             })
             .collect::<Vec<_>>();
-        jump.metadata.preserve_debug_loc(&merged_debug_loc(&call_sites));
+        jump.metadata = merged_debug_loc(&call_sites);
         stub.terminator = Some(jump);
         stub.metadata.call_effect =
             stub_call_effect(usize::from(inputs) + group.parameters.len(), outputs);
