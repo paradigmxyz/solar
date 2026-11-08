@@ -48,14 +48,11 @@
 //! return address. Ordinary address-taken labels remain opaque. The declaration is emitted by call
 //! lowering and machine outlining and round-trips through EVM IR independently of debug output.
 //!
-//! A bypassed conditional thunk can lend its source span to an already required destination
-//! label only when the thunk chain exclusively reaches that entry. The checkpoint records the
-//! incoming transfer's origin; later passes and assembly discard it if the entry becomes shared,
-//! falls through, or acquires opaque address uses. It never keeps a label or changes a rewrite.
-//! Empty prefixes of a thunk chain have no origin to lend. The whole chain must have one source
-//! origin; an otherwise unmapped dispatch transfer records a separate checkpoint identity.
-//! A conditional edge's function entry moves only to its exclusive destination, never to the
-//! shared terminator or label push, which also execute when that edge is not taken.
+//! A bypassed thunk's jump takes its source origin with it, as a removed branch does in LLVM. Its
+//! function events move to an unconditional transfer that skips it, never to a conditional one,
+//! which also executes when that edge is not taken. A conditional edge's function entry goes to its
+//! destination label instead, but only while that edge is the label's only entry; later passes drop
+//! it when the label becomes shared, falls through or acquires opaque address uses.
 
 use super::{
     EvmPass,
@@ -67,6 +64,7 @@ use super::{
     },
 };
 use crate::backend::evm::{
+    DebugFunction,
     ir::{
         Block, BlockId, CallEffect, Instruction, Metadata, Module, ModuleTarget, PushValue,
         StackEffect, Terminator, TerminatorKind, default_terminator_stack_effect,
@@ -74,7 +72,6 @@ use crate::backend::evm::{
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
-use solar_evmir::debug::{DebugEntryCheckpoint, DebugFunction};
 use solar_sema::Gcx;
 
 pub(super) struct CfgSimplify {
@@ -209,7 +206,6 @@ fn expose_shared_branches(module: &mut Module) -> bool {
             // removed, so their origins go with them and only function events move.
             branch.metadata.preserve_debug_loc(&jumpi.metadata);
             branch.metadata.move_function_events(&jumpi.metadata);
-            branch.metadata.move_checkpoint_transfers(&jumpi.metadata);
             branch.metadata.move_function_events(&pushed.metadata);
             branch.metadata.move_function_events(&jump.metadata);
             if branch.metadata.function_invoke().is_none()
@@ -279,7 +275,8 @@ fn inline_shared_return_thunks(
     changed
 }
 
-/// An empty block that only jumps on, with the debug info its removal moves to incoming edges.
+/// An empty block that only jumps on, with the function events its removal moves to incoming
+/// edges.
 struct Thunk {
     next: BlockId,
     metadata: Metadata,
@@ -336,7 +333,6 @@ fn normalize_triangle_branches(module: &mut Module) -> bool {
             // removed, so their origins go with them and only the label's events move.
             branch.metadata.preserve_debug_loc(&jumpi.metadata);
             branch.metadata.move_function_events(&jumpi.metadata);
-            branch.metadata.move_checkpoint_transfers(&jumpi.metadata);
             branch.metadata.move_function_events(&pushed.metadata);
             let block = &mut module.blocks[block_id];
             block.instructions.truncate(block.instructions.len() - 2);
@@ -404,7 +400,6 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             let mut terminator = Terminator::new(TerminatorKind::Jump(*then_block));
             terminator.metadata.preserve_debug_loc(metadata);
             terminator.metadata.move_function_events(metadata);
-            terminator.metadata.move_checkpoint_transfers(metadata);
             block.instructions.push(pop);
             block.terminator = Some(terminator);
             changed = true;
@@ -474,7 +469,6 @@ fn redirect_jump_thunks(
             thunk.metadata.set_function_invoke(function);
         }
         if let Some(terminator) = &block.terminator {
-            thunk.metadata.preserve_debug_loc(&terminator.metadata);
             thunk.metadata.move_function_events(&terminator.metadata);
         }
         true
@@ -497,12 +491,12 @@ fn redirect_jump_thunks(
     };
 
     let mut changed = false;
-    let mut checkpoints = Vec::new();
-    if thunks.values().any(|thunk| thunk.metadata.has_source_spans()) {
+    let mut lent = Vec::new();
+    if thunks.values().any(|thunk| thunk.metadata.function_invoke().is_some()) {
         count_block_references(module, references);
     }
     forwarded_continuations.clear_to(module.blocks.len());
-    let track_checkpoints = module.debug_info_is_tracked();
+    let track_debug_info = module.debug_info_is_tracked();
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
             if let Some(PushValue::Block(target)) = block.instructions[at].value
@@ -512,26 +506,8 @@ fn redirect_jump_thunks(
                 if direct && let Some(thunk) = thunks.get(&target) {
                     let conditional =
                         block.instructions.get(at + 1).is_some_and(|inst| inst.opcode == op::JUMPI);
-                    if conditional && track_checkpoints {
-                        let chain = thunk_chain_debug_info(
-                            target,
-                            thunks,
-                            &block.instructions[at].metadata,
-                        );
-                        if let Some((destination, checkpoint)) = thunk_checkpoint(
-                            target,
-                            thunks,
-                            references,
-                            &block.instructions[at].metadata,
-                            &chain,
-                        ) {
-                            if !block.instructions[at].metadata.has_source_spans() {
-                                block.instructions[at]
-                                    .metadata
-                                    .add_checkpoint_transfer(checkpoint.transfer);
-                            }
-                            checkpoints.push((destination, checkpoint, chain.function_invoke()));
-                        }
+                    if conditional && track_debug_info {
+                        lent.extend(thunk_chain_invoke(target, thunks, references));
                     }
                     // A bypassed thunk's function events move only onto an unconditional transfer:
                     // it executes on the thunk's path, a conditional one also on other paths. The
@@ -539,16 +515,16 @@ fn redirect_jump_thunks(
                     // `MergeBlockIntoPredecessor`
                     // (llvm/lib/Transforms/Utils/BasicBlockUtils.cpp#L346-L371 at llvm-project
                     // e98b16a2710b).
-                    // NOTE: Without an exclusive destination label, a conditional edge loses its
-                    // zero-byte checkpoint. Do not retain a jump or attribute an operation
-                    // executed on other paths to it.
+                    // NOTE: Without an exclusive destination label, a conditional edge loses the
+                    // thunk's events. Do not retain a jump or attribute an operation executed on
+                    // other paths to it.
                     if !conditional {
                         block.instructions[at].metadata.move_function_events(&thunk.metadata);
                     }
                 }
                 // NOTE: A return-address push executes before the callee, while the bypassed
-                // continuation runs after it. Its debug events cannot move onto that push;
-                // those zero-instruction checkpoints are intentionally dropped with the thunk.
+                // continuation runs after it. Its debug events cannot move onto that push, so
+                // they are dropped with the thunk.
                 let resolved = resolve(target);
                 if !direct && !addressed.contains(resolved) {
                     // The forwarded return address remains unobservable. Retain that fact on
@@ -564,16 +540,8 @@ fn redirect_jump_thunks(
             let conditional = !matches!(term.kind, TerminatorKind::Jump(_));
             term.kind.visit_targets_mut(|target| {
                 if let Some(thunk) = thunks.get(target) {
-                    if conditional && track_checkpoints {
-                        let chain = thunk_chain_debug_info(*target, thunks, &term.metadata);
-                        if let Some((destination, checkpoint)) =
-                            thunk_checkpoint(*target, thunks, references, &term.metadata, &chain)
-                        {
-                            if !term.metadata.has_source_spans() {
-                                term.metadata.add_checkpoint_transfer(checkpoint.transfer);
-                            }
-                            checkpoints.push((destination, checkpoint, chain.function_invoke()));
-                        }
+                    if conditional && track_debug_info {
+                        lent.extend(thunk_chain_invoke(*target, thunks, references));
                     }
                     // A bypassed thunk's function events move only onto an unconditional transfer;
                     // see the NOTE above.
@@ -587,13 +555,12 @@ fn redirect_jump_thunks(
             });
         }
     }
-    for (target, mut checkpoint, invocation) in checkpoints {
+    for (target, function) in lent {
         let metadata = &mut module.blocks[target].metadata;
-        if metadata.function_invoke.is_none() {
-            checkpoint.function_invoke = invocation;
-        }
-        if metadata.entry_checkpoint.is_none() || metadata.entry_checkpoint == Some(checkpoint) {
-            metadata.entry_checkpoint = Some(checkpoint);
+        if metadata.function_invoke.is_none()
+            && metadata.lent_invoke.is_none_or(|lent| lent == function)
+        {
+            metadata.lent_invoke = Some(function);
         }
     }
     // target: <unobservable control continuation>
@@ -817,76 +784,28 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
     changed
 }
 
-/// Finds an existing destination reached exclusively through this thunk chain. Its label can
-/// represent the removed source operation, while the conditional transfer keeps its own origin.
-fn thunk_checkpoint(
+/// The function entry that a conditional edge through a thunk chain carries to its destination,
+/// with that destination, when the chain ends at an existing label that the edge exclusively
+/// reaches and every thunk of the chain that enters a function agrees on it.
+fn thunk_chain_invoke(
     start: BlockId,
     thunks: &FxHashMap<BlockId, Thunk>,
     references: &IndexVec<BlockId, usize>,
-    transfer: &Metadata,
-    chain: &Metadata,
-) -> Option<(BlockId, DebugEntryCheckpoint)> {
-    let source = chain.only_source_span()?;
-    let origin = if transfer.has_source_spans() {
-        transfer.only_source_span()?
-    } else {
-        transfer.function_invoke().or_else(|| chain.function_invoke())?.declaration
-    };
-    let checkpoint = DebugEntryCheckpoint {
-        source,
-        transfer: origin,
-        modifier_depth: chain.modifier_depth(),
-        function_invoke: None,
-    };
+) -> Option<(BlockId, DebugFunction)> {
+    let mut function = None;
     let mut target = start;
     for _ in 0..thunks.len() {
-        let Some(thunk) = thunks.get(&target) else { return Some((target, checkpoint)) };
-        if !represented_by(&thunk.metadata, transfer, chain.function_invoke())
-            && (!thunk.metadata.source_spans().all(|span| span == checkpoint.source)
-                || (thunk.metadata.has_source_spans()
-                    && thunk.metadata.modifier_depth() != checkpoint.modifier_depth))
-            || references.get(thunk.next) != Some(&1)
-        {
+        let Some(thunk) = thunks.get(&target) else { break };
+        if references.get(thunk.next) != Some(&1) {
             return None;
+        }
+        if let Some(entered) = thunk.metadata.function_invoke() {
+            if function.is_some_and(|other| other != entered) {
+                return None;
+            }
+            function = Some(entered);
         }
         target = thunk.next;
     }
-    (!thunks.contains_key(&target)).then_some((target, checkpoint))
-}
-
-/// Returns whether a located thunk adds nothing the transfer or the chain's function entry lacks.
-/// Bypassing it then loses nothing, and it does not describe a removed source operation. That
-/// holds for a thunk with every origin and function event of the transfer, and for a route into
-/// `invoke` placed under that function's declaration, as the dispatcher does.
-fn represented_by(thunk: &Metadata, transfer: &Metadata, invoke: Option<DebugFunction>) -> bool {
-    thunk.has_source_spans()
-        && thunk.function_invoke().is_none_or(|event| Some(event) == transfer.function_invoke())
-        && (thunk.source_spans().eq(transfer.source_spans())
-            && thunk.modifier_depth() == transfer.modifier_depth()
-            || invoke.is_some_and(|invoke| thunk.only_source_span() == Some(invoke.declaration)))
-}
-
-/// Collects the chain's origins and compatible function events, including beyond empty prefixes.
-/// Its entry identity can validate an exclusive checkpoint without becoming a transfer event.
-/// Thunks the transfer or the chain's function entry already represents are left out.
-fn thunk_chain_debug_info(
-    start: BlockId,
-    thunks: &FxHashMap<BlockId, Thunk>,
-    transfer: &Metadata,
-) -> Metadata {
-    let chain =
-        std::iter::successors(Some(start), |target| thunks.get(target).map(|thunk| thunk.next))
-            .take(thunks.len())
-            .filter_map(|target| thunks.get(&target).map(|thunk| &thunk.metadata));
-    let invoke = chain.clone().find_map(Metadata::function_invoke);
-    let chain = chain.filter(|thunk| !represented_by(thunk, transfer, invoke));
-    // The first thunk seeds the context, so that its modifier depth takes part in the merge as an
-    // input, not as the depth of an empty seed.
-    let mut context = Metadata::default();
-    if let Some(first) = chain.clone().next() {
-        context.preserve_debug_loc(first);
-    }
-    context.merge_debug_locs(chain.clone().skip(1));
-    context.merge_function_events(chain);
-    context
+    (!thunks.contains_key(&target)).then_some((target, function?))
 }

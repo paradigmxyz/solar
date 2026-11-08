@@ -1,9 +1,9 @@
 //@ revisions: exclusive shared
 //@[exclusive] compile-flags: -Zevm-ir-pipeline=cfg-simplify -Zdebugify=check
 //@[shared] compile-flags: -Zevm-ir-pipeline=cfg-simplify,terminal-dedup,cfg-simplify -Zdebugify=report
-// Sharing the terminal body with an unrelated path invalidates both the exclusive checkpoint
-// and the function entry it carries. An independent native entry must remain independent.
-@module CheckpointSharedEntry
+// Sharing the terminal body with an unrelated path invalidates the function entry the label
+// holds. An independent native entry must remain independent.
+@module LentInvokeSharedEntry
 bb0:
   calldatasize
   jumpi bb1, bb2 !metadata(span=10..20)

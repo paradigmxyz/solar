@@ -1,6 +1,9 @@
 //@ compile-flags: -Zevm-ir-pipeline=cfg-simplify -Zdebugify=check
+//@ filecheck:
 // A conditional transfer must keep its own origin when its taken thunk is removed.
-// The thunk's origin belongs only to the taken path, while its function event survives.
+// The thunk's origin belongs only to the taken path, so it goes with it. Its function entry moves
+// to the destination, which only that edge reaches.
+// CHECK: + bb3 [lent_invoke=callee@30..50]:
 @module ThunkSpans
 bb0:
   push 0
