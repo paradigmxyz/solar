@@ -24,6 +24,16 @@ legitimately loses one, so `-Zdebugify=report` and `check` list them on stderr b
 pass for them. `stackify` compares the origins of the final MIR module with those of the runtime
 and deployment EVM IR scheduled from it, before any EVM IR pass runs.
 
+MIR rewrites can explain an intentional loss with `metadata.drop_debug_loc(DebugLocKind::Dropped)`.
+Dead-code elimination leaves that marker on the removed instruction, whose ID is never reused.
+Debugify omits an origin from its individual warnings only if **every** original occurrence was
+explicitly dropped. One intentional drop cannot hide a missing location on another instruction
+with the same span. Removed blocks and unannotated deletions remain unexplained.
+Passes that replace or rename functions cannot certify instruction IDs as the same sites; only
+passes declaring `preserves_debugify_sites` may explain losses this way.
+Sidecars retain the complete `lost` list and an `intentional` subset; the report lists unexplained
+losses and counts intentional ones separately. Older audits have no intentional annotations.
+
 The audit checks that an origin exists, not whether an instruction executes on the right path.
 Pair it with source-map and coverage tests, including untaken paths. It does not check variable
 locations or inline scopes.

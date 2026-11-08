@@ -634,8 +634,19 @@ impl LowerAbiCx {
     /// encoding are those values; only a wrapper that calls the body has no `return` of its own.
     fn wrapper_builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
         let declaration = func.declaration_span;
+        let original = func.blocks[BlockId::ENTRY].terminator_metadata.debug_context();
         let mut builder = self.builder(func).with_block_labels();
-        builder.replace_source_span(declaration);
+        if declaration.is_dummy() {
+            // NOTE: Textual MIR has no source declaration for the generated prologue. Keep
+            // that missing location explicit, preserving an already generated context.
+            let mut context = original;
+            if context.debug_loc_kind() != solar_evmir::debug::DebugLocKind::CompilerGenerated {
+                context.drop_debug_loc(solar_evmir::debug::DebugLocKind::Dropped);
+            }
+            builder.set_debug_context(&context);
+        } else {
+            builder.replace_source_span(declaration);
+        }
         builder
     }
 
