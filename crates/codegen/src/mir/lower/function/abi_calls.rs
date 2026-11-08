@@ -1030,14 +1030,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             head_size = head_size.saturating_add(abi.head_size());
             !abi.is_dynamic()
         });
-        let nested_validate = if validate_bounds && all_static {
+        // A decoding copy checks the whole head before it reads a member, as solc's struct decoder
+        // does, so a member's allocation panic cannot precede a truncated head's empty revert.
+        if validate_bounds && (all_static || decoded) {
             // check_range(base, head_size)
             let head_size = self.builder.imm(head_size);
             self.check_calldata_range(base, head_size);
-            false
-        } else {
-            validate_bounds
-        };
+        }
+        let nested_validate = validate_bounds && !all_static;
         // object = struct(fields.length)
         let size = self.builder.imm(fields.len().checked_mul(32)? as u64);
         let object = self.builder.alloc(size, AllocationSemantics::INTERNAL);
