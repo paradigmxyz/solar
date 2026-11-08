@@ -549,7 +549,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.builder.memory_copy_from_slice(object, value);
                     Some(object)
                 } else {
-                    self.validate_calldata_bytes_slice(value, CalldataTail::Copy);
+                    // The ABI decoding of a call bounds the length of its argument, which a public
+                    // function shares with its internal callers; any other slice can hold a
+                    // length that assembly set, and solc allocates before it checks the range.
+                    let tail = if self.is_external_abi_argument(value) {
+                        CalldataTail::Access
+                    } else {
+                        CalldataTail::Copy
+                    };
+                    self.validate_calldata_bytes_slice(value, tail);
                     Some(self.materialize_memory_slice(value))
                 }
             }
@@ -562,12 +570,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let length = self.builder.slice_len(value);
                 let data = self.builder.slice_ptr(value);
                 let element_head_size = self.builder.imm(element_type.head_size());
-                // solc allocates the memory array before it checks the calldata range, so a
-                // length whose array cannot be allocated panics there.
+                // The ABI decoding of a call bounds the length of its argument, which a public
+                // function shares with its internal callers; any other slice can hold a length
+                // that assembly set. solc allocates the memory array before it checks the
+                // calldata range, so a length whose array cannot be allocated panics there.
                 // panic_if length > MAX_ALLOCATION_END / 32, 0x41
                 // head_size = length * element_head_size
-                self.builder.panic_if_word_array_too_long(length);
-                let head_size = self.builder.mul(length, element_head_size);
+                let head_size = if self.is_external_abi_argument(value) {
+                    self.builder.checked_mul(length, element_head_size)
+                } else {
+                    self.builder.panic_if_word_array_too_long(length);
+                    self.builder.mul(length, element_head_size)
+                };
                 self.check_calldata_range(data, head_size);
                 if matches!(element_type, AbiType::Word(_))
                     && Self::calldata_word_is_full_width(element)
@@ -835,7 +849,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // position = head
             return Some(head);
         }
-        if validate_bounds {
+        if validate_bounds && self.checked_head_base != Some(tuple_base) {
             self.check_calldata_range(head, word);
         }
         // offset = calldataload(head)
@@ -1032,15 +1046,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         });
         // A decoding copy checks the whole head before it reads a member, as solc's struct decoder
         // does, so a member's allocation panic cannot precede a truncated head's empty revert.
-        if validate_bounds && (all_static || decoded) {
-            // check_range(base, head_size)
-            let head_size = self.builder.imm(head_size);
-            self.check_calldata_range(base, head_size);
-        }
+        let head_checked = validate_bounds && (all_static || decoded);
         let nested_validate = validate_bounds && !all_static;
+        let check_head = |this: &mut Self| {
+            // check_range(base, head_size)
+            let head_size = this.builder.imm(head_size);
+            this.check_calldata_range(base, head_size);
+        };
+        if head_checked && all_static {
+            check_head(self);
+        }
         // object = struct(fields.length)
         let size = self.builder.imm(fields.len().checked_mul(32)? as u64);
         let object = self.builder.alloc(size, AllocationSemantics::INTERNAL);
+        if head_checked && !all_static {
+            check_head(self);
+        }
+        let outer_head_base =
+            std::mem::replace(&mut self.checked_head_base, head_checked.then_some(base));
         let mut offset = 0u64;
         // for field in fields {
         //     object[field] = decode_at(field, base + field.offset, base)
@@ -1059,6 +1082,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.memory_store_field(object, index as u64, value);
             offset = offset.checked_add(self.types.abi_type(field)?.head_size())?;
         }
+        self.checked_head_base = outer_head_base;
         Some(object)
     }
 

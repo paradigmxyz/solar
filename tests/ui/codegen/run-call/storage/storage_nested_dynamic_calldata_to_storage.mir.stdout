@@ -342,13 +342,13 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
   bb14:                                           ; preds = bb12
     v107 = extract_value slice<calldata>, arg0, 1
     v108 = extract_value slice<calldata>, arg0, 0
-    v109 = gt v107, 0x7ffffffffffffff
-    icall panic_if<0x41>, v109
-    v110 = mul v107, 32
+    v109 = mul v107, 32
+    v110 = gt v107, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v110
     v111 = calldatasize
     v112 = ptrtoint ptr<calldata> v108 to i256
     v113 = sub v111, v112
-    v114 = slt v113, v110
+    v114 = slt v113, v109
     icall revert_if<calldata_tail_too_short>, v114
     v115 = mul v107, 32
     v116 = gt v107, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

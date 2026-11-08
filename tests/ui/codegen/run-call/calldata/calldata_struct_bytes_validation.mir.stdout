@@ -4,69 +4,64 @@
 fn @copy(arg0: slice<calldata>) -> i256 [selector=0xd1ee4a1a, pure, abi_params=[tuple<bytes, uint256>], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
     v0 = extract_value slice<calldata>, arg0, 0
-    v1 = calldatasize
-    v2 = ptrtoint ptr<calldata> v0 to i256
-    v3 = sub v1, v2
-    v4 = slt v3, 32
-    icall revert_if<calldata_tail_too_short>, v4
-    v5 = alloc 64
-    v6 = calldatasize
+    v1 = alloc 64
+    v2 = calldatasize
+    v3 = ptrtoint ptr<calldata> v0 to i256
+    v4 = sub v2, v3
+    v5 = slt v4, 32
+    icall revert_if<calldata_tail_too_short>, v5
+    v6 = calldataload v0
     v7 = ptrtoint ptr<calldata> v0 to i256
-    v8 = sub v6, v7
-    v9 = slt v8, 32
-    icall revert_if<calldata_tail_too_short>, v9
-    v10 = calldataload v0
-    v11 = ptrtoint ptr<calldata> v0 to i256
-    v12 = add v11, v10
-    v13 = calldatasize
-    v14 = ptrtoint ptr<calldata> v0 to i256
-    v15 = sub v13, v14
-    v16 = sub v15, 31
-    v17 = slt v10, v16
-    v18 = eq v17, false
-    v19 = gt v10, 0xffffffffffffffff
-    v20 = or v18, v19
-    v21 = zext i1 v20 to i256
-    icall revert_if<invalid_calldata_tail_offset>, v20
-    v22 = calldataload v12
-    v23 = calldatasize
-    v24 = gt v22, 0xffffffffffffffff
-    icall panic_if<0x41>, v24
-    v25 = add v12, 32
-    v26 = sub v23, v22
-    v27 = slt v26, v25
-    icall revert_if<calldata_tail_too_short>, v27
-    v28 = inttoptr i256 v25 to ptr<calldata>
-    v29 = make_calldata_slice v28, v22
-    v30 = extract_value slice<calldata>, v29, 1
-    v31 = add v30, 31
-    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v33 = add v32, 32
-    v34 = lt v33, v30
-    icall panic_if<0x41>, v34
-    v35 = alloc v33
-    mstore v35, v30
-    v36 = ptradd v35, 32
-    v37 = extract_value slice<calldata>, v29, 0
-    v38 = extract_value slice<calldata>, v29, 1
-    calldatacopy v36, v37, v38
-    v39 = ptrtoint ptr<memory> v35 to i256
-    mstore v5, v39
-    v40 = ptrtoint ptr<calldata> v0 to i256
-    v41 = add v40, 32
-    v42 = calldatasize
-    v43 = sub v42, v41
-    v44 = slt v43, 32
-    icall revert_if<calldata_tail_too_short>, v44
-    v45 = calldataload v41
-    v46 = ptradd v5, 32
-    mstore v46, v45
-    v47 = mload v5, ptr<memory>
-    v48 = mload v47
-    v49 = ptradd v5, 32
-    v50 = mload v49
-    v51 = checked_add uint256, v48, v50
-    ret v51
+    v8 = add v7, v6
+    v9 = calldatasize
+    v10 = ptrtoint ptr<calldata> v0 to i256
+    v11 = sub v9, v10
+    v12 = sub v11, 31
+    v13 = slt v6, v12
+    v14 = eq v13, false
+    v15 = gt v6, 0xffffffffffffffff
+    v16 = or v14, v15
+    v17 = zext i1 v16 to i256
+    icall revert_if<invalid_calldata_tail_offset>, v16
+    v18 = calldataload v8
+    v19 = calldatasize
+    v20 = gt v18, 0xffffffffffffffff
+    icall panic_if<0x41>, v20
+    v21 = add v8, 32
+    v22 = sub v19, v18
+    v23 = slt v22, v21
+    icall revert_if<calldata_tail_too_short>, v23
+    v24 = inttoptr i256 v21 to ptr<calldata>
+    v25 = make_calldata_slice v24, v18
+    v26 = extract_value slice<calldata>, v25, 1
+    v27 = add v26, 31
+    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v29 = add v28, 32
+    v30 = lt v29, v26
+    icall panic_if<0x41>, v30
+    v31 = alloc v29
+    mstore v31, v26
+    v32 = ptradd v31, 32
+    v33 = extract_value slice<calldata>, v25, 0
+    v34 = extract_value slice<calldata>, v25, 1
+    calldatacopy v32, v33, v34
+    v35 = ptrtoint ptr<memory> v31 to i256
+    mstore v1, v35
+    v36 = ptrtoint ptr<calldata> v0 to i256
+    v37 = add v36, 32
+    v38 = calldatasize
+    v39 = sub v38, v37
+    v40 = slt v39, 32
+    icall revert_if<calldata_tail_too_short>, v40
+    v41 = calldataload v37
+    v42 = ptradd v1, 32
+    mstore v42, v41
+    v43 = mload v1, ptr<memory>
+    v44 = mload v43
+    v45 = ptradd v1, 32
+    v46 = mload v45
+    v47 = checked_add uint256, v44, v46
+    ret v47
 }
 
 ; function encodeField(Value calldata value) external pure returns (uint256) [selector 0xbd1dd83b]
@@ -366,13 +361,13 @@ fn @copyWords(arg0: slice<calldata>) -> i256 [selector=0x7ce58428, pure, abi_par
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
-    v2 = gt v0, 0x7ffffffffffffff
-    icall panic_if<0x41>, v2
-    v3 = mul v0, 32
+    v2 = mul v0, 32
+    v3 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = sub v4, v5
-    v7 = slt v6, v3
+    v7 = slt v6, v2
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -426,13 +421,13 @@ fn @copyArray(arg0: slice<calldata>) -> i256 [selector=0x58bdfbf3, pure, abi_par
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
-    v2 = gt v0, 0x7ffffffffffffff
-    icall panic_if<0x41>, v2
-    v3 = mul v0, 32
+    v2 = mul v0, 32
+    v3 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = sub v4, v5
-    v7 = slt v6, v3
+    v7 = slt v6, v2
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

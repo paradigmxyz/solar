@@ -114,30 +114,26 @@ fn @forwarded() {
   bb0:
     v19 = calldatasize
     v20 = lt v19, 36
-    jumpi v20, bb3, bb5
-  bb5:                                            ; preds = bb0
+    jumpi v20, bb1, bb3
+  bb3:                                            ; preds = bb0
     v21 = icall @decode_calldata_slice
     v22 = calldataload v21
     v23 = add v21, 32
-    v34 = shr v22, 64
-    v3 = ne v34, 0
-    jumpi v3, bb1, bb2
-  bb2:                                            ; preds = bb5
+    v35 = shr v22, 64
     v4 = sub v19, v22
     v6 = slt v4, v23
-    jumpi v6, bb3, bb4
-  bb4:                                            ; preds = bb2
+    v37 = zext i1 v6 to i256
+    v38 = or v35, v37
+    v34 = ne v38, 0
+    jumpi v34, bb1, bb2
+  bb2:                                            ; preds = bb3
     v30 = heap_floor !metadata(alloc_ptr)
     mstore v30, v22
     v27 = add v30, 32
     calldatacopy v27, v23, v22
     mstore 0, v22
     returndata 0, 32
-  bb1 [cold]:                                     ; preds = bb5
-    mstore 32, 65 !metadata(memory=scratch)
-    mstore 0, 0x4e487b71 !metadata(memory=scratch)
-    revert 28, 36
-  bb3 [cold]:                                     ; preds = bb0, bb2
+  bb1 [cold]:                                     ; preds = bb0, bb3
     revert 0, 0
 }
 

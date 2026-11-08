@@ -446,24 +446,23 @@ bb8 [entry]:                                      ; function go(uint256 base, ui
   swap 1
   swap 2
   or
-  push bb4
-  jumpi
-  dup 5
-  push 59
-  shr
-  push bb15
-  jumpi
-  dup 5
+  dup 6
   push 5
   shl
-  swap 3
-  dup 4
+  swap 4
+  dup 5
   sgt
+  or
   push bb4
   jumpi
   push 32
   dup 4
   add
+  push 32
+  dup 2
+  lt
+  push bb14
+  jumpi
   push 256
   swap 1
   dup 2
@@ -610,7 +609,7 @@ bb8 [entry]:                                      ; function go(uint256 base, ui
   gas
   delegatecall
   iszero
-  push bb14
+  push bb13
   jumpi
   returndatasize
   push 32
@@ -624,7 +623,7 @@ bb8 [entry]:                                      ; function go(uint256 base, ui
   push 32
   push 0
   return
-bb14 [cold]:
+bb13 [cold]:
   returndatasize
   push 0
   push 0
@@ -632,7 +631,7 @@ bb14 [cold]:
   returndatasize
   push 0
   revert
-bb15 [cold]:
+bb14 [cold]:
   push 65
   push 32
   mstore

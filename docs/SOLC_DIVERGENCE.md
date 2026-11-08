@@ -1064,6 +1064,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   below the bound whose object still ends past `2**64` because of the free
   memory pointer, a few bytes below the `bytes` bound or a few words below the
   array bound, reverts with empty data at the calldata range check instead.
+  A public function checks its own `bytes` and array arguments as ABI
+  decoding does, since external calls share its body, so an internal call that
+  passes it a slice with an assembly-set length reverts with empty data.
   An event argument that is an `indexed` array whose assembly-set length
   exceeds `2**59 - 1` also panics with `0x41`, because `solar` copies the
   calldata array to memory before it packs it; `solc` packs it in place and

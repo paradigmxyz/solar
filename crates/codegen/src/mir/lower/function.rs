@@ -219,6 +219,9 @@ struct FunctionLowerer<'gcx, 'ctx> {
     types: types::TypeLowerer<'gcx>,
     builder: FunctionBuilder<'ctx>,
     values: FxHashMap<VariableId, ValueId>,
+    /// The base of the calldata struct whose whole head a decoding copy has checked, so its
+    /// members need no check of their own head words.
+    checked_head_base: Option<ValueId>,
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
@@ -510,6 +513,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .with_block_labels(),
             types: types::TypeLowerer::new(gcx),
             values: FxHashMap::default(),
+            checked_head_base: None,
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),

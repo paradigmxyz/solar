@@ -170,29 +170,28 @@ fn @a() {
     v27 = shr v26, 5
     v28 = lt v27, v24
     v46 = or v23, v28
-    jumpi v46, bb3, bb5
-  bb5:                                            ; preds = bb0
-    v47 = shr v24, 59
-    v2 = ne v47, 0
-    jumpi v2, bb1, bb2
-  bb2:                                            ; preds = bb5
-    v3 = shl v24, 5
-    v7 = slt v26, v3
-    jumpi v7, bb3, bb4
-  bb4:                                            ; preds = bb2
+    v2 = shl v24, 5
+    v7 = slt v26, v2
+    v47 = or v46, v7
+    jumpi v47, bb2, bb3
+  bb3:                                            ; preds = bb0
+    v10 = add v2, 32
+    v11 = lt v10, 32
+    jumpi v11, bb1, bb4
+  bb4:                                            ; preds = bb3
     v44 = heap_floor !metadata(alloc_ptr)
     mstore v44, v24
     v40 = add v44, 32
-    calldatacopy v40, v25, v3
+    calldatacopy v40, v25, v2
     v42 = sub v44, 32
     mstore v42, 32
-    v37 = add v3, 64
+    v37 = add v2, 64
     returndata v42, v37
-  bb1 [cold]:                                     ; preds = bb5
+  bb1 [cold]:                                     ; preds = bb3
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb3 [cold]:                                     ; preds = bb2, bb0
+  bb2 [cold]:                                     ; preds = bb0
     revert 0, 0
 }
 

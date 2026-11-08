@@ -5,13 +5,13 @@ fn @emitValues(arg0: slice<calldata>) -> i256 [selector=0x797a5ca9, abi_params=[
   bb0:
     v0 = extract_value slice<calldata>, arg0, 1
     v1 = extract_value slice<calldata>, arg0, 0
-    v2 = gt v0, 0x7ffffffffffffff
-    icall panic_if<0x41>, v2
-    v3 = mul v0, 32
+    v2 = mul v0, 32
+    v3 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
     v6 = sub v4, v5
-    v7 = slt v6, v3
+    v7 = slt v6, v2
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
