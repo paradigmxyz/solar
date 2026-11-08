@@ -1,0 +1,64 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=byte-loops -Zdebugify=check
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+@module ByteLoopGatherOrigins
+
+// A memory gather skips the empty count, so its first word load is the original first load.
+// CHECK-LABEL: fn @memory(
+// CHECK: + {{v[0-9]+}} = mload {{v[0-9]+}} !metadata(span=50..60)
+fn @memory(arg0: ptr<memory>, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v14]
+    v1 = phi [bb0: 0], [bb2: v13]
+    v2 = lt v0, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = mload arg0
+    v4 = lt v0, v3
+    icall panic_if_zero<0x32>, v4
+    v5 = ptradd arg0, v0
+    v6 = ptradd v5, 32
+    v7 = mload v6 !metadata(span=50..60)
+    v8 = byte 0, v7
+    v9 = shl v8, 248
+    v10 = mul v0, 8
+    v11 = shr v9, v10
+    v13 = or v1, v11
+    v14 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}
+
+// A dynamic calldata gather can read even when the old body would not run. Drop its
+// speculative load's location instead of pretending the source expression executed.
+// CHECK-LABEL: fn @calldata(
+// CHECK: + {{v[0-9]+}} = calldataload {{v[0-9]+}}{{$}}
+fn @calldata(arg0: slice<calldata>, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v15]
+    v1 = phi [bb0: 0], [bb2: v14]
+    v2 = lt v0, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = extract_value slice<calldata>, arg0, 1
+    v4 = lt v0, v3
+    icall panic_if_zero<0x32>, v4
+    v5 = extract_value slice<calldata>, arg0, 0
+    v6 = ptrtoint ptr<calldata> v5 to i256
+    v7 = add v6, v0
+    v8 = calldataload v7 !metadata(span=50..60)
+    v9 = byte 0, v8
+    v10 = shl v9, 248
+    v11 = mul v0, 8
+    v12 = shr v10, v11
+    v14 = or v1, v12
+    v15 = add v0, 1
+    jump bb1
+  bb3:
+    ret v1
+}

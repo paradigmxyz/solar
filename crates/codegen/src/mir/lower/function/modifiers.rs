@@ -82,7 +82,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             hir::CallArgsKind::Unnamed(_) => None,
         };
-        self.lower_call_arguments(
+        // solc wraps modifier arguments and their conversions in the modifier definition's
+        // location (`ContractCompiler.cpp` L1476-1489); expressions retain their own locations.
+        let previous = self.builder.replace_source_span(modifier_function.span);
+        let arguments = self.lower_call_arguments(
             modifier.args,
             CallArgumentParams {
                 count: modifier_function.parameters.len(),
@@ -104,7 +107,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(())
             },
-        )?;
+        );
+        self.builder.replace_source_span(previous);
+        arguments?;
 
         let context = ModifierContext {
             modifiers,

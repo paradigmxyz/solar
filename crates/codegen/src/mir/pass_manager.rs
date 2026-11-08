@@ -116,6 +116,13 @@ pub trait MirPass: Sync {
     ///
     /// Report an emitted error with [`ModuleAnalyses::fail`] to stop this pipeline.
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
+
+    /// Returns whether names and instruction IDs still identify the same instructions after
+    /// this pass. Debugify only certifies explicit drops when the pass preserves those sites;
+    /// replacing a function can reuse its name and restart its instruction IDs.
+    fn preserves_debugify_sites(&self) -> bool {
+        false
+    }
 }
 
 /// Runs a sequence of MIR passes, checking each changed result when verification is enabled.
@@ -226,7 +233,7 @@ pub(crate) fn run_passes_inner(
                     "MIR",
                     module.name,
                     pass_name,
-                    crate::debugify::Origins::mir_after(module),
+                    crate::debugify::Origins::mir_after(module, pass.preserves_debugify_sites()),
                 )
             {
                 return (changed, Some(error));
