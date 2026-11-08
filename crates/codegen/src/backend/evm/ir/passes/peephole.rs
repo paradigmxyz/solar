@@ -524,7 +524,7 @@ impl Edit {
                 let iszero = instructions.pop().expect("matched ISZERO");
                 let comparison = instructions.last_mut().expect("matched comparison");
                 overwrite(comparison, opcode);
-                if comparison.metadata.lacks_debug_location()
+                if comparison.metadata.source_spans().is_empty()
                     && !iszero.metadata.source_spans().is_empty()
                 {
                     comparison.metadata.preserve_debug_loc(&iszero.metadata);
@@ -542,7 +542,7 @@ impl Edit {
                 let pushed = instructions.remove(start);
                 let comparison = instructions.remove(start);
                 let iszero = instructions.last_mut().expect("matched ISZERO");
-                if iszero.metadata.lacks_debug_location()
+                if iszero.metadata.source_spans().is_empty()
                     && !comparison.metadata.source_spans().is_empty()
                 {
                     iszero.metadata.preserve_debug_loc(&comparison.metadata);

@@ -3,10 +3,11 @@
   @module FusionOriginFallback
   bb0:
     calldatasize
--   push 0
--   lt !metadata(span=1..3)
-    iszero
++   iszero !metadata(span=1..3)
     push 0
+-   lt !metadata(span=1..3)
+-   iszero
+-   push 0
     mstore
     stop
   bb1:
@@ -28,7 +29,7 @@
     dup 2
 -   gt
 -   iszero !metadata(span=7..9)
-+   lt
++   lt !metadata(span=7..9)
     push 0
     mstore
     pop
@@ -49,26 +50,6 @@
 -   gt !metadata(span=16..18)
 -   iszero !metadata(span=19..21)
 +   lt !metadata(span=16..18)
-    push 0
-    mstore
-    pop
-    stop
-  bb5:
-    calldatasize
--   push 0
--   lt !metadata(span=22..24)
-    iszero !metadata(compiler_generated)
-    push 0
-    mstore
-    stop
-  bb6:
-    calldatasize
--   push 31
-+   push 32
-    dup 2
--   gt !metadata(compiler_generated)
--   iszero !metadata(span=25..27)
-+   lt !metadata(compiler_generated)
     push 0
     mstore
     pop

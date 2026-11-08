@@ -2,8 +2,8 @@
 @module FusionOriginFallback
 
 // The surviving instruction computes the removed partner's value, so it takes the partner's
-// location when it has none of its own: the `iszero` takes the `lt`'s in `bb0`, the inverted
-// compare takes the `iszero`'s in `bb2`.
+// location when it has no span of its own, even when the parser marked it dropped: the `iszero`
+// takes the `lt`'s in `bb0`, the inverted compare takes the `iszero`'s in `bb2`.
 bb0:
   calldatasize
   push 0
@@ -13,7 +13,7 @@ bb0:
   mstore
   stop
 
-// A survivor with its own location keeps it, and the removed partner's is not added.
+// A survivor with its own span keeps it, and the removed partner's is not added.
 bb1:
   calldatasize
   push 31
@@ -49,26 +49,6 @@ bb4:
   dup 2
   gt !metadata(span=16..18)
   iszero !metadata(span=19..21)
-  push 0
-  mstore
-  pop
-  stop
-
-// A survivor whose lack of location is explained keeps that explanation.
-bb5:
-  calldatasize
-  push 0
-  lt !metadata(span=22..24)
-  iszero !metadata(compiler_generated)
-  push 0
-  mstore
-  stop
-bb6:
-  calldatasize
-  push 31
-  dup 2
-  gt !metadata(compiler_generated)
-  iszero !metadata(span=25..27)
   push 0
   mstore
   pop
