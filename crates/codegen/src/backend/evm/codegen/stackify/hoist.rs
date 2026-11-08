@@ -90,16 +90,16 @@ pub(super) fn hoist_plan(
 ) {
     let func = plan.rebuilt.as_deref().unwrap_or(func);
     let hoister = Hoister { func, info, target };
-    let mut moved = 0;
+    let mut extra = 0;
     for (block, block_plan) in plan.blocks.iter_mut_enumerated() {
         if let Some(block_plan) = block_plan
             && !func.blocks[block].hotness.is_cold()
         {
-            moved = moved.max(hoister.hoist_block(block_plan));
+            extra = extra.max(hoister.hoist_block(block_plan));
         }
     }
-    // A block's stack grows by at most the words it pushes earlier.
-    plan.peak += moved;
+    // Each step of a block holds at most `extra` more words than it did.
+    plan.peak += extra;
 }
 
 struct Hoister<'a> {
@@ -132,6 +132,8 @@ struct Placed {
     step: Step,
     /// Words on the stack relative to the block's start.
     height: isize,
+    /// Words that hoists added to the stack at this step.
+    extra: usize,
     origin: Origin,
 }
 
@@ -157,12 +159,12 @@ struct Kept<'a> {
     terminator: Option<usize>,
     /// Index in `steps` of the first `Begin(Some(_))` of the body.
     first_inst: Option<usize>,
-    /// Words pushed earlier than the planner pushed them.
-    moved: usize,
+    /// The most words that hoists added to the stack at any step.
+    extra: usize,
 }
 
 impl Hoister<'_> {
-    /// Returns the number of words it pushed earlier.
+    /// Returns the most words that hoists added to the stack at any step.
     fn hoist_block(&self, block: &mut BlockPlan) -> usize {
         if block.steps.len() > MAX_BLOCK_STEPS
             || !block.steps.iter().any(|step| matches!(step, Step::Materialize(_)))
@@ -187,7 +189,7 @@ impl Hoister<'_> {
             origin: start_origin,
             terminator: None,
             first_inst: None,
-            moved: 0,
+            extra: 0,
         };
         let mut i = 0;
         while i < steps.len() {
@@ -207,7 +209,7 @@ impl Hoister<'_> {
         }
         block.terminator_start = kept.terminator.unwrap_or(kept.steps.len());
         block.steps = kept.steps.into_iter().map(|placed| placed.step).collect();
-        kept.moved
+        kept.extra
     }
 
     /// The end of the run that starts at `start`, or `None` when it has no swap.
@@ -285,7 +287,7 @@ impl Kept<'_> {
             Step::BeginTerminator => self.origin = Origin::Terminator,
             _ => {}
         }
-        self.steps.push(Placed { step, height: self.height, origin });
+        self.steps.push(Placed { step, height: self.height, extra: 0, origin });
         self.height += pushes as isize - pops as isize;
     }
 
@@ -418,7 +420,6 @@ impl Kept<'_> {
             self.insert_group(group, run);
         }
         self.height += pushed as isize;
-        self.moved += inserts.iter().filter(|insert| insert.point < len).count();
         if straddles {
             self.terminator = Some(self.steps.len());
             self.origin = Origin::Terminator;
@@ -466,19 +467,21 @@ impl Kept<'_> {
         let mut pushes = 0;
         for insert in inserts {
             if insert.origin != origin {
-                group.push(Placed { step: insert.origin.step(), height, origin });
+                group.push(Placed { step: insert.origin.step(), height, extra: 0, origin });
                 origin = insert.origin;
             }
-            group.push(Placed { step: run[insert.index].clone(), height, origin });
+            group.push(Placed { step: run[insert.index].clone(), height, extra: 0, origin });
             height += 1;
             pushes += 1;
         }
         if origin != landing {
-            group.push(Placed { step: landing.step(), height, origin });
+            group.push(Placed { step: landing.step(), height, extra: 0, origin });
         }
         let added = group.len();
         for placed in &mut self.steps[point..] {
             placed.height += pushes;
+            placed.extra += pushes as usize;
+            self.extra = self.extra.max(placed.extra);
         }
         self.steps.splice(point..point, group);
         if let Some(terminator) = &mut self.terminator
