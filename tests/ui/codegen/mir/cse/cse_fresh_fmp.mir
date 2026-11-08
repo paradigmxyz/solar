@@ -127,7 +127,7 @@ fn @allocation_after_read(arg0: i256, arg1: i256) -> i256 {
 // A reset between the allocation and the read can move the pointer below the allocation, and
 // a reset clobbers every cached load, so the store that follows it is the one at risk.
 // CHECK-LABEL: @reset_before_read
-// CHECK:       set_fmp
+// CHECK:       mstore 64, arg2
 // CHECK:       mstore [[ADDR:v[0-9]+]], arg0
 // CHECK:       mstore {{v[0-9]+}}, arg1
 // CHECK:       {{v[0-9]+}} = mload [[ADDR]]
@@ -135,8 +135,7 @@ fn @reset_before_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
     v10 = alloc 32
     v2 = ptrtoint ptr<memory> v10 to i256
-    v12 = inttoptr i256 arg2 to ptr<memory>
-    set_fmp v12
+    mstore 64, arg2
     mstore v2, arg0
     v11 = fmp
     v3 = ptrtoint ptr<memory> v11 to i256
@@ -147,7 +146,7 @@ fn @reset_before_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
 
 // A reset on one path to the read counts even when the allocation precedes it on every path.
 // CHECK-LABEL: @reset_on_one_path
-// CHECK:       set_fmp
+// CHECK:       mstore 64, arg2
 // CHECK:       mstore [[ADDR:v[0-9]+]], arg0
 // CHECK:       mstore {{v[0-9]+}}, arg1
 // CHECK:       {{v[0-9]+}} = mload [[ADDR]]
@@ -157,8 +156,7 @@ fn @reset_on_one_path(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
     v2 = ptrtoint ptr<memory> v10 to i256
     jumpi arg3, bb1, bb2
   bb1:
-    v12 = inttoptr i256 arg2 to ptr<memory>
-    set_fmp v12
+    mstore 64, arg2
     jump bb2
   bb2:
     mstore v2, arg0
@@ -182,8 +180,7 @@ fn @reset_on_other_path(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
     v2 = ptrtoint ptr<memory> v10 to i256
     jumpi arg3, bb1, bb2
   bb1:
-    v12 = inttoptr i256 arg2 to ptr<memory>
-    set_fmp v12
+    mstore 64, arg2
     ret 0
   bb2:
     mstore v2, arg0
@@ -199,7 +196,7 @@ fn @reset_on_other_path(arg0: i256, arg1: i256, arg2: i256, arg3: i1) -> i256 {
 // CHECK:       mstore [[ADDR:v[0-9]+]], arg0
 // CHECK:       mstore {{v[0-9]+}}, arg1
 // CHECK: -     {{v[0-9]+}} = mload [[ADDR]]
-// CHECK:       set_fmp
+// CHECK:       mstore 64, arg2
 // CHECK: -     ret {{v[0-9]+}}
 // CHECK: +     ret arg0
 fn @reset_after_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
@@ -211,8 +208,7 @@ fn @reset_after_read(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     v3 = ptrtoint ptr<memory> v11 to i256
     mstore v3, arg1
     v7 = mload v2
-    v12 = inttoptr i256 arg2 to ptr<memory>
-    set_fmp v12
+    mstore 64, arg2
     ret v7
 }
 
@@ -367,8 +363,7 @@ fn @preserving_allocation(arg0: i256, arg1: i256) -> i256 {
 
 fn @resets(arg0: i256) {
   bb0:
-    v0 = inttoptr i256 arg0 to ptr<memory>
-    set_fmp v0
+    mstore 64, arg0
     ret
 }
 
