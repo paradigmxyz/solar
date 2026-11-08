@@ -366,17 +366,21 @@ impl Kept<'_> {
             let h = placed.height;
             // Pushed words above the word that `index` of the old stack names.
             let above = |index: isize| {
-                inserts.iter().filter(|ins| ins.point <= k && ins.height > index).count() as u8
+                inserts.iter().filter(|ins| ins.point <= k && ins.height > index).count()
             };
-            let new = match old {
-                StackOp::Dup(n) => StackOp::Dup(n + above(h - isize::from(n))),
-                StackOp::Swap(n) => StackOp::Swap(n + above(h - 1 - isize::from(n))),
-                StackOp::Exchange(x, y) => StackOp::Exchange(
-                    x + above(h - 1 - isize::from(x)) - above(h - 1),
-                    y + above(h - 1 - isize::from(y)) - above(h - 1),
-                ),
-                StackOp::Pop => StackOp::Pop,
+            let deeper = |n: u8, index: isize| u8::try_from(usize::from(n) + above(index)).ok();
+            let renumber = match old {
+                StackOp::Dup(n) => deeper(n, h - isize::from(n)).map(StackOp::Dup),
+                StackOp::Swap(n) => deeper(n, h - 1 - isize::from(n)).map(StackOp::Swap),
+                StackOp::Exchange(x, y) => {
+                    deeper(x, h - 1 - isize::from(x)).zip(deeper(y, h - 1 - isize::from(y))).map(
+                        |(x, y)| StackOp::Exchange(x - above(h - 1) as u8, y - above(h - 1) as u8),
+                    )
+                }
+                StackOp::Pop => Some(StackOp::Pop),
             };
+            // A depth past `u8` has no operation.
+            let Some(new) = renumber else { return false };
             if new != old {
                 let (Some(old_price), Some(new_price)) = (cost(old), cost(new)) else {
                     return false;
