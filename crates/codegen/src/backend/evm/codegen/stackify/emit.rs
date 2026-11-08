@@ -304,7 +304,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let bypassed_origins = bypassed
             .iter()
-            .map(|(&target, blocks)| {
+            .filter_map(|(&target, blocks)| {
+                let label = |block: BlockId| &func.blocks[block].label_metadata;
+                // No bypassed block names a construct, so the target keeps its own label.
+                if blocks.iter().all(|&block| label(block).source_spans().next().is_none()) {
+                    return None;
+                }
                 // The blocks of a chain that one bypassed block heads are not entries themselves.
                 let heads = blocks
                     .iter()
@@ -316,17 +321,20 @@ impl<'gcx> EvmCodegen<'gcx> {
                     .collect::<Vec<_>>();
                 let only_bypassed_entries = target != BlockId::ENTRY
                     && func.blocks[target].predecessors.iter().all(|pred| blocks.contains(pred));
-                let origin = match heads[..] {
-                    [head] if only_bypassed_entries => func.blocks[head].label_metadata.clone(),
+                let origin = match heads.split_first() {
+                    // The target now stands for the bypassed entries alone.
+                    Some((&first, rest)) if only_bypassed_entries => {
+                        let mut origin = label(first).clone();
+                        origin.merge_debug_locs(rest.iter().map(|&block| label(block)));
+                        origin
+                    }
                     _ => {
-                        let mut union = func.blocks[target].label_metadata.clone();
-                        union.merge_debug_locs(
-                            blocks.iter().map(|&block| &func.blocks[block].label_metadata),
-                        );
-                        union
+                        let mut origin = label(target).clone();
+                        origin.merge_debug_locs(blocks.iter().map(|&block| label(block)));
+                        origin
                     }
                 };
-                (target, origin)
+                Some((target, origin))
             })
             .collect::<FxHashMap<_, _>>();
         let resolve = |block: BlockId| forward.get(&block).copied().unwrap_or(block);
