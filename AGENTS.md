@@ -97,7 +97,7 @@ Pick locations in this order; the first rule that applies wins.
    solc: the `LocationSetter` calls in `testdata/solidity/libsolidity/codegen`
    for legacy, `@src` for via-IR. Cite the solc file and line in the code
    comment and the PR body.
-2. **LLVM, rustc, clang.** For how locations survive a rewrite, copy them; do
+2. **LLVM, rustc, clang.** For how locations survive a rewrite, follow them; do
    not invent rules. LLVM's
    [HowToUpdateDebugInfo](https://llvm.org/docs/HowToUpdateDebugInfo.html)
    has four:
@@ -113,6 +113,12 @@ Pick locations in this order; the first rule that applies wins.
    keeps only the survivor's own location.
 3. **Our own rule.** Only where neither applies. Give the reason in the code
    comment and the PR body. Never add a rule only to lower an audit count.
+
+solc, LLVM, rustc and clang are references, not law. When a reference's rule
+would give a location that is wrong or misleading for the code we emit (our
+block structure, multi-origin lists, outlining, stack scheduling, merged
+dispatch, ABI helpers), use the location that is correct for our output, and
+explain why in a `NOTE:` comment and the PR body.
 
 ### MIR Phases
 
