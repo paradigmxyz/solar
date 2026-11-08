@@ -813,9 +813,9 @@ block: the function definition for the entry block, the declaration of a fallbac
 for its route, and the enclosing statement for the else and end blocks of an `if` and the header and
 exit of a loop. Text prints it under the same rule as an
 instruction's span, so lowered MIR dumps do not show it. A pass that keeps a block keeps its label,
-one that merges the block into its predecessor drops it, and one that bypasses an empty block, or
-replaces a duplicate function body, unions that block's label into its target, as it does for
-instruction spans. A block a pass creates, such as a
+one that merges the block into its predecessor drops it, and one that bypasses an empty block
+(`jump-threading`, `cfg-simplify`) or replaces a duplicate function body merges that block's label
+into its target, as it does for instruction spans. A block a pass creates, such as a
 preheader, an edge block or the second half of a split, starts without a label. A cloned block, as
 inlining and the loop passes make, keeps the label of the block it copies, as LLVM's
 `CloneBasicBlock` keeps the debug locations of the code it clones.
