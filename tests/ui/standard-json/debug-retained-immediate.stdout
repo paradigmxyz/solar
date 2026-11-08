@@ -675,7 +675,7 @@
                     ]
                   },
                   "context": {
-                    "pick": [
+                    "gather": [
                       {
                         "code": {
                           "source": {
@@ -721,7 +721,7 @@
                     ]
                   },
                   "context": {
-                    "pick": [
+                    "gather": [
                       {
                         "code": {
                           "source": {
@@ -764,7 +764,7 @@
                     "mnemonic": "SHL"
                   },
                   "context": {
-                    "pick": [
+                    "gather": [
                       {
                         "code": {
                           "source": {
@@ -807,7 +807,7 @@
                     "mnemonic": "NOT"
                   },
                   "context": {
-                    "pick": [
+                    "gather": [
                       {
                         "code": {
                           "source": {

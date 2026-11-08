@@ -15,8 +15,8 @@ use crate::{
         },
     },
     mir::{
-        BlockId, Callee, Function, FunctionId, InstId, InstKind, Module, PtrLocation, StackReturn,
-        Terminator, Value, ValueId,
+        BlockId, Callee, Function, FunctionId, InstId, InstKind, InstructionMetadata, Module,
+        PtrLocation, StackReturn, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
     },
@@ -417,9 +417,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     && let Some(origin) = origin
                 {
                     let metadata = &func.inst(*origin).metadata;
-                    self.asm.set_source_spans(metadata.source_spans());
-                    self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
-                    self.asm.set_modifier_depth(metadata.modifier_depth());
+                    self.set_origins(metadata);
                 }
                 // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
@@ -485,14 +483,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             &Step::Begin(inst) => {
                 if self.capture_debug_info {
                     let metadata = &func.inst(inst).metadata;
-                    self.asm.set_source_spans(metadata.source_spans());
-                    self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
-                    self.asm.set_modifier_depth(metadata.modifier_depth());
+                    self.set_origins(metadata);
                 }
             }
-            Step::BeginShared(readers) => {
+            Step::Shared { value, origins } => {
                 if self.capture_debug_info {
-                    self.begin_shared(func, readers);
+                    let current = self.asm.debug_origin();
+                    self.set_shared_origins(func, origins);
+                    self.emit_materialized(func, *value);
+                    self.asm.set_debug_origin(current);
+                } else {
+                    self.emit_materialized(func, *value);
                 }
             }
             &Step::Op(opcode) => self.asm.emit_op(opcode),
@@ -534,6 +535,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Attributes the code that follows to the origins of `metadata`.
+    fn set_origins(&mut self, metadata: &InstructionMetadata) {
+        self.asm.set_source_spans(metadata.source_spans());
+        self.asm.set_all_source_spans(metadata.all_source_spans());
+        self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
+        self.asm.set_modifier_depth(metadata.modifier_depth());
+    }
+
     /// Attributes the code that precedes the first instruction that `steps` begin to that
     /// instruction, or else to the block's terminator.
     ///
@@ -550,44 +559,38 @@ impl<'gcx> EvmCodegen<'gcx> {
             _ => None,
         });
         let metadata = next.unwrap_or(&func.blocks[block].terminator_metadata);
-        self.asm.set_source_spans(metadata.source_spans());
-        self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
-        self.asm.set_modifier_depth(metadata.modifier_depth());
+        self.set_origins(metadata);
     }
 
     /// Attributes the code that follows to the block's terminator.
     fn set_terminator_origin(&mut self, func: &Function, block: BlockId) {
         if self.capture_debug_info {
             let metadata = &func.blocks[block].terminator_metadata;
-            self.asm.set_source_spans(metadata.source_spans());
-            self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
-            self.asm.set_modifier_depth(metadata.modifier_depth());
+            self.set_origins(metadata);
         }
     }
 
-    /// Attributes the push of a retained constant to `origins`, the merged origin of its readers or
-    /// else the origin of the code it precedes.
+    /// Attributes the push of a retained constant to `origins`, the combined origin of its readers
+    /// or else the origin of the code it precedes.
     ///
     /// NOTE: The push runs once and serves each reader, so it is shared code: the location of one
-    /// reader would be arbitrary, and the merged location of all of them is correct only when
-    /// every reader runs whenever the push does. A push hoisted out of a branch arm or a loop body
-    /// runs on paths where a reader never does, and a reader's span on it would let coverage count
-    /// a skipped statement as executed. It then takes the origin of the code it precedes, as
-    /// scheduler-placed code does in `set_insertion_origin`; that code runs exactly when the push
-    /// does. LLVM's `Instruction::updateLocationAfterHoist` drops the location of a hoisted
-    /// instruction for the same reason, and `ConstantHoisting` merges the locations of a
-    /// constant's users.
-    fn begin_shared(&mut self, func: &Function, origins: &[Reader]) {
+    /// reader would be arbitrary, and the combined location of all of them is correct only
+    /// when every reader runs whenever the push does, and then they all hold for it. A push hoisted
+    /// out of a branch arm or a loop body runs on paths where a reader never does, and a reader's
+    /// span on it would let coverage count a skipped statement as executed. It then takes the
+    /// origin of the code it precedes, as scheduler-placed code does in `set_insertion_origin`;
+    /// that code runs exactly when the push does. LLVM's `Instruction::updateLocationAfterHoist`
+    /// drops the location of a hoisted instruction for the same reason, and `ConstantHoisting`
+    /// merges the locations of a constant's users.
+    fn set_shared_origins(&mut self, func: &Function, origins: &[Reader]) {
         let metadata = |reader: &Reader| match *reader {
             Reader::Inst(inst) => &func.inst(inst).metadata,
             Reader::Terminator(block) => &func.blocks[block].terminator_metadata,
         };
         let (first, rest) = origins.split_first().expect("a retained push has an origin");
-        let mut merged = metadata(first).clone();
-        merged.merge_debug_locs(rest.iter().map(metadata));
-        self.asm.set_source_spans(merged.source_spans());
-        self.asm.set_debug_loc_kind(merged.debug_loc_kind());
-        self.asm.set_modifier_depth(merged.modifier_depth());
+        let mut combined = metadata(first).clone();
+        combined.combine_debug_locs(rest.iter().map(metadata));
+        self.set_origins(&combined);
     }
 
     /// Jumps to `target` unless it is the next block in the layout.
@@ -612,6 +615,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // `TargetInstrInfo::reMaterialize` clones the original with its `DebugLoc`.
             let consumer = self.asm.debug_origin();
             self.asm.set_source_spans(metadata.source_spans());
+            self.asm.set_all_source_spans(metadata.all_source_spans());
             self.asm.set_modifier_depth(metadata.modifier_depth());
             self.emit_recomputed(func, value);
             self.asm.set_debug_origin(consumer);

@@ -4,10 +4,10 @@
 
 // `P` is pushed once and kept on the stack for the three modular operations, which all run in the
 // block of the push. The push is shared code that runs whenever the readers do, so it takes the
-// merged location of those readers, one span per reader.
+// combined location of those readers: every span holds for it.
 
 // CHECK-LABEL: ; function f(uint256 x, uint256 y)
-// CHECK: push 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff !metadata(spans=[{{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}])
+// CHECK: push 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff !metadata(all=[{{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}])
 contract Merged {
     uint256 constant P = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff;
 

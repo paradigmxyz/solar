@@ -736,14 +736,19 @@ impl<'a> Planner<'a> {
             .collect()
     }
 
-    /// Starts the push of the retained constant `value`, which the planner emits once in `block`,
-    /// before the instruction `before` or else before the terminator.
+    /// The origins of the push of the retained constant `value`, which the planner emits once in
+    /// `block`, before the instruction `before` or else before the terminator.
     ///
     /// The push serves the readers in the blocks it is held through. When all of them are in
-    /// `block`, they run whenever the push does, and the push takes their merged origin. Otherwise
-    /// it runs on paths where some reader never does, and it takes the origin of the code it
-    /// precedes.
-    fn begin_retained(&self, block: BlockId, value: ValueId, before: Option<InstId>) -> Step {
+    /// `block`, they run whenever the push does, and the push takes their combined origin.
+    /// Otherwise it runs on paths where some reader never does, and it takes the origin of the code
+    /// it precedes.
+    fn retained_origins(
+        &self,
+        block: BlockId,
+        value: ValueId,
+        before: Option<InstId>,
+    ) -> Box<[Reader]> {
         let func = self.func;
         let region = &held_blocks(func, self.cfg, &[(block, value)])[&value];
         let mut readers = Vec::new();
@@ -801,7 +806,18 @@ impl<'a> Planner<'a> {
             readers.clear();
             readers.push(before.map_or(Reader::Terminator(block), Reader::Inst));
         }
-        Step::BeginShared(readers.into_boxed_slice())
+        readers.into_boxed_slice()
+    }
+
+    /// Pushes the retained constant `value` in `block`, before the instruction `before` or else
+    /// before the terminator, under the origins of [`Self::retained_origins`].
+    fn push_retained(&self, sim: &mut Sim, block: BlockId, value: ValueId, before: Option<InstId>) {
+        self.fresh(sim, value);
+        if matches!(sim.steps.last(), Some(Step::Materialize(_))) {
+            sim.steps.pop();
+            let origins = self.retained_origins(block, value, before);
+            sim.steps.push(Step::Shared { value, origins });
+        }
     }
 
     /// Plans a block's instructions in their MIR order.
@@ -826,9 +842,8 @@ impl<'a> Planner<'a> {
                 if !step.operands.contains(&value) {
                     return true;
                 }
-                sim.steps.push(self.begin_retained(block, value, Some(inst)));
                 // push constant
-                self.fresh(sim, value);
+                self.push_retained(sim, block, value, Some(inst));
                 false
             });
             if let Some((early_inst, then_block, else_block)) = early
@@ -878,9 +893,8 @@ impl<'a> Planner<'a> {
             }
         }
         for value in constants {
-            sim.steps.push(self.begin_retained(block, value, None));
             // push constant
-            self.fresh(sim, value);
+            self.push_retained(sim, block, value, None);
         }
         Ok(())
     }

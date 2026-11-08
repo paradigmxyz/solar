@@ -214,8 +214,9 @@ enum Step {
     Filler,
     /// Starts an instruction's debug metadata.
     Begin(InstId),
-    /// Starts the debug metadata of a retained constant's push, which serves every reader.
-    BeginShared(Box<[Reader]>),
+    /// Pushes a retained constant, which serves several readers, under the combined origins of
+    /// `origins`, and then restores the origin that was current.
+    Shared { value: ValueId, origins: Box<[Reader]> },
     /// Emits one opcode of an instruction whose operands are prepared.
     Op(u8),
     /// Emits the remaining code of an instruction whose operands are prepared.
@@ -228,7 +229,7 @@ enum Step {
     Publish { callee: FunctionId, arity: usize, params: usize },
 }
 
-/// The code that reads a word a [`Step::BeginShared`] push leaves on the stack.
+/// The code that reads a word a [`Step::Shared`] push leaves on the stack.
 #[derive(Clone, Copy, Debug)]
 enum Reader {
     Inst(InstId),
