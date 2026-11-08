@@ -85,6 +85,7 @@ use crate::{
 };
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 
 mod all_sites;
@@ -1706,6 +1707,7 @@ fn inline_call_impl(
         caller.internal_frame_size.checked_add(callee.internal_frame_size)?;
 
     let mut cloner = InlineCloner::new(caller, callee, frame_base, callee_frame_prefix, args);
+    cloner.call = Some(call_metadata.clone());
     let cloned_entry = cloner.clone_blocks(continuation)?;
     // cloned_entry: object argument casts; cloned callee body
     cloner.caller.blocks[cloned_entry].instructions.splice(0..0, argument_views);
@@ -1751,7 +1753,9 @@ fn inline_literal_call(
     args: Box<[ValueId]>,
     result: ValueId,
 ) -> Option<()> {
+    let call = caller.inst(caller.blocks[block].instructions[index]).metadata.debug_context();
     let mut cloner = InlineCloner::new(caller, callee, 0, 0, args);
+    cloner.call = Some(call);
     let mut instructions = Vec::new();
     // object = icall @literal
     //   => object = alloc size
@@ -1762,6 +1766,7 @@ fn inline_literal_call(
         let kind = cloner.clone_inst_kind(source.kind.clone())?;
         let mut instruction = Instruction::new(kind, source.result_ty);
         instruction.metadata.preserve_debug_loc(&source.metadata);
+        cloner.adopt_call_loc(&mut instruction.metadata);
         if matches!(instruction.kind, InstKind::Alloc { .. }) {
             // object = alloc size
             //   => object = alloc size !metadata(preserves_fmp)
@@ -1819,6 +1824,8 @@ struct InlineCloner<'a> {
     block_map: IndexVec<BlockId, BlockId>,
     return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
     external_exit: bool,
+    /// The location of the call being inlined, or none for a dispatch route.
+    call: Option<InstructionMetadata>,
 }
 
 impl<'a> InlineCloner<'a> {
@@ -1839,12 +1846,28 @@ impl<'a> InlineCloner<'a> {
             block_map: IndexVec::with_capacity(callee.blocks.len()),
             return_edges: Vec::new(),
             external_exit: false,
+            call: None,
+        }
+    }
+
+    /// Gives code the callee generated for itself the call's location. The inlined copy runs for
+    /// this call only, so it has a source the shared helper never had, like LLVM's
+    /// `fixupLineNumbers` for a callee without debug info.
+    fn adopt_call_loc(&self, metadata: &mut InstructionMetadata) {
+        if let Some(call) = &self.call
+            && call.source_spans().next().is_some()
+            && metadata.source_spans().next().is_none()
+            && metadata.debug_loc_kind() == DebugLocKind::CompilerGenerated
+        {
+            metadata.preserve_debug_loc(call);
         }
     }
 
     fn clone_blocks(&mut self, continuation: BlockId) -> Option<BlockId> {
         for block in self.callee.blocks.iter() {
-            self.block_map.push(self.caller.blocks.push(block.new_copy()));
+            let mut copy = block.new_copy();
+            self.adopt_call_loc(&mut copy.label_metadata);
+            self.block_map.push(self.caller.blocks.push(copy));
         }
 
         for (callee_block, block) in self.callee.blocks.iter_enumerated() {
@@ -1854,6 +1877,7 @@ impl<'a> InlineCloner<'a> {
                 let inst = self.callee.inst(inst_id);
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
                 instruction.metadata.preserve_debug_loc(&inst.metadata);
+                self.adopt_call_loc(&mut instruction.metadata);
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst_verbatim(instruction);
                     self.value_map.insert(callee_result, new_result);
@@ -1880,8 +1904,9 @@ impl<'a> InlineCloner<'a> {
                 self.clone_terminator(block.terminator.as_ref()?, caller_block, continuation)?;
             // cloned_block: cloned_terminator !metadata(callee block)
             self.caller.blocks[caller_block].terminator = Some(term);
-            self.caller.blocks[caller_block].terminator_metadata =
-                block.terminator_metadata.clone();
+            let mut metadata = block.terminator_metadata.clone();
+            self.adopt_call_loc(&mut metadata);
+            self.caller.blocks[caller_block].terminator_metadata = metadata;
         }
 
         Some(self.block_map[BlockId::ENTRY])

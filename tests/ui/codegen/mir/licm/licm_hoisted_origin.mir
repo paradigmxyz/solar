@@ -2,18 +2,19 @@
 //@ filecheck: --enable-var-scope
 @module LicmHoistedOrigin
 
-// The bound is hoisted out of the loop and shared by two checks with distinct locations, so it
-// has no single source and keeps none, instead of the first check's.
+// The bound is hoisted out of the loop and shared by two checks with distinct locations. The
+// preheader runs once each time the loop statement starts, so the bound takes the location of the
+// preheader's jump, the loop statement, and never one check's span.
 // CHECK-LABEL: @shared_limit
-// CHECK: + [[ZERO:v[0-9]+]] = eq arg1, 0{{$}}
-// CHECK-NEXT: + [[QUOTIENT:v[0-9]+]] = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1{{$}}
-// CHECK-NEXT: + [[WIDE:v[0-9]+]] = zext i1 [[ZERO]] to i256{{$}}
-// CHECK-NEXT: + [[LIMIT:v[0-9]+]] = sub [[QUOTIENT]], [[WIDE]]{{$}}
+// CHECK: + [[ZERO:v[0-9]+]] = eq arg1, 0 !metadata(span=1..2)
+// CHECK-NEXT: + [[QUOTIENT:v[0-9]+]] = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1 !metadata(span=1..2)
+// CHECK-NEXT: + [[WIDE:v[0-9]+]] = zext i1 [[ZERO]] to i256 !metadata(span=1..2)
+// CHECK-NEXT: + [[LIMIT:v[0-9]+]] = sub [[QUOTIENT]], [[WIDE]] !metadata(span=1..2)
 // CHECK: + {{v[0-9]+}} = lt [[LIMIT]], v1 !metadata(span=10..20)
 // CHECK: + {{v[0-9]+}} = lt [[LIMIT]], v3 !metadata(span=30..40)
 fn @shared_limit(arg0: i256, arg1: i256, arg2: i256) -> i256 {
   bb0:
-    jump bb1
+    jump bb1 !metadata(span=1..2)
   bb1:
     v0 = phi [bb0: 0], [bb4: v14]
     v1 = phi [bb0: arg0], [bb4: v3]
@@ -42,16 +43,16 @@ fn @shared_limit(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     ret v1
 }
 
-// The sum is hoisted out of the loop and replaces two inner adds, so it keeps no location,
-// instead of the first outer add's.
+// The sum is hoisted out of the loop and replaces two inner adds, so it takes the preheader
+// jump's location too.
 // CHECK-LABEL: @shared_offset
-// CHECK: + [[T:v[0-9]+]] = add v0, 32{{$}}
+// CHECK: + [[T:v[0-9]+]] = add v0, 32 !metadata(span=1..2)
 // CHECK: + {{v[0-9]+}} = add [[T]], {{v[0-9]+}} !metadata(span=30..40)
 // CHECK: + {{v[0-9]+}} = add [[T]], {{v[0-9]+}} !metadata(span=10..20)
 fn @shared_offset(arg0: i256) {
   bb0:
     v0 = mload 64
-    jump bb1
+    jump bb1 !metadata(span=1..2)
   bb1:
     v1 = phi [bb0: 1], [bb2: v8]
     v2 = lt v1, arg0
@@ -70,4 +71,41 @@ fn @shared_offset(arg0: i256) {
     v11 = add v10, 32 !metadata(span=30..40)
     mstore v11, 0
     stop
+}
+
+// An invariant instruction hoisted by the main path leaves the loop body, which may not run, so it
+// takes the preheader jump's location and not its body span.
+// CHECK-LABEL: @hoist_invariant
+// CHECK: + [[XOR:v[0-9]+]] = xor arg1, 13 !metadata(span=1..2)
+fn @hoist_invariant(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1 !metadata(span=1..2)
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = xor arg1, 13 !metadata(span=50..60)
+    v3 = add v0, v2
+    jump bb1
+  bb3:
+    ret v0
+}
+
+// A preheader whose jump has no location leaves the hoisted instruction with none.
+// CHECK-LABEL: @hoist_unlocated
+// CHECK: + [[XOR:v[0-9]+]] = xor arg1, 13{{$}}
+fn @hoist_unlocated(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = lt v0, arg0
+    jumpi v1, bb2, bb3
+  bb2:
+    v2 = xor arg1, 13 !metadata(span=50..60)
+    v3 = add v0, v2
+    jump bb1
+  bb3:
+    ret v0
 }

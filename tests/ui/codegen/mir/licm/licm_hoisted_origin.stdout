@@ -3,13 +3,13 @@
   @module LicmHoistedOrigin
   fn @shared_limit(arg0: i256, arg1: i256, arg2: i256) -> i256 {
     bb0:
-+     v14 = eq arg1, 0
-+     v15 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1
-+     v16 = zext i1 v14 to i256
-+     v17 = sub v15, v16
-+     v4 = eq arg1, 0
-+     v9 = eq arg1, 0
-      jump bb1
++     v14 = eq arg1, 0 !metadata(span=1..2)
++     v15 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg1 !metadata(span=1..2)
++     v16 = zext i1 v14 to i256 !metadata(span=1..2)
++     v17 = sub v15, v16 !metadata(span=1..2)
++     v4 = eq arg1, 0 !metadata(span=1..2)
++     v9 = eq arg1, 0 !metadata(span=1..2)
+      jump bb1 !metadata(span=1..2)
     bb1:                                            ; preds = bb0, bb4
       v0 = phi [bb0: 0], [bb4: v13]
       v1 = phi [bb0: arg0], [bb4: v3]
@@ -47,8 +47,8 @@
   fn @shared_offset(arg0: i256) {
     bb0:
       v0 = mload 64
-+     v12 = add v0, 32
-      jump bb1
++     v12 = add v0, 32 !metadata(span=1..2)
+      jump bb1 !metadata(span=1..2)
     bb1:                                            ; preds = bb0, bb2
       v1 = phi [bb0: 1], [bb2: v8]
       v2 = lt v1, arg0
@@ -68,6 +68,38 @@
       v6 = mload v5
       v7 = shl v1, 1
       v8 = or v7, v6
+      jump bb1
+  }
+  
+  fn @hoist_invariant(arg0: i256, arg1: i256) -> i256 {
+    bb0:
++     v2 = xor arg1, 13 !metadata(span=1..2)
+      jump bb1 !metadata(span=1..2)
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:                                            ; preds = bb1
+      ret v0
+    bb2:                                            ; preds = bb1
+-     v2 = xor arg1, 13 !metadata(span=50..60)
+      v3 = add v2, v0
+      jump bb1
+  }
+  
+  fn @hoist_unlocated(arg0: i256, arg1: i256) -> i256 {
+    bb0:
++     v2 = xor arg1, 13
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v3]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:                                            ; preds = bb1
+      ret v0
+    bb2:                                            ; preds = bb1
+-     v2 = xor arg1, 13 !metadata(span=50..60)
+      v3 = add v2, v0
       jump bb1
   }
   
