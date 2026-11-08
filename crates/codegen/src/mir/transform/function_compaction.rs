@@ -813,7 +813,7 @@ fn merge_function_debug_origins(
         })
         .collect::<Vec<_>>();
     let target = module.function_mut(representative);
-    // duplicate body -> representative body !metadata(union of body origins)
+    // duplicate body -> representative body !metadata(origins of all bodies, none if one has none)
     for (block, (instructions, terminator, label)) in target.blocks.indices().zip(origins) {
         for (index, metadata) in instructions.into_iter().enumerate() {
             let inst = target.blocks[block].instructions[index];
