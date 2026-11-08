@@ -19,12 +19,12 @@
 +   jump bb3 !metadata(compiler_generated)
   bb2:
     push 77 !metadata(span=71..75)
+-   push 22 !metadata(span=76..80)
 +   jump bb3 !metadata(span=76..80)
 + bb3:
-    push 22 !metadata(span=76..80)
++   push 22
     push 33
     push 44
     push 55
--   revert
-+   revert !metadata(span=26..30)
+    revert
   

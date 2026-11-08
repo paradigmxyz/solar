@@ -2,9 +2,9 @@
 //@ filecheck:
 @module DebugInfoParameters
 
-// The stub merges the sites' locations per position. Each site's call sequence takes the first
-// location of its run and keeps the parameter pushes' own. A site with no located instruction
-// gets none.
+// Each site's call sequence takes the first location of its run and keeps the parameter pushes'
+// own. A site with no located instruction gets none, and the stub, which also runs for that site,
+// has none either.
 // CHECK-LABEL: {{^[ +].*}}bb0:
 // CHECK: + push [[RET0:bb[0-9]+]] !metadata(span=1..2)
 // CHECK-NEXT: push 2 !metadata(span=10..11)
@@ -17,10 +17,9 @@
 // CHECK: + push [[RET3:bb[0-9]+]]{{$}}
 // CHECK: + jump [[STUB]]{{$}}
 // CHECK: + [[STUB]] {{\[ret=.*\]}}:
-// CHECK: {{^[ +] *}}not !metadata(spans=[2..3, 102..103, 202..203]){{$}}
-// CHECK-COUNT-7: {{^[ +] *}}not !metadata
+// CHECK-COUNT-8: {{^[ +] *}}not{{$}}
 // CHECK: + swap 1{{$}}
-// CHECK-NEXT: {{^[ +] *}}add !metadata(spans=[11..12, 111..112, 211..212]){{$}}
+// CHECK-NEXT: {{^[ +] *}}add{{$}}
 bb0:
   push 1 !metadata(span=1..2)
   not !metadata(span=2..3)
