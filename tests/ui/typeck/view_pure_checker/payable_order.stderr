@@ -1,3 +1,9 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/view_pure_checker/payable_order.sol:LL:CC
+   │
+LL │         msg.value;
+   ╰╴        ━━━━━━━━━
+
 error[4006]: this modifier uses `msg.value` or `callvalue()` and thus the function has to be payable or internal
    ╭▸ ROOT/tests/ui/typeck/view_pure_checker/payable_order.sol:LL:CC
    │
@@ -10,5 +16,5 @@ note: `msg.value` or `callvalue()` appear here inside the modifier
 LL │         msg.value;
    ╰╴        ━━━━━━━━━
 
-error: aborting due to 1 previous error
+error: aborting due to 1 previous error; 1 warning emitted
 

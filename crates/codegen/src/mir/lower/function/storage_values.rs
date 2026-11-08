@@ -355,7 +355,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // A call that returns a storage reference, directly or through a function pointer,
             // yields its slot.
             ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
-                let slot = self.operand(expr)?;
+                let slot = self.operand(expr)?.id();
                 Some(StorageAccess {
                     slot,
                     location: StorageLocation::word(U256::ZERO),
@@ -387,7 +387,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
     ) -> Option<StorageAccess> {
-        let condition = self.operand(condition)?;
+        let condition = self.operand(condition)?.id();
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,

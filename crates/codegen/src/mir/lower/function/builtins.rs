@@ -159,7 +159,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // solc copies calldata `bytes` input past the free memory pointer, which the call
             // reads at once, so it stays unreserved, and without checking that it lies within
             // the calldata, so the copy reads zeros past its end.
-            let data = self.operand(data)?;
+            let data = self.operand(data)?.id();
             self.builder.stage_bytes(data)
         } else {
             // input = materialize_memory(arg)
@@ -340,7 +340,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 match self.is_external_function_value(receiver) {
                     true => {
-                        let value = self.operand(receiver)?;
+                        let value = self.operand(receiver)?.id();
                         Some(self.external_function_address(value))
                     }
                     false => self.cx.report_unsupported(expr.span, "function address"),
@@ -368,7 +368,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     None => match self.is_external_function_value(receiver) {
                         true => {
                             // selector = (function & 0xffffffff) << 224
-                            let value = self.operand(receiver)?;
+                            let value = self.operand(receiver)?.id();
                             let mask = self.builder.imm(u32::MAX);
                             let selector = self.builder.and(value, mask);
                             let shift = self.builder.imm(224);
@@ -409,12 +409,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 else {
                     return self.cx.report_unsupported(expr.span, "fixed-bytes length");
                 };
-                match receiver.peel_parens().kind {
-                    ExprKind::Ident(_) => {}
-                    _ => {
-                        self.operand(receiver)?;
-                    }
-                }
+                self.lower_discarded_expr(receiver)?;
                 Some(self.builder.imm(u64::from(size.bytes())))
             }
             Builtin::ArrayLength => {
@@ -554,14 +549,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match builtin {
             Builtin::Assert => {
                 let condition = &self.builtin_args::<1>(builtin, &args)?[0];
-                let condition = self.operand(condition)?;
+                let condition = self.operand(condition)?.id();
                 let invalid = self.builder.eq_zero(condition);
                 self.builder.panic_if(invalid, PanicCode::Assert);
             }
             Builtin::Require => {
                 let (required, message) = self.builtin_args_with_optional::<1>(builtin, &args)?;
                 let condition = required.first()?;
-                let condition = self.operand(condition)?;
+                let condition = self.operand(condition)?.id();
                 // The message is evaluated regardless of the condition, like a function call
                 // argument. With `--revert-strings strip`, only its side effects are kept.
                 let message = match message {
@@ -662,7 +657,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Builtin::AbiEncodeCall => self.lower_abi_encode_call(args),
             Builtin::Blockhash | Builtin::Blobhash => {
                 let value = &self.builtin_args::<1>(builtin, &args)?[0];
-                let value = self.operand(value)?;
+                let value = self.operand(value)?.id();
                 Some(match builtin {
                     Builtin::Blockhash => self.builder.blockhash(value),
                     Builtin::Blobhash => self.builder.blobhash(value),
@@ -706,7 +701,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         "codegen expected UDVT unwrap to receive a user-defined value type",
                     );
                 };
-                self.operand(value)
+                Some(self.operand(value)?.id())
             }
             Builtin::Selfdestruct
             | Builtin::Require

@@ -2,7 +2,7 @@ contract C {
     uint256 state;
 
     modifier readsValueAndWritesState() {
-        msg.value;
+        msg.value; //~ WARN: statement has no effect
         //~^ NOTE: `msg.value` or `callvalue()` appear here inside the modifier
         state = 1;
         _;
