@@ -745,6 +745,8 @@ impl<'gcx> ResolveContext<'gcx> {
         let ast_item = self.hir_to_ast[&hir::ItemId::Variable(gettee)];
         let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
         let span = ast_var.span;
+        // The synthesized code maps to the variable's declaration, as in solc.
+        let code_span = self.hir.variable(gettee).declaration_span();
 
         // https://github.com/argotorg/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2852
         let mut ret_ty = &self.hir.variable(gettee).ty;
@@ -842,15 +844,18 @@ impl<'gcx> ResolveContext<'gcx> {
             let mut expr = builder.expr(
                 self.next_id(),
                 hir::ExprKind::Ident(self.arena.alloc_as_slice(res)),
-                span,
+                code_span,
             );
             for &param in &parameters {
                 let res = Res::Item(hir::ItemId::Variable(param));
                 let ident = hir::ExprKind::Ident(self.arena.alloc_as_slice(res));
                 expr = builder.expr(
                     self.next_id(),
-                    hir::ExprKind::Index(expr, Some(builder.expr(self.next_id(), ident, span))),
-                    span,
+                    hir::ExprKind::Index(
+                        expr,
+                        Some(builder.expr(self.next_id(), ident, code_span)),
+                    ),
+                    code_span,
                 );
             }
 
@@ -864,7 +869,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 // `return <expr>;`
                 [_] if ret_struct.is_none() => Some(
                     self.arena
-                        .alloc_as_slice(builder.stmt(hir::StmtKind::Return(Some(expr)), span)),
+                        .alloc_as_slice(builder.stmt(hir::StmtKind::Return(Some(expr)), code_span)),
                 ),
                 [..] => {
                     if let [ret] = returns[..] {
@@ -873,9 +878,9 @@ impl<'gcx> ResolveContext<'gcx> {
                         let expr = builder.expr(
                             self.next_id(),
                             hir::ExprKind::Member(expr, ret.name.unwrap()),
-                            span,
+                            code_span,
                         );
-                        let stmt = builder.stmt(hir::StmtKind::Return(Some(expr)), span);
+                        let stmt = builder.stmt(hir::StmtKind::Return(Some(expr)), code_span);
                         Some(self.arena.alloc_as_slice(stmt))
                     } else {
                         // `Struct storage <name> = <expr>;`
@@ -885,7 +890,7 @@ impl<'gcx> ResolveContext<'gcx> {
                         decl_var.initializer = Some(expr);
                         let decl_id = self.hir.variables.push(decl_var);
                         let builder = self.hir_builder();
-                        let decl_stmt = builder.stmt(hir::StmtKind::DeclSingle(decl_id), span);
+                        let decl_stmt = builder.stmt(hir::StmtKind::DeclSingle(decl_id), code_span);
 
                         // `return (<name "." ret.name "," for ret in returns>);`
                         let res =
@@ -897,25 +902,25 @@ impl<'gcx> ResolveContext<'gcx> {
                                     let decl_name_expr = builder.expr(
                                         self.next_id(),
                                         hir::ExprKind::Ident(res),
-                                        span,
+                                        code_span,
                                     );
                                     let ret = self.hir.variable(ret);
                                     Some(builder.expr(
                                         self.next_id(),
                                         hir::ExprKind::Member(decl_name_expr, ret.name.unwrap()),
-                                        span,
+                                        code_span,
                                     ))
                                 }),
                             )),
-                            span,
+                            code_span,
                         );
-                        let ret_stmt = builder.stmt(hir::StmtKind::Return(Some(tuple)), span);
+                        let ret_stmt = builder.stmt(hir::StmtKind::Return(Some(tuple)), code_span);
 
                         Some(self.arena.alloc_array([decl_stmt, ret_stmt]))
                     }
                 }
             };
-            stmts.map(|stmts| self.hir_builder().block(stmts, span))
+            stmts.map(|stmts| self.hir_builder().block(stmts, code_span))
         }
     }
 
