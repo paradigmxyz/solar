@@ -1022,6 +1022,7 @@ symbols! {
         address_delegatecall,
         address_staticcall,
         aligned,
+        all,
         alloc,
         alloc_ptr,
         always_inline,

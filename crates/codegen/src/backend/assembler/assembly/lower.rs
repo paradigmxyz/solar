@@ -264,7 +264,7 @@ fn lower_evm_ir_once(
         if let Some(label) = labels.get(original).copied().flatten() {
             // The label's own origin.
             if block.label_metadata.has_source_spans() {
-                program.set_source_spans(block.label_metadata.source_spans());
+                program.set_source_origins(&block.label_metadata);
                 program.set_modifier_depth(block.label_metadata.modifier_depth());
             }
             program.define_label(label);
@@ -272,7 +272,7 @@ fn lower_evm_ir_once(
         }
 
         for inst in &block.instructions {
-            program.set_source_spans(inst.metadata.source_spans());
+            program.set_source_origins(&inst.metadata);
             program.set_modifier_depth(inst.metadata.modifier_depth());
             let first = program.instructions.len();
             lower_instruction(assembler, &mut program, inst, module, labels);
@@ -288,7 +288,7 @@ fn lower_evm_ir_once(
         }
 
         if let Some(terminator) = &block.terminator {
-            program.set_source_spans(terminator.metadata.source_spans());
+            program.set_source_origins(&terminator.metadata);
             program.set_modifier_depth(terminator.metadata.modifier_depth());
             let first = program.instructions.len();
             lower_terminator(
@@ -328,9 +328,10 @@ fn lower_evm_ir_once(
     );
     if !emitted_data.is_empty() && !ends_with_terminal {
         let last_terminator = module.blocks.last().and_then(|block| block.terminator.as_ref());
-        program.set_source_spans(
-            last_terminator.into_iter().flat_map(|term| term.metadata.source_spans()),
-        );
+        match last_terminator {
+            Some(term) => program.set_source_origins(&term.metadata),
+            None => program.set_source_span(None),
+        }
         program
             .set_modifier_depth(last_terminator.map_or(0, |term| term.metadata.modifier_depth()));
         program.push_op(op::STOP);
