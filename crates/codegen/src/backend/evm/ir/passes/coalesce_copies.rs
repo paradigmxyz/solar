@@ -81,7 +81,7 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
             let run = &block.instructions[index..index + count * COPY_INSTRUCTIONS];
             let mut metadata = Metadata::default();
             metadata.preserve_debug_loc(&run[0].metadata);
-            metadata.merge_debug_locs(run.iter().map(|inst| &inst.metadata));
+            metadata.combine_debug_locs(run.iter().map(|inst| &inst.metadata));
             let replacement = [
                 Instruction::push_value(length),
                 Instruction::push_value(source),

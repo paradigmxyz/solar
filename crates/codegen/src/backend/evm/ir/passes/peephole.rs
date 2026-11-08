@@ -654,7 +654,7 @@ fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata
 /// instruction whose value it now computes. A survivor with spans or an explained kind keeps its
 /// own.
 fn fill_debug_gap(survivor: &mut Metadata, removed: &Metadata) {
-    if survivor.lacks_debug_location() && !removed.source_spans().is_empty() {
+    if survivor.lacks_debug_location() && removed.has_source_spans() {
         survivor.preserve_debug_loc(removed);
     }
 }
@@ -677,7 +677,7 @@ mod tests {
 
         let mut gap = Metadata::default();
         fill_debug_gap(&mut gap, &removed);
-        assert_eq!(gap.source_spans(), removed.source_spans());
+        assert_eq!(gap.source_span(), removed.source_span());
 
         for kind in [
             DebugLocKind::Dropped,
@@ -688,13 +688,13 @@ mod tests {
             let mut explained = Metadata::default();
             explained.set_debug_loc_kind(kind);
             fill_debug_gap(&mut explained, &removed);
-            assert!(explained.source_spans().is_empty());
+            assert!(!explained.has_source_spans());
         }
 
         let mut own = Metadata::default();
         own.set_source_span(Some(Span::new(BytePos(5), BytePos(6))));
         fill_debug_gap(&mut own, &removed);
-        assert_ne!(own.source_spans(), removed.source_spans());
+        assert_ne!(own.source_span(), removed.source_span());
 
         let mut still_gap = Metadata::default();
         fill_debug_gap(&mut still_gap, &Metadata::default());
