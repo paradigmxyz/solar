@@ -1491,6 +1491,14 @@ impl AliasAnalysis {
                 if input.is_some() {
                     effects.read_any(AddressSpace::Memory);
                 }
+                // A callee that returns less than a word leaves the rest of the scratch word as
+                // it was, unless the call zeroes it first, so the result reads the old word.
+                if policy.output == (CallOutput::ScratchWord { clear: false }) {
+                    effects.read(Access::Location(Location::Memory(MemoryLocation::new(
+                        MemoryAddress::absolute(0),
+                        LocationSize::Const(EvmMemoryLayout::WORD_SIZE),
+                    ))));
+                }
                 effects.read_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);
                 if policy.kind != AddressCallKind::Static {
