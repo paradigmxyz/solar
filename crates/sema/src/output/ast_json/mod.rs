@@ -51,7 +51,7 @@ use std::{
     collections::BTreeMap,
     fmt,
     panic::{self, AssertUnwindSafe},
-    sync::{Condvar, Mutex, OnceLock},
+    sync::{Condvar, Mutex, OnceLock, PoisonError},
 };
 
 /// Destructures the HIR node that pairs with an AST node. Without sema, there is none: the result
@@ -159,6 +159,16 @@ struct AheadState {
     closed: bool,
 }
 
+/// Stops the workers of [`AstJson::render`] when the output ends, or panics.
+struct Close<'a>(&'a Ahead);
+
+impl Drop for Close<'_> {
+    fn drop(&mut self) {
+        self.0.state.lock().unwrap_or_else(PoisonError::into_inner).closed = true;
+        self.0.changed.notify_all();
+    }
+}
+
 enum Slot {
     /// Not started, or failed: the output writes it itself.
     Pending,
@@ -202,10 +212,8 @@ impl<'gcx> AstJson<'gcx> {
             for _ in 0..threads {
                 scope.spawn(|_| self.write_ahead(ahead, 2 * threads));
             }
-            let result = write();
-            ahead.state.lock().unwrap().closed = true;
-            ahead.changed.notify_all();
-            result
+            let _close = Close(ahead);
+            write()
         })
     }
 

@@ -15,7 +15,6 @@ use crate::{
     ethdebug::{EthdebugCompilation, make_ethdebug_compilation, make_ethdebug_program},
 };
 use rayon::prelude::*;
-use serde::Serialize;
 use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
 use solar_config::{
@@ -28,7 +27,11 @@ use solar_interface::{
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::FileLoader,
 };
-use solar_sema::{Gcx, hir::ContractId};
+use solar_sema::{
+    Gcx,
+    hir::ContractId,
+    output::{AstJson, SourceAstJson},
+};
 use std::{
     borrow::Cow,
     cell::OnceCell,
@@ -125,15 +128,16 @@ fn write_empty_standard_json_output(
 ) -> io::Result<()> {
     let output: CompilerOutput<'_> = CompilerOutput::default();
     let diagnostics = diagnostics.read();
-    finish_standard_json_output(output, source_map, opts, &diagnostics, out)
+    finish_standard_json_output(output, source_map, opts, &diagnostics, None, out)
 }
 
 #[tracing::instrument(name = "write_output", level = "debug", skip_all)]
-fn finish_standard_json_output<'a, S: Serialize>(
-    mut output: CompilerOutput<'a, ContractOutput<'a>, S>,
+fn finish_standard_json_output<'a, 'gcx>(
+    mut output: CompilerOutput<'a, ContractOutput<'a>, SourceOutput<'_, 'gcx>>,
     source_map: Arc<SourceMap>,
     opts: &CompileOpts,
     diagnostics: &'a [solar_interface::diagnostics::Diag],
+    ast_json: Option<&AstJson<'gcx>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
     let mut emitter = JsonEmitter::new(Box::new(io::sink()), source_map, opts.color)
@@ -149,12 +153,36 @@ fn finish_standard_json_output<'a, S: Serialize>(
 
     // Raw contracts would not be indented, and with nothing to parallelize, buffering every
     // serialized contract only raises peak memory.
+    // The contracts are serialized before the sources are written ahead, which would occupy
+    // the threads that serialize them.
     if opts.pretty_json || output.contracts.is_empty() || rayon::current_num_threads() == 1 {
-        crate::emit::to_json(out, &output, opts.pretty_json)
+        let attached = attached_asts(&output);
+        render_asts(ast_json, &attached, || crate::emit::to_json(out, &output, opts.pretty_json))
     } else {
-        crate::emit::to_json(out, &output.serialize_contracts()?, false)
+        let output = output.serialize_contracts()?;
+        let attached = attached_asts(&output);
+        render_asts(ast_json, &attached, || crate::emit::to_json(out, &output, false))
     }
     .map_err(Into::into)
+}
+
+/// Returns the ASTs of the sources of the output, in the order of the output.
+fn attached_asts<'a, 'gcx, C>(
+    output: &CompilerOutput<'_, C, SourceOutput<'a, 'gcx>>,
+) -> Vec<SourceAstJson<'a, 'gcx>> {
+    output.sources.iter().flatten().filter_map(|(_, source)| source.ast).collect()
+}
+
+/// Calls `write` while the ASTs, which it writes in this order, are written ahead.
+fn render_asts<'gcx, R: Send>(
+    ast_json: Option<&AstJson<'gcx>>,
+    attached: &[SourceAstJson<'_, 'gcx>],
+    write: impl FnOnce() -> R + Send,
+) -> R {
+    match ast_json {
+        Some(ast_json) => ast_json.render(attached, write),
+        None => write(),
+    }
 }
 
 /// Applies `settings.debug`, enforcing solc's selection rules.
@@ -471,21 +499,14 @@ fn compile(
             })();
 
             let diagnostics = diagnostics.read();
-            let attached = output.sources.iter().flatten().filter_map(|(_, s)| s.ast);
-            let attached = attached.collect::<Vec<_>>();
-            let finish = || {
-                finish_standard_json_output(
-                    output,
-                    Arc::clone(&source_map),
-                    opts,
-                    &diagnostics,
-                    &mut *out,
-                )
-            };
-            output_result = Some(match ast_json.get() {
-                Some(ast_json) => ast_json.render(&attached, finish),
-                None => finish(),
-            });
+            output_result = Some(finish_standard_json_output(
+                output,
+                Arc::clone(&source_map),
+                opts,
+                &diagnostics,
+                ast_json.get(),
+                &mut *out,
+            ));
             result
         },
         false,
