@@ -355,11 +355,14 @@ fn compile(
                     } else {
                         let ast_json = ast_json.get_or_init(|| gcx.ast_json(opts.pretty_json));
                         let sources = output.sources.iter_mut().flatten();
+                        let mut selected = Vec::new();
                         for ((name, source), id) in sources.zip(gcx.hir.source_ids()) {
                             if output_selection.ast(name) {
                                 source.ast = ast_json.source(id);
+                                selected.push(id);
                             }
                         }
+                        ast_json.render(selected);
                     }
                 }
                 if control_flow.is_break() {

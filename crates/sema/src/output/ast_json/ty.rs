@@ -42,7 +42,7 @@ impl<'a, 'gcx> TypeDescriptions<'a, 'gcx> {
     pub(super) fn new(cx: Cx<'a, 'gcx>, ty: Ty<'gcx>, pointer: bool) -> Self {
         Self {
             gcx: cx.gcx,
-            cache: cx.json.types.as_ref(),
+            cache: cx.types,
             ty,
             pointer,
             expr: false,
@@ -237,7 +237,7 @@ impl Serialize for ExprType<'_, '_, '_> {
         };
         let descriptions = TypeDescriptions {
             gcx,
-            cache: cx.json.types.as_ref(),
+            cache: cx.types,
             ty,
             // The pointer only marks the references, which the types of a function do not have.
             pointer: !(ty.is_value_type() && !matches!(ty.kind, TyKind::Fn(_)))

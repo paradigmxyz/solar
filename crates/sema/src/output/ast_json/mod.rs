@@ -31,12 +31,14 @@ use crate::{
     typeck::override_checker::is_fully_implemented,
 };
 use alloy_primitives::hex;
-use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
+use rayon::prelude::*;
+use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
+use serde_json::value::RawValue;
 use solar_ast::{self as ast, CommentKind, DocComments, token::TokenLitKind};
 use solar_data_structures::index::IndexVec;
 use solar_interface::{BytePos, Ident, Span, Symbol, kw, source_map::SourceFile};
 use solar_parse::Lexer;
-use std::{borrow::Cow, cell::Cell, collections::BTreeMap, fmt};
+use std::{borrow::Cow, cell::Cell, collections::BTreeMap, fmt, ops::Range, sync::OnceLock};
 
 mod expr;
 mod ty;
@@ -51,36 +53,60 @@ impl<'gcx> Gcx<'gcx> {
     /// Reference: <https://docs.soliditylang.org/en/develop/using-the-compiler.html#output-description>
     pub fn ast_json(self, pretty: bool) -> AstJson<'gcx> {
         let hir = &self.hir;
-        let mut next_import = hir.item_count() + hir.sources.len();
+        let mut next_id = hir.item_count() + hir.sources.len();
         let first_imports = hir
             .sources()
             .map(|source| {
-                let first = next_import;
-                next_import += source.imports.len();
+                let first = next_id;
+                next_id += source.imports.len();
                 first
+            })
+            .collect();
+        // Every source gets its own range of IDs for the nodes that are no items, so that the
+        // sources can be written in any order, or at the same time, to the same output.
+        let id_ranges = self
+            .sources
+            .iter()
+            .map(|source| {
+                let first = next_id;
+                next_id += ID_RANGE_PER_BYTE * source.file.src.len() + ID_RANGE_SLACK;
+                first..next_id
             })
             .collect();
         AstJson {
             gcx: self,
-            next_id: Cell::new(next_import),
             first_imports,
-            types: (!pretty).then(Default::default),
+            id_ranges,
+            pretty,
+            rendered: self.sources.iter().map(|_| OnceLock::new()).collect(),
         }
     }
 }
 
+/// The IDs that a source reserves for its nodes that are no items, for every byte of the source.
+///
+/// A node takes at least a byte of its source, apart from the empty parameter lists, which a
+/// function, event or error of at least 8 bytes owns, and the nodes that share a span with their
+/// parent. The writer fails if a source needs more IDs than it reserved.
+const ID_RANGE_PER_BYTE: usize = 2;
+const ID_RANGE_SLACK: usize = 16;
+
 /// The AST JSON of the sources of a compilation. See [`Gcx::ast_json`].
 ///
-/// Write each source once: the sources share the counter of the IDs that do not belong to items.
+/// The IDs of the nodes that are no items come from a range of each source, so the output does
+/// not depend on the order in which the sources are written, or on the number of threads that
+/// write them.
 pub struct AstJson<'gcx> {
     gcx: Gcx<'gcx>,
-    /// The ID of the next node that is not an item, a source unit or an import directive.
-    next_id: Cell<usize>,
     /// The ID of the first import directive of each source.
     first_imports: IndexVec<SourceId, usize>,
-    /// The written `typeDescriptions` that only depend on a type, which most of them do. Pretty
-    /// output has none, since it indents inside them.
-    types: Option<ty::TypeCache<'gcx>>,
+    /// The IDs of each source for the nodes that are no items, source units or import directives.
+    id_ranges: IndexVec<SourceId, Range<usize>>,
+    /// Whether the output is indented, which compact output does not need to cache descriptions
+    /// for or to write in parallel.
+    pretty: bool,
+    /// The sources written ahead by [`AstJson::render`].
+    rendered: IndexVec<SourceId, OnceLock<Box<RawValue>>>,
 }
 
 impl<'gcx> AstJson<'gcx> {
@@ -93,8 +119,18 @@ impl<'gcx> AstJson<'gcx> {
             .then_some(SourceAstJson { json: self, id })
     }
 
-    fn fresh_id(&self) -> usize {
-        self.next_id.replace(self.next_id.get() + 1)
+    /// Writes the sources ahead, in parallel, so that writing the output only copies them. Compact
+    /// output only: indentation depends on where a source ends up in the output.
+    pub fn render(&self, ids: impl IntoIterator<Item = SourceId>) {
+        if self.pretty {
+            return;
+        }
+        let sources = ids.into_iter().filter_map(|id| self.source(id)).collect::<Vec<_>>();
+        sources.par_iter().for_each(|source| {
+            if let Ok(raw) = serde_json::value::to_raw_value(source) {
+                let _ = self.rendered[source.id].set(raw);
+            }
+        });
     }
 
     fn source_unit_id(&self, id: SourceId) -> usize {
@@ -117,10 +153,17 @@ impl fmt::Debug for SourceAstJson<'_, '_> {
 impl Serialize for SourceAstJson<'_, '_> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self { json, id } = *self;
+        if let Some(rendered) = json.rendered[id].get() {
+            return rendered.serialize(s);
+        }
         let gcx = json.gcx;
         let file = &gcx.hir.source(id).file;
+        let ids = Ids { next: Cell::new(json.id_ranges[id].start), end: json.id_ranges[id].end };
+        let types = (!json.pretty).then(Default::default);
         let cx = Cx {
             json,
+            ids: &ids,
+            types: types.as_ref(),
             gcx,
             source: id,
             start: file.start_pos,
@@ -155,7 +198,23 @@ impl Serialize for SourceAstJson<'_, '_> {
                 imports: source.imports,
             }),
         );
-        m.end()
+        let written = m.end()?;
+        if ids.next.get() > ids.end {
+            return Err(S::Error::custom("the nodes of a source exceed the IDs reserved for them"));
+        }
+        Ok(written)
+    }
+}
+
+/// The IDs of a source for its nodes that are no items, source units or import directives.
+struct Ids {
+    next: Cell<usize>,
+    end: usize,
+}
+
+impl Ids {
+    fn fresh(&self) -> usize {
+        self.next.replace(self.next.get() + 1)
     }
 }
 
@@ -199,6 +258,10 @@ fn license(file: &SourceFile, items: &[ast::Item<'_>]) -> Option<String> {
 #[derive(Clone, Copy)]
 struct Cx<'a, 'gcx> {
     json: &'a AstJson<'gcx>,
+    ids: &'a Ids,
+    /// The written `typeDescriptions` that only depend on a type, which most of them do. Pretty
+    /// output has none, since it indents inside them.
+    types: Option<&'a ty::TypeCache<'gcx>>,
     gcx: Gcx<'gcx>,
     source: SourceId,
     /// The start of the source in the source map, which spans are relative to.
@@ -313,7 +376,7 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         node_type: &str,
         span: Span,
     ) -> Result<(Node<S::SerializeMap>, usize), S::Error> {
-        let id = self.json.fresh_id();
+        let id = self.ids.fresh();
         Ok((self.node_with_id(s, id, node_type, span)?, id))
     }
 
@@ -980,7 +1043,7 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemFunction<'_>, hir::Funct
         m.docs(*cx, &item.docs);
         m.name(*cx, f.name);
         // The `return` statements of the body refer to the list of return parameters.
-        let returns_id = (!is_modifier).then(|| cx.json.fresh_id());
+        let returns_id = (!is_modifier).then(|| cx.ids.fresh());
         if !is_modifier {
             let kind = if f.is_free() { "freeFunction" } else { f.kind.to_str() };
             m.entry("kind", kind);
@@ -1104,7 +1167,7 @@ struct Params<'a, 'ast> {
 impl Serialize for W<'_, '_, Params<'_, '_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, Params { id, span, ast, hir, scope }) = self;
-        let id = id.unwrap_or_else(|| cx.json.fresh_id());
+        let id = id.unwrap_or_else(|| cx.ids.fresh());
         cx.write_with_id(s, id, "ParameterList", *span, |m| {
             m.entry("parameters", &cx.w(Vars { ast, hir, scope: *scope }));
         })

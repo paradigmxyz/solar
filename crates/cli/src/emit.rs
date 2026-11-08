@@ -496,6 +496,7 @@ fn emit_combined_json(
         ..Default::default()
     };
     if let Some(ast_json) = &ast_json {
+        ast_json.render(gcx.hir.source_ids());
         for id in gcx.hir.source_ids() {
             if let Some(ast) = ast_json.source(id) {
                 let name = gcx.hir.source(id).file.name.display().to_string();
