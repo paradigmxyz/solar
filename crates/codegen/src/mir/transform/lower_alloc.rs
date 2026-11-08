@@ -272,8 +272,8 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
 /// Encoders read the pointer, write the encoding at and above it, and then reserve
 /// those bytes with an `alloc !preserves_fmp` that must return the same address.
 /// Lowering that reservation reuses the read word instead of loading slot 64 again,
-/// as solc's `allocate_unbounded` does. Any call, allocation, pointer update, or
-/// memory write not addressed from the read word ends the peek.
+/// as solc's `allocate_unbounded` does. Any call, allocation, or memory write
+/// not addressed from the read word ends the peek.
 #[derive(Default)]
 struct FmpPeek {
     word: Option<ValueId>,
