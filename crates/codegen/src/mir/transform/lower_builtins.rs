@@ -14,8 +14,9 @@
 //! copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AllocationSemantics, Builtin, CallPolicy, Callee, FunctionBuilder, InstKind, MemoryObjectKind,
-    MirModuleTarget, Module, PanicCode, PhaseCategory, PtrLocation, ValueId,
+    AddressCallKind, AllocationSemantics, Builtin, CallOutput, CallPolicy, Callee, FunctionBuilder,
+    InstKind, MemoryObjectKind, MirModuleTarget, Module, PanicCode, PhaseCategory, PtrLocation,
+    ValueId,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
     utils::emit_call,
@@ -41,12 +42,30 @@ impl MirPass for LowerBuiltins {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let evm = gcx.sess.opts.evm_version;
         let mut needs_clear = false;
         let mut needs_bytes = false;
         let mut literal_counts = FxHashMap::default();
         for func in &module.functions {
             for id in func.instructions() {
                 match &func.inst(id).kind {
+                    // Without `STATICCALL` a static call becomes a `CALL`, which only a precompile
+                    // call, whose callee keeps no state, can do without changing what the
+                    // optimizer assumed of the static kind.
+                    InstKind::AddressCall {
+                        policy:
+                            CallPolicy {
+                                kind: AddressCallKind::Static, output: CallOutput::None, ..
+                            },
+                        ..
+                    } if !evm.has_static_call() => {
+                        analyses.fail(
+                            gcx.dcx()
+                                .err("`address_staticcall` of an arbitrary callee needs `STATICCALL`")
+                                .emit(),
+                        );
+                        return false;
+                    }
                     InstKind::StorageBytesStore(..) => needs_clear = true,
                     InstKind::StorageBytesStoreLiteral { bytes, .. } => {
                         needs_clear = true;
@@ -84,7 +103,6 @@ impl MirPass for LowerBuiltins {
                 (bytes, helper)
             })
             .collect::<FxHashMap<_, _>>();
-        let evm = gcx.sess.opts.evm_version;
         let target = module.target(gcx);
         run_function_pass(module, analyses, |func, _| {
             if !func.instructions().any(|id| is_builtin(&func.inst(id).kind)) {

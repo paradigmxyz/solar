@@ -1,0 +1,4 @@
+error: `address_staticcall` of an arbitrary callee needs `STATICCALL`
+
+error: aborting due to 1 previous error
+
