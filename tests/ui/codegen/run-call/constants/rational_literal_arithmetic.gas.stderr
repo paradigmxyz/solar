@@ -1,0 +1,12 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/constants/rational_literal_arithmetic.sol:LL:CC
+   │
+LL │         0.5;
+   ╰╴        ━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/constants/rational_literal_arithmetic.sol:LL:CC
+   │
+LL │         (1 / 3, 2.5);
+   ╰╴        ━━━━━━━━━━━━
+

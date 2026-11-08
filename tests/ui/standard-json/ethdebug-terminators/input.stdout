@@ -441,6 +441,17 @@
                             "id": 0
                           },
                           "range": {
+                            "offset": 19,
+                            "length": 84
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
                             "offset": 104,
                             "length": 89
                           }

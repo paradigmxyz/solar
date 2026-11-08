@@ -30,7 +30,7 @@ fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
 fn @recordFirst(arg0: i160) {
   bb0:
     v0 = gas
-    v1 = alloc 64 !metadata(preserves_fmp)
+    v1 = alloc 64
     mstore v1, 5
     v2 = ptradd v1, 32
     mstore v2, 0x6669727374000000000000000000000000000000000000000000000000000000
@@ -54,7 +54,7 @@ fn @recordFirst(arg0: i160) {
 fn @recordSecond(arg0: i160) {
   bb0:
     v0 = gas
-    v1 = alloc 64 !metadata(preserves_fmp)
+    v1 = alloc 64
     mstore v1, 6
     v2 = ptradd v1, 32
     mstore v2, 0x7365636f6e640000000000000000000000000000000000000000000000000000

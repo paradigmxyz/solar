@@ -2,7 +2,7 @@
 //@ normalize-stdout-test: "(?s).+" -> ""
 // solc maps the return tag after a modifier chain to the function definition, so the jump to it
 // has a location at MIR input in functions, constructors, and base constructors alike. The
-// pass pipeline is empty because ABI lowering adds its own gaps, see `gap_check.sol`.
+// pass pipeline is empty so this checks the origins before ABI lowering expands the entries.
 contract Base {
     uint256 public b;
 
