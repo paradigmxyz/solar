@@ -105,8 +105,10 @@ Pick locations in this order; the first rule that applies wins.
    - Merge (`applyMergedLocation`): only when new code replaces several
      instructions and produces each of their outputs, as when hoisting or
      sinking identical code, or merging tails.
-   - Drop (`dropLocation`): when keeping the location would mislead, as when
-     hoisting into another block.
+   - Drop (`dropLocation`): only when no source construct runs for the
+     instruction where it now sits. LLVM drops hoisted code because DWARF
+     repeats the previous row. Our source maps repeat nothing, so hoisted code
+     takes the location of the block it lands in.
    - Remap: cloned code keeps its location.
 
    Never move a deleted instruction's location onto code that survives. CSE
