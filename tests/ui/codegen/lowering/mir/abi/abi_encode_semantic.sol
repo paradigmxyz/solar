@@ -1,5 +1,5 @@
 //@compile-flags: -O none -Zdump=mir
-//@filecheck: --implicit-check-not=set_fmp
+//@filecheck:
 
 interface Sink {
     function consume(uint256 value, bytes calldata data) external;

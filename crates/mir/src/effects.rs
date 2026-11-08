@@ -176,7 +176,6 @@ impl InstKind {
             | Self::MemoryZero(..)
             | Self::MSize
             | Self::Fmp
-            | Self::SetFmp(..)
             | Self::Copy(..)
             | Self::CalldataSize
             | Self::MakeSlice { .. }

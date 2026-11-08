@@ -816,7 +816,7 @@ impl AliasAnalysis {
                 indexed(address) && exact(inst)
             }
             InstKind::Alloc { size, .. } if func.value_u64(size).is_some() => false,
-            InstKind::Fmp | InstKind::SetFmp(..) => false,
+            InstKind::Fmp => false,
             ref kind if Self::is_value_computation(kind) => false,
             _ => exact(inst),
         }) || func
@@ -1316,9 +1316,6 @@ impl AliasAnalysis {
             }
             InstKind::Fmp => {
                 effects.read(Access::Location(Location::Memory(Self::fmp_location())));
-            }
-            InstKind::SetFmp(_) => {
-                effects.write(Access::Location(Location::Memory(Self::fmp_location())));
             }
             InstKind::FrameLoad { offset, mode, kind } => {
                 if let Some(location) = Self::frame_location(func, offset, mode, kind) {
@@ -2313,7 +2310,7 @@ impl AliasAnalysis {
         call_summaries: Option<&MemoryCallSummaries>,
     ) -> bool {
         match func.inst(inst).kind {
-            InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
+            InstKind::MappingSlotBytes(..) => true,
             InstKind::ICall { function: Callee::Function(function), .. } => call_summaries
                 .and_then(|summaries| summaries.get(function))
                 .is_none_or(|summary| summary.may_reset_fmp()),

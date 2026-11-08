@@ -153,9 +153,6 @@
 (decl fmp () Value)
 (extractor (fmp) (inst (Op.Fmp)))
 
-(decl setfmp (Value) Value)
-(extractor (setfmp value) (inst (Op.SetFmp value)))
-
 (decl heapfloor () Value)
 (extractor (heapfloor) (inst (Op.HeapFloor)))
 

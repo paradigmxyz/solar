@@ -750,7 +750,6 @@ fn local_summary(
             match kind {
                 InstKind::Store(_, value, _)
                 | InstKind::Store8(_, value)
-                | InstKind::SetFmp(value)
                 | InstKind::FrameStore { value, .. } => {
                     capture_sources(&mut summary, func, sources, *value);
                 }
@@ -909,10 +908,7 @@ fn observe_sources(
 /// using transient heap scratch can expose a pointer's position relative to the heap.
 fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
-        InstKind::Fmp
-        | InstKind::HeapFloor
-        | InstKind::SetFmp(_)
-        | InstKind::MappingSlotBytes(..) => true,
+        InstKind::Fmp | InstKind::HeapFloor | InstKind::MappingSlotBytes(..) => true,
         InstKind::Load(address, PtrLocation::Memory)
         | InstKind::Store(address, _, PtrLocation::Memory) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)
@@ -924,7 +920,7 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
 fn instruction_may_recycle_fmp(func: &Function, inst_id: InstId) -> bool {
     let kind = &func.inst(inst_id).kind;
     match *kind {
-        InstKind::SetFmp(_) | InstKind::MappingSlotBytes(..) => true,
+        InstKind::MappingSlotBytes(..) => true,
         InstKind::Store(address, value, PtrLocation::Memory) => {
             if func.value_u64(address) != Some(EvmMemoryLayout::FMP_SLOT) {
                 return false;
@@ -1016,7 +1012,6 @@ fn is_nonnegative_offset(func: &Function, value: ValueId) -> bool {
             | InstKind::SMod(_, _)
             | InstKind::Sar(_, _)
             | InstKind::Not(_)
-            | InstKind::SetFmp(_)
             | InstKind::Store(..)
             | InstKind::Store8(..)
             | InstKind::Copy(..)

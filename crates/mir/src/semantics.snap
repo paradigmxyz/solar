@@ -47,7 +47,6 @@ mstore8: opcode(mstore8)
 memory_zero: -
 msize: opcode(msize)
 fmp: -
-set_fmp: -
 heap_floor: heap_floor()
 alloc: allocate(size, semantics)
 abi_encode: -
