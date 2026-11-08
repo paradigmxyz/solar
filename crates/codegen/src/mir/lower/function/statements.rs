@@ -356,7 +356,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
-                let condition = self.operand(condition)?;
+                let condition = self.operand(condition)?.id();
                 let ty = self.cx.gcx.type_of_expr(expr.id)?;
                 let lower_branch = |this: &mut Self, branch| {
                     if ty.is_ref_at(DataLocation::Memory) {

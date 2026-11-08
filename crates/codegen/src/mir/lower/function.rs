@@ -938,7 +938,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             ExprKind::CallOptions(callee, options) => {
-                let value = self.operand(callee)?;
+                let value = self.operand(callee)?.id();
                 for option in options.args {
                     self.lower_discarded_expr(&option.value)?;
                 }
@@ -977,7 +977,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
-                let value = self.operand(value)?;
+                let value = self.operand(value)?.id();
                 Some(Word::from_clean(self.unary(
                     op.kind,
                     value,
@@ -1023,7 +1023,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else if compound_op.is_none() && rhs_ty.is_value_type() {
                     self.lower_typed_expr(rhs, rhs_ty)?
                 } else {
-                    Word::from_clean(self.operand(rhs)?)
+                    Word::from_clean(self.operand(rhs)?.id())
                 };
                 // The literal word above is already the place's type, so the
                 // conversion below must not widen or shift it a second time.
@@ -1106,7 +1106,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 self.lower_expr(value)
             }
-            ExprKind::Payable(value) => self.operand(value).map(Word::from_clean),
+            ExprKind::Payable(value) => {
+                self.operand(value).map(|value| Word::from_clean(value.id()))
+            }
             _ if self.cx.gcx.dcx().has_errors().is_err() => None,
             _ => self.cx.report_unsupported(expr.span, "expression"),
         }
