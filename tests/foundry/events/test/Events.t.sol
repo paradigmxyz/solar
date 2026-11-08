@@ -241,4 +241,28 @@ contract EventsTest {
         require(logs[0].topics[1] == keccak256("after"));
         require(logs[0].topics[2] == bytes32(uint256(3)));
     }
+
+    function test_EmitStagedBytes() public {
+        vm.recordLogs();
+        events.emitStagedBytes("hello");
+        events.emitStagedBytesSlice("hello");
+        events.emitStagedMemoryBytes("hello");
+        events.emitStagedText("hello");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 4);
+        require(logs[0].topics[1] == keccak256("hello"));
+        require(logs[1].topics[1] == keccak256("el"));
+        require(logs[2].topics[1] == keccak256("hello"));
+        require(logs[3].topics[1] == keccak256("hello"));
+    }
+
+    function test_EmitStagedPair() public {
+        vm.recordLogs();
+        events.emitStagedPair(Events.Pair(1, 2));
+        events.emitStagedMemoryPair(1, 2);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        require(logs.length == 2);
+        require(logs[0].topics[1] == keccak256(abi.encode(uint256(1), uint256(2))));
+        require(logs[1].topics[1] == keccak256(abi.encode(uint256(1), uint256(2))));
+    }
 }
