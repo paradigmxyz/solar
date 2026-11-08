@@ -57,10 +57,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             let Some(initializer) = variable.initializer else { continue };
             // Like solc's `appendStateVariableInitialization`, map the conversion and the store
-            // to the variable declaration. solc's declaration ends with its value, before the
-            // semicolon.
-            let previous =
-                self.builder.replace_source_span(variable.span.with_hi(initializer.span.hi()));
+            // to the variable declaration.
+            let previous = self.builder.replace_source_span(variable.declaration_span());
             let result = self.lower_state_initializer(id, initializer);
             self.builder.replace_source_span(previous);
             result?;
