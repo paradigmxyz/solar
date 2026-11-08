@@ -364,6 +364,11 @@ fn shared_string_literals(
     (shared, shared_word)
 }
 
+/// Returns the range solc maps a function to. A getter maps to its state variable's declaration.
+pub(super) fn declaration_span(gcx: Gcx<'_>, function: &hir::Function<'_>) -> Span {
+    function.gettee.map_or(function.span, |id| gcx.hir.variable(id).declaration_span())
+}
+
 /// Creates the MIR declaration for a HIR function.
 pub(super) fn declaration(
     gcx: Gcx<'_>,
@@ -374,7 +379,7 @@ pub(super) fn declaration(
     let name = Ident::with_dummy_span(function.name_or_kind());
     let tags = gcx.solar_tags(hir::ItemId::Function(function_id));
     let mut mir = Function::new(name);
-    mir.declaration_span = function.span;
+    mir.declaration_span = declaration_span(gcx, function);
     mir.debug_identifier = Some(name.name);
     if gcx.sess.opts.unstable.dump.is_some() {
         mir.debug_signature = debug_signature(gcx, function.span);

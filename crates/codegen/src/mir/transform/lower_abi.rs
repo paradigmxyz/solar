@@ -536,6 +536,13 @@ impl LowerAbiCx {
             };
             let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
             builder.switch_to_block(block_id);
+            // NOTE: The encoding keeps the origin of the `return` it replaces. In our output it is
+            // the only code a `return` emits, so the statement is its correct location, and
+            // coverage tools such as forge anchor each `return` item on it. solc has a different
+            // shape: it emits the value moves and the jump to the return tag under the statement
+            // and packs the return under the function declaration (`appendReturnValuePacker`).
+            // Only a wrapper that calls an extracted body has no `return` of its own, so it takes
+            // the declaration.
             // abi_encode(values) !metadata(return span)
             // returndata(encoded_ptr, encoded_len) !metadata(return span)
             builder.inherit_terminator_debug_context(block_id);
@@ -628,10 +635,6 @@ impl LowerAbiCx {
     /// `LocationSetter(functionType->declaration())` (`ContractCompiler.cpp` L514), and a
     /// constructor's argument decoding under `LocationSetter(_constructor)` (L288). Blocks the
     /// builder places take the same origin as their labels.
-    ///
-    /// NOTE: Return encoding keeps the origin of the `return` it replaces. solc evaluates the
-    /// returned values under the statement, and the immediates and conversions that feed the
-    /// encoding are those values; only a wrapper that calls the body has no `return` of its own.
     fn wrapper_builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
         let declaration = func.declaration_span;
         let original = func.blocks[BlockId::ENTRY].terminator_metadata.debug_context();

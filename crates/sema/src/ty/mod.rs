@@ -1463,7 +1463,11 @@ impl<'gcx> Gcx<'gcx> {
                     }
                     hir::UsingEntryKind::Functions(functions) => {
                         for &function in functions {
-                            let name = entry.name.unwrap_or_else(|| self.item_name(function).name);
+                            let Some(name) =
+                                entry.name.or_else(|| self.item_name_opt(function).map(|n| n.name))
+                            else {
+                                continue;
+                            };
                             self.add_attached_function(
                                 ty,
                                 function,
@@ -1502,7 +1506,7 @@ impl<'gcx> Gcx<'gcx> {
         if let TyKind::Fn(function_ty) = fn_ty.kind
             && let Some(&self_ty) = function_ty.parameters.first()
             && ty.convert_implicit_to(self_ty, self)
-            && let name = name.unwrap_or_else(|| self.item_name(function).name)
+            && let Some(name) = name.or_else(|| self.item_name_opt(function).map(|n| n.name))
             && seen.insert((name, function))
         {
             members.push(members::Member::with_attached_function(name, fn_ty, function));

@@ -1821,18 +1821,6 @@ define_mir_ops! {
     #[builder(fmp)]
     #[operand_types(func => Some(smallvec![]))]
     Fmp,
-    /// Set the free-memory pointer.
-    #[mir_op(
-        mnemonic = "set_fmp",
-        result = None,
-        phases = PhaseSet::SEMANTIC,
-        effect = MemoryWrite,
-        traits = OpTraits::NONE,
-        side_effects = true,
-        category = Some(PhaseCategory::AbstractAllocation)
-    )]
-    #[operand_types(func => Some(smallvec![MirType::MEMPTR]))]
-    SetFmp(value: ValueId),
     /// The lowest word the free-memory pointer may hold: the initial pointer of every entry that
     /// can run this function, which codegen fixes once it has placed the frames and spill slots
     /// below it.

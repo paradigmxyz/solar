@@ -521,8 +521,7 @@ fn may_write_slot(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool 
         | InstKind::Call { .. }
         | InstKind::CallCode { .. }
         | InstKind::StaticCall { .. }
-        | InstKind::DelegateCall { .. }
-        | InstKind::SetFmp(_) => {
+        | InstKind::DelegateCall { .. } => {
             !writes_above_initial_pointer(func, inst) && alias.instruction_may_reset_fmp(func, inst)
         }
         // Reads and pure operations write no memory; skip their provenance queries.

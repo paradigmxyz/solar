@@ -1287,6 +1287,21 @@ impl<'hir> Variable<'hir> {
         }
     }
 
+    /// Returns the range of the variable's declaration up to the end of its initializer, or of
+    /// its name when there is none.
+    ///
+    /// NOTE: The semicolon is not part of it. The code of a variable, such as its getter or its
+    /// state initializer, reads or writes the declared variable, and the `;` belongs to no code, so
+    /// this range is the location that is correct for what we emit. solc's `VariableDeclaration`
+    /// ends at the same place, and #2372 trims state initializers to it.
+    pub fn declaration_span(&self) -> Span {
+        let end = self
+            .initializer
+            .map(|initializer| initializer.span)
+            .or(self.name.map(|name| name.span));
+        end.map_or(self.span, |end| self.span.with_hi(end.hi()))
+    }
+
     /// Creates a new variable statement.
     pub fn new_stmt(
         source: SourceId,
