@@ -86,10 +86,12 @@ impl<'gcx> EvmCodegen<'gcx> {
         let func = &module.functions[constructor];
         let constructor_label = self.asm.new_label();
         if !info.internal.is_empty() {
-            // solc emits the code that enters the constructor in the location setter of the
-            // constructor, so the closest solc scope is the constructor's declaration. See
-            // `ContractCompiler::appendConstructor` in solc v0.8.38,
-            // libsolidity/codegen/ContractCompiler.cpp L286-L288.
+            // NOTE: This jump is part of entering the constructor: it runs once, after the argument
+            // copy, which already maps to the constructor's declaration, and before the body, and
+            // it only reaches the body. It therefore maps to the same declaration, which is the
+            // contract's for the synthesized constructor. solc has no such jump, but it emits the
+            // code that enters the constructor under the same location, in `appendConstructor`
+            // (libsolidity/codegen/ContractCompiler.cpp L286-L288 at v0.8.38).
             self.emit_with_origin(Some(func.declaration_span), |codegen| {
                 codegen.asm.emit_push_label(constructor_label);
                 codegen.asm.emit_op(op::JUMP);
