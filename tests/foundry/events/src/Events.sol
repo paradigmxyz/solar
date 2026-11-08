@@ -243,4 +243,12 @@ contract Events {
         Pair memory value = Pair(first, second);
         emit StagedPair(value);
     }
+
+    event StagedMixed(Pair indexed pair, bytes indexed one, bytes data, bytes indexed two, uint256 count);
+
+    function emitStagedMixed(Pair calldata pair, bytes calldata one, bytes calldata data, bytes calldata two)
+        public
+    {
+        emit StagedMixed(pair, one, data, two, 7);
+    }
 }
