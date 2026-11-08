@@ -478,6 +478,8 @@ impl Kept<'_> {
             group.push(Placed { step: landing.step(), height, extra: 0, origin });
         }
         let added = group.len();
+        // Pushed in another order, a word that needs scratch words above it may run higher.
+        self.extra = self.extra.max(pushes as usize);
         for placed in &mut self.steps[point..] {
             placed.height += pushes;
             placed.extra += pushes as usize;
