@@ -1,0 +1,22 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/external_function_pointer_address.sol:ExternalFunctionPointerAddress ===
+@module ExternalFunctionPointerAddress
+; function g() external [selector 0xe2179b8e]
+fn @g() [selector=0xe2179b8e, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function f() external view returns (bool) [selector 0x26121ff0]
+fn @f() -> i1 [selector=0x26121ff0, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    v2 = shl v1, 32
+    v3 = or v2, 0xe2179b8e
+    v4 = shr v3, 32
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    v6 = trunc i256 v5 to i160
+    v7 = address
+    v8 = eq v7, v6
+    ret v8
+}

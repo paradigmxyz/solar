@@ -1,0 +1,96 @@
+; === ROOT/tests/ui/codegen/run-call/constants/signed_integer_literals.sol:SignedIntegerLiterals ===
+@module SignedIntegerLiterals
+; function negativeRemainder() external pure returns (int256) [selector 0x5356187e]
+fn @negativeRemainder() -> i256 [selector=0x5356187e, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
+}
+
+; function mixedRemainder() external pure returns (int256) [selector 0xbc23cacf]
+fn @mixedRemainder() -> i256 [selector=0xbc23cacf, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
+}
+
+; function negativeDivisorRemainder() external pure returns (int256) [selector 0xe7ce2708]
+fn @negativeDivisorRemainder() -> i256 [selector=0xe7ce2708, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    ret 5
+}
+
+; function negativeDivision() external pure returns (int256) [selector 0x1a6ca939]
+fn @negativeDivision() -> i256 [selector=0x1a6ca939, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    ret 2
+}
+
+; function mixedDivision() external pure returns (int256) [selector 0x3f885fe0]
+fn @mixedDivision() -> i256 [selector=0x3f885fe0, pure, abi_params=[], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    ret 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+}
+
+; function rightShift(uint256 shift) external pure returns (int256) [selector 0xd0ba8aa1]
+fn @rightShift(arg0: i256) -> i256 [selector=0xd0ba8aa1, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    v0 = sar 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0, arg0
+    ret v0
+}
+
+; function leftShift(uint256 shift) external pure returns (int256) [selector 0xc96a98f8]
+fn @leftShift(arg0: i256) -> i256 [selector=0xc96a98f8, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[int256]] {
+  bb0:
+    v0 = shl 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+    ret v0
+}
+
+; function lessThan() external pure returns (bool) [selector 0x5ba0b6e8]
+fn @lessThan() -> i1 [selector=0x5ba0b6e8, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    ret true
+}
+
+; function greaterThan() external pure returns (bool) [selector 0xe1ad5fbb]
+fn @greaterThan() -> i1 [selector=0xe1ad5fbb, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    ret false
+}
+
+; function literalLessThan(int256 rhs) external pure returns (bool) [selector 0xa9431753]
+fn @literalLessThan(arg0: i256) -> i1 [selector=0xa9431753, pure, abi_params=[int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = sgt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1
+    ret v0
+}
+
+; function parameterLessThan(int256 lhs) external pure returns (bool) [selector 0xdf852757]
+fn @parameterLessThan(arg0: i256) -> i1 [selector=0xdf852757, pure, abi_params=[int256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = slt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1
+    ret v0
+}
+
+; function positiveRemainder() external pure returns (uint256) [selector 0x018baf05]
+fn @positiveRemainder() -> i256 [selector=0x018baf05, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 5
+}
+
+; function largePositiveDivision() external pure returns (uint256) [selector 0x01ad88db]
+fn @largePositiveDivision() -> i256 [selector=0x01ad88db, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+}
+
+; function largePositiveRightShift(uint256 shift) external pure returns (uint256) [selector 0xba4becb8]
+fn @largePositiveRightShift(arg0: i256) -> i256 [selector=0xba4becb8, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = shr 0x8000000000000000000000000000000000000000000000000000000000000000, arg0
+    ret v0
+}
+
+; function largePositiveGreaterThan() external pure returns (bool) [selector 0x2fc0cb82]
+fn @largePositiveGreaterThan() -> i1 [selector=0x2fc0cb82, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    ret true
+}
