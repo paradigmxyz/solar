@@ -701,14 +701,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 // value = materialize_calldata_bytes(position)
-                Some(self.materialize_calldata_bytes_at(value_pos, validate_bounds))
+                Some(self.materialize_calldata_bytes_at(value_pos, validate_bounds, decoded))
             }
             TyKind::DynArray(element) | TyKind::Slice(element) => {
                 let length = self.builder.load(value_pos, PtrLocation::Calldata);
                 let element_type = self.types.abi_type(element)?;
                 let stride = validate_bounds.then(|| element_type.head_size());
-                if !is_calldata {
-                    // solc allocates the memory array before it checks the calldata range.
+                if decoded && !is_calldata {
+                    // A decoding copy allocates the memory array before it checks the calldata
+                    // range, as solc does; a storage copy reads the elements in place instead.
                     // panic_if length > MAX_ALLOCATION_END / 32, 0x41
                     self.builder.panic_if_word_array_too_long(length);
                 }
@@ -901,18 +902,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         position: ValueId,
         validate_bounds: bool,
+        decoded: bool,
     ) -> ValueId {
         // len = calldataload(position)
         // data = calldata_tail_data(position + 32, len, 1)
         // slice = calldata(data, len)
         // return materialize_memory_slice(slice)
         let length = self.builder.load(position, PtrLocation::Calldata);
-        let data = self.calldata_tail_data(
-            position,
-            length,
-            validate_bounds.then_some(1),
-            CalldataTail::Copy,
-        );
+        let tail = if decoded { CalldataTail::Copy } else { CalldataTail::Access };
+        let data = self.calldata_tail_data(position, length, validate_bounds.then_some(1), tail);
         let slice = self.builder.make_slice(data, length, PtrLocation::Calldata);
         self.materialize_memory_slice(slice)
     }
