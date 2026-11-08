@@ -15,7 +15,7 @@ contract NoneAdjacentLabels {
     }
 
     function discarded(bool c) external pure returns (uint256 n) {
-        c ? hex"abab" : hex"cdcd";
+        c ? hex"abab" : hex"cdcd"; //~ WARN: statement has no effect
         n = c ? 1 : 2;
     }
 }

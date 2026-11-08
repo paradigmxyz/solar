@@ -288,6 +288,10 @@ fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
         }
         let metadata = func.blocks[dup].terminator_metadata.debug_context();
         func.blocks[keep].terminator_metadata.merge_debug_locs([&metadata]);
+        // The survivor's label is shared by every redirected path, just like its body.
+        // LLVM's merged-location rule applies to the retained label, not to the removed edges.
+        let label = func.blocks[dup].label_metadata.debug_context();
+        func.blocks[keep].label_metadata.merge_debug_locs([&label]);
         // A shared block is rarely run only if every block it replaces is.
         func.blocks[keep].cold_hint &= func.blocks[dup].cold_hint;
         for pred in std::mem::take(&mut func.blocks[dup].predecessors) {

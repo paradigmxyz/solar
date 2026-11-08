@@ -19,7 +19,7 @@ fn set_source(state: &GlobalState, fixture: &RequestFixture, contents: &str) {
 
 #[test]
 fn shows_signatures_for_solidity_call_forms() {
-    let fixture = signature_fixture(
+    let fixture = incomplete_signature_fixture(
         r#"
         contract Target {
             constructor(uint256 count, address owner) payable {}
@@ -609,7 +609,7 @@ function bar(address value) public pure
 
 #[test]
 fn pending_calls_resolve_import_aliases() {
-    let fixture = RequestFixture::new(
+    let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Math.sol
         function twice(uint value) pure returns (uint) { return value * 2; }

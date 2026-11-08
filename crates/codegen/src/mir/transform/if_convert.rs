@@ -51,17 +51,14 @@
 //! lists before running CFG cleanup, avoiding a whole-function cleanup for each
 //! diamond.
 //!
-//! Debug locations follow LLVM's rule with solc's span. LLVM's `foldTwoEntryPHINode` gives the
-//! hoisted arms ("the values from the insertion point", llvm/lib/Transforms/Utils/Local.cpp
-//! L3405-L3449) and the select (llvm/lib/Transforms/Utils/SimplifyCFG.cpp L4029-L4041) the
-//! location of the branch, as rustc's `MatchBranchSimplification` does with the switch's
-//! `SourceInfo` (compiler/rustc_mir_transform/src/match_branches.rs L445-L460). solc maps that
-//! branch to the whole construct: the `if` statement (libsolidity/codegen/ContractCompiler.cpp
-//! L1160) or the conditional `c ? a : b` (libsolidity/codegen/ExpressionCompiler.cpp L290). Our
-//! `if` branch carries only its condition, but the join phi of an `if` or conditional carries the
-//! construct, so the code that replaces the branch takes the span of the first phi, and each select
-//! that of its own phi. A site without selects has no phi to read and takes the branch's context.
-//! The old arm spans are dropped, and the branch becomes a jump that keeps its metadata.
+//! Debug locations follow LLVM's preserve and drop rules. Hoisted arm instructions lose their
+//! locations because they now execute on both paths. The generated select computes the phi's
+//! result and preserves its location. solc maps the whole `if` statement to its branch
+//! (libsolidity/codegen/ContractCompiler.cpp L1160), and the conditional `c ? a : b` to its
+//! expression (libsolidity/codegen/ExpressionCompiler.cpp L290); our join phi carries this
+//! construct's location. A phi without a source location supplies none to its replacement:
+//! choosing an arm instead would claim that the arm ran. The branch becomes a jump that keeps
+//! its metadata.
 
 use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
@@ -97,6 +94,10 @@ impl MirPass for IfConvert {
         run_function_pass(module, analyses, |func, analyses| {
             if_convert_function(func, &analyses.target(gcx))
         })
+    }
+
+    fn preserves_debugify_sites(&self) -> bool {
+        true
     }
 }
 
@@ -488,29 +489,41 @@ fn convert(func: &mut Function, site: &Site) {
     // join: v = phi [then_arm: t], [else_arm: e]
     // =>
     // block: t = f(...); e = g(...); v = select cond, t, e; jump join
-    // NOTE: Hoisted code runs on both paths, so it takes the span of the branch it replaces: the
-    // first join phi's, as the module docs explain. Without a phi it takes the branch's context.
-    let context = site.selects.first().map_or_else(
+    let mut context = site.selects.first().map_or_else(
         || func.blocks[block].terminator_metadata.debug_context(),
         |select| func.inst(select.phi).metadata.debug_context(),
     );
+    if context.source_spans().next().is_none() && context.debug_loc_kind() == DebugLocKind::Normal {
+        context.drop_debug_loc(DebugLocKind::Dropped);
+    }
     let start = func.blocks[block].instructions.len();
     let condition = boolean_condition(func, block, site.condition);
-    for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
-        let moved = std::mem::take(&mut func.blocks[arm].instructions);
-        func.blocks[block].instructions.extend(moved);
-    }
-    let hoisted = func.blocks[block].instructions.split_off(start);
-    for &inst in &hoisted {
+    for index in start..func.blocks[block].instructions.len() {
+        let inst = func.blocks[block].instructions[index];
         func.inst_mut(inst).metadata.preserve_debug_loc(&context);
     }
-    func.blocks[block].instructions.extend(hoisted);
+    for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
+        let moved = std::mem::take(&mut func.blocks[arm].instructions);
+        // NOTE: LLVM's dropLocation rule applies when code is hoisted into a block where its
+        // original source arm need not run. Do not substitute a surviving phi's location.
+        for &inst in &moved {
+            func.inst_mut(inst).metadata.drop_debug_loc(DebugLocKind::Dropped);
+        }
+        func.blocks[block].instructions.extend(moved);
+    }
     let then_pred = site.then_arm.unwrap_or(block);
     let else_pred = site.else_arm.unwrap_or(block);
     let mut replacements = FxHashMap::default();
     for select in &site.selects {
         // join: v = phi [kept edges], [block: select]
-        let context = func.inst(select.phi).metadata.debug_context();
+        let mut context = func.inst(select.phi).metadata.debug_context();
+        // A phi may only join SSA bindings, without a source operation of its own. Preserve
+        // that absence deliberately rather than borrowing a location from either input.
+        if context.source_spans().next().is_none()
+            && context.debug_loc_kind() == DebugLocKind::Normal
+        {
+            context.drop_debug_loc(DebugLocKind::Dropped);
+        }
         let start = func.blocks[block].instructions.len();
         let selected = select_value(func, block, condition, select);
         let generated = func.blocks[block].instructions[start..].to_vec();

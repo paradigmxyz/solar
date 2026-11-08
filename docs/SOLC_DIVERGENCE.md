@@ -710,6 +710,20 @@ Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`
 `tests/ui/codegen/mir/optimize-function/` and
 `tests/ui/codegen/mir/inline/solar_inline_forms.sol`.
 
+### TYPECK-023: Bare references to `require`
+
+Status: intentional.
+
+Difference: `solc` rejects a bare reference to `require`, as in `require;`,
+with error 2144, because it declares `require` once per arity. `solar`
+accepts it and reports a statement that has no effect (6133).
+
+Rationale: `require` is one builtin here, so a reference to it has a type.
+The warning catches a slipped parenthesis, as in `require; (cond, "message");`,
+which would otherwise drop a check without a diagnostic.
+
+Coverage: `tests/ui/typeck/no_effect_statement.sol`.
+
 ### TYPECK-024: Hexadecimal literals of 39 and 41 digits
 
 Status: intentional.
