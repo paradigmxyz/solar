@@ -108,7 +108,6 @@ fn instruction_observes_fmp(func: &Function, inst_id: InstId) -> bool {
     match func.inst(inst_id).kind {
         InstKind::Alloc { .. }
         | InstKind::Fmp
-        | InstKind::SetFmp(_)
         | InstKind::ICall { function: Callee::Function(_), .. } => true,
         InstKind::Load(address, PtrLocation::Memory) => {
             func.value_u64(address) == Some(EvmMemoryLayout::FMP_SLOT)

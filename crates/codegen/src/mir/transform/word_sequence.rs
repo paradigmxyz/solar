@@ -360,7 +360,7 @@ fn widest_int_operand(func: &Function, kind: &InstKind) -> Option<MirType> {
 /// the deferred allocations it leaves for the backend.
 fn allocations_lowered(func: &Function) -> bool {
     func.instructions().all(|inst| match func.inst(inst).kind {
-        InstKind::Fmp | InstKind::SetFmp(_) => false,
+        InstKind::Fmp => false,
         InstKind::Alloc { .. } => func.inst(inst).metadata.deferred_alloc(),
         _ => true,
     })

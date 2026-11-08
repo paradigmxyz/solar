@@ -62,8 +62,8 @@
 use crate::{
     mir::{
         BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
-        Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
-        ValueId,
+        Instruction, InstructionMetadata, MirType, Module, OpTraits, PtrLocation, StorageAlias,
+        Terminator, Value, ValueId,
         analysis::{
             AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, DominatorTree, Location,
             LocationSize, Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef,
@@ -81,6 +81,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::{cmp::Reverse, rc::Rc};
 
 /// Function pass for loop-invariant code motion.
@@ -474,12 +475,14 @@ impl LoopOptimizer {
         visiting.clear();
         let ordered = self.topological_sort_instructions(func, selected, visiting);
 
+        let hoisted_loc = preheader_debug_loc(func, preheader);
         for inst_id in ordered {
             // An enclosing loop's earlier hoist may have already moved the
             // instruction out of these blocks; pushing it again would schedule
             // the same instruction in two blocks.
             if let Some(block) = ctx.loop_block(inst_id) {
                 func.blocks[block].instructions.retain(|&id| id != inst_id);
+                func.inst_mut(inst_id).metadata.preserve_debug_loc(&hoisted_loc);
                 func.blocks[preheader].instructions.push(inst_id);
                 self.hoisted += 1;
             }
@@ -1154,14 +1157,14 @@ fn reduce_product_checks(
     }
     let uses = super::egraph::use_counts(func);
     let mut limits = FxHashMap::default();
+    let hoisted_loc = preheader_debug_loc(func, preheader);
     for &(block, inst, x, y, zero) in &checks {
-        let context = func.inst(inst).metadata.debug_context();
         let limit = *limits.entry(y).or_insert_with(|| {
             // preheader: zero = eq y, 0
             //            limit = sub (div MAX, y), (zext zero)
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(preheader);
-            builder.set_debug_context(&context);
+            builder.set_debug_context(&hoisted_loc);
             let zero = match zero {
                 Some(zero) if outside(builder.func(), zero) => zero,
                 _ => builder.eq_zero(y),
@@ -1363,8 +1366,9 @@ fn reassociate_invariant_offsets(
     let mut rewritten = 0;
     for (preheader, x, c, sites) in plans {
         // preheader: t = add x, c
+        // Hoisted and shared by every site, so it takes the preheader's location, as above.
         let mut sum = Instruction::new(InstKind::Add(x, c), Some(MirType::I256));
-        sum.metadata.preserve_debug_loc(&func.inst(sites[0].0).metadata);
+        sum.metadata.preserve_debug_loc(&preheader_debug_loc(func, preheader));
         let (sum_inst, t) = func.alloc_value_inst(sum);
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {
@@ -1376,4 +1380,19 @@ fn reassociate_invariant_offsets(
         }
     }
     rewritten
+}
+
+/// Returns the location of code hoisted into `preheader`: the location of its terminator, which is
+/// the loop statement. LLVM's LICM drops it (`updateLocationAfterHoist` in `LICM.cpp`, which is
+/// `dropLocation` in `DebugInfo.cpp`) because a DWARF line table repeats the previous row, and our
+/// source maps repeat nothing. The preheader runs once each time the loop statement starts, so it
+/// takes that statement's location and never a body span, since the body may not run. Falls back
+/// to `Dropped` when the terminator has no location, as for preheaders that loop-canonicalize
+/// creates.
+fn preheader_debug_loc(func: &Function, preheader: BlockId) -> InstructionMetadata {
+    let mut loc = func.blocks[preheader].terminator_metadata.debug_context();
+    if loc.source_spans().next().is_none() {
+        loc.drop_debug_loc(DebugLocKind::Dropped);
+    }
+    loc
 }

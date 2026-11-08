@@ -1541,7 +1541,6 @@ impl<'a> PointerUses<'a> {
             InstKind::Store(address, _, PtrLocation::Memory) if is_slot(func, address) => {
                 Effect::Replaces
             }
-            InstKind::SetFmp(_) => Effect::Replaces,
             InstKind::ICall { function: Callee::Function(callee), .. } => Effect::Calls(callee),
             // The compiler's own pointer reads and allocations, and the builtins and semantic
             // operations whose lowering may allocate or encode at the pointer.

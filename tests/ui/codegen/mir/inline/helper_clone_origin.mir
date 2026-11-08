@@ -1,0 +1,34 @@
+//@ compile-flags: -Zmir-pipeline=inline
+//@ filecheck:
+@module InlineHelperCloneOrigin
+
+// A helper's code that has no source of its own is `compiler_generated`. Each inlined copy runs for
+// its call only, so unlocated instructions, terminators and labels take the call's location, while
+// the callee's located code keeps its own.
+// CHECK-LABEL: {{^[ +].*}}fn @caller{{[( ]}}
+// CHECK: jump bb2 !metadata(span=10..20)
+// CHECK: + bb2 !metadata(span=10..20):
+// CHECK: + {{v[0-9]+}} = add arg0, 1 !metadata(span=10..20)
+// CHECK: + {{v[0-9]+}} = mul {{v[0-9]+}}, 3 !metadata(span=100..110)
+// CHECK: + jump bb1 !metadata(span=10..20)
+fn @caller(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @callee, arg0 !metadata(span=10..20)
+    ret v0 !metadata(span=20..30)
+}
+
+fn @callee(arg0: i256) -> i256 {
+  bb0 !metadata(compiler_generated):
+    v0 = add arg0, 1 !metadata(compiler_generated)
+    v1 = mul v0, 3 !metadata(span=100..110)
+    ret v1 !metadata(compiler_generated)
+}
+
+// A call without a location gives the copy nothing to take, so its reason for lacking one stays.
+// CHECK-LABEL: {{^[ +].*}}fn @unlocated_caller{{[( ]}}
+// CHECK: + {{v[0-9]+}} = add arg0, 1 !metadata(compiler_generated)
+fn @unlocated_caller(arg0: i256) -> i256 {
+  bb0:
+    v0 = icall @callee, arg0
+    ret v0
+}
