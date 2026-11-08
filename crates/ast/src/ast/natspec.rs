@@ -70,7 +70,9 @@ impl fmt::Display for NatSpecItem {
                 write!(f, "@inheritdoc {} {content}", contract.name)
             }
             NatSpecKind::Custom { name } => write!(f, "@custom:{} {content}", name.name),
-            NatSpecKind::Internal { tag } => write!(f, "@{} {content}", tag.name),
+            NatSpecKind::Internal { tag } | NatSpecKind::Unknown { tag } => {
+                write!(f, "@{} {content}", tag.name)
+            }
         }
     }
 }
@@ -117,6 +119,11 @@ pub enum NatSpecKind {
     ///
     /// Internal tags reserved for compiler purposes. The `tag` field contains the tag name.
     Internal { tag: Ident },
+    /// `@<tag>`
+    ///
+    /// A tag that NatSpec does not define. The `tag` field contains the tag name. Semantic
+    /// analysis reports it on the declarations whose documentation solc validates.
+    Unknown { tag: Ident },
 }
 
 /// Internal natspec tags.

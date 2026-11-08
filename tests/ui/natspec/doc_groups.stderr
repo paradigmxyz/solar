@@ -1,0 +1,8 @@
+warning[6546]: tag `@notice` not valid for file-level variables
+   ╭▸ ROOT/tests/ui/natspec/doc_groups.sol:LL:CC
+   │
+LL │ /// @notice An empty doc line does not end the group.
+   │      ━━━━━━
+   │
+   ╰ help: document it with `@dev` instead
+

@@ -4,6 +4,12 @@ warning[6546]: tag `@return` not valid for constructors
 LL │     /// @return return should not work within constructors
    ╰╴         ━━━━━━
 
+warning[2604]: too many `@return` tags: function has 0 return values, found 1
+   ╭▸ ROOT/tests/ui/natspec/tag_placement.sol:LL:CC
+   │
+LL │     /// @return return should not work within constructors
+   ╰╴         ━━━━━━
+
 warning[6546]: tag `@title` not valid for non-public state variables
    ╭▸ ROOT/tests/ui/natspec/tag_placement.sol:LL:CC
    │

@@ -8,14 +8,15 @@ contract ConstructorReturn {
     /// @param second the second parameter is not very useful, it just provides additional confusion
     /// @return return should not work within constructors
     //~^ WARN: tag `@return` not valid for constructors
+    //~| WARN: too many `@return` tags: function has 0 return values, found 1
     constructor(uint a, uint second) { }
 }
 
 contract AuthorTitleStateVariable {
     /// @title title
-    //~^ WARN: tag `@title` not valid for non-public state variables
     /// @author author
-    //~^ WARN: tag `@author` not valid for non-public state variables
+    //~^^ WARN: tag `@title` not valid for non-public state variables
+    //~^^ WARN: tag `@author` not valid for non-public state variables
     uint private state;
 }
 

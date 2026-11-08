@@ -734,8 +734,9 @@ parameter (3881), has no name (3335), or has no description on its line (9942),
 an invalid `@custom:` tag name (6564, 2968), too many or misnamed `@return` tags
 (2604, 5856), and a duplicate or unresolved `@inheritdoc` tag (5142, 9397,
 4682). `solar` runs these checks with the same codes, but reports each as a
-warning. Like `solc`, it does not check the documentation of structs, enums
-and user-defined value types.
+warning. Like `solc`, it reads only the last doc comment before a declaration,
+and does not check the documentation of structs, enums and user-defined value
+types.
 
 Rationale: NatSpec does not change the compiled code, so a documentation
 mistake should not stop a build. Keeping `solc`'s codes lets `--allow` and
@@ -743,7 +744,8 @@ tools that filter by code treat these warnings like the `solc` errors.
 
 Coverage: `tests/ui/natspec/tag_sema.sol`, `tests/ui/natspec/tag_placement.sol`,
 `tests/ui/natspec/param_description.sol`,
-`tests/ui/natspec/custom_tag_names.sol` and `tests/ui/natspec/tag_returns.sol`.
+`tests/ui/natspec/custom_tag_names.sol`, `tests/ui/natspec/tag_returns.sol` and
+`tests/ui/natspec/doc_groups.sol`.
 
 ## Contract-Level Checks
 

@@ -23,8 +23,8 @@ contract Continued {
 }
 
 /// @custom:solar-safe memory
-//~^ ERROR: `@custom:solar-safe` has no property `imaginary`
 /// imaginary
+//~^^ ERROR: `@custom:solar-safe` has no property `imaginary`
 contract UnknownProperty {}
 
 /// @custom:solar-optimize

@@ -5,7 +5,7 @@ use crate::{
 use solar_ast::{self as ast, NatSpecItem, NatSpecKind};
 use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
 use solar_interface::{
-    Ident, Span, Symbol,
+    Ident, SourceMap, Span, Symbol,
     config::OptimizationMode,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     error_code, kw, sym,
@@ -183,6 +183,7 @@ impl LocalTags {
                 hir::NatSpecKind::Return { .. } => tags.insert(Self::RETURN),
                 hir::NatSpecKind::Custom { .. }
                 | hir::NatSpecKind::Internal { .. }
+                | hir::NatSpecKind::Unknown { .. }
                 | hir::NatSpecKind::Inheritdoc { .. } => {}
             }
         }
@@ -351,26 +352,42 @@ impl<'gcx> Resolver<'gcx> {
         let mut state = ValidationState::default();
         let mut local_tags = SmallVec::<[NatSpecItem; 8]>::new();
 
-        for doc_comment in docs.iter() {
+        for natspec in docs.iter().flat_map(|doc| doc.natspec.iter()) {
+            if let NatSpecKind::Custom { name } = natspec.kind
+                && let Some(tag) = SolarTag::from_custom(name.name)
+            {
+                self.check_solar_tag(tag, name.name, item_id, docs, natspec.span);
+            }
+        }
+
+        let docs = solc_doc_comments(self.gcx.sess.source_map(), docs);
+        let mut has_tag = false;
+        let mut consumed_continuation = None;
+        for (doc_index, doc_comment) in docs.iter().enumerate() {
             for natspec in doc_comment.natspec.iter() {
                 let tag_span = natspec.span;
-
-                if let NatSpecKind::Custom { name } = natspec.kind
-                    && let Some(tag) = SolarTag::from_custom(name.name)
-                {
-                    self.check_solar_tag(tag, name.name, item_id, docs, tag_span);
+                let is_continuation = std::mem::replace(&mut has_tag, true)
+                    && is_line_continuation(doc_comment, natspec);
+                if is_continuation && consumed_continuation == Some(doc_comment.span) {
+                    continue;
                 }
 
                 let Some((permissions, item_desc)) = item_permissions else {
                     // Nothing resolves the target of an `@inheritdoc` tag here, so drop it.
-                    if !matches!(natspec.kind, NatSpecKind::Inheritdoc { .. }) {
+                    if !matches!(
+                        natspec.kind,
+                        NatSpecKind::Inheritdoc { .. } | NatSpecKind::Unknown { .. }
+                    ) {
                         local_tags.push(*natspec);
                     }
                     continue;
                 };
 
                 match &natspec.kind {
-                    NatSpecKind::Notice if !permissions.contains(TagPermissions::NOTICE) => {
+                    // solc appends a line without a tag to the previous tag.
+                    NatSpecKind::Notice
+                        if !permissions.contains(TagPermissions::NOTICE) && !is_continuation =>
+                    {
                         // Documentation without a tag is `@notice` too.
                         self.gcx
                             .dcx()
@@ -392,6 +409,17 @@ impl<'gcx> Resolver<'gcx> {
                     // These tags annotate inline assembly and Yul, not declarations.
                     NatSpecKind::Internal { tag } => {
                         self.emit_forbidden_tag_warning(tag.name, tag_span, item_desc);
+                    }
+                    NatSpecKind::Unknown { tag } => {
+                        self.gcx
+                            .dcx()
+                            .warn_code_at(
+                                tag_span,
+                                error_code!(6546),
+                                format!("tag `@{}` not valid for {item_desc}", tag.name),
+                            )
+                            .help("custom tags must use the format `@custom:name`")
+                            .emit();
                     }
                     NatSpecKind::Title => {
                         if !permissions.contains(TagPermissions::TITLE) {
@@ -427,12 +455,16 @@ impl<'gcx> Resolver<'gcx> {
                         }
                     }
                     NatSpecKind::Param { name } => {
+                        // solc rejects a malformed `@param` while parsing, before checking
+                        // whether the item accepts it.
+                        let (natspec, consumed) =
+                            self.param_tag(&docs[doc_index..], natspec, *name);
+                        consumed_continuation = consumed.or(consumed_continuation);
+                        let Some(natspec) = natspec else { continue };
+                        let NatSpecKind::Param { name } = natspec.kind else { unreachable!() };
+
                         if !permissions.contains(TagPermissions::PARAM) {
                             self.emit_forbidden_tag_warning("param", tag_span, item_desc);
-                            continue;
-                        }
-
-                        if !self.check_param_description(natspec, *name) {
                             continue;
                         }
 
@@ -466,7 +498,7 @@ impl<'gcx> Resolver<'gcx> {
                         });
 
                         if params.contains(&name.name) {
-                            local_tags.push(*natspec);
+                            local_tags.push(natspec);
                         } else {
                             self.gcx.dcx().emit_warn_code(
                                 tag_span,
@@ -481,7 +513,13 @@ impl<'gcx> Resolver<'gcx> {
                     NatSpecKind::Return { .. } => {
                         if !permissions.contains(TagPermissions::RETURN) {
                             self.emit_forbidden_tag_warning("return", tag_span, item_desc);
-                            continue;
+                            // solc still counts a constructor's `@return` tags against its
+                            // return values, of which it has none.
+                            if !matches!(item_id, hir::ItemId::Function(id)
+                                if matches!(self.gcx.hir.function(id).kind, hir::FunctionKind::Constructor))
+                            {
+                                continue;
+                            }
                         }
 
                         state.return_count += 1;
@@ -815,12 +853,47 @@ impl<'gcx> Resolver<'gcx> {
         Some(inherited_item)
     }
 
-    /// Reports a `@param` tag without a parameter name, or without a description on the same line,
-    /// both of which solc rejects. Returns `false` if it reports one.
-    fn check_param_description(&self, natspec: &ast::NatSpecItem, name: Ident) -> bool {
-        if natspec.content().lines().next().is_some_and(|line| !line.trim().is_empty()) {
-            return true;
+    /// Returns the `@param` tag in `docs[0]` with its documented name, or reports a tag without a
+    /// parameter name or without a description on the same line, both of which solc rejects.
+    ///
+    /// Like solc, a tag with nothing after it on its line reads the name and description from the
+    /// next non-blank documentation line: a later line of the same block comment, or the next
+    /// `///` comment, whose span is returned too.
+    fn param_tag(
+        &self,
+        docs: &[ast::DocComment<'_>],
+        natspec: &ast::NatSpecItem,
+        mut name: Ident,
+    ) -> (Option<ast::NatSpecItem>, Option<Span>) {
+        // solc trims only spaces and tabs.
+        let is_blank = |text: &str| text.trim_matches([' ', '\t']).is_empty();
+        if natspec.content().lines().next().is_some_and(|line| !is_blank(line)) {
+            return (Some(*natspec), None);
         }
+
+        let mut consumed = None;
+        if name.name == kw::Empty
+            && let Some(line) = next_param_line(docs, natspec)
+        {
+            let text = line.symbol.as_str();
+            let (documented, content_start) =
+                solar_parse::natspec::split_once_ident(text, line.start, line.end);
+            let lo = line.doc_span.lo() + 3 + line.start as u32;
+            name =
+                Ident::new(Symbol::intern(documented), Span::new(lo, lo + documented.len() as u32));
+            consumed = line.consumed;
+            if !is_blank(&text[content_start..line.end]) {
+                let natspec = ast::NatSpecItem {
+                    kind: NatSpecKind::Param { name },
+                    span: natspec.span,
+                    symbol: line.symbol,
+                    content_start: content_start as u32,
+                    content_end: line.content_end,
+                };
+                return (Some(natspec), consumed);
+            }
+        }
+
         if name.name == kw::Empty {
             self.gcx.dcx().emit_warn_code(
                 natspec.span,
@@ -838,7 +911,7 @@ impl<'gcx> Resolver<'gcx> {
                 .help("write the description on the same line as the parameter name")
                 .emit();
         }
-        false
+        (None, consumed)
     }
 
     /// Reports a `@custom:` tag without a name, or whose name is not made of lowercase letters and
@@ -890,7 +963,9 @@ impl<'gcx> Resolver<'gcx> {
                 HirKind::Author => !local_tags.contains(LocalTags::AUTHOR),
                 HirKind::Param { .. } => !local_tags.contains(LocalTags::PARAM),
                 HirKind::Return { .. } => !local_tags.contains(LocalTags::RETURN),
-                HirKind::Custom { .. } | HirKind::Internal { .. } => false,
+                HirKind::Custom { .. } | HirKind::Internal { .. } | HirKind::Unknown { .. } => {
+                    false
+                }
                 HirKind::Inheritdoc { .. } => false,
             };
 
@@ -1218,10 +1293,7 @@ pub(crate) fn solar_tag_content(docs: &[ast::DocComment<'_>], span: Span) -> Str
                 found = true;
             } else if !found {
                 continue;
-            } else if !(doc.kind == ast::CommentKind::Line
-                && item.kind == ast::NatSpecKind::Notice
-                && item.span == doc.span)
-            {
+            } else if !is_line_continuation(doc, item) {
                 return content;
             }
             for (index, line) in item.content().lines().enumerate() {
@@ -1237,6 +1309,94 @@ pub(crate) fn solar_tag_content(docs: &[ast::DocComment<'_>], span: Span) -> Str
         }
     }
     content
+}
+
+/// Returns the doc comments that solc reads for a declaration: the last block comment, or the last
+/// run of `///` comments without a blank line or another comment between them.
+pub(crate) fn solc_doc_comments<'a, 'ast>(
+    sm: &SourceMap,
+    docs: &'a [ast::DocComment<'ast>],
+) -> &'a [ast::DocComment<'ast>] {
+    let mut start = docs.len().saturating_sub(1);
+    while start > 0 {
+        let (prev, next) = (&docs[start - 1], &docs[start]);
+        if prev.kind != ast::CommentKind::Line || next.kind != ast::CommentKind::Line {
+            break;
+        }
+        let gap = sm.span_to_snippet(Span::new(prev.span.hi(), next.span.lo()));
+        if !gap.is_ok_and(|gap| {
+            gap.bytes().all(|b| b.is_ascii_whitespace())
+                && gap.bytes().filter(|&b| b == b'\n').count() <= 1
+        }) {
+            break;
+        }
+        start -= 1;
+    }
+    &docs[start..]
+}
+
+/// Returns `true` for the item of a `///` comment without a tag, which continues the previous tag
+/// when one precedes it.
+fn is_line_continuation(doc: &ast::DocComment<'_>, item: &ast::NatSpecItem) -> bool {
+    doc.kind == ast::CommentKind::Line && item.kind == NatSpecKind::Notice && item.span == doc.span
+}
+
+/// A documentation line that a `@param` tag without a name reads its name and description from.
+struct ParamLine {
+    doc_span: Span,
+    symbol: Symbol,
+    /// The offset of the first non-blank character in `symbol`.
+    start: usize,
+    /// The offset of the line's end in `symbol`.
+    end: usize,
+    /// The offset of the description's end in `symbol`.
+    content_end: u32,
+    /// The span of the `///` comment that holds the line.
+    consumed: Option<Span>,
+}
+
+/// Returns the next non-blank line after the `@param` tag in `docs[0]`, ignoring one leading `*`
+/// of block comment decoration, or `None` if that line starts another tag.
+fn next_param_line(docs: &[ast::DocComment<'_>], natspec: &ast::NatSpecItem) -> Option<ParamLine> {
+    let doc = &docs[0];
+    if doc.kind == ast::CommentKind::Line {
+        let next = docs[1..].iter().find(|doc| !doc.natspec.is_empty())?;
+        let item = next.natspec.first().filter(|item| is_line_continuation(next, item))?;
+        let end = item.content_end as usize;
+        let text = &item.symbol.as_str()[..end];
+        return Some(ParamLine {
+            doc_span: next.span,
+            symbol: item.symbol,
+            start: end - text.trim_start_matches([' ', '\t']).len(),
+            end,
+            content_end: item.content_end,
+            consumed: Some(next.span),
+        });
+    }
+
+    let text = &natspec.symbol.as_str()[..natspec.content_end as usize];
+    let mut offset = natspec.content_start as usize;
+    let mut lines = text[offset..].split_inclusive('\n');
+    offset += lines.next()?.len();
+    for line in lines {
+        let end = offset + line.trim_end_matches(['\n', '\r']).len();
+        let mut start = end - text[offset..end].trim_ascii_start().len();
+        if text[start..end].starts_with('*') {
+            start = end - text[start + 1..end].trim_start_matches([' ', '\t']).len();
+        }
+        if start < end {
+            return Some(ParamLine {
+                doc_span: doc.span,
+                symbol: natspec.symbol,
+                start,
+                end,
+                content_end: natspec.content_end,
+                consumed: None,
+            });
+        }
+        offset += line.len();
+    }
+    None
 }
 
 /// Rejects reserved tags on syntax which has no documented HIR item or Solidity statement.

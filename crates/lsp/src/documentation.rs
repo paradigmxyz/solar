@@ -154,7 +154,8 @@ fn item_documentation(items: &[hir::NatSpecItem]) -> NatSpecDocumentation {
             | hir::NatSpecKind::Param { .. }
             | hir::NatSpecKind::Inheritdoc { .. }
             | hir::NatSpecKind::Custom { .. }
-            | hir::NatSpecKind::Internal { .. } => {}
+            | hir::NatSpecKind::Internal { .. }
+            | hir::NatSpecKind::Unknown { .. } => {}
         }
     }
     documentation

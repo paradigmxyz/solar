@@ -1,7 +1,7 @@
 // ported-from: test/libsolidity/natspecJSON/invalid/invalid_tag.sol
 
 /// @a&b test
-//~^ WARN: invalid natspec tag '@a&b'
+//~^ WARN: tag `@a&b` not valid for contracts
 contract C {
 	/// @custom:x^y test2
 	//~^ WARN: invalid character in tag `@custom:x^y`
@@ -15,6 +15,6 @@ contract C {
 	/// @custom:abc-def
 	function i() public pure {}
 	/// @custom
-	//~^ WARN: invalid natspec tag '@custom'
+	//~^ WARN: tag `@custom:` does not contain a name
 	function j() public pure {}
 }

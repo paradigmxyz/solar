@@ -1,3 +1,9 @@
+warning[6269]: unexpected NatSpec tag `@not-a-tag` in inline assembly
+   ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
+   │
+LL │         /// @not-a-tag Nor in inline assembly.
+   ╰╴             ━━━━━━━━━
+
 warning[6546]: tag `@return` not valid for contracts
    ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
    │
@@ -27,6 +33,14 @@ warning[6546]: tag `@solidity` not valid for functions
    │
 LL │     /// @solidity memory-safe-assembly
    ╰╴         ━━━━━━━━
+
+warning[6546]: tag `@not-a-tag` not valid for functions
+   ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
+   │
+LL │     /// @not-a-tag Unknown tags are not valid anywhere.
+   │          ━━━━━━━━━
+   │
+   ╰ help: custom tags must use the format `@custom:name`
 
 warning[6546]: tag `@notice` not valid for file-level variables
    ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
