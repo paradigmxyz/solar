@@ -740,11 +740,12 @@ fn eliminate_forwarder(func: &mut Function, block_id: BlockId) {
 ///
 /// NOTE: A bypassed block's label marked where control entered; its predecessors now enter the
 /// target, so the target's label takes that origin too. A forwarder with no predecessors was never
-/// entered and marks nothing. A forwarder that is its target's only entry never gets here, since
-/// `merge_blocks` joins the two and keeps the forwarder's label.
+/// entered, and one with no label origin never marked an entry, so neither adds to the target. A
+/// forwarder that is its target's only entry never gets here, since `merge_blocks` joins the two
+/// and keeps the forwarder's label.
 fn merge_forwarder_label(func: &mut Function, block_id: BlockId, target: BlockId) {
     let block = &func.blocks[block_id];
-    if block.predecessors.is_empty() {
+    if block.predecessors.is_empty() || block.label_metadata.source_spans().next().is_none() {
         return;
     }
     let label = block.label_metadata.clone();
