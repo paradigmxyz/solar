@@ -75,9 +75,8 @@ fn coalesce_copies(gcx: Gcx<'_>, module: &mut Module) -> bool {
             // The first copy seeds the location, so that a copy whose location was dropped or
             // explained keeps that kind instead of merging into the default kind of an empty
             // seed. The run's function events are dropped.
-            // NOTE: This union describes several instructions on one path, so ethdebug should
-            // eventually emit `gather` here rather than `pick`. A follow-up changes this together
-            // with pack-data's `CODECOPY`.
+            // NOTE: The copies of the run all happen on one path, so the origins all hold for the
+            // `MCOPY`, which `combine_debug_locs` records for ETHDebug as `gather`.
             let run = &block.instructions[index..index + count * COPY_INSTRUCTIONS];
             let mut metadata = Metadata::default();
             metadata.preserve_debug_loc(&run[0].metadata);

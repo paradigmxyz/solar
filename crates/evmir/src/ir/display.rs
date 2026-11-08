@@ -174,7 +174,7 @@ fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '
             write!(f, "span={}..{}", span.lo().0, span.hi().0)?;
             separator = ", ";
         } else if has_spans {
-            write!(f, "spans=[")?;
+            write!(f, "{}=[", if metadata.all_source_spans() { "all" } else { "spans" })?;
             for (index, span) in metadata.source_spans().enumerate() {
                 if index != 0 {
                     write!(f, ", ")?;
