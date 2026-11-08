@@ -77,24 +77,23 @@ impl InstructionMetadata {
     /// Rule R2, merge: see [`DebugLoc::merge`]. Shows the origins in canonical MIR text if any
     /// input does.
     pub fn merge_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
-        for other in others {
-            self.debug_loc.merge([&other.debug_loc]);
-            self.or_display_source_span(other);
-        }
+        let mut display = self.displays_source_span();
+        self.debug_loc.merge(others.into_iter().map(|other| {
+            display |= other.displays_source_span();
+            &other.debug_loc
+        }));
+        self.flags.set_display_source_span(display);
     }
 
     /// Rule R2b, combine: see [`DebugLoc::combine`]. Shows the origins in canonical MIR text if
     /// any input does.
     pub fn combine_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
-        for other in others {
-            self.debug_loc.combine([&other.debug_loc]);
-            self.or_display_source_span(other);
-        }
-    }
-
-    fn or_display_source_span(&mut self, other: &Self) {
-        self.flags
-            .set_display_source_span(self.displays_source_span() || other.displays_source_span());
+        let mut display = self.displays_source_span();
+        self.debug_loc.combine(others.into_iter().map(|other| {
+            display |= other.displays_source_span();
+            &other.debug_loc
+        }));
+        self.flags.set_display_source_span(display);
     }
 
     /// Rule R1, preserve: see [`DebugLoc::preserve`]. Also copies the display flag, but no

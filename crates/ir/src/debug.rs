@@ -207,22 +207,29 @@ impl DebugLoc {
     /// NOTE: Callers must not select one of the origins, such as with a source-map `pick` or a
     /// single span: that claims one path's source on every path.
     pub fn merge<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        let mut located = self.has_spans();
+        let mut unlocated_kind = (!located).then_some(self.kind);
         for other in others {
             self.vote_depth(other);
-            match (self.has_spans(), other.has_spans()) {
-                (true, true) => self.insert_spans(other.spans()),
-                (false, false) => self.kind = self.kind.merge(other.kind),
-                _ => {
-                    self.set_span(None);
-                    self.kind = DebugLocKind::Unknown;
+            if other.has_spans() {
+                located = true;
+                if unlocated_kind.is_none() {
+                    self.insert_spans(other.spans());
                 }
+            } else {
+                let kind = unlocated_kind.map_or(other.kind, |kind| kind.merge(other.kind));
+                unlocated_kind = Some(kind);
             }
+        }
+        if let Some(kind) = unlocated_kind {
+            self.set_span(None);
+            self.kind = if located { DebugLocKind::Unknown } else { kind };
         }
     }
 
     /// Rule R2b, combine: one instruction now does the work of the instructions `others`, which
     /// all run on one path, such as several stores folded into one copy. It keeps the union of
-    /// their origins, and an input without origins adds none.
+    /// their origins, and an input without origins adds no origin.
     ///
     /// Without any origin the kind becomes [`DebugLocKind::merge`] of the kinds, and
     /// [`DebugLocKind::Normal`] with one. The depth follows the same rule as in [`Self::merge`].
@@ -365,6 +372,18 @@ mod tests {
         unlocated.merge([&loc([span(1)], 0)]);
         assert!(!unlocated.has_spans());
         assert_eq!(unlocated.kind(), DebugLocKind::Unknown);
+    }
+
+    #[test]
+    fn merge_kind_does_not_depend_on_input_order() {
+        let mut dropped = DebugLoc::EMPTY;
+        dropped.drop(DebugLocKind::Dropped);
+        let located = loc([span(1)], 0);
+        for inputs in [[&dropped, &DebugLoc::EMPTY], [&DebugLoc::EMPTY, &dropped]] {
+            let mut merged = located.clone();
+            merged.merge(inputs);
+            assert_eq!(merged.kind(), DebugLocKind::Unknown);
+        }
     }
 
     #[test]
