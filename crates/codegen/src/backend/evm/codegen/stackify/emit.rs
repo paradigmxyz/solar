@@ -1,6 +1,6 @@
 //! Emission of planned stack-resident functions into EVM IR.
 
-use super::{BlockPlan, Edge, Exit, FunctionPlan, ModuleInfo, Step, plan::call_projection};
+use super::{BlockPlan, Edge, Exit, FunctionPlan, ModuleInfo, Reader, Step, plan::call_projection};
 use crate::{
     backend::{
         assembler::Label,
@@ -23,6 +23,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_evmir::debug::DebugLocKind;
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -455,11 +456,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         step: &Step,
         cold: bool,
     ) {
-        match *step {
-            Step::Stack(op) => self.asm.emit_stack_op(op),
-            Step::Materialize(value) => self.emit_materialized(func, value),
-            Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
-            Step::Spill(value) => {
+        match step {
+            &Step::Stack(op) => self.asm.emit_stack_op(op),
+            &Step::Materialize(value) => self.emit_materialized(func, value),
+            &Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
+            &Step::Spill(value) => {
                 // push slot; mstore
                 self.emit_spill_slot_addr(func, self.spill_slots[&value]);
                 self.asm.emit_op(op::MSTORE);
@@ -474,23 +475,22 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             // push 0
             Step::Filler => self.asm.emit_push(U256::ZERO),
-            Step::Begin(inst) => {
+            &Step::Begin(inst) => {
                 if self.capture_debug_info {
-                    if let Some(inst) = inst {
-                        let metadata = &func.inst(inst).metadata;
-                        self.asm.set_source_spans(metadata.source_spans());
-                        self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
-                        self.asm.set_modifier_depth(metadata.modifier_depth());
-                    } else {
-                        // NOTE: A retained constant has no single source consumer.
-                        self.asm.set_source_span(None);
-                        self.asm.set_modifier_depth(0);
-                    }
+                    let metadata = &func.inst(inst).metadata;
+                    self.asm.set_source_spans(metadata.source_spans());
+                    self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
+                    self.asm.set_modifier_depth(metadata.modifier_depth());
                 }
             }
-            Step::Op(opcode) => self.asm.emit_op(opcode),
-            Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
-            Step::Call(callee, _) => {
+            Step::BeginShared(readers) => {
+                if self.capture_debug_info {
+                    self.begin_shared(func, readers);
+                }
+            }
+            &Step::Op(opcode) => self.asm.emit_op(opcode),
+            &Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
+            &Step::Call(callee, _) => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
                 if cold {
@@ -501,7 +501,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 self.asm.define_continuation_label(return_label);
             }
-            Step::Publish { callee, arity, params } => {
+            &Step::Publish { callee, arity, params } => {
                 // [result(m-1), ..., result1, result0]
                 // swap1; push frame[return + 32 * k]; mstore   (k = 1..m)
                 // push frame[return]; push 0x20; mstore
@@ -539,7 +539,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
         let next = steps.iter().find_map(|step| match step {
-            Step::Begin(Some(inst)) => Some(&func.inst(*inst).metadata),
+            Step::Begin(inst) => Some(&func.inst(*inst).metadata),
             _ => None,
         });
         let metadata = next.unwrap_or(&func.blocks[block].terminator_metadata);
@@ -556,6 +556,33 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
             self.asm.set_modifier_depth(metadata.modifier_depth());
         }
+    }
+
+    /// Attributes the push of a retained constant to the code that reads it.
+    ///
+    /// NOTE: The push runs once and serves each reader, so it is shared code: the location of one
+    /// reader would be arbitrary, and the merged location of all of them is correct. A single
+    /// reader gives its own location. The readers are those in the blocks the push is held
+    /// through, since the constant is pushed again at its uses elsewhere. LLVM's
+    /// `ConstantHoisting` gives a hoisted constant the merged location of its users likewise.
+    fn begin_shared(&mut self, func: &Function, readers: &[Reader]) {
+        let metadata = |reader: &Reader| match *reader {
+            Reader::Inst(inst) => &func.inst(inst).metadata,
+            Reader::Terminator(block) => &func.blocks[block].terminator_metadata,
+        };
+        let Some((first, rest)) = readers.split_first() else {
+            // NOTE: A push that no code reads serves no source construct, so it has no location
+            // to merge, and the planner never emits one.
+            self.asm.set_source_span(None);
+            self.asm.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
+            self.asm.set_modifier_depth(0);
+            return;
+        };
+        let mut merged = metadata(first).clone();
+        merged.merge_debug_locs(rest.iter().map(metadata));
+        self.asm.set_source_spans(merged.source_spans());
+        self.asm.set_debug_loc_kind(merged.debug_loc_kind());
+        self.asm.set_modifier_depth(merged.modifier_depth());
     }
 
     /// Jumps to `target` unless it is the next block in the layout.

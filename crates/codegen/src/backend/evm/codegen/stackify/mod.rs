@@ -212,8 +212,10 @@ enum Step {
     ReloadRet,
     /// Pushes a filler word for a layout position that nothing reads.
     Filler,
-    /// Starts an instruction's debug metadata, or clears it for shared generated code.
-    Begin(Option<InstId>),
+    /// Starts an instruction's debug metadata.
+    Begin(InstId),
+    /// Starts the debug metadata of a retained constant's push, which serves every reader.
+    BeginShared(Box<[Reader]>),
     /// Emits one opcode of an instruction whose operands are prepared.
     Op(u8),
     /// Emits the remaining code of an instruction whose operands are prepared.
@@ -224,6 +226,13 @@ enum Step {
     /// Stores the extra results below the first result of a call to the callee's return area
     /// and publishes it as the multi-return buffer.
     Publish { callee: FunctionId, arity: usize, params: usize },
+}
+
+/// The code that reads a word a [`Step::BeginShared`] push leaves on the stack.
+#[derive(Clone, Copy, Debug)]
+enum Reader {
+    Inst(InstId),
+    Terminator(BlockId),
 }
 
 impl Step {

@@ -1,8 +1,8 @@
 //! Per-function planning: block layouts, operand preparation, shuffles, and spills.
 
 use super::{
-    Analysis, BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands, Slot, Step,
-    Victim, Want, argument_values, icall, materialized_at_use,
+    Analysis, BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands, Reader,
+    Slot, Step, Victim, Want, argument_values, icall, materialized_at_use,
     shuffle::{self, Move},
 };
 use crate::{
@@ -736,6 +736,53 @@ impl<'a> Planner<'a> {
             .collect()
     }
 
+    /// Starts the push of the retained constant `value`, which the planner emits once in `block`.
+    /// The push serves the readers in the blocks it is held through, so it takes their merged
+    /// origin.
+    fn begin_retained(&self, block: BlockId, value: ValueId) -> Step {
+        let func = self.func;
+        let region = &held_blocks(func, self.cfg, &[(block, value)])[&value];
+        let mut readers = Vec::new();
+        for held in region.iter() {
+            let tail_call = self.tail_calls.get(&held).copied();
+            readers.extend(
+                self.planned_insts(held)
+                    .into_iter()
+                    .filter(|step| step.operands.contains(&value))
+                    .map(|step| Reader::Inst(step.inst)),
+            );
+            // Mirrors `block_uses`.
+            let reads = match &func.blocks[held].terminator {
+                Some(Terminator::Branch { condition, .. }) => {
+                    self.conditions.get(&held).map_or(*condition, |&(condition, _)| condition)
+                        == value
+                }
+                Some(Terminator::Return { .. }) if let Some(call) = tail_call => {
+                    if icall(&func.inst(call).kind).unwrap().1.contains(&value) {
+                        readers.push(Reader::Inst(call));
+                    }
+                    false
+                }
+                Some(term) => term.operands().contains(&value),
+                None => false,
+            };
+            if reads {
+                readers.push(Reader::Terminator(held));
+            }
+            for &inst in &func.blocks[held].instructions {
+                // An edge from a block in the region reads the value.
+                if let InstKind::Phi(incoming) = &func.inst(inst).kind
+                    && incoming
+                        .iter()
+                        .any(|&(pred, operand)| operand == value && region.contains(pred))
+                {
+                    readers.push(Reader::Inst(inst));
+                }
+            }
+        }
+        Step::BeginShared(readers.into_boxed_slice())
+    }
+
     /// Plans a block's instructions in their MIR order.
     fn plan_body(&mut self, sim: &mut Sim, block: BlockId) -> Result<(), Fail> {
         let func = self.func;
@@ -758,7 +805,7 @@ impl<'a> Planner<'a> {
                 if !step.operands.contains(&value) {
                     return true;
                 }
-                sim.steps.push(Step::Begin(None));
+                sim.steps.push(self.begin_retained(block, value));
                 // push constant
                 self.fresh(sim, value);
                 false
@@ -810,7 +857,7 @@ impl<'a> Planner<'a> {
             }
         }
         for value in constants {
-            sim.steps.push(Step::Begin(None));
+            sim.steps.push(self.begin_retained(block, value));
             // push constant
             self.fresh(sim, value);
         }
@@ -2050,7 +2097,7 @@ impl<'a> Planner<'a> {
         let inst = planned.inst;
         let operands = &planned.operands;
         let kind = &func.inst(inst).kind;
-        sim.steps.push(Step::Begin(Some(inst)));
+        sim.steps.push(Step::Begin(inst));
         let result = func.inst_result_value(inst);
         // Whether each operand has no use after this instruction.
         let mut dies = SmallVec::<[bool; 8]>::new();
