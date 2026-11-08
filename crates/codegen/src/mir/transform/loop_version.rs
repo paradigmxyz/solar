@@ -1282,8 +1282,9 @@ fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
     redirect(func, plan.latch.unwrap_or(plan.preheader), header, test);
     let context = terminator_debug_context(func, plan.preheader, DebugLocKind::CompilerGenerated);
     let mut builder = FunctionBuilder::new_semantic(func);
-    // NOTE: Preheader code runs when the loop statement starts, never for one iteration, so it
-    // takes the loop statement's location, not the loop body's.
+    // NOTE: The test runs in the preheader, or after the first iteration when a latch enters it,
+    // never once per iteration of the version it selects, so it takes the loop statement's
+    // location, not the loop body's.
     builder.set_debug_context(&context);
     builder.switch_to_block(test);
     let fast = builder.create_block();

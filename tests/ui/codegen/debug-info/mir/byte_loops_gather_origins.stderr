@@ -1,1 +1,1 @@
-debugify: MIR ByteLoopGatherOrigins after byte-loops: 1/1 origins retained, 0 lost
+debugify: MIR ByteLoopGatherOrigins after byte-loops: 2/2 origins retained, 0 lost
