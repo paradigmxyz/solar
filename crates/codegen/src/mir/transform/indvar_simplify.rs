@@ -105,12 +105,11 @@
 //! - recognize checked unsigned updates at every width and retain their failure checks.
 //! - add only one scaled address counter when the original update must stay live.
 
-use super::{egraph::max_bits_with_args, loop_opt::LoopOptimizer};
+use super::{egraph::max_bits_with_args, loop_opt::LoopOptimizer, utils::terminator_debug_context};
 use crate::{
     mir::{
         ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
-        Instruction, InstructionMetadata, MemoryRegion, MirType, Module, Terminator, Value,
-        ValueId,
+        Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
         analysis::{
             AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer,
             ScalarEvolution, integers::unsigned_bounds,
@@ -1806,11 +1805,11 @@ impl IndVarSimplifier {
     }
 
     fn word_value(&self, func: &mut Function, block: BlockId, value: ValueId) -> ValueId {
+        let context = terminator_debug_context(func, block, DebugLocKind::Dropped);
         let mut builder = FunctionBuilder::new(func);
-        // NOTE: Address-recurrence setup can run outside the original address expression's
-        // block. Drop its location, as for the adjacent arithmetic setup instructions.
-        let mut context = InstructionMetadata::default();
-        context.drop_debug_loc(DebugLocKind::Dropped);
+        // NOTE: Preheader code runs when the loop statement starts, never for one iteration, so it
+        // takes the loop statement's location, which the preheader's terminator carries; any other
+        // block's code takes the location of its own terminator.
         builder.set_debug_context(&context);
         builder.switch_to_block(block);
         builder.cast_word(value)
