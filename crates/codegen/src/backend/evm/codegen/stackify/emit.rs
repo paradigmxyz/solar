@@ -94,16 +94,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             // code that enters the constructor under the same location, in `appendConstructor`
             // (libsolidity/codegen/ContractCompiler.cpp L286-L288 at v0.8.38).
             self.emit_with_origin(Some(func.declaration_span), |codegen| {
-                let origin = self.asm.debug_origin();
-                if self.capture_debug_info {
-                    // NOTE: Skipping the out-of-line helpers is generated deployment control flow,
-                    // with no source operation, as LLVM's `DebugLoc::getCompilerGenerated` describes.
-                    self.asm.set_source_span(None);
-                    self.asm.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
-                }
                 codegen.asm.emit_push_label(constructor_label);
                 codegen.asm.emit_op(op::JUMP);
-                self.asm.set_debug_origin(origin);
             });
         }
         self.emit_internal_bodies(module, info, &mut plans);
