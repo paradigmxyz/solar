@@ -192,8 +192,8 @@
 use super::loop_split::{LoopCopy, clone_loop, redirect};
 use crate::mir::{
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
-    InstId, InstKind, Instruction, MirType, Module, PanicCode, PtrLocation, RevertKind, Terminator,
-    Value, ValueId,
+    InstId, InstKind, Instruction, InstructionMetadata, MirType, Module, PanicCode, PtrLocation,
+    RevertKind, Terminator, Value, ValueId,
     analysis::{AddressSpace, AliasAnalysis, CfgInfo, Loop, LoopAnalyzer, LoopInfo},
     pass::{MirPass, ModuleAnalyses, run_function_pass},
     utils::{rebuild_predecessors, split_edge},
@@ -203,6 +203,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::cell::OnceCell;
 
 /// Clones loops behind a run-time test that their element stores cannot reach the words they
@@ -1277,6 +1278,11 @@ fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
     let test = func.alloc_block_like(header);
     redirect(func, plan.latch.unwrap_or(plan.preheader), header, test);
     let mut builder = FunctionBuilder::new_semantic(func);
+    // NOTE: Version-selection guards have no source counterpart. In particular, their loads
+    // can run before the source loop body, so they must not inherit its element locations.
+    let mut context = InstructionMetadata::default();
+    context.drop_debug_loc(DebugLocKind::CompilerGenerated);
+    builder.set_debug_context(&context);
     builder.switch_to_block(test);
     let fast = builder.create_block();
     let slow = builder.create_block();

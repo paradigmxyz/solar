@@ -47,10 +47,10 @@ contract DiscardedFunctionReferences {
     }
 
     function builtinReferences() external pure returns (uint256) {
-        selfdestruct;
-        keccak256;
-        blockhash;
-        gasleft;
+        selfdestruct; //~ WARN: statement has no effect
+        keccak256; //~ WARN: statement has no effect
+        blockhash; //~ WARN: statement has no effect
+        gasleft; //~ WARN: statement has no effect
         return 7;
     }
 

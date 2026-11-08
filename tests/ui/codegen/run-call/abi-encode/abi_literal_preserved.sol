@@ -20,7 +20,10 @@ contract C {
         assembly {
             before := mload(0x40)
         }
-        require(this.f(hex"0123", "abc") == 0xb658c1ef50aec2efb3e26c5587e8ce1ae4d46226f3a28b97bac4fe573717b1f8);
+        // Explicit memory objects remain observable after the call, unlike inline inputs.
+        bytes memory a = hex"0123";
+        string memory b = "abc";
+        require(this.f(a, b) == 0xb658c1ef50aec2efb3e26c5587e8ce1ae4d46226f3a28b97bac4fe573717b1f8);
         assembly {
             result := and(eq(mload(before), 2), eq(mload(add(before, 64)), 3))
             result := and(result, eq(mload(add(before, 32)), shl(240, 0x0123)))

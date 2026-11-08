@@ -71,7 +71,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             self.lower_string_literal_word(bytes.as_byte_str())
         } else {
-            self.operand(expr)?
+            self.operand(expr)?.id()
         };
         let fixed_bytes =
             self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.peel_refs().is_fixed_bytes());
@@ -108,7 +108,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let Some(else_selector) = Self::literal_signature_selector(else_expr)
         {
             // selector = select(condition, selector(then), selector(else))
-            let condition = self.operand(condition)?;
+            let condition = self.operand(condition)?.id();
             let then_selector = self.builder.imm(then_selector);
             let else_selector = self.builder.imm(else_selector);
             let selector = self.builder.select(condition, then_selector, else_selector);
@@ -161,7 +161,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if !function_ty.is_external() {
                 return self.cx.report_unsupported(function.span, "abi.encodeCall function");
             }
-            let function_value = self.operand(function)?;
+            let function_value = self.operand(function)?.id();
             let mask = self.builder.imm(u32::MAX);
             let selector = self.builder.and(function_value, mask);
             let shift = self.builder.imm(224);
@@ -244,7 +244,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         // `abi_decode` reads a calldata slice in place, so calldata needs no copy.
         let data = if lies_in_calldata(data_ty) {
-            self.operand(data_expr)?
+            self.operand(data_expr)?.id()
         } else {
             let data = self.lower_typed_expr(data_expr, memory_ty)?.clean(self, memory_ty);
             self.materialize_memory_argument(memory_ty, data, data_expr.span)?
@@ -941,7 +941,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // input = materialize(bytes)
         let input_ty = self.cx.gcx.type_of_expr(input.id)?;
         let input = if lies_in_calldata(input_ty) {
-            let input = self.operand(input)?;
+            let input = self.operand(input)?.id();
             self.copy_calldata_bytes_unchecked(input)?
         } else {
             let input = self.lower_typed_expr(input, memory_ty)?.clean(self, memory_ty);
@@ -962,10 +962,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let v = &values[1];
         let r = &values[2];
         let s = &values[3];
-        let hash = self.operand(hash)?;
-        let v = self.operand(v)?;
-        let r = self.operand(r)?;
-        let s = self.operand(s)?;
+        let hash = self.operand(hash)?.id();
+        let v = self.operand(v)?.id();
+        let r = self.operand(r)?.id();
+        let s = self.operand(s)?.id();
 
         // result = ecrecover(hash, v, r, s)
         Some(self.builder.emit_inst(

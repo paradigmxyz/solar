@@ -67,9 +67,9 @@ impl Program {
         self.current_source_spans.extend(span);
     }
 
-    pub(in crate::backend) fn set_source_spans(&mut self, spans: &[Span]) {
+    pub(in crate::backend) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
         self.current_source_spans.clear();
-        self.current_source_spans.extend_from_slice(spans);
+        self.current_source_spans.extend(spans);
     }
 
     pub(in crate::backend) fn set_modifier_depth(&mut self, depth: u32) {
