@@ -1236,7 +1236,6 @@ symbols! {
         semantic,
         send,
         sender,
-        set_fmp,
         sext,
         sha256,
         short_string,
