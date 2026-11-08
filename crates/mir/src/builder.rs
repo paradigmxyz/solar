@@ -367,9 +367,11 @@ impl<'a> FunctionBuilder<'a> {
         // (Yul `sub(0, 1)` wraps to 2**256-1, so `available - (0-1)` is `available + 1`)
         let available = self.sub(calldata_end, base);
         let bound = if tail_size == 0 {
-            self.add(available, self.imm(1))
+            let one = self.imm(1);
+            self.add(available, one)
         } else {
-            self.sub(available, self.imm(tail_size - 1))
+            let slack = self.imm(tail_size - 1);
+            self.sub(available, slack)
         };
         let valid = self.slt(offset, bound);
         let mut invalid = self.eq_zero(valid);
@@ -2068,52 +2070,5 @@ impl<'a> FunctionBuilder<'a> {
     pub fn sar(&mut self, value: ValueId, shift: ValueId) -> ValueId {
         // result = sar value, shift
         self.emit_inst(InstKind::Sar(shift, value), Some(MirType::I256))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Module;
-    use solar_interface::{ColorChoice, Session, source_map::FileName};
-
-    #[test]
-    fn empty_calldata_tail_bound_is_available_plus_one() {
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.enter_sequential(|| {
-            let src = "@module M\nfn @f() {\n  bb0:\n    stop\n}\n";
-            let file = sess
-                .source_map()
-                .new_source_file(FileName::Custom("empty_tail.mir".into()), src)
-                .unwrap();
-            let mut module = Module::parse(&sess, &file).unwrap();
-            let function = module.functions.indices().next().unwrap();
-            let func = &mut module.functions[function];
-            let mut builder = FunctionBuilder::new_semantic(func);
-            let base = builder.imm(0u64);
-            let offset = builder.imm(0u64);
-            let end = builder.imm(32u64);
-            // Must not wrap `tail_size - 1` as `u64::MAX` or panic in debug.
-            builder.check_calldata_tail_offset(CalldataTail::Access, base, offset, end, 0, false);
-
-            let has_plus_one = func.instructions().any(|id| {
-                matches!(
-                    &func.inst(id).kind,
-                    InstKind::Add(lhs, rhs)
-                        if func.value_u64(*lhs) == Some(1) || func.value_u64(*rhs) == Some(1)
-                )
-            });
-            assert!(has_plus_one, "empty tail must use available + 1");
-
-            let has_u64_max_slack = func.instructions().any(|id| {
-                matches!(
-                    &func.inst(id).kind,
-                    InstKind::Sub(lhs, rhs)
-                        if func.value_u64(*lhs) == Some(u64::MAX)
-                            || func.value_u64(*rhs) == Some(u64::MAX)
-                )
-            });
-            assert!(!has_u64_max_slack, "empty tail must not subtract u64::MAX");
-        });
     }
 }

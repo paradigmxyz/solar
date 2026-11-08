@@ -1,0 +1,23 @@
+//@ compile-flags: -O none -Zmir-pipeline=default -Zdump=mir
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+//@ run-call: emptyTail(uint256)(uint256,uint256) 0 => 32, 32
+//@ run-call: emptyTail(uint256)(uint256,uint256) 32 => 32, 32
+//@ run-call-fail: emptyTail(uint256) 33
+@module EmptyCalldataTail
+
+// A dynamic array of zero elements has an empty tail, so solc computes the bound of its offset
+// as `available - (0 - 1)` in wrapping 256-bit arithmetic, which is `available + 1`. An offset
+// equal to `available` is accepted and one above it reverts.
+// CHECK-LABEL: fn @emptyTail{{[( ]}}
+// CHECK: [[AVAILABLE:v[0-9]+]] = sub {{v[0-9]+}}, 4
+// CHECK-NEXT: [[BOUND:v[0-9]+]] = add [[AVAILABLE]], 1
+// CHECK-NEXT: [[VALID:v[0-9]+]] = slt {{v[0-9]+}}, [[BOUND]]
+fn @emptyTail() [selector=0x8cb6cdd4, pure] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 4, 32
+    v1 = abi_encode [array<1, array<0, calldata_bytes>>], args v0
+    v2 = extract_value slice<memory>, v1, 0
+    v3 = extract_value slice<memory>, v1, 1
+    returndata v2, v3
+}
