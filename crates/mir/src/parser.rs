@@ -1533,7 +1533,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::unknown => metadata.set_displayed_debug_loc_kind(DebugLocKind::Unknown),
                 sym::temporary => metadata.set_displayed_debug_loc_kind(DebugLocKind::Temporary),
-                sym::spans => {
+                sym::spans | sym::all => {
                     self.parser.expect(TokenKind::Eq)?;
                     self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
                     let mut spans = SmallVec::<[Span; 2]>::new();
@@ -1546,6 +1546,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     }
                     self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
                     metadata.set_source_spans(spans);
+                    metadata.set_all_source_spans(key == sym::all);
                 }
                 _ => return Err(self.parser.error(format!("unknown metadata key `{key}`"))),
             }

@@ -845,7 +845,8 @@ fn display_metadata<'a>(
             MetadataField::Span { lo, hi } => write!(f, "span={lo}..{hi}"),
             MetadataField::Spans(metadata) => write!(
                 f,
-                "spans=[{}]",
+                "{}=[{}]",
+                if metadata.all_source_spans() { "all" } else { "spans" },
                 metadata.source_spans().format_with(", ", |f, span| write!(
                     f,
                     "{}..{}",

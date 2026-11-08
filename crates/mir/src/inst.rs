@@ -68,6 +68,17 @@ impl InstructionMetadata {
         self.debug_loc.spans()
     }
 
+    /// Returns whether several origins all hold, as `gather` in ETHDebug, instead of one of them.
+    #[must_use]
+    pub fn all_source_spans(&self) -> bool {
+        self.debug_loc.all_spans()
+    }
+
+    /// Sets whether the textual origins all hold.
+    pub(crate) fn set_all_source_spans(&mut self, all_spans: bool) {
+        self.debug_loc.set_all_spans(all_spans);
+    }
+
     /// Sets explicit textual origins.
     pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
         self.debug_loc.set_spans(spans);
