@@ -524,11 +524,7 @@ impl Edit {
                 let iszero = instructions.pop().expect("matched ISZERO");
                 let comparison = instructions.last_mut().expect("matched comparison");
                 overwrite(comparison, opcode);
-                if comparison.metadata.source_spans().is_empty()
-                    && !iszero.metadata.source_spans().is_empty()
-                {
-                    comparison.metadata.preserve_debug_loc(&iszero.metadata);
-                }
+                fill_debug_gap(&mut comparison.metadata, &iszero.metadata);
                 comparison.metadata.move_function_events(&iszero.metadata);
             }
             Self::ZeroLessIszero => {
@@ -542,11 +538,7 @@ impl Edit {
                 let pushed = instructions.remove(start);
                 let comparison = instructions.remove(start);
                 let iszero = instructions.last_mut().expect("matched ISZERO");
-                if iszero.metadata.source_spans().is_empty()
-                    && !comparison.metadata.source_spans().is_empty()
-                {
-                    iszero.metadata.preserve_debug_loc(&comparison.metadata);
-                }
+                fill_debug_gap(&mut iszero.metadata, &comparison.metadata);
                 iszero.metadata.move_function_events(&pushed.metadata);
                 iszero.metadata.move_function_events(&comparison.metadata);
             }
@@ -656,4 +648,56 @@ fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata
     let mut context = instructions[root].metadata.clone();
     context.merge_function_events(instructions.iter().map(|inst| &inst.metadata));
     context
+}
+
+/// Gives a survivor that lacks a location, with no explained kind, the location of the removed
+/// instruction whose value it now computes. A survivor with spans or an explained kind keeps its
+/// own.
+fn fill_debug_gap(survivor: &mut Metadata, removed: &Metadata) {
+    if survivor.lacks_debug_location() && !removed.source_spans().is_empty() {
+        survivor.preserve_debug_loc(removed);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_evmir::debug::DebugLocKind;
+    use solar_interface::{BytePos, Span};
+
+    fn located() -> Metadata {
+        let mut metadata = Metadata::default();
+        metadata.set_source_span(Some(Span::new(BytePos(1), BytePos(2))));
+        metadata
+    }
+
+    #[test]
+    fn fill_debug_gap_only_fills_an_unexplained_gap() {
+        let removed = located();
+
+        let mut gap = Metadata::default();
+        fill_debug_gap(&mut gap, &removed);
+        assert_eq!(gap.source_spans(), removed.source_spans());
+
+        for kind in [
+            DebugLocKind::Dropped,
+            DebugLocKind::CompilerGenerated,
+            DebugLocKind::Unknown,
+            DebugLocKind::Temporary,
+        ] {
+            let mut explained = Metadata::default();
+            explained.set_debug_loc_kind(kind);
+            fill_debug_gap(&mut explained, &removed);
+            assert!(explained.source_spans().is_empty());
+        }
+
+        let mut own = Metadata::default();
+        own.set_source_span(Some(Span::new(BytePos(5), BytePos(6))));
+        fill_debug_gap(&mut own, &removed);
+        assert_ne!(own.source_spans(), removed.source_spans());
+
+        let mut still_gap = Metadata::default();
+        fill_debug_gap(&mut still_gap, &Metadata::default());
+        assert!(still_gap.lacks_debug_location());
+    }
 }

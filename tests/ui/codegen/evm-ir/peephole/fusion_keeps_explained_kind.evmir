@@ -1,9 +1,9 @@
 //@ compile-flags: -Zevm-ir-pipeline=peephole
-@module FusionOriginFallback
+@module FusionKeepsExplainedKind
 
-// The surviving instruction computes the removed partner's value, so it takes the partner's
-// location when it has no span of its own, even when the parser marked it dropped: the `iszero`
-// takes the `lt`'s in `bb0`, the inverted compare takes the `iszero`'s in `bb2`.
+// A survivor without a span keeps its explained kind: the parser marks an unlocated instruction
+// dropped, and the fusion does not give it the removed partner's location, as it would a survivor
+// with an unexplained gap (covered by a unit test, since the text format cannot spell one).
 bb0:
   calldatasize
   push 0
