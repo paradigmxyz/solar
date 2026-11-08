@@ -17,7 +17,7 @@
 //! checker results: the type, the resolution of a name, purity, and the user defined operator.
 
 use super::{
-    Cx, Empty, Params, Seq, Sym, Var, W, last_docs, name, serialize_opt,
+    Cx, Empty, Node, Params, Seq, Sym, Var, W, last_docs, name,
     ty::{ExprType, TypeDescriptions, elementary_name},
     yul,
 };
@@ -64,9 +64,9 @@ pub(super) struct StorageLayout<'a, 'ast, 'gcx>(
 impl<'gcx> Serialize for W<'_, 'gcx, StorageLayout<'_, '_, 'gcx>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, StorageLayout(layout, slot)) = self;
-        let (mut m, _) = cx.node(s, "StorageLayoutSpecifier", layout.span)?;
-        m.serialize_entry("baseSlotExpression", &cx.w((&*layout.slot, *slot)))?;
-        m.end()
+        cx.write(s, "StorageLayoutSpecifier", layout.span, |m| {
+            m.entry("baseSlotExpression", &cx.expr(layout.slot, slot));
+        })
     }
 }
 
@@ -86,7 +86,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, Block<'_, '_, 'gcx>> {
         let node_type = if *unchecked { "UncheckedBlock" } else { "Block" };
         let (mut m, id) = cx.stmt_node(s, node_type, *span, *docs)?;
         let cx = Cx { block: id, ..*cx };
-        m.serialize_entry("statements", &cx.w(Stmts(ast.stmts, hir.stmts)))?;
+        m.entry("statements", &cx.w(Stmts(ast.stmts, hir.stmts)));
         m.end()
     }
 }
@@ -109,12 +109,26 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         node_type: &str,
         span: Span,
         docs: Option<&DocComments<'_>>,
-    ) -> Result<(S::SerializeMap, usize), S::Error> {
+    ) -> Result<(Node<S::SerializeMap>, usize), S::Error> {
         let (mut m, id) = self.node(s, node_type, span)?;
         if let Some((_, text)) = docs.and_then(|docs| last_docs(self, docs)) {
-            m.serialize_entry("documentation", &text)?;
+            m.entry("documentation", &text);
         }
         Ok((m, id))
+    }
+
+    /// Writes the node of a statement: the fields that `fields` writes.
+    fn write_stmt<S: Serializer>(
+        self,
+        s: S,
+        node_type: &str,
+        span: Span,
+        docs: Option<&DocComments<'_>>,
+        fields: impl FnOnce(&mut Node<S::SerializeMap>),
+    ) -> Result<S::Ok, S::Error> {
+        let (mut m, _) = self.stmt_node(s, node_type, span, docs)?;
+        fields(&mut m);
+        m.end()
     }
 
     /// Returns the span of a statement. solc leaves the `;` out of a simple statement but not out
@@ -141,33 +155,44 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         }
     }
 
+    /// Returns the writer of an expression, from its AST and HIR nodes.
+    fn expr<'n, 'ast>(
+        self,
+        ast: &'n ast::Expr<'ast>,
+        hir: &'n hir::Expr<'gcx>,
+    ) -> W<'a, 'gcx, (&'n ast::Expr<'ast>, &'n hir::Expr<'gcx>)> {
+        self.w((ast, hir))
+    }
+
+    /// Returns the writer of a statement, from its AST and HIR nodes.
+    fn stmt<'n, 'ast>(
+        self,
+        ast: &'n ast::Stmt<'ast>,
+        hir: &'n hir::Stmt<'gcx>,
+    ) -> W<'a, 'gcx, (&'n ast::Stmt<'ast>, &'n hir::Stmt<'gcx>)> {
+        self.w((ast, hir))
+    }
+
     /// Writes the attributes that every expression but an identifier has.
     fn expr_attrs<M: SerializeMap>(
         self,
-        m: &mut M,
+        m: &mut Node<M>,
         expr: &hir::Expr<'gcx>,
         parent: Parent<'gcx>,
         is_lvalue: bool,
-    ) -> Result<(), M::Error> {
-        m.serialize_entry("typeDescriptions", &ExprType::new(self, expr).args(parent.args))?;
-        self.argument_types(m, parent)?;
-        m.serialize_entry("isLValue", &is_lvalue)?;
-        m.serialize_entry("isPure", &self.gcx.is_pure(expr))?;
-        m.serialize_entry("isConstant", &false)?;
-        m.serialize_entry("lValueRequested", &parent.lvalue)
+    ) {
+        m.entry("typeDescriptions", &ExprType::new(self, expr).args(parent.args));
+        self.argument_types(m, parent);
+        m.entry("isLValue", &is_lvalue);
+        m.entry("isPure", &self.gcx.is_pure(expr));
+        m.entry("isConstant", &false);
+        m.entry("lValueRequested", &parent.lvalue);
     }
 
     /// Writes the types of the arguments of the call that the expression is the callee of.
-    fn argument_types<M: SerializeMap>(
-        self,
-        m: &mut M,
-        parent: Parent<'gcx>,
-    ) -> Result<(), M::Error> {
-        let Some(args) = parent.args else { return Ok(()) };
-        m.serialize_entry(
-            "argumentTypes",
-            &Seq(|| args.exprs().map(|arg| ExprType::new(self, arg))),
-        )
+    fn argument_types<M: SerializeMap>(self, m: &mut Node<M>, parent: Parent<'gcx>) {
+        let Some(args) = parent.args else { return };
+        m.entry("argumentTypes", &Seq(|| args.exprs().map(|arg| ExprType::new(self, arg))));
     }
 
     /// Returns the `typeDescriptions` of an expression that has no HIR node.
@@ -195,77 +220,76 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, &hir::Stmt<'gcx>)> {
                 cx.w(Block { docs, span, ast, hir, unchecked: true }).serialize(s)
             }
             (ast::StmtKind::Assembly(assembly), StmtKind::AssemblyBlock(..)) => {
-                let (mut m, _) = cx.stmt_node(s, "InlineAssembly", span, docs)?;
-                m.serialize_entry("AST", &cx.w(&assembly.block))?;
-                let references = yul::ExternalReferences { span };
-                m.serialize_entry("externalReferences", &cx.w(references))?;
-                m.serialize_entry("evmVersion", &format_args!("{}", gcx.sess.opts.evm_version))?;
-                if !assembly.flags.is_empty() {
-                    let flags = Seq(|| assembly.flags.iter().map(|flag| Sym(flag.value)));
-                    m.serialize_entry("flags", &flags)?;
-                }
-                m.end()
+                cx.write_stmt(s, "InlineAssembly", span, docs, |m| {
+                    m.entry("AST", &cx.w(&assembly.block));
+                    let references = yul::ExternalReferences { span };
+                    m.entry("externalReferences", &cx.w(references));
+                    m.entry("evmVersion", &format_args!("{}", gcx.sess.opts.evm_version));
+                    if !assembly.flags.is_empty() {
+                        let flags = Seq(|| assembly.flags.iter().map(|flag| Sym(flag.value)));
+                        m.entry("flags", &flags);
+                    }
+                })
             }
             (ast::StmtKind::DeclSingle(ast), StmtKind::DeclSingle(id)) => {
-                let (mut m, _) = cx.stmt_node(s, "VariableDeclarationStatement", span, docs)?;
-                m.serialize_entry("assignments", &[cx.item_id(*id)])?;
-                // solc parses the type of a single declaration as an expression first.
-                let single = Cx { in_local: true, ..*cx };
-                m.serialize_entry("declarations", &[local(single, ast, *id)])?;
-                let initial_value =
-                    ast.initializer.as_deref().zip(gcx.hir.variable(*id).initializer);
-                serialize_opt(&mut m, "initialValue", initial_value.map(|exprs| cx.w(exprs)))?;
-                m.end()
+                cx.write_stmt(s, "VariableDeclarationStatement", span, docs, |m| {
+                    m.entry("assignments", &[cx.item_id(*id)]);
+                    // solc parses the type of a single declaration as an expression first.
+                    let single = Cx { in_local: true, ..*cx };
+                    m.entry("declarations", &[local(single, ast, *id)]);
+                    let initial_value =
+                        ast.initializer.as_deref().zip(gcx.hir.variable(*id).initializer);
+                    m.opt("initialValue", initial_value.map(|exprs| cx.w(exprs)));
+                })
             }
             (ast::StmtKind::DeclMulti(vars, ast), StmtKind::DeclMulti(ids, hir)) => {
-                let (mut m, _) = cx.stmt_node(s, "VariableDeclarationStatement", span, docs)?;
-                let assignments = Seq(|| ids.iter().map(|id| id.map(|id| cx.item_id(id))));
-                m.serialize_entry("assignments", &assignments)?;
-                // solc parses the type of the first variable of a tuple declaration as an
-                // expression too, but not those of the others.
-                let first = vars.iter().position(|var| matches!(var, SpannedOption::Some(_)));
-                let declarations = Seq(|| {
-                    vars.iter().zip(*ids).enumerate().map(|(i, (var, id))| match (var, id) {
-                        (SpannedOption::Some(var), Some(id)) => {
-                            Some(local(Cx { in_local: first == Some(i), ..*cx }, var, *id))
-                        }
-                        _ => None,
-                    })
-                });
-                m.serialize_entry("declarations", &declarations)?;
-                m.serialize_entry("initialValue", &cx.w((&**ast, *hir)))?;
-                m.end()
+                cx.write_stmt(s, "VariableDeclarationStatement", span, docs, |m| {
+                    let assignments = Seq(|| ids.iter().map(|id| id.map(|id| cx.item_id(id))));
+                    m.entry("assignments", &assignments);
+                    // solc parses the type of the first variable of a tuple declaration as an
+                    // expression too, but not those of the others.
+                    let first = vars.iter().position(|var| matches!(var, SpannedOption::Some(_)));
+                    let declarations = Seq(|| {
+                        vars.iter().zip(*ids).enumerate().map(|(i, (var, id))| match (var, id) {
+                            (SpannedOption::Some(var), Some(id)) => {
+                                Some(local(Cx { in_local: first == Some(i), ..*cx }, var, *id))
+                            }
+                            _ => None,
+                        })
+                    });
+                    m.entry("declarations", &declarations);
+                    m.entry("initialValue", &cx.expr(ast, hir));
+                })
             }
             (ast::StmtKind::Expr(ast), StmtKind::Expr(hir)) => {
-                let (mut m, _) = cx.stmt_node(s, "ExpressionStatement", span, docs)?;
-                m.serialize_entry("expression", &cx.w((&**ast, *hir)))?;
-                m.end()
+                cx.write_stmt(s, "ExpressionStatement", span, docs, |m| {
+                    m.entry("expression", &cx.expr(ast, hir));
+                })
             }
-            (ast::StmtKind::If(cond, then, other), StmtKind::If(h_cond, h_then, h_other)) => {
-                let (mut m, _) = cx.stmt_node(s, "IfStatement", span, docs)?;
-                m.serialize_entry("condition", &cx.w((&**cond, *h_cond)))?;
-                m.serialize_entry("trueBody", &cx.w((&**then, *h_then)))?;
-                let falsy = other.as_deref().zip(*h_other);
-                serialize_opt(&mut m, "falseBody", falsy.map(|stmts| cx.w(stmts)))?;
-                m.end()
-            }
+            (ast::StmtKind::If(cond, then, other), StmtKind::If(h_cond, h_then, h_other)) => cx
+                .write_stmt(s, "IfStatement", span, docs, |m| {
+                    m.entry("condition", &cx.expr(cond, h_cond));
+                    m.entry("trueBody", &cx.stmt(then, h_then));
+                    let falsy = other.as_deref().zip(*h_other);
+                    m.opt("falseBody", falsy.map(|stmts| cx.w(stmts)));
+                }),
             (ast::StmtKind::While(cond, body), StmtKind::Loop(block, _)) => {
-                let (mut m, _) = cx.stmt_node(s, "WhileStatement", span, docs)?;
-                let StmtKind::If(h_cond, h_body, _) = block.stmts[0].kind else {
-                    unreachable!("lowering does not match the AST: {stmt:?}")
-                };
-                m.serialize_entry("condition", &cx.w((&**cond, h_cond)))?;
-                m.serialize_entry("body", &cx.w((&**body, h_body)))?;
-                m.end()
+                cx.write_stmt(s, "WhileStatement", span, docs, |m| {
+                    let StmtKind::If(h_cond, h_body, _) = block.stmts[0].kind else {
+                        unreachable!("lowering does not match the AST: {stmt:?}")
+                    };
+                    m.entry("condition", &cx.expr(cond, h_cond));
+                    m.entry("body", &cx.stmt(body, h_body));
+                })
             }
             (ast::StmtKind::DoWhile(body, cond), StmtKind::Loop(block, _)) => {
-                let (mut m, _) = cx.stmt_node(s, "DoWhileStatement", span, docs)?;
-                let StmtKind::If(h_cond, ..) = block.stmts[1].kind else {
-                    unreachable!("lowering does not match the AST: {stmt:?}")
-                };
-                m.serialize_entry("condition", &cx.w((&**cond, h_cond)))?;
-                m.serialize_entry("body", &cx.w((&**body, &block.stmts[0])))?;
-                m.end()
+                cx.write_stmt(s, "DoWhileStatement", span, docs, |m| {
+                    let StmtKind::If(h_cond, ..) = block.stmts[1].kind else {
+                        unreachable!("lowering does not match the AST: {stmt:?}")
+                    };
+                    m.entry("condition", &cx.expr(cond, h_cond));
+                    m.entry("body", &cx.stmt(body, &block.stmts[0]));
+                })
             }
             (ast::StmtKind::For { init, cond, next, body }, _) => {
                 let (mut m, id) = cx.stmt_node(s, "ForStatement", span, docs)?;
@@ -273,20 +297,16 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, &hir::Stmt<'gcx>)> {
                 let cx = Cx { block: id, ..*cx };
                 let init = init.as_deref().zip(parts.init);
                 let init_cx = Cx { for_init: true, ..cx };
-                serialize_opt(
-                    &mut m,
-                    "initializationExpression",
-                    init.map(|stmts| init_cx.w(stmts)),
-                )?;
+                m.opt("initializationExpression", init.map(|stmts| init_cx.w(stmts)));
                 let cond = cond.as_deref().zip(parts.cond);
-                serialize_opt(&mut m, "condition", cond.map(|exprs| cx.w(exprs)))?;
+                m.opt("condition", cond.map(|exprs| cx.w(exprs)));
                 let next = next.as_deref().zip(parts.next);
-                serialize_opt(&mut m, "loopExpression", next.map(|exprs| cx.w(Next(exprs))))?;
-                m.serialize_entry("body", &cx.w((&**body, parts.body)))?;
-                m.serialize_entry(
+                m.opt("loopExpression", next.map(|exprs| cx.w(Next(exprs))));
+                m.entry("body", &cx.stmt(body, parts.body));
+                m.entry(
                     "isSimpleCounterLoop",
                     &parts.cond.is_some_and(|cond| gcx.is_simple_counter_loop(cond.id)),
-                )?;
+                );
                 m.end()
             }
             (ast::StmtKind::Continue, _) => cx.stmt_node(s, "Continue", span, docs)?.0.end(),
@@ -295,29 +315,29 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, &hir::Stmt<'gcx>)> {
                 cx.stmt_node(s, "PlaceholderStatement", span, docs)?.0.end()
             }
             (ast::StmtKind::Return(ast), StmtKind::Return(hir)) => {
-                let (mut m, _) = cx.stmt_node(s, "Return", span, docs)?;
-                let value = ast.as_deref().zip(*hir);
-                serialize_opt(&mut m, "expression", value.map(|exprs| cx.w(exprs)))?;
-                serialize_opt(&mut m, "functionReturnParameters", cx.returns)?;
-                m.end()
+                cx.write_stmt(s, "Return", span, docs, |m| {
+                    let value = ast.as_deref().zip(*hir);
+                    m.opt("expression", value.map(|exprs| cx.w(exprs)));
+                    m.opt("functionReturnParameters", cx.returns);
+                })
             }
             (ast::StmtKind::Emit(path, args), StmtKind::Emit(hir)) => {
-                let (mut m, _) = cx.stmt_node(s, "EmitStatement", span, docs)?;
-                m.serialize_entry("eventCall", &cx.w(PathCall { path, args, hir }))?;
-                m.end()
+                cx.write_stmt(s, "EmitStatement", span, docs, |m| {
+                    m.entry("eventCall", &cx.w(PathCall { path, args, hir }));
+                })
             }
             (ast::StmtKind::Revert(path, args), StmtKind::Revert(hir)) => {
-                let (mut m, _) = cx.stmt_node(s, "RevertStatement", span, docs)?;
-                m.serialize_entry("errorCall", &cx.w(PathCall { path, args, hir }))?;
-                m.end()
+                cx.write_stmt(s, "RevertStatement", span, docs, |m| {
+                    m.entry("errorCall", &cx.w(PathCall { path, args, hir }));
+                })
             }
             (ast::StmtKind::Try(ast), StmtKind::Try(hir)) => {
-                let (mut m, _) = cx.stmt_node(s, "TryStatement", span, docs)?;
-                let call = Cx { parent: Parent { try_call: true, ..Parent::default() }, ..*cx };
-                m.serialize_entry("externalCall", &call.w((&*ast.expr, &hir.expr)))?;
-                let clauses = Seq(|| ast.clauses.iter().zip(hir.clauses).map(|c| cx.w(c)));
-                m.serialize_entry("clauses", &clauses)?;
-                m.end()
+                cx.write_stmt(s, "TryStatement", span, docs, |m| {
+                    let call = Cx { parent: Parent { try_call: true, ..Parent::default() }, ..*cx };
+                    m.entry("externalCall", &call.expr(ast.expr, &hir.expr));
+                    let clauses = Seq(|| ast.clauses.iter().zip(hir.clauses).map(|c| cx.w(c)));
+                    m.entry("clauses", &clauses);
+                })
             }
             _ => unreachable!("lowering does not match the AST: {stmt:?}"),
         }
@@ -339,9 +359,9 @@ struct Next<'a, 'ast, 'gcx>((&'a ast::Expr<'ast>, &'a hir::Expr<'gcx>));
 impl<'gcx> Serialize for W<'_, 'gcx, Next<'_, '_, 'gcx>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, Next((ast, hir))) = self;
-        let (mut m, _) = cx.node(s, "ExpressionStatement", ast.span)?;
-        m.serialize_entry("expression", &cx.w((*ast, *hir)))?;
-        m.end()
+        cx.write(s, "ExpressionStatement", ast.span, |m| {
+            m.entry("expression", &cx.expr(ast, hir));
+        })
     }
 }
 
@@ -351,7 +371,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::TryCatchClause<'_>, &hir::TryCatchCl
         let Self(cx, (ast, hir)) = self;
         let (mut m, id) = cx.node(s, "TryCatchClause", ast.span)?;
         let cx = Cx { block: id, ..*cx };
-        m.serialize_entry("errorName", &name(ast.name))?;
+        m.entry("errorName", &name(ast.name));
         if !ast.args.span.is_dummy() {
             let params = Params {
                 id: None,
@@ -360,9 +380,9 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::TryCatchClause<'_>, &hir::TryCatchCl
                 hir: hir.args,
                 scope: id,
             };
-            m.serialize_entry("parameters", &cx.w(params))?;
+            m.entry("parameters", &cx.w(params));
         }
-        m.serialize_entry(
+        m.entry(
             "block",
             &cx.w(Block {
                 docs: None,
@@ -371,7 +391,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::TryCatchClause<'_>, &hir::TryCatchCl
                 hir: &hir.block,
                 unchecked: false,
             }),
-        )?;
+        );
         m.end()
     }
 }
@@ -410,6 +430,30 @@ impl<'hir> ForParts<'hir> {
     }
 }
 
+/// The node of an expression that has the attributes that every expression but an identifier has.
+struct ExprNode<'a, 'gcx> {
+    cx: Cx<'a, 'gcx>,
+    span: Span,
+    hir: &'a hir::Expr<'gcx>,
+    parent: Parent<'gcx>,
+}
+
+impl<'gcx> ExprNode<'_, 'gcx> {
+    /// Writes the node: the fields that `fields` writes, then the attributes.
+    fn write<S: Serializer>(
+        &self,
+        s: S,
+        node_type: &str,
+        is_lvalue: bool,
+        fields: impl FnOnce(&mut Node<S::SerializeMap>),
+    ) -> Result<S::Ok, S::Error> {
+        let (mut m, _) = self.cx.node(s, node_type, self.span)?;
+        fields(&mut m);
+        self.cx.expr_attrs(&mut m, self.hir, self.parent, is_lvalue);
+        m.end()
+    }
+}
+
 impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (ast, hir)) = self;
@@ -418,119 +462,104 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
         let cx = Cx { parent: Parent::default(), ..*cx };
         let gcx = cx.gcx;
         let span = ast.span;
+        let e = ExprNode { cx, span, hir, parent };
         // The parentheses around a callee are no HIR node, and take the type of the callee.
         if let ast::ExprKind::Tuple(components) = &ast.kind
             && let [SpannedOption::Some(inner)] = components.as_slice()
             && !matches!(hir.kind, hir::ExprKind::Tuple(_))
         {
-            let (mut m, _) = cx.node(s, "TupleExpression", span)?;
-            m.serialize_entry("isInlineArray", &false)?;
-            m.serialize_entry("components", &[Some(cx.w((&**inner, hir)))])?;
-            cx.expr_attrs(&mut m, hir, parent, parent.lvalue)?;
-            return m.end();
+            return e.write(s, "TupleExpression", parent.lvalue, |m| {
+                m.entry("isInlineArray", &false);
+                m.entry("components", &[Some(cx.expr(inner, hir))]);
+            });
         }
         match (&ast.kind, &hir.kind) {
             (ast::ExprKind::Ident(ident), hir::ExprKind::Ident(resolutions)) => {
-                let (mut m, _) = cx.node(s, "Identifier", span)?;
-                m.serialize_entry("name", ident.as_str())?;
-                let declaration =
-                    gcx.resolved_expr(hir).and_then(|res| cx.reference(res, *ident, None));
-                serialize_opt(&mut m, "referencedDeclaration", declaration)?;
-                m.serialize_entry("overloadedDeclarations", &cx.overloads(resolutions))?;
-                m.serialize_entry("typeDescriptions", &ExprType::new(cx, hir).args(parent.args))?;
-                cx.argument_types(&mut m, parent)?;
-                m.end()
+                cx.write(s, "Identifier", span, |m| {
+                    m.entry("name", ident.as_str());
+                    let declaration =
+                        gcx.resolved_expr(hir).and_then(|res| cx.reference(res, *ident, None));
+                    m.opt("referencedDeclaration", declaration);
+                    m.entry("overloadedDeclarations", &cx.overloads(resolutions));
+                    m.entry("typeDescriptions", &ExprType::new(cx, hir).args(parent.args));
+                    cx.argument_types(m, parent);
+                })
             }
             (ast::ExprKind::Lit(lit, sub), hir::ExprKind::Lit(_)) => {
-                let (mut m, _) = cx.node(s, "Literal", span)?;
-                let (kind, value) = match &lit.kind {
-                    LitKind::Str(kind, bytes, _) => {
-                        let kind = match kind {
-                            StrKind::Str => "string",
-                            StrKind::Unicode => "unicodeString",
-                            StrKind::Hex => "hexString",
-                        };
-                        (kind, bytes.as_byte_str())
-                    }
-                    LitKind::Bool(_) => ("bool", lit.symbol.as_str().as_bytes()),
-                    _ => ("number", lit.symbol.as_str().as_bytes()),
-                };
-                m.serialize_entry("kind", kind)?;
-                serialize_opt(&mut m, "value", std::str::from_utf8(value).ok())?;
-                m.serialize_entry("hexValue", &hex::encode(value))?;
-                serialize_opt(&mut m, "subdenomination", sub.map(|sub| sub.to_str()))?;
-                cx.expr_attrs(&mut m, hir, parent, false)?;
-                m.end()
+                e.write(s, "Literal", false, |m| {
+                    let (kind, value) = match &lit.kind {
+                        LitKind::Str(kind, bytes, _) => {
+                            let kind = match kind {
+                                StrKind::Str => "string",
+                                StrKind::Unicode => "unicodeString",
+                                StrKind::Hex => "hexString",
+                            };
+                            (kind, bytes.as_byte_str())
+                        }
+                        LitKind::Bool(_) => ("bool", lit.symbol.as_str().as_bytes()),
+                        _ => ("number", lit.symbol.as_str().as_bytes()),
+                    };
+                    m.entry("kind", kind);
+                    m.opt("value", std::str::from_utf8(value).ok());
+                    m.entry("hexValue", &hex::encode(value));
+                    m.opt("subdenomination", sub.map(|sub| sub.to_str()));
+                })
             }
             (ast::ExprKind::Member(base, member), hir::ExprKind::Member(hir_base, _)) => {
-                let (mut m, _) = cx.node(s, "MemberAccess", span)?;
-                m.serialize_entry("memberName", member.as_str())?;
-                m.serialize_entry("memberLocation", &cx.src(member.span))?;
-                m.serialize_entry("expression", &cx.w((&**base, *hir_base)))?;
-                let res = gcx.resolved_expr(hir);
-                let base_res = gcx.resolved_expr(hir_base);
-                let declaration = res.and_then(|res| cx.reference(res, *member, base_res));
-                serialize_opt(&mut m, "referencedDeclaration", declaration)?;
-                cx.expr_attrs(&mut m, hir, parent, gcx.is_lvalue(hir.id))?;
-                m.end()
+                e.write(s, "MemberAccess", gcx.is_lvalue(hir.id), |m| {
+                    m.entry("memberName", member.as_str());
+                    m.entry("memberLocation", &cx.src(member.span));
+                    m.entry("expression", &cx.expr(base, hir_base));
+                    let res = gcx.resolved_expr(hir);
+                    let base_res = gcx.resolved_expr(hir_base);
+                    let declaration = res.and_then(|res| cx.reference(res, *member, base_res));
+                    m.opt("referencedDeclaration", declaration);
+                })
             }
             (
                 ast::ExprKind::Index(base, index),
                 hir::ExprKind::Index(..) | hir::ExprKind::Slice(..),
             ) => match (index, &hir.kind) {
-                (ast::IndexKind::Index(index), hir::ExprKind::Index(hir_base, hir_index)) => {
-                    let (mut m, _) = cx.node(s, "IndexAccess", span)?;
-                    m.serialize_entry("baseExpression", &cx.w((&**base, *hir_base)))?;
-                    let index = index.as_deref().zip(*hir_index);
-                    serialize_opt(&mut m, "indexExpression", index.map(|exprs| cx.w(exprs)))?;
-                    cx.expr_attrs(&mut m, hir, parent, gcx.is_lvalue(hir.id))?;
-                    m.end()
-                }
+                (ast::IndexKind::Index(index), hir::ExprKind::Index(hir_base, hir_index)) => e
+                    .write(s, "IndexAccess", gcx.is_lvalue(hir.id), |m| {
+                        m.entry("baseExpression", &cx.expr(base, hir_base));
+                        let index = index.as_deref().zip(*hir_index);
+                        m.opt("indexExpression", index.map(|exprs| cx.w(exprs)));
+                    }),
                 (
                     ast::IndexKind::Range(start, end),
                     hir::ExprKind::Slice(hir_base, h_start, h_end),
-                ) => {
-                    let (mut m, _) = cx.node(s, "IndexRangeAccess", span)?;
-                    m.serialize_entry("baseExpression", &cx.w((&**base, *hir_base)))?;
+                ) => e.write(s, "IndexRangeAccess", false, |m| {
+                    m.entry("baseExpression", &cx.expr(base, hir_base));
                     let start = start.as_deref().zip(*h_start);
-                    serialize_opt(&mut m, "startExpression", start.map(|exprs| cx.w(exprs)))?;
+                    m.opt("startExpression", start.map(|exprs| cx.w(exprs)));
                     let end = end.as_deref().zip(*h_end);
-                    serialize_opt(&mut m, "endExpression", end.map(|exprs| cx.w(exprs)))?;
-                    cx.expr_attrs(&mut m, hir, parent, false)?;
-                    m.end()
-                }
+                    m.opt("endExpression", end.map(|exprs| cx.w(exprs)));
+                }),
                 _ => unreachable!("lowering does not match the AST: {ast:?}"),
             },
-            (ast::ExprKind::Assign(lhs, op, rhs), hir::ExprKind::Assign(hir_lhs, _, hir_rhs)) => {
-                let (mut m, _) = cx.node(s, "Assignment", span)?;
-                let operator = format_args!("{}=", op.map_or("", |op| op.kind.to_str()));
-                m.serialize_entry("operator", &operator)?;
-                m.serialize_entry("leftHandSide", &cx.written().w((&**lhs, *hir_lhs)))?;
-                m.serialize_entry("rightHandSide", &cx.w((&**rhs, *hir_rhs)))?;
-                cx.expr_attrs(&mut m, hir, parent, false)?;
-                m.end()
-            }
-            (ast::ExprKind::Binary(lhs, op, rhs), hir::ExprKind::Binary(hir_lhs, _, hir_rhs)) => {
-                let (mut m, _) = cx.node(s, "BinaryOperation", span)?;
-                m.serialize_entry("operator", op.kind.to_str())?;
-                m.serialize_entry("leftExpression", &cx.w((&**lhs, *hir_lhs)))?;
-                m.serialize_entry("rightExpression", &cx.w((&**rhs, *hir_rhs)))?;
-                if op.kind.is_cmp() || op.kind.is_logical() {
-                    let common = gcx.solc_ty(hir.id);
-                    serialize_opt(
-                        &mut m,
-                        "commonType",
-                        common.map(|ty| cx.synthetic_type(ty, None)),
-                    )?;
-                } else {
-                    m.serialize_entry("commonType", &ExprType::new(cx, hir))?;
-                }
-                if let Some(function) = gcx.user_operator(hir.id) {
-                    m.serialize_entry("function", &cx.item_id(function))?;
-                }
-                cx.expr_attrs(&mut m, hir, parent, false)?;
-                m.end()
-            }
+            (ast::ExprKind::Assign(lhs, op, rhs), hir::ExprKind::Assign(hir_lhs, _, hir_rhs)) => e
+                .write(s, "Assignment", false, |m| {
+                    let operator = format_args!("{}=", op.map_or("", |op| op.kind.to_str()));
+                    m.entry("operator", &operator);
+                    m.entry("leftHandSide", &cx.written().expr(lhs, hir_lhs));
+                    m.entry("rightHandSide", &cx.expr(rhs, hir_rhs));
+                }),
+            (ast::ExprKind::Binary(lhs, op, rhs), hir::ExprKind::Binary(hir_lhs, _, hir_rhs)) => e
+                .write(s, "BinaryOperation", false, |m| {
+                    m.entry("operator", op.kind.to_str());
+                    m.entry("leftExpression", &cx.expr(lhs, hir_lhs));
+                    m.entry("rightExpression", &cx.expr(rhs, hir_rhs));
+                    if op.kind.is_cmp() || op.kind.is_logical() {
+                        let common = gcx.solc_ty(hir.id);
+                        m.opt("commonType", common.map(|ty| cx.synthetic_type(ty, None)));
+                    } else {
+                        m.entry("commonType", &ExprType::new(cx, hir));
+                    }
+                    if let Some(function) = gcx.user_operator(hir.id) {
+                        m.entry("function", &cx.item_id(function));
+                    }
+                }),
             (
                 ast::ExprKind::Unary(_, inner) | ast::ExprKind::Delete(inner),
                 hir::ExprKind::Unary(_, hir_inner) | hir::ExprKind::Delete(hir_inner),
@@ -541,134 +570,118 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, &hir::Expr<'gcx>)> {
                     }
                     _ => (true, "delete", true),
                 };
-                let (mut m, _) = cx.node(s, "UnaryOperation", span)?;
-                m.serialize_entry("prefix", &prefix)?;
-                m.serialize_entry("operator", operator)?;
-                let inner_cx = if writes { cx.written() } else { cx };
-                m.serialize_entry("subExpression", &inner_cx.w((&**inner, *hir_inner)))?;
-                if let Some(function) = gcx.user_operator(hir.id) {
-                    m.serialize_entry("function", &cx.item_id(function))?;
-                }
-                cx.expr_attrs(&mut m, hir, parent, false)?;
-                m.end()
+                e.write(s, "UnaryOperation", false, |m| {
+                    m.entry("prefix", &prefix);
+                    m.entry("operator", operator);
+                    let inner_cx = if writes { cx.written() } else { cx };
+                    m.entry("subExpression", &inner_cx.expr(inner, hir_inner));
+                    if let Some(function) = gcx.user_operator(hir.id) {
+                        m.entry("function", &cx.item_id(function));
+                    }
+                })
             }
             (
                 ast::ExprKind::Ternary(cond, then, other),
                 hir::ExprKind::Ternary(h_cond, h_then, h_other),
-            ) => {
-                let (mut m, _) = cx.node(s, "Conditional", span)?;
-                m.serialize_entry("condition", &cx.w((&**cond, *h_cond)))?;
-                m.serialize_entry("trueExpression", &cx.w((&**then, *h_then)))?;
-                m.serialize_entry("falseExpression", &cx.w((&**other, *h_other)))?;
-                cx.expr_attrs(&mut m, hir, parent, false)?;
-                m.end()
-            }
+            ) => e.write(s, "Conditional", false, |m| {
+                m.entry("condition", &cx.expr(cond, h_cond));
+                m.entry("trueExpression", &cx.expr(then, h_then));
+                m.entry("falseExpression", &cx.expr(other, h_other));
+            }),
             (ast::ExprKind::Tuple(components), hir::ExprKind::Tuple(hir_components)) => {
-                let (mut m, _) = cx.node(s, "TupleExpression", span)?;
-                m.serialize_entry("isInlineArray", &false)?;
-                let inner =
-                    Cx { parent: Parent { lvalue: parent.lvalue, ..Parent::default() }, ..cx };
-                let components = Seq(|| {
-                    components.iter().zip(*hir_components).map(|(ast, hir)| match (ast, hir) {
-                        (SpannedOption::Some(ast), Some(hir)) => Some(inner.w((&**ast, *hir))),
-                        _ => None,
-                    })
-                });
-                m.serialize_entry("components", &components)?;
-                cx.expr_attrs(&mut m, hir, parent, gcx.is_lvalue(hir.id))?;
-                m.end()
+                e.write(s, "TupleExpression", gcx.is_lvalue(hir.id), |m| {
+                    m.entry("isInlineArray", &false);
+                    let inner =
+                        Cx { parent: Parent { lvalue: parent.lvalue, ..Parent::default() }, ..cx };
+                    let components = Seq(|| {
+                        components.iter().zip(*hir_components).map(|(ast, hir)| match (ast, hir) {
+                            (SpannedOption::Some(ast), Some(hir)) => Some(inner.expr(ast, hir)),
+                            _ => None,
+                        })
+                    });
+                    m.entry("components", &components);
+                })
             }
             (ast::ExprKind::Array(components), hir::ExprKind::Array(hir_components)) => {
-                let (mut m, _) = cx.node(s, "TupleExpression", span)?;
-                m.serialize_entry("isInlineArray", &true)?;
-                let components = Seq(|| {
-                    components.iter().zip(*hir_components).map(|(ast, hir)| cx.w((&**ast, hir)))
-                });
-                m.serialize_entry("components", &components)?;
-                cx.expr_attrs(&mut m, hir, parent, false)?;
-                m.end()
+                e.write(s, "TupleExpression", false, |m| {
+                    m.entry("isInlineArray", &true);
+                    let components = Seq(|| {
+                        components.iter().zip(*hir_components).map(|(ast, hir)| cx.expr(ast, hir))
+                    });
+                    m.entry("components", &components);
+                })
             }
             (
                 ast::ExprKind::CallOptions(callee, options),
                 hir::ExprKind::CallOptions(hir_callee, hir_options),
-            ) => {
-                let (mut m, _) = cx.node(s, "FunctionCallOptions", span)?;
+            ) => e.write(s, "FunctionCallOptions", false, |m| {
                 let callee_cx =
                     Cx { parent: Parent { args: parent.args, ..Parent::default() }, ..cx };
-                m.serialize_entry("expression", &callee_cx.w((&**callee, *hir_callee)))?;
-                m.serialize_entry(
-                    "names",
-                    &Seq(|| options.iter().map(|option| Sym(option.name.name))),
-                )?;
+                m.entry("expression", &callee_cx.expr(callee, hir_callee));
+                m.entry("names", &Seq(|| options.iter().map(|option| Sym(option.name.name))));
                 let values = Seq(|| {
                     options
                         .iter()
                         .zip(hir_options.args)
-                        .map(|(option, hir)| cx.w((&*option.value, &hir.value)))
+                        .map(|(option, hir)| cx.expr(option.value, &hir.value))
                 });
-                m.serialize_entry("options", &values)?;
-                cx.expr_attrs(&mut m, hir, parent, false)?;
-                m.end()
-            }
-            (ast::ExprKind::Call(callee, args), hir::ExprKind::Call(hir_callee, hir_args)) => {
-                let (mut m, _) = cx.node(s, "FunctionCall", span)?;
-                let callee_cx =
-                    Cx { parent: Parent { args: Some(*hir_args), ..Parent::default() }, ..cx };
-                m.serialize_entry("expression", &callee_cx.w((&**callee, *hir_callee)))?;
-                let kind = call_kind(gcx, hir_callee);
-                cx.call_attrs(
-                    &mut m,
-                    named_args(args),
-                    &cx.w(Args(args, hir_args)),
-                    kind,
-                    parent.try_call,
-                )?;
-                cx.expr_attrs(&mut m, hir, parent, gcx.is_lvalue(hir.id))?;
-                m.end()
-            }
+                m.entry("options", &values);
+            }),
+            (ast::ExprKind::Call(callee, args), hir::ExprKind::Call(hir_callee, hir_args)) => e
+                .write(s, "FunctionCall", gcx.is_lvalue(hir.id), |m| {
+                    let callee_cx =
+                        Cx { parent: Parent { args: Some(*hir_args), ..Parent::default() }, ..cx };
+                    m.entry("expression", &callee_cx.expr(callee, hir_callee));
+                    let kind = call_kind(gcx, hir_callee);
+                    cx.call_attrs(
+                        m,
+                        named_args(args),
+                        &cx.w(Args(args, hir_args)),
+                        kind,
+                        parent.try_call,
+                    );
+                }),
             (ast::ExprKind::New(ty), hir::ExprKind::New(hir_ty)) => {
-                let (mut m, _) = cx.node(s, "NewExpression", span)?;
-                m.serialize_entry("typeName", &cx.w((ty, hir_ty)))?;
-                cx.expr_attrs(&mut m, hir, parent, false)?;
-                m.end()
+                e.write(s, "NewExpression", false, |m| {
+                    m.entry("typeName", &cx.w((ty, hir_ty)));
+                })
             }
             (ast::ExprKind::Type(ty), hir::ExprKind::Type(hir_ty)) => {
                 cx.w(TypeExpr { ast: ty, hir: hir_ty, expr: Some(hir), parent }).serialize(s)
             }
             (ast::ExprKind::Payable(args), hir::ExprKind::Payable(inner)) => {
-                let (mut m, _) = cx.node(s, "FunctionCall", span)?;
-                let hir_args = hir::CallArgs {
-                    span: args.span,
-                    kind: hir::CallArgsKind::Unnamed(std::slice::from_ref(*inner)),
-                };
-                // solc ends the callee with the `(` after it.
-                let keyword = span.with_hi(span.lo() + kw::Payable.as_str().len() as u32);
-                let callee =
-                    PayableCallee { span: keyword.to(cx.token_after(keyword)), args: hir_args };
-                m.serialize_entry("expression", &cx.w(callee))?;
-                let arguments = cx.w(Args(args, &hir_args));
-                cx.call_attrs(
-                    &mut m,
-                    named_args(args),
-                    &arguments,
-                    "typeConversion",
-                    parent.try_call,
-                )?;
-                cx.expr_attrs(&mut m, hir, parent, false)?;
-                m.end()
+                e.write(s, "FunctionCall", false, |m| {
+                    let hir_args = hir::CallArgs {
+                        span: args.span,
+                        kind: hir::CallArgsKind::Unnamed(std::slice::from_ref(*inner)),
+                    };
+                    // solc ends the callee with the `(` after it.
+                    let keyword = span.with_hi(span.lo() + kw::Payable.as_str().len() as u32);
+                    let callee =
+                        PayableCallee { span: keyword.to(cx.token_after(keyword)), args: hir_args };
+                    m.entry("expression", &cx.w(callee));
+                    let arguments = cx.w(Args(args, &hir_args));
+                    cx.call_attrs(
+                        m,
+                        named_args(args),
+                        &arguments,
+                        "typeConversion",
+                        parent.try_call,
+                    );
+                })
             }
             (ast::ExprKind::TypeCall(ty), hir::ExprKind::TypeCall(hir_ty)) => {
-                let (mut m, _) = cx.node(s, "FunctionCall", span)?;
-                let arg_ty = gcx.mk_ty(TyKind::Type(gcx.type_of_hir_ty(hir_ty)));
-                let callee = TypeCallee {
-                    span: span.with_hi(span.lo() + kw::Type.as_str().len() as u32),
-                    arg_ty,
-                };
-                m.serialize_entry("expression", &cx.w(callee))?;
-                let arg = TypeExpr { ast: ty, hir: hir_ty, expr: None, parent: Parent::default() };
-                cx.call_attrs(&mut m, &[], &[cx.w(arg)], "functionCall", parent.try_call)?;
-                cx.expr_attrs(&mut m, hir, parent, false)?;
-                m.end()
+                e.write(s, "FunctionCall", false, |m| {
+                    let arg_ty = gcx.mk_ty(TyKind::Type(gcx.type_of_hir_ty(hir_ty)));
+                    let callee = TypeCallee {
+                        span: span.with_hi(span.lo() + kw::Type.as_str().len() as u32),
+                        arg_ty,
+                    };
+                    m.entry("expression", &cx.w(callee));
+                    let arg =
+                        TypeExpr { ast: ty, hir: hir_ty, expr: None, parent: Parent::default() };
+                    cx.call_attrs(m, &[], &[cx.w(arg)], "functionCall", parent.try_call);
+                })
             }
             _ => unreachable!("lowering does not match the AST: {ast:?}"),
         }
@@ -741,20 +754,17 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
     /// Writes the attributes of a call that follow its callee.
     fn call_attrs<M: SerializeMap>(
         self,
-        m: &mut M,
+        m: &mut Node<M>,
         named: &[ast::NamedArg<'_>],
         arguments: &impl Serialize,
         kind: &str,
         try_call: bool,
-    ) -> Result<(), M::Error> {
-        m.serialize_entry("names", &Seq(|| named.iter().map(|arg| Sym(arg.name.name))))?;
-        m.serialize_entry(
-            "nameLocations",
-            &Seq(|| named.iter().map(|arg| self.src(arg.name.span))),
-        )?;
-        m.serialize_entry("arguments", arguments)?;
-        m.serialize_entry("tryCall", &try_call)?;
-        m.serialize_entry("kind", kind)
+    ) {
+        m.entry("names", &Seq(|| named.iter().map(|arg| Sym(arg.name.name))));
+        m.entry("nameLocations", &Seq(|| named.iter().map(|arg| self.src(arg.name.span))));
+        m.entry("arguments", arguments);
+        m.entry("tryCall", &try_call);
+        m.entry("kind", kind);
     }
 }
 
@@ -786,16 +796,16 @@ impl<'gcx> Serialize for W<'_, 'gcx, PayableCallee<'gcx>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, PayableCallee { span, args }) = self;
         let gcx = cx.gcx;
-        let (mut m, _) = cx.node(s, "ElementaryTypeNameExpression", *span)?;
-        m.serialize_entry("typeName", &cx.w(ElementaryName(*span, ElementaryType::Address(true))))?;
-        let ty = gcx.mk_ty(TyKind::Type(gcx.types.address_payable));
-        m.serialize_entry("typeDescriptions", &cx.synthetic_type(ty, None))?;
-        cx.argument_types(&mut m, Parent { args: Some(*args), ..Parent::default() })?;
-        m.serialize_entry("isLValue", &false)?;
-        m.serialize_entry("isPure", &true)?;
-        m.serialize_entry("isConstant", &false)?;
-        m.serialize_entry("lValueRequested", &false)?;
-        m.end()
+        cx.write(s, "ElementaryTypeNameExpression", *span, |m| {
+            m.entry("typeName", &cx.w(ElementaryName(*span, ElementaryType::Address(true))));
+            let ty = gcx.mk_ty(TyKind::Type(gcx.types.address_payable));
+            m.entry("typeDescriptions", &cx.synthetic_type(ty, None));
+            cx.argument_types(m, Parent { args: Some(*args), ..Parent::default() });
+            m.entry("isLValue", &false);
+            m.entry("isPure", &true);
+            m.entry("isConstant", &false);
+            m.entry("lValueRequested", &false);
+        })
     }
 }
 
@@ -805,13 +815,13 @@ struct ElementaryName(Span, ElementaryType);
 impl Serialize for W<'_, '_, ElementaryName> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, ElementaryName(span, ty)) = self;
-        let (mut m, _) = cx.node(s, "ElementaryTypeName", *span)?;
-        m.serialize_entry("name", &elementary_name(*ty))?;
-        m.serialize_entry("typeDescriptions", &Empty)?;
-        if *ty == ElementaryType::Address(true) {
-            m.serialize_entry("stateMutability", "payable")?;
-        }
-        m.end()
+        cx.write(s, "ElementaryTypeName", *span, |m| {
+            m.entry("name", &elementary_name(*ty));
+            m.entry("typeDescriptions", &Empty);
+            if *ty == ElementaryType::Address(true) {
+                m.entry("stateMutability", "payable");
+            }
+        })
     }
 }
 
@@ -826,14 +836,15 @@ impl<'gcx> Serialize for W<'_, 'gcx, TypeCallee<'gcx>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, TypeCallee { span, arg_ty }) = self;
         let gcx = cx.gcx;
-        let (mut m, _) = cx.node(s, "Identifier", *span)?;
-        m.serialize_entry("name", "type")?;
-        m.serialize_entry("referencedDeclaration", &-27)?;
-        m.serialize_entry("overloadedDeclarations", &[(); 0])?;
-        let ty = gcx.mk_ty_fn_with_kind(TyFnKind::Builtin, &[], hir::StateMutability::Pure, &[]);
-        m.serialize_entry("typeDescriptions", &cx.synthetic_type(ty, Some("metatype")))?;
-        m.serialize_entry("argumentTypes", &[cx.synthetic_type(*arg_ty, None)])?;
-        m.end()
+        cx.write(s, "Identifier", *span, |m| {
+            m.entry("name", "type");
+            m.entry("referencedDeclaration", &-27);
+            m.entry("overloadedDeclarations", &[(); 0]);
+            let ty =
+                gcx.mk_ty_fn_with_kind(TyFnKind::Builtin, &[], hir::StateMutability::Pure, &[]);
+            m.entry("typeDescriptions", &cx.synthetic_type(ty, Some("metatype")));
+            m.entry("argumentTypes", &[cx.synthetic_type(*arg_ty, None)]);
+        })
     }
 }
 
@@ -853,34 +864,34 @@ impl<'gcx> Serialize for W<'_, 'gcx, TypeExpr<'_, '_, 'gcx>> {
         let ty = expr
             .and_then(|expr| gcx.type_of_expr(expr.id))
             .unwrap_or_else(|| gcx.mk_ty(TyKind::Type(gcx.type_of_hir_ty(hir))));
-        let attrs = |m: &mut S::SerializeMap| -> Result<(), S::Error> {
-            m.serialize_entry("typeDescriptions", &cx.synthetic_type(ty, None))?;
-            cx.argument_types(m, *parent)?;
-            m.serialize_entry("isLValue", &false)?;
-            m.serialize_entry("isPure", &true)?;
-            m.serialize_entry("isConstant", &false)?;
-            m.serialize_entry("lValueRequested", &false)
+        let attrs = |m: &mut Node<S::SerializeMap>| {
+            m.entry("typeDescriptions", &cx.synthetic_type(ty, None));
+            cx.argument_types(m, *parent);
+            m.entry("isLValue", &false);
+            m.entry("isPure", &true);
+            m.entry("isConstant", &false);
+            m.entry("lValueRequested", &false);
         };
         match (&ast.kind, &hir.kind) {
             (ast::TypeKind::Elementary(elementary), _) => {
-                let (mut m, _) = cx.node(s, "ElementaryTypeNameExpression", ast.span)?;
-                m.serialize_entry("typeName", &cx.w(ElementaryName(ast.span, *elementary)))?;
-                attrs(&mut m)?;
-                m.end()
+                cx.write(s, "ElementaryTypeNameExpression", ast.span, |m| {
+                    m.entry("typeName", &cx.w(ElementaryName(ast.span, *elementary)));
+                    attrs(m);
+                })
             }
             (ast::TypeKind::Array(array), hir::TypeKind::Array(hir_array)) => {
-                let (mut m, _) = cx.node(s, "IndexAccess", ast.span)?;
-                let element = TypeExpr {
-                    ast: &array.element,
-                    hir: &hir_array.element,
-                    expr: None,
-                    parent: Parent::default(),
-                };
-                m.serialize_entry("baseExpression", &cx.w(element))?;
-                let size = array.size.as_deref().zip(hir_array.size);
-                serialize_opt(&mut m, "indexExpression", size.map(|exprs| cx.w(exprs)))?;
-                attrs(&mut m)?;
-                m.end()
+                cx.write(s, "IndexAccess", ast.span, |m| {
+                    let element = TypeExpr {
+                        ast: &array.element,
+                        hir: &hir_array.element,
+                        expr: None,
+                        parent: Parent::default(),
+                    };
+                    m.entry("baseExpression", &cx.w(element));
+                    let size = array.size.as_deref().zip(hir_array.size);
+                    m.opt("indexExpression", size.map(|exprs| cx.w(exprs)));
+                    attrs(m);
+                })
             }
             (ast::TypeKind::Custom(path), hir::TypeKind::Custom(item)) => {
                 // Lowering resolved the last segment in the scope of its contract.
@@ -908,15 +919,16 @@ impl<'gcx> Serialize for W<'_, 'gcx, PathCall<'_, '_, 'gcx>> {
         let hir::ExprKind::Call(callee, hir_args) = &hir.kind else {
             unreachable!("lowering does not match the AST: {path:?}")
         };
-        let (mut m, _) = cx.node(s, "FunctionCall", path.span().to(args.span))?;
-        let parent = Parent { args: Some(*hir_args), ..Parent::default() };
-        let res = resolve_path(*cx, path.segments());
-        let callee = PathExpr { segments: path.segments(), res: &res, last: Some(callee), parent };
-        m.serialize_entry("expression", &cx.w(callee))?;
-        let arguments = cx.w(Args(args, hir_args));
-        cx.call_attrs(&mut m, named_args(args), &arguments, "functionCall", false)?;
-        cx.expr_attrs(&mut m, hir, Parent::default(), false)?;
-        m.end()
+        cx.write(s, "FunctionCall", path.span().to(args.span), |m| {
+            let parent = Parent { args: Some(*hir_args), ..Parent::default() };
+            let res = resolve_path(*cx, path.segments());
+            let callee =
+                PathExpr { segments: path.segments(), res: &res, last: Some(callee), parent };
+            m.entry("expression", &cx.w(callee));
+            let arguments = cx.w(Args(args, hir_args));
+            cx.call_attrs(m, named_args(args), &arguments, "functionCall", false);
+            cx.expr_attrs(m, hir, Parent::default(), false);
+        })
     }
 }
 
@@ -964,48 +976,50 @@ impl<'gcx> Serialize for W<'_, 'gcx, PathExpr<'_, 'gcx>> {
             }
         };
         let span = segments[0].span.to(ident.span);
-        let descriptions = |m: &mut S::SerializeMap| match (last, ty) {
-            (Some(last), _) => {
-                m.serialize_entry("typeDescriptions", &ExprType::new(*cx, last).args(parent.args))
-            }
-            (None, Some(ty)) => m.serialize_entry("typeDescriptions", &cx.synthetic_type(ty, None)),
-            (None, None) => m.serialize_entry("typeDescriptions", &Empty),
+        let descriptions = |m: &mut Node<S::SerializeMap>| {
+            match (last, ty) {
+                (Some(last), _) => {
+                    m.entry("typeDescriptions", &ExprType::new(*cx, last).args(parent.args))
+                }
+                (None, Some(ty)) => m.entry("typeDescriptions", &cx.synthetic_type(ty, None)),
+                (None, None) => m.entry("typeDescriptions", &Empty),
+            };
         };
         if rest.is_empty() {
             let (mut m, _) = cx.node(s, "Identifier", span)?;
-            m.serialize_entry("name", ident.as_str())?;
+            m.entry("name", ident.as_str());
             let declaration = res_last.and_then(|res| cx.reference(res, ident, None));
-            serialize_opt(&mut m, "referencedDeclaration", declaration)?;
+            m.opt("referencedDeclaration", declaration);
             let overloads = match last.map(|last| &last.kind) {
                 Some(hir::ExprKind::Ident(resolutions)) => cx.overloads(resolutions),
                 _ => Vec::new(),
             };
-            m.serialize_entry("overloadedDeclarations", &overloads)?;
-            descriptions(&mut m)?;
-            cx.argument_types(&mut m, *parent)?;
+            m.entry("overloadedDeclarations", &overloads);
+            descriptions(&mut m);
+            cx.argument_types(&mut m, *parent);
             return m.end();
         }
-        let (mut m, _) = cx.node(s, "MemberAccess", span)?;
-        m.serialize_entry("memberName", ident.as_str())?;
-        m.serialize_entry("memberLocation", &cx.src(ident.span))?;
-        let base = PathExpr {
-            segments: rest,
-            res: &res[..rest.len()],
-            last: None,
-            parent: Parent::default(),
-        };
-        m.serialize_entry("expression", &cx.w(base))?;
-        let base_res = res[rest.len() - 1];
-        let declaration = res_last.and_then(|res| cx.reference(res, ident, base_res));
-        serialize_opt(&mut m, "referencedDeclaration", declaration)?;
-        descriptions(&mut m)?;
-        cx.argument_types(&mut m, *parent)?;
-        m.serialize_entry("isLValue", &false)?;
-        // A member of a module is pure, but a member of a contract is not.
-        let of_module = res.len().checked_sub(2).and_then(|i| res[i]);
-        m.serialize_entry("isPure", &matches!(of_module, Some(Res::Namespace(_))))?;
-        m.serialize_entry("isConstant", &false)?;
-        m.serialize_entry("lValueRequested", &false)?;
-        m.end()
+        cx.write(s, "MemberAccess", span, |m| {
+            m.entry("memberName", ident.as_str());
+            m.entry("memberLocation", &cx.src(ident.span));
+            let base = PathExpr {
+                segments: rest,
+                res: &res[..rest.len()],
+                last: None,
+                parent: Parent::default(),
+            };
+            m.entry("expression", &cx.w(base));
+            let base_res = res[rest.len() - 1];
+            let declaration = res_last.and_then(|res| cx.reference(res, ident, base_res));
+            m.opt("referencedDeclaration", declaration);
+            descriptions(m);
+            cx.argument_types(m, *parent);
+            m.entry("isLValue", &false);
+            // A member of a module is pure, but a member of a contract is not.
+            let of_module = res.len().checked_sub(2).and_then(|i| res[i]);
+            m.entry("isPure", &matches!(of_module, Some(Res::Namespace(_))));
+            m.entry("isConstant", &false);
+            m.entry("lValueRequested", &false);
+        })
     }
 }

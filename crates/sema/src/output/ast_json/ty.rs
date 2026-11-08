@@ -1,13 +1,13 @@
 //! Type names and type descriptions.
 
-use super::{Cx, Empty, IdentPath, Params, Sym, W, name, serialize_opt};
+use super::{Cx, Empty, IdentPath, Node, Params, Sym, W, name};
 use crate::{
     builtins::Builtin,
     eval::ConstValue,
     hir,
     ty::{Component, Gcx, Ty, TyFn, TyFnKind, TyKind, TySolcPrinter},
 };
-use serde::ser::{Error as _, Serialize, SerializeMap, Serializer};
+use serde::ser::{Error as _, Serialize, Serializer};
 use serde_json::value::RawValue;
 use solar_ast::{self as ast, DataLocation, ElementaryType};
 use solar_data_structures::map::FxHashMap;
@@ -99,9 +99,9 @@ impl TypeDescriptions<'_, '_> {
             printer(&mut string).print(ty)
         }
         .unwrap();
-        let mut m = s.serialize_map(None)?;
-        m.serialize_entry("typeIdentifier", &identifier)?;
-        m.serialize_entry("typeString", &string)?;
+        let mut m = Node::object(s)?;
+        m.entry("typeIdentifier", &identifier);
+        m.entry("typeString", &string);
         m.end()
     }
 }
@@ -151,9 +151,9 @@ impl Serialize for ExprType<'_, '_, '_> {
         {
             // The call of an error has the magic type `error`.
             if matches!(callee_ty.kind, TyKind::Error(..)) {
-                let mut m = s.serialize_map(Some(2))?;
-                m.serialize_entry("typeIdentifier", "t_error")?;
-                m.serialize_entry("typeString", "error")?;
+                let mut m = Node::object(s)?;
+                m.entry("typeIdentifier", "t_error");
+                m.entry("typeString", "error");
                 return m.end();
             }
             // Before Byzantium, the dynamically encoded value of an external call has no size to
@@ -165,9 +165,9 @@ impl Serialize for ExprType<'_, '_, '_> {
                 && !ret.encodes_as_slot()
                 && ret.is_dynamically_encoded(gcx)
             {
-                let mut m = s.serialize_map(Some(2))?;
-                m.serialize_entry("typeIdentifier", "t_inaccessible")?;
-                m.serialize_entry("typeString", "inaccessible dynamic type")?;
+                let mut m = Node::object(s)?;
+                m.entry("typeIdentifier", "t_inaccessible");
+                m.entry("typeString", "inaccessible dynamic type");
                 return m.end();
             }
         }
@@ -342,57 +342,54 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Type<'_>, &hir::Type<'gcx>)> {
         let descriptions = TypeDescriptions::new(*cx, gcx.type_of_hir_ty(hir_ty), true);
         match (&ty.kind, &hir_ty.kind) {
             (ast::TypeKind::Elementary(elementary), _) => {
-                let (mut m, _) = cx.node(s, "ElementaryTypeName", ty.span)?;
-                m.serialize_entry("name", &elementary_name(*elementary))?;
-                m.serialize_entry("typeDescriptions", &descriptions)?;
-                if let ElementaryType::Address(payable) = elementary
-                    && (*payable || !cx.in_mapping_key)
-                {
-                    m.serialize_entry(
-                        "stateMutability",
-                        if *payable { "payable" } else { "nonpayable" },
-                    )?;
-                }
-                m.end()
+                cx.write(s, "ElementaryTypeName", ty.span, |m| {
+                    m.entry("name", &elementary_name(*elementary));
+                    m.entry("typeDescriptions", &descriptions);
+                    if let ElementaryType::Address(payable) = elementary
+                        && (*payable || !cx.in_mapping_key)
+                    {
+                        m.entry("stateMutability", if *payable { "payable" } else { "nonpayable" });
+                    }
+                })
             }
             (ast::TypeKind::Custom(path), hir::TypeKind::Custom(item)) => {
-                let (mut m, _) = cx.node(s, "UserDefinedTypeName", ty.span)?;
-                let declaration = Some(cx.item_id(*item));
-                m.serialize_entry("pathNode", &cx.w(IdentPath { path, declaration }))?;
-                m.serialize_entry("referencedDeclaration", &declaration)?;
-                m.serialize_entry("typeDescriptions", &descriptions)?;
-                m.end()
+                cx.write(s, "UserDefinedTypeName", ty.span, |m| {
+                    let declaration = Some(cx.item_id(*item));
+                    m.entry("pathNode", &cx.w(IdentPath { path, declaration }));
+                    m.entry("referencedDeclaration", &declaration);
+                    m.entry("typeDescriptions", &descriptions);
+                })
             }
             (ast::TypeKind::Array(array), hir::TypeKind::Array(hir_array)) => {
-                let (mut m, _) = cx.node(s, "ArrayTypeName", ty.span)?;
-                let element = Cx { in_mapping_key: cx.in_mapping_key || cx.in_local, ..*cx };
-                m.serialize_entry("baseType", &element.w((&array.element, &hir_array.element)))?;
-                let length = array.size.as_deref().zip(hir_array.size);
-                serialize_opt(&mut m, "length", length.map(|exprs| cx.w(exprs)))?;
-                m.serialize_entry("typeDescriptions", &descriptions)?;
-                m.end()
+                cx.write(s, "ArrayTypeName", ty.span, |m| {
+                    let element = Cx { in_mapping_key: cx.in_mapping_key || cx.in_local, ..*cx };
+                    m.entry("baseType", &element.w((&array.element, &hir_array.element)));
+                    let length = array.size.as_deref().zip(hir_array.size);
+                    m.opt("length", length.map(|exprs| cx.w(exprs)));
+                    m.entry("typeDescriptions", &descriptions);
+                })
             }
             (ast::TypeKind::Mapping(mapping), hir::TypeKind::Mapping(hir_mapping)) => {
-                let (mut m, _) = cx.node(s, "Mapping", ty.span)?;
-                m.serialize_entry(
-                    "keyType",
-                    &Cx { in_mapping_key: true, ..*cx }.w((&mapping.key, &hir_mapping.key)),
-                )?;
-                m.serialize_entry("keyName", &name(mapping.key_name))?;
-                m.serialize_entry("keyNameLocation", &cx.src(span_of(mapping.key_name)))?;
-                m.serialize_entry("valueType", &cx.w((&mapping.value, &hir_mapping.value)))?;
-                m.serialize_entry("valueName", &name(mapping.value_name))?;
-                m.serialize_entry("valueNameLocation", &cx.src(span_of(mapping.value_name)))?;
-                m.serialize_entry("typeDescriptions", &descriptions)?;
-                m.end()
+                cx.write(s, "Mapping", ty.span, |m| {
+                    m.entry(
+                        "keyType",
+                        &Cx { in_mapping_key: true, ..*cx }.w((&mapping.key, &hir_mapping.key)),
+                    );
+                    m.entry("keyName", &name(mapping.key_name));
+                    m.entry("keyNameLocation", &cx.src(span_of(mapping.key_name)));
+                    m.entry("valueType", &cx.w((&mapping.value, &hir_mapping.value)));
+                    m.entry("valueName", &name(mapping.value_name));
+                    m.entry("valueNameLocation", &cx.src(span_of(mapping.value_name)));
+                    m.entry("typeDescriptions", &descriptions);
+                })
             }
             (ast::TypeKind::Function(function), hir::TypeKind::Function(hir_function)) => {
                 // solc ends a function type with the next token, which also holds its empty list of
                 // returns.
                 let next = cx.token_after(ty.span);
                 let (mut m, id) = cx.node(s, "FunctionTypeName", ty.span.with_hi(next.hi()))?;
-                m.serialize_entry("visibility", hir_function.visibility.to_str())?;
-                m.serialize_entry("stateMutability", hir_function.state_mutability.to_str())?;
+                m.entry("visibility", hir_function.visibility.to_str());
+                m.entry("stateMutability", hir_function.state_mutability.to_str());
                 let parameters = Params {
                     id: None,
                     span: function.parameters.span,
@@ -400,7 +397,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Type<'_>, &hir::Type<'gcx>)> {
                     hir: hir_function.parameters,
                     scope: id,
                 };
-                m.serialize_entry("parameterTypes", &cx.w(parameters))?;
+                m.entry("parameterTypes", &cx.w(parameters));
                 let span = function.returns.as_ref().map_or(next.shrink_to_lo(), |r| r.span);
                 let returns = Params {
                     id: None,
@@ -409,8 +406,8 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Type<'_>, &hir::Type<'gcx>)> {
                     hir: hir_function.returns,
                     scope: id,
                 };
-                m.serialize_entry("returnParameterTypes", &cx.w(returns))?;
-                m.serialize_entry("typeDescriptions", &descriptions)?;
+                m.entry("returnParameterTypes", &cx.w(returns));
+                m.entry("typeDescriptions", &descriptions);
                 m.end()
             }
             _ => unreachable!("lowering does not match the AST: {ty:?}"),

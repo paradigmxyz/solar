@@ -9,10 +9,10 @@
 //! the identifiers that name a variable: those of the block, and of the Yul functions that lowering
 //! hoisted out of it, are the ones within its span.
 
-use super::{Cx, Seq, Sym, W};
+use super::{Cx, Node, Seq, Sym, W};
 use crate::ty::YulReference;
 use alloy_primitives::hex;
-use serde::ser::{Serialize, SerializeMap, Serializer};
+use serde::ser::{Serialize, Serializer};
 use solar_ast::{self as ast, LitKind, yul};
 use solar_interface::{Ident, Span, sym};
 
@@ -50,16 +50,16 @@ struct ExternalReference<'a, 'gcx> {
 impl Serialize for ExternalReference<'_, '_> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self { cx, reference: YulReference { span, suffix, declaration } } = self;
-        let mut m = s.serialize_map(None)?;
-        m.serialize_entry("src", &cx.src(*span))?;
-        m.serialize_entry("declaration", &cx.item_id(*declaration))?;
-        m.serialize_entry("isSlot", &(*suffix == Some(sym::slot)))?;
-        m.serialize_entry("isOffset", &(*suffix == Some(sym::offset)))?;
+        let mut m = Node::object(s)?;
+        m.entry("src", &cx.src(*span));
+        m.entry("declaration", &cx.item_id(*declaration));
+        m.entry("isSlot", &(*suffix == Some(sym::slot)));
+        m.entry("isOffset", &(*suffix == Some(sym::offset)));
         if let Some(suffix) = suffix {
-            m.serialize_entry("suffix", &Sym(*suffix))?;
+            m.entry("suffix", &Sym(*suffix));
         }
         // The only identifiers that take more than a stack slot have a suffix that takes one.
-        m.serialize_entry("valueSize", &1)?;
+        m.entry("valueSize", &1);
         m.end()
     }
 }
@@ -68,7 +68,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, &yul::Block<'_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, block) = self;
         let mut m = cx.yul_node(s, "YulBlock", block.span)?;
-        m.serialize_entry("statements", &Seq(|| block.stmts.iter().map(|stmt| cx.w(stmt))))?;
+        m.entry("statements", &Seq(|| block.stmts.iter().map(|stmt| cx.w(stmt))));
         m.end()
     }
 }
@@ -81,42 +81,39 @@ impl<'gcx> Serialize for W<'_, 'gcx, &yul::Stmt<'_>> {
             yul::StmtKind::Block(block) => cx.w(block).serialize(s),
             yul::StmtKind::AssignSingle(path, value) => {
                 let mut m = cx.yul_node(s, "YulAssignment", span)?;
-                m.serialize_entry("variableNames", &[cx.w(&**path)])?;
-                m.serialize_entry("value", &cx.w(value))?;
+                m.entry("variableNames", &[cx.w(&**path)]);
+                m.entry("value", &cx.w(value));
                 m.end()
             }
             yul::StmtKind::AssignMulti(paths, value) => {
                 let mut m = cx.yul_node(s, "YulAssignment", span)?;
-                m.serialize_entry(
-                    "variableNames",
-                    &Seq(|| paths.iter().map(|path| cx.w(&**path))),
-                )?;
-                m.serialize_entry("value", &cx.w(value))?;
+                m.entry("variableNames", &Seq(|| paths.iter().map(|path| cx.w(&**path))));
+                m.entry("value", &cx.w(value));
                 m.end()
             }
             yul::StmtKind::Expr(expr) => {
                 let mut m = cx.yul_node(s, "YulExpressionStatement", span)?;
-                m.serialize_entry("expression", &cx.w(expr))?;
+                m.entry("expression", &cx.w(expr));
                 m.end()
             }
             yul::StmtKind::If(condition, body) => {
                 let mut m = cx.yul_node(s, "YulIf", span)?;
-                m.serialize_entry("condition", &cx.w(condition))?;
-                m.serialize_entry("body", &cx.w(body))?;
+                m.entry("condition", &cx.w(condition));
+                m.entry("body", &cx.w(body));
                 m.end()
             }
             yul::StmtKind::For(for_) => {
                 let mut m = cx.yul_node(s, "YulForLoop", span)?;
-                m.serialize_entry("pre", &cx.w(&for_.init))?;
-                m.serialize_entry("condition", &cx.w(&for_.cond))?;
-                m.serialize_entry("post", &cx.w(&for_.step))?;
-                m.serialize_entry("body", &cx.w(&for_.body))?;
+                m.entry("pre", &cx.w(&for_.init));
+                m.entry("condition", &cx.w(&for_.cond));
+                m.entry("post", &cx.w(&for_.step));
+                m.entry("body", &cx.w(&for_.body));
                 m.end()
             }
             yul::StmtKind::Switch(switch) => {
                 let mut m = cx.yul_node(s, "YulSwitch", span)?;
-                m.serialize_entry("expression", &cx.w(&switch.selector))?;
-                m.serialize_entry("cases", &Seq(|| switch.cases.iter().map(|case| cx.w(case))))?;
+                m.entry("expression", &cx.w(&switch.selector));
+                m.entry("cases", &Seq(|| switch.cases.iter().map(|case| cx.w(case))));
                 m.end()
             }
             yul::StmtKind::Leave => cx.yul_node(s, "YulLeave", span)?.end(),
@@ -124,22 +121,22 @@ impl<'gcx> Serialize for W<'_, 'gcx, &yul::Stmt<'_>> {
             yul::StmtKind::Continue => cx.yul_node(s, "YulContinue", span)?.end(),
             yul::StmtKind::FunctionDef(function) => {
                 let mut m = cx.yul_node(s, "YulFunctionDefinition", span)?;
-                m.serialize_entry("name", &Sym(function.name.name))?;
+                m.entry("name", &Sym(function.name.name));
                 // solc leaves out an empty list.
                 if !function.parameters.is_empty() {
-                    m.serialize_entry("parameters", &cx.w(TypedNames(function.parameters)))?;
+                    m.entry("parameters", &cx.w(TypedNames(function.parameters)));
                 }
                 if !function.returns.is_empty() {
-                    m.serialize_entry("returnVariables", &cx.w(TypedNames(function.returns)))?;
+                    m.entry("returnVariables", &cx.w(TypedNames(function.returns)));
                 }
-                m.serialize_entry("body", &cx.w(&function.body))?;
+                m.entry("body", &cx.w(&function.body));
                 m.end()
             }
             yul::StmtKind::VarDecl(names, value) => {
                 let mut m = cx.yul_node(s, "YulVariableDeclaration", span)?;
-                m.serialize_entry("variables", &cx.w(TypedNames(names)))?;
+                m.entry("variables", &cx.w(TypedNames(names)));
                 if let Some(value) = value {
-                    m.serialize_entry("value", &cx.w(value))?;
+                    m.entry("value", &cx.w(value));
                 }
                 m.end()
             }
@@ -163,9 +160,9 @@ impl Serialize for W<'_, '_, TypedName<'_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, TypedName(name)) = self;
         let mut m = cx.yul_node(s, "YulTypedName", name.span)?;
-        m.serialize_entry("name", &Sym(name.name))?;
+        m.entry("name", &Sym(name.name));
         // solc dropped the types of Yul, and keeps the field.
-        m.serialize_entry("type", "")?;
+        m.entry("type", "");
         m.end()
     }
 }
@@ -175,10 +172,10 @@ impl Serialize for W<'_, '_, &yul::StmtSwitchCase<'_>> {
         let Self(cx, case) = self;
         let mut m = cx.yul_node(s, "YulCase", case.span)?;
         match &case.constant {
-            Some(constant) => m.serialize_entry("value", &cx.w(Literal(constant)))?,
-            None => m.serialize_entry("value", "default")?,
-        }
-        m.serialize_entry("body", &cx.w(&case.body))?;
+            Some(constant) => m.entry("value", &cx.w(Literal(constant))),
+            None => m.entry("value", "default"),
+        };
+        m.entry("body", &cx.w(&case.body));
         m.end()
     }
 }
@@ -190,11 +187,8 @@ impl Serialize for W<'_, '_, &yul::Expr<'_>> {
             yul::ExprKind::Path(path) => cx.w(&**path).serialize(s),
             yul::ExprKind::Call(call) => {
                 let mut m = cx.yul_node(s, "YulFunctionCall", *span)?;
-                m.serialize_entry("functionName", &cx.w(ast::PathSlice::from_ref(&call.name)))?;
-                m.serialize_entry(
-                    "arguments",
-                    &Seq(|| call.arguments.iter().map(|arg| cx.w(arg))),
-                )?;
+                m.entry("functionName", &cx.w(ast::PathSlice::from_ref(&call.name)));
+                m.entry("arguments", &Seq(|| call.arguments.iter().map(|arg| cx.w(arg))));
                 m.end()
             }
             yul::ExprKind::Lit(lit) => cx.w(Literal(lit)).serialize(s),
@@ -207,7 +201,7 @@ impl Serialize for W<'_, '_, &ast::PathSlice> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, path) = self;
         let mut m = cx.yul_node(s, "YulIdentifier", path.span())?;
-        m.serialize_entry("name", &format_args!("{path}"))?;
+        m.entry("name", &format_args!("{path}"));
         m.end()
     }
 }
@@ -222,23 +216,23 @@ impl Serialize for W<'_, '_, Literal<'_>> {
         match lit.kind {
             LitKind::Str(_, bytes, _) => {
                 let bytes = bytes.as_byte_str();
-                m.serialize_entry("kind", "string")?;
-                m.serialize_entry("hexValue", &hex::encode(bytes))?;
+                m.entry("kind", "string");
+                m.entry("hexValue", &hex::encode(bytes));
                 // solc leaves out the value of a string that is not UTF-8.
                 if let Ok(value) = std::str::from_utf8(bytes) {
-                    m.serialize_entry("value", value)?;
+                    m.entry("value", value);
                 }
             }
             LitKind::Bool(_) => {
-                m.serialize_entry("kind", "bool")?;
-                m.serialize_entry("value", &Sym(lit.symbol))?;
+                m.entry("kind", "bool");
+                m.entry("value", &Sym(lit.symbol));
             }
             _ => {
-                m.serialize_entry("kind", "number")?;
-                m.serialize_entry("value", &Sym(lit.symbol))?;
+                m.entry("kind", "number");
+                m.entry("value", &Sym(lit.symbol));
             }
         }
-        m.serialize_entry("type", "")?;
+        m.entry("type", "");
         m.end()
     }
 }
@@ -250,11 +244,11 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         s: S,
         node_type: &str,
         span: Span,
-    ) -> Result<S::SerializeMap, S::Error> {
-        let mut m = s.serialize_map(None)?;
-        m.serialize_entry("nodeType", node_type)?;
-        m.serialize_entry("src", &self.src(span))?;
-        m.serialize_entry("nativeSrc", &self.src(span))?;
+    ) -> Result<Node<S::SerializeMap>, S::Error> {
+        let mut m = Node::object(s)?;
+        m.entry("nodeType", node_type);
+        m.entry("src", &self.src(span));
+        m.entry("nativeSrc", &self.src(span));
         Ok(m)
     }
 }
