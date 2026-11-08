@@ -514,6 +514,20 @@ impl<'gcx> Assembler<'gcx> {
         metadata.set_modifier_depth(modifier_depth);
     }
 
+    /// Sets every source origin of the `JUMPDEST` of the block that `label` started, as the
+    /// union of the paths that enter it.
+    pub(crate) fn set_label_origins(
+        &mut self,
+        label: Label,
+        spans: impl IntoIterator<Item = solar_interface::Span>,
+        modifier_depth: u32,
+    ) {
+        let block = self.label_blocks[&label];
+        let metadata = &mut self.program.blocks[block].label_metadata;
+        metadata.set_source_spans(spans);
+        metadata.set_modifier_depth(modifier_depth);
+    }
+
     /// Marks a label-started block as cold for EVM IR layout passes.
     pub(in crate::backend) fn mark_label_cold(&mut self, label: Label) {
         self.cold_labels.insert(label);
