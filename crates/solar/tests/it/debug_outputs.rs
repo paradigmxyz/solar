@@ -472,7 +472,7 @@ fn debugify_loop_and_stack_metadata_preserve_bytecode() {
     let flag = format!("-Zdebugify-output={}", audit.path().display());
     for source in [
         "../../codegen/debug-info/stackify_retained_constant.sol",
-        "../../codegen/debug-info/stackify_constructor_skip_jump.sol",
+        "../../codegen/debug-info/stackify_generated_edges.sol",
         "../../codegen/debug-info/indvar_simplify_narrow_base.sol",
         "../../codegen/debug-info/if_convert_modifier_phi.sol",
         "../../codegen/debug-info/shared_terminal_labels.sol",
