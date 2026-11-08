@@ -1,0 +1,32 @@
+//@ compile-flags: -Zmir-pipeline=indvar-simplify -Zdump=mir -Zdebugify=check
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// The address recurrence's start is computed in the preheader, once when the loop statement
+// starts, so it takes the loop statement's location from the preheader's jump. Its update runs
+// in the latch, so it takes the location of the latch's jump.
+@module IndVarSimplifyPreheaderOrigin
+
+// CHECK-LABEL: {{^[ +].*}}fn @shifted_address{{[( ]}}
+// CHECK: + [[END:v[0-9]+]] = add arg0, 128 !metadata(span=1..5)
+// CHECK: + [[ADDRESS:v[0-9]+]] = phi [bb0: arg0], [bb2: [[NEXT:v[0-9]+]]]
+// CHECK: + [[NEXT]] = add [[ADDRESS]], 32 !metadata(span=6..9)
+fn @shifted_address(arg0: i256) -> i256 {
+  bb0:
+    jump bb1 !metadata(span=1..5)
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v1, 4
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = shl v1, 5
+    v4 = add arg0, v3
+    v5 = mload v4
+    v7 = shl v1, 5
+    v8 = add arg0, v7
+    v9 = add v5, 1
+    mstore v8, v9
+    v6 = add v1, 1
+    jump bb1 !metadata(span=6..9)
+  bb3:
+    ret 0
+}
