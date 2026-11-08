@@ -1,0 +1,6 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/using-for/methods.sol:LL:CC
+   │
+LL │         x.inc;
+   ╰╴        ━━━━━
+
