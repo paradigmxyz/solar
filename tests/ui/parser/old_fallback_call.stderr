@@ -36,6 +36,12 @@ LL │     function() external payable {}
    │
    ╰ note: this style of fallback function has been removed; use the `fallback` or `receive` keywords instead
 
+error[6012]: invalid visibility, can only be `external` or `internal`
+   ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
+   │
+LL │     function (uint256 x) public {}
+   ╰╴                         ━━━━━━
+
 error: member `g` not found on type `type(library L)`
    ╭▸ ROOT/tests/ui/parser/old_fallback_call.sol:LL:CC
    │
@@ -60,4 +66,5 @@ error: member `g` not found on type `contract B`
 LL │         b.g();
    ╰╴          ━
 
-error: aborting due to 8 previous errors; 1 warning emitted
+error: aborting due to 9 previous errors; 1 warning emitted
+

@@ -163,11 +163,7 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_>
             let id = hir::ItemId::from(f.id);
             // Skip nameless items left by parse recovery; never call `item_name` on them.
             let name = gcx.item_name_opt(id)?.name;
-            Some(Member::with_res(
-                name,
-                f.ty.as_externally_callable_function(false, gcx),
-                id,
-            ))
+            Some(Member::with_res(name, f.ty.as_externally_callable_function(false, gcx), id))
         })
         .collect()
 }
