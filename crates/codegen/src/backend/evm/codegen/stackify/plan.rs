@@ -751,7 +751,7 @@ impl<'a> Planner<'a> {
                     .filter(|step| step.operands.contains(&value))
                     .map(|step| Reader::Inst(step.inst)),
             );
-            // Mirrors `block_uses`.
+            // Mirrors `block_uses`, but for the operands the code reads from the stack.
             let reads = match &func.blocks[held].terminator {
                 Some(Terminator::Branch { condition, .. }) => {
                     self.conditions.get(&held).map_or(*condition, |&(condition, _)| condition)
@@ -763,6 +763,8 @@ impl<'a> Planner<'a> {
                     }
                     false
                 }
+                // A switch pushes its case literals itself and reads only its scrutinee.
+                Some(Terminator::Switch { value: scrutinee, .. }) => *scrutinee == value,
                 Some(term) => term.operands().contains(&value),
                 None => false,
             };
