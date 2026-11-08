@@ -67,8 +67,8 @@ contract RationalLiteralArithmetic {
     }
 
     function discarded() external pure returns (uint256) {
-        0.5;
-        (1 / 3, 2.5);
+        0.5; //~ WARN: statement has no effect
+        (1 / 3, 2.5); //~ WARN: statement has no effect
         return 1;
     }
 }

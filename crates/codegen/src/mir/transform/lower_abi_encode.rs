@@ -22,7 +22,7 @@
 //!
 //! Literal objects. A `bytes memory` argument allocated and initialized with
 //! constant words in the encoding's block, with no intervening opaque memory
-//! access, encodes as immediate stores, and its now unused allocation is
+//! access, encodes from its proven bytes, and its now unused allocation is
 //! removed. The candidates are proven on the original IR, before encoding
 //! emits its own raw accesses.
 //! Literal bytes with observable allocations can still fold into encoder
@@ -35,6 +35,13 @@
 //! gas mode folds before Cancun, where the copy is a loop; size mode folds
 //! every unobserved literal and any other whose stores take fewer bytes than
 //! the length computation and copy they replace, with or without native MCOPY.
+//! A selected literal fold takes precedence over a generic tuple helper, whose pointer
+//! parameter would otherwise force the source object to remain allocated.
+//! Call-input literals whose temporary goes away use the ordinary data-copy cost model:
+//! short inputs remain stores, large inputs copy from shared program data directly to the
+//! ABI output, and zero inputs use a zero fill. No temporary allocation is kept for the copy.
+//! Literal uses and instruction locations are indexed per function, and byte proofs are cached
+//! before expansion. Cleanup rebuilds the use index once to retain objects still read afterwards.
 //!
 //! Storage bytes. A `bytes` or `string` operand in storage (`AbiType::Bytes(Storage)`) arrives as
 //! its slot. The encoder validates the header, writes the length, and copies the data words from
@@ -104,9 +111,10 @@
 
 use crate::{
     mir::{
-        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, EffectKind,
-        Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout,
+        AbiEncodeMode, AbiLayout, AbiType, AbiWordValidator, BlockId, CalldataTail, DataRef,
+        EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryObjectLayout,
         MirModuleTarget, MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId,
+        lower::stores_data_as_words,
         memory::EvmMemoryLayout,
         pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
         transform::{egraph::use_counts, lower_storage_bytes, utils::expand_block},
@@ -149,6 +157,7 @@ impl MirPass for LowerAbiEncode {
         synthesize_calldata_helpers(&target, module, &mut helpers, revert_strings);
         synthesize_tuple_helpers(&target, module, &mut helpers, revert_strings, &zero_copy_returns);
         zero_copy_returns.resize_with(module.functions.len(), FxHashMap::default);
+        let literal_copies = plan_literal_copies(gcx, module);
         let has_helpers = !helpers.arrays.is_empty()
             || !helpers.calldata.is_empty()
             || !helpers.tuples.is_empty();
@@ -165,7 +174,13 @@ impl MirPass for LowerAbiEncode {
             } else {
                 &helpers
             };
-            lower_function(func, helpers, revert_strings, &zero_copy_returns[func_id])
+            lower_function(
+                func,
+                helpers,
+                revert_strings,
+                &zero_copy_returns[func_id],
+                &literal_copies[func_id],
+            )
         });
         module.assert_runtime_helpers(
             helpers
@@ -227,7 +242,7 @@ struct EncodeHelpers {
     calldata: Arc<FxHashMap<AbiType, FunctionId>>,
     tuples: Arc<FxHashMap<TupleHelperKey, FunctionId>>,
     /// Proven on the original function, before encoding emits raw memory operations.
-    literal_objects: FxHashSet<ValueId>,
+    literal_objects: FxHashMap<ValueId, LiteralObject>,
     target: Target,
 }
 
@@ -237,7 +252,7 @@ impl EncodeHelpers {
             arrays: Arc::default(),
             calldata: Arc::default(),
             tuples: Arc::default(),
-            literal_objects: FxHashSet::default(),
+            literal_objects: FxHashMap::default(),
             target: *target,
         }
     }
@@ -257,6 +272,7 @@ fn synthesize_tuple_helpers(
     // Per shape: its sites, the order of its first site, and whether any site is hot.
     let mut counts = FxHashMap::<TupleHelperKey, (usize, usize, bool)>::default();
     for (func_id, func) in module.functions.iter_enumerated() {
+        let literals = literal_objects(func);
         for block in func.blocks.iter() {
             for &inst in &block.instructions {
                 let InstKind::AbiEncode { mode, base, selector, args, layout } =
@@ -266,6 +282,7 @@ fn synthesize_tuple_helpers(
                 };
                 if zero_copy_returns[func_id].contains_key(&inst)
                     || base.is_some()
+                    || has_inline_input_literal(func, args, &literals)
                     || (*mode == AbiEncodeMode::Scratch && ends_function(block.terminator.as_ref()))
                 {
                     continue;
@@ -604,23 +621,27 @@ fn lower_function(
     helpers: &EncodeHelpers,
     revert_strings: RevertStrings,
     zero_copy_returns: &FxHashMap<InstId, ZeroCopyReturn>,
+    literal_copies: &FxHashMap<ValueId, LiteralCopy>,
 ) -> bool {
     if !has_abi_encode(func) {
         return false;
     }
     let mut helpers = helpers.clone();
     let target = helpers.target;
-    helpers.literal_objects = literal_objects_at_encodes(func);
+    helpers.literal_objects = literal_objects(func);
+    for (&object, literal) in &mut helpers.literal_objects {
+        literal.copy = literal_copies.get(&object).copied();
+    }
     let unobserved = terminal_scratch_literals(func, &helpers.literal_objects);
-    helpers.literal_objects.retain(|&object| {
+    helpers.literal_objects.retain(|&object, literal| {
         let Value::Inst(inst) = func.value(object) else { return true };
         !func.inst(*inst).metadata.preserves_fmp()
             || target.folds_preserved_literal(unobserved.contains(&object), || {
-                literal_bytes(func, object, defining_block(func, *inst)?)
+                Some(literal.bytes.clone())
             })
     });
     let mut terminal_literals = unobserved;
-    terminal_literals.retain(|object| helpers.literal_objects.contains(object));
+    terminal_literals.retain(|object| helpers.literal_objects.contains_key(object));
 
     let mut replacements = FxHashMap::default();
     let mut literal_objects = FxHashSet::default();
@@ -657,6 +678,7 @@ fn lower_function(
             } else {
                 let helper = (!helpers.tuples.is_empty()
                     && base.is_none()
+                    && !has_inline_input_literal(builder.func(), &args, &helpers.literal_objects)
                     && !(mode == AbiEncodeMode::Scratch && terminal))
                     .then(|| {
                         let key =
@@ -685,7 +707,7 @@ fn lower_function(
         func,
         &literal_objects
             .into_iter()
-            .filter(|object| helpers.literal_objects.contains(object))
+            .filter(|object| helpers.literal_objects.contains_key(object))
             .collect::<Vec<_>>(),
         &terminal_literals,
     );
@@ -1006,7 +1028,6 @@ fn lower_encode(
 
     if mode == AbiEncodeMode::Slice
         && let Some(total_size) = literal_tuple_size(
-            builder.func(),
             builder.current_block(),
             layout,
             args,
@@ -1071,22 +1092,25 @@ fn lower_encode(
 /// ordinary allocation analysis can place it. Other dynamic shapes retain the
 /// reserve-after-encoding path and its address-preservation obligation.
 fn literal_tuple_size(
-    func: &Function,
     block: BlockId,
     layout: &AbiLayout,
     args: &[ValueId],
     selector_size: u64,
-    literal_objects: &FxHashSet<ValueId>,
+    literal_objects: &FxHashMap<ValueId, LiteralObject>,
 ) -> Option<u64> {
     let mut size = selector_size;
     let mut has_payload = false;
     for (ty, &value) in layout.types.iter().zip(args) {
         size = size.checked_add(ty.head_size())?;
         if ty.is_dynamic() {
-            if *ty != AbiType::Bytes(PtrLocation::Memory) || !literal_objects.contains(&value) {
+            if *ty != AbiType::Bytes(PtrLocation::Memory) {
                 return None;
             }
-            let length = u64::try_from(literal_bytes(func, value, block)?.len()).ok()?;
+            let literal = literal_objects.get(&value)?;
+            if literal.block != block {
+                return None;
+            }
+            let length = u64::try_from(literal.bytes.len()).ok()?;
             has_payload |= length != 0;
             size = size.checked_add(32)?.checked_add(length.checked_next_multiple_of(32)?)?;
         }
@@ -1429,7 +1453,7 @@ fn encode_dynamic_body(
         AbiType::Bytes(PtrLocation::Storage) => encode_storage_bytes(builder, value, dest),
         AbiType::Bytes(location) => {
             let location = effective_slice_location(builder.func(), value, *location);
-            encode_bytes(builder, value, dest, location, helpers.literal_objects.contains(&value))
+            encode_bytes(builder, value, dest, location, helpers.literal_objects.get(&value))
         }
         AbiType::DynamicArray { element, location } => {
             let location = effective_slice_location(builder.func(), value, *location);
@@ -1938,22 +1962,42 @@ fn encode_bytes(
     value: ValueId,
     dest: ValueId,
     location: PtrLocation,
-    literal_folding: bool,
+    literal: Option<&LiteralObject>,
 ) -> ValueId {
-    if literal_folding
-        && location == PtrLocation::Memory
-        && let Some(bytes) = literal_bytes(builder.func(), value, builder.current_block())
+    if location == PtrLocation::Memory
+        && let Some(literal) = literal
+        && literal.block == builder.current_block()
     {
+        let bytes = &literal.bytes;
         let length = builder.imm(bytes.len() as u64);
         builder.store(dest, length);
         let data = builder.add_offset(dest, 32);
-        for (index, chunk) in bytes.chunks(32).enumerate() {
-            let mut padded = [0_u8; 32];
-            padded[..chunk.len()].copy_from_slice(chunk);
-            let word = builder.imm(U256::from_be_bytes(padded));
-            let offset = builder.imm(index as u64 * 32);
-            let address = builder.add(data, offset);
-            builder.store(address, word);
+        if let Some(copy) = literal.copy {
+            let size = builder.imm(bytes.len().next_multiple_of(32) as u64);
+            // datacopy data, size | memory_zero data, size
+            match copy {
+                LiteralCopy::Data(source, copied) => {
+                    if !copied.is_multiple_of(32) {
+                        // mstore (data + floor32(length)), 0
+                        let tail = builder.add_offset(data, copied / 32 * 32);
+                        let zero = builder.imm(0);
+                        builder.store(tail, zero);
+                    }
+                    // datacopy source, data, copied
+                    let size = builder.imm(copied);
+                    builder.data_copy(source, data, size);
+                }
+                LiteralCopy::Zero => builder.memory_zero(data, size),
+            }
+        } else {
+            for (index, chunk) in bytes.chunks(32).enumerate() {
+                let mut padded = [0_u8; 32];
+                padded[..chunk.len()].copy_from_slice(chunk);
+                let word = builder.imm(U256::from_be_bytes(padded));
+                let offset = builder.imm(index as u64 * 32);
+                let address = builder.add(data, offset);
+                builder.store(address, word);
+            }
         }
         let size = builder.imm(bytes.len().next_multiple_of(32) as u64);
         return builder.add(data, size);
@@ -2089,7 +2133,7 @@ fn literal_objects_at_encodes(func: &Function) -> FxHashSet<ValueId> {
 /// sits between the allocation and the encode.
 fn terminal_scratch_literals(
     func: &Function,
-    literal_objects: &FxHashSet<ValueId>,
+    literal_objects: &FxHashMap<ValueId, LiteralObject>,
 ) -> FxHashSet<ValueId> {
     let mut objects = FxHashSet::default();
     for block in &func.blocks {
@@ -2109,7 +2153,7 @@ fn terminal_scratch_literals(
             && matches!(func.inst(allocation).kind, InstKind::Alloc { .. })
             && let Some(object) = func.inst_result_value(allocation)
             && let Some(encoded) = func.inst_result_value(encode)
-            && literal_objects.contains(&object)
+            && literal_objects.contains_key(&object)
             && args.contains(&object)
             && layout.types.iter().zip(args).all(|(ty, &arg)| {
                 arg == object || matches!(ty, AbiType::Word(_) | AbiType::Function)
@@ -2168,41 +2212,177 @@ fn literal_word_in_bounds(
             .is_some_and(|end| func.alloc_size(object).is_some_and(|size| end <= size))
 }
 
-/// Instructions other than its allocation that use a literal object or an address into it.
-fn literal_object_uses(func: &Function, object: ValueId) -> impl Iterator<Item = InstId> + '_ {
-    func.instructions().filter(move |&inst| {
-        func.inst_result_value(inst) != Some(object)
-            && func.inst(inst).operands().iter().any(|&operand| {
-                func.object_address(operand).is_some_and(|(base, _)| base == object)
-            })
-    })
+/// A literal proven on the input IR, before expansion adds memory accesses.
+#[derive(Clone)]
+struct LiteralObject {
+    block: BlockId,
+    bytes: Vec<u8>,
+    copy: Option<LiteralCopy>,
 }
 
-/// Returns the bytes represented by an immutable literal object when all active
-/// uses, apart from encodings, are initialization operations preceding this encoding in the
-/// same block. The caller must also exclude opaque observers using the original IR.
-fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec<u8>> {
+#[derive(Clone, Copy)]
+enum LiteralCopy {
+    Data(DataRef, u64),
+    Zero,
+}
+
+/// Keep large call inputs in shared program data, while still dropping their temporary
+/// objects. Use the same cost model as ordinary literal initialization, including zero fills.
+fn plan_literal_copies(
+    gcx: Gcx<'_>,
+    module: &mut Module,
+) -> IndexVec<FunctionId, FxHashMap<ValueId, LiteralCopy>> {
+    let mut candidates = Vec::new();
+    for (id, func) in module.functions.iter_enumerated() {
+        let target = module.target_of(gcx, func);
+        for (object, literal) in literal_objects(func) {
+            let Value::Inst(inst) = func.value(object) else { continue };
+            if !func.inst(*inst).metadata.preserves_fmp()
+                && !stores_data_as_words(target, &literal.bytes)
+            {
+                candidates.push((id, object, literal.bytes, target.optimization().is_size()));
+            }
+        }
+    }
+    candidates.sort_unstable_by_key(|(function, object, _, _)| (*function, *object));
+    let mut copies = IndexVec::from_vec(vec![FxHashMap::default(); module.functions.len()]);
+    for (function, object, mut bytes, size_mode) in candidates {
+        let copy = if bytes.iter().all(|&byte| byte == 0) {
+            LiteralCopy::Zero
+        } else {
+            if !size_mode {
+                bytes.resize(bytes.len().next_multiple_of(32), 0);
+            }
+            let size = bytes.len() as u64;
+            LiteralCopy::Data(module.intern_data(bytes.into(), None), size)
+        };
+        copies[function].insert(object, copy);
+    }
+    copies
+}
+
+/// Active instruction uses of candidate objects and constant addresses into them.
+struct LiteralObjectUses {
+    locations: IndexVec<InstId, Option<(BlockId, usize)>>,
+    encodes: FxHashMap<ValueId, (InstId, InstId)>,
+    instructions: FxHashMap<ValueId, Vec<InstId>>,
+    returned: DenseBitSet<ValueId>,
+}
+
+impl LiteralObjectUses {
+    fn new(func: &Function, objects: &FxHashSet<ValueId>) -> Self {
+        let mut instructions = FxHashMap::<_, Vec<_>>::default();
+        let mut locations = IndexVec::from_vec(vec![None; func.num_insts()]);
+        let mut encodes = FxHashMap::default();
+        for (block, data) in func.blocks.iter_enumerated() {
+            for (index, &inst) in data.instructions.iter().enumerate() {
+                locations[inst] = Some((block, index));
+                if let InstKind::AbiEncode { args, .. } = &func.inst(inst).kind {
+                    for &object in args {
+                        if objects.contains(&object) {
+                            encodes
+                                .entry(object)
+                                .and_modify(|(_, last)| *last = inst)
+                                .or_insert((inst, inst));
+                        }
+                    }
+                }
+                for operand in func.inst(inst).operands() {
+                    let Some((object, _)) = func.object_address(operand) else { continue };
+                    if !objects.contains(&object) || func.inst_result_value(inst) == Some(object) {
+                        continue;
+                    }
+                    let uses = instructions.entry(object).or_default();
+                    if uses.last() != Some(&inst) {
+                        uses.push(inst);
+                    }
+                }
+            }
+        }
+        let mut returned = DenseBitSet::new_empty(func.num_values());
+        let mut pending = Vec::new();
+        for block in &func.blocks {
+            if let Some(terminator) = &block.terminator {
+                pending.extend(terminator.operands());
+            }
+        }
+        while let Some(value) = pending.pop() {
+            if returned.insert(value)
+                && let Value::Inst(inst) = func.value(value)
+                && func.is_object_derivation(*inst)
+            {
+                pending.extend(func.inst(*inst).operands());
+            }
+        }
+        Self { locations, encodes, instructions, returned }
+    }
+}
+
+/// Proves every candidate once. Neither helper selection nor encoding rescans a function per
+/// argument; the proof and bytes remain those of the original IR.
+fn literal_objects(func: &Function) -> FxHashMap<ValueId, LiteralObject> {
+    let objects = literal_objects_at_encodes(func);
+    if objects.is_empty() {
+        return FxHashMap::default();
+    }
+    let uses = LiteralObjectUses::new(func, &objects);
+    objects
+        .into_iter()
+        .filter_map(|object| {
+            let Value::Inst(inst) = func.value(object) else { return None };
+            let (block, _) = uses.locations[*inst]?;
+            let bytes =
+                literal_bytes(func, object, block, &uses, uses.encodes.get(&object).copied())?;
+            Some((object, LiteralObject { block, bytes, copy: None }))
+        })
+        .collect()
+}
+
+/// Proves complete initialization before the first encoding, unchanged through the last one.
+/// Cleanup passes no encoding range, requiring all remaining uses to be initialization instead.
+/// The caller must also exclude opaque observers using the original IR.
+fn literal_bytes(
+    func: &Function,
+    object: ValueId,
+    block: BlockId,
+    uses: &LiteralObjectUses,
+    encodes: Option<(InstId, InstId)>,
+) -> Option<Vec<u8>> {
     if func.value_ty(object) != Some(MirType::MEMPTR) {
         return None;
     }
     let Value::Inst(defining_inst) = func.value(object) else { return None };
-    if !func.blocks[block].instructions.contains(defining_inst) {
+    if uses.locations[*defining_inst]?.0 != block {
         return None;
     }
     if !matches!(func.inst(*defining_inst).kind, InstKind::Alloc { .. }) {
         return None;
     }
 
+    let (first, last) = match encodes {
+        Some((first, last)) => (uses.locations[first]?.1, uses.locations[last]?.1),
+        None => (usize::MAX, usize::MAX),
+    };
     let mut length = None;
     let mut words = FxHashMap::default();
-    for inst in literal_object_uses(func, object) {
-        if !func.blocks[block].instructions.contains(&inst) {
+    for &inst in uses.instructions.get(&object).into_iter().flatten() {
+        let (use_block, index) = uses.locations[inst]?;
+        if use_block != block {
             return None;
+        }
+        // Reads and writes after the last encoding need the original object, but do not
+        // change its bytes at the encodings. Removal rechecks every surviving use.
+        if index > last {
+            continue;
         }
         if func.is_object_derivation(inst)
             || matches!(func.inst(inst).kind, InstKind::AbiEncode { .. })
         {
             continue;
+        }
+        // Every encoding must see the same complete initialization.
+        if index >= first {
+            return None;
         }
         // Payload offset and stored word.
         let (offset, word) = match func.inst(inst).kind {
@@ -2224,12 +2404,7 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
         }
     }
 
-    if func
-        .blocks
-        .iter()
-        .filter_map(|block| block.terminator.as_ref())
-        .any(|terminator| terminator.operands().contains(&object))
-    {
+    if uses.returned.contains(object) {
         return None;
     }
 
@@ -2248,13 +2423,6 @@ fn literal_bytes(func: &Function, object: ValueId, block: BlockId) -> Option<Vec
     Some(bytes)
 }
 
-/// The block that holds `inst`.
-fn defining_block(func: &Function, inst: InstId) -> Option<BlockId> {
-    func.blocks
-        .iter_enumerated()
-        .find_map(|(id, block)| block.instructions.contains(&inst).then_some(id))
-}
-
 /// Removes a literal object's initialization after its encoding has embedded
 /// the bytes directly in the output. The object must have no active use other
 /// than its allocation and literal stores; otherwise the object remains live. An allocation
@@ -2264,22 +2432,40 @@ fn remove_literal_objects(
     values: &[ValueId],
     unobserved: &FxHashSet<ValueId>,
 ) {
+    if values.is_empty() {
+        return;
+    }
+    // Rebuild after expansion: an encoding that kept a memory read must keep its source.
+    let uses = LiteralObjectUses::new(func, &values.iter().copied().collect());
     let mut removed = FxHashSet::default();
     for &object in values {
         let Value::Inst(defining_inst) = func.value(object) else { continue };
         if func.inst(*defining_inst).metadata.preserves_fmp() && !unobserved.contains(&object) {
             continue;
         }
-        if defining_block(func, *defining_inst)
-            .and_then(|block| literal_bytes(func, object, block))
+        if uses.locations[*defining_inst]
+            .and_then(|(block, _)| literal_bytes(func, object, block, &uses, None))
             .is_none()
         {
             continue;
         }
         removed.insert(*defining_inst);
-        removed.extend(literal_object_uses(func, object));
+        removed.extend(uses.instructions.get(&object).into_iter().flatten().copied());
     }
     for block in &mut func.blocks {
         block.instructions.retain(|inst| !removed.contains(inst));
     }
+}
+
+/// A generic helper would need a materialized pointer for this otherwise folded input.
+fn has_inline_input_literal(
+    func: &Function,
+    args: &[ValueId],
+    literals: &FxHashMap<ValueId, LiteralObject>,
+) -> bool {
+    args.iter().any(|&arg| {
+        literals.contains_key(&arg)
+            && matches!(func.value(arg), Value::Inst(inst)
+                if !func.inst(*inst).metadata.preserves_fmp())
+    })
 }

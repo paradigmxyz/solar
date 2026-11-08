@@ -1,6 +1,6 @@
 contract C {
     modifier readsValue() {
-        msg.value;
+        msg.value; //~ WARN: statement has no effect
         //~^ NOTE: `msg.value` or `callvalue()` appear here inside the modifier
         _;
     }
@@ -10,12 +10,12 @@ contract C {
     }
 
     fallback() external {
-        msg.value;
+        msg.value; //~ WARN: statement has no effect
         //~^ ERROR: `msg.value` and `callvalue()` can only be used in payable public functions
     }
 
     receive() external payable {
-        msg.value;
+        msg.value; //~ WARN: statement has no effect
     }
 }
 
