@@ -53,3 +53,23 @@ bb4:
   mstore
   pop
   stop
+
+// A survivor whose lack of location is explained keeps that explanation.
+bb5:
+  calldatasize
+  push 0
+  lt !metadata(span=22..24)
+  iszero !metadata(compiler_generated)
+  push 0
+  mstore
+  stop
+bb6:
+  calldatasize
+  push 31
+  dup 2
+  gt !metadata(compiler_generated)
+  iszero !metadata(span=25..27)
+  push 0
+  mstore
+  pop
+  stop
