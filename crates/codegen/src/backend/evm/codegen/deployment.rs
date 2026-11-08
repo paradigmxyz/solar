@@ -7,7 +7,8 @@ use super::{
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
 };
 use crate::{
-    backend::assembler::DeferredAllocResolution,
+    backend::assembler::{DeferredAllocResolution, ScheduledProgram},
+    debugify::Origins,
     link::{CodeKind, LibraryTable},
     mir::{
         AllocationPlacement, BackendMemory, Function, InstKind, MirPhase,
@@ -79,6 +80,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             return false;
         };
         let module = &*lowered;
+        let mir_origins = crate::debugify::enabled(self.gcx).then(|| Origins::mir(module));
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
         let call_graph = CallGraphInfo::new(module);
@@ -127,12 +129,17 @@ impl<'gcx> EvmCodegen<'gcx> {
                 .map(|(&func, &end)| (func, U256::from(end)))
                 .collect(),
         });
-        let scheduled_evm_ir = self.asm.optimize_capturing(self.capture_scheduled_evm_ir);
+        self.asm
+            .program
+            .set_debug_info_visible(self.display_debug_info || !crate::debugify::enabled(self.gcx));
+        let ScheduledProgram { evm_ir: scheduled_evm_ir, origins } =
+            self.asm.optimize_capturing(self.capture_scheduled_evm_ir);
         if self.gcx.dcx().has_errors().is_err() {
             return false;
         }
+        let audit = mir_origins.zip(origins);
         self.pending_runtime =
-            Some(PendingRuntime { call_graph, backend_memory, scheduled_evm_ir });
+            Some(PendingRuntime { call_graph, backend_memory, scheduled_evm_ir, audit });
         true
     }
 
@@ -143,7 +150,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         module: &Module,
         bytecodes: &EmbeddedBytecodes,
     ) -> EvmArtifact {
-        let PendingRuntime { call_graph, backend_memory, scheduled_evm_ir } =
+        let PendingRuntime { call_graph, backend_memory, scheduled_evm_ir, audit } =
             self.pending_runtime.take().expect("module must be scheduled first");
         debug_assert_eq!(module.phase(), MirPhase::Lowered);
         let mut libraries = module.libraries.clone();
@@ -199,7 +206,21 @@ impl<'gcx> EvmCodegen<'gcx> {
             copy_base,
             &immutable_refs,
         );
-        self.asm.optimize();
+        self.asm
+            .program
+            .set_debug_info_visible(self.display_debug_info || !crate::debugify::enabled(self.gcx));
+        let deployment_origins = self.asm.optimize();
+        if let Some((mir_origins, mut scheduled_origins)) = audit
+            && let Some(deployment_origins) = deployment_origins
+        {
+            scheduled_origins.extend(deployment_origins);
+            if mir_origins
+                .check(self.gcx, "EVM IR", module.name.name, "stackify", scheduled_origins)
+                .is_err()
+            {
+                return EvmArtifact::default();
+            }
+        }
         let deploy_code = self.asm.assemble_linked(
             bytecodes,
             &mut libraries,
@@ -438,9 +459,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let implicit_constructor_revert = constructor.is_none().then(|| self.asm.new_label());
         if let Some(revert) = implicit_constructor_revert {
-            self.asm.emit_op(op::CALLVALUE);
-            self.asm.emit_push_label(revert);
-            self.asm.emit_op(op::JUMPI);
+            // callvalue; push revert; jumpi
+            self.emit_with_contract_origin(|codegen| {
+                codegen.asm.emit_op(op::CALLVALUE);
+                codegen.asm.emit_push_label(revert);
+                codegen.asm.emit_op(op::JUMPI);
+            });
         }
 
         if let Some((ctor_id, ctor)) = constructor {
@@ -472,14 +496,19 @@ impl<'gcx> EvmCodegen<'gcx> {
             // Constructor args are appended after generated deployment bytecode.
             // Copy the complete blob above every fixed compiler-owned region,
             // then place the free-memory pointer after its word-aligned end.
+            // solc copies the arguments in `appendConstructor`, in the location setter of the
+            // constructor, so that code maps to the constructor's declaration.
+            let constructor_span = Some(ctor.declaration_span);
             if let Some(arg_offset) = constructor_arg_offset {
                 self.constructor_args_base_const = Some(constructor_fixed_memory_end);
                 self.constructor_args_offset = Some(arg_offset);
-                self.emit_constructor_args_size(arg_offset);
-                self.asm.emit_stack_op(StackOp::Dup(1));
-                self.asm.emit_push_data(arg_offset); // code offset
-                self.asm.emit_push_deferred(constructor_fixed_memory_end);
-                self.asm.emit_op(op::CODECOPY);
+                self.emit_with_origin(constructor_span, |codegen| {
+                    codegen.emit_constructor_args_size(arg_offset);
+                    codegen.asm.emit_stack_op(StackOp::Dup(1));
+                    codegen.asm.emit_push_data(arg_offset); // code offset
+                    codegen.asm.emit_push_deferred(constructor_fixed_memory_end);
+                    codegen.asm.emit_op(op::CODECOPY);
+                });
             }
             // Without arguments to place above, the pointer matters only to code that reads it,
             // as in runtime entries.
@@ -491,9 +520,16 @@ impl<'gcx> EvmCodegen<'gcx> {
                 );
             if needs_free_memory {
                 // mstore(FMP_SLOT, heap_start)
-                self.emit_constructor_heap_start();
-                self.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
-                self.asm.emit_op(op::MSTORE);
+                let span = if constructor_arg_offset.is_some() {
+                    constructor_span
+                } else {
+                    self.contract_span
+                };
+                self.emit_with_origin(span, |codegen| {
+                    codegen.emit_constructor_heap_start();
+                    codegen.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
+                    codegen.asm.emit_op(op::MSTORE);
+                });
             }
 
             // Every ordinary completion of the constructor body (which includes SSTORE for
@@ -525,12 +561,23 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.define_label(constructor_exit);
         }
 
-        self.emit_deployment_postlude(module, runtime, runtime_len, copy_base, immutable_refs);
+        self.emit_with_contract_origin(|codegen| {
+            codegen.emit_deployment_postlude(
+                module,
+                runtime,
+                runtime_len,
+                copy_base,
+                immutable_refs,
+            );
+        });
         if let Some(revert) = implicit_constructor_revert {
             self.asm.define_label(revert);
-            self.asm.emit_push(U256::ZERO);
-            self.asm.emit_push(U256::ZERO);
-            self.asm.emit_op(op::REVERT);
+            // push 0; push 0; revert
+            self.emit_with_contract_origin(|codegen| {
+                codegen.asm.emit_push(U256::ZERO);
+                codegen.asm.emit_push(U256::ZERO);
+                codegen.asm.emit_op(op::REVERT);
+            });
         }
     }
 

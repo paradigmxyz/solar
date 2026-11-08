@@ -208,6 +208,7 @@ fn copy_helper(shape: CopyShape) -> Function {
     emit_copy_loop(&mut builder, dest, src, len, exit, shape);
     builder.switch_to_block(exit);
     builder.ret([]);
+    function.mark_unlocated_compiler_generated();
     function
 }
 
@@ -429,18 +430,20 @@ fn call_copy_helper(func: &mut Function, inst: InstId, helper: FunctionId) -> Ve
             return value;
         }
         let instruction = Instruction::new(InstKind::PtrToInt(value, 256), Some(MirType::I256));
-        let (cast, word) = func.alloc_value_inst(instruction.with_debug_info_dropped());
+        let (cast, word) = func.alloc_value_inst(instruction.with_debug_loc_dropped());
         casts.push(cast);
         word
     };
     let (dest, src) = (word(func, dest), word(func, src));
     // icall @mcopy_words, 0, dest, src, len
-    let instruction = func.inst_mut(inst);
-    instruction.kind = InstKind::ICall {
-        function: crate::mir::Callee::Function(helper),
-        args: vec![dest, src, len].into(),
-    };
-    instruction.metadata.set_disjoint(false);
+    func.set_inst_kind(
+        inst,
+        InstKind::ICall {
+            function: crate::mir::Callee::Function(helper),
+            args: vec![dest, src, len].into(),
+        },
+    );
+    func.inst_mut(inst).metadata.set_disjoint(false);
     casts
 }
 

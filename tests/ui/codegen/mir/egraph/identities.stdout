@@ -7,7 +7,6 @@
     struct2: {i256, i256, i256}
     struct3: {i256, i256, i256, i256}
     struct4: {i256, i256, i256, i256, i256}
-    struct5: {i1, i1, i1, i1}
   
   fn @add_zero(arg0: i256) -> i256 {
     bb0:
@@ -18,7 +17,7 @@
   
   fn @mul_one(arg0: i256) -> i256 {
     bb0:
--     v0 = mul 1, arg0
+-     v0 = mul arg0, 1
 -     ret v0
 +     ret arg0
   }
@@ -62,7 +61,7 @@
   
   fn @and_all_ones(arg0: i256) -> i256 {
     bb0:
--     v0 = and 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+-     v0 = and arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 -     ret v0
 +     ret arg0
   }
@@ -87,7 +86,7 @@
   
   fn @canonical_zero_branch(arg0: i256) {
     bb0:
--     v0 = lt 0, arg0
+-     v0 = gt arg0, 0
 -     v1 = eq v0, false
 +     v0 = ne arg0, 0
 +     v1 = eq arg0, 0
@@ -167,7 +166,7 @@
   fn @cancel_offsets(arg0: i256, arg1: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
     bb0:
       v0 = sub arg1, arg0
--     v1 = add arg0, v0
+-     v1 = add v0, arg0
 -     v2 = add v0, arg0
       v3 = add arg0, arg1
 -     v4 = sub v3, arg0
@@ -179,8 +178,7 @@
   fn @different_offsets(arg0: i256, arg1: i256, arg2: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
       v0 = sub arg1, arg0
--     v1 = add arg2, v0
-+     v1 = add v0, arg2
+      v1 = add v0, arg2
       v2 = add arg0, arg1
       v3 = sub v2, arg2
       ret v1, v3
@@ -191,8 +189,8 @@
       v0 = shl arg0, 32
       v1 = or v0, 0x12345678
 -     v2 = and v1, 0xffffffff
--     v3 = or 0x12345678, v0
--     v4 = and 255, v3
+-     v3 = or v0, 0x12345678
+-     v4 = and v3, 255
 -     ret v2, v4
 +     ret 0x12345678, 120
   }
@@ -263,10 +261,9 @@
       v3 = or v2, 0x12345678
 -     v4 = shr v3, 32
       v5 = shl v1, 96
--     v6 = or 7, v5
+      v6 = or v5, 7
 -     v7 = shr v6, 96
 -     ret v4, v7
-+     v6 = or v5, 7
 +     ret v1, v1
   }
   
@@ -293,9 +290,8 @@
   fn @subtract_common_base(arg0: i256) -> struct2 [return_abi=[i256, i256, i256]] {
     bb0:
       v0 = add arg0, 68
--     v1 = add 36, arg0
+      v1 = add arg0, 36
 -     v2 = sub v0, v1
-+     v1 = add arg0, 36
       v3 = sub arg0, 1
       v4 = add arg0, 1
 -     v5 = sub v4, v3
@@ -352,42 +348,16 @@
   
   fn @constant_multiplicands(arg0: i256) -> struct0 [return_abi=[i256, i256]] {
     bb0:
--     v0 = mulmod 0, 5, arg0
+-     v0 = mulmod 5, 0, arg0
 -     v1 = mulmod 5, 0, arg0
 -     ret v0, v1
 +     ret 0, 0
   }
   
-  fn @constant_operand_order(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct3 [return_abi=[i256, i256, i256, i256]] {
-    bb0:
--     v0 = add 7, arg0
--     v1 = mul 11, arg1
--     v2 = or 13, arg2
--     v3 = xor 17, arg3
-+     v0 = add arg0, 7
-+     v1 = mul arg1, 11
-+     v2 = or arg2, 13
-+     v3 = xor arg3, 17
-      ret v0, v1, v2, v3
-  }
-  
-  fn @constant_comparison_order(arg0: i256, arg1: i256, arg2: i256, arg3: i256) -> struct5 [return_abi=[i1, i1, i1, i1]] {
-    bb0:
--     v0 = lt 13, arg0
--     v1 = gt 13, arg1
--     v2 = slt 13, arg2
--     v3 = sgt 13, arg3
-+     v0 = gt arg0, 13
-+     v1 = lt arg1, 13
-+     v2 = sgt arg2, 13
-+     v3 = slt arg3, 13
-      ret v0, v1, v2, v3
-  }
-  
   fn @boolean_or_one(arg0: i1) -> i1 {
     bb0:
 -     v0 = or arg0, true
--     v1 = or true, v0
+-     v1 = or v0, true
 -     ret v1
 +     ret true
   }

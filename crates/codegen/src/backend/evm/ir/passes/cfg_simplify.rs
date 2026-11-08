@@ -17,8 +17,8 @@
 //! intact.
 //!
 //! Final cleanup exposes acyclic branch triangles as structural conditional terminators so
-//! layout can place their taken arm before the join. It preserves source origins and excludes
-//! glued instructions. Keeping this after
+//! layout can place their taken arm before the join. The `jumpi` keeps its origin and the removed
+//! jump and pushed label take theirs with them. It excludes glued instructions. Keeping this after
 //! sharing avoids changing which physical instruction sequences earlier passes can merge.
 //! Final cleanup also recognizes labels passed straight to a shared `JUMPI` head as direct
 //! jump targets. Deferring this until sharing is complete avoids exposing larger tails whose
@@ -47,6 +47,12 @@
 //! is unobservable. Empty continuation thunks can therefore be bypassed even through a pushed
 //! return address. Ordinary address-taken labels remain opaque. The declaration is emitted by call
 //! lowering and machine outlining and round-trips through EVM IR independently of debug output.
+//!
+//! A bypassed thunk's jump takes its source origin with it, as a removed branch does in LLVM. Its
+//! function events move to an unconditional transfer that skips it, never to a conditional one,
+//! which also executes when that edge is not taken. A conditional edge's function entry goes to its
+//! destination label instead, but only while that edge is the label's only entry; later passes drop
+//! it when the label becomes shared, falls through or acquires opaque address uses.
 
 use super::{
     EvmPass,
@@ -58,6 +64,7 @@ use super::{
     },
 };
 use crate::backend::evm::{
+    DebugFunction,
     ir::{
         Block, BlockId, CallEffect, Instruction, Metadata, Module, ModuleTarget, PushValue,
         StackEffect, Terminator, TerminatorKind, default_terminator_stack_effect,
@@ -165,8 +172,9 @@ fn rotate_loop_exits(module: &mut Module, references: &mut IndexVec<BlockId, usi
         exit.metadata.repeats = block.metadata.repeats;
         exit.instructions = block.instructions.split_off(index + 3);
         exit.terminator = block.terminator.take();
+        // NOTE: The removed `iszero` takes its origins with it; only its function events move.
         let removed = block.instructions.remove(index);
-        block.instructions[index].metadata.absorb_debug_info(&removed.metadata);
+        block.instructions[index].metadata.move_function_events(&removed.metadata);
         block.terminator = Some(Terminator::new(TerminatorKind::Jump(body)));
         let exit = module.blocks.push(exit);
         module.blocks[header].instructions[index].value = Some(PushValue::Block(exit));
@@ -194,15 +202,17 @@ fn expose_shared_branches(module: &mut Module) -> bool {
         {
             // push taken; jump head; head: jumpi; jump other -> jumpi taken, other
             let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
-            branch.metadata.copy_debug_info_from(&jumpi.metadata);
-            branch.metadata.absorb_debug_info(&pushed.metadata);
-            branch.metadata.absorb_debug_info(&jump.metadata);
+            // NOTE: The `jumpi` is the root. The pushed label is its operand and both jumps are
+            // removed, so their origins go with them and only function events move.
+            branch.metadata.preserve_debug_loc(&jumpi.metadata);
+            branch.metadata.move_function_events(&jumpi.metadata);
+            branch.metadata.move_function_events(&pushed.metadata);
+            branch.metadata.move_function_events(&jump.metadata);
             if branch.metadata.function_invoke().is_none()
                 && let Some(function) = body.metadata.function_invoke
             {
                 branch.metadata.set_function_invoke(function);
             }
-            branch.metadata.merge_source_spans(&continuation.metadata);
             let block = &mut module.blocks[block_id];
             block.instructions.pop();
             block.terminator = Some(branch);
@@ -255,7 +265,8 @@ fn inline_shared_return_thunks(
         {
             instructions[0].metadata.set_function_invoke(function);
         }
-        instructions[0].metadata.absorb_debug_info(&jump.metadata);
+        // NOTE: The removed jump takes its origins with it; only its function events move.
+        instructions[0].metadata.move_function_events(&jump.metadata);
         let terminator = body.terminator.clone();
         module.blocks[block_id].instructions = instructions;
         module.blocks[block_id].terminator = terminator;
@@ -264,7 +275,8 @@ fn inline_shared_return_thunks(
     changed
 }
 
-/// An empty block that only jumps on, with the debug info its removal moves to incoming edges.
+/// An empty block that only jumps on, with the function events its removal moves to incoming
+/// edges.
 struct Thunk {
     next: BlockId,
     metadata: Metadata,
@@ -317,9 +329,11 @@ fn normalize_triangle_branches(module: &mut Module) -> bool {
         {
             // push arm; jumpi; jump join -> jumpi arm, join
             let mut branch = Terminator::new(TerminatorKind::JumpI { then_block, else_block });
-            branch.metadata.copy_debug_info_from(&jumpi.metadata);
-            branch.metadata.absorb_debug_info(&pushed.metadata);
-            branch.metadata.merge_source_spans(&terminator.metadata);
+            // NOTE: The `jumpi` is the root. The pushed label is its operand and the jump is
+            // removed, so their origins go with them and only the label's events move.
+            branch.metadata.preserve_debug_loc(&jumpi.metadata);
+            branch.metadata.move_function_events(&jumpi.metadata);
+            branch.metadata.move_function_events(&pushed.metadata);
             let block = &mut module.blocks[block_id];
             block.instructions.truncate(block.instructions.len() - 2);
             block.terminator = Some(branch);
@@ -382,9 +396,10 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             && then_block == else_block
         {
             let mut pop = Instruction::stack_op(op::StackOp::Pop);
-            pop.metadata.copy_source_debug_from(metadata);
+            pop.metadata.preserve_debug_loc(metadata);
             let mut terminator = Terminator::new(TerminatorKind::Jump(*then_block));
-            terminator.metadata.copy_debug_info_from(metadata);
+            terminator.metadata.preserve_debug_loc(metadata);
+            terminator.metadata.move_function_events(metadata);
             block.instructions.push(pop);
             block.terminator = Some(terminator);
             changed = true;
@@ -399,7 +414,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
             && is_split_point(&block.instructions, block.instructions.len() - 2)
         {
             let mut pop = Instruction::stack_op(op::StackOp::Pop);
-            pop.metadata.copy_source_debug_from(&jumpi.metadata);
+            pop.metadata.preserve_debug_loc(&jumpi.metadata);
             block.instructions.truncate(block.instructions.len() - 2);
             block.instructions.push(pop);
             changed = true;
@@ -413,7 +428,9 @@ fn redirect_jump_thunks(
     thread_shared_jumps: bool,
     state: &mut RunState,
 ) -> bool {
-    let RunState { thunks, addressed, jump_heads, forwarded_continuations, order, .. } = state;
+    let RunState {
+        thunks, addressed, jump_heads, forwarded_continuations, order, references, ..
+    } = state;
     // Redirect direct edges through empty blocks. Keep labels used as values distinct, and move
     // each removed thunk's debug event to its incoming edges. A thunk is an empty block that only
     // jumps on: redirect direct branches and explicitly unobservable return addresses; ordinary
@@ -452,7 +469,7 @@ fn redirect_jump_thunks(
             thunk.metadata.set_function_invoke(function);
         }
         if let Some(terminator) = &block.terminator {
-            thunk.metadata.absorb_debug_info(&terminator.metadata);
+            thunk.metadata.move_function_events(&terminator.metadata);
         }
         true
     });
@@ -474,7 +491,12 @@ fn redirect_jump_thunks(
     };
 
     let mut changed = false;
+    let mut lent = Vec::new();
+    if thunks.values().any(|thunk| thunk.metadata.function_invoke().is_some()) {
+        count_block_references(module, references);
+    }
     forwarded_continuations.clear_to(module.blocks.len());
+    let track_debug_info = module.debug_info_is_tracked();
     for block in &mut module.blocks {
         for at in 0..block.instructions.len() {
             if let Some(PushValue::Block(target)) = block.instructions[at].value
@@ -482,11 +504,27 @@ fn redirect_jump_thunks(
             {
                 let direct = is_direct_jump_label(block, at);
                 if direct && let Some(thunk) = thunks.get(&target) {
-                    block.instructions[at].metadata.absorb_debug_info(&thunk.metadata);
+                    let conditional =
+                        block.instructions.get(at + 1).is_some_and(|inst| inst.opcode == op::JUMPI);
+                    if conditional && track_debug_info {
+                        lent.extend(thunk_chain_invoke(target, thunks, references));
+                    }
+                    // A bypassed thunk's function events move only onto an unconditional transfer:
+                    // it executes on the thunk's path, a conditional one also on other paths. The
+                    // thunk's jump takes its origins with it, as a removed branch does in LLVM's
+                    // `MergeBlockIntoPredecessor`
+                    // (llvm/lib/Transforms/Utils/BasicBlockUtils.cpp#L346-L371 at llvm-project
+                    // e98b16a2710b).
+                    // NOTE: Without an exclusive destination label, a conditional edge loses the
+                    // thunk's events. Do not retain a jump or attribute an operation executed on
+                    // other paths to it.
+                    if !conditional {
+                        block.instructions[at].metadata.move_function_events(&thunk.metadata);
+                    }
                 }
                 // NOTE: A return-address push executes before the callee, while the bypassed
-                // continuation runs after it. Its debug events cannot move onto that push;
-                // those zero-instruction checkpoints are intentionally dropped with the thunk.
+                // continuation runs after it. Its debug events cannot move onto that push, so
+                // they are dropped with the thunk.
                 let resolved = resolve(target);
                 if !direct && !addressed.contains(resolved) {
                     // The forwarded return address remains unobservable. Retain that fact on
@@ -499,14 +537,30 @@ fn redirect_jump_thunks(
             }
         }
         if let Some(term) = &mut block.terminator {
+            let conditional = !matches!(term.kind, TerminatorKind::Jump(_));
             term.kind.visit_targets_mut(|target| {
                 if let Some(thunk) = thunks.get(target) {
-                    term.metadata.absorb_debug_info(&thunk.metadata);
+                    if conditional && track_debug_info {
+                        lent.extend(thunk_chain_invoke(*target, thunks, references));
+                    }
+                    // A bypassed thunk's function events move only onto an unconditional transfer;
+                    // see the NOTE above.
+                    if !conditional {
+                        term.metadata.move_function_events(&thunk.metadata);
+                    }
                 }
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
                 *target = resolved;
             });
+        }
+    }
+    for (target, function) in lent {
+        let metadata = &mut module.blocks[target].metadata;
+        if metadata.function_invoke.is_none()
+            && metadata.lent_invoke.is_none_or(|lent| lent == function)
+        {
+            metadata.lent_invoke = Some(function);
         }
     }
     // target: <unobservable control continuation>
@@ -719,11 +773,39 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
             && is_split_point(&block.instructions, block.instructions.len() - 1)
         {
             // push target; jump -> jump target
-            term.metadata.absorb_debug_info(&last.metadata);
+            // NOTE: The jump is the root and the pushed label its operand, so only the label's
+            // function events move.
+            term.metadata.move_function_events(&last.metadata);
             term.kind = TerminatorKind::Jump(target);
             block.instructions.pop();
             changed = true;
         }
     }
     changed
+}
+
+/// The function entry that a conditional edge through a thunk chain carries to its destination,
+/// with that destination, when the chain ends at an existing label that the edge exclusively
+/// reaches and every thunk of the chain that enters a function agrees on it.
+fn thunk_chain_invoke(
+    start: BlockId,
+    thunks: &FxHashMap<BlockId, Thunk>,
+    references: &IndexVec<BlockId, usize>,
+) -> Option<(BlockId, DebugFunction)> {
+    let mut function = None;
+    let mut target = start;
+    for _ in 0..thunks.len() {
+        let Some(thunk) = thunks.get(&target) else { break };
+        if references.get(thunk.next) != Some(&1) {
+            return None;
+        }
+        if let Some(entered) = thunk.metadata.function_invoke() {
+            if function.is_some_and(|other| other != entered) {
+                return None;
+            }
+            function = Some(entered);
+        }
+        target = thunk.next;
+    }
+    (!thunks.contains_key(&target)).then_some((target, function?))
 }

@@ -4,7 +4,7 @@
 //! local edge helpers below. New edges need explicit phi inputs; none of these helpers updates
 //! cached analyses or reconstructs SSA after moving definitions.
 
-use crate::{BasicBlock, BlockId, Function, InstKind, Instruction, MirType, Terminator, ValueId};
+use crate::{BlockId, Function, InstKind, Instruction, MirType, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
 use solar_data_structures::{
@@ -12,7 +12,6 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_ir::Hotness;
 
 mod index_lists;
 pub use index_lists::IndexLists;
@@ -90,7 +89,7 @@ pub fn append_value_inst(
     ty: MirType,
 ) -> ValueId {
     let (inst, value) =
-        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_info_dropped());
+        func.alloc_value_inst(Instruction::new(kind, Some(ty)).with_debug_loc_dropped());
     func.blocks[block].instructions.push(inst);
     value
 }
@@ -109,13 +108,10 @@ pub fn append_value_inst(
 /// backedge and `succ`'s phis are rekeyed from `pred` to the new block.
 pub fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId {
     // pred -> new_block -> succ !metadata(pred terminator)
-    let new_block = func.blocks.push(BasicBlock {
-        instructions: Vec::new(),
-        terminator: Some(Terminator::Jump(succ)),
-        terminator_metadata: func.blocks[pred].terminator_metadata.clone(),
-        predecessors: smallvec![pred],
-        hotness: Hotness::Hot,
-    });
+    let new_block = func.alloc_edge_block(pred, succ);
+    func.blocks[new_block].terminator = Some(Terminator::Jump(succ));
+    func.blocks[new_block].terminator_metadata = func.blocks[pred].terminator_metadata.clone();
+    func.blocks[new_block].predecessors = smallvec![pred];
 
     // Retarget every occurrence of `succ` among `pred`'s successors.
     let mut retargeted = false;
@@ -305,56 +301,16 @@ pub fn resolve_replacement(
     value
 }
 
-/// Replaces instruction operands according to a one-step replacement map.
-pub fn replace_inst_uses(
-    inst: &mut Instruction,
-    replacements: &FxHashMap<ValueId, ValueId>,
-) -> usize {
-    replace_inst_operands(inst, replacements, |value, replacements| {
-        replacements.get(&value).copied().unwrap_or(value)
-    })
-}
-
-/// Replaces instruction operands according to a canonicalized replacement map.
-pub(crate) fn replace_inst_uses_canonicalized(
-    inst: &mut Instruction,
-    replacements: &FxHashMap<ValueId, ValueId>,
-) -> usize {
-    replace_inst_operands(inst, replacements, resolve_replacement)
-}
-
 /// Replaces terminator operands according to a one-step replacement map.
 pub fn replace_terminator_uses(
     term: &mut Terminator,
     replacements: &FxHashMap<ValueId, ValueId>,
 ) -> usize {
-    replace_terminator_operands(term, replacements, |value, replacements| {
-        replacements.get(&value).copied().unwrap_or(value)
-    })
-}
-
-/// Replaces terminator operands according to a canonicalized replacement map.
-pub(crate) fn replace_terminator_uses_canonicalized(
-    term: &mut Terminator,
-    replacements: &FxHashMap<ValueId, ValueId>,
-) -> usize {
-    replace_terminator_operands(term, replacements, resolve_replacement)
-}
-
-/// Converts a U256 to a u64 when lossless.
-pub fn u256_to_u64(value: U256) -> Option<u64> {
-    value.try_into().ok()
-}
-
-fn replace_inst_operands(
-    inst: &mut Instruction,
-    replacements: &FxHashMap<ValueId, ValueId>,
-    replacement: impl Fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
-) -> usize {
     let mut replaced = 0;
-    inst.rewrite_operands(|value| {
-        let new_value = replacement(*value, replacements);
-        if new_value != *value {
+    term.visit_operands_mut(|value| {
+        if let Some(&new_value) = replacements.get(value)
+            && new_value != *value
+        {
             *value = new_value;
             replaced += 1;
         }
@@ -362,47 +318,7 @@ fn replace_inst_operands(
     replaced
 }
 
-fn replace_terminator_operands(
-    term: &mut Terminator,
-    replacements: &FxHashMap<ValueId, ValueId>,
-    replacement: impl Fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
-) -> usize {
-    let mut replaced = 0;
-    let mut replace = |value: &mut ValueId| {
-        let new_value = replacement(*value, replacements);
-        if new_value != *value {
-            *value = new_value;
-            replaced += 1;
-        }
-    };
-
-    match term {
-        Terminator::Jump(_)
-        | Terminator::RevertReturndata
-        | Terminator::Stop
-        | Terminator::Invalid => {}
-        Terminator::Branch { condition, .. } => replace(condition),
-        Terminator::Switch { value, cases, .. } => {
-            replace(value);
-            for (case_value, _) in cases {
-                replace(case_value);
-            }
-        }
-        Terminator::Return { values } => {
-            for value in values {
-                replace(value);
-            }
-        }
-        Terminator::TailCall { args, .. } => {
-            for arg in args {
-                replace(arg);
-            }
-        }
-        Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-            replace(offset);
-            replace(size);
-        }
-        Terminator::SelfDestruct { recipient } => replace(recipient),
-    }
-    replaced
+/// Converts a U256 to a u64 when lossless.
+pub fn u256_to_u64(value: U256) -> Option<u64> {
+    value.try_into().ok()
 }

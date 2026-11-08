@@ -42,6 +42,12 @@
 //! `materialize(-c); ADD` if the target's cheapest materialization of `-c` beats the push and the
 //! swap, as `PUSH0; NOT` does for the decrement `x - 1`. The low-mask window ends in the same
 //! tail, so this rewrite waits for it.
+//!
+//! `DUP1 ADD PUSH1 1 OR` computes `(x + x) | 1`, which is `x - ~x`: `DUP1 NOT SWAP1 SUB` has the
+//! same gas and fewer bytes, and each of its instructions keeps the origin of the `OR`.
+//!
+//! Equivalent replacements keep the root operation's source context on their result-producing
+//! instruction. Removed operand locations are dropped, and function events are moved once.
 
 use super::{
     EvmPass, block_layout::terminator_kind, compact_pushes::materialize_immediate,
@@ -49,7 +55,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Instruction, Module, ModuleTarget, TerminatorKind},
+        ir::{Instruction, Metadata, Module, ModuleTarget, TerminatorKind},
         op,
     },
     target::Target,
@@ -348,35 +354,52 @@ enum Edit {
         second: u8,
     },
     MoveConstantThroughSwaps,
+    /// DUP1; NOT; SWAP1; SUB.
+    OddWord,
 }
 
 impl Edit {
     fn apply(self, target: Target, instructions: &mut Vec<Instruction>, start: usize) {
-        let not = || Instruction::opcode(op::NOT).with_debug_info_dropped();
+        // Every instruction a replacement creates takes the source context of its root, the
+        // instruction whose output the replacement produces, as InstCombine does:
+        // `Builder.SetCurrentDebugLocation(I->getDebugLoc())`
+        // (llvm/lib/Transforms/InstCombine/InstructionCombining.cpp#L5974-L5999 at llvm-project
+        // e98b16a2710b). LLVM's guide gives an expansion the location of the replaced instruction,
+        // `(add X X) => (shl X 1)`, and solc's peephole optimizer gives each new item the
+        // location of the matched item it replaces (libevmasm/PeepholeOptimiser.cpp).
+        let not = |root: &Metadata| Instruction::opcode(op::NOT).with_debug_loc(root);
         match self {
             Self::LowMaskWithSwap => {
                 // push 0; not; protected_count; shl; not
-                // NOTE: Changed constants and arithmetic have no exact source checkpoint.
+                let root = instructions.last().unwrap().metadata.clone();
+                let entry = instructions[start].metadata.clone();
                 instructions.truncate(instructions.len() - 3);
-                instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
-                instructions.insert(start + 1, not());
-                instructions.push(not());
+                instructions[start] = Instruction::push_value(U256::ZERO).with_debug_loc(&root);
+                instructions[start].metadata.move_function_events(&entry);
+                instructions.insert(start + 1, not(&root));
+                instructions.push(not(&root));
+                let last = &mut instructions.last_mut().unwrap().metadata;
+                last.move_function_events(&root);
             }
             Self::LowMask => {
                 // push 0; not; closed_count; shl; not
-                // NOTE: The changed constants and operations have different meanings;
-                // their original source checkpoints cannot describe the replacement.
-                instructions[start] = Instruction::push_value(U256::ZERO).with_debug_info_dropped();
-                instructions[start + 1] = not();
-                *instructions.last_mut().expect("matched subtraction") = not();
+                let root = instructions.last().unwrap().metadata.clone();
+                let entry = instructions[start].metadata.clone();
+                instructions[start] = Instruction::push_value(U256::ZERO).with_debug_loc(&root);
+                instructions[start].metadata.move_function_events(&entry);
+                instructions[start + 1] = not(&root);
+                *instructions.last_mut().expect("matched subtraction") = not(&root);
+                let last = &mut instructions.last_mut().unwrap().metadata;
+                last.move_function_events(&root);
             }
             Self::ShiftPairMask => {
                 // push s; shl; push s; shr
-                // NOTE: The first shift count is a copy without source checkpoint; the other
-                // instructions keep the metadata of the one they replace, the last shift that
-                // of the `and`.
-                instructions[start] = instructions[start + 2].clone().with_debug_info_dropped();
+                // The root is the `and`, which the last shift replaces. The copied shift count and
+                // the first shift take its source context.
+                let root = instructions.last().unwrap().metadata.clone();
+                instructions[start] = instructions[start + 2].clone().with_debug_loc(&root);
                 overwrite(&mut instructions[start + 1], op::SHL);
+                instructions[start + 1].metadata.preserve_debug_loc(&root);
                 instructions.remove(start + 3);
                 overwrite(&mut instructions[start + 3], op::SHR);
             }
@@ -389,24 +412,50 @@ impl Edit {
                 instructions.remove(start);
             }
             Self::FoldConstants { value } => {
+                // NOTE: The materialization computes the old root's value on the same path, so
+                // every instruction of it takes the root's source context. Operand locations
+                // disappear.
+                let context =
+                    replacement_debug_info(&instructions[start..], instructions.len() - start - 1);
                 instructions.truncate(start);
-                materialize_immediate(instructions, target.evm_version(), value);
+                materialize_immediate(instructions, target.evm_version(), value, &context);
+                let last = instructions.last_mut().unwrap();
+                if let Some(exit) = context.function_exit() {
+                    last.metadata.set_function_exit(exit);
+                }
+                if let Some(function) = context.function_invoke() {
+                    instructions[start].metadata.set_function_invoke(function);
+                }
             }
             Self::AddNegated { value } => {
                 // push -c; add
-                // NOTE: The materialized constant has no source checkpoint of its own; the `ADD`
-                // keeps the spans of the removed push, swap, and subtraction.
+                // NOTE: The materialized constant takes the source context of the subtraction, the
+                // root. The `ADD` replaces the subtraction and keeps its context; the removed push
+                // and swap take their origins with them, and only their function events move.
                 let mut add = instructions.pop().expect("matched SUB");
                 overwrite(&mut add, op::ADD);
+                let root = add.metadata.clone();
                 for removed in instructions.drain(start..) {
-                    add.metadata.absorb_debug_info(&removed.metadata);
+                    add.metadata.move_function_events(&removed.metadata);
                 }
-                materialize_immediate(instructions, target.evm_version(), value);
+                materialize_immediate(instructions, target.evm_version(), value, &root);
                 instructions.push(add);
             }
             Self::RemoveFirstKeepOne => {
+                // push x; push 0; absorbing_op => push 0
+                // push x; push 1; exp => push 1
+                let context = (instructions.len() - start == 3)
+                    .then(|| replacement_debug_info(&instructions[start..], 2));
                 instructions.remove(start);
                 instructions.truncate(start + 1);
+                if let Some(context) = context {
+                    // NOTE: The survivor keeps no event of its own: the window's agreed events
+                    // replace them.
+                    let metadata = &mut instructions[start].metadata;
+                    metadata.drop_function_events();
+                    metadata.preserve_debug_loc(&context);
+                    metadata.move_function_events(&context);
+                }
             }
             Self::RemoveFirstKeepTwo => {
                 instructions.remove(start);
@@ -421,7 +470,15 @@ impl Edit {
                 overwrite(&mut instructions[start], opcode);
             }
             Self::OverwriteOne { opcode } => {
+                // dup 2; binop; swap 1; pop => binop
+                let context = replacement_debug_info(&instructions[start..], 1);
                 overwrite(&mut instructions[start], opcode);
+                // NOTE: The survivor keeps no event of its own: the window's agreed events
+                // replace them.
+                let metadata = &mut instructions[start].metadata;
+                metadata.drop_function_events();
+                metadata.preserve_debug_loc(&context);
+                metadata.move_function_events(&context);
                 instructions.truncate(start + 1);
             }
             Self::OverwriteTwo { opcode } => {
@@ -442,22 +499,36 @@ impl Edit {
                 // SWAP(n-1); PUSH address; MSTORE
                 instructions[start]
                     .replace_preserving_metadata(Instruction::stack_op(op::StackOp::Swap(depth)));
+                // The removed swap and pop take their origins with them.
                 let (retained, removed) = instructions[start..].split_at_mut(3);
                 for inst in removed {
-                    retained[2].metadata.absorb_debug_info(&inst.metadata);
+                    retained[2].metadata.move_function_events(&inst.metadata);
                 }
                 instructions.truncate(start + 3);
             }
             Self::InvertComparison { value, opcode } => {
                 // PUSH c; independent operands; compare; ISZERO
                 // => PUSH adjusted; independent operands; opposite compare
+                // NOTE: The opposite compare keeps the comparison's context, as solc's `sub` keeps
+                // the `eq`'s when `eq; iszero; push; jumpi` fuses (`_eq.debugData()`,
+                // libevmasm/PeepholeOptimiser.cpp#L349). The removed `iszero` takes its origins
+                // with it; only its function events move.
                 instructions[start].replace_preserving_metadata(Instruction::push_value(value));
-                fuse_iszero(instructions, opcode);
+                let iszero = instructions.pop().expect("matched ISZERO");
+                let comparison = instructions.last_mut().expect("matched comparison");
+                overwrite(comparison, opcode);
+                comparison.metadata.move_function_events(&iszero.metadata);
             }
             Self::ZeroLessIszero => {
                 // PUSH 0; LT; ISZERO => ISZERO
-                instructions.remove(start);
-                fuse_iszero(instructions, op::ISZERO);
+                // NOTE: The comparison is removed and the surviving `iszero` keeps its own
+                // context. The removed push and `lt` take their origins with them; only their
+                // function events move.
+                let pushed = instructions.remove(start);
+                let comparison = instructions.remove(start);
+                let iszero = instructions.last_mut().expect("matched ISZERO");
+                iszero.metadata.move_function_events(&pushed.metadata);
+                iszero.metadata.move_function_events(&comparison.metadata);
             }
             Self::ReloadStoredValue => {
                 instructions.swap(start, start + 3);
@@ -466,34 +537,68 @@ impl Edit {
                 instructions.truncate(start + 3);
             }
             Self::DropNonzeroTest => {
+                // The removed test takes its origins with it; its function events move to the
+                // branch's label.
+                let predicate = replacement_debug_info(&instructions[start..start + 2], 1);
                 instructions.drain(start..start + 2);
+                instructions[start].metadata.move_function_events(&predicate);
                 overwrite(&mut instructions[start + 1], op::JUMPI);
             }
             Self::EqIszeroJumpi => {
+                // The `sub` keeps the `eq`'s context, as solc's peephole optimizer gives it
+                // (`_eq.debugData()`, libevmasm/PeepholeOptimiser.cpp#L349). The removed `iszero`
+                // takes its origins with it; its function events move to the branch's label.
                 overwrite(&mut instructions[start], op::SUB);
-                instructions.remove(start + 1);
+                let removed = instructions.remove(start + 1);
+                instructions[start + 1].metadata.move_function_events(&removed.metadata);
                 overwrite(&mut instructions[start + 2], op::JUMPI);
             }
             Self::SwapPair { first, second } => {
+                let context = replacement_debug_info(&instructions[start..], 1);
                 for (inst, depth) in instructions[start..].iter_mut().zip([first, second]) {
                     *inst =
-                        Instruction::stack_op(op::StackOp::Swap(depth)).with_debug_info_dropped();
+                        Instruction::stack_op(op::StackOp::Swap(depth)).with_debug_loc(&context);
                 }
                 instructions.truncate(start + 2);
+                // NOTE: Only the final stack state agrees with the old window.
+                let swap = &mut instructions[start + 1].metadata;
+                swap.move_function_events(&context);
             }
             Self::MoveConstantThroughSwaps => {
                 // SWAPn; SWAP1; PUSH c; binop
                 let window = &mut instructions[start..start + 6];
+                let root = window[2].metadata.clone();
+                // The swaps take their origins with them.
                 for swap in [0, 3, 4, 5] {
                     let metadata = std::mem::take(&mut window[swap].metadata);
-                    window[2].metadata.absorb_debug_info(&metadata);
+                    window[2].metadata.move_function_events(&metadata);
                 }
                 window[..4].rotate_right(1);
                 // NOTE: The intermediate stack layouts differ even though the final one agrees.
                 for swap in &mut window[..2] {
-                    swap.metadata.mark_debug_info_dropped();
+                    swap.metadata.preserve_debug_loc(&root);
                 }
                 instructions.truncate(start + 4);
+            }
+            Self::OddWord => {
+                // NOTE: Every instruction of the replacement carries the source origin of the
+                // `OR` it replaces, as LLVM keeps the location of an expanded instruction, and
+                // the `SUB` takes its function events. Origins of the `ADD` and the push drop,
+                // as those of any removed operand do.
+                let context = replacement_debug_info(&instructions[start..], 3);
+                instructions.truncate(start);
+                instructions.extend([
+                    Instruction::stack_op(op::StackOp::Dup(1)),
+                    Instruction::opcode(op::NOT),
+                    Instruction::stack_op(op::StackOp::Swap(1)),
+                    Instruction::opcode(op::SUB),
+                ]);
+                for inst in &mut instructions[start..start + 3] {
+                    inst.metadata.preserve_debug_loc(&context);
+                }
+                let sub = &mut instructions[start + 3].metadata;
+                sub.preserve_debug_loc(&context);
+                sub.move_function_events(&context);
             }
         }
     }
@@ -502,14 +607,6 @@ impl Edit {
 fn overwrite(inst: &mut Instruction, opcode: u8) {
     debug_assert!(inst.as_evm_opcode().is_some());
     inst.replace_preserving_metadata(Instruction::opcode(opcode));
-}
-
-/// Replaces the comparison before the trailing `ISZERO` with `opcode`, merging its debug info.
-fn fuse_iszero(instructions: &mut Vec<Instruction>, opcode: u8) {
-    let iszero = instructions.pop().expect("matched ISZERO");
-    let comparison = instructions.last_mut().expect("matched comparison");
-    overwrite(comparison, opcode);
-    comparison.metadata.absorb_debug_info(&iszero.metadata);
 }
 
 fn instruction_sequence(instructions: &[Instruction]) -> impl fmt::Display + '_ {
@@ -532,4 +629,11 @@ fn instruction_sequence(instructions: &[Instruction]) -> impl fmt::Display + '_ 
         }
         Ok(())
     })
+}
+
+/// Keeps the replaced result's source context and the window's compatible function events.
+fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata {
+    let mut context = instructions[root].metadata.clone();
+    context.merge_function_events(instructions.iter().map(|inst| &inst.metadata));
+    context
 }

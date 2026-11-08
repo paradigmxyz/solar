@@ -1,3 +1,4 @@
+use super::TypeChecker;
 use crate::{
     builtins::Builtin,
     hir,
@@ -145,5 +146,18 @@ impl<'gcx> TypeckResults<'gcx> {
             res => res.and_then(|res| res.as_variable()),
         };
         variable.is_some_and(|id| gcx.hir.variable(id).is_constant())
+    }
+}
+
+impl<'gcx> TypeChecker<'gcx> {
+    /// Returns whether a type-checked expression is a compile-time constant.
+    pub(super) fn is_pure(&self, expr: &hir::Expr<'gcx>) -> bool {
+        self.results.is_pure(self.gcx, expr)
+    }
+
+    /// Returns the constant variable that an expression resolves to, if any.
+    pub(super) fn constant_var(&self, expr: &hir::Expr<'gcx>) -> Option<hir::VariableId> {
+        let id = self.results.resolved_expr(expr)?.as_variable()?;
+        self.gcx.hir.variable(id).is_constant().then_some(id)
     }
 }

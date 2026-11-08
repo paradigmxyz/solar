@@ -8,7 +8,8 @@ use crate::{
 use solar_data_structures::fmt::FmtIteratorExt;
 
 impl Module {
-    /// Returns the canonical EVM IR text-format representation.
+    /// Returns the EVM IR text-format representation. Audit-only debug fields can be hidden
+    /// with [`Self::set_debug_info_visible`] without discarding the metadata used by the audit.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             writeln!(f, "@module {}", self.name)?;
@@ -37,9 +38,24 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if metadata.is_continuation {
             attributes.push("continuation".to_string());
         }
-        if let Some(function) = metadata.function_invoke {
+        if metadata.external_entry {
+            attributes.push("entry".to_string());
+        }
+        if !module.hide_debug_info
+            && let Some(function) = metadata.function_invoke
+        {
             attributes.push(format!(
                 "invoke={}@{}..{}",
+                function.identifier,
+                function.declaration.lo().0,
+                function.declaration.hi().0
+            ));
+        }
+        if !module.hide_debug_info
+            && let Some(function) = metadata.lent_invoke
+        {
+            attributes.push(format!(
+                "lent_invoke={}@{}..{}",
                 function.identifier,
                 function.declaration.lo().0,
                 function.declaration.hi().0
@@ -59,7 +75,7 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
             if !attributes.is_empty() {
                 write!(f, " [{}]", attributes.iter().format(", "))?;
             }
-            write!(f, ":")
+            write!(f, "{}:", display_metadata(&block.label_metadata, !module.hide_debug_info))
         });
         let comment = module.comments.get(block.label);
         writeln!(f, "{}", solar_ir::comment::display_label_comment(label, comment))?;
@@ -88,7 +104,7 @@ fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fm
         if let Some(size) = inst.immutable_type_size() {
             write!(f, ", {}", size.bytes())?;
         }
-        write!(f, "{}", display_metadata(&inst.metadata))
+        write!(f, "{}", display_metadata(&inst.metadata, !module.hide_debug_info))
     })
 }
 
@@ -126,16 +142,25 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
                 }
             }
         }
-        write!(f, "{}", display_metadata(&term.metadata))
+        write!(f, "{}", display_metadata(&term.metadata, !module.hide_debug_info))
     })
 }
 
-fn display_metadata(metadata: &Metadata) -> impl fmt::Display + '_ {
+fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
-        let spans = metadata.source_spans();
-        let function_invoke = metadata.function_invoke();
-        let function_exit = metadata.function_exit();
+        let spans = if visible { metadata.source_spans() } else { &[] };
+        let function_invoke = visible.then(|| metadata.function_invoke()).flatten();
+        let function_exit = visible.then(|| metadata.function_exit()).flatten();
+        // Text without a location means `dropped`, and the audit sets `unknown` on the gaps it
+        // reports, so neither is spelled out: an audit must not change the text.
+        let loc_kind = (visible && spans.is_empty())
+            .then(|| metadata.debug_loc_kind())
+            .filter(|kind| {
+                matches!(kind, DebugLocKind::CompilerGenerated | DebugLocKind::Temporary)
+            })
+            .and_then(DebugLocKind::keyword);
         if spans.is_empty()
+            && loc_kind.is_none()
             && function_invoke.is_none()
             && function_exit.is_none()
             && !metadata.keep_with_next
@@ -157,6 +182,10 @@ fn display_metadata(metadata: &Metadata) -> impl fmt::Display + '_ {
                 write!(f, "{}..{}", span.lo().0, span.hi().0)?;
             }
             write!(f, "]")?;
+            separator = ", ";
+        }
+        if let Some(keyword) = loc_kind {
+            write!(f, "{keyword}")?;
             separator = ", ";
         }
         if let Some(function) = function_invoke {

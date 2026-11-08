@@ -58,13 +58,18 @@ fn debug_output_selection_and_bytecode_neutrality() {
 }
 
 #[test]
-fn debug_output_selection_preserves_shared_tail_bytecode() {
+fn debug_output_selection_preserves_optimized_bytecode() {
     for source in [
-        "../../codegen/lowering/run-call/external_call_returndata_size.sol",
-        "../../codegen/lowering/empty_code_external_call.sol",
-        "../../codegen/lowering/storage_checked_arithmetic.sol",
-        "../../codegen/lowering/library_address.sol",
+        "../../codegen/run-call/external-calls/external_call_returndata_size.sol",
+        "../../codegen/run-call/external-calls/empty_code_external_call.sol",
+        "../../codegen/mir/lower-arithmetic/storage_checked_arithmetic.sol",
+        "../../codegen/run-call/libraries/library_address.sol",
         "../../../foundry/libraries/test/OverloadLib.t.sol",
+        "../../codegen/mir/byte-loops/shapes.sol",
+        "../../codegen/mir/if-convert/boolean_selects_runtime.sol",
+        "../../codegen/lowering/mir/storage-memory/mapping.sol",
+        "../../codegen/lowering/mir/abi/calldata_slice_ternary.sol",
+        "../../codegen/run-call/dispatch/internal_stop_runtime.sol",
     ] {
         for mode in ["none", "gas", "size"] {
             let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
@@ -162,7 +167,17 @@ fn debug_outputs_match_standard_json() {
 
 #[test]
 fn inlined_dispatch_debug_outputs_are_bytecode_neutral() {
-    let source = "../../codegen/lowering/run-call/scalar_dispatch.sol";
+    assert_debug_outputs_are_bytecode_neutral(
+        "../../codegen/lowering/mir/calls/scalar_dispatch.sol",
+    );
+}
+
+#[test]
+fn sunk_phi_expression_debug_outputs_are_bytecode_neutral() {
+    assert_debug_outputs_are_bytecode_neutral("phi_sink.sol");
+}
+
+fn assert_debug_outputs_are_bytecode_neutral(source: &str) {
     for mode in ["gas", "size"] {
         let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
         let debug = compile_json(&[
@@ -427,7 +442,7 @@ fn ethdebug_omits_unresolved_library_operands() {
 
 #[test]
 fn evm_ir_dump_preserves_bytecode() {
-    let source = "../../codegen/lowering/function_comments.sol";
+    let source = "../../codegen/debug-info/function_comments.sol";
     for mode in ["none", "gas", "size"] {
         let baseline = compile_json(&[source, "-O", mode, "--emit=bin,bin-runtime"]);
         let output = compile(&[
@@ -448,5 +463,97 @@ fn evm_ir_dump_preserves_bytecode() {
         .expect("compiler JSON")
         .expect("parse compiler JSON");
         assert_eq!(dumped["contracts"], baseline["contracts"], "{mode}");
+    }
+}
+
+#[test]
+fn debugify_loop_and_stack_metadata_preserve_bytecode() {
+    let audit = tempfile::tempdir().unwrap();
+    let flag = format!("-Zdebugify-output={}", audit.path().display());
+    for source in [
+        "../../codegen/debug-info/stackify_retained_constant.sol",
+        "../../codegen/debug-info/stackify_generated_edges.sol",
+        "../../codegen/debug-info/indvar_simplify_narrow_base.sol",
+        "../../codegen/debug-info/if_convert_modifier_phi.sol",
+        "../../codegen/debug-info/shared_terminal_labels.sol",
+        "../../codegen/mir/byte-loops/empty_count.sol",
+        "../../codegen/mir/byte-loops/wrapped_memory_offsets.sol",
+        "../../codegen/mir/loop-version/partition.sol",
+    ] {
+        for mode in ["none", "gas", "size"] {
+            let args = [
+                source,
+                "-O",
+                mode,
+                "--emit=bin,bin-runtime,srcmap,srcmap-runtime,ethdebug,ethdebug-runtime",
+            ];
+            let plain = compile_json(&args);
+            let audited = compile_json(&[args.as_slice(), &[&flag]].concat());
+            assert_eq!(plain["contracts"], audited["contracts"], "{source}, {mode}");
+        }
+    }
+}
+
+#[test]
+fn library_deployment_address_uses_contract_origin() {
+    let source = "../../codegen/debug-info/gap_check.sol";
+    let text = RealFileLoader.load_file(&Path::new(FIXTURES).join(source)).unwrap();
+    let start = text.find("library GapCheck").unwrap();
+    for mode in ["none", "gas", "size"] {
+        let output = compile_json(&[source, "-O", mode, "--emit=bin,ethdebug"]);
+        let contract = output["contracts"].as_object().unwrap().values().next().unwrap();
+        assert!(
+            contract["ethdebug"]["instructions"].as_array().unwrap().iter().any(|inst| {
+                inst["operation"]["mnemonic"] == "ADDRESS"
+                    && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
+            }),
+            "{mode}: library address staging lost its contract location"
+        );
+    }
+}
+
+#[test]
+fn evm_ir_debug_contexts_preserve_bytecode() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("debug.evmir");
+    let path = path.to_str().unwrap();
+    for (pipeline, fixture, audit) in [
+        ("peephole", "peephole_debug_replacements.evmir", "report"),
+        ("cfg-simplify", "cfg_simplify_branch_entry_inversion.evmir", "check"),
+        ("cfg-simplify", "cfg_simplify_thunk_chain_spans.evmir", "check"),
+        ("cfg-simplify", "cfg_simplify_thunk_spans.evmir", "check"),
+        (
+            "cfg-simplify,terminal-dedup,cfg-simplify",
+            "cfg_simplify_lent_invoke_shared_entry.evmir",
+            "report",
+        ),
+    ] {
+        let source = RealFileLoader
+            .load_file(&Path::new(FIXTURES).join("../../codegen/debug-info/evm-ir").join(fixture))
+            .unwrap();
+        let plain = source
+            .lines()
+            .map(|line| line.split_once(" !metadata(").map_or(line, |(code, _)| code))
+            .map(|line| {
+                line.split_once(" [invoke=")
+                    .map_or_else(|| line.to_owned(), |(code, _)| format!("{code}:"))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        for mode in ["none", "gas", "size"] {
+            let pipeline = format!("-Zevm-ir-pipeline={pipeline}");
+            let args = [path, "-O", mode, "--emit=bin,bin-runtime", &pipeline];
+            fs::write(path, &plain).unwrap();
+            let baseline = compile_json(&args);
+            fs::write(path, &source).unwrap();
+            let annotated = compile_json(&args);
+            let audit = format!("-Zdebugify={audit}");
+            let audited = compile_json(&[args.as_slice(), &[&audit]].concat());
+            assert_eq!(
+                baseline["contracts"], annotated["contracts"],
+                "{fixture}, {mode}: source contexts"
+            );
+            assert_eq!(baseline["contracts"], audited["contracts"], "{fixture}, {mode}: debugify");
+        }
     }
 }

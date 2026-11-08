@@ -1,6 +1,9 @@
-use crate::{BytePos, CharPos, pos::RelativeBytePos};
+use crate::{BytePos, CharPos, pos::RelativeBytePos, source_map::SourceRoots};
 use std::{
-    fmt, io,
+    cmp::Ordering,
+    fmt,
+    hash::Hash,
+    io,
     ops::{Range, RangeInclusive},
     path::{Path, PathBuf},
     sync::Arc,
@@ -120,6 +123,29 @@ impl FileName {
             _ => None,
         }
     }
+
+    /// Compares the source unit names of two file names by their raw bytes, like solc's ordered
+    /// `m_sources` map. The names are those of [`FileName::display`], including `<stdin>` and
+    /// `<custom>`. Unlike `Ord`, which agrees with `Eq`, it keeps repeated separators, so it
+    /// orders `a//b` and `a/b` differently.
+    pub fn cmp_source_unit_name(&self, other: &Self) -> Ordering {
+        fn bytes<'a>(name: &'a FileName, roots: Option<&SourceRoots>) -> [&'a [u8]; 3] {
+            match name {
+                FileName::Real(path) => {
+                    let path = roots.map_or(&**path, |roots| roots.source_unit_name(path));
+                    [path.as_os_str().as_encoded_bytes(), b"", b""]
+                }
+                FileName::Stdin => [b"<stdin>", b"", b""],
+                FileName::Custom(s) => [b"<", s.as_bytes(), b">"],
+            }
+        }
+
+        let roots = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.roots()))
+            .unwrap_or_else(|| arc_swap::Guard::from_inner(None));
+        let roots = roots.as_deref();
+        let flat = |name| bytes(name, roots).into_iter().flatten();
+        flat(self).cmp(flat(other)).then_with(|| self.cmp(other))
+    }
 }
 
 /// A display wrapper for `FileName`.
@@ -143,18 +169,6 @@ impl fmt::Display for FileNameDisplay<'_> {
             FileName::Stdin => f.write_str("<stdin>"),
             FileName::Custom(s) => write!(f, "<{s}>"),
         }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct SourceFileId(u64);
-
-impl SourceFileId {
-    pub(crate) fn new(filename: &FileName) -> Self {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = solar_data_structures::map::FxHasher::with_seed(0);
-        filename.hash(&mut hasher);
-        Self(hasher.finish())
     }
 }
 
@@ -215,17 +229,12 @@ impl std::hash::Hash for SourceFile {
 
 impl SourceFile {
     /// Creates a new `SourceFile`. Use the [`SourceMap`](crate::SourceMap) methods instead.
-    pub(crate) fn new(
-        name: FileName,
-        id: SourceFileId,
-        mut src: Arc<String>,
-    ) -> Result<Self, OffsetOverflowError> {
+    pub(crate) fn new(name: FileName, mut src: Arc<String>) -> Result<Self, OffsetOverflowError> {
         // Compute the file hash before any normalization.
         // let src_hash = SourceFileHash::new(hash_kind, &src);
 
         // let normalized_pos = normalize_src(&mut src);
 
-        debug_assert_eq!(id, SourceFileId::new(&name));
         let source_len = src.len();
         let source_len = u32::try_from(source_len).map_err(|_| OffsetOverflowError(()))?;
 

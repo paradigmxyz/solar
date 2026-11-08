@@ -230,14 +230,14 @@ fn split_guard(
             *value = clone_value(caller, callee, &args, values, *value);
         });
         let mut instruction = Instruction::new(kind, source_inst.result_ty);
-        instruction.metadata.copy_debug_context(&source_inst.metadata);
+        instruction.metadata.preserve_debug_loc(&source_inst.metadata);
         let (new_inst, new_value) = caller.alloc_value_inst(instruction);
         values.insert(callee.inst_result_value(source).unwrap(), new_value);
         instructions.push(new_inst);
     }
     let condition = clone_value(caller, callee, &args, values, guard.condition);
-    let continuation = caller.alloc_block();
-    let call = caller.alloc_block();
+    let continuation = caller.alloc_block_like(block);
+    let call = caller.alloc_block_like(block);
     let (terminator, metadata) = caller.blocks[block].take_terminator();
     // continuation: suffix; original_terminator
     caller.blocks[continuation].instructions =

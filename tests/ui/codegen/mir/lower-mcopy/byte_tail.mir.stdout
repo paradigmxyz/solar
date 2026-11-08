@@ -14,7 +14,7 @@ fn @single(arg0: ptr<memory>, arg1: i8) -> ptr<memory> [selector=0x1f48d2ce, pur
     v6 = byte 0, v2
     v7 = ptradd v0, 32
     mstore8 v7, v6
-    v8 = abi_encode_packed (bytes arg0, bytes v0)
+    v8 = abi_encode_packed (memory_bytes arg0, memory_bytes v0)
     ret v8
 }
 
@@ -29,6 +29,6 @@ fn @wordAndByte(arg0: ptr<memory>, arg1: i256, arg2: i256) -> ptr<memory> [selec
     v3 = ptrtoint ptr<memory> v0 to i256
     v4 = add v3, 64
     mstore8 v4, arg2
-    v5 = abi_encode_packed (bytes arg0, bytes v0)
+    v5 = abi_encode_packed (memory_bytes arg0, memory_bytes v0)
     ret v5
 }

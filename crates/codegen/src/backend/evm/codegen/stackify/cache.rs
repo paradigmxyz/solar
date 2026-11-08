@@ -316,7 +316,9 @@ impl BlockPlan {
                         .map(|(block, steps)| Some((*block, remap_steps(steps, map)?)))
                         .collect::<Option<_>>()?,
                 },
-                Exit::TailCall(callee) => Exit::TailCall(map(*callee)?),
+                Exit::TailCall { callee, origin } => {
+                    Exit::TailCall { callee: map(*callee)?, origin: *origin }
+                }
                 exit @ (Exit::Jump(_) | Exit::Return | Exit::Terminal) => exit.clone(),
             },
         })

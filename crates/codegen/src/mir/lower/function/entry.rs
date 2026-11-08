@@ -4,7 +4,6 @@ use super::*;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn bind_signature(&mut self, function: &hir::Function<'_>) {
-        self.parameters.extend_from_slice(function.parameters);
         for &param in function.parameters {
             let ty = self.cx.gcx.type_of_item(param.into());
             let value = self.builder.add_param(self.cx.state.scalar_carrier(self.cx.gcx, param));
@@ -19,10 +18,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 );
             } else {
                 self.values.insert(param, value);
-                if ty.is_value_type() && self.builder.func().value_ty(value) == Some(MirType::I256)
-                {
-                    self.dirty_values.insert(value);
-                }
             }
         }
         let return_types = function
@@ -61,16 +56,35 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 continue;
             }
             let Some(initializer) = variable.initializer else { continue };
-            let ty = self.cx.gcx.type_of_item(id.into());
-            let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
-            let value = self.lower_typed_expr(initializer, ty)?;
-            if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
-                self.store_immutable_value(id, immutable_id, value);
-            } else {
-                self.store_state_variable(id, value, source_ty, initializer.span)?;
-            }
+            // Like solc's `appendStateVariableInitialization`, map the conversion and the store
+            // to the variable declaration. solc's declaration ends with its value, before the
+            // semicolon.
+            let previous =
+                self.builder.replace_source_span(variable.span.with_hi(initializer.span.hi()));
+            let result = self.lower_state_initializer(id, initializer);
+            self.builder.replace_source_span(previous);
+            result?;
         }
         Some(())
+    }
+
+    fn lower_state_initializer(
+        &mut self,
+        id: VariableId,
+        initializer: &hir::Expr<'_>,
+    ) -> Option<()> {
+        let ty = self.cx.gcx.type_of_item(id.into());
+        let source_ty = self.cx.gcx.type_of_expr(initializer.id)?;
+        let carried = self.lower_typed_expr(initializer, ty)?;
+        if let Some(&immutable_id) = self.cx.immutable_ids.get(&id) {
+            let span = self.cx.gcx.hir.variable(id).span;
+            let value = self.bind_word(id, carried, span)?;
+            self.store_immutable_value(id, immutable_id, value);
+            Some(())
+        } else {
+            let value = carried.clean(self, ty);
+            self.store_state_variable(id, value, source_ty, initializer.span)
+        }
     }
 
     pub(super) fn lower_implicit_base_constructors(
@@ -119,6 +133,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .cx
                     .report_unsupported(constructor.span, "base constructor argument list");
             }
+            // Like solc's `appendBaseConstructor`, which sets the location of the base
+            // constructor's definition around the arguments, map the argument conversions and
+            // parameter bindings to it. Each argument expression keeps its own location.
+            let previous = self.builder.replace_source_span(constructor.span);
             let parameter_names = self.cx.gcx.callable_param_names(CallableParamSource::Function {
                 id: constructor_id,
                 skips_receiver: false,
@@ -140,7 +158,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     if Self::is_storage_parameter(parameter_ty) {
                         return Some(this.require_storage_access(argument)?.slot);
                     }
-                    this.lower_typed_expr(argument, parameter_ty)
+                    let carried = this.lower_typed_expr(argument, parameter_ty)?;
+                    this.bind_word(constructor.parameters[index], carried, argument.span)
                 },
             )?;
             // Later bases may name an earlier base's parameters in their own
@@ -148,6 +167,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // they stay live for the rest of the constructor.
             self.bind_inlined_parameters(constructor.parameters, &values);
             self.prepared_constructors.insert(constructor_id);
+            self.builder.replace_source_span(previous);
         }
         Some(())
     }
@@ -269,11 +289,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else {
                     self.values.get(&id).copied().unwrap_or_else(|| self.default_binding_value(ty))
                 };
-                values.push(self.materialize_scalar_carrier(
-                    id,
-                    value,
-                    self.cx.gcx.hir.variable(id).span,
-                )?);
+                let value = self.binding_word(value, id);
+                values.push(self.bind_word(id, value, self.cx.gcx.hir.variable(id).span)?);
             }
             self.builder.ret(values);
         }
@@ -282,10 +299,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn is_terminated(&self) -> bool {
         self.builder.func().block(self.builder.current_block()).terminator.is_some()
-    }
-
-    pub(super) fn push_return_target(&mut self, block: BlockId) {
-        self.return_targets.push(ReturnTarget { block, states: Vec::new() });
     }
 
     pub(super) fn materialize_default_bindings(&mut self) {
@@ -300,8 +313,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         ids.sort_unstable();
         for id in ids {
             let ty = self.cx.gcx.type_of_item(id.into());
+            // Named returns are initialized on entry, under their declarations in solc
+            // (`ContractCompiler.cpp` L638-639, L1519-1534). A deferred local keeps its current
+            // context: its original declaration might not dominate this materialization.
+            let previous = self
+                .default_bindings
+                .contains(&id)
+                .then(|| self.builder.replace_source_span(self.cx.gcx.hir.variable(id).span));
             let value = self.default_binding_value(ty);
             let value = self.materialize_raw_scalar(id, value);
+            if let Some(previous) = previous {
+                self.builder.replace_source_span(previous);
+            }
             self.values.insert(id, value);
         }
     }
@@ -313,39 +336,69 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn finish_return_target(
+    /// Lowers `lower` as a frame whose `return`s jump to one continuation block, and continues
+    /// there.
+    ///
+    /// Falling off the end of the frame jumps to the continuation under `exit_span`. Only the
+    /// function's return bindings flow out of the frame: a `return` in an inner invocation
+    /// carries that invocation's parameters and locals, which share ids with an outer invocation
+    /// of the same modifier, so every other binding keeps its value from before the frame. This
+    /// matches via-IR, where a modifier's `_` is a call that returns only the return variables.
+    pub(super) fn lower_return_frame(
         &mut self,
-        before_values: FxHashMap<VariableId, ValueId>,
-        before_storage_refs: FxHashMap<VariableId, StorageAccess>,
-    ) {
-        let target = self.return_targets.pop().expect("return target exists");
+        exit_span: Span,
+        lower: impl FnOnce(&mut Self) -> Option<()>,
+    ) -> Option<()> {
+        let continuation = self.builder.create_block();
+        let before_values = self.values.clone();
+        let before_storage_refs = self.storage_refs.clone();
+        self.return_targets.push(ReturnTarget { block: continuation, states: Vec::new() });
+        let result = lower(self);
+        if result.is_some() && !self.is_terminated() {
+            self.record_return_state();
+            // jump continuation !metadata(exit span)
+            let previous = self.builder.replace_source_span(exit_span);
+            self.builder.jump(continuation);
+            self.builder.replace_source_span(previous);
+        }
+        let mut target = self.return_targets.pop().expect("return target exists");
+        for state in &mut target.states {
+            state.values.retain(|id, _| self.returns.contains(id));
+            state.storage_refs.retain(|id, _| self.returns.contains(id));
+        }
         self.builder.switch_to_block(target.block);
-        self.values = self.merge_many_values(before_values, &target.states);
-        self.storage_refs = self.merge_storage_ref_states(before_storage_refs, &target.states);
+        let returns_before = before_values
+            .iter()
+            .filter(|(id, _)| self.returns.contains(id))
+            .map(|(&id, &value)| (id, value))
+            .collect();
+        let returns_before_storage = before_storage_refs
+            .iter()
+            .filter(|(id, _)| self.returns.contains(id))
+            .map(|(&id, &access)| (id, access))
+            .collect();
+        self.values = before_values;
+        let merged = self.merge_many_values(returns_before, &target.states);
+        self.values.extend(merged);
+        self.storage_refs = before_storage_refs;
+        let merged = self.merge_storage_ref_states(returns_before_storage, &target.states);
+        self.storage_refs.extend(merged);
+        result
     }
 
     pub(super) fn lower_function_body(
         &mut self,
         modifiers: &'gcx [hir::Modifier<'gcx>],
         body: hir::Block<'gcx>,
+        span: Span,
     ) -> Option<()> {
         // return_values = lower_body(modifiers)
         if modifiers.is_empty() {
             self.lower_block(body)
         } else {
             self.materialize_default_bindings();
-            let return_block = self.builder.create_block();
-            let before_values = self.values.clone();
-            let before_storage_refs = self.storage_refs.clone();
-            self.push_return_target(return_block);
-            let result = self.lower_modifier_chain(modifiers, body);
-            result?;
-            if !self.is_terminated() {
-                self.record_return_state();
-                self.builder.jump(return_block);
-            }
-            self.finish_return_target(before_values, before_storage_refs);
-            Some(())
+            // solc maps the return tag after the modifier chain to the function definition.
+            self.lower_return_frame(span, |this| this.lower_modifier_at(modifiers, body, 0))
         }
     }
 }

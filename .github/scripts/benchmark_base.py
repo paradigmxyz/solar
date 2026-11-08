@@ -11,8 +11,17 @@ def command(*args: str) -> str:
 
 
 def resolve_base(base_sha: str, repository: str, pr_number: str) -> dict[str, str]:
-    pull = json.loads(command("gh", "api", f"repos/{repository}/pulls/{pr_number}"))
-    parent = pull["base"]
+    try:
+        parent = json.loads(
+            command("gh", "api", f"repos/{repository}/pulls/{pr_number}")
+        )["base"]
+    except subprocess.CalledProcessError:
+        # The checked-out merge still identifies the exact base when the API is unavailable.
+        print(
+            "warning: could not query PR base metadata; using the git revision",
+            file=sys.stderr,
+        )
+        parent = None
     message = command("git", "show", "-s", "--format=%B", base_sha)
     parents = command("git", "show", "-s", "--format=%P", base_sha).split()
     merge = re.fullmatch(r"Merge ([0-9a-f]{40}) into ([0-9a-f]{40})", message)
@@ -27,7 +36,9 @@ def resolve_base(base_sha: str, repository: str, pr_number: str) -> dict[str, st
         base_sha = parents[1]
     return {
         "sha": base_sha,
-        "ref": parent["ref"] if base_sha == parent["sha"] else base_sha[:8],
+        "ref": parent["ref"]
+        if parent is not None and base_sha == parent["sha"]
+        else base_sha[:8],
     }
 
 

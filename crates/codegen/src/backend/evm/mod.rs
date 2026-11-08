@@ -16,7 +16,7 @@ mod debug_info;
 pub(crate) use debug_info::DebugInfoBuilder;
 pub use debug_info::{
     DebugFunction, DebugFunctionExit, DebugInfo, DebugInstruction, DebugInstructions,
-    DebugLocation, DebugSpans, MAX_DEBUG_SPANS,
+    DebugLocation, DebugSpans,
 };
 
 mod disasm;
@@ -29,11 +29,13 @@ mod layout;
 pub use solar_evmir::op;
 
 /// What code generation keeps for a whole compilation, on its [`Gcx`](solar_sema::Gcx): the
-/// results of its searches and its plans, which every contract may read and fill.
+/// results of its searches and its plans, which every contract may read and fill, and its audit
+/// stream, shared by codegen workers and closed with the compilation.
 #[derive(Default)]
 pub(crate) struct CodegenState {
     schedules: ir::SharedSchedules,
     plans: PlanCache,
+    pub(crate) debugify_output: crate::debugify::Output,
 }
 
 impl CodegenState {

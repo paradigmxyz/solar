@@ -22,9 +22,12 @@ struct ParsedBlockHeader {
     hotness: Hotness,
     in_loop: bool,
     is_continuation: bool,
+    external_entry: bool,
     function_invoke: Option<DebugFunction>,
+    lent_invoke: Option<DebugFunction>,
     entry_depth: Option<u16>,
     call_effect: Option<CallEffect>,
+    label_metadata: Metadata,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -68,6 +71,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parse_program_body(&mut module)?;
         let tracks_debug_info = module.blocks.iter().any(|block| {
             block.metadata.function_invoke.is_some()
+                || block.metadata.lent_invoke.is_some()
+                || block.label_metadata.source_span().is_some()
                 || block.instructions.iter().any(|inst| {
                     inst.metadata.source_span().is_some()
                         || inst.metadata.function_invoke().is_some()
@@ -85,14 +90,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             module.track_debug_info();
             for block in &mut module.blocks {
                 for instruction in &mut block.instructions {
-                    if !instruction.metadata.debug_info_is_handled() {
-                        instruction.metadata.mark_debug_info_dropped();
+                    if instruction.metadata.lacks_debug_location() {
+                        instruction.metadata.set_debug_loc_kind(DebugLocKind::Dropped);
                     }
                 }
                 if let Some(terminator) = &mut block.terminator
-                    && !terminator.metadata.debug_info_is_handled()
+                    && terminator.metadata.lacks_debug_location()
                 {
-                    terminator.metadata.mark_debug_info_dropped();
+                    terminator.metadata.set_debug_loc_kind(DebugLocKind::Dropped);
                 }
             }
         }
@@ -108,9 +113,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 module.blocks[block_id].metadata.hotness = header.hotness;
                 module.blocks[block_id].metadata.in_loop = header.in_loop;
                 module.blocks[block_id].metadata.is_continuation = header.is_continuation;
+                module.blocks[block_id].metadata.external_entry = header.external_entry;
                 module.blocks[block_id].metadata.function_invoke = header.function_invoke;
+                module.blocks[block_id].metadata.lent_invoke = header.lent_invoke;
                 module.blocks[block_id].metadata.entry_depth = header.entry_depth;
                 module.blocks[block_id].metadata.call_effect = header.call_effect;
+                module.blocks[block_id].label_metadata = header.label_metadata;
                 current_block = Some(block_id);
                 continue;
             }
@@ -135,7 +143,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut hotness = Hotness::Hot;
         let mut in_loop = false;
         let mut is_continuation = false;
+        let mut external_entry = false;
         let mut function_invoke = None;
+        let mut lent_invoke = None;
         let mut entry_depth = None;
         let mut ret = None;
         let mut inputs = None;
@@ -148,12 +158,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     in_loop = true;
                 } else if self.parser.eat_keyword(sym::continuation) {
                     is_continuation = true;
+                } else if self.parser.eat_keyword(sym::entry) {
+                    external_entry = true;
                 } else if self.parser.eat_keyword(sym::invoke) {
                     self.parser.expect(TokenKind::Eq)?;
                     let identifier = self.parser.parse_ident()?;
                     self.parser.expect(TokenKind::At)?;
                     let (lo, hi) = self.parser.parse_span_bounds()?;
                     function_invoke = Some(DebugFunction {
+                        identifier,
+                        declaration: Span::new(BytePos(lo), BytePos(hi)),
+                    });
+                } else if self.parser.eat_keyword(sym::lent_invoke) {
+                    self.parser.expect(TokenKind::Eq)?;
+                    let identifier = self.parser.parse_ident()?;
+                    self.parser.expect(TokenKind::At)?;
+                    let (lo, hi) = self.parser.parse_span_bounds()?;
+                    lent_invoke = Some(DebugFunction {
                         identifier,
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
                     });
@@ -171,8 +192,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     outputs = Some(self.parser.parse_uint_as()?);
                 } else {
                     return Err(self.parser.error(
-                        "expected `cold`, `loop`, `continuation`, `invoke`, `stack`, `ret`, `inputs`, \
-                         or `outputs` block attribute",
+                        "expected `cold`, `loop`, `continuation`, `entry`, `invoke`, `lent_invoke`, \
+                         `stack`, `ret`, `inputs`, or `outputs` block attribute",
                     ));
                 }
                 if !self.parser.eat(TokenKind::Comma) {
@@ -182,6 +203,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
         }
 
+        let label_metadata = if self.parser.token().kind == TokenKind::Not {
+            self.parse_metadata()?
+        } else {
+            Metadata::default()
+        };
         self.parser.expect(TokenKind::Colon)?;
 
         let call_effect = match (ret, inputs, outputs) {
@@ -201,9 +227,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             hotness,
             in_loop,
             is_continuation,
+            external_entry,
             function_invoke,
+            lent_invoke,
             entry_depth,
             call_effect,
+            label_metadata,
         }))
     }
 
@@ -473,7 +502,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_metadata(&mut self) -> PResult<'sess, Metadata> {
         let mut metadata = Metadata::default();
         if !self.parser.eat(TokenKind::Not) {
-            metadata.mark_debug_info_dropped();
+            metadata.drop_debug_loc(DebugLocKind::Dropped);
             return Ok(metadata);
         }
         let name = self.parser.parse_ident()?;
@@ -482,7 +511,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
-            metadata.mark_debug_info_dropped();
+            metadata.drop_debug_loc(DebugLocKind::Dropped);
             return Ok(metadata);
         }
 
@@ -535,6 +564,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 metadata.set_modifier_depth(self.parser.parse_uint_as()?);
             } else if key == sym::keep_with_next {
                 metadata.keep_with_next = true;
+            } else if key == sym::dropped {
+                metadata.set_debug_loc_kind(DebugLocKind::Dropped);
+            } else if key == sym::compiler_generated {
+                metadata.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
+            } else if key == sym::unknown {
+                metadata.set_debug_loc_kind(DebugLocKind::Unknown);
+            } else if key == sym::temporary {
+                metadata.set_debug_loc_kind(DebugLocKind::Temporary);
             } else if self.parser.eat(TokenKind::Eq) {
                 self.skip_metadata_value()?;
             }
@@ -545,8 +582,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             break;
         }
-        if !metadata.debug_info_is_handled() {
-            metadata.mark_debug_info_dropped();
+        if metadata.lacks_debug_location() {
+            metadata.set_debug_loc_kind(DebugLocKind::Dropped);
         }
         Ok(metadata)
     }
@@ -567,11 +604,35 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn block_ref_starts_here(&self) -> PResult<'sess, bool> {
-        Ok(self.current_block_label()?.is_some()
-            && !matches!(
-                self.parser.look_ahead(1).kind,
-                TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Bracket)
-            ))
+        Ok(self.current_block_label()?.is_some() && !self.block_header_follows())
+    }
+
+    /// Whether the tokens after the block label just seen continue it into a block header:
+    /// block attributes, label metadata, or the colon.
+    fn block_header_follows(&self) -> bool {
+        let mut tokens = self.parser.tokens_ahead().map(|token| token.kind);
+        match tokens.next() {
+            Some(TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Bracket)) => true,
+            // label !metadata(...):
+            Some(TokenKind::Not) => {
+                let mut depth = 0usize;
+                // Skip `metadata`, then the balanced parentheses.
+                for kind in tokens.by_ref().skip(1) {
+                    match kind {
+                        TokenKind::OpenDelim(Delimiter::Parenthesis) => depth += 1,
+                        TokenKind::CloseDelim(Delimiter::Parenthesis) => {
+                            depth = depth.saturating_sub(1);
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                tokens.next() == Some(TokenKind::Colon)
+            }
+            _ => false,
+        }
     }
 }
 
@@ -587,24 +648,26 @@ mod tests {
         Module::parse(sess, &source)
     }
 
-    fn evm_ir_fixture_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    fn evm_ir_fixture_dirs() -> [PathBuf; 2] {
+        let codegen = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")
             .join("tests")
             .join("ui")
-            .join("codegen")
-            .join("evm-ir")
+            .join("codegen");
+        [codegen.join("evm-ir"), codegen.join("debug-info").join("evm-ir")]
     }
 
     #[test]
     fn round_trip_all_evm_ir_fixtures() {
-        let dir = evm_ir_fixture_dir();
-        assert!(dir.exists(), "EVM IR fixture dir not found: {}", dir.display());
+        let roots = evm_ir_fixture_dirs();
+        for dir in &roots {
+            assert!(dir.exists(), "EVM IR fixture dir not found: {}", dir.display());
+        }
 
         let mut failures = Vec::new();
         let mut count = 0usize;
-        let mut dirs = vec![dir.clone()];
+        let mut dirs = roots.to_vec();
         while let Some(dir) = dirs.pop() {
             for entry in std::fs::read_dir(dir).unwrap() {
                 let path = entry.unwrap().path();
@@ -628,7 +691,7 @@ mod tests {
             }
         }
 
-        assert!(count > 0, "no .evmir fixtures found in {}", dir.display());
+        assert!(count > 0, "no .evmir fixtures found in {roots:?}");
         assert!(
             failures.is_empty(),
             "{} EVM IR round-trip failure(s):\n  {}",

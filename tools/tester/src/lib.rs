@@ -26,6 +26,7 @@ const RUN_CALL_STDOUT_FILTER_PATTERN: &str = r"(?s).+";
 const RUN_CALL_DUMP_STDOUT_FILTER_PATTERN: &str = r#"(?m)(?:^\n)?^\{"contracts".*\}\n{0,2}"#;
 
 mod codegen_matrix;
+mod debugify;
 mod errors;
 pub mod foundry;
 mod quiet;
@@ -111,12 +112,11 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
 }
 
 fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Config {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
+    let root = repo_root();
 
     let path = match mode {
         Mode::Ui | Mode::StandardJson => "tests/ui/",
-        Mode::Mir => "tests/ui/codegen/mir/",
-        Mode::EvmIr => "tests/ui/codegen/",
+        Mode::Mir | Mode::EvmIr => "tests/ui/codegen/",
         Mode::SolcSolidity => "testdata/solidity/test/",
         Mode::SolcYul => "testdata/solidity/test/libyul/",
     };
@@ -164,7 +164,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         },
         output_conflict_handling: ui_test::error_on_output_conflict,
         bless_command: Some("cargo bless".into()),
-        out_dir: root.join("target/ui"),
+        out_dir: ui_out_dir().join(mode.to_str()),
         comment_start: "//",
         diagnostic_extractor: ui_test::diagnostics::rustc::rustc_diagnostics_extractor,
         ..ui_test::Config::dummy()
@@ -182,6 +182,12 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     }
     register_custom_flags![FileCheck, run_call::RunCall, run_call::RunCallFail];
     config.custom_comments.insert(codegen_matrix::NAME, codegen_matrix::parse);
+    if let Some(output) = std::env::var_os("SOLAR_DEBUGIFY_DIR").filter(|value| !value.is_empty()) {
+        config.comment_defaults.base().add_custom(
+            debugify::Audit::NAME,
+            debugify::Audit { output: PathBuf::from(output).join(mode.to_string()) },
+        );
+    }
 
     config.comment_defaults.base().exit_status = None.into();
     config.infer_exit_status_from_annotations = !mode.is_solc();
@@ -280,20 +286,25 @@ fn get_host() -> &'static str {
     })
 }
 
+/// Reads the mode back from the first component below [`ui_out_dir`]: `ui_test` appends a config
+/// index and, per test, the test's directory.
 fn mode_from_config(config: &ui_test::Config) -> Mode {
-    if config.program.args.iter().any(|arg| arg == "--standard-json") {
-        Mode::StandardJson
-    } else if config.root_dir.ends_with("tests/ui/codegen/mir") {
-        Mode::Mir
-    } else if config.root_dir.ends_with("tests/ui/codegen") {
-        Mode::EvmIr
-    } else if config.root_dir.ends_with("testdata/solidity/test/libyul") {
-        Mode::SolcYul
-    } else if config.root_dir.ends_with("testdata/solidity/test") {
-        Mode::SolcSolidity
-    } else {
-        Mode::Ui
-    }
+    config
+        .out_dir
+        .strip_prefix(ui_out_dir())
+        .ok()
+        .and_then(|path| path.components().next())
+        .and_then(|name| name.as_os_str().to_str())
+        .and_then(Mode::parse)
+        .expect("config out_dir must be `target/ui/<mode>/...`")
+}
+
+fn repo_root() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap()
+}
+
+fn ui_out_dir() -> PathBuf {
+    repo_root().join("target/ui")
 }
 
 fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Option<bool> {
@@ -610,7 +621,7 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Ui,
-    /// MIR-level tests: runs `solar` on `.mir` files under `tests/ui/codegen/mir/`.
+    /// MIR-level tests: runs `solar` on `.mir` files under `tests/ui/codegen/`.
     Mir,
     /// EVM-IR-level tests: runs `solar` on `.evmir` files under `tests/ui/codegen/`.
     EvmIr,

@@ -76,7 +76,7 @@
   (SetFmp (value Value))
   (HeapFloor)
   (Alloc (size Value) (semantics AllocationSemantics))
-  (AbiEncode (mode AbiEncodeMode) (selector OptionValue) (args Unit) (layout Unit))
+  (AbiEncode (mode AbiEncodeMode) (base OptionValue) (selector OptionValue) (args Unit) (layout Unit))
   (AbiDecode (data Value) (layout Unit))
   (Copy (dest Value) (src Value) (len Value) (location PtrLocation))
   (CalldataSize)

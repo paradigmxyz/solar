@@ -85,11 +85,34 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
 
 Debug info must never change codegen: no changes to executable MIR or EVM IR,
 optimization decisions, stack scheduling, layout, or bytecode to keep metadata,
-and no kept instructions, duplicated code, or disabled optimizations to create
-a source checkpoint. Keep valid metadata when possible; otherwise mark it
+and no kept instructions, duplicated code, or disabled optimizations to keep
+a source location. Keep valid metadata when possible; otherwise mark it
 dropped or unknown rather than inventing a location or picking an arbitrary
 origin for shared code. Explain deliberate limits with a `NOTE:` comment. Cover
 debug-info changes with bytecode-neutrality tests.
+
+Pick locations in this order; the first rule that applies wins.
+
+1. **solc.** For which source span an expression or statement maps to, follow
+   solc: the `LocationSetter` calls in `testdata/solidity/libsolidity/codegen`
+   for legacy, `@src` for via-IR. Cite the solc file and line in the code
+   comment and the PR body.
+2. **LLVM, rustc, clang.** For how locations survive a rewrite, copy them; do
+   not invent rules. LLVM's
+   [HowToUpdateDebugInfo](https://llvm.org/docs/HowToUpdateDebugInfo.html)
+   has four:
+   - Preserve: a replacement for one instruction keeps its location.
+   - Merge (`applyMergedLocation`): only when new code replaces several
+     instructions and produces each of their outputs, as when hoisting or
+     sinking identical code, or merging tails.
+   - Drop (`dropLocation`): when keeping the location would mislead, as when
+     hoisting into another block.
+   - Remap: cloned code keeps its location.
+
+   Never move a deleted instruction's location onto code that survives. CSE
+   keeps only the survivor's own location.
+3. **Our own rule.** Only where neither applies. Give the reason in the code
+   comment and the PR body. Never add a rule only to lower an audit count.
 
 ### MIR Phases
 
@@ -138,11 +161,18 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 - Prefer UI tests (`tests/ui/`) over unit tests for end-to-end behavior,
   especially diagnostics, sema, and compiler output.
+- Frontend tests go in `parser/`, `resolve/`, and `typeck/`, in a topic
+  subdirectory when one fits, such as `typeck/conversions/` or `parser/using/`.
 - For codegen tests, use `//@ codegen-matrix: standard` (`mir`, `gas`, `size`
   revisions) unless it cannot express the test.
 - To test one source under different flags, passes, levels, EVM versions, or
   outputs, use one test with `//@ revisions:` and revision-scoped directives.
   Use separate files only when the source text itself differs in purpose.
+- Do not check in huge outputs, such as a 1,500-line standard-json `.stdout`
+  for a one-line fix. Check the lines that matter with FileCheck.
+- Many small test files are fine. Put a new family of tests in its own
+  subdirectory, not in an already large one, and split a giant test source
+  into small focused files.
 - Put imported or secondary sources in `auxiliary/` next to the test, never
   `aux/` (Windows rejects it).
 - Assert formatted output in Rust tests with `snapbox` snapshots, not
@@ -169,18 +199,37 @@ deliberate omissions. A one-line restatement of the name is not enough.
 - Before adding a pass, check `mir/transform/` and `backend/evm/ir/passes/`
   for one to extend.
 - Test pass behavior with UI tests, by layer:
-  - Solidity-to-IR lowering: `tests/ui/codegen/lowering/`.
+  - Solidity to MIR lowering, checked with an explicit `-Zdump=mir`:
+    `tests/ui/codegen/lowering/mir/<topic>/`.
+  - MIR to EVM IR lowering (stack scheduling, spills, phis, resident words,
+    frames, switches, program data), checked with an explicit
+    `-Zdump=evm-ir*` or `disasm*`, or with `run-call` when the bug is in stack
+    scheduling: `tests/ui/codegen/lowering/evm-ir/<topic>/`.
+  - Runtime behaviour of a Solidity feature, checked with `run-call` and no
+    explicit dump: `tests/ui/codegen/run-call/<feature>/`, such as
+    `abi-decode`, `storage-arrays`, or `modifiers`. FileCheck on the codegen
+    matrix's `mir` revision does not make a test a lowering test.
   - MIR passes: `tests/ui/codegen/mir/<pass-name>/` (command-line pass name).
+    A test that runs one pass with `-Zmir-pipeline=<pass>` belongs there.
   - `lower-abi`, `lower-dispatch`, `lower-evm-shaped`:
     `tests/ui/codegen/mir/lowering/`.
   - Lowered MIR checked against the MIR interpreter with `run-call`:
     `tests/ui/codegen/mir/interp/`.
   - EVM IR passes: `tests/ui/codegen/evm-ir/<pass-name>/` (`-Zevm-ir-pipeline`
-    name).
+    name). A test that runs one pass with `-Zevm-ir-pipeline=<pass>` belongs
+    there.
   - EVM IR checked against the EVM IR interpreter with `run-call`:
     `tests/ui/codegen/evm-ir/interp/`.
+  - Bytecode layout through the disassembly: `tests/ui/codegen/disasm/`. Code
+    size and stack depth limits: `tests/ui/codegen/size-limits/`. Codegen dump,
+    timing, and tuning flags: `tests/ui/codegen/flags/`.
   - Round-trip, pipeline, and validation tests: existing `none/`, `pipeline/`,
     `validation/`.
+  - Source maps, debugify, origins, and debug info kept or dropped by a pass:
+    `tests/ui/codegen/debug-info/` for Solidity sources, and
+    `tests/ui/codegen/debug-info/mir/`, `debug-info/evm-ir/` for IR sources,
+    named `<pass>_<what>`.
+- Keep a leaf directory under about 80 tests; split a growing one by topic.
 - Keep `.stdout`/`.stderr` expectations beside their source.
 - Never write Rust unit tests that run whole passes; unit-test only small pure
   helpers.
@@ -341,6 +390,10 @@ self.dcx()
   and does not test for nonzero.
 - Zero tests are `eq v, 0` and `ne v, 0`; `ISZERO` belongs to EVM IR. Rewrites
   keep value and type; bool-to-word needs `zext i1 v to i256`.
+- Write a test that a word fits in `k` bits as `lt x, 2^k` and one that it does not as
+  `gt x, 2^k - 1`, for 1 <= k < 256, never as a shift against zero: `spell-width-tests` picks the
+  spelling where the uses are known, and every pass reads the compare. See
+  [docs/CODEGEN.md](docs/CODEGEN.md#width-tests).
 - `ptr<memory>` is not an integer; pointer casts do not establish validity,
   provenance, ownership, or non-wrapping arithmetic.
 - Memory pointers are never null: store the zero slot or a default object as a

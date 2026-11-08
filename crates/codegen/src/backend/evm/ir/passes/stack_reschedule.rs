@@ -112,6 +112,7 @@ use solar_data_structures::{
     map::{FxBuildHasher, FxHashMap},
     sync::RwLock,
 };
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 use std::{
     collections::{BinaryHeap, hash_map::Entry},
@@ -765,15 +766,12 @@ fn summarize(
             cost += instruction_cost(inst, target);
         } else if inst.is_encoded_push() && !branch {
             let key = constant(inst)?;
-            let index = match keys.iter().position(|&existing| existing == key) {
-                Some(index) => index,
-                None => {
-                    keys.push(key);
-                    pushes.push(SmallVec::new());
-                    constant_costs.push(scalar(push_cost(inst, target), target));
-                    keys.len() - 1
-                }
-            };
+            let index = keys.iter().position(|&existing| existing == key).unwrap_or_else(|| {
+                keys.push(key);
+                pushes.push(SmallVec::new());
+                constant_costs.push(scalar(push_cost(inst, target), target));
+                keys.len() - 1
+            });
             pushes[index].push(position);
             stack.insert(0, Word::Constant(u8::try_from(index).ok()?));
             cost += push_cost(inst, target);
@@ -1316,7 +1314,7 @@ fn emit(
                             first
                                 .clone()
                                 .with_metadata(Default::default())
-                                .with_source_debug(&first.metadata),
+                                .with_debug_loc(&first.metadata),
                         );
                     }
                 }
@@ -1325,7 +1323,7 @@ fn emit(
             Move::Stack(stack_op) => {
                 apply(&mut stack, stack_op);
                 let mut inst = Instruction::stack_op(stack_op);
-                inst.metadata.mark_debug_info_dropped();
+                inst.metadata.drop_debug_loc(DebugLocKind::Dropped);
                 instructions.push(inst);
             }
         }
@@ -1336,12 +1334,12 @@ fn emit(
         return None;
     }
     // NOTE: The replaced stack operations, and pushes the schedule makes fewer times, have no
-    // counterpart in the new order. Their origins and function events move to the run's last
-    // instruction, so the run as a whole keeps every event it had.
+    // counterpart in the new order. Their origins go with them; their function events move to the
+    // run's last instruction, so the run as a whole keeps every event it had.
     if let Some(last) = instructions.last_mut() {
         for (position, inst) in run.iter().enumerate() {
             if !placed.contains(position) {
-                last.metadata.absorb_debug_info(&inst.metadata);
+                last.metadata.move_function_events(&inst.metadata);
             }
         }
     }

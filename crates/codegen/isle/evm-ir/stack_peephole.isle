@@ -1,4 +1,4 @@
-;; Pure physical-stack rewrites, checked directly by the offline verifier.
+;; Pure rewrites of stack operations and a word window, checked directly by the offline verifier.
 ;; Priorities belong to the shared peephole rule set.
 
 ;; `NOT NOT -> ∅`, `DUPn POP -> ∅`, or an involutive stack operation twice -> ∅.
@@ -10,11 +10,17 @@
 ;; `DUPn SWAPn -> DUPn` because the swapped values are equal.
 (rule 235 (peep_swap (last2 (dup n) (swap n))) (rewrite 2 (Edit.Keep 1)))
 
-;; `ISZERO ISZERO ISZERO -> ISZERO`.
+;; `ISZERO ISZERO ISZERO -> ISZERO`, keeping the first predicate and its origin.
 (rule 230 (peep_op (last3 (opcode $ISZERO) (opcode $ISZERO) (opcode $ISZERO)))
-         (rewrite 3 (Edit.OverwriteOne $ISZERO)))
+         (rewrite 3 (Edit.Keep 1)))
 
 ;; `DUP2 EQ ISZERO SWAP1 POP -> EQ ISZERO` in an unprotected window.
 (rule 205 (peep_pop (unprotected_last5 (opcode $DUP2) (opcode $EQ) (opcode $ISZERO)
                                         (opcode $SWAP1) (opcode $POP)))
           (rewrite 5 (Edit.RemoveFirstKeepTwo)))
+
+;; `DUP1 ADD PUSH1 1 OR -> DUP1 NOT SWAP1 SUB`: `(x + x) | 1` is `x - ~x`.
+(rule 226 (peep_op (unprotected_last4 (dup 1) (opcode $ADD) (push one) (opcode $OR)))
+         (if-let true (u256_is_one one))
+         (if-let true (complement_odd_dominates))
+         (rewrite 4 (Edit.OddWord)))

@@ -447,7 +447,7 @@ fn retarget_to_temp(func: &mut Function, inst_id: InstId, temp: ValueId) {
 fn alloc_load(func: &mut Function, addr: ValueId, location: PtrLocation) -> (InstId, ValueId) {
     func.alloc_value_inst(
         Instruction::new(InstKind::Load(addr, location), Some(MirType::I256))
-            .with_debug_info_dropped(),
+            .with_debug_loc_dropped(),
     )
 }
 
@@ -459,7 +459,7 @@ fn alloc_store(
     location: PtrLocation,
 ) -> InstId {
     func.alloc_inst(
-        Instruction::new(InstKind::Store(addr, value, location), None).with_debug_info_dropped(),
+        Instruction::new(InstKind::Store(addr, value, location), None).with_debug_loc_dropped(),
     )
 }
 
@@ -482,8 +482,8 @@ fn insert_conditional_final_store(
     temp_addr: ValueId,
     dirty_addr: ValueId,
 ) {
-    let continuation = func.alloc_block();
-    let store_block = func.alloc_block();
+    let continuation = func.alloc_block_like(exit);
+    let store_block = func.alloc_block_like(exit);
 
     // Keep existing exit phis in place; only the non-phi tail moves behind the dirty check.
     let split_pos = func.block_phi_count(exit);
@@ -499,7 +499,7 @@ fn insert_conditional_final_store(
     let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
     let (normalize, dirty_value) = func.alloc_value_inst(
         Instruction::new(InstKind::Ne(dirty_value, zero), Some(MirType::I1))
-            .with_debug_info_dropped(),
+            .with_debug_loc_dropped(),
     );
     exit_instructions.push(normalize);
 
@@ -531,8 +531,9 @@ fn insert_conditional_final_store(
 // NOTE: The temporary is an absolute address in the entry's local region, and `lower-abi`
 // copies it into `f.body` when the entry has internal callers. It still cannot overwrite a
 // live word there:
-// - Every entry places its spill area, and the shared region of static helper frames, above each
-//   constant low-memory range in the functions it reaches, so above this address too.
+// - Every entry and the constructor place their heap, spill area, and the shared region of static
+//   helper frames above the local region of each function they reach that writes it at absolute
+//   addresses, so above this address too.
 // - The other words of an entry's local region are its own temporaries, live only inside the
 //   call-free loops promoted here, and the inliner's return staging buffers, read right after the
 //   inlined return. Neither is live across a call to `f.body`, and promoted loops get no code

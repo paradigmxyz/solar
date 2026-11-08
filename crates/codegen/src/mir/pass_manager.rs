@@ -116,6 +116,13 @@ pub trait MirPass: Sync {
     ///
     /// Report an emitted error with [`ModuleAnalyses::fail`] to stop this pipeline.
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool;
+
+    /// Returns whether names and instruction IDs still identify the same instructions after
+    /// this pass. Debugify only certifies explicit drops when the pass preserves those sites;
+    /// replacing a function can reuse its name and restart its instruction IDs.
+    fn preserves_debugify_sites(&self) -> bool {
+        false
+    }
 }
 
 /// Runs a sequence of MIR passes, checking each changed result when verification is enabled.
@@ -149,6 +156,11 @@ pub(crate) fn run_passes_inner(
     // Parsed or lowered MIR carries no trustworthy hotness.
     let mut hotness = HotnessAnalysis::new();
     hotness.run(gcx, module);
+    if crate::debugify::enabled(gcx)
+        && let Err(error) = crate::debugify::report_mir_input(gcx, module)
+    {
+        return (changed, Some(error));
+    }
     for pass in passes {
         let pass_name = pass.name();
         let before =
@@ -159,7 +171,8 @@ pub(crate) fn run_passes_inner(
         }
 
         if enabled {
-            assert_debug_info_handled(module, pass_name, "before");
+            let origins =
+                crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::mir(module));
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let key = pass.cache_key();
             let cached = key.is_some_and(|key| unchanged.contains(&key));
@@ -214,7 +227,17 @@ pub(crate) fn run_passes_inner(
             if analyses.error.is_some() {
                 return (changed, analyses.error);
             }
-            assert_debug_info_handled(module, pass_name, "after");
+            if let Some(origins) = origins
+                && let Err(error) = origins.check(
+                    gcx,
+                    "MIR",
+                    module.name,
+                    pass_name,
+                    crate::debugify::Origins::mir_after(module, pass.preserves_debugify_sites()),
+                )
+            {
+                return (changed, Some(error));
+            }
 
             if pass_changed && should_validate_ir(gcx.sess) {
                 validate_module_after_pass(module, pass_name);
@@ -230,34 +253,6 @@ pub(crate) fn run_passes_inner(
     }
 
     (changed, None)
-}
-
-fn assert_debug_info_handled(module: &Module, pass_name: &str, when: &str) {
-    // NOTE: Keep these development-only assertions: an unclassified origin is
-    // a compiler invariant violation, not a reason to reject debug outputs in
-    // release builds. Unavailable metadata must remain unknown there.
-    if !module.debug_info_is_tracked() {
-        return;
-    }
-    for (function, func) in module.iter_functions() {
-        for (block, body) in func.blocks.iter_enumerated() {
-            debug_assert!(
-                body.terminator_metadata.debug_info_is_handled(),
-                "MIR terminator debug information is unclassified {when} `{pass_name}` at fn{}, bb{}",
-                function.index(),
-                block.index(),
-            );
-            for &inst in &body.instructions {
-                debug_assert!(
-                    func.inst(inst).metadata.debug_info_is_handled(),
-                    "MIR debug information is unclassified {when} `{pass_name}` at fn{}, bb{}, inst{}",
-                    function.index(),
-                    block.index(),
-                    inst.index(),
-                );
-            }
-        }
-    }
 }
 
 fn validate_module_after_pass(module: &Module, pass_name: &str) {

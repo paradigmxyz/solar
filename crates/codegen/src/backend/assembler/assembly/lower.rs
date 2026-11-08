@@ -3,21 +3,25 @@
 use super::{AsmInst, AsmInstKind, Program, TablePacking, indexed_jump};
 use crate::{
     backend::{
-        assembler::{ArtifactKind, Assembler, Label, OptimizedProgram, PreparedAssembly},
+        assembler::{
+            ArtifactKind, Assembler, Label, OptimizedProgram, PreparedAssembly, ScheduledProgram,
+        },
         evm::{
             ir::{self, BlockId},
             op,
         },
     },
+    debugify::Origins,
     link::{EmbeddedBytecodes, LibraryTable},
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
 
 impl Assembler<'_> {
     /// Runs the EVM IR pipeline over the emitted program and keeps the result for
-    /// [`Self::prepare_linked`].
-    pub(in crate::backend) fn optimize(&mut self) {
-        let _scheduled = self.optimize_capturing(false);
+    /// [`Self::prepare_linked`]. Returns the origins of the program as stack scheduling emitted
+    /// it when auditing.
+    pub(in crate::backend) fn optimize(&mut self) -> Option<Origins> {
+        self.optimize_capturing(false).origins
     }
 
     /// Runs [`Self::optimize`], first returning a copy of the program as stack scheduling emitted
@@ -31,12 +35,16 @@ impl Assembler<'_> {
     pub(in crate::backend) fn optimize_capturing(
         &mut self,
         capture_scheduled: bool,
-    ) -> Option<ir::Module> {
-        let (mut program, labels) = self.finish_evm_ir()?;
-        let scheduled = capture_scheduled.then(|| program.clone());
+    ) -> ScheduledProgram {
+        let audit = crate::debugify::enabled(self.gcx);
+        let Some((mut program, labels)) = self.finish_evm_ir() else {
+            return ScheduledProgram { evm_ir: None, origins: audit.then(Origins::default) };
+        };
+        let evm_ir = capture_scheduled.then(|| program.clone());
+        let origins = audit.then(|| Origins::evm_after(&mut program));
         let failed = !self.run_pipeline(&mut program, true);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
-        scheduled
+        ScheduledProgram { evm_ir, origins }
     }
 
     /// Legalizes the emitted program for the target without the EVM IR pipeline, which already
@@ -232,6 +240,7 @@ fn lower_evm_ir_once(
         }
     }
     let mut program = Program::with_debug_info(capture_debug_info);
+    let valid_lent_invokes = module.valid_lent_invokes();
     let mut pending_block_invoke = None;
     for (block_id, block) in module.blocks.iter_enumerated() {
         program.set_source_span(None);
@@ -241,7 +250,11 @@ fn lower_evm_ir_once(
         );
         program.set_modifier_depth(block_modifier_depth);
         let original = block.label as usize;
-        if let Some(function) = block.metadata.function_invoke {
+        // A lent function entry depends on its exclusive-edge check. Sharing may revoke it without
+        // affecting a native block entry.
+        let lent =
+            valid_lent_invokes.contains(block_id).then_some(block.metadata.lent_invoke).flatten();
+        if let Some(function) = block.metadata.function_invoke.or(lent) {
             debug_assert!(
                 pending_block_invoke.is_none() || pending_block_invoke == Some(function),
                 "an instruction-free block cannot enter two functions"
@@ -249,6 +262,11 @@ fn lower_evm_ir_once(
             pending_block_invoke = Some(function);
         }
         if let Some(label) = labels.get(original).copied().flatten() {
+            // The label's own origin.
+            if !block.label_metadata.source_spans().is_empty() {
+                program.set_source_spans(block.label_metadata.source_spans());
+                program.set_modifier_depth(block.label_metadata.modifier_depth());
+            }
             program.define_label(label);
             program.mark_last_function_invoke(pending_block_invoke.take());
         }
@@ -442,8 +460,8 @@ fn lower_terminator(
             if module.next_block(block_id) == Some(*target) {
                 // NOTE: Fallthrough emits no instruction for this edge's source span.
                 // If the successor is shared, its unique source location stays unknown.
-                // Do not retain jumps or duplicate code just to create a checkpoint,
-                // or move the span onto an instruction that also runs on another path.
+                // Do not retain a jump or duplicate code for it, or move the span onto an
+                // instruction that also runs on another path.
                 return;
             }
             let label = label_for_block(assembler, module, *target, labels);

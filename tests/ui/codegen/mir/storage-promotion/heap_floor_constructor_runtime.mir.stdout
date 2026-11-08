@@ -1,0 +1,127 @@
+; === ROOT/tests/ui/codegen/mir/storage-promotion/heap_floor_constructor_runtime.sol:C ===
+@module C
+@immutables
+  imm: uint256
+
+; constructor(uint256 v) [creation entry]
+fn @constructor(arg0: i256) [constructor, abi_params=[uint256]] {
+  bb0:
+    storeimmutable imm, 0x1234
+    v0 = alloc 64 !metadata(preserves_fmp)
+    memory_zero v0, 64
+    v1 = lt 0, 2
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    mstore v0, arg0
+    v3 = checked_add uint256, arg0, 1
+    v4 = lt 1, 2
+    v5 = eq v4, false
+    icall panic_if<0x32>, v5
+    v6 = ptradd v0, 32
+    mstore v6, v3
+    v7 = icall @accrue, 3
+    v8 = lt 0, 2
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = mload v0
+    v11 = lt 1, 2
+    v12 = eq v11, false
+    icall panic_if<0x32>, v12
+    v13 = ptradd v0, 32
+    v14 = mload v13
+    v15 = checked_add uint256, v10, v14
+    sstore 3, v15 !metadata(storage=slot(3))
+    ret
+}
+
+; getter for `uint256 public immutable imm` [selector 0x424e072c]
+fn @imm() -> i256 [selector=0x424e072c, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = loadimmutable imm
+    ret v0
+}
+
+; getter for `uint256 public res` [selector 0x6f10e285]
+fn @res() -> i256 [selector=0x6f10e285, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 3 !metadata(storage=slot(3))
+    ret v0
+}
+
+; function accrue(uint256 n) public returns (bytes memory) [selector 0x744f4cf6]
+fn @accrue(arg0: i256) -> ptr<memory> [selector=0x744f4cf6, abi_params=[uint256], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: ptr<memory> 96], [bb3: v1]
+    v2 = phi [bb0: 0], [bb3: v7]
+    v3 = lt v2, v0
+    jumpi v3, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    jump bb7
+  bb7:                                            ; preds = bb2, bb9
+    v8 = phi [bb2: v0], [bb9: v8]
+    v9 = phi [bb2: v1], [bb9: v9]
+    v10 = phi [bb2: v2], [bb9: v10]
+    v11 = phi [bb2: 0], [bb9: v16]
+    v12 = lt v11, v8
+    jumpi v12, bb10, bb11
+  bb11:                                           ; preds = bb7
+    jump bb8
+  bb8:                                            ; preds = bb11
+    jump bb13
+  bb13:                                           ; preds = bb8, bb15
+    v17 = phi [bb8: v8], [bb15: v17]
+    v18 = phi [bb8: v9], [bb15: v18]
+    v19 = phi [bb8: v10], [bb15: v19]
+    v20 = phi [bb8: v11], [bb15: v20]
+    v21 = phi [bb8: 0], [bb15: v26]
+    v22 = lt v21, v17
+    jumpi v22, bb16, bb17
+  bb17:                                           ; preds = bb13
+    jump bb14
+  bb14:                                           ; preds = bb17
+    v27 = sload 0 !metadata(storage=slot(0))
+    v28 = sload 1 !metadata(storage=slot(1))
+    v29 = checked_add uint256, v27, v28
+    v30 = sload 2 !metadata(storage=slot(2))
+    v31 = checked_add uint256, v29, v30
+    v32 = abi_encode [word], object, args v31
+    ret v32
+  bb16:                                           ; preds = bb13
+    v23 = checked_add uint256, v21, 9
+    v24 = sload 2 !metadata(storage=slot(2))
+    v25 = checked_add uint256, v24, v23
+    sstore 2, v25 !metadata(storage=slot(2))
+    jump bb18
+  bb18:                                           ; preds = bb16
+    jump bb15
+  bb15:                                           ; preds = bb18
+    v26 = checked_add uint256, v21, 1
+    jump bb13
+  bb10:                                           ; preds = bb7
+    v13 = checked_add uint256, v11, 8
+    v14 = sload 1 !metadata(storage=slot(1))
+    v15 = checked_add uint256, v14, v13
+    sstore 1, v15 !metadata(storage=slot(1))
+    jump bb12
+  bb12:                                           ; preds = bb10
+    jump bb9
+  bb9:                                            ; preds = bb12
+    v16 = checked_add uint256, v11, 1
+    jump bb7
+  bb4:                                            ; preds = bb1
+    v4 = checked_add uint256, v2, 7
+    v5 = sload 0 !metadata(storage=slot(0))
+    v6 = checked_add uint256, v5, v4
+    sstore 0, v6 !metadata(storage=slot(0))
+    jump bb6
+  bb6:                                            ; preds = bb4
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v7 = checked_add uint256, v2, 1
+    jump bb1
+}

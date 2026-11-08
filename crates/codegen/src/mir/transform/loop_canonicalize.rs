@@ -78,7 +78,7 @@ fn phis_cover(func: &Function, header: BlockId, outside_preds: &[BlockId]) -> bo
 }
 
 fn insert_preheader(func: &mut Function, header: BlockId, outside_preds: &[BlockId]) {
-    let preheader = func.alloc_block();
+    let preheader = func.alloc_block_like(header);
     // preheader: phi [outside_pred: value], ...; jump header
     // header: phi [..., preheader: merged_value]
     let phis: Vec<_> = func.blocks[header]
@@ -126,7 +126,7 @@ fn preheader_value(
     }
     let result_ty = func.inst(header_phi).result_ty;
     let (phi, result) = func.alloc_value_inst(
-        Instruction::new(InstKind::Phi(incoming), result_ty).with_debug_info_dropped(),
+        Instruction::new(InstKind::Phi(incoming), result_ty).with_debug_loc_dropped(),
     );
     func.blocks[preheader].instructions.push(phi);
     result

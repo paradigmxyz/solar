@@ -1,0 +1,4 @@
+debugify: EVM IR PhysicalThunkSpans after cfg-simplify: 1/4 origins retained, 3 lost
+debugify: lost 30..40
+debugify: lost 50..60
+debugify: lost 70..80

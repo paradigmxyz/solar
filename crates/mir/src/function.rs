@@ -2,8 +2,8 @@
 
 use super::{
     AbiLayoutRef, AbiParamLayout, AbiParamLocation, ArgIdx, BasicBlock, BlockId, Immediate, InstId,
-    InstKind, Instruction, MangledSymbol, MirType, PtrLocation, StorageAlias, Value, ValueId,
-    memory::EvmMemoryLayout, utils,
+    InstKind, Instruction, InstructionMetadata, MangledSymbol, MirType, PtrLocation, StorageAlias,
+    Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -16,7 +16,7 @@ use solar_data_structures::{
     map::{FxHashMap, StdEntry},
 };
 use solar_interface::{Ident, Span, Symbol};
-use solar_ir::Hotness;
+use solar_ir::{Hotness, debug::DebugLocKind};
 use std::fmt;
 
 /// A function in the MIR.
@@ -448,6 +448,40 @@ impl Function {
         self.value_u256(id).and_then(super::utils::u256_to_u64)
     }
 
+    /// Visits physical memory ranges used by instructions and terminators.
+    /// Unknown lengths still expose their base to heap-prefix analysis.
+    pub fn for_each_memory_range(&self, mut visit: impl FnMut(ValueId, Option<u64>)) {
+        for inst_id in self.instructions() {
+            self.inst(inst_id)
+                .kind
+                .visit_raw_memory(|_, offset, size| visit(offset, size.constant(self)));
+        }
+        for block in &self.blocks {
+            if let Some(
+                Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size },
+            ) = &block.terminator
+            {
+                visit(*offset, self.value_u64(*size));
+            }
+        }
+    }
+
+    /// Returns where the local region ends, `HEAP_START` up to `internal_frame_size`, if the
+    /// function accesses it at absolute addresses: a constant range with a non-zero size starts
+    /// inside it. A frame the function reaches through `internal_frame_addr` does not count.
+    #[must_use]
+    pub fn absolute_local_end(&self) -> Option<u64> {
+        let end = EvmMemoryLayout::HEAP_START.saturating_add(self.internal_frame_size);
+        let mut named = false;
+        self.for_each_memory_range(|offset, size| {
+            named |= size != Some(0)
+                && self
+                    .value_u64(offset)
+                    .is_some_and(|start| (EvmMemoryLayout::HEAP_START..end).contains(&start));
+        });
+        named.then_some(end)
+    }
+
     /// Returns whether the instruction stores a full word to the free-memory-pointer slot.
     #[must_use]
     pub fn is_fmp_slot_store(&self, id: InstId) -> bool {
@@ -532,14 +566,12 @@ impl Function {
         }
 
         let mut replaced = 0;
-        self.for_each_instruction_mut(|_, inst| {
-            replaced += utils::replace_inst_uses(inst, &replacements);
-        });
-        for block in &mut self.blocks {
-            if let Some(term) = &mut block.terminator {
-                replaced += utils::replace_terminator_uses(term, &replacements);
+        self.rewrite_all_operands(|value| {
+            if let Some(&immediate) = replacements.get(value) {
+                *value = immediate;
+                replaced += 1;
             }
-        }
+        });
         replaced
     }
 
@@ -739,7 +771,7 @@ impl Function {
     }
 
     /// Allocates a value-producing instruction with its operands as written. Use it only when
-    /// the operands are not yet final or the text of a test must stay as written.
+    /// the operands are not yet final, and put the instruction in order once they are.
     pub fn alloc_value_inst_verbatim(&mut self, mut inst: Instruction) -> (InstId, ValueId) {
         assert!(inst.result_ty.is_some(), "value-producing instruction must have a result type");
 
@@ -785,34 +817,78 @@ impl Function {
         self.blocks.push(BasicBlock::new())
     }
 
+    /// Allocates a new basic block with the given `cold_hint`.
+    fn alloc_block_hinted(&mut self, cold_hint: bool) -> BlockId {
+        let block = self.alloc_block();
+        self.blocks[block].cold_hint = cold_hint;
+        block
+    }
+
+    /// Allocates a new basic block that splits `like`, or runs only with it, so it keeps the
+    /// block's `cold_hint`. It starts without a label origin; a copy of `like` uses
+    /// [`Self::alloc_block_copy`].
+    pub fn alloc_block_like(&mut self, like: BlockId) -> BlockId {
+        self.alloc_block_hinted(self.blocks[like].cold_hint)
+    }
+
+    /// Allocates a new basic block that copies `like`, so it keeps the block's `cold_hint` and
+    /// label origin.
+    pub fn alloc_block_copy(&mut self, like: BlockId) -> BlockId {
+        self.blocks.push(self.blocks[like].new_copy())
+    }
+
+    /// Allocates a new basic block for the edge from `pred` to `succ`. It runs only when `pred`
+    /// does and only leads to `succ`, so it is cold if either is.
+    pub fn alloc_edge_block(&mut self, pred: BlockId, succ: BlockId) -> BlockId {
+        self.alloc_block_hinted(self.blocks[pred].cold_hint || self.blocks[succ].cold_hint)
+    }
+
     /// Replaces all value uses according to a one-step replacement map.
+    ///
+    /// Every instruction whose operands change is put back in canonical order.
     pub fn replace_uses(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
         if replacements.is_empty() {
             return;
         }
 
-        self.for_each_instruction_mut(|_, inst| {
-            super::utils::replace_inst_uses(inst, replacements);
+        self.rewrite_all_operands(|value| {
+            *value = replacements.get(value).copied().unwrap_or(*value);
         });
-        for block in self.blocks.iter_mut() {
-            if let Some(term) = &mut block.terminator {
-                super::utils::replace_terminator_uses(term, replacements);
-            }
-        }
     }
 
     /// Replaces all value uses according to a canonicalized replacement map.
+    ///
+    /// Every instruction whose operands change is put back in canonical order.
     pub fn replace_uses_canonicalized(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
         if replacements.is_empty() {
             return;
         }
 
-        self.for_each_instruction_mut(|_, inst| {
-            super::utils::replace_inst_uses_canonicalized(inst, replacements);
+        self.rewrite_all_operands(|value| {
+            *value = super::utils::resolve_replacement(*value, replacements);
         });
-        for block in self.blocks.iter_mut() {
-            if let Some(term) = &mut block.terminator {
-                super::utils::replace_terminator_uses_canonicalized(term, replacements);
+    }
+
+    /// Replaces the uses of values in one instruction according to a one-step replacement map.
+    ///
+    /// The instruction is put back in canonical order if any operand changed.
+    pub fn replace_inst_uses(&mut self, inst: InstId, replacements: &FxHashMap<ValueId, ValueId>) {
+        self.rewrite_inst_operands(inst, |value| {
+            *value = replacements.get(value).copied().unwrap_or(*value);
+        });
+    }
+
+    /// Rewrites the operands of every instruction and terminator.
+    ///
+    /// Every instruction whose operands change is put back in canonical order.
+    pub fn rewrite_all_operands(&mut self, mut f: impl FnMut(&mut ValueId)) {
+        for block in self.blocks.indices() {
+            for index in 0..self.blocks[block].instructions.len() {
+                let inst = self.blocks[block].instructions[index];
+                self.rewrite_inst_operands(inst, &mut f);
+            }
+            if let Some(term) = &mut self.blocks[block].terminator {
+                term.visit_operands_mut(&mut f);
             }
         }
     }
@@ -889,6 +965,29 @@ impl Function {
         }
     }
 
+    /// Marks every instruction, terminator and block label that has neither a source origin nor a
+    /// reason for lacking one as [`DebugLocKind::CompilerGenerated`]. Code with an origin, or with
+    /// another kind, stays as it is.
+    ///
+    /// Call it only on a function the compiler synthesizes wholesale, such as a shared helper;
+    /// never on a lowered user function, or on a function after inlining merged user code into it.
+    /// Solc maps such code to its generated `#utility.yul` source (`CompilerContext.h` L178), and
+    /// LLVM gives it `DebugLoc::getCompilerGenerated`.
+    pub fn mark_unlocated_compiler_generated(&mut self) {
+        let mark = |metadata: &mut InstructionMetadata| {
+            if metadata.lacks_debug_location() {
+                metadata.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
+            }
+        };
+        for block in &mut self.blocks {
+            for &inst in &block.instructions {
+                mark(&mut self.instructions[inst].metadata);
+            }
+            mark(&mut block.terminator_metadata);
+            mark(&mut block.label_metadata);
+        }
+    }
+
     /// Returns true if this function is public or external.
     #[must_use]
     pub fn is_public(&self) -> bool {
@@ -954,6 +1053,9 @@ pub struct FunctionAttributes {
     pub may_return_memory: bool,
     /// Whether this function dispatches an internal function-pointer shape.
     pub is_function_pointer_dispatcher: bool,
+    /// Whether only deployment runs this function, so its immutable reads load the staging memory
+    /// that its assignments stored to. Set by `lower-immutables`.
+    pub creation_only: bool,
     /// Never clone this function into multiple callers.
     pub no_inline: bool,
     /// Clone this function into every caller where inlining is legal, whatever it costs, as its
@@ -1003,6 +1105,7 @@ impl Default for FunctionAttributes {
             is_receive: false,
             may_return_memory: false,
             is_function_pointer_dispatcher: false,
+            creation_only: false,
             no_inline: false,
             always_inline: false,
             inline_hint: false,

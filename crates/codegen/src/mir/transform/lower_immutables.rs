@@ -10,6 +10,10 @@
 //! backend copies into the deployed code's placeholders. Only functions unreachable from the
 //! runtime entry, selectors, receive, and fallback are rewritten: an assignment left in runtime
 //! code stays semantic and fails the lowered-phase check rather than writing memory there.
+//!
+//! The backend emits a `loadimmutable` in those functions as a load from the same home. The pass
+//! marks them `creation_only`, so memory analyses count such a read, and a call that reaches one,
+//! as a read of memory and keep the stores. Reads in other functions are code placeholders.
 
 use super::utils::expand_block;
 use crate::mir::{
@@ -42,12 +46,14 @@ impl MirPass for LowerImmutables {
             return false;
         }
         let staging_base = immutable_staging_base(module);
+        module.set_immutable_staging_base(staging_base);
         let runtime_reachable = module.runtime_reachable_functions();
         let mut changed = false;
         for (func_id, func) in module.functions.iter_mut_enumerated() {
             if runtime_reachable.contains(func_id) {
                 continue;
             }
+            func.attributes.creation_only = true;
             for block in func.blocks.indices() {
                 let mut builder = FunctionBuilder::new(func);
                 expand_block(&mut builder, block, |builder, inst_id| {
@@ -57,12 +63,12 @@ impl MirPass for LowerImmutables {
                     };
                     // word = zext integer or ptrtoint pointer to i256
                     // store staging_address, word
-                    let metadata = builder.func().inst(inst_id).metadata.debug_context();
-                    builder.set_debug_context(&metadata);
                     let value = builder.cast_word(value);
                     let addr = builder.imm(immutable_staging_addr(staging_base, id));
+                    builder
+                        .func_mut()
+                        .set_inst_kind(inst_id, InstKind::Store(addr, value, PtrLocation::Memory));
                     let inst = builder.func_mut().inst_mut(inst_id);
-                    inst.kind = InstKind::Store(addr, value, PtrLocation::Memory);
                     inst.metadata.set_effect(Some(EffectKind::MemoryWrite));
                     inst.metadata.set_memory_region(Some(MemoryRegion::Unknown));
                     changed = true;

@@ -3,6 +3,20 @@
     {
       "sourceLocation": {
         "file": "Attached.sol",
+        "start": 267,
+        "end": 275
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "6133",
+      "message": "statement has no effect",
+      "formattedMessage": "warning[6133]: statement has no effect\n   ╭▸ Attached.sol:LL:CC\n   │\nLL │         data.pop;\n   ╰╴        ━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "Attached.sol",
         "start": 204,
         "end": 299
       },

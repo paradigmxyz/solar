@@ -120,7 +120,7 @@
   fn @guarded_pure_mask(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 255
-      v1 = eq arg0, v0
+      v1 = eq v0, arg0
       jumpi v1, bb1, bb2
     bb2:                                            ; preds = bb0
       ret 0
@@ -147,7 +147,7 @@
   
   fn @guarded_difference(arg0: i8, arg1: i8) -> i8 {
     bb0:
-      v0 = gt arg1, arg0
+      v0 = lt arg0, arg1
       jumpi v0, bb2, bb1
     bb1:                                            ; preds = bb0
       v1 = sub arg0, arg1
@@ -312,8 +312,7 @@
   fn @guarded_pure_mask(arg0: i256) -> i256 {
     bb0:
       v0 = and arg0, 255
--     v1 = eq arg0, v0
-+     v1 = eq v0, arg0
+      v1 = eq v0, arg0
       jumpi v1, bb1, bb2
     bb2:                                            ; preds = bb0
       ret 0
@@ -341,8 +340,7 @@
   
   fn @guarded_difference(arg0: i8, arg1: i8) -> i8 {
     bb0:
--     v0 = gt arg1, arg0
-+     v0 = lt arg0, arg1
+      v0 = lt arg0, arg1
       jumpi v0, bb2, bb1
     bb1:                                            ; preds = bb0
       v1 = sub arg0, arg1

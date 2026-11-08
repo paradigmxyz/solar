@@ -1,0 +1,17 @@
+//@ compile-flags: -Zmir-pipeline=memory-dse
+//@ filecheck:
+@module CreationOnlyImmutableRead
+@immutables
+  value: uint256
+
+// A creation-only `loadimmutable` reads its staging word, so the store to it stays.
+// CHECK-LABEL: fn @constructor
+// CHECK: mstore 192, arg0
+// CHECK: loadimmutable value
+fn @constructor(arg0: i256) [constructor, creation_only] {
+  bb0:
+    mstore 192, arg0
+    v0 = loadimmutable value
+    mstore 0, v0
+    returndata 0, 32
+}

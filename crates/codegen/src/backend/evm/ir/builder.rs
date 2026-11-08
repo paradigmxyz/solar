@@ -17,6 +17,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, index::index_vec};
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 
 impl<'gcx> Assembler<'gcx> {
@@ -84,12 +85,58 @@ impl<'gcx> Assembler<'gcx> {
         self.program.track_debug_info();
         self.current_source_spans.clear();
         self.current_source_spans.extend(spans.into_iter().filter(|span| !span.is_dummy()));
+        self.current_debug_loc_kind = DebugLocKind::Normal;
+    }
+
+    /// Sets why subsequently emitted operations have no source origin, after the origins.
+    pub(crate) fn set_debug_loc_kind(&mut self, kind: DebugLocKind) {
+        self.current_debug_loc_kind = kind;
     }
 
     /// Sets the legacy source-map modifier nesting depth attached to new operations.
     pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
         self.program.track_debug_info();
         self.current_modifier_depth = depth;
+    }
+
+    /// Returns the source origins, location kind and modifier depth attached to new operations.
+    pub(crate) fn debug_origin(&self) -> ir::Metadata {
+        let mut origin = ir::Metadata::default();
+        origin.set_source_spans(self.current_source_spans.iter().copied());
+        origin.set_debug_loc_kind(self.current_debug_loc_kind);
+        origin.set_modifier_depth(self.current_modifier_depth);
+        origin
+    }
+
+    /// Restores the origins returned by [`Self::debug_origin`].
+    pub(crate) fn set_debug_origin(&mut self, origin: ir::Metadata) {
+        self.current_source_spans.clear();
+        self.current_source_spans.extend(origin.source_spans().iter().copied());
+        self.current_debug_loc_kind = origin.debug_loc_kind();
+        self.current_modifier_depth = origin.modifier_depth();
+    }
+
+    /// Attributes the jump to the next block, which ends the current block without an opcode, to
+    /// the current source origins.
+    // NOTE: The jump carries out the control transfer of one MIR terminator: the block's `jump`,
+    // the resumption of a call's continuation into that terminator, or the `switch` that a compare
+    // chain implements. Layout emits a `JUMP` opcode only when it separates the two blocks, so the
+    // jump takes that terminator's origins, which the caller must have set; the origins of the
+    // code before or after the terminator would name the wrong source. When layout makes the jump
+    // real, it runs on exactly that edge, so we keep the origin. LLVM differs: it gives a
+    // re-created pure-fallthrough branch an empty location (`MachineBasicBlock::updateTerminator`).
+    // Stackify sets the origins with `set_terminator_origin` and its terminator steps never change
+    // them, so they are current at every call. Without an open block nothing implements the jump,
+    // so its origins are dropped: opening one would add an empty block, and debug information must
+    // not change the IR. An empty open block, such as the continuation of a call that ends its MIR
+    // block, still records them, since a return target keeps the block alive. When `cfg-simplify`
+    // removes an empty thunk with its jump, the origins are lost with it.
+    pub(crate) fn mark_fallthrough(&mut self) {
+        if self.program.debug_info_is_tracked()
+            && let Some(block) = self.current_block
+        {
+            self.fallthrough_origins.insert(block, self.debug_origin());
+        }
     }
 
     /// Marks the current block as entering a source-language function.
@@ -359,6 +406,7 @@ impl<'gcx> Assembler<'gcx> {
         let block = self.current_block.take().expect("indexed jump requires a current block");
         let mut metadata = ir::Metadata::default();
         metadata.set_source_spans(self.current_source_spans.iter().copied());
+        metadata.set_debug_loc_kind(self.current_debug_loc_kind);
         metadata.set_modifier_depth(self.current_modifier_depth);
         self.indexed_jump_relocations.push((block, targets, metadata));
         self.debug_assert_dataflow_relocations_sorted();
@@ -433,6 +481,13 @@ impl<'gcx> Assembler<'gcx> {
         self.program.blocks[block].metadata.call_effect = Some(call_effect);
     }
 
+    /// Defines the entry label of an external function, which the runtime dispatch jumps to.
+    pub(crate) fn define_external_entry_label(&mut self, label: Label) {
+        self.define_label(label);
+        let block = self.label_blocks[&label];
+        self.program.blocks[block].metadata.external_entry = true;
+    }
+
     /// Defines a hidden internal-call return label. The callee consumes its address with `JUMP`;
     /// MIR values cannot inspect the hidden word or observe the label's numeric identity.
     pub(crate) fn define_continuation_label(&mut self, label: Label) {
@@ -440,6 +495,23 @@ impl<'gcx> Assembler<'gcx> {
         self.define_label(label);
         let block = self.label_blocks[&label];
         self.program.blocks[block].metadata.is_continuation = true;
+        // The return tag is placed under the call's own location.
+        if let [span] = self.current_source_spans[..] {
+            self.set_label_origin(label, span, self.current_modifier_depth);
+        }
+    }
+
+    /// Sets the source origin of the `JUMPDEST` of the block that `label` started.
+    pub(crate) fn set_label_origin(
+        &mut self,
+        label: Label,
+        span: solar_interface::Span,
+        modifier_depth: u32,
+    ) {
+        let block = self.label_blocks[&label];
+        let metadata = &mut self.program.blocks[block].label_metadata;
+        metadata.set_source_span(Some(span));
+        metadata.set_modifier_depth(modifier_depth);
     }
 
     /// Marks a label-started block as cold for EVM IR layout passes.
@@ -484,6 +556,7 @@ impl<'gcx> Assembler<'gcx> {
 
     fn push_ir_instruction(&mut self, mut instruction: ir::Instruction) -> (ir::BlockId, usize) {
         instruction.metadata.set_source_spans(self.current_source_spans.iter().copied());
+        instruction.metadata.set_debug_loc_kind(self.current_debug_loc_kind);
         instruction.metadata.set_modifier_depth(self.current_modifier_depth);
         let (block, index) = self.next_instruction_position();
         self.program.blocks[block].instructions.push(instruction);
@@ -557,7 +630,7 @@ impl<'gcx> Assembler<'gcx> {
                 ],
             };
             for inst in &mut replacement {
-                inst.metadata.copy_source_debug_from(&metadata);
+                inst.metadata.preserve_debug_loc(&metadata);
             }
             if let Some(function) = metadata.function_invoke()
                 && let Some(inst) = replacement.last_mut()
@@ -589,6 +662,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn finalize_evm_ir(&mut self, module: &mut ir::Module) {
+        let track_debug_info = module.debug_info_is_tracked();
         for block_id in module.blocks.indices() {
             let next = (block_id.index() + 1 < module.blocks.len())
                 .then(|| ir::BlockId::from_usize(block_id.index() + 1));
@@ -612,16 +686,25 @@ impl<'gcx> Assembler<'gcx> {
             {
                 (ir::Terminator::new(ir::TerminatorKind::Op(last.opcode)), 1, last.metadata.clone())
             } else {
+                let mut metadata = ir::Metadata::default();
+                if let Some(origin) = self.fallthrough_origins.remove(&block_id) {
+                    metadata.preserve_debug_loc(&origin);
+                } else if track_debug_info {
+                    // NOTE: A source fallthrough records its own context above. An implicit
+                    // edge between assembler fragments, such as a call continuation and the
+                    // next block, has no source operation: LLVM's `getCompilerGenerated`.
+                    metadata.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
+                }
                 (
                     next.map_or_else(ir::Terminator::implicit_stop, |target| {
                         ir::Terminator::new(ir::TerminatorKind::Jump(target))
                     }),
                     0,
-                    ir::Metadata::default(),
+                    metadata,
                 )
             };
             block.instructions.truncate(block.instructions.len() - remove);
-            terminator.metadata.copy_source_debug_from(&metadata);
+            terminator.metadata.preserve_debug_loc(&metadata);
             if let Some(function) = metadata.function_invoke() {
                 terminator.metadata.set_function_invoke(function);
             }

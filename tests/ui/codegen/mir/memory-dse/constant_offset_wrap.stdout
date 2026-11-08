@@ -19,7 +19,7 @@
       mstore 0, 7
       mstore 56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
       v0 = mload 64
-      v1 = add 0xfffffffffffffc00, v0
+      v1 = add v0, 0xfffffffffffffc00
       v2 = mload v1
       mstore 128, v2
       returndata 128, 32

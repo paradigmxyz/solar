@@ -118,7 +118,7 @@ use crate::mir::{
     analysis::{AddressInput, absolute_address_inputs, pointer_bases},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
-    utils::{IndexLists, replace_inst_uses},
+    utils::IndexLists,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -127,6 +127,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::ops::BitOrAssign;
 
 pub(crate) struct HeapFloor;
@@ -243,7 +244,7 @@ fn clamp_store(func: &mut Function, block: BlockId, inst: InstId) {
     let position = index_in_block(func, block, inst);
     func.blocks[block].instructions.splice(position..position, clamp);
     // mstore 64, clamped
-    func.inst_mut(inst).kind = InstKind::Store(address, clamped, PtrLocation::Memory);
+    func.set_inst_kind(inst, InstKind::Store(address, clamped, PtrLocation::Memory));
 }
 
 /// Raises the words a function's loads read from the slot, and the returned words its calls
@@ -297,7 +298,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
             _ => instruction.kind.clone(),
         };
         let mut copy = Instruction::new(kind, instruction.result_ty);
-        copy.metadata.copy_debug_context(&instruction.metadata);
+        copy.metadata.preserve_debug_loc(&instruction.metadata);
         let (copy, copy_value) = func.alloc_value_inst(copy);
         copies.insert(value, copy_value);
         rewritten.push(copy);
@@ -305,7 +306,7 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
     }
     // op(words) -> op(clamped words)
     for inst in rewritten {
-        replace_inst_uses(func.inst_mut(inst), &copies);
+        func.replace_inst_uses(inst, &copies);
     }
     // original = op(words)
     // copy = op(clamped words)
@@ -365,10 +366,16 @@ fn clamp_loads(func: &mut Function, plan: &LoadClamps) {
 
 /// Raises the slot's word to the heap floor before `before`, or before the block's terminator.
 fn clamp_slot(func: &mut Function, block: BlockId, before: Option<InstId>) {
-    let metadata = before.map(|inst| func.inst(inst).metadata.clone()).unwrap_or_default();
+    let metadata = before.map(|inst| func.inst(inst).metadata.clone()).unwrap_or_else(|| {
+        // NOTE: Raising the pointer for the compiler frame on return has no source operation
+        // in solc. This is compiler-generated bookkeeping, not the return's source location.
+        let mut metadata = InstructionMetadata::EMPTY;
+        metadata.drop_debug_loc(DebugLocKind::CompilerGenerated);
+        metadata
+    });
     let emit = |kind, ty| {
         let mut instruction = Instruction::new(kind, ty);
-        instruction.metadata.copy_debug_context(&metadata);
+        instruction.metadata.preserve_debug_loc(&metadata);
         instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
         instruction
     };
@@ -397,7 +404,7 @@ fn floor_max(
 ) -> ([InstId; 3], ValueId) {
     let emit = |func: &mut Function, kind, ty| {
         let mut instruction = Instruction::new(kind, Some(ty));
-        instruction.metadata.copy_debug_context(metadata);
+        instruction.metadata.preserve_debug_loc(metadata);
         func.alloc_value_inst(instruction)
     };
     // floor = heap_floor

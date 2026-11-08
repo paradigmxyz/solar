@@ -776,20 +776,15 @@ impl<'a> Builder<'a> {
             return;
         }
         // %r = <rewritten instruction over canonical operands>
-        let kind = self
-            .func
-            .canonical_op(current)
-            .into_kind()
-            .expect("rewrite rules produce complete instructions");
-        let inst = self.func.inst_mut(inst_id);
+        let kind = current.into_kind().expect("rewrite rules produce complete instructions");
         tracing::trace!(
             target: TRACE_TARGET,
             action = "rewrite",
-            input = %inst.kind,
+            input = %self.func.inst(inst_id).kind,
             output = %kind,
             "mir_egraph"
         );
-        inst.replace_kind(kind);
+        self.func.replace_inst_kind(inst_id, kind);
         self.changed += 1;
     }
 
@@ -842,9 +837,10 @@ impl<'a> Builder<'a> {
         }
         if changed {
             // check eq(condition, false), polarity => check condition, !polarity
-            self.func
-                .inst_mut(inst_id)
-                .replace_kind(InstKind::builtin(Builtin::Check { is_zero, failure }, [condition]));
+            self.func.replace_inst_kind(
+                inst_id,
+                InstKind::builtin(Builtin::Check { is_zero, failure }, [condition]),
+            );
             self.changed += 1;
         }
     }
@@ -901,17 +897,16 @@ impl<'a> Builder<'a> {
             let best = best.map_values(|value| resolve_replacement(value, &self.merged));
             let kind =
                 self.func.canonical_op(best).into_kind().expect("nodes are complete instructions");
-            let inst = self.func.inst_mut(home);
-            if inst.kind != kind {
+            if self.func.inst(home).kind != kind {
                 tracing::trace!(
                     target: TRACE_TARGET,
                     function = %name,
                     action = "rewrite",
-                    input = %inst.kind,
+                    input = %self.func.inst(home).kind,
                     output = %kind,
                     "mir_egraph"
                 );
-                inst.replace_kind(kind);
+                self.func.replace_inst_kind(home, kind);
                 self.changed += 1;
             }
         }
@@ -926,14 +921,7 @@ impl<'a> Builder<'a> {
         }
         // Skeleton instructions, phis, and terminators see canonical operands.
         let merged = &self.merged;
-        self.func.for_each_instruction_mut(|_, inst| {
-            inst.rewrite_operands(|value| *value = resolve_replacement(*value, merged));
-        });
-        for block in self.func.blocks.iter_mut() {
-            if let Some(term) = &mut block.terminator {
-                term.visit_operands_mut(|value| *value = resolve_replacement(*value, merged));
-            }
-        }
+        self.func.rewrite_all_operands(|value| *value = resolve_replacement(*value, merged));
     }
 
     /// Branches on `eq x, false` swap their targets and branch on `x`, branches
@@ -1258,11 +1246,9 @@ fn is_node(kind: &InstKind) -> bool {
     let pure = definition.effect == EffectKind::Pure
         && !definition.has_side_effects
         && !matches!(kind, InstKind::Phi(_));
-    // Stable context reads are rematerialized by the backend. Keep calldata size separate:
-    // merging it extends ABI-decoding live ranges and can introduce spills.
+    // Stable context reads are rematerialized by the backend.
     let frame_invariant = definition.effect == EffectKind::EnvironmentRead
-        && definition.traits.contains(OpTraits::REMATERIALIZABLE)
-        && !matches!(kind, InstKind::CalldataSize);
+        && definition.traits.contains(OpTraits::REMATERIALIZABLE);
     pure || frame_invariant
         || matches!(
             kind,

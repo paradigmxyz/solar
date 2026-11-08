@@ -1,4 +1,20 @@
 {
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "Pure.sol",
+        "start": 625,
+        "end": 650
+      },
+      "secondarySourceLocations": [],
+      "type": "Warning",
+      "component": "general",
+      "severity": "warning",
+      "errorCode": "6133",
+      "message": "statement has no effect",
+      "formattedMessage": "warning[6133]: statement has no effect\n   ╭▸ Pure.sol:LL:CC\n   │\nLL │         abi.decode(\"\", (uint256));\n   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    }
+  ],
   "sources": {
     "Pure.sol": {
       "id": 0,

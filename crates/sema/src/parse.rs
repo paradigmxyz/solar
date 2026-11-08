@@ -655,10 +655,10 @@ impl<'ast> Sources<'ast> {
             // the first back edge from the root, so the root order decides
             // whether a base contract's source still precedes its derived
             // contract's. solc roots its DFS in name order (`m_sources` is an
-            // ordered map); match it so cycles are cut identically.
-            let mut roots: Vec<SourceId> = self.sources.indices().collect();
-            roots.sort_unstable_by(|&a, &b| {
-                self.sources[a].file.name.cmp(&self.sources[b].file.name)
+            // ordered map by raw name bytes); match it so cycles are cut identically.
+            let mut roots = self.sources.indices().collect::<Vec<_>>();
+            roots.sort_by(|&a, &b| {
+                self.sources[a].file.name.cmp_source_unit_name(&self.sources[b].file.name)
             });
             for id in roots {
                 self.topo_order(id, &mut order, &mut map, &mut seen);

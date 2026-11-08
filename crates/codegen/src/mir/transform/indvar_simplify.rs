@@ -109,7 +109,8 @@ use super::{egraph::max_bits_with_args, loop_opt::LoopOptimizer};
 use crate::{
     mir::{
         ArithmeticKind, BlockId, CheckedOp, Function, FunctionBuilder, Immediate, InstId, InstKind,
-        Instruction, MemoryRegion, MirType, Module, Terminator, Value, ValueId,
+        Instruction, InstructionMetadata, MemoryRegion, MirType, Module, Terminator, Value,
+        ValueId,
         analysis::{
             AffineTerm, AliasAnalysis, CfgInfo, InductionVariable, Loop, LoopAnalyzer,
             ScalarEvolution, integers::unsigned_bounds,
@@ -124,6 +125,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::rc::Rc;
 
 /// Function pass for induction-variable simplification and strength reduction.
@@ -628,7 +630,7 @@ impl IndVarSimplifier {
                     // bound clamped to [start, 2^65]
                     (PointerExit::Reaches(_), _) => InstKind::Ne(*pointer, end),
                 };
-                func.inst_mut(test.condition).kind = func.canonical_kind(kind);
+                func.set_inst_kind(test.condition, kind);
                 test_rewritten = true;
             }
         }
@@ -851,8 +853,7 @@ impl IndVarSimplifier {
             let Some(magnitude) = self.offset_value(func, magnitude) else { continue };
             for &value in values {
                 let Value::Inst(inst) = *func.value(value) else { continue };
-                func.inst_mut(inst).kind =
-                    func.canonical_kind(offset_kind(stepped, magnitude, offset >= 0));
+                func.set_inst_kind(inst, offset_kind(stepped, magnitude, offset >= 0));
             }
         }
         func.replace_uses(&replacements);
@@ -1458,8 +1459,7 @@ impl IndVarSimplifier {
                 lhs: a,
                 rhs: b,
             } if a == iv_value => self.value_i128(func, b),
-            InstKind::Add(a, b)
-            | InstKind::CheckedBinary {
+            InstKind::CheckedBinary {
                 op: CheckedOp::Add,
                 arithmetic: ArithmeticKind::Unsigned(_),
                 lhs: a,
@@ -1534,7 +1534,7 @@ impl IndVarSimplifier {
         };
         let (phi_inst, phi_value) = func.alloc_value_inst(
             Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::I256))
-                .with_debug_info_dropped(),
+                .with_debug_loc_dropped(),
         );
         self.insert_header_phi(func, loop_data.header, phi_inst);
 
@@ -1602,12 +1602,12 @@ impl IndVarSimplifier {
         };
         let (phi_inst, phi_value) = func.alloc_value_inst(
             Instruction::new(InstKind::Phi(vec![(preheader, initial)]), Some(MirType::I256))
-                .with_debug_info_dropped(),
+                .with_debug_loc_dropped(),
         );
         // update block: ...; counter' = update; next = ptr + delta; ...
         let (next_inst, next) = func.alloc_value_inst(
             Instruction::new(offset_kind(phi_value, magnitude, delta > 0), Some(MirType::I256))
-                .with_debug_info_dropped(),
+                .with_debug_loc_dropped(),
         );
         // block: start = phi [from: next], ..., [other: base + sum(...) + input * scale + ...]
         let start = match carried {
@@ -1623,7 +1623,7 @@ impl IndVarSimplifier {
                 }
                 let (start_inst, start) = func.alloc_value_inst(
                     Instruction::new(InstKind::Phi(starts), Some(MirType::I256))
-                        .with_debug_info_dropped(),
+                        .with_debug_loc_dropped(),
                 );
                 Some((block, start_inst, start))
             }
@@ -1723,7 +1723,7 @@ impl IndVarSimplifier {
         for block in blocks {
             for index in 0..func.blocks[block].instructions.len() {
                 let inst_id = func.blocks[block].instructions[index];
-                mir_utils::replace_inst_uses(func.inst_mut(inst_id), replacements);
+                func.replace_inst_uses(inst_id, replacements);
             }
             if let Some(term) = &mut func.blocks[block].terminator {
                 mir_utils::replace_terminator_uses(term, replacements);
@@ -1736,8 +1736,7 @@ impl IndVarSimplifier {
         let Value::Inst(inst_id) = *func.value(value) else { return };
         let Some(magnitude) = offset.checked_abs() else { return };
         let Some(magnitude) = self.offset_value(func, magnitude) else { return };
-        func.inst_mut(inst_id).kind =
-            func.canonical_kind(offset_kind(pointer, magnitude, offset >= 0));
+        func.set_inst_kind(inst_id, offset_kind(pointer, magnitude, offset >= 0));
     }
 
     /// Appends `delta / magnitude` to `block`: a shift for a power of two, a division otherwise.
@@ -1808,6 +1807,11 @@ impl IndVarSimplifier {
 
     fn word_value(&self, func: &mut Function, block: BlockId, value: ValueId) -> ValueId {
         let mut builder = FunctionBuilder::new(func);
+        // NOTE: Address-recurrence setup can run outside the original address expression's
+        // block. Drop its location, as for the adjacent arithmetic setup instructions.
+        let mut context = InstructionMetadata::default();
+        context.drop_debug_loc(DebugLocKind::Dropped);
+        builder.set_debug_context(&context);
         builder.switch_to_block(block);
         builder.cast_word(value)
     }
@@ -1889,7 +1893,6 @@ fn implies_at_most(
         (&InstKind::Gt(a, x), false)
         | (&InstKind::Lt(x, a), false)
         | (&InstKind::Lt(a, x), true)
-        | (&InstKind::Gt(x, a), true)
             if a == value =>
         {
             unsigned_bounds(func, x).1 <= limit

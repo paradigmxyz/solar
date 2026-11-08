@@ -72,7 +72,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let Some(function_id) = self.cx.gcx.resolved_function(expr)
         {
             // value = address(receiver) << 32 | selector(function)
-            let address = self.lower_expr(receiver)?;
+            let address = self.operand(receiver)?.id();
             let address_shift = self.builder.imm(32);
             let address = self.builder.shl(address, address_shift);
             let selector = self.cx.gcx.function_selector(function_id).0;
@@ -108,7 +108,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.cx.report_unsupported(expr.span, "struct field");
         };
         let receiver_ty = self.type_of_expr_or_variable(receiver)?;
-        let object = self.lower_expr(receiver)?;
+        let object = self.operand(receiver)?.id();
         if receiver_ty.is_ref_at(DataLocation::Calldata)
             && self.builder.func().value_slice_location(object) == Some(PtrLocation::Calldata)
         {
@@ -133,6 +133,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 base,
                 expr.span,
                 validate_bounds,
+                false,
             );
         }
 
@@ -182,7 +183,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     _ => self.cx.report_unsupported(span, what),
                 };
             }
-            let object = self.lower_expr(receiver)?;
+            let object = self.operand(receiver)?.id();
             return match self.builder.func().value_ty(object) {
                 Some(MirType::MEMPTR) => {
                     // length = object.len
@@ -191,7 +192,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 _ => self.cx.report_unsupported(span, what),
             };
         }
-        let object = self.lower_expr(receiver)?;
+        let object = self.operand(receiver)?.id();
         if matches!(self.builder.func().value_ty(object), Some(MirType::Slice(_))) {
             // length = slice.len
             return Some(self.builder.slice_len(object));
@@ -289,11 +290,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let suffix = if unchecked { "_unchecked" } else { "" };
         let name = helper_name(kw::Constant, format_args!("{}{suffix}", id.index()));
         // fn @constant_N[_unchecked]() -> T { value = <initializer>; ret value }
-        let helper = self.lazy_helper(name, |this, function| {
+        let helper = self.lazy_helper_with(name, false, |this, function| {
             let mut lowerer = FunctionLowerer::new(this.cx.reborrow(), function);
             lowerer.unchecked = unchecked;
             lowerer.builder.replace_source_span(initializer.span);
-            let value = lowerer.lower_typed_expr(initializer, ty)?;
+            let value = lowerer.lower_typed_expr(initializer, ty)?.clean(&mut lowerer, ty);
             lowerer.builder.set_return_type(mir_ty);
             lowerer.builder.ret([value]);
             Some(())

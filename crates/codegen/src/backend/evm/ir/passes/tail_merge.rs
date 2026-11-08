@@ -14,8 +14,8 @@
 //! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
 //! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order,
 //! and loop-only paths do not create sharing groups.
-//! Replacement jumps retain the suffix's entry location before its origins are merged, so
-//! single-origin source maps do not lose both callers' locations on a shared body.
+//! The shared tail merges the origins of its sites. Each replacement jump copies the location of
+//! the first instruction it replaces, as LLVM's `ReplaceTailWithBranchTo` does.
 //! In gas mode, hot sharing must repay its transfer over the optimizer run count.
 //! Size mode prices the jump that a shared suffix removes with at least a `PUSH1` label unless it
 //! targets the entry block, the only block that can start at offset 0.
@@ -359,23 +359,20 @@ impl RunState {
                     for instruction in &mut tail.instructions {
                         instruction.metadata.take_function_invoke();
                     }
-                    for site in sites.iter().filter(|site| site.common >= common) {
-                        let site_instructions = &module.blocks[site.block].instructions;
-                        let site_segment = &site_instructions[site_instructions.len() - common
-                            ..site_instructions.len() - previous_common];
-                        for (instruction, site_instruction) in
-                            tail.instructions.iter_mut().zip(site_segment)
-                        {
-                            instruction.metadata.merge_source_spans(&site_instruction.metadata);
-                        }
+                    for (index, instruction) in tail.instructions.iter_mut().enumerate() {
+                        instruction.metadata.merge_debug_locs(
+                            sites.iter().filter(|site| site.common >= common).map(|site| {
+                                let site_instructions = &module.blocks[site.block].instructions;
+                                &site_instructions[site_instructions.len() - common + index]
+                                    .metadata
+                            }),
+                        );
                     }
                 }
                 tail.terminator = tails.last().map_or_else(
                     || terminator.clone(),
                     |&target| {
-                        Some(
-                            Terminator::new(TerminatorKind::Jump(target)).with_debug_info_dropped(),
-                        )
+                        Some(Terminator::new(TerminatorKind::Jump(target)).with_debug_loc_dropped())
                     },
                 );
                 if track_debug_info
@@ -383,11 +380,13 @@ impl RunState {
                     && let Some(tail_terminator) = &mut tail.terminator
                 {
                     tail_terminator.metadata.take_function_invoke();
-                    for site in sites.iter().filter(|site| site.common >= common) {
-                        if let Some(site_terminator) = &module.blocks[site.block].terminator {
-                            tail_terminator.metadata.merge_source_spans(&site_terminator.metadata);
-                        }
-                    }
+                    tail_terminator.metadata.merge_debug_locs(
+                        sites
+                            .iter()
+                            .filter(|site| site.common >= common)
+                            .filter_map(|site| module.blocks[site.block].terminator.as_ref())
+                            .map(|terminator| &terminator.metadata),
+                    );
                 }
                 // whole_body: suffix => whole_body: shared_suffix
                 // Shared entries drop path-specific invocation events.
@@ -396,6 +395,18 @@ impl RunState {
                     && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
                 {
                     tail.label = module.blocks[representative_id].label;
+                    // Every path that shared the body now enters through this label.
+                    tail.label_metadata =
+                        std::mem::take(&mut module.blocks[representative_id].label_metadata);
+                    tail.label_metadata.merge_debug_locs(
+                        sites
+                            .iter()
+                            .filter(|site| {
+                                site.block != representative_id
+                                    && module.blocks[site.block].instructions.len() == len
+                            })
+                            .map(|site| &module.blocks[site.block].label_metadata),
+                    );
                     module.blocks[representative_id] = tail;
                     representative_id
                 } else {
@@ -412,8 +423,9 @@ impl RunState {
                 // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
                 module.blocks[representative_id].instructions.truncate(len - max_common);
                 let mut terminator =
-                    Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
-                terminator.metadata.copy_debug_info_from(&representative_debug);
+                    Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_loc_dropped();
+                terminator.metadata.preserve_debug_loc(&representative_debug);
+                terminator.metadata.move_function_events(&representative_debug);
                 module.blocks[representative_id].terminator = Some(terminator);
             }
             for site in sites {
@@ -427,9 +439,10 @@ impl RunState {
                 // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
                 module.blocks[site.block].instructions.truncate(len - site.common);
                 let mut terminator =
-                    Terminator::new(TerminatorKind::Jump(tail)).with_debug_info_dropped();
+                    Terminator::new(TerminatorKind::Jump(tail)).with_debug_loc_dropped();
                 if let Some(debug_info) = debug_info {
-                    terminator.metadata.copy_debug_info_from(&debug_info);
+                    terminator.metadata.preserve_debug_loc(&debug_info);
+                    terminator.metadata.move_function_events(&debug_info);
                 }
                 module.blocks[site.block].terminator = Some(terminator);
             }
@@ -502,19 +515,23 @@ fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
     computes_word.then_some(required)
 }
 
+/// The debug information of the jump that replaces the last `len` instructions of `block`.
+///
+/// Copies `TargetInstrInfo::ReplaceTailWithBranchTo`, which saves "the debug loc before erasing the
+/// instruction", `Tail->getDebugLoc()` of the first instruction it removes, and gives the new
+/// branch that location as is (llvm/lib/CodeGen/TargetInstrInfo.cpp#L175-L189 at llvm-project
+/// e98b16a2710b). A suffix has at least one instruction. Function events keep their own rule: a
+/// jump takes the one invoke all removed operations agree on.
 fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
     let suffix = &block.instructions[block.instructions.len() - len..];
     let mut metadata = Metadata::default();
-    metadata.mark_debug_info_dropped();
+    // The first removed instruction, as is: all its origins, its modifier depth, and no origin if
+    // it has none.
+    metadata.preserve_debug_loc(&suffix[0].metadata);
     let all = suffix
         .iter()
         .map(|inst| &inst.metadata)
         .chain(block.terminator.iter().map(|term| &term.metadata));
-    // Already-shared suffixes cannot provide a path-specific jump origin.
-    // Prefer a unique origin from this site; otherwise leave it unmapped.
-    if let Some(origin) = all.clone().find(|metadata| metadata.source_spans().len() == 1) {
-        metadata.copy_source_debug_from(origin);
-    }
     let mut functions = all.filter_map(Metadata::function_invoke);
     if let Some(function) = functions.next()
         && functions.all(|other| other == function)

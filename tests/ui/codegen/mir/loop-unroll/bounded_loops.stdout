@@ -26,7 +26,7 @@
       ret v2
     bb2:                                            ; preds = bb1
       v4 = mul v1, 3
-      v5 = add v2, v4
+      v5 = add v4, v2
       v6 = add v1, 1
       jump bb1
   }
@@ -54,7 +54,7 @@
       ret v2
     bb2:                                            ; preds = bb1
       v4 = mul v1, 3
-      v5 = add v2, v4
+      v5 = add v4, v2
       v6 = add v1, 1
       jump bb1
 +   bb5:                                            ; preds = bb4

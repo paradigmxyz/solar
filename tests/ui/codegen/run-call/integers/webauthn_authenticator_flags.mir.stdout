@@ -1,0 +1,150 @@
+; === ROOT/tests/ui/codegen/run-call/integers/webauthn_authenticator_flags.sol:C ===
+@module C
+@data
+  literal_0: hex"68de9469627f4002c727fe634985a916f4414d6309d81cc2a26ca3f1785725b649ddbb03b8b89d41b77e5e5ad00b388d3e95043177ee2ef763a67a3e2cd40000"
+
+; function test() external pure returns (bool) [selector 0xf8a8fd6d]
+fn @test() -> i256 [selector=0xf8a8fd6d, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @auth
+    v1 = icall @check, 1, v0
+    ret v1
+}
+
+; function testFlags() external pure returns (bool) [selector 0x74da97f7]
+fn @testFlags() -> i256 [selector=0x74da97f7, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @auth
+    v1 = ptrtoint ptr<memory> v0 to i256
+    v2 = mload v0
+    v3 = add v2, 33
+    v4 = mload v3
+    v5 = and v4, 1
+    v6 = eq v5, 1
+    v7 = zext i1 v6 to i256
+    ret v7
+}
+
+; function testTypedConstant() external pure returns (bool) [selector 0x62655512]
+fn @testTypedConstant() -> i1 [selector=0x62655512, pure, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @auth
+    v1 = mload v0, ptr<memory>
+    v2 = mload v1
+    v3 = gt v2, 32
+    v4 = eq v3, false
+    icall panic_if<0x32>, v4
+    v5 = ptradd v1, 64
+    v6 = mload v5
+    v7 = byte 0, v6
+    v8 = shl v7, 248
+    v9 = and v8, 0x100000000000000000000000000000000000000000000000000000000000000
+    v10 = and v9, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v11 = eq v10, 0x100000000000000000000000000000000000000000000000000000000000000
+    ret v11
+}
+
+; function auth() internal pure returns (Auth memory auth)
+fn @auth() -> ptr<memory> [pure] {
+  bb0:
+    v0 = alloc 96 !metadata(preserves_fmp)
+    mstore v0, 62
+    v1 = ptradd v0, 32
+    datacopy literal_0, v1, 64
+    v2 = alloc 192 !metadata(preserves_fmp)
+    memory_zero v2, 192
+    mstore v2, 96
+    v3 = ptradd v2, 32
+    mstore v3, 96
+    v4 = ptrtoint ptr<memory> v0 to i256
+    mstore v2, v4
+    v5 = abi_encode_packed (data hex"7b252274797065223a22776562617574686e2e676574220ff9062c226368616c6c656e6765223a22466722d2df7d")
+    v6 = ptrtoint ptr<memory> v5 to i256
+    v7 = ptradd v2, 32
+    mstore v7, v6
+    v8 = ptradd v2, 64
+    mstore v8, 27
+    v9 = ptradd v2, 96
+    mstore v9, 2
+    ret v2
+}
+
+; function check(bool requireUserVerification, Auth memory auth) internal pure returns (bool result)
+fn @check(arg0: i256, arg1: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = alloc 64 !metadata(preserves_fmp)
+    mstore v0, 2
+    v1 = ptradd v0, 32
+    mstore v1, 0x4667000000000000000000000000000000000000000000000000000000000000
+    v2 = ptrtoint ptr<memory> arg1 to i256
+    v3 = add v2, 32
+    v4 = mload v3
+    v5 = mload v4
+    v6 = add v4, 32
+    v7 = ptrtoint ptr<memory> arg1 to i256
+    v8 = add v7, 64
+    v9 = mload v8
+    v10 = ptrtoint ptr<memory> arg1 to i256
+    v11 = add v10, 96
+    v12 = mload v11
+    v13 = ptrtoint ptr<memory> v0 to i256
+    v14 = mload v0
+    v15 = add v14, 13
+    v16 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, 0x226368616c6c656e6765223a22
+    v17 = add v15, v9
+    v18 = lt v17, v5
+    v19 = zext i1 v18 to i256
+    v20 = add v6, v9
+    v21 = add v20, v15
+    v22 = mload v21
+    v23 = byte 0, v22
+    v24 = eq v23, 34
+    v25 = zext i1 v24 to i256
+    v26 = and v25, v19
+    v27 = ptrtoint ptr<memory> v0 to i256
+    v28 = add v27, 19
+    v29 = keccak256 v28, v15
+    v30 = add v6, v9
+    v31 = keccak256 v30, v15
+    v32 = eq v31, v29
+    v33 = zext i1 v32 to i256
+    v34 = and v26, v33
+    v35 = add v12, 20
+    v36 = lt v35, v5
+    v37 = zext i1 v36 to i256
+    v38 = or v12, v9
+    v39 = shr v38, 128
+    v40 = lt v39, v37
+    v41 = zext i1 v40 to i256
+    v42 = add v6, v12
+    v43 = mload v42
+    v44 = shr v43, 88
+    v45 = eq v44, 0x2274797065223a22776562617574686e2e67657422
+    v46 = zext i1 v45 to i256
+    v47 = and v46, v41
+    v48 = and v47, v34
+    v49 = ptrtoint ptr<memory> v0 to i256
+    mstore v0, v14
+    v50 = ptrtoint ptr<memory> arg1 to i256
+    v51 = mload arg1
+    v52 = mload v51
+    v53 = eq arg0, 0
+    v54 = zext i1 v53 to i256
+    v55 = eq v54, 0
+    v56 = zext i1 v55 to i256
+    v57 = shl v56, 2
+    v58 = or v57, 1
+    v59 = ptrtoint ptr<memory> arg1 to i256
+    v60 = mload arg1
+    v61 = add v60, 33
+    v62 = mload v61
+    v63 = and v62, v58
+    v64 = eq v63, v58
+    v65 = zext i1 v64 to i256
+    v66 = gt v52, 32
+    v67 = zext i1 v66 to i256
+    v68 = and v48, v67
+    v69 = and v68, v65
+    ret v69
+}

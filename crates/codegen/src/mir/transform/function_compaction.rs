@@ -816,9 +816,9 @@ fn merge_function_debug_origins(
     for (block, (instructions, terminator)) in target.blocks.indices().zip(origins) {
         for (index, metadata) in instructions.into_iter().enumerate() {
             let inst = target.blocks[block].instructions[index];
-            target.inst_mut(inst).metadata.merge_debug_context(&metadata);
+            target.inst_mut(inst).metadata.merge_debug_locs([&metadata]);
         }
-        target.blocks[block].terminator_metadata.merge_debug_context(&terminator);
+        target.blocks[block].terminator_metadata.merge_debug_locs([&terminator]);
     }
 }
 
@@ -874,7 +874,9 @@ fn equivalent_functions(
     let lhs_values = CanonValues::new(lhs);
     let rhs_values = CanonValues::new(rhs);
     for (lhs_block, rhs_block) in lhs.blocks.iter().zip(&rhs.blocks) {
-        if lhs_block.instructions.len() != rhs_block.instructions.len() {
+        if lhs_block.instructions.len() != rhs_block.instructions.len()
+            || lhs_block.cold_hint != rhs_block.cold_hint
+        {
             return false;
         }
         for (&lhs_inst, &rhs_inst) in lhs_block.instructions.iter().zip(&rhs_block.instructions) {

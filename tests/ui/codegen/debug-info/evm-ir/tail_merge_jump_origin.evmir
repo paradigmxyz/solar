@@ -1,0 +1,26 @@
+//@ compile-flags: -Zevm-ir-pipeline=tail-merge --optimize-runs 1
+//@ filecheck:
+@module JumpOrigin
+
+// The jump into the shared tail copies its site's first removed instruction as is. Here that
+// instruction has no origin, so the jump has none, even though a later removed one has.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + jump [[TAIL:bb[0-9]+]]{{$}}
+bb0:
+  push 11 !metadata(span=1..5)
+  push 22
+  push 33 !metadata(span=11..15)
+  push 44 !metadata(span=16..20)
+  push 55 !metadata(span=21..25)
+  revert !metadata(span=26..30)
+
+// A removed instruction with several origins gives the jump all of them.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK: + jump [[TAIL]] !metadata(spans=[31..35, 36..40])
+bb1:
+  push 99 !metadata(span=41..45)
+  push 22 !metadata(spans=[31..35, 36..40])
+  push 33 !metadata(span=46..50)
+  push 44 !metadata(span=51..55)
+  push 55 !metadata(span=56..60)
+  revert !metadata(span=61..65)

@@ -52,14 +52,18 @@ fn lower_function(func: &mut Function) -> bool {
             let dest = builder.cast(dest, crate::mir::MirType::I256);
             if builder.func().value_u64(size) == Some(32) {
                 let zero = builder.imm(0);
+                builder
+                    .func_mut()
+                    .set_inst_kind(inst, InstKind::Store(dest, zero, PtrLocation::Memory));
                 let instruction = builder.func_mut().inst_mut(inst);
-                instruction.kind = InstKind::Store(dest, zero, PtrLocation::Memory);
                 instruction.metadata.set_memory_region(None);
                 instruction.metadata.set_effect(Some(instruction.kind.effect_kind()));
             } else {
                 let calldata_end = builder.calldatasize();
-                builder.func_mut().inst_mut(inst).kind =
-                    InstKind::Copy(dest, calldata_end, size, PtrLocation::Calldata);
+                builder.func_mut().set_inst_kind(
+                    inst,
+                    InstKind::Copy(dest, calldata_end, size, PtrLocation::Calldata),
+                );
             }
             false
         });

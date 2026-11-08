@@ -1,0 +1,24 @@
+- ; === ROOT/tests/ui/codegen/debug-info/mir/if_convert_debug_speculation.mir (before if-convert) ===
++ ; === ROOT/tests/ui/codegen/debug-info/mir/if_convert_debug_speculation.mir (after if-convert) ===
+  @module DebugSpeculation
+  fn @choose(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+-     jumpi arg1, bb1, bb2
+-   bb2:                                            ; preds = bb0
+-     v1 = sub arg0, 1 !metadata(span=30..40)
+-     jump bb3
+-   bb1:                                            ; preds = bb0
+-     v0 = add arg0, 1 !metadata(span=10..20)
+-     jump bb3
+-   bb3:                                            ; preds = bb1, bb2
+-     v2 = phi [bb1: v0], [bb2: v1] !metadata(span=50..60)
+-     ret v2
++     v0 = add arg0, 1
++     v1 = sub arg0, 1
++     v3 = sub v0, v1 !metadata(span=50..60)
++     v4 = zext i1 arg1 to i256 !metadata(span=50..60)
++     v5 = mul v3, v4 !metadata(span=50..60)
++     v6 = add v1, v5 !metadata(span=50..60)
++     ret v6
+  }
+  

@@ -2106,7 +2106,9 @@ impl<'gcx> ResolveContext<'gcx> {
                 continue;
             };
 
-            if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
+            // A failed linearization has already been reported and holds only the contract.
+            let contract = self.hir.contract(c);
+            if !contract.linearization_failed() && !contract.linearized_bases[1..].contains(&id) {
                 self.dcx()
                     .err_code_at(
                         ov.span,

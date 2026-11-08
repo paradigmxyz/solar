@@ -1,0 +1,52 @@
+//@ compile-flags: -Zevm-ir-pipeline=outline --optimize-runs 1
+//@ filecheck:
+@module DebugInfoFirstLocated
+
+// The call site takes the first location in the replaced run, and the shared body has none.
+// CHECK-LABEL: {{^[ +].*}}bb0:
+// CHECK: + push [[RET0:bb[0-9]+]] !metadata(span=6..10)
+// CHECK: + jump [[OUTLINE:bb[0-9]+]] !metadata(span=6..10){{$}}
+// CHECK: {{^[ +].*}}bb1:
+// CHECK: + push [[RET1:bb[0-9]+]] !metadata(span=26..30)
+// CHECK: + jump [[OUTLINE]] !metadata(span=26..30){{$}}
+// CHECK: + [[OUTLINE]] {{\[ret=.*\]}}:
+// CHECK: {{^[ +]}}  push 1{{$}}
+// CHECK: {{^[ +]}}  pop{{$}}
+// CHECK: + jump{{$}}
+bb0:
+  push 1
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  push 1 !metadata(span=1..5)
+  pop !metadata(span=6..10)
+  jump bb1 !metadata(span=11..15)
+
+bb1:
+  push 1
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  push 1 !metadata(span=21..25)
+  pop !metadata(span=26..30)
+  stop !metadata(span=31..35)

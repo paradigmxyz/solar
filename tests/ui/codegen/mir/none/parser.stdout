@@ -119,7 +119,7 @@
   
   fn @concatenate(arg0: ptr<memory>) -> ptr<memory> {
     bb0:
-      v0 = abi_encode_packed (bytes arg0, bytes2 0x1234000000000000000000000000000000000000000000000000000000000000)
+      v0 = abi_encode_packed (memory_bytes arg0, bytes2 0x1234000000000000000000000000000000000000000000000000000000000000)
       ret v0
   }
   
@@ -190,7 +190,7 @@
       v0 = zext i1 0 to i256
       v1 = zext i1 1 to i256
       v2 = zext i1 undef to i256
-      v3 = and false, true
+      v3 = and true, false
       ret v3
   }
   

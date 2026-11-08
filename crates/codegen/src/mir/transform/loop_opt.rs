@@ -811,10 +811,13 @@ impl LoopOptimizer {
         let aa = &self.alias;
         let load = Location::Immutable(load_id);
         loop_data.blocks.iter().any(|block_id| {
-            func.blocks[block_id]
-                .instructions
-                .iter()
-                .any(|&inst_id| aa.instruction_mod_ref(func, inst_id).may_write(aa, load))
+            func.blocks[block_id].instructions.iter().any(|&inst_id| {
+                let effects = aa.instruction_mod_ref(func, inst_id);
+                // `lower-immutables` turned an assignment in creation code into a store to the
+                // staging word, which the immutable's location no longer names.
+                effects.may_write(aa, load)
+                    || (func.attributes.creation_only && effects.writes_space(AddressSpace::Memory))
+            })
         })
     }
 
@@ -1171,19 +1174,19 @@ fn reduce_product_checks(
         if flip_check(func, block, inst, &uses) {
             // overflows = gt x, limit
             // jumpi overflows, abort, next
-            func.inst_mut(inst).kind = func.canonical_kind(InstKind::Gt(x, limit));
+            func.set_inst_kind(inst, InstKind::Gt(x, limit));
             continue;
         }
         // overflows = gt x, limit
         let mut overflows = Instruction::new(InstKind::Gt(x, limit), Some(MirType::I1));
-        overflows.metadata.copy_debug_context(&func.inst(inst).metadata);
+        overflows.metadata.preserve_debug_loc(&func.inst(inst).metadata);
         let (overflows_inst, overflows) = func.alloc_value_inst(overflows);
         let position = func.blocks[block].instructions.iter().position(|&id| id == inst);
         let position = position.expect("the check is in its block");
         func.blocks[block].instructions.insert(position, overflows_inst);
         // valid = eq overflows, 0
         let zero = func.alloc_value(Value::Immediate(Immediate::I1(false)));
-        func.inst_mut(inst).kind = func.canonical_kind(InstKind::Eq(overflows, zero));
+        func.set_inst_kind(inst, InstKind::Eq(overflows, zero));
     }
     checks.len()
 }
@@ -1220,12 +1223,10 @@ fn product_check(
     exact: ValueId,
 ) -> Option<(ValueId, ValueId, ValueId)> {
     let def = |value| func.value_inst_kind(value);
-    let InstKind::Eq(l, r) = *def(zero_test)? else { return None };
-    let divisor = match (func.value_u256(l), func.value_u256(r)) {
-        (None, Some(zero)) if zero.is_zero() => l,
-        (Some(zero), None) if zero.is_zero() => r,
-        _ => return None,
-    };
+    let InstKind::Eq(divisor, zero) = *def(zero_test)? else { return None };
+    if func.value_u256(divisor).is_some() || !func.value_u256(zero)?.is_zero() {
+        return None;
+    }
     let InstKind::Eq(l, r) = *def(exact)? else { return None };
     [(l, r), (r, l)].into_iter().find_map(|(quotient, other)| {
         let &InstKind::Div(product, by) = def(quotient)? else { return None };
@@ -1265,11 +1266,9 @@ fn reassociate_invariant_offsets(
     let readers = super::egraph::use_counts(func);
     // The sum `outer = (x + y) + c` with its single-reader inner sum, as `(x, c, outer, inner, y)`.
     let split = |outer: InstId| {
-        let InstKind::Add(first, second) = func.inst(outer).kind else { return None };
-        let (sum, c) = [(first, second), (second, first)]
-            .into_iter()
-            .find(|&(sum, c)| func.value_u256(c).is_some() && func.value_u256(sum).is_none())?;
+        let InstKind::Add(sum, c) = func.inst(outer).kind else { return None };
         let Value::Inst(inner) = *func.value(sum) else { return None };
+        func.value_u256(c)?;
         let InstKind::Add(a, b) = func.inst(inner).kind else { return None };
         (readers[sum] == 1
             && func.value_ty(sum) == Some(MirType::I256)
@@ -1365,12 +1364,12 @@ fn reassociate_invariant_offsets(
     for (preheader, x, c, sites) in plans {
         // preheader: t = add x, c
         let mut sum = Instruction::new(InstKind::Add(x, c), Some(MirType::I256));
-        sum.metadata.copy_debug_context(&func.inst(sites[0].0).metadata);
+        sum.metadata.preserve_debug_loc(&func.inst(sites[0].0).metadata);
         let (sum_inst, t) = func.alloc_value_inst(sum);
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {
             // outer = add t, y
-            func.inst_mut(outer).kind = func.canonical_kind(InstKind::Add(t, y));
+            func.set_inst_kind(outer, InstKind::Add(t, y));
             let block = inst_blocks[inner].expect("the inner sum is in a block");
             func.blocks[block].instructions.retain(|&inst| inst != inner);
             rewritten += 1;

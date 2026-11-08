@@ -2,7 +2,7 @@
 
 use super::{BlockId, InstId, InstructionMetadata, ValueId};
 use smallvec::SmallVec;
-use solar_ir::Hotness;
+use solar_ir::{Hotness, debug::DebugLocKind};
 use std::fmt;
 
 /// A basic block in the MIR.
@@ -14,6 +14,12 @@ pub struct BasicBlock {
     pub terminator: Option<Terminator>,
     /// Source context of the control transfer, independent of the last value instruction.
     pub terminator_metadata: InstructionMetadata,
+    /// Source context of the block's label, which is the origin of the `JUMPDEST` that marks the
+    /// block, as solc gives a tag the location active where the tag is placed
+    /// (`m_context << tag`). It holds only debug context: source spans and the modifier depth.
+    ///
+    /// Lowering sets it when it places the block; `docs/MIR.md` says what passes do with it.
+    pub label_metadata: InstructionMetadata,
     /// Predecessor blocks, each listed once.
     pub predecessors: SmallVec<[BlockId; 4]>,
     /// Whether the block is expected to run rarely. Computed by the hotness analysis, which the
@@ -21,6 +27,12 @@ pub struct BasicBlock {
     /// flow need not maintain it, but reads of it inside that pass can be stale, and new blocks
     /// start hot.
     pub hotness: Hotness,
+    /// Whether the source says the block runs rarely, as the block version of a function's
+    /// `cold_hint`: lowering sets it on the blocks of a `catch` clause. Unlike `hotness`, it is a
+    /// fact the analysis only reads. The block is always cold, and so is the code that only a cold
+    /// edge into a hinted block enters. A pass that copies a block copies the hint, splitting a
+    /// block gives both halves it, and merging blocks that run together keeps it.
+    pub cold_hint: bool,
 }
 
 impl BasicBlock {
@@ -35,29 +47,42 @@ impl BasicBlock {
     /// Replaces a transfer with compiler-generated control flow, dropping stale context.
     pub fn set_generated_terminator(&mut self, terminator: Terminator) {
         let mut metadata = InstructionMetadata::EMPTY;
-        metadata.mark_debug_info_dropped();
+        metadata.drop_debug_loc(DebugLocKind::Dropped);
         self.set_terminator(terminator, metadata);
     }
 
     /// Moves a control transfer out, leaving fresh generated-code context behind.
     pub fn take_terminator(&mut self) -> (Option<Terminator>, InstructionMetadata) {
         let mut generated = InstructionMetadata::EMPTY;
-        generated.mark_debug_info_dropped();
+        generated.drop_debug_loc(DebugLocKind::Dropped);
         let metadata = std::mem::replace(&mut self.terminator_metadata, generated);
         (self.terminator.take(), metadata)
+    }
+
+    /// Creates an empty block that copies this one, which may belong to another function: it keeps
+    /// the `cold_hint` and the label origin, as LLVM's `CloneBasicBlock` keeps the debug locations
+    /// of the code it clones. The caller fills in the instructions and the terminator.
+    #[must_use]
+    pub fn new_copy(&self) -> Self {
+        let mut copy = Self::new();
+        copy.cold_hint = self.cold_hint;
+        copy.label_metadata.preserve_debug_loc(&self.label_metadata);
+        copy
     }
 
     /// Creates a new empty basic block.
     #[must_use]
     pub(crate) fn new() -> Self {
         let mut terminator_metadata = InstructionMetadata::EMPTY;
-        terminator_metadata.mark_debug_info_dropped();
+        terminator_metadata.drop_debug_loc(DebugLocKind::Dropped);
         Self {
             instructions: Vec::new(),
             terminator: None,
             terminator_metadata,
+            label_metadata: InstructionMetadata::EMPTY,
             predecessors: SmallVec::new(),
             hotness: Hotness::Hot,
+            cold_hint: false,
         }
     }
 }

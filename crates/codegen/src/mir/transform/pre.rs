@@ -1329,7 +1329,7 @@ impl<'a> Eliminator<'a> {
             _ => {
                 let (phi_inst, phi_value) = func.alloc_value_inst(
                     Instruction::new(InstKind::Phi(incoming), Some(result_ty))
-                        .with_debug_info_dropped(),
+                        .with_debug_loc_dropped(),
                 );
                 let phi_count = func.block_phi_count(target);
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
@@ -1467,9 +1467,10 @@ impl<'a> Eliminator<'a> {
                 }
                 continue;
             }
-            let probe = MemoryLocation::new(group, LocationSize::Const(1));
-            if AliasAnalysis::memory_alias_locations(written, probe).may_alias() {
-                for &idx in words.values() {
+            // The groups drop their offsets, so each word is compared at its own location.
+            for &idx in words.values() {
+                let Location::Memory(key) = keys[idx].location() else { unreachable!() };
+                if AliasAnalysis::memory_alias_locations(written, key).may_alias() {
                     kill(idx);
                 }
             }

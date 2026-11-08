@@ -61,6 +61,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         condition: ValueId,
         then_first: bool,
+        lower_then: impl FnMut(&mut Self) -> Option<T>,
+        lower_else: impl FnMut(&mut Self) -> Option<T>,
+    ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
+        self.lower_branches_labeled(condition, then_first, None, lower_then, lower_else)
+    }
+
+    /// Like [`Self::lower_branches`], with the branch blocks' labels at `label_span` rather than
+    /// at the span the builder has when it places them.
+    pub(super) fn lower_branches_labeled<T>(
+        &mut self,
+        condition: ValueId,
+        then_first: bool,
+        label_span: Option<Span>,
         mut lower_then: impl FnMut(&mut Self) -> Option<T>,
         mut lower_else: impl FnMut(&mut Self) -> Option<T>,
     ) -> Option<(TernaryBranch<T>, TernaryBranch<T>)> {
@@ -75,7 +88,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // branch(condition, then, else)
         self.builder.branch(condition, then_block, else_block);
 
-        self.builder.switch_to_block(then_block);
+        self.place_block(then_block, label_span);
         let then_value = lower_then(self)?;
         let then_terminated = self.is_terminated();
         let then_exit = self.builder.current_block();
@@ -87,7 +100,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.values = before_values.clone();
         self.storage_refs = before_storage_refs.clone();
-        self.builder.switch_to_block(else_block);
+        self.place_block(else_block, label_span);
         let else_value = lower_else(self)?;
         let else_terminated = self.is_terminated();
         let else_exit = self.builder.current_block();
@@ -99,7 +112,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         // values = phi(then_values, else_values)
         // storage_refs = phi(then_storage_refs, else_storage_refs)
-        self.builder.switch_to_block(merge_block);
+        self.place_block(merge_block, label_span);
         self.values = self.merge_values(
             before_values,
             MergeBranch { block: then_exit, values: then_values, terminated: then_terminated },
@@ -130,17 +143,48 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_stmt: &hir::Stmt<'_>,
         else_stmt: Option<&hir::Stmt<'_>>,
     ) -> Option<()> {
-        let condition = self.lower_expr(condition)?;
-        let (then_branch, else_branch) = self.lower_branches(
+        let condition_span = condition.span;
+        let condition = self.operand(condition)?.id();
+        // The transfer still evaluates the condition when its computation folds into the jump.
+        // Keep its narrower origin so coverage can anchor the expression inside the `if`.
+        let previous = self.builder.replace_source_span(condition_span);
+        // solc places the else and end tags under the statement: `LocationSetter(m_context,
+        // _ifStatement)` at ContractCompiler.cpp L1157-1176. A loop condition desugars to
+        // `if (cond) body else break`, and solc places a loop's tags under the loop statement
+        // (`LocationSetter(m_context, _forStatement)`, L1224-1265), so those blocks take the span
+        // of the desugared `break`, which is the loop statement. A user `break` is narrower than
+        // its `if`.
+        let label_span = else_stmt
+            .filter(|stmt| matches!(stmt.kind, StmtKind::Break) && stmt.span.contains(previous))
+            .map_or(previous, |stmt| stmt.span);
+        let branches = self.lower_branches_labeled(
             condition,
             true,
-            |this| this.lower_stmt(then_stmt),
-            |this| else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt)),
-        )?;
+            Some(label_span),
+            |this| {
+                this.builder.replace_source_span(previous);
+                this.lower_stmt(then_stmt)
+            },
+            |this| {
+                this.builder.replace_source_span(previous);
+                else_stmt.map_or(Some(()), |stmt| this.lower_stmt(stmt))
+            },
+        );
+        self.builder.replace_source_span(previous);
+        let (then_branch, else_branch) = branches?;
         if then_branch.terminated && else_branch.terminated {
             self.builder.invalid();
         }
         Some(())
+    }
+
+    /// Switches to `block`, labeling it at `label_span` when it is placed for the first time.
+    fn place_block(&mut self, block: BlockId, label_span: Option<Span>) {
+        let previous = label_span.map(|span| self.builder.replace_source_span(span));
+        self.builder.switch_to_block(block);
+        if let Some(previous) = previous {
+            self.builder.replace_source_span(previous);
+        }
     }
 
     pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
@@ -299,7 +343,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && function.is_external()
             && function.function_id.is_none()
         {
-            let function_value = self.lower_expr(callee)?;
+            let function_value = self.operand(callee)?.id();
             let (address, selector) = self.split_external_function_pointer(function_value);
             TryTarget {
                 callee: TryCallee::FunctionPointer { address, selector },
@@ -381,43 +425,32 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (self.builder.ne_zero(created), Some(created), None)
         } else {
             let address = match target.callee {
-                TryCallee::Member { receiver, .. } => self.lower_expr(receiver)?,
+                TryCallee::Member { receiver, .. } => self.operand(receiver)?.id(),
                 TryCallee::LinkedLibrary { address, .. } => address,
                 TryCallee::FunctionPointer { address, .. } => address,
                 TryCallee::Creation { .. } => unreachable!(),
             };
             let options = self.lower_call_options(call_opts, true, "try call option")?;
-            let (mut values, mut types) =
-                if let TryCallee::LinkedLibrary { function, receiver, .. } = target.callee {
-                    let capacity = args.len() + usize::from(receiver.is_some());
-                    let mut values = Vec::with_capacity(capacity);
-                    let mut types = Vec::with_capacity(capacity);
-                    if let Some(receiver) = receiver {
-                        let function = self.cx.gcx.hir.function(function);
-                        let Some(&parameter) = function.parameters.first() else {
-                            return self
-                                .cx
-                                .report_unsupported(receiver.span, "attached library receiver");
-                        };
-                        let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
-                        let (value, ty) = self.lower_abi_receiver(receiver, parameter_ty)?;
-                        values.push(value);
-                        types.push(ty);
-                    }
-                    (values, types)
-                } else {
-                    (Vec::new(), Vec::new())
+            let mut operands = Vec::new();
+            if let TryCallee::LinkedLibrary { function, receiver: Some(receiver), .. } =
+                target.callee
+            {
+                let function = self.cx.gcx.hir.function(function);
+                let Some(&parameter) = function.parameters.first() else {
+                    return self.cx.report_unsupported(receiver.span, "attached library receiver");
                 };
-            let (argument_values, argument_types) = self.lower_abi_call_arguments(
+                let parameter_ty = self.cx.gcx.type_of_item(parameter.into());
+                operands.push(self.lower_bound_receiver(receiver, parameter_ty)?);
+            }
+            operands.extend(self.lower_abi_call_arguments(
                 *args,
                 target.parameter_types.iter().copied(),
                 target.parameter_names.as_ref(),
                 args.span,
                 "try argument",
                 matches!(target.callee, TryCallee::LinkedLibrary { .. }),
-            )?;
-            values.extend(argument_values);
-            types.extend(argument_types);
+            )?);
+            let (values, types) = self.resolve_abi_operands(operands)?;
             let selector = match target.callee {
                 TryCallee::Member { selector, .. } => {
                     self.builder.imm(U256::from_be_slice(&selector) << 224)
@@ -490,6 +523,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
         self.values = before.clone();
         self.storage_refs = before_storage_refs.clone();
+        // The blocks the clauses create inherit the hint, so the whole catch side is cold, up to
+        // but not including the merge block.
+        self.builder.func_mut().blocks[catch_block].cold_hint = true;
         self.builder.switch_to_block(catch_block);
         let needs_data =
             catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());
@@ -595,7 +631,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     pub(super) fn lower_yul_word_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
-        let value = self.lower_expr(expr)?;
+        let value = self.operand(expr)?.id();
         let ty = self
             .cx
             .gcx
@@ -662,10 +698,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-    ) -> Option<ValueId> {
+    ) -> Option<Word> {
         // branch(condition, then, else)
         // value = then_value | else_value | phi(then_value, else_value)
-        let condition = self.lower_expr(condition)?;
+        let condition = self.operand(condition)?.id();
         let (then_branch, else_branch) = self.lower_branches(
             condition,
             true,
@@ -675,49 +711,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         match (then_branch.terminated, else_branch.terminated) {
             (true, false) => Some(else_branch.value),
             (false, true) => Some(then_branch.value),
-            _ if then_branch.value == else_branch.value => Some(then_branch.value),
-            _ => Some(self.merge_ternary_phi(
-                vec![
-                    (then_branch.block, then_branch.value),
-                    (else_branch.block, else_branch.value),
-                ],
+            _ => Some(self.join_words(
+                &[(then_branch.block, then_branch.value), (else_branch.block, else_branch.value)],
                 ty,
             )),
         }
-    }
-
-    fn merge_ternary_phi(
-        &mut self,
-        mut incoming: Vec<(BlockId, ValueId)>,
-        ty: Ty<'gcx>,
-    ) -> ValueId {
-        let layout = types::TypeLowerer::value_layout(ty);
-        if matches!(layout, crate::mir::ValueLayout::Int(_))
-            && incoming.iter().any(|(_, value)| self.dirty_values.contains(value))
-        {
-            let current = self.builder.current_block();
-            for (block, value) in &mut incoming {
-                self.builder.switch_to_block(*block);
-                let dirty = self.dirty_values.contains(value);
-                *value =
-                    raw_scalars::cast_carrier(&mut self.builder, *value, layout, MirType::I256);
-                if dirty {
-                    self.dirty_values.insert(*value);
-                }
-            }
-            self.builder.switch_to_block(current);
-        }
-        self.merge_value_phi(incoming)
     }
 
     pub(super) fn lower_ternary_value(
         &mut self,
         expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-    ) -> Option<ValueId> {
+    ) -> Option<Word> {
         let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
-        let value = self.lower_component(expr)?;
-        self.convert_tuple_component(value, source_ty, ty, expr.span)
+        let word = self.lower_component(expr)?;
+        self.convert_tuple_component(word, source_ty, ty, expr.span)
     }
 
     pub(super) fn lower_logical(
@@ -725,28 +733,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         lhs_expr: &hir::Expr<'_>,
         op: BinOpKind,
         rhs_expr: &hir::Expr<'_>,
-    ) -> Option<ValueId> {
+    ) -> Option<Word> {
         // if && { branch(lhs, rhs, false) }
-        // if || { branch(lhs, true, rhs) }
-        // result = phi(rhs_value, short_circuit_constant)
+        // if || { branch(lhs, lhs, rhs) }
+        // result = phi(rhs_value, short_circuit_value)
+        let ty = self.cx.gcx.type_of_expr(lhs_expr.id)?;
         let lhs = self.lower_expr(lhs_expr)?;
+        let condition = lhs.clean(self, ty);
         let is_and = op == BinOpKind::And;
+        let short = |this: &mut Self| {
+            if lhs.is_raw() && !is_and {
+                Some(lhs)
+            } else {
+                Some(Word::from_clean(this.builder.imm_bool(!is_and)))
+            }
+        };
         let (then_branch, else_branch) = self.lower_branches(
-            lhs,
+            condition,
             is_and,
-            |this| {
-                if is_and { this.lower_expr(rhs_expr) } else { Some(this.builder.imm_bool(true)) }
-            },
-            |this| {
-                if is_and { Some(this.builder.imm_bool(false)) } else { this.lower_expr(rhs_expr) }
-            },
+            |this| if is_and { this.lower_expr(rhs_expr) } else { short(this) },
+            |this| if is_and { short(this) } else { this.lower_expr(rhs_expr) },
         )?;
         let (rhs, short) =
             if is_and { (then_branch, else_branch) } else { (else_branch, then_branch) };
-        if rhs.terminated || rhs.value == short.value {
+        if rhs.terminated {
             Some(short.value)
         } else {
-            Some(self.builder.phi(vec![(rhs.block, rhs.value), (short.block, short.value)]))
+            Some(self.join_words(&[(rhs.block, rhs.value), (short.block, short.value)], ty))
         }
     }
 
@@ -756,13 +769,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         then_expr: &hir::Expr<'_>,
         else_expr: &hir::Expr<'_>,
         ty: Ty<'gcx>,
-    ) -> Option<Vec<ValueId>> {
+    ) -> Option<Vec<Word>> {
         let TyKind::Tuple(types) = ty.kind else {
-            return self
-                .lower_ternary(condition, then_expr, else_expr, ty)
-                .map(|value| vec![value]);
+            return self.lower_ternary(condition, then_expr, else_expr, ty).map(|word| vec![word]);
         };
-        let condition = self.lower_expr(condition)?;
+        let condition = self.operand(condition)?.id();
         // branch(condition, then, else)
         let (then_branch, else_branch) = self.lower_branches(
             condition,
@@ -787,14 +798,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .zip(else_branch.value)
                 .zip(types)
                 .map(|((then, else_), &ty)| {
-                    if then == else_ {
-                        then
-                    } else {
-                        self.merge_ternary_phi(
-                            vec![(then_branch.block, then), (else_branch.block, else_)],
-                            ty,
-                        )
-                    }
+                    self.join_words(&[(then_branch.block, then), (else_branch.block, else_)], ty)
                 })
                 .collect(),
         };
@@ -805,16 +809,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         expr: &hir::Expr<'_>,
         types: &[Ty<'gcx>],
-    ) -> Option<Vec<ValueId>> {
+    ) -> Option<Vec<Word>> {
         let TyKind::Tuple(sources) = self.cx.gcx.type_of_expr(expr.id)?.kind else {
             return None;
         };
+        // A branch whose tuple type differs from the result type converts every component, and a
+        // conversion cleans, as in via-IR.
+        let converts = sources != types;
         self.lower_values(expr)?
             .into_iter()
             .zip(sources)
             .zip(types)
             .map(|((value, &source), &target)| {
-                self.convert_tuple_component(value, source, target, expr.span)
+                let value = self.convert_tuple_component(value, source, target, expr.span)?;
+                Some(if converts { Word::from_clean(value.clean(self, target)) } else { value })
             })
             .collect()
     }
@@ -975,8 +983,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         for (&id, &phi) in header_phis {
             let value = state.values.get(&id).copied().unwrap_or(phi);
             self.builder.add_phi_incoming(phi, state.block, value);
-            if !self.dirty_values.is_empty() && self.dirty_values.contains(&value) {
-                self.dirty_values.insert(phi);
+            if self.unchecked_calldata_slices.contains(&value) {
+                self.unchecked_calldata_slices.insert(phi);
             }
         }
     }
@@ -1132,21 +1140,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        let dirty = !self.dirty_values.is_empty()
-            && incoming.iter().any(|(_, value)| self.dirty_values.contains(value));
-        let value = if dirty {
-            // Preserve native widths; raw assembly carriers already use i256.
-            self.builder.phi(incoming)
-        } else {
-            let ty = incoming
-                .first()
-                .and_then(|(_, value)| self.builder.func().value_ty(*value))
-                .unwrap_or(MirType::I256);
-            self.builder.emit_inst(InstKind::Phi(incoming), Some(ty))
-        };
-        if dirty {
-            self.dirty_values.insert(value);
+    pub(super) fn merge_value_phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
+        let unchecked =
+            incoming.iter().any(|(_, value)| self.unchecked_calldata_slices.contains(value));
+        let value = self.builder.phi(incoming);
+        if unchecked {
+            self.unchecked_calldata_slices.insert(value);
         }
         value
     }

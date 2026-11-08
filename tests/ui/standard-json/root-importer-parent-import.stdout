@@ -1,0 +1,36 @@
+{
+  "sources": {
+    "lib/Guard.sol": {
+      "id": 0
+    },
+    "/Main.sol": {
+      "id": 1
+    }
+  },
+  "contracts": {
+    "lib/Guard.sol": {
+      "G": {
+        "abi": []
+      }
+    },
+    "/Main.sol": {
+      "Main": {
+        "abi": [
+          {
+            "type": "function",
+            "name": "f",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "pure"
+          }
+        ]
+      }
+    }
+  }
+}

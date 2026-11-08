@@ -148,7 +148,7 @@ fn lower_structs(module: &mut Module, analyses: &mut ModuleAnalyses) -> Result<b
         lower_function(func, &layouts);
         // frame_addr(old_local_base + offset) -> frame_addr(new_local_base + offset)
         for &(inst, offset) in &shifts[function_analyses.function()] {
-            func.inst_mut(inst).kind = InstKind::InternalFrameAddr(offset);
+            func.set_inst_kind(inst, InstKind::InternalFrameAddr(offset));
         }
         true
     });
@@ -294,8 +294,6 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
             let result = builder.func().inst_result_value(id);
             let fields = result.and_then(|value| aggregates.get(&value));
             let result_ty = builder.func().inst(id).result_ty;
-            let metadata = builder.func().inst(id).metadata.debug_context();
-            builder.set_debug_context(&metadata);
             outputs.clear();
             match &builder.func().inst(id).kind {
                 // NOTE: Scalar insertions and projections emit no instruction. Their source
@@ -355,10 +353,13 @@ fn lower_function(func: &mut Function, layouts: &Layouts) {
                     }
                     let args = flatten(args, &aggregates);
                     let Some(fields) = fields else {
-                        builder.func_mut().inst_mut(id).kind = InstKind::ICall {
-                            function: Callee::Function(function),
-                            args: args.into(),
-                        };
+                        builder.func_mut().set_inst_kind(
+                            id,
+                            InstKind::ICall {
+                                function: Callee::Function(function),
+                                args: args.into(),
+                            },
+                        );
                         return false;
                     };
                     let result_ty = result_ty.unwrap();

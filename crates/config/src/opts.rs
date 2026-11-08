@@ -1,9 +1,9 @@
 //! Solar CLI arguments.
 
 use crate::{
-    ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings, SwitchLowering,
-    Threads, Tune,
+    ColorChoice, CompilerOutput, CompilerStage, Debugify, Dump, ErrorFormat, EvmVersion,
+    HumanEmitterKind, ImportRemapping, Language, LibraryAddress, OptimizationMode, RevertStrings,
+    SwitchLowering, Threads, Tune,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -397,6 +397,22 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub pass_diff: bool,
 
+    /// Audit source debug information after each MIR and EVM IR pass. `report` lists the
+    /// instructions left without a location and the origins lost; `check` also fails when a pass
+    /// leaves any instruction without a location, like LLVM's `not-generate` check. Lost origins
+    /// are information, since deleting code legitimately loses one. Does not change generated
+    /// code.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long, require_equals = true, value_name = "MODE", hide_possible_values = true)
+    )]
+    pub debugify: Option<Debugify>,
+
+    /// Write per-pass debug-info audits as JSON lines into this directory. Enables auditing
+    /// without stderr output; an explicit `-Zdebugify` mode still controls diagnostics.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "DIR"))]
+    pub debugify_output: Option<PathBuf>,
+
     /// Validate MIR and EVM IR after each pass. Enabled by default in debug builds.
     /// Accepts `true` or `false`.
     #[cfg_attr(
@@ -528,6 +544,8 @@ impl UnstableOpts {
             print_natspec: _,
             print_after_each: _,
             pass_diff: _,
+            debugify: _,
+            debugify_output: _,
             validate_ir: _,
             time_passes: _,
             forget_gcx: _,

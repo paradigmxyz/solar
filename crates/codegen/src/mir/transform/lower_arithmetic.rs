@@ -58,8 +58,6 @@ impl MirPass for LowerArithmetic {
                     else {
                         return false;
                     };
-                    let context = builder.func().inst(id).metadata.debug_context();
-                    builder.set_debug_context(&context);
                     // result = scalar arithmetic(lhs, rhs); check overflow/zero
                     let result = ArithmeticLowerer { builder: &mut *builder }
                         .binary(op, lhs, rhs, arithmetic);
@@ -120,7 +118,7 @@ impl ArithmeticLowerer<'_, '_> {
             // overflow, as in solc.
             return self.range_overflow(result, kind);
         }
-        // overflow = ne (shr factor, 256 - s), 0, for a constant factor 2 ** s
+        // overflow = gt factor, MAX >> s, for a constant factor 2 ** s
         if kind == ArithmeticKind::Unsigned(256)
             && let Some(overflow) = self.builder.power_of_two_mul_overflow(lhs, rhs)
         {

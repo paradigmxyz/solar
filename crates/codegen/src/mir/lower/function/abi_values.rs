@@ -34,26 +34,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         exprs: &[hir::Expr<'_>],
     ) -> Option<(Arc<AbiLayout>, Box<[ValueId]>)> {
-        // values = lower_typed(args)
-        // values, types = prepare_abi_arguments(values)
+        // operands = lower_typed(args)
+        // values, types = prepare_abi_arguments(resolve(operands))
         // layout = abi_layout(types)
         // return (layout, values)
-        let values_and_types = self.lower_argument_exprs(
+        let operands = self.lower_argument_exprs(
             CallArgumentParams { count: exprs.len(), names: None, reverse: false },
             exprs.iter().enumerate(),
             |this, _, expr| {
                 let ty = this.cx.gcx.type_of_expr(expr.id)?;
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
-                let value = this.lower_typed_expr(expr, memory_ty)?;
-                let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
-                    AbiType::Bytes(PtrLocation::Memory)
-                } else {
-                    this.types.abi_type(ty)?
-                };
-                this.prepare_abi_encode_argument(expr, ty, value, abi_type)
+                if this.is_dynamic_bytes_type(ty) {
+                    let (value, location) = this.lower_bytes_operand(expr, memory_ty)?;
+                    return this
+                        .prepare_abi_encode_argument(expr, ty, value, AbiType::Bytes(location))
+                        .map(AbiOperand::Ready);
+                }
+                this.lower_abi_operand(expr, memory_ty, |this, value| {
+                    let abi_type = if matches!(ty.peel_refs().kind, TyKind::StringLiteral(..)) {
+                        AbiType::Bytes(PtrLocation::Memory)
+                    } else {
+                        this.types.abi_type(ty)?
+                    };
+                    this.prepare_abi_encode_argument(expr, ty, value, abi_type)
+                })
             },
         )?;
-        let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
+        let (values, types) = self.resolve_abi_operands(operands)?;
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         Some((layout, values.into_boxed_slice()))
     }
@@ -64,7 +71,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             self.lower_string_literal_word(bytes.as_byte_str())
         } else {
-            self.lower_expr(expr)?
+            self.operand(expr)?.id()
         };
         let fixed_bytes =
             self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.peel_refs().is_fixed_bytes());
@@ -83,14 +90,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<ValueId> {
         let (signature, rest) =
             self.builtin_args_with_rest::<1>(Builtin::AbiEncodeWithSignature, &args)?;
-        let selector = self.lower_signature_selector(&signature[0])?;
-        self.lower_abi_encode_builtin_args(rest, Some(selector))
+        let signature = self.lower_signature(&signature[0])?;
+        let (layout, values) = self.lower_abi_encode_arguments(rest)?;
+        // The signature is read when the selector is hashed, after the arguments ran, as solc does.
+        let selector = self.signature_selector(signature);
+        Some(self.builder.abi_encode_bytes(layout, Some(selector), values))
     }
 
-    fn lower_signature_selector(&mut self, signature: &hir::Expr<'_>) -> Option<ValueId> {
+    fn lower_signature(&mut self, signature: &hir::Expr<'_>) -> Option<SignatureOperand> {
         if let Some(selector) = Self::literal_signature_selector(signature) {
             // selector = keccak256(literal)[0..4] << 224
-            return Some(self.builder.imm(selector));
+            return Some(SignatureOperand::Selector(self.builder.imm(selector)));
         }
 
         if let ExprKind::Ternary(condition, then_expr, else_expr) = &signature.kind
@@ -98,27 +108,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             && let Some(else_selector) = Self::literal_signature_selector(else_expr)
         {
             // selector = select(condition, selector(then), selector(else))
-            let condition = self.lower_expr(condition)?;
+            let condition = self.operand(condition)?.id();
             let then_selector = self.builder.imm(then_selector);
             let else_selector = self.builder.imm(else_selector);
-            return Some(self.builder.select(condition, then_selector, else_selector));
+            let selector = self.builder.select(condition, then_selector, else_selector);
+            return Some(SignatureOperand::Selector(selector));
         }
 
-        // selector = keccak256(materialize(signature))[0..4] << 224
         let signature_ty = self.cx.gcx.type_of_expr(signature.id)?;
         let memory_ty = signature_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-        let signature = self.lower_typed_expr(signature, memory_ty)?;
-        if let Some(abi_type) = self.types.abi_type(signature_ty) {
-            self.validate_calldata_bytes_argument(signature, &abi_type);
-        }
-        let signature = match self.builder.func().value_ty(signature) {
-            Some(MirType::Slice(_)) => self.materialize_memory_slice(signature),
-            _ => signature,
+        let (value, location) = self.lower_bytes_operand(signature, memory_ty)?;
+        Some(SignatureOperand::Bytes(value, location))
+    }
+
+    fn signature_selector(&mut self, signature: SignatureOperand) -> ValueId {
+        // selector = keccak256(materialize(signature))[0..4] << 224
+        let signature = match signature {
+            SignatureOperand::Selector(selector) => return selector,
+            SignatureOperand::Bytes(value, PtrLocation::Storage) => self.load_storage_bytes(value),
+            SignatureOperand::Bytes(value, location) => {
+                self.validate_calldata_bytes_argument(value, &AbiType::Bytes(location));
+                match self.builder.func().value_ty(value) {
+                    Some(MirType::Slice(_)) => self.materialize_memory_slice(value),
+                    _ => value,
+                }
+            }
         };
         let hash = self.builder.keccak256_bytes(signature);
         let shift = self.builder.imm(224);
         let selector = self.builder.shr(hash, shift);
-        Some(self.builder.shl(selector, shift))
+        self.builder.shl(selector, shift)
     }
 
     fn literal_signature_selector(signature: &hir::Expr<'_>) -> Option<U256> {
@@ -145,7 +164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if !function_ty.is_external() {
                 return self.cx.report_unsupported(function.span, "abi.encodeCall function");
             }
-            let function_value = self.lower_expr(function)?;
+            let function_value = self.operand(function)?.id();
             let mask = self.builder.imm(u32::MAX);
             let selector = self.builder.and(function_value, mask);
             let shift = self.builder.imm(224);
@@ -159,35 +178,40 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if exprs.len() != parameter_types.len() {
             return self.cx.report_unsupported(tuple.span, "abi.encodeCall argument list");
         }
-        let values_and_types = self.lower_argument_exprs(
+        let operands = self.lower_argument_exprs(
             CallArgumentParams { count: exprs.len(), names: None, reverse: false },
             exprs.into_iter().enumerate(),
             |this, index, expr| {
                 let ty = parameter_types[index];
                 let memory_ty = ty.with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
-                let value = this.lower_typed_expr(expr, memory_ty)?;
-                let abi_type = this.types.abi_type(memory_ty)?;
-                this.prepare_abi_encode_argument(expr, memory_ty, value, abi_type)
+                if this.is_dynamic_bytes_type(ty) {
+                    let (value, location) = this.lower_bytes_operand(expr, memory_ty)?;
+                    return this
+                        .prepare_abi_encode_argument(
+                            expr,
+                            memory_ty,
+                            value,
+                            AbiType::Bytes(location),
+                        )
+                        .map(AbiOperand::Ready);
+                }
+                this.lower_abi_operand(expr, memory_ty, |this, value| {
+                    let abi_type = this.types.abi_type(memory_ty)?;
+                    this.prepare_abi_encode_argument(expr, memory_ty, value, abi_type)
+                })
             },
         )?;
-        let (values, types): (Vec<_>, Vec<_>) = values_and_types.into_iter().unzip();
+        let (values, types) = self.resolve_abi_operands(operands)?;
         let layout = Arc::new(AbiLayout::new(types.into_boxed_slice()));
         Some(self.builder.abi_encode_bytes(layout, Some(selector), values.into_boxed_slice()))
     }
 
     pub(super) fn canonicalize_abi_value(&mut self, ty: Ty<'gcx>, value: ValueId) -> ValueId {
-        let external_only = self.is_decoded_external_argument(value);
-        let dirty = self.dirty_values.contains(&value);
         match ty.peel_refs().kind {
             // Aggregates are cleaned and validated word by word while encoding; copying them
             // into a canonical object first would duplicate the whole tree at every call site.
             TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Struct(_) => value,
             _ => {
-                let value = if external_only && !dirty {
-                    value
-                } else {
-                    self.normalize_abi_scalar(value, ty)
-                };
                 let layout = types::TypeLowerer::value_layout(ty);
                 if matches!(layout, crate::mir::ValueLayout::Int(_)) {
                     raw_scalars::cast_carrier(&mut self.builder, value, layout, MirType::I256)
@@ -223,9 +247,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let memory_ty = data_ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
         // `abi_decode` reads a calldata slice in place, so calldata needs no copy.
         let data = if lies_in_calldata(data_ty) {
-            self.lower_expr(data_expr)?
+            self.operand(data_expr)?.id()
         } else {
-            let data = self.lower_typed_expr(data_expr, memory_ty)?;
+            let data = self.lower_typed_expr(data_expr, memory_ty)?.clean(self, memory_ty);
             self.materialize_memory_argument(memory_ty, data, data_expr.span)?
         };
         let (data, layout) = self.lower_abi_decode_layout(data, &decoded_types, args[1].span)?;
@@ -486,63 +510,89 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn lower_packed_parts(&mut self, exprs: &[hir::Expr<'_>]) -> Option<Box<[PackedPart]>> {
-        let mut parts = Vec::with_capacity(exprs.len());
         // values = evaluate_arguments_in_order(args)
         // parts = describe_packed_shapes(values)
+        let mut parts = Vec::with_capacity(exprs.len());
+        // A storage array is read after the operands that follow it, so its part stays empty
+        // until then.
+        let mut storage = Vec::new();
         for expr in exprs {
             let ty = self.cx.gcx.type_of_expr(expr.id)?;
-            if let ExprKind::Lit(lit) = self.peel_bytes_conversion(expr).peel_parens().kind
+            let source = self.peel_bytes_conversion(expr);
+            if let ExprKind::Lit(lit) = source.peel_parens().kind
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
                 let bytes = bytes.as_byte_str();
                 // Adjacent literals pack into one.
-                if let Some(PackedPart::Literal(last)) = parts.last_mut() {
+                if let Some(Some(PackedPart::Literal(last))) = parts.last_mut() {
                     *last = [&last[..], bytes].concat().into();
                 } else {
-                    parts.push(PackedPart::Literal(bytes.to_vec().into()));
+                    parts.push(Some(PackedPart::Literal(bytes.to_vec().into())));
                 }
                 continue;
             }
             let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
-            let mut value = self.lower_typed_expr(expr, memory_ty)?;
-            let abi_type = self.types.abi_type(ty);
-            if let Some(abi_type) = &abi_type {
-                self.check_calldata_array_size(value, ty, abi_type);
-            }
-            if self.needs_calldata_aggregate_validation(value, ty) {
-                // Packed encoding validates words even for ABI-decoded arguments, but static
-                // arrays retain zero-padded calldata reads instead of checking the source range.
-                if abi_type.as_ref().is_some_and(|abi_type| !abi_type.is_dynamic()) {
-                    // validate_static(ty, slice_ptr(value))
-                    let base = self.builder.slice_ptr(value);
-                    self.validate_calldata_static_value(ty, base);
-                } else if abi_type.as_ref().is_some_and(Self::is_calldata_word_array) {
-                    self.validate_calldata_word_array(value, ty);
-                } else {
-                    value = self.materialize_calldata_argument(ty, value, expr.span)?;
-                }
-            }
             if self.is_dynamic_bytes_type(ty) {
-                parts.push(PackedPart::Bytes(value));
-            } else if let Some((element, source, wordwise)) = self.packed_array_shape(ty, value) {
-                parts.push(PackedPart::Array { value, element, source, wordwise });
+                let (value, location) = self.lower_bytes_operand(expr, memory_ty)?;
+                parts.push(Some(self.lower_packed_part(expr, ty, value, Some(location))?));
+            } else if self.is_storage_object_copy(source, memory_ty) {
+                storage.push((parts.len(), self.require_storage_access(source)?.slot, expr, ty));
+                parts.push(None);
             } else {
-                let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
-                    return self.cx.report_unsupported(expr.span, "abi.encodePacked argument");
-                };
-                let value = self.normalize_abi_scalar(value, ty);
-                let size = TypeSize::new_int_bits((length * 8) as u16);
-                let ty = if fixed_bytes {
-                    crate::mir::ValueLayout::FixedBytes(size)
-                } else if is_signed_packed_scalar(ty) {
-                    crate::mir::ValueLayout::Int(size)
-                } else {
-                    crate::mir::ValueLayout::UInt(size)
-                };
-                parts.push(PackedPart::Scalar { value, ty });
+                let value = self.lower_typed_expr(expr, memory_ty)?.clean(self, memory_ty);
+                parts.push(Some(self.lower_packed_part(expr, ty, value, None)?));
             }
         }
-        Some(parts.into_boxed_slice())
+        for (index, slot, expr, ty) in storage {
+            let memory_ty = ty.with_loc_if_ref(self.cx.gcx, DataLocation::Memory);
+            let value = self.load_storage_object(memory_ty, slot, expr.span)?;
+            parts[index] = Some(self.lower_packed_part(expr, ty, value, None)?);
+        }
+        Some(parts.into_iter().flatten().collect())
+    }
+
+    fn lower_packed_part(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        ty: Ty<'gcx>,
+        mut value: ValueId,
+        location: Option<PtrLocation>,
+    ) -> Option<PackedPart> {
+        let abi_type = self.types.abi_type(ty);
+        if let Some(abi_type) = &abi_type {
+            self.check_calldata_array_size(value, ty, abi_type);
+        }
+        if self.needs_calldata_aggregate_validation(value, ty) {
+            // Packed encoding validates words even for ABI-decoded arguments, but static
+            // arrays retain zero-padded calldata reads instead of checking the source range.
+            if abi_type.as_ref().is_some_and(|abi_type| !abi_type.is_dynamic()) {
+                // validate_static(ty, slice_ptr(value))
+                let base = self.builder.slice_ptr(value);
+                self.validate_calldata_static_value(ty, base);
+            } else if abi_type.as_ref().is_some_and(Self::is_calldata_word_array) {
+                self.validate_calldata_word_array(value, ty);
+            } else {
+                value = self.materialize_calldata_argument(ty, value, expr.span, false)?;
+            }
+        }
+        if let Some(location) = location {
+            Some(PackedPart::Bytes { value, location })
+        } else if let Some((element, source, wordwise)) = self.packed_array_shape(ty, value) {
+            Some(PackedPart::Array { value, element, source, wordwise })
+        } else {
+            let Some((length, fixed_bytes)) = self.packed_static_shape(ty) else {
+                return self.cx.report_unsupported(expr.span, "abi.encodePacked argument");
+            };
+            let size = TypeSize::new_int_bits((length * 8) as u16);
+            let ty = if fixed_bytes {
+                crate::mir::ValueLayout::FixedBytes(size)
+            } else if is_signed_packed_scalar(ty) {
+                crate::mir::ValueLayout::Int(size)
+            } else {
+                crate::mir::ValueLayout::UInt(size)
+            };
+            Some(PackedPart::Scalar { value, ty })
+        }
     }
 
     fn packed_array_shape(
@@ -761,7 +811,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .cleanup(&mut self.builder, value)
             }
             _ => {
-                let value = self.normalize_abi_scalar(value, ty);
+                let value = self.normalize_memory_scalar(ty, value);
                 raw_scalars::cast_carrier(
                     &mut self.builder,
                     value,
@@ -894,10 +944,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // input = materialize(bytes)
         let input_ty = self.cx.gcx.type_of_expr(input.id)?;
         let input = if lies_in_calldata(input_ty) {
-            let input = self.lower_expr(input)?;
+            let input = self.operand(input)?.id();
             self.copy_calldata_bytes_unchecked(input)?
         } else {
-            let input = self.lower_typed_expr(input, memory_ty)?;
+            let input = self.lower_typed_expr(input, memory_ty)?.clean(self, memory_ty);
             self.materialize_memory_argument(memory_ty, input, span)?
         };
         // result = sha256(input) / ripemd160(input)
@@ -915,10 +965,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let v = &values[1];
         let r = &values[2];
         let s = &values[3];
-        let hash = self.lower_expr(hash)?;
-        let v = self.lower_expr(v)?;
-        let r = self.lower_expr(r)?;
-        let s = self.lower_expr(s)?;
+        let hash = self.operand(hash)?.id();
+        let v = self.operand(v)?.id();
+        let r = self.operand(r)?.id();
+        let s = self.operand(s)?.id();
 
         // result = ecrecover(hash, v, r, s)
         Some(self.builder.emit_inst(
@@ -951,7 +1001,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .iter()
             .zip(tys)
             .map(|(expr, ty)| {
-                let value = self.lower_typed_expr(expr, ty)?;
+                let value = self.lower_typed_expr(expr, ty)?.clean(self, ty);
                 let value = self.canonicalize_abi_value(ty, value);
                 let value = self.builder.cast_word(value);
                 Some(PackedPart::Scalar { value, ty: crate::mir::ValueLayout::uint256() })

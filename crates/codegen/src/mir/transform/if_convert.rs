@@ -50,6 +50,15 @@
 //! already branch-free. Converts a sweep of sites with updated predecessor
 //! lists before running CFG cleanup, avoiding a whole-function cleanup for each
 //! diamond.
+//!
+//! Debug locations follow LLVM's preserve and drop rules. Hoisted arm instructions lose their
+//! locations because they now execute on both paths. The generated select computes the phi's
+//! result and preserves its location. solc maps the whole `if` statement to its branch
+//! (libsolidity/codegen/ContractCompiler.cpp L1160), and the conditional `c ? a : b` to its
+//! expression (libsolidity/codegen/ExpressionCompiler.cpp L290); our join phi carries this
+//! construct's location. A phi without a source location supplies none to its replacement:
+//! choosing an arm instead would claim that the arm ran. The branch becomes a jump that keeps
+//! its metadata.
 
 use super::{cfg_simplify::simplify_function, egraph::is_bool_value};
 use crate::{
@@ -65,6 +74,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
+use solar_evmir::debug::DebugLocKind;
 use std::cmp::Ordering;
 
 /// Function pass that converts small branch diamonds and triangles into selects.
@@ -84,6 +94,10 @@ impl MirPass for IfConvert {
         run_function_pass(module, analyses, |func, analyses| {
             if_convert_function(func, &analyses.target(gcx))
         })
+    }
+
+    fn preserves_debugify_sites(&self) -> bool {
+        true
     }
 }
 
@@ -270,14 +284,8 @@ fn select_form(
     let else_literal = func.value_u256(else_value);
     // A ? then : (base + c2 * k) with c => c2 and literal then, base, and k.
     if let Some(then) = then_literal
-        && let Some((base, scaled)) = binary_operands(func, else_value, |kind| match *kind {
-            InstKind::Add(a, b) => Some((a, b)),
-            _ => None,
-        })
-        && let Some((amount, c2)) = binary_operands(func, scaled, |kind| match *kind {
-            InstKind::Mul(a, b) => Some((a, b)),
-            _ => None,
-        })
+        && let Some(&InstKind::Add(scaled, base)) = func.value_inst_kind(else_value)
+        && let Some(&InstKind::Mul(c2, amount)) = func.value_inst_kind(scaled)
         && let Some(base) = func.value_u256(base)
         && let Some(amount) = func.value_u256(amount)
         && implies(func, condition, c2)
@@ -288,21 +296,6 @@ fn select_form(
         (Some(then), Some(else_)) => Some(then.wrapping_sub(else_)),
         _ => None,
     })
-}
-
-/// The operands of a commutative binary instruction defining `value`, ordered
-/// so the first is a literal when either is.
-fn binary_operands(
-    func: &Function,
-    value: ValueId,
-    operands: impl Fn(&InstKind) -> Option<(ValueId, ValueId)>,
-) -> Option<(ValueId, ValueId)> {
-    let (a, b) = operands(func.value_inst_kind(value)?)?;
-    if func.value_u256(a).is_some() || func.value_u256(b).is_none() {
-        Some((a, b))
-    } else {
-        Some((b, a))
-    }
 }
 
 /// Whether a nonzero `first` implies a nonzero `second`: the same value, or
@@ -496,9 +489,26 @@ fn convert(func: &mut Function, site: &Site) {
     // join: v = phi [then_arm: t], [else_arm: e]
     // =>
     // block: t = f(...); e = g(...); v = select cond, t, e; jump join
+    let mut context = site.selects.first().map_or_else(
+        || func.blocks[block].terminator_metadata.debug_context(),
+        |select| func.inst(select.phi).metadata.debug_context(),
+    );
+    if context.source_spans().next().is_none() && context.debug_loc_kind() == DebugLocKind::Normal {
+        context.drop_debug_loc(DebugLocKind::Dropped);
+    }
+    let start = func.blocks[block].instructions.len();
     let condition = boolean_condition(func, block, site.condition);
+    for index in start..func.blocks[block].instructions.len() {
+        let inst = func.blocks[block].instructions[index];
+        func.inst_mut(inst).metadata.preserve_debug_loc(&context);
+    }
     for arm in [site.then_arm, site.else_arm].into_iter().flatten() {
         let moved = std::mem::take(&mut func.blocks[arm].instructions);
+        // NOTE: LLVM's dropLocation rule applies when code is hoisted into a block where its
+        // original source arm need not run. Do not substitute a surviving phi's location.
+        for &inst in &moved {
+            func.inst_mut(inst).metadata.drop_debug_loc(DebugLocKind::Dropped);
+        }
         func.blocks[block].instructions.extend(moved);
     }
     let then_pred = site.then_arm.unwrap_or(block);
@@ -506,7 +516,20 @@ fn convert(func: &mut Function, site: &Site) {
     let mut replacements = FxHashMap::default();
     for select in &site.selects {
         // join: v = phi [kept edges], [block: select]
+        let mut context = func.inst(select.phi).metadata.debug_context();
+        // A phi may only join SSA bindings, without a source operation of its own. Preserve
+        // that absence deliberately rather than borrowing a location from either input.
+        if context.source_spans().next().is_none()
+            && context.debug_loc_kind() == DebugLocKind::Normal
+        {
+            context.drop_debug_loc(DebugLocKind::Dropped);
+        }
+        let start = func.blocks[block].instructions.len();
         let selected = select_value(func, block, condition, select);
+        let generated = func.blocks[block].instructions[start..].to_vec();
+        for inst in generated {
+            func.inst_mut(inst).metadata.preserve_debug_loc(&context);
+        }
         let InstKind::Phi(incoming) = &mut func.inst_mut(select.phi).kind else { continue };
         incoming.retain(|&(from, _)| from != then_pred && from != else_pred);
         if incoming.is_empty() {
@@ -631,11 +654,7 @@ fn agreeing_value(
 /// `(x, k)` for a value `x + k` or `x - (-k)`, with `k` a literal and `x` not.
 fn added_literal(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
     match *func.value_inst_kind(value)? {
-        InstKind::Add(a, b) => match (func.value_u256(a), func.value_u256(b)) {
-            (None, Some(k)) => Some((a, k)),
-            (Some(k), None) => Some((b, k)),
-            _ => None,
-        },
+        InstKind::Add(a, b) if func.value_u256(a).is_none() => Some((a, func.value_u256(b)?)),
         InstKind::Sub(a, b) if func.value_u256(a).is_none() => {
             Some((a, U256::ZERO.wrapping_sub(func.value_u256(b)?)))
         }
@@ -653,16 +672,12 @@ fn literal_comparison(
     condition: ValueId,
     negations: u32,
 ) -> Option<(ValueId, U256, bool)> {
-    let (a, b, equal) = match *func.value_inst_kind(condition)? {
-        InstKind::Eq(a, b) => (a, b, true),
-        InstKind::Ne(a, b) => (a, b, false),
+    let (x, c, equal) = match *func.value_inst_kind(condition)? {
+        InstKind::Eq(x, c) => (x, c, true),
+        InstKind::Ne(x, c) => (x, c, false),
         _ => return None,
     };
-    let (x, c) = match (func.value_u256(a), func.value_u256(b)) {
-        (None, Some(c)) => (a, c),
-        (Some(c), None) => (b, c),
-        _ => return None,
-    };
+    let (None, Some(c)) = (func.value_u256(x), func.value_u256(c)) else { return None };
     // eq(b, 0) of a boolean comparison b negates it.
     if c.is_zero()
         && negations != 0
@@ -752,7 +767,7 @@ fn append(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirTyp
     let value = ty.map_or(value, |ty| builder.cast(value, ty));
     let insts = builder.func().blocks[block].instructions[start..].to_vec();
     for inst in insts {
-        builder.func_mut().inst_mut(inst).metadata.mark_debug_info_dropped();
+        builder.func_mut().inst_mut(inst).metadata.drop_debug_loc(DebugLocKind::Dropped);
     }
     value
 }
