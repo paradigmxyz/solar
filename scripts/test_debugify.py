@@ -49,6 +49,7 @@ class DebugifyReportTests(unittest.TestCase):
                 "runs": 2,
                 "losses": 2,
                 "lost_origins": 3,
+                "intentional_lost_origins": 0,
                 "gaps": 0,
                 "gap_runs": 0,
                 "opcodes": [],
@@ -122,6 +123,9 @@ class DebugifyReportTests(unittest.TestCase):
         path = self.root / "summary.json"
         path.write_text(json.dumps(old))
         baseline = load_baseline(path)
+        self.assertEqual(baseline["intentional_lost_origins"], 0)
+        self.assertEqual(baseline["by_pass"][0]["intentional_lost_origins"], 0)
+        self.assertEqual(baseline["by_test"][0]["intentional_lost_origins"], 0)
         report = markdown(head, baseline, "abc12345")
         self.assertIn("No gap baseline", report)
         self.assertIn("audited before gaps existed", report)
@@ -129,6 +133,71 @@ class DebugifyReportTests(unittest.TestCase):
             "| lost origins (information) | 1 (base 5, ✅ -4, -80.00%) |", report
         )
         self.assertTrue(has_changes(head, baseline))
+
+    def test_intentional_drops_are_counted_but_not_loss_noise(self):
+        self.write(
+            "a/default/x.jsonl",
+            {
+                **self.record("MIR", "hoist", 2, 0, [[1, 2], [3, 4]]),
+                "intentional": [[1, 2], [3, 4]],
+            },
+            {
+                **self.record("MIR", "partly", 3, 1, [[5, 6], [7, 8]]),
+                "intentional": [[5, 6]],
+            },
+        )
+        summary = summarize(self.root)
+        self.assertEqual(summary["lost_origins"], 1)
+        self.assertEqual(summary["intentional_lost_origins"], 3)
+        self.assertEqual(summary["losses"], 1)
+        self.assertEqual(summary["by_test"][0]["intentional_lost_origins"], 3)
+        hoist = next(row for row in summary["by_pass"] if row["pass"] == "hoist")
+        self.assertEqual((hoist["lost_origins"], hoist["losses"]), (0, 0))
+        self.assertEqual(hoist["intentional_lost_origins"], 2)
+        report = markdown(summary)
+        self.assertIn("3 intentionally dropped origins", report)
+        self.assertNotIn("| MIR | hoist |", report)
+        self.assertIn("| MIR | partly | 1 | 1 |", report)
+
+    def test_intentional_count_changes_do_not_trigger_comments(self):
+        self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 1, 1, []))
+        base = summarize(self.root / "base")
+        self.write(
+            "head/a/default/x.jsonl",
+            {
+                **self.record("MIR", "dce", 1, 0, [[1, 2]]),
+                "intentional": [[1, 2]],
+            },
+        )
+        head = summarize(self.root / "head")
+        self.assertFalse(has_changes(head, base))
+
+    def test_malformed_intentional_drops_fail(self):
+        record = self.record("MIR", "dce", 2, 0, [[1, 2], [3, 4]])
+        for intentional, message in [
+            (None, "invalid intentional spans"),
+            ([[1]], "invalid intentional spans"),
+            ([[True, 2]], "invalid intentional spans"),
+            ([[2, 1]], "invalid intentional spans"),
+            ([[1, 2], [1, 2]], "duplicate intentional spans"),
+            ([[9, 10]], "intentional spans are not lost origins"),
+        ]:
+            with self.subTest(intentional=intentional):
+                self.write("bad.jsonl", {**record, "intentional": intentional})
+                with self.assertRaisesRegex(ValueError, message):
+                    summarize(self.root)
+
+    def test_invalid_intentional_baseline_counts_fail(self):
+        self.write("a/default/x.jsonl", self.record("MIR", "dce", 1, 1, []))
+        summary = summarize(self.root)
+        path = self.root / "summary.json"
+        for value in [-1, True, "1"]:
+            with self.subTest(value=value):
+                path.write_text(
+                    json.dumps({**summary, "intentional_lost_origins": value})
+                )
+                with self.assertRaisesRegex(ValueError, "invalid baseline summary"):
+                    load_baseline(path)
 
     def test_input_gaps_alone_are_an_audit(self):
         # `-Zdebugify=check` stops at the input gaps, before any pass record exists.

@@ -9,7 +9,7 @@ mod function;
 mod storage;
 mod types;
 
-pub(crate) use data::{DataDest, copy_data_to_memory};
+pub(crate) use data::{DataDest, copy_data_to_memory, stores_data_as_words};
 
 use solar_sema::{Gcx, hir::ContractId};
 

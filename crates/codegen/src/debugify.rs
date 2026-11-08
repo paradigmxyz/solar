@@ -24,8 +24,9 @@
 //! spans, not variable locations or inline scopes, and does not synthesize LLVM-style line numbers.
 
 use crate::backend::evm::CodegenState;
+use smallvec::SmallVec;
 use solar_config::Debugify;
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_evmir::debug::DebugLocKind;
 use solar_interface::{Result, Span, Symbol};
 use solar_sema::Gcx;
@@ -44,8 +45,21 @@ use std::{
 #[derive(Default)]
 pub(crate) struct Origins {
     spans: FxHashSet<Span>,
+    /// Every occurrence must explicitly drop its location before an origin can be explained.
+    mir_sites: FxHashMap<Span, SmallVec<[MirSite; 1]>>,
+    dropped: FxHashSet<MirSite>,
     /// Gaps found while collecting, which are reported with the pass that created them.
     gaps: Gaps,
+}
+
+/// Instruction IDs are never reused within an instruction arena. Names survive function-table
+/// compaction, but a pass must attest that it preserves arenas and names before certifying drops.
+/// Block sites cannot certify a drop because block IDs can be recycled.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum MirSite {
+    Instruction(solar_mir::MangledSymbol, solar_mir::InstId),
+    Label(solar_mir::MangledSymbol, solar_mir::BlockId),
+    Terminator(solar_mir::MangledSymbol, solar_mir::BlockId),
 }
 
 /// Instructions and terminators with neither a source origin nor a reason for lacking one: LLVM's
@@ -245,17 +259,20 @@ pub(crate) fn report_mir_input(gcx: Gcx<'_>, module: &mut solar_mir::Module) -> 
 
 impl Origins {
     pub(crate) fn mir(module: &solar_mir::Module) -> Self {
-        let mut spans = FxHashSet::default();
+        let mut origins = Self::default();
         for (_, func) in module.iter_functions() {
-            for block in &func.blocks {
-                spans.extend(block.label_metadata.source_spans());
-                spans.extend(block.terminator_metadata.source_spans());
+            for (id, block) in func.blocks.iter_enumerated() {
+                origins.observe_mir(&block.label_metadata, MirSite::Label(func.name, id));
+                origins.observe_mir(&block.terminator_metadata, MirSite::Terminator(func.name, id));
                 for &inst in &block.instructions {
-                    spans.extend(func.inst(inst).metadata.source_spans());
+                    origins.observe_mir(
+                        &func.inst(inst).metadata,
+                        MirSite::Instruction(func.name, inst),
+                    );
                 }
             }
         }
-        Self { spans, gaps: Gaps::default() }
+        origins
     }
 
     pub(crate) fn evm(module: &solar_evmir::ir::Module) -> Self {
@@ -269,12 +286,24 @@ impl Origins {
                 spans.extend(term.metadata.source_spans());
             }
         }
-        Self { spans, gaps: Gaps::default() }
+        Self { spans, ..Default::default() }
     }
 
     /// The origins of `module` after a pass, together with the gaps it left. See [`Gaps::mir`].
-    pub(crate) fn mir_after(module: &mut solar_mir::Module) -> Self {
+    pub(crate) fn mir_after(module: &mut solar_mir::Module, preserves_sites: bool) -> Self {
         let mut origins = Self::mir(module);
+        // Removed instructions retain their IDs and metadata. A rewrite must explicitly use
+        // LLVM's dropLocation rule; disappearance alone cannot distinguish DCE from a bug.
+        if preserves_sites {
+            for (_, func) in module.iter_functions() {
+                for index in 0..func.num_insts() {
+                    let inst = solar_mir::InstId::from_usize(index);
+                    if func.inst(inst).metadata.debug_loc_kind() == DebugLocKind::Dropped {
+                        origins.dropped.insert(MirSite::Instruction(func.name, inst));
+                    }
+                }
+            }
+        }
         origins.gaps = Gaps::mir(module);
         origins
     }
@@ -296,15 +325,25 @@ impl Origins {
     ) -> Result {
         let mut lost = self.spans.difference(&after.spans).copied().collect::<Vec<_>>();
         lost.sort_unstable_by_key(|span| (span.lo(), span.hi()));
+        let intentional = lost
+            .iter()
+            .copied()
+            .filter(|span| self.intentionally_dropped(*span, &after))
+            .collect::<FxHashSet<_>>();
         let retained = self.spans.len() - lost.len();
         if gcx.sess.opts.unstable.debugify.is_some() {
             eprintln!(
                 "debugify: {ir} {module} after {pass}: {retained}/{} origins retained, {} lost",
                 self.spans.len(),
-                lost.len()
+                lost.len() - intentional.len()
             );
             for span in &lost {
-                eprintln!("debugify: lost {}..{}", span.lo().0, span.hi().0);
+                if !intentional.contains(span) {
+                    eprintln!("debugify: lost {}..{}", span.lo().0, span.hi().0);
+                }
+            }
+            if !intentional.is_empty() {
+                eprintln!("debugify: {} intentional losses omitted", intentional.len());
             }
         }
         if let Some(directory) = &gcx.sess.opts.unstable.debugify_output {
@@ -316,6 +355,7 @@ impl Origins {
                 "before": self.spans.len(),
                 "retained": retained,
                 "lost": lost.iter().map(|span| [span.lo().0, span.hi().0]).collect::<Vec<_>>(),
+                "intentional": lost.iter().filter(|span| intentional.contains(span)).map(|span| [span.lo().0, span.hi().0]).collect::<Vec<_>>(),
             });
             write_record(gcx, directory, &record).map_err(|error| {
                 gcx.dcx().err(format!("could not write debugify audit: {error}")).emit()
@@ -326,7 +366,24 @@ impl Origins {
 
     pub(crate) fn extend(&mut self, other: Self) {
         self.spans.extend(other.spans);
+        for (span, sites) in other.mir_sites {
+            self.mir_sites.entry(span).or_default().extend(sites);
+        }
+        self.dropped.extend(other.dropped);
         self.gaps.extend(other.gaps);
+    }
+
+    fn observe_mir(&mut self, metadata: &solar_mir::InstructionMetadata, site: MirSite) {
+        for span in metadata.source_spans() {
+            self.spans.insert(span);
+            self.mir_sites.entry(span).or_default().push(site);
+        }
+    }
+
+    fn intentionally_dropped(&self, span: Span, after: &Self) -> bool {
+        self.mir_sites.get(&span).is_some_and(|sites| {
+            !sites.is_empty() && sites.iter().all(|site| after.dropped.contains(site))
+        })
     }
 }
 
@@ -371,3 +428,87 @@ fn write_json_line(file: &mut File, record: &serde_json::Value) -> io::Result<()
 /// The audit stream belongs to the compilation, not its process or output directory.
 #[derive(Default)]
 pub(crate) struct Output(Mutex<Option<File>>);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn intentional_loss_requires_every_original_site() {
+        let span = Span::new(solar_interface::BytePos(10), solar_interface::BytePos(20));
+        let function = solar_mir::MangledSymbol::new(solar_interface::sym::entry);
+        let first = MirSite::Instruction(function, solar_mir::InstId::from_usize(0));
+        let second = MirSite::Instruction(function, solar_mir::InstId::from_usize(1));
+        let mut before = Origins::default();
+        before.mir_sites.insert(span, [first, second].into_iter().collect());
+        let mut after = Origins::default();
+        after.dropped.insert(first);
+        assert!(!before.intentionally_dropped(span, &after));
+        after.dropped.insert(second);
+        assert!(before.intentionally_dropped(span, &after));
+        before
+            .mir_sites
+            .get_mut(&span)
+            .unwrap()
+            .push(MirSite::Label(function, solar_mir::BlockId::ENTRY));
+        assert!(!before.intentionally_dropped(span, &after));
+    }
+
+    #[test]
+    fn unexplained_gaps_still_fail_check_mode() {
+        for mode in [Debugify::Report, Debugify::Check] {
+            let mut opts = solar_config::CompileOpts::default();
+            opts.unstable.debugify = Some(mode);
+            let sess = solar_interface::Session::builder()
+                .opts(opts)
+                .with_buffer_emitter(solar_interface::ColorChoice::Never)
+                .build();
+            let compiler = solar_sema::Compiler::new(sess);
+            compiler.enter(|compiler| {
+                let mut module = solar_mir::Module::new(solar_interface::Ident::with_dummy_span(
+                    solar_interface::sym::entry,
+                ));
+                module.set_debug_info_tracked(true);
+                let mut function = solar_mir::Function::new(
+                    solar_interface::Ident::with_dummy_span(solar_interface::sym::entry),
+                );
+                function.blocks[solar_mir::BlockId::ENTRY].terminator =
+                    Some(solar_mir::Terminator::Stop);
+                function.blocks[solar_mir::BlockId::ENTRY].terminator_metadata =
+                    solar_mir::InstructionMetadata::EMPTY;
+                module.add_function(function);
+                let gaps = Gaps::mir(&mut module);
+                assert_eq!(gaps.count, 1);
+                let result = gaps.report(compiler.gcx(), "MIR", "test", "broken");
+                assert_eq!(result.is_err(), mode == Debugify::Check);
+                assert_eq!(compiler.sess().dcx.err_count(), usize::from(mode == Debugify::Check));
+            });
+        }
+    }
+
+    #[test]
+    fn reused_instruction_ids_do_not_explain_losses() {
+        let span = Span::new(solar_interface::BytePos(10), solar_interface::BytePos(20));
+        let name = solar_interface::Ident::with_dummy_span(solar_interface::sym::entry);
+        let mut before = Origins::default();
+        before.mir_sites.insert(
+            span,
+            [MirSite::Instruction(
+                solar_mir::MangledSymbol::new(name.name),
+                solar_mir::InstId::from_usize(0),
+            )]
+            .into_iter()
+            .collect(),
+        );
+        // A replacement function can reuse the name and inst0 for unrelated generated code.
+        let mut replacement = solar_mir::Function::new(name);
+        let mut instruction =
+            solar_mir::Instruction::new(solar_mir::InstKind::MSize, Some(solar_mir::MirType::I256));
+        instruction.metadata.drop_debug_loc(DebugLocKind::Dropped);
+        replacement.alloc_value_inst(instruction);
+        let mut module = solar_mir::Module::new(name);
+        module.add_function(replacement);
+        assert!(!before.intentionally_dropped(span, &Origins::mir_after(&mut module, false)));
+        assert!(before.intentionally_dropped(span, &Origins::mir_after(&mut module, true)));
+    }
+}

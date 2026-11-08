@@ -108,7 +108,7 @@ fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_r
     revert_returndata
   bb4:                                            ; preds = bb2
     v12 = gas
-    v13 = alloc 64 !metadata(preserves_fmp)
+    v13 = alloc 64
     mstore v13, 16
     v14 = ptradd v13, 32
     mstore v14, 0xdeadbeefdeadbeefdeadbeefdeadbeef00000000000000000000000000000000
