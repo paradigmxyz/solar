@@ -496,12 +496,12 @@ fn emit_combined_json(
         ..Default::default()
     };
     if let Some(ast_json) = &ast_json {
-        ast_json.render(gcx.hir.source_ids());
-        for id in gcx.hir.source_ids() {
-            if let Some(ast) = ast_json.source(id) {
-                let name = gcx.hir.source(id).file.name.display().to_string();
-                output.sources.insert(name, CombinedJsonSource { ast, id: id.index() as u32 });
-            }
+        let sources = gcx.hir.source_ids().filter_map(|id| Some((id, ast_json.source(id)?)));
+        let sources = sources.collect::<Vec<_>>();
+        ast_json.render(&sources.iter().map(|&(_, ast)| ast).collect::<Vec<_>>());
+        for (id, ast) in sources {
+            let name = gcx.hir.source(id).file.name.display().to_string();
+            output.sources.insert(name, CombinedJsonSource { ast, id: id.index() as u32 });
         }
     }
 

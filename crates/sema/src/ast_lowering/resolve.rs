@@ -2019,12 +2019,7 @@ impl<'gcx> ResolveContext<'gcx> {
             })),
             // A function type opens its own scope for its parameter and return names.
             ast::TypeKind::Function(f) => self.in_scope(|this| {
-                // The AST validator reports invalid visibilities; lower them as internal.
-                let visibility = if f.visibility() == Some(ast::Visibility::External) {
-                    ast::Visibility::External
-                } else {
-                    ast::Visibility::Internal
-                };
+                let visibility = f.visibility_or_default();
                 let parent = this.function_id.map(hir::ItemId::Function);
                 hir::TypeKind::Function(this.arena.alloc(hir::TypeFunction {
                     parameters: this.lower_variables_hidden(

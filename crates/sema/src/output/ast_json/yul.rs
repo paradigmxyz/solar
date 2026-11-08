@@ -29,7 +29,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, ExternalReferences> {
         let Self(cx, ExternalReferences { span }) = self;
         // Without sema, nothing resolved the names.
         if !cx.sema() {
-            return s.collect_seq(std::iter::empty::<()>());
+            return [(); 0].serialize(s);
         }
         let hir = &cx.gcx.hir;
         // The declarations of the block, which are the Yul variables, lie within its span.

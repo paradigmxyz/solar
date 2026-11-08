@@ -19,7 +19,7 @@
 use super::{
     Cx, Empty, Node, Params, Seq, Sym, Var, W, last_docs, name,
     ty::{ExprType, TypeDescriptions, elementary_name},
-    yul,
+    yul, zip_opt,
 };
 use crate::{
     builtins::Builtin,
@@ -98,7 +98,7 @@ struct Stmts<'a, 'ast, 'gcx>(&'a [ast::Stmt<'ast>], Option<&'a [hir::Stmt<'gcx>]
 impl<'gcx> Serialize for W<'_, 'gcx, Stmts<'_, '_, 'gcx>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, Stmts(ast, hir)) = self;
-        s.collect_seq(ast.iter().enumerate().map(|(i, ast)| cx.stmt(ast, hir.map(|hir| &hir[i]))))
+        s.collect_seq(zip_opt(ast, *hir).map(|(ast, hir)| cx.stmt(ast, hir)))
     }
 }
 
@@ -242,7 +242,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, Option<&hir::Stmt<'gcx>>)>
                 let id = paired!(kind, StmtKind::DeclSingle(id) => *id);
                 cx.write_stmt(s, "VariableDeclarationStatement", span, docs, |m| {
                     // Without sema, the variable takes its ID here.
-                    let node = id.map_or_else(|| cx.ids.fresh(), |id| cx.item_id(id));
+                    let node = cx.item_node(id);
                     m.entry("assignments", &[node]);
                     // solc parses the type of a single declaration as an expression first.
                     let single = Cx { in_local: true, ..*cx };
@@ -254,15 +254,15 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, Option<&hir::Stmt<'gcx>>)>
                 })
             }
             ast::StmtKind::DeclMulti(vars, ast) => {
-                let hirs = paired!(kind, StmtKind::DeclMulti(ids, hir) => (*ids, *hir));
+                let (hids, hinit) = paired!(kind, StmtKind::DeclMulti(ids, hir) => (*ids, *hir));
                 cx.write_stmt(s, "VariableDeclarationStatement", span, docs, |m| {
                     // Without sema, the variables take their IDs here.
                     let nodes = vars
                         .iter()
                         .enumerate()
-                        .map(|(i, var)| match (var, hirs) {
+                        .map(|(i, var)| match (var, hids) {
                             (SpannedOption::None(_), _) => None,
-                            (_, Some((ids, _))) => ids[i].map(|id| cx.item_id(id)),
+                            (_, Some(ids)) => ids[i].map(|id| cx.item_id(id)),
                             (_, None) => Some(cx.ids.fresh()),
                         })
                         .collect::<Vec<_>>();
@@ -273,15 +273,14 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, Option<&hir::Stmt<'gcx>>)>
                     let declarations = Seq(|| {
                         vars.iter().enumerate().map(|(i, var)| match (var, nodes[i]) {
                             (SpannedOption::Some(var), Some(node)) => {
-                                let ids = hirs.map(|(ids, _)| ids);
-                                let id = ids.and_then(|ids| ids[i]);
+                                let id = hids.and_then(|ids| ids[i]);
                                 Some(local(Cx { in_local: first == Some(i), ..*cx }, var, id, node))
                             }
                             _ => None,
                         })
                     });
                     m.entry("declarations", &declarations);
-                    m.entry("initialValue", &cx.expr(ast, hirs.map(|(_, hir)| hir)));
+                    m.entry("initialValue", &cx.expr(ast, hinit));
                 })
             }
             ast::StmtKind::Expr(ast) => {
@@ -291,15 +290,13 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, Option<&hir::Stmt<'gcx>>)>
                 })
             }
             ast::StmtKind::If(cond, then, other) => {
-                let hirs = paired!(kind, StmtKind::If(cond, then, other) => (*cond, *then, *other));
+                let (hcond, hthen, hother) =
+                    paired!(kind, StmtKind::If(cond, then, other) => (*cond, *then, *other));
                 cx.write_stmt(s, "IfStatement", span, docs, |m| {
-                    m.entry("condition", &cx.expr(cond, hirs.map(|hirs| hirs.0)));
-                    m.entry("trueBody", &cx.stmt(then, hirs.map(|hirs| hirs.1)));
+                    m.entry("condition", &cx.expr(cond, hcond));
+                    m.entry("trueBody", &cx.stmt(then, hthen));
                     let falsy = other.as_deref();
-                    m.opt(
-                        "falseBody",
-                        falsy.map(|other| cx.stmt(other, hirs.and_then(|hirs| hirs.2))),
-                    );
+                    m.opt("falseBody", falsy.map(|other| cx.stmt(other, hother.flatten())));
                 })
             }
             ast::StmtKind::While(cond, body) => {
@@ -381,10 +378,8 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, Option<&hir::Stmt<'gcx>>)>
                     let call = Cx { parent: Parent { try_call, ..Parent::default() }, ..*cx };
                     m.entry("externalCall", &call.expr(ast.expr, hir.map(|hir| &hir.expr)));
                     let clauses = Seq(|| {
-                        ast.clauses
-                            .iter()
-                            .enumerate()
-                            .map(|(i, clause)| cx.w((clause, hir.map(|hir| &hir.clauses[i]))))
+                        zip_opt(ast.clauses, hir.map(|hir| hir.clauses))
+                            .map(|(clause, hir)| cx.w((clause, hir)))
                     });
                     m.entry("clauses", &clauses);
                 })
@@ -401,8 +396,7 @@ fn local<'a, 'ast, 'gcx>(
     id: Option<hir::VariableId>,
     node: usize,
 ) -> W<'a, 'gcx, Var<'a, 'ast>> {
-    let scope = cx.sema().then_some(cx.block);
-    cx.w(Var { ast, id, node: Some(node), value: false, docs: None, scope })
+    cx.w(Var { ast, id, node: Some(node), value: false, docs: None, scope: cx.block })
 }
 
 /// The loop expression of a `for` statement: an `ExpressionStatement`.
@@ -432,7 +426,7 @@ impl<'gcx> Serialize
                 span: ast.args.span,
                 ast: ast.args.vars,
                 hir: hir.map(|hir| hir.args),
-                scope: cx.sema().then_some(id),
+                scope: id,
             };
             m.entry("parameters", &cx.w(params));
         }
@@ -584,43 +578,42 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, Option<&hir::Expr<'gcx>>)>
                 })
             }
             ast::ExprKind::Index(base, ast::IndexKind::Index(index)) => {
-                let hirs = paired!(kind, hir::ExprKind::Index(base, index) => (*base, *index));
+                let (hbase, hindex) =
+                    paired!(kind, hir::ExprKind::Index(base, index) => (*base, *index));
                 e.write(s, "IndexAccess", is_lvalue, |m| {
-                    m.entry("baseExpression", &cx.expr(base, hirs.map(|hirs| hirs.0)));
+                    m.entry("baseExpression", &cx.expr(base, hbase));
                     let index = index.as_deref();
-                    m.opt(
-                        "indexExpression",
-                        index.map(|index| cx.expr(index, hirs.and_then(|hirs| hirs.1))),
-                    );
+                    m.opt("indexExpression", index.map(|index| cx.expr(index, hindex.flatten())));
                 })
             }
             ast::ExprKind::Index(base, ast::IndexKind::Range(start, end)) => {
-                let hirs = paired!(kind, hir::ExprKind::Slice(base, lo, hi) => (*base, *lo, *hi));
+                let (hbase, hstart, hend) =
+                    paired!(kind, hir::ExprKind::Slice(base, start, end) => (*base, *start, *end));
                 e.write(s, "IndexRangeAccess", false, |m| {
-                    m.entry("baseExpression", &cx.expr(base, hirs.map(|hirs| hirs.0)));
+                    m.entry("baseExpression", &cx.expr(base, hbase));
                     let start = start.as_deref();
-                    let hir_start = hirs.and_then(|hirs| hirs.1);
-                    m.opt("startExpression", start.map(|start| cx.expr(start, hir_start)));
+                    m.opt("startExpression", start.map(|start| cx.expr(start, hstart.flatten())));
                     let end = end.as_deref();
-                    let hir_end = hirs.and_then(|hirs| hirs.2);
-                    m.opt("endExpression", end.map(|end| cx.expr(end, hir_end)));
+                    m.opt("endExpression", end.map(|end| cx.expr(end, hend.flatten())));
                 })
             }
             ast::ExprKind::Assign(lhs, op, rhs) => {
-                let hirs = paired!(kind, hir::ExprKind::Assign(lhs, _, rhs) => (*lhs, *rhs));
+                let (hlhs, hrhs) =
+                    paired!(kind, hir::ExprKind::Assign(lhs, _, rhs) => (*lhs, *rhs));
                 e.write(s, "Assignment", false, |m| {
                     let operator = format_args!("{}=", op.map_or("", |op| op.kind.to_str()));
                     m.entry("operator", &operator);
-                    m.entry("leftHandSide", &cx.written().expr(lhs, hirs.map(|hirs| hirs.0)));
-                    m.entry("rightHandSide", &cx.expr(rhs, hirs.map(|hirs| hirs.1)));
+                    m.entry("leftHandSide", &cx.written().expr(lhs, hlhs));
+                    m.entry("rightHandSide", &cx.expr(rhs, hrhs));
                 })
             }
             ast::ExprKind::Binary(lhs, op, rhs) => {
-                let hirs = paired!(kind, hir::ExprKind::Binary(lhs, _, rhs) => (*lhs, *rhs));
+                let (hlhs, hrhs) =
+                    paired!(kind, hir::ExprKind::Binary(lhs, _, rhs) => (*lhs, *rhs));
                 e.write(s, "BinaryOperation", false, |m| {
                     m.entry("operator", op.kind.to_str());
-                    m.entry("leftExpression", &cx.expr(lhs, hirs.map(|hirs| hirs.0)));
-                    m.entry("rightExpression", &cx.expr(rhs, hirs.map(|hirs| hirs.1)));
+                    m.entry("leftExpression", &cx.expr(lhs, hlhs));
+                    m.entry("rightExpression", &cx.expr(rhs, hrhs));
                     match hir {
                         Some(hir) if op.kind.is_cmp() || op.kind.is_logical() => {
                             let common = gcx.solc_ty(hir.id);
@@ -657,11 +650,11 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, Option<&hir::Expr<'gcx>>)>
                 })
             }
             ast::ExprKind::Ternary(cond, then, other) => {
-                let hirs = paired!(kind, hir::ExprKind::Ternary(cond, then, other) => (*cond, *then, *other));
+                let (hcond, hthen, hother) = paired!(kind, hir::ExprKind::Ternary(cond, then, other) => (*cond, *then, *other));
                 e.write(s, "Conditional", false, |m| {
-                    m.entry("condition", &cx.expr(cond, hirs.map(|hirs| hirs.0)));
-                    m.entry("trueExpression", &cx.expr(then, hirs.map(|hirs| hirs.1)));
-                    m.entry("falseExpression", &cx.expr(other, hirs.map(|hirs| hirs.2)));
+                    m.entry("condition", &cx.expr(cond, hcond));
+                    m.entry("trueExpression", &cx.expr(then, hthen));
+                    m.entry("falseExpression", &cx.expr(other, hother));
                 })
             }
             ast::ExprKind::Tuple(components) => {
@@ -671,9 +664,9 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, Option<&hir::Expr<'gcx>>)>
                     let inner =
                         Cx { parent: Parent { lvalue: parent.lvalue, ..Parent::default() }, ..cx };
                     let components = Seq(|| {
-                        components.iter().enumerate().map(|(i, ast)| match ast {
+                        zip_opt(components, hirs).map(|(ast, hir)| match ast {
                             SpannedOption::Some(ast) => {
-                                Some(inner.expr(ast, hirs.and_then(|hirs| hirs[i])))
+                                Some(inner.expr(ast, hir.copied().flatten()))
                             }
                             SpannedOption::None(_) => None,
                         })
@@ -685,41 +678,35 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, Option<&hir::Expr<'gcx>>)>
                 let hirs = paired!(kind, hir::ExprKind::Array(components) => *components);
                 e.write(s, "TupleExpression", false, |m| {
                     m.entry("isInlineArray", &true);
-                    let components = Seq(|| {
-                        components
-                            .iter()
-                            .enumerate()
-                            .map(|(i, ast)| cx.expr(ast, hirs.map(|hirs| &hirs[i])))
-                    });
+                    let components =
+                        Seq(|| zip_opt(components, hirs).map(|(ast, hir)| cx.expr(ast, hir)));
                     m.entry("components", &components);
                 })
             }
             ast::ExprKind::CallOptions(callee, options) => {
-                let hirs =
+                let (hcallee, hoptions) =
                     paired!(kind, hir::ExprKind::CallOptions(callee, opts) => (*callee, opts.args));
                 e.write(s, "FunctionCallOptions", false, |m| {
                     let callee_cx =
                         Cx { parent: Parent { args: parent.args, ..Parent::default() }, ..cx };
-                    m.entry("expression", &callee_cx.expr(callee, hirs.map(|hirs| hirs.0)));
+                    m.entry("expression", &callee_cx.expr(callee, hcallee));
                     m.entry("names", &Seq(|| options.iter().map(|option| Sym(option.name.name))));
                     let values = Seq(|| {
-                        options.iter().enumerate().map(|(i, option)| {
-                            cx.expr(option.value, hirs.map(|hirs| &hirs.1[i].value))
-                        })
+                        zip_opt(options, hoptions)
+                            .map(|(option, hir)| cx.expr(option.value, hir.map(|hir| &hir.value)))
                     });
                     m.entry("options", &values);
                 })
             }
             ast::ExprKind::Call(callee, args) => {
-                let hirs = paired!(kind, hir::ExprKind::Call(callee, args) => (*callee, *args));
+                let (hcallee, hargs) =
+                    paired!(kind, hir::ExprKind::Call(callee, args) => (*callee, *args));
                 e.write(s, "FunctionCall", is_lvalue, |m| {
-                    let callee_cx = Cx {
-                        parent: Parent { args: hirs.map(|hirs| hirs.1), ..Parent::default() },
-                        ..cx
-                    };
-                    m.entry("expression", &callee_cx.expr(callee, hirs.map(|hirs| hirs.0)));
-                    let kind = hirs.map(|hirs| call_kind(gcx, hirs.0));
-                    let arguments = cx.w(Args(args, hirs.as_ref().map(|hirs| &hirs.1)));
+                    let callee_cx =
+                        Cx { parent: Parent { args: hargs, ..Parent::default() }, ..cx };
+                    m.entry("expression", &callee_cx.expr(callee, hcallee));
+                    let kind = hcallee.map(|callee| call_kind(gcx, callee));
+                    let arguments = cx.w(Args(args, hargs.as_ref()));
                     cx.call_attrs(m, named_args(args), &arguments, kind, parent.try_call);
                 })
             }
@@ -1007,7 +994,9 @@ impl<'gcx> Serialize for W<'_, 'gcx, TypeExpr<'_, '_, 'gcx>> {
                     PathExpr { segments: path.segments(), res: &res, last: None, parent: *parent };
                 cx.w(path).serialize(s)
             }
-            _ => unreachable!("lowering does not match the AST: {ast:?}"),
+            // Only the parser accepts the types of `type(mapping(..))` and `type(function())`,
+            // which analysis rejects, so they are written as type names.
+            _ => cx.w((*ast, *hir)).serialize(s),
         }
     }
 }
@@ -1022,14 +1011,16 @@ struct PathCall<'a, 'ast, 'gcx> {
 impl<'gcx> Serialize for W<'_, 'gcx, PathCall<'_, '_, 'gcx>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, PathCall { path, args, hir }) = self;
-        let hirs = paired!(hir.map(|hir| &hir.kind), hir::ExprKind::Call(callee, args) => (*callee, *args));
+        let (hcallee, hargs) = paired!(
+            hir.map(|hir| &hir.kind),
+            hir::ExprKind::Call(callee, args) => (*callee, *args)
+        );
         cx.write(s, "FunctionCall", path.span().to(args.span), |m| {
-            let parent = Parent { args: hirs.map(|hirs| hirs.1), ..Parent::default() };
+            let parent = Parent { args: hargs, ..Parent::default() };
             let res = resolve_path(*cx, path.segments());
-            let last = hirs.map(|hirs| hirs.0);
-            let callee = PathExpr { segments: path.segments(), res: &res, last, parent };
+            let callee = PathExpr { segments: path.segments(), res: &res, last: hcallee, parent };
             m.entry("expression", &cx.w(callee));
-            let arguments = cx.w(Args(args, hirs.as_ref().map(|hirs| &hirs.1)));
+            let arguments = cx.w(Args(args, hargs.as_ref()));
             let kind = cx.sema().then_some("functionCall");
             cx.call_attrs(m, named_args(args), &arguments, kind, false);
             cx.expr_attrs(m, *hir, Parent::default(), false);

@@ -345,14 +345,13 @@ fn compile(
                     let gcx = compiler.gcx();
                     let ast_json = ast_json.get_or_init(|| gcx.ast_json(opts.pretty_json));
                     let sources = output.sources.iter_mut().flatten();
-                    let mut selected = Vec::new();
                     for ((name, source), id) in sources.zip(gcx.sources.indices()) {
                         if output_selection.ast(name) {
                             source.ast = ast_json.source(id);
-                            selected.push(id);
                         }
                     }
-                    ast_json.render(selected);
+                    let attached = output.sources.iter().flatten().filter_map(|(_, s)| s.ast);
+                    ast_json.render(&attached.collect::<Vec<_>>());
                 }
                 if control_flow.is_break() {
                     return Ok(());
