@@ -6,10 +6,11 @@
 // definition, not the one of the instruction that reads it.
 
 // CHECK-LABEL: (scheduled runtime) ===
-// A chain of operations that is not a sum is rebuilt the same way (`g`, laid out first).
+// A chain of operations that is not a sum is rebuilt the same way (`g`, laid out first). The
+// parameter's head load belongs to the declaration of `g`, as it does where `g` first reads it.
 // CHECK: push 514 !metadata(span=[[C:[0-9]+..[0-9]+]])
-// CHECK-NEXT: push 4 !metadata(span=[[C]])
-// CHECK-NEXT: calldataload !metadata(span=[[C]])
+// CHECK-NEXT: push 4 !metadata(span=[[G:[0-9]+..[0-9]+]])
+// CHECK-NEXT: calldataload !metadata(span=[[G]])
 // CHECK-NEXT: xor !metadata(span=[[C]])
 // CHECK-NOT: add !metadata(span=[[C]])
 // CHECK: push 771

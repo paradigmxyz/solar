@@ -85,8 +85,8 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
 
 Debug info must never change codegen: no changes to executable MIR or EVM IR,
 optimization decisions, stack scheduling, layout, or bytecode to keep metadata,
-and no kept instructions, duplicated code, or disabled optimizations to create
-a source checkpoint. Keep valid metadata when possible; otherwise mark it
+and no kept instructions, duplicated code, or disabled optimizations to keep
+a source location. Keep valid metadata when possible; otherwise mark it
 dropped or unknown rather than inventing a location or picking an arbitrary
 origin for shared code. Explain deliberate limits with a `NOTE:` comment. Cover
 debug-info changes with bytecode-neutrality tests.
@@ -199,22 +199,37 @@ deliberate omissions. A one-line restatement of the name is not enough.
 - Before adding a pass, check `mir/transform/` and `backend/evm/ir/passes/`
   for one to extend.
 - Test pass behavior with UI tests, by layer:
-  - Solidity-to-IR lowering: `tests/ui/codegen/lowering/`.
+  - Solidity to MIR lowering, checked with an explicit `-Zdump=mir`:
+    `tests/ui/codegen/lowering/mir/<topic>/`.
+  - MIR to EVM IR lowering (stack scheduling, spills, phis, resident words,
+    frames, switches, program data), checked with an explicit
+    `-Zdump=evm-ir*` or `disasm*`, or with `run-call` when the bug is in stack
+    scheduling: `tests/ui/codegen/lowering/evm-ir/<topic>/`.
+  - Runtime behaviour of a Solidity feature, checked with `run-call` and no
+    explicit dump: `tests/ui/codegen/run-call/<feature>/`, such as
+    `abi-decode`, `storage-arrays`, or `modifiers`. FileCheck on the codegen
+    matrix's `mir` revision does not make a test a lowering test.
   - MIR passes: `tests/ui/codegen/mir/<pass-name>/` (command-line pass name).
+    A test that runs one pass with `-Zmir-pipeline=<pass>` belongs there.
   - `lower-abi`, `lower-dispatch`, `lower-evm-shaped`:
     `tests/ui/codegen/mir/lowering/`.
   - Lowered MIR checked against the MIR interpreter with `run-call`:
     `tests/ui/codegen/mir/interp/`.
   - EVM IR passes: `tests/ui/codegen/evm-ir/<pass-name>/` (`-Zevm-ir-pipeline`
-    name).
+    name). A test that runs one pass with `-Zevm-ir-pipeline=<pass>` belongs
+    there.
   - EVM IR checked against the EVM IR interpreter with `run-call`:
     `tests/ui/codegen/evm-ir/interp/`.
+  - Bytecode layout through the disassembly: `tests/ui/codegen/disasm/`. Code
+    size and stack depth limits: `tests/ui/codegen/size-limits/`. Codegen dump,
+    timing, and tuning flags: `tests/ui/codegen/flags/`.
   - Round-trip, pipeline, and validation tests: existing `none/`, `pipeline/`,
     `validation/`.
   - Source maps, debugify, origins, and debug info kept or dropped by a pass:
     `tests/ui/codegen/debug-info/` for Solidity sources, and
     `tests/ui/codegen/debug-info/mir/`, `debug-info/evm-ir/` for IR sources,
     named `<pass>_<what>`.
+- Keep a leaf directory under about 80 tests; split a growing one by topic.
 - Keep `.stdout`/`.stderr` expectations beside their source.
 - Never write Rust unit tests that run whole passes; unit-test only small pure
   helpers.

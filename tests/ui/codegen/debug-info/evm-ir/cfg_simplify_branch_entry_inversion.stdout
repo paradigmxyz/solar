@@ -9,8 +9,8 @@
 - bb2 [invoke=callee@30..70]:
 -   jump bb3 !metadata(span=40..50)
 - bb3:
-+   jumpi bb3, bb5 !metadata(checkpoint=30..70)
-+ bb3 [checkpoint=40..50@30..70@0@callee@30..70]:
++   jumpi bb3, bb5
++ bb3 [lent_invoke=callee@30..70]:
     push 2
     push 0
     mstore

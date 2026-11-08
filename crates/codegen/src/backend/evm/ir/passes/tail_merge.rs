@@ -395,6 +395,18 @@ impl RunState {
                     && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
                 {
                     tail.label = module.blocks[representative_id].label;
+                    // Every path that shared the body now enters through this label.
+                    tail.label_metadata =
+                        std::mem::take(&mut module.blocks[representative_id].label_metadata);
+                    tail.label_metadata.merge_debug_locs(
+                        sites
+                            .iter()
+                            .filter(|site| {
+                                site.block != representative_id
+                                    && module.blocks[site.block].instructions.len() == len
+                            })
+                            .map(|site| &module.blocks[site.block].label_metadata),
+                    );
                     module.blocks[representative_id] = tail;
                     representative_id
                 } else {
