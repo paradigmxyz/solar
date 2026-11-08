@@ -95,18 +95,6 @@
       ret v3
   }
   
-  fn @keep_across_set_fmp() -> i256 {
-    bb0:
-      v0 = alloc 32
-      v1 = ptrtoint ptr<memory> v0 to i256
-      v2 = inttoptr i256 0x10000 to ptr<memory>
-      set_fmp v2
-      v3 = alloc 32
-      v4 = ptrtoint ptr<memory> v3 to i256
-      mstore v4, 5
-      ret v4
-  }
-  
   fn @keep_checked_zeroed() -> i256 {
     bb0:
       v0 = alloc zeroed checked 64

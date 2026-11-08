@@ -73,7 +73,6 @@
   (MemoryZero (offset Value) (size Value))
   (MSize)
   (Fmp)
-  (SetFmp (value Value))
   (HeapFloor)
   (Alloc (size Value) (semantics AllocationSemantics))
   (AbiEncode (mode AbiEncodeMode) (base OptionValue) (selector OptionValue) (args Unit) (layout Unit))
