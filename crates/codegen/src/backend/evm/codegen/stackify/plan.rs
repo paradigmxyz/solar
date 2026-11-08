@@ -748,7 +748,11 @@ impl<'a> Planner<'a> {
             readers.extend(
                 self.planned_insts(held)
                     .into_iter()
-                    .filter(|step| step.operands.contains(&value))
+                    // An allocation reads its constant size at compile time, not from the stack.
+                    .filter(|step| {
+                        step.operands.contains(&value)
+                            && !matches!(func.inst(step.inst).kind, InstKind::Alloc { .. })
+                    })
                     .map(|step| Reader::Inst(step.inst)),
             );
             // Mirrors `block_uses`, but for the operands the code reads from the stack.
