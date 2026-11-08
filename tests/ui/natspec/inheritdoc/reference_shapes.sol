@@ -1,5 +1,5 @@
 // `@inheritdoc` references resolve like solc's: as paths from the documented item's scope, with
-// the rest of the line read as part of the reference.
+// the rest of the tag, including continuation lines, read as part of the reference.
 
 import "./auxiliary/Interfaces.sol" as M;
 import * as N from "./auxiliary/Interfaces.sol";
@@ -16,6 +16,13 @@ contract Base {
     function g() public virtual {}
     function h() public virtual {}
     function i() public virtual {}
+    function j(uint) public virtual {}
+    function k(uint) public virtual {}
+    function l() public virtual {}
+    function m() public virtual {}
+    function o(uint) public virtual {}
+    function o(bool) public virtual {}
+    function p() public virtual {}
 }
 
 contract Derived is Base, M.ERC20 {
@@ -34,6 +41,30 @@ contract Derived is Base, M.ERC20 {
     /// @inheritdoc Base and more text
     //~^ WARN: tag `@inheritdoc` references inexistent contract "Base and more text"
     function i() public override {}
+
+    /// @inheritdoc Base
+    /// more text
+    //~^^ WARN: tag `@inheritdoc` references inexistent contract "Base more text"
+    function l() public override {}
+
+    /**
+     * @inheritdoc Base
+     * more text
+     */
+    //~^^^ WARN: tag `@inheritdoc` references inexistent contract "Base more text"
+    function m() public override {}
+
+    /// @inheritdoc M.ERC20
+    //~^ WARN: tag `@inheritdoc` references inexistent contract "M.ERC20"
+    function j(uint M) public override {}
+
+    /// @inheritdoc x
+    //~^ WARN: tag `@inheritdoc` reference `x` is not a contract
+    function k(uint x) public override {}
+
+    /// @inheritdoc Base.o
+    //~^ WARN: tag `@inheritdoc` references inexistent contract "Base.o"
+    function p() public override {}
 
     /// @inheritdoc M.ERC20
     function transfer(address to, uint amount) external pure returns (bool) {

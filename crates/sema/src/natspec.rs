@@ -128,13 +128,14 @@ pub(crate) fn resolve_inheritdoc_target(
     if declarations.iter().any(|res| res.is_err()) {
         return InheritdocTarget::Error;
     }
-    declarations
-        .iter()
-        .find_map(|&res| match res {
-            hir::Res::Item(hir::ItemId::Contract(id)) => Some(InheritdocTarget::Contract(id)),
-            _ => None,
-        })
-        .unwrap_or(InheritdocTarget::NotAContract)
+    // Like solc, a path to overloaded declarations names nothing.
+    match declarations {
+        [first, rest @ ..] if rest.iter().all(|res| res == first) => match *first {
+            hir::Res::Item(hir::ItemId::Contract(id)) => InheritdocTarget::Contract(id),
+            _ => InheritdocTarget::NotAContract,
+        },
+        _ => InheritdocTarget::Unresolved,
+    }
 }
 
 /// Validated and resolved NatSpec for an HIR item.
@@ -442,9 +443,9 @@ impl<'gcx> Resolver<'gcx> {
                             continue;
                         }
 
-                        if let Some(inherited_item) =
-                            self.validate_inheritdoc_contract(natspec, contract, item_id, source_id)
-                        {
+                        if let Some(inherited_item) = self.validate_inheritdoc_contract(
+                            docs, natspec, contract, item_id, source_id,
+                        ) {
                             local_tags.push(*natspec);
                             inheritdoc = Some((tag_span, inherited_item));
                         }
@@ -783,6 +784,7 @@ impl<'gcx> Resolver<'gcx> {
     #[inline]
     fn validate_inheritdoc_contract(
         &self,
+        docs: &[ast::DocComment<'_>],
         natspec: &ast::NatSpecItem,
         contract_ident: &Ident,
         item_id: hir::ItemId,
@@ -797,52 +799,69 @@ impl<'gcx> Resolver<'gcx> {
             _ => return None,
         };
 
-        // Like solc, read the rest of the line as part of the reference, but ignore trailing
-        // whitespace.
-        let rest = natspec.content().lines().next().unwrap_or_default().trim();
+        // Like solc, read the rest of the tag, including continuation lines, as part of the
+        // reference, but ignore trailing whitespace.
+        let rest = solar_tag_content(docs, tag_span);
+        let rest = rest.trim();
         let reference = if rest.is_empty() {
             contract_ident.name
         } else {
             Symbol::intern(&format!("{} {rest}", contract_ident.name))
         };
 
-        let contract_id =
-            match self.gcx.natspec_inheritdoc_target((reference, source_id, item_contract)) {
-                InheritdocTarget::Contract(id) => id,
-                InheritdocTarget::Empty => {
-                    dcx.emit_warn_code(
-                        tag_span,
-                        error_code!(1933),
-                        "tag `@inheritdoc` does not contain a contract name",
-                    );
-                    return None;
-                }
-                InheritdocTarget::Malformed => {
-                    dcx.emit_warn_code(
-                        tag_span,
-                        error_code!(5967),
-                        format!("tag `@inheritdoc` reference `{reference}` is malformed"),
-                    );
-                    return None;
-                }
-                InheritdocTarget::Unresolved => {
-                    dcx.emit_warn_code(
-                        tag_span,
-                        error_code!(9397),
-                        format!("tag `@inheritdoc` references inexistent contract \"{reference}\""),
-                    );
-                    return None;
-                }
-                InheritdocTarget::NotAContract => {
-                    dcx.emit_warn_code(
-                        tag_span,
-                        error_code!(1430),
-                        format!("tag `@inheritdoc` reference `{reference}` is not a contract"),
-                    );
-                    return None;
-                }
-                InheritdocTarget::Error => return None,
+        let mut target = self.gcx.natspec_inheritdoc_target((reference, source_id, item_contract));
+        // solc resolves the reference from the scope of the documented function, where its
+        // parameters and return variables shadow other declarations.
+        let first_segment = reference.as_str().split('.').next().unwrap_or_default();
+        if let hir::ItemId::Function(id) = item_id
+            && !matches!(target, InheritdocTarget::Empty | InheritdocTarget::Malformed)
+            && self.gcx.hir.function(id).variables().any(|var| {
+                self.gcx.hir.variable(var).name.is_some_and(|name| name.as_str() == first_segment)
+            })
+        {
+            target = if reference.as_str().contains('.') {
+                InheritdocTarget::Unresolved
+            } else {
+                InheritdocTarget::NotAContract
             };
+        }
+
+        let contract_id = match target {
+            InheritdocTarget::Contract(id) => id,
+            InheritdocTarget::Empty => {
+                dcx.emit_warn_code(
+                    tag_span,
+                    error_code!(1933),
+                    "tag `@inheritdoc` does not contain a contract name",
+                );
+                return None;
+            }
+            InheritdocTarget::Malformed => {
+                dcx.emit_warn_code(
+                    tag_span,
+                    error_code!(5967),
+                    format!("tag `@inheritdoc` reference `{reference}` is malformed"),
+                );
+                return None;
+            }
+            InheritdocTarget::Unresolved => {
+                dcx.emit_warn_code(
+                    tag_span,
+                    error_code!(9397),
+                    format!("tag `@inheritdoc` references inexistent contract \"{reference}\""),
+                );
+                return None;
+            }
+            InheritdocTarget::NotAContract => {
+                dcx.emit_warn_code(
+                    tag_span,
+                    error_code!(1430),
+                    format!("tag `@inheritdoc` reference `{reference}` is not a contract"),
+                );
+                return None;
+            }
+            InheritdocTarget::Error => return None,
+        };
 
         if let Some(contract) = item_contract {
             let linearized_bases = &self.gcx.hir.contract(contract).linearized_bases;

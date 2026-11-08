@@ -1424,7 +1424,7 @@ impl SymbolTables {
         let namespace_symbols = bindings
             .namespace_aliases()
             .filter_map(|(key, alias)| namespace_symbols.get(&alias).map(|&symbol| (key, symbol)))
-            .collect();
+            .collect::<FxHashMap<_, _>>();
         for (span, targets) in bindings.references() {
             self.push_reference_entry(
                 locations,
@@ -1440,6 +1440,39 @@ impl SymbolTables {
                 continue;
             }
             for (span, resolutions) in gcx.natspec_references(item_id) {
+                // An import alias that qualifies an `@inheritdoc` path.
+                let namespaces = resolutions
+                    .iter()
+                    .filter_map(|res| match res {
+                        Res::Namespace(namespace) => Some(*namespace),
+                        _ => None,
+                    })
+                    .collect::<SmallVec<[_; 1]>>();
+                if !namespaces.is_empty() {
+                    let Ok(name) = gcx.sess.source_map().span_to_snippet(span) else { continue };
+                    let name = Symbol::intern(&name);
+                    self.rename.push_namespace_reference(
+                        gcx,
+                        locations,
+                        &bindings,
+                        item.source(),
+                        span,
+                        namespaces.iter().copied(),
+                    );
+                    let targets = namespaces
+                        .iter()
+                        .filter_map(|&namespace| {
+                            namespace_symbols.get(&(item.source(), namespace, name)).copied()
+                        })
+                        .collect::<SmallVec<_>>();
+                    self.push_reference_entry(
+                        locations,
+                        span,
+                        targets,
+                        DocumentHighlightKind::READ,
+                    );
+                    continue;
+                }
                 let targets = resolutions
                     .iter()
                     .filter_map(|res| {

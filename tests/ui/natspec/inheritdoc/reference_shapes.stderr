@@ -22,3 +22,33 @@ warning[9397]: tag `@inheritdoc` references inexistent contract "Base and more t
 LL │     /// @inheritdoc Base and more text
    ╰╴         ━━━━━━━━━━
 
+warning[9397]: tag `@inheritdoc` references inexistent contract "Base more text"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/reference_shapes.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base
+   ╰╴         ━━━━━━━━━━
+
+warning[9397]: tag `@inheritdoc` references inexistent contract "Base more text"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/reference_shapes.sol:LL:CC
+   │
+LL │      * @inheritdoc Base
+   ╰╴        ━━━━━━━━━━
+
+warning[9397]: tag `@inheritdoc` references inexistent contract "M.ERC20"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/reference_shapes.sol:LL:CC
+   │
+LL │     /// @inheritdoc M.ERC20
+   ╰╴         ━━━━━━━━━━
+
+warning[1430]: tag `@inheritdoc` reference `x` is not a contract
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/reference_shapes.sol:LL:CC
+   │
+LL │     /// @inheritdoc x
+   ╰╴         ━━━━━━━━━━
+
+warning[9397]: tag `@inheritdoc` references inexistent contract "Base.o"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/reference_shapes.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base.o
+   ╰╴         ━━━━━━━━━━
+

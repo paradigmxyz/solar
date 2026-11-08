@@ -636,10 +636,10 @@ fn renames_qualified_natspec_inheritdoc_paths() {
         }
 
         //- /Child.sol
-        import "./Base.sol" as Lib;
+        import "./Base.sol" as $3Lib;
 
         contract Child is Lib.Base {
-            /// @inheritdoc Lib.$2Base
+            /// @inheritdoc $4Lib.$2Base
             function run() public override {}
         }
         "#,
@@ -647,13 +647,18 @@ fn renames_qualified_natspec_inheritdoc_paths() {
     );
 
     fixture.check_goto_definition("$2", "/Base.sol:0:9 contract Base {\n");
+    fixture.check_prepare_rename("$4", "2:20-2:23\n");
     fixture.check_renames(
-        &[("$1 $2", "Parent")],
+        &[("$1 $2", "Parent"), ("$3 $4", "Shared")],
         str![[r#"
 $1 $2:
 /Base.sol:0:9-0:13 -> Parent
 /Child.sol:1:22-1:26 -> Parent
 /Child.sol:2:24-2:28 -> Parent
+$3 $4:
+/Child.sol:0:23-0:26 -> Shared
+/Child.sol:1:18-1:21 -> Shared
+/Child.sol:2:20-2:23 -> Shared
 
 "#]],
     );
