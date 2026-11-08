@@ -145,6 +145,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         )
     }
 
+    /// Stages raw literal ABI input in the encoder's word form, without an observable allocation.
+    /// Keep initialization explicit until `lower-abi-encode` proves the bytes, then selects
+    /// stores or a program-data copy directly into the output using the data-copy cost model.
+    pub(super) fn lower_call_input_literal(&mut self, bytes: &[u8]) -> Option<ValueId> {
+        // object = alloc (32 + padded_length)
+        // mstore object, length
+        let (object, _) = Self::alloc_const_bytes(
+            &mut self.builder,
+            bytes.len(),
+            AllocationSemantics::INTERNAL,
+            false,
+        )?;
+        for (index, chunk) in bytes.chunks(32).enumerate() {
+            // mstore (object + 32 + offset), word
+            let word = self.lower_string_literal_word(chunk);
+            let offset = self.builder.imm(index as u64 * 32);
+            self.builder.memory_store_word(object, offset, word);
+        }
+        Some(object)
+    }
+
     pub(super) fn lower_shared_bytes_literal(&mut self, symbol: ByteSymbol) -> Option<ValueId> {
         let bytes = symbol.as_byte_str();
         if bytes.is_empty() {

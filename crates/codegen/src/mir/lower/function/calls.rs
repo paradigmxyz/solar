@@ -400,7 +400,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CallArgumentParams { count: arg_exprs.len(), names: None, reverse: false },
             arg_exprs.iter().enumerate(),
             |this, index, argument| {
-                this.lower_abi_call_argument(argument, function.parameters[index])
+                this.lower_call_input_argument(argument, function.parameters[index])
             },
         )?;
         let (values, types) = self.resolve_abi_operands(operands)?;
@@ -963,7 +963,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if storage_parameters {
                     this.lower_abi_receiver(argument, parameter_ty)
                 } else {
-                    this.lower_abi_call_argument(argument, parameter_ty)
+                    this.lower_call_input_argument(argument, parameter_ty)
                 }
             },
         )
