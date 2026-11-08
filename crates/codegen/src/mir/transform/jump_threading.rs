@@ -110,8 +110,11 @@ fn thread_jumps(func: &mut Function) -> bool {
         let labels = group
             .iter()
             .map(|&(_, forwarder)| func.blocks[forwarder].label_metadata.debug_context())
-            .filter(|label| label.source_spans().next().is_some())
             .collect::<Vec<_>>();
+        // No forwarder names a construct, so the target keeps its own label.
+        if labels.iter().all(|label| label.source_spans().next().is_none()) {
+            continue;
+        }
         let Some((first, rest)) = labels.split_first() else { continue };
         // NOTE: A forwarder's label names the construct the edge enters, and the target's own
         // label may name the code it was inlined from or merged with. When the forwarders were
