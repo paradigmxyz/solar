@@ -1,0 +1,15 @@
+//@ compile-flags: --evm-version cancun -Zevm-ir-pipeline=coalesce-copies
+@module MergedOrigins
+
+// The `MCOPY` computes the results of every instruction of the run, so each instruction of the
+// replacement carries all their origins. The function events of the run are dropped.
+bb0:
+  push 128 !metadata(span=1..2)
+  mload !metadata(span=3..4)
+  push 256 !metadata(span=5..6, invoke=first@1..10)
+  mstore !metadata(span=7..8)
+  push 160 !metadata(span=9..10)
+  mload !metadata(span=11..12)
+  push 288 !metadata(span=13..14)
+  mstore !metadata(span=15..16)
+  stop

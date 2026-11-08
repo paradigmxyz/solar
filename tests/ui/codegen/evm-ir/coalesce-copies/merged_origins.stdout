@@ -1,0 +1,18 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/merged_origins.evmir (before coalesce-copies) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/coalesce-copies/merged_origins.evmir (after coalesce-copies) ===
+  @module MergedOrigins
+  bb0:
+-   push 128 !metadata(span=1..2)
+-   mload !metadata(span=3..4)
+-   push 256 !metadata(span=5..6, invoke=first@1..10)
+-   mstore !metadata(span=7..8)
+-   push 160 !metadata(span=9..10)
+-   mload !metadata(span=11..12)
+-   push 288 !metadata(span=13..14)
+-   mstore !metadata(span=15..16)
++   push 64 !metadata(all=[1..2, 3..4, 5..6, 7..8, 9..10, 11..12, 13..14, 15..16])
++   push 128 !metadata(all=[1..2, 3..4, 5..6, 7..8, 9..10, 11..12, 13..14, 15..16])
++   push 256 !metadata(all=[1..2, 3..4, 5..6, 7..8, 9..10, 11..12, 13..14, 15..16])
++   mcopy !metadata(all=[1..2, 3..4, 5..6, 7..8, 9..10, 11..12, 13..14, 15..16])
+    stop
+  
