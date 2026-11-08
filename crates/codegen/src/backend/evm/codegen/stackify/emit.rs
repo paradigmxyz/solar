@@ -23,7 +23,6 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
-use solar_evmir::debug::DebugLocKind;
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -566,26 +565,24 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
-    /// Attributes the push of a retained constant to the code that reads it.
+    /// Attributes the push of a retained constant to `origins`, the merged origin of its readers or
+    /// else the origin of the code it precedes.
     ///
     /// NOTE: The push runs once and serves each reader, so it is shared code: the location of one
-    /// reader would be arbitrary, and the merged location of all of them is correct. A single
-    /// reader gives its own location. The readers are those in the blocks the push is held
-    /// through, since the constant is pushed again at its uses elsewhere. LLVM's
-    /// `ConstantHoisting` gives a hoisted constant the merged location of its users likewise.
-    fn begin_shared(&mut self, func: &Function, readers: &[Reader]) {
+    /// reader would be arbitrary, and the merged location of all of them is correct only when
+    /// every reader runs whenever the push does. A push hoisted out of a branch arm or a loop body
+    /// runs on paths where a reader never does, and a reader's span on it would let coverage count
+    /// a skipped statement as executed. It then takes the origin of the code it precedes, as
+    /// scheduler-placed code does in `set_insertion_origin`; that code runs exactly when the push
+    /// does. LLVM's `Instruction::updateLocationAfterHoist` drops the location of a hoisted
+    /// instruction for the same reason, and `ConstantHoisting` merges the locations of a
+    /// constant's users.
+    fn begin_shared(&mut self, func: &Function, origins: &[Reader]) {
         let metadata = |reader: &Reader| match *reader {
             Reader::Inst(inst) => &func.inst(inst).metadata,
             Reader::Terminator(block) => &func.blocks[block].terminator_metadata,
         };
-        let Some((first, rest)) = readers.split_first() else {
-            // NOTE: A push that no code reads serves no source construct, so it has no location
-            // to merge.
-            self.asm.set_source_span(None);
-            self.asm.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
-            self.asm.set_modifier_depth(0);
-            return;
-        };
+        let (first, rest) = origins.split_first().expect("a retained push has an origin");
         let mut merged = metadata(first).clone();
         merged.merge_debug_locs(rest.iter().map(metadata));
         self.asm.set_source_spans(merged.source_spans());

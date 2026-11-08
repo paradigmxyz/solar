@@ -2,29 +2,37 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// The address mask is pushed once and kept on the stack for the six reads of `t`. The push is
-// shared code, so it takes the merged location of those reads, one span per read.
+// `P` is pushed once and kept on the stack for the three modular operations, which all run in the
+// block of the push. The push is shared code that runs whenever the readers do, so it takes the
+// merged location of those readers, one span per reader.
 
-// CHECK-LABEL: ; function go() external
-// CHECK: push 0xffffffffffffffffffffffffffffffffffffffff !metadata(spans=[{{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}])
-interface T {
-    function a() external;
-    function b() external;
-    function c() external;
-    function d() external;
-    function e() external;
-    function f() external;
+// CHECK-LABEL: ; function f(uint256 x, uint256 y)
+// CHECK: push 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff !metadata(spans=[{{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}, {{[0-9]+}}..{{[0-9]+}}])
+contract Merged {
+    uint256 constant P = 0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff;
+
+    function f(uint256 x, uint256 y) external pure returns (uint256) {
+        return addmod(mulmod(x, y, P), mulmod(x, x, P), P);
+    }
 }
 
-contract R {
-    T t;
+// The mask `M` is pushed once before the `if`, for readers in both arms, so it runs even when an
+// arm's readers do not. It takes the origin of the code it precedes, here the branch on `c`, and
+// not the location of a reader.
 
-    function go() external {
-        t.a();
-        t.b();
-        t.c();
-        t.d();
-        t.e();
-        t.f();
+// CHECK-LABEL: ; function g(bool c, uint256 a, uint256 b)
+// CHECK: push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0 !metadata(span=[[#S:]]..[[#E:]])
+// CHECK: jumpi !metadata(span=[[#S]]..[[#E]])
+contract Hoisted {
+    uint256 constant M = 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0;
+
+    function g(bool c, uint256 a, uint256 b) external pure returns (uint256 r) {
+        unchecked {
+            if (c) {
+                r = (a & M) + (b & M) + (a ^ M);
+            } else {
+                r = (b & M) + (a & M) + (b ^ M);
+            }
+        }
     }
 }

@@ -736,15 +736,21 @@ impl<'a> Planner<'a> {
             .collect()
     }
 
-    /// Starts the push of the retained constant `value`, which the planner emits once in `block`.
-    /// The push serves the readers in the blocks it is held through, so it takes their merged
-    /// origin.
-    fn begin_retained(&self, block: BlockId, value: ValueId) -> Step {
+    /// Starts the push of the retained constant `value`, which the planner emits once in `block`,
+    /// before the instruction `before` or else before the terminator.
+    ///
+    /// The push serves the readers in the blocks it is held through. When all of them are in
+    /// `block`, they run whenever the push does, and the push takes their merged origin. Otherwise
+    /// it runs on paths where some reader never does, and it takes the origin of the code it
+    /// precedes.
+    fn begin_retained(&self, block: BlockId, value: ValueId, before: Option<InstId>) -> Step {
         let func = self.func;
         let region = &held_blocks(func, self.cfg, &[(block, value)])[&value];
         let mut readers = Vec::new();
+        let mut local = true;
         for held in region.iter() {
             let tail_call = self.tail_calls.get(&held).copied();
+            let before_len = readers.len();
             readers.extend(
                 self.planned_insts(held)
                     .into_iter()
@@ -775,18 +781,25 @@ impl<'a> Planner<'a> {
             if reads {
                 readers.push(Reader::Terminator(held));
             }
+            local &= held == block || readers.len() == before_len;
         }
-        // An edge from a block in the region reads the value, into a phi anywhere.
-        for block in func.blocks.iter() {
-            for &inst in &block.instructions {
+        // An edge from a block in the region reads the value, into a phi anywhere. The phi copy
+        // runs on one edge only.
+        for phi_block in func.blocks.iter() {
+            for &inst in &phi_block.instructions {
                 if let InstKind::Phi(incoming) = &func.inst(inst).kind
                     && incoming
                         .iter()
                         .any(|&(pred, operand)| operand == value && region.contains(pred))
                 {
                     readers.push(Reader::Inst(inst));
+                    local = false;
                 }
             }
+        }
+        if !local || readers.is_empty() {
+            readers.clear();
+            readers.push(before.map_or(Reader::Terminator(block), Reader::Inst));
         }
         Step::BeginShared(readers.into_boxed_slice())
     }
@@ -813,7 +826,7 @@ impl<'a> Planner<'a> {
                 if !step.operands.contains(&value) {
                     return true;
                 }
-                sim.steps.push(self.begin_retained(block, value));
+                sim.steps.push(self.begin_retained(block, value, Some(inst)));
                 // push constant
                 self.fresh(sim, value);
                 false
@@ -865,7 +878,7 @@ impl<'a> Planner<'a> {
             }
         }
         for value in constants {
-            sim.steps.push(self.begin_retained(block, value));
+            sim.steps.push(self.begin_retained(block, value, None));
             // push constant
             self.fresh(sim, value);
         }
