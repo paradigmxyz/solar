@@ -10,7 +10,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     error_code, kw, sym,
 };
-use std::ops::Range;
+use std::{fmt, ops::Range};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct ResolvedNatSpec<'gcx> {
@@ -151,12 +151,16 @@ bitflags::bitflags! {
     }
 
     /// Tag permissions for different item types in natspec validation.
+    ///
+    /// Every validated item accepts `@dev` and `@custom:` tags.
     #[derive(Clone, Copy)]
     struct TagPermissions: u8 {
-        const TITLE_AUTHOR = 1 << 0;
-        const INHERITDOC   = 1 << 1;
-        const PARAM        = 1 << 2;
-        const RETURN       = 1 << 3;
+        const NOTICE     = 1 << 0;
+        const TITLE      = 1 << 1;
+        const AUTHOR     = 1 << 2;
+        const INHERITDOC = 1 << 3;
+        const PARAM      = 1 << 4;
+        const RETURN     = 1 << 5;
     }
 
     /// Tracks which tags have been seen during validation.
@@ -187,16 +191,42 @@ impl LocalTags {
 }
 
 impl TagPermissions {
-    fn from_item_id(item_id: hir::ItemId) -> Self {
-        match item_id {
-            hir::ItemId::Contract(_) | hir::ItemId::Enum(_) => Self::TITLE_AUTHOR | Self::RETURN,
-            hir::ItemId::Struct(_) => Self::TITLE_AUTHOR | Self::PARAM | Self::RETURN,
-            hir::ItemId::Function(_) => Self::PARAM | Self::INHERITDOC | Self::RETURN,
-            hir::ItemId::Variable(_) => Self::INHERITDOC | Self::RETURN,
-            hir::ItemId::Event(_) => Self::PARAM,
-            hir::ItemId::Error(_) => Self::PARAM,
-            hir::ItemId::Udvt(_) => Self::PARAM,
-        }
+    /// Returns the tags that `item_id` accepts and the plural noun that names the item in
+    /// diagnostics, or `None` when the item's documentation is not validated.
+    ///
+    /// This mirrors solc's `DocStringTagParser`, which validates neither structs, enums nor UDVTs.
+    fn for_item(gcx: Gcx<'_>, item_id: hir::ItemId) -> Option<(Self, &'static str)> {
+        Some(match item_id {
+            hir::ItemId::Contract(_) => (Self::NOTICE | Self::TITLE | Self::AUTHOR, "contracts"),
+            hir::ItemId::Function(id) => match gcx.hir.function(id).kind {
+                hir::FunctionKind::Constructor => {
+                    (Self::NOTICE | Self::AUTHOR | Self::PARAM, "constructors")
+                }
+                hir::FunctionKind::Modifier => {
+                    (Self::NOTICE | Self::PARAM | Self::INHERITDOC, "modifiers")
+                }
+                hir::FunctionKind::Function
+                | hir::FunctionKind::Fallback
+                | hir::FunctionKind::Receive => {
+                    (Self::NOTICE | Self::PARAM | Self::RETURN | Self::INHERITDOC, "functions")
+                }
+            },
+            hir::ItemId::Event(_) => (Self::NOTICE | Self::PARAM, "events"),
+            hir::ItemId::Error(_) => (Self::NOTICE | Self::PARAM, "errors"),
+            hir::ItemId::Variable(id) => {
+                let variable = gcx.hir.variable(id);
+                if variable.is_file_level_variable() {
+                    (Self::empty(), "file-level variables")
+                } else if !variable.is_state_variable() {
+                    return None;
+                } else if variable.is_public() {
+                    (Self::NOTICE | Self::RETURN | Self::INHERITDOC, "public state variables")
+                } else {
+                    (Self::NOTICE | Self::INHERITDOC, "non-public state variables")
+                }
+            }
+            hir::ItemId::Struct(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_) => return None,
+        })
     }
 }
 
@@ -299,14 +329,15 @@ impl<'gcx> Resolver<'gcx> {
     /// Checks:
     /// - Tag applicability
     /// - Duplicate tags
-    /// - Parameter references
+    /// - Parameter references and descriptions
+    /// - Custom tag names
     fn validate_item_natspec(
         &self,
         docs: &[ast::DocComment<'gcx>],
         item_id: hir::ItemId,
         source_id: hir::SourceId,
     ) -> (SmallVec<[hir::NatSpecItem; 8]>, Option<(Span, hir::ItemId)>) {
-        let permissions = TagPermissions::from_item_id(item_id);
+        let item_permissions = TagPermissions::for_item(self.gcx, item_id);
         let mut parameters: Option<FxHashSet<Symbol>> = None;
         let mut returns: Option<&[hir::VariableId]> = None;
 
@@ -324,40 +355,66 @@ impl<'gcx> Resolver<'gcx> {
             for natspec in doc_comment.natspec.iter() {
                 let tag_span = natspec.span;
 
+                if let NatSpecKind::Custom { name } = natspec.kind
+                    && let Some(tag) = SolarTag::from_custom(name.name)
+                {
+                    self.check_solar_tag(tag, name.name, item_id, docs, tag_span);
+                }
+
+                let Some((permissions, item_desc)) = item_permissions else {
+                    // Nothing resolves the target of an `@inheritdoc` tag here, so drop it.
+                    if !matches!(natspec.kind, NatSpecKind::Inheritdoc { .. }) {
+                        local_tags.push(*natspec);
+                    }
+                    continue;
+                };
+
                 match &natspec.kind {
-                    NatSpecKind::Notice
-                    | NatSpecKind::Dev
-                    | NatSpecKind::Custom { .. }
-                    | NatSpecKind::Internal { .. } => {
-                        if let NatSpecKind::Custom { name } = natspec.kind
-                            && let Some(tag) = SolarTag::from_custom(name.name)
-                        {
-                            self.check_solar_tag(tag, name.name, item_id, docs, tag_span);
+                    NatSpecKind::Notice if !permissions.contains(TagPermissions::NOTICE) => {
+                        // Documentation without a tag is `@notice` too.
+                        self.gcx
+                            .dcx()
+                            .warn_code_at(
+                                tag_span,
+                                error_code!(6546),
+                                format!("tag `@notice` not valid for {item_desc}"),
+                            )
+                            .help("document it with `@dev` instead")
+                            .emit();
+                    }
+                    NatSpecKind::Notice | NatSpecKind::Dev => local_tags.push(*natspec),
+                    NatSpecKind::Custom { name } => {
+                        if SolarTag::from_custom(name.name).is_none() {
+                            self.check_custom_tag_name(name.name, tag_span);
                         }
                         local_tags.push(*natspec);
                     }
+                    // These tags annotate inline assembly and Yul, not declarations.
+                    NatSpecKind::Internal { tag } => {
+                        self.emit_forbidden_tag_warning(tag.name, tag_span, item_desc);
+                    }
                     NatSpecKind::Title => {
-                        if !permissions.contains(TagPermissions::TITLE_AUTHOR) {
-                            self.emit_forbidden_tag_warning("@title", tag_span, item_id);
+                        if !permissions.contains(TagPermissions::TITLE) {
+                            self.emit_forbidden_tag_warning("title", tag_span, item_desc);
                         } else {
                             local_tags.push(*natspec);
                         }
                     }
                     NatSpecKind::Author => {
-                        if !permissions.contains(TagPermissions::TITLE_AUTHOR) {
-                            self.emit_forbidden_tag_warning("@author", tag_span, item_id);
+                        if !permissions.contains(TagPermissions::AUTHOR) {
+                            self.emit_forbidden_tag_warning("author", tag_span, item_desc);
                         } else {
                             local_tags.push(*natspec);
                         }
                     }
                     NatSpecKind::Inheritdoc { contract } => {
                         if !self.validate_tag_once(
-                            "@inheritdoc",
+                            "inheritdoc",
                             tag_span,
                             permissions.contains(TagPermissions::INHERITDOC),
                             &mut state.seen_tags,
                             SeenTags::INHERITDOC,
-                            item_id,
+                            item_desc,
                         ) {
                             continue;
                         }
@@ -371,12 +428,11 @@ impl<'gcx> Resolver<'gcx> {
                     }
                     NatSpecKind::Param { name } => {
                         if !permissions.contains(TagPermissions::PARAM) {
-                            self.emit_forbidden_tag_warning("@param", tag_span, item_id);
+                            self.emit_forbidden_tag_warning("param", tag_span, item_desc);
                             continue;
                         }
 
-                        if matches!(item_id, hir::ItemId::Struct(_)) {
-                            local_tags.push(*natspec);
+                        if !self.check_param_description(natspec, *name) {
                             continue;
                         }
 
@@ -423,12 +479,8 @@ impl<'gcx> Resolver<'gcx> {
                         };
                     }
                     NatSpecKind::Return { .. } => {
-                        if !permissions.contains(TagPermissions::RETURN)
-                            || item_id
-                                .as_variable()
-                                .is_some_and(|id| !self.gcx.hir.variable(id).is_public())
-                        {
-                            self.emit_forbidden_tag_warning("@return", tag_span, item_id);
+                        if !permissions.contains(TagPermissions::RETURN) {
+                            self.emit_forbidden_tag_warning("return", tag_span, item_desc);
                             continue;
                         }
 
@@ -656,12 +708,16 @@ impl<'gcx> Resolver<'gcx> {
     }
 
     #[cold]
-    fn emit_forbidden_tag_warning(&self, tag_name: &str, tag_span: Span, item_id: hir::ItemId) {
-        let item_desc = self.gcx.hir.item(item_id).description();
+    fn emit_forbidden_tag_warning(
+        &self,
+        tag_name: impl fmt::Display,
+        tag_span: Span,
+        item_desc: &str,
+    ) {
         self.gcx.dcx().emit_warn_code(
             tag_span,
             error_code!(6546),
-            format!("tag `{tag_name}` not valid for {item_desc}s"),
+            format!("tag `@{tag_name}` not valid for {item_desc}"),
         );
     }
 
@@ -670,7 +726,7 @@ impl<'gcx> Resolver<'gcx> {
         self.gcx.dcx().emit_warn_code(
             tag_span,
             error_code!(5142),
-            format!("tag {tag_name} can only be given once"),
+            format!("tag @{tag_name} can only be given once"),
         );
     }
 
@@ -684,10 +740,10 @@ impl<'gcx> Resolver<'gcx> {
         allowed: bool,
         seen_tags: &mut SeenTags,
         tag_flag: SeenTags,
-        item_id: hir::ItemId,
+        item_desc: &str,
     ) -> bool {
         if !allowed {
-            self.emit_forbidden_tag_warning(tag_name, tag_span, item_id);
+            self.emit_forbidden_tag_warning(tag_name, tag_span, item_desc);
             return false;
         }
         if seen_tags.contains(tag_flag) {
@@ -757,6 +813,57 @@ impl<'gcx> Resolver<'gcx> {
         };
 
         Some(inherited_item)
+    }
+
+    /// Reports a `@param` tag without a parameter name, or without a description on the same line,
+    /// both of which solc rejects. Returns `false` if it reports one.
+    fn check_param_description(&self, natspec: &ast::NatSpecItem, name: Ident) -> bool {
+        if natspec.content().lines().next().is_some_and(|line| !line.trim().is_empty()) {
+            return true;
+        }
+        if name.name == kw::Empty {
+            self.gcx.dcx().emit_warn_code(
+                natspec.span,
+                error_code!(3335),
+                "tag `@param` does not contain a parameter name",
+            );
+        } else {
+            self.gcx
+                .dcx()
+                .warn_code_at(
+                    natspec.span,
+                    error_code!(9942),
+                    format!("tag `@param` does not describe parameter `{}`", name.name),
+                )
+                .help("write the description on the same line as the parameter name")
+                .emit();
+        }
+        false
+    }
+
+    /// Reports a `@custom:` tag without a name, or whose name is not made of lowercase letters and
+    /// `-`, starting with a letter, as solc requires.
+    fn check_custom_tag_name(&self, name: Symbol, tag_span: Span) {
+        let name = name.as_str();
+        if name.is_empty() {
+            self.gcx
+                .dcx()
+                .warn_code_at(tag_span, error_code!(6564), "tag `@custom:` does not contain a name")
+                .help("name the tag, as in `@custom:mytag`")
+                .emit();
+        } else if !name.starts_with(|c: char| c.is_ascii_lowercase())
+            || !name.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')
+        {
+            self.gcx
+                .dcx()
+                .warn_code_at(
+                    tag_span,
+                    error_code!(2968),
+                    format!("invalid character in tag `@custom:{name}`"),
+                )
+                .help("use only lowercase letters and `-`, starting with a letter")
+                .emit();
+        }
     }
 
     /// Merges local and inherited natspec tags.

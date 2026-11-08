@@ -1,0 +1,24 @@
+warning[9942]: tag `@param` does not describe parameter `x`
+   ╭▸ ROOT/tests/ui/natspec/param_description_shapes.sol:LL:CC
+   │
+LL │     /// @param x
+   │          ━━━━━
+   │
+   ╰ help: write the description on the same line as the parameter name
+
+warning[9942]: tag `@param` does not describe parameter `x`
+   ╭▸ ROOT/tests/ui/natspec/param_description_shapes.sol:LL:CC
+   │
+LL │      * @param x
+   │         ━━━━━
+   │
+   ╰ help: write the description on the same line as the parameter name
+
+warning[9942]: tag `@param` does not describe parameter `x`
+   ╭▸ ROOT/tests/ui/natspec/param_description_shapes.sol:LL:CC
+   │
+LL │     /** @param x */
+   │          ━━━━━
+   │
+   ╰ help: write the description on the same line as the parameter name
+

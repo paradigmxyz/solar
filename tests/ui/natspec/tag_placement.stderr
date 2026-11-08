@@ -1,0 +1,32 @@
+warning[6546]: tag `@return` not valid for constructors
+   ╭▸ ROOT/tests/ui/natspec/tag_placement.sol:LL:CC
+   │
+LL │     /// @return return should not work within constructors
+   ╰╴         ━━━━━━
+
+warning[6546]: tag `@title` not valid for non-public state variables
+   ╭▸ ROOT/tests/ui/natspec/tag_placement.sol:LL:CC
+   │
+LL │     /// @title title
+   ╰╴         ━━━━━
+
+warning[6546]: tag `@author` not valid for non-public state variables
+   ╭▸ ROOT/tests/ui/natspec/tag_placement.sol:LL:CC
+   │
+LL │     /// @author author
+   ╰╴         ━━━━━━
+
+warning[6546]: tag `@return` not valid for modifiers
+   ╭▸ ROOT/tests/ui/natspec/tag_placement.sol:LL:CC
+   │
+LL │     ///@return
+   ╰╴        ━━━━━━
+
+warning[6546]: tag `@notice` not valid for file-level variables
+   ╭▸ ROOT/tests/ui/natspec/tag_placement.sol:LL:CC
+   │
+LL │ /// Documentation
+   │ ━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: document it with `@dev` instead
+

@@ -1,0 +1,36 @@
+warning[9942]: tag `@param` does not describe parameter `second`
+   ╭▸ ROOT/tests/ui/natspec/param_description.sol:LL:CC
+   │
+LL │     /// @param second
+   │          ━━━━━
+   │
+   ╰ help: write the description on the same line as the parameter name
+
+warning[9942]: tag `@param` does not describe parameter `se`
+   ╭▸ ROOT/tests/ui/natspec/param_description.sol:LL:CC
+   │
+LL │     /// @param se
+   │          ━━━━━
+   │
+   ╰ help: write the description on the same line as the parameter name
+
+warning[3335]: tag `@param` does not contain a parameter name
+   ╭▸ ROOT/tests/ui/natspec/param_description.sol:LL:CC
+   │
+LL │     /// @param
+   ╰╴         ━━━━━
+
+warning[9942]: tag `@param` does not describe parameter `id`
+   ╭▸ ROOT/tests/ui/natspec/param_description.sol:LL:CC
+   │
+LL │     /// @param id
+   │          ━━━━━
+   │
+   ╰ help: write the description on the same line as the parameter name
+
+warning[3335]: tag `@param` does not contain a parameter name
+   ╭▸ ROOT/tests/ui/natspec/param_description.sol:LL:CC
+   │
+LL │     /// @param
+   ╰╴         ━━━━━
+

@@ -1,0 +1,36 @@
+warning[6546]: invalid natspec tag '@a&b', custom tags must use format '@custom:name'
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_names.sol:LL:CC
+   │
+LL │ /// @a&b test
+   ╰╴━━━━━━━━━━━━━
+
+warning[6546]: invalid natspec tag '@custom', custom tags must use format '@custom:name'
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_names.sol:LL:CC
+   │
+LL │     /// @custom
+   ╰╴    ━━━━━━━━━━━
+
+warning[2968]: invalid character in tag `@custom:x^y`
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_names.sol:LL:CC
+   │
+LL │     /// @custom:x^y test2
+   │          ━━━━━━━━━━
+   │
+   ╰ help: use only lowercase letters and `-`, starting with a letter
+
+warning[6564]: tag `@custom:` does not contain a name
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_names.sol:LL:CC
+   │
+LL │     /// @custom:
+   │          ━━━━━━━
+   │
+   ╰ help: name the tag, as in `@custom:mytag`
+
+warning[2968]: invalid character in tag `@custom:abcDEF`
+   ╭▸ ROOT/tests/ui/natspec/custom_tag_names.sol:LL:CC
+   │
+LL │     /// @custom:abcDEF
+   │          ━━━━━━━━━━━━━
+   │
+   ╰ help: use only lowercase letters and `-`, starting with a letter
+

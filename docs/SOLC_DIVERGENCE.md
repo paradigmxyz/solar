@@ -724,6 +724,27 @@ has no reason to guess that the author meant an address.
 
 Coverage: `tests/ui/typeck/literals/hex_literal_39_41_digits.sol`.
 
+### TYPECK-025: NatSpec diagnostics are warnings
+
+Status: intentional.
+
+Difference: `solc` rejects invalid NatSpec with a `DocstringParsingError`: a tag
+the documented item does not accept (6546), a `@param` tag that names no
+parameter (3881), has no name (3335), or has no description on its line (9942),
+an invalid `@custom:` tag name (6564, 2968), too many or misnamed `@return` tags
+(2604, 5856), and a duplicate or unresolved `@inheritdoc` tag (5142, 9397,
+4682). `solar` runs these checks with the same codes, but reports each as a
+warning. Like `solc`, it does not check the documentation of structs, enums
+and user-defined value types.
+
+Rationale: NatSpec does not change the compiled code, so a documentation
+mistake should not stop a build. Keeping `solc`'s codes lets `--allow` and
+tools that filter by code treat these warnings like the `solc` errors.
+
+Coverage: `tests/ui/natspec/tag_sema.sol`, `tests/ui/natspec/tag_placement.sol`,
+`tests/ui/natspec/param_description.sol`,
+`tests/ui/natspec/custom_tag_names.sol` and `tests/ui/natspec/tag_returns.sol`.
+
 ## Contract-Level Checks
 
 ### CONTRACT-001: Base slots that solc does not evaluate

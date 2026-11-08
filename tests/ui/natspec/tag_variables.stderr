@@ -1,10 +1,10 @@
-warning[6546]: tag `@return` not valid for variables
+warning[6546]: tag `@return` not valid for non-public state variables
    ╭▸ ROOT/tests/ui/natspec/tag_variables.sol:LL:CC
    │
 LL │     /// @return Invalid return on private variable
    ╰╴         ━━━━━━
 
-warning[6546]: tag `@param` not valid for variables
+warning[6546]: tag `@param` not valid for public state variables
    ╭▸ ROOT/tests/ui/natspec/tag_variables.sol:LL:CC
    │
 LL │     /// @param owner Invalid parameter on variable

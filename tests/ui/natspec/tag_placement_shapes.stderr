@@ -1,0 +1,44 @@
+warning[6546]: tag `@return` not valid for contracts
+   ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
+   │
+LL │ /// @return Contracts have no return values.
+   ╰╴     ━━━━━━
+
+warning[6546]: tag `@inheritdoc` not valid for contracts
+   ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
+   │
+LL │ /// @inheritdoc Base
+   ╰╴     ━━━━━━━━━━
+
+warning[6546]: tag `@src` not valid for contracts
+   ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
+   │
+LL │ /// @src 0:1:2
+   ╰╴     ━━━
+
+warning[6546]: tag `@inheritdoc` not valid for constructors
+   ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base
+   ╰╴         ━━━━━━━━━━
+
+warning[6546]: tag `@solidity` not valid for functions
+   ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
+   │
+LL │     /// @solidity memory-safe-assembly
+   ╰╴         ━━━━━━━━
+
+warning[6546]: tag `@notice` not valid for file-level variables
+   ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
+   │
+LL │ /// @notice But not `@notice`.
+   │      ━━━━━━
+   │
+   ╰ help: document it with `@dev` instead
+
+warning[6546]: tag `@inheritdoc` not valid for file-level variables
+   ╭▸ ROOT/tests/ui/natspec/tag_placement_shapes.sol:LL:CC
+   │
+LL │ /// @inheritdoc Base
+   ╰╴     ━━━━━━━━━━
+
