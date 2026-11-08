@@ -6,10 +6,11 @@ bb0:
   push 1 !metadata(span=1..5)
   jumpi bb1, bb2 !metadata(span=6..10)
 
-// Shared instructions retain both source origins and omit conflicting function events.
+// Shared instructions omit conflicting function events. The unlocated copy in bb3 also runs the
+// shared instructions, so they have no origin.
 // CHECK-LABEL: {{^[ +].*}}bb1 [invoke=first@1..10]:
-// CHECK: {{^[ +].*}}push 0 !metadata(spans=[11..15, 31..35])
-// CHECK: {{^[ +].*}}revert !metadata(spans=[20..25, 40..45])
+// CHECK: {{^[ +].*}}push 0{{$}}
+// CHECK: {{^[ +].*}}revert{{$}}
 bb1 [invoke=first@1..10]:
   push 0 !metadata(span=11..15, invoke=nested_first@11..25)
   dup 1 !metadata(span=16..19)
