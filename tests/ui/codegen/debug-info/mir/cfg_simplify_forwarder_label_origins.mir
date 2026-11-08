@@ -1,0 +1,20 @@
+//@ compile-flags: -Zmir-pipeline=cfg-simplify
+//@ filecheck:
+// Predecessors of a removed empty block now enter its target, so the target's label keeps the
+// origin of the removed block too.
+@module ForwarderLabels
+
+// CHECK-LABEL: {{^[ +].*}}fn @forwarder{{[( ]}}
+// CHECK: + bb{{[0-9]+}} !metadata(spans=[30..40, 50..60]):
+fn @forwarder(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = add arg1, 2
+    jump bb3
+  bb2 !metadata(span=50..60):
+    jump bb3
+  bb3 !metadata(span=30..40):
+    v0 = add arg1, 1
+    ret v0
+}

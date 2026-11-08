@@ -808,17 +808,20 @@ fn merge_function_debug_origins(
                     .map(|&id| source.inst(id).metadata.debug_context())
                     .collect::<Vec<_>>(),
                 block.terminator_metadata.debug_context(),
+                block.label_metadata.debug_context(),
             )
         })
         .collect::<Vec<_>>();
     let target = module.function_mut(representative);
     // duplicate body -> representative body !metadata(union of body origins)
-    for (block, (instructions, terminator)) in target.blocks.indices().zip(origins) {
+    for (block, (instructions, terminator, label)) in target.blocks.indices().zip(origins) {
         for (index, metadata) in instructions.into_iter().enumerate() {
             let inst = target.blocks[block].instructions[index];
             target.inst_mut(inst).metadata.merge_debug_locs([&metadata]);
         }
         target.blocks[block].terminator_metadata.merge_debug_locs([&terminator]);
+        // Calls to the duplicate land on the shared label, so it keeps both functions' origins.
+        target.blocks[block].label_metadata.merge_debug_locs([&label]);
     }
 }
 

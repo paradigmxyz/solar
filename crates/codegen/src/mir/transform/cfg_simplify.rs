@@ -723,12 +723,29 @@ fn forwarder_elimination_preserves_phis(func: &Function, block_id: BlockId) -> b
 fn eliminate_forwarder(func: &mut Function, block_id: BlockId) {
     let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else { return };
 
+    merge_forwarder_label(func, block_id, target);
     let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
     redirect_target_phi_incoming(func, block_id, target, &predecessors);
     for pred in predecessors {
         redirect_edge(func, pred, block_id, target);
     }
     let _ = invalidate_unreachable_block(func, block_id);
+}
+
+/// Merges the label origin of a bypassed forwarder into its target.
+///
+/// NOTE: A bypassed block's label marked where control entered; its predecessors now enter the
+/// target, so the target's label takes that origin too. A forwarder with no predecessors was never
+/// entered and marks nothing. A forwarder that is its target's only entry never gets here, since
+/// `merge_blocks` joins the two and keeps the forwarder's label.
+fn merge_forwarder_label(func: &mut Function, block_id: BlockId, target: BlockId) {
+    let block = &func.blocks[block_id];
+    if block.predecessors.is_empty() {
+        return;
+    }
+    let label = block.label_metadata.clone();
+    // target label !metadata(union of forwarder and target labels)
+    func.blocks[target].label_metadata.merge_debug_locs([&label]);
 }
 
 fn redirect_target_phi_incoming(
