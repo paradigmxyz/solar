@@ -572,7 +572,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let Some((first, rest)) = readers.split_first() else {
             // NOTE: A push that no code reads serves no source construct, so it has no location
-            // to merge, and the planner never emits one.
+            // to merge.
             self.asm.set_source_span(None);
             self.asm.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
             self.asm.set_modifier_depth(0);

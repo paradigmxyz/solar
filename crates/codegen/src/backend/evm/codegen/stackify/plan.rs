@@ -769,8 +769,10 @@ impl<'a> Planner<'a> {
             if reads {
                 readers.push(Reader::Terminator(held));
             }
-            for &inst in &func.blocks[held].instructions {
-                // An edge from a block in the region reads the value.
+        }
+        // An edge from a block in the region reads the value, into a phi anywhere.
+        for block in func.blocks.iter() {
+            for &inst in &block.instructions {
                 if let InstKind::Phi(incoming) = &func.inst(inst).kind
                     && incoming
                         .iter()
