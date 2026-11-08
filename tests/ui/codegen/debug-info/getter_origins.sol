@@ -2,10 +2,10 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// A public getter maps to its state variable's declaration, as in solc's `LocationSetter` for the
-// variable. The range ends with the name, or with the initializer when there is one, before the
-// semicolon: `uint256 public a` is 16 bytes and `uint256 public b = 5` is 20.
-// A mapping getter's index and return code take the same range.
+// A public getter reads its state variable, and the semicolon belongs to no code, so the getter maps
+// to the declaration up to the end of the name, or of the initializer when there is one:
+// `uint256 public a` is 16 bytes and `uint256 public b = 5` is 20. solc's `VariableDeclaration`
+// ends at the same place. A mapping getter's index and return code take the same range.
 
 // CHECK-LABEL: (scheduled runtime) ===
 // CHECK: [entry, invoke=a@[[#A:]]

@@ -536,13 +536,13 @@ impl LowerAbiCx {
             };
             let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
             builder.switch_to_block(block_id);
-            // NOTE: This deliberately deviates from solc, which emits the return packer under the
-            // function declaration (`appendReturnValuePacker`, `ContractCompiler.cpp` L514-551).
-            // The encoding is the only code a `return` emits here, whereas solc emits the value
-            // moves and the jump to the return tag under the statement (`LocationSetter(_return)`,
-            // L1296). Mapping it to the declaration would leave the statement without an
-            // instruction, and coverage tools anchor each `return` on one. Only a wrapper that
-            // calls an extracted body has no `return` of its own, so it takes the declaration.
+            // NOTE: The encoding keeps the origin of the `return` it replaces. In our output it is
+            // the only code a `return` emits, so the statement is its correct location, and
+            // coverage tools such as forge anchor each `return` item on it. solc has a different
+            // shape: it emits the value moves and the jump to the return tag under the statement
+            // and packs the return under the function declaration (`appendReturnValuePacker`).
+            // Only a wrapper that calls an extracted body has no `return` of its own, so it takes
+            // the declaration.
             // abi_encode(values) !metadata(return span)
             // returndata(encoded_ptr, encoded_len) !metadata(return span)
             builder.inherit_terminator_debug_context(block_id);
