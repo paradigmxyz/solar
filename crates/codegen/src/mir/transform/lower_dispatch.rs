@@ -347,7 +347,6 @@ fn build_entry(
                 builder.switch_to_block(go);
             }
             builder.tail_call(target, Vec::new());
-            builder.replace_source_span(contract_span);
         }
 
         // Each case tail-calls its argument-free wrapper directly. A

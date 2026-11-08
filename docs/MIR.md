@@ -809,10 +809,13 @@ blocks keeps it only if every one had it.
 A block header may end in `!metadata(span=10..20)`, written `bb3 [cold] !metadata(span=10..20):`.
 It is the origin of the block's label, the source location of the `JUMPDEST` that marks the block,
 as solc gives a tag the location active where the tag is placed. Lowering sets it when it places a
-block: the function definition for the entry block, and the enclosing statement for the else and end
-blocks of an `if` and the header and exit of a loop. Text prints it under the same rule as an
+block: the function definition for the entry block, the declaration of a fallback or receive function
+for its route, and the enclosing statement for the else and end blocks of an `if` and the header and
+exit of a loop. Text prints it under the same rule as an
 instruction's span, so lowered MIR dumps do not show it. A pass that keeps a block keeps its label,
-and one that merges the block into its predecessor drops it. A block a pass creates, such as a
+one that merges the block into its predecessor drops it, and one that bypasses an empty block, or
+replaces a duplicate function body, unions that block's label into its target, as it does for
+instruction spans. A block a pass creates, such as a
 preheader, an edge block or the second half of a split, starts without a label. A cloned block, as
 inlining and the loop passes make, keeps the label of the block it copies, as LLVM's
 `CloneBasicBlock` keeps the debug locations of the code it clones.
