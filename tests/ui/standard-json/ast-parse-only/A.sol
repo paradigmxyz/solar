@@ -17,6 +17,8 @@ struct S {
     uint a;
     mapping(uint => address) owners;
     function(uint) external returns (bool) callback;
+    function() private hidden;
+    function(uint) public returns (uint) shown;
 }
 
 error Failed(uint code);

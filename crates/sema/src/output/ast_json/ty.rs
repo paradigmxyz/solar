@@ -421,7 +421,12 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Type<'_>, Option<&hir::Type<'gcx>>)>
                 // of returns.
                 let next = cx.token_after(ty.span);
                 let (mut m, id) = cx.node(s, "FunctionTypeName", ty.span.with_hi(next.hi()))?;
-                m.entry("visibility", function.visibility_or_default().to_str());
+                // Without sema, the visibility is the one that was written.
+                let visibility = match cx.sema() {
+                    true => function.visibility_or_default(),
+                    false => function.visibility().unwrap_or(ast::Visibility::Internal),
+                };
+                m.entry("visibility", visibility.to_str());
                 m.entry("stateMutability", function.state_mutability().to_str());
                 let parameters = Params {
                     id: None,

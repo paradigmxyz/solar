@@ -496,12 +496,11 @@ fn emit_combined_json(
         ..Default::default()
     };
     if let Some(ast_json) = &ast_json {
-        let sources = gcx.hir.source_ids().filter_map(|id| Some((id, ast_json.source(id)?)));
-        let sources = sources.collect::<Vec<_>>();
-        ast_json.render(&sources.iter().map(|&(_, ast)| ast).collect::<Vec<_>>());
-        for (id, ast) in sources {
-            let name = gcx.hir.source(id).file.name.display().to_string();
-            output.sources.insert(name, CombinedJsonSource { ast, id: id.index() as u32 });
+        for id in gcx.hir.source_ids() {
+            if let Some(ast) = ast_json.source(id) {
+                let name = gcx.hir.source(id).file.name.display().to_string();
+                output.sources.insert(name, CombinedJsonSource { ast, id: id.index() as u32 });
+            }
         }
     }
 
@@ -555,7 +554,15 @@ fn emit_combined_json(
 
     // Every emitted program references this resource, including its source contents.
     output.ethdebug = compilation.map(|compilation| compilation.into_resources());
-    write_output_json(gcx, &output, codegen_requested || emit_ast || output.ethdebug.is_some())
+    let write = || {
+        write_output_json(gcx, &output, codegen_requested || emit_ast || output.ethdebug.is_some())
+    };
+    match &ast_json {
+        // The output writes the sources sorted by name.
+        Some(ast_json) => ast_json
+            .render(&output.sources.values().map(|source| source.ast).collect::<Vec<_>>(), write),
+        None => write(),
+    }
 }
 
 #[tracing::instrument(name = "write_output", level = "debug", skip_all)]

@@ -588,7 +588,10 @@ With `settings.stopAfter` of `parsing`, `solar` writes the parsed AST like `solc
 have no IDs of declarations, types, resolutions or scopes. It also does so for
 `lowering`, which `solc` rejects, since type checking has not run. A source that
 imports a file that `solar` cannot read fails with an error, where `solc` still returns
-the AST of the source.
+the AST of the source, and so does a source with a construct that the parser of `solar`
+rejects but `solc` checks only in analysis, such as a fixed-point type, a nesting beyond
+the recursion limit, a `constant` variable without a value or an `external` modifier in a
+place where it is not allowed.
 
 Rationale: IDs must agree across the outputs of one compilation, not with
 `solc`. Consumers that look up declarations by ID do not need `solc`'s

@@ -350,8 +350,6 @@ fn compile(
                             source.ast = ast_json.source(id);
                         }
                     }
-                    let attached = output.sources.iter().flatten().filter_map(|(_, s)| s.ast);
-                    ast_json.render(&attached.collect::<Vec<_>>());
                 }
                 if control_flow.is_break() {
                     return Ok(());
@@ -473,13 +471,21 @@ fn compile(
             })();
 
             let diagnostics = diagnostics.read();
-            output_result = Some(finish_standard_json_output(
-                output,
-                Arc::clone(&source_map),
-                opts,
-                &diagnostics,
-                &mut *out,
-            ));
+            let attached = output.sources.iter().flatten().filter_map(|(_, s)| s.ast);
+            let attached = attached.collect::<Vec<_>>();
+            let finish = || {
+                finish_standard_json_output(
+                    output,
+                    Arc::clone(&source_map),
+                    opts,
+                    &diagnostics,
+                    &mut *out,
+                )
+            };
+            output_result = Some(match ast_json.get() {
+                Some(ast_json) => ast_json.render(&attached, finish),
+                None => finish(),
+            });
             result
         },
         false,
