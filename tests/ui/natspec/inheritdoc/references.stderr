@@ -1,0 +1,42 @@
+warning[9397]: tag `@inheritdoc` references inexistent contract "X"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/references.sol:LL:CC
+   │
+LL │     /// @inheritdoc X
+   ╰╴         ━━━━━━━━━━
+
+warning[1430]: tag `@inheritdoc` reference `D.S` is not a contract
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/references.sol:LL:CC
+   │
+LL │     /// @inheritdoc D.S
+   ╰╴         ━━━━━━━━━━
+
+warning[1933]: tag `@inheritdoc` does not contain a contract name
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/references.sol:LL:CC
+   │
+LL │     /// @inheritdoc
+   ╰╴         ━━━━━━━━━━
+
+warning[5967]: tag `@inheritdoc` reference `.` is malformed
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/references.sol:LL:CC
+   │
+LL │     /// @inheritdoc .
+   ╰╴         ━━━━━━━━━━
+
+warning[5967]: tag `@inheritdoc` reference `Empty..f` is malformed
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/references.sol:LL:CC
+   │
+LL │     /// @inheritdoc Empty..f
+   ╰╴         ━━━━━━━━━━
+
+warning[5967]: tag `@inheritdoc` reference `Empty.` is malformed
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/references.sol:LL:CC
+   │
+LL │     /// @inheritdoc Empty.
+   ╰╴         ━━━━━━━━━━
+
+warning[1430]: tag `@inheritdoc` reference `S` is not a contract
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/references.sol:LL:CC
+   │
+LL │     /// @inheritdoc S
+   ╰╴         ━━━━━━━━━━
+

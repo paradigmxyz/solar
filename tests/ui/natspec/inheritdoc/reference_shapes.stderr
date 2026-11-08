@@ -1,0 +1,24 @@
+warning[1430]: tag `@inheritdoc` reference `M` is not a contract
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/reference_shapes.sol:LL:CC
+   │
+LL │     /// @inheritdoc M
+   ╰╴         ━━━━━━━━━━
+
+warning[9397]: tag `@inheritdoc` references inexistent contract "M.Missing"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/reference_shapes.sol:LL:CC
+   │
+LL │     /// @inheritdoc M.Missing
+   ╰╴         ━━━━━━━━━━
+
+warning[1430]: tag `@inheritdoc` reference `Base.f` is not a contract
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/reference_shapes.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base.f
+   ╰╴         ━━━━━━━━━━
+
+warning[9397]: tag `@inheritdoc` references inexistent contract "Base and more text"
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/reference_shapes.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base and more text
+   ╰╴         ━━━━━━━━━━
+

@@ -627,6 +627,39 @@ fn renames_validated_natspec_inheritdoc_and_override_contract_paths() {
 }
 
 #[test]
+fn renames_qualified_natspec_inheritdoc_paths() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        contract $1Base {
+            function run() public virtual {}
+        }
+
+        //- /Child.sol
+        import "./Base.sol" as Lib;
+
+        contract Child is Lib.Base {
+            /// @inheritdoc Lib.$2Base
+            function run() public override {}
+        }
+        "#,
+        "/Child.sol",
+    );
+
+    fixture.check_goto_definition("$2", "/Base.sol:0:9 contract Base {\n");
+    fixture.check_renames(
+        &[("$1 $2", "Parent")],
+        str![[r#"
+$1 $2:
+/Base.sol:0:9-0:13 -> Parent
+/Child.sol:1:22-1:26 -> Parent
+/Child.sol:2:24-2:28 -> Parent
+
+"#]],
+    );
+}
+
+#[test]
 fn renames_override_families_but_not_function_typed_parameters() {
     let fixture = RequestFixture::new(
         r#"

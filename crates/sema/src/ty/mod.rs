@@ -66,7 +66,7 @@ pub(crate) use ty::SameSourceFileLevelUserTypeError;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind};
 
 pub(crate) type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
-type NatSpecContractKey = (Symbol, hir::SourceId);
+type InheritdocKey = (Symbol, hir::SourceId, Option<hir::ContractId>);
 type UsingDirectiveKey = usize;
 
 /// A function exported by a contract.
@@ -759,9 +759,13 @@ impl<'gcx> Gcx<'gcx> {
         crate::natspec::references(self, item)
     }
 
-    /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+    /// Resolves a NatSpec `@inheritdoc` reference, a contract name or a path such as `M.Base`,
+    /// within a source's scope.
     pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
-        self.natspec_contract_in_source((name, source))
+        match self.natspec_inheritdoc_target((name, source, None)) {
+            crate::natspec::InheritdocTarget::Contract(id) => Some(id),
+            _ => None,
+        }
     }
 
     /// Returns the `@custom:solar-*` tags that document `item`.
@@ -1945,20 +1949,14 @@ pub fn natspec_view(gcx: _, item: hir::ItemId) -> NatSpecView<'gcx> {
     crate::natspec::resolve_view(gcx, item)
 }
 
-/// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
-pub(crate) fn natspec_contract_in_source(
+/// Resolves a NatSpec `@inheritdoc` reference within the scopes of a source and, if given, a
+/// contract.
+pub(crate) fn natspec_inheritdoc_target(
     gcx: _,
-    key: NatSpecContractKey
-) -> Option<hir::ContractId> {
-    let (name, source_id) = key;
-    gcx.symbol_resolver.source_scopes[source_id]
-        .resolve(Ident { name, span: Span::DUMMY })
-        .and_then(|decls| {
-            decls.iter().find_map(|decl| match decl.res {
-                hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
-                _ => None,
-            })
-        })
+    key: InheritdocKey
+) -> crate::natspec::InheritdocTarget {
+    let (reference, source, contract) = key;
+    crate::natspec::resolve_inheritdoc_target(gcx, reference, source, contract)
 }
 
 /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.
