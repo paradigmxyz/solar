@@ -9,10 +9,3 @@
 +     ret 0
   }
   
-  fn @keeps(arg0: i256) -> i256 {
-    bb0:
-      mstore arg0, 7
-      v0 = mload 96
-      ret v0
-  }
-  

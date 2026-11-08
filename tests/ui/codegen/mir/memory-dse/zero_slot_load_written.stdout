@@ -1,0 +1,16 @@
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/zero_slot_load_written.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/zero_slot_load_written.mir (after memory-dse) ===
+  @module ZeroSlotLoadWritten
+  fn @keeps() -> i256 {
+    bb0:
+      v0 = mload 96
+      mstore 0, v0
+      ret v0
+  }
+  
+  fn @writes(arg0: i256) {
+    bb0:
+      mstore arg0, 7
+      ret
+  }
+  

@@ -196,15 +196,19 @@ fn @fallback.body(arg0: i256, arg1: i256) {
     v57 = heap_floor !metadata(alloc_ptr)
     v52 = add v57, 32
     returndatacopy v52, 0, v26
-    jumpi v25, bb6, bb7
-  bb7 [cold]:                                     ; preds = bb3
+    jumpi v25, bb7, bb8
+  bb8 [cold]:                                     ; preds = bb3
     revert v52, v26
-  bb6:                                            ; preds = bb3
+  bb7:                                            ; preds = bb3
     returndata v52, v26
   bb4:                                            ; preds = bb2
-    jumpi v25, bb5, bb1
+    jumpi v25, bb5, bb6
+  bb6 [cold]:                                     ; preds = bb4
+    v39 = mload 96
+    revert 128, v39
   bb5:                                            ; preds = bb4
-    stop
-  bb1 [cold]:                                     ; preds = bb0, bb4
+    v46 = mload 96 !metadata(memory=scratch)
+    returndata 128, v46
+  bb1 [cold]:                                     ; preds = bb0
     revert 0, 0
 }

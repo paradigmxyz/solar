@@ -3,7 +3,7 @@
 //! Each round of the pass runs these rewrites until none applies:
 //!
 //! - Zero slot: a load of the zero slot, the length word of every empty `bytes` and dynamic array,
-//!   folds to zero when no instruction of the function may write it.
+//!   folds to zero when no instruction of any function may write it.
 //! - Immutable copies: a 32-byte `codecopy` from a constant offset of the code tail followed by an
 //!   `mload` of the same word, as assembly reading clone arguments does, reuses the word an
 //!   identical dominating copy loaded and becomes an `mstore` of it.
@@ -172,6 +172,7 @@ impl MirPass for MemoryDse {
             return false;
         }
         let free_pointer = free_pointer_trusted(module);
+        let zero_slot = zero_slot_intact(module);
         let target = module.target(gcx);
         let terminal = Arc::new(terminal_liveness(module, analyses, target, free_pointer));
         let summaries = analyses.call_summaries(module);
@@ -191,6 +192,7 @@ impl MirPass for MemoryDse {
                 );
                 eliminator.terminal = Arc::clone(&terminal);
                 eliminator.returns = Arc::clone(&returns);
+                eliminator.zero_slot_intact = zero_slot;
                 eliminator.run_to_fixpoint(func) != 0
             },
         )
@@ -514,6 +516,17 @@ fn free_pointer_trusted(module: &Module) -> bool {
     })
 }
 
+/// Whether no instruction of any function may write the zero slot, so that every load of it reads
+/// zero, whichever function wrote before the call that reads it.
+fn zero_slot_intact(module: &Module) -> bool {
+    let mut proofs = ReadBounds::default();
+    module.functions.iter().all(|func| {
+        proofs.clear();
+        let alias = AliasAnalysis::new(func);
+        func.instructions().all(|inst| !alias.instruction_may_write_zero_slot(func, inst, &proofs))
+    })
+}
+
 /// Whether `inst` may write the low bytes of the free memory pointer's slot, other than with
 /// a proven heap pointer or one of the compiler's own updates; see [`free_pointer_trusted`].
 fn forges_free_pointer(func: &Function, alias: &AliasAnalysis, inst: InstId) -> bool {
@@ -598,6 +611,8 @@ struct MemoryStoreEliminator {
     /// Operand uses of every value, built when a fold candidate needs them and dropped when a
     /// rewrite may add uses.
     uses: Option<IndexVec<ValueId, u32>>,
+    /// Whether nothing in the module may write the zero slot; see [`zero_slot_intact`].
+    zero_slot_intact: bool,
     /// Whether to remove the writes into allocations nothing reads.
     unread_allocations: bool,
     /// The memory functions that never return read first; see [`terminal_liveness`].
@@ -959,6 +974,7 @@ impl MemoryStoreEliminator {
             target,
             live_in: None,
             uses: None,
+            zero_slot_intact: false,
             unread_allocations,
             terminal: Arc::default(),
             returns: Arc::default(),
@@ -967,9 +983,11 @@ impl MemoryStoreEliminator {
         }
     }
 
-    /// Replaces the loads of the zero slot by zero, unless an instruction of the function may
-    /// write it.
+    /// Replaces the loads of the zero slot by zero, when nothing in the module may write it.
     fn fold_zero_slot_loads(&mut self, func: &mut Function) {
+        if !self.zero_slot_intact {
+            return;
+        }
         let loads = func
             .instructions()
             .filter(|&inst| {
@@ -977,11 +995,7 @@ impl MemoryStoreEliminator {
                     if func.value_u64(address) == Some(EvmMemoryLayout::ZERO_SLOT))
             })
             .collect::<Vec<_>>();
-        if loads.is_empty()
-            || func.instructions().any(|inst| {
-                self.alias.instruction_may_write_zero_slot(func, inst, &self.read_bounds)
-            })
-        {
+        if loads.is_empty() {
             return;
         }
         let mut replacements = FxHashMap::default();
