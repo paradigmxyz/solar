@@ -43,3 +43,29 @@
       revert 0, v0
   }
   
+  fn @too_large(arg0: i1, arg1: i256) -> i256 [cold] {
+    bb0 [cold]:
+      v0 = alloc 32
+      jumpi arg0, bb1, bb2
+    bb2 [cold]:                                     ; preds = bb0
+      jump bb3
+    bb1 [cold]:                                     ; preds = bb0
+      jump bb3
+    bb3 [cold]:                                     ; preds = bb1, bb2
+      v1 = phi [bb1: ptr<memory> 96], [bb2: v0]
+      v2 = ptrtoint ptr<memory> v1 to i256
+      v3 = mload v2
+      v4 = add v3, 1
+      v5 = add v4, 2
+      v6 = add v5, 3
+      v7 = add v6, 4
+      v8 = add v7, 5
+      v9 = add v8, 6
+      v10 = add v9, 7
+      v11 = add v10, 8
+      v12 = add v11, 9
+      v13 = add v12, 10
+      v14 = add v13, 11
+      revert 0, v14
+  }
+  

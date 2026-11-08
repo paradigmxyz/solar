@@ -33,7 +33,7 @@
 
 use super::{cfg_simplify::empty_forwarder_target, loop_split::clone_loop, utils::redirect_edge};
 use crate::mir::{
-    BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
+    BlockId, Function, InstId, InstKind, MirType, Module, Terminator, Value, ValueId,
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     utils::{rebuild_predecessors, replace_terminator},
@@ -421,8 +421,12 @@ fn exit_region(func: &Function, block: BlockId) -> Option<Vec<BlockId>> {
     while let Some(&current) = region.get(next) {
         next += 1;
         let data = &func.blocks[current];
-        instructions += data.instructions.len();
-        if instructions > MAX_EXIT_REGION_INSTRUCTIONS + func.blocks[block].instructions.len() {
+        instructions += data
+            .instructions
+            .iter()
+            .filter(|&&inst| !matches!(func.inst(inst).kind, InstKind::Phi(_)))
+            .count();
+        if instructions > MAX_EXIT_REGION_INSTRUCTIONS {
             return None;
         }
         let terminator = data.terminator.as_ref()?;
@@ -440,9 +444,10 @@ fn exit_region(func: &Function, block: BlockId) -> Option<Vec<BlockId>> {
     // any other input only grows the code.
     let constant =
         func.blocks[block].instructions.iter().any(|&inst| match &func.inst(inst).kind {
-            InstKind::Phi(incoming) => incoming
-                .iter()
-                .any(|&(_, value)| func.value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT)),
+            InstKind::Phi(incoming) => incoming.iter().any(|&(_, value)| {
+                func.value_ty(value) == Some(MirType::MEMPTR)
+                    && func.value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT)
+            }),
             _ => false,
         });
     constant.then_some(region)
