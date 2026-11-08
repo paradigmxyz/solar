@@ -14,9 +14,8 @@
 //! copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AddressCallKind, AllocationSemantics, Builtin, CallOutput, CallPolicy, Callee, FunctionBuilder,
-    InstKind, MemoryObjectKind, MirModuleTarget, Module, PanicCode, PhaseCategory, PtrLocation,
-    ValueId,
+    AddressCallKind, AllocationSemantics, Builtin, CallPolicy, Callee, FunctionBuilder, InstKind,
+    MemoryObjectKind, MirModuleTarget, Module, PanicCode, PhaseCategory, PtrLocation, ValueId,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
     utils::emit_call,
@@ -24,6 +23,10 @@ use crate::mir::{
 use alloy_primitives::U256;
 use solar_config::EvmVersion;
 use solar_data_structures::map::FxHashMap;
+
+/// The precompile addresses of the targets without `STATICCALL`: `ecrecover`, `sha256`, `ripemd160`
+/// and the identity.
+const PRECOMPILES: u64 = 4;
 
 pub(crate) struct LowerBuiltins;
 
@@ -49,19 +52,21 @@ impl MirPass for LowerBuiltins {
         for func in &module.functions {
             for id in func.instructions() {
                 match &func.inst(id).kind {
-                    // Without `STATICCALL` a static call becomes a `CALL`, which only a precompile
-                    // call, whose callee keeps no state, can do without changing what the
-                    // optimizer assumed of the static kind.
+                    // Without `STATICCALL` a static call becomes a `CALL`, which keeps what the
+                    // optimizer assumed of the static kind only for a precompile, whose callee
+                    // keeps no state.
                     InstKind::AddressCall {
-                        policy:
-                            CallPolicy {
-                                kind: AddressCallKind::Static, output: CallOutput::None, ..
-                            },
+                        policy: CallPolicy { kind: AddressCallKind::Static, .. },
+                        address,
                         ..
-                    } if !evm.has_static_call() => {
+                    } if !evm.has_static_call()
+                        && !func.value_u256(*address).is_some_and(|address| {
+                            (U256::from(1)..=U256::from(PRECOMPILES)).contains(&address)
+                        }) =>
+                    {
                         analyses.fail(
                             gcx.dcx()
-                                .err("`address_staticcall` of an arbitrary callee needs `STATICCALL`")
+                                .err("`address_staticcall` of a callee that is not a precompile needs `STATICCALL`")
                                 .emit(),
                         );
                         return false;

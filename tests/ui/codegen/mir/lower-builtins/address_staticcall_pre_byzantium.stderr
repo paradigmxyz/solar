@@ -1,4 +1,4 @@
-error: `address_staticcall` of an arbitrary callee needs `STATICCALL`
+error: `address_staticcall` of a callee that is not a precompile needs `STATICCALL`
 
 error: aborting due to 1 previous error
 

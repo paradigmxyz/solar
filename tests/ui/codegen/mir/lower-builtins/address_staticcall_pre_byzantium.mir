@@ -1,10 +1,10 @@
 //@ compile-flags: --evm-version homestead -Zmir-pipeline=lower-builtins
 @module StaticCallWithoutStaticCall
 
-// Only a precompile call, whose callee keeps no state, can fall back to `CALL`.
-//~? ERROR: `address_staticcall` of an arbitrary callee needs `STATICCALL`
-fn @arbitrary(arg0: i160, arg1: ptr<memory>) -> i1 {
+// Only a call of a precompile, whose callee keeps no state, can fall back to `CALL`.
+//~? ERROR: `address_staticcall` of a callee that is not a precompile needs `STATICCALL`
+fn @arbitrary(arg0: i160, arg1: ptr<memory>) -> i256 {
   bb0:
-    v0 = address_staticcall<create> arg0, arg1
+    v0 = address_staticcall<scratch, revert, create> arg0, arg1
     ret v0
 }
