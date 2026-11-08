@@ -37,11 +37,13 @@ bb6 [entry]:                                      ; function payload() external 
   push 160
   push 64
   mstore
+  push 192
+  push 32
   push 160
   push 128
   dup 2
   mstore
-  push 32
+  dup 2
   dup 2
   add
   push 128
@@ -53,19 +55,15 @@ bb6 [entry]:                                      ; function payload() external 
   push 0
   swap 1
   mstore
-  push 32
-  swap 1
   sub
   push 32
   dup 2
   mstore
-  push 192
-  swap 1
   return
 ; === ROOT/tests/ui/codegen/lowering/evm-ir/program-data/contract_code_data.sol:CodeFactory (runtime) ===
 @module CodeFactory_runtime
 @data
-  CodeTarget_creation_code_0: hex"34600d5760d28060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b60a060405260a060808152602081016080605282396080015f9052602090036020815260c090f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+  CodeTarget_creation_code_0: hex"34600d5760cf8060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b60a060405260c0602060a0608081528181016080604f82396080015f90520360208152f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 bb0:                                              ; runtime dispatch entry + function deployCreationCode() external returns (uint256) [selector 0x5986dddb]
   callvalue
@@ -86,23 +84,23 @@ bb0:                                              ; runtime dispatch entry + fun
   push bb4
   jumpi
   push 128
-  push 288
+  push 256
   dup 2
   add
   push 64
   mstore
-  push 227
+  push 224
   dup 2
   mstore
   push 32
   dup 2
   add
   push 0
-  push 256
+  push 224
   dup 4
   add
   mstore
-  push 227
+  push 224
   push_data CodeTarget_creation_code_0
   dup 3
   codecopy
@@ -152,13 +150,12 @@ bb10 [entry]:                                     ; function runtimeCodeMatches(
   push 128
   push 64
   mstore
+  push 224
   push 128
-  push 227
+  dup 2
   push_data CodeTarget_creation_code_0
   dup 3
   codecopy
-  push 227
-  swap 1
   push 0
   create
   dup 1
@@ -166,7 +163,7 @@ bb10 [entry]:                                     ; function runtimeCodeMatches(
   push bb8
   jumpi
   push 128
-  push 210
+  push 207
   dup 2
   mstore
   push 32
@@ -177,7 +174,7 @@ bb10 [entry]:                                     ; function runtimeCodeMatches(
   dup 4
   add
   mstore
-  push 210
+  push 207
   push_data CodeTarget_creation_code_0+17
   dup 3
   codecopy

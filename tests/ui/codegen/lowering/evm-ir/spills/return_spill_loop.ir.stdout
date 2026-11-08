@@ -193,6 +193,7 @@ bb10 [continuation]:
   push 0
   return
 bb17 [entry]:                                     ; function doubleProbe() external pure returns (uint256) [selector 0xf770a1a3]
+  push 34
   push 160
   push 64
   dup 2
@@ -209,8 +210,6 @@ bb17 [entry]:                                     ; function doubleProbe() exter
   dup 3
   add
   mstore
-  push 34
-  swap 1
   push bb18
   jump bb39
 bb18 [continuation]:

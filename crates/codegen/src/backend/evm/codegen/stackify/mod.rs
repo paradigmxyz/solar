@@ -94,8 +94,8 @@
 //! increase only when the bytes saved repay it under [`Target::deposit_repays_gas`], so estimated
 //! loop trips alone cannot fund more setup. Size mode reserves a jump's
 //! bytes as a margin: small local savings can disrupt later outlining. Within the defining block,
-//! materialization waits until the first use, or the terminator if only successors need it.
-//! Call-chain overflow retries omit this word.
+//! the plan materializes the word at the first use, or the terminator if only successors need it,
+//! and the final hoist below may push it earlier. Call-chain overflow retries omit this word.
 //!
 //! `-O none` takes the first plan: it plans each function once, with preheader loop layouts and
 //! without the operand copy trials, the result swap or constant retention, so the code may use
@@ -130,6 +130,13 @@
 //! not, the callers on that chain plan again with every value live across a call spilled, and
 //! then with their return addresses in memory too, until it fits.
 //!
+//! The planner pushes each materialized word where its consumer needs it, on top of the words the
+//! block computed before, and sinks it with swaps when it belongs below them. Once the function's
+//! plan is final, the `hoist` pass pushes such a word where the stack has the height it ends at,
+//! and renumbers the copies and swaps in between, when the cost model prices the renumbered
+//! operations below the swaps it removes. It runs on the chosen plan only, in blocks that are not
+//! cold, and not at `-O none`.
+//!
 //! A function whose body, module facts, and cost model equal those of a function planned before in
 //! the compilation takes that plan instead of planning again; see `cache`.
 //!
@@ -159,6 +166,7 @@ use solar_data_structures::sync;
 mod cache;
 pub(in crate::backend::evm) use cache::PlanCache;
 mod emit;
+mod hoist;
 mod plan;
 mod rebuild;
 mod shuffle;
@@ -214,6 +222,8 @@ enum Step {
     Filler,
     /// Starts an instruction's debug metadata, or clears it for shared generated code.
     Begin(Option<InstId>),
+    /// Starts the debug metadata of the block's terminator.
+    BeginTerminator,
     /// Emits one opcode of an instruction whose operands are prepared.
     Op(u8),
     /// Emits the remaining code of an instruction whose operands are prepared.
@@ -814,6 +824,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             && self.prices_lower(info, func_id, &rebuilt, &plan)
         {
             plan = rebuilt;
+        }
+        if target.optimizes_stack_plans() {
+            hoist::hoist_plan(func, info, &target, &mut plan);
         }
         cache.insert(key, &plan);
         Ok(plan)

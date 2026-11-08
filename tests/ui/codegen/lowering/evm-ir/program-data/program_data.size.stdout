@@ -249,68 +249,58 @@ bb12 [cold]:
   revert
 bb13 [entry]:                                     ; function data() external pure returns (bytes memory) [selector 0x73d4a13a]
   push 32
+  dup 1
   push 160
   dup 1
   dup 1
   push 64
   mstore
-  swap 2
-  add
   push 257
   dup 1
-  dup 4
+  dup 3
   mstore
+  swap 4
+  add
+  push 352
+  swap 4
   push_data literal_0
   dup 3
   codecopy
   push 257
+  jump bb29
+bb29:
   add
   push 0
   swap 1
   mstore
-  push 32
-  swap 1
   sub
   push 32
   dup 2
   mstore
-  push 352
-  swap 1
   return
 bb14 [entry]:                                     ; function subslice() external pure returns (bytes memory) [selector 0xb9ad073e]
-  push 32
   push 160
-  dup 1
-  dup 1
   push 64
   mstore
-  swap 2
+  push 256
+  push 32
+  push 160
+  push 161
+  dup 2
+  mstore
+  dup 2
+  dup 2
   add
   push 161
-  dup 1
-  dup 4
-  mstore
   push_data literal_0+64
   dup 3
   codecopy
   push 161
-  add
-  push 0
-  swap 1
-  mstore
-  push 32
-  swap 1
-  sub
-  push 32
-  dup 2
-  mstore
-  push 256
-  swap 1
-  return
+  jump bb29
 bb15 [entry]:                                     ; function dataHash() external pure returns (bytes32) [selector 0x1b3012a3]
   push 0xfc1266ee7e93ac2873e7623af26456cf53c18a33ce56a117ef3ef0d901c28394
-  jump bb29
-bb29:
+  jump bb30
+bb30:
   push 0
   mstore
   push 32
@@ -318,7 +308,7 @@ bb29:
   return
 bb16 [entry]:                                     ; function subsliceHash() external pure returns (bytes32) [selector 0xe5a3e763]
   push 0xfe104a769973081412d46a6d04c990a5e9cc804baf45fa43d99b7dbee24984b8
-  jump bb29
+  jump bb30
 bb17 [entry]:                                     ; function zeroData() public pure returns (bytes memory) [selector 0x6ec059cd]
   push 160
   push 64
@@ -423,25 +413,25 @@ bb22 [entry]:                                     ; function zeroHash() external
   push 160
   push 64
   mstore
-  push bb30
+  push bb31
   jump bb27
 bb24 [entry]:                                     ; function zeroWordHash() external pure returns (bytes32) [selector 0x0d00d797]
   push 128
   push 32
   dup 2
   mstore
-  jump bb30
-bb30 [continuation]:
+  jump bb31
+bb31 [continuation]:
   dup 1
   mload
   swap 1
   push 32
   add
   keccak256
-  jump bb29
+  jump bb30
 bb25 [entry]:                                     ; function splatHash() external pure returns (bytes32) [selector 0x38f844b9]
   push 160
   push 64
   mstore
-  push bb30
+  push bb31
   jump bb28

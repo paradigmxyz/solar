@@ -516,17 +516,16 @@ bb71 [continuation]:
   push 0
   keccak256
   add
-  dup 1
+  push 255
+  dup 2
   sload
-  swap 2
+  swap 3
   push 31
   and
   push 31
   sub
   push 3
   shl
-  push 255
-  swap 1
   shl
   not
   swap 1

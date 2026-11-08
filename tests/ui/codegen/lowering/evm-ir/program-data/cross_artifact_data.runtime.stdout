@@ -19,11 +19,13 @@ bb0:                                              ; runtime dispatch entry + fun
   push 160
   push 64
   mstore
+  push 224
+  push 32
   push 160
   dup 1
   dup 2
   mstore
-  push 32
+  dup 2
   dup 2
   add
   dup 2
@@ -35,14 +37,10 @@ bb0:                                              ; runtime dispatch entry + fun
   push 0
   swap 1
   mstore
-  push 32
-  swap 1
   sub
   push 32
   dup 2
   mstore
-  push 224
-  swap 1
   return
 bb3 [cold]:
   push 0

@@ -182,16 +182,15 @@ bb0:                                              ; runtime dispatch entry + fun
   dup 2
   mstore
   push 4
-  dup 2
+  calldataload
+  push 4
+  dup 3
   add
   push 0
   dup 2
   mstore
   push 32
   add
-  push 4
-  calldataload
-  swap 1
   mstore
   push 32
   push 0
