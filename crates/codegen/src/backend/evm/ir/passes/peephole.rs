@@ -380,7 +380,6 @@ impl Edit {
                 instructions.push(not(&root));
                 let last = &mut instructions.last_mut().unwrap().metadata;
                 last.move_function_events(&root);
-                last.move_checkpoint_transfers(&root);
             }
             Self::LowMask => {
                 // push 0; not; closed_count; shl; not
@@ -392,7 +391,6 @@ impl Edit {
                 *instructions.last_mut().expect("matched subtraction") = not(&root);
                 let last = &mut instructions.last_mut().unwrap().metadata;
                 last.move_function_events(&root);
-                last.move_checkpoint_transfers(&root);
             }
             Self::ShiftPairMask => {
                 // push s; shl; push s; shr
@@ -457,7 +455,6 @@ impl Edit {
                     metadata.drop_function_events();
                     metadata.preserve_debug_loc(&context);
                     metadata.move_function_events(&context);
-                    metadata.move_checkpoint_transfers(&context);
                 }
             }
             Self::RemoveFirstKeepTwo => {
@@ -482,7 +479,6 @@ impl Edit {
                 metadata.drop_function_events();
                 metadata.preserve_debug_loc(&context);
                 metadata.move_function_events(&context);
-                metadata.move_checkpoint_transfers(&context);
                 instructions.truncate(start + 1);
             }
             Self::OverwriteTwo { opcode } => {
@@ -567,7 +563,6 @@ impl Edit {
                 // NOTE: Only the final stack state agrees with the old window.
                 let swap = &mut instructions[start + 1].metadata;
                 swap.move_function_events(&context);
-                swap.move_checkpoint_transfers(&context);
             }
             Self::MoveConstantThroughSwaps => {
                 // SWAPn; SWAP1; PUSH c; binop
@@ -604,7 +599,6 @@ impl Edit {
                 let sub = &mut instructions[start + 3].metadata;
                 sub.preserve_debug_loc(&context);
                 sub.move_function_events(&context);
-                sub.move_checkpoint_transfers(&context);
             }
         }
     }

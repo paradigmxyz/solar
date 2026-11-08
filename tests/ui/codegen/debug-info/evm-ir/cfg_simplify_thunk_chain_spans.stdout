@@ -15,8 +15,8 @@
 - bb3 [invoke=first@30..70]:
 -   jump bb4 !metadata(span=30..40)
 - bb4:
-+   jumpi bb8, bb6 !metadata(checkpoint=80..120)
-+ bb4 [checkpoint=30..40@10..20@0@first@30..70]:
++   jumpi bb8, bb6
++ bb4 [lent_invoke=first@30..70]:
     push 2
     push 0
     mstore
@@ -31,7 +31,7 @@
 - bb7 [invoke=second@80..120]:
 -   jump bb8 !metadata(span=90..100)
 - bb8:
-+ bb8 [checkpoint=90..100@80..120@0@second@80..120]:
++ bb8 [lent_invoke=second@80..120]:
     push 3
     push 0
     mstore
