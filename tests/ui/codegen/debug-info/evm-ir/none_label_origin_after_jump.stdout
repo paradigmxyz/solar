@@ -1,0 +1,11 @@
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/none_label_origin_after_jump.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/none_label_origin_after_jump.evmir (after none) ===
+  @module LabelOriginAfterJump
+  bb0:
+    push bb1
+    jump
+  bb1 !metadata(span=10..20):
+    jump bb2 !metadata(span=30..35)
+  bb2:
+    stop
+  

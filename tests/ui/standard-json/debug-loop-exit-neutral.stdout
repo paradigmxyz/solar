@@ -22,11 +22,11 @@
         "evm": {
           "bytecode": {
             "object": "34600d5760328060115f395ff35b5f5ffd34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
-            "sourceMap": "262:21:0:-:0;;;;;;;;;;-1:-1:-1;262:21:0;;"
+            "sourceMap": "262:21:0:-:0;;;;;;;;;;;;;"
           },
           "deployedBytecode": {
             "object": "34602e575f3560e01c80633c311f3c03602e5760243610602e576004355b5f190180601d576001015f5260205ff35b5f5ffd",
-            "sourceMap": "262:21:0:-:0;;;;;;;;;;;;20:238;;;;;;;-1:-1:-1;180:9:0;;;209;;;20:238;;;;;;;-1:-1:-1;;;"
+            "sourceMap": "262:21:0:-:0;;;;;;;;;;;;20:238;;;;;;;131:111;180:9;;;209;;;20:238;;;;;;;-1:-1:-1;;;"
           }
         }
       },
@@ -235,6 +235,17 @@
                   "offset": 13,
                   "operation": {
                     "mnemonic": "JUMPDEST"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 284,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -659,6 +670,17 @@
                   "offset": 29,
                   "operation": {
                     "mnemonic": "JUMPDEST"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 131,
+                        "length": 111
+                      }
+                    }
                   }
                 },
                 {
@@ -896,6 +918,32 @@
                   "offset": 46,
                   "operation": {
                     "mnemonic": "JUMPDEST"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 284,
+                            "length": 21
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 20,
+                            "length": 238
+                          }
+                        }
+                      }
+                    ]
                   }
                 },
                 {

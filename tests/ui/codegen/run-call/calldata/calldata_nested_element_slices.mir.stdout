@@ -266,7 +266,7 @@ fn @tupleTernary() -> i256 [selector=0x75466b3a, view, abi_params=[], abi_return
   bb0:
     v0 = address
     v1 = gas
-    v2 = alloc 64 !metadata(preserves_fmp)
+    v2 = alloc 64
     mstore v2, 4
     v3 = ptradd v2, 32
     mstore v3, 0x1122334400000000000000000000000000000000000000000000000000000000

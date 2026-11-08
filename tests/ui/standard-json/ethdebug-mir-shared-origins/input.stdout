@@ -722,6 +722,32 @@
                   "offset": 49,
                   "operation": {
                     "mnemonic": "JUMPDEST"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 0,
+                            "length": 153
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 18,
+                            "length": 133
+                          }
+                        }
+                      }
+                    ]
                   }
                 },
                 {

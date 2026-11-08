@@ -467,6 +467,52 @@ fn evm_ir_dump_preserves_bytecode() {
 }
 
 #[test]
+fn debugify_loop_and_stack_metadata_preserve_bytecode() {
+    let audit = tempfile::tempdir().unwrap();
+    let flag = format!("-Zdebugify-output={}", audit.path().display());
+    for source in [
+        "../../codegen/debug-info/stackify_retained_constant.sol",
+        "../../codegen/debug-info/stackify_generated_edges.sol",
+        "../../codegen/debug-info/indvar_simplify_narrow_base.sol",
+        "../../codegen/debug-info/if_convert_modifier_phi.sol",
+        "../../codegen/debug-info/shared_terminal_labels.sol",
+        "../../codegen/mir/byte-loops/empty_count.sol",
+        "../../codegen/mir/byte-loops/wrapped_memory_offsets.sol",
+        "../../codegen/mir/loop-version/partition.sol",
+    ] {
+        for mode in ["none", "gas", "size"] {
+            let args = [
+                source,
+                "-O",
+                mode,
+                "--emit=bin,bin-runtime,srcmap,srcmap-runtime,ethdebug,ethdebug-runtime",
+            ];
+            let plain = compile_json(&args);
+            let audited = compile_json(&[args.as_slice(), &[&flag]].concat());
+            assert_eq!(plain["contracts"], audited["contracts"], "{source}, {mode}");
+        }
+    }
+}
+
+#[test]
+fn library_deployment_address_uses_contract_origin() {
+    let source = "../../codegen/debug-info/gap_check.sol";
+    let text = RealFileLoader.load_file(&Path::new(FIXTURES).join(source)).unwrap();
+    let start = text.find("library GapCheck").unwrap();
+    for mode in ["none", "gas", "size"] {
+        let output = compile_json(&[source, "-O", mode, "--emit=bin,ethdebug"]);
+        let contract = output["contracts"].as_object().unwrap().values().next().unwrap();
+        assert!(
+            contract["ethdebug"]["instructions"].as_array().unwrap().iter().any(|inst| {
+                inst["operation"]["mnemonic"] == "ADDRESS"
+                    && inst["context"]["code"]["range"]["offset"].as_u64() == Some(start as u64)
+            }),
+            "{mode}: library address staging lost its contract location"
+        );
+    }
+}
+
+#[test]
 fn evm_ir_debug_contexts_preserve_bytecode() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("debug.evmir");
@@ -475,9 +521,10 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
         ("peephole", "peephole_debug_replacements.evmir", "report"),
         ("cfg-simplify", "cfg_simplify_branch_entry_inversion.evmir", "check"),
         ("cfg-simplify", "cfg_simplify_thunk_chain_spans.evmir", "check"),
+        ("cfg-simplify", "cfg_simplify_thunk_spans.evmir", "check"),
         (
             "cfg-simplify,terminal-dedup,cfg-simplify",
-            "cfg_simplify_checkpoint_shared_entry.evmir",
+            "cfg_simplify_lent_invoke_shared_entry.evmir",
             "report",
         ),
     ] {

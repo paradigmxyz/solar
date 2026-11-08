@@ -1,0 +1,240 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         require;
+   ╰╴        ━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         assert;
+   ╰╴        ━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         msg.sender;
+   ╰╴        ━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         block.timestamp;
+   ╰╴        ━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         1;
+   ╰╴        ━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         1 + 2;
+   ╰╴        ━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         true;
+   ╰╴        ━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         "str";
+   ╰╴        ━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         K;
+   ╰╴        ━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         (a == b, "msg");
+   ╰╴        ━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         (msg.sender == owner, "not owner");
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         a == b;
+   ╰╴        ━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         a < b && c;
+   ╰╴        ━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         !c;
+   ╰╴        ━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         ~a;
+   ╰╴        ━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         a << 1;
+   ╰╴        ━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         c ? a : b;
+   ╰╴        ━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         g;
+   ╰╴        ━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         this.noEffect;
+   ╰╴        ━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         C;
+   ╰╴        ━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         uint;
+   ╰╴        ━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         E.A;
+   ╰╴        ━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         S;
+   ╰╴        ━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         Ev;
+   ╰╴        ━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         Er;
+   ╰╴        ━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         bytes1("a");
+   ╰╴        ━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         payable(msg.sender);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         S(1, 2);
+   ╰╴        ━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         type(uint).max;
+   ╰╴        ━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         [a, b];
+   ╰╴        ━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         (((1)));
+   ╰╴        ━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         x == 1;
+   ╰╴        ━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         owner == address(0);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         K + 1;
+   ╰╴        ━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         E(1);
+   ╰╴        ━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         keccak256("a");
+   ╰╴        ━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         abi.decode("", (uint));
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         [1, 2][1];
+   ╰╴        ━━━━━━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         C[0];
+   ╰╴        ━━━━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         uint[7];
+   ╰╴        ━━━━━━━
+

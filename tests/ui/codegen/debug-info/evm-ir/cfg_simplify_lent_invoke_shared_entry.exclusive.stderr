@@ -1,0 +1,2 @@
+debugify: EVM IR LentInvokeSharedEntry after cfg-simplify: 2/3 origins retained, 1 lost
+debugify: lost 30..40

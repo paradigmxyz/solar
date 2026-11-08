@@ -22,7 +22,7 @@
         "evm": {
           "bytecode": {
             "object": "34600d5760498060115f395ff35b5f5ffd346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd",
-            "sourceMap": "237:21:0:-:0;;;;;;;;;;-1:-1:-1;237:21:0;;"
+            "sourceMap": "237:21:0:-:0;;;;;;;;;;;;;"
           },
           "deployedBytecode": {
             "object": "346045575f3560e01c806313d1aa2e03604557604436106045576004356ffffffffeffffffffffffffffffffffff60601b19808280099091602435839109085f5260205ff35b5f5ffd",
@@ -235,6 +235,17 @@
                   "offset": 13,
                   "operation": {
                     "mnemonic": "JUMPDEST"
+                  },
+                  "context": {
+                    "code": {
+                      "source": {
+                        "id": 0
+                      },
+                      "range": {
+                        "offset": 259,
+                        "length": 21
+                      }
+                    }
                   }
                 },
                 {
@@ -985,6 +996,32 @@
                   "offset": 69,
                   "operation": {
                     "mnemonic": "JUMPDEST"
+                  },
+                  "context": {
+                    "pick": [
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 259,
+                            "length": 21
+                          }
+                        }
+                      },
+                      {
+                        "code": {
+                          "source": {
+                            "id": 0
+                          },
+                          "range": {
+                            "offset": 114,
+                            "length": 120
+                          }
+                        }
+                      }
+                    ]
                   }
                 },
                 {
