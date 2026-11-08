@@ -1302,7 +1302,6 @@ symbols! {
         wrap,
         wrapping_div,
         x,
-        zero_slot_if_empty,
         zeroed,
         zext,
     }

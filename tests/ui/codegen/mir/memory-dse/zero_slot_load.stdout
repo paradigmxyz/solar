@@ -1,0 +1,18 @@
+- ; === ROOT/tests/ui/codegen/mir/memory-dse/zero_slot_load.mir (before memory-dse) ===
++ ; === ROOT/tests/ui/codegen/mir/memory-dse/zero_slot_load.mir (after memory-dse) ===
+  @module ZeroSlotLoad
+  fn @folds() -> i256 {
+    bb0:
+      mstore 0, 7
+-     v0 = mload 96
+-     ret v0
++     ret 0
+  }
+  
+  fn @keeps(arg0: i256) -> i256 {
+    bb0:
+      mstore arg0, 7
+      v0 = mload 96
+      ret v0
+  }
+  

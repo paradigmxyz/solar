@@ -270,22 +270,38 @@ fn lower_address_call(
 }
 
 fn lower_returndata(builder: &mut FunctionBuilder<'_>, evm: EvmVersion) -> ValueId {
+    // Like solc's `extract_returndata`, empty returndata is the zero slot and takes no memory.
     if !evm.supports_returndata() {
         // object = ZERO_SLOT
         return builder.zero_slot();
     }
     // length = returndatasize
-    // object = bytes(length) !metadata(zero_slot_if_empty)
-    // copy(returndata(0, length), object.data)
+    // branch length == 0, empty, copy
+    // empty: object = ZERO_SLOT
+    // copy: object = bytes(length); copy(returndata(0, length), object.data)
+    // object = phi [empty: ZERO_SLOT, copy: object]
     let length = builder.returndatasize();
-    // The length of returndata is far below `2^64`, so its padded size cannot wrap. Like solc,
-    // empty returndata is the zero slot and takes no memory, which lowering decides from the size.
+    let empty = builder.create_block();
+    let copy = builder.create_block();
+    let merge = builder.create_block();
+    let is_empty = builder.eq_zero(length);
+    builder.branch(is_empty, empty, copy);
+
+    builder.switch_to_block(empty);
+    let zero_slot = builder.zero_slot();
+    builder.jump(merge);
+
+    builder.switch_to_block(copy);
+    // The length of returndata is far below `2^64`, so its padded size cannot wrap.
     let object = builder.alloc_bounded_bytes_object(length, AllocationSemantics::INTERNAL);
-    builder.mark_zero_slot_if_empty(object);
     let zero = builder.imm(0);
     let source = builder.make_slice(zero, length, PtrLocation::Returndata);
     builder.memory_copy_from_slice(object, source);
-    object
+    let copy_exit = builder.current_block();
+    builder.jump(merge);
+
+    builder.switch_to_block(merge);
+    builder.phi(vec![(empty, zero_slot), (copy_exit, object)])
 }
 
 fn lower_send(builder: &mut FunctionBuilder<'_>, address: ValueId, amount: ValueId) -> ValueId {

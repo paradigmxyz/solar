@@ -23,14 +23,26 @@
 //! an equality or inequality with zero, provided no result escapes the block, including through
 //! the block's own phis, as a loop header's loop-carried values do. Phis that only feed other
 //! dead phis of the block do not count and go with the threaded edge.
+//!
+//! A small region of blocks that has no way out, as every path ends in a revert or a return, and
+//! is entered through a block with phis that have the zero slot as an input on some edge, is
+//! copied once per entering edge, with the phis replaced by that edge's inputs. A returndata
+//! `bytes` object that is the zero slot when empty, then forwarded by a revert or a return,
+//! reaches them through such a phi; with its own copy per edge, the length and data of each copy
+//! fold to constants or to the allocation.
 
-use super::{cfg_simplify::empty_forwarder_target, utils::redirect_edge};
+use super::{cfg_simplify::empty_forwarder_target, loop_split::clone_loop, utils::redirect_edge};
 use crate::mir::{
     BlockId, Function, InstId, InstKind, Module, Terminator, Value, ValueId,
+    memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
-    utils::replace_terminator,
+    utils::{rebuild_predecessors, replace_terminator},
 };
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Function pass for jump threading.
 pub(crate) struct JumpThreading;
@@ -64,6 +76,7 @@ fn run(func: &mut Function) -> bool {
     let mut changed = thread_jumps(func);
     changed |= thread_phi_constant_edges(func);
     changed |= fold_single_predecessor_phi_branches(func);
+    changed |= duplicate_phi_exit_regions(func);
     changed
 }
 
@@ -334,6 +347,105 @@ fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
         folded = true;
     }
     folded
+}
+
+/// The most instructions, phis aside, a region copied per entering edge may have, and the most
+/// entering edges it is copied for.
+const MAX_EXIT_REGION_INSTRUCTIONS: usize = 12;
+const MAX_EXIT_REGION_ENTRIES: usize = 3;
+
+/// Copies a small exit region entered through phis, once per entering edge.
+///
+/// The region is a block with phis and every block reachable from it. Every path must end in a
+/// terminator without successors, no block but the first may have an outside entry, and it must be
+/// loop free. A copy replaces each phi
+/// with the input of its edge, which lets the copy fold what that input makes known. It is only
+/// worth it when some edge supplies the zero slot, the canonical empty object.
+fn duplicate_phi_exit_regions(func: &mut Function) -> bool {
+    let mut changed = false;
+    for block in func.blocks.indices() {
+        let Some(region) = exit_region(func, block) else { continue };
+        let preds = func.blocks[block].predecessors.clone();
+        for pred in preds {
+            let copy = clone_loop(func, &region);
+            let entry = copy.blocks[&block];
+            // pred: jump/branch block -> entry
+            redirect_edge(func, pred, block, entry);
+            // The copy's phis give way to the inputs of `pred`.
+            let mut inputs = FxHashMap::default();
+            for inst in std::mem::take(&mut func.blocks[entry].instructions) {
+                let InstKind::Phi(incoming) = &func.inst(inst).kind else {
+                    func.blocks[entry].instructions.push(inst);
+                    continue;
+                };
+                let (Some(result), Some(&(_, value))) = (
+                    func.inst_result_value(inst),
+                    incoming.iter().find(|&&(from, _)| from == pred),
+                ) else {
+                    unreachable!("a phi has an input for every predecessor")
+                };
+                inputs.insert(result, value);
+            }
+            for &cloned in copy.blocks.values() {
+                for inst in func.blocks[cloned].instructions.clone() {
+                    func.inst_mut(inst).kind.visit_operands_mut(|value| {
+                        *value = inputs.get(value).copied().unwrap_or(*value);
+                    });
+                }
+                let Some(mut terminator) = func.blocks[cloned].terminator.clone() else { continue };
+                terminator.visit_operands_mut(|value| {
+                    *value = inputs.get(value).copied().unwrap_or(*value);
+                });
+                let metadata = func.blocks[cloned].terminator_metadata.clone();
+                func.blocks[cloned].set_terminator(terminator, metadata);
+            }
+            changed = true;
+        }
+        rebuild_predecessors(func);
+    }
+    changed
+}
+
+/// The blocks of the exit region that `block` enters, if it is one worth copying.
+fn exit_region(func: &Function, block: BlockId) -> Option<Vec<BlockId>> {
+    let preds = func.blocks[block].predecessors.as_slice();
+    if !func.block_has_phi(block)
+        || !(2..=MAX_EXIT_REGION_ENTRIES).contains(&preds.len())
+        || preds.iter().collect::<FxHashSet<_>>().len() != preds.len()
+    {
+        return None;
+    }
+    let mut region = vec![block];
+    let mut instructions = 0;
+    let mut next = 0;
+    while let Some(&current) = region.get(next) {
+        next += 1;
+        let data = &func.blocks[current];
+        instructions += data.instructions.len();
+        if instructions > MAX_EXIT_REGION_INSTRUCTIONS + func.blocks[block].instructions.len() {
+            return None;
+        }
+        let terminator = data.terminator.as_ref()?;
+        for successor in terminator.successors() {
+            if region.contains(&successor) {
+                return None;
+            }
+            if func.blocks[successor].predecessors.iter().any(|pred| !region.contains(pred)) {
+                return None;
+            }
+            region.push(successor);
+        }
+    }
+    // An input that is the zero slot is an empty object, whose length and data the copies fold;
+    // any other input only grows the code.
+    let constant =
+        func.blocks[block].instructions.iter().any(|&inst| match &func.inst(inst).kind {
+            InstKind::Phi(incoming) => incoming
+                .iter()
+                .any(|&(_, value)| func.value_u64(value) == Some(EvmMemoryLayout::ZERO_SLOT)),
+            _ => false,
+        });
+    constant.then_some(region)
 }
 
 fn phi_constant_target_for_pred(

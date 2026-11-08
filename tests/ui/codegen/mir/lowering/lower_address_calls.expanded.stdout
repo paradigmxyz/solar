@@ -24,17 +24,25 @@
 +     v4 = zext i160 arg0 to i256
 +     v5 = call arg2, v4, 0, v2, v3, 0, 0
 +     v6 = returndatasize !metadata(span=30..40, modifier_depth=3)
-+     v7 = add v6, 31 !metadata(span=30..40, modifier_depth=3)
-+     v8 = and v7, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 !metadata(span=30..40, modifier_depth=3)
-+     v9 = add v8, 32 !metadata(span=30..40, modifier_depth=3)
-+     v10 = alloc v9 !metadata(span=30..40, modifier_depth=3, zero_slot_if_empty)
-+     mstore v10, v6 !metadata(span=30..40, modifier_depth=3)
-+     v11 = make_returndata_slice ptr<returndata> 0, v6 !metadata(span=30..40, modifier_depth=3)
-+     v12 = ptradd v10, 32 !metadata(span=30..40, modifier_depth=3)
-+     v13 = extract_value slice<returndata>, v11, 0 !metadata(span=30..40, modifier_depth=3)
-+     v14 = extract_value slice<returndata>, v11, 1 !metadata(span=30..40, modifier_depth=3)
-+     returndatacopy v12, v13, v14 !metadata(span=30..40, modifier_depth=3)
-+     ret v10
++     v7 = eq v6, 0 !metadata(span=30..40, modifier_depth=3)
++     jumpi v7, bb1, bb2 !metadata(span=30..40, modifier_depth=3)
++   bb2:                                            ; preds = bb0
++     v8 = add v6, 31 !metadata(span=30..40, modifier_depth=3)
++     v9 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0 !metadata(span=30..40, modifier_depth=3)
++     v10 = add v9, 32 !metadata(span=30..40, modifier_depth=3)
++     v11 = alloc v10 !metadata(span=30..40, modifier_depth=3)
++     mstore v11, v6 !metadata(span=30..40, modifier_depth=3)
++     v12 = make_returndata_slice ptr<returndata> 0, v6 !metadata(span=30..40, modifier_depth=3)
++     v13 = ptradd v11, 32 !metadata(span=30..40, modifier_depth=3)
++     v14 = extract_value slice<returndata>, v12, 0 !metadata(span=30..40, modifier_depth=3)
++     v15 = extract_value slice<returndata>, v12, 1 !metadata(span=30..40, modifier_depth=3)
++     returndatacopy v13, v14, v15 !metadata(span=30..40, modifier_depth=3)
++     jump bb3 !metadata(span=30..40, modifier_depth=3)
++   bb1:                                            ; preds = bb0
++     jump bb3 !metadata(span=30..40, modifier_depth=3)
++   bb3:                                            ; preds = bb1, bb2
++     v16 = phi [bb1: ptr<memory> 96], [bb2: v11] !metadata(span=30..40, modifier_depth=3)
++     ret v16
   }
   
   fn @delegate(arg0: i160, arg1: ptr<memory>) -> i256 {

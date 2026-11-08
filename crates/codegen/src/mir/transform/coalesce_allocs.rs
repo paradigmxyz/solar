@@ -133,10 +133,7 @@ fn fusable_alloc(func: &Function, inst_id: InstId) -> Option<Member> {
         return None;
     };
     let semantics = *semantics;
-    if inst.metadata.deferred_alloc()
-        || inst.metadata.zero_slot_if_empty()
-        || semantics.failure != AllocationFailure::Infallible
-    {
+    if inst.metadata.deferred_alloc() || semantics.failure != AllocationFailure::Infallible {
         return None;
     }
     let result = func.inst_result_value(inst_id)?;

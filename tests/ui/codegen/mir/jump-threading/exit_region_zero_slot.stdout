@@ -1,0 +1,45 @@
+- ; === ROOT/tests/ui/codegen/mir/jump-threading/exit_region_zero_slot.mir (before jump-threading) ===
++ ; === ROOT/tests/ui/codegen/mir/jump-threading/exit_region_zero_slot.mir (after jump-threading) ===
+  @module ExitRegionZeroSlot
+  fn @copy_per_edge(arg0: i1, arg1: i256) -> i256 [cold] {
+    bb0 [cold]:
+      v0 = alloc 32
+-     jumpi arg0, bb1, bb2
+-   bb2 [cold]:                                     ; preds = bb0
+-     jump bb3
+-   bb1 [cold]:                                     ; preds = bb0
+-     jump bb3
+-   bb3 [cold]:                                     ; preds = bb1, bb2
+-     v1 = phi [bb1: ptr<memory> 96], [bb2: v0]
++     jumpi arg0, bb4, bb5
++   bb5 [cold]:                                     ; preds = bb2, bb0
++     v8 = ptrtoint ptr<memory> v0 to i256
++     v9 = mload v8
++     revert 0, v9
++   bb4 [cold]:                                     ; preds = bb1, bb0
++     v5 = ptrtoint ptr<memory> 96 to i256
++     v6 = mload v5
++     revert 0, v6
++   bb1 [cold]:
++     jump bb4
++   bb2 [cold]:
++     jump bb5
++   bb3 [cold]:
++     v1 = phi
+      v2 = ptrtoint ptr<memory> v1 to i256
+      v3 = mload v2
+      revert 0, v3
+  }
+  
+  fn @plain_phi(arg0: i1, arg1: i256, arg2: i256) -> i256 [cold] {
+    bb0 [cold]:
+      jumpi arg0, bb1, bb2
+    bb2 [cold]:                                     ; preds = bb0
+      jump bb3
+    bb1 [cold]:                                     ; preds = bb0
+      jump bb3
+    bb3 [cold]:                                     ; preds = bb1, bb2
+      v0 = phi [bb1: arg1], [bb2: arg2]
+      revert 0, v0
+  }
+  

@@ -2,6 +2,8 @@
 //!
 //! Each round of the pass runs these rewrites until none applies:
 //!
+//! - Zero slot: a load of the zero slot, the length word of every empty `bytes` and dynamic array,
+//!   folds to zero when no instruction of the function may write it.
 //! - Immutable copies: a 32-byte `codecopy` from a constant offset of the code tail followed by an
 //!   `mload` of the same word, as assembly reading clone arguments does, reuses the word an
 //!   identical dominating copy loaded and becomes an `mstore` of it.
@@ -965,10 +967,43 @@ impl MemoryStoreEliminator {
         }
     }
 
+    /// Replaces the loads of the zero slot by zero, unless an instruction of the function may
+    /// write it.
+    fn fold_zero_slot_loads(&mut self, func: &mut Function) {
+        let loads = func
+            .instructions()
+            .filter(|&inst| {
+                matches!(func.inst(inst).kind, InstKind::Load(address, PtrLocation::Memory)
+                    if func.value_u64(address) == Some(EvmMemoryLayout::ZERO_SLOT))
+            })
+            .collect::<Vec<_>>();
+        if loads.is_empty()
+            || func.instructions().any(|inst| {
+                self.alias.instruction_may_write_zero_slot(func, inst, &self.read_bounds)
+            })
+        {
+            return;
+        }
+        let mut replacements = FxHashMap::default();
+        for &load in &loads {
+            let Some(loaded) = func.inst_result_value(load) else { continue };
+            // value = 0
+            let zero = Immediate::for_type(func.value_ty(loaded), U256::ZERO);
+            replacements.insert(loaded, func.alloc_value(Value::Immediate(zero)));
+        }
+        for block in func.blocks.indices() {
+            func.blocks[block].instructions.retain(|inst| !loads.contains(inst));
+        }
+        func.replace_uses_canonicalized(&replacements);
+        self.eliminated_count += loads.len();
+        self.uses = None;
+    }
+
     fn run_with_scratch(&mut self, func: &mut Function, scratch: &mut BlockScratch) -> usize {
         self.eliminated_count = 0;
         self.live_in = None;
         self.uses = None;
+        self.fold_zero_slot_loads(func);
 
         // Every rewrite needs a store or an immutable copy to act on; functions without one skip
         // the whole scan and never build the alias snapshot.

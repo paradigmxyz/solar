@@ -1,0 +1,38 @@
+//@compile-flags: -Zmir-pipeline=jump-threading
+//@filecheck:
+@module ExitRegionZeroSlot
+
+// A phi that is the zero slot on one edge feeds an exit region: the region is copied per edge,
+// and the copy of the zero slot edge reads its length at the zero slot.
+// CHECK-LABEL: {{^[ +].*}}fn @copy_per_edge{{[( ]}}
+// CHECK: + {{v[0-9]+}} = ptrtoint ptr<memory> v0 to i256
+// CHECK: + {{v[0-9]+}} = ptrtoint ptr<memory> 96 to i256
+fn @copy_per_edge(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    v0 = alloc 32
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: ptr<memory> 96], [bb2: v0]
+    v2 = ptrtoint ptr<memory> v1 to i256
+    v3 = mload v2
+    revert 0, v3
+}
+
+// Without the zero slot among the inputs the phi stays.
+// CHECK-LABEL: {{^[ +].*}}fn @plain_phi{{[( ]}}
+// CHECK: {{^ .*}}{{v[0-9]+}} = phi [bb1: arg1], [bb2: arg2]
+fn @plain_phi(arg0: i1, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: arg1], [bb2: arg2]
+    revert 0, v1
+}

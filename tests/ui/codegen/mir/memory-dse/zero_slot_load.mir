@@ -1,0 +1,23 @@
+//@compile-flags: -Zmir-pipeline=memory-dse
+//@filecheck:
+@module ZeroSlotLoad
+
+// The zero slot holds zero, so a load of it folds while nothing in the function may write it.
+// CHECK-LABEL: {{^[ +].*}}fn @folds{{[( ]}}
+// CHECK: + ret 0
+fn @folds() -> i256 {
+  bb0:
+    mstore 0, 7
+    v0 = mload 96
+    ret v0
+}
+
+// A store that may reach the zero slot keeps the load.
+// CHECK-LABEL: {{^[ +].*}}fn @keeps{{[( ]}}
+// CHECK: {{^ .*}}mload 96
+fn @keeps(arg0: i256) -> i256 {
+  bb0:
+    mstore arg0, 7
+    v0 = mload 96
+    ret v0
+}

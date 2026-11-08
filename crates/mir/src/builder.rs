@@ -992,16 +992,6 @@ impl<'a> FunctionBuilder<'a> {
         self.func.inst_mut(inst).metadata.set_preserves_fmp(true);
     }
 
-    /// Marks the allocation `allocation` as returning the zero slot, without reserving anything,
-    /// when its size is one header word.
-    pub fn mark_zero_slot_if_empty(&mut self, allocation: ValueId) {
-        let Value::Inst(inst) = *self.func.value(allocation) else {
-            unreachable!("allocation result must reference its instruction")
-        };
-        // allocation !metadata(zero_slot_if_empty)
-        self.func.inst_mut(inst).metadata.set_zero_slot_if_empty(true);
-    }
-
     /// Allocates a padded bytes object and records its logical length.
     pub fn alloc_bytes_object(
         &mut self,

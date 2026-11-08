@@ -84,69 +84,76 @@ fn @halt() [cold] {
 ; function relay(bytes calldata data) external returns (bytes memory out) [selector 0x8f0d6f17]
 fn @relay() {
   bb0:
-    v19 = calldatasize
-    v20 = lt v19, 36
-    jumpi v20, bb1, bb3
-  bb3:                                            ; preds = bb0
-    v21 = icall @decode_calldata_slice
-    v22 = calldataload v21
-    v23 = add v21, 32
+    v23 = calldatasize
+    v24 = lt v23, 36
+    jumpi v24, bb1, bb6
+  bb6:                                            ; preds = bb0
+    v25 = icall @decode_calldata_slice
+    v26 = calldataload v25
+    v27 = add v25, 32
     v0: i256 = address
     v1 = gas
-    v67 = heap_floor !metadata(alloc_ptr)
-    v31 = add v67, 32
-    mstore v31, 0x624fbfdc00000000000000000000000000000000000000000000000000000000
-    v33 = add v67, 36
-    v34 = add v33, 32
-    mstore v33, 32
-    v37 = add v22, 31
-    v38 = and v37, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v39 = add v34, 32
-    v40 = add v34, v38
-    mstore v40, 0
-    mstore v34, v22
-    v42 = add v39, v38
-    calldatacopy v39, v23, v22
-    v43 = sub v42, v33
-    v44 = add v43, 4
-    v75 = add v44, 63
-    v47 = and v75, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v48 = lt v47, v44
-    jumpi v48, bb4, bb5
-  bb5:                                            ; preds = bb3
-    v68 = mload 64 !metadata(memory=scratch, alloc_ptr)
-    v69 = add v68, v47 !metadata(alloc_ptr)
-    mstore 64, v69 !metadata(memory=scratch)
-    mstore v68, v44
-    v62 = add v68, 32
-    v9 = call v1, v0, 0, v62, v44, 0, 0
+    v106 = heap_floor !metadata(alloc_ptr)
+    v38 = add v106, 32
+    mstore v38, 0x624fbfdc00000000000000000000000000000000000000000000000000000000
+    v40 = add v106, 36
+    v41 = add v40, 32
+    mstore v40, 32
+    v44 = add v26, 31
+    v45 = and v44, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v46 = add v41, 32
+    v47 = add v41, v45
+    mstore v47, 0
+    mstore v41, v26
+    v49 = add v46, v45
+    calldatacopy v46, v27, v26
+    v50 = sub v49, v40
+    v51 = add v50, 4
+    v109 = add v51, 63
+    v54 = and v109, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v55 = lt v54, v51
+    jumpi v55, bb7, bb8
+  bb8:                                            ; preds = bb6
+    v107 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    v108 = add v107, v54 !metadata(alloc_ptr)
+    mstore 64, v108 !metadata(memory=scratch)
+    mstore v107, v51
+    v101 = add v107, 32
+    v9 = call v1, v0, 0, v101, v51, 0, 0
     v10 = returndatasize
-    v11 = add v10, 31
-    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v13 = add v12, 32
-    v72 = lt v11, 32
-    v78 = eq v72, false
-    v79 = zext i1 v78 to i256
-    v73 = mul v13, v79
-    v74 = add v69, v73 !metadata(alloc_ptr)
-    mstore 64, v74 !metadata(memory=scratch)
-    v14 = select v72, 96, v69 !metadata(zero_slot_if_empty)
-    mstore v14, v10
-    v64 = add v14, 32
-    returndatacopy v64, 0, v10
-    jumpi v9, bb2, bb1
-  bb2:                                            ; preds = bb5
-    v55 = add v64, v10
-    mstore v55, 0
-    v60 = sub v14, 32
-    mstore v60, 32
-    v57 = add v12, 64
-    returndata v60, v57
-  bb4 [cold]:                                     ; preds = bb3
+    v11 = eq v10, 0
+    jumpi v11, bb3, bb2
+  bb2:                                            ; preds = bb8
+    v12 = add v10, 31
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v104 = mload 64 !metadata(memory=scratch, alloc_ptr)
+    mstore v104, v10
+    v97 = add v104, 32
+    returndatacopy v97, 0, v10
+    jumpi v9, bb5, bb1
+  bb5:                                            ; preds = bb2
+    v92 = add v97, v10
+    mstore v92, 0
+    v99 = sub v104, 32
+    mstore v99, 32
+    v94 = add v13, 64
+    returndata v99, v94
+  bb3:                                            ; preds = bb8
+    jumpi v9, bb4, bb1
+  bb4:                                            ; preds = bb3
+    v76 = mload 96 !metadata(memory=scratch)
+    v77 = add v76, 31
+    v78 = and v77, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v81 = add v76, 128
+    mstore v81, 0
+    mstore 64, 32
+    v83 = add v78, 64
+    returndata 64, v83
+  bb7 [cold]:                                     ; preds = bb6
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb1 [cold]:                                     ; preds = bb0, bb5
+  bb1 [cold]:                                     ; preds = bb0, bb2, bb3
     revert 0, 0
 }
 
@@ -175,22 +182,29 @@ fn @fallback.body(arg0: i256, arg1: i256) {
     v0: i256 = address
     v1 = gas
     v5 = lt arg1, 4
-    jumpi v5, bb3, bb4
-  bb4:                                            ; preds = bb0
+    jumpi v5, bb1, bb2
+  bb2:                                            ; preds = bb0
     v8 = sub arg1, 4
-    v38 = add arg0, 4
-    v44 = heap_floor !metadata(alloc_ptr)
-    calldatacopy v44, v38, v8
-    v25 = delegatecall v1, v0, v44, v8, 0, 0
+    v50 = add arg0, 4
+    v56 = heap_floor !metadata(alloc_ptr)
+    calldatacopy v56, v50, v8
+    v25 = delegatecall v1, v0, v56, v8, 0, 0
     v26 = returndatasize
-    v45 = heap_floor !metadata(alloc_ptr)
-    v40 = add v45, 32
-    returndatacopy v40, 0, v26
-    jumpi v25, bb2, bb1
-  bb1 [cold]:                                     ; preds = bb4
-    revert v40, v26
-  bb2:                                            ; preds = bb4
-    returndata v40, v26
-  bb3 [cold]:                                     ; preds = bb0
+    v27 = eq v26, 0
+    jumpi v27, bb4, bb3
+  bb3:                                            ; preds = bb2
+    v57 = heap_floor !metadata(alloc_ptr)
+    v52 = add v57, 32
+    returndatacopy v52, 0, v26
+    jumpi v25, bb6, bb7
+  bb7 [cold]:                                     ; preds = bb3
+    revert v52, v26
+  bb6:                                            ; preds = bb3
+    returndata v52, v26
+  bb4:                                            ; preds = bb2
+    jumpi v25, bb5, bb1
+  bb5:                                            ; preds = bb4
+    stop
+  bb1 [cold]:                                     ; preds = bb0, bb4
     revert 0, 0
 }

@@ -1482,9 +1482,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 sym::preserves_fmp => {
                     metadata.set_preserves_fmp(true);
                 }
-                sym::zero_slot_if_empty => {
-                    metadata.set_zero_slot_if_empty(true);
-                }
                 sym::alloc_ptr => {
                     metadata.set_alloc_ptr(true);
                 }

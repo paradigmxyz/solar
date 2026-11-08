@@ -2306,6 +2306,29 @@ impl AliasAnalysis {
         })
     }
 
+    /// Returns whether an instruction may write the zero slot, the word that holds the length of
+    /// every empty `bytes` and dynamic array.
+    #[must_use]
+    pub(crate) fn instruction_may_write_zero_slot(
+        &self,
+        func: &Function,
+        inst: InstId,
+        proofs: &ReadBounds,
+    ) -> bool {
+        if func.inst(inst).kind.effect_kind().is_read_only()
+            || proofs.raw_writes_avoid_word(func, inst, EvmMemoryLayout::ZERO_SLOT)
+        {
+            return false;
+        }
+        self.instruction_mod_ref(func, inst).writes().iter().any(|&access| match access {
+            Access::Any(AddressSpace::Memory) => true,
+            Access::Location(Location::Memory(location)) => {
+                Self::location_may_overlap_word(func, location, EvmMemoryLayout::ZERO_SLOT)
+            }
+            Access::Any(_) | Access::Location(_) => false,
+        })
+    }
+
     /// Returns whether an instruction may terminate the current EVM call successfully.
     #[must_use]
     pub(crate) fn instruction_may_terminate(&self, func: &Function, inst: InstId) -> bool {
@@ -2373,22 +2396,28 @@ impl AliasAnalysis {
 
     /// Returns whether a canonical memory location may touch the reserved FMP word.
     fn location_may_overlap_fmp(func: &Function, location: MemoryLocation) -> bool {
+        Self::location_may_overlap_word(func, location, EvmMemoryLayout::FMP_SLOT)
+    }
+
+    /// Returns whether a canonical memory location may touch the reserved word at `word`, which
+    /// lies below the heap.
+    fn location_may_overlap_word(func: &Function, location: MemoryLocation, word: u64) -> bool {
         let MemoryLocation { address, size } = location;
         if size == LocationSize::Const(0) {
             return false;
         }
         if let Some(address) = address.as_absolute() {
-            return Self::const_range_may_overlap_fmp(address, size.as_const());
+            return Self::const_range_may_overlap_word(address, size.as_const(), word);
         }
         if let MemoryBase::Value(base) = address.base
             && let LocationSize::Const(size) = size
             && address.offset != 0
-            && address.offset.checked_add(size).is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT)
+            && address.offset.checked_add(size).is_some_and(|end| end <= word)
             && Self::untrusted_read_lower_bound(func, base)
                 .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START)
         {
-            // A wrapped base + offset lies below offset, so the access ends before the FMP
-            // slot. A non-wrapped sum remains at or above the heap start.
+            // A wrapped base + offset lies below offset, so the access ends before the word. A
+            // non-wrapped sum remains at or above the heap start.
             return false;
         }
         Self::address_lower_bound(func, address, size)
@@ -2435,10 +2464,13 @@ impl AliasAnalysis {
     }
 
     fn const_range_may_overlap_fmp(address: u64, size: Option<u64>) -> bool {
+        Self::const_range_may_overlap_word(address, size, EvmMemoryLayout::FMP_SLOT)
+    }
+
+    fn const_range_may_overlap_word(address: u64, size: Option<u64>, word: u64) -> bool {
         let Some(size) = size else { return true };
         let Some(end) = address.checked_add(size) else { return true };
-        let fmp_end = EvmMemoryLayout::FMP_SLOT + EvmMemoryLayout::WORD_SIZE;
-        address < fmp_end && end > EvmMemoryLayout::FMP_SLOT
+        address < word + EvmMemoryLayout::WORD_SIZE && end > word
     }
 
     /// Returns a conservative lower bound for a compiler-owned pointer.
@@ -3142,6 +3174,11 @@ impl ReadBounds {
     /// the write: its address may have been computed before an earlier access proved its base
     /// nonwrapping. Reads and instructions with no raw write provide no such guarantee.
     fn raw_writes_avoid_fmp(&self, func: &Function, inst: InstId) -> bool {
+        self.raw_writes_avoid_word(func, inst, EvmMemoryLayout::FMP_SLOT)
+    }
+
+    /// Like [`Self::raw_writes_avoid_fmp`] for the reserved word at `word`.
+    fn raw_writes_avoid_word(&self, func: &Function, inst: InstId, word: u64) -> bool {
         let mut raw_write = false;
         let mut avoids_fmp = true;
         func.inst(inst).kind.visit_raw_memory(|access, address, size| {
@@ -3154,7 +3191,7 @@ impl ReadBounds {
                 return;
             }
             avoids_fmp &= match func.value_u64(address) {
-                Some(address) => !AliasAnalysis::const_range_may_overlap_fmp(address, size),
+                Some(address) => !AliasAnalysis::const_range_may_overlap_word(address, size, word),
                 None => self
                     .read_lower_bound_at(func, address, &|_| None, false, inst)
                     .is_some_and(|bound| bound >= EvmMemoryLayout::HEAP_START),

@@ -17,14 +17,6 @@
 //! earlier pointer read in the same block reuses that read instead of loading the
 //! pointer again, as long as only writes addressed from the read word come between.
 //!
-//! A `zero_slot_if_empty` allocation, the capture of a call's returndata, is an empty `bytes`
-//! object when its size is one header word. Like solc, such an object is the zero slot and
-//! reserves nothing, so the pointer does not move: the allocation becomes `select(size == 32,
-//! ZERO_SLOT, ptr)` with a bump of `size == 32 ? 0 : size`. When nothing reachable after the
-//! allocation allocates, calls, or writes memory except the object's length word and empty data,
-//! and the pointer does not escape, the empty object is only read and stays at the free-memory
-//! pointer without the `select`, which keeps forwarding code such as proxies as small as before.
-//!
 //! A read that returns the entry's initial pointer, because nothing before it may write the
 //! slot (see [`FreshHeap`]), takes the heap floor, which codegen knows, instead of loading
 //! the slot. Its allocation still stores the bumped pointer. An entry whose only reads of the
@@ -37,9 +29,9 @@
 //! it that nothing wrote before, are dead and dropped (see [`FreshHeap`]).
 
 use crate::mir::{
-    AllocationFailure, AllocationInitialization, AllocationSemantics, BlockId, EffectKind,
-    Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module,
-    PanicCode, PtrLocation, Terminator, Value, ValueId,
+    AllocationFailure, AllocationInitialization, AllocationSemantics, EffectKind, Function,
+    FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
+    PtrLocation, Value, ValueId,
     analysis::FreshHeap,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
@@ -202,7 +194,6 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
         });
     }
 
-    let stable_empty = stable_empty_allocs(func);
     let mut peek = FmpPeek::default();
     for block in func.blocks.indices() {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -258,27 +249,6 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
                 // The backend may still place a deferred allocation with a runtime bump.
                 InstKind::Alloc { .. } if builder.func().inst(inst).metadata.deferred_alloc() => {
                     builder.func_mut().blocks[block].instructions.push(inst);
-                }
-                InstKind::Alloc { size, semantics }
-                    if builder.func().inst(inst).metadata.zero_slot_if_empty() =>
-                {
-                    debug_assert_eq!(semantics, AllocationSemantics::INTERNAL);
-                    changed = true;
-                    if stable_empty.contains(&inst) {
-                        // ptr = mload 64 | heap_floor
-                        // empty = size == 32
-                        // mstore 64, ptr + (empty ? 0 : size)
-                        let ptr = builder
-                            .func()
-                            .inst_result_value(inst)
-                            .expect("allocation must produce a value");
-                        rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
-                        let (_, reserved) = reserved_unless_empty(&mut builder, size);
-                        let next = bump(&mut builder, ptr, reserved);
-                        store_fmp(&mut builder, next);
-                    } else {
-                        rewrite_as_zero_slot_alloc(&mut builder, inst, size, is_fresh(inst));
-                    }
                 }
                 InstKind::Alloc { size, semantics } => {
                     debug_assert_eq!(semantics.failure, AllocationFailure::Infallible);
@@ -392,141 +362,6 @@ fn initialize(
     }
 }
 
-/// The `zero_slot_if_empty` allocations whose empty object can stay unreserved.
-///
-/// An empty object that reserves nothing sits at the free-memory pointer, where the next
-/// allocation or staged write would overwrite its length. It is safe when nothing reachable from
-/// the allocation allocates, calls, or writes memory except through the object's own pointer,
-/// and the pointer neither leaves through a return or a phi nor is stored to memory or storage.
-/// Then the object is only read, as when a call's returndata is forwarded, and needs no pointer to
-/// the zero slot.
-fn stable_empty_allocs(func: &Function) -> FxHashSet<InstId> {
-    let mut stable = FxHashSet::default();
-    for block in func.blocks.indices() {
-        for (index, &inst) in func.blocks[block].instructions.iter().enumerate() {
-            if matches!(func.inst(inst).kind, InstKind::Alloc { .. })
-                && func.inst(inst).metadata.zero_slot_if_empty()
-                && empty_object_is_stable(func, block, index)
-            {
-                stable.insert(inst);
-            }
-        }
-    }
-    stable
-}
-
-/// Whether the object of the allocation at `index` in `block` is only read until the function
-/// ends or returns, as [`stable_empty_allocs`] defines.
-fn empty_object_is_stable(func: &Function, block: BlockId, index: usize) -> bool {
-    let alloc = func.blocks[block].instructions[index];
-    let Some(result) = func.inst_result_value(alloc) else { return false };
-
-    // The reachable code after the allocation, as (block, first instruction) pairs. A loop back to
-    // the allocation's block reaches the allocation itself, which fails the check below.
-    let mut region = Vec::new();
-    let mut visited = FxHashSet::default();
-    let mut pending = vec![(block, index + 1)];
-    while let Some((block, start)) = pending.pop() {
-        if start == 0 && !visited.insert(block) {
-            continue;
-        }
-        region.push((block, start));
-        pending.extend(
-            func.blocks[block]
-                .terminator
-                .iter()
-                .flat_map(|terminator| terminator.successors())
-                .map(|successor| (successor, 0)),
-        );
-    }
-
-    // The values derived from the object, to a fixed point so that the order the blocks are
-    // visited in does not matter. Loads read the object and derive nothing.
-    let mut derived = FxHashSet::from_iter([result]);
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for &(block, start) in &region {
-            for &inst in &func.blocks[block].instructions[start..] {
-                let kind = &func.inst(inst).kind;
-                if kind.effect_kind() == EffectKind::Pure
-                    && kind.operands().iter().any(|operand| derived.contains(operand))
-                    && let Some(value) = func.inst_result_value(inst)
-                {
-                    changed |= derived.insert(value);
-                }
-            }
-        }
-    }
-
-    region.into_iter().all(|(block, start)| {
-        let data = &func.blocks[block];
-        let keeps = data.instructions[start..].iter().all(|&inst| {
-            let kind = &func.inst(inst).kind;
-            let uses_object = kind.operands().iter().any(|operand| derived.contains(operand));
-            match kind.effect_kind() {
-                EffectKind::Pure => !matches!(kind, InstKind::Phi(_)) || !uses_object,
-                // Only a memory load takes the object as an address; any other read would turn
-                // the pointer word into a key, an offset or an account.
-                EffectKind::MemoryRead => {
-                    !uses_object || matches!(kind, InstKind::Load(_, PtrLocation::Memory))
-                }
-                EffectKind::StorageRead
-                | EffectKind::TransientRead
-                | EffectKind::EnvironmentRead => !uses_object,
-                // `log(offset, size, topics...)` only reads the object through its offset.
-                EffectKind::Log => {
-                    !kind.operands().iter().skip(1).any(|operand| derived.contains(operand))
-                }
-                EffectKind::StorageWrite | EffectKind::TransientWrite => !uses_object,
-                // The object is an empty `bytes`: only its length word and, past it, the empty data
-                // are written, and only with values that are not derived from the object.
-                EffectKind::MemoryWrite => match *kind {
-                    InstKind::Store(ptr, value, PtrLocation::Memory) => {
-                        strip_pointer_casts(func, ptr) == result && !derived.contains(&value)
-                    }
-                    InstKind::Copy(ptr, ..) => is_data_start(func, ptr, result),
-                    _ => false,
-                },
-                _ => false,
-            }
-        });
-        keeps
-            && match &data.terminator {
-                None | Some(Terminator::TailCall { .. }) => false,
-                // The offset reads the object; the size is a plain word.
-                Some(Terminator::Revert { size, .. } | Terminator::ReturnData { size, .. }) => {
-                    !derived.contains(size)
-                }
-                Some(terminator) => {
-                    !terminator.operands().iter().any(|value| derived.contains(value))
-                }
-            }
-    })
-}
-
-/// `value` without the casts between a pointer and its address word.
-fn strip_pointer_casts(func: &Function, mut value: ValueId) -> ValueId {
-    while let Value::Inst(inst) = *func.value(value)
-        && let InstKind::PtrToInt(operand, _) | InstKind::IntToPtr(operand) = func.inst(inst).kind
-    {
-        value = operand;
-    }
-    value
-}
-
-/// Whether `value` is `object + 32`, where the data of the object starts.
-fn is_data_start(func: &Function, value: ValueId, object: ValueId) -> bool {
-    let Value::Inst(inst) = *func.value(strip_pointer_casts(func, value)) else { return false };
-    match func.inst(inst).kind {
-        InstKind::Add(a, b) | InstKind::PtrAdd(a, b) => {
-            strip_pointer_casts(func, a) == object
-                && func.value_u64(b) == Some(EvmMemoryLayout::DYNAMIC_HEADER_SIZE)
-        }
-        _ => false,
-    }
-}
-
 /// Rewrites the detached `inst` to read the pointer from its slot, or the heap floor when nothing
 /// wrote the slot before it, and appends it to the current block after any pointer read it needs.
 fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: InstId, fresh: bool) {
@@ -553,49 +388,6 @@ fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: InstId, fresh: b
     instruction.metadata.set_preserves_fmp(false);
     instruction.metadata.set_memory_region(Some(MemoryRegion::Scratch));
     instruction.metadata.set_alloc_ptr(is_load);
-    let block = builder.current_block();
-    builder.func_mut().blocks[block].instructions.push(inst);
-}
-
-/// Emits whether an allocation of `size` is an empty object, of one header word, and the size it
-/// reserves, which is nothing for an empty object.
-fn reserved_unless_empty(builder: &mut FunctionBuilder<'_>, size: ValueId) -> (ValueId, ValueId) {
-    // empty = size == 32
-    // reserved = empty ? 0 : size
-    let header = builder.imm(EvmMemoryLayout::DYNAMIC_HEADER_SIZE);
-    let empty = builder.eq(size, header);
-    let zero = builder.imm(0);
-    (empty, builder.select(empty, zero, size))
-}
-
-/// Rewrites the detached `inst`, an allocation that is the zero slot when `size` is one header
-/// word, to reserve nothing and return the zero slot in that case, and appends it to the current
-/// block after the pointer arithmetic it needs.
-fn rewrite_as_zero_slot_alloc(
-    builder: &mut FunctionBuilder<'_>,
-    inst: InstId,
-    size: ValueId,
-    fresh: bool,
-) {
-    // ptr = inttoptr (mload 64 | heap_floor)
-    // empty = size == 32
-    // mstore 64, ptr + (empty ? 0 : size)
-    // object = empty ? ZERO_SLOT : ptr
-    let word = if fresh {
-        builder.heap_floor()
-    } else {
-        let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
-        builder.load(slot, PtrLocation::Memory)
-    };
-    mark_alloc_ptr(builder, word);
-    let ptr = builder.cast(word, MirType::MEMPTR);
-    let (empty, reserved) = reserved_unless_empty(builder, size);
-    let next = bump(builder, ptr, reserved);
-    store_fmp(builder, next);
-    let zero_slot = builder.zero_slot();
-    builder.func_mut().set_inst_kind(inst, InstKind::Select(empty, zero_slot, ptr));
-    let instruction = builder.func_mut().inst_mut(inst);
-    instruction.metadata.set_effect(None);
     let block = builder.current_block();
     builder.func_mut().blocks[block].instructions.push(inst);
 }
