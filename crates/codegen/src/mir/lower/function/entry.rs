@@ -301,10 +301,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.func().block(self.builder.current_block()).terminator.is_some()
     }
 
-    pub(super) fn push_return_target(&mut self, block: BlockId) {
-        self.return_targets.push(ReturnTarget { block, states: Vec::new() });
-    }
-
     pub(super) fn materialize_default_bindings(&mut self) {
         let mut ids = self
             .default_bindings
@@ -340,27 +336,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn finish_return_target(
-        &mut self,
-        before_values: FxHashMap<VariableId, ValueId>,
-        before_storage_refs: FxHashMap<VariableId, StorageAccess>,
-    ) {
-        let target = self.return_targets.pop().expect("return target exists");
-        self.builder.switch_to_block(target.block);
-        self.values = self.merge_many_values(before_values, &target.states);
-        self.storage_refs = self.merge_storage_ref_states(before_storage_refs, &target.states);
-    }
-
-    /// Like [`Self::finish_return_target`] for the continuation of a modifier's `_`.
+    /// Lowers `lower` as a frame whose `return`s jump to one continuation block, and continues
+    /// there.
     ///
-    /// Only the return bindings come from the merged states. A `return` in an inner invocation
+    /// Falling off the end of the frame jumps to the continuation under `exit_span`. Only the
+    /// function's return bindings flow out of the frame: a `return` in an inner invocation
     /// carries that invocation's parameters and locals, which share ids with an outer invocation
-    /// of the same modifier, so every other binding keeps its value from before the `_`.
-    pub(super) fn finish_placeholder_target(
+    /// of the same modifier, so every other binding keeps its value from before the frame. This
+    /// matches via-IR, where a modifier's `_` is a call that returns only the return variables.
+    pub(super) fn lower_return_frame(
         &mut self,
-        before_values: FxHashMap<VariableId, ValueId>,
-        before_storage_refs: FxHashMap<VariableId, StorageAccess>,
-    ) {
+        exit_span: Span,
+        lower: impl FnOnce(&mut Self) -> Option<()>,
+    ) -> Option<()> {
+        let continuation = self.builder.create_block();
+        let before_values = self.values.clone();
+        let before_storage_refs = self.storage_refs.clone();
+        self.return_targets.push(ReturnTarget { block: continuation, states: Vec::new() });
+        let result = lower(self);
+        if result.is_some() && !self.is_terminated() {
+            self.record_return_state();
+            // jump continuation !metadata(exit span)
+            let previous = self.builder.replace_source_span(exit_span);
+            self.builder.jump(continuation);
+            self.builder.replace_source_span(previous);
+        }
         let mut target = self.return_targets.pop().expect("return target exists");
         for state in &mut target.states {
             state.values.retain(|id, _| self.returns.contains(id));
@@ -383,6 +383,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.storage_refs = before_storage_refs;
         let merged = self.merge_storage_ref_states(returns_before_storage, &target.states);
         self.storage_refs.extend(merged);
+        result
     }
 
     pub(super) fn lower_function_body(
@@ -396,22 +397,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.lower_block(body)
         } else {
             self.materialize_default_bindings();
-            let return_block = self.builder.create_block();
-            let before_values = self.values.clone();
-            let before_storage_refs = self.storage_refs.clone();
-            self.push_return_target(return_block);
-            let result = self.lower_modifier_chain(modifiers, body);
-            result?;
-            if !self.is_terminated() {
-                self.record_return_state();
-                // solc maps the return tag after the modifier chain to the function definition.
-                // jump return_block !metadata(function definition)
-                let previous = self.builder.replace_source_span(span);
-                self.builder.jump(return_block);
-                self.builder.replace_source_span(previous);
-            }
-            self.finish_return_target(before_values, before_storage_refs);
-            Some(())
+            // solc maps the return tag after the modifier chain to the function definition.
+            self.lower_return_frame(span, |this| this.lower_modifier_at(modifiers, body, 0))
         }
     }
 }
