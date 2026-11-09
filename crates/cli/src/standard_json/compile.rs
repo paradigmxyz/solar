@@ -540,7 +540,8 @@ struct FileReader {
 
 impl FileReader {
     fn new(opts: &CompileOpts) -> Self {
-        let base_path = opts.base_path.as_deref().unwrap_or(Path::new("."));
+        let base_path = opts.base_path.as_deref().filter(|p| !p.as_os_str().is_empty());
+        let base_path = base_path.unwrap_or(Path::new("."));
         let allowed = opts
             .allow_paths
             .iter()
