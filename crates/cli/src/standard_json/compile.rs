@@ -576,7 +576,8 @@ impl FileLoader for FileReader {
         if !path.is_file() {
             return refuse("Not a valid file.");
         }
-        RealFileLoader.load_file(&path)
+        // The file exists, so a failed read still makes an import ambiguous.
+        RealFileLoader.load_file(&path).or_else(|e| refuse(&e.to_string()))
     }
 
     fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
