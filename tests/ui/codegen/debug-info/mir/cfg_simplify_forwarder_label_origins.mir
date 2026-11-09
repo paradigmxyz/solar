@@ -41,3 +41,25 @@ fn @dead_arm_forwarder(arg0: i1, arg1: i256) -> i256 {
   bb5:
     ret 0
 }
+
+// A dead block still lists the target as a successor and keeps `merge-blocks` from joining it
+// with the forwarder. The forwarder is the target's only reachable entry, so the target's label
+// becomes the forwarder's.
+// CHECK-LABEL: {{^[ +].*}}fn @dead_target_predecessor{{[( ]}}
+// CHECK: + bb{{[0-9]+}} !metadata(span=50..60):
+fn @dead_target_predecessor(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    jumpi true, bb4, bb2
+  bb4:
+    jumpi arg0, bb1, bb5
+  bb1 !metadata(span=50..60):
+    jump bb3
+  bb2:
+    v0 = add arg1, 3
+    jump bb3
+  bb3 !metadata(span=30..40):
+    v1 = add arg1, 1
+    ret v1
+  bb5:
+    ret 0
+}

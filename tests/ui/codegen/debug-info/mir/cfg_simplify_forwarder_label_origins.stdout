@@ -38,3 +38,23 @@
       ret v2
   }
   
+  fn @dead_target_predecessor(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+-     jumpi true, bb1, bb3
+-   bb3:                                            ; preds = bb0
+-     v0 = add arg1, 3
+-     jump bb4
+-   bb1:                                            ; preds = bb0
+-     jumpi arg0, bb2, bb5
+-   bb5:                                            ; preds = bb1
++     jumpi arg0, bb1, bb2
++   bb2:                                            ; preds = bb0
+      ret 0
+-   bb2 !metadata(span=50..60):                     ; preds = bb1
+-     jump bb4
+-   bb4 !metadata(span=30..40):                     ; preds = bb2, bb3
++   bb1 !metadata(span=50..60):                     ; preds = bb0
+      v1 = add arg1, 1
+      ret v1
+  }
+  

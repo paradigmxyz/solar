@@ -658,9 +658,16 @@ fn eliminate_empty_blocks(func: &mut Function) -> bool {
             if !is_loop_preheader_forwarder(func, block_id, cfg())
                 && forwarder_elimination_preserves_phis(func, block_id)
             {
+                let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else {
+                    continue;
+                };
                 let entered =
                     func.blocks[block_id].predecessors.iter().any(|&pred| cfg().is_reachable(pred));
-                eliminate_forwarder(func, block_id, entered);
+                let only_entry = func.blocks[target]
+                    .predecessors
+                    .iter()
+                    .all(|&pred| pred == block_id || !cfg().is_reachable(pred));
+                eliminate_forwarder(func, block_id, entered, only_entry);
                 eliminated = true;
                 changed = true;
                 break;
@@ -726,12 +733,13 @@ fn forwarder_elimination_preserves_phis(func: &Function, block_id: BlockId) -> b
 }
 
 /// Eliminates an empty forwarder block by redirecting its predecessors. `entered` is whether a
-/// reachable predecessor enters it.
-fn eliminate_forwarder(func: &mut Function, block_id: BlockId, entered: bool) {
+/// reachable predecessor enters it, and `only_entry` whether the forwarder is the only reachable
+/// entry of its target.
+fn eliminate_forwarder(func: &mut Function, block_id: BlockId, entered: bool, only_entry: bool) {
     let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else { return };
 
     if entered {
-        merge_forwarder_label(func, block_id, target);
+        merge_forwarder_label(func, block_id, target, only_entry);
     }
     let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
     redirect_target_phi_incoming(func, block_id, target, &predecessors);
@@ -741,21 +749,33 @@ fn eliminate_forwarder(func: &mut Function, block_id: BlockId, entered: bool) {
     let _ = invalidate_unreachable_block(func, block_id);
 }
 
-/// Merges the label origin of a bypassed forwarder into its target.
+/// Moves the label origin of a bypassed forwarder to its target.
 ///
 /// NOTE: A label origin says where control entered; a block nothing enters adds no origin. The
-/// predecessors of a bypassed block now enter its target, so the target's label takes its origin
-/// too, unless no reachable predecessor enters it or it has no label origin. A forwarder that is
-/// its target's only entry never gets here, since `merge_blocks` joins the two and keeps the
-/// forwarder's label.
-fn merge_forwarder_label(func: &mut Function, block_id: BlockId, target: BlockId) {
+/// predecessors of a bypassed block now enter its target, so the target's label takes its origin:
+/// alone when the forwarder was the target's only reachable entry, merged with the target's own
+/// otherwise. A forwarder that no reachable predecessor enters, or that has no label origin, adds
+/// nothing. When nothing else enters the target, `merge_blocks` normally joins the two and keeps
+/// the forwarder's label, unless a dead predecessor of the target still prevents it.
+fn merge_forwarder_label(
+    func: &mut Function,
+    block_id: BlockId,
+    target: BlockId,
+    only_entry: bool,
+) {
     let label = &func.blocks[block_id].label_metadata;
     if label.source_spans().next().is_none() {
         return;
     }
     let label = label.clone();
-    // target label !metadata(union of forwarder and target labels)
-    func.blocks[target].label_metadata.merge_debug_locs([&label]);
+    let target_label = &mut func.blocks[target].label_metadata;
+    if only_entry {
+        // target label !metadata(forwarder label)
+        target_label.preserve_debug_loc(&label);
+    } else {
+        // target label !metadata(union of forwarder and target labels)
+        target_label.merge_debug_locs([&label]);
+    }
 }
 
 fn redirect_target_phi_incoming(
