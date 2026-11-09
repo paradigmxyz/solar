@@ -772,8 +772,20 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
             .keys()
             .map(|&duplicate| module.function(duplicate).instructions().count())
             .sum::<usize>();
+        // Calls the duplicates have now, before they go to the representatives.
+        let mut called = DenseBitSet::new_empty(module.functions.len());
+        for func in &module.functions {
+            for callee in direct_callees(func) {
+                called.insert(callee);
+            }
+        }
         for (&duplicate, &representative) in &replacements {
-            merge_function_debug_origins(module, duplicate, representative);
+            merge_function_debug_origins(
+                module,
+                duplicate,
+                representative,
+                called.contains(duplicate),
+            );
             merged.insert(duplicate);
         }
         redirect_calls(module, &replacements);
@@ -790,11 +802,13 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
     total
 }
 
-/// Unions metadata of bodies already proven instruction-for-instruction equivalent.
+/// Unions metadata of bodies already proven instruction-for-instruction equivalent. `called` is
+/// whether the duplicate has callers that now go to the representative.
 fn merge_function_debug_origins(
     module: &mut Module,
     duplicate: FunctionId,
     representative: FunctionId,
+    called: bool,
 ) {
     let source = module.function(duplicate);
     let origins = source
@@ -820,8 +834,12 @@ fn merge_function_debug_origins(
             target.inst_mut(inst).metadata.merge_debug_locs([&metadata]);
         }
         target.blocks[block].terminator_metadata.merge_debug_locs([&terminator]);
-        // Calls to the duplicate land on the shared label, so it keeps both functions' origins.
-        target.blocks[block].label_metadata.merge_debug_locs([&label]);
+        // NOTE: A label origin says where control entered; a block or function nothing enters adds
+        // no origin. Calls to a duplicate now land on the representative's labels, so they take
+        // the duplicate's origins.
+        if called {
+            target.blocks[block].label_metadata.merge_debug_locs([&label]);
+        }
     }
 }
 

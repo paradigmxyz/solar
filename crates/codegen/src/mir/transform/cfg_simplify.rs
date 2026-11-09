@@ -658,7 +658,9 @@ fn eliminate_empty_blocks(func: &mut Function) -> bool {
             if !is_loop_preheader_forwarder(func, block_id, cfg())
                 && forwarder_elimination_preserves_phis(func, block_id)
             {
-                eliminate_forwarder(func, block_id);
+                let entered =
+                    func.blocks[block_id].predecessors.iter().any(|&pred| cfg().is_reachable(pred));
+                eliminate_forwarder(func, block_id, entered);
                 eliminated = true;
                 changed = true;
                 break;
@@ -723,11 +725,14 @@ fn forwarder_elimination_preserves_phis(func: &Function, block_id: BlockId) -> b
     true
 }
 
-/// Eliminates an empty forwarder block by redirecting its predecessors.
-fn eliminate_forwarder(func: &mut Function, block_id: BlockId) {
+/// Eliminates an empty forwarder block by redirecting its predecessors. `entered` is whether a
+/// reachable predecessor enters it.
+fn eliminate_forwarder(func: &mut Function, block_id: BlockId, entered: bool) {
     let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else { return };
 
-    merge_forwarder_label(func, block_id, target);
+    if entered {
+        merge_forwarder_label(func, block_id, target);
+    }
     let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
     redirect_target_phi_incoming(func, block_id, target, &predecessors);
     for pred in predecessors {
@@ -738,17 +743,17 @@ fn eliminate_forwarder(func: &mut Function, block_id: BlockId) {
 
 /// Merges the label origin of a bypassed forwarder into its target.
 ///
-/// NOTE: A bypassed block's label marked where control entered; its predecessors now enter the
-/// target, so the target's label takes that origin too. A forwarder with no predecessors was never
-/// entered, and one with no label origin never marked an entry, so neither adds to the target. A
-/// forwarder that is its target's only entry never gets here, since `merge_blocks` joins the two
-/// and keeps the forwarder's label.
+/// NOTE: A label origin says where control entered; a block nothing enters adds no origin. The
+/// predecessors of a bypassed block now enter its target, so the target's label takes its origin
+/// too, unless no reachable predecessor enters it or it has no label origin. A forwarder that is
+/// its target's only entry never gets here, since `merge_blocks` joins the two and keeps the
+/// forwarder's label.
 fn merge_forwarder_label(func: &mut Function, block_id: BlockId, target: BlockId) {
-    let block = &func.blocks[block_id];
-    if block.predecessors.is_empty() || block.label_metadata.source_spans().next().is_none() {
+    let label = &func.blocks[block_id].label_metadata;
+    if label.source_spans().next().is_none() {
         return;
     }
-    let label = block.label_metadata.clone();
+    let label = label.clone();
     // target label !metadata(union of forwarder and target labels)
     func.blocks[target].label_metadata.merge_debug_locs([&label]);
 }
