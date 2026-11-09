@@ -41,6 +41,7 @@ pub struct Parser<'sess, 'ast, 'cb> {
 
     plugin_temporary: u64,
     plugin_tokens: Option<plugin::SourceTokens>,
+    plugin_depths: plugin::ExpansionDepths,
     #[allow(clippy::type_complexity)]
     plugin_expansion: Option<
         std::boxed::Box<
@@ -192,6 +193,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             plugin_expansion: None,
             plugin_temporary: 0,
             plugin_tokens: None,
+            plugin_depths: Default::default(),
         };
         parser.bump();
         parser

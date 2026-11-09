@@ -360,7 +360,7 @@ fn nested_invocations_share_source_token_text() {
     let expression = format!("return {}payload{};", "@broken.sum(".repeat(64), ")".repeat(64));
     let statement = format!(
         "{}{}{} return 0;",
-        "@broken.repeat(1) {".repeat(48),
+        "@broken.repeat(1) /** between arguments and body */ {".repeat(48),
         "payload;".repeat(2048),
         "}".repeat(48)
     );

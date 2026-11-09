@@ -471,7 +471,8 @@ impl<'gcx> Gcx<'gcx> {
                     let path = std::fs::canonicalize(path).map_err(|error| {
                         format!("cannot open pass plugin `{}`: {error}", path.display())
                     })?;
-                    solar_pass_plugin::host::NativePlugin::load(&path).map(Arc::new)
+                    // SAFETY: Explicit command-line loading opts into trusted native code.
+                    unsafe { solar_pass_plugin::host::NativePlugin::load(&path) }.map(Arc::new)
                 })
                 .collect::<Result<Vec<_>, String>>()?;
             crate::plugins::validate(&plugins)?;

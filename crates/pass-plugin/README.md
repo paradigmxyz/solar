@@ -32,6 +32,9 @@ exact Rust toolchain, SDK source, target, profile, and Rust flags. A fingerprint
 covers these inputs; the loader compares it before calling the Rust entry
 point. Rebuild plugins when any of them changes. Randomized type layouts are
 unsupported. This is a compatibility check, not a security boundary.
+Embedders call the unsafe `host::NativePlugin::load` only after establishing trust
+in the library and its SDK contracts. API versions and plugin versions are checked
+before frontend registration, including builds that stop before codegen.
 See the [Rust ABI reference](https://doc.rust-lang.org/reference/items/external-blocks.html#abi).
 
 The SDK lends requests from the host and responses from the plugin. The host

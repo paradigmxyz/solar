@@ -13,7 +13,7 @@
 
 use crate::{backend::evm::CodegenState, mir::MirPhase};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use solar_pass_plugin::{API_VERSION, Ir, Request, Response, host::NativePlugin};
+use solar_pass_plugin::{Ir, Request, Response, host::NativePlugin};
 use solar_sema::Gcx;
 use std::{path::Path, sync::Arc};
 
@@ -77,12 +77,6 @@ pub(crate) fn registry(gcx: Gcx<'_>) -> Result<Option<&Registry>, ErrorGuarantee
 impl Registry {
     fn load(&mut self, path: &Path, plugin: Arc<NativePlugin>) -> Result<(), String> {
         let manifest = plugin.manifest()?;
-        if manifest.api_version != API_VERSION {
-            return Err(format!(
-                "plugin `{}` requires API {}, expected {API_VERSION}",
-                manifest.name, manifest.api_version
-            ));
-        }
         let frontend = plugin.frontend_manifest()?;
         if !valid_name(&manifest.name)
             || manifest.version.is_empty()

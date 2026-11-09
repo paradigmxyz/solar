@@ -3,8 +3,11 @@
 //! the loaded library so later metadata never hashes a replacement at the original path.
 
 use crate::{
-    __private::{ABI_SYMBOL, ENTRY_SYMBOL, Entry, Exports, Receiver, build_fingerprint},
-    BuiltinBody, Expansion, ExpansionRequest, FrontendManifest, Manifest, Request, Response,
+    __private::{
+        ABI_SYMBOL, ENTRY_SYMBOL, Entry, Exports, Receiver, build_fingerprint, validate_expansion,
+    },
+    API_VERSION, BuiltinBody, Expansion, ExpansionRequest, FrontendManifest, Manifest, Request,
+    Response,
 };
 use alloy_primitives::{B256, keccak256};
 use std::{
@@ -30,7 +33,13 @@ pub struct NativePlugin {
 
 impl NativePlugin {
     /// Loads explicitly requested native code after checking its SDK and toolchain fingerprint.
-    pub fn load(path: &Path) -> Result<Self, String> {
+    ///
+    /// # Safety
+    ///
+    /// The caller must trust the library's initializers, exports, callbacks and destructors to
+    /// uphold Rust's safety and SDK lifetime contracts. The fingerprint checks compatibility;
+    /// it does not authenticate code or make an arbitrary native library safe to load.
+    pub unsafe fn load(path: &Path) -> Result<Self, String> {
         #[cfg(any(unix, windows))]
         {
             let digest = library_digest(path)?;
@@ -71,6 +80,7 @@ impl NativePlugin {
                 _library: library,
             };
             plugin.verify_identity()?;
+            plugin.manifest()?;
             Ok(plugin)
         }
         #[cfg(not(any(unix, windows)))]
@@ -84,6 +94,15 @@ impl NativePlugin {
                 let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
                 let manifest = receive(|respond| (self.exports.manifest)(respond))?;
                 self.verify_identity()?;
+                if manifest.api_version != API_VERSION {
+                    return Err(format!(
+                        "plugin `{}` requires API {}, expected {API_VERSION}",
+                        manifest.name, manifest.api_version
+                    ));
+                }
+                if manifest.version.is_empty() {
+                    return Err(format!("plugin `{}` has an empty version", manifest.name));
+                }
                 Ok(manifest)
             })
             .clone()
@@ -116,7 +135,13 @@ impl NativePlugin {
     /// Runs an extension and copies the result into the host.
     pub fn expand(&self, request: &ExpansionRequest<'_>) -> Result<Expansion, String> {
         let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
-        receive(|respond| (self.exports.expand)(request, respond))
+        receive_checked(
+            |respond| (self.exports.expand)(request, respond),
+            |expansion| {
+                validate_expansion(expansion)?;
+                Ok(expansion.clone())
+            },
+        )
     }
 
     /// Returns the library content hash captured before loading and initialization.
@@ -133,13 +158,20 @@ impl NativePlugin {
 }
 
 fn receive<T: Clone>(call: impl FnOnce(&mut Receiver<'_, T>)) -> Result<T, String> {
+    receive_checked(call, |value| Ok(value.clone()))
+}
+
+fn receive_checked<T>(
+    call: impl FnOnce(&mut Receiver<'_, T>),
+    clone: impl Fn(&T) -> Result<T, String>,
+) -> Result<T, String> {
     let mut response = None;
     let mut duplicate = false;
     call(&mut |value| {
         if response.is_some() {
             duplicate = true;
         } else {
-            response = Some(value.cloned().map_err(str::to_owned));
+            response = Some(value.map_err(str::to_owned).and_then(&clone));
         }
     });
     if duplicate {

@@ -11,6 +11,7 @@ use std::{
 
 mod artifact;
 mod frontend;
+mod frontend_review;
 mod graph_tests;
 mod review_tests;
 mod runtime;

@@ -4,7 +4,8 @@ use std::{io::Write, process::Stdio};
 
 #[test]
 fn frontend_callbacks_cross_library_boundary() {
-    let plugin = NativePlugin::load(&sample()).unwrap();
+    // SAFETY: The fixture is built from the workspace's trusted SDK example.
+    let plugin = unsafe { NativePlugin::load(&sample()) }.unwrap();
     let manifest = plugin.frontend_manifest().unwrap();
     let expansion = plugin
         .expand(&ExpansionRequest {

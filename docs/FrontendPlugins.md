@@ -81,7 +81,10 @@ the body, including arithmetic checks and function mutability.
 
 `Block` groups statement recipes. A recipe must use its input arguments and its
 body once; it cannot duplicate or discard the body AST. Both expression and
-statement expansion nesting are limited to 128 levels.
+statement recipes are limited to 128 levels and 16,384 nodes before the host
+clones them. The SDK releases recipe trees iteratively. The resulting AST must
+also fit the parser's depth budget, including expanded arguments, bodies and
+surrounding syntax; nesting individually valid recipes cannot bypass that limit.
 
 Expansion callbacks receive the invocation's source tokens, including their
 file-relative byte ranges, as a borrowed slice valid during the callback. Nested
@@ -90,8 +93,14 @@ file, after successfully parsing an invocation with a loaded plugin. The compile
 parses arguments and the body; plugins return structured recipes, rather than
 source strings to paste into the file.
 The extension point does not change operator precedence or declaration syntax.
+Expression expansions work in the same postfix, binary and assignment contexts
+as ordinary expressions. Frontend names must be non-reserved Solidity identifiers.
 
 ## Typed builtins and MIR
+
+Recipe opcodes must be available on the selected EVM version; unsupported opcodes
+are diagnosed at the builtin call. Libraries with no IR passes may omit `run`.
+Declaring a pass without implementing it is an error when that pass executes.
 
 ```solidity
 contract Example {

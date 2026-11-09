@@ -1,8 +1,8 @@
 use proc_macro2::{Group, TokenStream, TokenTree};
 use quote::{TokenStreamExt, quote};
 use syn::{
-    Attribute, Block, FnArg, Generics, Ident, Pat, Stmt, Token, TraitItem, Visibility, braced,
-    parse::Parse,
+    Attribute, Block, FnArg, Generics, Ident, Pat, Stmt, Token, TraitItem, Type, Visibility,
+    braced, parse::Parse,
 };
 
 pub struct Input {
@@ -11,6 +11,7 @@ pub struct Input {
     trait_token: Token![trait],
     name: Ident,
     mut_name: Option<Ident>,
+    ref_name: Option<Ident>,
     generics: Generics,
     items: TokenStream,
 }
@@ -22,19 +23,20 @@ impl Parse for Input {
         let trait_token = input.parse()?;
         let name: Ident = input.parse()?;
         let mut_name: Option<Ident> = input.parse()?;
+        let ref_name: Option<Ident> = input.parse()?;
         let generics: Generics = input.parse()?;
 
         let content;
         braced!(content in input);
         let items = content.parse()?;
 
-        Ok(Self { attrs, vis, trait_token, name, mut_name, generics, items })
+        Ok(Self { attrs, vis, trait_token, name, mut_name, ref_name, generics, items })
     }
 }
 
 impl Input {
     pub fn expand(&self) -> TokenStream {
-        let Self { attrs, vis, trait_token, name, mut_name, generics, items } = self;
+        let Self { attrs, vis, trait_token, name, mut_name, ref_name, generics, items } = self;
 
         let expand = |nonmut_items: TokenStream, mut_items: Option<TokenStream>| {
             let mut_trait = mut_items.map(|mut_items| {
@@ -74,10 +76,32 @@ impl Input {
         add_walk_fns(&mut mut_trait_items);
         add_walk_fns(&mut nonmut_trait_items);
 
-        expand(
+        let ordinary = expand(
             quote! { #(#nonmut_trait_items)* },
             mut_name.is_some().then(|| quote! { #(#mut_trait_items)* }),
-        )
+        );
+        let borrowed = ref_name.as_ref().map(|ref_name| {
+            // Keep arena lifetimes in node types, but let each traversal borrow nodes briefly.
+            for item in &mut nonmut_trait_items {
+                let TraitItem::Fn(f) = item else { continue };
+                for arg in &mut f.sig.inputs {
+                    if let FnArg::Typed(arg) = arg
+                        && let Type::Reference(reference) = &mut *arg.ty
+                    {
+                        reference.lifetime = None;
+                    }
+                }
+            }
+            let doc =
+                format!("Like [`{name}`], with node borrows independent of their arena lifetime.");
+            quote! {
+                #[doc = #doc]
+                #vis #trait_token #ref_name #generics {
+                    #(#nonmut_trait_items)*
+                }
+            }
+        });
+        quote! { #ordinary #borrowed }
     }
 }
 

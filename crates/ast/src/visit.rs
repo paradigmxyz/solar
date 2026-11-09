@@ -7,7 +7,7 @@ use std::ops::ControlFlow;
 
 declare_visitors! {
     /// AST traversal.
-    pub trait Visit VisitMut <'ast> {
+    pub trait Visit VisitMut VisitRef <'ast> {
         /// The value returned when breaking from the traversal.
         ///
         /// This can be [`Never`](solar_data_structures::Never) to indicate that the traversal

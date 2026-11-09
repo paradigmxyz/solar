@@ -16,25 +16,27 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let expr = self.parse_binary_expr(4, with)?;
-        if self.eat(TokenKind::Question) {
+        let expr = if self.eat(TokenKind::Question) {
             let then = self.parse_expr()?;
             self.expect(TokenKind::Colon)?;
             let else_ = self.parse_expr()?;
             let span = expr.span.to(self.prev_token.span);
-            Ok(self.alloc(Expr { span, kind: ExprKind::Ternary(expr, then, else_) }))
+            self.alloc(Expr { span, kind: ExprKind::Ternary(expr, then, else_) })
         } else {
-            let kind = if let Some(binop_eq) = self.token.as_binop_eq() {
-                Some(binop_eq)
-            } else if self.token.kind == TokenKind::Eq {
-                None
+            let kind = self.token.as_binop_eq();
+            if kind.is_some() || self.token.kind == TokenKind::Eq {
+                self.bump(); // binop token
+                let rhs = self.parse_expr()?;
+                let span = expr.span.to(self.prev_token.span);
+                self.alloc(Expr { span, kind: ExprKind::Assign(expr, kind, rhs) })
             } else {
-                return Ok(expr);
-            };
-            self.bump(); // binop token
-            let rhs = self.parse_expr()?;
-            let span = expr.span.to(self.prev_token.span);
-            Ok(self.alloc(Expr { span, kind: ExprKind::Assign(expr, kind, rhs) }))
+                expr
+            }
+        };
+        if self.plugin_tokens.is_some() {
+            self.check_plugin_depth(expr)?;
         }
+        Ok(expr)
     }
 
     /// Parses a binary expression.

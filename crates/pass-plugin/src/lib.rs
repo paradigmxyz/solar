@@ -21,9 +21,9 @@ pub const ABI_FINGERPRINT: [u8; 32] = __private::build_fingerprint(cfg!(panic = 
 /// macro lends their results to the compiler and drops them before returning to the host.
 pub trait Plugin: Sync {
     fn manifest(&self) -> Manifest;
-    /// Runs an IR pass; frontend-only libraries may keep the default no-op implementation.
+    /// Runs a declared IR pass. Frontend-only libraries need not implement this method.
     fn run(&self, _request: &Request) -> Result<Response, String> {
-        Ok(Response::default())
+        Err("plugin does not implement IR passes".into())
     }
 
     /// Lowers a registered builtin to an acyclic pure word fragment.
@@ -527,7 +527,10 @@ pub mod __private {
         respond: &mut Receiver<'_, Expansion>,
     ) {
         match catch_unwind(AssertUnwindSafe(|| plugin.expand(request))) {
-            Ok(Ok(response)) => respond(Ok(&response)),
+            Ok(Ok(response)) => {
+                respond(Ok(&response));
+                drop_expansion(response);
+            }
             Ok(Err(error)) => respond(Err(&error)),
             Err(_) => respond(Err("plugin panicked")),
         }
@@ -538,6 +541,76 @@ pub mod __private {
             Ok(Ok(response)) => respond(Ok(&response)),
             Ok(Err(error)) => respond(Err(&error)),
             Err(_) => respond(Err("plugin panicked")),
+        }
+    }
+
+    pub fn validate_expansion(expansion: &Expansion) -> Result<(), String> {
+        let mut pending = vec![(ExpansionNode::from(expansion), 0)];
+        let mut nodes = 0;
+        while let Some((node, depth)) = pending.pop() {
+            if depth >= 128 {
+                return Err("plugin expansion exceeds nesting limit".into());
+            }
+            nodes += 1;
+            if nodes > 16384 {
+                return Err("plugin expansion exceeds node limit".into());
+            }
+            match node {
+                ExpansionNode::Expr(ExpansionExpr::Binary { left, right, .. }) => {
+                    pending.push((ExpansionNode::Expr(left), depth + 1));
+                    pending.push((ExpansionNode::Expr(right), depth + 1));
+                }
+                ExpansionNode::Stmt(ExpansionStmt::Block(statements)) => {
+                    if nodes + pending.len() + statements.len() > 16384 {
+                        return Err("plugin expansion exceeds node limit".into());
+                    }
+                    pending.extend(
+                        statements.iter().map(|stmt| (ExpansionNode::Stmt(stmt), depth + 1)),
+                    );
+                }
+                ExpansionNode::Stmt(ExpansionStmt::Repeat { count, body }) => {
+                    pending.push((ExpansionNode::Expr(count), depth + 1));
+                    pending.push((ExpansionNode::Stmt(body), depth + 1));
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    enum ExpansionNode<'a> {
+        Expr(&'a ExpansionExpr),
+        Stmt(&'a ExpansionStmt),
+        Builtin,
+    }
+
+    impl<'a> From<&'a Expansion> for ExpansionNode<'a> {
+        fn from(expansion: &'a Expansion) -> Self {
+            match expansion {
+                Expansion::Expression(expr) => Self::Expr(expr),
+                Expansion::Statement(stmt) => Self::Stmt(stmt),
+                Expansion::Builtin(_) => Self::Builtin,
+            }
+        }
+    }
+
+    fn drop_expansion(expansion: Expansion) {
+        let mut pending = vec![expansion];
+        while let Some(node) = pending.pop() {
+            match node {
+                Expansion::Expression(ExpansionExpr::Binary { left, right, .. }) => {
+                    pending.push(Expansion::Expression(*left));
+                    pending.push(Expansion::Expression(*right));
+                }
+                Expansion::Statement(ExpansionStmt::Block(statements)) => {
+                    pending.extend(statements.into_iter().map(Expansion::Statement));
+                }
+                Expansion::Statement(ExpansionStmt::Repeat { count, body }) => {
+                    pending.push(Expansion::Expression(count));
+                    pending.push(Expansion::Statement(*body));
+                }
+                _ => {}
+            }
         }
     }
 }

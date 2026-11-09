@@ -10,12 +10,14 @@ use solar_ast::{
     self as ast,
     BinOpKind::*,
     token::{Delimiter, Token, TokenKind},
+    visit::VisitRef,
 };
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, Session, Span, Symbol};
 use solar_pass_plugin::{
     Expansion, ExpansionExpr, ExpansionRequest, ExpansionStmt, ExtensionKind, FrontendToken,
 };
-use std::sync::OnceLock;
+use std::{cell::RefCell, ops::ControlFlow, sync::OnceLock};
 
 pub(super) struct SourceTokens {
     tokens: Vec<Token>,
@@ -49,6 +51,79 @@ impl SourceTokens {
         let start = self.tokens.partition_point(|token| token.span.lo() < span.lo());
         let end = self.tokens.partition_point(|token| token.span.hi() <= span.hi());
         &tokens[start..end]
+    }
+}
+
+/// Heights of immutable arena nodes, reused when an outer expansion embeds an inner result.
+#[derive(Default)]
+pub(super) struct ExpansionDepths(RefCell<FxHashMap<(usize, bool), usize>>);
+
+struct ExpansionDepth<'a> {
+    heights: &'a mut FxHashMap<(usize, bool), usize>,
+    depth: usize,
+    maximum: usize,
+    root_statement: usize,
+}
+
+impl ExpansionDepth<'_> {
+    fn node(
+        &mut self,
+        key: Option<(usize, bool)>,
+        span: Span,
+        walk: impl FnOnce(&mut Self) -> ControlFlow<Span>,
+    ) -> ControlFlow<Span> {
+        if let Some(height) = key.and_then(|key| self.heights.get(&key).copied()) {
+            self.maximum = self.maximum.max(self.depth + height);
+            return if self.depth + height > super::PARSER_RECURSION_LIMIT {
+                ControlFlow::Break(span)
+            } else {
+                ControlFlow::Continue(())
+            };
+        }
+        let parent = self.depth;
+        self.depth += 1;
+        if self.depth > super::PARSER_RECURSION_LIMIT {
+            return ControlFlow::Break(span);
+        }
+        let previous = self.maximum;
+        self.maximum = self.depth;
+        let result = walk(self);
+        let height = self.maximum - parent;
+        self.maximum = self.maximum.max(previous);
+        self.depth = parent;
+        if result.is_continue()
+            && let Some(key) = key
+        {
+            self.heights.insert(key, height);
+        }
+        result
+    }
+}
+
+impl<'ast> VisitRef<'ast> for ExpansionDepth<'_> {
+    type BreakValue = Span;
+
+    fn visit_expr(&mut self, expr: &ast::Expr<'ast>) -> ControlFlow<Span> {
+        self.node(Some((expr as *const _ as usize, false)), expr.span, |this| this.walk_expr(expr))
+    }
+
+    fn visit_stmt(&mut self, stmt: &ast::Stmt<'ast>) -> ControlFlow<Span> {
+        let pointer = stmt as *const _ as usize;
+        // The temporary root statement moves after validation; only arena children are cached.
+        let key = (pointer != self.root_statement).then_some((pointer, true));
+        self.node(key, stmt.span, |this| this.walk_stmt(stmt))
+    }
+
+    fn visit_ty(&mut self, ty: &ast::Type<'ast>) -> ControlFlow<Span> {
+        self.node(None, ty.span, |this| this.walk_ty(ty))
+    }
+
+    fn visit_yul_expr(&mut self, expr: &ast::yul::Expr<'ast>) -> ControlFlow<Span> {
+        self.node(None, expr.span, |this| this.walk_yul_expr(expr))
+    }
+
+    fn visit_yul_stmt(&mut self, stmt: &ast::yul::Stmt<'ast>) -> ControlFlow<Span> {
+        self.node(None, stmt.span, |this| this.walk_yul_stmt(stmt))
     }
 }
 
@@ -101,10 +176,12 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             if signature.parameters.len() != args.len() {
                 return Err(self.dcx().err_at(span, "wrong number of plugin builtin arguments"));
             }
-            return Ok(self.alloc(ast::Expr {
+            let expr = self.alloc(ast::Expr {
                 span,
                 kind: ast::ExprKind::PluginBuiltin(namespace, name, args),
-            }));
+            });
+            self.check_plugin_depth(expr)?;
+            return Ok(expr);
         }
         let Expansion::Expression(expr) = expansion else {
             return Err(self.dcx().err_at(span, "plugin returned a statement in an expression"));
@@ -123,6 +200,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if args.next().is_some() {
             return Err(self.dcx().err_at(span, "plugin expansion must use every argument once"));
         }
+        self.check_plugin_depth(expr)?;
         Ok(expr)
     }
 
@@ -137,6 +215,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if !self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
             let span = start.to(self.prev_token.span);
             let expr = self.finish_plugin_expr(namespace, name, args, span)?;
+            let expr = self.parse_expr_with(Some(expr))?;
             self.expect_semi()?;
             return Ok(ast::StmtKind::Expr(expr));
         }
@@ -173,7 +252,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 .err_at(span, "plugin expansion must use every argument and its body once"));
         }
         prelude.push(ast::Stmt { span, docs: Default::default(), kind: result });
-        Ok(ast::StmtKind::Block(ast::Block { span, stmts: self.alloc_vec(prelude) }))
+        let statement = ast::Stmt {
+            span,
+            docs: Default::default(),
+            kind: ast::StmtKind::Block(ast::Block { span, stmts: self.alloc_vec(prelude) }),
+        };
+        self.check_plugin_depth_stmt(&statement)?;
+        Ok(statement.kind)
     }
 
     fn plugin_ident(&mut self, span: Span) -> Ident {
@@ -340,5 +425,33 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if self.plugin_expansion.is_some() && self.plugin_tokens.is_none() {
             self.plugin_tokens = Some(SourceTokens::new(self.token, self.tokens.as_slice()));
         }
+    }
+
+    pub(super) fn check_plugin_depth(&self, expr: &ast::Expr<'_>) -> PResult<'sess, ()> {
+        let mut heights = self.plugin_depths.0.borrow_mut();
+        let mut visitor = ExpansionDepth {
+            heights: &mut heights,
+            depth: self.recursion_depth,
+            maximum: self.recursion_depth,
+            root_statement: 0,
+        };
+        if visitor.visit_expr(expr).is_break() {
+            return Err(self.dcx().err_at(expr.span, "expanded plugin AST exceeds nesting limit"));
+        }
+        Ok(())
+    }
+
+    fn check_plugin_depth_stmt(&self, stmt: &ast::Stmt<'_>) -> PResult<'sess, ()> {
+        let mut heights = self.plugin_depths.0.borrow_mut();
+        let mut visitor = ExpansionDepth {
+            heights: &mut heights,
+            depth: self.recursion_depth,
+            maximum: self.recursion_depth,
+            root_statement: stmt as *const _ as usize,
+        };
+        if visitor.visit_stmt(stmt).is_break() {
+            return Err(self.dcx().err_at(stmt.span, "expanded plugin AST exceeds nesting limit"));
+        }
+        Ok(())
     }
 }

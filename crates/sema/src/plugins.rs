@@ -3,6 +3,7 @@
 //! native libraries. IR-only plugin names retain the pass loader's naming rules.
 
 use solar_data_structures::map::FxHashSet;
+use solar_interface::Symbol;
 use solar_pass_plugin::{ExtensionKind, host::NativePlugin};
 use std::sync::Arc;
 
@@ -48,6 +49,11 @@ pub(crate) fn validate(plugins: &[Arc<NativePlugin>]) -> Result<(), String> {
 
 fn identifier(name: &str) -> bool {
     let mut bytes = name.bytes();
-    bytes.next().is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_')
-        && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    if !bytes.next().is_some_and(|byte| byte.is_ascii_alphabetic() || byte == b'_')
+        || !bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    {
+        return false;
+    }
+    let name = Symbol::intern(name);
+    !name.is_reserved(false) && !solar_ast::ElementaryType::is_fixed_mxn(name)
 }

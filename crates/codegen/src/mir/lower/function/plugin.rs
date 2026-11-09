@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::mir::{EffectKind, ResultKind, Semantics};
+use solar_interface::config::EvmVersion;
 use solar_pass_plugin::{BuiltinBody, BuiltinOperand};
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
@@ -34,7 +35,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let mut builder = FunctionBuilder::new_semantic(&mut function);
             let arguments =
                 args.iter().map(|_| builder.add_param(MirType::I256)).collect::<Vec<_>>();
-            let value = emit_recipe(&mut builder, &arguments, &body)?;
+            let evm_version = self.cx.gcx.sess.opts.evm_version;
+            let value = emit_recipe(&mut builder, &arguments, &body, evm_version)?;
             builder.ret([value]);
             let mut module = crate::mir::Module::new(namespace);
             module.add_function(function);
@@ -46,7 +48,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // argument = zext value to i256
                 arguments.push(self.builder.cast(value, MirType::I256));
             }
-            emit_recipe(&mut self.builder, &arguments, &body)
+            emit_recipe(&mut self.builder, &arguments, &body, evm_version)
         })();
         match result {
             Ok(value) => Some(Word::from_clean(value)),
@@ -69,6 +71,7 @@ fn emit_recipe(
     builder: &mut FunctionBuilder<'_>,
     arguments: &[ValueId],
     body: &BuiltinBody,
+    evm_version: EvmVersion,
 ) -> Result<ValueId, String> {
     let mut locals = Vec::new();
     for instruction in &body.instructions {
@@ -85,6 +88,14 @@ fn emit_recipe(
             || !matches!(kind.semantics(), Some(Semantics::Opcode(..)))
         {
             return Err("plugin builtin operation is not a pure word opcode".into());
+        }
+        if let Some(Semantics::Opcode(name, _)) = kind.semantics()
+            && !solar_evmir::op::from_mnemonic(name)
+                .is_some_and(|opcode| solar_evmir::op::is_available(opcode, evm_version))
+        {
+            return Err(format!(
+                "plugin builtin opcode `{name}` is not available for `{evm_version}`"
+            ));
         }
         // local = op operands
         locals.push(builder.emit_inst_unfolded(kind, Some(MirType::I256)));
