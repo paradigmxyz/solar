@@ -774,14 +774,22 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
             .sum::<usize>();
         // Functions some entry reaches by calls now, before the duplicates' callers are redirected.
         let entered = functions_reached_from(module, &roots);
-        for (&duplicate, &representative) in &replacements {
+        // The first entered duplicate gives an unentered representative its label; later ones
+        // merge into it.
+        let mut labeled = DenseBitSet::new_empty(module.functions.len());
+        let mut ordered = replacements.iter().collect::<Vec<_>>();
+        ordered.sort_unstable();
+        for (&duplicate, &representative) in ordered {
             merge_function_debug_origins(
                 module,
                 duplicate,
                 representative,
                 entered.contains(duplicate),
-                entered.contains(representative),
+                entered.contains(representative) || labeled.contains(representative),
             );
+            if entered.contains(duplicate) {
+                labeled.insert(representative);
+            }
             merged.insert(duplicate);
         }
         redirect_calls(module, &replacements);
@@ -815,7 +823,8 @@ fn functions_reached_from(
 
 /// Unions metadata of bodies already proven instruction-for-instruction equivalent.
 /// `duplicate_entered` is whether an entry reaches the duplicate through calls that now go to the
-/// representative, and `representative_entered` whether an entry reaches the representative.
+/// representative, and `representative_entered` whether an entry reaches the representative or an
+/// earlier duplicate already gave it a label.
 fn merge_function_debug_origins(
     module: &mut Module,
     duplicate: FunctionId,
