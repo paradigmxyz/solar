@@ -48,7 +48,7 @@
 +   pop !metadata(spans=[6..10, 26..30])
     push 1 !metadata(span=1..5)
     pop
-+   jump !metadata(span=1..5)
++   jump !metadata(spans=[6..10, 1..5])
 + bb3 [continuation]:
 +   jump bb1 !metadata(span=11..15)
 + bb4 [continuation]:

@@ -11,6 +11,9 @@
 // CHECK: {{^[ +].*}}pop !metadata(spans=[6..10, 26..30]){{$}}
 // CHECK-COUNT-6: {{^[ +].*}}pop !metadata(spans=[6..10, 26..30]){{$}}
 // CHECK: {{^[ +].*}}pop{{$}}
+// The return jump takes each site's last located instruction: the last `pop` of the first site,
+// and the `push` before the unlocated last `pop` of the second.
+// CHECK: + jump !metadata(spans=[6..10, 1..5]){{$}}
 bb0:
   push 1 !metadata(span=1..5)
   pop !metadata(span=6..10)

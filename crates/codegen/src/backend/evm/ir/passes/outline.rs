@@ -37,8 +37,8 @@
 //! loop.
 //!
 //! Each shared body instruction takes the merged locations of the sites' instructions at its
-//! position, and the stub's return jump takes the merged call-site locations. Each site's call
-//! sequence takes the first location in the run it replaces.
+//! position, and the stub's return jump takes the merged locations of each site's last located
+//! instruction. Each site's call sequence takes the first location in the run it replaces.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
@@ -740,16 +740,16 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
         stub.instructions = group.body;
         stub.instructions.extend((1..=usize::from(outputs)).map(swap));
         let mut jump = Terminator::new(TerminatorKind::Op(op::JUMP));
-        let call_sites = group
+        // NOTE: The return jump runs right after the run's last instruction, so it takes that
+        // instruction's location from every site.
+        let returns = group
             .sites
             .iter()
             .map(|site| {
-                call_site_location(
-                    &module.blocks[site.block].instructions[site.start..][..site.len],
-                )
+                return_location(&module.blocks[site.block].instructions[site.start..][..site.len])
             })
             .collect::<Vec<_>>();
-        jump.metadata = merged_debug_loc(&call_sites);
+        jump.metadata = merged_debug_loc(&returns);
         stub.terminator = Some(jump);
         stub.metadata.call_effect =
             stub_call_effect(usize::from(inputs) + group.parameters.len(), outputs);
@@ -835,6 +835,17 @@ fn call_site_location(range: &[Instruction]) -> Metadata {
     location.drop_debug_loc(DebugLocKind::Dropped);
     if let Some(first) = range.iter().find(|inst| inst.metadata.source_span().is_some()) {
         location.preserve_debug_loc(&first.metadata);
+    }
+    location
+}
+
+/// The location of the stub's return jump on the path of the site that replaces `range`: the last
+/// instruction that has one, which the jump follows.
+fn return_location(range: &[Instruction]) -> Metadata {
+    let mut location = Metadata::default();
+    location.drop_debug_loc(DebugLocKind::Dropped);
+    if let Some(last) = range.iter().rev().find(|inst| inst.metadata.source_span().is_some()) {
+        location.preserve_debug_loc(&last.metadata);
     }
     location
 }
