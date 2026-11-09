@@ -30,6 +30,27 @@
       ret v0 !metadata(span=150..160)
   }
   
+  fn @reached(arg0: i256) -> i256 {
+    bb0 !metadata(span=170..180):
+-     v0 = add arg0, 9 !metadata(span=190..200)
+-     ret v0 !metadata(span=190..200)
++     v0 = add arg0, 9 !metadata(spans=[190..200, 230..240])
++     ret v0 !metadata(spans=[190..200, 230..240])
+  }
+  
+  fn @dead_callee(arg0: i256) -> i256 {
+    bb0 !metadata(span=210..220):
+      v0 = add arg0, 9 !metadata(span=230..240)
+      ret v0 !metadata(span=230..240)
+  }
+  
+  fn @dead_caller(arg0: i256) -> i256 {
+    bb0:
+-     v0 = icall @dead_callee, arg0
++     v0 = icall @reached, arg0
+      ret v0
+  }
+  
   ; selector 0x01020304
   fn @entry(arg0: i256) -> i256 [selector=0x01020304] {
     bb0:
@@ -37,8 +58,10 @@
 -     v1 = icall @second, arg0
 +     v1 = icall @first, arg0
       v2 = icall @live, arg0
-      v3 = add v0, v1
-      v4 = add v3, v2
-      ret v4
+      v3 = icall @reached, arg0
+      v4 = add v0, v1
+      v5 = add v2, v3
+      v6 = add v4, v5
+      ret v6
   }
   
