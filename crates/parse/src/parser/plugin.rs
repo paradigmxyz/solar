@@ -1,30 +1,69 @@
 //! Namespaced expression expansions, validated before entering ordinary name resolution.
 //! Arguments are consumed in source order exactly once; this initial adapter rejects recipes
 //! that would duplicate, discard or reorder argument evaluation.
+//! Requests borrow token slices from one lazy cache per parser. Invocation ranges come from
+//! successful parsing, so failed invocations need no delimiter pre-scan or token-text copies.
 
 use crate::{PResult, Parser};
 use alloy_primitives::U256;
 use solar_ast::{
     self as ast,
     BinOpKind::*,
-    token::{Delimiter, TokenKind},
+    token::{Delimiter, Token, TokenKind},
 };
-use solar_interface::{Ident, Span, Symbol};
+use solar_interface::{Ident, Session, Span, Symbol};
 use solar_pass_plugin::{
     Expansion, ExpansionExpr, ExpansionRequest, ExpansionStmt, ExtensionKind, FrontendToken,
 };
+use std::sync::OnceLock;
+
+pub(super) struct SourceTokens {
+    tokens: Vec<Token>,
+    frontend: OnceLock<Vec<FrontendToken>>,
+}
+
+impl SourceTokens {
+    fn new(token: Token, remaining: &[Token]) -> Self {
+        Self {
+            tokens: std::iter::once(token)
+                .chain(remaining.iter().copied())
+                .take_while(|token| token.kind != TokenKind::Eof)
+                .collect(),
+            frontend: OnceLock::new(),
+        }
+    }
+
+    fn view(&self, sess: &Session, span: Span) -> &[FrontendToken] {
+        let tokens = self.frontend.get_or_init(|| {
+            let map = sess.source_map();
+            let file = map.lookup_source_file(span.lo());
+            self.tokens
+                .iter()
+                .map(|token| FrontendToken {
+                    text: map.span_to_snippet(token.span).unwrap_or_default(),
+                    start: (token.span.lo() - file.start_pos).0,
+                    end: (token.span.hi() - file.start_pos).0,
+                })
+                .collect()
+        });
+        let start = self.tokens.partition_point(|token| token.span.lo() < span.lo());
+        let end = self.tokens.partition_point(|token| token.span.hi() <= span.hi());
+        &tokens[start..end]
+    }
+}
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Installs explicitly loaded frontend extensions for this parser.
     pub fn set_plugin_expansion(
         &mut self,
-        callback: impl Fn(&str, &ExpansionRequest) -> Result<Expansion, String> + 'cb,
+        callback: impl Fn(&str, &ExpansionRequest<'_>) -> Result<Expansion, String> + 'cb,
     ) {
+        self.plugin_tokens = None;
         self.plugin_expansion = Some(std::boxed::Box::new(callback));
     }
 
     pub(super) fn parse_plugin_expr(&mut self) -> PResult<'sess, ast::Box<'ast, ast::Expr<'ast>>> {
-        let tokens = self.plugin_source_tokens();
+        self.prepare_plugin_tokens();
         let start = self.token.span;
         self.expect(TokenKind::At)?;
         let namespace = self.parse_ident()?;
@@ -32,7 +71,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let name = self.parse_ident()?;
         let args = self.parse_paren_comma_seq(true, Self::parse_expr)?;
         let span = start.to(self.prev_token.span);
-        self.finish_plugin_expr(namespace, name, args, span, tokens)
+        self.finish_plugin_expr(namespace, name, args, span)
     }
 
     fn finish_plugin_expr(
@@ -41,17 +80,16 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         name: Ident,
         args: ast::BoxSlice<'ast, ast::Box<'ast, ast::Expr<'ast>>>,
         span: Span,
-        tokens: Vec<FrontendToken>,
     ) -> PResult<'sess, ast::Box<'ast, ast::Expr<'ast>>> {
-        let request = ExpansionRequest {
-            name: name.name.as_str().to_owned(),
-            kind: ExtensionKind::Expression,
-            tokens,
-        };
         let callback = self
             .plugin_expansion
             .as_ref()
             .ok_or_else(|| self.dcx().err_at(span, "no frontend plugins are loaded"))?;
+        let request = ExpansionRequest {
+            name: name.name.as_str().to_owned(),
+            kind: ExtensionKind::Expression,
+            tokens: self.plugin_source_tokens(span),
+        };
         let expansion = callback(namespace.name.as_str(), &request)
             .map_err(|error| self.dcx().err_at(span, error))?;
         if let Expansion::Builtin(signature) = &expansion {
@@ -89,7 +127,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     pub(super) fn parse_plugin_stmt(&mut self) -> PResult<'sess, ast::StmtKind<'ast>> {
-        let tokens = self.plugin_source_tokens();
+        self.prepare_plugin_tokens();
         let start = self.token.span;
         self.expect(TokenKind::At)?;
         let namespace = self.parse_ident()?;
@@ -98,21 +136,21 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let args = self.parse_paren_comma_seq(true, Self::parse_expr)?;
         if !self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
             let span = start.to(self.prev_token.span);
-            let expr = self.finish_plugin_expr(namespace, name, args, span, tokens)?;
+            let expr = self.finish_plugin_expr(namespace, name, args, span)?;
             self.expect_semi()?;
             return Ok(ast::StmtKind::Expr(expr));
         }
         let body = self.parse_block()?;
         let span = start.to(self.prev_token.span);
-        let request = ExpansionRequest {
-            name: name.name.as_str().to_owned(),
-            kind: ExtensionKind::Statement,
-            tokens,
-        };
         let callback = self
             .plugin_expansion
             .as_ref()
             .ok_or_else(|| self.dcx().err_at(span, "no frontend plugins are loaded"))?;
+        let request = ExpansionRequest {
+            name: name.name.as_str().to_owned(),
+            kind: ExtensionKind::Statement,
+            tokens: self.plugin_source_tokens(span),
+        };
         let expansion = callback(namespace.name.as_str(), &request)
             .map_err(|error| self.dcx().err_at(span, error))?;
         let Expansion::Statement(expansion) = expansion else {
@@ -172,43 +210,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         ast::Stmt { span, docs: Default::default(), kind: ast::StmtKind::DeclSingle(variable) }
     }
 
-    fn plugin_source_tokens(&self) -> Vec<FrontendToken> {
-        let file = self.sess.source_map().lookup_source_file(self.token.span.lo());
-        let mut tokens = std::iter::once(&self.token).chain(self.tokens.as_slice()).peekable();
-        let mut result = Vec::new();
-        let mut nesting = 0;
-        let mut opened = false;
-        let mut included_body = false;
-        while let Some(token) = tokens.next() {
-            match token.kind {
-                TokenKind::OpenDelim(_) => {
-                    nesting += 1;
-                    opened = true;
-                }
-                TokenKind::CloseDelim(_) => {
-                    nesting -= 1;
-                }
-                TokenKind::Eof => break,
-                _ => {}
-            }
-            result.push(FrontendToken {
-                text: self.sess.source_map().span_to_snippet(token.span).unwrap_or_default(),
-                start: (token.span.lo() - file.start_pos).0,
-                end: (token.span.hi() - file.start_pos).0,
-            });
-            if opened && nesting == 0 {
-                if !included_body
-                    && tokens
-                        .peek()
-                        .is_some_and(|token| token.kind == TokenKind::OpenDelim(Delimiter::Brace))
-                {
-                    included_body = true;
-                    continue;
-                }
-                break;
-            }
-        }
-        result
+    fn plugin_source_tokens(&self, span: Span) -> &[FrontendToken] {
+        self.plugin_tokens
+            .as_ref()
+            .expect("plugin callback has a source cache")
+            .view(self.sess, span)
     }
 
     fn plugin_uint(&self, value: U256, span: Span) -> ast::Box<'ast, ast::Expr<'ast>> {
@@ -328,5 +334,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             }
         };
         Ok(self.alloc(ast::Expr { span, kind }))
+    }
+
+    fn prepare_plugin_tokens(&mut self) {
+        if self.plugin_expansion.is_some() && self.plugin_tokens.is_none() {
+            self.plugin_tokens = Some(SourceTokens::new(self.token, self.tokens.as_slice()));
+        }
     }
 }

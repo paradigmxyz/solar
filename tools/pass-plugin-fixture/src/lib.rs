@@ -55,6 +55,21 @@ impl Plugin for Broken {
     }
 
     fn frontend_manifest(&self) -> api::FrontendManifest {
+        if mode() == "frontend_tokens" {
+            return api::FrontendManifest {
+                extensions: vec![
+                    api::FrontendExtension {
+                        name: "sum".into(),
+                        kind: api::ExtensionKind::Expression,
+                    },
+                    api::FrontendExtension {
+                        name: "repeat".into(),
+                        kind: api::ExtensionKind::Statement,
+                    },
+                ],
+                builtins: Vec::new(),
+            };
+        }
         if mode() == "replace_library_frontend" {
             replace_library();
         }
@@ -92,7 +107,33 @@ impl Plugin for Broken {
         }
     }
 
-    fn expand(&self, _: &api::ExpansionRequest) -> Result<api::Expansion, String> {
+    fn expand(&self, request: &api::ExpansionRequest<'_>) -> Result<api::Expansion, String> {
+        if mode() == "frontend_tokens" {
+            static TOKEN: std::sync::Mutex<Option<(usize, u32, u32)>> = std::sync::Mutex::new(None);
+            let token = request.tokens.iter().rev().find(|token| token.text == "payload").unwrap();
+            let identity = (token.text.as_ptr() as usize, token.start, token.end);
+            let mut prior = TOKEN.lock().unwrap();
+            if prior.is_some_and(|prior| prior != identity) {
+                return Err("nested invocations copied their shared token text".into());
+            }
+            *prior = Some(identity);
+            let closing = match request.kind {
+                api::ExtensionKind::Expression => ")",
+                api::ExtensionKind::Statement => "}",
+            };
+            if request.tokens.first().unwrap().text != "@"
+                || request.tokens.last().unwrap().text != closing
+            {
+                return Err("incorrect invocation token range".into());
+            }
+            return Ok(match request.kind {
+                api::ExtensionKind::Expression => Expansion::Expression(E::Argument(0)),
+                api::ExtensionKind::Statement => Expansion::Statement(S::Repeat {
+                    count: E::Argument(0),
+                    body: Box::new(S::Body),
+                }),
+            });
+        }
         let recipe = match mode().as_str() {
             "frontend_body" => S::Block(vec![S::Body, S::Body]),
             "frontend_discard" => S::Block(Vec::new()),

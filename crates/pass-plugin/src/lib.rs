@@ -37,7 +37,7 @@ pub trait Plugin: Sync {
     }
 
     /// Expands a frontend invocation into host-allocated syntax.
-    fn expand(&self, _request: &ExpansionRequest) -> Result<Expansion, String> {
+    fn expand(&self, _request: &ExpansionRequest<'_>) -> Result<Expansion, String> {
         Err("unknown frontend extension".into())
     }
 }
@@ -70,10 +70,11 @@ pub struct FrontendToken {
 }
 
 #[derive(Clone, Debug)]
-pub struct ExpansionRequest {
+pub struct ExpansionRequest<'a> {
     pub name: String,
     pub kind: ExtensionKind,
-    pub tokens: Vec<FrontendToken>,
+    /// Invocation tokens borrowed from the source cache for the duration of the callback.
+    pub tokens: &'a [FrontendToken],
 }
 
 /// Declarative syntax nodes. Inputs refer to parsed arguments or the parsed body; temporary
@@ -484,7 +485,7 @@ pub mod __private {
         pub run: fn(&Request, &mut Receiver<'_, Response>),
         pub lower_builtin: fn(&str, &mut Receiver<'_, BuiltinBody>),
         pub frontend_manifest: fn(&mut Receiver<'_, FrontendManifest>),
-        pub expand: fn(&ExpansionRequest, &mut Receiver<'_, Expansion>),
+        pub expand: fn(&ExpansionRequest<'_>, &mut Receiver<'_, Expansion>),
     }
 
     pub const fn build_fingerprint(panic_unwind: bool) -> [u8; 32] {
@@ -522,7 +523,7 @@ pub mod __private {
 
     pub fn expand<P: Plugin>(
         plugin: &P,
-        request: &ExpansionRequest,
+        request: &ExpansionRequest<'_>,
         respond: &mut Receiver<'_, Expansion>,
     ) {
         match catch_unwind(AssertUnwindSafe(|| plugin.expand(request))) {

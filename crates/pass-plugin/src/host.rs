@@ -114,7 +114,7 @@ impl NativePlugin {
     }
 
     /// Runs an extension and copies the result into the host.
-    pub fn expand(&self, request: &ExpansionRequest) -> Result<Expansion, String> {
+    pub fn expand(&self, request: &ExpansionRequest<'_>) -> Result<Expansion, String> {
         let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
         receive(|respond| (self.exports.expand)(request, respond))
     }

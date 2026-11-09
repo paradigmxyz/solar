@@ -84,8 +84,11 @@ body once; it cannot duplicate or discard the body AST. Both expression and
 statement expansion nesting are limited to 128 levels.
 
 Expansion callbacks receive the invocation's source tokens, including their
-file-relative byte ranges. The compiler parses arguments and the body; plugins
-return structured recipes, rather than source strings to paste into the file.
+file-relative byte ranges, as a borrowed slice valid during the callback. Nested
+requests share token storage; the compiler materializes token text once per source
+file, after successfully parsing an invocation with a loaded plugin. The compiler
+parses arguments and the body; plugins return structured recipes, rather than
+source strings to paste into the file.
 The extension point does not change operator precedence or declaration syntax.
 
 ## Typed builtins and MIR

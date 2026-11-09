@@ -40,12 +40,13 @@ pub struct Parser<'sess, 'ast, 'cb> {
     pub arena: &'ast ast::Arena,
 
     plugin_temporary: u64,
+    plugin_tokens: Option<plugin::SourceTokens>,
     #[allow(clippy::type_complexity)]
     plugin_expansion: Option<
         std::boxed::Box<
             dyn Fn(
                     &str,
-                    &solar_pass_plugin::ExpansionRequest,
+                    &solar_pass_plugin::ExpansionRequest<'_>,
                 ) -> std::result::Result<solar_pass_plugin::Expansion, String>
                 + 'cb,
         >,
@@ -190,6 +191,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             import_callback: None,
             plugin_expansion: None,
             plugin_temporary: 0,
+            plugin_tokens: None,
         };
         parser.bump();
         parser

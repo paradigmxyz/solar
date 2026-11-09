@@ -10,7 +10,7 @@ fn frontend_callbacks_cross_library_boundary() {
         .expand(&ExpansionRequest {
             name: "repeat".into(),
             kind: ExtensionKind::Statement,
-            tokens: Vec::new(),
+            tokens: &[],
         })
         .unwrap();
     assert_data_eq!(

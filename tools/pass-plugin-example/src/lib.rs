@@ -66,7 +66,7 @@ impl Plugin for Example {
 
     fn expand(
         &self,
-        request: &solar_pass_plugin::ExpansionRequest,
+        request: &solar_pass_plugin::ExpansionRequest<'_>,
     ) -> Result<solar_pass_plugin::Expansion, String> {
         if request.name == "sum" && request.kind == ExtensionKind::Expression {
             return Ok(Expansion::Expression(ExpansionExpr::Binary {

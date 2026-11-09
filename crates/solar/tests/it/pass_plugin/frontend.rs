@@ -351,3 +351,69 @@ fn a_frontend_only_library_needs_no_ir_pass() {
         );
     }
 }
+
+#[test]
+fn nested_invocations_share_source_token_text() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("tokens.sol");
+    let plugin = broken(directory.path(), "frontend_tokens");
+    let expression = format!("return {}payload{};", "@broken.sum(".repeat(64), ")".repeat(64));
+    let statement = format!(
+        "{}{}{} return 0;",
+        "@broken.repeat(1) {".repeat(48),
+        "payload;".repeat(2048),
+        "}".repeat(48)
+    );
+    for body in [expression, statement] {
+        fs::write(
+            &path,
+            format!("// Unicode: λ\ncontract C {{ function f(uint payload) external pure returns(uint) {{ {body} }} }}"),
+        )
+        .unwrap();
+        let output = run(&path, &plugin, &["--stop-after", "parsing"]);
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
+}
+
+#[test]
+fn malformed_nested_invocations_keep_parser_diagnostics() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("unclosed.sol");
+    let mut errors = Vec::new();
+    for (loaded, body) in [
+        (false, format!("return {}{}", "@example.sum(".repeat(96), "0,".repeat(8192))),
+        (true, format!("{}{}", "@example.repeat(1) {".repeat(64), "payload;".repeat(8192))),
+    ] {
+        fs::write(&path, format!("contract C {{ function f(uint payload) external {{ {body}"))
+            .unwrap();
+        let mut command = Command::new(SOLAR);
+        command.args([
+            "--allow=2264",
+            "-j1",
+            "--error-format=rustc-json",
+            "--stop-after",
+            "parsing",
+        ]);
+        if loaded {
+            command.arg(format!("-Zload-pass-plugin={}", sample().display()));
+        }
+        let output = command.arg(&path).output().unwrap();
+        assert!(!output.status.success());
+        errors.push(diagnostic_messages(&output));
+    }
+    assert_data_eq!(
+        serde_json::to_string_pretty(&errors).unwrap(),
+        str![[r#"
+[
+  [
+    "expected one of `(`, `)`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `<eof>`",
+    "aborting due to 1 previous error"
+  ],
+  [
+    "expected `}`, found `<eof>`",
+    "aborting due to 1 previous error"
+  ]
+]
+"#]],
+    );
+}
