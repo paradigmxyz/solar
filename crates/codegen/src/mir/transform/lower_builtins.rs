@@ -8,6 +8,8 @@
 //! retain their returndata and memory observations even when their scalar result is unused.
 //! As in solc, a failed precompile call forwards its return data, and the 32-byte result lands in
 //! scratch memory instead of an allocation.
+//! Hash inputs can be memory objects or memory slices: calldata is staged in unreserved memory
+//! by the frontend and passed as a slice, without allocating a header or advancing the FMP.
 //! Payable sends and transfers expand to stipend-limited calls; transfers branch to a semantic
 //! returndata revert on failure, leaving payload expansion to revert lowering. Low-level address
 //! calls expose their bytes input only here and retain explicit gas/value options. Return-data
@@ -298,8 +300,8 @@ fn lower_hash(
     ripemd: bool,
 ) -> ValueId {
     // NOTE: A successful call always writes the whole digest, so it can land in scratch memory.
-    // input_ptr = add (ptrtoint input), 32
-    // input_len = mload input
+    // input_ptr = memory_data input
+    // input_len = memory_len input
     // success = precompile_call(sha256 ? 2 : 3, input_ptr, input_len, scratch, 32)
     // branch success, done, failed
     // failed: revert_returndata
