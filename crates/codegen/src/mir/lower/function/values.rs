@@ -42,7 +42,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && let ExprKind::Tuple(elements) = types.kind
                 && elements.len() > 1
             {
-                let value = self.operand(expr)?;
+                let value = self.operand(expr)?.id();
                 let values = self.unpack_return_value(value);
                 return Some(values.into_iter().map(Word::from_clean).collect());
             }
@@ -67,7 +67,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && returns > 1
             {
                 // The fields are raw words where the callee's return variable is a raw carrier.
-                let value = self.operand(expr)?;
+                let value = self.operand(expr)?.id();
                 let fields = self.unpack_return_value(value);
                 return Some(match (resolved_function, function_pointer) {
                     // An external call decodes its results at their native widths.
@@ -227,7 +227,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_component(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Word> {
         match self.cx.gcx.type_of_expr(expr.id) {
             Some(ty) if ty.is_value_type() => self.lower_typed_expr(expr, ty),
-            _ => Some(Word::from_clean(self.operand(expr)?)),
+            _ => Some(Word::from_clean(self.operand(expr)?.id())),
         }
     }
 

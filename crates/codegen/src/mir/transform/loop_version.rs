@@ -189,7 +189,10 @@
 //! read before the loop under the same rule as other word tests; a zero-trip loop never gains a
 //! read of an otherwise untouched pointer. Large forged lengths select the original loop.
 
-use super::loop_split::{LoopCopy, clone_loop, redirect};
+use super::{
+    loop_split::{LoopCopy, clone_loop, redirect},
+    utils::terminator_debug_context,
+};
 use crate::mir::{
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
     InstId, InstKind, Instruction, MirType, Module, PanicCode, PtrLocation, RevertKind, Terminator,
@@ -203,6 +206,7 @@ use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::cell::OnceCell;
 
 /// Clones loops behind a run-time test that their element stores cannot reach the words they
@@ -1276,7 +1280,12 @@ fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
     // preheader | latch: ... jump test
     let test = func.alloc_block_like(header);
     redirect(func, plan.latch.unwrap_or(plan.preheader), header, test);
+    let context = terminator_debug_context(func, plan.preheader, DebugLocKind::CompilerGenerated);
     let mut builder = FunctionBuilder::new_semantic(func);
+    // NOTE: The test runs in the preheader, or after the first iteration when a latch enters it,
+    // never once per iteration of the version it selects, so it takes the loop statement's
+    // location, not the loop body's.
+    builder.set_debug_context(&context);
     builder.switch_to_block(test);
     let fast = builder.create_block();
     let slow = builder.create_block();

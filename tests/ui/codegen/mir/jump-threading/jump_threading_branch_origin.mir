@@ -1,0 +1,19 @@
+//@ compile-flags: -Zmir-pipeline=jump-threading
+//@ filecheck:
+@module ThreadingBranchOrigin
+
+// Folding a single-predecessor phi moves the branch up and deletes the predecessor's `jump`. The
+// deleted jump's location goes nowhere, so the moved branch keeps exactly its own.
+// CHECK-LABEL: {{^[ +].*}}fn @branch_moves_up{{[( ]}}
+// CHECK: + jumpi arg0, bb2, bb3 !metadata(span=30..40)
+fn @branch_moves_up(arg0: i1) -> i256 {
+  bb0:
+    jump bb1 !metadata(span=10..20, modifier_depth=1)
+  bb1:
+    v0 = phi [bb0: arg0]
+    jumpi v0, bb2, bb3 !metadata(span=30..40)
+  bb2:
+    ret 1
+  bb3:
+    ret 2
+}

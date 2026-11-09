@@ -230,14 +230,15 @@ Difference: `solar` accepts `--include-path` without `--base-path`, using the
 current directory as the base path, and does not report an ambiguous import
 when several roots lead to the same path, as with a repeated include path.
 Different paths to one file, such as an include path and a symbolic link to it,
-are still ambiguous, as in `solc`. In Standard JSON mode, which does not access
-the file system, it does not check the base path. It does not restrict imports
-to allowed paths, so `--allow-paths` has no effect.
+are still ambiguous, as in `solc`. In Standard JSON mode, it does not check the
+base path. `--allow-paths` applies only to the Standard JSON command line, which
+reads imports from disk like `solc`; other modes ignore it.
 
-Rationale: these inputs have a single sensible meaning, and Standard JSON reads
-imports only through the read callback.
+Rationale: these inputs have a single sensible meaning.
 
-Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`.
+Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`,
+`tests/ui/standard-json/monorepo.jsonc` and
+`tests/ui/standard-json/monorepo-symlink.jsonc`.
 
 ## Parsing
 
@@ -710,6 +711,20 @@ Coverage: `tests/ui/natspec/solar_tags.sol`, `tests/ui/natspec/solar_inline.sol`
 `tests/ui/codegen/mir/optimize-function/` and
 `tests/ui/codegen/mir/inline/solar_inline_forms.sol`.
 
+### TYPECK-023: Bare references to `require`
+
+Status: intentional.
+
+Difference: `solc` rejects a bare reference to `require`, as in `require;`,
+with error 2144, because it declares `require` once per arity. `solar`
+accepts it and reports a statement that has no effect (6133).
+
+Rationale: `require` is one builtin here, so a reference to it has a type.
+The warning catches a slipped parenthesis, as in `require; (cond, "message");`,
+which would otherwise drop a check without a diagnostic.
+
+Coverage: `tests/ui/typeck/no_effect_statement.sol`.
+
 ### TYPECK-024: Hexadecimal literals of 39 and 41 digits
 
 Status: intentional.
@@ -810,9 +825,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Status: implemented
 - Behavior: Legacy `sourceMap` output carries the compiler's modifier nesting
   depth in the `m` field, preserving it through MIR and EVM IR lowering and
-  optimization. Shared code with different modifier depths has no unique
-  modifier frame and uses depth zero. Shared code with multiple source origins
-  is unmapped in legacy output; ETHDebug retains every source alternative.
+  optimization. Shared code with different modifier depths, whether or not
+  each input has a source origin, has no unique modifier frame and uses depth
+  zero. Code that loses its origins keeps its depth. Shared code with multiple
+  source origins is unmapped in legacy output; ETHDebug retains every source
+  alternative.
   This policy applies equally to MIR and EVM IR sharing. Like solc, every entry
   of a constructor's modifier list, including base constructor calls, adds one
   level of depth to the code after it.

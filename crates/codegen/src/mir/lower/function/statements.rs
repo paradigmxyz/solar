@@ -376,7 +376,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
-                let condition = self.operand(condition)?;
+                let condition = self.operand(condition)?.id();
                 let ty = self.cx.gcx.type_of_expr(expr.id)?;
                 let lower_branch = |this: &mut Self, branch| {
                     if ty.is_ref_at(DataLocation::Memory) {
@@ -616,9 +616,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // topics += encode_indexed(argument)
                 match parameter_ty.peel_refs().kind {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                        if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
-                            value = self.materialize_memory_slice(value);
-                        }
                         topics.push(self.builder.keccak256_bytes(value));
                     }
                     TyKind::Struct(_)
@@ -653,8 +650,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 "indexed event aggregate encoding",
                             );
                         }
+                        // The hash reads the encoding at once, so it stays unreserved.
                         let layout = Arc::new(AbiLayout::new(vec![abi_type].into_boxed_slice()));
-                        let encoded = self.builder.abi_encode(layout, None, [value]);
+                        let encoded = self.builder.abi_encode_scratch(layout, None, [value]);
                         let pointer = self.builder.slice_ptr(encoded);
                         let length = self.builder.slice_len(encoded);
                         topics.push(self.builder.keccak256(pointer, length));
@@ -718,10 +716,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if self.is_terminated() {
                 break;
             }
-            if let Some(args) = self.immediate_packed_hash_return_args(stmt, stmts.peek().copied())
+            if let Some((args, hash_span)) =
+                self.immediate_packed_hash_return_args(stmt, stmts.peek().copied())
             {
+                // The fused operation replaces the hash call, whose location solc sets in
+                // `ExpressionCompiler.cpp` L636. The erased bytes declaration contributes no
+                // location; the return keeps its own statement context.
+                let previous = self.builder.replace_source_span(hash_span);
                 let hash = self.lower_keccak_abi_encode_packed(args)?;
+                self.builder.replace_source_span(stmts.peek().unwrap().span);
                 self.builder.ret(vec![hash]);
+                self.builder.replace_source_span(previous);
                 break;
             }
             self.lower_stmt(stmt)?;
@@ -733,7 +738,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &self,
         stmt: &'gcx hir::Stmt<'gcx>,
         next: Option<&'gcx hir::Stmt<'gcx>>,
-    ) -> Option<hir::CallArgs<'gcx>> {
+    ) -> Option<(hir::CallArgs<'gcx>, Span)> {
         if !self.return_targets.is_empty() {
             return None;
         }
@@ -761,7 +766,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (Some(Builtin::Keccak256), hir::CallArgsKind::Unnamed([arg]), [_])
                 if self.cx.gcx.resolved_variable(arg) == Some(id) =>
             {
-                Some(*args)
+                Some((*args, expr.span))
             }
             _ => None,
         }

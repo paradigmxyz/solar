@@ -388,7 +388,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
         prepare: impl FnOnce(&mut Self, ValueId) -> Option<(ValueId, AbiType)>,
-    ) -> Option<Step<'gcx, (ValueId, AbiType)>> {
+    ) -> Option<AbiOperand<'gcx>> {
         let operand = self.lower_operand(expr, ty)?;
         if operand.waits() {
             return Some(Step::Wait(operand));
@@ -400,7 +400,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Reads the storage operands of an ABI encoding, after every operand was lowered.
     pub(super) fn resolve_abi_operands(
         &mut self,
-        operands: Vec<Step<'gcx, (ValueId, AbiType)>>,
+        operands: Vec<AbiOperand<'gcx>>,
     ) -> Option<(Vec<ValueId>, Vec<AbiType>)> {
         let operands = operands
             .into_iter()
@@ -411,10 +411,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn resolve_abi_operand(
         &mut self,
-        operand: Step<'gcx, (ValueId, AbiType)>,
+        operand: AbiOperand<'gcx>,
     ) -> Option<(ValueId, AbiType)> {
         match operand {
             Step::Done(operand) => Some(operand),
+            Step::Literal(CallInputLiteral { bytes, span }) => {
+                let previous = self.builder.replace_source_span(span);
+                // object = alloc literal_size
+                // mstore object, length
+                // mstore (object + 32 + offset), word
+                let object = self.lower_call_input_literal(bytes.as_byte_str());
+                self.builder.replace_source_span(previous);
+                object.map(|object| (object, AbiType::Bytes(PtrLocation::Memory)))
+            }
             Step::Wait(operand) => {
                 let ty = operand.target;
                 let object = self.convert_operand(operand)?.clean(self, ty);
@@ -448,7 +457,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         argument: &'gcx hir::Expr<'gcx>,
         parameter_ty: Ty<'gcx>,
-    ) -> Option<Step<'gcx, (ValueId, AbiType)>> {
+    ) -> Option<AbiOperand<'gcx>> {
         if self.is_dynamic_bytes_type(parameter_ty) {
             let (value, location) = self.lower_bytes_operand(argument, parameter_ty)?;
             return self
@@ -466,6 +475,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             this.prepare_abi_argument(argument, parameter_ty, value, abi_type)
         })
+    }
+
+    /// Defers raw literal inputs until the call's argument expressions have all run.
+    pub(super) fn lower_call_input_argument(
+        &mut self,
+        argument: &'gcx hir::Expr<'gcx>,
+        parameter_ty: Ty<'gcx>,
+    ) -> Option<AbiOperand<'gcx>> {
+        // Constants and explicit conversions materialize at their evaluation point; a later
+        // argument can observe their allocation by reading the free-memory pointer.
+        if matches!(argument.peel_parens().kind, ExprKind::Lit(_))
+            && self.is_dynamic_bytes_type(parameter_ty)
+            && let Some(bytes) = self.constant_bytes(argument)
+        {
+            // A literal has no memory reference to retain. The encoder can embed its words
+            // in call input and remove the temporary without preserving a pointer bump.
+            return Some(Step::Literal(CallInputLiteral { bytes, span: argument.span }));
+        }
+        self.lower_abi_call_argument(argument, parameter_ty)
     }
 
     pub(super) fn prepare_abi_encode_argument(
@@ -1090,24 +1118,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.memory_store_field(object, index as u64, value);
             offset = offset.checked_add(self.types.abi_type(field)?.head_size())?;
         }
-        Some(object)
-    }
-
-    /// Copies bytes for consumers that use zero-padded calldata reads rather than source-range
-    /// validation. Ordinary calldata-to-memory conversions retain their checked path.
-    pub(super) fn copy_calldata_bytes_unchecked(&mut self, value: ValueId) -> Option<ValueId> {
-        if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata) {
-            return Some(value);
-        }
-        // length = slice_len(value)
-        // source = slice_ptr(value)
-        // object = alloc_bytes(length)
-        // copy(memory_data(object), source, length, calldata)
-        let length = self.builder.slice_len(value);
-        let source = self.builder.slice_ptr(value);
-        let object = self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
-        let dest = self.builder.memory_data(object);
-        self.builder.copy_heap(dest, source, length, PtrLocation::Calldata);
         Some(object)
     }
 }

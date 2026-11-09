@@ -19,9 +19,10 @@
 //! number of iterations, which no longer holds after replacing a loop. Later
 //! CFG and dead-code cleanup remove the old loop and unused final values.
 //!
-//! NOTE: Formulas summarize several iterations, so their debug locations stay
-//! unknown rather than inheriting an arbitrary iteration's source checkpoint.
+//! NOTE: The formulas run in the preheader, once when the loop statement starts, so they take the
+//! loop statement's location rather than an arbitrary iteration's.
 
+use super::utils::terminator_debug_context;
 use crate::{
     mir::{
         BlockId, Function, FunctionBuilder, InstId, InstKind, MirType, Module, Terminator, Value,
@@ -33,6 +34,7 @@ use crate::{
     target::{Cost, Target},
 };
 use solar_data_structures::map::FxHashMap;
+use solar_evmir::debug::DebugLocKind;
 
 /// Evaluates linear and quadratic additive recurrences at loop exits.
 pub(crate) struct LoopReduce;
@@ -175,7 +177,11 @@ fn plan(func: &Function, l: &Loop, target: Target) -> Option<ClosedForm> {
 
 fn rewrite(func: &mut Function, plan: ClosedForm) {
     let mut replacements = FxHashMap::default();
+    let context = terminator_debug_context(func, plan.preheader, DebugLocKind::Dropped);
     let mut builder = FunctionBuilder::new(func);
+    // NOTE: Preheader code runs when the loop statement starts, never for one iteration, so it
+    // takes the loop statement's location.
+    builder.set_debug_context(&context);
     builder.switch_to_block(plan.preheader);
     let mut triangular = None;
     for r in &plan.recurrences {

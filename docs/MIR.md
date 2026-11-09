@@ -204,8 +204,8 @@ extent before entering its loop; the loop bound then proves that element offsets
 need no further overflow checks. Both bytes results and
 scratch hashes share the encoder. Solidity `addmod` and `mulmod` retain their
 zero-modulus panic until conversion; their Yul counterparts keep native zero
-semantics. Runtime `erc7201` retains the namespace object, while a literal
-namespace folds directly to its constant slot. Storage bytes loads retain
+semantics. Runtime `erc7201` retains the namespace object and hashes the inner digest in
+scratch memory, while a literal namespace folds directly to its constant slot. Storage bytes loads retain
 header validation, allocation and copying as one operation. Header reads keep
 `sload` visible to storage and loop passes; a separate validation operation
 retains its encoding check when the word is unused. Hashed storage-data clearing

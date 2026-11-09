@@ -43,7 +43,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(field) = resolved.struct_field_index(&self.cx.gcx.hir) else {
                     return self.cx.report_unsupported(name.span, "struct field l-value");
                 };
-                let object = self.operand(receiver)?;
+                let object = self.operand(receiver)?.id();
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 // Only a memory object has addressable fields.
                 self.types.memory_layout(receiver_ty)?;
@@ -54,7 +54,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(index) = index else {
                     return self.cx.report_unsupported(expr.span, "index l-value");
                 };
-                let object = self.operand(receiver)?;
+                let object = self.operand(receiver)?.id();
                 let uint256 = self.cx.gcx.types.uint(256);
                 let index = self.lower_typed_expr(index, uint256)?.clean(self, uint256);
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;

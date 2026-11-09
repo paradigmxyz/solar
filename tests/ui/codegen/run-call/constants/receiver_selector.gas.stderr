@@ -1,0 +1,6 @@
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/codegen/run-call/constants/receiver_selector.sol:LL:CC
+   │
+LL │         K.f.selector;
+   ╰╴        ━━━━━━━━━━━━
+

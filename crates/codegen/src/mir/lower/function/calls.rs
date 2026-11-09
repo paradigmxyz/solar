@@ -2,6 +2,8 @@
 
 use super::*;
 use crate::{link::CodeKind, mir::Immediate};
+use solar_sema::hir::Visit;
+use std::ops::ControlFlow;
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
@@ -12,6 +14,27 @@ pub(super) struct ExternalReturnPlan {
     /// Whether the output area overlays the input area, as it does before Byzantium.
     overlays_input: bool,
     decode_returndata: bool,
+}
+
+/// Finds a reference to a variable of a given set in an expression.
+struct ReferencesVariable<'gcx> {
+    hir: &'gcx hir::Hir<'gcx>,
+    variables: &'gcx [hir::VariableId],
+}
+
+impl<'gcx> Visit<'gcx> for ReferencesVariable<'gcx> {
+    type BreakValue = ();
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        self.hir
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<()> {
+        if expr.as_variable().is_some_and(|id| self.variables.contains(&id)) {
+            return ControlFlow::Break(());
+        }
+        self.walk_expr(expr)
+    }
 }
 
 /// Where an external call's input is encoded.
@@ -175,7 +198,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let (word, length) = self.storage_bytes_first_word(access.slot);
                 return Some(CallResult::Value(self.bytes_prefix(word, length, size)));
             }
-            let value = self.operand(arg)?;
+            let value = self.operand(arg)?.id();
             return Some(CallResult::Value(self.coerce_value(value, source_ty, target_ty)));
         }
         if let ExprKind::New(ty) = &callee.kind {
@@ -390,7 +413,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if arg_exprs.len() != function.parameters.len() {
             return self.cx.report_unsupported(args.span, "external function argument list");
         }
-        let function_value = self.operand(callee)?;
+        let function_value = self.operand(callee)?.id();
         // address, selector = split_function_pointer(function)
         let (address, selector) = self.split_external_function_pointer(function_value);
 
@@ -400,7 +423,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             CallArgumentParams { count: arg_exprs.len(), names: None, reverse: false },
             arg_exprs.iter().enumerate(),
             |this, index, argument| {
-                this.lower_abi_call_argument(argument, function.parameters[index])
+                this.lower_call_input_argument(argument, function.parameters[index])
             },
         )?;
         let (values, types) = self.resolve_abi_operands(operands)?;
@@ -449,7 +472,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if args.len() != function.parameters.len() {
             return self.cx.report_unsupported(expr.span, "internal function argument list");
         }
-        let function_value = self.operand(callee)?;
+        let function_value = self.operand(callee)?.id();
         let parameter_names = self
             .cx
             .gcx
@@ -818,7 +841,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
-        if let Some(value) = self.lower_pure_struct_constructor(function, &values) {
+        if let Some(value) = self.lower_pure_struct_constructor(function_id, &values) {
             return Some(CallResult::Value(value));
         }
         if function.returns.is_empty() {
@@ -843,9 +866,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_pure_struct_constructor(
         &mut self,
-        function: &'gcx hir::Function<'gcx>,
+        function_id: hir::FunctionId,
         values: &[ValueId],
     ) -> Option<ValueId> {
+        let function = self.cx.gcx.hir.function(function_id);
         if function.state_mutability != StateMutability::Pure
             || !function.modifiers.is_empty()
             || function.parameters.len() != values.len()
@@ -871,10 +895,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if struct_id != return_struct {
             return None;
         }
+        // Only the parameters are bound here, so a read of a return variable needs the call.
+        // A function already being inlined is recursive and needs it too.
+        if self.inlined_struct_constructors.contains(&function_id)
+            || (ReferencesVariable { hir: &self.cx.gcx.hir, variables: function.returns })
+                .visit_expr(return_expr)
+                .is_break()
+        {
+            return None;
+        }
 
         let saved = self.snapshot_bindings(function.parameters);
         self.bind_inlined_parameters(function.parameters, values);
+        self.inlined_struct_constructors.insert(function_id);
+        // The callee body is always checked, whatever block the call sits in.
+        let unchecked = std::mem::replace(&mut self.unchecked, false);
         let result = self.lower_struct_constructor(return_expr, struct_id, *args);
+        self.unchecked = unchecked;
+        self.inlined_struct_constructors.remove(&function_id);
         self.restore_bindings(&saved);
         result
     }
@@ -950,7 +988,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         span: Span,
         error: &'static str,
         storage_parameters: bool,
-    ) -> Option<Vec<Step<'gcx, (ValueId, AbiType)>>> {
+    ) -> Option<Vec<AbiOperand<'gcx>>> {
         let parameter_types = parameter_types.collect::<Vec<_>>();
         self.lower_call_arguments(
             args,
@@ -966,7 +1004,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if storage_parameters {
                     this.lower_abi_receiver(argument, parameter_ty)
                 } else {
-                    this.lower_abi_call_argument(argument, parameter_ty)
+                    this.lower_call_input_argument(argument, parameter_ty)
                 }
             },
         )
@@ -1092,7 +1130,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         receiver: &'gcx hir::Expr<'gcx>,
         parameter_ty: Ty<'gcx>,
-    ) -> Option<Step<'gcx, (ValueId, AbiType)>> {
+    ) -> Option<AbiOperand<'gcx>> {
         let operand = self.lower_abi_receiver(receiver, parameter_ty)?;
         let (value, abi_type) = self.resolve_abi_operand(operand)?;
         if abi_type == AbiType::Bytes(PtrLocation::Storage) {
@@ -1107,7 +1145,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         receiver: &'gcx hir::Expr<'gcx>,
         parameter_ty: Ty<'gcx>,
-    ) -> Option<Step<'gcx, (ValueId, AbiType)>> {
+    ) -> Option<AbiOperand<'gcx>> {
         if Self::is_storage_parameter(parameter_ty) {
             Some(Step::Done((self.require_storage_access(receiver)?.slot, AbiType::Word(None))))
         } else {
