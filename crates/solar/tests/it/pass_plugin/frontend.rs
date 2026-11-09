@@ -26,6 +26,10 @@ fn repeat_executes_with_once_only_counts_and_loop_control() {
             "uint calls; function next() internal returns(uint) { ++calls; return 1; } function f() external returns(uint) { @example.rotl(next(), next()); return calls; }",
             2,
         ),
+        (
+            "function f() external pure returns(uint) { uint8 value; uint8 shift; assembly { value := 257 shift := 257 } return @example.rotl(value, shift); }",
+            2,
+        ),
     ] {
         fs::write(&path, format!("contract C {{ {source} }}")).unwrap();
         for optimization in ["-Onone", "-Ogas", "-Osize"] {

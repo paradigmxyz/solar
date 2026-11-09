@@ -14,7 +14,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         namespace: Ident,
         name: Ident,
         args: &[hir::Expr<'_>],
-    ) -> Option<ValueId> {
+    ) -> Option<Word> {
         let result = (|| -> Result<_, String> {
             let plugins = self.cx.gcx.plugins().map_err(|_| "failed to load plugins")?;
             let mut owner = None;
@@ -42,12 +42,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.cx.gcx.dcx().has_errors().map_err(|_| "plugin builtin produced invalid MIR")?;
             let mut arguments = Vec::new();
             for arg in args {
-                arguments.push(self.lower_expr(arg).ok_or("cannot lower plugin builtin argument")?);
+                let value = self.operand(arg).ok_or("cannot lower plugin builtin argument")?.id();
+                // argument = zext value to i256
+                arguments.push(self.builder.cast(value, MirType::I256));
             }
             emit_recipe(&mut self.builder, &arguments, &body)
         })();
         match result {
-            Ok(value) => Some(value),
+            Ok(value) => Some(Word::from_clean(value)),
             Err(error) => {
                 self.cx
                     .gcx

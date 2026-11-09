@@ -125,6 +125,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     && self.is_copied_effect_free(els)
             }
             hir::ExprKind::Assign(..)
+            | hir::ExprKind::PluginBuiltin(_)
             | hir::ExprKind::CallOptions(..)
             | hir::ExprKind::Delete(_)
             | hir::ExprKind::Index(..)

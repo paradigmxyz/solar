@@ -1,5 +1,5 @@
-//! Rust frontend and optimization plugins. Implement [`Plugin`] and use [`export_plugin!`] to build a
-//! loadable Rust library. Plugins and the compiler must use the same SDK source, Rust toolchain,
+//! Rust frontend and optimization plugins. Implement [`Plugin`] and use [`export_plugin!`] to build
+//! a loadable Rust library. Plugins and the compiler must use the same SDK source, Rust toolchain,
 //! target, profile, and Rust flags; the loader checks their fingerprints before calling Rust code.
 //!
 //! Requests are borrowed from the host. Responses are borrowed while the host clones them, so
