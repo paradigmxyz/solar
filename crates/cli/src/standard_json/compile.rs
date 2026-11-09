@@ -25,7 +25,7 @@ use solar_data_structures::map::{FxHashMap, FxIndexMap};
 use solar_interface::{
     SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
-    source_map::FileLoader,
+    source_map::{FileLoader, RealFileLoader},
 };
 use solar_sema::{Gcx, hir::ContractId};
 use std::{
@@ -40,8 +40,18 @@ use std::{
 /// Compiles Standard JSON input and returns Standard JSON output.
 pub fn compile_standard_json(
     input: &str,
-    mut opts: CompileOpts,
+    opts: CompileOpts,
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
+    out: &mut (dyn Write + Send),
+) -> io::Result<()> {
+    let read_callback = read_callback.filter(|_| !opts.no_import_callback);
+    compile_standard_json_with(input, opts, StandardJsonFileLoader { read_callback }, out)
+}
+
+fn compile_standard_json_with(
+    input: &str,
+    mut opts: CompileOpts,
+    file_loader: impl FileLoader,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
     // Library callers bypass CLI argument conflicts. Only outputSelection may
@@ -49,7 +59,7 @@ pub fn compile_standard_json(
     opts.standard_json = true;
     opts.emit.clear();
     let source_map = Arc::new(SourceMap::empty());
-    source_map.set_file_loader(StandardJsonFileLoader { read_callback });
+    source_map.set_file_loader(file_loader);
     let (emitter, diagnostics) = InMemoryEmitter::new();
     let dcx = DiagCtxt::new(Box::new(emitter))
         .with_flags(|flags| flags.update_from_opts(&opts))
@@ -94,7 +104,11 @@ pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
         _ => unreachable!("standard JSON input count is validated during argument parsing"),
     });
     match result {
-        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout)?,
+        Ok(_) if opts.no_import_callback => compile_standard_json(&input, opts, None, &mut stdout)?,
+        Ok(_) => {
+            let reader = FileReader::new(&opts);
+            compile_standard_json_with(&input, opts, reader, &mut stdout)?
+        }
         Err(e) => standard_json_error_output(
             format!("failed to read standard JSON input: {e}"),
             &mut stdout,
@@ -478,14 +492,7 @@ struct StandardJsonFileLoader {
 
 impl FileLoader for StandardJsonFileLoader {
     fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
-        if path.is_absolute()
-            && let Ok(cwd) = std::env::current_dir()
-            && let Ok(path) = path.strip_prefix(cwd)
-        {
-            Ok(path.to_path_buf())
-        } else {
-            Ok(path.to_path_buf())
-        }
+        Ok(strip_current_dir(path))
     }
 
     fn load_stdin(&self) -> io::Result<String> {
@@ -516,6 +523,77 @@ impl StandardJsonFileLoader {
                 Err(io::Error::new(io::ErrorKind::Unsupported, unsupported_callback_kind("source")))
             }
         }
+    }
+}
+
+/// Reads imports from disk for the command line, like solc's file reader: only regular files in
+/// `--allow-paths`, the base path (or the current directory) and the include paths.
+///
+/// The file resolver joins each source unit name with the base path and include paths and
+/// reports ambiguous imports, so this only checks and reads the given path. It refuses a file
+/// that exists with [`io::ErrorKind::PermissionDenied`], which still makes an import ambiguous.
+// Reference: <https://github.com/argotorg/solidity/blob/v0.8.37/libsolidity/interface/FileReader.cpp>
+struct FileReader {
+    /// Canonical allowed directories.
+    allowed: Vec<PathBuf>,
+}
+
+impl FileReader {
+    fn new(opts: &CompileOpts) -> Self {
+        let base_path = opts.base_path.as_deref().filter(|p| !p.as_os_str().is_empty());
+        let base_path = base_path.unwrap_or(Path::new("."));
+        let allowed = opts
+            .allow_paths
+            .iter()
+            .chain(&opts.include_paths)
+            .map(PathBuf::as_path)
+            .chain([base_path])
+            .filter_map(|dir| RealFileLoader.canonicalize_path(dir).ok())
+            .collect();
+        Self { allowed }
+    }
+}
+
+impl FileLoader for FileReader {
+    fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
+        Ok(strip_current_dir(path))
+    }
+
+    fn load_stdin(&self) -> io::Result<String> {
+        Err(disallowed_io(Path::new("stdin")))
+    }
+
+    fn load_file(&self, path: &Path) -> io::Result<String> {
+        // The resolver keeps the prefix in the name without a base path or include paths.
+        let path = path.to_str().and_then(|s| s.strip_prefix("file://")).map_or(path, Path::new);
+        let Ok(path) = RealFileLoader.canonicalize_path(path) else {
+            return Err(io::Error::new(io::ErrorKind::NotFound, "File not found."));
+        };
+        let refuse = |msg: &str| Err(io::Error::new(io::ErrorKind::PermissionDenied, msg));
+        if !self.allowed.iter().any(|dir| path.starts_with(dir)) {
+            return refuse("File outside of allowed directories.");
+        }
+        if !path.is_file() {
+            return refuse("Not a valid file.");
+        }
+        // The file exists, so a failed read still makes an import ambiguous.
+        RealFileLoader.load_file(&path).or_else(|e| refuse(&e.to_string()))
+    }
+
+    fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
+        Err(disallowed_io(path))
+    }
+}
+
+/// Makes a path inside the current directory relative to it.
+fn strip_current_dir(path: &Path) -> PathBuf {
+    if path.is_absolute()
+        && let Ok(cwd) = std::env::current_dir()
+        && let Ok(path) = path.strip_prefix(cwd)
+    {
+        path.to_path_buf()
+    } else {
+        path.to_path_buf()
     }
 }
 

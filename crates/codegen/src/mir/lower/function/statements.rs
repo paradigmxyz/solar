@@ -594,9 +594,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // topics += encode_indexed(argument)
                 match parameter_ty.peel_refs().kind {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                        if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
-                            value = self.materialize_memory_slice(value);
-                        }
                         topics.push(self.builder.keccak256_bytes(value));
                     }
                     TyKind::Struct(_)
@@ -631,8 +628,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 "indexed event aggregate encoding",
                             );
                         }
+                        // The hash reads the encoding at once, so it stays unreserved.
                         let layout = Arc::new(AbiLayout::new(vec![abi_type].into_boxed_slice()));
-                        let encoded = self.builder.abi_encode(layout, None, [value]);
+                        let encoded = self.builder.abi_encode_scratch(layout, None, [value]);
                         let pointer = self.builder.slice_ptr(encoded);
                         let length = self.builder.slice_len(encoded);
                         topics.push(self.builder.keccak256(pointer, length));

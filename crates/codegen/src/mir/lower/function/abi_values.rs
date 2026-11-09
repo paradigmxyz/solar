@@ -122,16 +122,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn signature_selector(&mut self, signature: SignatureOperand) -> ValueId {
-        // selector = keccak256(materialize(signature))[0..4] << 224
+        // selector = keccak256(signature)[0..4] << 224
         let signature = match signature {
             SignatureOperand::Selector(selector) => return selector,
             SignatureOperand::Bytes(value, PtrLocation::Storage) => self.load_storage_bytes(value),
             SignatureOperand::Bytes(value, location) => {
                 self.validate_calldata_bytes_argument(value, &AbiType::Bytes(location));
-                match self.builder.func().value_ty(value) {
-                    Some(MirType::Slice(_)) => self.materialize_memory_slice(value),
-                    _ => value,
-                }
+                value
             }
         };
         let hash = self.builder.keccak256_bytes(signature);
@@ -945,7 +942,18 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let input_ty = self.cx.gcx.type_of_expr(input.id)?;
         let input = if lies_in_calldata(input_ty) {
             let input = self.operand(input)?.id();
-            self.copy_calldata_bytes_unchecked(input)?
+            // The precompile consumes the bytes synchronously. Like low-level call input,
+            // this range needs neither a length header nor a reserved memory object.
+            // source = slice_ptr input
+            // length = slice_len input
+            // data = fmp
+            // calldatacopy data, source, length
+            // input = make_memory_slice data, length
+            let source = self.builder.slice_ptr(input);
+            let length = self.builder.slice_len(input);
+            let data = self.builder.fmp();
+            self.builder.copy_heap(data, source, length, PtrLocation::Calldata);
+            self.builder.make_slice(data, length, PtrLocation::Memory)
         } else {
             let input = self.lower_typed_expr(input, memory_ty)?.clean(self, memory_ty);
             self.materialize_memory_argument(memory_ty, input, span)?

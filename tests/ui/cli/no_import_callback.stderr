@@ -1,0 +1,8 @@
+error: couldn't read ROOT/tests/ui/cli/auxiliary/debug_output_helper.sol: File import callback not supported
+   ╭▸ ROOT/tests/ui/cli/no_import_callback.sol:LL:CC
+   │
+LL │ import "./auxiliary/debug_output_helper.sol";
+   ╰╴       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

@@ -106,6 +106,9 @@ pub struct DebugLoc {
     modifier_depth: u32,
     /// Why there is no origin, when there is none.
     kind: DebugLocKind,
+    /// Whether every origin holds for the instruction, as `gather` in ETHDebug, instead of one of
+    /// them, as `pick`. Only meaningful with several origins.
+    all_spans: bool,
 }
 
 impl DebugLoc {
@@ -115,6 +118,7 @@ impl DebugLoc {
         additional_spans: None,
         modifier_depth: 0,
         kind: DebugLocKind::Normal,
+        all_spans: false,
     };
 
     /// Returns the first origin.
@@ -142,10 +146,24 @@ impl DebugLoc {
         !self.span.is_dummy()
     }
 
+    /// Returns whether several origins all hold for the instruction, which [`Self::combine`] sets,
+    /// instead of one of them holding on each path, as after [`Self::merge`].
+    #[must_use]
+    pub fn all_spans(&self) -> bool {
+        self.all_spans
+    }
+
+    /// Sets whether the origins all hold, for text that spells them. Without several origins the
+    /// flag stays clear.
+    pub fn set_all_spans(&mut self, all_spans: bool) {
+        self.all_spans = all_spans && self.additional_spans.is_some();
+    }
+
     /// Replaces the origins by `span` and resets the kind to [`DebugLocKind::Normal`].
     pub fn set_span(&mut self, span: Option<Span>) {
         self.span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
         self.additional_spans = None;
+        self.all_spans = false;
         self.kind = DebugLocKind::Normal;
     }
 
@@ -206,7 +224,12 @@ impl DebugLoc {
     ///
     /// NOTE: Callers must not select one of the origins, such as with a source-map `pick` or a
     /// single span: that claims one path's source on every path.
+    ///
+    /// NOTE: Merging an input whose origins all hold (see [`Self::combine`]) keeps the union as
+    /// plain alternatives and clears the flag. A `pick` of `gather`s would be exact, but nothing
+    /// produces one today.
     pub fn merge<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        self.all_spans = false;
         let mut located = self.has_spans();
         let mut unlocated_kind = (!located).then_some(self.kind);
         for other in others {
@@ -233,13 +256,20 @@ impl DebugLoc {
     ///
     /// Without any origin the kind becomes [`DebugLocKind::merge`] of the kinds, and
     /// [`DebugLocKind::Normal`] with one. The depth follows the same rule as in [`Self::merge`].
+    ///
+    /// With several origins they all hold, so [`Self::all_spans`] is set, unless an input already
+    /// has several alternatives: all of those and the rest cannot be told from one flag, so the
+    /// union stays plain alternatives.
     pub fn combine<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        let mut exact = !self.has_alternatives();
         for other in others {
+            exact &= !other.has_alternatives();
             self.vote_depth(other);
             self.insert_spans(other.spans());
             self.kind =
                 if self.has_spans() { DebugLocKind::Normal } else { self.kind.merge(other.kind) };
         }
+        self.all_spans = exact && self.additional_spans.is_some();
     }
 
     /// Rule R3, drop: clears the origins and records why there are none, like LLVM's
@@ -247,6 +277,11 @@ impl DebugLoc {
     pub fn drop(&mut self, kind: DebugLocKind) {
         self.set_span(None);
         self.kind = kind;
+    }
+
+    /// Returns whether several origins stand for one of them holding.
+    fn has_alternatives(&self) -> bool {
+        self.additional_spans.is_some() && !self.all_spans
     }
 
     fn vote_depth(&mut self, other: &Self) {
@@ -392,6 +427,49 @@ mod tests {
         merged.merge([&loc([span(2), span(1)], 0)]);
         assert_eq!(merged.spans().collect::<Vec<_>>(), [span(1), span(2)]);
         assert_eq!(merged.kind(), DebugLocKind::Normal);
+    }
+
+    #[test]
+    fn combine_marks_several_spans_as_all_holding() {
+        let mut combined = loc([span(1)], 0);
+        combined.combine([&loc([span(1)], 0)]);
+        assert!(!combined.all_spans());
+
+        combined.combine([&loc([span(2)], 0)]);
+        assert!(combined.all_spans());
+        assert_eq!(combined.spans().collect::<Vec<_>>(), [span(1), span(2)]);
+
+        let mut preserved = DebugLoc::EMPTY;
+        preserved.preserve(&combined);
+        assert!(preserved.all_spans());
+
+        let mut replaced = combined.clone();
+        replaced.set_span(Some(span(3)));
+        assert!(!replaced.all_spans());
+    }
+
+    #[test]
+    fn combine_over_alternatives_stays_alternatives() {
+        let alternatives = loc([span(1), span(2)], 0);
+        let mut combined = loc([span(3)], 0);
+        combined.combine([&alternatives]);
+        assert!(!combined.all_spans());
+        assert_eq!(combined.spans().count(), 3);
+    }
+
+    #[test]
+    fn merge_clears_the_all_flag_and_keeps_the_union() {
+        let mut all = loc([span(1)], 0);
+        all.combine([&loc([span(2)], 0)]);
+        assert!(all.all_spans());
+
+        let mut merged = loc([span(3)], 0);
+        merged.merge([&all]);
+        assert!(!merged.all_spans());
+        assert_eq!(merged.spans().collect::<Vec<_>>(), [span(3), span(1), span(2)]);
+
+        all.merge([&loc([span(4)], 0)]);
+        assert!(!all.all_spans());
     }
 
     #[test]
