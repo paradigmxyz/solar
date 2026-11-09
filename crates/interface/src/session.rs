@@ -260,7 +260,7 @@ impl Session {
     }
 
     fn validate_base_path(&self) -> crate::Result<()> {
-        // Standard JSON reads imports through a read callback, which need not use the base path.
+        // Standard JSON does not check the base path, which a library read callback need not use.
         let Some(base_path) = self.opts.base_path.as_deref().filter(|_| !self.opts.standard_json)
         else {
             return Ok(());

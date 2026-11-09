@@ -554,6 +554,8 @@ impl StandardJsonReadCallback for FileReader {
         if kind != "source" {
             return ReadCallbackResult::Unsupported;
         }
+        // The resolver keeps the prefix in the name without a base path or include paths.
+        let path = path.strip_prefix("file://").unwrap_or(path);
         let Ok(path) = RealFileLoader.canonicalize_path(Path::new(path)) else {
             return ReadCallbackResult::Error("File not found.".into());
         };
