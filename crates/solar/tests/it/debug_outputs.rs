@@ -577,7 +577,7 @@ fn core_source_names_match_across_artifacts() {
     );
     let input = json!({
         "language": "Solidity",
-        "sources": {"core_sources.sol": {"content": fs::read_to_string(Path::new(FIXTURES).join("core_sources.sol")).unwrap()}},
+        "sources": {"core_sources.sol": {"content": include_str!("../../../../tests/ui/cli/auxiliary/core_sources.sol")}},
         "settings": {"outputSelection": {"*": {"*": ["abi", "ethdebug.resources"]}}}
     });
     let mut standard = Vec::new();
