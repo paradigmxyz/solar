@@ -57,6 +57,7 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
         !preserves_shared_revert_low_address(module.runtime_target(gcx), module, shared)
     });
     let mut changed = false;
+    let mut shared_used = false;
     for (block_id, block) in module.blocks.iter_mut_enumerated() {
         let Some(term) = &block.terminator else { continue };
         let TerminatorKind::Jump(revert) = term.kind else { continue };
@@ -115,10 +116,12 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
         // jump <continuation>
         let mut push = Instruction::push_block(target_revert);
         push.metadata.preserve_debug_loc(&target.metadata);
+        push.metadata.move_function_events(&target.metadata);
         let mut terminator = Terminator::new(TerminatorKind::Jump(continuation));
         terminator.metadata.preserve_debug_loc(&term.metadata);
         block.terminator = Some(terminator);
         block.instructions[condition_end] = push;
+        shared_used |= is_empty;
         if let Some((start, bound, opposite)) = inverted {
             block.instructions[start].replace_preserving_metadata(Instruction::push_value(bound));
             block.instructions[condition_end - 1]
@@ -134,6 +137,13 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
             block.instructions.insert(condition_end, iszero);
         }
         changed = true;
+    }
+    // NOTE: Branches from other code now reach the shared revert, so a function entry on it would
+    // run on paths that do not call that function. Leave the entry unknown rather than choose
+    // another block to share, which changes the code.
+    if shared_used && let Some(shared) = shared {
+        module.blocks[shared].metadata.function_invoke = None;
+        module.blocks[shared].metadata.lent_invoke = None;
     }
     changed
 }

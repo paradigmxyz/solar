@@ -38,7 +38,9 @@
 //!
 //! Each shared body instruction takes the merged locations of the sites' instructions at its
 //! position, and the stub's return jump takes the merged locations of each site's last located
-//! instruction. Each site's call sequence takes the first location in the run it replaces.
+//! instruction. Each site's call sequence takes the first location in the run it replaces. A body
+//! instruction keeps a function event only when every site has it, and the call sequence takes
+//! none.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
@@ -67,7 +69,6 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        DebugFunction,
         ir::{
             Block, BlockId, CallEffect, Instruction, Metadata, Module, ModuleTarget, StackEffect,
             Terminator, TerminatorKind,
@@ -756,13 +757,12 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
         let stub = module.add_block(stub);
         for site in group.sites {
             let source = &module.blocks[site.block].instructions[site.start..];
-            let mut parameters = group
+            let parameters = group
                 .parameters
                 .iter()
                 .rev()
                 .map(|&index| source[index].clone())
                 .collect::<Vec<_>>();
-            clear_function_invokes(&mut parameters);
             edits.push(Edit { site, stub, parameters });
         }
     }
@@ -785,12 +785,12 @@ fn shared_body(module: &Module, sites: &[Site]) -> Vec<Instruction> {
     let run = |site: &Site| &module.blocks[site.block].instructions[site.start..][..site.len];
     let mut body = run(&sites[0]).to_vec();
     for (index, instruction) in body.iter_mut().enumerate() {
-        merge_site_locations(
-            &mut instruction.metadata,
-            sites[1..].iter().map(|site| &run(site)[index].metadata),
-        );
+        let others = sites[1..].iter().map(|site| &run(site)[index].metadata);
+        merge_site_locations(&mut instruction.metadata, others.clone());
+        // NOTE: The shared body runs for every site, so an instruction keeps a call or return
+        // only where every site has it.
+        instruction.metadata.merge_function_events(others);
     }
-    clear_function_invokes(&mut body);
     body
 }
 
@@ -828,19 +828,6 @@ fn merge_site_locations<'a>(
         return;
     }
     location.merge_debug_locs(others);
-}
-
-fn clear_function_invokes(instructions: &mut [Instruction]) {
-    for instruction in instructions {
-        instruction.metadata.take_function_invoke();
-    }
-}
-
-fn range_function_invoke(instructions: &[Instruction]) -> Option<DebugFunction> {
-    let mut functions =
-        instructions.iter().filter_map(|instruction| instruction.metadata.function_invoke());
-    let function = functions.next()?;
-    functions.all(|other| other == function).then_some(function)
 }
 
 fn swap(depth: usize) -> Instruction {
@@ -907,16 +894,18 @@ fn stub_call_effect(inputs: usize, outputs: u16) -> Option<CallEffect> {
 fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32) {
     let Site { block, start, len, inputs, .. } = edit.site;
     let range = &module.blocks[block].instructions[start..start + len];
-    let function_invoke = range_function_invoke(range);
     let location = call_site_location(range);
     // prefix; push continuation; rotate return below inputs; push parameters; jump stub
     // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
     continuation.metadata = module.blocks[block].metadata;
     continuation.metadata.is_continuation = true;
-    // The call convention belongs to the function's entry block, not to the code after the stub.
+    // The call convention and the entry belong to the function's entry block, not to the code
+    // after the stub.
     continuation.metadata.call_effect = None;
     continuation.metadata.external_entry = false;
+    continuation.metadata.function_invoke = None;
+    continuation.metadata.lent_invoke = None;
     continuation.instructions = module.blocks[block].instructions.split_off(start + len);
     module.blocks[block].instructions.truncate(start);
     continuation.terminator = module.blocks[block].terminator.take();
@@ -928,9 +917,6 @@ fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32)
     instructions.extend_from_slice(&edit.parameters);
     let mut terminator = Terminator::new(TerminatorKind::Jump(edit.stub));
     terminator.metadata.preserve_debug_loc(&location);
-    if let Some(function) = function_invoke {
-        terminator.metadata.set_function_invoke(function);
-    }
     module.blocks[block].terminator = Some(terminator);
 }
 

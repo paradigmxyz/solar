@@ -168,6 +168,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     function_invoke = Some(DebugFunction {
                         identifier,
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
+                        dispatched: false,
                     });
                 } else if self.parser.eat_keyword(sym::lent_invoke) {
                     self.parser.expect(TokenKind::Eq)?;
@@ -177,6 +178,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     lent_invoke = Some(DebugFunction {
                         identifier,
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
+                        dispatched: false,
                     });
                 } else if self.parser.eat_keyword(sym::stack) {
                     self.parser.expect(TokenKind::Eq)?;
@@ -228,7 +230,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             in_loop,
             is_continuation,
             external_entry,
-            function_invoke,
+            // NOTE: The text spells no `dispatched` flag: the dispatcher enters exactly the blocks
+            // marked `entry`.
+            function_invoke: function_invoke
+                .map(|function| DebugFunction { dispatched: external_entry, ..function }),
             lent_invoke,
             entry_depth,
             call_effect,
@@ -548,6 +553,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 metadata.set_function_invoke(DebugFunction {
                     identifier,
                     declaration: Span::new(BytePos(lo), BytePos(hi)),
+                    dispatched: false,
                 });
             } else if key == sym::exit {
                 self.parser.expect(TokenKind::Eq)?;

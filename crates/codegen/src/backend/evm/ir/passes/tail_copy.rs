@@ -22,10 +22,10 @@
 //! Immutable and library placeholders, which the assembler patches by site, stay where they are,
 //! and so do opcodes the target lacks, whose new uses the checks between passes reject.
 //!
-//! NOTE: A copy keeps its instructions' source locations and function events, but not the
-//! function entry event of the tail's `JUMPDEST`, which no longer runs on that path. Keeping an
-//! executable jump for it would defeat the rewrite; recording it on the caller's last instruction
-//! could overwrite that instruction's own transition. Debug origins never affect eligibility.
+//! NOTE: A copy keeps its instructions' source locations and function events. The function entry
+//! event of the tail's `JUMPDEST` moves to the copy's first instruction, since the copy is the
+//! call. The replaced jump's events are dropped: keeping an executable jump for them would defeat
+//! the rewrite. Debug origins never affect eligibility.
 //!
 //! # `copy-loop-blocks`: loop blocks
 //!
@@ -294,7 +294,23 @@ fn jump_callee(module: &Module, caller: BlockId) -> Option<BlockId> {
 /// The instructions and terminator a copy of the block `callee` appends to its caller.
 fn tail_body(module: &Module, callee: BlockId) -> (Vec<Instruction>, Option<Terminator>) {
     let tail = &module.blocks[callee];
-    (tail.instructions.clone(), tail.terminator.clone())
+    let (mut instructions, mut terminator) = (tail.instructions.clone(), tail.terminator.clone());
+    // NOTE: A copy of a function's entry block is an inlined call. The callee starts at the first
+    // instruction of the copy, which no jump enters, unless that instruction already has an
+    // event.
+    if let Some(function) = tail.metadata.function_invoke {
+        let metadata = match (instructions.first_mut(), &mut terminator) {
+            (Some(first), _) => Some(&mut first.metadata),
+            (None, Some(terminator)) => Some(&mut terminator.metadata),
+            (None, None) => None,
+        };
+        if let Some(metadata) = metadata
+            && metadata.function_invoke().is_none()
+        {
+            metadata.set_function_invoke(function);
+        }
+    }
+    (instructions, terminator)
 }
 
 /// Replaces the jump that ends `caller` with a tail.

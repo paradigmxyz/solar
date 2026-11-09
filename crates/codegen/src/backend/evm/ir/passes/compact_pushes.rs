@@ -33,7 +33,7 @@
 //! physical conditional jump ends that path, since its taken edge can skip later stack growth.
 //! Keep the literal when the complete, recursively expanded recipe would overflow.
 
-use super::EvmPass;
+use super::{EvmPass, utils::RunEvents};
 use crate::{
     backend::evm::{
         codegen::MAX_STACK_DEPTH,
@@ -139,7 +139,9 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
                 && materialization.stack_peak() <= MAX_STACK_DEPTH - before
             {
                 // push value => selected_recipe(value)
+                let first = block.instructions.len();
                 materialize(&mut block.instructions, materialization, &inst.metadata);
+                RunEvents::of([&inst.metadata]).place(&mut block.instructions[first..]);
                 changed = true;
             } else {
                 block.instructions.push(inst);

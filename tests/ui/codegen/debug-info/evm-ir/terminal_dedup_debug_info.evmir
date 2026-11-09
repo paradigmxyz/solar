@@ -6,9 +6,10 @@ bb0:
   push 1 !metadata(span=1..5)
   jumpi bb1, bb2 !metadata(span=6..10)
 
-// Shared instructions omit conflicting function events. The unlocated copy in bb3 also runs the
-// shared instructions, so they have no origin.
-// CHECK-LABEL: {{^[ +].*}}bb1 [invoke=first@1..10]:
+// Shared instructions omit conflicting function events, and the shared entry omits an entry that
+// the copies do not all enter. The unlocated copy in bb3 also runs the shared instructions, so
+// they have no origin.
+// CHECK-LABEL: {{^[ +].*}}bb1:
 // CHECK: {{^[ +].*}}push 0{{$}}
 // CHECK: {{^[ +].*}}revert{{$}}
 bb1 [invoke=first@1..10]:
@@ -29,11 +30,12 @@ bb3:
   dup 1
   revert
 
-// Missing events merge with a known invocation and exit in either order.
+// A copy without an event makes it unknown, since the shared instructions also run on that copy's
+// path, which is not the call or the return.
 // CHECK-LABEL: {{^[ +].*}}bb4:
-// CHECK: {{^[ +].*}}push 32 !metadata(invoke=known@51..60)
-// CHECK: {{^[ +].*}}pop !metadata(invoke=known@51..60)
-// CHECK: {{^[ +].*}}stop !metadata(invoke=known@51..60, exit=return)
+// CHECK: {{^[ +].*}}push 32{{$}}
+// CHECK: {{^[ +].*}}pop{{$}}
+// CHECK: {{^[ +].*}}stop{{$}}
 bb4:
   push 32
   pop !metadata(invoke=known@51..60)

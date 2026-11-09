@@ -88,15 +88,19 @@
 //! as with other size optimizations. A run that ends in a label push keeps it last, so the jump
 //! after the run still sees its target pushed right before it. Runs end at every other instruction,
 //! including `GAS`, calls, other branches and an instruction glued to the next one. Performed
-//! operations and the original pushes keep their debug metadata, function events included, while
-//! the new stack operations carry none, which is marked as intentionally dropped, and the origins
-//! and events of the replaced stack operations move to the run's last instruction. Debug metadata
-//! decides nothing, so requesting it leaves the code unchanged.
+//! operations and the original pushes keep their debug metadata, while the new stack operations
+//! carry none, which is marked as intentionally dropped, and the origins of the replaced stack
+//! operations go with them. The run's function entry moves to its first instruction and its exit
+//! to its last. Debug metadata decides nothing, so requesting it leaves the code unchanged.
 //!
 //! The pass runs after the late push compaction, so it sees the final pushes, and before the
 //! last stack cleanup and loop layout.
 
-use super::{EvmPass, block_layout::terminator_kind, utils::is_split_point};
+use super::{
+    EvmPass,
+    block_layout::terminator_kind,
+    utils::{RunEvents, is_split_point},
+};
 use crate::{
     backend::evm::{
         CodegenState,
@@ -1334,15 +1338,10 @@ fn emit(
         return None;
     }
     // NOTE: The replaced stack operations, and pushes the schedule makes fewer times, have no
-    // counterpart in the new order. Their origins go with them; their function events move to the
-    // run's last instruction, so the run as a whole keeps every event it had.
-    if let Some(last) = instructions.last_mut() {
-        for (position, inst) in run.iter().enumerate() {
-            if !placed.contains(position) {
-                last.metadata.move_function_events(&inst.metadata);
-            }
-        }
-    }
+    // counterpart in the new order. Their origins go with them. The run executes straight through,
+    // so its function entry moves to the first instruction of the schedule and its exit to the
+    // last, wherever the reorder put the instructions that carried them.
+    RunEvents::of(run.iter().map(|inst| &inst.metadata)).place(&mut instructions);
     Some(instructions)
 }
 

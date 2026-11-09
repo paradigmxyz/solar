@@ -1,0 +1,25 @@
+//@ compile-flags: -Ogas -Zevm-ir-pipeline=inline-returns
+//@ filecheck:
+@module InlineReturnsEntry
+
+// A copy of the callee's body in its caller is an inlined call. No jump enters it, so the callee
+// starts at the first instruction of the copy.
+// CHECK-LABEL: (after inline-returns)
+// CHECK: {{^[ +].*}}push 7
+// CHECK: {{^[ +].*}}swap 1 !metadata(invoke=callee@1..10)
+bb0:
+  push 1
+  jumpi bb6, bb7
+bb5:
+  stop
+bb6:
+  push bb5
+  push 7
+  jump bb8
+bb7:
+  push bb5
+  push 9
+  jump bb8
+bb8 [invoke=callee@1..10]:
+  swap 1
+  jump

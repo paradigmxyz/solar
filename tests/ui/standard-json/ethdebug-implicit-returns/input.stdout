@@ -1003,6 +1003,26 @@
                         "offset": 20,
                         "length": 17
                       }
+                    },
+                    "invoke": {
+                      "identifier": "x",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 20,
+                          "length": 17
+                        }
+                      },
+                      "jump": true,
+                      "target": {
+                        "pointer": {
+                          "location": "code",
+                          "offset": 57,
+                          "length": 1
+                        }
+                      }
                     }
                   }
                 },
@@ -1143,6 +1163,26 @@
                         "offset": 39,
                         "length": 34
                       }
+                    },
+                    "invoke": {
+                      "identifier": "fallthrough",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 39,
+                          "length": 34
+                        }
+                      },
+                      "jump": true,
+                      "target": {
+                        "pointer": {
+                          "location": "code",
+                          "offset": 66,
+                          "length": 1
+                        }
+                      }
                     }
                   }
                 },
@@ -1177,6 +1217,26 @@
                       "range": {
                         "offset": 74,
                         "length": 68
+                      }
+                    },
+                    "invoke": {
+                      "identifier": "named",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 74,
+                          "length": 68
+                        }
+                      },
+                      "jump": true,
+                      "target": {
+                        "pointer": {
+                          "location": "code",
+                          "offset": 68,
+                          "length": 1
+                        }
                       }
                     }
                   }
@@ -1303,6 +1363,26 @@
                       "range": {
                         "offset": 143,
                         "length": 136
+                      }
+                    },
+                    "invoke": {
+                      "identifier": "viaPointer",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 143,
+                          "length": 136
+                        }
+                      },
+                      "jump": true,
+                      "target": {
+                        "pointer": {
+                          "location": "code",
+                          "offset": 77,
+                          "length": 1
+                        }
                       }
                     }
                   }
@@ -1989,6 +2069,26 @@
                         "offset": 345,
                         "length": 64
                       }
+                    },
+                    "invoke": {
+                      "identifier": "b",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 345,
+                          "length": 64
+                        }
+                      },
+                      "jump": true,
+                      "target": {
+                        "pointer": {
+                          "location": "code",
+                          "offset": 149,
+                          "length": 1
+                        }
+                      }
                     }
                   }
                 },
@@ -2104,6 +2204,19 @@
                         "offset": 280,
                         "length": 64
                       }
+                    },
+                    "invoke": {
+                      "identifier": "a",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 280,
+                          "length": 64
+                        }
+                      },
+                      "jump": true
                     }
                   }
                 },
@@ -2144,7 +2257,7 @@
                 }
               ]
             },
-            "sourceMap": "0:411:0:-:0;;;;;;;;;;;:::i;:::-;;;;:::i;:::-;;;;:::i;:::-;;;;:::i;:::-;;;;143:136;;;;20:17;;;;;;;;39:34;;74:68;;;;;;;143:136;;;;;;;;;;;;;;;;;250:14;;;;;;273:3;-1:-1:-1;;;;;;;;;:::i;:::-;;;;;;;;;273:3:0;266:11;;;;;345:64;;;:::o;-1:-1:-1:-;280:64:0;;;;:::o"
+            "sourceMap": "0:411:0:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;143:136;;;;20:17;;;;;;;;39:34;;74:68;;;;;;;143:136;;;;;;;;;;;;;;;;;250:14;;;;;;273:3;-1:-1:-1;;;;;;;;;;;;;;;;;;;273:3:0;266:11;;;;;345:64;;;:::o;-1:-1:-1:-;280:64:0;;;;:::o"
           }
         }
       }

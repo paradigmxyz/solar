@@ -38,7 +38,7 @@ bb0:                                              ; runtime dispatch entry + fun
 bb3 [cold] !metadata(spans=[230..345, 247..343]):
   push 0 !metadata(spans=[230..345, 247..343])
   push 0 !metadata(spans=[230..345, 247..343])
-  revert !metadata(spans=[230..345, 247..343], exit=revert)
+  revert !metadata(spans=[230..345, 247..343])
 bb7 [cold]:
   push 17 !metadata(span=331..336)
   push 32 !metadata(span=331..336)

@@ -49,18 +49,21 @@
 //! lowering and machine outlining and round-trips through EVM IR independently of debug output.
 //!
 //! A bypassed thunk's jump takes its source origin with it, as a removed branch does in LLVM. Its
-//! function events move to an unconditional transfer that skips it, never to a conditional one,
-//! which also executes when that edge is not taken. A conditional edge's function entry goes to its
-//! destination label instead, but only while that edge is the label's only entry; later passes drop
-//! it when the label becomes shared, falls through or acquires opaque address uses.
+//! function exit moves to an unconditional transfer that skips it, never to a conditional one,
+//! which also executes when that edge is not taken. Its function entry goes to its destination
+//! label, the callee's first instruction, never onto a jump of the callers, and only while the
+//! thunk is the label's only entry: another edge into the label, such as a loop's back edge,
+//! would run the entry more than once per call. After an unconditional edge the entry stays on
+//! the label; after a conditional edge, later passes drop it when the label becomes shared, falls
+//! through or acquires opaque address uses.
 
 use super::{
     EvmPass,
     block_layout::{terminator_kind, triangle_arm},
     terminal_dedup::absorb_equal_terminal,
     utils::{
-        FreshLabels, count_block_references, is_split_point, lower_bound, remap_block_order,
-        retain_blocks,
+        FreshLabels, RunEvents, count_block_references, is_split_point, lower_bound,
+        remap_block_order, retain_blocks,
     },
 };
 use crate::backend::evm::{
@@ -73,6 +76,7 @@ use crate::backend::evm::{
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
+use std::slice;
 
 pub(super) struct CfgSimplify {
     thread_shared_jumps: bool,
@@ -260,14 +264,23 @@ fn inline_shared_return_thunks(
         }
         // thunk: jump return_body -> thunk: mstore(offset, value); return(offset, 32)
         let mut instructions = body.instructions.clone();
-        if instructions[0].metadata.function_invoke().is_none()
-            && let Some(function) = body.metadata.function_invoke
-        {
+        let mut terminator = body.terminator.clone();
+        // NOTE: The copy runs on the path of the thunk's jump, so it carries neither the entry
+        // of the body's label nor the entries of its instructions: they mark the body's own
+        // callers. The removed jump takes its origins with it. Its entry moves to the first
+        // instruction of the copy, which runs first, and its exit to the last, which leaves.
+        for inst in &mut instructions {
+            inst.metadata.take_function_invoke();
+        }
+        if let Some(function) = jump.metadata.function_invoke() {
             instructions[0].metadata.set_function_invoke(function);
         }
-        // NOTE: The removed jump takes its origins with it; only its function events move.
-        instructions[0].metadata.move_function_events(&jump.metadata);
-        let terminator = body.terminator.clone();
+        if let Some(terminator) = &mut terminator
+            && terminator.metadata.function_exit().is_none()
+            && let Some(exit) = jump.metadata.function_exit()
+        {
+            terminator.metadata.set_function_exit(exit);
+        }
         module.blocks[block_id].instructions = instructions;
         module.blocks[block_id].terminator = terminator;
         changed = true;
@@ -275,11 +288,13 @@ fn inline_shared_return_thunks(
     changed
 }
 
-/// An empty block that only jumps on, with the function events its removal moves to incoming
-/// edges.
+/// An empty block that only jumps on, with the function events its removal moves.
 struct Thunk {
     next: BlockId,
-    metadata: Metadata,
+    /// The function the block enters.
+    entered: Option<DebugFunction>,
+    /// The function exit of the block's jump, which moves to the incoming edges.
+    exit: Metadata,
 }
 
 /// Scratch storage shared by the rounds of one run.
@@ -415,6 +430,7 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         {
             let mut pop = Instruction::stack_op(op::StackOp::Pop);
             pop.metadata.preserve_debug_loc(&jumpi.metadata);
+            RunEvents::of([&pushed.metadata, &jumpi.metadata]).place(slice::from_mut(&mut pop));
             block.instructions.truncate(block.instructions.len() - 2);
             block.instructions.push(pop);
             changed = true;
@@ -448,7 +464,8 @@ fn redirect_jump_thunks(
                 if let Some(terminator) = &block.terminator
                     && let TerminatorKind::Jump(next) = terminator.kind
                 {
-                    thunks.insert(block_id, Thunk { next, metadata: Metadata::default() });
+                    thunks
+                        .insert(block_id, Thunk { next, entered: None, exit: Metadata::default() });
                 }
             }
         }
@@ -465,12 +482,11 @@ fn redirect_jump_thunks(
         if addressed.contains(block_id) {
             return false;
         }
-        if let Some(function) = block.metadata.function_invoke {
-            thunk.metadata.set_function_invoke(function);
-        }
         if let Some(terminator) = &block.terminator {
-            thunk.metadata.move_function_events(&terminator.metadata);
+            thunk.exit.move_function_events(&terminator.metadata);
         }
+        let entered = thunk.exit.take_function_invoke();
+        thunk.entered = block.metadata.function_invoke.or(entered);
         true
     });
     if thunks.is_empty() {
@@ -492,12 +508,15 @@ fn redirect_jump_thunks(
 
     let mut changed = false;
     let mut lent = Vec::new();
-    if thunks.values().any(|thunk| thunk.metadata.function_invoke().is_some()) {
+    let mut entered = Vec::new();
+    if thunks.values().any(|thunk| thunk.entered.is_some()) {
         count_block_references(module, references);
     }
     forwarded_continuations.clear_to(module.blocks.len());
     let track_debug_info = module.debug_info_is_tracked();
-    for block in &mut module.blocks {
+    for (block_id, block) in module.blocks.iter_mut_enumerated() {
+        // A thunk's own jump is part of the chain that its incoming edge enters.
+        let account_entries = track_debug_info && !thunks.contains_key(&block_id);
         for at in 0..block.instructions.len() {
             if let Some(PushValue::Block(target)) = block.instructions[at].value
                 && (is_jump_label(block, at, jump_heads) || thunks.contains_key(&target))
@@ -506,20 +525,24 @@ fn redirect_jump_thunks(
                 if direct && let Some(thunk) = thunks.get(&target) {
                     let conditional =
                         block.instructions.get(at + 1).is_some_and(|inst| inst.opcode == op::JUMPI);
-                    if conditional && track_debug_info {
-                        lent.extend(thunk_chain_invoke(target, thunks, references));
+                    if account_entries
+                        && let Some(entry) = thunk_chain_invoke(target, thunks, references)
+                    {
+                        if conditional { &mut lent } else { &mut entered }.push(entry);
                     }
-                    // A bypassed thunk's function events move only onto an unconditional transfer:
-                    // it executes on the thunk's path, a conditional one also on other paths. The
+                    // A bypassed thunk's exit moves only onto an unconditional transfer: it
+                    // executes on the thunk's path, a conditional one also on other paths. The
                     // thunk's jump takes its origins with it, as a removed branch does in LLVM's
                     // `MergeBlockIntoPredecessor`
                     // (llvm/lib/Transforms/Utils/BasicBlockUtils.cpp#L346-L371 at llvm-project
                     // e98b16a2710b).
-                    // NOTE: Without an exclusive destination label, a conditional edge loses the
-                    // thunk's events. Do not retain a jump or attribute an operation executed on
-                    // other paths to it.
+                    // NOTE: The thunk's entry never moves onto an incoming jump: the callee starts
+                    // at its first instruction, which the chain's destination label holds, as the
+                    // ethdebug format places `invoke` on the callee's entry `JUMPDEST`. Without an
+                    // exclusive destination label the entry is unknown: another edge into the
+                    // label, such as a loop's back edge, would run it more than once per call.
                     if !conditional {
-                        block.instructions[at].metadata.move_function_events(&thunk.metadata);
+                        block.instructions[at].metadata.move_function_events(&thunk.exit);
                     }
                 }
                 // NOTE: A return-address push executes before the callee, while the bypassed
@@ -540,19 +563,27 @@ fn redirect_jump_thunks(
             let conditional = !matches!(term.kind, TerminatorKind::Jump(_));
             term.kind.visit_targets_mut(|target| {
                 if let Some(thunk) = thunks.get(target) {
-                    if conditional && track_debug_info {
-                        lent.extend(thunk_chain_invoke(*target, thunks, references));
+                    if account_entries
+                        && let Some(entry) = thunk_chain_invoke(*target, thunks, references)
+                    {
+                        if conditional { &mut lent } else { &mut entered }.push(entry);
                     }
-                    // A bypassed thunk's function events move only onto an unconditional transfer;
-                    // see the NOTE above.
+                    // A bypassed thunk's exit moves only onto an unconditional transfer; see the
+                    // NOTE above.
                     if !conditional {
-                        term.metadata.move_function_events(&thunk.metadata);
+                        term.metadata.move_function_events(&thunk.exit);
                     }
                 }
                 let resolved = resolve(*target);
                 changed |= resolved != *target;
                 *target = resolved;
             });
+        }
+    }
+    for (target, function) in entered {
+        let metadata = &mut module.blocks[target].metadata;
+        if metadata.function_invoke.is_none() && metadata.lent_invoke.is_none() {
+            metadata.function_invoke = Some(function);
         }
     }
     for (target, function) in lent {
@@ -691,10 +722,17 @@ fn coalesce_blocks(module: &mut Module, state: &mut RunState) -> bool {
             // target [loop]: suffix => predecessor [loop]: prefix; suffix
             let mut instructions = std::mem::take(&mut module.blocks[target].instructions);
             let mut terminator = module.blocks[target].terminator.take();
+            // NOTE: The callee starts at the first instruction of its merged code, which no jump
+            // enters now. An event that the instruction already has marks another entry of this
+            // code, which stays.
             if let Some(function) = module.blocks[target].metadata.function_invoke {
                 if let Some(instruction) = instructions.first_mut() {
-                    instruction.metadata.set_function_invoke(function);
-                } else if let Some(terminator) = &mut terminator {
+                    if instruction.metadata.function_invoke().is_none() {
+                        instruction.metadata.set_function_invoke(function);
+                    }
+                } else if let Some(terminator) = &mut terminator
+                    && terminator.metadata.function_invoke().is_none()
+                {
                     terminator.metadata.set_function_invoke(function);
                 }
             }
@@ -784,9 +822,9 @@ fn simplify_known_jumps(module: &mut Module) -> bool {
     changed
 }
 
-/// The function entry that a conditional edge through a thunk chain carries to its destination,
-/// with that destination, when the chain ends at an existing label that the edge exclusively
-/// reaches and every thunk of the chain that enters a function agrees on it.
+/// The function entry that an edge through a thunk chain carries to its destination, with that
+/// destination, when the chain ends at an existing label that the edge exclusively reaches and
+/// every thunk of the chain that enters a function agrees on it.
 fn thunk_chain_invoke(
     start: BlockId,
     thunks: &FxHashMap<BlockId, Thunk>,
@@ -799,7 +837,7 @@ fn thunk_chain_invoke(
         if references.get(thunk.next) != Some(&1) {
             return None;
         }
-        if let Some(entered) = thunk.metadata.function_invoke() {
+        if let Some(entered) = thunk.entered {
             if function.is_some_and(|other| other != entered) {
                 return None;
             }

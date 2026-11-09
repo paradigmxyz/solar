@@ -272,6 +272,19 @@
                         "offset": 18,
                         "length": 133
                       }
+                    },
+                    "invoke": {
+                      "identifier": "run",
+                      "declaration": {
+                        "source": {
+                          "id": 0
+                        },
+                        "range": {
+                          "offset": 18,
+                          "length": 133
+                        }
+                      },
+                      "jump": true
                     }
                   }
                 },
@@ -843,8 +856,7 @@
                           }
                         }
                       }
-                    ],
-                    "revert": {}
+                    ]
                   }
                 }
               ]

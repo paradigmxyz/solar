@@ -18,7 +18,7 @@
 //! unconditional edge to a block that never reads its incoming stack. The computation may use pure
 //! operations and reads of the call's context, whose only effect is their static gas.
 
-use super::{EvmPass, block_layout::terminator_kind};
+use super::{EvmPass, block_layout::terminator_kind, utils::RunEvents};
 use crate::backend::evm::{
     ir::{Block, BlockId, Instruction, Module, Terminator, TerminatorKind},
     op::{self, StackOp},
@@ -395,11 +395,13 @@ fn apply_edits(
     let mut edits = edits.iter().peekable();
     for (index, inst) in scratch.drain(..).enumerate() {
         if let Some(edit) = edits.next_if(|edit| edit.index == index) {
+            let first = instructions.len();
             instructions.extend(
                 edit.replacement.iter().map(|&stack_op| {
                     Instruction::stack_op(stack_op).with_debug_loc(&inst.metadata)
                 }),
             );
+            RunEvents::of([&inst.metadata]).place(&mut instructions[first..]);
         } else {
             instructions.push(inst);
         }

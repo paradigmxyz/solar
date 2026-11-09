@@ -6,7 +6,7 @@
 -   pop !metadata(span=6..10)
 -   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(span=11..15, invoke=second@11..20)
 +   push bb3 !metadata(span=1..5)
-+   jump bb1 !metadata(span=1..5, invoke=first@1..10)
++   jump bb1 !metadata(span=1..5)
 + bb1 [ret=0, inputs=1, outputs=1]:
 +   push 0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef !metadata(spans=[1..5, 11..15])
 +   swap 1
@@ -17,5 +17,5 @@
 + bb3 [continuation]:
 +   pop !metadata(span=6..10)
 +   push bb2 !metadata(span=11..15)
-+   jump bb1 !metadata(span=11..15, invoke=second@11..20)
++   jump bb1 !metadata(span=11..15)
   
