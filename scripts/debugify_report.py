@@ -264,6 +264,16 @@ def opcodes(row: dict) -> str:
 
 
 def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") -> str:
+    head_tests = {item["test"]: item for item in summary["by_test"]}
+    base_tests = (
+        {item["test"]: item for item in baseline["by_test"]} if baseline else {}
+    )
+    shared = head_tests.keys() & base_tests.keys()
+    added = [head_tests[name] for name in sorted(head_tests.keys() - base_tests.keys())]
+    removed = [
+        base_tests[name] for name in sorted(base_tests.keys() - head_tests.keys())
+    ]
+    different_tests = baseline is not None and bool(added or removed)
     gap_baseline = baseline if baseline and has_gap_data(baseline) else None
     if gap_baseline:
         intro = (
@@ -308,16 +318,35 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
                 if gap_baseline
                 else f"| {label} | {summary[key]:,} |"
             )
+        label = (
+            "lost origins (all tests)"
+            if different_tests
+            else "lost origins (information)"
+        )
+        comparison = (
+            "test sets differ"
+            if different_tests
+            else delta(baseline["lost_origins"], summary["lost_origins"])
+        )
         lost = (
-            f"| lost origins (information) | {baseline['lost_origins']:,} | "
+            f"| {label} | {baseline['lost_origins']:,} | "
             f"{summary['lost_origins']:,} | "
-            f"{delta(baseline['lost_origins'], summary['lost_origins'])} |"
+            f"{comparison} |"
         )
         if not gap_baseline:
             lost = (
-                f"| lost origins (information) | {summary['lost_origins']:,} "
+                f"| {label} | {summary['lost_origins']:,} "
                 f"(base {baseline['lost_origins']:,}, "
-                f"{delta(baseline['lost_origins'], summary['lost_origins'])}) |"
+                f"{comparison}) |"
+            )
+        if different_tests:
+            before = sum(base_tests[name]["lost_origins"] for name in shared)
+            after = sum(head_tests[name]["lost_origins"] for name in shared)
+            comparison = delta(before, after) if shared else "no shared tests"
+            overview.append(
+                f"| lost origins (shared tests) | {before:,} | {after:,} | {comparison} |"
+                if gap_baseline
+                else f"| lost origins (shared tests) | {after:,} (base {before:,}, {comparison}) |"
             )
     else:
         overview.extend(
@@ -340,10 +369,24 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
         (
             f"Audited {summary['audited_tests']:,} test/revision pairs, "
             f"{summary['invocations']:,} compiler invocations and "
-            f"{summary['pass_runs']:,} pass runs; lower is better."
+            f"{summary['pass_runs']:,} pass runs."
         ),
         "",
     ]
+    if different_tests:
+        lines.extend(
+            [
+                (
+                    f"The shared-test comparison covers {len(shared):,} test/revision pairs. "
+                    f"Added tests: {len(added):,} "
+                    f"({sum(item['lost_origins'] for item in added):,} lost origins). "
+                    f"Removed tests: {len(removed):,} "
+                    f"({sum(item['lost_origins'] for item in removed):,} lost origins). "
+                    "Gap counts and pass totals include all tests."
+                ),
+                "",
+            ]
+        )
     if intentional := summary.get("intentional_lost_origins", 0):
         lines.extend(
             [
@@ -427,12 +470,19 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
             summary["by_pass"], baseline["by_pass"], by_pass, "lost_origins"
         )
         tests = compare(
-            summary["by_test"], baseline["by_test"], by_test, "lost_origins"
+            [head_tests[name] for name in sorted(shared)],
+            [base_tests[name] for name in sorted(shared)],
+            by_test,
+            "lost_origins",
         )
         if passes:
             lines.extend(
                 [
-                    f"Changed passes vs `{base_ref}`:",
+                    (
+                        f"Changed pass totals vs `{base_ref}` (all tests, including added and removed):"
+                        if different_tests
+                        else f"Changed passes vs `{base_ref}`:"
+                    ),
                     "",
                     "| Layer | Pass | Runs with losses | Lost origins |",
                     "| --- | --- | ---: | ---: |",
@@ -448,7 +498,7 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
         if tests:
             lines.extend(
                 [
-                    f"Changed tests vs `{base_ref}`:",
+                    f"Changed shared tests vs `{base_ref}`:",
                     "",
                     "| Test / revision | Runs with losses | Lost origins |",
                     "| --- | ---: | ---: |",
@@ -465,6 +515,28 @@ def markdown(summary: dict, baseline: dict | None = None, base_ref: str = "") ->
             lines.extend(
                 [f"No pass or test changed its lost origins vs `{base_ref}`.", ""]
             )
+        elif different_tests and not tests:
+            lines.extend(
+                [f"No shared test changed its lost origins vs `{base_ref}`.", ""]
+            )
+        for label, items in (("Added tests", added), ("Removed tests", removed)):
+            if not items:
+                continue
+            lines.extend(
+                [
+                    f"{label} (no same-test comparison):",
+                    "",
+                    "| Test / revision | Runs with losses | Lost origins |",
+                    "| --- | ---: | ---: |",
+                ]
+            )
+            for item in sorted(items, key=lambda r: (-r["lost_origins"], r["test"]))[
+                :25
+            ]:
+                lines.append(
+                    f"| {cell(item['test'])} | {item['losses']:,} | {item['lost_origins']:,} |"
+                )
+            lines.append("")
     lines.extend(
         [
             "Passes with the most lost origins:",

@@ -47,6 +47,10 @@ output. It can be combined with either diagnostic mode. The
 [UI runner](../tools/tester/README.md#debug-info-differential-suite) uses this to audit the full
 suite without changing its diagnostic snapshots.
 
+When the audited test set changes, the report compares lost-origin totals on shared test/revision
+pairs and lists added and removed tests separately. All-test totals and per-pass counts remain
+visible; gaps always include every test, including new ones.
+
 ## Operation Schema and ISLE Rules
 
 Declare each MIR operation once, as a row in `crates/mir/src/op_schema.rs`:

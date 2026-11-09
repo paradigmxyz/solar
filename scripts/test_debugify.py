@@ -159,6 +159,90 @@ class DebugifyReportTests(unittest.TestCase):
         self.assertNotIn("| MIR | hoist |", report)
         self.assertIn("| MIR | partly | 1 | 1 |", report)
 
+    def test_added_tests_do_not_change_shared_test_loss_totals(self):
+        self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 2, 1, [[1, 2]]))
+        self.write("head/a/default/x.jsonl", self.record("MIR", "dce", 2, 1, [[1, 2]]))
+        self.write(
+            "head/b/default/x.jsonl", self.record("MIR", "dce", 3, 1, [[3, 4], [5, 6]])
+        )
+        base = summarize(self.root / "base")
+        head = summarize(self.root / "head")
+        report = markdown(head, base, "main")
+        self.assertIn("| lost origins (shared tests) | 1 | 1 | ~0% |", report)
+        self.assertIn("| lost origins (all tests) | 1 | 3 | test sets differ |", report)
+        self.assertIn("Added tests: 1 (2 lost origins)", report)
+        self.assertIn("No shared test changed its lost origins", report)
+        self.assertIn("Added tests (no same-test comparison)", report)
+        self.assertIn("| b/default | 1 | 2 |", report)
+        self.assertIn("Changed pass totals vs `main` (all tests", report)
+        self.assertTrue(has_changes(head, base))
+
+    def test_test_set_changes_do_not_hide_shared_test_regressions(self):
+        self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 2, 1, [[1, 2]]))
+        self.write(
+            "base/removed/default/x.jsonl",
+            self.record("MIR", "dce", 2, 0, [[5, 6], [7, 8]]),
+        )
+        self.write(
+            "head/a/default/x.jsonl", self.record("MIR", "dce", 2, 0, [[1, 2], [3, 4]])
+        )
+        self.write("head/b/default/x.jsonl", self.record("MIR", "dce", 1, 1, []))
+        base = summarize(self.root / "base")
+        head = summarize(self.root / "head")
+        report = markdown(head, base, "main")
+        self.assertIn(
+            "| lost origins (shared tests) | 1 | 2 | ❌ +1, +100.00% |", report
+        )
+        self.assertIn("Changed shared tests vs `main`", report)
+        self.assertIn("| a/default | 1 | 1 → 2 (❌ +1, +100.00%) |", report)
+        self.assertIn("| lost origins (all tests) | 3 | 2 | test sets differ |", report)
+        self.assertNotIn("No shared test changed", report)
+
+    def test_removed_tests_are_not_reported_as_loss_improvements(self):
+        self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 1, 1, []))
+        self.write("base/b/default/x.jsonl", self.record("MIR", "dce", 1, 0, [[1, 2]]))
+        self.write("head/a/default/x.jsonl", self.record("MIR", "dce", 1, 1, []))
+        base = summarize(self.root / "base")
+        head = summarize(self.root / "head")
+        report = markdown(head, base, "main")
+        self.assertIn("| lost origins (shared tests) | 0 | 0 | ~0% |", report)
+        self.assertIn("| lost origins (all tests) | 1 | 0 | test sets differ |", report)
+        self.assertIn("Removed tests: 1 (1 lost origins)", report)
+        self.assertIn("Removed tests (no same-test comparison)", report)
+        self.assertIn("| b/default | 1 | 1 |", report)
+
+    def test_gap_regressions_in_new_tests_remain_visible(self):
+        self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 1, 1, []))
+        self.write(
+            "head/b/default/x.jsonl",
+            self.record("MIR", "dce", 1, 1, []),
+            self.gaps("MIR", "input", {"add": 1}),
+        )
+        base = summarize(self.root / "base")
+        head = summarize(self.root / "head")
+        report = markdown(head, base, "main")
+        self.assertIn("| **gaps** | 0 | 1 | ❌ +1 |", report)
+        self.assertIn(
+            "| lost origins (shared tests) | 0 | 0 | no shared tests |", report
+        )
+        self.assertIn("| b/default | 0 → 1 (❌ +1) | 0 → 1 (❌ +1) |", report)
+        self.assertIn("comparison covers 0 test/revision pairs", report)
+        self.assertTrue(has_changes(head, base))
+
+    def test_different_test_sets_without_a_gap_baseline(self):
+        self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 1, 0, [[1, 2]]))
+        self.write("head/a/default/x.jsonl", self.record("MIR", "dce", 1, 0, [[1, 2]]))
+        self.write("head/b/default/x.jsonl", self.record("MIR", "dce", 1, 0, [[3, 4]]))
+        base = summarize(self.root / "base")
+        del base["gaps"]
+        head = summarize(self.root / "head")
+        report = markdown(head, base, "main")
+        self.assertIn("No gap baseline", report)
+        self.assertIn("| lost origins (shared tests) | 1 (base 1, ~0%) |", report)
+        self.assertIn(
+            "| lost origins (all tests) | 2 (base 1, test sets differ) |", report
+        )
+
     def test_intentional_count_changes_do_not_trigger_comments(self):
         self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 1, 1, []))
         base = summarize(self.root / "base")
