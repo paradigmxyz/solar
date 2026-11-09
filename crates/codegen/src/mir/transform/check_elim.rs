@@ -3085,11 +3085,12 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
             }
             // If conversion rewrites `if (x > limit) x = limit` to
             // `x + (x > limit) * (limit - x)`, which is `limit` when the test
-            // holds and `x` otherwise, so it never exceeds `limit`.
+            // holds and `x` otherwise, so it never exceeds either operand.
             InstKind::Add(x, adjustment) => {
                 for (x, adjustment) in [(x, adjustment), (adjustment, x)] {
                     if let Some(limit) = clamp_limit(func, x, adjustment) {
                         relations.insert(Relation::Le(value, limit));
+                        relations.insert(Relation::Le(value, x));
                     }
                 }
             }
@@ -3103,10 +3104,15 @@ fn universal_relations(func: &Function, relevant: &DenseBitSet<ValueId>) -> FxHa
 ///
 /// The product is zero when the test fails, leaving `x`, and `limit - x` when
 /// it holds, leaving exactly `limit` under wrapping addition. Either way the
-/// sum is at most `limit`.
+/// sum is at most both `x` and `limit`. A comparison is an `i1`, widened
+/// before multiplication at the result's width.
 fn clamp_limit(func: &Function, x: ValueId, adjustment: ValueId) -> Option<ValueId> {
     let &InstKind::Mul(first, second) = func.value_inst_kind(adjustment)? else { return None };
     for (condition, difference) in [(first, second), (second, first)] {
+        let condition = match func.value_inst_kind(condition) {
+            Some(&InstKind::Zext(condition)) => condition,
+            _ => condition,
+        };
         let Some(&(InstKind::Gt(tested, limit) | InstKind::Lt(limit, tested))) =
             func.value_inst_kind(condition)
         else {

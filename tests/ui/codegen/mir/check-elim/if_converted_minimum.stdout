@@ -1,0 +1,50 @@
+- ; === ROOT/tests/ui/codegen/mir/check-elim/if_converted_minimum.mir (before check-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/check-elim/if_converted_minimum.mir (after check-elim) ===
+  @module IfConvertedMinimum
+  fn @minimum(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = lt arg0, arg1
+      v1 = sub arg0, arg1
+      v2 = zext i1 v0 to i256
+      v3 = mul v1, v2
+      v4 = add v3, arg1
+      v5 = lt v4, arg2
+      jumpi v5, bb1, bb2
+    bb2:                                            ; preds = bb0
+      v6 = lt arg0, arg2
+-     jumpi v6, bb5, bb3
++     jump bb3
+    bb3:                                            ; preds = bb2
+      v7 = lt arg1, arg2
+-     jumpi v7, bb5, bb4
++     jump bb4
+    bb4:                                            ; preds = bb3
+      ret arg2
+-   bb5 [cold]:                                     ; preds = bb2, bb3
+-     revert 0, 0
+    bb1:                                            ; preds = bb0
+      ret 0
++   bb5 [cold]:
++     revert 0, 0
+  }
+  
+  fn @maximum(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+    bb0:
+      v0 = lt arg1, arg0
+      v1 = sub arg0, arg1
+      v2 = zext i1 v0 to i256
+      v3 = mul v1, v2
+      v4 = add v3, arg1
+      v5 = lt v4, arg2
+      jumpi v5, bb1, bb2
+    bb2:                                            ; preds = bb0
+      v6 = lt arg0, arg2
+      jumpi v6, bb4, bb3
+    bb3:                                            ; preds = bb2
+      ret arg2
+    bb4 [cold]:                                     ; preds = bb2
+      revert 0, 0
+    bb1:                                            ; preds = bb0
+      ret 0
+  }
+  
