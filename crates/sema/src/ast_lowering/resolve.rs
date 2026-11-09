@@ -1902,6 +1902,13 @@ impl<'gcx> ResolveContext<'gcx> {
                     self.lower_expr_opt(end.as_deref()),
                 ),
             },
+            ast::ExprKind::PluginBuiltin(namespace, name, args) => {
+                hir::ExprKind::PluginBuiltin(self.arena.alloc(hir::PluginBuiltin {
+                    namespace: *namespace,
+                    name: *name,
+                    args: self.lower_exprs(&**args),
+                }))
+            }
             ast::ExprKind::Lit(lit, _) => hir::ExprKind::Lit(self.lower_lit(lit)),
             ast::ExprKind::Member(expr, member) => {
                 hir::ExprKind::Member(self.lower_expr(expr), *member)

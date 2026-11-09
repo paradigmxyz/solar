@@ -1,6 +1,6 @@
 [package]
 name = "solar-pass-plugin"
-description = "Rust optimization pass plugin SDK"
+description = "Rust compiler plugin SDK"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -10,3 +10,14 @@ repository.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+host = ["dep:alloy-primitives", "dep:libloading"]
+
+[dependencies]
+# host
+alloy-primitives = { workspace = true, optional = true }
+
+[target.'cfg(any(unix, windows))'.dependencies]
+# host
+libloading = { workspace = true, optional = true }

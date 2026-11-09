@@ -1,10 +1,13 @@
-//! Rust optimization pass plugins. Implement [`Plugin`] and use [`export_plugin!`] to build a
-//! loadable Rust library. Plugins and the compiler must use the same SDK source, Rust toolchain,
+//! Rust frontend and optimization plugins. Implement [`Plugin`] and use [`export_plugin!`] to build
+//! a loadable Rust library. Plugins and the compiler must use the same SDK source, Rust toolchain,
 //! target, profile, and Rust flags; the loader checks their fingerprints before calling Rust code.
 //!
 //! Requests are borrowed from the host. Responses are borrowed while the host clones them, so
 //! each side retains ownership of its allocations. The export adapter contains plugin panics
 //! when built with unwinding. Native libraries are trusted code, not a sandbox.
+
+#[cfg(feature = "host")]
+pub mod host;
 
 /// Interface version understood by this SDK.
 pub const API_VERSION: u32 = 1;
@@ -18,7 +21,133 @@ pub const ABI_FINGERPRINT: [u8; 32] = __private::build_fingerprint(cfg!(panic = 
 /// macro lends their results to the compiler and drops them before returning to the host.
 pub trait Plugin: Sync {
     fn manifest(&self) -> Manifest;
-    fn run(&self, request: &Request) -> Result<Response, String>;
+    /// Runs a declared IR pass. Frontend-only libraries need not implement this method.
+    fn run(&self, _request: &Request) -> Result<Response, String> {
+        Err("plugin does not implement IR passes".into())
+    }
+
+    /// Lowers a registered builtin to an acyclic pure word fragment.
+    fn lower_builtin(&self, _name: &str) -> Result<BuiltinBody, String> {
+        Err("unknown plugin builtin".into())
+    }
+
+    /// Describes frontend extensions made available by this plugin.
+    fn frontend_manifest(&self) -> FrontendManifest {
+        FrontendManifest::default()
+    }
+
+    /// Expands a frontend invocation into host-allocated syntax.
+    fn expand(&self, _request: &ExpansionRequest<'_>) -> Result<Expansion, String> {
+        Err("unknown frontend extension".into())
+    }
+}
+
+/// Frontend extension registration, qualified by the plugin's manifest name.
+#[derive(Clone, Debug, Default)]
+pub struct FrontendManifest {
+    pub extensions: Vec<FrontendExtension>,
+    pub builtins: Vec<BuiltinDefinition>,
+}
+
+#[derive(Clone, Debug)]
+pub struct FrontendExtension {
+    pub name: String,
+    pub kind: ExtensionKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExtensionKind {
+    Expression,
+    Statement,
+}
+
+/// A source token's byte range is relative to the source file, with an exclusive end.
+#[derive(Clone, Debug)]
+pub struct FrontendToken {
+    pub text: String,
+    pub start: u32,
+    pub end: u32,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExpansionRequest<'a> {
+    pub name: String,
+    pub kind: ExtensionKind,
+    /// Invocation tokens borrowed from the source cache for the duration of the callback.
+    pub tokens: &'a [FrontendToken],
+}
+
+/// Declarative syntax nodes. Inputs refer to parsed arguments or the parsed body; temporary
+/// variables are allocated by the compiler, so their names cannot collide with user names.
+#[derive(Clone, Debug)]
+pub enum Expansion {
+    Expression(ExpansionExpr),
+    Statement(ExpansionStmt),
+    Builtin(BuiltinSignature),
+}
+
+#[derive(Clone, Debug)]
+pub enum ExpansionExpr {
+    Argument(u32),
+    Uint(String),
+    Binary { op: String, left: Box<Self>, right: Box<Self> },
+}
+
+#[derive(Clone, Debug)]
+pub enum ExpansionStmt {
+    Body,
+    Block(Vec<Self>),
+    /// Evaluate `count` once, then execute `body` that many times.
+    Repeat {
+        count: ExpansionExpr,
+        body: Box<Self>,
+    },
+}
+
+/// Typed scalar builtins. This version accepts only pure word-to-word fragments.
+#[derive(Clone, Debug)]
+pub struct BuiltinDefinition {
+    pub name: String,
+    pub signature: BuiltinSignature,
+}
+
+#[derive(Clone, Debug)]
+pub struct BuiltinSignature {
+    pub parameters: Vec<BuiltinType>,
+    pub result: BuiltinType,
+    pub effect: BuiltinEffect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BuiltinType {
+    Uint256,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BuiltinEffect {
+    #[default]
+    Unknown,
+    Pure,
+}
+
+/// Operands refer to arguments, prior instructions, or word constants.
+#[derive(Clone, Debug)]
+pub enum BuiltinOperand {
+    Argument(u32),
+    Local(u32),
+    Constant(String),
+}
+
+#[derive(Clone, Debug)]
+pub struct BuiltinInstruction {
+    pub operation: String,
+    pub operands: Vec<BuiltinOperand>,
+}
+
+#[derive(Clone, Debug)]
+pub struct BuiltinBody {
+    pub instructions: Vec<BuiltinInstruction>,
+    pub result: BuiltinOperand,
 }
 
 /// IR layer accepted by a pass.
@@ -329,6 +458,11 @@ macro_rules! export_plugin {
             static EXPORTS: $crate::__private::Exports = $crate::__private::Exports {
                 manifest: |respond| $crate::__private::manifest(&PLUGIN, respond),
                 run: |request, respond| $crate::__private::run(&PLUGIN, request, respond),
+                lower_builtin: |name, respond| {
+                    $crate::__private::lower_builtin(&PLUGIN, name, respond)
+                },
+                frontend_manifest: |respond| $crate::__private::frontend_manifest(&PLUGIN, respond),
+                expand: |request, respond| $crate::__private::expand(&PLUGIN, request, respond),
             };
             &EXPORTS
         }
@@ -349,6 +483,9 @@ pub mod __private {
     pub struct Exports {
         pub manifest: fn(&mut Receiver<'_, Manifest>),
         pub run: fn(&Request, &mut Receiver<'_, Response>),
+        pub lower_builtin: fn(&str, &mut Receiver<'_, BuiltinBody>),
+        pub frontend_manifest: fn(&mut Receiver<'_, FrontendManifest>),
+        pub expand: fn(&ExpansionRequest<'_>, &mut Receiver<'_, Expansion>),
     }
 
     pub const fn build_fingerprint(panic_unwind: bool) -> [u8; 32] {
@@ -365,11 +502,115 @@ pub mod __private {
         }
     }
 
+    pub fn lower_builtin<P: Plugin>(
+        plugin: &P,
+        name: &str,
+        respond: &mut Receiver<'_, BuiltinBody>,
+    ) {
+        match catch_unwind(AssertUnwindSafe(|| plugin.lower_builtin(name))) {
+            Ok(Ok(response)) => respond(Ok(&response)),
+            Ok(Err(error)) => respond(Err(&error)),
+            Err(_) => respond(Err("plugin panicked")),
+        }
+    }
+
+    pub fn frontend_manifest<P: Plugin>(plugin: &P, respond: &mut Receiver<'_, FrontendManifest>) {
+        match catch_unwind(AssertUnwindSafe(|| plugin.frontend_manifest())) {
+            Ok(manifest) => respond(Ok(&manifest)),
+            Err(_) => respond(Err("plugin panicked")),
+        }
+    }
+
+    pub fn expand<P: Plugin>(
+        plugin: &P,
+        request: &ExpansionRequest<'_>,
+        respond: &mut Receiver<'_, Expansion>,
+    ) {
+        match catch_unwind(AssertUnwindSafe(|| plugin.expand(request))) {
+            Ok(Ok(response)) => {
+                respond(Ok(&response));
+                drop_expansion(response);
+            }
+            Ok(Err(error)) => respond(Err(&error)),
+            Err(_) => respond(Err("plugin panicked")),
+        }
+    }
+
     pub fn run<P: Plugin>(plugin: &P, request: &Request, respond: &mut Receiver<'_, Response>) {
         match catch_unwind(AssertUnwindSafe(|| plugin.run(request))) {
             Ok(Ok(response)) => respond(Ok(&response)),
             Ok(Err(error)) => respond(Err(&error)),
             Err(_) => respond(Err("plugin panicked")),
+        }
+    }
+
+    pub fn validate_expansion(expansion: &Expansion) -> Result<(), String> {
+        let mut pending = vec![(ExpansionNode::from(expansion), 0)];
+        let mut nodes = 0;
+        while let Some((node, depth)) = pending.pop() {
+            if depth >= 128 {
+                return Err("plugin expansion exceeds nesting limit".into());
+            }
+            nodes += 1;
+            if nodes > 16384 {
+                return Err("plugin expansion exceeds node limit".into());
+            }
+            match node {
+                ExpansionNode::Expr(ExpansionExpr::Binary { left, right, .. }) => {
+                    pending.push((ExpansionNode::Expr(left), depth + 1));
+                    pending.push((ExpansionNode::Expr(right), depth + 1));
+                }
+                ExpansionNode::Stmt(ExpansionStmt::Block(statements)) => {
+                    if nodes + pending.len() + statements.len() > 16384 {
+                        return Err("plugin expansion exceeds node limit".into());
+                    }
+                    pending.extend(
+                        statements.iter().map(|stmt| (ExpansionNode::Stmt(stmt), depth + 1)),
+                    );
+                }
+                ExpansionNode::Stmt(ExpansionStmt::Repeat { count, body }) => {
+                    pending.push((ExpansionNode::Expr(count), depth + 1));
+                    pending.push((ExpansionNode::Stmt(body), depth + 1));
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    enum ExpansionNode<'a> {
+        Expr(&'a ExpansionExpr),
+        Stmt(&'a ExpansionStmt),
+        Builtin,
+    }
+
+    impl<'a> From<&'a Expansion> for ExpansionNode<'a> {
+        fn from(expansion: &'a Expansion) -> Self {
+            match expansion {
+                Expansion::Expression(expr) => Self::Expr(expr),
+                Expansion::Statement(stmt) => Self::Stmt(stmt),
+                Expansion::Builtin(_) => Self::Builtin,
+            }
+        }
+    }
+
+    fn drop_expansion(expansion: Expansion) {
+        let mut pending = vec![expansion];
+        while let Some(node) = pending.pop() {
+            match node {
+                Expansion::Expression(ExpansionExpr::Binary { left, right, .. }) => {
+                    pending.push(Expansion::Expression(*left));
+                    pending.push(Expansion::Expression(*right));
+                }
+                Expansion::Statement(ExpansionStmt::Block(statements)) => {
+                    pending.extend(statements.into_iter().map(Expansion::Statement));
+                }
+                Expansion::Statement(ExpansionStmt::Repeat { count, body }) => {
+                    pending.push(Expansion::Expression(count));
+                    pending.push(Expansion::Statement(*body));
+                }
+                _ => {}
+            }
         }
     }
 }

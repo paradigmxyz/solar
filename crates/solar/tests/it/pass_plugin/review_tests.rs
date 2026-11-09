@@ -1,5 +1,27 @@
 use super::*;
+use solar_pass_plugin::{ExpansionRequest, ExtensionKind, host::NativePlugin};
 use std::{io::Write, process::Stdio};
+
+#[test]
+fn frontend_callbacks_cross_library_boundary() {
+    // SAFETY: The fixture is built from the workspace's trusted SDK example.
+    let plugin = unsafe { NativePlugin::load(&sample()) }.unwrap();
+    let manifest = plugin.frontend_manifest().unwrap();
+    let expansion = plugin
+        .expand(&ExpansionRequest {
+            name: "repeat".into(),
+            kind: ExtensionKind::Statement,
+            tokens: &[],
+        })
+        .unwrap();
+    assert_data_eq!(
+        format!("{:?}\n{expansion:?}", manifest.extensions),
+        str![[
+            r#"[FrontendExtension { name: "sum", kind: Expression }, FrontendExtension { name: "repeat", kind: Statement }]
+Statement(Repeat { count: Argument(0), body: Body })"#
+        ]]
+    );
+}
 
 #[test]
 fn requests_do_not_expose_debug_output_options() {
@@ -359,31 +381,50 @@ fn plugin_identity_rejects_library_replacement_during_loading() {
     let path = directory.path().join("test.sol");
     fs::write(&path, "contract C { function f() external {} }").unwrap();
     let bytes = fs::read(sample()).unwrap();
-    for mode in ["replace_library", "replace_library_manifest"] {
-        let plugin = broken(directory.path(), mode);
-        let replacement =
-            directory.path().join(format!("replacement{}", std::env::consts::DLL_SUFFIX));
-        fs::write(&replacement, &bytes).unwrap();
-        let output = Command::new(SOLAR)
-            .args(["--allow=2264", "-j1", "--error-format=rustc-json", "--emit=bin-runtime"])
-            .arg(format!("-Zload-pass-plugin={}", plugin.display()))
-            .arg(&path)
-            .env("SOLAR_TEST_PASS_PLUGIN_MODE", mode)
-            .env("SOLAR_TEST_PLUGIN_PATH", &plugin)
-            .env("SOLAR_TEST_PLUGIN_REPLACEMENT", &replacement)
-            .output()
-            .unwrap();
-        assert_eq!(fs::read(&plugin).unwrap(), bytes);
-        assert!(!output.status.success());
-        assert!(output.stdout.is_empty());
-        assert_data_eq!(
-            messages(&output),
-            str![[r#"
+    for flags in [&["--stop-after", "parsing"][..], &["--emit=bin-runtime"][..]] {
+        for mode in ["replace_library", "replace_library_manifest", "replace_library_frontend"] {
+            let plugin = broken(directory.path(), mode);
+            let replacement =
+                directory.path().join(format!("replacement{}", std::env::consts::DLL_SUFFIX));
+            fs::write(&replacement, &bytes).unwrap();
+            let output = Command::new(SOLAR)
+                .args(["--allow=2264", "-j1", "--error-format=rustc-json"])
+                .args(flags)
+                .arg(format!("-Zload-pass-plugin={}", plugin.display()))
+                .arg(&path)
+                .env("SOLAR_TEST_PASS_PLUGIN_MODE", mode)
+                .env("SOLAR_TEST_PLUGIN_PATH", &plugin)
+                .env("SOLAR_TEST_PLUGIN_REPLACEMENT", &replacement)
+                .output()
+                .unwrap();
+            assert_eq!(fs::read(&plugin).unwrap(), bytes);
+            assert!(!output.status.success());
+            assert!(output.stdout.is_empty());
+            assert_data_eq!(
+                messages(&output),
+                str![[r#"
 [
   "pass plugin library changed while loading",
   "aborting due to 1 previous error"
 ]
 "#]],
+            );
+        }
+    }
+}
+
+#[test]
+fn frontend_expression_compiles_and_executes() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("test.sol");
+    fs::write(&path, "contract C { function f() external pure returns(uint256) { return @example.sum(20, @example.sum(21, 1)); } }").unwrap();
+    for optimization in ["-Onone", "-Ogas", "-Osize"] {
+        let output = run(&path, &sample(), &[optimization, "--emit=bin-runtime"]);
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let input = &alloy_primitives::keccak256("f()")[..4];
+        assert_eq!(
+            super::runtime::execute(&artifact(&output), input),
+            alloy_primitives::U256::from(42).to_be_bytes::<32>()
         );
     }
 }

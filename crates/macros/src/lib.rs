@@ -28,6 +28,8 @@ pub fn symbols(input: TokenStream) -> TokenStream {
 /// block and the `visit_` functions are made to call the `walk_` functions by default.
 ///
 /// `walk_` functions should not be overridden.
+/// An optional third trait name generates an immutable visitor whose node-reference lifetimes
+/// are independent of the arena lifetime, for traversals during parsing.
 #[proc_macro]
 pub fn declare_visitors(input: TokenStream) -> TokenStream {
     parse_macro_input!(input as visitor::Input).expand().into()

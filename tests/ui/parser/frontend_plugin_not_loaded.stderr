@@ -1,0 +1,8 @@
+error: no frontend plugins are loaded
+   ╭▸ ROOT/tests/ui/parser/frontend_plugin_not_loaded.sol:LL:CC
+   │
+LL │         return @example.rotl(1, 2);
+   ╰╴               ━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

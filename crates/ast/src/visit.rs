@@ -7,7 +7,7 @@ use std::ops::ControlFlow;
 
 declare_visitors! {
     /// AST traversal.
-    pub trait Visit VisitMut <'ast> {
+    pub trait Visit VisitMut VisitRef <'ast> {
         /// The value returned when breaking from the traversal.
         ///
         /// This can be [`Never`](solar_data_structures::Never) to indicate that the traversal
@@ -433,6 +433,9 @@ declare_visitors! {
                 }
                 ExprKind::Delete(expr) => {
                     self.visit_expr #_mut(expr)?;
+                }
+                ExprKind::PluginBuiltin(_, _, args) => {
+                    for arg in args.iter #_mut() { self.visit_expr #_mut(arg)?; }
                 }
                 ExprKind::Ident(ident) => {
                     self.visit_ident #_mut(ident)?;

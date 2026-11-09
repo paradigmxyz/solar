@@ -2,8 +2,9 @@
 //! This crate is only a compiler dev dependency; it is not a supported plugin example.
 
 use solar_pass_plugin::{
-    self as api, __private::Exports, Edit, EvmTerminator, Manifest, MirInstructionKind as Kind,
-    MirOperand as Operand, MirTerminator as Term, NewMirBlock as Block, NewMirFunction as Function,
+    self as api, __private::Exports, Edit, EvmTerminator, Expansion, ExpansionExpr as E,
+    ExpansionStmt as S, Manifest, MirInstructionKind as Kind, MirOperand as Operand,
+    MirTerminator as Term, NewMirBlock as Block, NewMirFunction as Function,
     NewMirInstruction as Instruction, Plugin, Request, Response, Type,
 };
 
@@ -37,21 +38,204 @@ impl Plugin for Broken {
             _ => None,
         };
         Manifest {
-            api_version: if mode == "bad_version" { 999 } else { api::API_VERSION },
-            name: "broken".into(),
-            version: "1".into(),
-            passes: vec![api::Pass {
-                name: "fail".into(),
-                ir: if phase.is_some() { api::Ir::Mir } else { api::Ir::EvmIr },
-                phase: phase.map(str::to_owned),
-                enabled_by_default: true,
+            api_version: if matches!(mode.as_str(), "bad_version" | "frontend_bad_api") {
+                999
+            } else {
+                api::API_VERSION
+            },
+            name: if mode == "frontend_keyword_namespace" { "contract" } else { "broken" }.into(),
+            version: if mode == "frontend_empty_version" { "" } else { "1" }.into(),
+            passes: if mode.starts_with("frontend_") {
+                Vec::new()
+            } else {
+                vec![api::Pass {
+                    name: "fail".into(),
+                    ir: if phase.is_some() { api::Ir::Mir } else { api::Ir::EvmIr },
+                    phase: phase.map(str::to_owned),
+                    enabled_by_default: true,
+                }]
+            },
+        }
+    }
+
+    fn frontend_manifest(&self) -> api::FrontendManifest {
+        if matches!(mode().as_str(), "frontend_bad_api" | "frontend_empty_version") {
+            panic!("invalid metadata reached frontend registration");
+        }
+        let extension = match mode().as_str() {
+            "frontend_identity" => Some(("id", api::ExtensionKind::Expression)),
+            "frontend_composed_depth" | "frontend_clone_depth" => {
+                Some(("deep", api::ExtensionKind::Expression))
+            }
+            "frontend_composed_statements"
+            | "frontend_clone_statements"
+            | "frontend_clone_wide" => Some(("repeat", api::ExtensionKind::Statement)),
+            "frontend_keyword_extension" => Some(("if", api::ExtensionKind::Expression)),
+            _ => None,
+        };
+        if let Some((name, kind)) = extension {
+            return api::FrontendManifest {
+                extensions: vec![api::FrontendExtension { name: name.into(), kind }],
+                builtins: Vec::new(),
+            };
+        }
+        if mode() == "frontend_tokens" {
+            return api::FrontendManifest {
+                extensions: vec![
+                    api::FrontendExtension {
+                        name: "sum".into(),
+                        kind: api::ExtensionKind::Expression,
+                    },
+                    api::FrontendExtension {
+                        name: "repeat".into(),
+                        kind: api::ExtensionKind::Statement,
+                    },
+                ],
+                builtins: Vec::new(),
+            };
+        }
+        if mode() == "replace_library_frontend" {
+            replace_library();
+        }
+        if !mode().starts_with("frontend_") {
+            return Default::default();
+        }
+        api::FrontendManifest {
+            extensions: if matches!(
+                mode().as_str(),
+                "frontend_body" | "frontend_discard" | "frontend_nested"
+            ) {
+                vec![api::FrontendExtension {
+                    name: "repeat".into(),
+                    kind: api::ExtensionKind::Statement,
+                }]
+            } else {
+                Vec::new()
+            },
+            builtins: vec![api::BuiltinDefinition {
+                name: match mode().as_str() {
+                    "frontend_keyword_builtin" => "while",
+                    "frontend_fixed_name" => "fixed128x18",
+                    _ => "bad",
+                }
+                .into(),
+                signature: api::BuiltinSignature {
+                    parameters: if mode() == "frontend_constant" {
+                        Vec::new()
+                    } else {
+                        vec![api::BuiltinType::Uint256; 2]
+                    },
+                    result: api::BuiltinType::Uint256,
+                    effect: if mode() == "frontend_effect" {
+                        api::BuiltinEffect::Unknown
+                    } else {
+                        api::BuiltinEffect::Pure
+                    },
+                },
             }],
         }
     }
 
+    fn expand(&self, request: &api::ExpansionRequest<'_>) -> Result<api::Expansion, String> {
+        match mode().as_str() {
+            "frontend_identity" => return Ok(Expansion::Expression(E::Argument(0))),
+            "frontend_composed_depth" | "frontend_clone_depth" => {
+                let depth = if mode() == "frontend_clone_depth" { 8192 } else { 100 };
+                let mut expr = E::Argument(0);
+                for _ in 0..depth {
+                    expr = E::Binary {
+                        op: "+".into(),
+                        left: Box::new(expr),
+                        right: Box::new(E::Uint("0".into())),
+                    };
+                }
+                return Ok(Expansion::Expression(expr));
+            }
+            "frontend_clone_wide" => {
+                return Ok(Expansion::Statement(S::Block(
+                    (0..16385).map(|_| S::Block(Vec::new())).collect(),
+                )));
+            }
+            "frontend_composed_statements" | "frontend_clone_statements" => {
+                let depth = if mode() == "frontend_clone_statements" { 8192 } else { 100 };
+                let mut stmt = S::Body;
+                for _ in 0..depth {
+                    stmt = S::Block(vec![stmt]);
+                }
+                return Ok(Expansion::Statement(stmt));
+            }
+            _ => {}
+        }
+        if mode() == "frontend_tokens" {
+            static TOKEN: std::sync::Mutex<Option<(usize, u32, u32)>> = std::sync::Mutex::new(None);
+            let token = request.tokens.iter().rev().find(|token| token.text == "payload").unwrap();
+            let identity = (token.text.as_ptr() as usize, token.start, token.end);
+            let mut prior = TOKEN.lock().unwrap();
+            if prior.is_some_and(|prior| prior != identity) {
+                return Err("nested invocations copied their shared token text".into());
+            }
+            *prior = Some(identity);
+            let closing = match request.kind {
+                api::ExtensionKind::Expression => ")",
+                api::ExtensionKind::Statement => "}",
+            };
+            if request.tokens.first().unwrap().text != "@"
+                || request.tokens.last().unwrap().text != closing
+            {
+                return Err("incorrect invocation token range".into());
+            }
+            return Ok(match request.kind {
+                api::ExtensionKind::Expression => Expansion::Expression(E::Argument(0)),
+                api::ExtensionKind::Statement => Expansion::Statement(S::Repeat {
+                    count: E::Argument(0),
+                    body: Box::new(S::Body),
+                }),
+            });
+        }
+        let recipe = match mode().as_str() {
+            "frontend_body" => S::Block(vec![S::Body, S::Body]),
+            "frontend_discard" => S::Block(Vec::new()),
+            "frontend_nested" => S::Repeat {
+                count: E::Argument(0),
+                body: Box::new(S::Repeat { count: E::Argument(1), body: Box::new(S::Body) }),
+            },
+            _ => return Err("unknown frontend extension".into()),
+        };
+        Ok(Expansion::Statement(recipe))
+    }
+
+    fn lower_builtin(&self, _: &str) -> Result<api::BuiltinBody, String> {
+        if mode() == "frontend_constant" {
+            return Ok(api::BuiltinBody {
+                instructions: Vec::new(),
+                result: api::BuiltinOperand::Constant("42".into()),
+            });
+        }
+        let (operation, operands) = match mode().as_str() {
+            "frontend_only" => {
+                ("add", vec![api::BuiltinOperand::Argument(0), api::BuiltinOperand::Argument(1)])
+            }
+            "frontend_local" => {
+                ("add", vec![api::BuiltinOperand::Local(0), api::BuiltinOperand::Argument(0)])
+            }
+            "frontend_argument" => {
+                ("add", vec![api::BuiltinOperand::Argument(8), api::BuiltinOperand::Argument(0)])
+            }
+            "frontend_gas" => ("gas", vec![]),
+            "frontend_clz" => ("clz", vec![api::BuiltinOperand::Argument(0)]),
+            "frontend_memory" => ("mload", vec![api::BuiltinOperand::Argument(0)]),
+            "frontend_arity" => ("add", vec![]),
+            _ => ("not_an_op", vec![]),
+        };
+        Ok(api::BuiltinBody {
+            instructions: vec![api::BuiltinInstruction { operation: operation.into(), operands }],
+            result: api::BuiltinOperand::Local(0),
+        })
+    }
+
     fn run(&self, request: &Request) -> Result<Response, String> {
         let mode = mode();
-        if mode.starts_with("replace_library") {
+        if mode.starts_with("replace_library") || mode.starts_with("frontend_") {
             return Ok(Response::default());
         }
         if mode.starts_with("observe_") {
@@ -380,7 +564,11 @@ pub fn solar_rust_pass_plugin_v1() -> &'static Exports {
     }
     static EXPORTS: Exports = Exports {
         manifest: |respond| api::__private::manifest(&Broken, respond),
+        lower_builtin: |name, respond| api::__private::lower_builtin(&Broken, name, respond),
+        frontend_manifest: |respond| api::__private::frontend_manifest(&Broken, respond),
+        expand: |request, respond| api::__private::expand(&Broken, request, respond),
         run: |request, respond| match mode().as_str() {
+            "missing_run" => api::__private::run(&DefaultRun, request, respond),
             "no_response" => {}
             "duplicate_response" => {
                 let response = Response::default();
@@ -443,4 +631,12 @@ fn replace_library() {
         std::env::var_os("SOLAR_TEST_PLUGIN_PATH").unwrap(),
     )
     .unwrap();
+}
+
+struct DefaultRun;
+
+impl Plugin for DefaultRun {
+    fn manifest(&self) -> Manifest {
+        Broken.manifest()
+    }
 }

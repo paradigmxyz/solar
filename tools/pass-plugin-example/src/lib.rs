@@ -5,7 +5,9 @@
 //! Both skip modules containing gas observations, whose values can depend on removed work.
 
 use solar_pass_plugin::{
-    API_VERSION, Edit, Ir, Manifest, Pass, Plugin, Request, Response, Snapshot,
+    API_VERSION, BuiltinBody, BuiltinInstruction as I, BuiltinOperand as O, Edit, Expansion,
+    ExpansionExpr, ExpansionStmt, ExtensionKind, Ir, Manifest, Pass, Plugin, Request, Response,
+    Snapshot,
 };
 
 mod graph;
@@ -13,6 +15,75 @@ mod graph;
 struct Example;
 
 impl Plugin for Example {
+    fn lower_builtin(&self, name: &str) -> Result<solar_pass_plugin::BuiltinBody, String> {
+        if name != "rotl" {
+            return Err("unknown plugin builtin".into());
+        }
+        // shift = shift & 255
+        // left = value << shift
+        // right = value >> (256 - shift)
+        // result = left | right
+        Ok(BuiltinBody {
+            instructions: vec![
+                I {
+                    operation: "and".into(),
+                    operands: vec![O::Argument(1), O::Constant("255".into())],
+                },
+                I { operation: "shl".into(), operands: vec![O::Local(0), O::Argument(0)] },
+                I {
+                    operation: "sub".into(),
+                    operands: vec![O::Constant("256".into()), O::Local(0)],
+                },
+                I { operation: "shr".into(), operands: vec![O::Local(2), O::Argument(0)] },
+                I { operation: "or".into(), operands: vec![O::Local(1), O::Local(3)] },
+            ],
+            result: O::Local(4),
+        })
+    }
+
+    fn frontend_manifest(&self) -> solar_pass_plugin::FrontendManifest {
+        solar_pass_plugin::FrontendManifest {
+            builtins: vec![solar_pass_plugin::BuiltinDefinition {
+                name: "rotl".into(),
+                signature: solar_pass_plugin::BuiltinSignature {
+                    parameters: vec![solar_pass_plugin::BuiltinType::Uint256; 2],
+                    result: solar_pass_plugin::BuiltinType::Uint256,
+                    effect: solar_pass_plugin::BuiltinEffect::Pure,
+                },
+            }],
+            extensions: vec![
+                solar_pass_plugin::FrontendExtension {
+                    name: "sum".into(),
+                    kind: solar_pass_plugin::ExtensionKind::Expression,
+                },
+                solar_pass_plugin::FrontendExtension {
+                    name: "repeat".into(),
+                    kind: solar_pass_plugin::ExtensionKind::Statement,
+                },
+            ],
+        }
+    }
+
+    fn expand(
+        &self,
+        request: &solar_pass_plugin::ExpansionRequest<'_>,
+    ) -> Result<solar_pass_plugin::Expansion, String> {
+        if request.name == "sum" && request.kind == ExtensionKind::Expression {
+            return Ok(Expansion::Expression(ExpansionExpr::Binary {
+                op: "+".into(),
+                left: Box::new(ExpansionExpr::Argument(0)),
+                right: Box::new(ExpansionExpr::Argument(1)),
+            }));
+        }
+        if request.name != "repeat" || request.kind != ExtensionKind::Statement {
+            return Err("unknown frontend extension".into());
+        }
+        Ok(Expansion::Statement(ExpansionStmt::Repeat {
+            count: ExpansionExpr::Argument(0),
+            body: Box::new(ExpansionStmt::Body),
+        }))
+    }
+
     fn manifest(&self) -> Manifest {
         Manifest {
             api_version: API_VERSION,

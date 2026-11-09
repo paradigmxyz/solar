@@ -10,6 +10,8 @@ use std::{
 };
 
 mod artifact;
+mod frontend;
+mod frontend_review;
 mod graph_tests;
 mod review_tests;
 mod runtime;
@@ -338,6 +340,31 @@ fn native_plugin_preserves_optimized_and_debug_bytecode() {
 }
 
 #[test]
+fn plugin_loading_precedes_parsing() {
+    let directory = tempfile::tempdir().unwrap();
+    let source = directory.path().join("test.sol");
+    fs::write(&source, "contract {").unwrap();
+    let library = broken(directory.path(), "wrong_abi");
+    let output = run(&source, &library, &["--emit=abi"]);
+    assert!(!output.status.success());
+    #[allow(clippy::disallowed_methods)]
+    let canonical = library.canonicalize().unwrap();
+    let diagnostics = diagnostic_messages(&output)
+        .into_iter()
+        .map(|message| message.replace(&canonical.display().to_string(), "$PLUGIN"))
+        .collect::<Vec<_>>();
+    assert_data_eq!(
+        serde_json::to_string_pretty(&diagnostics).unwrap(),
+        str![[r#"
+[
+  "pass plugin `$PLUGIN` was built with an incompatible Rust SDK or toolchain",
+  "aborting due to 1 previous error"
+]
+"#]]
+    );
+}
+
+#[test]
 fn invalid_native_plugins_fail_cleanly() {
     let directory = tempfile::tempdir().unwrap();
     let source = directory.path().join("test.evmir");
@@ -539,7 +566,7 @@ fn invalid_mir_edits_and_duplicate_names_are_errors() {
         messages(&output),
         str![[r#"
 [
-  "invalid or duplicate plugin pass `example::simplify-add-zero`",
+  "duplicate plugin namespace `example`",
   "aborting due to 1 previous error"
 ]
 "#]]
@@ -592,7 +619,7 @@ fn plugin_option_survives_standard_json_settings() {
         serde_json::to_string_pretty(&errors).unwrap(),
         str![[r#"
 [
-  "invalid or duplicate plugin pass `example::simplify-add-zero`"
+  "duplicate plugin namespace `example`"
 ]
 "#]]
     );

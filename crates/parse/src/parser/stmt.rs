@@ -22,7 +22,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a statement kind.
     fn parse_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let mut semi = true;
-        let kind = if self.eat_keyword(kw::If) {
+        let kind = if self.check_noexpect(TokenKind::At) {
+            semi = false;
+            self.parse_plugin_stmt()
+        } else if self.eat_keyword(kw::If) {
             semi = false;
             self.parse_stmt_if()
         } else if self.eat_keyword(kw::While) {

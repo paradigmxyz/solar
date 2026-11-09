@@ -4410,7 +4410,6 @@ dependencies = [
  "cranelift-isle",
  "derive_more",
  "either",
- "libloading",
  "memchr",
  "serde_json",
  "smallvec",
@@ -4655,12 +4654,17 @@ dependencies = [
  "solar-ast",
  "solar-data-structures",
  "solar-interface",
+ "solar-pass-plugin",
  "tracing",
 ]
 
 [[package]]
 name = "solar-pass-plugin"
 version = "0.3.0"
+dependencies = [
+ "alloy-primitives",
+ "libloading",
+]
 
 [[package]]
 name = "solar-pass-plugin-example"
@@ -4704,6 +4708,7 @@ dependencies = [
  "solar-interface",
  "solar-macros",
  "solar-parse",
+ "solar-pass-plugin",
  "strum 0.28.0",
  "thread_local",
  "tracing",

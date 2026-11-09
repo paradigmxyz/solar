@@ -32,6 +32,9 @@ exact Rust toolchain, SDK source, target, profile, and Rust flags. A fingerprint
 covers these inputs; the loader compares it before calling the Rust entry
 point. Rebuild plugins when any of them changes. Randomized type layouts are
 unsupported. This is a compatibility check, not a security boundary.
+Embedders call the unsafe `host::NativePlugin::load` only after establishing trust
+in the library and its SDK contracts. API versions and plugin versions are checked
+before frontend registration, including builds that stop before codegen.
 See the [Rust ABI reference](https://doc.rust-lang.org/reference/items/external-blocks.html#abi).
 
 The SDK lends requests from the host and responses from the plugin. The host
@@ -125,8 +128,10 @@ spilled-return helper still requires a form the stack-only checker can prove.
 Standard JSON metadata records the ordered plugin names, versions, and library
 content hashes in `settings.solar.plugins`. ETHDebug compilation IDs include
 the same identities. Moving an identical library does not change its identity.
-The loader hashes the library before initialization and rejects changed contents
-after loading and reading its manifest. Keep plugin files unchanged during a build.
+The shared loader hashes the library before initialization and rejects changed
+contents after loading and both registration callbacks. Metadata uses that captured
+hash even though frontend plugins load before parsing. Keep plugin files unchanged
+during a build.
 
 The example's `create-mir-helper`, `create-lowered-helper`, and
 `create-evm-helper` passes demonstrate these edits. They deliberately introduce
@@ -144,3 +149,9 @@ observable effects, including gas and memory-size observations, and test their
 transformations against the interpreters and runtime tests. Library crashes
 can terminate the compiler. Plugin binaries and configuration are build inputs:
 when using external build caches, invalidate them after changing a plugin.
+
+## Frontend extensions
+
+The same library can register syntax extensions and pure typed builtins. See
+[Frontend plugins](../../docs/FrontendPlugins.md) for `repeat`, `rotl`, the
+expansion recipes, and the checked MIR fragment interface.
