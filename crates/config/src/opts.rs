@@ -80,6 +80,12 @@ pub struct CompileOpts {
         )
     )]
     pub allow_paths: Vec<PathBuf>,
+    /// Disable the import callback, so that imports only resolve to the given sources.
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Input options", long, conflicts_with = "allow_paths")
+    )]
+    pub no_import_callback: bool,
     /// Compiler input language.
     #[cfg_attr(
         feature = "clap",

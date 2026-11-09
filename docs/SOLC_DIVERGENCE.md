@@ -236,8 +236,9 @@ reads imports from disk like `solc`; other modes ignore it.
 
 Rationale: these inputs have a single sensible meaning.
 
-Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`
-and `tests/ui/standard-json/monorepo/pkg/test.jsonc`.
+Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`,
+`tests/ui/standard-json/monorepo.jsonc` and
+`tests/ui/standard-json/monorepo-symlink.jsonc`.
 
 ## Parsing
 

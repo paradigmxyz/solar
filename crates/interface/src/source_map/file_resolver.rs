@@ -43,6 +43,8 @@ pub struct FileResolver<'a> {
     remappings: Vec<ImportRemapping>,
     /// Base path for source unit names.
     base_path: Option<PathBuf>,
+    /// Whether imports may only resolve to loaded sources, like solc's `--no-import-callback`.
+    no_import_callback: bool,
 
     /// Custom current directory.
     custom_current_dir: Option<PathBuf>,
@@ -61,6 +63,7 @@ impl<'a> FileResolver<'a> {
             include_paths: Vec::new(),
             remappings: Vec::new(),
             base_path,
+            no_import_callback: false,
             custom_current_dir: None,
             env_current_dir: OnceLock::new(),
             last_input: OnceLock::new(),
@@ -81,6 +84,7 @@ impl<'a> FileResolver<'a> {
         if let Some(base_path) = &opts.base_path {
             self.base_path = Some(self.absolute(base_path));
         }
+        self.no_import_callback = opts.no_import_callback;
     }
 
     /// Clears the internal state.
@@ -88,6 +92,7 @@ impl<'a> FileResolver<'a> {
         self.include_paths.clear();
         self.remappings.clear();
         self.base_path = None;
+        self.no_import_callback = false;
         self.custom_current_dir = None;
         self.env_current_dir.take();
         self.last_input.take();
@@ -281,6 +286,12 @@ impl<'a> FileResolver<'a> {
             if input.is_some() {
                 return Ok(input);
             }
+        }
+
+        if self.no_import_callback {
+            let e =
+                io::Error::new(io::ErrorKind::Unsupported, "File import callback not supported");
+            return Err(ResolveError::ReadFile(unit.into(), e));
         }
 
         let mut found = SmallVec::<[_; 1]>::new();

@@ -95,8 +95,9 @@ pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
     });
     match result {
         Ok(_) => {
-            let reader = Arc::new(FileReader::new(&opts));
-            compile_standard_json(&input, opts, Some(reader), &mut stdout)?
+            let reader = (!opts.no_import_callback)
+                .then(|| Arc::new(FileReader::new(&opts)) as Arc<dyn StandardJsonReadCallback>);
+            compile_standard_json(&input, opts, reader, &mut stdout)?
         }
         Err(e) => standard_json_error_output(
             format!("failed to read standard JSON input: {e}"),

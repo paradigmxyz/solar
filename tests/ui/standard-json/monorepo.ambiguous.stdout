@@ -1,0 +1,33 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "src/A.sol",
+        "start": 45,
+        "end": 56
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "multiple files match amb/E.sol: ROOT/tests/ui/standard-json/monorepo/pkg/amb/E.sol, ROOT/tests/ui/standard-json/monorepo/inc/amb/E.sol",
+      "formattedMessage": "error: multiple files match amb/E.sol: ROOT/tests/ui/standard-json/monorepo/pkg/amb/E.sol, ROOT/tests/ui/standard-json/monorepo/inc/amb/E.sol\n   ╭▸ src/A.sol:LL:CC\n   │\nLL │ import {E} from \"amb/E.sol\";\n   ╰╴                ━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "src/A.sol",
+        "start": 76,
+        "end": 77
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": "7920",
+      "message": "unresolved symbol `E`",
+      "formattedMessage": "error[7920]: unresolved symbol `E`\n   ╭▸ src/A.sol:LL:CC\n   │\nLL │ contract A is B, E {}\n   ╰╴                 ━\n\n"
+    }
+  ],
+  "sources": {}
+}
