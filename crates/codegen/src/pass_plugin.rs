@@ -9,8 +9,10 @@
 //! clones borrowed responses and rejects missing, duplicate, or incompatible replies. Native
 //! libraries are trusted executable code, not a sandbox. Validation checks IR
 //! invariants, not semantic equivalence of a third-party transformation.
+//! Library contents are hashed before initialization and checked again before registration.
 
 use crate::{backend::evm::CodegenState, mir::MirPhase};
+use alloy_primitives::{B256, keccak256};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_pass_plugin::{
     __private::{ABI_SYMBOL, ENTRY_SYMBOL, Entry, Exports, Receiver, build_fingerprint},
@@ -95,12 +97,14 @@ impl Registry {
         #[allow(clippy::disallowed_methods)]
         let path = std::fs::canonicalize(path)
             .map_err(|error| format!("cannot open pass plugin `{}`: {error}", path.display()))?;
+        let digest = library_digest(&path)?;
         let plugin = Arc::new(NativePlugin::load(&path)?);
-        // Native libraries are build inputs, outside the virtual Solidity source loader.
-        #[allow(clippy::disallowed_methods)]
-        let bytes =
-            std::fs::read(&path).map_err(|error| format!("cannot read pass plugin: {error}"))?;
         let manifest = plugin.manifest()?;
+        // Loading and initialization can replace a writable library path. Reject changed
+        // contents rather than record bytes that did not supply the loaded callbacks.
+        if library_digest(&path)? != digest {
+            return Err("pass plugin library changed while loading".into());
+        }
         if manifest.api_version != API_VERSION {
             return Err(format!(
                 "plugin `{}` requires API {}, expected {API_VERSION}",
@@ -114,12 +118,7 @@ impl Registry {
                 path.display()
             ));
         }
-        self.identities.push(format!(
-            "{}@{}:{:#x}",
-            manifest.name,
-            manifest.version,
-            alloy_primitives::keccak256(bytes)
-        ));
+        self.identities.push(format!("{}@{}:{:#x}", manifest.name, manifest.version, digest));
         for definition in manifest.passes {
             let name = format!("{}::{}", manifest.name, definition.name);
             if !valid_name(&definition.name)
@@ -222,4 +221,11 @@ fn receive<T: Clone>(call: impl FnOnce(&mut Receiver<'_, T>)) -> Result<T, Strin
 /// Ordered plugin identities, including the digest of each loaded native library.
 pub fn build_inputs(gcx: Gcx<'_>) -> Result<Vec<String>, ErrorGuaranteed> {
     Ok(registry(gcx)?.map_or_else(Vec::new, |registry| registry.identities.clone()))
+}
+
+fn library_digest(path: &Path) -> Result<B256, String> {
+    // Native libraries are build inputs, outside the virtual Solidity source loader.
+    #[allow(clippy::disallowed_methods)]
+    let bytes = std::fs::read(path).map_err(|error| format!("cannot read pass plugin: {error}"))?;
+    Ok(keccak256(bytes))
 }

@@ -348,3 +348,42 @@ fn @echo(arg0: ptr<memory>) -> ptr<memory> [selector=0x00000002, abi_params=[arr
         }
     }
 }
+
+// Windows locks loaded libraries, so this replacement is only possible on Unix.
+// The fixture and replacement are host binaries, outside the Solidity source loader.
+#[cfg(unix)]
+#[test]
+#[allow(clippy::disallowed_methods)]
+fn plugin_identity_rejects_library_replacement_during_loading() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("test.sol");
+    fs::write(&path, "contract C { function f() external {} }").unwrap();
+    let bytes = fs::read(sample()).unwrap();
+    for mode in ["replace_library", "replace_library_manifest"] {
+        let plugin = broken(directory.path(), mode);
+        let replacement =
+            directory.path().join(format!("replacement{}", std::env::consts::DLL_SUFFIX));
+        fs::write(&replacement, &bytes).unwrap();
+        let output = Command::new(SOLAR)
+            .args(["--allow=2264", "-j1", "--error-format=rustc-json", "--emit=bin-runtime"])
+            .arg(format!("-Zload-pass-plugin={}", plugin.display()))
+            .arg(&path)
+            .env("SOLAR_TEST_PASS_PLUGIN_MODE", mode)
+            .env("SOLAR_TEST_PLUGIN_PATH", &plugin)
+            .env("SOLAR_TEST_PLUGIN_REPLACEMENT", &replacement)
+            .output()
+            .unwrap();
+        assert_eq!(fs::read(&plugin).unwrap(), bytes);
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert_data_eq!(
+            messages(&output),
+            str![[r#"
+[
+  "pass plugin library changed while loading",
+  "aborting due to 1 previous error"
+]
+"#]],
+        );
+    }
+}

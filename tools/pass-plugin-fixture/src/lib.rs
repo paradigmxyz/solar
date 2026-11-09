@@ -12,6 +12,9 @@ struct Broken;
 impl Plugin for Broken {
     fn manifest(&self) -> Manifest {
         let mode = mode();
+        if mode == "replace_library_manifest" {
+            replace_library();
+        }
         let phase = match mode.as_str() {
             "graph_bad_phase" | "graph_copy_result" => Some("lowered"),
             "semantic_ptradd"
@@ -48,6 +51,9 @@ impl Plugin for Broken {
 
     fn run(&self, request: &Request) -> Result<Response, String> {
         let mode = mode();
+        if mode.starts_with("replace_library") {
+            return Ok(Response::default());
+        }
         if mode.starts_with("observe_") {
             eprintln!("SNAPSHOT:{request:?}");
             return Ok(Response::default());
@@ -369,6 +375,9 @@ pub static solar_rust_pass_plugin_abi_v1: [u8; 32] = api::ABI_FINGERPRINT;
 // Rust plugins use `export_plugin!`, which always responds once and contains plugin panics.
 #[unsafe(no_mangle)]
 pub fn solar_rust_pass_plugin_v1() -> &'static Exports {
+    if mode() == "replace_library" {
+        replace_library();
+    }
     static EXPORTS: Exports = Exports {
         manifest: |respond| api::__private::manifest(&Broken, respond),
         run: |request, respond| match mode().as_str() {
@@ -426,4 +435,12 @@ fn add_evm(terminator: EvmTerminator, call_effect: Option<api::CallEffect>) -> E
     Edit::AddEvmBlocks {
         blocks: vec![api::NewEvmBlock { instructions: Vec::new(), terminator, call_effect }],
     }
+}
+
+fn replace_library() {
+    std::fs::rename(
+        std::env::var_os("SOLAR_TEST_PLUGIN_REPLACEMENT").unwrap(),
+        std::env::var_os("SOLAR_TEST_PLUGIN_PATH").unwrap(),
+    )
+    .unwrap();
 }

@@ -125,6 +125,8 @@ spilled-return helper still requires a form the stack-only checker can prove.
 Standard JSON metadata records the ordered plugin names, versions, and library
 content hashes in `settings.solar.plugins`. ETHDebug compilation IDs include
 the same identities. Moving an identical library does not change its identity.
+The loader hashes the library before initialization and rejects changed contents
+after loading and reading its manifest. Keep plugin files unchanged during a build.
 
 The example's `create-mir-helper`, `create-lowered-helper`, and
 `create-evm-helper` passes demonstrate these edits. They deliberately introduce
