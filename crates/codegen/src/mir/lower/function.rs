@@ -31,6 +31,7 @@ use std::{fmt::Display, sync::Arc};
 
 mod abi_calls;
 mod abi_values;
+mod builders;
 mod builtins;
 mod calls;
 mod control_flow;
@@ -47,6 +48,8 @@ mod statements;
 mod storage_values;
 mod values;
 mod word;
+
+pub(super) use builders::{check_builder_finishes, finish_functions};
 
 use word::Word;
 

@@ -31,6 +31,11 @@ macro_rules! module {
 /// Every compiler-owned module.
 pub const MODULES: &[Module] = &[
     module!("Bytes.sol"),
+    module!("Return.sol"),
+    module!("Code.sol"),
+    module!("Build.sol"),
+    module!("Buffers.sol"),
+    module!("Abi.sol"),
     module!("Arrays.sol"),
     module!("Revert.sol"),
     module!("Hash.sol"),

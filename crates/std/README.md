@@ -31,3 +31,12 @@ contract Example {
     }
 }
 ```
+
+`Buffers` provides byte and word builders, `Abi` writes encodings into existing
+buffers, and `Code` reads checked code ranges. Builder fields and `CodeView`
+construction belong to their defining modules. The compiler checks builder
+encapsulation, uses after `finish`, and return operations against each reachable
+entry point. Backing memory remains zero-initialized.
+
+`Build.gasFirst()` follows the current function's objective, including
+`solar-optimize` overrides. Its portable body returns true.

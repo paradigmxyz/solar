@@ -21,7 +21,10 @@ use solar_interface::{
 };
 use std::ops::ControlFlow;
 
+mod builders;
+mod call_exits;
 mod checker;
+mod code_views;
 mod constant_cycles;
 mod constant_divisors;
 mod constant_values;
@@ -94,6 +97,11 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     constant_divisors::check(gcx, &units);
     view_pure_checker::check(gcx);
     safe_profile::check(gcx);
+    if gcx.hir.source_ids().any(|id| crate::core::is_core_file(&gcx.hir.source(id).file.name)) {
+        builders::check(gcx);
+        code_views::check(gcx);
+        call_exits::check(gcx);
+    }
 }
 
 /// Reports expression statements that have no effect (6133), like solc's `StaticAnalyzer`, which

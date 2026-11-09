@@ -35,6 +35,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return None;
         }
+        if matches!(intrinsic, ReturnAbiEncoded | ReturnRaw | Forward | ForwardDelegate) {
+            return None;
+        }
         Some(intrinsic)
     }
 
@@ -156,6 +159,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         operands: &[ValueId],
     ) -> Option<ValueId> {
         Some(match (intrinsic, operands) {
+            (GasFirst, &[]) => {
+                self.builder.imm_bool(self.cx.module.objective_of(self.builder.func()).is_gas())
+            }
             (LeadingZeros, &[x]) => self.builder.clz(x),
             (HighestSetBit | TrailingZeros, &[x]) => {
                 // bit = x & (0 - x)  (trailing only)

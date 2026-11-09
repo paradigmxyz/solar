@@ -307,6 +307,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     }
 
     function::generate_internal_function_pointer_dispatchers(gcx, &mut module, &mir_ids, &state);
+    function::check_builder_finishes(gcx, &module, &function::finish_functions(gcx, &mir_ids));
 
     if contract.kind == hir::ContractKind::Interface {
         module.is_interface = true;
