@@ -807,7 +807,8 @@ fn merged_debug_loc<'a>(
     merged
 }
 
-/// Merges the locations of the other sites into `location`, unless every site has the same one.
+/// Merges the locations of the other sites into `location`, unless every site has the same one,
+/// whatever the order of its origins.
 ///
 /// NOTE: A merge across paths clears the flag that marks origins that all hold, and writes them
 /// as alternatives. When every site has the identical location, the merge is that location, so
@@ -818,7 +819,8 @@ fn merge_site_locations<'a>(
 ) {
     let others = others.into_iter();
     if others.clone().all(|other| {
-        other.source_spans().eq(location.source_spans())
+        other.source_spans().count() == location.source_spans().count()
+            && other.source_spans().all(|span| location.source_spans().any(|first| first == span))
             && other.all_source_spans() == location.all_source_spans()
             && other.modifier_depth() == location.modifier_depth()
             && other.debug_loc_kind() == location.debug_loc_kind()

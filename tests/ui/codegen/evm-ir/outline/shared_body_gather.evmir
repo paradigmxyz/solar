@@ -2,8 +2,8 @@
 //@ filecheck:
 @module SharedBodyGather
 
-// A position whose origins all hold on every site keeps that, since the merge of identical
-// locations is that location. Sites that differ merge into alternatives.
+// A position whose origins all hold on every site keeps that, whatever the order the sites list
+// them in, since the merge of identical locations is that location. Sites that differ merge into alternatives.
 // CHECK: + [[STUB:bb[0-9]+]] {{\[ret=.*\]}}:
 // CHECK: {{^[ +].*}}push 1 !metadata(all=[1..5, 6..10]){{$}}
 // CHECK: {{^[ +].*}}pop !metadata(spans=[11..15, 16..20, 21..25, 26..30]){{$}}
@@ -27,20 +27,20 @@ bb0:
   jump bb1 !metadata(span=31..35)
 
 bb1:
-  push 1 !metadata(all=[1..5, 6..10])
+  push 1 !metadata(all=[6..10, 1..5])
   pop !metadata(all=[21..25, 26..30])
-  push 1 !metadata(all=[1..5, 6..10])
+  push 1 !metadata(all=[6..10, 1..5])
   pop !metadata(all=[21..25, 26..30])
-  push 1 !metadata(all=[1..5, 6..10])
+  push 1 !metadata(all=[6..10, 1..5])
   pop !metadata(all=[21..25, 26..30])
-  push 1 !metadata(all=[1..5, 6..10])
+  push 1 !metadata(all=[6..10, 1..5])
   pop !metadata(all=[21..25, 26..30])
-  push 1 !metadata(all=[1..5, 6..10])
+  push 1 !metadata(all=[6..10, 1..5])
   pop !metadata(all=[21..25, 26..30])
-  push 1 !metadata(all=[1..5, 6..10])
+  push 1 !metadata(all=[6..10, 1..5])
   pop !metadata(all=[21..25, 26..30])
-  push 1 !metadata(all=[1..5, 6..10])
+  push 1 !metadata(all=[6..10, 1..5])
   pop !metadata(all=[21..25, 26..30])
-  push 1 !metadata(all=[1..5, 6..10])
+  push 1 !metadata(all=[6..10, 1..5])
   pop !metadata(all=[21..25, 26..30])
   stop !metadata(span=36..40)
