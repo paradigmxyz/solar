@@ -1,0 +1,14 @@
+//@ compile-flags: --allow-paths ../../tests/ui/standard-json/monorepo/lib
+// Without a base path or include paths, the source unit name keeps the `file://` prefix, and the
+// command line strips it to read the file, like solc.
+// CHECK-NOT: "errors"
+// CHECK: "file://../../tests/ui/standard-json/monorepo/lib/dep/D.sol": {
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {"content": "import {D} from \"file://../../tests/ui/standard-json/monorepo/lib/dep/D.sol\";\n\ncontract A is D {}\n"}
+  },
+  "settings": {
+    "outputSelection": {}
+  }
+}

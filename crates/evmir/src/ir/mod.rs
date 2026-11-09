@@ -936,6 +936,18 @@ impl Metadata {
         self.debug_loc.spans()
     }
 
+    /// Returns whether several source origins all hold for this operation, as `gather` in
+    /// ETHDebug, instead of one of them, as `pick`.
+    #[must_use]
+    pub fn all_source_spans(&self) -> bool {
+        self.debug_loc.all_spans()
+    }
+
+    /// Sets whether the source origins all hold, for text that spells them.
+    pub fn set_all_source_spans(&mut self, all_spans: bool) {
+        self.debug_loc.set_all_spans(all_spans);
+    }
+
     /// Returns the source origin of this operation if it has exactly one.
     #[must_use]
     pub fn only_source_span(&self) -> Option<Span> {

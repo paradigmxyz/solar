@@ -1,0 +1,23 @@
+//@ revisions: allowed denied no-callback ambiguous
+//@ compile-flags: --base-path ../../tests/ui/standard-json/monorepo/pkg
+//@[allowed] compile-flags: --allow-paths ../../tests/ui/standard-json/monorepo/lib
+//@[no-callback] compile-flags: --no-import-callback
+//@[ambiguous] compile-flags: --allow-paths ../../tests/ui/standard-json/monorepo/lib
+//@[ambiguous] compile-flags: --include-path ../../tests/ui/standard-json/monorepo/inc
+// Foundry names a dependency outside the base path by its path relative to it, as in
+// `libs = ["../lib"]`. Like solc, the command line reads imports missing from the input from disk
+// under the base path and the include paths, if they are in an allowed directory, and strips a
+// `file://` prefix but keeps it in the source unit name. Unlike solc, with `inc` as an include path
+// only `amb/E.sol` is ambiguous: both roots lead to the same `../lib/dep/C.sol` (IMPORT-003).
+// See <https://github.com/paradigmxyz/solar/issues/2455>.
+{
+  "language": "Solidity",
+  "sources": {
+    "src/A.sol": {"content": "import {B} from \"dep/B.sol\";\nimport {E} from \"amb/E.sol\";\n\ncontract A is B, E {}\n"},
+    "../lib/dep/B.sol": {"content": "import {C} from \"./C.sol\";\nimport {D} from \"file://../lib/dep/D.sol\";\n\ncontract B is C, D {}\n"}
+  },
+  "settings": {
+    "remappings": ["dep/=../lib/dep/"],
+    "outputSelection": {}
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 16,
+        "end": 27
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "multiple files match bin/G.sol: ROOT/tests/ui/standard-json/monorepo/pkg/bin/G.sol, ROOT/tests/ui/standard-json/monorepo/inc/bin/G.sol",
+      "formattedMessage": "error: multiple files match bin/G.sol: ROOT/tests/ui/standard-json/monorepo/pkg/bin/G.sol, ROOT/tests/ui/standard-json/monorepo/inc/bin/G.sol\n   ╭▸ A.sol:LL:CC\n   │\nLL │ import {G} from \"bin/G.sol\";\n   ╰╴                ━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 44,
+        "end": 45
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": "7920",
+      "message": "unresolved symbol `G`",
+      "formattedMessage": "error[7920]: unresolved symbol `G`\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract A is G {}\n   ╰╴              ━\n\n"
+    }
+  ],
+  "sources": {}
+}
