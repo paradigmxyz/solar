@@ -13,6 +13,9 @@ Options:
       -Zparse-yul
           Enables parsing Yul files for testing
 
+      -Zno-core-intrinsics
+          Calls portable core module bodies instead of intrinsic lowering
+
       -Zno-resolve-imports
           Disables import resolution
 

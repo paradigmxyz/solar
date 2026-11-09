@@ -135,6 +135,7 @@ solar-macros = { version = "=0.3.0", path = "crates/macros", default-features = 
 solar-mir = { version = "=0.3.0", path = "crates/mir", default-features = false }
 solar-mir-interpreter = { version = "=0.3.0", path = "crates/mir-interpreter", default-features = false }
 solar-parse = { version = "=0.3.0", path = "crates/parse", default-features = false }
+solar-std = { version = "=0.3.0", path = "crates/std", default-features = false }
 solar-sema = { version = "=0.3.0", path = "crates/sema", default-features = false }
 
 # internal crates

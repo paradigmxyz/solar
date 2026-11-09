@@ -617,7 +617,10 @@ fn source_outputs_from_compiler(
     gcx.sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
+            let name = solar_sema::core::module_path(&source.file.name)
+                .map(str::to_owned)
+                .unwrap_or_else(|| source.file.name.display().to_string());
+            (name, SourceOutput { id: id.index() as u32 })
         })
         .collect()
 }

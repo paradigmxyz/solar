@@ -199,7 +199,10 @@ fn source_metadata(metadata: &Metadata<'_, '_, '_>, source_id: SourceId) -> Valu
 }
 
 pub(super) fn source_name(gcx: Gcx<'_>, source_id: SourceId) -> String {
-    gcx.hir.source(source_id).file.name.display().to_string()
+    let name = &gcx.hir.source(source_id).file.name;
+    solar_sema::core::module_path(name)
+        .map(str::to_owned)
+        .unwrap_or_else(|| name.display().to_string())
 }
 
 fn collect_referenced_sources(gcx: Gcx<'_>, root: SourceId) -> Vec<SourceId> {

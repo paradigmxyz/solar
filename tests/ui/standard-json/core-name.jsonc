@@ -1,0 +1,7 @@
+//@ filecheck:
+// CHECK: "sources": {
+// CHECK: "solar:core/Bits.sol": {
+// CHECK-NOT: "<solar:core/
+// CHECK: "contracts": {
+// CHECK: "solar:core/Bits.sol": {
+{"language":"Solidity","sources":{"Test.sol":{"content":"// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\nimport {Bits} from \"solar:core/Bits.sol\"; contract Test {}"}},"settings":{"outputSelection":{"*":{"*":["abi"]}}}}

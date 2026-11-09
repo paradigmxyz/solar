@@ -343,6 +343,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub parse_yul: bool,
 
+    /// Calls portable core module bodies instead of intrinsic lowering.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub no_core_intrinsics: bool,
+
     /// Disables import resolution.
     #[cfg_attr(feature = "clap", arg(long))]
     pub no_resolve_imports: bool,
@@ -524,6 +528,7 @@ impl UnstableOpts {
         let Self {
             parse_yul,
             no_resolve_imports,
+            no_core_intrinsics,
             mir_pipeline,
             evm_ir_pipeline,
             codegen_all_functions,
@@ -558,6 +563,7 @@ impl UnstableOpts {
         } = other;
         self.parse_yul = parse_yul;
         self.no_resolve_imports = no_resolve_imports;
+        self.no_core_intrinsics = no_core_intrinsics;
         self.mir_pipeline = mir_pipeline;
         self.evm_ir_pipeline = evm_ir_pipeline;
         self.codegen_all_functions = codegen_all_functions;

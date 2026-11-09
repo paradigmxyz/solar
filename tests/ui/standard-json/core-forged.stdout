@@ -1,0 +1,39 @@
+{
+  "errors": [
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [
+        {
+          "file": "",
+          "start": 0,
+          "end": 0,
+          "message": "names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text"
+        }
+      ],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "source `solar:core/Bits.sol` is reserved for a compiler module",
+      "formattedMessage": "error: source `solar:core/Bits.sol` is reserved for a compiler module\n   │\n   ╰ note: names under `solar:core/` identify the modules this compiler provides, so a source under one must be that module's exact text\n\n"
+    },
+    {
+      "sourceLocation": null,
+      "secondarySourceLocations": [
+        {
+          "file": "",
+          "start": 0,
+          "end": 0,
+          "message": "if you wish to use the standard input, please specify `-` explicitly"
+        }
+      ],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "no files found",
+      "formattedMessage": "error: no files found\n   │\n   ╰ note: if you wish to use the standard input, please specify `-` explicitly\n\n"
+    }
+  ],
+  "sources": {}
+}

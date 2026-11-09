@@ -1,0 +1,33 @@
+# solar-std
+
+Solidity sources of the Solar compiler's standard library.
+
+The modules live under `solidity/`, at their import paths below the reserved
+`solar:core/` prefix: `import {Bytes} from "solar:core/Bytes.sol";` reads
+`solidity/Bytes.sol`. The compiler embeds the text and never reads these files.
+A project that also builds with another compiler can remap `solar:core/` to a
+copy of the directory; this compiler accepts such a copy only when its text is
+exactly the module's.
+
+`gen_modules.py` generates the modules whose sources say so.
+
+Use the same sources with solc by remapping `solar:core/` to `solidity/`.
+Compiler-owned names cannot be replaced by remappings or supplied source text.
+Functions with the same names in ordinary user libraries remain ordinary calls.
+
+The initial intrinsics cover memory/calldata reads and copies, memory writes,
+array truncation, range hashing, full-width multiplication, wrapping arithmetic
+and bit scans. Other operations use their Solidity bodies. The reviewed raw
+operations and modular arithmetic are marked `solar-trusted`; callers can keep
+using `solar-safe`. `-Zno-core-intrinsics` disables the special lowering.
+
+```solidity
+import {Bytes} from "solar:core/Bytes.sol";
+import {Bits} from "solar:core/Bits.sol";
+
+contract Example {
+    function read(bytes memory input) external pure returns (bytes4, uint256) {
+        return (Bytes.readBytes4(input, 0), Bits.leadingZeros(1));
+    }
+}
+```
