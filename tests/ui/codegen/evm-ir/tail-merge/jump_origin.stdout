@@ -1,0 +1,30 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/jump_origin.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/jump_origin.evmir (after tail-merge) ===
+  @module JumpOrigin
+  bb0:
+    push 11 !metadata(span=1..5)
+-   push 22
+-   push 33
+-   push 44
+-   push 55
+-   revert !metadata(span=26..30)
++   jump bb3 !metadata(span=26..30)
+  bb1:
+    push 99 !metadata(span=41..45)
+-   push 22 !metadata(compiler_generated)
+-   push 33
+-   push 44
+-   push 55
+-   revert
++   jump bb3 !metadata(compiler_generated)
+  bb2:
+    push 77 !metadata(span=71..75)
+-   push 22 !metadata(span=76..80)
++   jump bb3 !metadata(span=76..80)
++ bb3:
++   push 22
+    push 33
+    push 44
+    push 55
+    revert
+  
