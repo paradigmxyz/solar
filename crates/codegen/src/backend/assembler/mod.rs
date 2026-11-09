@@ -117,6 +117,8 @@ pub(crate) struct Assembler<'gcx> {
     pub(in crate::backend) pending_comment: Option<String>,
     /// Source span attached to newly emitted EVM IR operations.
     pub(in crate::backend) current_source_spans: DebugSpans,
+    /// Whether the current source origins all hold, instead of being alternatives.
+    pub(in crate::backend) current_all_source_spans: bool,
     /// Why new EVM IR operations have no source origin, when they have none.
     pub(in crate::backend) current_debug_loc_kind: DebugLocKind,
     /// Legacy source-map modifier nesting depth attached to new EVM IR operations.
@@ -201,6 +203,7 @@ impl<'gcx> Assembler<'gcx> {
             current_block: None,
             pending_comment: None,
             current_source_spans: DebugSpans::new(),
+            current_all_source_spans: false,
             current_debug_loc_kind: DebugLocKind::Normal,
             current_modifier_depth: 0,
             fallthrough_origins: FxHashMap::default(),

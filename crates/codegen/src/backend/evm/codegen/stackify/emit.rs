@@ -1,6 +1,6 @@
 //! Emission of planned stack-resident functions into EVM IR.
 
-use super::{BlockPlan, Edge, Exit, FunctionPlan, ModuleInfo, Step, plan::call_projection};
+use super::{BlockPlan, Edge, Exit, FunctionPlan, ModuleInfo, Reader, Step, plan::call_projection};
 use crate::{
     backend::{
         assembler::Label,
@@ -15,15 +15,14 @@ use crate::{
         },
     },
     mir::{
-        BlockId, Callee, Function, FunctionId, InstId, InstKind, Module, PtrLocation, StackReturn,
-        Terminator, Value, ValueId,
+        BlockId, Callee, Function, FunctionId, InstId, InstKind, InstructionMetadata, Module,
+        PtrLocation, StackReturn, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo},
         memory::EvmMemoryLayout,
     },
 };
 use alloy_primitives::U256;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
-use solar_evmir::debug::DebugLocKind;
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -102,7 +101,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.enter_function(module, func);
         if !info.internal.is_empty() {
             self.asm.define_label(constructor_label);
-            self.mark_block_label_origin(constructor_label, func, BlockId::ENTRY);
+            self.mark_block_label_origin(
+                constructor_label,
+                &func.blocks[BlockId::ENTRY].label_metadata,
+            );
         }
         self.mark_debug_function_invoke(func);
         self.comment_function_entry(func, false, true);
@@ -161,7 +163,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Some(effect) => self.asm.define_function_label(label, effect),
                 None => self.asm.define_label(label),
             }
-            self.mark_block_label_origin(label, func, BlockId::ENTRY);
+            self.mark_block_label_origin(label, &func.blocks[BlockId::ENTRY].label_metadata);
             self.mark_debug_function_invoke(func);
             self.comment_function_entry(func, false, false);
             self.body = Body::Internal(func_id);
@@ -288,6 +290,52 @@ impl<'gcx> EvmCodegen<'gcx> {
             let label = self.block_labels[&target];
             self.block_labels.insert(block, label);
         }
+        // NOTE: A bypassed block's label marked where control entered; its predecessors now enter
+        // the target, so the target's label takes that origin, or the union.
+        let mut bypassed = FxHashMap::<BlockId, Vec<BlockId>>::default();
+        for block in func.blocks.indices() {
+            if self.capture_debug_info
+                && let Some(&target) = forward.get(&block)
+                && !func.blocks[block].predecessors.is_empty()
+            {
+                bypassed.entry(target).or_default().push(block);
+            }
+        }
+        let bypassed_origins = bypassed
+            .iter()
+            .filter_map(|(&target, blocks)| {
+                let label = |block: BlockId| &func.blocks[block].label_metadata;
+                // No bypassed block names a construct, so the target keeps its own label.
+                if blocks.iter().all(|&block| label(block).source_spans().next().is_none()) {
+                    return None;
+                }
+                // The blocks of a chain that one bypassed block heads are not entries themselves.
+                let heads = blocks
+                    .iter()
+                    .copied()
+                    .filter(|&block| {
+                        let predecessors = &func.blocks[block].predecessors;
+                        predecessors.iter().any(|pred| !blocks.contains(pred))
+                    })
+                    .collect::<Vec<_>>();
+                let only_bypassed_entries = target != BlockId::ENTRY
+                    && func.blocks[target].predecessors.iter().all(|pred| blocks.contains(pred));
+                let origin = match heads.split_first() {
+                    // The target now stands for the bypassed entries alone.
+                    Some((&first, rest)) if only_bypassed_entries => {
+                        let mut origin = label(first).clone();
+                        origin.merge_debug_locs(rest.iter().map(|&block| label(block)));
+                        origin
+                    }
+                    _ => {
+                        let mut origin = label(target).clone();
+                        origin.merge_debug_locs(blocks.iter().map(|&block| label(block)));
+                        origin
+                    }
+                };
+                Some((target, origin))
+            })
+            .collect::<FxHashMap<_, _>>();
         let resolve = |block: BlockId| forward.get(&block).copied().unwrap_or(block);
 
         let mut order = self.block_layout_order(func, &cfg);
@@ -301,15 +349,18 @@ impl<'gcx> EvmCodegen<'gcx> {
             let Some(block_plan) = plan.blocks[block].as_ref() else { continue };
             let next = order.get(pos + 1).copied();
             self.asm.repeating_code = repeating || in_loop(self, block);
+            let label_origin =
+                bypassed_origins.get(&block).unwrap_or(&func.blocks[block].label_metadata);
             if !func.blocks[block].predecessors.is_empty() {
                 let label = self.block_labels[&block];
                 self.asm.define_label(label);
-                self.mark_block_label_origin(label, func, block);
+                self.mark_block_label_origin(label, label_origin);
             }
             self.emit_stackified_block(
                 func_id,
                 func,
                 block,
+                label_origin,
                 block_plan,
                 next,
                 &resolve,
@@ -324,6 +375,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.asm.repeating_code = repeating || in_loop(self, source);
             self.asm.define_label(label);
             self.set_terminator_origin(func, source);
+            self.asm.set_label_origin_from_current(label);
             let cold = self.block_code_is_cold(func, target);
             for step in &steps {
                 self.emit_stackified_step(func_id, func, step, cold);
@@ -347,6 +399,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         func_id: FunctionId,
         func: &Function,
         block: BlockId,
+        label_origin: &InstructionMetadata,
         plan: &BlockPlan,
         next: Option<BlockId>,
         resolve: &dyn Fn(BlockId) -> BlockId,
@@ -355,8 +408,28 @@ impl<'gcx> EvmCodegen<'gcx> {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
         let cold = self.block_code_is_cold(func, block);
         self.set_insertion_origin(func, block, body);
-        for step in body {
-            self.emit_stackified_step(func_id, func, step, cold);
+        let leading = body.iter().take_while(|step| !matches!(step, Step::Begin(_))).count();
+        let mut label_spans = label_origin.source_spans();
+        let label_span = label_spans.next().filter(|_| label_spans.next().is_none());
+        for (index, step) in body.iter().enumerate() {
+            // NOTE: rustc gives inserted code the source info of the statement it precedes
+            // (`MirPatch`), but a `pop` or return-slot save at a block start ends a value of the
+            // construct the block's label closes, as solc pops scope variables under the
+            // statement it leaves, so it takes the label origin; the shuffles that prepare the
+            // next instruction take that instruction's.
+            if self.capture_debug_info
+                && index < leading
+                && matches!(step, Step::Stack(StackOp::Pop) | Step::SpillRet)
+                && let Some(span) = label_span
+            {
+                let insertion = self.asm.debug_origin();
+                self.asm.set_source_span(Some(span));
+                self.asm.set_modifier_depth(label_origin.modifier_depth());
+                self.emit_stackified_step(func_id, func, step, cold);
+                self.asm.set_debug_origin(insertion);
+            } else {
+                self.emit_stackified_step(func_id, func, step, cold);
+            }
         }
         self.set_terminator_origin(func, block);
         for step in terminator {
@@ -418,9 +491,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     && let Some(origin) = origin
                 {
                     let metadata = &func.inst(*origin).metadata;
-                    self.asm.set_source_spans(metadata.source_spans());
-                    self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
-                    self.asm.set_modifier_depth(metadata.modifier_depth());
+                    self.set_origins(metadata);
                 }
                 // push callee; jump
                 self.asm.emit_push_label(self.function_labels[callee]);
@@ -464,11 +535,11 @@ impl<'gcx> EvmCodegen<'gcx> {
         step: &Step,
         cold: bool,
     ) {
-        match *step {
-            Step::Stack(op) => self.asm.emit_stack_op(op),
-            Step::Materialize(value) => self.emit_materialized(func, value),
-            Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
-            Step::Spill(value) => {
+        match step {
+            &Step::Stack(op) => self.asm.emit_stack_op(op),
+            &Step::Materialize(value) => self.emit_materialized(func, value),
+            &Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
+            &Step::Spill(value) => {
                 // push slot; mstore
                 self.emit_spill_slot_addr(func, self.spill_slots[&value]);
                 self.asm.emit_op(op::MSTORE);
@@ -483,25 +554,25 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             // push 0
             Step::Filler => self.asm.emit_push(U256::ZERO),
-            Step::Begin(inst) => {
+            &Step::Begin(inst) => {
                 if self.capture_debug_info {
-                    if let Some(inst) = inst {
-                        let metadata = &func.inst(inst).metadata;
-                        self.asm.set_source_spans(metadata.source_spans());
-                        self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
-                        self.asm.set_modifier_depth(metadata.modifier_depth());
-                    } else {
-                        // NOTE: A retained constant has no single source consumer, so its
-                        // ambiguous location is LLVM's `DebugLoc::getUnknown`.
-                        self.asm.set_source_span(None);
-                        self.asm.set_debug_loc_kind(DebugLocKind::Unknown);
-                        self.asm.set_modifier_depth(0);
-                    }
+                    let metadata = &func.inst(inst).metadata;
+                    self.set_origins(metadata);
                 }
             }
-            Step::Op(opcode) => self.asm.emit_op(opcode),
-            Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
-            Step::Call(callee, _) => {
+            Step::Shared { value, origins } => {
+                if self.capture_debug_info {
+                    let current = self.asm.debug_origin();
+                    self.set_shared_origins(func, origins);
+                    self.emit_materialized(func, *value);
+                    self.asm.set_debug_origin(current);
+                } else {
+                    self.emit_materialized(func, *value);
+                }
+            }
+            &Step::Op(opcode) => self.asm.emit_op(opcode),
+            &Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
+            &Step::Call(callee, _) => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
                 if cold {
@@ -512,7 +583,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 self.asm.define_continuation_label(return_label);
             }
-            Step::Publish { callee, arity, params } => {
+            &Step::Publish { callee, arity, params } => {
                 // [result(m-1), ..., result1, result0]
                 // swap1; push frame[return + 32 * k]; mstore   (k = 1..m)
                 // push frame[return]; push 0x20; mstore
@@ -538,6 +609,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Attributes the code that follows to the origins of `metadata`.
+    fn set_origins(&mut self, metadata: &InstructionMetadata) {
+        self.asm.set_source_spans(metadata.source_spans());
+        self.asm.set_all_source_spans(metadata.all_source_spans());
+        self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
+        self.asm.set_modifier_depth(metadata.modifier_depth());
+    }
+
     /// Attributes the code that precedes the first instruction that `steps` begin to that
     /// instruction, or else to the block's terminator.
     ///
@@ -550,23 +629,42 @@ impl<'gcx> EvmCodegen<'gcx> {
             return;
         }
         let next = steps.iter().find_map(|step| match step {
-            Step::Begin(Some(inst)) => Some(&func.inst(*inst).metadata),
+            Step::Begin(inst) => Some(&func.inst(*inst).metadata),
             _ => None,
         });
         let metadata = next.unwrap_or(&func.blocks[block].terminator_metadata);
-        self.asm.set_source_spans(metadata.source_spans());
-        self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
-        self.asm.set_modifier_depth(metadata.modifier_depth());
+        self.set_origins(metadata);
     }
 
     /// Attributes the code that follows to the block's terminator.
     fn set_terminator_origin(&mut self, func: &Function, block: BlockId) {
         if self.capture_debug_info {
             let metadata = &func.blocks[block].terminator_metadata;
-            self.asm.set_source_spans(metadata.source_spans());
-            self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
-            self.asm.set_modifier_depth(metadata.modifier_depth());
+            self.set_origins(metadata);
         }
+    }
+
+    /// Attributes the push of a retained constant to `origins`, the combined origin of its readers
+    /// or else the origin of the code it precedes.
+    ///
+    /// NOTE: The push runs once and serves each reader, so it is shared code: the location of one
+    /// reader would be arbitrary, and the combined location of all of them is correct only
+    /// when every reader runs whenever the push does, and then they all hold for it. A push hoisted
+    /// out of a branch arm or a loop body runs on paths where a reader never does, and a reader's
+    /// span on it would let coverage count a skipped statement as executed. It then takes the
+    /// origin of the code it precedes, as scheduler-placed code does in `set_insertion_origin`;
+    /// that code runs exactly when the push does. LLVM's `Instruction::updateLocationAfterHoist`
+    /// drops the location of a hoisted instruction for the same reason, and `ConstantHoisting`
+    /// merges the locations of a constant's users.
+    fn set_shared_origins(&mut self, func: &Function, origins: &[Reader]) {
+        let metadata = |reader: &Reader| match *reader {
+            Reader::Inst(inst) => &func.inst(inst).metadata,
+            Reader::Terminator(block) => &func.blocks[block].terminator_metadata,
+        };
+        let (first, rest) = origins.split_first().expect("a retained push has an origin");
+        let mut combined = metadata(first).clone();
+        combined.combine_debug_locs(rest.iter().map(metadata));
+        self.set_origins(&combined);
     }
 
     /// Jumps to `target` unless it is the next block in the layout.
@@ -591,6 +689,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             // `TargetInstrInfo::reMaterialize` clones the original with its `DebugLoc`.
             let consumer = self.asm.debug_origin();
             self.asm.set_source_spans(metadata.source_spans());
+            self.asm.set_all_source_spans(metadata.all_source_spans());
             self.asm.set_modifier_depth(metadata.modifier_depth());
             self.emit_recomputed(func, value);
             self.asm.set_debug_origin(consumer);

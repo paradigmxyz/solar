@@ -270,18 +270,15 @@ fn lower_returndata(builder: &mut FunctionBuilder<'_>, evm: EvmVersion) -> Value
 
 fn lower_erc7201(builder: &mut FunctionBuilder<'_>, input: ValueId) -> ValueId {
     // inner = keccak256_bytes(input) - 1
-    // object = bytes(32)
-    // store_word(object, 0, inner)
-    // slot = keccak256(object.data, 32) & ~0xff
+    // mstore(0, inner)
+    // slot = keccak256(0, 32) & ~0xff
     let hash = builder.keccak256_bytes(input);
     let one = builder.imm(1);
     let inner = builder.sub(hash, one);
+    let scratch = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+    builder.store(scratch, inner);
     let length = builder.imm(32);
-    let object = builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
-    let zero = builder.imm(0);
-    builder.memory_store_word(object, zero, inner);
-    let data = builder.memory_data(object);
-    let outer = builder.keccak256(data, length);
+    let outer = builder.keccak256(scratch, length);
     let mask = builder.imm(!U256::from(0xff));
     builder.and(outer, mask)
 }

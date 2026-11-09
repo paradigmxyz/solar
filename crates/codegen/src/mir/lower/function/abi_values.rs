@@ -122,16 +122,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     fn signature_selector(&mut self, signature: SignatureOperand) -> ValueId {
-        // selector = keccak256(materialize(signature))[0..4] << 224
+        // selector = keccak256(signature)[0..4] << 224
         let signature = match signature {
             SignatureOperand::Selector(selector) => return selector,
             SignatureOperand::Bytes(value, PtrLocation::Storage) => self.load_storage_bytes(value),
             SignatureOperand::Bytes(value, location) => {
                 self.validate_calldata_bytes_argument(value, &AbiType::Bytes(location));
-                match self.builder.func().value_ty(value) {
-                    Some(MirType::Slice(_)) => self.materialize_memory_slice(value),
-                    _ => value,
-                }
+                value
             }
         };
         let hash = self.builder.keccak256_bytes(signature);
