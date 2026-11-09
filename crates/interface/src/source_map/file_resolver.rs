@@ -355,34 +355,36 @@ impl<'a> FileResolver<'a> {
         } else {
             self.roots().map(|root| normalize_unit(&root.join(unit))).collect()
         };
-        let mut found = SmallVec::<[(PathBuf, io::Result<String>); 1]>::new();
+        // Keep only the first match's contents: any further match makes the import ambiguous.
+        let mut found = SmallVec::<[PathBuf; 1]>::new();
+        let mut first = None;
         let mut read_error = None;
         for candidate in candidates {
             let Ok(path) = loader.canonicalize_path(&candidate) else { continue };
-            if found.iter().any(|(found, _)| *found == path) {
+            if found.contains(&path) {
                 continue;
             }
             match loader.load_file(&path) {
-                Ok(src) => found.push((path, Ok(src))),
+                Ok(src) => {
+                    first.get_or_insert(Ok(src));
+                    found.push(path);
+                }
                 // Like solc, a file that exists but is refused still makes the import ambiguous.
-                Err(e) if e.kind() == io::ErrorKind::PermissionDenied => found.push((path, Err(e))),
+                Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                    first.get_or_insert(Err(e));
+                    found.push(path);
+                }
                 // A read callback need not serve every root.
                 Err(e) => {
                     read_error.get_or_insert(ResolveError::ReadFile(path, e));
                 }
             }
         }
-        match found.len() {
-            0 => read_error.map_or(Ok(None), Err),
-            1 => {
-                let (path, src) = found.pop().unwrap();
-                src.map(Some).map_err(|e| ResolveError::ReadFile(path, e))
-            }
-            _ => {
-                let paths = found.into_iter().map(|(path, _)| path).collect();
-                Err(ResolveError::MultipleMatches(path.into(), paths))
-            }
+        let Some(first) = first else { return read_error.map_or(Ok(None), Err) };
+        if found.len() > 1 {
+            return Err(ResolveError::MultipleMatches(path.into(), found.into_vec()));
         }
+        first.map(Some).map_err(|e| ResolveError::ReadFile(found.swap_remove(0), e))
     }
 
     /// Returns the source unit name that `path` refers to when imported from `parent`.
