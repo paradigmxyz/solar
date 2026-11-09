@@ -44,6 +44,7 @@ pub fn compile_standard_json(
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
+    let read_callback = read_callback.filter(|_| !opts.no_import_callback);
     compile_standard_json_with(input, opts, StandardJsonFileLoader { read_callback }, out)
 }
 
