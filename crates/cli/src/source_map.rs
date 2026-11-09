@@ -63,7 +63,7 @@ impl SourceMapEncoder {
         // choosing one origin here would attribute other callers to an unrelated
         // source statement. This applies to sharing in both MIR and EVM IR.
         // NOTE: An incoming transfer may be optimized into a zero-byte fallthrough.
-        // Its checkpoint is then unavailable; keep the shared location unknown
+        // Its location is then gone; keep the shared location unknown
         // (-1, -1, -1) rather than changing codegen to manufacture a source stop.
         let location = match instruction.location.source_spans {
             [span] => Some(*span),

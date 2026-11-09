@@ -189,8 +189,7 @@ fn @recycled_header_clobber() -> i256 {
     v0 = alloc 32
     v1 = ptrtoint ptr<memory> v0 to i256
     mstore v1, 3
-    v4 = inttoptr i256 v1 to ptr<memory>
-    set_fmp v4
+    mstore 64, v1
     v2 = alloc 32
     v5 = ptrtoint ptr<memory> v2 to i256
     mstore v5, 4

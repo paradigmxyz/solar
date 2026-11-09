@@ -114,6 +114,7 @@ pub(super) fn lower(
     let gcx = context.gcx;
     let hir_function = gcx.hir.function(id);
     let mut mir = contract::declaration(gcx, id, hir_function, context.module.optimization);
+    let declaration_span = mir.declaration_span;
     if !expose_selector {
         mir.selector = None;
     }
@@ -166,7 +167,7 @@ pub(super) fn lower(
 
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     // solc tags a function's entry under the function definition.
-    lowerer.builder.set_entry_label_span(hir_function.span);
+    lowerer.builder.set_entry_label_span(declaration_span);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
     if hir_function.kind == hir::FunctionKind::Constructor {
@@ -181,7 +182,7 @@ pub(super) fn lower(
     }
     if !lowerer.is_terminated() {
         // ret named_returns !metadata(function definition)
-        lowerer.builder.replace_source_span(hir_function.span);
+        lowerer.builder.replace_source_span(declaration_span);
         lowerer.finish(hir_function.returns)?;
     }
     Some(mir)
@@ -195,6 +196,7 @@ pub(super) fn lower_synthetic_constructor(
 ) -> Option<Function> {
     let span = context.gcx.hir.contract(contract_id).span;
     let mut mir = Function::new(Ident::with_dummy_span(kw::Constructor));
+    mir.declaration_span = span;
     let mut lowerer = FunctionLowerer::new(context.reborrow(), &mut mir);
     lowerer.builder.set_entry_label_span(span);
     lowerer.lower_implicit_base_constructors(contract_id)?;
@@ -223,7 +225,6 @@ struct FunctionLowerer<'gcx, 'ctx> {
     default_bindings: FxHashSet<VariableId>,
     deferred_bindings: FxHashSet<VariableId>,
     storage_refs: FxHashMap<VariableId, StorageAccess>,
-    parameters: Vec<VariableId>,
     returns: Vec<VariableId>,
     prepared_constructors: FxHashSet<hir::FunctionId>,
     /// The base constructor argument list chosen for each base of the contract
@@ -288,6 +289,8 @@ enum AbiOperand<'gcx> {
     /// A storage array or struct that the encoder reads after every operand ran, as solc does.
     /// `ty` is the memory type it copies to.
     Storage { slot: ValueId, ty: Ty<'gcx>, span: Span },
+    /// Constant call input needs no source-level memory object. Materialize it at encoding.
+    Literal { bytes: ByteSymbol, span: Span },
 }
 
 struct LoopTargets {
@@ -322,7 +325,6 @@ struct ModifierContext<'gcx> {
     modifiers: &'gcx [hir::Modifier<'gcx>],
     body: hir::Block<'gcx>,
     next: usize,
-    parameters: BindingSnapshot,
     returns: BindingSnapshot,
     incoming_returns: BindingSnapshot,
 }
@@ -515,7 +517,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             default_bindings: FxHashSet::default(),
             deferred_bindings: FxHashSet::default(),
             storage_refs: FxHashMap::default(),
-            parameters: Vec::new(),
             returns: Vec::new(),
             prepared_constructors: FxHashSet::default(),
             base_args: Vec::new(),
@@ -533,6 +534,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn lazy_helper(
         &mut self,
         name: Symbol,
+        build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
+    ) -> Option<FunctionId> {
+        self.lazy_helper_with(name, true, build)
+    }
+
+    /// Like [`Self::lazy_helper`], for a helper that no source construct lacks: `generated` is
+    /// false when `build` lowers user code, which keeps its own origins.
+    fn lazy_helper_with(
+        &mut self,
+        name: Symbol,
+        generated: bool,
         build: impl FnOnce(&mut Self, &mut Function) -> Option<()>,
     ) -> Option<FunctionId> {
         // if name in helpers { return helpers[name] }
@@ -557,6 +569,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         function.name = self.cx.module.function(id).name;
+        if generated {
+            function.mark_unlocated_compiler_generated();
+        }
         *self.cx.module.function_mut(id) = function;
         Some(id)
     }
@@ -924,7 +939,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
             }
             ExprKind::CallOptions(callee, options) => {
-                let value = self.operand(callee)?;
+                let value = self.operand(callee)?.id();
                 for option in options.args {
                     self.lower_discarded_expr(&option.value)?;
                 }
@@ -963,7 +978,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if self.cx.gcx.unsupported_udvt_operator(expr.id) {
                     return self.report_unsupported_udvt_operator(expr.span);
                 }
-                let value = self.operand(value)?;
+                let value = self.operand(value)?.id();
                 Some(Word::from_clean(self.unary(
                     op.kind,
                     value,
@@ -1009,7 +1024,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 } else if compound_op.is_none() && rhs_ty.is_value_type() {
                     self.lower_typed_expr(rhs, rhs_ty)?
                 } else {
-                    Word::from_clean(self.operand(rhs)?)
+                    Word::from_clean(self.operand(rhs)?.id())
                 };
                 // The literal word above is already the place's type, so the
                 // conversion below must not widen or shift it a second time.
@@ -1092,7 +1107,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             {
                 self.lower_expr(value)
             }
-            ExprKind::Payable(value) => self.operand(value).map(Word::from_clean),
+            ExprKind::Payable(value) => {
+                self.operand(value).map(|value| Word::from_clean(value.id()))
+            }
             _ if self.cx.gcx.dcx().has_errors().is_err() => None,
             _ => self.cx.report_unsupported(expr.span, "expression"),
         }
@@ -1255,6 +1272,7 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
             // panic(InvalidInternalFunction)
             builder.panic(PanicCode::InvalidInternalFunction);
         }
+        function.mark_unlocated_compiler_generated();
         *module.function_mut(dispatcher) = function;
     }
 }

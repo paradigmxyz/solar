@@ -1,0 +1,2 @@
+debugify: MIR ClosedFormDebugInfo after loop-reduce: 1/2 origins retained, 1 lost
+debugify: lost 10..20

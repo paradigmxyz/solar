@@ -6,9 +6,8 @@ use super::{
 use crate::{Builtin, Callee};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::map::FxHashSet;
 use solar_interface::Span;
-use solar_ir::debug::DebugLocKind;
+use solar_ir::debug::{DebugLoc, DebugLocKind};
 use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
@@ -16,18 +15,12 @@ use std::fmt;
 pub struct InstructionMetadata {
     /// Proven storage alias key for `sload`/`sstore` instructions.
     storage_alias: Option<Box<StorageAlias>>,
-    /// Source span that produced this instruction, when the lowerer can preserve it.
-    source_span: Span,
-    /// Additional origins of shared code, allocated only after a debug-origin merge.
-    additional_source_spans: Option<Box<AdditionalSpans>>,
-    /// Legacy source-map modifier nesting depth for this instruction.
-    modifier_depth: u32,
+    /// Source origins, modifier depth, and why there are no origins, when there are none.
+    debug_loc: DebugLoc,
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
     hir_expr: Option<HirExprId>,
     /// Loop nesting depth attached by loop-aware analyses.
     pub loop_depth: u16,
-    /// Why the instruction has no origin, when it has none.
-    debug_loc_kind: DebugLocKind,
     /// Packed optional memory region, effect kind, and boolean flags.
     flags: MetadataFlags,
 }
@@ -37,11 +30,8 @@ impl InstructionMetadata {
     pub const EMPTY: Self = Self {
         storage_alias: None,
         hir_expr: None,
-        source_span: Span::DUMMY,
-        additional_source_spans: None,
-        modifier_depth: 0,
+        debug_loc: DebugLoc::EMPTY,
         loop_depth: 0,
-        debug_loc_kind: DebugLocKind::Normal,
         flags: MetadataFlags::EMPTY,
     };
 
@@ -70,111 +60,105 @@ impl InstructionMetadata {
     /// Returns the source span that produced this instruction.
     #[must_use]
     pub fn source_span(&self) -> Option<Span> {
-        (!self.source_span.is_dummy()).then_some(self.source_span)
+        self.debug_loc.span()
     }
 
     /// Returns every retained origin, in deterministic merge order.
     pub fn source_spans(&self) -> impl Iterator<Item = Span> + '_ {
-        self.source_span().into_iter().chain(
-            self.additional_source_spans.iter().flat_map(|spans| spans.spans.iter().copied()),
-        )
+        self.debug_loc.spans()
+    }
+
+    /// Returns whether several origins all hold, as `gather` in ETHDebug, instead of one of them.
+    #[must_use]
+    pub fn all_source_spans(&self) -> bool {
+        self.debug_loc.all_spans()
+    }
+
+    /// Sets whether the textual origins all hold.
+    pub(crate) fn set_all_source_spans(&mut self, all_spans: bool) {
+        self.debug_loc.set_all_spans(all_spans);
     }
 
     /// Sets explicit textual origins.
     pub(crate) fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
-        self.set_source_span(None);
-        self.insert_source_spans(spans);
-        self.flags.set_display_source_span(self.source_span().is_some());
+        self.debug_loc.set_spans(spans);
+        self.flags.set_display_source_span(self.debug_loc.has_spans());
     }
 
-    fn insert_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
-        for span in spans {
-            if span.is_dummy() || span == self.source_span {
-                continue;
-            }
-            if self.source_span.is_dummy() {
-                self.source_span = span;
-            } else {
-                self.additional_source_spans.get_or_insert_default().insert(span);
-            }
-        }
+    /// Rule R2, merge: see [`DebugLoc::merge`]. Shows the origins in canonical MIR text if any
+    /// input does.
+    pub fn merge_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        let mut display = self.displays_source_span();
+        self.debug_loc.merge(others.into_iter().map(|other| {
+            display |= other.displays_source_span();
+            &other.debug_loc
+        }));
+        self.flags.set_display_source_span(display);
     }
 
-    /// Unions origins without importing instruction-specific analysis facts.
-    pub fn merge_debug_context(&mut self, other: &Self) {
-        self.insert_source_spans(other.source_spans());
-        if self.modifier_depth != other.modifier_depth {
-            self.modifier_depth = 0;
-        }
-        self.flags
-            .set_display_source_span(self.displays_source_span() || other.displays_source_span());
-        self.debug_loc_kind = if self.source_spans().next().is_some() {
-            DebugLocKind::Normal
-        } else {
-            self.debug_loc_kind.merge(other.debug_loc_kind)
-        };
+    /// Rule R2b, combine: see [`DebugLoc::combine`]. Shows the origins in canonical MIR text if
+    /// any input does.
+    pub fn combine_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        let mut display = self.displays_source_span();
+        self.debug_loc.combine(others.into_iter().map(|other| {
+            display |= other.displays_source_span();
+            &other.debug_loc
+        }));
+        self.flags.set_display_source_span(display);
     }
 
-    /// Copies all debug fields without copying semantic or analysis metadata.
-    pub fn copy_debug_context(&mut self, other: &Self) {
-        self.source_span = other.source_span;
-        self.additional_source_spans = other.additional_source_spans.clone();
-        self.modifier_depth = other.modifier_depth;
-        self.flags.set_display_source_span(other.displays_source_span());
-        self.debug_loc_kind = other.debug_loc_kind;
+    /// Rule R1, preserve: see [`DebugLoc::preserve`]. Also copies the display flag, but no
+    /// analysis metadata.
+    pub fn preserve_debug_loc(&mut self, from: &Self) {
+        self.debug_loc.preserve(&from.debug_loc);
+        self.flags.set_display_source_span(from.displays_source_span());
     }
 
     /// Sets the source span that produced this instruction.
     pub(crate) fn set_source_span(&mut self, span: Option<Span>) {
-        let span = span.filter(|span| !span.is_dummy());
-        self.source_span = span.unwrap_or(Span::DUMMY);
-        self.additional_source_spans = None;
-        self.flags.set_display_source_span(span.is_some());
-        self.debug_loc_kind = DebugLocKind::Normal;
+        self.debug_loc.set_span(span);
+        self.flags.set_display_source_span(self.debug_loc.has_spans());
     }
 
     /// Sets source debug information without adding it to canonical MIR text.
     pub(crate) fn set_debug_source_span(&mut self, span: Option<Span>) {
-        self.source_span = span.filter(|span| !span.is_dummy()).unwrap_or(Span::DUMMY);
-        self.additional_source_spans = None;
+        self.debug_loc.set_span(span);
         self.flags.set_display_source_span(false);
-        self.debug_loc_kind = DebugLocKind::Normal;
     }
 
     /// Returns the source-map modifier nesting depth for this instruction.
     #[must_use]
     pub const fn modifier_depth(&self) -> u32 {
-        self.modifier_depth
+        self.debug_loc.modifier_depth()
     }
 
     /// Sets the source-map modifier nesting depth for this instruction.
     pub(crate) fn set_modifier_depth(&mut self, depth: u32) {
-        self.modifier_depth = depth;
+        self.debug_loc.set_modifier_depth(depth);
     }
 
-    /// Marks this instruction as intentionally having no source location, like LLVM's
-    /// `Instruction::dropLocation`.
-    pub fn mark_debug_info_dropped(&mut self) {
-        self.set_debug_source_span(None);
-        self.modifier_depth = 0;
-        self.debug_loc_kind = DebugLocKind::Dropped;
+    /// Rule R3, drop: see [`DebugLoc::drop`].
+    pub fn drop_debug_loc(&mut self, kind: DebugLocKind) {
+        self.debug_loc.drop(kind);
+        self.flags.set_display_source_span(false);
     }
 
     /// Returns why this instruction has no source origin, when it has none.
     #[must_use]
     pub const fn debug_loc_kind(&self) -> DebugLocKind {
-        self.debug_loc_kind
+        self.debug_loc.kind()
     }
 
-    /// Annotates the missing origin of this instruction.
+    /// Annotates the missing origin of this instruction, for the MIR parser and the debugify audit.
+    /// Passes use [`Self::drop_debug_loc`], which also clears the spans.
     pub fn set_debug_loc_kind(&mut self, kind: DebugLocKind) {
-        self.debug_loc_kind = kind;
+        self.debug_loc.set_kind(kind);
     }
 
     /// Annotates the missing origin of this instruction and shows the annotation in canonical MIR
     /// text.
     pub(crate) fn set_displayed_debug_loc_kind(&mut self, kind: DebugLocKind) {
-        self.debug_loc_kind = kind;
+        self.debug_loc.set_kind(kind);
         self.flags.set_display_source_span(true);
     }
 
@@ -182,7 +166,7 @@ impl InstructionMetadata {
     /// which is what LLVM's `not-generate` check reports.
     #[must_use]
     pub fn lacks_debug_location(&self) -> bool {
-        self.debug_loc_kind == DebugLocKind::Normal && self.source_spans().next().is_none()
+        self.debug_loc.is_gap()
     }
 
     /// Returns whether canonical MIR text should include the source span.
@@ -194,7 +178,7 @@ impl InstructionMetadata {
     /// Copies source context without carrying instruction-specific analysis facts.
     pub fn debug_context(&self) -> Self {
         let mut metadata = Self::EMPTY;
-        metadata.copy_debug_context(self);
+        metadata.preserve_debug_loc(self);
         metadata
     }
 
@@ -291,50 +275,6 @@ impl InstructionMetadata {
     /// Marks a copy whose source and destination ranges never overlap.
     pub fn set_disjoint(&mut self, value: bool) {
         self.flags.set_disjoint(value);
-    }
-}
-
-/// The origins of shared code after the first, in merge order.
-///
-/// Instructions that merge many origins, such as a shared revert body, keep a hash set beside the
-/// list once it passes [`Self::SCAN_LIMIT`], so merging them one origin at a time stays linear.
-#[derive(Clone, Debug, Default)]
-struct AdditionalSpans {
-    spans: SmallVec<[Span; 2]>,
-    seen: Option<FxHashSet<Span>>,
-}
-
-impl AdditionalSpans {
-    const SCAN_LIMIT: usize = 16;
-
-    /// Appends `span` unless the list has it.
-    fn insert(&mut self, span: Span) {
-        let is_new = match &mut self.seen {
-            Some(seen) => seen.insert(span),
-            None => !self.spans.contains(&span),
-        };
-        if !is_new {
-            return;
-        }
-        self.spans.push(span);
-        if self.seen.is_none() && self.spans.len() > Self::SCAN_LIMIT {
-            self.seen = Some(self.spans.iter().copied().collect());
-        }
-    }
-}
-
-// The set only speeds up lookups, so two lists are equal when their origins are.
-impl PartialEq for AdditionalSpans {
-    fn eq(&self, other: &Self) -> bool {
-        self.spans == other.spans
-    }
-}
-
-impl Eq for AdditionalSpans {}
-
-impl std::hash::Hash for AdditionalSpans {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.spans.hash(state);
     }
 }
 
@@ -824,8 +764,8 @@ impl Instruction {
 
     /// Marks this synthetic instruction as intentionally having no source location.
     #[must_use]
-    pub fn with_debug_info_dropped(mut self) -> Self {
-        self.metadata.mark_debug_info_dropped();
+    pub fn with_debug_loc_dropped(mut self) -> Self {
+        self.metadata.drop_debug_loc(DebugLocKind::Dropped);
         self
     }
 

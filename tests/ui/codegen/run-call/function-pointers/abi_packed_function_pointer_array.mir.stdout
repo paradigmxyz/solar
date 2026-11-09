@@ -1,0 +1,69 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/abi_packed_function_pointer_array.sol:AbiPackedFunctionPointerArray ===
+@module AbiPackedFunctionPointerArray
+; function target() external pure [selector 0xd4b83992]
+fn @target() [selector=0xd4b83992, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}
+
+; function memoryEncode() external pure returns (bytes memory) [selector 0xe39243fb]
+fn @memoryEncode() -> ptr<memory> [selector=0xe39243fb, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = alloc zeroed checked 64
+    mstore v0, 1
+    v1 = mload v0
+    v2 = gt v1, 0
+    v3 = eq v2, false
+    icall panic_if<0x32>, v3
+    v4 = ptradd v0, 32
+    mstore v4, 0xd4b839920000000000000000
+    v5 = abi_encode_packed (array<function> memoryarray<1> v0)
+    ret v5
+}
+
+; function encode(function() external returns (uint256)[] calldata pointers) external pure returns (bytes memory) [selector 0xea460cbb]
+fn @encode(arg0: slice<calldata>) -> ptr<memory> [selector=0xea460cbb, pure, abi_params=[array<_, function>], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = extract_value slice<calldata>, arg0, 0
+    v2 = mul v0, 32
+    v3 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v3
+    v4 = calldatasize
+    v5 = ptrtoint ptr<calldata> v1 to i256
+    v6 = sub v4, v5
+    v7 = slt v6, v2
+    icall revert_if<calldata_tail_too_short>, v7
+    v8 = mul v0, 32
+    v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    icall panic_if<0x41>, v9
+    v10 = add v8, 32
+    v11 = lt v10, 32
+    icall panic_if<0x41>, v11
+    v12 = alloc v10
+    mstore v12, v0
+    jump bb1
+  bb1:                                            ; preds = bb0, bb2
+    v13 = phi [bb0: 0], [bb2: v26]
+    v14 = lt v13, v0
+    jumpi v14, bb2, bb3
+  bb3:                                            ; preds = bb1
+    v27 = abi_encode_packed (array<function> memoryarray<1> v12)
+    ret v27
+  bb2:                                            ; preds = bb1
+    v15 = mul v13, 32
+    v16 = ptrtoint ptr<calldata> v1 to i256
+    v17 = add v16, v15
+    v18 = calldataload v17
+    v19 = shl v18, 192
+    v20 = ne v19, 0
+    icall revert_if<empty>, v20
+    v21 = shr v18, 64
+    v22 = shl v21, 64
+    v23 = shl v13, 5
+    v24 = ptradd v12, v23
+    v25 = ptradd v24, 32
+    mstore v25, v22
+    v26 = add v13, 1
+    jump bb1
+}

@@ -1,0 +1,25 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/calls/recursive_static_frame_args.sol:RecursiveStaticFrameArgs ===
+@module RecursiveStaticFrameArgs
+; function permute(uint256 a, uint256 b, uint256 depth) external pure returns (uint256 result) [selector 0xa733caae]
+fn @permute(arg0: i256, arg1: i256, arg2: i256) -> i256 [selector=0xa733caae, pure, abi_params=[uint256, uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @recurse, arg0, arg1, arg2
+    ret v0
+}
+
+; function recurse(x, y, remaining) -> out
+fn @recurse(arg0: i256, arg1: i256, arg2: i256) -> i256 {
+  bb0:
+    v0 = ne arg2, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v3 = mul arg0, 0x3e8
+    v4 = add v3, arg1
+    ret v4
+  bb1:                                            ; preds = bb0
+    v1 = sub arg2, 1
+    v2 = icall @recurse, arg1, arg0, v1
+    ret v2
+}

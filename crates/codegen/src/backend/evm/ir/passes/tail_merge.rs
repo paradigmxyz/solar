@@ -360,7 +360,7 @@ impl RunState {
                         instruction.metadata.take_function_invoke();
                     }
                     for (index, instruction) in tail.instructions.iter_mut().enumerate() {
-                        instruction.metadata.merge_source_spans_from(
+                        instruction.metadata.merge_debug_locs(
                             sites.iter().filter(|site| site.common >= common).map(|site| {
                                 let site_instructions = &module.blocks[site.block].instructions;
                                 &site_instructions[site_instructions.len() - common + index]
@@ -372,9 +372,7 @@ impl RunState {
                 tail.terminator = tails.last().map_or_else(
                     || terminator.clone(),
                     |&target| {
-                        Some(
-                            Terminator::new(TerminatorKind::Jump(target)).with_debug_info_dropped(),
-                        )
+                        Some(Terminator::new(TerminatorKind::Jump(target)).with_debug_loc_dropped())
                     },
                 );
                 if track_debug_info
@@ -382,7 +380,7 @@ impl RunState {
                     && let Some(tail_terminator) = &mut tail.terminator
                 {
                     tail_terminator.metadata.take_function_invoke();
-                    tail_terminator.metadata.merge_source_spans_from(
+                    tail_terminator.metadata.merge_debug_locs(
                         sites
                             .iter()
                             .filter(|site| site.common >= common)
@@ -397,6 +395,18 @@ impl RunState {
                     && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
                 {
                     tail.label = module.blocks[representative_id].label;
+                    // Every path that shared the body now enters through this label.
+                    tail.label_metadata =
+                        std::mem::take(&mut module.blocks[representative_id].label_metadata);
+                    tail.label_metadata.merge_debug_locs(
+                        sites
+                            .iter()
+                            .filter(|site| {
+                                site.block != representative_id
+                                    && module.blocks[site.block].instructions.len() == len
+                            })
+                            .map(|site| &module.blocks[site.block].label_metadata),
+                    );
                     module.blocks[representative_id] = tail;
                     representative_id
                 } else {
@@ -413,8 +423,9 @@ impl RunState {
                 // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
                 module.blocks[representative_id].instructions.truncate(len - max_common);
                 let mut terminator =
-                    Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_info_dropped();
-                terminator.metadata.copy_debug_info_from(&representative_debug);
+                    Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_loc_dropped();
+                terminator.metadata.preserve_debug_loc(&representative_debug);
+                terminator.metadata.move_function_events(&representative_debug);
                 module.blocks[representative_id].terminator = Some(terminator);
             }
             for site in sites {
@@ -428,9 +439,10 @@ impl RunState {
                 // prefix; suffix !metadata(origin) => prefix; jump tail !metadata(origin)
                 module.blocks[site.block].instructions.truncate(len - site.common);
                 let mut terminator =
-                    Terminator::new(TerminatorKind::Jump(tail)).with_debug_info_dropped();
+                    Terminator::new(TerminatorKind::Jump(tail)).with_debug_loc_dropped();
                 if let Some(debug_info) = debug_info {
-                    terminator.metadata.copy_debug_info_from(&debug_info);
+                    terminator.metadata.preserve_debug_loc(&debug_info);
+                    terminator.metadata.move_function_events(&debug_info);
                 }
                 module.blocks[site.block].terminator = Some(terminator);
             }
@@ -515,7 +527,7 @@ fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
     let mut metadata = Metadata::default();
     // The first removed instruction, as is: all its origins, its modifier depth, and no origin if
     // it has none.
-    metadata.copy_source_debug_from(&suffix[0].metadata);
+    metadata.preserve_debug_loc(&suffix[0].metadata);
     let all = suffix
         .iter()
         .map(|inst| &inst.metadata)

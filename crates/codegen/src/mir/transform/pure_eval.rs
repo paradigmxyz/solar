@@ -6,8 +6,7 @@
 //! normal encoder path.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstKind, InstructionMetadata, Module, Terminator, Value,
-    ValueId,
+    BlockId, Function, Immediate, InstKind, Module, Terminator, Value, ValueId,
     pass::{MirPass, run_function_pass},
     utils::eval,
 };
@@ -40,11 +39,11 @@ fn fold(func: &mut Function) -> bool {
     if !func.params.is_empty() || !is_side_effect_free(func) {
         return false;
     }
-    let Some(values) = evaluate(func) else { return false };
+    let Some((values, ret)) = evaluate(func) else { return false };
     if values.len() != func.return_components().len() || is_already_folded(func, &values) {
         return false;
     }
-    rewrite_to_return(func, &values);
+    rewrite_to_return(func, &values, ret);
     true
 }
 
@@ -77,7 +76,8 @@ fn is_side_effect_free(func: &Function) -> bool {
     func.instructions().all(|inst_id| !func.inst(inst_id).kind.has_side_effects())
 }
 
-fn evaluate(func: &Function) -> Option<Vec<U256>> {
+/// Evaluates the function. Returns the returned values and the block whose `Return` produced them.
+fn evaluate(func: &Function) -> Option<(Vec<U256>, BlockId)> {
     let mut env = FxHashMap::default();
     let mut phis = SmallVec::<[(ValueId, U256); 2]>::new();
     let mut current = BlockId::ENTRY;
@@ -128,10 +128,11 @@ fn evaluate(func: &Function) -> Option<Vec<U256>> {
                 }
             }
             Terminator::Return { values } => {
-                return values
+                let values = values
                     .iter()
                     .map(|&value| value_const(func, &env, value))
-                    .collect::<Option<Vec<_>>>();
+                    .collect::<Option<Vec<_>>>()?;
+                return Some((values, current));
             }
             Terminator::ReturnData { .. }
             | Terminator::Revert { .. }
@@ -151,20 +152,13 @@ fn eval_inst(func: &Function, kind: &InstKind, env: &FxHashMap<ValueId, U256>) -
         .flatten()
 }
 
-fn rewrite_to_return(func: &mut Function, values: &[U256]) {
+fn rewrite_to_return(func: &mut Function, values: &[U256], ret: BlockId) {
     let entry = BlockId::ENTRY;
-    // Folded paths retain all return origins, excluding unrelated analysis facts.
-    let mut origins = func
-        .blocks
-        .iter()
-        .filter(|block| matches!(block.terminator, Some(Terminator::Return { .. })));
-    let mut metadata = origins.next().map_or_else(
-        || InstructionMetadata::EMPTY.debug_context(),
-        |block| block.terminator_metadata.debug_context(),
-    );
-    for block in origins {
-        metadata.merge_debug_context(&block.terminator_metadata);
-    }
+    // The evaluator followed one path, so only `ret` produced the folded values and the other
+    // returns are on paths proven not taken. The folded `ret` keeps the location of the `ret` it
+    // replaces, like LLVM's SCCP (`NewInst->setDebugLoc(Inst.getDebugLoc())` in
+    // `replaceSignedInst`, `SCCPSolver.cpp`).
+    let metadata = func.blocks[ret].terminator_metadata.debug_context();
     for block_id in func.blocks.indices() {
         let block = &mut func.blocks[block_id];
         block.instructions.clear();
@@ -183,7 +177,7 @@ fn rewrite_to_return(func: &mut Function, values: &[U256]) {
             func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), value)))
         })
         .collect();
-    // entry: ret constants !metadata(union of return origins)
+    // entry: ret constants !metadata(reached return)
     func.blocks[entry].set_terminator(Terminator::Return { values }, metadata);
 }
 

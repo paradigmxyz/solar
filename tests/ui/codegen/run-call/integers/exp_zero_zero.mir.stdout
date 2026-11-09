@@ -1,0 +1,7 @@
+; === ROOT/tests/ui/codegen/run-call/integers/exp_zero_zero.sol:ExpZeroZero ===
+@module ExpZeroZero
+; function literal() external pure returns (uint256) [selector 0x1373185e]
+fn @literal() -> i256 [selector=0x1373185e, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret 1
+}

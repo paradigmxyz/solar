@@ -283,10 +283,14 @@ fn deduplicate_terminal_blocks(func: &mut Function) -> bool {
                 .map(|(&target, &source)| (target, func.inst(source).metadata.debug_context())),
         );
         for (target, metadata) in origins.drain(..) {
-            func.inst_mut(target).metadata.merge_debug_context(&metadata);
+            func.inst_mut(target).metadata.merge_debug_locs([&metadata]);
         }
         let metadata = func.blocks[dup].terminator_metadata.debug_context();
-        func.blocks[keep].terminator_metadata.merge_debug_context(&metadata);
+        func.blocks[keep].terminator_metadata.merge_debug_locs([&metadata]);
+        // The survivor's label is shared by every redirected path, just like its body.
+        // LLVM's merged-location rule applies to the retained label, not to the removed edges.
+        let label = func.blocks[dup].label_metadata.debug_context();
+        func.blocks[keep].label_metadata.merge_debug_locs([&label]);
         // A shared block is rarely run only if every block it replaces is.
         func.blocks[keep].cold_hint &= func.blocks[dup].cold_hint;
         for pred in std::mem::take(&mut func.blocks[dup].predecessors) {
@@ -338,7 +342,8 @@ fn canonicalize_terminal_block(
         }
         let mut metadata = inst.metadata.clone();
         metadata.set_hir_expr(None);
-        metadata.mark_debug_info_dropped();
+        // The key ignores the whole location, modifier depth included.
+        metadata.preserve_debug_loc(&InstructionMetadata::EMPTY);
         metadata.loop_depth = 0;
         insts.push(CanonInst {
             kind: inst.kind.clone_without_operands(),
@@ -981,7 +986,7 @@ fn end_block_after(func: &mut Function, block: BlockId, position: usize) -> bool
     func.blocks[block].instructions.truncate(position + 1);
     replace_terminator(func, block, Terminator::Invalid);
     if let Some(replaced) = replaced {
-        func.blocks[block].terminator_metadata.copy_debug_context(&replaced);
+        func.blocks[block].terminator_metadata.preserve_debug_loc(&replaced);
     }
     true
 }

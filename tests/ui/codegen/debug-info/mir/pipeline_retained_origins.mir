@@ -1,0 +1,43 @@
+//@ revisions: cfg sccp cse
+//@ compile-flags: -Zdebugify=check
+//@[cfg] compile-flags: -Zmir-pipeline=cfg-simplify
+//@[sccp] compile-flags: -Zmir-pipeline=sccp
+//@[cse] compile-flags: -Zmir-pipeline=cse
+//@[cfg] filecheck: --check-prefix=CFG
+//@[sccp] filecheck: --check-prefix=SCCP
+//@[cse] filecheck: --check-prefix=CSE
+//@ normalize-stdout-test: "(?s).+" -> ""
+@module PipelineRetainedOrigins
+
+// Removing a jump does not move its location onto the surviving return.
+// CFG-LABEL: fn @preserved(
+// CFG: v0 = add arg0, 1 !metadata(span=10..20)
+// CFG: v1 = add arg0, 1 !metadata(span=30..40)
+// CFG: v2 = add 3, 2 !metadata(span=50..60)
+// CFG: - jump bb1 !metadata(span=110..120)
+// CFG: ret v4 !metadata(span=130..140)
+
+// Constant folding changes the consumer's operand, but preserves its own location.
+// SCCP-LABEL: fn @preserved(
+// SCCP: - v2 = add 3, 2 !metadata(span=50..60)
+// SCCP: + v3 = add v0, 5 !metadata(span=70..80)
+// SCCP: v4 = add v1, v3 !metadata(span=90..100)
+// SCCP: ret v4 !metadata(span=130..140)
+
+// CSE keeps the first computation's origin and does not move the removed duplicate's.
+// CSE-LABEL: fn @preserved(
+// CSE: v0 = add arg0, 1 !metadata(span=10..20)
+// CSE: - v1 = add arg0, 1 !metadata(span=30..40)
+// CSE: + v4 = add v0, v3 !metadata(span=90..100)
+// CSE: ret v4 !metadata(span=130..140)
+fn @preserved(arg0: i256) -> i256 {
+  bb0:
+    v0 = add arg0, 1 !metadata(span=10..20)
+    v1 = add arg0, 1 !metadata(span=30..40)
+    v2 = add 2, 3 !metadata(span=50..60)
+    v3 = add v0, v2 !metadata(span=70..80)
+    v4 = add v1, v3 !metadata(span=90..100)
+    jump bb1 !metadata(span=110..120)
+  bb1:
+    ret v4 !metadata(span=130..140)
+}

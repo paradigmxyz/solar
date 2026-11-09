@@ -111,25 +111,29 @@ impl<'gcx> Assembler<'gcx> {
     /// Restores the origins returned by [`Self::debug_origin`].
     pub(crate) fn set_debug_origin(&mut self, origin: ir::Metadata) {
         self.current_source_spans.clear();
-        self.current_source_spans.extend(origin.source_spans().iter().copied());
+        self.current_source_spans.extend(origin.source_spans());
         self.current_debug_loc_kind = origin.debug_loc_kind();
         self.current_modifier_depth = origin.modifier_depth();
     }
 
     /// Attributes the jump to the next block, which ends the current block without an opcode, to
     /// the current source origins.
-    ///
-    /// Like LLVM's instruction selection, which emits no branch for a fallthrough
-    /// (`SelectionDAGBuilder::visitBr`) and gives a branch that layout later needs the location
-    /// of the block's branch (`MachineBasicBlock::updateTerminator`, `findBranchDebugLoc`), the
-    /// jump keeps its own origins and nothing else receives them.
-    // NOTE: Without an open block nothing implements the jump, so its origins are dropped. Opening
-    // one would add an empty block, and debug information must not change the IR. An empty block
-    // is a thunk that `cfg-simplify` removes with its jump, as LLVM's
-    // `TryToSimplifyUncondBranchFromEmptyBlock` does, so it records nothing either.
+    // NOTE: The jump carries out the control transfer of one MIR terminator: the block's `jump`,
+    // the resumption of a call's continuation into that terminator, or the `switch` that a compare
+    // chain implements. Layout emits a `JUMP` opcode only when it separates the two blocks, so the
+    // jump takes that terminator's origins, which the caller must have set; the origins of the
+    // code before or after the terminator would name the wrong source. When layout makes the jump
+    // real, it runs on exactly that edge, so we keep the origin. LLVM differs: it gives a
+    // re-created pure-fallthrough branch an empty location (`MachineBasicBlock::updateTerminator`).
+    // Stackify sets the origins with `set_terminator_origin` and its terminator steps never change
+    // them, so they are current at every call. Without an open block nothing implements the jump,
+    // so its origins are dropped: opening one would add an empty block, and debug information must
+    // not change the IR. An empty open block, such as the continuation of a call that ends its MIR
+    // block, still records them, since a return target keeps the block alive. When `cfg-simplify`
+    // removes an empty thunk with its jump, the origins are lost with it.
     pub(crate) fn mark_fallthrough(&mut self) {
-        if let Some(block) = self.current_block
-            && !self.program.blocks[block].instructions.is_empty()
+        if self.program.debug_info_is_tracked()
+            && let Some(block) = self.current_block
         {
             self.fallthrough_origins.insert(block, self.debug_origin());
         }
@@ -491,6 +495,23 @@ impl<'gcx> Assembler<'gcx> {
         self.define_label(label);
         let block = self.label_blocks[&label];
         self.program.blocks[block].metadata.is_continuation = true;
+        // The return tag is placed under the call's own location.
+        if let [span] = self.current_source_spans[..] {
+            self.set_label_origin(label, span, self.current_modifier_depth);
+        }
+    }
+
+    /// Sets the source origin of the `JUMPDEST` of the block that `label` started.
+    pub(crate) fn set_label_origin(
+        &mut self,
+        label: Label,
+        span: solar_interface::Span,
+        modifier_depth: u32,
+    ) {
+        let block = self.label_blocks[&label];
+        let metadata = &mut self.program.blocks[block].label_metadata;
+        metadata.set_source_span(Some(span));
+        metadata.set_modifier_depth(modifier_depth);
     }
 
     /// Marks a label-started block as cold for EVM IR layout passes.
@@ -609,7 +630,7 @@ impl<'gcx> Assembler<'gcx> {
                 ],
             };
             for inst in &mut replacement {
-                inst.metadata.copy_source_debug_from(&metadata);
+                inst.metadata.preserve_debug_loc(&metadata);
             }
             if let Some(function) = metadata.function_invoke()
                 && let Some(inst) = replacement.last_mut()
@@ -641,6 +662,7 @@ impl<'gcx> Assembler<'gcx> {
     }
 
     fn finalize_evm_ir(&mut self, module: &mut ir::Module) {
+        let track_debug_info = module.debug_info_is_tracked();
         for block_id in module.blocks.indices() {
             let next = (block_id.index() + 1 < module.blocks.len())
                 .then(|| ir::BlockId::from_usize(block_id.index() + 1));
@@ -666,7 +688,12 @@ impl<'gcx> Assembler<'gcx> {
             } else {
                 let mut metadata = ir::Metadata::default();
                 if let Some(origin) = self.fallthrough_origins.remove(&block_id) {
-                    metadata.copy_source_debug_from(&origin);
+                    metadata.preserve_debug_loc(&origin);
+                } else if track_debug_info {
+                    // NOTE: A source fallthrough records its own context above. An implicit
+                    // edge between assembler fragments, such as a call continuation and the
+                    // next block, has no source operation: LLVM's `getCompilerGenerated`.
+                    metadata.set_debug_loc_kind(DebugLocKind::CompilerGenerated);
                 }
                 (
                     next.map_or_else(ir::Terminator::implicit_stop, |target| {
@@ -677,7 +704,7 @@ impl<'gcx> Assembler<'gcx> {
                 )
             };
             block.instructions.truncate(block.instructions.len() - remove);
-            terminator.metadata.copy_source_debug_from(&metadata);
+            terminator.metadata.preserve_debug_loc(&metadata);
             if let Some(function) = metadata.function_invoke() {
                 terminator.metadata.set_function_invoke(function);
             }

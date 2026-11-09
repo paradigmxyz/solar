@@ -13,10 +13,7 @@
 //! is not defined by that serialization, and `verify` checks its invariants.
 
 use crate::{
-    debug::{
-        DebugEntryCheckpoint, DebugFunction, DebugFunctionExit, DebugLocKind, DebugSpans,
-        DistinctSpans,
-    },
+    debug::{DebugFunction, DebugFunctionExit, DebugLoc, DebugLocKind},
     link::{EmbeddedBytecodes, ImmutableId, LibraryId, LibraryTable},
     op::{self, StackOp, TrackedWord},
 };
@@ -199,32 +196,23 @@ impl Module {
         (next < self.blocks.len()).then(|| BlockId::from_usize(next))
     }
 
-    /// Returns checkpoints whose labels still have one direct incoming reference from the
-    /// recorded transfer. Opaque label uses, physical fallthrough and shared entries cannot prove
-    /// that execution reached the removed source operation.
-    pub fn valid_entry_checkpoints(&self) -> DenseBitSet<BlockId> {
+    /// Returns the blocks whose lent function entry is still valid: the label has exactly one
+    /// reference, a direct jump or branch to it. An opaque label use, a physical fallthrough, the
+    /// program entry or a second incoming edge means the event no longer marks the transfer that
+    /// entered the function.
+    pub fn valid_lent_invokes(&self) -> DenseBitSet<BlockId> {
         let mut seen = DenseBitSet::new_empty(self.blocks.len());
-        if !self.blocks.iter().any(|block| block.metadata.entry_checkpoint.is_some()) {
+        if !self.blocks.iter().any(|block| block.metadata.lent_invoke.is_some()) {
             return seen;
         }
         let mut invalid = DenseBitSet::new_empty(self.blocks.len());
-        let mut reference = |target: BlockId, metadata: Option<&Metadata>| {
-            let Some(checkpoint) = self.blocks[target].metadata.entry_checkpoint else { return };
-            if !seen.insert(target)
-                || !metadata.is_some_and(|metadata| {
-                    metadata.source_spans() == [checkpoint.transfer]
-                        || (metadata.source_spans().is_empty()
-                            && (metadata.checkpoint_transfers().contains(&checkpoint.transfer)
-                                || metadata.function_invoke().is_some_and(|function| {
-                                    function.declaration == checkpoint.transfer
-                                })))
-                })
-            {
+        let mut reference = |target: BlockId, direct: bool| {
+            if !seen.insert(target) || !direct {
                 invalid.insert(target);
             }
         };
         if !self.blocks.is_empty() {
-            reference(BlockId::ENTRY, None);
+            reference(BlockId::ENTRY, false);
         }
         for (id, block) in self.blocks.iter_enumerated() {
             for (index, inst) in block.instructions.iter().enumerate() {
@@ -237,14 +225,13 @@ impl Module {
                             && block.terminator.as_ref().is_some_and(|term| {
                                 matches!(term.kind, TerminatorKind::Op(op::JUMP | op::JUMPI))
                             }));
-                    reference(target, direct.then_some(&inst.metadata));
+                    reference(target, direct);
                 }
             }
             if let Some(term) = &block.terminator {
                 let direct =
                     matches!(term.kind, TerminatorKind::Jump(_) | TerminatorKind::JumpI { .. });
-                term.kind
-                    .visit_targets(|target| reference(target, direct.then_some(&term.metadata)));
+                term.kind.visit_targets(|target| reference(target, direct));
             }
             let falls_through = match block.terminator.as_ref().map(|term| &term.kind) {
                 Some(TerminatorKind::Op(opcode)) => !op::is_terminal(*opcode),
@@ -252,22 +239,23 @@ impl Module {
                 None => block.instructions.last().is_none_or(|inst| !op::is_terminal(inst.opcode)),
             };
             if falls_through && let Some(next) = self.next_block(id) {
-                reference(next, None);
+                reference(next, false);
             }
         }
         seen.subtract(&invalid);
         seen
     }
 
-    /// Drops checkpoints as soon as a transform invalidates their exclusive-entry proof.
-    pub fn drop_invalid_entry_checkpoints(&mut self) {
-        if !self.blocks.iter().any(|block| block.metadata.entry_checkpoint.is_some()) {
+    /// Drops lent function entries as soon as a transform invalidates their exclusive-entry
+    /// check.
+    pub fn drop_invalid_lent_invokes(&mut self) {
+        if !self.blocks.iter().any(|block| block.metadata.lent_invoke.is_some()) {
             return;
         }
-        let valid = self.valid_entry_checkpoints();
+        let valid = self.valid_lent_invokes();
         for (id, block) in self.blocks.iter_mut_enumerated() {
             if !valid.contains(id) {
-                block.metadata.entry_checkpoint = None;
+                block.metadata.lent_invoke = None;
             }
         }
     }
@@ -286,6 +274,11 @@ pub struct Block {
     /// Block metadata. The hot/cold field is present before it is consumed by
     /// layout so fixtures can pin the format early.
     pub metadata: BlockMetadata,
+    /// Source origin of this block's `JUMPDEST`, the location active where its label is placed.
+    /// Only the source spans and the modifier depth are meaningful. Like instruction origins it
+    /// is debug information: it never changes the executable code, and a block without a label
+    /// has none.
+    pub label_metadata: Metadata,
     /// Non-terminating EVM backend instructions.
     pub instructions: Vec<Instruction>,
     /// Optional control-flow terminator.
@@ -299,6 +292,7 @@ impl Block {
         Self {
             label,
             metadata: BlockMetadata::default(),
+            label_metadata: Metadata::default(),
             instructions: Vec::new(),
             terminator: None,
         }
@@ -354,8 +348,14 @@ pub struct BlockMetadata {
     /// Direct jumps to the block are calls, and the return address is a block's address that the
     /// caller pushed before them. See [`CallEffect`].
     pub call_effect: Option<CallEffect>,
-    /// A removed transfer's checkpoint on this block's existing leading `JUMPDEST`.
-    pub entry_checkpoint: Option<DebugEntryCheckpoint>,
+    /// A function entry lent to this block by a bypassed conditional thunk.
+    ///
+    /// NOTE: The event marks the callee's entry, so it sits on the destination only while the
+    /// bypassed edge is the label's only entry, which [`Module::valid_lent_invokes`] checks after
+    /// every pass. Where frame events belong is decision D2 in
+    /// <https://ampcode.com/artifacts/debug-info-across-rewrites-one-rule-per-case-vs-llvm-clang-r-e66f5371-2c50-4a89-8817-1460e914d7ff>
+    /// (§3 "Frame events", §7); the frame-event placement change settles it.
+    pub lent_invoke: Option<DebugFunction>,
 }
 
 /// How code returns to its caller through a dynamic `jump`.
@@ -449,9 +449,10 @@ impl Instruction {
         self
     }
 
-    /// Replaces this instruction's source metadata with another operation's.
-    pub fn with_source_debug(mut self, metadata: &Metadata) -> Self {
-        self.metadata.copy_source_debug_from(metadata);
+    /// Rule R1: gives this instruction the location of the operation it replaces.
+    #[must_use]
+    pub fn with_debug_loc(mut self, from: &Metadata) -> Self {
+        self.metadata.preserve_debug_loc(from);
         self
     }
 
@@ -555,10 +556,10 @@ impl Instruction {
         }
     }
 
-    /// Marks this synthetic instruction as intentionally having no source location.
+    /// Rule R3: marks this synthetic instruction as intentionally having no source location.
     #[must_use]
-    pub fn with_debug_info_dropped(mut self) -> Self {
-        self.metadata.mark_debug_info_dropped();
+    pub fn with_debug_loc_dropped(mut self) -> Self {
+        self.metadata.drop_debug_loc(DebugLocKind::Dropped);
         self
     }
 
@@ -763,10 +764,10 @@ impl Terminator {
         }
     }
 
-    /// Marks this synthetic terminator as intentionally having no source location.
+    /// Rule R3: marks this synthetic terminator as intentionally having no source location.
     #[must_use]
-    pub fn with_debug_info_dropped(mut self) -> Self {
-        self.metadata.mark_debug_info_dropped();
+    pub fn with_debug_loc_dropped(mut self) -> Self {
+        self.metadata.drop_debug_loc(DebugLocKind::Dropped);
         self
     }
 }
@@ -910,19 +911,12 @@ pub struct Metadata {
     /// a block that ends inside it. Transforms still check the boundary themselves, through
     /// `is_split_point`, rather than leaving a split for the verifier to catch.
     pub keep_with_next: bool,
-    /// Solidity source span associated with this machine operation.
-    source_spans: DebugSpans,
+    /// Source origins, modifier depth, and why there are no origins, when there are none.
+    debug_loc: DebugLoc,
     /// Function activation entered after this operation.
     function_invoke: Option<DebugFunction>,
     /// Function activation closed after this operation.
     function_exit: Option<DebugFunctionExit>,
-    /// Legacy source-map modifier nesting depth for this operation.
-    modifier_depth: u32,
-    /// Why the operation has no source origin, when it has none.
-    debug_loc_kind: DebugLocKind,
-    /// Identities of removed thunk entries reached by this transfer, not function events.
-    /// These only validate exclusive destination checkpoints and are never emitted as calls.
-    checkpoint_transfers: DebugSpans,
 }
 
 fn common_debug_event<T: Eq>(mut events: impl Iterator<Item = T>) -> Option<T> {
@@ -934,123 +928,119 @@ impl Metadata {
     /// Returns the source span associated with this operation.
     #[must_use]
     pub fn source_span(&self) -> Option<Span> {
-        self.source_spans.first().copied()
+        self.debug_loc.span()
     }
 
     /// Returns every source origin associated with this operation.
+    pub fn source_spans(&self) -> impl Iterator<Item = Span> + Clone + '_ {
+        self.debug_loc.spans()
+    }
+
+    /// Returns whether several source origins all hold for this operation, as `gather` in
+    /// ETHDebug, instead of one of them, as `pick`.
     #[must_use]
-    pub fn source_spans(&self) -> &[Span] {
-        &self.source_spans
+    pub fn all_source_spans(&self) -> bool {
+        self.debug_loc.all_spans()
+    }
+
+    /// Sets whether the source origins all hold, for text that spells them.
+    pub fn set_all_source_spans(&mut self, all_spans: bool) {
+        self.debug_loc.set_all_spans(all_spans);
+    }
+
+    /// Returns the source origin of this operation if it has exactly one.
+    #[must_use]
+    pub fn only_source_span(&self) -> Option<Span> {
+        self.debug_loc.only_span()
+    }
+
+    /// Returns whether this operation has a source origin.
+    #[must_use]
+    pub fn has_source_spans(&self) -> bool {
+        self.debug_loc.has_spans()
     }
 
     /// Sets the source span associated with this operation.
     pub fn set_source_span(&mut self, span: Option<Span>) {
-        self.source_spans.clear();
-        self.source_spans.extend(span.filter(|span| !span.is_dummy()));
-        self.debug_loc_kind = DebugLocKind::Normal;
+        self.debug_loc.set_span(span);
     }
 
     /// Sets all source origins associated with this operation.
     pub fn set_source_spans(&mut self, spans: impl IntoIterator<Item = Span>) {
-        self.source_spans.clear();
-        let mut distinct = DistinctSpans::default();
-        for span in spans {
-            if !span.is_dummy() && distinct.is_new(span, || self.source_spans.iter().copied()) {
-                self.source_spans.push(span);
-            }
-        }
-        self.debug_loc_kind = DebugLocKind::Normal;
+        self.debug_loc.set_spans(spans);
     }
 
     /// Returns the legacy source-map modifier nesting depth for this operation.
     #[must_use]
     pub const fn modifier_depth(&self) -> u32 {
-        self.modifier_depth
+        self.debug_loc.modifier_depth()
     }
 
     /// Sets the legacy source-map modifier nesting depth for this operation.
     pub fn set_modifier_depth(&mut self, depth: u32) {
-        self.modifier_depth = depth;
+        self.debug_loc.set_modifier_depth(depth);
     }
 
-    /// Copies source location metadata, including legacy modifier depth.
-    pub fn copy_source_debug_from(&mut self, other: &Self) {
-        self.set_source_spans(other.source_spans().iter().copied());
-        self.modifier_depth = other.modifier_depth;
-        self.debug_loc_kind = other.debug_loc_kind;
+    /// Rule R1, preserve: see [`DebugLoc::preserve`].
+    pub fn preserve_debug_loc(&mut self, from: &Self) {
+        self.debug_loc.preserve(&from.debug_loc);
     }
 
-    /// Copies debug information without copying machine properties such as `keep_with_next`.
-    pub fn copy_debug_info_from(&mut self, other: &Self) {
-        self.copy_source_debug_from(other);
-        self.function_invoke = other.function_invoke;
-        self.function_exit = other.function_exit;
-        self.checkpoint_transfers.clone_from(&other.checkpoint_transfers);
+    /// Rule R2, merge: see [`DebugLoc::merge`].
+    pub fn merge_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        self.debug_loc.merge(others.into_iter().map(|other| &other.debug_loc));
     }
 
-    /// Absorbs another operation's debug information: its origins are added and its function
-    /// events are taken when this operation has none of its own.
-    pub fn absorb_debug_info(&mut self, other: &Self) {
-        self.merge_source_spans(other);
-        self.absorb_function_events(other);
+    /// Rule R2b, combine: see [`DebugLoc::combine`].
+    pub fn combine_debug_locs<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
+        self.debug_loc.combine(others.into_iter().map(|other| &other.debug_loc));
     }
 
-    /// Takes function events when this operation has none, without adding source origins.
-    pub fn absorb_function_events(&mut self, other: &Self) {
+    /// Rule R3, drop: see [`DebugLoc::drop`].
+    pub fn drop_debug_loc(&mut self, kind: DebugLocKind) {
+        self.debug_loc.drop(kind);
+    }
+
+    /// Rule E1, move: takes the function events of the operation that carried this call or
+    /// return before, like solc keeping a rewritten `JUMP`'s `JumpType`. Fills only empty slots.
+    pub fn move_function_events(&mut self, from: &Self) {
         if self.function_invoke.is_none()
-            && let Some(function) = other.function_invoke()
+            && let Some(function) = from.function_invoke()
         {
             self.set_function_invoke(function);
         }
         if self.function_exit.is_none()
-            && let Some(exit) = other.function_exit()
+            && let Some(exit) = from.function_exit()
         {
             self.set_function_exit(exit);
         }
     }
 
-    /// Adds origins from another operation without changing machine semantics.
-    pub fn merge_source_spans(&mut self, other: &Self) {
-        self.merge_source_spans_from(std::iter::once(other));
-    }
-
-    /// Adds origins from several operations without changing machine semantics.
-    pub fn merge_source_spans_from<'a>(&mut self, others: impl IntoIterator<Item = &'a Self>) {
-        let mut distinct = DistinctSpans::default();
-        for other in others {
-            let had_source_spans = !self.source_spans.is_empty();
-            for &span in other.source_spans() {
-                if distinct.is_new(span, || self.source_spans.iter().copied()) {
-                    self.source_spans.push(span);
-                }
-            }
-            if !had_source_spans && !self.source_spans.is_empty() {
-                self.modifier_depth = other.modifier_depth;
-            }
-            self.debug_loc_kind = if self.source_spans.is_empty() {
-                self.debug_loc_kind.merge(other.debug_loc_kind)
-            } else {
-                DebugLocKind::Normal
-            };
-        }
-    }
-
-    /// Merges source origins and function events across equivalent operations.
-    pub fn merge_equivalent_debug_info<'a>(
+    /// Rule E2, merge events: keeps an event only if every operation that has one agrees, like
+    /// solc's `BlockDeduplicator` keeping one block's `JumpType` for equivalent blocks.
+    pub fn merge_function_events<'a>(
         &mut self,
-        others: impl Iterator<Item = &'a Self> + Clone,
+        others: impl IntoIterator<Item = &'a Self> + Clone,
     ) {
         // NOTE: Missing events do not conflict with known ones. Conflicting events become
         // unknown across the whole group; a later known event must not resurrect them.
         self.function_invoke = common_debug_event(
             self.function_invoke
                 .into_iter()
-                .chain(others.clone().filter_map(Self::function_invoke)),
+                .chain(others.clone().into_iter().filter_map(Self::function_invoke)),
         );
         self.function_exit = common_debug_event(
-            self.function_exit.into_iter().chain(others.clone().filter_map(Self::function_exit)),
+            self.function_exit
+                .into_iter()
+                .chain(others.into_iter().filter_map(Self::function_exit)),
         );
-        self.merge_source_spans_from(others);
+    }
+
+    /// Rule E3, drop events: forgets the function events, as solc loses the
+    /// `JumpType` of a deleted `JUMP`.
+    pub fn drop_function_events(&mut self) {
+        self.function_invoke = None;
+        self.function_exit = None;
     }
 
     /// Returns the function entered after this operation.
@@ -1080,52 +1070,22 @@ impl Metadata {
         self.function_exit = Some(exit);
     }
 
-    /// Marks this operation as intentionally having no source location, like LLVM's
-    /// `Instruction::dropLocation`.
-    pub fn mark_debug_info_dropped(&mut self) {
-        self.set_source_span(None);
-        self.debug_loc_kind = DebugLocKind::Dropped;
-    }
-
     /// Returns why this operation has no source origin, when it has none.
     #[must_use]
     pub const fn debug_loc_kind(&self) -> DebugLocKind {
-        self.debug_loc_kind
+        self.debug_loc.kind()
     }
 
     /// Annotates the missing origin of this operation.
     pub fn set_debug_loc_kind(&mut self, kind: DebugLocKind) {
-        self.debug_loc_kind = kind;
+        self.debug_loc.set_kind(kind);
     }
 
     /// Returns whether this operation has neither a source origin nor a reason for lacking one,
     /// which is what LLVM's `not-generate` check reports.
     #[must_use]
     pub fn lacks_debug_location(&self) -> bool {
-        self.debug_loc_kind == DebugLocKind::Normal && self.source_spans.is_empty()
-    }
-
-    /// Returns identities used only to validate removed entry checkpoints.
-    #[must_use]
-    pub fn checkpoint_transfers(&self) -> &[Span] {
-        &self.checkpoint_transfers
-    }
-
-    /// Records a checkpoint proof without describing a function activation.
-    pub fn add_checkpoint_transfer(&mut self, span: Span) {
-        self.add_checkpoint_transfers([span]);
-    }
-
-    /// Records several checkpoint proofs, keeping the work linear in their number.
-    pub fn add_checkpoint_transfers(&mut self, spans: impl IntoIterator<Item = Span>) {
-        let mut distinct = DistinctSpans::default();
-        for span in spans {
-            if !span.is_dummy()
-                && distinct.is_new(span, || self.checkpoint_transfers.iter().copied())
-            {
-                self.checkpoint_transfers.push(span);
-            }
-        }
+        self.debug_loc.is_gap()
     }
 }
 

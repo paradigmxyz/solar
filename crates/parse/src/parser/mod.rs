@@ -927,13 +927,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     }
 
     fn look_ahead_full(&self, dist: usize) -> Token {
-        self.tokens
-            .as_slice()
-            .iter()
-            .copied()
-            .filter(|t| !t.is_comment_or_doc())
-            .nth(dist - 1)
-            .unwrap_or(Token::EOF)
+        self.tokens_ahead().nth(dist - 1).unwrap_or(Token::EOF)
+    }
+
+    /// Returns the tokens after the current one, without comments.
+    ///
+    /// Scanning several tokens ahead through this iterator takes linear time, unlike calling
+    /// [`look_ahead`](Self::look_ahead) with a growing distance.
+    pub fn tokens_ahead(&self) -> impl Iterator<Item = Token> + '_ {
+        self.tokens.as_slice().iter().copied().filter(|t| !t.is_comment_or_doc())
     }
 
     /// Calls `f` with the token `dist` tokens ahead of the current one.

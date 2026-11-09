@@ -1,0 +1,216 @@
+; === ROOT/tests/ui/codegen/lowering/mir/calls/pre_byzantium_dynamic_argument_expansion.sol:WideCallee ===
+@module WideCallee
+@types
+  struct0: {i256, i256, i256, i256, i256, i256}
+
+; function six(bytes memory b) external pure returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0xb84d18fb]
+fn @six(arg0: ptr<memory>) -> struct0 [selector=0xb84d18fb, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = checked_add uint256, v0, 4
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, 1
+    v4 = insert_value struct0, v3, 2, 2
+    v5 = insert_value struct0, v4, 3, 3
+    v6 = insert_value struct0, v5, 4, 4
+    v7 = insert_value struct0, v6, 5, 5
+    ret v7
+}
+
+; function sixString(string memory s) external pure returns (uint256, uint256, uint256, uint256, uint256, uint256) [selector 0xa52f51f1]
+fn @sixString(arg0: ptr<memory>) -> struct0 [selector=0xa52f51f1, pure, abi_params=[bytes], abi_returns=[word, word, word, word, word, word], abi_return_params=[uint256, uint256, uint256, uint256, uint256, uint256]] {
+  bb0:
+    v0 = mload arg0
+    v1 = checked_add uint256, v0, 4
+    v2 = insert_value struct0, undef struct0, 0, v1
+    v3 = insert_value struct0, v2, 1, 1
+    v4 = insert_value struct0, v3, 2, 2
+    v5 = insert_value struct0, v4, 3, 3
+    v6 = insert_value struct0, v5, 4, 4
+    v7 = insert_value struct0, v6, 5, 5
+    ret v7
+}
+
+; === ROOT/tests/ui/codegen/lowering/mir/calls/pre_byzantium_dynamic_argument_expansion.sol:WideCalls ===
+@module WideCalls
+@types
+  struct0: {i256, i256, i256, i256, i256, i256}
+
+@data
+  WideCallee_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/mir/calls/pre_byzantium_dynamic_argument_expansion.sol:WideCallee"
+
+; function plainCall() external returns (uint256) [selector 0x707bf9ed]
+fn @plainCall() -> i256 [selector=0x707bf9ed, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize WideCallee_creation_code_0
+    v1 = fmp
+    datacopy WideCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = gas
+    v5 = alloc 32
+    mstore v5, 0
+    v6 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args v5
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    v9 = zext i160 v2 to i256
+    v10 = extcodesize v9
+    v11 = eq v10, 0
+    icall revert_if<target_contract_has_no_code>, v11
+    v12 = zext i160 v2 to i256
+    v13 = call v4, v12, 0, v7, v8, v7, 192
+    jumpi v13, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v14 = mload v7
+    v15 = ptrtoint ptr<memory> v7 to i256
+    v16 = add v15, 32
+    v17 = mload v16
+    v18 = ptrtoint ptr<memory> v7 to i256
+    v19 = add v18, 64
+    v20 = mload v19
+    v21 = ptrtoint ptr<memory> v7 to i256
+    v22 = add v21, 96
+    v23 = mload v22
+    v24 = ptrtoint ptr<memory> v7 to i256
+    v25 = add v24, 128
+    v26 = mload v25
+    v27 = ptrtoint ptr<memory> v7 to i256
+    v28 = add v27, 160
+    v29 = mload v28
+    v30 = insert_value struct0, undef struct0, 0, v14
+    v31 = insert_value struct0, v30, 1, v17
+    v32 = insert_value struct0, v31, 2, v20
+    v33 = insert_value struct0, v32, 3, v23
+    v34 = insert_value struct0, v33, 4, v26
+    v35 = insert_value struct0, v34, 5, v29
+    v36 = extract_value struct0, v35, 0
+    v37 = extract_value struct0, v35, 1
+    v38 = extract_value struct0, v35, 2
+    v39 = extract_value struct0, v35, 3
+    v40 = extract_value struct0, v35, 4
+    v41 = extract_value struct0, v35, 5
+    v42 = checked_add uint256, v36, v41
+    ret v42
+}
+
+; function tryCall() external returns (uint256 r) [selector 0x118dfb0e]
+fn @tryCall() -> i256 [selector=0x118dfb0e, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize WideCallee_creation_code_0
+    v1 = fmp
+    datacopy WideCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = gas
+    v5 = alloc 32
+    mstore v5, 0
+    v6 = abi_encode [memory_bytes], selector 0xb84d18fb00000000000000000000000000000000000000000000000000000000, args v5
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    v9 = zext i160 v2 to i256
+    v10 = extcodesize v9
+    v11 = eq v10, 0
+    icall revert_if<target_contract_has_no_code>, v11
+    v12 = zext i160 v2 to i256
+    v13 = call v4, v12, 0, v7, v8, v7, 192
+    jumpi v13, bb3, bb4
+  bb4 [cold_hint]:                                ; preds = bb2
+    jumpi true, bb6, bb7
+  bb7 [cold_hint]:                                ; preds = bb4
+    icall revert_if<empty>, true
+    invalid
+  bb6 [cold_hint]:                                ; preds = bb4
+    jump bb5
+  bb3:                                            ; preds = bb2
+    v14 = mload v7
+    v15 = ptrtoint ptr<memory> v7 to i256
+    v16 = add v15, 32
+    v17 = mload v16
+    v18 = ptrtoint ptr<memory> v7 to i256
+    v19 = add v18, 64
+    v20 = mload v19
+    v21 = ptrtoint ptr<memory> v7 to i256
+    v22 = add v21, 96
+    v23 = mload v22
+    v24 = ptrtoint ptr<memory> v7 to i256
+    v25 = add v24, 128
+    v26 = mload v25
+    v27 = ptrtoint ptr<memory> v7 to i256
+    v28 = add v27, 160
+    v29 = mload v28
+    v30 = checked_add uint256, v14, v29
+    jump bb5
+  bb5:                                            ; preds = bb3, bb6
+    v31 = phi [bb3: v30], [bb6: 7]
+    ret v31
+}
+
+; function stringCall() external returns (uint256) [selector 0xbdbbac6d]
+fn @stringCall() -> i256 [selector=0xbdbbac6d, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = datasize WideCallee_creation_code_0
+    v1 = fmp
+    datacopy WideCallee_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = gas
+    v5 = alloc 32
+    mstore v5, 0
+    v6 = abi_encode [memory_bytes], selector 0xa52f51f100000000000000000000000000000000000000000000000000000000, args v5
+    v7 = extract_value slice<memory>, v6, 0
+    v8 = extract_value slice<memory>, v6, 1
+    v9 = zext i160 v2 to i256
+    v10 = extcodesize v9
+    v11 = eq v10, 0
+    icall revert_if<target_contract_has_no_code>, v11
+    v12 = zext i160 v2 to i256
+    v13 = call v4, v12, 0, v7, v8, v7, 192
+    jumpi v13, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v14 = mload v7
+    v15 = ptrtoint ptr<memory> v7 to i256
+    v16 = add v15, 32
+    v17 = mload v16
+    v18 = ptrtoint ptr<memory> v7 to i256
+    v19 = add v18, 64
+    v20 = mload v19
+    v21 = ptrtoint ptr<memory> v7 to i256
+    v22 = add v21, 96
+    v23 = mload v22
+    v24 = ptrtoint ptr<memory> v7 to i256
+    v25 = add v24, 128
+    v26 = mload v25
+    v27 = ptrtoint ptr<memory> v7 to i256
+    v28 = add v27, 160
+    v29 = mload v28
+    v30 = insert_value struct0, undef struct0, 0, v14
+    v31 = insert_value struct0, v30, 1, v17
+    v32 = insert_value struct0, v31, 2, v20
+    v33 = insert_value struct0, v32, 3, v23
+    v34 = insert_value struct0, v33, 4, v26
+    v35 = insert_value struct0, v34, 5, v29
+    v36 = extract_value struct0, v35, 0
+    v37 = extract_value struct0, v35, 1
+    v38 = extract_value struct0, v35, 2
+    v39 = extract_value struct0, v35, 3
+    v40 = extract_value struct0, v35, 4
+    v41 = extract_value struct0, v35, 5
+    v42 = checked_add uint256, v36, v41
+    ret v42
+}

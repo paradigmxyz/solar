@@ -1,0 +1,150 @@
+; === ROOT/tests/ui/codegen/lowering/mir/abi/calldata_slice_control_flow.sol:CalldataSliceControlFlow ===
+@module CalldataSliceControlFlow
+@types
+  struct0: {i256, i256}
+  struct1: {slice<calldata>, slice<calldata>}
+
+; function trimLen(bytes calldata data) external pure returns (uint256) [selector 0x341fda35]
+fn @trimLen(arg0: slice<calldata>) -> i256 [selector=0x341fda35, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @_trim, arg0
+    v1 = extract_value slice<calldata>, v0, 1
+    ret v1
+}
+
+; function _trim(bytes calldata data) internal pure returns (bytes calldata r)
+fn @_trim(arg0: slice<calldata>) -> slice<calldata> [pure] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = gt v0, 8
+    jumpi v1, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v2 = extract_value slice<calldata>, arg0, 0
+    v3 = ptrtoint ptr<calldata> v2 to i256
+    v4 = add v3, 8
+    v5 = extract_value slice<calldata>, arg0, 1
+    v6 = inttoptr i256 v4 to ptr<calldata>
+    v7 = make_calldata_slice v6, v5
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = sub v8, 8
+    v10 = extract_value slice<calldata>, v7, 0
+    v11 = make_calldata_slice v10, v9
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v12 = phi [bb1: v11], [bb2: arg0]
+    ret v12
+}
+
+; function forward(bytes calldata x) external pure returns (uint256) [selector 0xd948d468]
+fn @forward(arg0: slice<calldata>) -> i256 [selector=0xd948d468, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 0
+    v2 = make_calldata_slice v1, 0
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = ptrtoint ptr<calldata> v3 to i256
+    v5 = make_calldata_slice ptr<calldata> 0, 0
+    v6 = extract_value slice<calldata>, v5, 1
+    v7 = make_calldata_slice v3, v6
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = extract_value slice<calldata>, v7, 0
+    v10 = make_calldata_slice v9, v8
+    v11 = icall @_sum, v10, v2
+    ret v11
+}
+
+; function _sum(bytes calldata a, bytes calldata b) internal pure returns (uint256)
+fn @_sum(arg0: slice<calldata>, arg1: slice<calldata>) -> i256 [pure] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = checked_mul uint256, v0, 0x3e8
+    v2 = extract_value slice<calldata>, arg1, 1
+    v3 = checked_add uint256, v1, v2
+    ret v3
+}
+
+; function explicitTrim(bytes calldata x) external pure returns (uint256) [selector 0xc127ee09]
+fn @explicitTrim(arg0: slice<calldata>) -> i256 [selector=0xc127ee09, pure, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @_explicitTrim, arg0
+    v1 = extract_value slice<calldata>, v0, 1
+    ret v1
+}
+
+; function _explicitTrim(bytes calldata x) internal pure returns (bytes calldata)
+fn @_explicitTrim(arg0: slice<calldata>) -> slice<calldata> [pure] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 1
+    v1 = gt v0, 4
+    v2 = make_calldata_slice ptr<calldata> 0, 0
+    jumpi v1, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    ret arg0
+  bb1:                                            ; preds = bb0
+    v3 = extract_value slice<calldata>, arg0, 0
+    v4 = extract_value slice<calldata>, arg0, 1
+    v5 = lt v4, v4
+    v6 = lt v4, 4
+    v7 = or v5, v6
+    v8 = zext i1 v7 to i256
+    icall revert_if<empty>, v7
+    v9 = sub v4, 4
+    v10 = ptradd v3, 4
+    v11 = make_calldata_slice v10, v9
+    ret v11
+}
+
+; function headTail(bytes calldata x) external pure returns (uint256 hl, uint256 tl) [selector 0xdd941f9b]
+fn @headTail(arg0: slice<calldata>) -> struct0 [selector=0xdd941f9b, pure, abi_params=[bytes], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall @_split, arg0
+    v1 = extract_value struct1, v0, 0
+    v2 = extract_value struct1, v0, 1
+    v3 = extract_value slice<calldata>, v1, 1
+    v4 = extract_value slice<calldata>, v2, 1
+    v5 = insert_value struct0, undef struct0, 0, v3
+    v6 = insert_value struct0, v5, 1, v4
+    ret v6
+}
+
+; function _split(bytes calldata x) internal pure returns (bytes calldata head, bytes calldata tail)
+fn @_split(arg0: slice<calldata>) -> struct1 [pure] {
+  bb0:
+    v0 = extract_value slice<calldata>, arg0, 0
+    v1 = extract_value slice<calldata>, arg0, 1
+    v2 = extract_value slice<calldata>, arg0, 1
+    v3 = lt v1, v1
+    v4 = lt v1, v2
+    v5 = or v3, v4
+    v6 = zext i1 v5 to i256
+    icall revert_if<empty>, v5
+    v7 = sub v1, v2
+    v8 = ptradd v0, v2
+    v9 = make_calldata_slice v8, v7
+    v10 = extract_value slice<calldata>, arg0, 1
+    v11 = gt v10, 8
+    jumpi v11, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v12 = extract_value slice<calldata>, arg0, 0
+    v13 = ptrtoint ptr<calldata> v12 to i256
+    v14 = add v13, 8
+    v15 = extract_value slice<calldata>, v9, 1
+    v16 = inttoptr i256 v14 to ptr<calldata>
+    v17 = make_calldata_slice v16, v15
+    v18 = extract_value slice<calldata>, arg0, 1
+    v19 = sub v18, 8
+    v20 = extract_value slice<calldata>, v17, 0
+    v21 = make_calldata_slice v20, v19
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v22 = phi [bb1: v21], [bb2: v9]
+    v23 = insert_value struct1, undef struct1, 0, arg0
+    v24 = insert_value struct1, v23, 1, v22
+    ret v24
+}
