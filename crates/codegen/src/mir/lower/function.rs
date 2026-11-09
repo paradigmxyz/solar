@@ -670,9 +670,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.lower_call_arguments(args, params, span, error, |this, index, argument| {
                 let operand = lower(this, index, argument)?;
                 position += 1;
-                // Once an operand waits, every later storage operand waits behind it, so the
-                // copies allocate in argument order.
-                if (waited || waits[position - 1]) && operand.waits() {
+                // Once an operand waits, every later one waits behind it, so the copies allocate
+                // in argument order.
+                if waited || (waits[position - 1] && operand.waits()) {
                     waited = true;
                     Some(Step::Wait(operand))
                 } else {
@@ -695,7 +695,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let steps = (0..count)
             .map(|index| {
                 let operand = lower(self, index)?;
-                if (waited || waits[index]) && operand.waits() {
+                if waited || (waits[index] && operand.waits()) {
                     waited = true;
                     Some(Step::Wait(operand))
                 } else {
