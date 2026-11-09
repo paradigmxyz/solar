@@ -1,6 +1,6 @@
 # solar-std
 
-Solidity sources of the Solar compiler's standard library.
+Solidity sources for the compiler's standard library.
 
 The modules live under `solidity/`, at their import paths below the reserved
 `solar:core/` prefix: `import {Bytes} from "solar:core/Bytes.sol";` reads
@@ -49,3 +49,12 @@ code. Assembly can hide builder references and is outside this check.
 `Build.gasFirst()` follows the current function's objective, including
 `solar-optimize` overrides, for direct and indirect calls alike. Its portable body
 returns true.
+
+`WordArrays`, `Strings`, `codecs/Base64` and `codecs/Hex` remain portable source
+libraries. Algorithms are compiled through the normal optimization pipeline;
+there are no baked sorting or codec kernels in the compiler. The byte-range
+primitives still receive intrinsic lowering, with portable fallbacks for tests.
+
+For a Foundry project whose library imports live under `src/`, the solc remapping
+is `src/:solar:core/=path/to/solidity/`. The explicit context preserves the colon
+in the import prefix when Foundry serializes its remappings.

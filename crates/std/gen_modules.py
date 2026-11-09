@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Generates the compiler-owned modules under `crates/std/solidity/`.
 
-Every function carries a body that any Solidity compiler accepts and that
-defines the operation's behaviour; this compiler lowers the entry points by
-module identity instead of calling the body. Bodies are written so that every
-failure is the `Panic(0x32)` an out-of-range index raises, which is also what
-the lowering raises, so the two can be compared call for call.
+Every generated function has a solc-compatible body defining its behavior.
+Selected primitive range operations receive intrinsic lowering, which is tested
+against those bodies. The array algorithms remain ordinary checked Solidity.
 """
 
 from pathlib import Path
@@ -341,6 +339,230 @@ library CalldataBytes {
     return "".join(out)
 
 
+def word_arrays_module() -> str:
+    out = [
+        LICENSE,
+        """import {Arrays} from "solar:core/Arrays.sol";
+
+/// @notice Checked algorithms over one-word dynamic memory arrays.
+/// @dev Compiler-owned module, imported as `solar:core/WordArrays.sol`.
+/// The bodies are portable checked Solidity and define the behavior.
+/// Low-level range operations use the primitive core intrinsics where available.
+library WordArrays {
+""",
+    ]
+    duplicate_types = {
+        "uint256": "uint256(a[i])",
+        "int256": "uint256(a[i])",
+        "address": "uint256(uint160(a[i]))",
+        "bytes32": "uint256(a[i])",
+    }
+    for ty, value in duplicate_types.items():
+        out.append(f"""    /// @dev Sorts `a` in ascending order.
+    function sort({ty}[] memory a) internal pure {{
+        for (uint256 i = 1; i < a.length; ++i) {{
+            {ty} value = a[i];
+            uint256 j = i;
+            while (j != 0 && a[j - 1] > value) {{
+                a[j] = a[j - 1];
+                --j;
+            }}
+            a[j] = value;
+        }}
+    }}
+
+""")
+        out.append(f"""    /// @dev Whether `a` contains the same value at two indices.
+    function hasDuplicate({ty}[] memory a) internal pure returns (bool) {{
+        if (a.length < 2) return false;
+        uint256 capacity = 1;
+        while (capacity < a.length * 2) capacity *= 2;
+        uint256[] memory seen = new uint256[](capacity);
+        uint256 mask = capacity - 1;
+        for (uint256 i = a.length; i != 0;) {{
+            --i;
+            uint256 slot =
+                mulmod({value}, 0x100000000000000000000000000000051, ~uint256(0xbc)) & mask;
+            while (seen[slot] != 0) {{
+                if (a[seen[slot] - 1] == a[i]) return true;
+                slot = (slot + 1) & mask;
+            }}
+            seen[slot] = i + 1;
+        }}
+        return false;
+    }}
+
+""")
+        out.append(f"""    /// @dev A new array holding the elements of `a`.
+    function copy({ty}[] memory a) internal pure returns ({ty}[] memory c) {{
+        c = new {ty}[](a.length);
+        for (uint256 i; i < a.length; ++i) {{
+            c[i] = a[i];
+        }}
+    }}
+
+""")
+        out.append(f"""    /// @dev Removes adjacent duplicates from sorted `a` in place.
+    function uniquifySorted({ty}[] memory a) internal pure {{
+        if (a.length < 2) return;
+        uint256 write = 1;
+        for (uint256 read = 1; read < a.length; ++read) {{
+            if (a[read] != a[write - 1]) a[write++] = a[read];
+        }}
+        Arrays.truncate(a, write);
+    }}
+
+""")
+        out.append(f"""    /// @dev The sorted union of sorted, duplicate-free `a` and `b`.
+    function union({ty}[] memory a, {ty}[] memory b)
+        internal
+        pure
+        returns ({ty}[] memory c)
+    {{
+        c = new {ty}[](a.length + b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {{
+            {ty} u = a[i];
+            {ty} v = b[j];
+            if (u == v) {{
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            }} else if (u > v) {{
+                c[k] = v;
+                ++k;
+                ++j;
+            }} else {{
+                c[k] = u;
+                ++k;
+                ++i;
+            }}
+        }}
+        while (i < a.length) {{
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }}
+        while (j < b.length) {{
+            c[k] = b[j];
+            ++k;
+            ++j;
+        }}
+        Arrays.truncate(c, k);
+    }}
+
+    /// @dev The sorted intersection of sorted, duplicate-free `a` and `b`.
+    function intersection({ty}[] memory a, {ty}[] memory b)
+        internal
+        pure
+        returns ({ty}[] memory c)
+    {{
+        c = new {ty}[](a.length < b.length ? a.length : b.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {{
+            {ty} u = a[i];
+            {ty} v = b[j];
+            if (u == v) {{
+                c[k] = u;
+                ++k;
+                ++i;
+                ++j;
+            }} else if (u > v) {{
+                ++j;
+            }} else {{
+                ++i;
+            }}
+        }}
+        Arrays.truncate(c, k);
+    }}
+
+    /// @dev The sorted difference of sorted, duplicate-free `a` and `b`.
+    function difference({ty}[] memory a, {ty}[] memory b)
+        internal
+        pure
+        returns ({ty}[] memory c)
+    {{
+        c = new {ty}[](a.length);
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        while (i < a.length && j < b.length) {{
+            {ty} u = a[i];
+            {ty} v = b[j];
+            if (u == v) {{
+                ++i;
+                ++j;
+            }} else if (u > v) {{
+                ++j;
+            }} else {{
+                c[k] = u;
+                ++k;
+                ++i;
+            }}
+        }}
+        while (i < a.length) {{
+            c[k] = a[i];
+            ++k;
+            ++i;
+        }}
+        Arrays.truncate(c, k);
+    }}
+
+""")
+        word = "uint256({})" if ty == "int256" else "{}"
+        before = word.format("keys[j - 1]") + " > " + word.format("key")
+        out.append(f"""    /// @dev Sorts `keys` by their word values with `values` moved alongside,
+    /// keeps one of each key, and gives it the sum of the values its copies had.
+    /// Both arrays shrink to the kept keys. The arrays must have one length, and
+    /// every sum must fit a word.
+    function groupSum({ty}[] memory keys, uint256[] memory values) internal pure {{
+        uint256 n = keys.length;
+        if (values.length != n) n = _outOfBounds();
+        if (n < 2) return;
+        for (uint256 i = 1; i < n; ++i) {{
+            {ty} key = keys[i];
+            uint256 value = values[i];
+            uint256 j = i;
+            while (j != 0 && {before}) {{
+                keys[j] = keys[j - 1];
+                values[j] = values[j - 1];
+                --j;
+            }}
+            keys[j] = key;
+            values[j] = value;
+        }}
+        uint256 kept = 0;
+        uint256 sum = values[0];
+        for (uint256 i = 1; i < n; ++i) {{
+            if (keys[i] == keys[kept]) {{
+                sum += values[i];
+            }} else {{
+                values[kept] = sum;
+                keys[++kept] = keys[i];
+                sum = values[i];
+            }}
+        }}
+        values[kept] = sum;
+        Arrays.truncate(keys, kept + 1);
+        Arrays.truncate(values, kept + 1);
+    }}
+
+""")
+    out.append("""    /// @dev Raises the `Panic(0x32)` an out-of-range index raises, which is the
+    /// portable spelling of a failed range check.
+    function _outOfBounds() private pure returns (uint256) {
+        return new uint256[](0)[0];
+    }
+}
+""")
+    return "".join(out)
+
+
 def cast_module() -> str:
     out = [
         LICENSE,
@@ -393,6 +615,7 @@ library Cast {
     return "".join(out)
 
 
+(ROOT / "WordArrays.sol").write_text(word_arrays_module())
 (ROOT / "Bytes.sol").write_text(bytes_module())
 (ROOT / "Arrays.sol").write_text(arrays_module())
 (ROOT / "Cast.sol").write_text(cast_module())
