@@ -6,6 +6,8 @@
 //! Pointer offsets remain `ptradd`, without claiming a non-wrapping provenance proof.
 //! `-Zno-core-intrinsics` uses the shipped Solidity bodies for differential testing. Targets
 //! without CLZ retain the portable scans; the remaining algorithms stay ordinary library calls.
+//! Unoptimized wide memory reads retain their byte loops and exact memory expansion. Optimized
+//! builds use the word read; they already diagnose `msize` as inexact.
 
 use super::*;
 use solar_sema::core::CoreIntrinsic::{self, *};
@@ -16,6 +18,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         let intrinsic = solar_sema::core::intrinsic_of(self.cx.gcx, id)?;
+        if matches!(intrinsic, CoreIntrinsic::Read { width, calldata: false } if width > 1)
+            && self.cx.module.objective_of(self.builder.func()).is_none()
+        {
+            // Each byte read issues an unaligned MLOAD. The loop's final load can expand
+            // memory beyond the single word read, observable through MSIZE at -O none.
+            return None;
+        }
         if matches!(intrinsic, CoreIntrinsic::LeadingZeros | CoreIntrinsic::HighestSetBit)
             && !self.cx.gcx.sess.opts.evm_version.has_clz()
         {
