@@ -139,9 +139,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_if(
         &mut self,
-        condition: &hir::Expr<'_>,
-        then_stmt: &hir::Stmt<'_>,
-        else_stmt: Option<&hir::Stmt<'_>>,
+        condition: &'gcx hir::Expr<'gcx>,
+        then_stmt: &'gcx hir::Stmt<'gcx>,
+        else_stmt: Option<&'gcx hir::Stmt<'gcx>>,
     ) -> Option<()> {
         let condition_span = condition.span;
         let condition = self.operand(condition)?.id();
@@ -187,7 +187,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
+    pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'gcx>) -> Option<()> {
         let selector = self.lower_yul_word_expr(switch.selector)?;
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
@@ -240,7 +240,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_try(&mut self, try_stmt: &hir::StmtTry<'_>) -> Option<()> {
+    pub(super) fn lower_try(&mut self, try_stmt: &'gcx hir::StmtTry<'gcx>) -> Option<()> {
         // Parenthesizing the target changes nothing about the call it wraps, so peel the parens
         // here exactly as the checker does when it accepts the statement. solc rejects
         // `try (c.f()) { ... }` because its target must be a call syntactically, but the
@@ -630,7 +630,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_yul_word_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+    pub(super) fn lower_yul_word_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<ValueId> {
         let value = self.operand(expr)?.id();
         let ty = self
             .cx
@@ -694,9 +694,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_ternary(
         &mut self,
-        condition: &hir::Expr<'_>,
-        then_expr: &hir::Expr<'_>,
-        else_expr: &hir::Expr<'_>,
+        condition: &'gcx hir::Expr<'gcx>,
+        then_expr: &'gcx hir::Expr<'gcx>,
+        else_expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
     ) -> Option<Word> {
         // branch(condition, then, else)
@@ -720,7 +720,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_ternary_value(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
     ) -> Option<Word> {
         let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -730,9 +730,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_logical(
         &mut self,
-        lhs_expr: &hir::Expr<'_>,
+        lhs_expr: &'gcx hir::Expr<'gcx>,
         op: BinOpKind,
-        rhs_expr: &hir::Expr<'_>,
+        rhs_expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<Word> {
         // if && { branch(lhs, rhs, false) }
         // if || { branch(lhs, lhs, rhs) }
@@ -765,9 +765,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_ternary_values(
         &mut self,
-        condition: &hir::Expr<'_>,
-        then_expr: &hir::Expr<'_>,
-        else_expr: &hir::Expr<'_>,
+        condition: &'gcx hir::Expr<'gcx>,
+        then_expr: &'gcx hir::Expr<'gcx>,
+        else_expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
     ) -> Option<Vec<Word>> {
         let TyKind::Tuple(types) = ty.kind else {
@@ -807,7 +807,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_ternary_components(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         types: &[Ty<'gcx>],
     ) -> Option<Vec<Word>> {
         let TyKind::Tuple(sources) = self.cx.gcx.type_of_expr(expr.id)?.kind else {
@@ -829,8 +829,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_loop(
         &mut self,
-        mut block: hir::Block<'_>,
-        source: LoopSource<'_>,
+        mut block: hir::Block<'gcx>,
+        source: LoopSource<'gcx>,
     ) -> Option<()> {
         self.materialize_default_bindings();
         let update_stmt = match source {
