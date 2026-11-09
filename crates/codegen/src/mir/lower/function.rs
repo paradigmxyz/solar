@@ -281,12 +281,19 @@ struct CallArgumentParams<'a> {
 /// A storage aggregate is its slot, so a consumer that converts after its later operands ran, as
 /// via-IR does, copies it then.
 struct Lowered<'gcx> {
-    word: Word,
+    value: LoweredValue,
     /// The type of the expression, or `None` for a literal that was built at its target type.
     source: Option<Ty<'gcx>>,
     /// The type the consumer converts it to.
     target: Ty<'gcx>,
     span: Span,
+}
+
+enum LoweredValue {
+    Word(Word),
+    /// A `bytes` or `string` literal bound to a memory target, which the consumer allocates when
+    /// it converts the operand, as via-IR's `convert` does.
+    BytesLiteral(ByteSymbol),
 }
 
 impl Lowered<'_> {
@@ -299,6 +306,7 @@ impl Lowered<'_> {
     /// Whether converting the operand allocates a memory copy of it.
     fn copies(&self) -> bool {
         self.waits()
+            || matches!(self.value, LoweredValue::BytesLiteral(_))
             || (self.source.is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata))
                 && self.target.is_ref_at(DataLocation::Memory))
     }

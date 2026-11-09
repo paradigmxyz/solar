@@ -172,6 +172,21 @@ fn @orderedCalldata(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) -> 
     ret v8
 }
 
+; function orderedLiteral(uint256[] memory a, string memory b, uint256[] memory c) internal pure returns (uint256 result)
+fn @orderedLiteral(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg2 to i256
+    v1 = ptrtoint ptr<memory> arg1 to i256
+    v2 = lt v1, v0
+    v3 = zext i1 v2 to i256
+    v4 = ptrtoint ptr<memory> arg1 to i256
+    v5 = ptrtoint ptr<memory> arg0 to i256
+    v6 = lt v5, v4
+    v7 = zext i1 v6 to i256
+    v8 = and v7, v3
+    ret v8
+}
+
 ; function pickThird() internal returns (uint256[] storage)
 fn @pickThird() -> i256 {
   bb0:
@@ -236,6 +251,20 @@ fn @calldataInOrder(arg0: slice<calldata>) -> i256 [selector=0x66636fc0, abi_par
     v19 = icall @load_storage_word_array, v0
     v20 = icall @orderedCalldata, v1, v14, v19
     ret v20
+}
+
+; function literalInOrder() public returns (uint256) [selector 0x8f9cc4db]
+fn @literalInOrder() -> i256 [selector=0x8f9cc4db, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @pickThird
+    v1 = icall @load_storage_word_array, 0
+    v2 = alloc 64 !metadata(preserves_fmp)
+    mstore v2, 3
+    v3 = ptradd v2, 32
+    mstore v3, 0x6162630000000000000000000000000000000000000000000000000000000000
+    v4 = icall @load_storage_word_array, v0
+    v5 = icall @orderedLiteral, v1, v2, v4
+    ret v5
 }
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {

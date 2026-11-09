@@ -285,7 +285,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Lowered<'gcx>> {
         let span = expr.span;
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
-            return Some(Lowered { word: Word::from_clean(value), source: None, target: ty, span });
+            let value = LoweredValue::Word(Word::from_clean(value));
+            return Some(Lowered { value, source: None, target: ty, span });
         }
         let source_expr = self.peel_bytes_conversion(expr);
         if let ExprKind::Lit(lit) = source_expr.peel_parens().kind
@@ -299,8 +300,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )
             )
         {
-            let word = Word::from_clean(self.lower_shared_bytes_literal(*bytes)?);
-            return Some(Lowered { word, source: None, target: ty, span });
+            let value = LoweredValue::BytesLiteral(*bytes);
+            return Some(Lowered { value, source: None, target: ty, span });
         }
         let word = self.lower_expr(expr)?;
         let source = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
@@ -308,7 +309,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
             Some(self.cx.gcx.mk_ty_string_literal(bytes.as_byte_str()))
         });
-        Some(Lowered { word, source, target: ty, span })
+        Some(Lowered { value: LoweredValue::Word(word), source, target: ty, span })
     }
 
     /// Whether lowering `operand` can write state, as sema's view and pure checker finds. Before
@@ -346,9 +347,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Converts a lowered operand to its target type.
     pub(super) fn convert_operand(&mut self, operand: Lowered<'gcx>) -> Option<Word> {
-        match operand.source {
-            Some(source) => self.convert_value(operand.word, source, operand.target, operand.span),
-            None => Some(operand.word),
+        match (operand.value, operand.source) {
+            (LoweredValue::BytesLiteral(bytes), _) => {
+                self.lower_shared_bytes_literal(bytes).map(Word::from_clean)
+            }
+            (LoweredValue::Word(word), Some(source)) => {
+                self.convert_value(word, source, operand.target, operand.span)
+            }
+            (LoweredValue::Word(word), None) => Some(word),
         }
     }
 
