@@ -295,6 +295,13 @@ impl Lowered<'_> {
     fn waits(&self) -> bool {
         self.source.is_some_and(|ty| ty.is_ref_at(DataLocation::Storage))
     }
+
+    /// Whether converting the operand allocates a memory copy of it.
+    fn copies(&self) -> bool {
+        self.waits()
+            || (self.source.is_some_and(|ty| ty.is_ref_at(DataLocation::Calldata))
+                && self.target.is_ref_at(DataLocation::Memory))
+    }
 }
 
 /// An operand that was converted, or that waits for its later operands. `L` is a third kind of
@@ -670,9 +677,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.lower_call_arguments(args, params, span, error, |this, index, argument| {
                 let operand = lower(this, index, argument)?;
                 position += 1;
-                // Once an operand waits, every later one waits behind it, so the copies allocate
+                // Once an operand waits, every later copy waits behind it, so the copies allocate
                 // in argument order.
-                if waited || (waits[position - 1] && operand.waits()) {
+                if (waited && operand.copies()) || (waits[position - 1] && operand.waits()) {
                     waited = true;
                     Some(Step::Wait(operand))
                 } else {
@@ -695,7 +702,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let steps = (0..count)
             .map(|index| {
                 let operand = lower(self, index)?;
-                if waited || (waits[index] && operand.waits()) {
+                if (waited && operand.copies()) || (waits[index] && operand.waits()) {
                     waited = true;
                     Some(Step::Wait(operand))
                 } else {
