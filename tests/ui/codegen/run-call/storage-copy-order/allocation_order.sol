@@ -3,6 +3,8 @@
 //@ run-call: threeInOrder => 1
 //@ run-call: calldataInOrder [1, 2] => 1
 //@ run-call: literalInOrder => 1
+//@ run-call: tupleDeclarationInOrder => 1
+//@ run-call: returnTupleInOrder => 1
 // Copies of storage arrays allocate in argument order, also when only an earlier one has to wait
 // for a later operand that writes storage; a calldata array or a string literal between them is allocated in order too.
 contract C {
@@ -70,5 +72,20 @@ contract C {
 
     function literalInOrder() public returns (uint256) {
         return orderedLiteral(first, "abc", pickThird());
+    }
+
+    function tupleDeclarationInOrder() public returns (uint256) {
+        (uint256[] memory a, uint256[] memory b, uint256[] memory c) =
+            (first, second, pickThird());
+        return orderedThree(a, b, c);
+    }
+
+    function returnTuple() internal returns (uint256[] memory, uint256[] memory, uint256[] memory) {
+        return (first, second, pickThird());
+    }
+
+    function returnTupleInOrder() public returns (uint256) {
+        (uint256[] memory a, uint256[] memory b, uint256[] memory c) = returnTuple();
+        return orderedThree(a, b, c);
     }
 }

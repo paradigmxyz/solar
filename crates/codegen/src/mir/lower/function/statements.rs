@@ -108,6 +108,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 {
                     let waits = self.operands_wait(values.iter().flatten().copied());
                     let mut position = 0;
+                    let mut waited = false;
                     let mut pending = Vec::new();
                     for (id, value) in ids.iter().zip(values.iter()) {
                         let Some(value) = value else {
@@ -132,7 +133,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             continue;
                         }
                         let operand = self.lower_operand(value, ty)?;
-                        if waits && operand.waits() {
+                        // Once a component waits, every later copy waits behind it, so the copies
+                        // allocate in source order.
+                        if (waited && operand.copies()) || (waits && operand.waits()) {
+                            waited = true;
                             pending.push((*id, operand));
                         } else {
                             self.bind_operand(*id, operand)?;

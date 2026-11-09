@@ -1,5 +1,8 @@
 ; === ROOT/tests/ui/codegen/run-call/storage-copy-order/allocation_order.sol:C ===
 @module C
+@types
+  struct0: {ptr<memory>, ptr<memory>, ptr<memory>}
+
 ; creation entry
 fn @constructor() [constructor] {
   bb0:
@@ -265,6 +268,41 @@ fn @literalInOrder() -> i256 [selector=0x8f9cc4db, abi_params=[], abi_returns=[w
     v4 = icall @load_storage_word_array, v0
     v5 = icall @orderedLiteral, v1, v2, v4
     ret v5
+}
+
+; function tupleDeclarationInOrder() public returns (uint256) [selector 0xf2cacce9]
+fn @tupleDeclarationInOrder() -> i256 [selector=0xf2cacce9, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @pickThird
+    v1 = icall @load_storage_word_array, 0
+    v2 = icall @load_storage_word_array, 1
+    v3 = icall @load_storage_word_array, v0
+    v4 = icall @orderedThree, v1, v2, v3
+    ret v4
+}
+
+; function returnTuple() internal returns (uint256[] memory, uint256[] memory, uint256[] memory)
+fn @returnTuple() -> struct0 {
+  bb0:
+    v0 = icall @pickThird
+    v1 = icall @load_storage_word_array, 0
+    v2 = icall @load_storage_word_array, 1
+    v3 = icall @load_storage_word_array, v0
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v2
+    v6 = insert_value struct0, v5, 2, v3
+    ret v6
+}
+
+; function returnTupleInOrder() public returns (uint256) [selector 0x140946cc]
+fn @returnTupleInOrder() -> i256 [selector=0x140946cc, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @returnTuple
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = extract_value struct0, v0, 2
+    v4 = icall @orderedThree, v1, v2, v3
+    ret v4
 }
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
