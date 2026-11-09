@@ -665,11 +665,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Vec<T>> {
         let waits = self.operands_wait(args.exprs());
         let mut position = 0;
+        let mut waited = false;
         let steps =
             self.lower_call_arguments(args, params, span, error, |this, index, argument| {
                 let operand = lower(this, index, argument)?;
                 position += 1;
-                if waits[position - 1] && operand.waits() {
+                // Once an operand waits, every later storage operand waits behind it, so the
+                // copies allocate in argument order.
+                if (waited || waits[position - 1]) && operand.waits() {
+                    waited = true;
                     Some(Step::Wait(operand))
                 } else {
                     finish(this, index, operand).map(Step::Done)
@@ -687,10 +691,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         mut lower: impl FnMut(&mut Self, usize) -> Option<Lowered<'gcx>>,
         mut finish: impl FnMut(&mut Self, usize, Lowered<'gcx>) -> Option<T>,
     ) -> Option<Vec<T>> {
+        let mut waited = false;
         let steps = (0..count)
             .map(|index| {
                 let operand = lower(self, index)?;
-                if waits[index] && operand.waits() {
+                if (waited || waits[index]) && operand.waits() {
+                    waited = true;
                     Some(Step::Wait(operand))
                 } else {
                     finish(self, index, operand).map(Step::Done)

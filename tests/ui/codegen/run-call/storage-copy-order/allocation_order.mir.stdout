@@ -1,0 +1,197 @@
+; === ROOT/tests/ui/codegen/run-call/storage-copy-order/allocation_order.sol:C ===
+@module C
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = alloc 64
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 2
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = gt v2, 2
+    jumpi v3, bb1, bb2
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb4
+    v4 = phi [bb1: 2], [bb4: v8]
+    v5 = lt v4, v2
+    jumpi v5, bb4, bb5
+  bb5:                                            ; preds = bb3
+    jump bb2
+  bb2:                                            ; preds = bb0, bb5
+    sstore 0, 2 !metadata(storage=slot(0))
+    jump bb6
+  bb6:                                            ; preds = bb2, bb7
+    v9 = phi [bb2: 0], [bb7: v16]
+    v10 = lt v9, 2
+    jumpi v10, bb7, bb8
+  bb8:                                            ; preds = bb6
+    v17 = alloc 64
+    mstore v17, 3
+    v18 = ptradd v17, 32
+    mstore v18, 4
+    v19 = sload 1 !metadata(storage=slot(1))
+    v20 = gt v19, 2
+    jumpi v20, bb9, bb10
+  bb9:                                            ; preds = bb8
+    jump bb11
+  bb11:                                           ; preds = bb9, bb12
+    v21 = phi [bb9: 2], [bb12: v25]
+    v22 = lt v21, v19
+    jumpi v22, bb12, bb13
+  bb13:                                           ; preds = bb11
+    jump bb10
+  bb10:                                           ; preds = bb8, bb13
+    sstore 1, 2 !metadata(storage=slot(1))
+    jump bb14
+  bb14:                                           ; preds = bb10, bb15
+    v26 = phi [bb10: 0], [bb15: v33]
+    v27 = lt v26, 2
+    jumpi v27, bb15, bb16
+  bb16:                                           ; preds = bb14
+    v34 = alloc 64
+    mstore v34, 5
+    v35 = ptradd v34, 32
+    mstore v35, 6
+    v36 = sload 2 !metadata(storage=slot(2))
+    v37 = gt v36, 2
+    jumpi v37, bb17, bb18
+  bb17:                                           ; preds = bb16
+    jump bb19
+  bb19:                                           ; preds = bb17, bb20
+    v38 = phi [bb17: 2], [bb20: v42]
+    v39 = lt v38, v36
+    jumpi v39, bb20, bb21
+  bb21:                                           ; preds = bb19
+    jump bb18
+  bb18:                                           ; preds = bb16, bb21
+    sstore 2, 2 !metadata(storage=slot(2))
+    jump bb22
+  bb22:                                           ; preds = bb18, bb23
+    v43 = phi [bb18: 0], [bb23: v50]
+    v44 = lt v43, 2
+    jumpi v44, bb23, bb24
+  bb24:                                           ; preds = bb22
+    ret
+  bb23:                                           ; preds = bb22
+    v45 = shl v43, 5
+    v46 = ptradd v34, v45
+    v47 = mload v46
+    v48 = storage_array_data_slot 2
+    v49 = add v48, v43
+    sstore v49, v47 !metadata(storage=symbolic(v49))
+    v50 = add v43, 1
+    jump bb22
+  bb20:                                           ; preds = bb19
+    v40 = storage_array_data_slot 2
+    v41 = add v40, v38
+    sstore v41, 0 !metadata(storage=symbolic(v41))
+    v42 = add v38, 1
+    jump bb19
+  bb15:                                           ; preds = bb14
+    v28 = shl v26, 5
+    v29 = ptradd v17, v28
+    v30 = mload v29
+    v31 = storage_array_data_slot 1
+    v32 = add v31, v26
+    sstore v32, v30 !metadata(storage=symbolic(v32))
+    v33 = add v26, 1
+    jump bb14
+  bb12:                                           ; preds = bb11
+    v23 = storage_array_data_slot 1
+    v24 = add v23, v21
+    sstore v24, 0 !metadata(storage=symbolic(v24))
+    v25 = add v21, 1
+    jump bb11
+  bb7:                                            ; preds = bb6
+    v11 = shl v9, 5
+    v12 = ptradd v0, v11
+    v13 = mload v12
+    v14 = storage_array_data_slot 0
+    v15 = add v14, v9
+    sstore v15, v13 !metadata(storage=symbolic(v15))
+    v16 = add v9, 1
+    jump bb6
+  bb4:                                            ; preds = bb3
+    v6 = storage_array_data_slot 0
+    v7 = add v6, v4
+    sstore v7, 0 !metadata(storage=symbolic(v7))
+    v8 = add v4, 1
+    jump bb3
+}
+
+; function pickSecond() internal returns (uint256[] storage)
+fn @pickSecond() -> i256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = gt v0, 0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = storage_array_data_slot 0
+    sstore v3, 9 !metadata(storage=symbolic(v3))
+    ret 1
+}
+
+; function ordered(uint256[] memory a, uint256[] memory b) internal pure returns (uint256 result)
+fn @ordered(arg0: ptr<memory>, arg1: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg1 to i256
+    v1 = ptrtoint ptr<memory> arg0 to i256
+    v2 = lt v1, v0
+    v3 = zext i1 v2 to i256
+    ret v3
+}
+
+; function orderedThree(uint256[] memory a, uint256[] memory b, uint256[] memory c) internal pure returns (uint256 result)
+fn @orderedThree(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = ptrtoint ptr<memory> arg2 to i256
+    v1 = ptrtoint ptr<memory> arg1 to i256
+    v2 = lt v1, v0
+    v3 = zext i1 v2 to i256
+    v4 = ptrtoint ptr<memory> arg1 to i256
+    v5 = ptrtoint ptr<memory> arg0 to i256
+    v6 = lt v5, v4
+    v7 = zext i1 v6 to i256
+    v8 = and v7, v3
+    ret v8
+}
+
+; function pickThird() internal returns (uint256[] storage)
+fn @pickThird() -> i256 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = gt v0, 0
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = storage_array_data_slot 0
+    sstore v3, 9 !metadata(storage=symbolic(v3))
+    ret 2
+}
+
+; function inOrder() public returns (uint256) [selector 0x1175b777]
+fn @inOrder() -> i256 [selector=0x1175b777, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @pickSecond
+    v1 = icall @load_storage_word_array, 0
+    v2 = icall @load_storage_word_array, v0
+    v3 = icall @ordered, v1, v2
+    ret v3
+}
+
+; function threeInOrder() public returns (uint256) [selector 0x95138c3b]
+fn @threeInOrder() -> i256 [selector=0x95138c3b, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @pickThird
+    v1 = icall @load_storage_word_array, 0
+    v2 = icall @load_storage_word_array, 1
+    v3 = icall @load_storage_word_array, v0
+    v4 = icall @orderedThree, v1, v2, v3
+    ret v4
+}
+
+fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_array uint256, arg0
+    ret v0
+}
