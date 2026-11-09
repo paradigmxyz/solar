@@ -12,7 +12,6 @@
 //! Library contents are hashed before initialization and checked again before registration.
 
 use crate::{backend::evm::CodegenState, mir::MirPhase};
-use alloy_primitives::{B256, keccak256};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use solar_pass_plugin::{API_VERSION, Ir, Request, Response, host::NativePlugin};
 use solar_sema::Gcx;
@@ -77,17 +76,7 @@ pub(crate) fn registry(gcx: Gcx<'_>) -> Result<Option<&Registry>, ErrorGuarantee
 
 impl Registry {
     fn load(&mut self, path: &Path, plugin: Arc<NativePlugin>) -> Result<(), String> {
-        // Native libraries must exist on the host filesystem, outside virtual source loaders.
-        #[allow(clippy::disallowed_methods)]
-        let path = std::fs::canonicalize(path)
-            .map_err(|error| format!("cannot open pass plugin `{}`: {error}", path.display()))?;
-        let digest = library_digest(&path)?;
         let manifest = plugin.manifest()?;
-        // Loading and initialization can replace a writable library path. Reject changed
-        // contents rather than record bytes that did not supply the loaded callbacks.
-        if library_digest(&path)? != digest {
-            return Err("pass plugin library changed while loading".into());
-        }
         if manifest.api_version != API_VERSION {
             return Err(format!(
                 "plugin `{}` requires API {}, expected {API_VERSION}",
@@ -106,7 +95,12 @@ impl Registry {
                 path.display()
             ));
         }
-        self.identities.push(format!("{}@{}:{:#x}", manifest.name, manifest.version, digest));
+        self.identities.push(format!(
+            "{}@{}:{:#x}",
+            manifest.name,
+            manifest.version,
+            plugin.content_hash()
+        ));
         for definition in manifest.passes {
             let name = format!("{}::{}", manifest.name, definition.name);
             if !valid_name(&definition.name)
@@ -145,11 +139,4 @@ fn valid_name(name: &str) -> bool {
 /// Ordered plugin identities, including the digest of each loaded native library.
 pub fn build_inputs(gcx: Gcx<'_>) -> Result<Vec<String>, ErrorGuaranteed> {
     Ok(registry(gcx)?.map_or_else(Vec::new, |registry| registry.identities.clone()))
-}
-
-fn library_digest(path: &Path) -> Result<B256, String> {
-    // Native libraries are build inputs, outside the virtual Solidity source loader.
-    #[allow(clippy::disallowed_methods)]
-    let bytes = std::fs::read(path).map_err(|error| format!("cannot read pass plugin: {error}"))?;
-    Ok(keccak256(bytes))
 }

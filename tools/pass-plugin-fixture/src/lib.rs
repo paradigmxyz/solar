@@ -55,6 +55,9 @@ impl Plugin for Broken {
     }
 
     fn frontend_manifest(&self) -> api::FrontendManifest {
+        if mode() == "replace_library_frontend" {
+            replace_library();
+        }
         if !mode().starts_with("frontend_") {
             return Default::default();
         }

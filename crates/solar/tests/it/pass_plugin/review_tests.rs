@@ -380,32 +380,35 @@ fn plugin_identity_rejects_library_replacement_during_loading() {
     let path = directory.path().join("test.sol");
     fs::write(&path, "contract C { function f() external {} }").unwrap();
     let bytes = fs::read(sample()).unwrap();
-    for mode in ["replace_library", "replace_library_manifest"] {
-        let plugin = broken(directory.path(), mode);
-        let replacement =
-            directory.path().join(format!("replacement{}", std::env::consts::DLL_SUFFIX));
-        fs::write(&replacement, &bytes).unwrap();
-        let output = Command::new(SOLAR)
-            .args(["--allow=2264", "-j1", "--error-format=rustc-json", "--emit=bin-runtime"])
-            .arg(format!("-Zload-pass-plugin={}", plugin.display()))
-            .arg(&path)
-            .env("SOLAR_TEST_PASS_PLUGIN_MODE", mode)
-            .env("SOLAR_TEST_PLUGIN_PATH", &plugin)
-            .env("SOLAR_TEST_PLUGIN_REPLACEMENT", &replacement)
-            .output()
-            .unwrap();
-        assert_eq!(fs::read(&plugin).unwrap(), bytes);
-        assert!(!output.status.success());
-        assert!(output.stdout.is_empty());
-        assert_data_eq!(
-            messages(&output),
-            str![[r#"
+    for flags in [&["--stop-after", "parsing"][..], &["--emit=bin-runtime"][..]] {
+        for mode in ["replace_library", "replace_library_manifest", "replace_library_frontend"] {
+            let plugin = broken(directory.path(), mode);
+            let replacement =
+                directory.path().join(format!("replacement{}", std::env::consts::DLL_SUFFIX));
+            fs::write(&replacement, &bytes).unwrap();
+            let output = Command::new(SOLAR)
+                .args(["--allow=2264", "-j1", "--error-format=rustc-json"])
+                .args(flags)
+                .arg(format!("-Zload-pass-plugin={}", plugin.display()))
+                .arg(&path)
+                .env("SOLAR_TEST_PASS_PLUGIN_MODE", mode)
+                .env("SOLAR_TEST_PLUGIN_PATH", &plugin)
+                .env("SOLAR_TEST_PLUGIN_REPLACEMENT", &replacement)
+                .output()
+                .unwrap();
+            assert_eq!(fs::read(&plugin).unwrap(), bytes);
+            assert!(!output.status.success());
+            assert!(output.stdout.is_empty());
+            assert_data_eq!(
+                messages(&output),
+                str![[r#"
 [
   "pass plugin library changed while loading",
   "aborting due to 1 previous error"
 ]
 "#]],
-        );
+            );
+        }
     }
 }
 

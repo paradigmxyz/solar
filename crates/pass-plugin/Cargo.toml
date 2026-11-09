@@ -12,7 +12,11 @@ repository.workspace = true
 workspace = true
 
 [features]
-host = ["dep:libloading"]
+host = ["dep:alloy-primitives", "dep:libloading"]
+
+[dependencies]
+# host
+alloy-primitives = { workspace = true, optional = true }
 
 [target.'cfg(any(unix, windows))'.dependencies]
 # host

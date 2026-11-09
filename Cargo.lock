@@ -4662,6 +4662,7 @@ dependencies = [
 name = "solar-pass-plugin"
 version = "0.3.0"
 dependencies = [
+ "alloy-primitives",
  "libloading",
 ]
 

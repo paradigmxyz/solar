@@ -1,11 +1,14 @@
-//! Native plugin loading shared by compiler stages.
+//! Native plugin loading shared by compiler stages. Library contents are hashed before loading
+//! and checked after initialization and registration callbacks. The captured digest stays with
+//! the loaded library so later metadata never hashes a replacement at the original path.
 
 use crate::{
     __private::{ABI_SYMBOL, ENTRY_SYMBOL, Entry, Exports, Receiver, build_fingerprint},
     BuiltinBody, Expansion, ExpansionRequest, FrontendManifest, Manifest, Request, Response,
 };
+use alloy_primitives::{B256, keccak256};
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Mutex, OnceLock},
 };
 
@@ -15,6 +18,8 @@ use libloading::Library;
 /// A loaded native library. Its callbacks are serialized and the library stays loaded until drop.
 pub struct NativePlugin {
     exports: &'static Exports,
+    path: PathBuf,
+    digest: B256,
     calls: Mutex<()>,
     manifest: OnceLock<Result<Manifest, String>>,
     frontend: OnceLock<Result<FrontendManifest, String>>,
@@ -28,6 +33,7 @@ impl NativePlugin {
     pub fn load(path: &Path) -> Result<Self, String> {
         #[cfg(any(unix, windows))]
         {
+            let digest = library_digest(path)?;
             // SAFETY: Loading was explicitly requested. Libraries must use the Rust SDK,
             // including its export adapter and initialization/destruction contract.
             let library = unsafe { Library::new(path) }.map_err(|error| {
@@ -55,13 +61,17 @@ impl NativePlugin {
                 )
             })?;
             let exports = entry();
-            Ok(Self {
+            let plugin = Self {
                 exports,
+                path: path.to_owned(),
+                digest,
                 calls: Mutex::new(()),
                 manifest: OnceLock::new(),
                 frontend: OnceLock::new(),
                 _library: library,
-            })
+            };
+            plugin.verify_identity()?;
+            Ok(plugin)
         }
         #[cfg(not(any(unix, windows)))]
         Err(format!("native pass plugins are not supported on this target: `{}`", path.display()))
@@ -72,7 +82,9 @@ impl NativePlugin {
         self.manifest
             .get_or_init(|| {
                 let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
-                receive(|respond| (self.exports.manifest)(respond))
+                let manifest = receive(|respond| (self.exports.manifest)(respond))?;
+                self.verify_identity()?;
+                Ok(manifest)
             })
             .clone()
     }
@@ -94,7 +106,9 @@ impl NativePlugin {
         self.frontend
             .get_or_init(|| {
                 let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
-                receive(|respond| (self.exports.frontend_manifest)(respond))
+                let frontend = receive(|respond| (self.exports.frontend_manifest)(respond))?;
+                self.verify_identity()?;
+                Ok(frontend)
             })
             .clone()
     }
@@ -103,6 +117,18 @@ impl NativePlugin {
     pub fn expand(&self, request: &ExpansionRequest) -> Result<Expansion, String> {
         let _guard = self.calls.lock().map_err(|_| "plugin call lock is poisoned")?;
         receive(|respond| (self.exports.expand)(request, respond))
+    }
+
+    /// Returns the library content hash captured before loading and initialization.
+    pub fn content_hash(&self) -> B256 {
+        self.digest
+    }
+
+    fn verify_identity(&self) -> Result<(), String> {
+        if library_digest(&self.path)? != self.digest {
+            return Err("pass plugin library changed while loading".into());
+        }
+        Ok(())
     }
 }
 
@@ -120,4 +146,11 @@ fn receive<T: Clone>(call: impl FnOnce(&mut Receiver<'_, T>)) -> Result<T, Strin
         return Err("Rust plugin returned more than one response".into());
     }
     response.ok_or_else(|| "Rust plugin did not return a response".to_owned())?
+}
+
+fn library_digest(path: &Path) -> Result<B256, String> {
+    // Native libraries are build inputs, outside the virtual Solidity source loader.
+    #[allow(clippy::disallowed_methods)]
+    let bytes = std::fs::read(path).map_err(|error| format!("cannot read pass plugin: {error}"))?;
+    Ok(keccak256(bytes))
 }
