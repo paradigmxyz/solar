@@ -6,8 +6,9 @@
 //! Pointer offsets remain `ptradd`, without claiming a non-wrapping provenance proof.
 //! `-Zno-core-intrinsics` uses the shipped Solidity bodies for differential testing. Targets
 //! without CLZ retain the portable scans; the remaining algorithms stay ordinary library calls.
-//! Unoptimized wide memory reads retain their byte loops and exact memory expansion. Optimized
-//! builds use the word read; they already diagnose `msize` as inexact.
+//! Unoptimized wide memory reads, partial writes and memory copies retain their byte loops and
+//! exact memory expansion. Optimized builds use the word operations; they already diagnose
+//! `msize` as inexact.
 
 use super::*;
 use solar_sema::core::CoreIntrinsic::{self, *};
@@ -18,12 +19,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return None;
         }
         let intrinsic = solar_sema::core::intrinsic_of(self.cx.gcx, id)?;
-        if matches!(intrinsic, CoreIntrinsic::Read { width, calldata: false } if width > 1)
-            && self.cx.module.objective_of(self.builder.func()).is_none()
-        {
-            // Each byte read issues an unaligned MLOAD. The loop's final load can expand
-            // memory beyond the single word read, observable through MSIZE at -O none.
-            return None;
+        if self.cx.module.objective_of(self.builder.func()).is_none() {
+            // Byte reads use unaligned MLOADs and byte writes use MSTORE8. Their loops
+            // can expand memory differently from a word read, masked write or MCOPY.
+            // Keep that observable MSIZE behavior at -O none.
+            match intrinsic {
+                CoreIntrinsic::Read { width, calldata: false } if width > 1 => return None,
+                CoreIntrinsic::Write(width) if width < 32 => return None,
+                CoreIntrinsic::Copy { calldata: false } => return None,
+                _ => {}
+            }
         }
         if matches!(intrinsic, CoreIntrinsic::LeadingZeros | CoreIntrinsic::HighestSetBit)
             && !self.cx.gcx.sess.opts.evm_version.has_clz()
