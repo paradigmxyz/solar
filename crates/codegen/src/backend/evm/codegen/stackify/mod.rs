@@ -221,9 +221,9 @@ enum Step {
     /// Calls an internal function whose arguments are prepared, with the physical height of the
     /// stack below its arguments.
     Call(FunctionId, usize),
-    /// Stores the extra results below the first result of a call to the callee's return area
-    /// and publishes it as the multi-return buffer.
-    Publish { callee: FunctionId, arity: usize, params: usize },
+    /// Stores the extra results below the first result of the call `inst` to the callee's return
+    /// area and publishes it as the multi-return buffer.
+    Publish { inst: InstId, callee: FunctionId, arity: usize, params: usize },
 }
 
 impl Step {

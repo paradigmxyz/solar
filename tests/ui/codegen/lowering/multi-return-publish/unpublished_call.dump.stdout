@@ -1,0 +1,126 @@
+; === ROOT/tests/ui/codegen/lowering/multi-return-publish/unpublished_call.sol:UnpublishedCall ===
+@module UnpublishedCall
+@phase lowered
+; backend-memory-v1
+; backend-frames 1 0xe0
+; backend-stack 3 2 3,4,5 5
+; backend-return 3 0xa0
+; backend-stack 4 16 - -
+; backend-entry 4 0xe0
+; backend-frames 4 0xe0
+; backend-stack 5 3 - -
+; backend-stack 5 4 - -
+; backend-entry 5 0xe0
+; backend-frames 5 0xe0
+
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb2, bb1
+  bb1:                                            ; preds = bb0
+    ret
+  bb2 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}
+
+; runtime dispatch entry
+fn @entry() [entry] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb5, bb1
+  bb1:                                            ; preds = bb0
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb5, [0x3cf3bbf4 => bb2, 0x7c2efcba => bb3, 0xdfbf99b6 => bb4]
+  bb4:                                            ; preds = bb1
+    tail_call @once
+  bb3:                                            ; preds = bb1
+    tail_call @v
+  bb2:                                            ; preds = bb1
+    tail_call @twice
+  bb5 [cold]:                                     ; preds = bb0, bb1
+    revert 0, 0
+}
+
+; function v() external pure returns (bool, uint256) [selector 0x7c2efcba]
+fn @v() {
+  bb0:
+    mstore 0, 1
+    mstore 32, 7 !metadata(memory=scratch)
+    returndata 0, 64
+}
+
+; function rec(uint256 x) internal returns (uint256, bool)
+fn @rec(arg0: i256) [return_abi=[i256, i1]] {
+  bb0:
+    v0 = gt arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    ret arg0, true
+  bb1:                                            ; preds = bb0
+    v1 = sub arg0, 1
+    v9 = icall @rec, v1
+    v14 = mload 32 !metadata(memory=scratch)
+    v11 = add v14, 32
+    v12 = mload v11
+    v13 = ne v12, 0
+    ret v9, v13
+}
+
+; function twice(uint256 x) external returns (uint256 a, uint256 j, uint256 b) [selector 0x3cf3bbf4]
+fn @twice() {
+  bb0:
+    v25 = calldatasize
+    v26 = lt v25, 36
+    jumpi v26, bb3, bb6
+  bb6:                                            ; preds = bb0
+    v27 = calldataload 4
+    v33 = icall @rec, v27
+    v3: i256 = address
+    v4 = gas
+    mstore 0, 0x7c2efcba !metadata(memory=scratch)
+    v6 = call v4, v3, 0, 28, 4, 0, 64
+    jumpi v6, bb2, bb1
+  bb1 [cold]:                                     ; preds = bb6
+    v23 = returndatasize
+    returndatacopy 0, 0, v23 !metadata(memory=abi_return)
+    v24 = returndatasize
+    revert 0, v24
+  bb2:                                            ; preds = bb6
+    v7 = returndatasize
+    v8 = lt v7, 64
+    jumpi v8, bb3, bb4
+  bb4:                                            ; preds = bb2
+    v9 = mload 0 !metadata(memory=scratch)
+    v10 = gt v9, 1
+    jumpi v10, bb3, bb5
+  bb5:                                            ; preds = bb4
+    v11 = mload 32 !metadata(memory=scratch)
+    v28 = icall @rec, v27
+    mstore 0, v33
+    mstore 32, v11 !metadata(memory=scratch)
+    mstore 64, v28
+    returndata 0, 96
+  bb3 [cold]:                                     ; preds = bb0, bb2, bb4
+    revert 0, 0
+}
+
+; function once(uint256 x) external returns (uint256 a, uint256 b) [selector 0xdfbf99b6]
+fn @once() {
+  bb0:
+    v8 = calldatasize
+    v9 = lt v8, 36
+    jumpi v9, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v10 = calldataload 4
+    v11 = icall @rec, v10
+    v16 = icall @rec, v10
+    mstore 0, v11
+    mstore 32, v16
+    returndata 0, 64
+  bb1 [cold]:                                     ; preds = bb0
+    revert 0, 0
+}

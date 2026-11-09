@@ -344,8 +344,8 @@ fn remap_steps(
         .map(|step| {
             Some(match step {
                 Step::Call(callee, height) => Step::Call(map(*callee)?, *height),
-                &Step::Publish { callee, arity, params } => {
-                    Step::Publish { callee: map(callee)?, arity, params }
+                &Step::Publish { inst, callee, arity, params } => {
+                    Step::Publish { inst, callee: map(callee)?, arity, params }
                 }
                 step => step.clone(),
             })

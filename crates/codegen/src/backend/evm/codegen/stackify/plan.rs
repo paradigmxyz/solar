@@ -2093,7 +2093,12 @@ impl<'a> Planner<'a> {
             if self.publish.contains(inst) {
                 // [result(m-1), ..., result1, result0] -> [result0], storing result1.. to the
                 // callee's return area
-                sim.steps.push(Step::Publish { callee, arity, params: self.info.params[callee] });
+                sim.steps.push(Step::Publish {
+                    inst,
+                    callee,
+                    arity,
+                    params: self.info.params[callee],
+                });
                 let top = sim.stack.pop().unwrap();
                 sim.stack.truncate(sim.stack.len() + 1 - arity);
                 sim.stack.push(top);
@@ -3396,10 +3401,9 @@ fn unbound_buffer_read(func: &Function, skipped: &DenseBitSet<InstId>, inst: Ins
             if func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
 }
 
-/// Whether a read of the multi-return buffer pointer that no call binds may run after `call`
-/// with the word the call left there: whether such a read is reachable from the call along a
-/// path that does not overwrite the whole word first. Only these reads could observe the
-/// call's results, so a call that reaches none, such as one on another branch than an ABI
+/// Whether a read of the multi-return buffer pointer that no call binds is reachable from
+/// `call` along a path that does not first overwrite the whole word. Only such reads can observe
+/// the call's results, so a call that reaches none, such as one on another branch than an ABI
 /// decoder reading the scratch word at the same address, need not publish them.
 fn reaches_unbound_buffer_read(
     func: &Function,
@@ -3433,7 +3437,7 @@ fn reaches_unbound_buffer_read(
         return found;
     }
     let mut visited = DenseBitSet::new_empty(func.blocks.len());
-    let mut worklist: Vec<BlockId> = cfg.successors(block).to_vec();
+    let mut worklist = cfg.successors(block).to_vec();
     while let Some(block) = worklist.pop() {
         if !visited.insert(block) {
             continue;
