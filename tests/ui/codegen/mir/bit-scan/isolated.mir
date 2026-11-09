@@ -1,0 +1,219 @@
+//@compile-flags: -Zmir-pipeline=bit-scan
+//@filecheck:
+@module BitScan
+
+// A search that accumulates its shift and ends in a nibble table: the index of the highest set
+// bit, zero for zero.
+// CHECK-LABEL: {{^[ +].*}}fn @accumulated{{[( ]}}
+// CHECK: {{^}}+ [[ODD:v[0-9]+]] = or arg0, 1
+// CHECK-NEXT: {{^}}+ [[ZEROS:v[0-9]+]] = clz [[ODD]]
+// CHECK-NEXT: {{^}}+ [[INDEX:v[0-9]+]] = sub 255, [[ZEROS]]
+// CHECK-NEXT: {{^}} ret [[INDEX]]
+fn @accumulated(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v3 = shl v1, 7
+    v4 = shr arg0, v3
+    v5 = gt v4, 0xffffffffffffffff
+    v6 = zext i1 v5 to i256
+    v8 = shl v6, 6
+    v9 = or v3, v8
+    v10 = shr arg0, v9
+    v11 = gt v10, 0xffffffff
+    v12 = zext i1 v11 to i256
+    v14 = shl v12, 5
+    v15 = or v9, v14
+    v16 = shr arg0, v15
+    v17 = gt v16, 0xffff
+    v18 = zext i1 v17 to i256
+    v20 = shl v18, 4
+    v21 = or v15, v20
+    v22 = shr arg0, v21
+    v23 = gt v22, 255
+    v24 = zext i1 v23 to i256
+    v26 = shl v24, 3
+    v27 = or v21, v26
+    v28 = shr arg0, v27
+    v29 = gt v28, 15
+    v30 = zext i1 v29 to i256
+    v32 = shl v30, 2
+    v33 = or v27, v32
+    v34 = shr arg0, v33
+    v35 = byte v34, 0x10102020202030303030303030300000000000000000000000000000000
+    v36 = or v33, v35
+    ret v36
+}
+
+// The first test spelled as a shift, as a size build spells a comparison with a wide constant.
+// CHECK-LABEL: {{^[ +].*}}fn @shifted_half{{[( ]}}
+// CHECK: {{^}}+ [[ODD:v[0-9]+]] = or arg0, 1
+// CHECK-NEXT: {{^}}+ [[ZEROS:v[0-9]+]] = clz [[ODD]]
+// CHECK-NEXT: {{^}}+ [[INDEX:v[0-9]+]] = sub 255, [[ZEROS]]
+// CHECK-NEXT: {{^}} ret [[INDEX]]
+fn @shifted_half(arg0: i256) -> i256 {
+  bb0:
+    v40 = shr arg0, 128
+    v0 = ne v40, 0
+    v1 = zext i1 v0 to i256
+    v3 = shl v1, 7
+    v4 = shr arg0, v3
+    v5 = gt v4, 0xffffffffffffffff
+    v6 = zext i1 v5 to i256
+    v8 = shl v6, 6
+    v9 = or v3, v8
+    v10 = shr arg0, v9
+    v11 = gt v10, 0xffffffff
+    v12 = zext i1 v11 to i256
+    v14 = shl v12, 5
+    v15 = or v9, v14
+    v16 = shr arg0, v15
+    v17 = gt v16, 0xffff
+    v18 = zext i1 v17 to i256
+    v20 = shl v18, 4
+    v21 = or v15, v20
+    v22 = shr arg0, v21
+    v23 = gt v22, 255
+    v24 = zext i1 v23 to i256
+    v26 = shl v24, 3
+    v27 = or v21, v26
+    v28 = shr arg0, v27
+    v29 = gt v28, 15
+    v30 = zext i1 v29 to i256
+    v32 = shl v30, 2
+    v33 = or v27, v32
+    v34 = shr arg0, v33
+    v35 = byte v34, 0x10102020202030303030303030300000000000000000000000000000000
+    v36 = or v33, v35
+    ret v36
+}
+
+// A step of the search that something else reads stays; the steps only the search read go.
+// CHECK-LABEL: {{^[ +].*}}fn @shared{{[( ]}}
+// CHECK: {{^}} [[UPPER:v[0-9]+]] = gt arg0, 0xffffffffffffffffffffffffffffffff
+// CHECK-NEXT: {{^}} [[FLAG:v[0-9]+]] = zext i1 [[UPPER]] to i256
+// CHECK-NEXT: {{^}} [[HALF:v[0-9]+]] = shl [[FLAG]], 7
+// CHECK: {{^}}+ [[ODD:v[0-9]+]] = or arg0, 1
+// CHECK-NEXT: {{^}}+ [[ZEROS:v[0-9]+]] = clz [[ODD]]
+// CHECK-NEXT: {{^}}+ [[INDEX:v[0-9]+]] = sub 255, [[ZEROS]]
+// CHECK-NEXT: {{^}} [[SUM:v[0-9]+]] = add [[INDEX]], [[HALF]]
+// CHECK-NEXT: {{^}} ret [[SUM]]
+fn @shared(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v3 = shl v1, 7
+    v4 = shr arg0, v3
+    v5 = gt v4, 0xffffffffffffffff
+    v6 = zext i1 v5 to i256
+    v8 = shl v6, 6
+    v9 = or v3, v8
+    v10 = shr arg0, v9
+    v11 = gt v10, 0xffffffff
+    v12 = zext i1 v11 to i256
+    v14 = shl v12, 5
+    v15 = or v9, v14
+    v16 = shr arg0, v15
+    v17 = gt v16, 0xffff
+    v18 = zext i1 v17 to i256
+    v20 = shl v18, 4
+    v21 = or v15, v20
+    v22 = shr arg0, v21
+    v23 = gt v22, 255
+    v24 = zext i1 v23 to i256
+    v26 = shl v24, 3
+    v27 = or v21, v26
+    v28 = shr arg0, v27
+    v29 = gt v28, 15
+    v30 = zext i1 v29 to i256
+    v32 = shl v30, 2
+    v33 = or v27, v32
+    v34 = shr arg0, v33
+    v35 = byte v34, 0x10102020202030303030303030300000000000000000000000000000000
+    v36 = or v33, v35
+    v37 = add v36, v3
+    ret v37
+}
+
+// The search reads only its own block: one that a jump splits is not followed.
+// CHECK-LABEL: {{^[ +].*}}fn @split{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK: {{^}} ret
+fn @split(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v3 = shl v1, 7
+    jump bb1
+  bb1:
+    v4 = shr arg0, v3
+    v5 = gt v4, 0xffffffffffffffff
+    v6 = zext i1 v5 to i256
+    v8 = shl v6, 6
+    v9 = or v3, v8
+    v10 = shr arg0, v9
+    v11 = gt v10, 0xffffffff
+    v12 = zext i1 v11 to i256
+    v14 = shl v12, 5
+    v15 = or v9, v14
+    v16 = shr arg0, v15
+    v17 = gt v16, 0xffff
+    v18 = zext i1 v17 to i256
+    v20 = shl v18, 4
+    v21 = or v15, v20
+    v22 = shr arg0, v21
+    v23 = gt v22, 255
+    v24 = zext i1 v23 to i256
+    v26 = shl v24, 3
+    v27 = or v21, v26
+    v28 = shr arg0, v27
+    v29 = gt v28, 15
+    v30 = zext i1 v29 to i256
+    v32 = shl v30, 2
+    v33 = or v27, v32
+    v34 = shr arg0, v33
+    v35 = byte v34, 0x10102020202030303030303030300000000000000000000000000000000
+    v36 = or v33, v35
+    ret v36
+}
+
+// The same steps over two words: the table reads the wrong one, so the value is no function of
+// either alone.
+// CHECK-LABEL: {{^[ +].*}}fn @two_words{{[( ]}}
+// CHECK-NOT: {{^[-+]}}
+// CHECK: {{^}} ret
+fn @two_words(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v3 = shl v1, 7
+    v4 = shr arg0, v3
+    v5 = gt v4, 0xffffffffffffffff
+    v6 = zext i1 v5 to i256
+    v8 = shl v6, 6
+    v9 = or v3, v8
+    v10 = shr arg0, v9
+    v11 = gt v10, 0xffffffff
+    v12 = zext i1 v11 to i256
+    v14 = shl v12, 5
+    v15 = or v9, v14
+    v16 = shr arg0, v15
+    v17 = gt v16, 0xffff
+    v18 = zext i1 v17 to i256
+    v20 = shl v18, 4
+    v21 = or v15, v20
+    v22 = shr arg0, v21
+    v23 = gt v22, 255
+    v24 = zext i1 v23 to i256
+    v26 = shl v24, 3
+    v27 = or v21, v26
+    v28 = shr arg0, v27
+    v29 = gt v28, 15
+    v30 = zext i1 v29 to i256
+    v32 = shl v30, 2
+    v33 = or v27, v32
+    v34 = shr arg1, v33
+    v35 = byte v34, 0x10102020202030303030303030300000000000000000000000000000000
+    v36 = or v33, v35
+    ret v36
+}

@@ -807,7 +807,12 @@ impl Target {
 
     /// Estimated code of one instruction: its operation and the pushes of its immediate operands.
     pub(crate) fn instruction_estimate(&self, func: &Function, inst: InstId) -> Cost {
-        let kind = &func.inst(inst).kind;
+        self.kind_estimate(func, &func.inst(inst).kind)
+    }
+
+    /// Estimated code of an operation on values of `func`, whether it is in the function yet or
+    /// not: the operation and the pushes of its immediate operands.
+    pub(crate) fn kind_estimate(&self, func: &Function, kind: &InstKind) -> Cost {
         let immediate = |value| func.value_u256(value);
         let mut cost = self.op(&kind.op(), immediate);
         kind.visit_operands(|operand| {
