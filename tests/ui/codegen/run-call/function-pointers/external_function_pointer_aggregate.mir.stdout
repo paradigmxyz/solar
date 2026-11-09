@@ -189,7 +189,7 @@ fn @pointerArgumentRoundtrip() -> i256 [selector=0x358b91d8, view, abi_params=[]
     v4 = shl v3, 32
     v5 = or v4, 0x7cf5dab0
     v6 = abi_encode [function, word], object, selector 0xec460bea00000000000000000000000000000000000000000000000000000000, args v5, 7
-    v7 = extstaticcall<create> v0, v6, gas v1
+    v7 = extcall static create v0, v6, gas v1
     v8 = icall returndata_bytes<>
     v9 = eq v7, false
     icall revert_if<empty>, v9

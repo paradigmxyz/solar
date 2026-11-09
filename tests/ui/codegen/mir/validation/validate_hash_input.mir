@@ -1,0 +1,16 @@
+//@ compile-flags: -Zmir-pipeline=none
+@module InvalidHashInput
+
+//~? ERROR: [fn0] [bb0, inst0] `extcall` has incompatible scalar types; use an explicit cast
+fn @sha_calldata(arg0: slice<calldata>) -> i256 {
+  bb0:
+    v0 = extcall static scratch revert create i160 2, arg0
+    ret v0
+}
+
+//~? ERROR: [fn1] [bb0, inst0] `extcall` has incompatible scalar types; use an explicit cast
+fn @ripemd_returndata(arg0: slice<returndata>) -> i256 {
+  bb0:
+    v0 = extcall static scratch revert create i160 3, arg0
+    ret v0
+}

@@ -9,10 +9,9 @@
 //! declared type.
 //!
 //! The pass is required and runs after `lower-memory-objects` and before `lower-alloc`; the
-//! backend accepts no slice value. Builtins that consume slices must expand in `lower-builtins`
-//! first: they read a slice's length, and a headerless memory slice replaced by its pointer
-//! would be mistaken for an object whose length is the word it points to. The pass rejects such
-//! a builtin before it edits anything.
+//! backend accepts no slice value. Builtins that consume slices must run through `lower-builtins`
+//! first: replacing their slices with pointers would lose the lengths, and memory slices could
+//! then be mistaken for objects with length headers. Reject such consumers before any edits.
 //!
 //! Slice-typed `select` and `phi` first split into pointer and length operations. An internal
 //! slice parameter becomes a pointer and a length word. A returned slice whose producer is a real
@@ -51,8 +50,8 @@ impl MirPass for LowerSlices {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         if module.functions.iter().any(|func| {
-            func.instructions().any(|id| {
-                let kind = &func.inst(id).kind;
+            func.instructions().any(|inst| {
+                let kind = &func.inst(inst).kind;
                 kind.op_def().phase_category == Some(PhaseCategory::Builtin)
                     && kind
                         .operands()
@@ -62,7 +61,7 @@ impl MirPass for LowerSlices {
         }) {
             analyses.fail(
                 gcx.dcx()
-                    .err("`lower-slices` requires expanded builtins; run `lower-builtins` first")
+                    .err("`lower-slices` requires lowered builtin slice operands; run `lower-builtins` first")
                     .emit(),
             );
             return false;

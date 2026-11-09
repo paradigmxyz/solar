@@ -5,7 +5,7 @@
 
 contract Caller {
     // CHECK-LABEL: fn @probe
-    // CHECK: extstaticcall
+    // CHECK: extcall static
     function probe(address target) external view returns (bool) {
         (bool success,) = target.staticcall("");
         //~[homestead]^ ERROR: builtin `staticcall` requires Byzantium-compatible EVM

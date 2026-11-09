@@ -157,18 +157,18 @@ fn @view() [view] {
 }
 
 // CHECK-LABEL: fn @precompiles
-// CHECK: = extstaticcall<scratch, revert, create> i160 2, arg0
-// CHECK: = extstaticcall<scratch, revert, create> i160 3, arg0
-// CHECK: = extstaticcall<scratch_clear, revert, create> i160 1, arg0
-// CHECK: = extcall<> arg1, arg0, gas 0x8fc, value 1
-// CHECK: extcall<revert> arg1, gas 0x8fc, value 1
+// CHECK: = extcall static scratch revert create i160 2, arg0
+// CHECK: = extcall static scratch revert create i160 3, arg0
+// CHECK: = extcall static scratch_clear revert create i160 1, arg0
+// CHECK: = extcall arg1, arg0, gas 0x8fc, value 1
+// CHECK: extcall revert arg1, gas 0x8fc, value 1
 fn @precompiles(arg0: ptr<memory>, arg1: i160) -> i256 {
   bb0:
-    v1 = extstaticcall<scratch, revert, create> i160 2, arg0
-    v2 = extstaticcall<scratch, revert, create> i160 3, arg0
-    v3 = extstaticcall<scratch_clear, revert, create> i160 1, arg0
-    v4 = extcall<> arg1, arg0, gas 2300, value 1
-    extcall<revert> arg1, gas 2300, value 1
+    v1 = extcall static scratch revert create i160 2, arg0
+    v2 = extcall static scratch revert create i160 3, arg0
+    v3 = extcall static scratch_clear revert create i160 1, arg0
+    v4 = extcall arg1, arg0, gas 2300, value 1
+    extcall revert arg1, gas 2300, value 1
     ret v3
 }
 

@@ -1764,7 +1764,7 @@ impl<'a> FunctionBuilder<'a> {
         gas: Option<ValueId>,
         value: Option<ValueId>,
     ) -> Option<ValueId> {
-        // result? = extcall<policy>(address, input?, gas?, value?)
+        // result? = extcall <policy> address, input?, gas?, value?
         let kind = InstKind::ExtCall { policy, address, input, gas, value };
         match policy.result_type() {
             Some(ty) => Some(self.emit_inst(kind, Some(ty))),

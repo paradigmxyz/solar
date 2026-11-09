@@ -4,14 +4,14 @@
 //~? ERROR: [fn0] [bb0, inst0] `extcall` has incompatible scalar types; use an explicit cast
 fn @send_object(arg0: ptr<memory>) -> i1 {
   bb0:
-    v0 = extcall<> arg0, gas 0, value 1
+    v0 = extcall arg0, gas 0, value 1
     ret v0
 }
 
 //~? ERROR: [fn1] [bb0, inst0] `extcall` has incompatible scalar types; use an explicit cast
 fn @transfer_object(arg0: ptr<memory>) {
   bb0:
-    extcall<revert> 0, gas 0, value arg0
+    extcall revert 0, gas 0, value arg0
     ret
 }
 

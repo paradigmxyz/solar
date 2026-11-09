@@ -3,7 +3,7 @@
   @module AddressCallExpansion
   fn @hash_object(arg0: ptr<memory>) -> i256 {
     bb0:
--     v0 = extstaticcall<scratch, revert, create> i160 2, arg0
+-     v0 = extcall static scratch revert create i160 2, arg0
 -     ret v0
 +     v1 = ptradd arg0, 32
 +     v2 = mload arg0
@@ -19,7 +19,7 @@
   
   fn @hash_slice(arg0: slice<memory>) -> i256 {
     bb0:
--     v0 = extstaticcall<scratch, revert, create> i160 3, arg0
+-     v0 = extcall static scratch revert create i160 3, arg0
 -     ret v0
 +     v1 = extract_value slice<memory>, arg0, 0
 +     v2 = extract_value slice<memory>, arg0, 1
@@ -35,7 +35,7 @@
   
   fn @recover(arg0: slice<memory>) -> i256 {
     bb0:
--     v0 = extstaticcall<scratch_clear, revert, create> i160 1, arg0
+-     v0 = extcall static scratch_clear revert create i160 1, arg0
 -     ret v0
 +     v1 = extract_value slice<memory>, arg0, 0
 +     v2 = extract_value slice<memory>, arg0, 1
@@ -52,7 +52,7 @@
   
   fn @send(arg0: i160, arg1: i256, arg2: i256) -> i1 {
     bb0:
--     v0 = extcall<> arg0, gas arg2, value arg1
+-     v0 = extcall arg0, gas arg2, value arg1
 -     ret v0
 +     v1 = zext i160 arg0 to i256
 +     v2 = call arg2, v1, arg1, 0, 0, 0, 0
@@ -61,7 +61,7 @@
   
   fn @transfer(arg0: i160, arg1: i256, arg2: i256) {
     bb0:
--     extcall<revert> arg0, gas arg2, value arg1
+-     extcall revert arg0, gas arg2, value arg1
 +     v0 = zext i160 arg0 to i256
 +     v1 = call arg2, v0, arg1, 0, 0, 0, 0
 +     jumpi v1, bb2, bb1
@@ -73,7 +73,7 @@
   
   fn @bare_with_value(arg0: i160, arg1: ptr<memory>, arg2: i256) -> i1 {
     bb0:
--     v0 = extcall<create> arg0, arg1, value arg2
+-     v0 = extcall create arg0, arg1, value arg2
 -     ret v0
 +     v1 = ptradd arg1, 32
 +     v2 = mload arg1
@@ -85,7 +85,7 @@
   
   fn @bare_delegate(arg0: i160, arg1: ptr<memory>) -> i1 {
     bb0:
--     v0 = extdelegatecall<create> arg0, arg1
+-     v0 = extcall delegate create arg0, arg1
 -     ret v0
 +     v1 = ptradd arg1, 32
 +     v2 = mload arg1

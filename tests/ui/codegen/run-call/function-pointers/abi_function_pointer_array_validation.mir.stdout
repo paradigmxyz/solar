@@ -86,7 +86,7 @@ fn @invoke(arg0: i256, arg1: i1, arg2: i256) -> i256 [view] {
   bb3:                                            ; preds = bb1, bb2
     v14 = address
     v15 = gas
-    v16 = extstaticcall<create> v14, v10, gas v15
+    v16 = extcall static create v14, v10, gas v15
     v17 = icall returndata_bytes<>
     v18 = eq v16, false
     icall revert_if<empty>, v18

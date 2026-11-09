@@ -7,7 +7,9 @@ use super::{
     Immediate, InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias,
     Terminator, Value, ValueId,
 };
-use crate::{Builtin, CallFailure, CallOutput, Callee, RequireKind, analysis::CfgInfo};
+use crate::{
+    Builtin, CallFailure, CallOutput, Callee, ExtCallKind, RequireKind, analysis::CfgInfo,
+};
 use arrayvec::ArrayVec;
 use solar_ast::StateMutability;
 use solar_data_structures::{
@@ -463,8 +465,13 @@ fn display_inst_kind<'a>(
 
     fmt::from_fn(move |f| match kind {
         InstKind::ExtCall { policy, address, input, gas, value } => {
-            write!(f, "{}<", kind.mnemonic())?;
+            write!(f, "{}", kind.mnemonic())?;
             let flags = [
+                match policy.kind {
+                    ExtCallKind::Call => None,
+                    ExtCallKind::Static => Some("static"),
+                    ExtCallKind::Delegate => Some("delegate"),
+                },
                 match policy.output {
                     CallOutput::None => None,
                     CallOutput::ScratchWord { clear: false } => Some("scratch"),
@@ -473,12 +480,10 @@ fn display_inst_kind<'a>(
                 (policy.on_failure == CallFailure::Revert).then_some("revert"),
                 policy.may_create_account.then_some("create"),
             ];
-            write!(
-                f,
-                "{}> {}",
-                flags.into_iter().flatten().format(", "),
-                display_val(*address, func)
-            )?;
+            for flag in flags.into_iter().flatten() {
+                write!(f, " {flag}")?;
+            }
+            write!(f, " {}", display_val(*address, func))?;
             if let Some(input) = input {
                 write!(f, ", {}", display_val(*input, func))?;
             }

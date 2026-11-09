@@ -8,7 +8,7 @@ fn @callIdentity(arg0: i256) -> i256 [view] {
   bb0:
     v0 = gas
     v1 = abi_encode [word], object, args arg0
-    v2 = extstaticcall<create> i160 4, v1, gas v0
+    v2 = extcall static create i160 4, v1, gas v0
     v3 = icall returndata_bytes<>
     jumpi v2, bb1, bb2
   bb2:                                            ; preds = bb0
@@ -42,7 +42,7 @@ fn @modexp(arg0: i256, arg1: i256) -> i256 [view] {
   bb0:
     v0 = gas
     v1 = abi_encode [word, word, word, word, word, word], object, args 32, 32, 32, arg0, arg1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f
-    v2 = extstaticcall<create> i160 5, v1, gas v0
+    v2 = extcall static create i160 5, v1, gas v0
     v3 = icall returndata_bytes<>
     jumpi v2, bb1, bb2
   bb2:                                            ; preds = bb0

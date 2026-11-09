@@ -951,7 +951,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.materialize_memory_argument(memory_ty, input, span)?
         };
         // The digest is a full word, so it can land in scratch memory.
-        // result = extcall<scratch, revert, create>(sha256 ? 2 : 3, input)
+        // result = extcall static scratch revert create (sha256 ? 2 : 3), input
         let ripemd = builtin == Builtin::Ripemd160;
         let address = self.builder.imm(if ripemd { 3 } else { 2 });
         let policy = CallPolicy {
@@ -983,7 +983,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // base = fmp
         // mstore(base, hash), mstore(base + 32, v), mstore(base + 64, r), mstore(base + 96, s)
         // input = make_memory_slice base, 128
-        // result = extcall<scratch_clear, revert, create>(1, input)
+        // result = extcall static scratch_clear revert create 1, input
         let base = self.builder.fmp();
         let words = self.builder.cast_word(base);
         for (offset, value) in (0..).step_by(32).zip(values) {

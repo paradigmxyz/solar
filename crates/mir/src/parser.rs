@@ -1988,34 +1988,29 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::load_storage_bytes => {
                 inst!(StorageBytesLoad(a) => MirType::MEMPTR)
             }
-            sym::extcall | sym::extstaticcall | sym::extdelegatecall => {
-                let mut policy = CallPolicy {
-                    kind: match mnemonic {
-                        sym::extcall => ExtCallKind::Call,
-                        sym::extstaticcall => ExtCallKind::Static,
-                        _ => ExtCallKind::Delegate,
-                    },
-                    output: CallOutput::None,
-                    on_failure: CallFailure::Return,
-                    may_create_account: false,
+            sym::extcall => {
+                // extcall [static | delegate] [scratch | scratch_clear] [revert] [create]
+                let kind = if self.parser.eat_keyword(kw::Static) {
+                    ExtCallKind::Static
+                } else if self.parser.eat_keyword(sym::delegate) {
+                    ExtCallKind::Delegate
+                } else {
+                    ExtCallKind::Call
                 };
-                self.parser.expect(TokenKind::Lt)?;
-                let mut first = true;
-                while !self.eat_gt() {
-                    if !first {
-                        self.parser.expect(TokenKind::Comma)?;
-                    }
-                    first = false;
-                    match self.parser.parse_ident()? {
-                        sym::scratch => policy.output = CallOutput::ScratchWord { clear: false },
-                        sym::scratch_clear => {
-                            policy.output = CallOutput::ScratchWord { clear: true }
-                        }
-                        kw::Revert => policy.on_failure = CallFailure::Revert,
-                        kw::Create => policy.may_create_account = true,
-                        _ => return Err(self.parser.error("invalid extcall policy")),
-                    }
-                }
+                let output = if self.parser.eat_keyword(sym::scratch) {
+                    CallOutput::ScratchWord { clear: false }
+                } else if self.parser.eat_keyword(sym::scratch_clear) {
+                    CallOutput::ScratchWord { clear: true }
+                } else {
+                    CallOutput::None
+                };
+                let on_failure = if self.parser.eat_keyword(kw::Revert) {
+                    CallFailure::Revert
+                } else {
+                    CallFailure::Return
+                };
+                let may_create_account = self.parser.eat_keyword(kw::Create);
+                let policy = CallPolicy { kind, output, on_failure, may_create_account };
                 let address = self.parse_value(builder)?;
                 let mut input = None;
                 let mut gas = None;

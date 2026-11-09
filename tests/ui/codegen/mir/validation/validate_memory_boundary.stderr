@@ -42,7 +42,7 @@ error: [fn8] [bb0, inst0] deferred allocation requires a constant size
 
 error: [fn9] non-word type `i160` survives the `lowered` phase boundary
 
-error: [fn9] [bb0, inst0] builtin instruction `extstaticcall` survives the `lowered` phase boundary
+error: [fn9] [bb0, inst0] builtin instruction `extcall` survives the `lowered` phase boundary
 
 error: [fn10] [bb0, inst0] checked arithmetic instruction `checked_add` survives the `lowered` phase boundary
 

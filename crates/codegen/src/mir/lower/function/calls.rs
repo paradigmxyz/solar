@@ -5,6 +5,8 @@ use crate::{
     link::CodeKind,
     mir::{Immediate, utils::emit_call},
 };
+use solar_sema::hir::Visit;
+use std::ops::ControlFlow;
 
 #[derive(Clone, Copy)]
 pub(super) struct ExternalReturnPlan {
@@ -15,6 +17,27 @@ pub(super) struct ExternalReturnPlan {
     /// Whether the output area overlays the input area, as it does before Byzantium.
     overlays_input: bool,
     decode_returndata: bool,
+}
+
+/// Finds a reference to a variable of a given set in an expression.
+struct ReferencesVariable<'gcx> {
+    hir: &'gcx hir::Hir<'gcx>,
+    variables: &'gcx [hir::VariableId],
+}
+
+impl<'gcx> Visit<'gcx> for ReferencesVariable<'gcx> {
+    type BreakValue = ();
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        self.hir
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<()> {
+        if expr.as_variable().is_some_and(|id| self.variables.contains(&id)) {
+            return ControlFlow::Break(());
+        }
+        self.walk_expr(expr)
+    }
 }
 
 /// Where an external call's input is encoded.
@@ -815,7 +838,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(&mir_id) = self.cx.function_ids.get(&function_id) else {
             return self.lower_external_function_call(expr, callee, function_id, args, call_opts);
         };
-        if let Some(value) = self.lower_pure_struct_constructor(function, &values) {
+        if let Some(value) = self.lower_pure_struct_constructor(function_id, &values) {
             return Some(CallResult::Value(value));
         }
         if function.returns.is_empty() {
@@ -840,9 +863,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_pure_struct_constructor(
         &mut self,
-        function: &hir::Function<'_>,
+        function_id: hir::FunctionId,
         values: &[ValueId],
     ) -> Option<ValueId> {
+        let function = self.cx.gcx.hir.function(function_id);
         if function.state_mutability != StateMutability::Pure
             || !function.modifiers.is_empty()
             || function.parameters.len() != values.len()
@@ -868,10 +892,24 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if struct_id != return_struct {
             return None;
         }
+        // Only the parameters are bound here, so a read of a return variable needs the call.
+        // A function already being inlined is recursive and needs it too.
+        if self.inlined_struct_constructors.contains(&function_id)
+            || (ReferencesVariable { hir: &self.cx.gcx.hir, variables: function.returns })
+                .visit_expr(return_expr)
+                .is_break()
+        {
+            return None;
+        }
 
         let saved = self.snapshot_bindings(function.parameters);
         self.bind_inlined_parameters(function.parameters, values);
+        self.inlined_struct_constructors.insert(function_id);
+        // The callee body is always checked, whatever block the call sits in.
+        let unchecked = std::mem::replace(&mut self.unchecked, false);
         let result = self.lower_struct_constructor(return_expr, struct_id, *args);
+        self.unchecked = unchecked;
+        self.inlined_struct_constructors.remove(&function_id);
         self.restore_bindings(&saved);
         result
     }

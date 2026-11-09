@@ -19,7 +19,7 @@ fn @direct() -> i256 [selector=0x222b1407, pure, abi_params=[], abi_returns=[wor
     v4 = add v1, 96
     mstore v4, 0x1845ae4903027667005846f8f0be3e5ed2db5c3826ba83a6e542e080792f9a9d
     v5 = make_memory_slice v0, 128
-    v6 = extstaticcall<scratch_clear, revert, create> i160 1, v5
+    v6 = extcall static scratch_clear revert create i160 1, v5
     v7 = trunc i256 v6 to i160
     v8 = zext i160 v7 to i256
     ret v8
@@ -41,7 +41,7 @@ fn @viaReturn() -> i256 [selector=0xefd065cd, pure, abi_params=[], abi_returns=[
     v7 = add v3, 96
     mstore v7, 0x1845ae4903027667005846f8f0be3e5ed2db5c3826ba83a6e542e080792f9a9d
     v8 = make_memory_slice v2, 128
-    v9 = extstaticcall<scratch_clear, revert, create> i160 1, v8
+    v9 = extcall static scratch_clear revert create i160 1, v8
     v10 = trunc i256 v9 to i160
     v11 = zext i160 v10 to i256
     ret v11
@@ -63,7 +63,7 @@ fn @viaLocal() -> i256 [selector=0xf9bef4ed, pure, abi_params=[], abi_returns=[w
     v7 = add v3, 96
     mstore v7, 0x1845ae4903027667005846f8f0be3e5ed2db5c3826ba83a6e542e080792f9a9d
     v8 = make_memory_slice v2, 128
-    v9 = extstaticcall<scratch_clear, revert, create> i160 1, v8
+    v9 = extcall static scratch_clear revert create i160 1, v8
     v10 = trunc i256 v9 to i160
     v11 = zext i160 v10 to i256
     ret v11

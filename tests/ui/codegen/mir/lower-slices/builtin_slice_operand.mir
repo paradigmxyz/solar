@@ -2,9 +2,9 @@
 @module BuiltinSliceOperand
 
 // A builtin reads the length of its slice, so `lower-slices` must not erase the slice first.
-//~? ERROR: `lower-slices` requires expanded builtins; run `lower-builtins` first
+//~? ERROR: `lower-slices` requires lowered builtin slice operands; run `lower-builtins` first
 fn @hash(arg0: slice<memory>) -> i256 {
   bb0:
-    v0 = extstaticcall<scratch, revert, create> i160 2, arg0
+    v0 = extcall static scratch revert create i160 2, arg0
     ret v0
 }

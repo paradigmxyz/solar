@@ -2,9 +2,9 @@
 @module StaticCallWithoutStaticCall
 
 // Only a call of a precompile, whose callee keeps no state, can fall back to `CALL`.
-//~? ERROR: `extstaticcall` of a callee that is not a precompile needs `STATICCALL`
+//~? ERROR: a static `extcall` of a callee that is not a precompile needs `STATICCALL`
 fn @arbitrary(arg0: i160, arg1: ptr<memory>) -> i256 {
   bb0:
-    v0 = extstaticcall<scratch, revert, create> arg0, arg1
+    v0 = extcall static scratch revert create arg0, arg1
     ret v0
 }

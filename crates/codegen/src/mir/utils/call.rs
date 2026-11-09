@@ -30,16 +30,19 @@ pub(crate) fn emit_call(
     value: Option<ValueId>,
     output: Option<(ValueId, ValueId)>,
 ) -> Option<ValueId> {
-    let zero = builder.imm(0);
-    let scratch = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+    let mut zero = None;
+    let mut scratch = None;
     let output = match policy.output {
         CallOutput::None => output,
         CallOutput::ScratchWord { clear } => {
+            let slot = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+            scratch = Some(slot);
             if clear {
                 // mstore(scratch, 0)
-                builder.store(scratch, zero);
+                let zero = *zero.get_or_insert_with(|| builder.imm(0));
+                builder.store(slot, zero);
             }
-            Some((scratch, builder.imm(EvmMemoryLayout::WORD_SIZE)))
+            Some((slot, builder.imm(EvmMemoryLayout::WORD_SIZE)))
         }
     };
     // gas = explicit | gas() | sub(gas(), pre_tangerine_reserve)
@@ -50,25 +53,27 @@ pub(crate) fn emit_call(
             super::pre_tangerine_call_gas(builder, value.is_some(), policy.may_create_account)
         }
     });
-    let (input_offset, input_size) = input.unwrap_or((zero, zero));
-    let (output_offset, output_size) = output.unwrap_or((zero, zero));
+    let (input_offset, input_size) = input.unwrap_or_else(|| {
+        let zero = *zero.get_or_insert_with(|| builder.imm(0));
+        (zero, zero)
+    });
+    let (output_offset, output_size) = output.unwrap_or_else(|| {
+        let zero = *zero.get_or_insert_with(|| builder.imm(0));
+        (zero, zero)
+    });
     // success = call(gas, address, value, input, output)
     //         | staticcall(gas, address, input, output)
     //         | delegatecall(gas, address, input, output)
     let success = match policy.kind {
-        ExtCallKind::Call => builder.call(
-            gas,
-            address,
-            value.unwrap_or(zero),
-            input_offset,
-            input_size,
-            output_offset,
-            output_size,
-        ),
+        ExtCallKind::Call => {
+            let value = value.unwrap_or_else(|| *zero.get_or_insert_with(|| builder.imm(0)));
+            builder.call(gas, address, value, input_offset, input_size, output_offset, output_size)
+        }
         ExtCallKind::Static if evm.has_static_call() => {
             builder.staticcall(gas, address, input_offset, input_size, output_offset, output_size)
         }
         ExtCallKind::Static => {
+            let zero = *zero.get_or_insert_with(|| builder.imm(0));
             builder.call(gas, address, zero, input_offset, input_size, output_offset, output_size)
         }
         ExtCallKind::Delegate => {
@@ -88,7 +93,10 @@ pub(crate) fn emit_call(
             // failed: revert_returndata
             // done: result = mload(scratch)
             builder.revert_returndata_unless(success);
-            Some(builder.load(scratch, PtrLocation::Memory))
+            Some(builder.load(
+                scratch.expect("a scratch word call has a scratch slot"),
+                PtrLocation::Memory,
+            ))
         }
     }
 }

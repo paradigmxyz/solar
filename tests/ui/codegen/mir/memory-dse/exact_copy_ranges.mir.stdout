@@ -99,7 +99,7 @@ fn @proxy(arg0: i256, arg1: i1) -> i256 [selector=0xe05fde19, view, abi_params=[
     v1 = gas
     v2 = zext i1 arg1 to i256
     v3 = abi_encode [word, word<bool>], object, selector 0x387a04f900000000000000000000000000000000000000000000000000000000, args arg0, v2
-    v4 = extstaticcall<create> v0, v3, gas v1
+    v4 = extcall static create v0, v3, gas v1
     v5 = icall returndata_bytes<>
     v6 = zext i1 v4 to i256
     v7 = ptrtoint ptr<memory> v5 to i256

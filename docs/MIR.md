@@ -235,8 +235,9 @@ constant checks fold only when they pass. Revert outlining runs after check and
 builtin expansion, before checked arithmetic expands.
 Every call to an address that sends bytes and reads at most one word back is an
 `extcall`: the low-level calls, `send` and `transfer`, and the `ecrecover`,
-`sha256` and `ripemd160` precompiles. Its policy, printed in angle brackets,
-names the call kind, whether the output is a scratch word (zeroed first or not),
+`sha256` and `ripemd160` precompiles. Its policy prints as keywords after the mnemonic, in
+this order: `static` or `delegate`, `scratch` or `scratch_clear`, `revert`, `create`. It names
+the call kind, whether the output is a scratch word (zeroed first or not),
 whether a failed call returns the success flag or reverts with the returndata,
 and whether the default pre-EIP-150 gas reserves the callee's account creation.
 The operation retains its address, an optional bytes input or memory slice, and

@@ -1079,11 +1079,6 @@ impl InstKind {
                     "abi_encode_packed"
                 }
             }
-            Self::ExtCall { policy, .. } => match policy.kind {
-                ExtCallKind::Call => "extcall",
-                ExtCallKind::Static => "extstaticcall",
-                ExtCallKind::Delegate => "extdelegatecall",
-            },
             _ => self.op_def().mnemonic,
         }
     }

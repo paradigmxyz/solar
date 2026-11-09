@@ -66,7 +66,7 @@ impl MirPass for LowerBuiltins {
                     {
                         analyses.fail(
                             gcx.dcx()
-                                .err("`extstaticcall` of a callee that is not a precompile needs `STATICCALL`")
+                                .err("a static `extcall` of a callee that is not a precompile needs `STATICCALL`")
                                 .emit(),
                         );
                         return false;
