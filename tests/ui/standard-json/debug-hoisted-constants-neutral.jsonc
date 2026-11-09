@@ -1,0 +1,47 @@
+//@ normalize-stdout-test: "solar-[0-9a-f]{64}" -> "solar-COMPILATION_ID"
+//@ filecheck:
+// A constant hoisted past the words computed before it keeps its origin in the source map, and the
+// steps that restate origins hold no code, so the bytecode is identical with and without one.
+// CHECK-LABEL: "A": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME:[0-9a-f]+]]"
+// CHECK: "sourceMap":
+// CHECK-LABEL: "C": {
+// CHECK-LABEL: "bytecode": {
+// CHECK: "object": "[[CREATE]]"
+// CHECK-LABEL: "deployedBytecode": {
+// CHECK: "object": "[[RUNTIME]]"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract A { function store(uint256 a, uint256 b) external pure returns (uint256 r) { assembly { mstore(add(mul(a, b), b), 7) r := mload(20) } } function pair(uint256 a, uint256 b) external pure returns (uint256 r) { assembly { mstore(add(a, 0x40), 9) mstore(add(b, 0x80), add(a, b)) r := add(mload(0x40), mload(0x80)) } } } contract C { function store(uint256 a, uint256 b) external pure returns (uint256 r) { assembly { mstore(add(mul(a, b), b), 7) r := mload(20) } } function pair(uint256 a, uint256 b) external pure returns (uint256 r) { assembly { mstore(add(a, 0x40), 9) mstore(add(b, 0x80), add(a, b)) r := add(mload(0x40), mload(0x80)) } } }"
+    }
+  },
+  "settings": {
+    "metadata": {
+      "appendCBOR": false,
+      "bytecodeHash": "none"
+    },
+    "optimizer": {
+      "enabled": true
+    },
+    "outputSelection": {
+      "A.sol": {
+        "A": [
+          "evm.bytecode.object",
+          "evm.bytecode.sourceMap",
+          "evm.deployedBytecode.object",
+          "evm.deployedBytecode.sourceMap"
+        ],
+        "C": [
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
+        ]
+      }
+    }
+  }
+}

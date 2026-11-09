@@ -37,11 +37,13 @@ bb6 [entry]:                                      ; function payload() external 
   push 160
   push 64
   mstore
+  push 192
+  push 32
   push 160
   push 128
   dup 2
   mstore
-  push 32
+  dup 2
   dup 2
   add
   push 128
@@ -53,19 +55,15 @@ bb6 [entry]:                                      ; function payload() external 
   push 0
   swap 1
   mstore
-  push 32
-  swap 1
   sub
   push 32
   dup 2
   mstore
-  push 192
-  swap 1
   return
 ; === ROOT/tests/ui/codegen/lowering/evm-ir/program-data/contract_creation_args_data_dedup.sol:FactoryWithArgs (runtime) ===
 @module FactoryWithArgs_runtime
 @data
-  ChildWithArg_creation_code_0: hex"61013738038061013760e03960e001601f01601f191660405260e080610137380301602082011134176042575160c05260f180604660e03960c0516101035260e0f35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f858146049575b5f5ffd5b7f00000000000000000000000000000000000000000000000000000000000000005f5260205ff35b60a060405260a060808152602081016080607182396080015f9052602090036020815260c090f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
+  ChildWithArg_creation_code_0: hex"61013438038061013460e03960e001601f01601f191660405260e080610134380301602082011134176042575160c05260ee80604660e03960c0516101035260e0f35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f858146049575b5f5ffd5b7f00000000000000000000000000000000000000000000000000000000000000005f5260205ff35b60a060405260c0602060a0608081528181016080606e82396080015f90520360208152f3ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100"
 
 bb0:                                              ; runtime dispatch entry
   callvalue
@@ -107,18 +105,17 @@ bb6 [entry]:                                      ; function plain() external re
   push 128
   push 64
   mstore
+  push 340
   push 128
-  push 311
+  push 308
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 11
-  push 311
+  push 308
   dup 3
   add
   mstore
-  push 343
-  swap 1
   push 0
   create
   jump bb28
@@ -157,17 +154,17 @@ bb12 [entry]:                                     ; function salted() external r
   push 64
   mstore
   push 128
-  push 311
+  push 308
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 22
-  push 311
+  push 308
   dup 3
   add
   mstore
   push 1
-  push 343
+  push 340
   dup 3
   push 0
   create2
@@ -176,37 +173,35 @@ bb18 [entry]:                                     ; function pair() external ret
   push 128
   push 64
   mstore
+  push 340
   push 128
-  push 311
+  push 308
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 3
-  push 311
+  push 308
   dup 3
   add
   mstore
-  push 343
-  swap 1
   push 0
   create
   dup 1
   iszero
   push bb26
   jumpi
+  push 340
   push 64
   mload
-  push 311
+  push 308
   push_data ChildWithArg_creation_code_0
   dup 3
   codecopy
   push 4
-  push 311
+  push 308
   dup 3
   add
   mstore
-  push 343
-  swap 1
   push 0
   create
   dup 1
