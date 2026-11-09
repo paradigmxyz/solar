@@ -54,14 +54,31 @@ fn @dead_caller(arg0: i256) -> i256 {
     ret v0
 }
 
+// Only the second function is called, so the shared label names it alone.
+// CHECK-LABEL: {{^[ +].*}}fn @uncalled_first{{[( ]}}
+// CHECK: + bb0 !metadata(span=270..280):
+fn @uncalled_first(arg0: i256) -> i256 {
+  bb0 !metadata(span=250..260):
+    v0 = add arg0, 11 !metadata(span=290..300)
+    ret v0 !metadata(span=290..300)
+}
+
+fn @called_second(arg0: i256) -> i256 {
+  bb0 !metadata(span=270..280):
+    v0 = add arg0, 11 !metadata(span=310..320)
+    ret v0 !metadata(span=310..320)
+}
+
 fn @entry(arg0: i256) -> i256 [selector=0x01020304] {
   bb0:
     v0 = icall @first, arg0
     v1 = icall @second, arg0
     v2 = icall @live, arg0
     v3 = icall @reached, arg0
+    v7 = icall @called_second, arg0
     v4 = add v0, v1
     v5 = add v2, v3
     v6 = add v4, v5
-    ret v6
+    v8 = add v6, v7
+    ret v8
 }

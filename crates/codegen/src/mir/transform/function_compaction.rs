@@ -780,6 +780,7 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
                 duplicate,
                 representative,
                 entered.contains(duplicate),
+                entered.contains(representative),
             );
             merged.insert(duplicate);
         }
@@ -812,13 +813,15 @@ fn functions_reached_from(
     reached
 }
 
-/// Unions metadata of bodies already proven instruction-for-instruction equivalent. `entered` is
-/// whether an entry reaches the duplicate through calls that now go to the representative.
+/// Unions metadata of bodies already proven instruction-for-instruction equivalent.
+/// `duplicate_entered` is whether an entry reaches the duplicate through calls that now go to the
+/// representative, and `representative_entered` whether an entry reaches the representative.
 fn merge_function_debug_origins(
     module: &mut Module,
     duplicate: FunctionId,
     representative: FunctionId,
-    entered: bool,
+    duplicate_entered: bool,
+    representative_entered: bool,
 ) {
     let source = module.function(duplicate);
     let origins = source
@@ -847,8 +850,15 @@ fn merge_function_debug_origins(
         // NOTE: A label origin says where control entered; a block or function nothing enters adds
         // no origin. Calls to a duplicate now land on the representative's labels, so they take
         // the duplicate's origins.
-        if entered {
-            target.blocks[block].label_metadata.merge_debug_locs([&label]);
+        if duplicate_entered {
+            let target_label = &mut target.blocks[block].label_metadata;
+            if representative_entered {
+                // representative label !metadata(origins of both labels)
+                target_label.merge_debug_locs([&label]);
+            } else {
+                // representative label !metadata(duplicate label)
+                target_label.preserve_debug_loc(&label);
+            }
         }
     }
 }
