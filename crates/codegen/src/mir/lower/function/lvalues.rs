@@ -43,7 +43,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(field) = resolved.struct_field_index(&self.cx.gcx.hir) else {
                     return self.cx.report_unsupported(name.span, "struct field l-value");
                 };
-                let object = self.lower_expr(receiver)?;
+                let object = self.operand(receiver)?.id();
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 // Only a memory object has addressable fields.
                 self.types.memory_layout(receiver_ty)?;
@@ -54,8 +54,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let Some(index) = index else {
                     return self.cx.report_unsupported(expr.span, "index l-value");
                 };
-                let object = self.lower_expr(receiver)?;
-                let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+                let object = self.operand(receiver)?.id();
+                let uint256 = self.cx.gcx.types.uint(256);
+                let index = self.lower_typed_expr(index, uint256)?.clean(self, uint256);
                 let receiver_ty = self.type_of_expr_or_variable(receiver)?;
                 let layout = self.types.memory_layout(receiver_ty)?;
                 match layout {
@@ -222,13 +223,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let Some(access) = self.storage_access(receiver) else {
             return self.cx.report_unsupported(receiver.span, "storage access");
         };
-        let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+        // The index is the raw word, as in via-IR.
+        let index = self.lower_expr(index)?.raw_operand();
+        let index = self.builder.cast(index, MirType::I256);
         let ty = self.type_of_expr_or_variable(expr)?;
         let access = self.storage_bytes_byte_access(access.slot, index);
         Some(LValuePlace::Storage { ty, access, span: expr.span })
     }
 
-    pub(super) fn load_variable(&mut self, id: VariableId, span: Span) -> Option<ValueId> {
+    /// Reads the binding `id` as it is stored, which for a raw carrier is the raw word.
+    pub(super) fn load_variable_word(&mut self, id: VariableId, span: Span) -> Option<ValueId> {
         if let Some(value) = self.values.get(&id).copied() {
             return Some(value);
         }
@@ -243,9 +247,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let ty = self.cx.module.immutable_type(immutable_id).mir_type();
             let value = self.builder.load_immutable(immutable_id, ty);
             let source_ty = self.cx.gcx.type_of_item(id.into());
-            if ty != types::TypeLowerer::mir_type(source_ty) {
-                self.dirty_values.insert(value);
-            }
             // A fixed-bytes immutable keeps its full word, so assembly can have stored dirty bits
             // that ABI return encoding would otherwise trust as canonical.
             if self.cx.state.raw_scalars.contains(&id)
@@ -284,19 +285,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.cx.report_unsupported(span, "identifier")
     }
 
-    /// Stores a value in an immutable. A raw immutable keeps the bits assembly wrote; any other
-    /// is cleaned, and an enum range checked, like solc. The clean does not depend on the value's
-    /// dirty mark, which loop phis and carrier casts can drop.
+    /// Stores a value in an immutable and range checks an enum, like solc. `value` is the raw word
+    /// for a raw immutable, which keeps the bits assembly wrote, and canonical for any other.
     pub(super) fn store_immutable_value(
         &mut self,
         id: VariableId,
         immutable_id: ImmutableId,
-        mut value: ValueId,
+        value: ValueId,
     ) {
         let source_ty = self.cx.gcx.type_of_item(id.into());
-        if matches!(source_ty.kind, TyKind::Enum(_)) || !self.cx.state.raw_scalars.contains(&id) {
-            value = self.normalize_abi_scalar(value, source_ty);
-        }
+        self.validate_enum(source_ty, value);
         // value = cast to the immutable value type
         let ty = self.cx.module.immutable_type(immutable_id).mir_type();
         let value = self.builder.cast(value, ty);
@@ -314,7 +312,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if self.in_inline_assembly {
             let ty = self.cx.gcx.type_of_item(id.into());
-            self.assembly_writes_memory |= ty.is_ref_at(DataLocation::Memory);
+            if ty.is_ref_at(DataLocation::Memory) {
+                self.assembly_writes_memory = true;
+                // ptr = inttoptr word to ptr<memory>
+                if self.builder.func().value_ty(value).is_some_and(|ty| ty.integer_bits().is_some())
+                {
+                    value = self.builder.cast(value, MirType::MEMPTR);
+                }
+            } else if self.builder.func().value_ty(value) == Some(MirType::MEMPTR) {
+                // word = ptrtoint ptr<memory>
+                value = self.builder.cast_word(value);
+            }
             if self.builder.func().value_slice_location(value) != Some(PtrLocation::Calldata)
                 && ty.is_ref_at(DataLocation::Calldata)
             {
@@ -335,7 +343,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 };
                 value = self.builder.make_slice(value, length, PtrLocation::Calldata);
             }
-            self.dirty_values.insert(value);
+            if ty.is_ref_at(DataLocation::Calldata) {
+                self.unchecked_calldata_slices.insert(value);
+            }
         }
         if let StdEntry::Occupied(mut entry) = self.values.entry(id) {
             entry.insert(value);
@@ -448,6 +458,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         value: ValueId,
         span: Span,
     ) -> Option<()> {
+        // A suffix holds a word, so a memory reference assigned to it is its address.
+        let value = if self.builder.func().value_ty(value) == Some(MirType::MEMPTR) {
+            self.builder.cast_word(value)
+        } else {
+            value
+        };
         let value = match suffix {
             YulSuffix::StorageSlot if self.cx.gcx.hir.variable(id).is_state_variable() => {
                 return self.cx.report_unsupported(span, "Yul state-variable slot assignment");

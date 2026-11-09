@@ -671,13 +671,7 @@ impl Target {
         immediate: impl Fn(ValueId) -> Option<U256>,
     ) -> Option<ValueId> {
         let (Op::Eq { a, b } | Op::Ne { a, b }) = *op else { return None };
-        if immediate(a) == Some(U256::ZERO) {
-            Some(b)
-        } else if immediate(b) == Some(U256::ZERO) {
-            Some(a)
-        } else {
-            None
-        }
+        (immediate(b) == Some(U256::ZERO)).then_some(a)
     }
 
     /// Cost of `ne x, 0` as a value, excluding its operand, and whether it is lowered as
@@ -1422,7 +1416,7 @@ impl Target {
             | InstKind::Zext(_) => Cost::ZERO,
             InstKind::PtrAdd(..) => self.opcode(op::ADD),
             InstKind::Fmp | InstKind::FrameLoad { .. } => self.opcode(op::MLOAD),
-            InstKind::SetFmp(_) | InstKind::FrameStore { .. } => self.opcode(op::MSTORE),
+            InstKind::FrameStore { .. } => self.opcode(op::MSTORE),
             // Bump the free-memory pointer past the allocation.
             InstKind::Alloc { .. } => self.opcodes(&[op::MLOAD, op::ADD, op::MSTORE]),
             // Reserve the buffer, store the selector, produce the slice, store every argument's

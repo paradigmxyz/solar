@@ -1,15 +1,15 @@
 {
   "sources": {
-    "./packages/B.sol": {
+    "../virtual/B.sol": {
       "id": 0
     },
-    "./packages/A.sol": {
+    "../virtual/A.sol": {
       "id": 1
     },
-    "../virtual/B.sol": {
+    "./packages/B.sol": {
       "id": 2
     },
-    "../virtual/A.sol": {
+    "./packages/A.sol": {
       "id": 3
     },
     "B.sol": {
@@ -32,16 +32,6 @@
     }
   },
   "contracts": {
-    "./packages/B.sol": {
-      "DottedParent": {
-        "abi": []
-      }
-    },
-    "./packages/A.sol": {
-      "Dotted": {
-        "abi": []
-      }
-    },
     "../virtual/B.sol": {
       "Parent": {
         "abi": []
@@ -49,6 +39,16 @@
     },
     "../virtual/A.sol": {
       "Relative": {
+        "abi": []
+      }
+    },
+    "./packages/B.sol": {
+      "DottedParent": {
+        "abi": []
+      }
+    },
+    "./packages/A.sol": {
+      "Dotted": {
         "abi": []
       }
     },

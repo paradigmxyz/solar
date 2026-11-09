@@ -64,6 +64,8 @@ struct EthdebugContext {
     code: Option<EthdebugSourceRange>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pick: Vec<Self>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    gather: Vec<Self>,
     #[serde(skip_serializing_if = "Option::is_none")]
     invoke: Option<EthdebugFunctionInvoke>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -341,15 +343,19 @@ fn make_ethdebug_context(
         .map(|code| EthdebugContext {
             code: Some(code),
             pick: Vec::new(),
+            gather: Vec::new(),
             invoke: None,
             r#return: None,
             revert: None,
         })
         .collect::<Vec<_>>();
-    let (code, pick) = match contexts.len() {
-        0 => (None, Vec::new()),
-        1 => (contexts.pop().and_then(|context| context.code), Vec::new()),
-        _ => (None, contexts),
+    // Several spans are alternatives, one of which holds, unless an optimization folded the work
+    // of several instructions into this one, so that every span holds.
+    let (code, pick, gather) = match contexts.len() {
+        0 => (None, Vec::new(), Vec::new()),
+        1 => (contexts.pop().and_then(|context| context.code), Vec::new(), Vec::new()),
+        _ if location.all_source_spans => (None, Vec::new(), contexts),
+        _ => (None, contexts, Vec::new()),
     };
     let invoke = location.function_invoke.and_then(|function| {
         make_ethdebug_function_invoke(gcx, source_ids, bytecode, previous, function, instruction)
@@ -363,13 +369,14 @@ fn make_ethdebug_context(
     };
     if code.is_none()
         && pick.is_empty()
+        && gather.is_empty()
         && invoke.is_none()
         && r#return.is_none()
         && revert.is_none()
     {
         None
     } else {
-        Some(EthdebugContext { code, pick, invoke, r#return, revert })
+        Some(EthdebugContext { code, pick, gather, invoke, r#return, revert })
     }
 }
 

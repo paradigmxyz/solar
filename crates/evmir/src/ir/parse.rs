@@ -24,9 +24,10 @@ struct ParsedBlockHeader {
     is_continuation: bool,
     external_entry: bool,
     function_invoke: Option<DebugFunction>,
+    lent_invoke: Option<DebugFunction>,
     entry_depth: Option<u16>,
     call_effect: Option<CallEffect>,
-    entry_checkpoint: Option<DebugEntryCheckpoint>,
+    label_metadata: Metadata,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -70,17 +71,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parse_program_body(&mut module)?;
         let tracks_debug_info = module.blocks.iter().any(|block| {
             block.metadata.function_invoke.is_some()
-                || block.metadata.entry_checkpoint.is_some()
+                || block.metadata.lent_invoke.is_some()
+                || block.label_metadata.source_span().is_some()
                 || block.instructions.iter().any(|inst| {
                     inst.metadata.source_span().is_some()
-                        || !inst.metadata.checkpoint_transfers().is_empty()
                         || inst.metadata.function_invoke().is_some()
                         || inst.metadata.function_exit().is_some()
                         || inst.metadata.modifier_depth() != 0
                 })
                 || block.terminator.as_ref().is_some_and(|term| {
                     term.metadata.source_span().is_some()
-                        || !term.metadata.checkpoint_transfers().is_empty()
                         || term.metadata.function_invoke().is_some()
                         || term.metadata.function_exit().is_some()
                         || term.metadata.modifier_depth() != 0
@@ -115,9 +115,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 module.blocks[block_id].metadata.is_continuation = header.is_continuation;
                 module.blocks[block_id].metadata.external_entry = header.external_entry;
                 module.blocks[block_id].metadata.function_invoke = header.function_invoke;
+                module.blocks[block_id].metadata.lent_invoke = header.lent_invoke;
                 module.blocks[block_id].metadata.entry_depth = header.entry_depth;
                 module.blocks[block_id].metadata.call_effect = header.call_effect;
-                module.blocks[block_id].metadata.entry_checkpoint = header.entry_checkpoint;
+                module.blocks[block_id].label_metadata = header.label_metadata;
                 current_block = Some(block_id);
                 continue;
             }
@@ -144,11 +145,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut is_continuation = false;
         let mut external_entry = false;
         let mut function_invoke = None;
+        let mut lent_invoke = None;
         let mut entry_depth = None;
         let mut ret = None;
         let mut inputs = None;
         let mut outputs = None;
-        let mut entry_checkpoint = None;
         while self.parser.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
             loop {
                 if self.parser.eat_keyword(sym::cold) {
@@ -168,31 +169,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         identifier,
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
                     });
-                } else if self.parser.eat_keyword(sym::checkpoint) {
+                } else if self.parser.eat_keyword(sym::lent_invoke) {
                     self.parser.expect(TokenKind::Eq)?;
+                    let identifier = self.parser.parse_ident()?;
+                    self.parser.expect(TokenKind::At)?;
                     let (lo, hi) = self.parser.parse_span_bounds()?;
-                    self.parser.expect(TokenKind::At)?;
-                    let (from_lo, from_hi) = self.parser.parse_span_bounds()?;
-                    self.parser.expect(TokenKind::At)?;
-                    let depth = self.parser.parse_uint()?;
-                    let modifier_depth = u32::try_from(depth)
-                        .map_err(|_| self.parser.error("modifier depth does not fit in u32"))?;
-                    let checkpoint_invoke = if self.parser.eat(TokenKind::At) {
-                        let identifier = self.parser.parse_ident()?;
-                        self.parser.expect(TokenKind::At)?;
-                        let (lo, hi) = self.parser.parse_span_bounds()?;
-                        Some(DebugFunction {
-                            identifier,
-                            declaration: Span::new(BytePos(lo), BytePos(hi)),
-                        })
-                    } else {
-                        None
-                    };
-                    entry_checkpoint = Some(DebugEntryCheckpoint {
-                        source: Span::new(BytePos(lo), BytePos(hi)),
-                        transfer: Span::new(BytePos(from_lo), BytePos(from_hi)),
-                        modifier_depth,
-                        function_invoke: checkpoint_invoke,
+                    lent_invoke = Some(DebugFunction {
+                        identifier,
+                        declaration: Span::new(BytePos(lo), BytePos(hi)),
                     });
                 } else if self.parser.eat_keyword(sym::stack) {
                     self.parser.expect(TokenKind::Eq)?;
@@ -208,7 +192,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     outputs = Some(self.parser.parse_uint_as()?);
                 } else {
                     return Err(self.parser.error(
-                        "expected `cold`, `loop`, `continuation`, `entry`, `invoke`, `checkpoint`, \
+                        "expected `cold`, `loop`, `continuation`, `entry`, `invoke`, `lent_invoke`, \
                          `stack`, `ret`, `inputs`, or `outputs` block attribute",
                     ));
                 }
@@ -219,6 +203,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
         }
 
+        let label_metadata = if self.parser.token().kind == TokenKind::Not {
+            self.parse_metadata()?
+        } else {
+            Metadata::default()
+        };
         self.parser.expect(TokenKind::Colon)?;
 
         let call_effect = match (ret, inputs, outputs) {
@@ -240,9 +229,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             is_continuation,
             external_entry,
             function_invoke,
+            lent_invoke,
             entry_depth,
             call_effect,
-            entry_checkpoint,
+            label_metadata,
         }))
     }
 
@@ -512,7 +502,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_metadata(&mut self) -> PResult<'sess, Metadata> {
         let mut metadata = Metadata::default();
         if !self.parser.eat(TokenKind::Not) {
-            metadata.mark_debug_info_dropped();
+            metadata.drop_debug_loc(DebugLocKind::Dropped);
             return Ok(metadata);
         }
         let name = self.parser.parse_ident()?;
@@ -521,7 +511,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         if self.parser.eat(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
-            metadata.mark_debug_info_dropped();
+            metadata.drop_debug_loc(DebugLocKind::Dropped);
             return Ok(metadata);
         }
 
@@ -536,7 +526,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Eq)?;
                 let (lo, hi) = self.parser.parse_span_bounds()?;
                 metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
-            } else if key == sym::spans {
+            } else if key == sym::spans || key == sym::all {
                 self.parser.expect(TokenKind::Eq)?;
                 self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
                 let mut spans = Vec::new();
@@ -549,10 +539,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
                 metadata.set_source_spans(spans);
-            } else if key == sym::checkpoint {
-                self.parser.expect(TokenKind::Eq)?;
-                let (lo, hi) = self.parser.parse_span_bounds()?;
-                metadata.add_checkpoint_transfer(Span::new(BytePos(lo), BytePos(hi)));
+                metadata.set_all_source_spans(key == sym::all);
             } else if key == sym::invoke {
                 self.parser.expect(TokenKind::Eq)?;
                 let identifier = self.parser.parse_ident()?;
@@ -618,11 +605,35 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn block_ref_starts_here(&self) -> PResult<'sess, bool> {
-        Ok(self.current_block_label()?.is_some()
-            && !matches!(
-                self.parser.look_ahead(1).kind,
-                TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Bracket)
-            ))
+        Ok(self.current_block_label()?.is_some() && !self.block_header_follows())
+    }
+
+    /// Whether the tokens after the block label just seen continue it into a block header:
+    /// block attributes, label metadata, or the colon.
+    fn block_header_follows(&self) -> bool {
+        let mut tokens = self.parser.tokens_ahead().map(|token| token.kind);
+        match tokens.next() {
+            Some(TokenKind::Colon | TokenKind::OpenDelim(Delimiter::Bracket)) => true,
+            // label !metadata(...):
+            Some(TokenKind::Not) => {
+                let mut depth = 0usize;
+                // Skip `metadata`, then the balanced parentheses.
+                for kind in tokens.by_ref().skip(1) {
+                    match kind {
+                        TokenKind::OpenDelim(Delimiter::Parenthesis) => depth += 1,
+                        TokenKind::CloseDelim(Delimiter::Parenthesis) => {
+                            depth = depth.saturating_sub(1);
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                tokens.next() == Some(TokenKind::Colon)
+            }
+            _ => false,
+        }
     }
 }
 
@@ -638,24 +649,26 @@ mod tests {
         Module::parse(sess, &source)
     }
 
-    fn evm_ir_fixture_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    fn evm_ir_fixture_dirs() -> [PathBuf; 2] {
+        let codegen = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("..")
             .join("tests")
             .join("ui")
-            .join("codegen")
-            .join("evm-ir")
+            .join("codegen");
+        [codegen.join("evm-ir"), codegen.join("debug-info").join("evm-ir")]
     }
 
     #[test]
     fn round_trip_all_evm_ir_fixtures() {
-        let dir = evm_ir_fixture_dir();
-        assert!(dir.exists(), "EVM IR fixture dir not found: {}", dir.display());
+        let roots = evm_ir_fixture_dirs();
+        for dir in &roots {
+            assert!(dir.exists(), "EVM IR fixture dir not found: {}", dir.display());
+        }
 
         let mut failures = Vec::new();
         let mut count = 0usize;
-        let mut dirs = vec![dir.clone()];
+        let mut dirs = roots.to_vec();
         while let Some(dir) = dirs.pop() {
             for entry in std::fs::read_dir(dir).unwrap() {
                 let path = entry.unwrap().path();
@@ -679,7 +692,7 @@ mod tests {
             }
         }
 
-        assert!(count > 0, "no .evmir fixtures found in {}", dir.display());
+        assert!(count > 0, "no .evmir fixtures found in {roots:?}");
         assert!(
             failures.is_empty(),
             "{} EVM IR round-trip failure(s):\n  {}",

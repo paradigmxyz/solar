@@ -118,21 +118,6 @@ fn @keep_across_constant_fmp_store() -> i256 {
     ret v1
 }
 
-// An explicit frontier update between two allocations is the same barrier.
-// CHECK-LABEL: fn @keep_across_set_fmp
-// CHECK-NOT: +
-fn @keep_across_set_fmp() -> i256 {
-  bb0:
-    v18 = alloc 32
-    v0 = ptrtoint ptr<memory> v18 to i256
-    v100 = inttoptr i256 65536 to ptr<memory>
-    set_fmp v100
-    v19 = alloc 32
-    v1 = ptrtoint ptr<memory> v19 to i256
-    mstore v1, 5
-    ret v1
-}
-
 // Checked zeroing and later allocation checks keep their original order.
 // CHECK-LABEL: fn @keep_checked_zeroed
 // CHECK-NOT: +

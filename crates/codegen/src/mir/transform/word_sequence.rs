@@ -360,7 +360,7 @@ fn widest_int_operand(func: &Function, kind: &InstKind) -> Option<MirType> {
 /// the deferred allocations it leaves for the backend.
 fn allocations_lowered(func: &Function) -> bool {
     func.instructions().all(|inst| match func.inst(inst).kind {
-        InstKind::Fmp | InstKind::SetFmp(_) => false,
+        InstKind::Fmp => false,
         InstKind::Alloc { .. } => func.inst(inst).metadata.deferred_alloc(),
         _ => true,
     })
@@ -604,7 +604,7 @@ fn zero_tested_leaf(
             let shift = func.alloc_value(Value::Immediate(Immediate::I256(U256::from(bits))));
             let (inst, word) = func.alloc_value_inst(
                 Instruction::new(InstKind::Shr(shift, word), Some(MirType::I256))
-                    .with_debug_info_dropped(),
+                    .with_debug_loc_dropped(),
             );
             (word, Some((comparison, inst)))
         }

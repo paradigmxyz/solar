@@ -6,7 +6,6 @@ use crate::{
     op,
 };
 use solar_data_structures::fmt::FmtIteratorExt;
-use std::fmt::Write;
 
 impl Module {
     /// Returns the EVM IR text-format representation. Audit-only debug fields can be hidden
@@ -52,6 +51,16 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
                 function.declaration.hi().0
             ));
         }
+        if !module.hide_debug_info
+            && let Some(function) = metadata.lent_invoke
+        {
+            attributes.push(format!(
+                "lent_invoke={}@{}..{}",
+                function.identifier,
+                function.declaration.lo().0,
+                function.declaration.hi().0
+            ));
+        }
         if let Some(effect) = metadata.call_effect {
             attributes.push(format!(
                 "ret={}, inputs={}, outputs={}",
@@ -61,34 +70,12 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if let Some(depth) = metadata.entry_depth {
             attributes.push(format!("stack={depth}"));
         }
-        if !module.hide_debug_info
-            && let Some(checkpoint) = metadata.entry_checkpoint
-        {
-            let mut attribute = format!(
-                "checkpoint={}..{}@{}..{}@{}",
-                checkpoint.source.lo().0,
-                checkpoint.source.hi().0,
-                checkpoint.transfer.lo().0,
-                checkpoint.transfer.hi().0,
-                checkpoint.modifier_depth,
-            );
-            if let Some(function) = checkpoint.function_invoke {
-                write!(
-                    attribute,
-                    "@{}@{}..{}",
-                    function.identifier,
-                    function.declaration.lo().0,
-                    function.declaration.hi().0
-                )?;
-            }
-            attributes.push(attribute);
-        }
         let label = fmt::from_fn(|f| {
             write!(f, "bb{}", block.label)?;
             if !attributes.is_empty() {
                 write!(f, " [{}]", attributes.iter().format(", "))?;
             }
-            write!(f, ":")
+            write!(f, "{}:", display_metadata(&block.label_metadata, !module.hide_debug_info))
         });
         let comment = module.comments.get(block.label);
         writeln!(f, "{}", solar_ir::comment::display_label_comment(label, comment))?;
@@ -161,23 +148,21 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
 
 fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
-        let spans = if visible { metadata.source_spans() } else { &[] };
+        let has_spans = visible && metadata.has_source_spans();
         let function_invoke = visible.then(|| metadata.function_invoke()).flatten();
         let function_exit = visible.then(|| metadata.function_exit()).flatten();
-        let checkpoints = if visible { metadata.checkpoint_transfers() } else { &[] };
         // Text without a location means `dropped`, and the audit sets `unknown` on the gaps it
         // reports, so neither is spelled out: an audit must not change the text.
-        let loc_kind = (visible && spans.is_empty())
+        let loc_kind = (visible && !has_spans)
             .then(|| metadata.debug_loc_kind())
             .filter(|kind| {
                 matches!(kind, DebugLocKind::CompilerGenerated | DebugLocKind::Temporary)
             })
             .and_then(DebugLocKind::keyword);
-        if spans.is_empty()
+        if !has_spans
             && loc_kind.is_none()
             && function_invoke.is_none()
             && function_exit.is_none()
-            && checkpoints.is_empty()
             && !metadata.keep_with_next
         {
             return Ok(());
@@ -185,12 +170,12 @@ fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '
 
         write!(f, " !metadata(")?;
         let mut separator = "";
-        if let [span] = spans {
+        if has_spans && let Some(span) = metadata.only_source_span() {
             write!(f, "span={}..{}", span.lo().0, span.hi().0)?;
             separator = ", ";
-        } else if !spans.is_empty() {
-            write!(f, "spans=[")?;
-            for (index, span) in spans.iter().enumerate() {
+        } else if has_spans {
+            write!(f, "{}=[", if metadata.all_source_spans() { "all" } else { "spans" })?;
+            for (index, span) in metadata.source_spans().enumerate() {
                 if index != 0 {
                     write!(f, ", ")?;
                 }
@@ -219,10 +204,6 @@ fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '
                 DebugFunctionExit::Revert => "revert",
             };
             write!(f, "{separator}exit={exit}")?;
-            separator = ", ";
-        }
-        for span in checkpoints {
-            write!(f, "{separator}checkpoint={}..{}", span.lo().0, span.hi().0)?;
             separator = ", ";
         }
         if metadata.keep_with_next {

@@ -640,7 +640,10 @@ fn join_relative_import(parent: &Path, path: &Path) -> PathBuf {
         match component {
             Component::CurDir => {}
             Component::ParentDir => {
-                unit.pop();
+                // Like solc, climbing above the root yields an empty name, not the root.
+                if !unit.pop() {
+                    unit.clear();
+                }
             }
             component => unit.push(component),
         }

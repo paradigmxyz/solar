@@ -49,6 +49,13 @@
 //! ABI wrapper markers, the ABI layouts, and the proved array element widths, and the verifier
 //! rejects them from then on.
 //!
+//! Every instruction, terminator, and block label of `entry` takes the contract definition's span,
+//! as solc places the dispatcher under the contract's location (`compileContract`'s
+//! `LocationSetter` over `appendFunctionSelector`). A selector route is the exception: its case
+//! label, library guard, and `tail_call` take the routed function's declaration span, as solc
+//! places the function's entry tag and the code at it under that function's `LocationSetter`
+//! (`ContractCompiler.cpp` L514).
+//!
 //! The backend only consumes the final `lowered` module.
 
 use crate::mir::{
@@ -189,9 +196,24 @@ fn build_entry(
     // but the selective form avoids it when no route can collide.
     let needs_short_calldata_guard = routes.iter().any(|(selector, _)| selector & 0xff == 0);
 
+    let contract_span = module.contract_span;
+    let set_origin = |builder: &mut FunctionBuilder<'_>, span: solar_interface::Span| {
+        builder.replace_source_span(span);
+        if span.is_dummy() {
+            // NOTE: Parsed MIR has no source declaration for generated dispatch code. Do not
+            // invent a location from a function body or reset its explicit generated context.
+            let mut context = crate::mir::InstructionMetadata::default();
+            context.drop_debug_loc(solar_evmir::debug::DebugLocKind::CompilerGenerated);
+            builder.set_debug_context(&context);
+        }
+    };
     let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
     {
-        let mut builder = FunctionBuilder::new(&mut entry).with_revert_strings(revert_strings);
+        let mut builder = FunctionBuilder::new(&mut entry)
+            .with_revert_strings(revert_strings)
+            .with_block_labels();
+        builder.set_entry_label_span(contract_span);
+        set_origin(&mut builder, contract_span);
 
         let combine_dispatch_guards =
             hoist_callvalue && minimum_calldata.is_some() && !revert_strings.is_debug();
@@ -332,6 +354,7 @@ fn build_entry(
         //   jumpi v2, revert, continue
         let library_deploy_address = module.library_deploy_address();
         for ((_, target), block) in routes.iter().zip(&case_blocks) {
+            set_origin(&mut builder, module.function(*target).declaration_span);
             builder.switch_to_block(*block);
             if let Some(immutable) = library_deploy_address
                 && super::utils::needs_delegatecall_guard(module.function(*target))
@@ -343,8 +366,12 @@ fn build_entry(
             }
             builder.tail_call(*target, Vec::new());
         }
+        set_origin(&mut builder, contract_span);
 
         builder.switch_to_block(revert_block);
+        // NOTE: Block tail merging can fuse this revert with a user `revert()`. The merged revert
+        // then has two origins and no source map entry, as the merge of two different locations
+        // does in LLVM, so the user's statement loses its mapping.
         // solc distinguishes a contract that can at least receive Ether from one that
         // rejects every call.
         builder.revert_with(if receive.is_some() {

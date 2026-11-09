@@ -362,6 +362,9 @@ fn display_function_attributes(
         if func.attributes.is_function_pointer_dispatcher {
             write_function_attribute(f, &mut first, "function_pointer_dispatcher")?;
         }
+        if func.attributes.creation_only {
+            write_function_attribute(f, &mut first, "creation_only")?;
+        }
         if func.attributes.always_inline {
             write_function_attribute(f, &mut first, "always_inline")?;
         }
@@ -835,7 +838,8 @@ fn display_metadata<'a>(
             MetadataField::Span { lo, hi } => write!(f, "span={lo}..{hi}"),
             MetadataField::Spans(metadata) => write!(
                 f,
-                "spans=[{}]",
+                "{}=[{}]",
+                if metadata.all_source_spans() { "all" } else { "spans" },
                 metadata.source_spans().format_with(", ", |f, span| write!(
                     f,
                     "{}..{}",

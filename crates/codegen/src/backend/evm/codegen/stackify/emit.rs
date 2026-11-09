@@ -26,6 +26,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -54,7 +55,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             let Some(plan) = plans[func_id].take() else { continue };
             self.enter_function(module, func);
-            self.asm.define_external_entry_label(self.function_labels[&func_id]);
+            let label = self.function_labels[&func_id];
+            self.asm.define_external_entry_label(label);
+            self.mark_debug_external_entry_label(label, func);
             self.mark_debug_function_invoke(func);
             self.comment_function_entry(func, false, false);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
@@ -84,16 +87,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.register_stackified_functions(module, call_graph, info, &plans);
 
         // push constructor; jump; <helpers>; constructor:
+        let func = &module.functions[constructor];
         let constructor_label = self.asm.new_label();
         if !info.internal.is_empty() {
-            self.asm.emit_push_label(constructor_label);
-            self.asm.emit_op(op::JUMP);
+            // NOTE: This jump is part of entering the constructor: it runs once, after the argument
+            // copy, which already maps to the constructor's declaration, and before the body, and
+            // it only reaches the body. It therefore maps to the same declaration, which is the
+            // contract's for the synthesized constructor. solc has no such jump, but it emits the
+            // code that enters the constructor under the same location, in `appendConstructor`
+            // (libsolidity/codegen/ContractCompiler.cpp L286-L288 at v0.8.38).
+            self.emit_with_origin(Some(func.declaration_span), |codegen| {
+                codegen.asm.emit_push_label(constructor_label);
+                codegen.asm.emit_op(op::JUMP);
+            });
         }
         self.emit_internal_bodies(module, info, &mut plans);
-        let func = &module.functions[constructor];
         self.enter_function(module, func);
         if !info.internal.is_empty() {
             self.asm.define_label(constructor_label);
+            self.mark_block_label_origin(constructor_label, func, BlockId::ENTRY);
         }
         self.mark_debug_function_invoke(func);
         self.comment_function_entry(func, false, true);
@@ -152,6 +164,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 Some(effect) => self.asm.define_function_label(label, effect),
                 None => self.asm.define_label(label),
             }
+            self.mark_block_label_origin(label, func, BlockId::ENTRY);
             self.mark_debug_function_invoke(func);
             self.comment_function_entry(func, false, false);
             self.body = Body::Internal(func_id);
@@ -294,15 +307,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             let next = order.get(pos + 1).copied();
             self.asm.repeating_code = repeating || in_loop(self, block);
             if !func.blocks[block].predecessors.is_empty() {
-                self.asm.define_label(self.block_labels[&block]);
-            }
-            if self.capture_debug_info {
-                let depth = func.blocks[block]
-                    .instructions
-                    .first()
-                    .map(|&inst| func.inst(inst).metadata.modifier_depth())
-                    .unwrap_or(0);
-                self.asm.set_modifier_depth(depth);
+                let label = self.block_labels[&block];
+                self.asm.define_label(label);
+                self.mark_block_label_origin(label, func, block);
             }
             self.emit_stackified_block(
                 func_id,
@@ -352,6 +359,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     ) {
         let (body, terminator) = plan.steps.split_at(plan.terminator_start);
         let cold = self.block_code_is_cold(func, block);
+        self.set_insertion_origin(func, block, body);
         for step in body {
             self.emit_stackified_step(func_id, func, step, cold);
         }
@@ -488,8 +496,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                         self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
                         self.asm.set_modifier_depth(metadata.modifier_depth());
                     } else {
-                        // NOTE: A retained constant has no single source consumer.
+                        // NOTE: A retained constant has no single source consumer, so its
+                        // ambiguous location is LLVM's `DebugLoc::getUnknown`.
                         self.asm.set_source_span(None);
+                        self.asm.set_debug_loc_kind(DebugLocKind::Unknown);
                         self.asm.set_modifier_depth(0);
                     }
                 }
@@ -531,6 +541,27 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::MSTORE);
             }
         }
+    }
+
+    /// Attributes the code that precedes the first instruction that `steps` begin to that
+    /// instruction, or else to the block's terminator.
+    ///
+    /// Scheduler code, such as the pops that clean the stack at the start of a block, belongs to no
+    /// instruction of its own. It takes the location of the instruction it precedes, as rustc's
+    /// `MirPatch::source_info_for_index` gives inserted code the source info of the statement it
+    /// goes before, and LLVM puts a spill or copy at `findDebugLoc` of its insertion point.
+    fn set_insertion_origin(&mut self, func: &Function, block: BlockId, steps: &[Step]) {
+        if !self.capture_debug_info {
+            return;
+        }
+        let next = steps.iter().find_map(|step| match step {
+            Step::Begin(Some(inst)) => Some(&func.inst(*inst).metadata),
+            _ => None,
+        });
+        let metadata = next.unwrap_or(&func.blocks[block].terminator_metadata);
+        self.asm.set_source_spans(metadata.source_spans());
+        self.asm.set_debug_loc_kind(metadata.debug_loc_kind());
+        self.asm.set_modifier_depth(metadata.modifier_depth());
     }
 
     /// Attributes the code that follows to the block's terminator.

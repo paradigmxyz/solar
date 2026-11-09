@@ -536,6 +536,13 @@ impl LowerAbiCx {
             };
             let mut builder = FunctionBuilder::new(func).with_revert_strings(revert_strings);
             builder.switch_to_block(block_id);
+            // NOTE: The encoding keeps the origin of the `return` it replaces. In our output it is
+            // the only code a `return` emits, so the statement is its correct location, and
+            // coverage tools such as forge anchor each `return` item on it. solc has a different
+            // shape: it emits the value moves and the jump to the return tag under the statement
+            // and packs the return under the function declaration (`appendReturnValuePacker`).
+            // Only a wrapper that calls an extracted body has no `return` of its own, so it takes
+            // the declaration.
             // abi_encode(values) !metadata(return span)
             // returndata(encoded_ptr, encoded_len) !metadata(return span)
             builder.inherit_terminator_debug_context(block_id);
@@ -623,6 +630,29 @@ impl LowerAbiCx {
         FunctionBuilder::new(func).with_revert_strings(self.revert_strings)
     }
 
+    /// Creates a builder for the entry code of `func`, which maps to its declaration, as solc emits
+    /// an external function's callvalue check and ABI decoding under
+    /// `LocationSetter(functionType->declaration())` (`ContractCompiler.cpp` L514), and a
+    /// constructor's argument decoding under `LocationSetter(_constructor)` (L288). Blocks the
+    /// builder places take the same origin as their labels.
+    fn wrapper_builder<'a>(&self, func: &'a mut Function) -> FunctionBuilder<'a> {
+        let declaration = func.declaration_span;
+        let original = func.blocks[BlockId::ENTRY].terminator_metadata.debug_context();
+        let mut builder = self.builder(func).with_block_labels();
+        if declaration.is_dummy() {
+            // NOTE: Textual MIR has no source declaration for the generated prologue. Keep
+            // that missing location explicit, preserving an already generated context.
+            let mut context = original;
+            if context.debug_loc_kind() != solar_evmir::debug::DebugLocKind::CompilerGenerated {
+                context.drop_debug_loc(solar_evmir::debug::DebugLocKind::Dropped);
+            }
+            builder.set_debug_context(&context);
+        } else {
+            builder.replace_source_span(declaration);
+        }
+        builder
+    }
+
     /// Lowers every `abi_decode` in `decode_functions`, whose layouts have valid head sizes.
     fn lower_decode_instructions(
         &self,
@@ -699,8 +729,6 @@ impl LowerAbiCx {
                     let layout = layout.clone();
                     let data = crate::mir::utils::resolve_replacement(*data, &replacements);
                     let result = builder.func().inst_result_value(inst);
-                    let debug = builder.func().inst(inst).metadata.debug_context();
-                    builder.set_debug_context(&debug);
                     let calldata =
                         builder.func().value_slice_location(data) == Some(PtrLocation::Calldata);
                     let values = if calldata {
@@ -819,6 +847,7 @@ impl LowerAbiCx {
             builder.set_return_type(ty.mir_type());
             builder.ret([value]);
         }
+        function.mark_unlocated_compiler_generated();
         module.add_function(function)
     }
 
@@ -870,6 +899,7 @@ impl LowerAbiCx {
             builder.set_return_type(MirType::I256);
             builder.ret([base]);
         }
+        function.mark_unlocated_compiler_generated();
         module.add_function(function)
     }
 
@@ -906,6 +936,7 @@ impl LowerAbiCx {
             // ret insert_value(undef, field0), ...
             builder.ret(values);
         }
+        function.mark_unlocated_compiler_generated();
         module.add_function(function)
     }
 
@@ -957,11 +988,9 @@ impl LowerAbiCx {
             && original.abi_params.as_ref().is_some_and(|layout| {
                 layout.types.iter().filter(|ty| ty.is_dynamic()).count() >= 3
             });
-        let original_entry_inst = original.blocks[BlockId::ENTRY].instructions.first().copied();
         let call_body = !keep_external_body
             && needs_body
-            && Self::can_call_body(&original, original.abi_params.as_ref())
-            && original_entry_inst.is_some();
+            && Self::can_call_body(&original, original.abi_params.as_ref());
         let abi_params = Self::input_layout(&original);
         // The copy must precede wrapper mutation and callvalue injection so
         // internal callers keep the original function semantics.
@@ -987,7 +1016,7 @@ impl LowerAbiCx {
             Self::bool_params_as_words(module.function_mut(body_id), &word_params);
         }
 
-        let logical_values =
+        let (logical_values, entry) =
             self.inject_abi_prologue(module.function_mut(wrapper_id), abi_params.as_ref(), false);
         // A wrapper that keeps its body in place returns values computed from these
         // decoded parameters; one that calls the body returns the call's results instead.
@@ -996,7 +1025,7 @@ impl LowerAbiCx {
             Self::replace_body_with_call(
                 module.function_mut(wrapper_id),
                 body_id.expect("body clone for a calling wrapper"),
-                original_entry_inst.expect("calling wrapper has an entry instruction"),
+                entry,
                 original.return_components(),
                 logical_values.into_iter().map(Option::unwrap).collect(),
                 &word_params,
@@ -1082,7 +1111,7 @@ impl LowerAbiCx {
                 U256::ZERO,
             )));
             let test = Instruction::new(InstKind::Ne(word, zero), Some(MirType::I1))
-                .with_debug_info_dropped();
+                .with_debug_loc_dropped();
             let (test, value) = body.alloc_value_inst(test);
             tests.push(test);
             for &use_value in &uses[index] {
@@ -1129,7 +1158,7 @@ impl LowerAbiCx {
             }
             // arg = zext b, before the call
             let mut zext = Instruction::new(InstKind::Zext(arg), Some(MirType::I256));
-            zext.metadata.copy_debug_context(&func.inst(call).metadata);
+            zext.metadata.preserve_debug_loc(&func.inst(call).metadata);
             let (zext, word) = func.alloc_value_inst(zext);
             let instructions = &mut func.blocks[block].instructions;
             let position = instructions.iter().position(|&inst| inst == call).unwrap();
@@ -1208,23 +1237,20 @@ impl LowerAbiCx {
     fn replace_body_with_call(
         func: &mut Function,
         body_id: FunctionId,
-        original_entry_inst: InstId,
+        block: BlockId,
         return_types: &[MirType],
         args: Vec<ValueId>,
         word_params: &[ArgIdx],
     ) {
-        let Some(block) = func
-            .blocks
-            .indices()
-            .find(|&block| func.blocks[block].instructions.first() == Some(&original_entry_inst))
-        else {
-            return;
-        };
         // body(args) -> icall body_id, args; return results
         func.blocks[block].instructions.clear();
         crate::mir::utils::replace_terminator(func, block, Terminator::Invalid);
         func.blocks[block].terminator = None;
+        let declaration = func.declaration_span;
         let mut builder = FunctionBuilder::new(func);
+        // The call maps to the wrapped declaration, as solc jumps into the function under its
+        // location setter.
+        builder.replace_source_span(declaration);
         builder.switch_to_block(block);
         if let Some((&first, rest)) = return_types.split_first() {
             let mut values = Vec::with_capacity(return_types.len());
@@ -1278,9 +1304,12 @@ impl LowerAbiCx {
         let mut wrapper = Function::new(Ident::with_dummy_span(original.name.symbol));
         wrapper.name = original.name;
         wrapper.name_span = original.name_span;
+        wrapper.declaration_span = original.declaration_span;
         wrapper.attributes = original.attributes;
         {
             let mut builder = FunctionBuilder::new(&mut wrapper);
+            builder.replace_source_span(original.declaration_span);
+            builder.set_entry_label_span(original.declaration_span);
             let zero = builder.imm(0);
             let length = builder.calldatasize();
             let input = builder.make_slice(zero, length, PtrLocation::Calldata);
@@ -1314,13 +1343,13 @@ impl LowerAbiCx {
         func: &mut Function,
         abi_params: Option<&AbiParamLayout>,
         constructor: bool,
-    ) -> Vec<Option<ValueId>> {
+    ) -> (Vec<Option<ValueId>>, BlockId) {
         let arg_types: Vec<_> = func.params.iter().copied().collect();
         if !constructor
             && arg_types.is_empty()
             && abi_params.is_none_or(|layout| layout.types.is_empty())
         {
-            return Vec::new();
+            return (Vec::new(), BlockId::ENTRY);
         }
 
         let old_entry = BlockId::ENTRY;
@@ -1330,7 +1359,7 @@ impl LowerAbiCx {
         let mut logical_values =
             abi_params.map_or_else(Vec::new, |layout| vec![None; layout.types.len()]);
         let guard = {
-            let mut builder = self.builder(func);
+            let mut builder = self.wrapper_builder(func);
             let guard = builder.create_block();
             let revert = builder.create_block();
             // solc's scalar validators revert with empty data even in debug mode, so they only
@@ -1536,8 +1565,8 @@ impl LowerAbiCx {
         let order = std::iter::once(guard)
             .chain(func.blocks.indices().filter(|&block| block != guard))
             .collect::<Vec<_>>();
-        crate::mir::utils::remap_block_order(func, &order);
-        logical_values
+        let remap = crate::mir::utils::remap_block_order(func, &order);
+        (logical_values, remap[old_entry])
     }
 
     /// Validates the immediate ABI shape of a dynamic aggregate without
@@ -2604,7 +2633,7 @@ impl LowerAbiCx {
     /// been extracted, so internal callers never pay the check.
     fn inject_callvalue_check(&self, func: &mut Function) {
         let old_entry = BlockId::ENTRY;
-        let mut builder = self.builder(func);
+        let mut builder = self.wrapper_builder(func);
         let guard = builder.create_block();
         let revert = builder.create_block();
         builder.switch_to_block(guard);
@@ -2811,6 +2840,7 @@ fn synthesize_memory_decode_helper(
         builder.set_return_type(ty.mir_type());
         builder.ret([value]);
     }
+    function.mark_unlocated_compiler_generated();
     module.add_function(function)
 }
 

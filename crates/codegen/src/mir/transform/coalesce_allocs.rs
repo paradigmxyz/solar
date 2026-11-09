@@ -168,7 +168,7 @@ fn preserves_group(
         // Lowering places constructor homes outside the FMP word.
         | EffectKind::ImmutableRead
         | EffectKind::ImmutableWrite => true,
-        // `Fmp`, `SetFmp`, non-member `Alloc` shapes, and the remaining aggregate accesses have no
+        // `Fmp`, non-member `Alloc` shapes, and the remaining aggregate accesses have no
         // raw memory range and stay conservative barriers. The object and mapping forms are gone
         // by this point in the pipeline.
         EffectKind::MemoryRead | EffectKind::MemoryWrite => {
@@ -350,12 +350,8 @@ impl GroupBounds {
                 return Some((member, offset));
             }
             let Value::Inst(inst) = *func.value(address) else { return None };
-            let InstKind::Add(first, second) = func.inst(inst).kind else { return None };
-            let (base, step) = if let Some(step) = func.value_u64(second) {
-                (first, step)
-            } else {
-                (second, func.value_u64(first)?)
-            };
+            let InstKind::Add(base, step) = func.inst(inst).kind else { return None };
+            let step = func.value_u64(step)?;
             if func.value_ty(address) != Some(MirType::I256) {
                 return None;
             }

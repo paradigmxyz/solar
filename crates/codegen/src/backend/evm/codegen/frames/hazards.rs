@@ -610,11 +610,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 overlaps(*offset, *size)
             }
             InstKind::Log { offset, size, .. } => overlaps(*offset, *size),
-            InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
-            // These semantic memory operations are normally gone by the `lowered` phase. If
-            // one remains, its complete accessed range is not represented as physical operands
-            // here, so retain the Solidity memory invariant conservatively.
-            InstKind::AbiEncode { .. } | InstKind::MappingSlotBytes(_, _) => true,
+            InstKind::Alloc { .. } => true,
             _ => false,
         }
     }

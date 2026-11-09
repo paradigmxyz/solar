@@ -266,13 +266,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_typed_expr(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        ty: Ty<'gcx>,
-    ) -> Option<ValueId> {
+    /// Lowers `expr` and converts it to `ty`. A raw word of the same type stays raw.
+    pub(super) fn lower_typed_expr(&mut self, expr: &hir::Expr<'_>, ty: Ty<'gcx>) -> Option<Word> {
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
-            return Some(value);
+            return Some(Word::from_clean(value));
         }
         let source_expr = self.peel_bytes_conversion(expr);
         if let ExprKind::Lit(lit) = source_expr.peel_parens().kind
@@ -286,20 +283,26 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )
             )
         {
-            return self.lower_shared_bytes_literal(*bytes);
+            return self.lower_shared_bytes_literal(*bytes).map(Word::from_clean);
         }
         if self.is_storage_object_copy(source_expr, ty) {
             let access = self.require_storage_access(source_expr)?;
-            return self.load_storage_object(ty, access.slot, expr.span);
+            return self.load_storage_object(ty, access.slot, expr.span).map(Word::from_clean);
         }
-        let value = self.lower_expr(expr)?;
+        let word = self.lower_expr(expr)?;
         let source_ty = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
             let ExprKind::Lit(lit) = &expr.kind else { return None };
             let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
             Some(self.cx.gcx.mk_ty_string_literal(bytes.as_byte_str()))
         });
-        let value = source_ty.map_or(value, |source_ty| self.coerce_value(value, source_ty, ty));
-        Some(value)
+        // A raw word of the same type passes through.
+        Some(match source_ty {
+            Some(source_ty) if !(word.is_raw() && source_ty == ty) => {
+                let value = word.clean(self, source_ty);
+                Word::from_clean(self.coerce_value(value, source_ty, ty))
+            }
+            _ => word,
+        })
     }
 
     /// Whether a value of type `ty` made from `source` copies a storage array or struct to memory.
@@ -328,7 +331,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let slot = self.require_storage_access(source)?.slot;
             return Some(AbiOperand::Storage { slot, ty, span: expr.span });
         }
-        let value = self.lower_typed_expr(expr, ty)?;
+        let value = self.lower_typed_expr(expr, ty)?.clean(self, ty);
         prepare(self, value).map(AbiOperand::Ready)
     }
 
@@ -350,6 +353,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<(ValueId, AbiType)> {
         match operand {
             AbiOperand::Ready(operand) => Some(operand),
+            AbiOperand::Literal { bytes, span } => {
+                let previous = self.builder.replace_source_span(span);
+                // object = alloc literal_size
+                // mstore object, length
+                // mstore (object + 32 + offset), word
+                let object = self.lower_call_input_literal(bytes.as_byte_str());
+                self.builder.replace_source_span(previous);
+                object.map(|object| (object, AbiType::Bytes(PtrLocation::Memory)))
+            }
             AbiOperand::Storage { slot, ty, span } => {
                 // object = load_storage_object(ty, slot)
                 let object = self.load_storage_object(ty, slot, span)?;
@@ -372,7 +384,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some((self.require_storage_access(source)?.slot, PtrLocation::Storage));
         }
-        let value = self.lower_typed_expr(expr, ty)?;
+        let value = self.lower_typed_expr(expr, ty)?.clean(self, ty);
         Some((
             value,
             self.builder.func().value_slice_location(value).unwrap_or(PtrLocation::Memory),
@@ -401,6 +413,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             this.prepare_abi_argument(argument, parameter_ty, value, abi_type)
         })
+    }
+
+    /// Defers raw literal inputs until the call's argument expressions have all run.
+    pub(super) fn lower_call_input_argument(
+        &mut self,
+        argument: &hir::Expr<'_>,
+        parameter_ty: Ty<'gcx>,
+    ) -> Option<AbiOperand<'gcx>> {
+        // Constants and explicit conversions materialize at their evaluation point; a later
+        // argument can observe their allocation by reading the free-memory pointer.
+        if matches!(argument.peel_parens().kind, ExprKind::Lit(_))
+            && self.is_dynamic_bytes_type(parameter_ty)
+            && let Some(bytes) = self.constant_bytes(argument)
+        {
+            // A literal has no memory reference to retain. The encoder can embed its words
+            // in call input and remove the temporary without preserving a pointer bump.
+            return Some(AbiOperand::Literal { bytes, span: argument.span });
+        }
+        self.lower_abi_call_argument(argument, parameter_ty)
     }
 
     pub(super) fn prepare_abi_encode_argument(
@@ -508,7 +539,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 //     validate_calldata_bytes(data)
                 //     object = materialize_calldata_bytes(data)
                 // }
-                if self.dirty_values.contains(&value) {
+                if self.unchecked_calldata_slices.contains(&value) {
                     let length = self.builder.slice_len(value);
                     let object =
                         self.builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);

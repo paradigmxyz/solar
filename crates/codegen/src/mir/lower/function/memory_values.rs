@@ -49,9 +49,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // A storage element, such as `[flag ? a : b]`, lowers to its slot; copy it out.
                 // element = load_storage_object(element_ty, slot)
                 let slot = self.lower_component(element)?;
-                self.convert_tuple_component(slot, source_ty, element_ty, element.span)?
+                let slot =
+                    self.convert_tuple_component(slot, source_ty, element_ty, element.span)?;
+                slot.clean(self, element_ty)
             } else {
-                let value = self.lower_expr(element)?;
+                let value = self.operand(element)?.id();
                 let value = self.coerce_value(value, source_ty, element_ty);
                 self.materialize_memory_copy(element_ty, value, element.span)?
             };
@@ -92,7 +94,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .gcx
                     .type_of_item(struct_fields[index].into())
                     .with_loc_if_ref(this.cx.gcx, DataLocation::Memory);
-                let value = this.lower_typed_expr(argument, field_ty)?;
+                let value = this.lower_typed_expr(argument, field_ty)?.clean(this, field_ty);
                 let value = this.materialize_memory_copy(field_ty, value, argument.span)?;
                 Some(this.encode_memory_scalar(field_ty, value))
             },
@@ -125,7 +127,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let object = self.builder.alloc_word_struct(fields, initialization);
         for (index, value) in values.iter().enumerate() {
             let Some(value) = value else { continue };
-            let value = self.lower_expr(value)?;
+            let value = self.operand(value)?.id();
             let value = self.encode_memory_scalar(field_types[index], value);
             self.builder.memory_store_field(object, index as u64, value);
         }
@@ -141,6 +143,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             AllocationSemantics::INTERNAL,
             true,
         )
+    }
+
+    /// Stages raw literal ABI input in the encoder's word form, without an observable allocation.
+    /// Keep initialization explicit until `lower-abi-encode` proves the bytes, then selects
+    /// stores or a program-data copy directly into the output using the data-copy cost model.
+    pub(super) fn lower_call_input_literal(&mut self, bytes: &[u8]) -> Option<ValueId> {
+        // object = alloc (32 + padded_length)
+        // mstore object, length
+        let (object, _) = Self::alloc_const_bytes(
+            &mut self.builder,
+            bytes.len(),
+            AllocationSemantics::INTERNAL,
+            false,
+        )?;
+        for (index, chunk) in bytes.chunks(32).enumerate() {
+            // mstore (object + 32 + offset), word
+            let word = self.lower_string_literal_word(chunk);
+            let offset = self.builder.imm(index as u64 * 32);
+            self.builder.memory_store_word(object, offset, word);
+        }
+        Some(object)
     }
 
     pub(super) fn lower_shared_bytes_literal(&mut self, symbol: ByteSymbol) -> Option<ValueId> {
