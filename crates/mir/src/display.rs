@@ -462,7 +462,7 @@ fn display_inst_kind<'a>(
     }
 
     fmt::from_fn(move |f| match kind {
-        InstKind::AddressCall { policy, address, input, gas, value } => {
+        InstKind::ExtCall { policy, address, input, gas, value } => {
             write!(f, "{}<", kind.mnemonic())?;
             let flags = [
                 match policy.output {

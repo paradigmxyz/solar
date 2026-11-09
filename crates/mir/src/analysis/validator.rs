@@ -43,7 +43,7 @@
 //! ```
 
 use crate::{
-    AbiType, AddressCallKind, BlockId, Builtin, Callee, Function, FunctionId, InstId, InstKind,
+    AbiType, BlockId, Builtin, Callee, ExtCallKind, Function, FunctionId, InstId, InstKind,
     MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation, RequireKind,
     ResultKind, StorageAlias, StructId, Terminator, TypeSize, Value, ValueId, analysis::CfgInfo,
 };
@@ -1219,9 +1219,8 @@ impl<'a> Validator<'a> {
                         }) && inst.result_ty == Some(MirType::MEMPTR)
                     }
                     InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MEMPTR),
-                    InstKind::AddressCall { policy, value, .. } => {
-                        policy.is_valid()
-                            && (policy.kind == AddressCallKind::Call || value.is_none())
+                    InstKind::ExtCall { policy, value, .. } => {
+                        policy.is_valid() && (policy.kind == ExtCallKind::Call || value.is_none())
                     }
                     InstKind::Load(.., location) => *location != PtrLocation::Returndata,
                     InstKind::Store(.., location) => {

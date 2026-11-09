@@ -1,6 +1,6 @@
-error: [fn0] [bb0, inst0] `address_call` has incompatible scalar types; use an explicit cast
+error: [fn0] [bb0, inst0] `extcall` has incompatible scalar types; use an explicit cast
 
-error: [fn1] [bb0, inst0] `address_call` has incompatible scalar types; use an explicit cast
+error: [fn1] [bb0, inst0] `extcall` has incompatible scalar types; use an explicit cast
 
 error: [fn2] [bb0, inst0] `icall` has incompatible scalar types; use an explicit cast
 

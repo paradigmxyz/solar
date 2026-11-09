@@ -672,7 +672,7 @@ fn @slotNinetySix() -> i1 [selector=0x2b5197ce, abi_params=[], abi_returns=[word
     v37 = address
     v38 = gas
     v39 = abi_encode [], object, selector 0x3cf95b1e00000000000000000000000000000000000000000000000000000000
-    v40 = address_call<create> v37, v39, gas v38
+    v40 = extcall<create> v37, v39, gas v38
     v41 = icall returndata_bytes<>
     v42 = eq v40, false
     jumpi v42, bb15, bb16

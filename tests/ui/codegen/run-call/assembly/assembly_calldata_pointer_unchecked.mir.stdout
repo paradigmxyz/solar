@@ -126,7 +126,7 @@ fn @shaIt() -> i256 [selector=0x43234fee, pure, abi_params=[], abi_returns=[word
     v3 = fmp
     calldatacopy v3, v1, v2 !metadata(memory=heap)
     v4 = make_memory_slice v3, v2
-    v5 = address_staticcall<scratch, revert, create> i160 2, v4
+    v5 = extstaticcall<scratch, revert, create> i160 2, v4
     ret v5
 }
 

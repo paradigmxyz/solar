@@ -4,7 +4,7 @@
   fn @keeps_store(arg0: i160) -> i256 {
     bb0:
       mstore 0, 7 !metadata(memory=scratch)
-      v0 = address_staticcall<scratch, revert, create> arg0, gas 0xc350
+      v0 = extstaticcall<scratch, revert, create> arg0, gas 0xc350
       mstore 0, 9 !metadata(memory=scratch)
       ret v0
   }
@@ -12,7 +12,7 @@
   fn @drops_store(arg0: i160) -> i256 {
     bb0:
 -     mstore 0, 7 !metadata(memory=scratch)
-      v0 = address_staticcall<scratch_clear, revert, create> arg0, gas 0xc350
+      v0 = extstaticcall<scratch_clear, revert, create> arg0, gas 0xc350
       mstore 0, 9 !metadata(memory=scratch)
       ret v0
   }

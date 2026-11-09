@@ -334,7 +334,7 @@ fn @bare() -> i256 [selector=0x8095dd0b, abi_params=[], abi_returns=[word], abi_
   bb2:                                            ; preds = bb0
     v4 = gas
     v5 = abi_encode [], object, selector 0x5dfc2e4a00000000000000000000000000000000000000000000000000000000
-    v6 = address_call<create> v2, v5, gas v4
+    v6 = extcall<create> v2, v5, gas v4
     jumpi v6, bb3, bb4
   bb4:                                            ; preds = bb2
     jump bb5
@@ -360,7 +360,7 @@ fn @sendZero() -> i256 [selector=0xe857d88b, abi_params=[], abi_returns=[word], 
   bb2:                                            ; preds = bb0
     v4 = eq 0, 0
     v5 = select v4, 0x8fc, 0
-    v6 = address_call<> v2, gas v5, value 0
+    v6 = extcall<> v2, gas v5, value 0
     jumpi v6, bb3, bb4
   bb4:                                            ; preds = bb2
     jump bb5

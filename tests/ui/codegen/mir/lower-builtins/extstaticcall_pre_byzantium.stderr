@@ -1,0 +1,4 @@
+error: `extstaticcall` of a callee that is not a precompile needs `STATICCALL`
+
+error: aborting due to 1 previous error
+

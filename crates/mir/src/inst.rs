@@ -845,15 +845,15 @@ impl Instruction {
     }
 }
 
-/// Solidity low-level address-call behavior.
+/// Which opcode an `extcall` uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AddressCallKind {
+pub enum ExtCallKind {
     Call,
     Static,
     Delegate,
 }
 
-/// Where an address call's output lands.
+/// Where an `extcall`'s output lands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CallOutput {
     /// The call discards its output: it expands to an empty output range.
@@ -863,7 +863,7 @@ pub enum CallOutput {
     ScratchWord { clear: bool },
 }
 
-/// What an address call does when the callee fails.
+/// What an `extcall` does when the callee fails.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CallFailure {
     /// The success flag is the result.
@@ -872,11 +872,11 @@ pub enum CallFailure {
     Revert,
 }
 
-/// Everything an `address_call` expansion decides apart from its operands.
+/// Everything an `extcall` expansion decides apart from its operands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CallPolicy {
     /// `CALL`, `STATICCALL` (a zero-value `CALL` before Byzantium), or `DELEGATECALL`.
-    pub kind: AddressCallKind,
+    pub kind: ExtCallKind,
     pub output: CallOutput,
     pub on_failure: CallFailure,
     /// Whether the default gas of a pre-EIP-150 call reserves the callee's account creation, as
@@ -977,7 +977,7 @@ impl InstKind {
                     && ty(b) == result
             }
             Self::AbiDecode { ref layout, .. } => result.is_some() != layout.types.is_empty(),
-            Self::AddressCall { policy, .. } => result == policy.result_type(),
+            Self::ExtCall { policy, .. } => result == policy.result_type(),
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
             | Self::StorageBytesLoad(..)
@@ -1079,10 +1079,10 @@ impl InstKind {
                     "abi_encode_packed"
                 }
             }
-            Self::AddressCall { policy, .. } => match policy.kind {
-                AddressCallKind::Call => "address_call",
-                AddressCallKind::Static => "address_staticcall",
-                AddressCallKind::Delegate => "address_delegatecall",
+            Self::ExtCall { policy, .. } => match policy.kind {
+                ExtCallKind::Call => "extcall",
+                ExtCallKind::Static => "extstaticcall",
+                ExtCallKind::Delegate => "extdelegatecall",
             },
             _ => self.op_def().mnemonic,
         }

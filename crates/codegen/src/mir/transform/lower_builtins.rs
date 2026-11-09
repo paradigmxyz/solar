@@ -6,7 +6,7 @@
 //! overflow checks, repairing successor phi labels when it splits blocks. Revert outlining can
 //! then share builtin failure payloads.
 //!
-//! Every `address_call` expands through the one call emitter, `emit_call`: the low-level calls
+//! Every `extcall` expands through the one call emitter, `emit_call`: the low-level calls
 //! with their explicit gas and value options, the stipend-limited `send` and `transfer`, and the
 //! `ecrecover`, `sha256` and `ripemd160` precompiles. The operation's policy states what differs
 //! between them. A precompile's 32-byte result lands in scratch memory instead of an allocation,
@@ -14,7 +14,7 @@
 //! copies after the call, before any later call can replace the data.
 
 use crate::mir::{
-    AddressCallKind, AllocationSemantics, Builtin, CallPolicy, Callee, FunctionBuilder, InstKind,
+    AllocationSemantics, Builtin, CallPolicy, Callee, ExtCallKind, FunctionBuilder, InstKind,
     MemoryObjectKind, MirModuleTarget, Module, PanicCode, PhaseCategory, PtrLocation, ValueId,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
@@ -55,8 +55,8 @@ impl MirPass for LowerBuiltins {
                     // Without `STATICCALL` a static call becomes a `CALL`, which keeps what the
                     // optimizer assumed of the static kind only for a precompile, whose callee
                     // keeps no state.
-                    InstKind::AddressCall {
-                        policy: CallPolicy { kind: AddressCallKind::Static, .. },
+                    InstKind::ExtCall {
+                        policy: CallPolicy { kind: ExtCallKind::Static, .. },
                         address,
                         ..
                     } if !evm.has_static_call()
@@ -66,7 +66,7 @@ impl MirPass for LowerBuiltins {
                     {
                         analyses.fail(
                             gcx.dcx()
-                                .err("`address_staticcall` of a callee that is not a precompile needs `STATICCALL`")
+                                .err("`extstaticcall` of a callee that is not a precompile needs `STATICCALL`")
                                 .emit(),
                         );
                         return false;
@@ -199,7 +199,7 @@ impl MirPass for LowerBuiltins {
                         InstKind::StorageBytesLoad(slot) => {
                             super::lower_storage_bytes::load(builder, slot)
                         }
-                        InstKind::AddressCall { policy, address, input, gas, value } => {
+                        InstKind::ExtCall { policy, address, input, gas, value } => {
                             let Some(result) = lower_address_call(
                                 builder, evm, policy, address, input, gas, value,
                             ) else {

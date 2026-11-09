@@ -1753,10 +1753,10 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::SlotNum, Some(MirType::I256))
     }
 
-    /// Emits an address call over a bytes object or memory slice, or over no bytes at all.
+    /// Emits an `extcall` over a bytes object or memory slice, or over no bytes at all.
     ///
     /// Returns the success flag, the output word, or nothing, as `policy` says.
-    pub fn address_call(
+    pub fn extcall(
         &mut self,
         policy: CallPolicy,
         address: ValueId,
@@ -1764,8 +1764,8 @@ impl<'a> FunctionBuilder<'a> {
         gas: Option<ValueId>,
         value: Option<ValueId>,
     ) -> Option<ValueId> {
-        // result? = address_call<policy>(address, input?, gas?, value?)
-        let kind = InstKind::AddressCall { policy, address, input, gas, value };
+        // result? = extcall<policy>(address, input?, gas?, value?)
+        let kind = InstKind::ExtCall { policy, address, input, gas, value };
         match policy.result_type() {
             Some(ty) => Some(self.emit_inst(kind, Some(ty))),
             None => {

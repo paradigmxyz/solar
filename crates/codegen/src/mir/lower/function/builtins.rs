@@ -16,7 +16,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<CallResult> {
         match builtin {
             Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall => {
-                // result = address_call(receiver, args, opts)
+                // result = extcall(receiver, args, opts)
                 let ExprKind::Member(receiver, _) = callee.kind else {
                     return self.cx.report_unsupported(callee.span, "address call");
                 };
@@ -167,12 +167,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.materialize_memory_argument(memory_ty, data, data_span)?
         };
         let kind = match builtin {
-            Builtin::AddressCall => AddressCallKind::Call,
-            Builtin::AddressStaticcall => AddressCallKind::Static,
-            Builtin::AddressDelegatecall => AddressCallKind::Delegate,
+            Builtin::AddressCall => ExtCallKind::Call,
+            Builtin::AddressStaticcall => ExtCallKind::Static,
+            Builtin::AddressDelegatecall => ExtCallKind::Delegate,
             _ => unreachable!(),
         };
-        // success = address_call(address, data, gas?, value?)
+        // success = extcall(address, data, gas?, value?)
         let policy = CallPolicy {
             kind,
             output: CallOutput::None,
@@ -181,7 +181,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let success = self
             .builder
-            .address_call(
+            .extcall(
                 policy,
                 address,
                 Some(data),
@@ -210,7 +210,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let amount_is_zero = self.builder.eq_zero(amount);
         let gas = self.builder.select(amount_is_zero, stipend, zero);
         let policy = CallPolicy {
-            kind: AddressCallKind::Call,
+            kind: ExtCallKind::Call,
             output: CallOutput::None,
             on_failure: if builtin == Builtin::AddressPayableTransfer {
                 CallFailure::Revert
@@ -219,8 +219,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             },
             may_create_account: false,
         };
-        // success? = address_call(address, gas, value amount)
-        let success = self.builder.address_call(policy, address, None, Some(gas), Some(amount));
+        // success? = extcall(address, gas, value amount)
+        let success = self.builder.extcall(policy, address, None, Some(gas), Some(amount));
         Some(success.map_or(CallResult::Void, CallResult::Value))
     }
 

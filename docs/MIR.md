@@ -234,7 +234,7 @@ Range-based check elimination learns facts from these operations before expansio
 constant checks fold only when they pass. Revert outlining runs after check and
 builtin expansion, before checked arithmetic expands.
 Every call to an address that sends bytes and reads at most one word back is an
-`address_call`: the low-level calls, `send` and `transfer`, and the `ecrecover`,
+`extcall`: the low-level calls, `send` and `transfer`, and the `ecrecover`,
 `sha256` and `ripemd160` precompiles. Its policy, printed in angle brackets,
 names the call kind, whether the output is a scratch word (zeroed first or not),
 whether a failed call returns the success flag or reverts with the returndata,
@@ -282,9 +282,9 @@ message())` evaluates `message()` even on success; only failure-path encoding
 may be deferred. Checked arithmetic and ABI validation can revert even when
 their result is unused. Keep those checks as semantic effects until proved
 redundant. Low-level calls and precompiles retain their gas, returndata, and
-failure behavior. Address calls carry external-call effects before expansion, so
+failure behavior. `extcall`s carry external-call effects before expansion, so
 loop motion cannot reuse an older return-data size across them. Gas observations also include the implicit reads
-in precompiles and address calls without an explicit gas argument. LICM
+in precompiles and `extcall`s without an explicit gas argument. LICM
 respects those reads before expansion. Solidity's checked division and Yul's
 division by zero must not share a folding rule that changes their distinct
 semantics.

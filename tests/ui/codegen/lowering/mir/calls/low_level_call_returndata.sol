@@ -8,7 +8,7 @@ interface IERC20Minimal {
 contract LowLevelCallReturndata {
     // CHECK-LABEL: fn @safeTransfer{{[( ]}}
     // CHECK: {{v[0-9]+}} = abi_encode [word<uint160>, word], object, selector 0xa9059cbb
-    // CHECK: {{v[0-9]+}} = address_call<create> arg0,
+    // CHECK: {{v[0-9]+}} = extcall<create> arg0,
     // CHECK: {{v[0-9]+}} = icall returndata_bytes<>
     // CHECK: abi_decode [bool]
     function safeTransfer(address token, address to, uint256 value) public {
@@ -19,7 +19,7 @@ contract LowLevelCallReturndata {
 
     // CHECK-LABEL: fn @balanceOf{{[( ]}}
     // CHECK: abi_encode [word<uint160>], object, selector 0x70a08231
-    // CHECK: {{v[0-9]+}} = address_staticcall<create> arg0,
+    // CHECK: {{v[0-9]+}} = extstaticcall<create> arg0,
     // CHECK: {{v[0-9]+}} = icall returndata_bytes<>
     // CHECK: {{v[0-9]+}} = abi_decode [uint256]
     function balanceOf(address token) public view returns (uint256) {
@@ -30,7 +30,7 @@ contract LowLevelCallReturndata {
     }
 
     // CHECK-LABEL: fn @forward{{[( ]}}
-    // CHECK: {{v[0-9]+}} = address_call<create> arg0,
+    // CHECK: {{v[0-9]+}} = extcall<create> arg0,
     // CHECK: {{v[0-9]+}} = icall returndata_bytes<>
     // CHECK: ret {{v[0-9]+}}
     function forward(address target, bytes memory payload) public returns (bytes memory) {

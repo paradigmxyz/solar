@@ -156,7 +156,7 @@
       jump bb3
     bb3:                                            ; preds = bb1, bb2
       v1 = trunc i256 0xbeef to i160
-      v2 = address_call<create> v1, arg1
+      v2 = extcall<create> v1, arg1
       v3 = mload 128
       v4 = mload 128
       v5 = add v3, v4
@@ -174,7 +174,7 @@
     bb3:                                            ; preds = bb1, bb2
       v1 = mload 128
       v2 = trunc i256 0xbeef to i160
-      v3 = address_call<create> v2, arg1
+      v3 = extcall<create> v2, arg1
       v4 = mload 128
       v5 = add v1, v4
       ret v5
@@ -190,7 +190,7 @@
       jump bb3
     bb3:                                            ; preds = bb1, bb2
       v1 = trunc i256 0xbeef to i160
-      v2 = address_call<create> v1, arg1, gas 0x3e8
+      v2 = extcall<create> v1, arg1, gas 0x3e8
       v3 = mload 128
       v4 = mload 128
       v5 = add v3, v4

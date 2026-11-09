@@ -1,11 +1,11 @@
 //! The expansion of a call: gas, opcode, output, and failure.
 //!
 //! Every call that sends bytes and reads at most one word back goes through [`emit_call`]: the
-//! `address_call` operation, which `lower-builtins` expands, and the external calls the frontend
+//! `extcall` operation, which `lower-builtins` expands, and the external calls the frontend
 //! emits itself. The caller states the differences between them as a [`CallPolicy`].
 
 use crate::mir::{
-    AddressCallKind, CallFailure, CallOutput, CallPolicy, FunctionBuilder, PtrLocation, ValueId,
+    CallFailure, CallOutput, CallPolicy, ExtCallKind, FunctionBuilder, PtrLocation, ValueId,
     memory::EvmMemoryLayout,
 };
 use solar_config::EvmVersion;
@@ -56,7 +56,7 @@ pub(crate) fn emit_call(
     //         | staticcall(gas, address, input, output)
     //         | delegatecall(gas, address, input, output)
     let success = match policy.kind {
-        AddressCallKind::Call => builder.call(
+        ExtCallKind::Call => builder.call(
             gas,
             address,
             value.unwrap_or(zero),
@@ -65,13 +65,13 @@ pub(crate) fn emit_call(
             output_offset,
             output_size,
         ),
-        AddressCallKind::Static if evm.has_static_call() => {
+        ExtCallKind::Static if evm.has_static_call() => {
             builder.staticcall(gas, address, input_offset, input_size, output_offset, output_size)
         }
-        AddressCallKind::Static => {
+        ExtCallKind::Static => {
             builder.call(gas, address, zero, input_offset, input_size, output_offset, output_size)
         }
-        AddressCallKind::Delegate => {
+        ExtCallKind::Delegate => {
             builder.delegatecall(gas, address, input_offset, input_size, output_offset, output_size)
         }
     };

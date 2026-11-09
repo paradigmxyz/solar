@@ -1523,7 +1523,7 @@ impl Target {
             | InstKind::StorageArrayElementSlot { .. } => {
                 self.slot_expansion(func, kind).expect("a slot hash is priced")
             }
-            InstKind::AddressCall { policy, .. } => self.address_call(*policy),
+            InstKind::ExtCall { policy, .. } => self.extcall(*policy),
             InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
                 Cost::new(60, 24)
             }
@@ -1594,11 +1594,11 @@ impl Target {
         self.opcode(op::DUP3) + self.opcode(op::SWAP1)
     }
 
-    /// Estimated code of an `address_call`, as `lower-builtins` expands it, excluding the staging
+    /// Estimated code of an `extcall`, as `lower-builtins` expands it, excluding the staging
     /// of its input: the call with its gas and ranges, the branch to the shared revert of a
     /// failure that forwards returndata, and the scratch word that a result is read from, and
     /// that may be zeroed first.
-    pub(crate) fn address_call(&self, policy: CallPolicy) -> Cost {
+    pub(crate) fn extcall(&self, policy: CallPolicy) -> Cost {
         let mut cost = Cost::new(720, 12);
         if policy.on_failure == CallFailure::Revert {
             cost += self.branch();
@@ -1715,7 +1715,7 @@ fn abi_layout_expansion(layout: &AbiLayout) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{AddressCallKind, Immediate, Instruction, PtrLocation, Value};
+    use crate::mir::{ExtCallKind, Immediate, Instruction, PtrLocation, Value};
     use solar_interface::Ident;
     use std::fmt::Write;
 
@@ -1847,8 +1847,8 @@ mod tests {
             Target::DEFAULT_EXPECTED_EXECUTIONS,
         );
         let price = |on_failure, output| {
-            target.address_call(CallPolicy {
-                kind: AddressCallKind::Static,
+            target.extcall(CallPolicy {
+                kind: ExtCallKind::Static,
                 output,
                 on_failure,
                 may_create_account: true,

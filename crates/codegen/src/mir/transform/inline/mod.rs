@@ -1030,7 +1030,7 @@ fn summarize_function(
                 | InstKind::StorageBytesStoreLiteral { .. }
                 | InstKind::StorageClearWords(..)
                 | InstKind::CheckedBinary { .. }
-                | InstKind::AddressCall {
+                | InstKind::ExtCall {
                     policy: CallPolicy { on_failure: CallFailure::Revert, .. },
                     ..
                 }

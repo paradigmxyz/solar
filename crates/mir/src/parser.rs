@@ -35,9 +35,9 @@
 
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
-    AbiType, AddressCallKind, AllocationFailure, AllocationInitialization, AllocationSemantics,
-    BackendMemory, BlockId, CallFailure, CallOutput, CallPolicy, DataId, DataRef, DataSize,
-    Disambiguator, EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId,
+    AbiType, AllocationFailure, AllocationInitialization, AllocationSemantics, BackendMemory,
+    BlockId, CallFailure, CallOutput, CallPolicy, DataId, DataRef, DataSize, Disambiguator,
+    EffectKind, ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId,
     HirExprId, Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata,
     LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
     StorageAlias, StructId, StructType, Terminator, Value, ValueId,
@@ -1988,12 +1988,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             sym::load_storage_bytes => {
                 inst!(StorageBytesLoad(a) => MirType::MEMPTR)
             }
-            sym::address_call | sym::address_staticcall | sym::address_delegatecall => {
+            sym::extcall | sym::extstaticcall | sym::extdelegatecall => {
                 let mut policy = CallPolicy {
                     kind: match mnemonic {
-                        sym::address_call => AddressCallKind::Call,
-                        sym::address_staticcall => AddressCallKind::Static,
-                        _ => AddressCallKind::Delegate,
+                        sym::extcall => ExtCallKind::Call,
+                        sym::extstaticcall => ExtCallKind::Static,
+                        _ => ExtCallKind::Delegate,
                     },
                     output: CallOutput::None,
                     on_failure: CallFailure::Return,
@@ -2013,7 +2013,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         }
                         kw::Revert => policy.on_failure = CallFailure::Revert,
                         kw::Create => policy.may_create_account = true,
-                        _ => return Err(self.parser.error("invalid address call policy")),
+                        _ => return Err(self.parser.error("invalid extcall policy")),
                     }
                 }
                 let address = self.parse_value(builder)?;
@@ -2030,16 +2030,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                             _ => {
                                 return Err(self
                                     .parser
-                                    .error("invalid or duplicate address call option"));
+                                    .error("invalid or duplicate extcall option"));
                             }
                         }
                     } else if input.is_none() && gas.is_none() && value.is_none() {
                         input = Some(self.parse_value(builder)?);
                     } else {
-                        return Err(self.parser.error("invalid or duplicate address call input"));
+                        return Err(self.parser.error("invalid or duplicate extcall input"));
                     }
                 }
-                (InstKind::AddressCall { policy, address, input, gas, value }, policy.result_type())
+                (InstKind::ExtCall { policy, address, input, gas, value }, policy.result_type())
             }
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::I256),
             sym::mapping_slot_bytes => inst!(MappingSlotBytes(key, slot) => MirType::I256),

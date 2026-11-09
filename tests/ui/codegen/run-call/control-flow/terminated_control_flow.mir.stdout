@@ -288,18 +288,18 @@ fn @precompileReturndata(arg0: i256, arg1: i256) -> i256 [selector=0x3553277c, p
     v18 = add v15, 96
     mstore v18, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     v19 = make_memory_slice v14, 128
-    v20 = address_staticcall<scratch_clear, revert, create> i160 1, v19
+    v20 = extstaticcall<scratch_clear, revert, create> i160 1, v19
     jump bb9
   bb7:                                            ; preds = bb5
     v11 = abi_encode [word], object, args v3
-    v12 = address_staticcall<scratch, revert, create> i160 3, v11
+    v12 = extstaticcall<scratch, revert, create> i160 3, v11
     v13 = mul v12, 0x1000000000000000000000000
     jump bb9
   bb9:                                            ; preds = bb7, bb8
     jump bb6
   bb4:                                            ; preds = bb1
     v8 = abi_encode [word], object, args v3
-    v9 = address_staticcall<scratch, revert, create> i160 2, v8
+    v9 = extstaticcall<scratch, revert, create> i160 2, v8
     jump bb6
   bb6:                                            ; preds = bb4, bb9
     v21 = checked_add uint256, v3, 1

@@ -36,16 +36,13 @@ pub(super) enum ExternalReturnMode {
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Returns `STATICCALL` for a `pure` or `view` function where the target has it, else `CALL`.
-    pub(super) fn external_call_kind(
-        &self,
-        state_mutability: hir::StateMutability,
-    ) -> AddressCallKind {
+    pub(super) fn external_call_kind(&self, state_mutability: hir::StateMutability) -> ExtCallKind {
         if matches!(state_mutability, hir::StateMutability::Pure | hir::StateMutability::View)
             && self.cx.gcx.sess.opts.evm_version.has_static_call()
         {
-            AddressCallKind::Static
+            ExtCallKind::Static
         } else {
-            AddressCallKind::Call
+            ExtCallKind::Call
         }
     }
 
@@ -1063,7 +1060,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // which `None` options keep.
         // ok = delegatecall(library, selector, args)
         let (success, return_plan) = self.emit_external_call(
-            AddressCallKind::Delegate,
+            ExtCallKind::Delegate,
             address,
             selector,
             (values, types),
@@ -1300,7 +1297,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// the arguments are encoded rather than before them.
     pub(super) fn emit_external_call(
         &mut self,
-        kind: AddressCallKind,
+        kind: ExtCallKind,
         address: ValueId,
         selector: ValueId,
         (values, types): (Vec<ValueId>, Vec<AbiType>),

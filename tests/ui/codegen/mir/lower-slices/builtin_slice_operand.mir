@@ -5,6 +5,6 @@
 //~? ERROR: `lower-slices` requires expanded builtins; run `lower-builtins` first
 fn @hash(arg0: slice<memory>) -> i256 {
   bb0:
-    v0 = address_staticcall<scratch, revert, create> i160 2, arg0
+    v0 = extstaticcall<scratch, revert, create> i160 2, arg0
     ret v0
 }

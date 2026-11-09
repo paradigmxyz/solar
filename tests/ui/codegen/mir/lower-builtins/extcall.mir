@@ -27,7 +27,7 @@
 // CHECK-NEXT: ret [[WORD]]
 fn @hash_object(arg0: ptr<memory>) -> i256 {
   bb0:
-    v0 = address_staticcall<scratch, revert, create> i160 2, arg0
+    v0 = extstaticcall<scratch, revert, create> i160 2, arg0
     ret v0
 }
 
@@ -39,7 +39,7 @@ fn @hash_object(arg0: ptr<memory>) -> i256 {
 // CHECK: mload 0
 fn @hash_slice(arg0: slice<memory>) -> i256 {
   bb0:
-    v0 = address_staticcall<scratch, revert, create> i160 3, arg0
+    v0 = extstaticcall<scratch, revert, create> i160 3, arg0
     ret v0
 }
 
@@ -52,7 +52,7 @@ fn @hash_slice(arg0: slice<memory>) -> i256 {
 // CHECK: mload 0
 fn @recover(arg0: slice<memory>) -> i256 {
   bb0:
-    v0 = address_staticcall<scratch_clear, revert, create> i160 1, arg0
+    v0 = extstaticcall<scratch_clear, revert, create> i160 1, arg0
     ret v0
 }
 
@@ -63,7 +63,7 @@ fn @recover(arg0: slice<memory>) -> i256 {
 // CHECK-NEXT: ret [[SENT]]
 fn @send(arg0: i160, arg1: i256, arg2: i256) -> i1 {
   bb0:
-    v0 = address_call<> arg0, gas arg2, value arg1
+    v0 = extcall<> arg0, gas arg2, value arg1
     ret v0
 }
 
@@ -75,7 +75,7 @@ fn @send(arg0: i160, arg1: i256, arg2: i256) -> i1 {
 // CHECK-NEXT: revert_returndata
 fn @transfer(arg0: i160, arg1: i256, arg2: i256) {
   bb0:
-    address_call<revert> arg0, gas arg2, value arg1
+    extcall<revert> arg0, gas arg2, value arg1
     ret
 }
 
@@ -94,7 +94,7 @@ fn @transfer(arg0: i160, arg1: i256, arg2: i256) {
 // HOMESTEAD-NEXT: call [[RESERVED]], [[ADDRESS]], arg2,
 fn @bare_with_value(arg0: i160, arg1: ptr<memory>, arg2: i256) -> i1 {
   bb0:
-    v0 = address_call<create> arg0, arg1, value arg2
+    v0 = extcall<create> arg0, arg1, value arg2
     ret v0
 }
 
@@ -112,6 +112,6 @@ fn @bare_with_value(arg0: i160, arg1: ptr<memory>, arg2: i256) -> i1 {
 // HOMESTEAD-NEXT: delegatecall [[RESERVED]], [[ADDRESS]],
 fn @bare_delegate(arg0: i160, arg1: ptr<memory>) -> i1 {
   bb0:
-    v0 = address_delegatecall<create> arg0, arg1
+    v0 = extdelegatecall<create> arg0, arg1
     ret v0
 }

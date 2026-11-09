@@ -6,7 +6,7 @@ fn @callCond(arg0: i160, arg1: i1, arg2: i256) -> i1 [selector=0x407a1bfe, abi_p
     v0 = gas
     v1 = select arg1, 0x2b8fbce800000000000000000000000000000000000000000000000000000000, 0xe74800c00000000000000000000000000000000000000000000000000000000
     v2 = abi_encode [word], object, selector v1, args arg2
-    v3 = address_call<create> arg0, v2, gas v0
+    v3 = extcall<create> arg0, v2, gas v0
     ret v3
 }
 

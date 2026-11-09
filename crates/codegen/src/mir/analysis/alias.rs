@@ -20,8 +20,8 @@
 
 use super::{CfgInfo, DominatorTree, MemoryCallSummaries};
 use crate::mir::{
-    AbiLayout, AbiType, AddressCallKind, AllocationFailure, ArgIdx, BlockId, Builtin, CallOutput,
-    Callee, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
+    AbiLayout, AbiType, AllocationFailure, ArgIdx, BlockId, Builtin, CallOutput, Callee,
+    ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId, InstId, InstKind,
     MAX_SCRATCH_ERROR_WORDS, MemoryRegion, MirType, PtrLocation, RawMemoryAccess, RawMemorySize,
     RequireKind, StorageAlias, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
@@ -1147,7 +1147,7 @@ impl AliasAnalysis {
             | InstKind::Keccak256(dest, _)
             | InstKind::Log { offset: dest, .. } => operand != *dest,
             InstKind::ExtCodeCopy(_, dest, _, _) => operand != *dest,
-            InstKind::AddressCall { input, .. } => *input != Some(operand),
+            InstKind::ExtCall { input, .. } => *input != Some(operand),
             InstKind::Call { args_offset, ret_offset, .. }
             | InstKind::CallCode { args_offset, ret_offset, .. }
             | InstKind::StaticCall { args_offset, ret_offset, .. }
@@ -1253,7 +1253,7 @@ impl AliasAnalysis {
             | InstKind::StorageArrayDataSlot(..)
             | InstKind::StorageArrayElementSlot { .. } => 1,
             InstKind::MappingSlot(..) => 2,
-            InstKind::AddressCall { policy, .. } if policy.output != CallOutput::None => 1,
+            InstKind::ExtCall { policy, .. } if policy.output != CallOutput::None => 1,
             _ => 0,
         };
         if scratch_words != 0 {
@@ -1487,7 +1487,7 @@ impl AliasAnalysis {
             InstKind::StoreImmutable(id, _) => {
                 effects.write(Access::Location(Location::Immutable(id)));
             }
-            InstKind::AddressCall { policy, input, .. } => {
+            InstKind::ExtCall { policy, input, .. } => {
                 if input.is_some() {
                     effects.read_any(AddressSpace::Memory);
                 }
@@ -1501,7 +1501,7 @@ impl AliasAnalysis {
                 }
                 effects.read_any(AddressSpace::Storage);
                 effects.read_any(AddressSpace::Transient);
-                if policy.kind != AddressCallKind::Static {
+                if policy.kind != ExtCallKind::Static {
                     effects.write_any(AddressSpace::Storage);
                     effects.write_any(AddressSpace::Transient);
                 }

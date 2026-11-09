@@ -6,11 +6,11 @@
 // word it finds there, and the store before it stays.
 // CHECK-LABEL: fn @keeps_store
 // CHECK: {{^[ +].*}}mstore 0, 7
-// CHECK: address_staticcall<scratch, revert, create>
+// CHECK: extstaticcall<scratch, revert, create>
 fn @keeps_store(arg0: i160) -> i256 {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
-    v0 = address_staticcall<scratch, revert, create> arg0, gas 50000
+    v0 = extstaticcall<scratch, revert, create> arg0, gas 50000
     mstore 0, 9 !metadata(memory=scratch)
     ret v0
 }
@@ -18,11 +18,11 @@ fn @keeps_store(arg0: i160) -> i256 {
 // The clearing call writes the whole word itself, so the store before it is dead.
 // CHECK-LABEL: fn @drops_store
 // CHECK-NOT: {{^[ +].*}}mstore 0, 7
-// CHECK: address_staticcall<scratch_clear, revert, create>
+// CHECK: extstaticcall<scratch_clear, revert, create>
 fn @drops_store(arg0: i160) -> i256 {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
-    v0 = address_staticcall<scratch_clear, revert, create> arg0, gas 50000
+    v0 = extstaticcall<scratch_clear, revert, create> arg0, gas 50000
     mstore 0, 9 !metadata(memory=scratch)
     ret v0
 }
