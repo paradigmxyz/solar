@@ -785,23 +785,47 @@ fn shared_body(module: &Module, sites: &[Site]) -> Vec<Instruction> {
     let run = |site: &Site| &module.blocks[site.block].instructions[site.start..][..site.len];
     let mut body = run(&sites[0]).to_vec();
     for (index, instruction) in body.iter_mut().enumerate() {
-        instruction
-            .metadata
-            .merge_debug_locs(sites[1..].iter().map(|site| &run(site)[index].metadata));
+        merge_site_locations(
+            &mut instruction.metadata,
+            sites[1..].iter().map(|site| &run(site)[index].metadata),
+        );
     }
     clear_function_invokes(&mut body);
     body
 }
 
 /// The location of the first of `locations`, merged with the others.
-fn merged_debug_loc<'a>(locations: impl IntoIterator<Item = &'a Metadata>) -> Metadata {
+fn merged_debug_loc<'a>(
+    locations: impl IntoIterator<IntoIter: Clone, Item = &'a Metadata>,
+) -> Metadata {
     let mut locations = locations.into_iter();
     let mut merged = Metadata::default();
     if let Some(first) = locations.next() {
         merged.preserve_debug_loc(first);
-        merged.merge_debug_locs(locations);
+        merge_site_locations(&mut merged, locations);
     }
     merged
+}
+
+/// Merges the locations of the other sites into `location`, unless every site has the same one.
+///
+/// NOTE: A merge across paths clears the flag that marks origins that all hold, and writes them
+/// as alternatives. When every site has the identical location, the merge is that location, so
+/// the flag stays.
+fn merge_site_locations<'a>(
+    location: &mut Metadata,
+    others: impl IntoIterator<IntoIter: Clone, Item = &'a Metadata>,
+) {
+    let others = others.into_iter();
+    if others.clone().all(|other| {
+        other.source_spans().eq(location.source_spans())
+            && other.all_source_spans() == location.all_source_spans()
+            && other.modifier_depth() == location.modifier_depth()
+            && other.debug_loc_kind() == location.debug_loc_kind()
+    }) {
+        return;
+    }
+    location.merge_debug_locs(others);
 }
 
 fn clear_function_invokes(instructions: &mut [Instruction]) {
