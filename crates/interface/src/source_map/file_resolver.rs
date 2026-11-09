@@ -355,7 +355,7 @@ impl<'a> FileResolver<'a> {
         } else {
             self.roots().map(|root| normalize_unit(&root.join(unit))).collect()
         };
-        let mut found = SmallVec::<[(PathBuf, String); 1]>::new();
+        let mut found = SmallVec::<[(PathBuf, io::Result<String>); 1]>::new();
         let mut read_error = None;
         for candidate in candidates {
             let Ok(path) = loader.canonicalize_path(&candidate) else { continue };
@@ -363,7 +363,9 @@ impl<'a> FileResolver<'a> {
                 continue;
             }
             match loader.load_file(&path) {
-                Ok(src) => found.push((path, src)),
+                Ok(src) => found.push((path, Ok(src))),
+                // Like solc, a file that exists but is refused still makes the import ambiguous.
+                Err(e) if e.kind() == io::ErrorKind::PermissionDenied => found.push((path, Err(e))),
                 // A read callback need not serve every root.
                 Err(e) => {
                     read_error.get_or_insert(ResolveError::ReadFile(path, e));
@@ -372,7 +374,10 @@ impl<'a> FileResolver<'a> {
         }
         match found.len() {
             0 => read_error.map_or(Ok(None), Err),
-            1 => Ok(found.pop().map(|(_, src)| src)),
+            1 => {
+                let (path, src) = found.pop().unwrap();
+                src.map(Some).map_err(|e| ResolveError::ReadFile(path, e))
+            }
             _ => {
                 let paths = found.into_iter().map(|(path, _)| path).collect();
                 Err(ResolveError::MultipleMatches(path.into(), paths))
