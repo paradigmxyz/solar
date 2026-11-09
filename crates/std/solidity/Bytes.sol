@@ -8,8 +8,9 @@ pragma solidity ^0.8.20;
 /// operation checks that the full width fits inside the buffer and reverts
 /// with `Panic(0x32)` otherwise, before any byte is written. Reads never pad a
 /// short input; writes leave every byte outside the selected range alone.
-/// Every body here is ordinary checked Solidity and defines the behaviour; the
-/// compiler lowers each entry point to word operations by module identity.
+/// The bodies define the behaviour with checked Solidity. A reviewed raw
+/// address comparison selects the direction for overlapping views. Selected
+/// entry points lower to word operations by verified module identity.
 library Bytes {
     /// @dev The 1 byte of `b` at `offset`.
     function readBytes1(bytes memory b, uint256 offset)
@@ -981,7 +982,7 @@ library Bytes {
             count > dst.length || dstOffset > dst.length - count || count > src.length
                 || srcOffset > src.length - count
         ) count = _outOfBounds();
-        if (dstOffset > srcOffset) {
+        if (_copyBackwards(dst, dstOffset, src, srcOffset)) {
             for (uint256 k = count; k > 0; --k) {
                 dst[dstOffset + k - 1] = src[srcOffset + k - 1];
             }
@@ -989,6 +990,16 @@ library Bytes {
             for (uint256 k; k < count; ++k) {
                 dst[dstOffset + k] = src[srcOffset + k];
             }
+        }
+    }
+
+    /// @dev Orders the effective addresses, since distinct views can overlap.
+    /// @custom:solar-trusted
+    function _copyBackwards(
+        bytes memory dst, uint256 dstOffset, bytes memory src, uint256 srcOffset
+    ) private pure returns (bool backwards) {
+        assembly ("memory-safe") {
+            backwards := gt(add(add(dst, 32), dstOffset), add(add(src, 32), srcOffset))
         }
     }
 

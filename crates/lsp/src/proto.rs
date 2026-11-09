@@ -627,9 +627,7 @@ impl LocationConverter {
         let files = source_map.files().to_vec();
         let mut uris = FxHashMap::with_capacity_and_hasher(files.len(), Default::default());
         for file in files.iter() {
-            if let Some(path) = file.name.as_real()
-                && let Ok(uri) = lsp_types::Url::from_file_path(path)
-            {
+            if let Some(uri) = source_file_uri(file) {
                 uris.insert(file.start_pos, uri);
             }
         }
@@ -685,12 +683,21 @@ fn span_to_location_with_cache(
     }
     let lsp_line_starts = cache.lsp_line_starts(&file);
     Some(lsp_types::Location {
-        uri: lsp_types::Url::from_file_path(file.name.as_real().unwrap()).ok()?,
+        uri: source_file_uri(&file)?,
         range: lsp_types::Range {
             start: lsp_position(&file, span.lo(), lsp_line_starts)?,
             end: lsp_position(&file, span.hi(), lsp_line_starts)?,
         },
     })
+}
+
+/// Compiler-owned source units have stable virtual URIs, never filesystem paths.
+fn source_file_uri(file: &SourceFile) -> Option<lsp_types::Url> {
+    if let Some(path) = solar_sema::core::module_path(&file.name) {
+        lsp_types::Url::parse(path).ok()
+    } else {
+        lsp_types::Url::from_file_path(file.name.as_real()?).ok()
+    }
 }
 
 fn lsp_position(
@@ -1415,5 +1422,30 @@ help: help without a valid location
         assert_eq!(related.len(), 1);
         assert_data_eq!(related[0].message.as_str(), "related label");
         assert_eq!(related[0].location, secondary_location);
+    }
+
+    #[test]
+    fn core_module_diagnostics_have_virtual_locations() {
+        let source_map = Arc::new(SourceMap::empty());
+        let main = source_file(&source_map, "CoreCaller.sol", "bad call");
+        for name in [
+            solar_sema::core::file_name(solar_sema::core::lookup("solar:core/Bytes.sol").unwrap()),
+            FileName::custom("solar:core/Bytes.sol"),
+        ] {
+            let core = source_map.new_source_file(name, "private declaration").unwrap();
+            let primary = span(&main, 0..3);
+            let secondary = span(&core, 0..7);
+            let locations = LocationConverter::new(source_map.clone());
+            let location = locations.location(secondary).unwrap();
+            assert_eq!(location.uri, Url::parse("solar:core/Bytes.sol").unwrap());
+            assert_eq!(span_to_location(&source_map, secondary), Some(location.clone()));
+            let mut diagnostic = Diag::new(Level::Error, "invalid call");
+            diagnostic.span(primary).span_note(secondary, "declared here");
+            let diagnostic = convert(&source_map, &diagnostic);
+            assert_eq!(diagnostic.related_information.unwrap()[0].location, location);
+            let mut diagnostic = Diag::new(Level::Error, "invalid module declaration");
+            diagnostic.span(secondary);
+            let _ = convert(&source_map, &diagnostic);
+        }
     }
 }

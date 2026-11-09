@@ -399,3 +399,43 @@ fn no_import_callback_ignores_callback() {
         "couldn't read X.sol: File import callback not supported"
     );
 }
+
+#[test]
+fn normalized_imports_authenticate_core_sources() {
+    struct Callback;
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
+            assert_eq!((kind, data), ("source", "solar:core/Math.sol"));
+            ReadCallbackResult::Success(
+                "library Math { function wrappingAdd(uint a, uint b) internal pure returns(uint) { return 99; } }".into(),
+            )
+        }
+    }
+    for (import, remappings) in [
+        ("./solar:core/Math.sol", vec![]),
+        ("alias/Math.sol", vec!["alias/=solar:core/"]),
+        ("prefix/../solar:core/Math.sol", vec![]),
+    ] {
+        let input = json!({
+            "language": "Solidity",
+            "sources": {"A.sol": {"content": format!(
+                "import {{Math}} from \"{import}\"; contract A {{ function f() external pure returns(uint) {{ return Math.wrappingAdd(1, 2); }} }}"
+            )}},
+            "settings": {"remappings": remappings, "outputSelection": {"*": {"*": ["evm.bytecode.object"]}}}
+        });
+        let mut output = Vec::new();
+        compile_standard_json(
+            &input.to_string(),
+            CompileOpts::default(),
+            Some(Arc::new(Callback)),
+            &mut output,
+        )
+        .unwrap();
+        let output = serde_json::from_slice::<Value>(&output).unwrap();
+        snapbox::assert_data_eq!(
+            output["errors"][0]["message"].as_str().unwrap(),
+            snapbox::str!["source `solar:core/Math.sol` is reserved for a compiler module"]
+        );
+        assert!(output.get("contracts").is_none());
+    }
+}

@@ -3,7 +3,7 @@
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call-fail: writeHeader() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call-fail: copyHeader() => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
-//@ run-call: distinctAliases => 64
+//@ run-call: distinctAliases => 0
 //@ run-call: calldataWrap 0x => 0x00a1
 import {CalldataBytes} from "solar:core/CalldataBytes.sol";
 import {Bytes} from "solar:core/Bytes.sol";

@@ -459,13 +459,21 @@ impl<'gcx> ParsingContext<'gcx> {
         {
             return self.resolve_core_module(path, span);
         }
-        self.file_resolver
+        let file = self
+            .file_resolver
             .resolve_file(path, Some(parent))
             .map_err(self.map_resolve_error_with(Some(span)))
-            .ok()
+            .ok()?;
+        // Validate the resolved identity too: relative imports and remappings
+        // may normalize into the reserved namespace after the raw-text check.
+        crate::core::check_reserved_source(self.dcx(), &file).ok()?;
+        Some(file)
     }
 
     fn resolve_core_module(&self, path: &str, span: Span) -> Option<Arc<SourceFile>> {
+        if let Some(file) = self.sess.source_map().get_file(FileName::custom(path)) {
+            crate::core::check_reserved_source(self.dcx(), &file).ok()?;
+        }
         let Some(module) = crate::core::lookup(path) else {
             let available = crate::core::MODULES
                 .iter()

@@ -40,7 +40,7 @@ pub fn is_core_file(name: &FileName) -> bool {
 
 /// The file name a compiler-owned module is registered under.
 pub fn file_name(module: &CoreModule) -> FileName {
-    FileName::Custom(module.path.to_string())
+    FileName::real(module.path)
 }
 
 /// Checks that `file`, when a reserved name holds it, is the compiler-owned module that name
@@ -136,7 +136,7 @@ pub fn module_path(name: &FileName) -> Option<&str> {
 /// Gives an explicitly supplied module the same source identity as an embedded import.
 pub(crate) fn canonical_file_name(name: FileName) -> FileName {
     match module_path(&name) {
-        Some(path) => FileName::Custom(path.to_owned()),
+        Some(path) => FileName::real(path),
         None => name,
     }
 }

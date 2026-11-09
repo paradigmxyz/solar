@@ -35,21 +35,33 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_core_intrinsic(intrinsic, operands);
         };
         let fallback = *self.cx.function_ids.get(&function)?;
+        let returns_value = matches!(intrinsic, CoreIntrinsic::Read { .. });
         // branch guard, portable, native
-        // portable: icall_void original_body, operands; jump done
-        // native: intrinsic operands; jump done
+        // portable: slow = icall original_body, operands; jump done
+        // native: fast = intrinsic operands; jump done
+        // done: phi [portable: slow], [native: fast] (reads only)
         let portable = self.builder.create_block();
         let native = self.builder.create_block();
         let done = self.builder.create_block();
         self.builder.branch(guard, portable, native);
         self.builder.switch_to_block(portable);
-        self.builder.icall_void(fallback, operands.to_vec());
+        let slow = if returns_value {
+            Some(self.builder.icall(fallback, operands.to_vec(), MirType::I256))
+        } else {
+            self.builder.icall_void(fallback, operands.to_vec());
+            None
+        };
+        let slow_block = self.builder.current_block();
         self.builder.jump(done);
         self.builder.switch_to_block(native);
-        self.lower_core_intrinsic(intrinsic, operands)?;
+        let fast = self.lower_core_intrinsic(intrinsic, operands)?;
+        let fast_block = self.builder.current_block();
         self.builder.jump(done);
         self.builder.switch_to_block(done);
-        Some(self.builder.imm(0))
+        Some(match slow {
+            Some(slow) => self.builder.phi(vec![(slow_block, slow), (fast_block, fast)]),
+            None => self.builder.imm(0),
+        })
     }
 
     fn core_loop_alias_guard(
@@ -57,6 +69,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         intrinsic: CoreIntrinsic,
         operands: &[ValueId],
     ) -> Option<ValueId> {
+        if let (CoreIntrinsic::Read { width, calldata: true }, &[object, offset]) =
+            (intrinsic, operands)
+            && width > 1
+        {
+            // start = slice_ptr object + offset
+            // last = start + (width - 1)
+            // wrapped = last < start
+            let data = self.builder.memory_data(object);
+            let start = self.builder.ptradd(data, offset);
+            let start = self.builder.cast(start, MirType::I256);
+            let tail = self.builder.imm(width - 1);
+            let last = self.builder.add(start, tail);
+            return Some(self.builder.lt(last, start));
+        }
         let (object, offset, count, source) = match (intrinsic, operands) {
             (CoreIntrinsic::Write(width), &[object, offset, _]) if width > 1 => {
                 let count = self.builder.imm(width);
