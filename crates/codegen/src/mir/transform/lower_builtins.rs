@@ -16,6 +16,7 @@
 use crate::mir::{
     AllocationSemantics, Builtin, CallPolicy, Callee, ExtCallKind, FunctionBuilder, InstKind,
     MemoryObjectKind, MirModuleTarget, Module, PanicCode, PhaseCategory, PtrLocation, ValueId,
+    memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
     transform::utils::expand_block,
     utils::emit_call,

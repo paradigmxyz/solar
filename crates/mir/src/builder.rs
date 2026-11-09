@@ -1110,30 +1110,42 @@ impl<'a> FunctionBuilder<'a> {
     /// once. Calldata and returndata bytes are copied to free memory without reserving them, as
     /// a memory slice; memory bytes are read where they lie.
     pub fn stage_bytes(&mut self, value: ValueId) -> ValueId {
-        let Some(location @ (PtrLocation::Calldata | PtrLocation::Returndata)) =
-            self.func.value_slice_location(value)
-        else {
-            return value;
-        };
-        // source = extract_value value, 0
-        // len = extract_value value, 1
-        // data = fmp
-        // mcopy|calldatacopy|returndatacopy data, source, len
-        // staged = make_slice data, len
-        let source = self.slice_ptr(value);
-        let len = self.slice_len(value);
-        let data = self.fmp();
-        self.copy_heap(data, source, len, location);
-        self.make_slice(data, len, PtrLocation::Memory)
+        match self.copy_bytes_to_free_memory(value) {
+            Some((data, len)) => {
+                // staged = make_slice data, len
+                self.make_slice(data, len, PtrLocation::Memory)
+            }
+            None => value,
+        }
     }
 
     /// Hashes the bytes of a dynamic memory object or slice. Calldata and returndata bytes are
     /// first copied to free memory.
     pub fn keccak256_bytes(&mut self, value: ValueId) -> ValueId {
-        let value = self.stage_bytes(value);
-        let (data, len) = (self.memory_data(value), self.memory_len(value));
+        let (data, len) = match self.copy_bytes_to_free_memory(value) {
+            Some(range) => range,
+            None => (self.memory_data(value), self.memory_len(value)),
+        };
         // hash = keccak256 data, len
         self.keccak256(data, len)
+    }
+
+    /// Copies calldata or returndata bytes to the free memory pointer without reserving them, and
+    /// returns the copy's address and length. Memory bytes need no copy and return `None`.
+    fn copy_bytes_to_free_memory(&mut self, value: ValueId) -> Option<(ValueId, ValueId)> {
+        let location @ (PtrLocation::Calldata | PtrLocation::Returndata) =
+            self.func.value_slice_location(value)?
+        else {
+            return None;
+        };
+        // data = fmp
+        // mcopy|calldatacopy|returndatacopy data, (extract_value value, 0), (extract_value value,
+        // 1)
+        let source = self.slice_ptr(value);
+        let len = self.slice_len(value);
+        let data = self.fmp();
+        self.copy_heap(data, source, len, location);
+        Some((data, len))
     }
 
     /// Loads a direct struct field.
