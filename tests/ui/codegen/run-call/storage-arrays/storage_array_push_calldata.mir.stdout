@@ -142,8 +142,8 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v1 = alloc 128
     v2 = calldatasize
     v3 = ptrtoint ptr<calldata> v0 to i256
-    v4 = add v3, 32
-    v5 = lt v2, v4
+    v4 = sub v2, v3
+    v5 = slt v4, 32
     icall revert_if<calldata_tail_too_short>, v5
     v6 = calldataload v0
     v7 = gt v6, 0xffff
@@ -152,8 +152,8 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v8 = ptrtoint ptr<calldata> v0 to i256
     v9 = add v8, 32
     v10 = calldatasize
-    v11 = add v9, 32
-    v12 = lt v10, v11
+    v11 = sub v10, v9
+    v12 = slt v11, 32
     icall revert_if<calldata_tail_too_short>, v12
     v13 = calldataload v9
     v14 = gt v13, 0xffff

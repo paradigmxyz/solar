@@ -11,8 +11,8 @@ fn @lengths(arg0: slice<calldata>) -> i256 [selector=0xe718a709, pure, abi_param
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 0
     v6 = calldatasize
-    v7 = add v5, 32
-    v8 = lt v6, v7
+    v7 = sub v6, v5
+    v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
     v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
@@ -43,8 +43,8 @@ fn @lengths(arg0: slice<calldata>) -> i256 [selector=0xe718a709, pure, abi_param
     v31 = ptrtoint ptr<calldata> v30 to i256
     v32 = add v31, 32
     v33 = calldatasize
-    v34 = add v32, 32
-    v35 = lt v33, v34
+    v34 = sub v33, v32
+    v35 = slt v34, 32
     icall revert_if<calldata_tail_too_short>, v35
     v36 = calldataload v32
     v37 = ptrtoint ptr<calldata> v30 to i256

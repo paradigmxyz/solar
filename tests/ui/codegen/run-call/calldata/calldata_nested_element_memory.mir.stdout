@@ -11,8 +11,8 @@ fn @test1(arg0: slice<calldata>) -> i256 [selector=0x82dda4b9, pure, abi_params=
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 32
     v6 = calldatasize
-    v7 = add v5, 32
-    v8 = lt v6, v7
+    v7 = sub v6, v5
+    v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
     v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
@@ -178,8 +178,8 @@ fn @test2(arg0: slice<calldata>) -> i256 [selector=0x710442c6, pure, abi_params=
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 32
     v6 = calldatasize
-    v7 = add v5, 32
-    v8 = lt v6, v7
+    v7 = sub v6, v5
+    v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
     v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
@@ -319,8 +319,8 @@ fn @test3(arg0: slice<calldata>) -> i256 [selector=0x6e607577, pure, abi_params=
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 0
     v6 = calldatasize
-    v7 = add v5, 32
-    v8 = lt v6, v7
+    v7 = sub v6, v5
+    v8 = slt v7, 32
     icall revert_if<calldata_tail_too_short>, v8
     v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256

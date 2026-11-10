@@ -77,8 +77,8 @@ fn @row(arg0: slice<calldata>, arg1: i256) -> slice<calldata> [selector=0x538f7f
     v7 = ptrtoint ptr<calldata> v4 to i256
     v8 = add v7, v5
     v9 = calldatasize
-    v10 = add v8, 32
-    v11 = lt v9, v10
+    v10 = sub v9, v8
+    v11 = slt v10, 32
     icall revert_if<calldata_tail_too_short>, v11
     v12 = calldataload v8
     v13 = ptrtoint ptr<calldata> v4 to i256
@@ -112,8 +112,8 @@ fn @member(arg0: slice<calldata>) -> slice<calldata> [selector=0xef3fa208, pure,
     v2 = ptrtoint ptr<calldata> v1 to i256
     v3 = add v2, 0
     v4 = calldatasize
-    v5 = add v3, 32
-    v6 = lt v4, v5
+    v5 = sub v4, v3
+    v6 = slt v5, 32
     icall revert_if<calldata_tail_too_short>, v6
     v7 = calldataload v3
     v8 = ptrtoint ptr<calldata> v1 to i256

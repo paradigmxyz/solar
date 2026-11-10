@@ -518,8 +518,8 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     icall revert_if<invalid_calldata_tail_offset>, v31
     v33 = alloc 96
     v34 = calldatasize
-    v35 = add v23, 32
-    v36 = lt v34, v35
+    v35 = sub v34, v23
+    v36 = slt v35, 32
     icall revert_if<calldata_tail_too_short>, v36
     v37 = calldataload v23
     mstore v33, v37

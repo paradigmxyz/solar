@@ -148,8 +148,8 @@ fn @typedDynArray(arg0: slice<calldata>) -> struct6 [selector=0xa00a84db, pure, 
     v5 = ptrtoint ptr<calldata> v4 to i256
     v6 = add v5, 0
     v7 = calldatasize
-    v8 = add v6, 32
-    v9 = lt v7, v8
+    v8 = sub v7, v6
+    v9 = slt v8, 32
     icall revert_if<calldata_tail_too_short>, v9
     v10 = calldataload v6
     v11 = ptrtoint ptr<calldata> v4 to i256
@@ -175,8 +175,8 @@ fn @typedDynArray(arg0: slice<calldata>) -> struct6 [selector=0xa00a84db, pure, 
     v29 = ptrtoint ptr<calldata> v28 to i256
     v30 = add v29, 32
     v31 = calldatasize
-    v32 = add v30, 32
-    v33 = lt v31, v32
+    v32 = sub v31, v30
+    v33 = slt v32, 32
     icall revert_if<calldata_tail_too_short>, v33
     v34 = calldataload v30
     v35 = ptrtoint ptr<calldata> v28 to i256

@@ -47,8 +47,8 @@ fn @factory.0() {
     v8 = lt v7, 256
     v47 = or v6, v8
     v17 = add v4, 64
-    v19 = add v17, 32
-    v20 = lt v1, v19
+    v19 = sub v1, v17
+    v20 = slt v19, 32
     v48 = or v47, v20
     jumpi v48, bb1, bb4
   bb4:                                            ; preds = bb0
@@ -95,8 +95,8 @@ fn @tailHash.1() {
     v8 = lt v7, 256
     v53 = or v6, v8
     v16 = add v4, 64
-    v18 = add v16, 32
-    v19 = lt v1, v18
+    v18 = sub v1, v16
+    v19 = slt v18, 32
     v54 = or v53, v19
     jumpi v54, bb1, bb4
   bb4:                                            ; preds = bb0
@@ -151,8 +151,8 @@ fn @midWord.2() {
     v43 = lt v42, 256
     v49 = or v41, v43
     v3 = add v39, 96
-    v5 = add v3, 32
-    v6 = lt v36, v5
+    v5 = sub v36, v3
+    v6 = slt v5, 32
     v50 = or v49, v6
     jumpi v50, bb1, bb2
   bb2:                                            ; preds = bb0
