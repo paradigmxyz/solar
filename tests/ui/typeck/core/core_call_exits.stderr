@@ -29,29 +29,6 @@ LL │         Return.abiEncoded(uint256(1));
    ├ note: the creation reaches this through `Checked._initial`
    ╰ help: revert instead, or end calls only from functions the deployed contract runs
 
-error: this ends the creation of `Checked` and deploys what it returns as its code
-   ╭▸ ROOT/tests/ui/typeck/core/core_call_exits.sol:LL:CC
-   │
-LL │         Return.raw("");
-   │         ━━━━━━━━━━━━━━
-   │
-   ├ note: the creation reaches this through `Checked.constructor` → `Checked._setUp`
-   ╰ help: revert instead, or end calls only from functions the deployed contract runs
-
-error: this ends a call to `title` with `(string)`, but it returns `(bytes32)`
-   ╭▸ ROOT/tests/ui/typeck/core/core_call_exits.sol:LL:CC
-   │
-LL │         Return.abiEncoded(string("x"));
-   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   │
-   ╰ note: the call reaches this through `Checked.title` → `Checked._label`
-note: `title` is declared here
-   ╭▸ ROOT/tests/ui/typeck/core/core_call_exits.sol:LL:CC
-   │
-LL │     function title() external pure returns (bytes32) {
-   │              ━━━━━
-   ╰ help: end the call with a value of the type the function returns
-
 error: this ends a call to `pair` with `(uint256)`, but it returns `(uint256,uint256)`
    ╭▸ ROOT/tests/ui/typeck/core/core_call_exits.sol:LL:CC
    │
@@ -103,6 +80,29 @@ note: `proxied` is declared here
 LL │     function proxied(address target) external returns (bytes memory) {
    │              ━━━━━━━
    ╰ help: end the call with an ABI-encoded value, or forward from the fallback function
+
+error: this ends the creation of `Checked` and deploys what it returns as its code
+   ╭▸ ROOT/tests/ui/typeck/core/core_call_exits.sol:LL:CC
+   │
+LL │         Return.raw("");
+   │         ━━━━━━━━━━━━━━
+   │
+   ├ note: the creation reaches this through `Checked.constructor` → `Checked._setUp`
+   ╰ help: revert instead, or end calls only from functions the deployed contract runs
+
+error: this ends a call to `title` with `(string)`, but it returns `(bytes32)`
+   ╭▸ ROOT/tests/ui/typeck/core/core_call_exits.sol:LL:CC
+   │
+LL │         Return.abiEncoded(string("x"));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: the call reaches this through `Checked.title` → `Checked._label`
+note: `title` is declared here
+   ╭▸ ROOT/tests/ui/typeck/core/core_call_exits.sol:LL:CC
+   │
+LL │     function title() external pure returns (bytes32) {
+   │              ━━━━━
+   ╰ help: end the call with a value of the type the function returns
 
 error: this ends a call to `pointed` with `(int256)`, but it returns `(address)`
    ╭▸ ROOT/tests/ui/typeck/core/core_call_exits.sol:LL:CC

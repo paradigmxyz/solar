@@ -1,0 +1,15 @@
+error: this ends a call to `wrong` with `(bool)`, but it returns `(uint256)`
+   ╭▸ ROOT/tests/ui/typeck/core/call_exit_pointer_values.sol:LL:CC
+   │
+LL │         Return.abiEncoded(true);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: `wrong` is declared here
+   ╭▸ ROOT/tests/ui/typeck/core/call_exit_pointer_values.sol:LL:CC
+   │
+LL │     function wrong() public pure returns (Node storage) {
+   │              ━━━━━
+   ╰ help: end the call with a value of the type the function returns
+
+error: aborting due to 1 previous error
+

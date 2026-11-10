@@ -21,15 +21,16 @@
 
 use crate::{
     core::{CoreIntrinsic, intrinsic_of, is_core_file},
-    hir::{self, FunctionKind, Visit},
-    ty::{Gcx, TraceRoot, Ty, TyAbiPrinter, TyAbiPrinterMode, traced_from},
+    hir::{self, Visit},
+    ty::{ExecutionGraph, Gcx, TraceRoot, Ty, TyAbiPrinter, TyAbiPrinterMode},
 };
 use solar_data_structures::{
     Never,
-    map::{FxHashMap, FxHashSet, FxIndexMap},
+    map::{FxHashMap, FxHashSet},
+    smallvec::SmallVec,
 };
 use solar_interface::Span;
-use std::ops::ControlFlow;
+use std::{collections::VecDeque, ops::ControlFlow};
 
 /// A call to a compiler-owned operation that returns from the external call.
 struct Site<'gcx> {
@@ -93,21 +94,59 @@ pub(super) fn check(gcx: Gcx<'_>) {
         {
             continue;
         }
-        let mut roots = vec![TraceRoot::Creation];
-        roots.extend(gcx.interface_functions(id).iter().map(|f| TraceRoot::Function(f.id)));
-        roots
-            .extend(contract.fallback.into_iter().chain(contract.receive).map(TraceRoot::Function));
-        for root in roots {
-            let reached = traced_from(gcx, id, root);
-            for (&function, _) in &reached {
-                for site in sites.get(&function).into_iter().flatten() {
-                    if !reported.contains(&site.span)
-                        && check_site(gcx, id, root, &reached, function, site)
-                    {
-                        reported.insert(site.span);
-                    }
+        let graph = ExecutionGraph::new(gcx, id);
+        let mut roots = vec![(TraceRoot::Creation, None)];
+        for function in gcx.interface_functions(id).iter().map(|f| f.id).chain(contract.receive) {
+            let entry = gcx.hir.function(function);
+            let output =
+                abi_tuple(gcx, entry.returns.iter().map(|&ret| gcx.type_of_item(ret.into())));
+            roots.push((TraceRoot::Function(function), Some(output)));
+        }
+        // A fallback imposes no output constraint. At most two distinct entry signatures need
+        // reach a function: one suffices for a raw exit, and an encoded exit cannot match two.
+        // Each edge is consequently visited at most twice, even with many shared entry points.
+        let mut witnesses = Vec::<Witness>::new();
+        let mut pending = VecDeque::new();
+        for (root, &(entry, _)) in roots.iter().enumerate() {
+            let functions = match entry {
+                TraceRoot::Creation => graph.calls.get(&None).cloned().unwrap_or_default(),
+                TraceRoot::Function(function) => vec![function],
+            };
+            for function in functions {
+                pending.push_back(Witness { function, root, parent: None });
+            }
+        }
+        let mut reached = FxHashMap::<_, SmallVec<[usize; 2]>>::default();
+        while let Some(witness) = pending.pop_front() {
+            let seen = reached.entry(witness.function).or_default();
+            if seen.len() == 2
+                || seen
+                    .iter()
+                    .any(|&previous| roots[witnesses[previous].root].1 == roots[witness.root].1)
+            {
+                continue;
+            }
+            let index = witnesses.len();
+            seen.push(index);
+            for site in sites.get(&witness.function).into_iter().flatten() {
+                if !reported.contains(&site.span)
+                    && check_site(
+                        gcx,
+                        id,
+                        roots[witness.root].0,
+                        roots[witness.root].1.as_deref(),
+                        &describe_path(gcx, &witnesses, &witness),
+                        witness.function,
+                        site,
+                    )
+                {
+                    reported.insert(site.span);
                 }
             }
+            for &function in graph.calls.get(&Some(witness.function)).into_iter().flatten() {
+                pending.push_back(Witness { function, root: witness.root, parent: Some(index) });
+            }
+            witnesses.push(witness);
         }
     }
 }
@@ -118,11 +157,11 @@ fn check_site<'gcx>(
     gcx: Gcx<'gcx>,
     id: hir::ContractId,
     root: TraceRoot,
-    reached: &FxIndexMap<hir::FunctionId, Option<hir::FunctionId>>,
+    declared: Option<&str>,
+    path: &str,
     function: hir::FunctionId,
     site: &Site<'gcx>,
 ) -> bool {
-    let path = describe_path(gcx, reached, function);
     let TraceRoot::Function(entry) = root else {
         let name = gcx.hir.contract(id).name;
         gcx.dcx()
@@ -136,11 +175,7 @@ fn check_site<'gcx>(
         return true;
     };
     let entry_fn = gcx.hir.function(entry);
-    let declared = match entry_fn.kind {
-        FunctionKind::Fallback => return false,
-        FunctionKind::Receive => "()".to_string(),
-        _ => abi_tuple(gcx, entry_fn.returns.iter().map(|&ret| gcx.type_of_item(ret.into()))),
-    };
+    let declared = declared.expect("a function entry has an output signature");
     let described = match entry_fn.name {
         Some(name) => format!("`{name}`"),
         None => "the receive function".to_string(),
@@ -177,8 +212,20 @@ fn check_site<'gcx>(
 
 /// The ABI tuple of `tys`, as `(uint256,string)`.
 fn abi_tuple<'gcx>(gcx: Gcx<'gcx>, tys: impl IntoIterator<Item = Ty<'gcx>>) -> String {
-    let mut s = String::new();
-    TyAbiPrinter::new(gcx, &mut s, TyAbiPrinterMode::Signature).print_tuple(tys).unwrap();
+    let mut s = String::from("(");
+    for (index, ty) in tys.into_iter().enumerate() {
+        if index != 0 {
+            s.push(',');
+        }
+        // Library storage references are ABI words, including recursive structs. Expanding
+        // their fields as an ordinary ABI tuple is both incorrect and potentially recursive.
+        if matches!(ty.kind, crate::ty::TyKind::Ref(_, solar_ast::DataLocation::Storage)) {
+            s.push_str("uint256");
+        } else {
+            TyAbiPrinter::new(gcx, &mut s, TyAbiPrinterMode::Signature).print(ty).unwrap();
+        }
+    }
+    s.push(')');
     s
 }
 
@@ -260,26 +307,28 @@ impl<'gcx> Visit<'gcx> for TakenExits<'gcx, '_> {
     }
 }
 
-fn describe_path(
-    gcx: Gcx<'_>,
-    reached: &FxIndexMap<hir::FunctionId, Option<hir::FunctionId>>,
+/// One of at most two incompatible entry signatures reaching a function, with a shared path.
+struct Witness {
     function: hir::FunctionId,
-) -> String {
+    root: usize,
+    parent: Option<usize>,
+}
+
+fn describe_path(gcx: Gcx<'_>, witnesses: &[Witness], witness: &Witness) -> String {
     let mut names = Vec::new();
-    let mut current = Some(function);
-    while let Some(id) = current {
+    let mut current = Some(witness);
+    while let Some(witness) = current {
         if names.len() == 8 {
             names.push("…".to_string());
             break;
         }
-        // A constructor, a fallback or a receive function is named by its kind.
-        let f = gcx.hir.function(id);
+        let f = gcx.hir.function(witness.function);
         let name = f.name_or_kind();
         names.push(match f.contract {
             Some(contract) => format!("`{}.{name}`", gcx.hir.contract(contract).name),
             None => format!("`{name}`"),
         });
-        current = reached.get(&id).copied().flatten();
+        current = witness.parent.map(|index| &witnesses[index]);
     }
     names.reverse();
     names.join(" → ")

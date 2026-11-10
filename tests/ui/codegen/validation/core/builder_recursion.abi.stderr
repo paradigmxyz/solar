@@ -1,0 +1,10 @@
+error: cannot prove builder lifetime through this call
+   ╭▸ ROOT/tests/ui/codegen/validation/core/builder_recursion.sol:LL:CC
+   │
+LL │         return helper(Buffers.create(1), n);
+   │                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: avoid recursive builder helpers or reduce helper expansion in this entry point
+
+error: aborting due to 1 previous error
+

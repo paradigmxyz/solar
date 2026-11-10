@@ -72,8 +72,8 @@ LL │         n = b.length();
 note: the builder is emptied here
    ╭▸ ROOT/tests/ui/codegen/validation/core/buffers_finish.sol:LL:CC
    │
-LL │         out = done(b);
-   │               ━━━━━━━
+LL │         return b.finish();
+   │                ━━━━━━━━━━
    ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
 
 error: this uses a builder after `finish` emptied it

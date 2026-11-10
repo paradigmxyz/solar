@@ -46,8 +46,12 @@ library Code {
         view
         returns (bytes memory out)
     {
+        uint256 size = target.code.length;
+        if (count > size || start > size - count) count = _outOfBounds();
         out = new bytes(count);
-        copyInto(out, 0, target, start, count);
+        assembly ("memory-safe") {
+            extcodecopy(target, add(out, 0x20), start, count)
+        }
     }
 
     /// @dev A view of the `count` bytes of `target`'s code from `start`, which
@@ -71,7 +75,9 @@ library Code {
     {
         uint256 total = length(section);
         if (count > total || start > total - count) count = _outOfBounds();
-        return _pack(account(section), offset(section) + start, count);
+        uint256 absolute = offset(section) + start;
+        if (absolute > RANGE_MASK) count = _outOfBounds();
+        return _pack(account(section), absolute, count);
     }
 
     /// @dev The account whose code `section` is a range of.

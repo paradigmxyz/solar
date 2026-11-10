@@ -48,7 +48,9 @@ struct CallGraphBuilder<'gcx, 's> {
     stopped: bool,
     /// How each function was first reached.
     parents: FxIndexMap<hir::FunctionId, Traced>,
-    pointer_call: Option<Option<hir::FunctionId>>,
+    pointer_calls: Vec<Option<hir::FunctionId>>,
+    /// Execution edges, excluding function values that are never called.
+    calls: FxIndexMap<Option<hir::FunctionId>, Vec<hir::FunctionId>>,
     track_pointer_calls: bool,
 }
 
@@ -80,7 +82,8 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             current: None,
             stopped: false,
             parents: FxIndexMap::default(),
-            pointer_call: None,
+            pointer_calls: Vec::new(),
+            calls: FxIndexMap::default(),
             track_pointer_calls: false,
         }
     }
@@ -195,6 +198,9 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
     }
 
     fn enqueue(&mut self, function: hir::FunctionId) {
+        if self.track_pointer_calls {
+            self.calls.entry(self.current).or_default().push(function);
+        }
         if self.graph.functions.insert(function) {
             let traced = Traced { parent: self.current, dispatch_only: false };
             // A function first reached through a trusted body takes the path of the body that
@@ -246,15 +252,14 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
         }
         if self.track_pointer_calls
             && matches!(self.gcx.type_of_expr(callee.id).map(|ty| ty.kind), Some(TyKind::Fn(function)) if function.is_internal())
-            && self.pointer_call.is_none()
         {
-            self.pointer_call = Some(self.current);
+            self.pointer_calls.push(self.current);
         }
         false
     }
 
     fn collect_function_reference(&mut self, expr: &'gcx hir::Expr<'gcx>) {
-        if self.direct_callee == Some(expr.id) {
+        if self.track_pointer_calls || self.direct_callee == Some(expr.id) {
             return;
         }
         if let Some(function) = self.gcx.internal_call_target(Some(self.contract), expr) {
@@ -405,7 +410,7 @@ pub(crate) fn traced_functions(
     parents
 }
 
-/// Where [`traced_from`] starts.
+/// Where an execution trace starts.
 #[derive(Clone, Copy)]
 pub(crate) enum TraceRoot {
     /// The contract's creation: its state variable initializers, constructors and base constructor
@@ -415,34 +420,39 @@ pub(crate) enum TraceRoot {
     Function(hir::FunctionId),
 }
 
-/// The functions a call to `root` in the contract `id` runs, with the function that first reached
-/// each, or `None` for a root. A call through an internal function pointer can reach every
-/// function whose value the contract takes anywhere, so it reaches them all.
-pub(crate) fn traced_from(
-    gcx: Gcx<'_>,
-    id: hir::ContractId,
-    root: TraceRoot,
-) -> FxIndexMap<hir::FunctionId, Option<hir::FunctionId>> {
-    let mut builder = CallGraphBuilder::new(gcx, id, &|_| false);
-    builder.track_pointer_calls = true;
-    match root {
-        TraceRoot::Creation => builder.enter_creation(),
-        TraceRoot::Function(function) => builder.enqueue(function),
-    }
-    builder.drain();
-    if let Some(caller) = builder.pointer_call {
-        let items = gcx.interface_items(id);
-        builder.current = caller;
-        for target in items
-            .creation
-            .internal_dispatch_targets
-            .iter()
-            .chain(items.deployed.internal_dispatch_targets.iter())
-        {
-            builder.enqueue(target);
+/// The internal calls made in one contract, built once for all of its entry points.
+/// Taking a function value is not execution; an actual indirect call reaches the contract's
+/// possible dispatcher targets. Creation has its own synthetic root (`None`).
+pub(crate) struct ExecutionGraph {
+    pub(crate) calls: FxIndexMap<Option<hir::FunctionId>, Vec<hir::FunctionId>>,
+}
+
+impl ExecutionGraph {
+    pub(crate) fn new(gcx: Gcx<'_>, id: hir::ContractId) -> Self {
+        let mut builder = CallGraphBuilder::new(gcx, id, &|_| false);
+        builder.track_pointer_calls = true;
+        builder.enter_creation();
+        let creation = builder.calls.swap_remove(&None).unwrap_or_default();
+        for function in &gcx.contract_reachable_functions(id) {
+            builder.enqueue(function);
         }
-        builder.current = None;
+        builder.calls.swap_remove(&None);
         builder.drain();
+        let items = gcx.interface_items(id);
+        builder.calls.insert(None, creation);
+        for caller in builder.pointer_calls {
+            builder.calls.entry(caller).or_default().extend(
+                items
+                    .creation
+                    .internal_dispatch_targets
+                    .iter()
+                    .chain(items.deployed.internal_dispatch_targets.iter()),
+            );
+        }
+        for targets in builder.calls.values_mut() {
+            targets.sort_unstable();
+            targets.dedup();
+        }
+        Self { calls: builder.calls }
     }
-    builder.parents.into_iter().map(|(id, traced)| (id, traced.parent)).collect()
 }

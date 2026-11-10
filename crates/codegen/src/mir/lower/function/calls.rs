@@ -575,7 +575,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> FunctionId {
         // dispatch(function_ptr, params...) -> returns...
         let shape = InternalFunctionPointerShape::from_ty(function);
-        let name = shape.helper_name(from_assembly);
+        let gas_first = self
+            .cx
+            .state
+            .pointer_registry
+            .contextual_objective
+            .then(|| self.cx.module.objective_of(self.builder.func()).is_gas());
+        let mut name = shape.helper_name(from_assembly);
+        if let Some(gas_first) = gas_first {
+            name = helper_name(name, if gas_first { "gas" } else { "size" });
+        }
         let InternalFunctionPointerShape { params, returns } = shape.clone();
         let id = self
             .lazy_helper(name, |this, function| {
@@ -599,7 +608,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             .state
             .pointer_registry
             .dispatchers
-            .insert(id, InternalFunctionPointerDispatch { shape, from_assembly });
+            .insert(id, InternalFunctionPointerDispatch { shape, from_assembly, gas_first });
         id
     }
 

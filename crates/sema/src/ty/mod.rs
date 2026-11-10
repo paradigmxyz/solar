@@ -50,7 +50,7 @@ mod common;
 pub use common::{CommonTypes, EachDataLoc};
 
 mod call_graph;
-pub(crate) use call_graph::{TraceRoot, Traced, traced_from, traced_functions};
+pub(crate) use call_graph::{ExecutionGraph, TraceRoot, Traced, traced_functions};
 
 mod interner;
 use interner::Interner;

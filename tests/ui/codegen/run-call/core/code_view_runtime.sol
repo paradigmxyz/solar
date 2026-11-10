@@ -13,6 +13,10 @@
 //@ run-call-fail: overflowing 0x67010203040506070860005260086018f3 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 //@ run-call-fail: arrived 79228162514264337593543950337 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
 
+//@ run-call: reslice 237684487542793012780631851007, 0, 0 => 0x0000000000000000000000000000000000000002
+//@ run-call-fail: reslice 237684487542793012780631851007, 1, 0 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+//@ run-call-fail: arrived 281474976710655 => 0x4e487b710000000000000000000000000000000000000000000000000000000000000032
+
 // `Code.slice` makes a `CodeView` of a range that lies inside an account's
 // code, and of a range inside another view; `read` and `copyInto` copy it,
 // checking the range against the code again, so a view that arrives from
@@ -21,6 +25,10 @@ import {Code, CodeView} from "solar:core/Code.sol";
 import {Create} from "solar:core/Create.sol";
 
 contract Test {
+    function reslice(CodeView section, uint256 start, uint256 count) public pure returns (address) {
+        return Code.account(Code.slice(section, start, count));
+    }
+
     function viewed(bytes memory initcode, uint256 start, uint256 count)
         public
         returns (bytes memory)

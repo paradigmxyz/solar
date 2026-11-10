@@ -36,7 +36,16 @@ contract Example {
 buffers, and `Code` reads checked code ranges. Builder fields and `CodeView`
 construction belong to their defining modules. The compiler checks builder
 encapsulation, uses after `finish`, and return operations against each reachable
-entry point. Backing memory remains zero-initialized.
+entry point, including ABI-only builds. Backing memory remains zero-initialized.
+
+Builder lifetime checks follow helpers with their actual arguments, including
+aliases, conditional finishes and reverting paths. Analysis is limited to 16,384
+cloned instructions and blocks per contract, eight paths per block, and 64 scalar
+facts and finished references per path. Beyond these limits it merges paths,
+forgets scalar facts or rejects the analysis. Recursion it cannot prove safe is
+rejected; complex entries may need to be split. The analysis never edits emitted
+code. Assembly can hide builder references and is outside this check.
 
 `Build.gasFirst()` follows the current function's objective, including
-`solar-optimize` overrides. Its portable body returns true.
+`solar-optimize` overrides, for direct and indirect calls alike. Its portable body
+returns true.
