@@ -2489,6 +2489,7 @@ fn starts_typed_literal(ident: Symbol, next: &TokenKind) -> bool {
 #[cfg(test)]
 mod candidate_tests {
     use super::*;
+    use crate::AbiParamLocation;
     use snapbox::{assert_data_eq, str};
     use solar_interface::{
         ColorChoice,
@@ -2764,5 +2765,61 @@ error: expected `fn`
         module
             .parse_function(&fork, &file)
             .map_err(|_| fork.dcx.emitted_diagnostics().unwrap().to_string())
+    }
+
+    #[test]
+    fn replacement_preserves_abi_parameter_locations() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let mut module = parse_module(
+                &sess,
+                "@module M\nfn @f(arg0: ptr<memory>) -> i256 [selector=0x12345678, abi_params=[bytes]] { bb0: ret 1 }",
+            )
+            .unwrap();
+            let id = FunctionId::new(0);
+            module.functions[id].abi_param_locations = Some(Box::new([AbiParamLocation::Memory]));
+            let original = &module.functions[id];
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(crate::analysis::validate_function_at_phase(
+                &dcx,
+                &module,
+                id,
+                original,
+                crate::MirPhase::Semantic,
+            )
+            .is_ok());
+
+            for locations in [
+                None,
+                Some(Vec::new().into_boxed_slice()),
+                Some(vec![AbiParamLocation::Calldata].into_boxed_slice()),
+                Some(vec![AbiParamLocation::Memory; 2].into_boxed_slice()),
+            ] {
+                let mut candidate = original.clone();
+                candidate.abi_param_locations = locations;
+                let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+                assert!(crate::analysis::validate_function_at_phase(
+                    &dcx,
+                    &module,
+                    id,
+                    &candidate,
+                    crate::MirPhase::Semantic,
+                )
+                .is_err());
+            }
+
+            let mut candidate = original.clone();
+            module.functions[id].abi_param_locations = None;
+            candidate.abi_param_locations = Some(Box::new([AbiParamLocation::Calldata]));
+            let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+            assert!(crate::analysis::validate_function_at_phase(
+                &dcx,
+                &module,
+                id,
+                &candidate,
+                crate::MirPhase::Semantic,
+            )
+            .is_err());
+        });
     }
 }

@@ -1572,7 +1572,8 @@ pub(crate) fn validate_phase(
 
 /// Checks `function` against the requested phase as a replacement for function `id` of `module`.
 ///
-/// Checks the replacement's interface and validates it with its callers in a private module.
+/// Checks the replacement's interface, including ABI parameter data locations, and validates it
+/// with its callers in a private module.
 pub fn validate_function_at_phase(
     dcx: &DiagCtxt,
     module: &Module,
@@ -1593,6 +1594,7 @@ pub fn validate_function_at_phase(
         || function.return_abi() != original.return_abi()
         || function.selector != original.selector
         || function.abi_params != original.abi_params
+        || function.abi_param_locations != original.abi_param_locations
         || function.abi_returns != original.abi_returns
         || function.abi_return_params != original.abi_return_params
         || function.attributes != original.attributes
