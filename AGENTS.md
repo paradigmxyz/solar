@@ -61,7 +61,7 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   `tests/ui/cli/Zhelp.stdout`). `crates/cli`: driver.
   `crates/solar`: binary and test entry point. Also `lsp`, `lint`, `capi`,
   `macros`.
-- `crates/verify`: `solverus`, an SMT-based deductive verifier over the AST
+- `crates/verify`: `solar-verify`, an SMT-based deductive verifier over the AST
   (`vc.rs`, `vc/yul.rs`), and its spec mutation tester (`tools/specmut.py`).
 - `tools/tester`: UI and integration test runners. `tools/xtask`: `cargo tq`.
 

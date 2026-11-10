@@ -43,7 +43,7 @@ struct Z3 {
 }
 
 fn spawn(timeout_ms: u64) -> std::io::Result<Z3> {
-    let mut child = Command::new(std::env::var("SOLVERUS_Z3").unwrap_or_else(|_| "z3".into()))
+    let mut child = Command::new(std::env::var("SOLAR_VERIFY_Z3").unwrap_or_else(|_| "z3".into()))
         .args(["-in", "-smt2"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -224,7 +224,7 @@ impl Smt {
     /// get its exact bitvector lowering (bvlower), which settles the bit-twiddling and wide
     /// fixed-point arithmetic integer solvers struggle with.
     fn race(&mut self, guard: &str, goal: &str) -> Option<(bool, String)> {
-        if std::env::var("SOLVERUS_RACE").as_deref() == Ok("off") {
+        if std::env::var("SOLAR_VERIFY_RACE").as_deref() == Ok("off") {
             return None;
         }
         let q = format!("(assert {guard})\n(assert (not {goal}))\n(check-sat)\n");
@@ -232,7 +232,7 @@ impl Smt {
             format!("(set-logic ALL)\n{}{q}", self.transcript.replace("bv2int", "bv2nat"));
         let mut jobs: Vec<(String, String, Vec<String>, String)> = vec![];
         let t = self.timeout_ms;
-        let cvc5 = std::env::var("SOLVERUS_CVC5").unwrap_or_else(|_| "cvc5".into());
+        let cvc5 = std::env::var("SOLAR_VERIFY_CVC5").unwrap_or_else(|_| "cvc5".into());
         if cvc5 != "off" {
             jobs.push((
                 "cvc5".into(),
@@ -243,14 +243,14 @@ impl Smt {
         }
         let lowered = crate::bvlower::lower(&format!("{}{q}", self.transcript));
         if let Some((bv, dropped, w)) = &lowered {
-            if std::env::var_os("SOLVERUS_DEBUG").is_some() {
+            if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some() {
                 eprintln!("bvlower: width {w}, {dropped} assertions dropped, {} bytes", bv.len());
             }
-            if let Some(d) = std::env::var_os("SOLVERUS_BV_DUMP") {
+            if let Some(d) = std::env::var_os("SOLAR_VERIFY_BV_DUMP") {
                 let _ = std::fs::write(d, bv);
             }
             let quantified = bv.contains("(forall") || bv.contains("(exists");
-            let bw = std::env::var("SOLVERUS_BITWUZLA").unwrap_or_else(|_| "bitwuzla".into());
+            let bw = std::env::var("SOLAR_VERIFY_BITWUZLA").unwrap_or_else(|_| "bitwuzla".into());
             if bw != "off" && !quantified {
                 jobs.push((
                     "bitwuzla(bv)".into(),
@@ -261,7 +261,7 @@ impl Smt {
             }
             jobs.push((
                 "z3(bv)".into(),
-                std::env::var("SOLVERUS_Z3").unwrap_or_else(|_| "z3".into()),
+                std::env::var("SOLAR_VERIFY_Z3").unwrap_or_else(|_| "z3".into()),
                 vec!["-in".into(), "-smt2".into(), format!("-t:{t}")],
                 bv.clone(),
             ));
@@ -291,7 +291,7 @@ impl Smt {
         let mut answer = None;
         for _ in 0..n {
             let Ok((name, r)) = rx.recv() else { break };
-            if std::env::var_os("SOLVERUS_DEBUG").is_some() {
+            if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some() {
                 eprintln!("race: {name} -> {r:?} after {} ms", t0.elapsed().as_millis());
             }
             match r {
@@ -409,7 +409,7 @@ fn run_solver(
     }
     let _ = w.join();
     let text = reader.join().unwrap_or_default();
-    if std::env::var_os("SOLVERUS_DEBUG").is_some()
+    if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some()
         && let Some(e) = text.lines().find(|l| l.contains("error"))
     {
         eprintln!("{bin}: {e}");

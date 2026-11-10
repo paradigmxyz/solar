@@ -1,4 +1,4 @@
-//! solverus: Verus-style deductive verification for Solidity, built on Solar.
+//! solar-verify: Verus-style deductive verification for Solidity, built on Solar.
 mod bvlower;
 mod interval;
 mod prog;
@@ -59,7 +59,7 @@ fn parse_cli() -> Cli {
             "--jobs" | "-j" => c.jobs = it.next().and_then(|x| x.parse().ok()).unwrap_or(1),
             "-h" | "--help" => {
                 println!(
-                    "usage: solverus [--strict] [--timeout MS] [--only Contract.fn] [--jobs N] [--dump-smt FILE] [--instrument OUT.sol] FILE.sol...\n\n\
+                    "usage: solar-verify [--strict] [--timeout MS] [--only Contract.fn] [--jobs N] [--dump-smt FILE] [--instrument OUT.sol] FILE.sol...\n\n\
                      --dry-run  generate every obligation without running a solver (see --dump-smt)
 \
                      --instrument OUT.sol  write FILE with every @custom:check claim as a require\n\
@@ -73,7 +73,7 @@ fn parse_cli() -> Cli {
         }
     }
     if c.files.is_empty() {
-        eprintln!("usage: solverus [--strict] FILE.sol...");
+        eprintln!("usage: solar-verify [--strict] FILE.sol...");
         std::process::exit(2);
     }
     c
@@ -160,7 +160,7 @@ fn run_parallel(cli: &Cli) -> ! {
                     let i = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     let Some((file, n)) = names.get(i) else { break };
                     let mut cmd = std::process::Command::new(&exe);
-                    cmd.env("SOLVERUS_CHILD", "1").args([
+                    cmd.env("SOLAR_VERIFY_CHILD", "1").args([
                         "--timeout",
                         &cli.timeout.to_string(),
                         "--only",
@@ -225,7 +225,7 @@ fn main() {
     if cli.jobs > 1 && cli.only.is_none() && cli.dump_smt.is_none() && cli.instrument.is_none() {
         run_parallel(&cli);
     }
-    let child = std::env::var_os("SOLVERUS_CHILD").is_some();
+    let child = std::env::var_os("SOLAR_VERIFY_CHILD").is_some();
     let sess = session();
     let mut total_ok = 0;
     let mut total_err = 0;
@@ -266,7 +266,7 @@ fn main() {
                     let smt = if cli.dry_run {
                         smt::Smt::dry(cli.dump_smt.is_some())
                     } else {
-                        smt::Smt::new(cli.timeout, cli.dump_smt.is_some()).expect("could not start z3 (set SOLVERUS_Z3)")
+                        smt::Smt::new(cli.timeout, cli.dump_smt.is_some()).expect("could not start z3 (set SOLAR_VERIFY_Z3)")
                     };
                     let mut v = vc::Vc::new(&program, c, smt, &vc::Opts { strict: cli.strict });
                     if v.inlined_only(f) {
@@ -392,7 +392,7 @@ fn instrument(sess: &Session, program: &prog::Program<'_>, file: &Path, out: &Pa
     let off_hi = |sp: Span| sess.source_map().lookup_byte_offset(sp.hi()).pos.0 as usize;
     let req = |text: &str| {
         let msg = text.replace(['"', '\\'], "'");
-        format!("require({text}, \"solverus check failed: {msg}\");")
+        format!("require({text}, \"solar-verify check failed: {msg}\");")
     };
     // (offset, text to insert), applied from the end
     let mut ins: Vec<(usize, String)> = vec![];

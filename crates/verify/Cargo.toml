@@ -16,7 +16,7 @@ categories.workspace = true
 workspace = true
 
 [[bin]]
-name = "solverus"
+name = "solar-verify"
 path = "src/main.rs"
 
 [dependencies]

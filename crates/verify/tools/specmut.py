@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""specmut for solverus: mutation testing of Solidity specifications.
+"""specmut for solar-verify: mutation testing of Solidity specifications.
 
 A spec is weak when a mutant of the implementation that behaves differently still verifies.
 Pipeline (after mutspec / MutDafny):
-  1. coverage: mutate only functions that solverus verifies in the baseline and that some spec
+  1. coverage: mutate only functions that solar-verify verifies in the baseline and that some spec
      reaches (the function's own requires/ensures/asserts, its contract's invariants, or a
      caller's), via a textual call graph.
   2. mutants: relational, arithmetic, logical, constant and boolean replacement, and deletion of
      effect statements and revert guards; each operator is a knob.
   3. re-verify the mutated function and every function that can reach it; a mutant is KILLED only
-     when solverus reports a failure with a counterexample (not a timeout).
+     when solar-verify reports a failure with a counterexample (not a timeout).
   4. survivors: trivial compiler equivalence (optimised runtime bytecode identical => equivalent);
      the rest are reported for triage, each with its diff.
 Triage records live in <spec>.equiv.json: {mutant_key: reason}, keys stable under spec edits.
@@ -373,10 +373,10 @@ def run_sv(binp, file, only, timeout, wall):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("file")
-    ap.add_argument("--bin", default=os.environ.get("SV", "solverus"))
+    ap.add_argument("--bin", default=os.environ.get("SOLAR_VERIFY_BIN", "solar-verify"))
     ap.add_argument(
         "--baseline",
-        help="solverus --json rows of the unmodified file (list or {rows:[..]})",
+        help="solar-verify --json rows of the unmodified file (list or {rows:[..]})",
     )
     ap.add_argument("--ops", default="ROR,AOR,LCR,BOOL,CRP,SDL,GDL")
     ap.add_argument(

@@ -1,4 +1,4 @@
-//! Exact lowering of a solverus query from unbounded Int to fixed-width bitvectors.
+//! Exact lowering of a solar-verify query from unbounded Int to fixed-width bitvectors.
 //!
 //! Every Int subterm of the query gets an interval from the range facts the encoder asserts,
 //! SSA definitions, and typing hints (`;@elem` for array elements, `;@ret` for uninterpreted

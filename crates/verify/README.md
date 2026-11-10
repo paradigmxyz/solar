@@ -1,13 +1,13 @@
 # solar-verify
 
-`solverus`, a deductive verifier for Solidity, and `specmut`, a tester for its specs.
+`solar-verify`, a deductive verifier for Solidity, and `specmut`, a tester for its specs.
 
 Specs are written next to the code in NatSpec `@custom:` tags. Every function is proved
 **modularly** with Z3: a ✔ means the property holds for all inputs and storage states, under the
 trusted base listed below. Nothing is bounded, sampled or fuzzed.
 
 ```text
-$ solverus examples/Bugs.sol
+$ solar-verify examples/Bugs.sol
 ✘ Bugs.payout (1 of 2 obligations failed)
 error: contract invariant must hold before an external call (reentrancy)
    ╭▸ examples/Bugs.sol:36:9
@@ -23,13 +23,13 @@ error: contract invariant must hold before an external call (reentrancy)
 
 ## Running
 
-Install Z3 (any version from 4.8) on `PATH`, or point `SOLVERUS_Z3` at it. When cvc5 and Bitwuzla
-are on `PATH` (or named by `SOLVERUS_CVC5` and `SOLVERUS_BITWUZLA`; `off` disables either), they
+Install Z3 (any version from 4.8) on `PATH`, or point `SOLAR_VERIFY_Z3` at it. When cvc5 and Bitwuzla
+are on `PATH` (or named by `SOLAR_VERIFY_CVC5` and `SOLAR_VERIFY_BITWUZLA`; `off` disables either), they
 race Z3 on the queries it gives up on.
 
 ```sh
 cargo build -p solar-verify --release
-target/release/solverus crates/verify/examples/Token.sol
+target/release/solar-verify crates/verify/examples/Token.sol
 cargo nextest run -p solar-verify
 ```
 
@@ -45,7 +45,7 @@ Flags:
 - `--dry-run`: generate every obligation without running a solver (with `--dump-smt`).
 - `--instrument OUT.sol`: write the file with every `@custom:check` as a `require`.
 
-Without Z3 the tests that need it are skipped with a message on stderr; set `SOLVERUS_REQUIRE_Z3=1`
+Without Z3 the tests that need it are skipped with a message on stderr; set `SOLAR_VERIFY_REQUIRE_Z3=1`
 to make them fail instead.
 
 ## Spec language
@@ -107,7 +107,7 @@ and storage is havocked across it. Under a `@custom:reentrancy-guard` lock, only
 points that stay callable under the lock can write is havocked. View and pure calls and
 `.transfer` havoc nothing.
 
-If no execution of a function can return normally, solverus warns, so contradictory specs cannot
+If no execution of a function can return normally, solar-verify warns, so contradictory specs cannot
 verify everything silently.
 
 ## Limits
@@ -124,7 +124,7 @@ storage pointer `p` to a struct whose fields pack into one slot (`examples/struc
 Not supported: Yul `for` loops, memory at symbolic offsets, `.slot` and `.offset` of anything else,
 `do`/`while` loops, imports, storage pointers chosen by conditionals, function pointers, the code of
 other accounts, and quantifier triggers. Unsupported constructs are reported as errors, never
-skipped, so a ✔ is never produced over code solverus did not model.
+skipped, so a ✔ is never produced over code solar-verify did not model.
 
 ## Trusted base
 
@@ -148,7 +148,7 @@ original's are equivalent (this needs solc, from `--solc`, `$SOLC` or `PATH`); t
 reported with their diffs. Triage records live next to the file in `<file>.equiv.json`.
 
 ```sh
-uv run crates/verify/tools/specmut.py --bin target/release/solverus -j 8 crates/verify/examples/Token.sol
+uv run crates/verify/tools/specmut.py --bin target/release/solar-verify -j 8 crates/verify/examples/Token.sol
 ```
 
 `--list` prints the mutants without verifying them, `--only REGEX` restricts them to matching

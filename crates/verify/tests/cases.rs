@@ -1,14 +1,14 @@
-//! Tests of the `solverus` binary.
+//! Tests of the `solar-verify` binary.
 //!
 //! The snapshot tests need no solver: they run `--dry-run` or `--instrument` and pin the
 //! frontend's diagnostics, the SMT-LIB obligations of a function and the instrumented source.
 //!
 //! The other tests need z3 and are skipped, with a message on stderr, when it is missing (set
-//! `SOLVERUS_Z3`, or `SOLVERUS_REQUIRE_Z3=1` to fail instead). In each case file every function
-//! named `ok_*` must verify and every `bad_*` must fail with a definite verdict: a counterexample
-//! or an unsupported construct, not an unknown from the solver. `// expect: text` comments right
-//! above a function pin text in its diagnostics; `// expect: solver returned unknown` is the one
-//! way to accept an unknown, for claims the solver cannot refute.
+//! `SOLAR_VERIFY_Z3`, or `SOLAR_VERIFY_REQUIRE_Z3=1` to fail instead). In each case file every
+//! function named `ok_*` must verify and every `bad_*` must fail with a definite verdict: a
+//! counterexample or an unsupported construct, not an unknown from the solver. `// expect: text`
+//! comments right above a function pin text in its diagnostics; `// expect: solver returned
+//! unknown` is the one way to accept an unknown, for claims the solver cannot refute.
 #![allow(unused_crate_dependencies)]
 #![allow(clippy::disallowed_methods)] // The tests read their Solidity sources directly.
 
@@ -23,12 +23,12 @@ struct Run {
     stderr: String,
 }
 
-fn solverus(args: &[&str]) -> Run {
-    let out = Command::new(env!("CARGO_BIN_EXE_solverus"))
+fn run_verifier(args: &[&str]) -> Run {
+    let out = Command::new(env!("CARGO_BIN_EXE_solar-verify"))
         .args(args)
         .env("NO_COLOR", "1")
         .output()
-        .expect("run solverus");
+        .expect("run solar-verify");
     Run {
         stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
@@ -84,10 +84,10 @@ fn check(file: &str) {
     let src = std::fs::read_to_string(file).unwrap();
     // Every proof here takes well under a second; the timeout bounds the queries a case expects
     // the solver to give up on.
-    let plain = solverus(&["--json", "--timeout", TIMEOUT, file]);
+    let plain = run_verifier(&["--json", "--timeout", TIMEOUT, file]);
     let strict = src
         .contains("strict_only")
-        .then(|| solverus(&["--json", "--timeout", TIMEOUT, "--strict", file]));
+        .then(|| run_verifier(&["--json", "--timeout", TIMEOUT, "--strict", file]));
     let mut problems = vec![];
     let lines: Vec<&str> = src.lines().collect();
     for (ln, line) in lines.iter().enumerate() {
@@ -139,21 +139,21 @@ fn check(file: &str) {
 
 /// Whether z3 is missing, in which case the calling test is skipped.
 fn z3_missing() -> bool {
-    let z3 = std::env::var("SOLVERUS_Z3").unwrap_or_else(|_| "z3".into());
+    let z3 = std::env::var("SOLAR_VERIFY_Z3").unwrap_or_else(|_| "z3".into());
     if Command::new(&z3).arg("-version").output().is_ok() {
         return false;
     }
     assert!(
-        std::env::var_os("SOLVERUS_REQUIRE_Z3").is_none(),
-        "z3 not found (`{z3}`) and SOLVERUS_REQUIRE_Z3 is set"
+        std::env::var_os("SOLAR_VERIFY_REQUIRE_Z3").is_none(),
+        "z3 not found (`{z3}`) and SOLAR_VERIFY_REQUIRE_Z3 is set"
     );
-    eprintln!("skipped: z3 not found (`{z3}`); set SOLVERUS_Z3 to run this test");
+    eprintln!("skipped: z3 not found (`{z3}`); set SOLAR_VERIFY_Z3 to run this test");
     true
 }
 
 #[test]
 fn spec_errors() {
-    let run = solverus(&["--dry-run", "tests/snapshots/spec_errors.sol"]);
+    let run = run_verifier(&["--dry-run", "tests/snapshots/spec_errors.sol"]);
     assert_data_eq!(tidy(&run.stdout), file!["snapshots/spec_errors.stdout"]);
     assert_data_eq!(tidy(&run.stderr), file!["snapshots/spec_errors.stderr"]);
 }
@@ -161,9 +161,9 @@ fn spec_errors() {
 #[test]
 fn smt_obligations() {
     let out = std::env::temp_dir()
-        .join(format!("solverus-counter-increment-{}.smt2", std::process::id()));
+        .join(format!("solar-verify-counter-increment-{}.smt2", std::process::id()));
     let out_s = out.to_str().unwrap();
-    let run = solverus(&[
+    let run = run_verifier(&[
         "--dry-run",
         "--only",
         "Counter.increment",
@@ -179,8 +179,10 @@ fn smt_obligations() {
 
 #[test]
 fn instrument() {
-    let out = std::env::temp_dir().join(format!("solverus-instrument-{}.sol", std::process::id()));
-    let run = solverus(&["--instrument", out.to_str().unwrap(), "tests/snapshots/instrument.sol"]);
+    let out =
+        std::env::temp_dir().join(format!("solar-verify-instrument-{}.sol", std::process::id()));
+    let run =
+        run_verifier(&["--instrument", out.to_str().unwrap(), "tests/snapshots/instrument.sol"]);
     let src = std::fs::read_to_string(&out).unwrap();
     assert!(run.stderr.contains("(4 checks as require)"), "{}", run.stderr);
     assert_data_eq!(tidy(&src), file!["snapshots/instrument.instrumented.sol"]);
@@ -204,7 +206,7 @@ fn examples() {
         "examples/Vault.sol",
         "examples/struct_slot.sol",
     ] {
-        out.push_str(&format!("$ solverus {f}\n{}\n", solverus(&[f]).stdout));
+        out.push_str(&format!("$ solar-verify {f}\n{}\n", run_verifier(&[f]).stdout));
     }
     assert_data_eq!(tidy(&out), file!["snapshots/examples.stdout"]);
 }

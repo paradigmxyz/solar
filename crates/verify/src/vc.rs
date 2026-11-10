@@ -4011,7 +4011,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             }
         };
-        if std::env::var_os("SOLVERUS_DEBUG").is_some() {
+        if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some() {
             eprintln!(
                 "using {m}: {} candidates, receiver {:?}, picked {}({:?})",
                 cands.len(),

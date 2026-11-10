@@ -910,7 +910,7 @@ pub(crate) fn executable(text: &str) -> bool {
         || text.contains("exists"))
 }
 
-/// Summaries solverus trusts for well-known library functions it cannot verify itself, applied
+/// Summaries solar-verify trusts for well-known library functions it cannot verify itself, applied
 /// only when the function carries no specs of its own and its parameters are named as upstream.
 /// OpenZeppelin `Math.mulDiv`: the exact quotient of the 512-bit product, rounded as asked; it
 /// reverts when `denominator` is zero or the result does not fit in `uint256`.
