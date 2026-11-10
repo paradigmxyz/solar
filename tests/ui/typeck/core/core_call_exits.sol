@@ -4,8 +4,8 @@
 // result the entry point declares, raw bytes may only end a call to the
 // fallback function, and nothing may end the creation, which would deploy
 // what it returns as the code. Only contracts that can be deployed are
-// checked, and a call through an internal function pointer can reach every
-// function whose value the contract takes.
+// checked, and a typed internal function pointer can reach functions with
+// matching parameter and return types whose values the contract takes.
 import {Calls} from "solar:core/Calls.sol";
 import {Return} from "solar:core/Return.sol";
 

@@ -1,5 +1,8 @@
-use super::{Gcx, TyKind};
-use crate::hir::{self, Visit};
+use super::{Gcx, TyFn, TyFnKind, TyKind};
+use crate::{
+    builtins::Builtin,
+    hir::{self, Visit},
+};
 use solar_data_structures::{Never, bit_set::DenseBitSet, map::FxIndexMap};
 use std::{collections::VecDeque, ops::ControlFlow};
 
@@ -48,7 +51,9 @@ struct CallGraphBuilder<'gcx, 's> {
     stopped: bool,
     /// How each function was first reached.
     parents: FxIndexMap<hir::FunctionId, Traced>,
-    pointer_calls: Vec<Option<hir::FunctionId>>,
+    pointer_calls: Vec<(Option<hir::FunctionId>, &'gcx TyFn<'gcx>)>,
+    /// User assembly or delegated code can retype pointers in memory or storage.
+    may_retype_pointers: bool,
     /// Execution edges, excluding function values that are never called.
     calls: FxIndexMap<Option<hir::FunctionId>, Vec<hir::FunctionId>>,
     track_pointer_calls: bool,
@@ -83,6 +88,7 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             stopped: false,
             parents: FxIndexMap::default(),
             pointer_calls: Vec::new(),
+            may_retype_pointers: false,
             calls: FxIndexMap::default(),
             track_pointer_calls: false,
         }
@@ -251,9 +257,19 @@ impl<'gcx, 's> CallGraphBuilder<'gcx, 's> {
             self.graph.errors.insert(error);
         }
         if self.track_pointer_calls
-            && matches!(self.gcx.type_of_expr(callee.id).map(|ty| ty.kind), Some(TyKind::Fn(function)) if function.is_internal())
+            && (matches!(
+                self.gcx.resolved_builtin(callee),
+                Some(Builtin::YulDelegatecall | Builtin::YulCallcode)
+            ) || matches!(self.gcx.type_of_expr(callee.id).map(|ty| ty.kind),
+                    Some(TyKind::Fn(function)) if matches!(function.kind, TyFnKind::BareDelegateCall | TyFnKind::DelegateCall)))
         {
-            self.pointer_calls.push(self.current);
+            self.may_retype_pointers = true;
+        }
+        if self.track_pointer_calls
+            && let Some(TyKind::Fn(function)) = self.gcx.type_of_expr(callee.id).map(|ty| ty.kind)
+            && function.is_internal()
+        {
+            self.pointer_calls.push((self.current, function));
         }
         false
     }
@@ -343,6 +359,16 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        if self.track_pointer_calls
+            && matches!(stmt.kind, hir::StmtKind::AssemblyBlock(..))
+            && self.current.is_none_or(|id| {
+                !crate::core::is_core_file(
+                    &self.gcx.hir.source(self.gcx.hir.function(id).source).file.name,
+                )
+            })
+        {
+            self.may_retype_pointers = true;
+        }
         if let hir::StmtKind::Emit(call) = stmt.kind
             && let hir::ExprKind::Call(callee, ..) = call.kind
             && let Some(TyKind::Event(_, event)) =
@@ -421,8 +447,10 @@ pub(crate) enum TraceRoot {
 }
 
 /// The internal calls made in one contract, built once for all of its entry points.
-/// Taking a function value is not execution; an actual indirect call reaches the contract's
-/// possible dispatcher targets. Creation has its own synthetic root (`None`).
+/// Taking a function value is not execution; a typed indirect call reaches only targets with
+/// matching parameter and return types. User assembly or delegated code can retype pointers,
+/// so those contracts conservatively retain every exposed target. Creation has its own synthetic
+/// root (`None`).
 pub(crate) struct ExecutionGraph {
     pub(crate) calls: FxIndexMap<Option<hir::FunctionId>, Vec<hir::FunctionId>>,
 }
@@ -440,14 +468,35 @@ impl ExecutionGraph {
         builder.drain();
         let items = gcx.interface_items(id);
         builder.calls.insert(None, creation);
-        for caller in builder.pointer_calls {
-            builder.calls.entry(caller).or_default().extend(
-                items
-                    .creation
-                    .internal_dispatch_targets
-                    .iter()
-                    .chain(items.deployed.internal_dispatch_targets.iter()),
-            );
+        let mut pointer_targets = FxIndexMap::default();
+        for (caller, signature) in builder.pointer_calls {
+            // Typed pointer assignments preserve parameter and return types exactly. Mutability
+            // conversions do not change the targets. Cache each signature's targets once.
+            let targets = pointer_targets
+                .entry((signature.parameters, signature.returns))
+                .or_insert_with(|| {
+                    items
+                        .creation
+                        .internal_dispatch_targets
+                        .iter()
+                        .chain(items.deployed.internal_dispatch_targets.iter())
+                        .filter(|&id| {
+                            // NOTE: Until pointer exposure is tracked here, user assembly and
+                            // delegated code retain all targets: either can forge an otherwise
+                            // incompatible pointer. Core assembly is trusted except for calls
+                            // that delegate control to code outside the contract.
+                            if builder.may_retype_pointers {
+                                return true;
+                            }
+                            let TyKind::Fn(target) = gcx.type_of_item(id.into()).kind else {
+                                return false;
+                            };
+                            signature.parameters == target.parameters
+                                && signature.returns == target.returns
+                        })
+                        .collect::<Vec<_>>()
+                });
+            builder.calls.entry(caller).or_default().extend(targets.iter().copied());
         }
         for targets in builder.calls.values_mut() {
             targets.sort_unstable();

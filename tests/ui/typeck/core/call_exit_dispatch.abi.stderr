@@ -1,0 +1,58 @@
+error: this ends a call to `run` with raw bytes, which only the fallback function returns
+   ╭▸ ROOT/tests/ui/typeck/core/call_exit_dispatch.sol:LL:CC
+   │
+LL │         Return.raw(hex"01");
+   │         ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: the call reaches this through `Matching.run` → `Matching.raw`
+note: `run` is declared here
+   ╭▸ ROOT/tests/ui/typeck/core/call_exit_dispatch.sol:LL:CC
+   │
+LL │     function run() external view returns (uint256) {
+   │              ━━━
+   ╰ help: end the call with an ABI-encoded value, or forward from the fallback function
+
+error: this ends a call to `run` with raw bytes, which only the fallback function returns
+   ╭▸ ROOT/tests/ui/typeck/core/call_exit_dispatch.sol:LL:CC
+   │
+LL │         Return.raw(data);
+   │         ━━━━━━━━━━━━━━━━
+   │
+   ╰ note: the call reaches this through `Retyped.run` → `Retyped.raw`
+note: `run` is declared here
+   ╭▸ ROOT/tests/ui/typeck/core/call_exit_dispatch.sol:LL:CC
+   │
+LL │     function run() external pure returns (uint256) {
+   │              ━━━
+   ╰ help: end the call with an ABI-encoded value, or forward from the fallback function
+
+error: this ends a call to `run` with raw bytes, which only the fallback function returns
+   ╭▸ ROOT/tests/ui/typeck/core/call_exit_dispatch.sol:LL:CC
+   │
+LL │         Return.raw(hex"01");
+   │         ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: the call reaches this through `DelegateWrite.run` → `DelegateWrite.raw`
+note: `run` is declared here
+   ╭▸ ROOT/tests/ui/typeck/core/call_exit_dispatch.sol:LL:CC
+   │
+LL │     function run(address target) external returns (uint256) {
+   │              ━━━
+   ╰ help: end the call with an ABI-encoded value, or forward from the fallback function
+
+error: this ends a call to `run` with raw bytes, which only the fallback function returns
+   ╭▸ ROOT/tests/ui/typeck/core/call_exit_dispatch.sol:LL:CC
+   │
+LL │         Return.raw(hex"01");
+   │         ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: the call reaches this through `CoreDelegateWrite.run` → `CoreDelegateWrite.raw`
+note: `run` is declared here
+   ╭▸ ROOT/tests/ui/typeck/core/call_exit_dispatch.sol:LL:CC
+   │
+LL │     function run(address target) external returns (uint256) {
+   │              ━━━
+   ╰ help: end the call with an ABI-encoded value, or forward from the fallback function
+
+error: aborting due to 4 previous errors
+

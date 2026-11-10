@@ -13,11 +13,12 @@
 //! - `Return.abiEncoded(value)` may end a call to the fallback function, or to a function that
 //!   returns exactly one value of the same ABI type.
 //!
-//! A call through an internal function pointer can reach every function whose value the contract
-//! takes. The operations themselves can only be called directly: their bodies are the
-//! compiler's, which no check follows, so a pointer to one would end the call unchecked. External
-//! calls, including calls to a deployed library's functions, start calls of their own. Inline
-//! assembly that returns is not followed: it declares no output this check could compare.
+//! A typed internal function pointer call reaches functions with matching parameter and return
+//! types. User assembly or delegated code can retype pointers, retaining all targets whose
+//! values the contract takes. The operations themselves can only be called directly: their bodies
+//! are the compiler's, which no check follows, so a pointer to one would end the call unchecked.
+//! External calls, including calls to a deployed library's functions, start calls of their own.
+//! Inline assembly that returns is not followed: it declares no output this check could compare.
 
 use crate::{
     core::{CoreIntrinsic, intrinsic_of, is_core_file},
