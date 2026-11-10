@@ -1051,9 +1051,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
 
-### CODEGEN-014: Memory `bytes` may carry nonzero bytes past their length
+### CODEGEN-023: Memory `bytes` may carry nonzero bytes past their length
 
-- ID: CODEGEN-014
+- ID: CODEGEN-023
 - Status: intentional
 - Difference: a `bytes` object that `abi.decode` allocates or `abi.encodePacked`
   returns keeps whatever the memory or the input held in the padding after its
