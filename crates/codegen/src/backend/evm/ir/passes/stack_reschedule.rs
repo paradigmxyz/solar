@@ -1349,14 +1349,18 @@ fn emit(
     // the last, wherever the reorder put the instructions that carried them.
     // NOTE: A run that passes through a guard is not straight-line: a path that aborts at the guard
     // never runs what follows it. Its events stay with the instructions that carry them, and those
-    // of a replaced instruction go to the next original that the schedule keeps, which runs after
-    // it on the same path.
+    // of a replaced instruction go to the next original that the schedule keeps, when that one
+    // stays on the same side of the guards, so that it runs after it on the same path.
     if run.iter().all(|inst| inst.as_evm_opcode() != Some(op::JUMPI)) {
         RunEvents::of(run.iter().map(|inst| &inst.metadata)).place(&mut instructions);
     } else {
+        let guards = |instructions: &[Instruction]| {
+            instructions.iter().filter(|inst| inst.as_evm_opcode() == Some(op::JUMPI)).count()
+        };
         for (position, inst) in run.iter().enumerate() {
             if !placed.contains(position)
                 && let Some(next) = (position + 1..run.len()).find(|&next| placed.contains(next))
+                && guards(&instructions[..slots[next]]) == guards(&run[..position])
             {
                 instructions[slots[next]].metadata.move_function_events(&inst.metadata);
             }
