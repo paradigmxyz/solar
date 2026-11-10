@@ -388,3 +388,70 @@ fn @g(arg0: i256) -> i256 { bb0: v0 = add arg0, 0 v1 = mul v0, 1 ret v1 }";
         assert_eq!(requests[0].0, "g");
     }
 }
+
+#[test]
+fn prepared_mir_outputs_run_each_pipeline_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("Once.sol");
+    let script = dir.path().join("empty.script");
+    std::fs::write(&source, "contract Once { function f(uint256 x) external pure returns (uint256) { unchecked { return x + 1; } } }").unwrap();
+    std::fs::write(&script, "").unwrap();
+    let pipeline = "lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,llm-optimize,sccp";
+    for mode in ["gas", "size"] {
+        for pipeline in [None, Some(pipeline)] {
+            for rewrites in [false, true] {
+                let compile = |backend: bool, dump: bool| {
+                    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_solar"));
+                    command.arg(&source).args([
+                        "--allow=2264",
+                        "-j1",
+                        "-O",
+                        mode,
+                        "-Ztime-passes",
+                        "-Zvalidate-ir=true",
+                    ]);
+                    if let Some(pipeline) = pipeline {
+                        command.arg(format!("-Zmir-pipeline={pipeline}"));
+                    }
+                    if rewrites {
+                        command.arg("-Zllm-optimize=script");
+                        command.arg(format!("-Zllm-script={}", script.display()));
+                    }
+                    if backend {
+                        command.arg("--emit=bin-runtime");
+                    }
+                    if dump {
+                        command.arg("-Zdump=mir");
+                    }
+                    let output = command.output().unwrap();
+                    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+                    let stdout = String::from_utf8(output.stdout).unwrap();
+                    // Assert actual MIR output as well as pass execution: a skipped compilation
+                    // must not satisfy this check with two empty timing logs.
+                    stdout.split_once("@module Once").expect("MIR module output");
+                    String::from_utf8(output.stderr)
+                        .unwrap()
+                        .lines()
+                        .filter_map(|line| {
+                            line.strip_prefix("time:")?.split_once('\t').map(|(_, record)| record)
+                        })
+                        .filter(|record| record.starts_with("MIR "))
+                        .map(|record| record.split_whitespace().nth(2).expect("MIR pass name"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                };
+                let backend = compile(true, true);
+                assert_eq!(
+                    backend.lines().filter(|&pass| pass == "llm-optimize").count(),
+                    usize::from(rewrites),
+                );
+                // Count ordinary passes, not model sessions: the rewrite budget already prevents
+                // reopening a session, but must not hide a second run of the remaining pipeline.
+                assert_data_eq!(compile(false, true), backend.as_str());
+                if pipeline.is_some() {
+                    assert_data_eq!(compile(false, false), backend.as_str());
+                }
+            }
+        }
+    }
+}
