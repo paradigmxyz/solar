@@ -1,46 +1,50 @@
 ;; Conditional selection identities.
 
 ;; select(c, x, 0) => ((c == 0) == 0) * x.
-(rule (sequence_rewrite (Op.Select c x (zero)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and x (word_value)) (zero)))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let b (make (Op.Eq z (imm (u256 0)))))
       (sequence (Op.Mul b x)))
 
 ;; select(c, x, 0) => c * x.
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) x (zero)))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (and x (word_value)) (zero)))
       (sequence (Op.Mul c x)))
 
 ;; select(c, 0, x) => (c == 0) * x.
-(rule (sequence_rewrite (Op.Select c (zero) x))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (zero) (and x (word_value))))
       (if-let b (make (Op.Eq c (imm (u256 0)))))
       (sequence (Op.Mul b x)))
 
 ;; select(c, MAX, x) => x | ((c == 0) - 1).
-(rule (sequence_rewrite (Op.Select c (all_ones) x))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (all_ones) (and x (word_value))))
       (if-let b (make (Op.Eq c (imm (u256 0)))))
       (if-let one (imm (u256 1)))
       (if-let mask (make (Op.Sub b one)))
       (sequence (Op.Or x mask)))
 
 ;; select(c, x, MAX) => x | (0 - (c == 0)).
-(rule (sequence_rewrite (Op.Select c x (all_ones)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and x (word_value)) (all_ones)))
       (if-let b (make (Op.Eq c (imm (u256 0)))))
       (if-let zero (imm (u256 0)))
       (if-let mask (make (Op.Sub zero b)))
       (sequence (Op.Or x mask)))
 
 ;; select(c, x, MAX) => x | (c - 1).
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) x (all_ones)))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (and x (word_value)) (all_ones)))
       (if-let one (imm (u256 1)))
       (if-let mask (make (Op.Sub c one)))
       (sequence (Op.Or x mask)))
 
 ;; Restrict constant selection recipes to gas mode to preserve constant reuse in size mode.
 ;; select(c, t, f) => f + (((c == 0) == 0) * (t - f)).
-;; Requires: t, f are constants, optimizing for gas, t >= f.
-(rule (sequence_rewrite (Op.Select c (iconst t) (and base (iconst f))))
+;; Requires: t, f are constants, optimizing for gas, t >= f, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (iconst t) (and base (iconst f) (word_value))))
       (if-let false (optimize_for_size))
       (if-let true (u256_ge t f))
       (if-let delta (imm (u256_sub t f)))
@@ -50,8 +54,8 @@
       (sequence (Op.Add base scaled)))
 
 ;; select(c, t, f) => f + (c * (t - f)).
-;; Requires: t, f are constants, c is boolean, optimizing for gas, t >= f.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) (iconst t) (and base (iconst f))))
+;; Requires: t, f are constants, c is boolean, optimizing for gas, t >= f, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (iconst t) (and base (iconst f) (word_value))))
       (if-let false (optimize_for_size))
       (if-let true (u256_ge t f))
       (if-let delta (imm (u256_sub t f)))
@@ -59,8 +63,8 @@
       (sequence (Op.Add base scaled)))
 
 ;; select(c, t, f) => t + ((c == 0) * (f - t)).
-;; Requires: t, f are constants, optimizing for gas, f >= t.
-(rule (sequence_rewrite (Op.Select c (and base (iconst t)) (iconst f)))
+;; Requires: t, f are constants, optimizing for gas, f >= t, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and base (iconst t) (word_value)) (iconst f)))
       (if-let false (optimize_for_size))
       (if-let true (u256_ge f t))
       (if-let delta (imm (u256_sub f t)))
@@ -69,8 +73,8 @@
       (sequence (Op.Add base scaled)))
 
 ;; select(c, x, _) => _ + (((c == 0) == 0) * (x - _)).
-;; Requires: _ is constant, optimizing for gas.
-(rule (sequence_rewrite (Op.Select c x (and k (iconst _))))
+;; Requires: _ is constant, optimizing for gas, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and x (word_value)) (and k (iconst _))))
       (if-let false (optimize_for_size))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let b (make (Op.Eq z (imm (u256 0)))))
@@ -79,16 +83,16 @@
       (sequence (Op.Add k scaled)))
 
 ;; select(c, x, _) => _ + (c * (x - _)).
-;; Requires: _ is constant, c is boolean, optimizing for gas.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) x (and k (iconst _))))
+;; Requires: _ is constant, c is boolean, optimizing for gas, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (and x (word_value)) (and k (iconst _))))
       (if-let false (optimize_for_size))
       (if-let delta (make (Op.Sub x k)))
       (if-let scaled (make (Op.Mul c delta)))
       (sequence (Op.Add k scaled)))
 
 ;; select(c, _, x) => _ + ((c == 0) * (x - _)).
-;; Requires: _ is constant, optimizing for gas.
-(rule (sequence_rewrite (Op.Select c (and k (iconst _)) x))
+;; Requires: _ is constant, optimizing for gas, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and k (iconst _)) (and x (word_value))))
       (if-let false (optimize_for_size))
       (if-let b (make (Op.Eq c (imm (u256 0)))))
       (if-let delta (make (Op.Sub x k)))
@@ -96,107 +100,115 @@
       (sequence (Op.Add k scaled)))
 
 ;; select(c, (y + x), y) => y + (c * x).
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) (add y x) y))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (add y x) (and y (word_value))))
       (if-let gated (make (Op.Mul c x)))
       (sequence (Op.Add y gated)))
 
 ;; select(c, (x + y), y) => y + (c * x).
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) (add x y) y))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (add x y) (and y (word_value))))
       (if-let gated (make (Op.Mul c x)))
       (sequence (Op.Add y gated)))
 
 ;; select(c, y, (y + x)) => y + ((c == 0) * x).
-(rule (sequence_rewrite (Op.Select c y (add y x)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and y (word_value)) (add y x)))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let gated (make (Op.Mul z x)))
       (sequence (Op.Add y gated)))
 
 ;; select(c, y, (x + y)) => y + ((c == 0) * x).
-(rule (sequence_rewrite (Op.Select c y (add x y)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and y (word_value)) (add x y)))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let gated (make (Op.Mul z x)))
       (sequence (Op.Add y gated)))
 
 ;; select(c, (y - x), y) => y - (c * x).
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) (sub y x) y))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (sub y x) (and y (word_value))))
       (if-let gated (make (Op.Mul c x)))
       (sequence (Op.Sub y gated)))
 
 ;; select(c, y, (y - x)) => y - ((c == 0) * x).
-(rule (sequence_rewrite (Op.Select c y (sub y x)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and y (word_value)) (sub y x)))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let gated (make (Op.Mul z x)))
       (sequence (Op.Sub y gated)))
 
 ;; select(c, (y | x), y) => y | (c * x).
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bor y x) y))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bor y x) (and y (word_value))))
       (if-let gated (make (Op.Mul c x)))
       (sequence (Op.Or y gated)))
 
 ;; select(c, (x | y), y) => y | (c * x).
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bor x y) y))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bor x y) (and y (word_value))))
       (if-let gated (make (Op.Mul c x)))
       (sequence (Op.Or y gated)))
 
 ;; select(c, y, (y | x)) => y | ((c == 0) * x).
-(rule (sequence_rewrite (Op.Select c y (bor y x)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and y (word_value)) (bor y x)))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let gated (make (Op.Mul z x)))
       (sequence (Op.Or y gated)))
 
 ;; select(c, y, (x | y)) => y | ((c == 0) * x).
-(rule (sequence_rewrite (Op.Select c y (bor x y)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and y (word_value)) (bor x y)))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let gated (make (Op.Mul z x)))
       (sequence (Op.Or y gated)))
 
 ;; select(c, (y ^ x), y) => y ^ (c * x).
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bxor y x) y))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bxor y x) (and y (word_value))))
       (if-let gated (make (Op.Mul c x)))
       (sequence (Op.Xor y gated)))
 
 ;; select(c, (x ^ y), y) => y ^ (c * x).
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bxor x y) y))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (bxor x y) (and y (word_value))))
       (if-let gated (make (Op.Mul c x)))
       (sequence (Op.Xor y gated)))
 
 ;; select(c, y, (y ^ x)) => y ^ ((c == 0) * x).
-(rule (sequence_rewrite (Op.Select c y (bxor y x)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and y (word_value)) (bxor y x)))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let gated (make (Op.Mul z x)))
       (sequence (Op.Xor y gated)))
 
 ;; select(c, y, (x ^ y)) => y ^ ((c == 0) * x).
-(rule (sequence_rewrite (Op.Select c y (bxor x y)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and y (word_value)) (bxor x y)))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let gated (make (Op.Mul z x)))
       (sequence (Op.Xor y gated)))
 
 ;; select(c, (y & x), y) => y & ~(c * ~x).
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) (band y x) y))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (band y x) (and y (word_value))))
       (if-let complement (make (Op.Not x)))
       (if-let gated (make (Op.Mul c complement)))
       (if-let mask (make (Op.Not gated)))
       (sequence (Op.And y mask)))
 
 ;; select(c, (x & y), y) => y & ~(c * ~x).
-;; Requires: c is boolean.
-(rule (sequence_rewrite (Op.Select (and c (bool_value)) (band x y) y))
+;; Requires: c is boolean, arms are not `i1`.
+(rule (sequence_rewrite (Op.Select (and c (bool_value)) (band x y) (and y (word_value))))
       (if-let complement (make (Op.Not x)))
       (if-let gated (make (Op.Mul c complement)))
       (if-let mask (make (Op.Not gated)))
       (sequence (Op.And y mask)))
 
 ;; select(c, y, (y & x)) => y & ~((c == 0) * ~x).
-(rule (sequence_rewrite (Op.Select c y (band y x)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and y (word_value)) (band y x)))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let complement (make (Op.Not x)))
       (if-let gated (make (Op.Mul z complement)))
@@ -204,7 +216,8 @@
       (sequence (Op.And y mask)))
 
 ;; select(c, y, (x & y)) => y & ~((c == 0) * ~x).
-(rule (sequence_rewrite (Op.Select c y (band x y)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (and y (word_value)) (band x y)))
       (if-let z (make (Op.Eq c (imm (u256 0)))))
       (if-let complement (make (Op.Not x)))
       (if-let gated (make (Op.Mul z complement)))
@@ -212,12 +225,14 @@
       (sequence (Op.And y mask)))
 
 ;; select(c, ~x, ~y) => ~select(c, x, y).
-(rule (sequence_rewrite (Op.Select c (bnot x) (bnot y)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (bnot (and x (word_value))) (bnot y)))
       (if-let selected (make (Op.Select c x y)))
       (sequence (Op.Not selected)))
 
 ;; select(c, (0 - x), (0 - y)) => 0 - select(c, x, y).
-(rule (sequence_rewrite (Op.Select c (sub (zero) x) (sub (zero) y)))
+;; Requires: arms are not `i1`.
+(rule (sequence_rewrite (Op.Select c (sub (zero) (and x (word_value))) (sub (zero) y)))
       (if-let zero (imm (u256 0))) (if-let selected (make (Op.Select c x y)))
       (sequence (Op.Sub zero selected)))
 

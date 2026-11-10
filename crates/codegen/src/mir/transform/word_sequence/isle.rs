@@ -231,6 +231,9 @@ impl generated::Context for Context<'_> {
     fn bool_value(&mut self, value: Value) -> Option<()> {
         super::super::egraph::is_bool_value(self.func, value).then_some(())
     }
+    fn word_value(&mut self, value: Value) -> Option<()> {
+        (self.func.value_ty(value) != Some(MirType::I1)).then_some(())
+    }
 
     fn optimize_for_size(&mut self) -> bool {
         self.target.optimization().is_size()
