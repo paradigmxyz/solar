@@ -55,27 +55,24 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v7 = staticcall v2, v6, 28, 4, 0, 0
     jumpi v7, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    v8 = icall returndata_bytes<>
-    v9 = ptradd v8, 32
-    v10 = mload v8
-    v11 = make_memory_slice v9, v10
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = extract_value slice<memory>, v11, 0
-    v15 = mload v14
-    v16 = shr v15, 224
-    v17 = eq v16, 0x4e487b71
-    v18 = lt v13, 36
-    v19 = eq v18, false
-    v20 = and v17, v19
-    v21 = zext i1 v20 to i256
-    jumpi v20, bb4, bb5
+    v8 = returndatasize
+    v9 = lt v8, 32
+    v10 = select v9, v8, 32
+    returndatacopy 0, 0, v10 !metadata(memory=scratch)
+    v11 = mload 0 !metadata(memory=scratch)
+    v12 = shr v11, 224
+    v13 = eq v12, 0x4e487b71
+    v14 = lt v8, 36
+    v15 = eq v14, false
+    v16 = and v13, v15
+    v17 = zext i1 v16 to i256
+    jumpi v16, bb4, bb5
   bb5 [cold_hint]:                                ; preds = bb2
-    revert v12, v13
+    revert_returndata
   bb4 [cold_hint]:                                ; preds = bb2
-    v22 = ptradd v8, 36
-    v23 = mload v22
-    ret v23
+    returndatacopy 0, 4, 32 !metadata(memory=scratch)
+    v18 = mload 0 !metadata(memory=scratch)
+    ret v18
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1
@@ -97,27 +94,24 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v7 = staticcall v2, v6, 28, 4, 0, 0
     jumpi v7, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    v8 = icall returndata_bytes<>
-    v9 = ptradd v8, 32
-    v10 = mload v8
-    v11 = make_memory_slice v9, v10
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = extract_value slice<memory>, v11, 0
-    v15 = mload v14
-    v16 = shr v15, 224
-    v17 = eq v16, 0x4e487b71
-    v18 = lt v13, 36
-    v19 = eq v18, false
-    v20 = and v17, v19
-    v21 = zext i1 v20 to i256
-    jumpi v20, bb4, bb5
+    v8 = returndatasize
+    v9 = lt v8, 32
+    v10 = select v9, v8, 32
+    returndatacopy 0, 0, v10 !metadata(memory=scratch)
+    v11 = mload 0 !metadata(memory=scratch)
+    v12 = shr v11, 224
+    v13 = eq v12, 0x4e487b71
+    v14 = lt v8, 36
+    v15 = eq v14, false
+    v16 = and v13, v15
+    v17 = zext i1 v16 to i256
+    jumpi v16, bb4, bb5
   bb5 [cold_hint]:                                ; preds = bb2
-    revert v12, v13
+    revert_returndata
   bb4 [cold_hint]:                                ; preds = bb2
-    v22 = ptradd v8, 36
-    v23 = mload v22
-    ret v23
+    returndatacopy 0, 4, 32 !metadata(memory=scratch)
+    v18 = mload 0 !metadata(memory=scratch)
+    ret v18
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1
