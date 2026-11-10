@@ -1348,9 +1348,10 @@ fn emit(
     // through, its function entry moves to the first instruction of the schedule and its exit to
     // the last, wherever the reorder put the instructions that carried them.
     // NOTE: A run that passes through a guard is not straight-line: a path that aborts at the guard
-    // never runs what follows it. Its events stay with the instructions that carry them, and those
-    // of a replaced instruction go to the next original that the schedule keeps, when that one
-    // stays on the same side of the guards, so that it runs after it on the same path.
+    // never runs what follows it. Its events stay with the instructions that carry them. Those of
+    // a replaced instruction stay on its side of the guards: its entry goes to the first
+    // instruction after the same guard, which runs first on that path, and its exit to the next
+    // original that the schedule keeps on that side.
     if run.iter().all(|inst| inst.as_evm_opcode() != Some(op::JUMPI)) {
         RunEvents::of(run.iter().map(|inst| &inst.metadata)).place(&mut instructions);
     } else {
@@ -1358,11 +1359,29 @@ fn emit(
             instructions.iter().filter(|inst| inst.as_evm_opcode() == Some(op::JUMPI)).count()
         };
         for (position, inst) in run.iter().enumerate() {
-            if !placed.contains(position)
-                && let Some(next) = (position + 1..run.len()).find(|&next| placed.contains(next))
-                && guards(&instructions[..slots[next]]) == guards(&run[..position])
+            if placed.contains(position) {
+                continue;
+            }
+            let side = guards(&run[..position]);
+            if let Some(function) = inst.metadata.function_invoke()
+                && let Some(first) = instructions
+                    .iter_mut()
+                    .scan(0, |seen, inst| {
+                        let first = *seen == side;
+                        *seen += usize::from(inst.as_evm_opcode() == Some(op::JUMPI));
+                        Some((first, inst))
+                    })
+                    .find_map(|(first, inst)| first.then_some(inst))
+                && first.metadata.function_invoke().is_none()
             {
-                instructions[slots[next]].metadata.move_function_events(&inst.metadata);
+                first.metadata.set_function_invoke(function);
+            }
+            if let Some(exit) = inst.metadata.function_exit()
+                && let Some(next) = (position + 1..run.len()).find(|&next| placed.contains(next))
+                && guards(&instructions[..slots[next]]) == side
+                && instructions[slots[next]].metadata.function_exit().is_none()
+            {
+                instructions[slots[next]].metadata.set_function_exit(exit);
             }
         }
     }
