@@ -31,6 +31,7 @@
 //!   immediates. Boolean literals use `true` and `false`, and undefined values use `undef TYPE`.
 //! - SSA structs are declared in the module's `types:` section. Nested fields refer to earlier
 //!   declarations, preventing recursive by-value layouts.
+//! - ABI types are limited to 128 nested nodes, including the leaf, in modules and candidates.
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
@@ -107,6 +108,8 @@ pub(super) fn parse_module(sess: &Session, input: &str) -> Result<Module> {
 // Parser implementation
 // =============================================================================
 
+const MAX_ABI_TYPE_DEPTH: usize = 128;
+
 struct Parser<'sess, 'ast> {
     parser: solar_ir::ir_parse::Parser<'sess, 'ast>,
     candidate: bool,
@@ -127,6 +130,8 @@ struct Parser<'sess, 'ast> {
     abi_layouts: Vec<AbiLayoutRef>,
     /// ABI input layouts interned while parsing instructions.
     abi_param_layouts: Vec<AbiParamLayoutRef>,
+    /// Current nesting of ABI arrays and tuples, including their leaf types.
+    abi_type_depth: usize,
     /// Number of `>` closers still owed after splitting a `>>`/`>>>` token.
     pending_gt: u32,
 }
@@ -188,6 +193,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             abi_layouts: Vec::new(),
             struct_types: Default::default(),
             abi_param_layouts: Vec::new(),
+            abi_type_depth: 0,
             pending_gt: 0,
         }
     }
@@ -1117,6 +1123,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_abi_type(&mut self) -> PResult<'sess, AbiType> {
+        self.with_abi_type_limit(Self::parse_abi_type_contents)
+    }
+
+    fn parse_abi_type_contents(&mut self) -> PResult<'sess, AbiType> {
         let name = self.parser.parse_ident()?;
         Ok(match name {
             sym::word => {
@@ -1209,6 +1219,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_abi_param_type(&mut self) -> PResult<'sess, AbiParamType> {
+        self.with_abi_type_limit(Self::parse_abi_param_type_contents)
+    }
+
+    fn parse_abi_param_type_contents(&mut self) -> PResult<'sess, AbiParamType> {
         let name = self.parser.parse_ident()?;
         Ok(match name {
             kw::Bytes => AbiParamType::Bytes,
@@ -2367,6 +2381,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         Ok(parsed)
     }
+
+    /// Bounds recursive parsing and the depth of ABI values later traversed or dropped.
+    fn with_abi_type_limit<T>(
+        &mut self,
+        parse: impl FnOnce(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, T> {
+        if self.abi_type_depth == MAX_ABI_TYPE_DEPTH {
+            return Err(self.parser.error("ABI type nesting limit exceeded"));
+        }
+        self.abi_type_depth += 1;
+        let result = parse(self);
+        self.abi_type_depth -= 1;
+        result
+    }
 }
 
 /// Maps each function name to the functions that declare it.
@@ -2886,6 +2914,51 @@ fn @from_calldata(arg0: slice<calldata>) -> i256 [selector=0x87654321, abi_param
                     assert!(crate::analysis::validate_function_at_phase(
                         &dcx, &module, id, &candidate, crate::MirPhase::Semantic,
                     ).is_err());
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn candidate_abi_headers_bound_nested_arrays_and_tuples() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(&sess, "@module M\nfn @f() { bb0: ret }").unwrap();
+            for (header, leaf, containers) in [
+                ("abi_params", "uint256", ["array<1,", "array<_,", "tuple<"]),
+                ("abi_return_params", "uint256", ["array<1,", "array<_,", "tuple<"]),
+                ("abi_returns", "word", ["array<1,", "memory_array<", "tuple<"]),
+            ] {
+                for container in containers {
+                    for depth in [MAX_ABI_TYPE_DEPTH, MAX_ABI_TYPE_DEPTH + 1, 10_000] {
+                        let ty = format!(
+                            "{}{leaf}{}",
+                            container.repeat(depth - 1),
+                            ">".repeat(depth - 1)
+                        );
+                        let input = format!("fn @f() [{header}=[{ty}, {ty}]] {{ bb0: ret }}");
+                        let result = parse_candidate(&sess, &module, &input);
+                        if depth == MAX_ABI_TYPE_DEPTH {
+                            assert!(
+                                result.is_ok(),
+                                "{header} {container}: {}",
+                                result.unwrap_err()
+                            );
+                        } else {
+                            let error = result.unwrap_err();
+                            assert_data_eq!(
+                                error.lines().next().unwrap(),
+                                str![[r#"error: ABI type nesting limit exceeded"#]]
+                            );
+                        }
+                    }
+                    // Even an unclosed header must stop before recursing through the whole input.
+                    let input = format!("fn @f() [{header}=[{}", container.repeat(10_000));
+                    let error = parse_candidate(&sess, &module, &input).unwrap_err();
+                    assert_data_eq!(
+                        error.lines().next().unwrap(),
+                        str![[r#"error: ABI type nesting limit exceeded"#]]
+                    );
                 }
             }
         });
