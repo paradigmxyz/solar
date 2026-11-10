@@ -5,6 +5,7 @@
 //@ run-call: panicBeforeError(); gas=3500000 => 17
 //@ run-call: panicBeforeBytes(); gas=3500000 => 17
 //@ run-call: panicWithError(); gas=3500000 => 17
+//@ run-call: malformedError(); gas=3500000 => 786432
 //@ run-call: pointerDelta() => 0
 
 // `catch Panic(uint256)` and a bare `catch` read only the selector and the code, so a callee that
@@ -74,6 +75,26 @@ contract C {
             return 2;
         } catch (bytes memory) {
             return 3;
+        }
+    }
+
+    function badError() external pure {
+        assembly {
+            mstore(0, shl(224, 0x08c379a0))
+            mstore(4, not(0))
+            revert(0, 0xc0000)
+        }
+    }
+
+    // A malformed `Error(string)` payload falls through to the `bytes memory` clause, which must
+    // not copy it a second time.
+    function malformedError() external view returns (uint256) {
+        try this.badError() {
+            return 1;
+        } catch Error(string memory) {
+            return 2;
+        } catch (bytes memory data) {
+            return data.length;
         }
     }
 

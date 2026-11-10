@@ -557,21 +557,34 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(sym::Panic) => 1,
             _ => 2,
         });
+        // A malformed `Error(string)` payload falls through to the `bytes memory` clause, which
+        // reuses the object the probe copied instead of copying the return data again.
+        let bytes_block = (catch_clauses
+            .iter()
+            .any(|clause| clause.name.is_some_and(|name| name.name == sym::Error))
+            && catch_clauses.iter().any(|clause| clause.name.is_none() && !clause.args.is_empty()))
+        .then(|| self.builder.create_block());
+        let mut probe_failed = None;
+        let mut bytes_sources = None;
         let mut next_catch = self.builder.current_block();
         for catch_clause in ordered_clauses {
             // if catch_matches(clause, data) { lower(clause) } else { next_catch }
             self.builder.switch_to_block(next_catch);
             let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
             let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
-            let clause_block = self.builder.create_block();
+            let is_bytes = !catch_error && !catch_panic && !catch_clause.args.is_empty();
+            let clause_block = match bytes_block {
+                Some(block) if is_bytes => block,
+                _ => self.builder.create_block(),
+            };
             let next_block = self.builder.create_block();
             let mut error_object = None;
             // A typed clause is rejected before Byzantium, so its data is always there.
             if catch_error {
                 // if selector == Error(string) {
                 //     object = returndata()
-                //     if try_decode_error_message(object) { clause } else { next_catch }
-                // } else { next_catch }
+                //     if try_decode_error_message(object) { clause } else { bytes_clause |
+                // next_catch } } else { next_catch }
                 let data = catch_data?;
                 let expected =
                     self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
@@ -583,7 +596,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let view = self.builder.memory_slice(object);
                 let ptr = self.builder.slice_ptr(view);
                 let valid = self.lower_error_catch_match(ptr, data.len);
-                self.builder.branch(valid, clause_block, next_block);
+                if let Some(bytes_block) = bytes_block {
+                    let failed = self.builder.create_block();
+                    self.builder.branch(valid, clause_block, failed);
+                    self.builder.switch_to_block(failed);
+                    self.builder.jump(bytes_block);
+                    probe_failed = Some((failed, object));
+                } else {
+                    self.builder.branch(valid, clause_block, next_block);
+                }
                 error_object = Some(object);
             } else if catch_panic {
                 // valid = data.length >= 36 && selector == Panic(uint256)
@@ -596,6 +617,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let valid = self.builder.and(matches, has_payload);
                 self.builder.branch(valid, clause_block, next_block);
             } else {
+                if is_bytes && let Some((failed, probe_object)) = probe_failed {
+                    // object = returndata()
+                    let object = self.materialize_returndata_bytes();
+                    bytes_sources =
+                        Some(vec![(self.builder.current_block(), object), (failed, probe_object)]);
+                }
                 self.builder.jump(clause_block);
             }
 
@@ -607,6 +634,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     self.lower_error_catch_string(object)?
                 } else if catch_panic {
                     self.lower_panic_catch_scratch_word()
+                } else if let Some(sources) = bytes_sources.take() {
+                    // object = phi(copied, probe)
+                    self.builder.phi(sources)
                 } else {
                     self.materialize_returndata_bytes()
                 };
