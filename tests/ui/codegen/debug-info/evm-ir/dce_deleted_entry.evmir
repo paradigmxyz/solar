@@ -1,0 +1,18 @@
+//@ compile-flags: --evm-version amsterdam -Ogas -Zevm-ir-pipeline=dce
+//@ filecheck:
+// Dead-code elimination deletes the `dup` that starts `callee`. The next instruction that runs
+// is then the callee's first, so it takes the entry.
+@module DceDeletedEntry
+
+// CHECK-LABEL: (after dce)
+// CHECK: {{^[ +].*}}push 160 !metadata(invoke=callee@1..10)
+bb0:
+  push 7
+  dup 1 !metadata(invoke=callee@1..10)
+  push 160
+  mload
+  push 128
+  add
+  mstore
+  pop
+  stop

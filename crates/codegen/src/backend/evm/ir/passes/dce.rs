@@ -393,17 +393,30 @@ fn apply_edits(
 ) {
     std::mem::swap(instructions, scratch);
     let mut edits = edits.iter().peekable();
+    // The entry of a deleted instruction, which the next instruction that runs takes.
+    let mut carried = None;
     for (index, inst) in scratch.drain(..).enumerate() {
+        let first = instructions.len();
         if let Some(edit) = edits.next_if(|edit| edit.index == index) {
-            let first = instructions.len();
             instructions.extend(
                 edit.replacement.iter().map(|&stack_op| {
                     Instruction::stack_op(stack_op).with_debug_loc(&inst.metadata)
                 }),
             );
             RunEvents::of([&inst.metadata]).place(&mut instructions[first..]);
+            if instructions.len() == first {
+                carried = carried.or(inst.metadata.function_invoke());
+            }
         } else {
             instructions.push(inst);
+        }
+        if let Some(function) = carried
+            && let Some(next) = instructions.get_mut(first)
+        {
+            if next.metadata.function_invoke().is_none() {
+                next.metadata.set_function_invoke(function);
+            }
+            carried = None;
         }
     }
 }

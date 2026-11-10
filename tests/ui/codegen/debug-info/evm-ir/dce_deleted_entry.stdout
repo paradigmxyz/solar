@@ -1,0 +1,15 @@
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/dce_deleted_entry.evmir (before dce) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/dce_deleted_entry.evmir (after dce) ===
+  @module DceDeletedEntry
+  bb0:
+    push 7
+-   dup 1 !metadata(invoke=callee@1..10)
+-   push 160
++   push 160 !metadata(invoke=callee@1..10)
+    mload
+    push 128
+    add
+    mstore
+-   pop
+    stop
+  
