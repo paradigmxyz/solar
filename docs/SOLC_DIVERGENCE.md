@@ -1138,23 +1138,20 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   complexity for a size nothing can use.
 - Coverage: `tests/ui/codegen/run-call/memory/memory_default_oversized_field.sol`.
 
-### CODEGEN-020: Calls with empty returndata and `catch Panic` move the free memory pointer
+### CODEGEN-020: A call with empty returndata moves the free memory pointer
 
 - ID: CODEGEN-020
 - Status: intentional
 - Difference: after a low-level call whose returndata is empty, `solar` moves
-  the free memory pointer by 32 bytes, and after `catch Panic(uint256)` by 96
-  bytes. `solc` points the empty result at the zero slot, and reads the panic
-  selector and code through scratch memory, so it leaves the pointer in place.
-  Only inline assembly that reads `mload(0x40)` sees the pointer itself, and
-  results are the same. In a loop the memory grows by that amount on every call,
-  which adds quadratic memory gas: 20,000 caught panics in one transaction
-  exceed the 30M gas limit, where `solc` uses 15.7M. A loop of 1,000 calls of
-  either kind costs less with `solar`.
+  the free memory pointer by 32 bytes. `solc` points the empty result at the
+  zero slot and leaves the pointer in place. Only inline assembly that reads
+  `mload(0x40)` sees the pointer itself, and results are the same. In a loop
+  the memory grows by 32 bytes per call, which adds memory gas, but 20,000 such
+  calls in one transaction still cost less with `solar`: 14.4M gas against
+  15.8M.
 - Rationale: matching `solc` made the minimal-proxy benchmark 21 bytes bigger
   and 19 gas dearer per call.
-- Coverage: `tests/ui/codegen/run-call/memory/low_level_call_empty_returndata_fmp.sol`
-  and `tests/ui/codegen/run-call/memory/try_panic_fmp_delta.sol`.
+- Coverage: `tests/ui/codegen/run-call/memory/low_level_call_empty_returndata_fmp.sol`.
 
 ### CODEGEN-021: Internal function pointers stored with another function type panic
 
