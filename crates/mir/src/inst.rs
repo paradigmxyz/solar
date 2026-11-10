@@ -183,17 +183,14 @@ impl InstructionMetadata {
     }
 
     /// Copies the metadata of an instruction that is cloned with remapped operands: the source
-    /// context and the semantic markers, such as `preserves_fmp`. Facts proved from the old
-    /// operands (memory region, storage alias, effect) and analysis results (HIR expression, loop
+    /// context, the effect, and the semantic markers, such as `preserves_fmp`. Facts proved from
+    /// the old operands (memory region, storage alias) and analysis results (HIR expression, loop
     /// depth) are dropped.
     #[must_use]
     pub fn without_operand_facts(&self) -> Self {
-        let mut metadata = self.clone();
-        metadata.storage_alias = None;
-        metadata.hir_expr = None;
-        metadata.loop_depth = 0;
+        let Self { storage_alias: _, debug_loc, hir_expr: _, loop_depth: _, flags } = self;
+        let mut metadata = Self { debug_loc: debug_loc.clone(), flags: *flags, ..Self::EMPTY };
         metadata.flags.set_memory_region(None);
-        metadata.flags.set_effect(None);
         metadata
     }
 
