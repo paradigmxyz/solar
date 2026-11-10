@@ -1099,3 +1099,33 @@ impl fmt::Display for InstKind {
         write!(f, "{}", self.mnemonic())
     }
 }
+
+impl InstKind {
+    /// Returns examples of the textual forms determined by operands, locations and topic counts.
+    pub fn forms() -> Vec<Self> {
+        let operand = ValueId::from_usize;
+        let mut forms = Vec::new();
+        for &name in Self::MNEMONICS {
+            if let Some((arity, build)) = Self::operand_only(name) {
+                forms.push(build(&(0..arity).map(operand).collect::<Vec<_>>()));
+            }
+        }
+        for location in [
+            PtrLocation::Memory,
+            PtrLocation::Calldata,
+            PtrLocation::Returndata,
+            PtrLocation::Storage,
+            PtrLocation::Transient,
+        ] {
+            forms.push(Self::Load(operand(0), location));
+            forms.push(Self::Store(operand(0), operand(1), location));
+            forms.push(Self::Copy(operand(0), operand(1), operand(2), location));
+        }
+        for count in 0..=super::LogTopics::MAX {
+            let topics = (2..2 + count).map(operand).collect::<Vec<_>>();
+            let topics = super::LogTopics::new(&topics).expect("a log has at most four topics");
+            forms.push(Self::Log { offset: operand(0), size: operand(1), topics });
+        }
+        forms
+    }
+}

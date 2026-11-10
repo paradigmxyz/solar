@@ -4,14 +4,15 @@ use crate::{
     source_map::absolute_path,
 };
 use solar_config::{
-    CompileOpts, CompilerOutput, CompilerStage, Language, SINGLE_THREADED_TARGET, UnstableOpts,
+    CompileOpts, CompilerOutput, CompilerStage, Language, LlmOptimizeMode, SINGLE_THREADED_TARGET,
+    UnstableOpts,
 };
 use std::{
     fmt, io,
     path::{Path, PathBuf},
     sync::{
-        Arc, OnceLock,
-        atomic::{AtomicUsize, Ordering},
+        Arc, OnceLock, PoisonError, RwLock,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
         mpsc,
     },
 };
@@ -27,6 +28,8 @@ pub struct Session {
     globals: Arc<SessionGlobals>,
     /// Source map used by this session's diagnostics and parser.
     source_map: Arc<SourceMap>,
+    /// The session's identity, which the sessions forked from it share.
+    id: SessionId,
     /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
     /// one with `SessionBuilder`.
     thread_pool: OnceLock<rayon::ThreadPool>,
@@ -185,6 +188,7 @@ impl SessionBuilder {
             globals,
             dcx,
             opts,
+            id: SessionId::fresh(),
             thread_pool: OnceLock::new(),
             queued_jobs: AtomicUsize::new(0),
         };
@@ -261,9 +265,16 @@ impl Session {
             source_map: self.source_map.clone(),
             dcx,
             globals: self.globals.clone(),
+            id: self.id,
             thread_pool: OnceLock::new(),
             queued_jobs: AtomicUsize::new(0),
         }
+    }
+
+    /// Returns the session's identity, which the sessions forked from it with
+    /// [`with_diagnostics`](Self::with_diagnostics) share.
+    pub fn id(&self) -> SessionId {
+        self.id
     }
 
     /// Validates the session options.
@@ -271,6 +282,7 @@ impl Session {
         let mut result = Ok(());
         result = result.and(self.check_unique("emit", &self.opts.emit));
         result = result.and(self.validate_language());
+        result = result.and(self.validate_llm_optimize());
         result = result.and(self.validate_base_path());
         result
     }
@@ -291,6 +303,55 @@ impl Session {
             return Err(self.dcx.err("`-Zmir-pipeline` requires a .sol or .mir input file").emit());
         }
         Ok(())
+    }
+
+    fn validate_llm_optimize(&self) -> crate::Result<()> {
+        let unstable = &self.opts.unstable;
+        let mode = unstable.llm_optimize;
+        let requirements = [
+            ("llm-cache", unstable.llm_cache.is_some(), None),
+            ("llm-rounds", unstable.llm_rounds.is_some(), None),
+            ("llm-samples", unstable.llm_samples.is_some(), None),
+            ("llm-trace", unstable.llm_trace, None),
+            ("llm-script", unstable.llm_script.is_some(), Some(LlmOptimizeMode::Script)),
+            ("llm-model", unstable.llm_model.is_some(), Some(LlmOptimizeMode::Live)),
+            ("llm-endpoint", unstable.llm_endpoint.is_some(), Some(LlmOptimizeMode::Live)),
+            ("llm-effort", unstable.llm_effort.is_some(), Some(LlmOptimizeMode::Live)),
+        ];
+        for (flag, set, required) in requirements {
+            if !set {
+                continue;
+            }
+            match (mode, required) {
+                (None, None) => {
+                    let message = format!("`-Z{flag}` requires `-Zllm-optimize`");
+                    return Err(self.dcx.err(message).emit());
+                }
+                (_, Some(required)) if mode != Some(required) => {
+                    let message = format!("`-Z{flag}` requires `-Zllm-optimize={required}`");
+                    return Err(self.dcx.err(message).emit());
+                }
+                _ => {}
+            }
+        }
+        if unstable.llm_samples == Some(0) {
+            return Err(self.dcx.err("`-Zllm-samples` must be positive").emit());
+        }
+        if unstable.llm_samples.is_some_and(|samples| samples > 4096) {
+            return Err(self.dcx.err("`-Zllm-samples` must not exceed 4096").emit());
+        }
+        if unstable.llm_rounds.is_some_and(|rounds| rounds > 64) {
+            return Err(self.dcx.err("`-Zllm-rounds` must not exceed 64").emit());
+        }
+        match mode {
+            Some(LlmOptimizeMode::Script) if unstable.llm_script.is_none() => {
+                Err(self.dcx.err("`-Zllm-optimize=script` requires `-Zllm-script`").emit())
+            }
+            Some(LlmOptimizeMode::Replay) if unstable.llm_cache.is_none() => {
+                Err(self.dcx.err("`-Zllm-optimize=replay` requires `-Zllm-cache`").emit())
+            }
+            _ => Ok(()),
+        }
     }
 
     fn validate_base_path(&self) -> crate::Result<()> {
@@ -440,6 +501,7 @@ impl Session {
             && !unstable.print_after_each
             && !unstable.pass_diff
             && !unstable.time_passes
+            && !unstable.llm_trace
     }
 
     /// Records a code generation job that waits for a worker.
@@ -689,6 +751,70 @@ fn reentrant_log() {
 #[inline]
 fn in_rayon() -> bool {
     rayon::current_thread_index().is_some()
+}
+
+/// Identifies a session and the sessions forked from it with [`Session::with_diagnostics`], for
+/// state another crate keeps for one compilation, such as with [`SessionBindings`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SessionId(u64);
+
+impl SessionId {
+    /// Returns an identity no other session has.
+    fn fresh() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        Self(NEXT.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
+/// Values bound to sessions, so that what one compilation installs never serves another one that
+/// runs in the same process.
+///
+/// A session sees the value bound to it last, until that binding drops.
+pub struct SessionBindings<T: ?Sized> {
+    /// Each binding's session, its token, and its value, in the order they were bound.
+    entries: RwLock<Vec<(SessionId, u64, Arc<T>)>>,
+}
+
+impl<T: ?Sized> Default for SessionBindings<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: ?Sized> SessionBindings<T> {
+    /// Creates bindings that bind nothing yet.
+    pub const fn new() -> Self {
+        Self { entries: RwLock::new(Vec::new()) }
+    }
+
+    /// Binds `value` to `sess` and the sessions forked from it, until the returned binding drops.
+    pub fn bind(&'static self, sess: &Session, value: Arc<T>) -> SessionBinding<T> {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let token = NEXT.fetch_add(1, Ordering::Relaxed);
+        let mut entries = self.entries.write().unwrap_or_else(PoisonError::into_inner);
+        entries.push((sess.id(), token, value));
+        SessionBinding { bindings: self, token }
+    }
+
+    /// Returns the value bound to `sess` last, if one is.
+    pub fn get(&self, sess: &Session) -> Option<Arc<T>> {
+        let entries = self.entries.read().unwrap_or_else(PoisonError::into_inner);
+        entries.iter().rev().find(|(id, ..)| *id == sess.id()).map(|(.., value)| Arc::clone(value))
+    }
+}
+
+/// A value bound to a session with [`SessionBindings::bind`], which dropping unbinds.
+#[must_use = "the value is unbound when the binding drops"]
+pub struct SessionBinding<T: ?Sized + 'static> {
+    bindings: &'static SessionBindings<T>,
+    token: u64,
+}
+
+impl<T: ?Sized + 'static> Drop for SessionBinding<T> {
+    fn drop(&mut self) {
+        let mut entries = self.bindings.entries.write().unwrap_or_else(PoisonError::into_inner);
+        entries.retain(|&(_, token, _)| token != self.token);
+    }
 }
 
 #[cfg(test)]
@@ -1013,5 +1139,27 @@ error: candidate error
             snapbox::assert_data_eq!(format!("{span:?}"), snapbox::str!["<candidate>:1:1: 1:5"]);
             assert_eq!(sess.source_map().span_to_snippet(span).unwrap(), "body");
         });
+    }
+
+    #[test]
+    fn bindings_serve_their_session() {
+        static BINDINGS: SessionBindings<str> = SessionBindings::new();
+        let a = Session::builder().with_test_emitter().build();
+        let b = Session::builder().with_test_emitter().build();
+        let fork = a.with_diagnostics(DiagCtxt::with_buffer_emitter(None, ColorChoice::Never));
+        assert_ne!(a.id(), b.id());
+        assert_eq!(fork.id(), a.id());
+
+        let binding = BINDINGS.bind(&a, Arc::from("a"));
+        assert_eq!(BINDINGS.get(&a).as_deref(), Some("a"));
+        assert_eq!(BINDINGS.get(&fork).as_deref(), Some("a"));
+        assert_eq!(BINDINGS.get(&b), None);
+        // A later binding serves the session until it drops.
+        let later = BINDINGS.bind(&a, Arc::from("later"));
+        assert_eq!(BINDINGS.get(&a).as_deref(), Some("later"));
+        drop(later);
+        assert_eq!(BINDINGS.get(&a).as_deref(), Some("a"));
+        drop(binding);
+        assert_eq!(BINDINGS.get(&a), None);
     }
 }

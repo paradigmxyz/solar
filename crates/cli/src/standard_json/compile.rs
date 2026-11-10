@@ -355,6 +355,7 @@ fn compile(
                 }
 
                 let gcx = compiler.gcx();
+                solar_codegen::prepare_contract_rewrites(gcx)?;
                 let bytecode_contracts = requested_bytecode_contracts(gcx, output_selection);
                 let debug_info_contracts = requested_debug_info_contracts(gcx, output_selection);
                 let needs_metadata = output_selection.requests_metadata()
@@ -390,8 +391,8 @@ fn compile(
                         &bytecode_contracts,
                         *metadata,
                     ) {
-                    // Metadata does not depend on bytecode, so compute it while codegen leaves
-                    // workers idle.
+                    // Rewrite identities are already frozen. Metadata does not depend on bytecode,
+                    // so compute it while codegen leaves workers idle.
                     gcx.sess
                         .join(
                             || emit(bytecode_contracts),

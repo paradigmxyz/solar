@@ -143,6 +143,10 @@ pub struct Module {
     /// The objective this module's code is optimized for: the build's, or the one the contract's
     /// `@custom:solar-optimize` tag selects. A function's own tag may select another.
     pub optimization: OptimizationMode,
+    /// Digests of accepted external optimizer rewrites, in application order.
+    pub rewrite_digests: Vec<alloy_primitives::B256>,
+    /// Whether this module has already consumed its external rewrite opportunity.
+    external_rewrite_started: bool,
     /// Instructions `@custom:solar-inline` clones have added, which the inliner bounds over all
     /// of its runs.
     pub tagged_inline_growth: usize,
@@ -233,6 +237,8 @@ impl Module {
             backend_memory: None,
             lowered_checked: false,
             optimization: OptimizationMode::default(),
+            rewrite_digests: Vec::new(),
+            external_rewrite_started: false,
             tagged_inline_growth: 0,
         }
     }
@@ -984,6 +990,12 @@ impl Module {
             false,
             false,
         )
+    }
+
+    /// Claims this module's one external rewrite opportunity, including unsuccessful attempts.
+    /// Clones retain the claim; repeating a pipeline or invalidating analyses cannot reset it.
+    pub fn begin_external_rewrite(&mut self) -> bool {
+        !std::mem::replace(&mut self.external_rewrite_started, true)
     }
 }
 

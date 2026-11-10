@@ -1,0 +1,27 @@
+llm-optimize StorageWrites: offers nothing: the module writes storage; SSTORE gas-prefix safety is unproved
+- ; === ROOT/tests/ui/codegen/mir/llm-optimize/storage_writes.mir (before llm-optimize) ===
++ ; === ROOT/tests/ui/codegen/mir/llm-optimize/storage_writes.mir (after llm-optimize) ===
+  @module StorageWrites
+  @phase lowered
+  ; runtime dispatch entry
+  fn @main() [entry] {
+    bb0:
+      icall @rewrite
+      icall @rewrite_transient
+      stop
+  }
+  
+  fn @rewrite() {
+    bb0:
+      v0 = sload 7
+      sstore 7, v0
+      ret
+  }
+  
+  fn @rewrite_transient() {
+    bb0:
+      v0 = tload 7
+      tstore 7, v0
+      ret
+  }
+  

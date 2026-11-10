@@ -273,6 +273,40 @@ str_enum! {
 }
 
 str_enum! {
+    /// Where the `llm-optimize` MIR pass takes its rewrites from.
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum LlmOptimizeMode {
+        /// Only rewrites recorded in the cache, checked again before use.
+        Replay,
+        /// A model, through the installed rewriter.
+        Live,
+        /// Scripted candidates, for testing the pass.
+        Script,
+    }
+}
+
+str_enum! {
+    /// How much a model reasons before it replies to `-Zllm-optimize=live`.
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum LlmEffort {
+        /// No reasoning.
+        None,
+        /// Low effort.
+        Low,
+        /// Medium effort.
+        Medium,
+        /// High effort.
+        High,
+        /// Extra-high effort.
+        Xhigh,
+        /// The most the model allows.
+        Max,
+    }
+}
+
+str_enum! {
     /// Execution engine that generated code is tuned for.
     #[derive(Default)]
     #[strum(serialize_all = "kebab-case")]

@@ -84,6 +84,35 @@ Options:
       -Zpack-wide-jump-tables
           Pack indexed jump table entries wider than one byte into words and pick them with a shift and a mask. Off by default: jump analysis in bytecode JITs cannot resolve the pick
 
+      -Zllm-optimize=<MODE>
+          Rewrite eligible functions of lowered MIR with the `llm-optimize` pass, taking rewrites from the cache (`replay`), a model (`live`), or a script (`script`). Rewrites are tested, not proved
+
+      -Zllm-cache=<DIR>
+          Directory of `llm-optimize` rewrites, read in every mode and written unless replaying
+
+      -Zllm-script=<FILE>
+          File of scripted `llm-optimize` candidates, for `-Zllm-optimize=script`
+
+      -Zllm-model=<MODEL>
+          Model that `-Zllm-optimize=live` asks, as `PROVIDER/MODEL` with provider `openai`, `anthropic`, `opencode`, or `openai-chat`; a model without a provider is an OpenAI one
+
+      -Zllm-endpoint=<URL>
+          Base URL of the API `-Zllm-optimize=live` asks, replacing its provider's
+
+      -Zllm-effort=<EFFORT>
+          Reasoning effort `-Zllm-optimize=live` asks the model for
+          
+          [possible values: none, low, medium, high, xhigh, max]
+
+      -Zllm-rounds=<N>
+          Candidates `llm-optimize` asks for per function (default: 6)
+
+      -Zllm-samples=<N>
+          Generated inputs `llm-optimize` runs each candidate on (default: 512)
+
+      -Zllm-trace
+          Print what `llm-optimize` offers, hears, and decides
+
       -Zhelp
           Print help
 

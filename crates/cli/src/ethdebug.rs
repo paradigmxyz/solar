@@ -185,6 +185,14 @@ pub(crate) fn make_ethdebug_compilation(
     append_length_prefixed(&mut identity, &format!("{:?}", gcx.sess.opts.optimization));
     append_length_prefixed(&mut identity, &gcx.sess.opts.revert_strings.to_string());
     append_length_prefixed(&mut identity, &format!("{metadata_identity:?}"));
+    for contract in gcx.hir.contract_ids().filter(|_| gcx.sess.opts.unstable.llm_optimize.is_some())
+    {
+        let rewrites = solar_codegen::llm::rewrite_digests(gcx, contract);
+        if !rewrites.is_empty() {
+            append_length_prefixed(&mut identity, &contract.index().to_string());
+            append_length_prefixed(&mut identity, &format!("{rewrites:?}"));
+        }
+    }
     append_length_prefixed(
         &mut identity,
         &gcx.sess.opts.optimizer_runs.map_or_else(|| "none".to_owned(), |runs| runs.to_string()),

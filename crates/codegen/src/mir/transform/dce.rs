@@ -36,7 +36,7 @@ impl MirPass for Dce {
         let summaries = analyses.call_summaries(module);
         let changed = run_function_pass_with_cfg(module, analyses, |func, analyses| {
             invalidate_unreachable_blocks(func, analyses.cfg().reachable())
-                + remove_dead_chains(func, &summaries)
+                + remove_dead_chains(func, Some(&summaries))
                 != 0
         });
         // Removing operations and unreachable blocks cannot add call effects.
@@ -49,14 +49,14 @@ impl MirPass for Dce {
     }
 }
 
-fn remove_dead_chains(func: &mut Function, summaries: &MemoryCallSummaries) -> usize {
+fn remove_dead_chains(func: &mut Function, summaries: Option<&MemoryCallSummaries>) -> usize {
     let mut discardable = DenseBitSet::new_empty(func.num_insts());
     let mut live = DenseBitSet::<InstId>::new_empty(func.num_insts());
     let mut pending = Vec::new();
     for inst_id in func.instructions() {
         let inst = func.inst(inst_id);
         let discardable_call = matches!(&inst.kind, InstKind::ICall { function: Callee::Function(function), .. }
-            if summaries.get(*function).is_some_and(|summary| summary.can_discard_call()));
+            if summaries.and_then(|summaries| summaries.get(*function)).is_some_and(|summary| summary.can_discard_call()));
         if !inst.kind.has_side_effects() || discardable_call {
             discardable.insert(inst_id);
         } else if live.insert(inst_id) {
@@ -96,4 +96,10 @@ fn remove_dead_chains(func: &mut Function, summaries: &MemoryCallSummaries) -> u
         removed += len - block.instructions.len();
     }
     removed
+}
+
+/// Removes unused computations from a proposed function without assuming callee summaries.
+pub(crate) fn prune_candidate(func: &mut Function) -> usize {
+    let cfg = crate::mir::analysis::CfgInfo::new(func);
+    invalidate_unreachable_blocks(func, cfg.reachable()) + remove_dead_chains(func, None)
 }

@@ -72,6 +72,7 @@ pub(crate) fn emit_requested(
         return Ok(None);
     }
 
+    solar_codegen::prepare_contract_rewrites(gcx)?;
     let dump_contracts = codegen_dump_contracts(gcx)?;
     let pipeline_mir_output = mir_pipeline_output_requested(gcx);
     let mut capture_mir = ContractSelection::empty(gcx);

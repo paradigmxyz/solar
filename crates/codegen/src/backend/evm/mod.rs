@@ -7,6 +7,11 @@
 //! - `Assembler`: Final relocation and byte encoding
 //! - `codegen::stackify`: MIR-to-EVM stack scheduling for DUP/SWAP generation
 
+use alloy_primitives::B256;
+use solar_data_structures::{index::IndexVec, sync::Mutex};
+use solar_sema::hir::ContractId;
+use std::sync::OnceLock;
+
 mod codegen;
 use codegen::PlanCache;
 pub(crate) use codegen::select;
@@ -30,12 +35,17 @@ pub use solar_evmir::op;
 
 /// What code generation keeps for a whole compilation, on its [`Gcx`](solar_sema::Gcx): the
 /// results of its searches and its plans, which every contract may read and fill, and its audit
-/// stream, shared by codegen workers and closed with the compilation.
+/// stream, shared by codegen workers and closed with the compilation. External rewrite identities
+/// are published before metadata generation.
 #[derive(Default)]
 pub(crate) struct CodegenState {
     schedules: ir::SharedSchedules,
     plans: PlanCache,
     pub(crate) debugify_output: crate::debugify::Output,
+    pub(crate) rewrite_digests: Mutex<IndexVec<ContractId, Vec<B256>>>,
+    pub(crate) prepared_rewrites: OnceLock<
+        solar_interface::Result<IndexVec<ContractId, Option<crate::contract::PreparedContract>>>,
+    >,
 }
 
 impl CodegenState {

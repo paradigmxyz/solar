@@ -5,3 +5,5 @@ pub(crate) mod eval;
 mod gas;
 pub(crate) use gas::{pre_tangerine_call_gas, precompile_gas};
 pub(crate) use solar_mir::utils::*;
+
+pub(crate) mod interp;

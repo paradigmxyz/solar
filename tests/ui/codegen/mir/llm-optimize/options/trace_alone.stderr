@@ -1,0 +1,2 @@
+error: `-Zllm-trace` requires `-Zllm-optimize`
+

@@ -1,0 +1,17 @@
+Candidates for `context_widths.mir` that drop the masks of a gas price and of an address.
+
+--- function price
+--- candidate
+fn @price() -> i256 {
+  bb0:
+    v0 = gasprice
+    ret v0
+}
+
+--- function sender
+--- candidate
+fn @sender() -> i256 {
+  bb0:
+    v0: i256 = caller
+    ret v0
+}
