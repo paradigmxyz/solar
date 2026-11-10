@@ -1050,3 +1050,17 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
+
+### CODEGEN-014: Optimized builds skip loops that only count
+
+- ID: CODEGEN-014
+- Status: intentional
+- Difference: `solc` runs a loop with an empty body, such as
+  `for (uint256 i; i < n; ++i) {}`, to its end, so a large `n` runs out of gas
+  and reverts. At `-O gas` and `-O size`, `solar` skips a loop that has no
+  effect, whose values nothing else reads, and whose counter steps by one
+  toward its bound, so the call returns. `-O none` keeps the loop.
+- Rationale: the ABI decoder leaves such a loop over every `uint256[]`
+  argument once the loads of its elements are unused, and running it costs gas
+  on every call.
+- Coverage: `tests/ui/codegen/mir/dce/dead_loop_out_of_gas.sol`.

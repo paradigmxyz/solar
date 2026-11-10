@@ -7,7 +7,7 @@
 //! from instructions that must execute and from terminator operands finds the live values in
 //! linear time, so dead chains and dead phi cycles both go. Reachability is computed once.
 //!
-//! A counting loop with no effects goes too. Once dead chains are gone, a natural loop whose
+//! A counting loop with no effects goes too. A natural loop whose
 //! blocks hold only instructions that need not execute, and whose values nobody outside reads,
 //! runs to its exit and does nothing else, so its preheader jumps to the exit instead. The header
 //! test must show that the loop ends: `i < n`, or `i != n`, over a counter that starts anywhere
@@ -101,7 +101,7 @@ fn remove_dead_chains(func: &mut Function, summaries: &MemoryCallSummaries) -> u
     // Keep that decision on the removed instruction for debugify; never transfer its location.
     for inst in discardable.iter() {
         if !live.contains(inst) {
-            func.inst_mut(inst).metadata.drop_debug_loc(solar_evmir::debug::DebugLocKind::Dropped);
+            func.inst_mut(inst).metadata.drop_debug_loc(DebugLocKind::Dropped);
         }
     }
 
@@ -123,13 +123,12 @@ struct DeadLoop {
     blocks: Vec<BlockId>,
 }
 
-/// Skips every effect-free counting loop, innermost first, and returns how many it skipped.
+/// Skips every effect-free counting loop and returns how many it skipped.
 fn remove_dead_loops(func: &mut Function, cfg: &Rc<CfgInfo>) -> usize {
     let mut removed = 0;
     let mut loops = LoopAnalyzer::new().analyze_structure_with_cfg(func, Rc::clone(cfg));
     loop {
-        let dead = loops.all_loops().find_map(|l| dead_loop(func, l));
-        let Some(dead) = dead else { return removed };
+        let Some(dead) = loops.all_loops().find_map(|l| dead_loop(func, l)) else { return removed };
         // exit: phi [header: v] -> phi [preheader: v]
         for &inst in &func.blocks[dead.exit].instructions.clone() {
             if let InstKind::Phi(incoming) = &mut func.inst_mut(inst).kind {
@@ -142,6 +141,7 @@ fn remove_dead_loops(func: &mut Function, cfg: &Rc<CfgInfo>) -> usize {
         }
         // preheader: jump header -> jump exit
         replace_terminator(func, dead.preheader, Terminator::Jump(dead.exit));
+        // loop blocks: insts, terminator -> invalid
         for block in dead.blocks {
             // LLVM's dropLocation rule, as for any discarded computation.
             for inst in func.blocks[block].instructions.clone() {
@@ -182,6 +182,9 @@ fn dead_loop(func: &Function, l: &Loop) -> Option<DeadLoop> {
     }
     let defined_in_loop =
         |value| matches!(func.value(value), Value::Inst(inst) if defined.contains(*inst));
+    if !counts_to_exit(func, l, *latch, preheader, condition, &defined_in_loop) {
+        return None;
+    }
     let mut escapes = false;
     for (block, contents) in func.blocks.iter_enumerated() {
         if l.blocks.contains(block) {
@@ -194,7 +197,7 @@ fn dead_loop(func: &Function, l: &Loop) -> Option<DeadLoop> {
             term.visit_operands(|operand| escapes |= defined_in_loop(operand));
         }
     }
-    if escapes || !counts_to_exit(func, l, *latch, preheader, condition, &defined_in_loop) {
+    if escapes {
         return None;
     }
     Some(DeadLoop { preheader, header: l.header, exit: *exit, blocks: l.blocks.iter().collect() })
