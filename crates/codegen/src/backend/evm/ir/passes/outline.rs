@@ -904,12 +904,13 @@ fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32)
     // NOTE: The shared body keeps a call only where every site has it. A site whose run starts
     // the callee, when the body does not carry that, enters it at the call sequence instead,
     // which runs once for the site, as the run did.
-    let events = RunEvents::of(range.iter().map(|inst| &inst.metadata));
     let covered = |function| {
         let carries = |inst: &Instruction| inst.metadata.function_invoke() == Some(function);
         module.blocks[edit.stub].instructions.iter().any(carries)
     };
-    let events = events.invoke().filter(|&function| !covered(function)).map(|_| events);
+    let function_invoke = RunEvents::of(range.iter().map(|inst| &inst.metadata))
+        .invoke()
+        .filter(|&function| !covered(function));
     // prefix; push continuation; rotate return below inputs; push parameters; jump stub
     // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
@@ -926,11 +927,10 @@ fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32)
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
     let instructions = &mut module.blocks[block].instructions;
-    let mut call = [Instruction::push_block(continuation).with_debug_loc(&location)];
-    if let Some(events) = events {
-        events.place(&mut call);
+    let mut call = Instruction::push_block(continuation).with_debug_loc(&location);
+    if let Some(function) = function_invoke {
+        call.metadata.set_function_invoke(function);
     }
-    let [call] = call;
     instructions.push(call);
     instructions
         .extend((1..=usize::from(inputs)).rev().map(|depth| swap(depth).with_debug_loc(&location)));
