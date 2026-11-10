@@ -21,10 +21,12 @@ import json
 import os
 import random
 import re
+import shutil
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 
 # ---------------------------------------------------------------- lexing
@@ -91,7 +93,7 @@ def tokens(src, mask, a, b):
 def structure(src):
     mask = code_mask(src)
     masked = "".join(ch if mask[i] else " " for i, ch in enumerate(src))
-    contracts = []
+    contracts: list[dict[str, Any]] = []
     for mt in re.finditer(
         r"\b(abstract\s+contract|contract|library|interface)\s+(\w+)[^{;]*\{", masked
     ):
@@ -107,7 +109,7 @@ def structure(src):
                 "doc": doc,
             }
         )
-    funcs = []
+    funcs: list[dict[str, Any]] = []
     for c in contracts:
         for mt in re.finditer(
             r"\b(function\s+(\w+)|constructor|modifier\s+(\w+)|receive|fallback)\s*\(",
@@ -393,7 +395,7 @@ def main():
     ap.add_argument(
         "--solc",
         default=os.environ.get("SOLC"),
-        help="solc for TCE (default: from the pragmas, ~/bin/solc*)",
+        help="solc for TCE (default: $SOLC, else solc on PATH)",
     )
     ap.add_argument("--list", action="store_true")
     ap.add_argument(
@@ -494,7 +496,7 @@ def main():
         if mc and ("lib/" in cur or "node_modules" in cur):
             vendor.add(mc.group(1))
     rng = random.Random(a.seed)
-    plan = []
+    plan: list[dict[str, Any]] = []
     for f in funcs:
         if f["ckind"] == "interface":
             continue
@@ -640,50 +642,9 @@ SOLC_FLAG_SETS = [
 ]
 
 
-def solc_version(path):
-    try:
-        p = subprocess.run(
-            [path, "--version"], check=False, capture_output=True, text=True, timeout=30
-        )
-        mm = re.search(r"Version: (\d+\.\d+\.\d+)", p.stdout)
-        return tuple(map(int, mm.group(1).split("."))) if mm else None
-    except Exception:
-        return None
-
-
-def pick_solc(src, override=None):
-    """The compiler the file's pragmas ask for: '=X' pins X; otherwise the oldest installed
-    solc satisfying every '^X' and '>=X'. --solc (or $SOLC) overrides."""
-    if override:
-        return override
-    import glob
-
-    cands = {}
-    for p in [os.path.expanduser("~/bin/solc")] + sorted(
-        glob.glob(os.path.expanduser("~/bin/solc-*"))
-    ):
-        if os.access(p, os.X_OK):
-            v = solc_version(p)
-            if v and v not in cands:
-                cands[v] = p
-    if not cands:
-        return None
-    pins, mins = set(), []
-    for pr in re.findall(r"pragma\s+solidity\s+([^;]*);", src):
-        for mm in re.finditer(r"(=|\^|>=)?\s*(\d+)\.(\d+)\.(\d+)", pr):
-            v = tuple(map(int, mm.group(2, 3, 4)))
-            if mm.group(1) == "=":
-                pins.add(v)
-            else:
-                mins.append(v)
-    if pins:
-        v = max(pins)
-        return cands.get(v)
-    lo = max(mins) if mins else (0, 0, 0)
-    ok = [v for v in cands if v >= lo and v[:2] == lo[:2]] or [
-        v for v in cands if v >= lo
-    ]
-    return cands[min(ok)] if ok else None
+def pick_solc(override=None):
+    """The solc for the equivalence check: --solc (default $SOLC), else solc on PATH."""
+    return override or shutil.which("solc")
 
 
 class Tce:
@@ -695,7 +656,8 @@ class Tce:
         import threading
 
         self.solc, self.tmpd, self.name = solc, tmpd, name
-        self.flags, self.error = None, None
+        self.flags: list[str] | None = None
+        self.error: str | None = None
         self.lock = threading.Lock()
         self.cache_path = os.path.join(tmpd, "tce-cache.json")
         self.flags_path = os.path.join(tmpd, "tce-flags.json")
@@ -739,6 +701,7 @@ class Tce:
 
     def compile_src(self, text, path, flags=None):
         flags = flags or self.flags
+        assert flags is not None, "compile_src before baseline"
         ck = hashlib.sha1(
             ("\0".join([self.solc] + flags) + "\0" + text).encode()
         ).hexdigest()
@@ -798,7 +761,7 @@ def tce_pass(a, src, funcs, allr, equiv, tmpd):
     is equivalent, provided the mutated function is live (a sentinel revert at the top of its body
     changes the bytecode). Mutant sources are regenerated from the current file and the key.
     Returns stats; updates equiv and each record's 'tce' field."""
-    stats = {
+    stats: dict[str, Any] = {
         "tce": False,
         "before": 0,
         "new": 0,
@@ -813,10 +776,10 @@ def tce_pass(a, src, funcs, allr, equiv, tmpd):
 
     stats["before"] = sum(1 for r in surv if r["key"] not in equiv)
     todo = [r for r in surv if not triaged(r)]
-    solc = pick_solc(src, a.solc)
+    solc = pick_solc(a.solc)
     name = os.path.basename(a.file)
     if not solc:
-        stats["error"] = "no solc matches the pragmas"
+        stats["error"] = "no solc (pass --solc or set SOLC)"
     else:
         tce = Tce(solc, tmpd, name)
         ref = tce.baseline(src)
@@ -824,7 +787,7 @@ def tce_pass(a, src, funcs, allr, equiv, tmpd):
             stats["error"] = f"{os.path.basename(solc)}: {tce.error}"
         else:
             stats["tce"] = True
-            stats["solc"] = os.path.basename(solc) + " " + " ".join(tce.flags)
+            stats["solc"] = os.path.basename(solc) + " " + " ".join(tce.flags or [])
     if not stats["tce"]:
         print(f"TCE unavailable: {stats['error']}", flush=True)
         for r in todo:
