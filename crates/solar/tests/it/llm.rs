@@ -412,8 +412,7 @@ fn ask(model: &str, effort: &str, key: &str, reply: fn(&Value) -> Value) -> (Out
     (output, requests)
 }
 
-/// With `-Zllm-endpoint`, an OpenAI model is asked at the endpoint, over HTTPS rather than
-/// nanocodex's default WebSocket, whose URL the endpoint does not set.
+/// A trusted `-Zllm-endpoint` sends bounded, tool-free Responses requests to that endpoint.
 #[cfg(feature = "llm")]
 #[test]
 fn openai_endpoint() {
@@ -650,5 +649,55 @@ warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 llm-optimize Triangle @sumBelow: reuses its cached rewrite at 81 gas, 32 bytes, down from 4668 gas, 47 bytes, without asking opencode/deepseek-v4.1-flash
 
 "#]]
+    );
+}
+
+#[test]
+fn standard_json_cannot_enable_live_credentials() {
+    for flags in [
+        vec!["llm-optimize=live"],
+        vec!["llm-optimize=live", "llm-model=anthropic/test", "llm-endpoint=invalid endpoint"],
+    ] {
+        let input =
+            json!({"language":"Solidity", "sources":{}, "settings":{"solar":{"unstable":flags}}});
+        let prepared = std::sync::atomic::AtomicBool::new(false);
+        let mut output = Vec::new();
+        solar::cli::standard_json::compile_standard_json_with(
+            &input.to_string(),
+            CompileOpts::default(),
+            None,
+            &mut output,
+            |_| {
+                prepared.store(true, std::sync::atomic::Ordering::Relaxed);
+            },
+        )
+        .unwrap();
+        assert!(!prepared.load(std::sync::atomic::Ordering::Relaxed));
+        let output: Value = serde_json::from_slice(&output).unwrap();
+        snapbox::assert_data_eq!(
+            output["errors"][0]["message"].as_str().unwrap(),
+            snapbox::str!["live LLM rewriting must be enabled outside Standard JSON input"]
+        );
+    }
+}
+
+#[test]
+fn standard_json_cannot_replace_a_trusted_endpoint() {
+    let input = json!({"language":"Solidity", "sources":{}, "settings":{"solar":{"unstable":["llm-optimize=live", "llm-endpoint=http://untrusted.invalid"]}}});
+    let opts = CompileOpts {
+        unstable: UnstableOpts {
+            llm_optimize: Some(LlmOptimizeMode::Live),
+            llm_endpoint: Some("https://trusted.invalid".into()),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut output = Vec::new();
+    solar::cli::standard_json::compile_standard_json(&input.to_string(), opts, None, &mut output)
+        .unwrap();
+    let output: Value = serde_json::from_slice(&output).unwrap();
+    snapbox::assert_data_eq!(
+        output["errors"][0]["message"].as_str().unwrap(),
+        snapbox::str!["LLM provider options must be configured outside Standard JSON input"]
     );
 }

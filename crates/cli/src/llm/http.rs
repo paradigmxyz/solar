@@ -19,7 +19,7 @@
 
 use super::{
     ChatTransport,
-    provider::{Prices, Provider},
+    provider::{Prices, Provider, Usage},
     wire::{ANTHROPIC_VERSION, Delta, Protocol, ReplyStream, SseParser},
 };
 use reqwest::{
@@ -41,7 +41,7 @@ const FIRST_RETRY: Duration = Duration::from_secs(2);
 /// The longest wait before a retry.
 const MAX_RETRY: Duration = Duration::from_secs(60);
 /// The most characters of a provider's error message a diagnostic repeats.
-const MAX_MESSAGE: usize = 500;
+pub(super) const MAX_MESSAGE: usize = 500;
 /// The most bytes a reply may take, streamed or whole: many times what a reply of the most tokens
 /// a request allows takes, even with an event's framing around every token.
 const MAX_REPLY_BYTES: usize = 16 << 20;
@@ -82,7 +82,7 @@ impl ChatClient {
         let protocol = match provider {
             Provider::Anthropic => Protocol::Messages,
             Provider::OpenCode | Provider::OpenAiChat => Protocol::ChatCompletions,
-            Provider::OpenAi => unreachable!("OpenAI models are asked through nanocodex"),
+            Provider::OpenAi => Protocol::Responses,
         };
         let url = format!("{}/{}", endpoint.trim_end_matches('/'), protocol.path());
         let url = Url::parse(&url).map_err(|error| format!("`{endpoint}` is no URL: {error}"))?;
@@ -90,7 +90,9 @@ impl ChatClient {
             .map(|key| {
                 let key = match protocol {
                     Protocol::Messages => HeaderValue::from_str(key),
-                    Protocol::ChatCompletions => HeaderValue::from_str(&format!("Bearer {key}")),
+                    Protocol::ChatCompletions | Protocol::Responses => {
+                        HeaderValue::from_str(&format!("Bearer {key}"))
+                    }
                 };
                 // The message must not repeat the key.
                 let Ok(mut key) = key else {
@@ -106,7 +108,7 @@ impl ChatClient {
             None => return Err("this build sends requests only through a transport".into()),
             #[cfg(feature = "llm")]
             None => {
-                let tls = nanocodex::oai::tls::native_client_config()
+                let tls = nanocodex_oai_api::tls::native_client_config()
                     .await
                     .map_err(|error| format!("cannot load trusted certificates: {error}"))?;
                 // An API answers where it is asked. A redirect to another host would also carry
@@ -125,6 +127,28 @@ impl ChatClient {
     /// The wire format the endpoint speaks.
     pub(super) const fn protocol(&self) -> Protocol {
         self.protocol
+    }
+
+    /// Prices reported usage without depending on an agent or tool runtime.
+    pub(super) fn cost(&self, _model: &str, _reply: &Value, usage: Usage) -> Option<u64> {
+        #[cfg(feature = "llm")]
+        if self.protocol == Protocol::Responses {
+            let model = _model.parse::<nanocodex_oai_api::Model>().ok()?;
+            let usage = serde_json::from_value::<nanocodex_oai_api::responses::Usage>(
+                _reply["usage"].clone(),
+            )
+            .ok()?;
+            return Some(
+                nanocodex_oai_api::pricing::estimate_for_model(
+                    &usage,
+                    model,
+                    nanocodex_oai_api::pricing::ServiceTier::Standard,
+                )
+                .amount()
+                .nano_usd(),
+            );
+        }
+        self.prices.map(|prices| prices.cost(usage))
     }
 
     /// Sends `body`, passing each piece of the reply to `on_delta` as it streams in, and returns
@@ -255,6 +279,9 @@ impl ChatClient {
             }
             let whole = serde_json::from_slice::<Value>(&body)
                 .map_err(|error| format!("{name} sent an unreadable reply: {error}"))?;
+            if whole.get("error").is_some_and(|error| !error.is_null()) {
+                return Err(message(&String::from_utf8_lossy(&body)));
+            }
             reply.deltas_of(&whole).into_iter().for_each(&on_delta);
             return Ok(whole);
         }
@@ -271,6 +298,9 @@ impl ChatClient {
             };
             for event in events {
                 reply.read(&event)?.into_iter().for_each(&on_delta);
+                if reply.ended() {
+                    return reply.finish();
+                }
             }
         }
     }
@@ -291,7 +321,7 @@ impl ChatClient {
                     headers.insert("x-api-key", key.clone());
                 }
             }
-            Protocol::ChatCompletions => {
+            Protocol::ChatCompletions | Protocol::Responses => {
                 if let Some(key) = &self.key {
                     headers.insert(AUTHORIZATION, key.clone());
                 }
@@ -326,7 +356,8 @@ fn message(text: &str) -> String {
         .ok()
         .and_then(|reply| reply["error"]["message"].as_str().map(str::to_string))
         .unwrap_or_else(|| text.trim().to_string());
-    message.chars().take(MAX_MESSAGE).collect()
+    let limited = message.chars().take(MAX_MESSAGE).collect::<String>();
+    super::console::printable(&limited).into_owned()
 }
 
 #[cfg(test)]
@@ -469,7 +500,7 @@ data: {"type":"message_stop"}
         // takes nanocodex's configuration, as the compiler's own client does.
         #[cfg(feature = "llm")]
         {
-            let tls = nanocodex::oai::tls::native_client_config().await.unwrap();
+            let tls = nanocodex_oai_api::tls::native_client_config().await.unwrap();
             Client::builder().use_preconfigured_tls((*tls).clone()).build().unwrap()
         }
         #[cfg(not(feature = "llm"))]
@@ -625,5 +656,185 @@ data: {"type":"message_stop"}
         // Every turn was challenged once, then paid.
         assert_eq!(seen.len(), 2 * payments, "{seen:#?}");
         assert!(seen.iter().all(|request| !request.contains("x-api-key")), "{seen:#?}");
+    }
+    /// A provider that optionally keeps the body open after delivering its terminal event.
+    async fn endpoint(
+        body: String,
+        streamed: bool,
+        keep_open: bool,
+    ) -> (String, Arc<Mutex<Vec<String>>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/v1", listener.local_addr().unwrap());
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let seen = Arc::clone(&requests);
+        let body = Arc::new(body);
+        tokio::spawn(async move {
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let (seen, body) = (Arc::clone(&seen), Arc::clone(&body));
+                tokio::spawn(async move {
+                    let request = read_request(&mut socket).await;
+                    seen.lock().unwrap().push(request);
+                    let content_type =
+                        if streamed { "text/event-stream" } else { "application/json" };
+                    let framing = if keep_open {
+                        "transfer-encoding: chunked".to_string()
+                    } else {
+                        format!("content-length: {}", body.len())
+                    };
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-type: {content_type}\r\n{framing}\r\n\r\n"
+                    );
+                    socket.write_all(head.as_bytes()).await.unwrap();
+                    if keep_open {
+                        socket.write_all(format!("{:x}\r\n", body.len()).as_bytes()).await.unwrap();
+                    }
+                    let _ = socket.write_all(body.as_bytes()).await;
+                    if keep_open {
+                        let _ = socket.write_all(b"\r\n").await;
+                        std::future::pending::<()>().await;
+                    }
+                });
+            }
+        });
+        (url, requests)
+    }
+
+    #[tokio::test]
+    async fn terminal_events_do_not_wait_for_body_eof() {
+        let response = serde_json::json!({"type":"response.completed", "response":{"output":[{"type":"message", "role":"assistant", "content":[{"type":"output_text", "text":"NO_IMPROVEMENT"}]}], "usage":{"input_tokens":5,"output_tokens":2}}});
+        let chat = serde_json::json!({"choices":[{"delta":{"content":"NO_IMPROVEMENT"}, "finish_reason":"stop"}], "usage":{"prompt_tokens":5,"completion_tokens":2}});
+        for (provider, body) in [
+            (Provider::Anthropic, NO_IMPROVEMENT.to_string()),
+            (Provider::OpenAi, format!("data: {response}\n\n")),
+            (Provider::OpenAiChat, format!("data: {chat}\n\ndata: [DONE]\n\n")),
+        ] {
+            let (url, _) = endpoint(body, true, true).await;
+            let transport = Paying::new(true).await;
+            let client =
+                ChatClient::new(provider, &url, None, Some(transport), None).await.unwrap();
+            let answer = tokio::time::timeout(Duration::from_secs(2), ask(&client)).await.unwrap();
+            assert_eq!(answer.unwrap(), "NO_IMPROVEMENT");
+        }
+    }
+
+    #[cfg(feature = "llm")]
+    #[tokio::test]
+    async fn native_responses_have_bounded_bodies_and_no_tools() {
+        for streamed in [false, true] {
+            let (url, requests) = endpoint("x".repeat(MAX_REPLY_BYTES + 1), streamed, false).await;
+            let client = ChatClient::new(Provider::OpenAi, &url, Some("test-key"), None, None)
+                .await
+                .unwrap();
+            assert_eq!(ask(&client).await, Err("the reply from OpenAI exceeds 16 MiB".into()));
+            let requests = requests.lock().unwrap();
+            assert_eq!(requests.len(), 1);
+            let (head, body) = requests[0].split_once("\r\n\r\n").unwrap();
+            assert!(head.starts_with("POST /v1/responses "));
+            let body: Value = serde_json::from_str(body).unwrap();
+            assert_eq!(body["tools"], serde_json::json!([]));
+            assert_eq!(body["tool_choice"], "none");
+        }
+    }
+
+    #[test]
+    fn missing_usage_stops_all_later_turns() {
+        let server = Runtime::new().unwrap();
+        let body = serde_json::json!({"choices":[{"message":{"content":"NO_IMPROVEMENT"},"finish_reason":"stop"}]}).to_string();
+        let (url, requests) = server.block_on(endpoint(body, false, false));
+        let transport = server.block_on(Paying::new(true));
+        let opts = CompileOpts {
+            unstable: solar_config::UnstableOpts {
+                llm_optimize: Some(solar_config::LlmOptimizeMode::Live),
+                llm_model: Some("openai-chat/test-model".into()),
+                llm_endpoint: Some(url),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let session = Session::builder()
+            .opts(opts)
+            .with_buffer_emitter(solar_interface::ColorChoice::Never)
+            .build();
+        let _binding = bind_transport(&session, transport);
+        let installed = crate::llm::install(&session).unwrap().unwrap();
+        let mut chat = crate::llm::review_tests::chat(&installed);
+        let voice = Arc::new(crate::llm::console::Voice::new(false, "C", "f"));
+        for _ in 0..10 {
+            assert!(
+                crate::llm::Chat::turn(&mut chat, &installed.shared, "prompt".into(), &voice)
+                    .is_err()
+            );
+        }
+        assert_eq!(requests.lock().unwrap().len(), 1);
+        assert_eq!(installed.shared.asked.load(Ordering::Relaxed), 1);
+        assert!(!installed.shared.affordable());
+        installed.finish(&session);
+    }
+
+    #[test]
+    fn standard_json_includes_provider_usage_note() {
+        let server = Runtime::new().unwrap();
+        let (url, _) = server.block_on(gateway(NO_IMPROVEMENT));
+        let transport = server.block_on(Paying::new(true));
+        let opts = CompileOpts {
+            threads: 1.into(),
+            unstable: solar_config::UnstableOpts {
+                llm_optimize: Some(solar_config::LlmOptimizeMode::Live),
+                llm_model: Some("anthropic/test-model".into()),
+                llm_endpoint: Some(url),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let input = serde_json::json!({"language":"Solidity", "sources":{"triangle.sol":{"content":include_str!("../../../../tests/ui/codegen/mir/llm-optimize/triangle.sol")}}, "settings":{"optimizer":{"enabled":true,"runs":200},"outputSelection":{"*":{"*":["evm.bytecode.object"]}}}});
+        let mut output = Vec::new();
+        crate::standard_json::compile_standard_json_with(
+            &input.to_string(),
+            opts,
+            None,
+            &mut output,
+            |sess| bind_transport(sess, transport),
+        )
+        .unwrap();
+        let output: Value = serde_json::from_slice(&output).unwrap();
+        let notes = output["errors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|e| e["message"].as_str())
+            .filter(|m| m.starts_with("`llm-optimize` asked"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        snapbox::assert_data_eq!(
+            notes,
+            snapbox::str![
+                "`llm-optimize` asked Anthropic [..] turns using [..] tokens, at a cost the compiler cannot estimate"
+            ]
+        );
+    }
+    #[cfg(feature = "llm")]
+    #[tokio::test]
+    async fn native_responses_error_body_is_bounded_without_eof() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/v1", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            read_request(&mut socket).await;
+            socket
+                .write_all(b"HTTP/1.1 400 Bad Request\r\ntransfer-encoding: chunked\r\n\r\n")
+                .await
+                .unwrap();
+            socket.write_all(format!("{MAX_ERROR_BYTES:x}\r\n").as_bytes()).await.unwrap();
+            socket.write_all(&vec![b'e'; MAX_ERROR_BYTES]).await.unwrap();
+            socket.write_all(b"\r\n").await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        let client =
+            ChatClient::new(Provider::OpenAi, &url, Some("test-key"), None, None).await.unwrap();
+        let error =
+            tokio::time::timeout(Duration::from_secs(2), ask(&client)).await.unwrap().unwrap_err();
+        snapbox::assert_data_eq!(&error, snapbox::str!["OpenAI answered 400 Bad Request: [..]"]);
+        assert_eq!(error.len(), "OpenAI answered 400 Bad Request: ".len() + MAX_MESSAGE);
     }
 }

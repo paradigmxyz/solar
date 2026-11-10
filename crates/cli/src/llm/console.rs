@@ -84,7 +84,7 @@ fn print_line(line: &str) {
 
 /// Returns `text` with every character a terminal acts on rather than shows written as its
 /// escape: the control characters other than tabs, and the marks that reorder text around them.
-fn printable(text: &str) -> Cow<'_, str> {
+pub(super) fn printable(text: &str) -> Cow<'_, str> {
     let acts = |c: char| {
         (c.is_control() && c != '\t')
             || matches!(c, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')

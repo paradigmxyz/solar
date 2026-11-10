@@ -11,7 +11,7 @@ use solar_config::LlmEffort;
 /// A model provider.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Provider {
-    /// OpenAI's Responses API, through nanocodex.
+    /// OpenAI's tool-free Responses API.
     OpenAi,
     /// Anthropic's Messages API.
     Anthropic,
@@ -51,10 +51,10 @@ impl Provider {
         }
     }
 
-    /// The API base URL that `-Zllm-endpoint` replaces; nanocodex knows OpenAI's.
+    /// The API base URL that the trusted host's `-Zllm-endpoint` replaces.
     pub(super) const fn default_endpoint(self) -> Option<&'static str> {
         match self {
-            Self::OpenAi => None,
+            Self::OpenAi => Some("https://api.openai.com/v1"),
             Self::Anthropic => Some("https://api.anthropic.com/v1"),
             Self::OpenCode => Some("https://opencode.ai/zen/v1"),
             Self::OpenAiChat => Some("https://api.openai.com/v1"),

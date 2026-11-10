@@ -3,15 +3,15 @@
 //! With the `llm` feature, `install` registers a [`solar_codegen::llm::LlmRewriter`] that holds
 //! one conversation per offered function with the model `-Zllm-model` names as `PROVIDER/MODEL`:
 //!
-//! - `openai/MODEL`, or `MODEL` alone: a nanocodex agent over OpenAI's Responses API, keyed by
+//! - `openai/MODEL`, or `MODEL` alone: tool-free OpenAI Responses over bounded HTTP, keyed by
 //!   `OPENAI_API_KEY`;
 //! - `anthropic/MODEL`: Anthropic's Messages API, keyed by `ANTHROPIC_API_KEY`;
 //! - `opencode/MODEL`: OpenCode Zen's chat completions API, keyed by `OPENCODE_ZEN_API_KEY`;
 //! - `openai-chat/MODEL`: OpenAI's chat completions API, keyed by `OPENAI_API_KEY`.
 //!
 //! Every conversation opens with the rewriting brief in `llm/instructions.md` and has no tools, so
-//! the model cannot read files, run commands, or search. nanocodex agents also get a fixed
-//! execution environment, so they see neither the host's date nor its `AGENTS.md`. Prompts carry
+//! the model cannot read files, run commands, or search. Responses requests advertise no tools;
+//! unexpected tool calls are rejected as data and never executed. Prompts carry
 //! the function, its callees, the objective, and the verdict on the previous candidate; each reply
 //! must hold one fenced `mir` block or `NO_IMPROVEMENT`, and a reply with neither gets one
 //! reminder. `-Zllm-effort` sets how much the model reasons, in each provider's terms.
@@ -19,8 +19,10 @@
 //! Replies arrive on a Tokio runtime the rewriter owns, which takes every turn through a channel,
 //! so compilation threads wait for replies without entering an async context, whatever runtime
 //! an embedder runs. At most four turns run at once, each may take ten minutes, and no turn starts
-//! once the estimated spend reaches five dollars or the conversations have used ten million
-//! tokens, which bounds a model without known prices. Keys go nowhere but their provider's client.
+//! once the estimated spend reaches five dollars, usage reaches ten million tokens, or 128 turns
+//! have started. A failed, timed-out or usage-less turn closes admission for the compilation:
+//! unknown spend cannot be counted as zero or retried once per function. Keys go only to the
+//! provider the trusted CLI options or embedder selected; Standard JSON cannot select one.
 //! When compilation ends, a note reports turns, tokens, and the estimated cost.
 //!
 //! While it works, every conversation reports on stderr through `console`: each round, the
@@ -34,7 +36,7 @@
 //! that charges its user per request, for example, with the Machine Payments Protocol. The
 //! compiler then reads no key and sends none, since the transport authenticates or pays for each
 //! request. A transport carries only the requests of the session it is bound to.
-//! The `llm-transport` feature builds only this path: the chat providers without nanocodex, TLS,
+//! The `llm-transport` feature builds only this path, without the SDK, TLS,
 //! or an HTTP client of the compiler's own, so `-Zllm-optimize=live` requires a transport.
 
 use solar_config::LlmOptimizeMode;
@@ -61,7 +63,7 @@ use std::{
     pin::Pin,
     sync::{
         Arc,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc,
     },
     time::{Duration, Instant},
@@ -72,15 +74,7 @@ use tokio::{runtime::Runtime, sync::Semaphore};
 use wire::Transcript;
 
 #[cfg(feature = "llm")]
-use nanocodex::{
-    AgentEvents, Model, Nanocodex, OpenAi, Thinking, Tools,
-    agent::ExecutionEnvironment,
-    oai::{events::AgentEventKind, transport::ResponsesTransport},
-};
-#[cfg(feature = "llm")]
-use serde_json::Value;
-#[cfg(feature = "llm")]
-use wire::Delta;
+use nanocodex_oai_api::{Model, Thinking};
 
 #[cfg(any(feature = "llm-transport", test))]
 use solar_codegen::llm::Proposal;
@@ -115,9 +109,9 @@ const BUDGET_NANO_USD: u64 = 5_000_000_000;
 /// Tokens after which no turn starts, whatever they cost.
 #[cfg(feature = "llm-transport")]
 const BUDGET_TOKENS: u64 = 10_000_000;
-/// The date agents see: a fixed environment keeps host context out of prompts.
-#[cfg(feature = "llm")]
-const DATE: &str = "2026-01-01";
+/// A finite request bound even when a provider reports zero tokens.
+#[cfg(feature = "llm-transport")]
+const BUDGET_TURNS: u64 = 128;
 /// The reply to a reply that held no candidate.
 #[cfg(feature = "llm-transport")]
 const FORMAT_REMINDER: &str = "Your reply held no candidate. Reply with exactly one fenced code \
@@ -128,7 +122,7 @@ const FORMAT_REMINDER: &str = "Your reply held no candidate. Reply with exactly 
 #[cfg(feature = "llm-transport")]
 static TRANSPORTS: SessionBindings<dyn ChatTransport> = SessionBindings::new();
 
-/// Sends the requests of the chat providers, `anthropic/`, `opencode/`, and `openai-chat/`, in
+/// Sends the requests of the model providers in
 /// place of the compiler's own HTTP client.
 ///
 /// An embedder binds one with [`bind_transport`] to reach the model its own way, such as through a
@@ -233,7 +227,7 @@ impl Installed {
 pub(crate) struct Installed {
     shared: Arc<Shared>,
     binding: SessionBinding<dyn LlmRewriter>,
-    runtime: Runtime,
+    runtime: OwnedRuntime,
 }
 
 #[cfg(feature = "llm-transport")]
@@ -247,20 +241,57 @@ impl Installed {
             }
             None => (Provider::OpenAi, None),
         };
-        // An embedder's transport authenticates or pays for requests itself, so no key is read.
-        // Otherwise the key goes to the client alone: never to diagnostics, traces, or the cache.
-        let transport = transport(sess);
-        let key = match (&transport, provider) {
-            (Some(_), Provider::OpenAi) => {
-                return Err(sess
-                    .dcx
-                    .err("an embedder's transport carries only the chat providers")
-                    .help("name `openai-chat/MODEL` to ask OpenAI through its chat completions API")
-                    .emit());
+        let model = model.unwrap_or("gpt-6-astra");
+        if model.is_empty() {
+            return Err(sess
+                .dcx
+                .err(format!("`-Zllm-model` names no {} model", provider.name()))
+                .emit());
+        }
+        #[cfg(feature = "llm")]
+        let model = if provider == Provider::OpenAi {
+            let parsed = model
+                .parse::<Model>()
+                .map_err(|error| sess.dcx.err("unknown `-Zllm-model`").note(error).emit())?;
+            if let Some(effort) = unstable.llm_effort {
+                let thinking = effort.to_str().parse::<Thinking>().map_err(|error| {
+                    sess.dcx.err("unsupported `-Zllm-effort`").note(error).emit()
+                })?;
+                if !parsed.supports_thinking(thinking) {
+                    return Err(sess
+                        .dcx
+                        .err("the model does not support the requested reasoning effort")
+                        .emit());
+                }
             }
-            (Some(_), _) => None::<String>,
+            parsed.to_string()
+        } else {
+            model.to_string()
+        };
+        #[cfg(not(feature = "llm"))]
+        let model = model.to_string();
+        let info = provider::model_info(provider, &model);
+        if let (Some(effort), Some(info)) = (unstable.llm_effort, info)
+            && !info.efforts.contains(&effort)
+        {
+            let efforts = info
+                .efforts
+                .iter()
+                .map(|effort| format!("`{effort}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(sess
+                .dcx
+                .err(format!("`{model}` does not take `-Zllm-effort={effort}`"))
+                .note(format!("it takes {efforts}"))
+                .emit());
+        }
+        // The trusted host's transport authenticates requests itself; do not read an API key.
+        let transport = transport(sess);
+        let key = match &transport {
+            Some(_) => None::<String>,
             #[cfg(not(feature = "llm"))]
-            (None, _) => {
+            None => {
                 return Err(sess
                     .dcx
                     .err("`-Zllm-optimize=live` requires an embedder's transport in this build")
@@ -268,105 +299,53 @@ impl Installed {
                     .emit());
             }
             #[cfg(feature = "llm")]
-            (None, _) => {
+            None => {
                 let variable = provider.key_variable();
-                let Ok(key) = std::env::var(variable) else {
-                    let message = format!(
-                        "`-Zllm-optimize=live` with {} requires `{variable}`",
-                        provider.name()
-                    );
-                    return Err(sess.dcx.err(message).emit());
-                };
+                let key = std::env::var(variable).map_err(|_| {
+                    sess.dcx
+                        .err(format!(
+                            "`-Zllm-optimize=live` with {} requires `{variable}`",
+                            provider.name()
+                        ))
+                        .emit()
+                })?;
                 Some(key)
             }
         };
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .thread_name("solar-llm")
-            .enable_all()
-            .build()
-            .map_err(|error| {
-                sess.dcx.err(format!("cannot start the model runtime: {error}")).emit()
-            })?;
-        let configure = |error: String| {
-            sess.dcx.err(format!("cannot configure the model client: {error}")).emit()
-        };
-        let backend = match provider {
-            #[cfg(not(feature = "llm"))]
-            Provider::OpenAi => unreachable!("OpenAI's Responses API needs a key and nanocodex"),
-            #[cfg(feature = "llm")]
-            Provider::OpenAi => {
-                let model = model
-                    .map(str::parse::<Model>)
-                    .transpose()
-                    .map_err(|error| sess.dcx.err("unknown `-Zllm-model`").note(error).emit())?;
-                let thinking = unstable
-                    .llm_effort
-                    .map(|effort| effort.to_str().parse::<Thinking>())
-                    .transpose()
-                    .map_err(|error| {
-                        sess.dcx.err("unsupported `-Zllm-effort`").note(error).emit()
-                    })?;
-                let endpoint = unstable.llm_endpoint.clone();
-                let key = key.expect("OpenAI models without a transport have a key");
-                let client = async move {
-                    let mut builder = OpenAi::builder(key);
-                    if let Some(endpoint) = endpoint {
-                        // nanocodex asks over a WebSocket by default, whose URL the API base does
-                        // not set: over HTTPS, every request goes to the endpoint.
-                        builder =
-                            builder.api_base_url(endpoint).transport(ResponsesTransport::Https);
-                    }
-                    builder.build()
-                };
-                let openai = wait(runtime.handle(), client, TURN_TIMEOUT)
-                    .map_err(|error| error.to_string())
-                    .and_then(|client| client.map_err(|error| error.to_string()))
-                    .map_err(configure)?;
-                Backend::Agent { openai, model, thinking }
-            }
-            Provider::Anthropic | Provider::OpenCode | Provider::OpenAiChat => {
-                let Some(model) = model.filter(|model| !model.is_empty()) else {
-                    let message = format!("`-Zllm-model` names no {} model", provider.name());
-                    return Err(sess.dcx.err(message).emit());
-                };
-                let info = provider::model_info(provider, model);
-                if let (Some(effort), Some(info)) = (unstable.llm_effort, info)
-                    && !info.efforts.contains(&effort)
-                {
-                    let efforts = info
-                        .efforts
-                        .iter()
-                        .map(|effort| format!("`{effort}`"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    return Err(sess
-                        .dcx
-                        .err(format!("`{model}` does not take `-Zllm-effort={effort}`"))
-                        .note(format!("it takes {efforts}"))
-                        .emit());
-                }
-                let endpoint = unstable
-                    .llm_endpoint
-                    .as_deref()
-                    .or(provider.default_endpoint())
-                    .expect("chat providers have a default endpoint")
-                    .to_string();
-                let prices = info.map(|info| info.prices);
-                let client = async move {
-                    ChatClient::new(provider, &endpoint, key.as_deref(), transport, prices).await
-                };
-                let client = wait(runtime.handle(), client, TURN_TIMEOUT)
-                    .map_err(|error| error.to_string())
-                    .and_then(|client| client)
-                    .map_err(configure)?;
-                Backend::Chat {
-                    client: Arc::new(client),
-                    model: model.to_string(),
-                    effort: unstable.llm_effort,
-                }
-            }
-        };
+        // Every exit path, including failed client setup inside an embedder's Tokio task,
+        // shuts down without blocking or dropping a live Runtime in that task.
+        let runtime = OwnedRuntime::new().map_err(|error| {
+            sess.dcx.err(format!("cannot start the model runtime: {error}")).emit()
+        })?;
+        let endpoint = unstable
+            .llm_endpoint
+            .as_deref()
+            .or(provider.default_endpoint())
+            .expect("provider endpoint")
+            .to_string();
+        let client = wait(
+            runtime.handle(),
+            async move {
+                ChatClient::new(
+                    provider,
+                    &endpoint,
+                    key.as_deref(),
+                    transport,
+                    info.map(|info| info.prices),
+                )
+                .await
+            },
+            TURN_TIMEOUT,
+        )
+        .map_err(|error| error.to_string())
+        .and_then(|client| client)
+        .map_err(|error| {
+            sess.dcx
+                .err(format!("cannot configure the model client: {}", console::printable(&error)))
+                .emit()
+        })?;
+        let backend =
+            Backend::Chat { client: Arc::new(client), model, effort: unstable.llm_effort };
         // A replaced endpoint, such as a gateway, receives the MIR in the provider's place.
         let recipient = unstable
             .llm_endpoint
@@ -388,6 +367,7 @@ impl Installed {
             tokens: AtomicU64::new(0),
             spent_nano_usd: AtomicU64::new(0),
             unpriced: AtomicU64::new(0),
+            failed: AtomicBool::new(false),
         });
         let binding = bind_rewriter(sess, Arc::new(Rewriter(Arc::clone(&shared))));
         Ok(Self { shared, binding, runtime })
@@ -404,7 +384,15 @@ impl Installed {
                 "`llm-optimize` asked {} {asked} turns using {tokens} tokens",
                 shared.provider.name()
             );
-            if shared.unpriced.load(Ordering::Relaxed) == 0 {
+            if shared.failed.load(Ordering::Relaxed) {
+                message = format!(
+                    "`llm-optimize` asked {} {asked} turns with {tokens} reported tokens; usage is incomplete",
+                    shared.provider.name()
+                );
+            }
+            if !shared.failed.load(Ordering::Relaxed)
+                && shared.unpriced.load(Ordering::Relaxed) == 0
+            {
                 let spent = Usd(shared.spent_nano_usd.load(Ordering::Relaxed));
                 let _ = write!(message, ", an estimated {spent}");
             } else {
@@ -412,7 +400,36 @@ impl Installed {
             }
             sess.dcx.note(message).emit();
         }
-        self.runtime.shutdown_timeout(Duration::from_secs(5));
+        drop(self.runtime);
+    }
+}
+
+/// Owns a runtime without ever blocking an async caller on shutdown.
+#[cfg(feature = "llm-transport")]
+struct OwnedRuntime(Option<Runtime>);
+
+#[cfg(feature = "llm-transport")]
+impl OwnedRuntime {
+    fn new() -> std::io::Result<Self> {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .thread_name("solar-llm")
+            .enable_all()
+            .build()
+            .map(|runtime| Self(Some(runtime)))
+    }
+
+    fn handle(&self) -> &tokio::runtime::Handle {
+        self.0.as_ref().expect("runtime has not shut down").handle()
+    }
+}
+
+#[cfg(feature = "llm-transport")]
+impl Drop for OwnedRuntime {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.0.take() {
+            runtime.shutdown_background();
+        }
     }
 }
 
@@ -432,14 +449,13 @@ struct Shared {
     spent_nano_usd: AtomicU64,
     /// Turns whose cost is unknown.
     unpriced: AtomicU64,
+    /// A failed or unaccounted turn closes the shared admission gate.
+    failed: AtomicBool,
 }
 
 /// How conversations reach the model.
 #[cfg(feature = "llm-transport")]
 enum Backend {
-    /// A nanocodex agent per conversation.
-    #[cfg(feature = "llm")]
-    Agent { openai: OpenAi, model: Option<Model>, thinking: Option<Thinking> },
     /// A chat API over HTTP.
     Chat { client: Arc<ChatClient>, model: String, effort: Option<LlmEffort> },
 }
@@ -451,22 +467,33 @@ impl Shared {
         &self,
         future: impl Future<Output = T> + Send + 'static,
     ) -> Result<T, LlmError> {
-        wait(&self.runtime, future, TURN_TIMEOUT)
+        wait(&self.runtime, future, TURN_TIMEOUT).inspect_err(|_| {
+            self.failed.store(true, Ordering::Relaxed);
+        })
     }
 
     /// Whether another turn fits the budget.
     fn affordable(&self) -> bool {
-        self.spent_nano_usd.load(Ordering::Relaxed) < BUDGET_NANO_USD
+        !self.failed.load(Ordering::Relaxed)
+            && self.asked.load(Ordering::Relaxed) < BUDGET_TURNS
+            && self.spent_nano_usd.load(Ordering::Relaxed) < BUDGET_NANO_USD
             && self.tokens.load(Ordering::Relaxed) < BUDGET_TOKENS
+    }
+
+    fn stop_reason(&self) -> &'static str {
+        if self.failed.load(Ordering::Relaxed) {
+            "live rewriting stopped after a failed or unaccounted turn"
+        } else {
+            BUDGET_SPENT
+        }
     }
 
     /// Records an answered turn that used `tokens` and cost `nano_usd`, when that is known.
     fn record(&self, tokens: u64, nano_usd: Option<u64>) {
-        self.asked.fetch_add(1, Ordering::Relaxed);
-        self.tokens.fetch_add(tokens, Ordering::Relaxed);
+        saturating_add(&self.tokens, tokens);
         match nano_usd {
-            Some(nano_usd) => self.spent_nano_usd.fetch_add(nano_usd, Ordering::Relaxed),
-            None => self.unpriced.fetch_add(1, Ordering::Relaxed),
+            Some(nano_usd) => saturating_add(&self.spent_nano_usd, nano_usd),
+            None => saturating_add(&self.unpriced, 1),
         };
     }
 }
@@ -497,31 +524,10 @@ struct Rewriter(Arc<Shared>);
 impl LlmRewriter for Rewriter {
     fn session(&self, request: &RewriteRequest) -> Result<Box<dyn LlmSession>, LlmError> {
         let shared = Arc::clone(&self.0);
+        if !shared.affordable() {
+            return Err(LlmError::new(shared.stop_reason()));
+        }
         let chat: Box<dyn Chat> = match &shared.backend {
-            #[cfg(feature = "llm")]
-            Backend::Agent { openai, model, thinking } => {
-                let (openai, model, thinking) = (openai.clone(), *model, *thinking);
-                let (agent, events) = shared
-                    .run(async move {
-                        let tools = Tools::builder()
-                            .without_defaults()
-                            .build()
-                            .map_err(|error| error.to_string())?;
-                        let mut builder = Nanocodex::builder(openai)
-                            .instructions(INSTRUCTIONS)
-                            .tools(tools)
-                            .execution_environment(ExecutionEnvironment::new(DATE, "Etc/UTC"));
-                        if let Some(model) = model {
-                            builder = builder.model(model);
-                        }
-                        if let Some(thinking) = thinking {
-                            builder = builder.thinking(thinking);
-                        }
-                        builder.build().map_err(|error| error.to_string())
-                    })?
-                    .map_err(LlmError::new)?;
-                Box::new(AgentChat { runtime: shared.runtime.clone(), agent, events: Some(events) })
-            }
             Backend::Chat { client, model, effort } => Box::new(HttpChat {
                 transcript: Transcript::new(client.protocol(), model.clone(), *effort),
                 client: Arc::clone(client),
@@ -573,80 +579,6 @@ trait Chat: Send {
     ) -> Result<Turn, LlmError>;
 }
 
-/// A conversation held by a nanocodex agent, which keeps its history.
-#[cfg(feature = "llm")]
-struct AgentChat {
-    runtime: tokio::runtime::Handle,
-    agent: Nanocodex,
-    /// The agent's events, which each turn reads while it runs.
-    events: Option<AgentEvents>,
-}
-
-#[cfg(feature = "llm")]
-impl Chat for AgentChat {
-    fn turn(
-        &mut self,
-        shared: &Arc<Shared>,
-        prompt: String,
-        voice: &Arc<Voice>,
-    ) -> Result<Turn, LlmError> {
-        let Some(mut events) = self.events.take() else {
-            return Err(LlmError::new("an earlier turn lost the agent's events"));
-        };
-        let (agent, budget, voice) = (self.agent.clone(), Arc::clone(shared), Arc::clone(voice));
-        let (result, events) = shared.run(async move {
-            let _permit = budget.turns.acquire().await;
-            // Other turns may have spent the budget while this one waited for its permit.
-            if !budget.affordable() {
-                return (None, events);
-            }
-            let result = async {
-                let turn = agent.prompt(prompt).await?;
-                // The reply streams in until the event that ends the turn.
-                while let Some(event) = events.recv().await {
-                    let delta = match event.kind {
-                        AgentEventKind::AssistantDelta => Delta::Reply,
-                        AgentEventKind::ReasoningSummaryDelta => Delta::Reasoning,
-                        kind if kind.is_terminal() => break,
-                        _ => continue,
-                    };
-                    if let Ok(payload) = serde_json::from_str::<Value>(event.payload.get())
-                        && let Some(text) = payload["text"].as_str()
-                    {
-                        voice.stream(&delta(text.to_string()));
-                    }
-                }
-                turn.await
-            }
-            .await
-            .map(|result| {
-                let usage = result.usage();
-                let tokens = usage.map_or(0, |usage| usage.total_tokens());
-                let nano_usd = usage
-                    .and_then(|usage| usage.estimated_cost())
-                    .map(|cost| cost.amount().nano_usd());
-                // Recorded while the permit is held, so the next turn's check sees it.
-                budget.record(tokens, nano_usd);
-                Turn { tokens, nano_usd, text: result.into_final_message() }
-            });
-            (Some(result), events)
-        })?;
-        self.events = Some(events);
-        let Some(turn) = result else { return Err(LlmError::new(BUDGET_SPENT)) };
-        turn.map_err(|error| LlmError::new(error.to_string()))
-    }
-}
-
-#[cfg(feature = "llm")]
-impl Drop for AgentChat {
-    fn drop(&mut self) {
-        let agent = self.agent.clone();
-        self.runtime.spawn(async move {
-            let _ = agent.shutdown().await;
-        });
-    }
-}
-
 /// A conversation with a chat API, whose history the transcript keeps.
 #[cfg(feature = "llm-transport")]
 struct HttpChat {
@@ -667,28 +599,81 @@ impl Chat for HttpChat {
         let reply = self.transcript.reply_stream();
         let (client, budget, voice) =
             (Arc::clone(&self.client), Arc::clone(shared), Arc::clone(voice));
+        let model = self.transcript.model().to_string();
         let (reply, usage, nano_usd) = shared
             .run(async move {
                 let _permit = budget.turns.acquire().await;
                 // Other turns may have spent the budget while this one waited for its permit.
                 if !budget.affordable() {
-                    return Err(BUDGET_SPENT.to_string());
+                    return Err(budget.stop_reason().to_string());
                 }
+                let mut pending = PendingTurn::new(Arc::clone(&budget))?;
                 let reply = client
                     .send(&body, reply, |delta| voice.stream(&delta), |note| voice.say(note))
                     .await?;
                 // A reply that is no answer, such as a refusal, still used the tokens it
                 // reports. They are recorded while the permit is held, so the next turn's check
                 // sees them.
+                if !Transcript::has_usage(client.protocol(), &reply) {
+                    return Err("the model omitted usage; stopping live rewriting because its cost is unknown".into());
+                }
                 let usage = Transcript::usage(client.protocol(), &reply);
-                let nano_usd = client.prices.map(|prices| prices.cost(usage));
-                budget.record(usage.total(), nano_usd);
+                let nano_usd = client.cost(&model, &reply, usage);
+                pending.complete(usage.total(), nano_usd);
                 Ok((reply, usage, nano_usd))
             })?
-            .map_err(LlmError::new)?;
-        let text = self.transcript.push_reply(&reply).map_err(LlmError::new)?;
+            .map_err(provider_error)?;
+        let text = self.transcript.push_reply(&reply).map_err(provider_error)?;
         Ok(Turn { text, tokens: usage.total(), nano_usd })
     }
+}
+
+/// A started request remains unaccounted until a complete reply supplies usage.
+/// Cancellation, timeouts, malformed or oversized streams all fail closed through Drop.
+#[cfg(feature = "llm-transport")]
+struct PendingTurn {
+    shared: Arc<Shared>,
+    completed: bool,
+}
+
+#[cfg(feature = "llm-transport")]
+impl PendingTurn {
+    fn new(shared: Arc<Shared>) -> std::result::Result<Self, String> {
+        shared
+            .asked
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |asked| {
+                (asked < BUDGET_TURNS && shared.affordable()).then(|| asked + 1)
+            })
+            .map_err(|_| shared.stop_reason().to_string())?;
+        Ok(Self { shared, completed: false })
+    }
+
+    fn complete(&mut self, tokens: u64, nano_usd: Option<u64>) {
+        self.shared.record(tokens, nano_usd);
+        self.completed = true;
+    }
+}
+
+#[cfg(feature = "llm-transport")]
+impl Drop for PendingTurn {
+    fn drop(&mut self) {
+        if !self.completed {
+            self.shared.failed.store(true, Ordering::Relaxed);
+            saturating_add(&self.shared.unpriced, 1);
+        }
+    }
+}
+
+#[cfg(feature = "llm-transport")]
+fn saturating_add(counter: &AtomicU64, value: u64) {
+    let _ = counter
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |old| Some(old.saturating_add(value)));
+}
+
+#[cfg(feature = "llm-transport")]
+fn provider_error(message: String) -> LlmError {
+    let message = message.chars().take(http::MAX_MESSAGE).collect::<String>();
+    LlmError::new(console::printable(&message).into_owned())
 }
 
 /// One conversation about one function.
@@ -771,7 +756,7 @@ impl Conversation {
     /// Sends `prompt` and returns the reply, unless the budget is spent.
     fn turn(&mut self, prompt: String) -> Result<String, LlmError> {
         if !self.shared.affordable() {
-            return Err(LlmError::new(BUDGET_SPENT));
+            return Err(LlmError::new(self.shared.stop_reason()));
         }
         let start = Instant::now();
         let turn = self.chat.turn(&self.shared, prompt, &self.voice);
@@ -949,3 +934,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(all(test, feature = "llm-transport"))]
+mod review_tests;

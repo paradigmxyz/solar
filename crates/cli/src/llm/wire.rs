@@ -25,6 +25,8 @@ const MAX_OUTPUT_TOKENS: u64 = 32_000;
 pub(super) enum Protocol {
     /// Anthropic's Messages API.
     Messages,
+    /// OpenAI Responses with no tools.
+    Responses,
     /// OpenAI-compatible chat completions.
     ChatCompletions,
 }
@@ -34,6 +36,7 @@ impl Protocol {
     pub(super) const fn path(self) -> &'static str {
         match self {
             Self::Messages => "messages",
+            Self::Responses => "responses",
             Self::ChatCompletions => "chat/completions",
         }
     }
@@ -59,7 +62,9 @@ impl Transcript {
             Protocol::Messages => {
                 json!({"role": "user", "content": [{"type": "text", "text": text}]})
             }
-            Protocol::ChatCompletions => json!({"role": "user", "content": text}),
+            Protocol::ChatCompletions | Protocol::Responses => {
+                json!({"role": "user", "content": text})
+            }
         });
     }
 
@@ -97,6 +102,17 @@ impl Transcript {
                 }
                 body
             }
+            Protocol::Responses => {
+                let mut body = json!({
+                    "model": self.model, "instructions": instructions, "input": self.messages,
+                    "stream": true, "store": false, "max_output_tokens": MAX_OUTPUT_TOKENS,
+                    "tools": [], "tool_choice": "none", "include": ["reasoning.encrypted_content"],
+                });
+                if let Some(effort) = self.effort {
+                    body["reasoning"] = json!({"effort": effort.to_str(), "summary": "auto"});
+                }
+                body
+            }
             Protocol::ChatCompletions => {
                 let mut messages = Vec::with_capacity(self.messages.len() + 1);
                 messages.push(json!({"role": "system", "content": instructions}));
@@ -116,6 +132,19 @@ impl Transcript {
         }
     }
 
+    pub(super) fn model(&self) -> &str {
+        &self.model
+    }
+
+    /// Missing usage is unknown spend, not a zero-token turn.
+    pub(super) fn has_usage(protocol: Protocol, reply: &Value) -> bool {
+        let (input, output) = match protocol {
+            Protocol::Messages | Protocol::Responses => ("input_tokens", "output_tokens"),
+            Protocol::ChatCompletions => ("prompt_tokens", "completion_tokens"),
+        };
+        reply["usage"][input].as_u64().is_some() && reply["usage"][output].as_u64().is_some()
+    }
+
     /// Returns the tokens `reply` used, whether or not it holds a usable answer.
     pub(super) fn usage(protocol: Protocol, reply: &Value) -> Usage {
         let usage = &reply["usage"];
@@ -127,6 +156,21 @@ impl Transcript {
                 cache_read: tokens("cache_read_input_tokens"),
                 cache_write: tokens("cache_creation_input_tokens"),
             },
+            Protocol::Responses => {
+                let input = tokens("input_tokens");
+                let cached =
+                    usage["input_tokens_details"]["cached_tokens"].as_u64().unwrap_or(0).min(input);
+                let cache_write = usage["input_tokens_details"]["cache_write_tokens"]
+                    .as_u64()
+                    .unwrap_or(0)
+                    .min(input - cached);
+                Usage {
+                    input: input - cached - cache_write,
+                    output: tokens("output_tokens"),
+                    cache_read: cached,
+                    cache_write,
+                }
+            }
             Protocol::ChatCompletions => {
                 // Cache hits sit in the prompt details for OpenAI and at the top for DeepSeek.
                 let prompt = tokens("prompt_tokens");
@@ -161,6 +205,37 @@ impl Transcript {
                 self.messages.push(json!({"role": "assistant", "content": content}));
                 Ok(text)
             }
+            Protocol::Responses => {
+                let output = reply["output"].as_array().ok_or("the reply holds no output")?;
+                let mut text = String::new();
+                for item in output {
+                    match item["type"].as_str() {
+                        Some("reasoning") => {}
+                        Some("message") => {
+                            for block in item["content"].as_array().into_iter().flatten() {
+                                match block["type"].as_str() {
+                                    Some("output_text") => {
+                                        text.push_str(block["text"].as_str().unwrap_or_default())
+                                    }
+                                    Some("refusal") => {
+                                        return Err("the model declined to answer".into());
+                                    }
+                                    _ => {
+                                        return Err("the model returned unsupported content".into());
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            return Err(
+                                "the model returned a tool call or unsupported output".into()
+                            );
+                        }
+                    }
+                }
+                self.messages.extend(output.iter().cloned());
+                Ok(text)
+            }
             Protocol::ChatCompletions => {
                 let message = &reply["choices"][0]["message"];
                 if !message.is_object() {
@@ -188,6 +263,7 @@ impl Transcript {
             stop: Value::Null,
             usage: Map::new(),
             ended: false,
+            response: None,
         }
     }
 }
@@ -270,6 +346,8 @@ pub(super) struct ReplyStream {
     usage: Map<String, Value>,
     /// Whether the provider marked the end of the reply.
     ended: bool,
+    /// Completed tool-free Responses payload.
+    response: Option<Value>,
 }
 
 impl ReplyStream {
@@ -318,7 +396,15 @@ impl ReplyStream {
                         _ => return Ok(deltas),
                     };
                     let piece = delta[field].as_str().unwrap_or_default();
-                    block[field] = json!(format!("{}{piece}", block[field].as_str().unwrap_or("")));
+                    let field = block
+                        .as_object_mut()
+                        .expect("content block is an object")
+                        .entry(field)
+                        .or_insert_with(|| Value::String(String::new()));
+                    let Value::String(text) = field else {
+                        return Err("the reply streamed into a non-text field".into());
+                    };
+                    text.push_str(piece);
                     if let Some(shown) = shown
                         && !piece.is_empty()
                     {
@@ -330,6 +416,31 @@ impl ReplyStream {
                     self.add_usage(&data["usage"]);
                 }
                 "message_stop" => self.ended = true,
+                _ => {}
+            },
+            Protocol::Responses => match data["type"].as_str().unwrap_or_default() {
+                "response.output_text.delta" => {
+                    if let Some(piece) = data["delta"].as_str() {
+                        deltas.push(Delta::Reply(piece.to_string()));
+                    }
+                }
+                "response.reasoning_summary_text.delta" => {
+                    if let Some(piece) = data["delta"].as_str() {
+                        deltas.push(Delta::Reasoning(piece.to_string()));
+                    }
+                }
+                "response.output_item.added" => {
+                    if !matches!(data["item"]["type"].as_str(), Some("message" | "reasoning")) {
+                        return Err("the model returned a tool call or unsupported output".into());
+                    }
+                }
+                "response.completed" => {
+                    self.response = Some(data["response"].clone());
+                    self.ended = true;
+                }
+                "response.failed" | "response.incomplete" => {
+                    return Err("the Responses reply did not complete".into());
+                }
                 _ => {}
             },
             Protocol::ChatCompletions => {
@@ -357,14 +468,22 @@ impl ReplyStream {
         Ok(deltas)
     }
 
+    /// Whether a terminal event has completed the reply, without waiting for HTTP EOF.
+    pub(super) fn ended(&self) -> bool {
+        self.ended
+    }
+
     /// The whole reply, in the shape it would have arrived unstreamed.
     pub(super) fn finish(self) -> Result<Value, String> {
-        if !self.ended && (self.protocol == Protocol::Messages || self.stop.is_null()) {
+        if !self.ended && (self.protocol != Protocol::ChatCompletions || self.stop.is_null()) {
             return Err("the reply broke off".into());
         }
         Ok(match self.protocol {
             Protocol::Messages => {
                 json!({"content": self.content, "stop_reason": self.stop, "usage": self.usage})
+            }
+            Protocol::Responses => {
+                self.response.ok_or("the Responses reply holds no completed response")?
             }
             Protocol::ChatCompletions => {
                 let mut message = json!({"role": "assistant", "content": self.text});
@@ -389,6 +508,16 @@ impl ReplyStream {
                 for block in reply["content"].as_array().into_iter().flatten() {
                     show(block["thinking"].as_str(), Delta::Reasoning);
                     show(block["text"].as_str(), Delta::Reply);
+                }
+            }
+            Protocol::Responses => {
+                for item in reply["output"].as_array().into_iter().flatten() {
+                    for block in item["content"].as_array().into_iter().flatten() {
+                        show(block["text"].as_str(), Delta::Reply);
+                    }
+                    for block in item["summary"].as_array().into_iter().flatten() {
+                        show(block["text"].as_str(), Delta::Reasoning);
+                    }
                 }
             }
             Protocol::ChatCompletions => {
@@ -802,5 +931,82 @@ data: [DONE]
         for (sse, error) in cases {
             assert_eq!(stream(Protocol::Messages, &sse, 64).1, Err(error.into()), "{sse}");
         }
+    }
+    #[test]
+    fn responses_have_no_tools_and_reject_tool_calls() {
+        let mut transcript =
+            Transcript::new(Protocol::Responses, "gpt-6-sol".into(), Some(LlmEffort::Low));
+        transcript.push_prompt("make it cheaper");
+        let request = transcript.request("brief");
+        assert_eq!(request["tools"], json!([]));
+        assert_eq!(request["tool_choice"], "none");
+        assert_eq!(request["instructions"], "brief");
+        assert_eq!(request["input"][0]["content"], "make it cheaper");
+        let reply = json!({"output": [{"type": "function_call", "name": "exec", "arguments": "while (true) {}"}]});
+        assert_eq!(
+            transcript.push_reply(&reply),
+            Err("the model returned a tool call or unsupported output".into())
+        );
+        let mut stream = transcript.reply_stream();
+        let event = SseEvent {
+            name: None,
+            data: json!({"type": "response.output_item.added", "item": reply["output"][0]})
+                .to_string(),
+        };
+        assert_eq!(
+            stream.read(&event),
+            Err("the model returned a tool call or unsupported output".into())
+        );
+    }
+
+    #[test]
+    fn responses_streams_finish_at_the_completed_event() {
+        let whole = json!({"output": [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "NO_IMPROVEMENT"}]}], "usage": {"input_tokens": 5, "output_tokens": 2}});
+        let sse = format!(
+            "data: {}\n\ndata: {}\n\n",
+            json!({"type":"response.output_text.delta", "delta":"NO_IMPROVEMENT"}),
+            json!({"type":"response.completed", "response":whole})
+        );
+        let (deltas, reply) = stream(Protocol::Responses, &sse, 3);
+        assert_eq!(deltas, [Delta::Reply("NO_IMPROVEMENT".into())]);
+        let reply = reply.unwrap();
+        assert_eq!(reply, whole);
+        let mut transcript = Transcript::new(Protocol::Responses, "gpt-6-sol".into(), None);
+        assert_eq!(transcript.push_reply(&reply).unwrap(), "NO_IMPROVEMENT");
+        assert_eq!(transcript.request("brief")["input"][0], whole["output"][0]);
+        assert!(Transcript::has_usage(Protocol::Responses, &reply));
+        assert_eq!(Transcript::usage(Protocol::Responses, &reply).total(), 7);
+    }
+
+    #[test]
+    fn missing_usage_is_not_a_zero_token_reply() {
+        for protocol in [Protocol::Messages, Protocol::ChatCompletions, Protocol::Responses] {
+            assert!(!Transcript::has_usage(protocol, &json!({})));
+            assert!(!Transcript::has_usage(protocol, &json!({"usage": {}})));
+            assert!(!Transcript::has_usage(
+                protocol,
+                &json!({"usage": {"input_tokens": -1, "output_tokens": 1}})
+            ));
+            let usage = match protocol {
+                Protocol::ChatCompletions => json!({"prompt_tokens": 0, "completion_tokens": 0}),
+                _ => json!({"input_tokens": 0, "output_tokens": 0}),
+            };
+            assert!(Transcript::has_usage(protocol, &json!({"usage": usage})));
+        }
+    }
+
+    #[test]
+    fn message_deltas_append_without_copying_the_prefix() {
+        let mut reply = Transcript::new(Protocol::Messages, "m".into(), None).reply_stream();
+        let start = json!({"type": "content_block_start", "index": 0, "content_block": {"type":"text", "text": "x".repeat(65536)}});
+        reply.read(&SseEvent { name: None, data: start.to_string() }).unwrap();
+        let delta = SseEvent { name: None, data: json!({"type": "content_block_delta", "index":0, "delta":{"type":"text_delta", "text":"x"}}).to_string() };
+        reply.read(&delta).unwrap();
+        let pointer = reply.content[0]["text"].as_str().unwrap().as_ptr();
+        for _ in 0..1024 {
+            reply.read(&delta).unwrap();
+            assert_eq!(reply.content[0]["text"].as_str().unwrap().as_ptr(), pointer);
+        }
+        assert_eq!(reply.content[0]["text"].as_str().unwrap().len(), 66561);
     }
 }

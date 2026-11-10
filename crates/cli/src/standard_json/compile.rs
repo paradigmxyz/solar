@@ -19,7 +19,7 @@ use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
-    OptimizationMode, RevertStrings, UnstableOpts,
+    LlmOptimizeMode, OptimizationMode, RevertStrings, UnstableOpts,
 };
 use solar_data_structures::map::{FxHashMap, FxIndexMap};
 use solar_interface::{
@@ -61,7 +61,13 @@ pub fn compile_standard_json_with<T>(
     prepare: impl FnOnce(&Session) -> T,
 ) -> io::Result<()> {
     let read_callback = read_callback.filter(|_| !opts.no_import_callback);
-    compile_standard_json_with_loader(input, opts, StandardJsonFileLoader { read_callback }, out, prepare)
+    compile_standard_json_with_loader(
+        input,
+        opts,
+        StandardJsonFileLoader { read_callback },
+        out,
+        prepare,
+    )
 }
 
 fn compile_standard_json_with_loader<T>(
@@ -277,7 +283,7 @@ fn compile<T>(
     opts.stop_after = None;
     opts.revert_strings = RevertStrings::Default;
     match UnstableOpts::try_parse_flags(&solar.unstable) {
-        Ok(unstable) => opts.unstable.set_output_options(unstable),
+        Ok(unstable) => apply_llm_settings(&dcx, &mut opts.unstable, unstable),
         Err(e) => {
             let message = e.to_string();
             let message = message.lines().next().unwrap_or_default().trim_start_matches("error:");
@@ -342,7 +348,7 @@ fn compile<T>(
     let mut output_result = None;
     let _ = crate::commands::compile::run_compiler_session_with(
         sess,
-        |compiler| {
+        |compiler, rewriter| {
             let mut output = CompilerOutput::default();
             let result = (|| {
                 let mut parsed_sources = FxIndexMap::default();
@@ -488,6 +494,10 @@ fn compile<T>(
                 Ok(())
             })();
 
+            // The usage note belongs in this JSON document, before diagnostics are serialized.
+            if let Some(rewriter) = rewriter.take() {
+                rewriter.finish(compiler.gcx().sess);
+            }
             let diagnostics = diagnostics.read();
             output_result = Some(finish_standard_json_output(
                 output,
@@ -503,6 +513,37 @@ fn compile<T>(
 
     output_result
         .unwrap_or_else(|| write_empty_standard_json_output(source_map, opts, diagnostics, out))
+}
+
+/// Provider credentials are a host capability, never an instruction in compile input.
+fn apply_llm_settings(dcx: &DiagCtxt, trusted: &mut UnstableOpts, input: UnstableOpts) {
+    if input.llm_optimize == Some(LlmOptimizeMode::Live)
+        && trusted.llm_optimize != Some(LlmOptimizeMode::Live)
+    {
+        dcx.err("live LLM rewriting must be enabled outside Standard JSON input").emit();
+        return;
+    }
+    if input.llm_model.as_ref().is_some_and(|model| Some(model) != trusted.llm_model.as_ref())
+        || input
+            .llm_endpoint
+            .as_ref()
+            .is_some_and(|endpoint| Some(endpoint) != trusted.llm_endpoint.as_ref())
+        || input.llm_effort.is_some_and(|effort| Some(effort) != trusted.llm_effort)
+    {
+        dcx.err("LLM provider options must be configured outside Standard JSON input").emit();
+        return;
+    }
+    let mode = trusted.llm_optimize;
+    let model = trusted.llm_model.take();
+    let endpoint = trusted.llm_endpoint.take();
+    let effort = trusted.llm_effort;
+    trusted.set_output_options(input);
+    trusted.llm_model = model;
+    trusted.llm_endpoint = endpoint;
+    trusted.llm_effort = effort;
+    if trusted.llm_optimize.is_none() && mode == Some(LlmOptimizeMode::Live) {
+        trusted.llm_optimize = mode;
+    }
 }
 
 struct StandardJsonFileLoader {

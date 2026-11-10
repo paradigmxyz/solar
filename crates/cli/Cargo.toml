@@ -49,10 +49,7 @@ solar-lsp = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread", "time"] }
 
 # llm
-nanocodex = { version = "=0.6.5", optional = true, default-features = false, features = [
-    "openai",
-    "tools",
-] }
+nanocodex-oai-api = { version = "=0.6.5", optional = true, default-features = false, features = ["native-tls"] }
 reqwest = { version = "0.13", optional = true, default-features = false, features = ["json"] }
 
 tracing-chrome = { version = "0.7", optional = true }
@@ -75,8 +72,8 @@ tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-th
 default = ["mimalloc", "tracing"]
 lsp = ["dep:solar-lsp", "dep:tokio"]
 # Rewrite MIR with a model through `-Zllm-optimize=live`.
-llm = ["llm-transport", "dep:nanocodex", "reqwest/rustls-no-provider"]
-# The same with requests sent only through an embedder's transport, without nanocodex or TLS.
+llm = ["llm-transport", "dep:nanocodex-oai-api", "reqwest/rustls-no-provider"]
+# Requests sent only through an embedder's transport, without the SDK or TLS.
 llm-transport = ["dep:reqwest", "dep:tokio"]
 # Nightly-only features for faster/smaller builds.
 nightly = [

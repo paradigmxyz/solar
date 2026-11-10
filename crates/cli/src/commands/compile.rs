@@ -36,7 +36,7 @@ pub fn run_compiler_with_sources(
     sess: Session,
     load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result + Send,
 ) -> Result {
-    run_compiler_session_with(sess, |compiler| compile_and_emit(compiler, load_sources), true)
+    run_compiler_session_with(sess, |compiler, _| compile_and_emit(compiler, load_sources), true)
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
@@ -145,20 +145,20 @@ pub(crate) fn run_compiler_with(
     opts: CompileOpts,
     f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
 ) -> Result {
-    run_compiler_session_with(Session::new(opts), f, true)
+    run_compiler_session_with(Session::new(opts), |compiler, _| f(compiler), true)
 }
 
 pub(crate) fn run_compiler_session_with(
     sess: Session,
-    f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
+    f: impl FnOnce(&mut CompilerRef<'_>, &mut Option<crate::llm::Installed>) -> Result + Send,
     finish: bool,
 ) -> Result {
     sess.validate()?;
-    let rewriter = crate::llm::install(&sess)?;
+    let mut rewriter = crate::llm::install(&sess)?;
     let mut compiler = solar_sema::Compiler::new(sess);
     let result = compiler.enter_mut(|compiler| {
-        let result = f(compiler);
-        if let Some(rewriter) = rewriter {
+        let result = f(compiler, &mut rewriter);
+        if let Some(rewriter) = rewriter.take() {
             rewriter.finish(compiler.gcx().sess);
         }
         if !finish {
