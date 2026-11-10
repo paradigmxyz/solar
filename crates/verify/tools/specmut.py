@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ruff: noqa: F841, PLW1510, RUF059, SIM102, SIM115
 """specmut for solverus: mutation testing of Solidity specifications.
 
 A spec is weak when a mutant of the implementation that behaves differently still verifies.
@@ -25,6 +24,7 @@ import re
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 
 # ---------------------------------------------------------------- lexing
@@ -291,11 +291,9 @@ def mutants_of(src, mask, masked, f, ops):
                 "else",
                 "try",
                 "do",
-                "delete",
                 "_",
             ):
-                if t0 != "delete":
-                    continue
+                continue
             # declarations: Type [loc] name ...
             if (
                 len(seg) > 2
@@ -348,6 +346,7 @@ def run_sv(binp, file, only, timeout, wall):
                 only,
                 file,
             ],
+            check=False,
             capture_output=True,
             text=True,
             timeout=wall,
@@ -416,17 +415,19 @@ def main():
         help="also mutate vendored code (lib/, node_modules)",
     )
     a = ap.parse_args()
-    src = open(a.file).read()
-    mask, masked, contracts, funcs = structure(src)
+    src = Path(a.file).read_text()
+    mask, masked, _contracts, funcs = structure(src)
     out = a.out or a.file + ".specmut.jsonl"
     equiv_path = a.file + ".equiv.json"
-    equiv = json.load(open(equiv_path)) if os.path.exists(equiv_path) else {}
+    equiv = (
+        json.loads(Path(equiv_path).read_text()) if os.path.exists(equiv_path) else {}
+    )
     tmpd = os.path.join(os.path.dirname(os.path.abspath(a.file)), ".specmut")
     os.makedirs(tmpd, exist_ok=True)
     if a.tce_only:
         allr = {}
         if os.path.exists(out):
-            for ln in open(out):
+            for ln in Path(out).read_text().splitlines():
                 r = json.loads(ln)
                 allr[r["key"]] = r
         st = tce_pass(a, src, funcs, allr, equiv, tmpd)
@@ -435,11 +436,12 @@ def main():
         return
     # baseline
     if a.baseline:
-        b = json.load(open(a.baseline))
+        b = json.loads(Path(a.baseline).read_text())
         rows = b["rows"] if isinstance(b, dict) else b
     else:
         p = subprocess.run(
             [a.bin, "--json", "--jobs", str(a.j), "--timeout", str(a.timeout), a.file],
+            check=False,
             capture_output=True,
             text=True,
         )
@@ -456,14 +458,6 @@ def main():
     callers = {}
     for f in funcs:
         body = masked[f["a"] : f["b"]]
-        for g in funcs:
-            if g is f:
-                continue
-            called = (
-                re.search(r"\b" + re.escape(f["name"]) + r"\s*\(", body) is not None
-            )
-            if g["kind"] == "modifier":
-                pass
         for nm in set(re.findall(r"\b(\w+)\s*\(", body)) | set(f["mods"]):
             for g in byname.get(nm, []):
                 callers.setdefault(id(g), set()).add(id(f))
@@ -535,7 +529,7 @@ def main():
         return
     prev = {}
     if os.path.exists(out):
-        for ln in open(out):
+        for ln in Path(out).read_text().splitlines():
             r = json.loads(ln)
             prev[r["key"]] = r
     planned = {m["key"] for m in plan if "key" in m}
@@ -554,14 +548,13 @@ def main():
     )
     if a.rerun and os.path.exists(out):
         keep = [json.dumps(r) for r in done.values()]
-        open(out, "w").write("".join(k + "\n" for k in keep))
-    fh = open(out, "a")
+        Path(out).write_text("".join(k + "\n" for k in keep))
 
     def one(m):
         msrc = src[: m["s"]] + m["rep"] + src[m["e"] :]
         h = hashlib.sha1(m["key"].encode()).hexdigest()[:10]
         mf = os.path.join(tmpd, f"{h}-{os.path.basename(a.file)}")
-        open(mf, "w").write(msrc)
+        Path(mf).write_text(msrc)
         res, by, msgs = "survived", None, []
         t0 = time.time()
         for fn in m["affected"]:
@@ -595,12 +588,11 @@ def main():
         print(f"{res:10} {r['secs']:4}s {m['key']}", flush=True)
         return r
 
-    with ThreadPoolExecutor(a.j) as ex:
+    with open(out, "a") as fh, ThreadPoolExecutor(a.j) as ex:
         list(ex.map(one, work))
-    fh.close()
     # summary + trivial compiler equivalence on survivors
     allr = {}
-    for ln in open(out):
+    for ln in Path(out).read_text().splitlines():
         r = json.loads(ln)
         allr[r["key"]] = r
     keys = {m["key"] for m in plan if "key" in m}
@@ -608,7 +600,7 @@ def main():
     tce = {"tce": False}
     if not a.no_tce:
         allrec = {}
-        for ln in open(out):
+        for ln in Path(out).read_text().splitlines():
             r = json.loads(ln)
             allrec[r["key"]] = r
         tce = tce_pass(a, src, funcs, allr, equiv, tmpd)
@@ -651,7 +643,7 @@ SOLC_FLAG_SETS = [
 def solc_version(path):
     try:
         p = subprocess.run(
-            [path, "--version"], capture_output=True, text=True, timeout=30
+            [path, "--version"], check=False, capture_output=True, text=True, timeout=30
         )
         mm = re.search(r"Version: (\d+\.\d+\.\d+)", p.stdout)
         return tuple(map(int, mm.group(1).split("."))) if mm else None
@@ -708,7 +700,9 @@ class Tce:
         self.cache_path = os.path.join(tmpd, "tce-cache.json")
         self.flags_path = os.path.join(tmpd, "tce-flags.json")
         self.cache = (
-            json.load(open(self.cache_path)) if os.path.exists(self.cache_path) else {}
+            json.loads(Path(self.cache_path).read_text())
+            if os.path.exists(self.cache_path)
+            else {}
         )
         self.dirty = 0
 
@@ -717,6 +711,7 @@ class Tce:
             [self.solc]
             + flags
             + ["--metadata-hash", "none", "--combined-json", "bin,bin-runtime", path],
+            check=False,
             capture_output=True,
             text=True,
         )
@@ -751,8 +746,8 @@ class Tce:
             if ck in self.cache:
                 v = self.cache[ck]
                 return (None, v[4:]) if v.startswith("ERR:") else (v, None)
-        if not (os.path.exists(path) and open(path).read() == text):
-            open(path, "w").write(text)
+        if not (os.path.exists(path) and Path(path).read_text() == text):
+            Path(path).write_text(text)
         h, err = self._compile(path, flags)
         with self.lock:
             self.cache[ck] = h if h else "ERR:" + err
@@ -763,14 +758,16 @@ class Tce:
 
     def save(self):
         tmp = self.cache_path + ".tmp"
-        json.dump(self.cache, open(tmp, "w"))
+        Path(tmp).write_text(json.dumps(self.cache))
         os.replace(tmp, self.cache_path)
         self.dirty = 0
 
     def baseline(self, src):
         """Hash of the unmodified file, trying the cached flags first, then each flag set."""
         known = (
-            json.load(open(self.flags_path)) if os.path.exists(self.flags_path) else {}
+            json.loads(Path(self.flags_path).read_text())
+            if os.path.exists(self.flags_path)
+            else {}
         )
         rec = known.get(self.name)
         sets = list(SOLC_FLAG_SETS)
@@ -784,7 +781,9 @@ class Tce:
             if h:
                 self.flags = fl
                 known[self.name] = {"solc": self.solc, "flags": fl}
-                json.dump(known, open(self.flags_path, "w"), indent=1, sort_keys=True)
+                Path(self.flags_path).write_text(
+                    json.dumps(known, indent=1, sort_keys=True)
+                )
                 return h
             # stack too deep is the one error another flag set can fix
             first = first or err
@@ -928,7 +927,9 @@ def tce_pass(a, src, funcs, allr, equiv, tmpd):
             elif was:  # an earlier TCE verdict that no longer holds
                 del equiv[r["key"]]
                 stats["dropped"] += 1
-        json.dump(equiv, open(a.file + ".equiv.json", "w"), indent=1, sort_keys=True)
+        Path(a.file + ".equiv.json").write_text(
+            json.dumps(equiv, indent=1, sort_keys=True)
+        )
     stats["after"] = sum(1 for r in surv if r["key"] not in equiv)
     return stats
 
