@@ -1,0 +1,25 @@
+[package]
+name = "solar-verify"
+description = "SMT-based deductive verifier for Solidity, built on Solar"
+publish = false
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "solverus"
+path = "src/main.rs"
+
+[dependencies]
+num-bigint.workspace = true
+num-traits.workspace = true
+solar-parse.workspace = true
