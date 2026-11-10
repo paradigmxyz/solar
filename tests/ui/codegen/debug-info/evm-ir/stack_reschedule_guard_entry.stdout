@@ -1,0 +1,18 @@
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/stack_reschedule_guard_entry.evmir (before stack-reschedule) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/stack_reschedule_guard_entry.evmir (after stack-reschedule) ===
+  @module StackRescheduleGuardEntry
+  bb0 [stack=2]:
+-   swap 1
+-   dup 2
++   dup 1
+    push bb1
+    jumpi
+-   swap 1
+    push 1 !metadata(invoke=callee@1..10)
+    add
+    stop
+  bb1 [cold]:
+    push 0
+    push 0
+    revert
+  

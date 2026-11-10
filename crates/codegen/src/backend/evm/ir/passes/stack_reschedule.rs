@@ -90,8 +90,9 @@
 //! including `GAS`, calls, other branches and an instruction glued to the next one. Performed
 //! operations and the original pushes keep their debug metadata, while the new stack operations
 //! carry none, which is marked as intentionally dropped, and the origins of the replaced stack
-//! operations go with them. The run's function entry moves to its first instruction and its exit
-//! to its last. Debug metadata decides nothing, so requesting it leaves the code unchanged.
+//! operations go with them. The function entry of a run without a guard moves to its first
+//! instruction and its exit to its last; a run with one keeps them where they are. Debug metadata
+//! decides nothing, so requesting it leaves the code unchanged.
 //!
 //! The pass runs after the late push compaction, so it sees the final pushes, and before the
 //! last stack cleanup and loop layout.
@@ -1338,10 +1339,14 @@ fn emit(
         return None;
     }
     // NOTE: The replaced stack operations, and pushes the schedule makes fewer times, have no
-    // counterpart in the new order. Their origins go with them. The run executes straight through,
-    // so its function entry moves to the first instruction of the schedule and its exit to the
-    // last, wherever the reorder put the instructions that carried them.
-    RunEvents::of(run.iter().map(|inst| &inst.metadata)).place(&mut instructions);
+    // counterpart in the new order. Their origins go with them. Where the run executes straight
+    // through, its function entry moves to the first instruction of the schedule and its exit to
+    // the last, wherever the reorder put the instructions that carried them.
+    // NOTE: A run that passes through a guard is not straight-line: a path that aborts at the guard
+    // never runs what follows it. Its events stay with the instructions that carry them.
+    if run.iter().all(|inst| inst.as_evm_opcode() != Some(op::JUMPI)) {
+        RunEvents::of(run.iter().map(|inst| &inst.metadata)).place(&mut instructions);
+    }
     Some(instructions)
 }
 
