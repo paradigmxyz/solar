@@ -207,18 +207,11 @@ fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
     target: Target,
-    rest: Rest<'a>,
+    /// The instructions of the block after the ones a rule inspects, which the pass has not
+    /// visited.
+    rest: &'a [Instruction],
     rules: Rules,
     stack: StackBound<'a>,
-}
-
-/// The instructions of the block after the ones a rule inspects, which the pass has not visited.
-#[derive(Clone, Copy)]
-pub(super) enum Rest<'a> {
-    /// In block order.
-    Forward(&'a [Instruction]),
-    /// Last instruction first.
-    Reversed(&'a [Instruction]),
 }
 
 /// What the rules know of the stack limit in the block they rewrite.
@@ -246,7 +239,7 @@ impl<'a> StackBound<'a> {
 impl<'a> PeepContext<'a> {
     pub(super) fn new(
         instructions: &'a [Instruction],
-        rest: Rest<'a>,
+        rest: &'a [Instruction],
         target: Target,
         rules: Rules,
         stack: StackBound<'a>,
@@ -350,11 +343,7 @@ impl<'a> PeepContext<'a> {
     /// proved to fit. Otherwise it needs two words above the depth before the window, from the
     /// verifier's entry bound, and an unknown bound gives no room.
     fn has_room_to_reload(&self) -> bool {
-        let fits_block_peak = match self.rest {
-            Rest::Forward(rest) => self.reload_within_block_peak(rest.iter()),
-            Rest::Reversed(rest) => self.reload_within_block_peak(rest.iter().rev()),
-        };
-        if fits_block_peak {
+        if self.reload_within_block_peak() {
             return true;
         }
         self.stack.needed.set(true);
@@ -370,7 +359,7 @@ impl<'a> PeepContext<'a> {
     /// Returns whether the reload's peak, relative to the block's entry, is at most the peak of
     /// the path through the window: the instructions before it, and those after it up to the
     /// first conditional jump or terminal, or to the end with the terminator's lowering growth.
-    fn reload_within_block_peak<'i>(&self, rest: impl Iterator<Item = &'i Instruction>) -> bool {
+    fn reload_within_block_peak(&self) -> bool {
         let step = |depth: isize, inst: &Instruction| {
             let StackEffect { inputs, outputs } = inst.stack_effect();
             depth + isize::from(outputs) - isize::from(inputs)
@@ -384,7 +373,7 @@ impl<'a> PeepContext<'a> {
             depth = step(depth, inst);
             peak = isize::max(peak, depth);
         }
-        for inst in rest {
+        for inst in self.rest {
             if inst.as_evm_opcode().is_some_and(|opcode| opcode == JUMPI || op::is_terminal(opcode))
             {
                 return before_window + 2 <= peak;

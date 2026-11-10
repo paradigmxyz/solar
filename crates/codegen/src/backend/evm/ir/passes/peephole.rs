@@ -55,6 +55,7 @@
 //! Equivalent replacements keep the root operation's source context on their result-producing
 //! instruction. Removed operand locations are dropped, and function events are moved once.
 
+use self::isle::StackBound;
 use super::{
     EvmPass, block_layout::terminator_kind, compact_pushes::materialize_immediate,
     utils::MachineInstKey,
@@ -79,8 +80,6 @@ use std::{
 use tracing::trace;
 
 mod isle;
-
-use isle::{Rest, StackBound};
 
 pub(super) use isle::invert_comparison;
 
@@ -284,10 +283,9 @@ impl Driver<'_> {
         // The early rules match no prefix of an early-clean block, so only the final
         // rules can supply its first rewrite.
         let first = (1..=instructions.len()).find_map(|end| {
-            let rest = Rest::Forward(&instructions[end..]);
             let mut context = isle::PeepContext::new(
                 &instructions[..end],
-                rest,
+                &instructions[end..],
                 self.target,
                 self.rules,
                 self.stack,
@@ -300,15 +298,16 @@ impl Driver<'_> {
         // unchanged prefix; matched suffix => unchanged prefix; replacement
         // Resume the streaming matcher at the first changed tail, including cascades.
         scratch.clear();
-        scratch.extend(instructions.drain(end..).rev());
+        scratch.extend(instructions.drain(end..));
         self.rewrite(instructions, first);
+        let mut tail = scratch.drain(..);
         let mut rewrites = 1;
-        while self.step(instructions, scratch) {
+        while self.step(instructions, tail.as_slice()) {
             rewrites += 1;
         }
-        while let Some(inst) = scratch.pop() {
+        while let Some(inst) = tail.next() {
             instructions.push(inst);
-            while self.step(instructions, scratch) {
+            while self.step(instructions, tail.as_slice()) {
                 rewrites += 1;
             }
         }
@@ -316,15 +315,10 @@ impl Driver<'_> {
     }
 
     /// Applies the rule matching the tail of `instructions`; `rest` is the unvisited rest of the
-    /// block, last instruction first.
+    /// block.
     fn step(self, instructions: &mut Vec<Instruction>, rest: &[Instruction]) -> bool {
-        let mut context = isle::PeepContext::new(
-            instructions,
-            Rest::Reversed(rest),
-            self.target,
-            self.rules,
-            self.stack,
-        );
+        let mut context =
+            isle::PeepContext::new(instructions, rest, self.target, self.rules, self.stack);
         let Some(rewrite) = context.select() else { return false };
         self.rewrite(instructions, rewrite);
         true
