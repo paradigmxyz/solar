@@ -1,0 +1,4 @@
+error: `-Zllm-optimize=live` requires the compiler's `llm` feature
+   │
+   ╰ help: build the compiler with `--features llm`
+

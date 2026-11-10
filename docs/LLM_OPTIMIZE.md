@@ -58,23 +58,38 @@ The command line supports `live` when the compiler is built with its `llm` featu
 
 | `-Zllm-model`           | API                                                                    | Key                    |
 | ----------------------- | ---------------------------------------------------------------------- | ---------------------- |
-| `MODEL`, `openai/MODEL` | OpenAI's Responses API, through [nanocodex](https://docs.rs/nanocodex) | `OPENAI_API_KEY`       |
+| `MODEL`, `openai/MODEL` | OpenAI's Responses API over bounded, tool-free HTTP | `OPENAI_API_KEY`       |
 | `anthropic/MODEL`       | Anthropic's Messages API at `https://api.anthropic.com/v1`             | `ANTHROPIC_API_KEY`    |
 | `opencode/MODEL`        | OpenCode Zen's chat completions at `https://opencode.ai/zen/v1`        | `OPENCODE_ZEN_API_KEY` |
 | `openai-chat/MODEL`     | OpenAI's chat completions at `https://api.openai.com/v1`               | `OPENAI_API_KEY`       |
 
 The key goes only to the provider's client. `-Zllm-endpoint` replaces the base URL, for a proxy or
-another server that speaks the same API, and every request then goes there: OpenAI models, which
-nanocodex asks over a WebSocket by default, are asked over HTTPS at the endpoint instead. The
-compiler warns that `live` sends the MIR of every
+another server that speaks the same API, and every request then goes there. All providers use
+one bounded HTTP reader: replies are capped at 16 MiB, error bodies at 64 KiB, and a terminal SSE
+event ends the turn without waiting for the server to close the body. Retained conversations
+are limited to 8 MiB of encoded history and 65,536 JSON values, including prompts, reasoning,
+signatures and encrypted payloads. Requests are capped at 16 MiB. These limits do not depend on
+reported token usage; exceeding one ends the session without truncating its history. The compiler warns that `live` sends the MIR of every
 offered function to the provider, or to the host `-Zllm-endpoint` names, and ends with a note of
 the turns, tokens, and estimated cost it spent.
+
+Live mode and its provider/model/endpoint must be selected by trusted CLI options or the
+embedder's `CompileOpts`. Standard JSON input cannot enable live mode or replace that provider
+configuration, so compile input cannot route environment credentials to its own endpoint.
+An embedder's transport sends no compiler-managed credentials.
+
+Failed, timed-out or usage-less turns stop new live requests for the whole compilation. Their
+spend is reported as unknown, not zero; complete replies retain their reported usage. Counters
+saturate, and at most 128 turns start even when a provider reports zero tokens. Cached rewrites
+remain usable after live admission closes. The end-of-compilation usage note is included in
+Standard JSON diagnostics too.
 
 Each offered function gets its own conversation, which opens with the rewriting brief in
 `crates/cli/src/llm/instructions.md`: the syntax and semantics of lowered MIR, what a candidate
 must preserve, the costs, and the reply format. Models get no tools, so they cannot read files,
-run commands, or search; OpenAI agents also get a fixed environment, so they see neither the
-host's date nor its `AGENTS.md`. Each reply must hold one fenced `mir` block or
+run commands, or search. Responses requests explicitly disable tools; a returned tool call is
+rejected and never executed. The SDK supplies TLS and model pricing, without an agent or
+JavaScript runtime. Each reply must hold one fenced `mir` block or
 `NO_IMPROVEMENT`; a reply with neither gets one reminder. Anthropic and OpenCode Zen take the
 whole conversation with every request, and each reply goes back as the provider sent it,
 reasoning included: Claude's thinking blocks, and DeepSeek's `reasoning_content`. Anthropic
@@ -93,8 +108,8 @@ A proposal that agrees on samples but cannot be normalized to the original is re
 `proof`; a session can keep trying within its configured rounds. The rejection is sent back to
 the rewriter just like a counterexample or a cost rejection.
 
-`-Zllm-effort` sets how much the model reasons, in its provider's terms: nanocodex's thinking
-level for OpenAI, adaptive thinking at that `output_config.effort` for Anthropic (`none` turns
+`-Zllm-effort` sets how much the model reasons, in its provider's terms: `reasoning.effort`
+for OpenAI, adaptive thinking at that `output_config.effort` for Anthropic (`none` turns
 thinking off), and `reasoning_effort` for OpenCode Zen. Without it, the model reasons as its
 provider defaults. The compiler knows two models' efforts and prices, and rejects an effort
 either model does not take:
@@ -104,12 +119,12 @@ either model does not take:
 | `anthropic/claude-opus-5-5`    | `low`, `medium`, `high`, `xhigh`, `max` | $4 input, $20 output, $5 cache write, $0.20 cache read |
 | `opencode/deepseek-v4.1-flash` | `low`, `high`, `max`                    | $0.30 input, $1.20 output, $0.006 cache read           |
 
-nanocodex prices OpenAI's models. Any other model is asked all the same, and the note reports its
+The SDK's model catalog prices OpenAI's models. Any other model is asked all the same, and the note reports its
 tokens without a cost.
 
-At most four turns run at once, a turn that takes more than ten minutes fails its session, and no
-turn starts once the estimated spend reaches five dollars or the conversations have used ten
-million tokens, which bounds a model without known prices. Anthropic and OpenCode Zen requests
+At most four turns run at once. A failed or ten-minute timed-out turn stops new live requests
+for the compilation, retaining any best candidates already checked. The shared limits are five
+dollars of estimated spend, ten million reported tokens, and 128 started turns. Anthropic and OpenCode Zen requests
 that meet a rate limit, an overloaded or failing server, or a failed connection are sent up to
 four times, waiting between tries as long as the provider asks, or two seconds and then twice as
 long each time. The compiler's client follows no redirect, which would carry a key elsewhere. A
@@ -334,6 +349,10 @@ The fixtures under `tests/ui/codegen/mir/llm-optimize/` use scripts to cover eve
 
 ## Embedding
 
+Standard JSON takes code-changing options from `settings.solar.unstable`, including
+`llm-optimize=live`, `llm-optimize=script`, and cache or script paths. Command-line
+code-generation flags do not override that input.
+
 `solar::codegen::llm` exposes the rewriter interface. An embedder implements `LlmRewriter`, which
 opens an `LlmSession` per function, and binds it to the session it compiles in with `bind_rewriter`,
 which returns a binding that lasts until it drops, before compiling with `-Zllm-optimize=live`. No
@@ -350,13 +369,13 @@ line and Standard JSON bind to their session only when it has no rewriter yet.
 
 An embedder can also keep that rewriter and carry its requests instead. With the `llm` feature,
 `solar::cli::llm::bind_transport` binds a `ChatTransport` to a session, the same way; it sends every
-request of the chat providers in that session, `anthropic/`, `opencode/`, and `openai-chat/`, in
+request of the providers in that session, including `openai/` Responses, in
 place of the compiler's client, and the compiler then reads no key and sends none.
 `ChatTransport::send` takes a `reqwest::Request` with a buffered body and returns the response; a
 `TransportError` it returns is sent again when it is transient, and ends the turn otherwise. The CLI
-crate's `llm-transport` feature builds only this path, without nanocodex, TLS, or a client of the
-compiler's own: `live` then requires a transport, and `openai/` models, which only nanocodex asks,
-are unavailable.
+crate's `llm-transport` feature builds only this path, without the SDK, TLS, or a client of the
+compiler's own: `live` then requires a transport. All wire formats keep the same response limits
+and tool-free behavior.
 
 A transport can pay for requests. A gateway that fronts a provider and charges per request with
 the [Machine Payments Protocol](https://mpp.dev) answers an unpaid request with HTTP 402 and a

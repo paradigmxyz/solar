@@ -1,5 +1,6 @@
 //! CLI debug-output selection, cross-interface parity, and bytecode neutrality.
 
+use super::llm::PIPELINE;
 use serde_json::{Value, json};
 use solar::{
     config::CompileOpts,
@@ -555,5 +556,38 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
             );
             assert_eq!(baseline["contracts"], audited["contracts"], "{fixture}, {mode}: debugify");
         }
+    }
+}
+
+#[test]
+fn llm_rewrites_are_bytecode_neutral_and_named() {
+    const SOURCE: &str = "../../codegen/mir/llm-optimize/auxiliary/provider.sol";
+    const SCRIPT: &str = "-Zllm-script=../../codegen/mir/llm-optimize/auxiliary/provider.script";
+    let runtime = |output: &Value| {
+        output["contracts"].as_object().unwrap().values().next().unwrap()["bin-runtime"].clone()
+    };
+    let id = |output: &Value| output["ethdebug"]["compilation"]["id"].clone();
+    for mode in ["gas", "size"] {
+        let build = |llm: &[&str], emit: &str| {
+            let pipeline = format!("-Zmir-pipeline={PIPELINE}");
+            let mut args = vec![SOURCE, "-O", mode, emit, &pipeline];
+            args.extend_from_slice(llm);
+            compile_json(&args)
+        };
+        let script = ["-Zllm-optimize=script", SCRIPT];
+        let plain = build(&[], "--emit=bin-runtime,ethdebug-runtime");
+        let rewritten = build(&script, "--emit=bin-runtime");
+        let debug = build(&script, "--emit=bin-runtime,ethdebug-runtime,srcmap-runtime");
+        let unasked = build(
+            &[&script[..], &["-Zllm-rounds=0"]].concat(),
+            "--emit=bin-runtime,ethdebug-runtime",
+        );
+
+        // Debug output must not change the bytecode or which proven rewrites apply.
+        assert_eq!(runtime(&debug), runtime(&rewritten), "{mode}");
+        // Only an applied rewrite names another compilation.
+        assert_ne!(id(&debug), id(&plain), "{mode}");
+        assert_eq!(runtime(&unasked), runtime(&plain), "{mode}");
+        assert_eq!(id(&unasked), id(&plain), "{mode}");
     }
 }

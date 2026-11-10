@@ -1,0 +1,7 @@
+--- function identity
+--- candidate
+fn @identity(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = and arg0, 255
+    ret v0
+}

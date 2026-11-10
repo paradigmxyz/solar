@@ -19,11 +19,11 @@ use serde_json::json;
 use solar_codegen::{ContractArtifact, ContractSelection, ImmutableReference, RuntimeDataFn};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, LibraryAddress,
-    OptimizationMode, RevertStrings, UnstableOpts,
+    LlmOptimizeMode, OptimizationMode, RevertStrings, UnstableOpts,
 };
 use solar_data_structures::map::{FxHashMap, FxIndexMap};
 use solar_interface::{
-    SourceMap,
+    Session, SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::{FileLoader, RealFileLoader},
 };
@@ -44,15 +44,38 @@ pub fn compile_standard_json(
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
     out: &mut (dyn Write + Send),
 ) -> io::Result<()> {
-    let read_callback = read_callback.filter(|_| !opts.no_import_callback);
-    compile_standard_json_with(input, opts, StandardJsonFileLoader { read_callback }, out)
+    compile_standard_json_with(input, opts, read_callback, out, |_| ())
 }
 
-fn compile_standard_json_with(
+/// Compiles Standard JSON input like [`compile_standard_json`], first calling `prepare` with the
+/// session the compilation runs in.
+///
+/// `prepare` binds to the session what this compilation alone uses, such as a rewriter or
+/// transport, and returns the bindings, which last until the compilation ends. Invalid JSON
+/// never reaches `prepare`.
+pub fn compile_standard_json_with<T>(
+    input: &str,
+    opts: CompileOpts,
+    read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
+    out: &mut (dyn Write + Send),
+    prepare: impl FnOnce(&Session) -> T,
+) -> io::Result<()> {
+    let read_callback = read_callback.filter(|_| !opts.no_import_callback);
+    compile_standard_json_with_loader(
+        input,
+        opts,
+        StandardJsonFileLoader { read_callback },
+        out,
+        prepare,
+    )
+}
+
+fn compile_standard_json_with_loader<T>(
     input: &str,
     mut opts: CompileOpts,
     file_loader: impl FileLoader,
     out: &mut (dyn Write + Send),
+    prepare: impl FnOnce(&Session) -> T,
 ) -> io::Result<()> {
     // Library callers bypass CLI argument conflicts. Only outputSelection may
     // select Standard JSON artifacts; never leak a second CLI-shaped document.
@@ -84,6 +107,7 @@ fn compile_standard_json_with(
                 dcx,
                 &diagnostics,
                 out,
+                prepare,
             );
         }
         Err(e) => {
@@ -107,7 +131,7 @@ pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
         Ok(_) if opts.no_import_callback => compile_standard_json(&input, opts, None, &mut stdout)?,
         Ok(_) => {
             let reader = FileReader::new(&opts);
-            compile_standard_json_with(&input, opts, reader, &mut stdout)?
+            compile_standard_json_with_loader(&input, opts, reader, &mut stdout, |_| ())?
         }
         Err(e) => standard_json_error_output(
             format!("failed to read standard JSON input: {e}"),
@@ -202,13 +226,14 @@ fn apply_debug_settings(dcx: &DiagCtxt, opts: &mut CompileOpts, debug: &DebugSet
     }
 }
 
-fn compile(
+fn compile<T>(
     input: CompilerInput<'_>,
     opts: &mut CompileOpts,
     source_map: Arc<SourceMap>,
     dcx: DiagCtxt,
     diagnostics: &solar_data_structures::sync::RwLock<Vec<solar_interface::diagnostics::Diag>>,
     out: &mut (dyn Write + Send),
+    prepare: impl FnOnce(&Session) -> T,
 ) -> io::Result<()> {
     let CompilerInput { language, sources, settings } = input;
     // Destructure `Settings` so every recognized field is handled explicitly;
@@ -251,14 +276,14 @@ fn compile(
 
     opts.import_remappings = parsed_remappings;
     // Like solc, Standard JSON takes the settings that change its output only from its input, so
-    // that the input and the compiler version determine the output: the command line's
-    // `--evm-version`, `--stop-after`, `--revert-strings` and `-Z` flags that change output do not
-    // apply, and `settings.solar.unstable` replaces the latter.
+    // that ordinary codegen settings come from the input: the command line's `--evm-version`,
+    // `--stop-after`, `--revert-strings` and output-changing `-Z` flags do not apply.
+    // Rewriting is a host capability; its actual decisions are recorded in metadata.
     opts.evm_version = EvmVersion::default();
     opts.stop_after = None;
     opts.revert_strings = RevertStrings::Default;
     match UnstableOpts::try_parse_flags(&solar.unstable) {
-        Ok(unstable) => opts.unstable.set_output_options(unstable),
+        Ok(unstable) => apply_llm_settings(&dcx, &mut opts.unstable, unstable),
         Err(e) => {
             let message = e.to_string();
             let message = message.lines().next().unwrap_or_default().trim_start_matches("error:");
@@ -315,16 +340,15 @@ fn compile(
     }
     opts.input = sources.keys().map(ToString::to_string).collect();
 
-    let sess = solar_interface::Session::builder()
-        .source_map(Arc::clone(&source_map))
-        .dcx(dcx)
-        .opts(opts.clone())
-        .build();
+    let sess =
+        Session::builder().source_map(Arc::clone(&source_map)).dcx(dcx).opts(opts.clone()).build();
+    // What the embedder binds to the session lasts until the compilation ends.
+    let _prepared = prepare(&sess);
 
     let mut output_result = None;
     let _ = crate::commands::compile::run_compiler_session_with(
         sess,
-        |compiler| {
+        |compiler, rewriter| {
             let mut output = CompilerOutput::default();
             let result = (|| {
                 let mut parsed_sources = FxIndexMap::default();
@@ -470,6 +494,10 @@ fn compile(
                 Ok(())
             })();
 
+            // The usage note belongs in this JSON document, before diagnostics are serialized.
+            if let Some(rewriter) = rewriter.take() {
+                rewriter.finish(compiler.gcx().sess);
+            }
             let diagnostics = diagnostics.read();
             output_result = Some(finish_standard_json_output(
                 output,
@@ -485,6 +513,29 @@ fn compile(
 
     output_result
         .unwrap_or_else(|| write_empty_standard_json_output(source_map, opts, diagnostics, out))
+}
+
+/// Provider credentials are a host capability, never an instruction in compile input.
+fn apply_llm_settings(dcx: &DiagCtxt, trusted: &mut UnstableOpts, input: UnstableOpts) {
+    if input.llm_optimize == Some(LlmOptimizeMode::Live)
+        && trusted.llm_optimize != Some(LlmOptimizeMode::Live)
+    {
+        dcx.err("live LLM rewriting must be enabled outside Standard JSON input").emit();
+        return;
+    }
+    if input.llm_model.as_ref().is_some_and(|model| Some(model) != trusted.llm_model.as_ref())
+        || input
+            .llm_endpoint
+            .as_ref()
+            .is_some_and(|endpoint| Some(endpoint) != trusted.llm_endpoint.as_ref())
+        || input.llm_effort.is_some_and(|effort| Some(effort) != trusted.llm_effort)
+    {
+        dcx.err("LLM provider options must be configured outside Standard JSON input").emit();
+        return;
+    }
+    // set_output_options preserves all host-owned rewriting controls. Accepted decisions are
+    // bound to metadata by the engine before either metadata-only or bytecode outputs run.
+    trusted.set_output_options(input);
 }
 
 struct StandardJsonFileLoader {
