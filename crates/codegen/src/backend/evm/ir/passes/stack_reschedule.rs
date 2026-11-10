@@ -1267,6 +1267,8 @@ fn emit(
         (0..summary.entry).map(|depth| Word::Entry(depth as u8)).collect();
     let mut performed = 0u32;
     let mut instructions = Vec::with_capacity(moves.len());
+    // The index in `instructions` of each placed original.
+    let mut slots = vec![0; run.len()];
     placed.clear_to(run.len());
     for &step in moves {
         match step {
@@ -1290,6 +1292,7 @@ fn emit(
                 let position = operation_info.position;
                 let original = &run[position];
                 placed.insert(position);
+                slots[position] = instructions.len();
                 instructions.push(match operation_info.swapped {
                     Some(opcode) if swapped && opcode != original.opcode => {
                         Instruction::opcode(opcode).with_metadata(original.metadata.clone())
@@ -1299,6 +1302,7 @@ fn emit(
                 // A branch's operation is its push, followed by its `JUMPI`.
                 if original.is_encoded_push() {
                     placed.insert(position + 1);
+                    slots[position + 1] = instructions.len();
                     instructions.push(run[position + 1].clone());
                 }
             }
@@ -1309,6 +1313,7 @@ fn emit(
                 match originals.iter().copied().find(|&position| !placed.contains(position)) {
                     Some(position) => {
                         placed.insert(position);
+                        slots[position] = instructions.len();
                         instructions.push(run[position].clone());
                     }
                     None => {
@@ -1343,9 +1348,19 @@ fn emit(
     // through, its function entry moves to the first instruction of the schedule and its exit to
     // the last, wherever the reorder put the instructions that carried them.
     // NOTE: A run that passes through a guard is not straight-line: a path that aborts at the guard
-    // never runs what follows it. Its events stay with the instructions that carry them.
+    // never runs what follows it. Its events stay with the instructions that carry them, and those
+    // of a replaced instruction go to the next original that the schedule keeps, which runs after
+    // it on the same path.
     if run.iter().all(|inst| inst.as_evm_opcode() != Some(op::JUMPI)) {
         RunEvents::of(run.iter().map(|inst| &inst.metadata)).place(&mut instructions);
+    } else {
+        for (position, inst) in run.iter().enumerate() {
+            if !placed.contains(position)
+                && let Some(next) = (position + 1..run.len()).find(|&next| placed.contains(next))
+            {
+                instructions[slots[next]].metadata.move_function_events(&inst.metadata);
+            }
+        }
     }
     Some(instructions)
 }
