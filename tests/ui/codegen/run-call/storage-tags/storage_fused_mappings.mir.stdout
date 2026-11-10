@@ -1,0 +1,466 @@
+; === ROOT/tests/ui/codegen/run-call/storage-tags/storage_fused_mappings.sol:FusedMappings ===
+@module FusedMappings
+@types
+  struct0: {i128, i64, i64}
+  struct1: {i256, i256, i256}
+  struct2: {i128, i64, i64, i128, i64, i64}
+  struct3: {i128, i64}
+  struct4: {i160, i1, i256, i8, i256, i256, i256}
+
+; getter for `mapping(address => uint128) public balance` [selector 0xe3d670d7]
+fn @balance(arg0: i160) -> i128 [selector=0xe3d670d7, view, abi_params=[address], abi_returns=[word<uint128>], abi_return_params=[uint128]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = trunc i256 v2 to i128
+    ret v3
+}
+
+; getter for `mapping(address => uint64) public nonce` [selector 0x70ae92d2]
+fn @nonce(arg0: i160) -> i64 [selector=0x70ae92d2, view, abi_params=[address], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = shr v2, 128
+    v4 = trunc i256 v3 to i64
+    ret v4
+}
+
+; getter for `mapping(address => uint64) public expiry` [selector 0x24a0f523]
+fn @expiry(arg0: i160) -> i64 [selector=0x24a0f523, view, abi_params=[address], abi_returns=[word<uint64>], abi_return_params=[uint64]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = shr v2, 192
+    v4 = trunc i256 v3 to i64
+    ret v4
+}
+
+; function roundTrip(address a) external returns (uint128, uint64, uint64) [selector 0x1959e416]
+fn @roundTrip(arg0: i160) -> struct0 [selector=0x1959e416, abi_params=[address], abi_returns=[word<uint128>, word<uint64>, word<uint64>], abi_return_params=[uint128, uint64, uint64]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v4 = or v3, 0x3e8
+    sstore v1, v4 !metadata(storage=symbolic(v1))
+    v5 = zext i160 arg0 to i256
+    v6 = mapping_slot v5, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = and v7, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v9 = or v8, 0x700000000000000000000000000000000
+    sstore v6, v9 !metadata(storage=symbolic(v6))
+    v10 = zext i160 arg0 to i256
+    v11 = mapping_slot v10, 0
+    v12 = sload v11 !metadata(storage=symbolic(v11))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v14 = or v13, 0x63000000000000000000000000000000000000000000000000
+    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v15 = zext i160 arg0 to i256
+    v16 = mapping_slot v15, 0
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = trunc i256 v17 to i128
+    v19 = zext i160 arg0 to i256
+    v20 = mapping_slot v19, 0
+    v21 = sload v20 !metadata(storage=symbolic(v20))
+    v22 = shr v21, 128
+    v23 = trunc i256 v22 to i64
+    v24 = zext i160 arg0 to i256
+    v25 = mapping_slot v24, 0
+    v26 = sload v25 !metadata(storage=symbolic(v25))
+    v27 = shr v26, 192
+    v28 = trunc i256 v27 to i64
+    v29 = insert_value struct0, undef struct0, 0, v18
+    v30 = insert_value struct0, v29, 1, v23
+    v31 = insert_value struct0, v30, 2, v28
+    ret v31
+}
+
+; function rawRecord(address a) external returns (bytes32 word, bytes32 next, bytes32 standard) [selector 0xfa90f301]
+fn @rawRecord(arg0: i160) -> struct1 [selector=0xfa90f301, abi_params=[address], abi_returns=[word, word, word], abi_return_params=[bytes32, bytes32, bytes32]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v4 = or v3, 0x3e8
+    sstore v1, v4 !metadata(storage=symbolic(v1))
+    v5 = zext i160 arg0 to i256
+    v6 = mapping_slot v5, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = and v7, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v9 = or v8, 0x700000000000000000000000000000000
+    sstore v6, v9 !metadata(storage=symbolic(v6))
+    v10 = zext i160 arg0 to i256
+    v11 = mapping_slot v10, 0
+    v12 = sload v11 !metadata(storage=symbolic(v11))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v14 = or v13, 0x63000000000000000000000000000000000000000000000000
+    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v15 = zext i160 arg0 to i256
+    v16 = keccak256_packed (uint256 v15, uint256 0)
+    v17 = zext i160 arg0 to i256
+    v18 = keccak256_packed (uint256 v17, uint256 1)
+    v19 = sload v16 !metadata(storage=symbolic(v16))
+    v20 = add v16, 1
+    v21 = sload v20 !metadata(storage=offset(v16, 1))
+    v22 = sload v18 !metadata(storage=symbolic(v18))
+    v23 = insert_value struct1, undef struct1, 0, v19
+    v24 = insert_value struct1, v23, 1, v21
+    v25 = insert_value struct1, v24, 2, v22
+    ret v25
+}
+
+; function independent(address a, address b) external returns (uint128, uint64, uint64, uint128, uint64, uint64) [selector 0x49a53e56]
+fn @independent(arg0: i160, arg1: i160) -> struct2 [selector=0x49a53e56, abi_params=[address, address], abi_returns=[word<uint128>, word<uint64>, word<uint64>, word<uint128>, word<uint64>, word<uint64>], abi_return_params=[uint128, uint64, uint64, uint128, uint64, uint64]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v4 = or v3, 1
+    sstore v1, v4 !metadata(storage=symbolic(v1))
+    v5 = zext i160 arg0 to i256
+    v6 = mapping_slot v5, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = and v7, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v9 = or v8, 0x200000000000000000000000000000000
+    sstore v6, v9 !metadata(storage=symbolic(v6))
+    v10 = zext i160 arg0 to i256
+    v11 = mapping_slot v10, 0
+    v12 = sload v11 !metadata(storage=symbolic(v11))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v14 = or v13, 0x3000000000000000000000000000000000000000000000000
+    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v15 = zext i160 arg1 to i256
+    v16 = mapping_slot v15, 0
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = and v17, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v19 = or v18, 10
+    sstore v16, v19 !metadata(storage=symbolic(v16))
+    v20 = zext i160 arg1 to i256
+    v21 = mapping_slot v20, 0
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    v23 = and v22, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v24 = or v23, 0x1400000000000000000000000000000000
+    sstore v21, v24 !metadata(storage=symbolic(v21))
+    v25 = zext i160 arg1 to i256
+    v26 = mapping_slot v25, 0
+    v27 = sload v26 !metadata(storage=symbolic(v26))
+    v28 = and v27, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v29 = or v28, 0x1e000000000000000000000000000000000000000000000000
+    sstore v26, v29 !metadata(storage=symbolic(v26))
+    v30 = zext i160 arg0 to i256
+    v31 = mapping_slot v30, 0
+    v32 = sload v31 !metadata(storage=symbolic(v31))
+    v33 = trunc i256 v32 to i128
+    v34 = zext i160 arg0 to i256
+    v35 = mapping_slot v34, 0
+    v36 = sload v35 !metadata(storage=symbolic(v35))
+    v37 = shr v36, 128
+    v38 = trunc i256 v37 to i64
+    v39 = zext i160 arg0 to i256
+    v40 = mapping_slot v39, 0
+    v41 = sload v40 !metadata(storage=symbolic(v40))
+    v42 = shr v41, 192
+    v43 = trunc i256 v42 to i64
+    v44 = zext i160 arg1 to i256
+    v45 = mapping_slot v44, 0
+    v46 = sload v45 !metadata(storage=symbolic(v45))
+    v47 = trunc i256 v46 to i128
+    v48 = zext i160 arg1 to i256
+    v49 = mapping_slot v48, 0
+    v50 = sload v49 !metadata(storage=symbolic(v49))
+    v51 = shr v50, 128
+    v52 = trunc i256 v51 to i64
+    v53 = zext i160 arg1 to i256
+    v54 = mapping_slot v53, 0
+    v55 = sload v54 !metadata(storage=symbolic(v54))
+    v56 = shr v55, 192
+    v57 = trunc i256 v56 to i64
+    v58 = insert_value struct2, undef struct2, 0, v33
+    v59 = insert_value struct2, v58, 1, v38
+    v60 = insert_value struct2, v59, 2, v43
+    v61 = insert_value struct2, v60, 3, v47
+    v62 = insert_value struct2, v61, 4, v52
+    v63 = insert_value struct2, v62, 5, v57
+    ret v63
+}
+
+; function deleteOne(address a) external returns (uint128, uint64, uint64) [selector 0xb7170a99]
+fn @deleteOne(arg0: i160) -> struct0 [selector=0xb7170a99, abi_params=[address], abi_returns=[word<uint128>, word<uint64>, word<uint64>], abi_return_params=[uint128, uint64, uint64]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v4 = or v3, 0x3e8
+    sstore v1, v4 !metadata(storage=symbolic(v1))
+    v5 = zext i160 arg0 to i256
+    v6 = mapping_slot v5, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = and v7, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v9 = or v8, 0x700000000000000000000000000000000
+    sstore v6, v9 !metadata(storage=symbolic(v6))
+    v10 = zext i160 arg0 to i256
+    v11 = mapping_slot v10, 0
+    v12 = sload v11 !metadata(storage=symbolic(v11))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v14 = or v13, 0x63000000000000000000000000000000000000000000000000
+    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v15 = zext i160 arg0 to i256
+    v16 = mapping_slot v15, 0
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = and v17, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v19 = or v18, 0
+    sstore v16, v19 !metadata(storage=symbolic(v16))
+    v20 = zext i160 arg0 to i256
+    v21 = mapping_slot v20, 0
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    v23 = trunc i256 v22 to i128
+    v24 = zext i160 arg0 to i256
+    v25 = mapping_slot v24, 0
+    v26 = sload v25 !metadata(storage=symbolic(v25))
+    v27 = shr v26, 128
+    v28 = trunc i256 v27 to i64
+    v29 = zext i160 arg0 to i256
+    v30 = mapping_slot v29, 0
+    v31 = sload v30 !metadata(storage=symbolic(v30))
+    v32 = shr v31, 192
+    v33 = trunc i256 v32 to i64
+    v34 = insert_value struct0, undef struct0, 0, v23
+    v35 = insert_value struct0, v34, 1, v28
+    v36 = insert_value struct0, v35, 2, v33
+    ret v36
+}
+
+; function compound(address a) external returns (uint128, uint64) [selector 0x284dac23]
+fn @compound(arg0: i160) -> struct3 [selector=0x284dac23, abi_params=[address], abi_returns=[word<uint128>, word<uint64>], abi_return_params=[uint128, uint64]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v4 = or v3, 0xfffffffffffffffffffffffffffffffe
+    sstore v1, v4 !metadata(storage=symbolic(v1))
+    v5 = zext i160 arg0 to i256
+    v6 = mapping_slot v5, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = trunc i256 v7 to i128
+    v9 = checked_add uint128, v8, i128 1
+    v10 = sload v6 !metadata(storage=symbolic(v6))
+    v11 = and v10, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v12 = zext i128 v9 to i256
+    v13 = and v12, 0xffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore v6, v14 !metadata(storage=symbolic(v6))
+    v15 = zext i160 arg0 to i256
+    v16 = mapping_slot v15, 0
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = and v17, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v19 = or v18, 0x700000000000000000000000000000000
+    sstore v16, v19 !metadata(storage=symbolic(v16))
+    v20 = zext i160 arg0 to i256
+    v21 = mapping_slot v20, 0
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    v23 = shr v22, 128
+    v24 = trunc i256 v23 to i64
+    v25 = checked_add uint64, v24, i64 1
+    v26 = sload v21 !metadata(storage=symbolic(v21))
+    v27 = and v26, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v28 = zext i64 v25 to i256
+    v29 = and v28, 0xffffffffffffffff
+    v30 = shl v29, 128
+    v31 = or v27, v30
+    sstore v21, v31 !metadata(storage=symbolic(v21))
+    v32 = zext i160 arg0 to i256
+    v33 = mapping_slot v32, 0
+    v34 = sload v33 !metadata(storage=symbolic(v33))
+    v35 = trunc i256 v34 to i128
+    v36 = zext i160 arg0 to i256
+    v37 = mapping_slot v36, 0
+    v38 = sload v37 !metadata(storage=symbolic(v37))
+    v39 = shr v38, 128
+    v40 = trunc i256 v39 to i64
+    v41 = insert_value struct3, undef struct3, 0, v35
+    v42 = insert_value struct3, v41, 1, v40
+    ret v42
+}
+
+; function overflow(address a) external returns (uint128) [selector 0xa3a183c1]
+fn @overflow(arg0: i160) -> i128 [selector=0xa3a183c1, abi_params=[address], abi_returns=[word<uint128>], abi_return_params=[uint128]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v4 = or v3, 0xffffffffffffffffffffffffffffffff
+    sstore v1, v4 !metadata(storage=symbolic(v1))
+    v5 = zext i160 arg0 to i256
+    v6 = mapping_slot v5, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = trunc i256 v7 to i128
+    v9 = checked_add uint128, v8, i128 1
+    v10 = sload v6 !metadata(storage=symbolic(v6))
+    v11 = and v10, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v12 = zext i128 v9 to i256
+    v13 = and v12, 0xffffffffffffffffffffffffffffffff
+    v14 = or v11, v13
+    sstore v6, v14 !metadata(storage=symbolic(v6))
+    v15 = zext i160 arg0 to i256
+    v16 = mapping_slot v15, 0
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = trunc i256 v17 to i128
+    ret v18
+}
+
+; function getters(address a) external returns (uint128, uint64, uint64) [selector 0x0bc0504b]
+fn @getters(arg0: i160) -> struct0 [selector=0x0bc0504b, abi_params=[address], abi_returns=[word<uint128>, word<uint64>, word<uint64>], abi_return_params=[uint128, uint64, uint64]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 0
+    v2 = sload v1 !metadata(storage=symbolic(v1))
+    v3 = and v2, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v4 = or v3, 5
+    sstore v1, v4 !metadata(storage=symbolic(v1))
+    v5 = zext i160 arg0 to i256
+    v6 = mapping_slot v5, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = and v7, 0xffffffffffffffff0000000000000000ffffffffffffffffffffffffffffffff
+    v9 = or v8, 0x600000000000000000000000000000000
+    sstore v6, v9 !metadata(storage=symbolic(v6))
+    v10 = zext i160 arg0 to i256
+    v11 = mapping_slot v10, 0
+    v12 = sload v11 !metadata(storage=symbolic(v11))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v14 = or v13, 0x7000000000000000000000000000000000000000000000000
+    sstore v11, v14 !metadata(storage=symbolic(v11))
+    v15 = address
+    v16 = gas
+    mstore 0, 0xe3d670d7 !metadata(memory=scratch)
+    v17 = zext i160 arg0 to i256
+    mstore 32, v17 !metadata(memory=scratch)
+    v18 = zext i160 v15 to i256
+    v19 = staticcall v16, v18, 28, 36, 0, 32
+    jumpi v19, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v20 = returndatasize
+    v21 = lt v20, 32
+    icall revert_if<tuple_data_too_short>, v21
+    v22 = mload 0 !metadata(memory=scratch)
+    v23 = gt v22, 0xffffffffffffffffffffffffffffffff
+    icall revert_if<empty>, v23
+    v24 = trunc i256 v22 to i128
+    v25 = address
+    v26 = gas
+    mstore 0, 0x70ae92d2 !metadata(memory=scratch)
+    v27 = zext i160 arg0 to i256
+    mstore 32, v27 !metadata(memory=scratch)
+    v28 = zext i160 v25 to i256
+    v29 = staticcall v26, v28, 28, 36, 0, 32
+    jumpi v29, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v30 = returndatasize
+    v31 = lt v30, 32
+    icall revert_if<tuple_data_too_short>, v31
+    v32 = mload 0 !metadata(memory=scratch)
+    v33 = gt v32, 0xffffffffffffffff
+    icall revert_if<empty>, v33
+    v34 = trunc i256 v32 to i64
+    v35 = address
+    v36 = gas
+    mstore 0, 0x24a0f523 !metadata(memory=scratch)
+    v37 = zext i160 arg0 to i256
+    mstore 32, v37 !metadata(memory=scratch)
+    v38 = zext i160 v35 to i256
+    v39 = staticcall v36, v38, 28, 36, 0, 32
+    jumpi v39, bb6, bb5
+  bb5:                                            ; preds = bb4
+    revert_returndata
+  bb6:                                            ; preds = bb4
+    v40 = returndatasize
+    v41 = lt v40, 32
+    icall revert_if<tuple_data_too_short>, v41
+    v42 = mload 0 !metadata(memory=scratch)
+    v43 = gt v42, 0xffffffffffffffff
+    icall revert_if<empty>, v43
+    v44 = trunc i256 v42 to i64
+    v45 = insert_value struct0, undef struct0, 0, v24
+    v46 = insert_value struct0, v45, 1, v34
+    v47 = insert_value struct0, v46, 2, v44
+    ret v47
+}
+
+; function orders(uint256 id) external returns (address, bool, uint256, int8, bytes32 w0, bytes32 w1, bytes32 w2) [selector 0xa85c38ef]
+fn @orders(arg0: i256) -> struct4 [selector=0xa85c38ef, abi_params=[uint256], abi_returns=[word<uint160>, word<bool>, word, word<int8>, word, word, word], abi_return_params=[address, bool, uint256, int8, bytes32, bytes32, bytes32]] {
+  bb0:
+    v0 = mapping_slot arg0, 4
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
+    v3 = or v2, 0xbeef
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = mapping_slot arg0, 4
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = and v5, 0xffffffffffffffffffffff00ffffffffffffffffffffffffffffffffffffffff
+    v7 = or v6, 0x10000000000000000000000000000000000000000
+    sstore v4, v7 !metadata(storage=symbolic(v4))
+    v8 = mapping_slot arg0, 4
+    v9 = add v8, 1
+    sstore v9, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=offset(v8, 1))
+    v10 = mapping_slot arg0, 4
+    v11 = add v10, 2
+    v12 = sload v11 !metadata(storage=offset(v10, 2))
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v14 = or v13, 253
+    sstore v11, v14 !metadata(storage=offset(v10, 2))
+    v15 = keccak256_packed (uint256 arg0, uint256 4)
+    v16 = sload v15 !metadata(storage=symbolic(v15))
+    v17 = add v15, 1
+    v18 = sload v17 !metadata(storage=offset(v15, 1))
+    v19 = add v15, 2
+    v20 = sload v19 !metadata(storage=offset(v15, 2))
+    v21 = mapping_slot arg0, 4
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    v23 = trunc i256 v22 to i160
+    v24 = mapping_slot arg0, 4
+    v25 = sload v24 !metadata(storage=symbolic(v24))
+    v26 = shr v25, 160
+    v27 = trunc i256 v26 to i8
+    v28 = ne v27, i8 0
+    v29 = mapping_slot arg0, 4
+    v30 = add v29, 1
+    v31 = sload v30 !metadata(storage=offset(v29, 1))
+    v32 = mapping_slot arg0, 4
+    v33 = add v32, 2
+    v34 = sload v33 !metadata(storage=offset(v32, 2))
+    v35 = signextend 0, v34
+    v36 = trunc i256 v35 to i8
+    v37 = insert_value struct4, undef struct4, 0, v23
+    v38 = insert_value struct4, v37, 1, v28
+    v39 = insert_value struct4, v38, 2, v31
+    v40 = insert_value struct4, v39, 3, v36
+    v41 = insert_value struct4, v40, 4, v16
+    v42 = insert_value struct4, v41, 5, v18
+    v43 = insert_value struct4, v42, 6, v20
+    ret v43
+}
+
+; function plainStaysStandard(address a) external returns (bytes32 word) [selector 0x7aa268a8]
+fn @plainStaysStandard(arg0: i160) -> i256 [selector=0x7aa268a8, abi_params=[address], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = mapping_slot v0, 3
+    sstore v1, 9 !metadata(storage=symbolic(v1))
+    v2 = zext i160 arg0 to i256
+    v3 = keccak256_packed (uint256 v2, uint256 3)
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    ret v4
+}

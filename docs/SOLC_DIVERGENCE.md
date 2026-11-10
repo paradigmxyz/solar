@@ -1081,10 +1081,10 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   cannot be written to storage as a whole, and the dictionary may only grow.
   The module documentation of `crates/sema/src/typeck/storage_tags.rs`
   describes the tags.
-- Coverage: `tests/ui/codegen/lowering/run-call/storage_fused_mappings.sol`,
-  `tests/ui/codegen/lowering/run-call/storage_inline_arrays.sol`,
-  `tests/ui/codegen/lowering/run-call/storage_bitmap_mappings.sol`,
-  `tests/ui/codegen/lowering/run-call/storage_handles.sol`,
+- Coverage: `tests/ui/codegen/run-call/storage-tags/storage_fused_mappings.sol`,
+  `tests/ui/codegen/run-call/storage-tags/storage_inline_arrays.sol`,
+  `tests/ui/codegen/run-call/storage-tags/storage_bitmap_mappings.sol`,
+  `tests/ui/codegen/run-call/storage-tags/storage_handles.sol`,
   `tests/ui/typeck/solar_fuse.sol`, `tests/ui/typeck/solar_inline.sol`,
   `tests/ui/typeck/solar_bitmap.sol`, `tests/ui/typeck/solar_handle.sol`,
   `tests/ui/standard-json/storage-layout-fused/`,

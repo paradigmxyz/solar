@@ -45,7 +45,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
     /// Its physical location is selected again when the deferred load or store is committed.
     pub(super) fn resolve_inline_array_place(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<LValuePlace<'gcx>> {
         let (receiver, index) = match expr.kind {
             ExprKind::Index(receiver, Some(index)) => (receiver, Some(index)),
@@ -64,7 +64,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         let ty = self.type_of_expr_or_variable(expr)?;
         let slot = self.builder.imm(location.slot);
         let index = if let Some(index) = index {
-            let index = self.lower_typed_expr(index, self.cx.gcx.types.uint(256))?;
+            let index = self.lower_expr(index)?.raw_operand();
             let length = self.inline_array_length(slot);
             self.builder.bounds_check(index, length);
             index
@@ -287,7 +287,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
             self.builder.sstore(data, word);
         } else {
             self.builder.sstore(data, elements);
-            let next = self.builder.add_u64_offset(data, 1);
+            let next = self.builder.add_offset(data, 1);
             self.builder.sstore(next, encoded);
         }
         let spilled_length = self.builder.imm(u64::from(array.capacity) + 1);

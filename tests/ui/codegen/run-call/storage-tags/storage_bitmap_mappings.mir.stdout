@@ -1,0 +1,378 @@
+; === ROOT/tests/ui/codegen/run-call/storage-tags/storage_bitmap_mappings.sol:Bitmaps ===
+@module Bitmaps
+@types
+  struct0: {i1, i1, i1, i1, i1, i1, i256, i256, i256}
+  struct1: {i1, i1, i1, i256}
+  struct2: {i1, i1, i1}
+  struct3: {i1, i1}
+
+; getter for `mapping(uint256 => bool) public claimed` [selector 0xdbe7e3bd]
+fn @claimed(arg0: i256) -> i1 [selector=0xdbe7e3bd, view, abi_params=[uint256], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = shr arg0, 8
+    v1 = mapping_slot v0, 0
+    v2 = and arg0, 255
+    v3 = sload v1 !metadata(storage=symbolic(v1))
+    v4 = shr v3, v2
+    v5 = and v4, 1
+    v6 = ne v5, 0
+    ret v6
+}
+
+; function word(uint256 index, uint256 slot) internal view returns (bytes32 value)
+fn @word(arg0: i256, arg1: i256) -> i256 [view] {
+  bb0:
+    v0 = keccak256_packed (uint256 arg0, uint256 arg1)
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    ret v1
+}
+
+; function claims() external returns (bool, bool, bool, bool, bool, bool, bytes32, bytes32, bytes32) [selector 0xdcc59b6f]
+fn @claims() -> struct0 [selector=0xdcc59b6f, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word<bool>, word, word, word], abi_return_params=[bool, bool, bool, bool, bool, bool, bytes32, bytes32, bytes32]] {
+  bb0:
+    v0 = mapping_slot 0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v3 = or v2, 1
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = mapping_slot 0, 0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = and v5, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+    v7 = or v6, 2
+    sstore v4, v7 !metadata(storage=symbolic(v4))
+    v8 = mapping_slot 0, 0
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    v10 = and v9, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v11 = or v10, 0x8000000000000000000000000000000000000000000000000000000000000000
+    sstore v8, v11 !metadata(storage=symbolic(v8))
+    v12 = mapping_slot 1, 0
+    v13 = sload v12 !metadata(storage=symbolic(v12))
+    v14 = and v13, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v15 = or v14, 1
+    sstore v12, v15 !metadata(storage=symbolic(v12))
+    v16 = mapping_slot 0, 0
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = shr v17, 0
+    v19 = and v18, 1
+    v20 = ne v19, 0
+    v21 = mapping_slot 0, 0
+    v22 = sload v21 !metadata(storage=symbolic(v21))
+    v23 = shr v22, 1
+    v24 = and v23, 1
+    v25 = ne v24, 0
+    v26 = mapping_slot 0, 0
+    v27 = sload v26 !metadata(storage=symbolic(v26))
+    v28 = shr v27, 255
+    v29 = and v28, 1
+    v30 = ne v29, 0
+    v31 = mapping_slot 1, 0
+    v32 = sload v31 !metadata(storage=symbolic(v31))
+    v33 = shr v32, 0
+    v34 = and v33, 1
+    v35 = ne v34, 0
+    v36 = mapping_slot 0, 0
+    v37 = sload v36 !metadata(storage=symbolic(v36))
+    v38 = shr v37, 2
+    v39 = and v38, 1
+    v40 = ne v39, 0
+    v41 = mapping_slot 1, 0
+    v42 = sload v41 !metadata(storage=symbolic(v41))
+    v43 = shr v42, 1
+    v44 = and v43, 1
+    v45 = ne v44, 0
+    v46 = icall @word, 0, 0
+    v47 = icall @word, 1, 0
+    v48 = icall @word, 2, 0
+    v49 = insert_value struct0, undef struct0, 0, v20
+    v50 = insert_value struct0, v49, 1, v25
+    v51 = insert_value struct0, v50, 2, v30
+    v52 = insert_value struct0, v51, 3, v35
+    v53 = insert_value struct0, v52, 4, v40
+    v54 = insert_value struct0, v53, 5, v45
+    v55 = insert_value struct0, v54, 6, v46
+    v56 = insert_value struct0, v55, 7, v47
+    v57 = insert_value struct0, v56, 8, v48
+    ret v57
+}
+
+; function unclaims() external returns (bool, bool, bool, bytes32) [selector 0x31d14398]
+fn @unclaims() -> struct1 [selector=0x31d14398, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word], abi_return_params=[bool, bool, bool, bytes32]] {
+  bb0:
+    v0 = mapping_slot 0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v3 = or v2, 1
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = mapping_slot 0, 0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = and v5, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd
+    v7 = or v6, 2
+    sstore v4, v7 !metadata(storage=symbolic(v4))
+    v8 = mapping_slot 0, 0
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    v10 = and v9, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
+    v11 = or v10, 4
+    sstore v8, v11 !metadata(storage=symbolic(v8))
+    v12 = mapping_slot 0, 0
+    v13 = sload v12 !metadata(storage=symbolic(v12))
+    v14 = and v13, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    v15 = or v14, 0
+    sstore v12, v15 !metadata(storage=symbolic(v12))
+    v16 = mapping_slot 0, 0
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = and v17, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffb
+    v19 = or v18, 0
+    sstore v16, v19 !metadata(storage=symbolic(v16))
+    v20 = mapping_slot 0, 0
+    v21 = sload v20 !metadata(storage=symbolic(v20))
+    v22 = shr v21, 0
+    v23 = and v22, 1
+    v24 = ne v23, 0
+    v25 = mapping_slot 0, 0
+    v26 = sload v25 !metadata(storage=symbolic(v25))
+    v27 = shr v26, 1
+    v28 = and v27, 1
+    v29 = ne v28, 0
+    v30 = mapping_slot 0, 0
+    v31 = sload v30 !metadata(storage=symbolic(v30))
+    v32 = shr v31, 2
+    v33 = and v32, 1
+    v34 = ne v33, 0
+    v35 = icall @word, 0, 0
+    v36 = insert_value struct1, undef struct1, 0, v24
+    v37 = insert_value struct1, v36, 1, v29
+    v38 = insert_value struct1, v37, 2, v34
+    v39 = insert_value struct1, v38, 3, v35
+    ret v39
+}
+
+; function toggles() external returns (bool, bool, bool) [selector 0x49253526]
+fn @toggles() -> struct2 [selector=0x49253526, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>], abi_return_params=[bool, bool, bool]] {
+  bb0:
+    v0 = mapping_slot 0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = shr v1, 9
+    v3 = and v2, 1
+    v4 = ne v3, 0
+    v5 = eq v4, false
+    v6 = mapping_slot 0, 0
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = and v7, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdff
+    v9 = zext i1 v5 to i256
+    v10 = and v9, 1
+    v11 = shl v10, 9
+    v12 = or v8, v11
+    sstore v6, v12 !metadata(storage=symbolic(v6))
+    v13 = mapping_slot 0, 0
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    v15 = shr v14, 9
+    v16 = and v15, 1
+    v17 = ne v16, 0
+    v18 = mapping_slot 0, 0
+    v19 = sload v18 !metadata(storage=symbolic(v18))
+    v20 = shr v19, 9
+    v21 = and v20, 1
+    v22 = ne v21, 0
+    v23 = eq v22, false
+    v24 = mapping_slot 0, 0
+    v25 = sload v24 !metadata(storage=symbolic(v24))
+    v26 = and v25, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdff
+    v27 = zext i1 v23 to i256
+    v28 = and v27, 1
+    v29 = shl v28, 9
+    v30 = or v26, v29
+    sstore v24, v30 !metadata(storage=symbolic(v24))
+    v31 = mapping_slot 0, 0
+    v32 = sload v31 !metadata(storage=symbolic(v31))
+    v33 = shr v32, 9
+    v34 = and v33, 1
+    v35 = ne v34, 0
+    v36 = mapping_slot 0, 0
+    v37 = sload v36 !metadata(storage=symbolic(v36))
+    v38 = shr v37, 9
+    v39 = and v38, 1
+    v40 = ne v39, 0
+    v41 = eq v40, false
+    v42 = mapping_slot 0, 0
+    v43 = sload v42 !metadata(storage=symbolic(v42))
+    v44 = and v43, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffdff
+    v45 = zext i1 v41 to i256
+    v46 = and v45, 1
+    v47 = shl v46, 9
+    v48 = or v44, v47
+    sstore v42, v48 !metadata(storage=symbolic(v42))
+    v49 = mapping_slot 0, 0
+    v50 = sload v49 !metadata(storage=symbolic(v49))
+    v51 = shr v50, 9
+    v52 = and v51, 1
+    v53 = ne v52, 0
+    v54 = insert_value struct2, undef struct2, 0, v17
+    v55 = insert_value struct2, v54, 1, v35
+    v56 = insert_value struct2, v55, 2, v53
+    ret v56
+}
+
+; function getters() external returns (bool, bool) [selector 0x6317732e]
+fn @getters() -> struct3 [selector=0x6317732e, abi_params=[], abi_returns=[word<bool>, word<bool>], abi_return_params=[bool, bool]] {
+  bb0:
+    v0 = mapping_slot 0, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffdfffffffffffffffffff
+    v3 = or v2, 0x20000000000000000000
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = address
+    v5 = gas
+    mstore 0, 0xdbe7e3bd !metadata(memory=scratch)
+    mstore 32, 77 !metadata(memory=scratch)
+    v6 = zext i160 v4 to i256
+    v7 = staticcall v5, v6, 28, 36, 0, 32
+    jumpi v7, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v8 = returndatasize
+    v9 = lt v8, 32
+    icall revert_if<tuple_data_too_short>, v9
+    v10 = mload 0 !metadata(memory=scratch)
+    v11 = gt v10, 1
+    icall revert_if<empty>, v11
+    v12 = ne v10, 0
+    v13 = address
+    v14 = gas
+    mstore 0, 0xdbe7e3bd !metadata(memory=scratch)
+    mstore 32, 78 !metadata(memory=scratch)
+    v15 = zext i160 v13 to i256
+    v16 = staticcall v14, v15, 28, 36, 0, 32
+    jumpi v16, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v17 = returndatasize
+    v18 = lt v17, 32
+    icall revert_if<tuple_data_too_short>, v18
+    v19 = mload 0 !metadata(memory=scratch)
+    v20 = gt v19, 1
+    icall revert_if<empty>, v20
+    v21 = ne v19, 0
+    v22 = insert_value struct3, undef struct3, 0, v12
+    v23 = insert_value struct3, v22, 1, v21
+    ret v23
+}
+
+; function extremes() external returns (bool, bool, bool, bytes32) [selector 0xc525dc76]
+fn @extremes() -> struct1 [selector=0xc525dc76, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word], abi_return_params=[bool, bool, bool, bytes32]] {
+  bb0:
+    v0 = mapping_slot 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v3 = or v2, 0x8000000000000000000000000000000000000000000000000000000000000000
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = checked_sub uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v5 = shr v4, 8
+    v6 = mapping_slot v5, 0
+    v7 = and v4, 255
+    v8 = shl 1, v7
+    v9 = sload v6 !metadata(storage=symbolic(v6))
+    v10 = not v8
+    v11 = and v9, v10
+    v12 = shl 1, v7
+    v13 = or v11, v12
+    sstore v6, v13 !metadata(storage=symbolic(v6))
+    v14 = checked_sub uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v15 = shr v14, 8
+    v16 = mapping_slot v15, 0
+    v17 = and v14, 255
+    v18 = shl 1, v17
+    v19 = sload v16 !metadata(storage=symbolic(v16))
+    v20 = not v18
+    v21 = and v19, v20
+    v22 = shl 0, v17
+    v23 = or v21, v22
+    sstore v16, v23 !metadata(storage=symbolic(v16))
+    v24 = checked_sub uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 256
+    v25 = shr v24, 8
+    v26 = mapping_slot v25, 0
+    v27 = and v24, 255
+    v28 = shl 1, v27
+    v29 = sload v26 !metadata(storage=symbolic(v26))
+    v30 = not v28
+    v31 = and v29, v30
+    v32 = shl 1, v27
+    v33 = or v31, v32
+    sstore v26, v33 !metadata(storage=symbolic(v26))
+    v34 = mapping_slot 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+    v35 = sload v34 !metadata(storage=symbolic(v34))
+    v36 = shr v35, 255
+    v37 = and v36, 1
+    v38 = ne v37, 0
+    v39 = checked_sub uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 256
+    v40 = shr v39, 8
+    v41 = mapping_slot v40, 0
+    v42 = and v39, 255
+    v43 = sload v41 !metadata(storage=symbolic(v41))
+    v44 = shr v43, v42
+    v45 = and v44, 1
+    v46 = ne v45, 0
+    v47 = checked_sub uint256, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    v48 = shr v47, 8
+    v49 = mapping_slot v48, 0
+    v50 = and v47, 255
+    v51 = sload v49 !metadata(storage=symbolic(v49))
+    v52 = shr v51, v50
+    v53 = and v52, 1
+    v54 = ne v53, 0
+    v55 = icall @word, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0
+    v56 = insert_value struct1, undef struct1, 0, v38
+    v57 = insert_value struct1, v56, 1, v46
+    v58 = insert_value struct1, v57, 2, v54
+    v59 = insert_value struct1, v58, 3, v55
+    ret v59
+}
+
+; function small() external returns (bool, bool, bool, bytes32) [selector 0x6cf3c25e]
+fn @small() -> struct1 [selector=0x6cf3c25e, abi_params=[], abi_returns=[word<bool>, word<bool>, word<bool>, word], abi_return_params=[bool, bool, bool, bytes32]] {
+  bb0:
+    v0 = mapping_slot 0, 1
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+    v3 = or v2, 128
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = mapping_slot 0, 1
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = and v5, 0xfffffffffffffeffffffffffffffffffffffffffffffffffffffffffffffffff
+    v7 = or v6, 0x100000000000000000000000000000000000000000000000000
+    sstore v4, v7 !metadata(storage=symbolic(v4))
+    v8 = mapping_slot 0, 1
+    v9 = sload v8 !metadata(storage=symbolic(v8))
+    v10 = shr v9, 7
+    v11 = and v10, 1
+    v12 = ne v11, 0
+    v13 = mapping_slot 0, 1
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    v15 = shr v14, 8
+    v16 = and v15, 1
+    v17 = ne v16, 0
+    v18 = mapping_slot 0, 1
+    v19 = sload v18 !metadata(storage=symbolic(v18))
+    v20 = shr v19, 200
+    v21 = and v20, 1
+    v22 = ne v21, 0
+    v23 = icall @word, 0, 1
+    v24 = insert_value struct1, undef struct1, 0, v12
+    v25 = insert_value struct1, v24, 1, v17
+    v26 = insert_value struct1, v25, 2, v22
+    v27 = insert_value struct1, v26, 3, v23
+    ret v27
+}
+
+; function plainStaysStandard() external returns (bytes32 value) [selector 0x8494e944]
+fn @plainStaysStandard() -> i256 [selector=0x8494e944, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
+  bb0:
+    v0 = mapping_slot 5, 2
+    v1 = sload v0 !metadata(storage=symbolic(v0))
+    v2 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v3 = or v2, 1
+    sstore v0, v3 !metadata(storage=symbolic(v0))
+    v4 = sload 0xb98b78633099fa36ed8b8680c4f8092689e1e04080eb9cbb077ca38a14d7e384 !metadata(storage=slot(0xb98b78633099fa36ed8b8680c4f8092689e1e04080eb9cbb077ca38a14d7e384))
+    ret v4
+}

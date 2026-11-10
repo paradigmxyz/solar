@@ -293,7 +293,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         // slot = record + value_slot
                         let record = self.builder.imm(record);
                         let record = self.mapping_slot(index, key, record);
-                        let slot = self.add_storage_offset(record, location.slot);
+                        let slot = self.builder.add_offset(record, location.slot);
                         return Some(StorageAccess { slot, location, offset: None });
                     }
                     if self
@@ -641,11 +641,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // inline_array_push(array_slot, argument | 0)
             let value = match value {
                 Some((value, _)) => {
-                    let dirty = !self.in_inline_assembly && self.dirty_values.contains(&value);
-                    let value = self.normalize_dirty_scalar(value, element);
-                    if !dirty {
-                        self.validate_enum(element, value);
-                    }
+                    self.validate_enum(element, value);
                     value
                 }
                 None => self.builder.imm(0),

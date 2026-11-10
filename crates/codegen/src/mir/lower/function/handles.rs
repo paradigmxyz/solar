@@ -29,10 +29,10 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
     /// of the dictionary or, as type checking ensures otherwise, zero.
     pub(super) fn lower_handle_assignment(
         &mut self,
-        lhs: &hir::Expr<'_>,
-        rhs: &hir::Expr<'_>,
+        lhs: &'gcx hir::Expr<'gcx>,
+        rhs: &'gcx hir::Expr<'gcx>,
         dictionary: VariableId,
-    ) -> Option<ValueId> {
+    ) -> Option<Word> {
         let slot = self.handle_dictionary_slot(dictionary, lhs.span)?;
         if let ExprKind::Index(base, Some(index)) = rhs.peel_parens().kind
             && self.cx.gcx.resolved_variable(base.peel_parens()) == Some(dictionary)
@@ -41,7 +41,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
             // bounds_check(index, length)
             // store(lhs, index + 1)
             // value = sload(keccak256(dictionary_slot) + index)
-            let index = self.lower_expr(index)?;
+            let index = self.lower_expr(index)?.raw_operand();
             let dictionary_slot = self.builder.imm(slot);
             let length = self.builder.sload(dictionary_slot);
             self.builder.bounds_check(index, length);
@@ -53,10 +53,10 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
             self.cx.storage.store_at(&mut self.builder, access.location, access.slot, handle);
             let data = self.builder.imm(data_slot(slot));
             let element = self.builder.add(data, index);
-            return Some(self.builder.sload(element));
+            return Some(Word::from_clean(self.builder.sload(element)));
         }
         let ty = self.cx.gcx.type_of_expr(lhs.id)?;
-        let value = self.lower_typed_expr(rhs, ty)?;
+        let value = self.lower_typed_expr(rhs, ty)?.clean(self, ty);
         if self.builder.func().value_u256(value) != Some(U256::ZERO) {
             return self
                 .cx
@@ -68,7 +68,7 @@ impl<'gcx> FunctionLowerer<'gcx, '_> {
         };
         let zero = self.builder.imm(U256::ZERO);
         self.cx.storage.store_at(&mut self.builder, access.location, access.slot, zero);
-        Some(zero)
+        Some(Word::from_clean(zero))
     }
 
     /// The value of a handle field into `dictionary` whose handle is `handle`: zero for the zero

@@ -56,7 +56,7 @@ LL │     /// @custom:solar-fuse account
    │          ━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
+   ╰ help: the supported tags are `@custom:solar-cold`, `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
 
 error: unknown tag `@custom:solar-bitmap`
    ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
@@ -65,7 +65,7 @@ LL │     /// @custom:solar-bitmap
    │          ━━━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
+   ╰ help: the supported tags are `@custom:solar-cold`, `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
 
 error: unknown tag `@custom:solar-handle`
    ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
@@ -74,7 +74,7 @@ LL │     /// @custom:solar-handle id dictionary
    │          ━━━━━━━━━━━━━━━━━━━
    │
    ├ note: `@custom:solar-` tags are requirements this compiler checks
-   ╰ help: the supported tags are `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
+   ╰ help: the supported tags are `@custom:solar-cold`, `@custom:solar-inline`, `@custom:solar-optimize`, `@custom:solar-safe`, `@custom:solar-trusted`, and `@custom:solar-storage`
 
 error: `@custom:solar-storage inline` must document a dynamic storage array state variable
    ╭▸ ROOT/tests/ui/natspec/solar_storage.sol:LL:CC
