@@ -90,17 +90,21 @@ impl MirPass for LowerAssumes {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut ModuleAnalyses,
     ) -> bool {
         let mut changed = false;
+        let module_name = module.name.to_string();
         for (id, func) in module.functions.iter_mut_enumerated() {
             // Dropping records that hold by their constants changes the function too.
             let had_records = func
                 .instructions()
                 .any(|inst| matches!(func.inst(inst).kind, InstKind::Assume { .. }));
             let facts = take_assumed(func);
+            if let Some(dir) = &gcx.sess.opts.unstable.prove_analyses {
+                super::prove_analyses::write_queries(&module_name, id, func, &facts, dir);
+            }
             if !facts.is_empty() {
                 instrument(func, id, &facts);
             }
@@ -114,6 +118,7 @@ impl MirPass for LowerAssumes {
 /// on by default in debug builds like `-Zvalidate-ir`.
 pub fn should_check_analyses(sess: &Session) -> bool {
     sess.opts.unstable.check_analyses.unwrap_or(cfg!(debug_assertions))
+        || sess.opts.unstable.prove_analyses.is_some()
 }
 
 /// Records that `predicate(lhs, rhs)` held at the end of `block` when `source` relied on it,
@@ -212,12 +217,12 @@ pub(super) fn record_forwarded(
 }
 
 /// A recorded fact: `predicate(lhs, rhs)` held where `block` ends when `source` relied on it.
-struct Fact {
-    block: BlockId,
-    source: FactSource,
-    predicate: AssumePredicate,
-    lhs: ValueId,
-    rhs: ValueId,
+pub(super) struct Fact {
+    pub(super) block: BlockId,
+    pub(super) source: FactSource,
+    pub(super) predicate: AssumePredicate,
+    pub(super) lhs: ValueId,
+    pub(super) rhs: ValueId,
 }
 
 impl Fact {

@@ -495,6 +495,12 @@ pub struct UnstableOpts {
     )]
     pub check_analyses: Option<bool>,
 
+    /// Write an SMT-LIB query for every fact passes record for `-Zcheck-analyses` to this
+    /// directory, and record them: Z3 answering `unsat` proves the fact for all inputs, and
+    /// `sat` gives a counterexample. See `scripts/prove-analyses.py`.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub prove_analyses: Option<std::path::PathBuf>,
+
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
@@ -566,6 +572,7 @@ impl UnstableOpts {
             debugify_output: _,
             validate_ir: _,
             check_analyses: _,
+            prove_analyses: _,
             time_passes: _,
             forget_gcx: _,
             help: _,
