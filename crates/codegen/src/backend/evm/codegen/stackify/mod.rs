@@ -103,17 +103,20 @@
 //! reach.
 //!
 //! When a needed word lies beyond the target's reach, the value is spilled: it is stored once
-//! when defined, reloaded at every use, and planning restarts. After many restarts, every other
-//! value beyond reach at the failure spills with it, in growing batches. When no value can make
-//! room, the return address moves to a slot on entry and is reloaded to return, and a shuffle
-//! that still cannot move a deep word instead pops down to the words already in place and pushes
-//! the rest of its target. A join that no incoming edge can propose a layout for takes its live
-//! words by value. Spill slots use the frame and spill-area placement in `frames`. A write that
-//! may reach the low spill area, such as a copy to a computed address, and a call into a function
-//! that makes one keep the spilled words still needed afterwards, the return address among them,
-//! on the stack across them and store them back after. A value live across such a write is
-//! recomputed at each use instead of spilled when stable arithmetic over calldata, constants and
-//! stable reads can rebuild it.
+//! when defined, reloaded at every use, and planning restarts. A restart keeps the plans of the
+//! blocks before the first one the new spills can change, in the reverse postorder that planning
+//! follows, and plans again from there: the block that defines the value, or the first
+//! predecessor of a phi result's block. After many restarts, every other value beyond reach at
+//! the failure spills with it, in growing batches. When no value can make room, the return
+//! address moves to a slot on entry and is reloaded to return, which plans the function again
+//! from its entry, and a shuffle that still cannot move a deep word instead pops down to the
+//! words already in place and pushes the rest of its target. A join that no incoming edge can
+//! propose a layout for takes its live words by value. Spill slots use the frame and spill-area
+//! placement in `frames`. A write that may reach the low spill area, such as a copy to a computed
+//! address, and a call into a function that makes one keep the spilled words still needed
+//! afterwards, the return address among them, on the stack across them and store them back after. A
+//! value live across such a write is recomputed at each use instead of spilled when stable
+//! arithmetic over calldata, constants and stable reads can rebuild it.
 //!
 //! A function that spills is planned a second time as a copy that computes the cheap values
 //! crossing its crowded stretches again: values that differ by a constant from one live base, and
@@ -196,7 +199,7 @@ impl Want {
 }
 
 /// One emitted operation of a block plan.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Step {
     /// A physical stack operation.
     Stack(StackOp),
@@ -230,7 +233,7 @@ enum Step {
 }
 
 /// The code that reads a word a [`Step::Shared`] push leaves on the stack.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Reader {
     Inst(InstId),
     Terminator(BlockId),
@@ -244,14 +247,14 @@ impl Step {
 }
 
 /// A control-flow edge, optionally through a trampoline that rearranges the stack.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Edge {
     target: BlockId,
     trampoline: Option<Vec<Step>>,
 }
 
 /// How a block leaves.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Exit {
     /// Jumps to a block whose layout the stack already has.
     Jump(BlockId),
@@ -276,7 +279,7 @@ enum Exit {
     Terminal,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct BlockPlan {
     steps: Vec<Step>,
     /// Index of the first step planned for the terminator.
@@ -304,7 +307,7 @@ impl Victim {
 }
 
 /// Why a function could not be planned.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Fail {
     /// A word is beyond reach. Spilling the victim, when given, may make the function
     /// plannable. Once spills come in batches, the failure also lists the other spillable
@@ -864,6 +867,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         };
         let mut best: Option<FunctionPlan> = None;
         let mut constants = Vec::new();
+        let mut spill_blocks = None;
         // Candidate loop header layouts: as the preheader leaves its stack, by first use in the
         // loop, and then repeatedly as the best plan's latches leave their stacks.
         let mut candidates = vec![FxHashMap::default()];
@@ -877,6 +881,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                 continue;
             }
             tried.push(hints.clone());
+            // What the last failed plan under these hints decided before the spills it asked for.
+            let mut progress = None;
             let Planned { plan, mut natural, first_use } = loop {
                 let planner = Planner::new(
                     func,
@@ -897,23 +903,60 @@ impl<'gcx> EvmCodegen<'gcx> {
                 {
                     constants = planner.constants_to_retain();
                 }
-                match planner.plan() {
+                // Debug builds check that a resumed attempt ends as one from scratch does.
+                #[cfg(debug_assertions)]
+                let scratch = progress.is_some().then(|| {
+                    Planner::new(
+                        func,
+                        info,
+                        func_id,
+                        analysis,
+                        &target,
+                        &spilled,
+                        ret_spilled,
+                        restarts >= single_spills,
+                        &hints,
+                    )
+                    .map(Planner::plan)
+                });
+                let result = planner.plan_from(&mut progress);
+                #[cfg(debug_assertions)]
+                if let Some(Ok(scratch)) = &scratch {
+                    assert!(
+                        plan::same_outcome(&result, scratch),
+                        "a resumed stack plan differs from a plan from scratch",
+                    );
+                }
+                match result {
                     Ok(planned) => break planned,
                     Err(Fail::Deep(victim, beyond)) => {
                         restarts += 1;
                         match victim {
                             Some(Victim::Value(value)) if !spilled.contains(value) => {
+                                let blocks = spill_blocks
+                                    .get_or_insert_with(|| SpillBlocks::new(func, &analysis.cfg));
                                 spilled.insert(value);
-                                // Each restart replans the whole function; after a few, spill
-                                // a growing batch of the other words beyond reach too.
+                                let mut first = blocks.first_affected(func, value);
+                                // Each restart replans the function from the first block a new
+                                // spill affects; after a few, spill a growing batch of the other
+                                // words beyond reach too.
                                 if restarts > single_spills {
                                     let batch = 1 << (restarts - single_spills).min(6);
                                     for value in beyond.into_iter().take(batch) {
-                                        spilled.insert(value);
+                                        if spilled.insert(value) {
+                                            first = first.min(blocks.first_affected(func, value));
+                                        }
                                     }
                                 }
+                                if let Some(progress) = &mut progress {
+                                    progress.rewind(first);
+                                }
                             }
-                            Some(Victim::Ret) if !ret_spilled => ret_spilled = true,
+                            // The return address leaves the stack of every block.
+                            Some(Victim::Ret) if !ret_spilled => {
+                                ret_spilled = true;
+                                progress = None;
+                            }
                             _ => return Err(Decline::Unsupported(func_id, "stack too deep")),
                         }
                     }
@@ -1405,5 +1448,43 @@ fn exchange_header_words(
             }
         }
         hints.insert(header, chosen);
+    }
+}
+
+/// Where the instructions of a function sit in the planning order, for finding the first block
+/// that a newly spilled value affects.
+struct SpillBlocks {
+    /// The block of each placed instruction.
+    inst_blocks: IndexVec<InstId, Option<BlockId>>,
+    /// The position of each block in the reverse postorder, the first for an unreachable block.
+    positions: IndexVec<BlockId, usize>,
+}
+
+impl SpillBlocks {
+    fn new(func: &Function, cfg: &CfgInfo) -> Self {
+        let mut positions = index_vec![0; func.blocks.len()];
+        for (position, &block) in cfg.rpo().iter().enumerate() {
+            positions[block] = position;
+        }
+        Self { inst_blocks: func.inst_block_table(), positions }
+    }
+
+    /// The position in the reverse postorder of the first block whose plan can change when
+    /// `value` leaves the stack.
+    ///
+    /// The result of an instruction is stored where it is defined and loaded where it is read,
+    /// and it is live only in blocks its definition dominates, which all come later in the
+    /// order. A phi result is stored on the edges into its block, which the predecessors plan.
+    /// Any other value, such as an argument, is stored on entry.
+    fn first_affected(&self, func: &Function, value: ValueId) -> usize {
+        let Value::Inst(inst) = *func.value(value) else { return 0 };
+        let Some(block) = self.inst_blocks[inst] else { return 0 };
+        let mut first = self.positions[block];
+        if matches!(func.inst(inst).kind, InstKind::Phi(_)) {
+            for &pred in &func.blocks[block].predecessors {
+                first = first.min(self.positions[pred]);
+            }
+        }
+        first
     }
 }
