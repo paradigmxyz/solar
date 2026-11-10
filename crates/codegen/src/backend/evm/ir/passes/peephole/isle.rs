@@ -349,31 +349,38 @@ impl<'a> PeepContext<'a> {
         self.stack.needed.set(true);
         let prefix = &self.instructions[..self.instructions.len() - 4];
         self.stack.entry.flatten().is_some_and(|entry| {
-            prefix
-                .iter()
-                .try_fold(entry, |depth, inst| apply_effect(depth, inst.stack_effect()))
-                .is_some_and(|depth| depth + 2 <= MAX_STACK_DEPTH)
+            // No instruction grows the stack by more than a word, so a short prefix cannot reach
+            // the limit; only a block near it needs the exact depth.
+            entry + prefix.len() + 2 <= MAX_STACK_DEPTH
+                || prefix
+                    .iter()
+                    .try_fold(entry, |depth, inst| apply_effect(depth, inst.stack_effect()))
+                    .is_some_and(|depth| depth + 2 <= MAX_STACK_DEPTH)
         })
     }
 
-    /// Returns whether the reload's peak, relative to the block's entry, is at most the peak of
-    /// the path through the window: the instructions before it, and those after it up to the
-    /// first conditional jump or terminal, or to the end with the terminator's lowering growth.
+    /// Returns whether the reload's peak, relative to the start of the window's neighborhood, is
+    /// at most the peak of the path through the window. The neighborhood is the last
+    /// [`MAX_STACK_WINDOW`] instructions before it and as many after it, up to the first
+    /// conditional jump or terminal, or to the end of the block with the terminator's lowering
+    /// growth. A shorter path only lowers the peak, so the bound keeps each match constant-time.
     fn reload_within_block_peak(&self) -> bool {
         let step = |depth: isize, inst: &Instruction| {
             let StackEffect { inputs, outputs } = inst.stack_effect();
             depth + isize::from(outputs) - isize::from(inputs)
         };
         let window = self.instructions.len() - 4;
-        let (mut depth, mut peak, mut before_window) = (0, 0, 0);
-        for (index, inst) in self.instructions.iter().enumerate() {
-            if index == window {
-                before_window = depth;
-            }
+        let (mut depth, mut peak) = (0, 0);
+        for inst in &self.instructions[window.saturating_sub(MAX_STACK_WINDOW)..window] {
             depth = step(depth, inst);
             peak = isize::max(peak, depth);
         }
-        for inst in self.rest {
+        let before_window = depth;
+        for inst in &self.instructions[window..] {
+            depth = step(depth, inst);
+            peak = isize::max(peak, depth);
+        }
+        for inst in self.rest.iter().take(MAX_STACK_WINDOW) {
             if inst.as_evm_opcode().is_some_and(|opcode| opcode == JUMPI || op::is_terminal(opcode))
             {
                 return before_window + 2 <= peak;
@@ -381,7 +388,9 @@ impl<'a> PeepContext<'a> {
             depth = step(depth, inst);
             peak = isize::max(peak, depth);
         }
-        peak = isize::max(peak, depth + self.stack.terminator_growth as isize);
+        if self.rest.len() <= MAX_STACK_WINDOW {
+            peak = isize::max(peak, depth + self.stack.terminator_growth as isize);
+        }
         before_window + 2 <= peak
     }
 
