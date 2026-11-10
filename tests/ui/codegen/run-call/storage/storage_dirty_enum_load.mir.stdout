@@ -1,0 +1,31 @@
+; === ROOT/tests/ui/codegen/run-call/storage/storage_dirty_enum_load.sol:C ===
+@module C
+; function unusedLocal() external returns (uint256) [selector 0xef003ea3]
+fn @unusedLocal() -> i256 [selector=0xef003ea3, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 0, 5 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i8
+    v2 = lt v1, i8 2
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
+    v4 = zext i8 v1 to i256
+    ret 1
+}
+
+; function usedLocal() external returns (uint256) [selector 0x6bc1f789]
+fn @usedLocal() -> i256 [selector=0x6bc1f789, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 0, 5 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i8
+    v2 = lt v1, i8 2
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
+    v4 = zext i8 v1 to i256
+    v5 = lt v4, 2
+    v6 = eq v5, false
+    icall panic_if<0x21>, v6
+    v7 = zext i8 v1 to i256
+    ret v7
+}

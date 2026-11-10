@@ -1127,3 +1127,43 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   the zero defaults to be read without backing memory, which adds compiler
   complexity for a size nothing can use.
 - Coverage: `tests/ui/codegen/run-call/memory/memory_default_oversized_field.sol`.
+
+### CODEGEN-020: Calls with empty returndata and `catch Panic` move the free memory pointer
+
+- ID: CODEGEN-020
+- Status: intentional
+- Difference: after a low-level call whose returndata is empty, `solar` moves
+  the free memory pointer by 32 bytes, and after `catch Panic(uint256)` by 96
+  bytes. `solc` points the empty result at the zero slot, and reads the panic
+  selector and code through scratch memory, so it leaves the pointer in place.
+  Only inline assembly that reads `mload(0x40)` can see it; results are the
+  same.
+- Rationale: matching `solc` made the minimal-proxy benchmark 21 bytes bigger
+  and 19 gas dearer per call.
+- Coverage: `tests/ui/codegen/run-call/memory/low_level_call_empty_returndata_fmp.sol`
+  and `tests/ui/codegen/run-call/memory/try_panic_fmp_delta.sol`.
+
+### CODEGEN-021: Internal function pointers stored with another function type panic
+
+- ID: CODEGEN-021
+- Status: intentional
+- Difference: calling an internal function pointer that assembly stored into a
+  variable of a different function type panics with `Panic(0x51)` in `solar`.
+  `solc` calls the function. A pointer of the variable's own type stored the same
+  way works in both.
+- Rationale: Solidity cannot express that type punning, so only assembly
+  reaches it, and supporting it would change how every internal function
+  pointer is represented.
+- Coverage: `tests/ui/codegen/run-call/function-pointers/internal_function_pointer_computed_storage_store.sol`
+  and `tests/ui/codegen/run-call/function-pointers/internal_function_pointer_computed_storage_same_type.sol`.
+
+### CODEGEN-022: Loading a dirty storage enum panics at the load
+
+- ID: CODEGEN-022
+- Status: intentional
+- Difference: reading an out-of-range enum value from storage into a local
+  panics with `Panic(0x21)` at the load in `solar`. `solc` via-IR panics only
+  where the value is used, so it returns normally when the local is unused.
+- Rationale: only assembly or a broken storage layout writes such a value, and
+  moving the check to each use cost about a thousand lines of compiler code.
+- Coverage: `tests/ui/codegen/run-call/storage/storage_dirty_enum_load.sol`.
