@@ -222,17 +222,11 @@ pub(super) struct StackBound<'a> {
     entry: Option<Option<usize>>,
     /// Set when a rule consulted the entry bound.
     needed: &'a Cell<bool>,
-    /// The words the block's terminator adds when lowered.
-    terminator_growth: usize,
 }
 
 impl<'a> StackBound<'a> {
-    pub(super) fn new(
-        entry: Option<Option<usize>>,
-        needed: &'a Cell<bool>,
-        terminator_growth: usize,
-    ) -> Self {
-        Self { entry, needed, terminator_growth }
+    pub(super) fn new(entry: Option<Option<usize>>, needed: &'a Cell<bool>) -> Self {
+        Self { entry, needed }
     }
 }
 
@@ -362,8 +356,9 @@ impl<'a> PeepContext<'a> {
     /// Returns whether the reload's peak, relative to the start of the window's neighborhood, is
     /// at most the peak of the path through the window. The neighborhood is the last
     /// [`MAX_STACK_WINDOW`] instructions before it and as many after it, up to the first
-    /// conditional jump or terminal, or to the end of the block with the terminator's lowering
-    /// growth. A shorter path only lowers the peak, so the bound keeps each match constant-time.
+    /// conditional jump or terminal, or to the end of the block. The terminator's lowering growth
+    /// is not counted: it depends on the block layout, which later passes change. A shorter path
+    /// only lowers the peak, so the bound keeps each match constant-time.
     fn reload_within_block_peak(&self) -> bool {
         let step = |depth: isize, inst: &Instruction| {
             let StackEffect { inputs, outputs } = inst.stack_effect();
@@ -387,9 +382,6 @@ impl<'a> PeepContext<'a> {
             }
             depth = step(depth, inst);
             peak = isize::max(peak, depth);
-        }
-        if self.rest.len() <= MAX_STACK_WINDOW {
-            peak = isize::max(peak, depth + self.stack.terminator_growth as isize);
         }
         before_window + 2 <= peak
     }

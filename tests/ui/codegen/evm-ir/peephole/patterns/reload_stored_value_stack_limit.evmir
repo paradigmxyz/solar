@@ -7,7 +7,7 @@
 // before the window counts the block's earlier instructions, and a block entered through a jump
 // takes the verifier's bound. A block without a known entry depth keeps the window, unless the
 // block already reaches the reload's peak after the window, up to its first conditional jump or
-// terminal, counting the growth of a lowered `jump`.
+// terminal. The push of a lowered `jump` does not count, since block layout can remove it.
 
 // Memory reload kept at 1023 words.
 // CHECK-LABEL: bb0 [stack=1023]:
@@ -211,13 +211,12 @@ bb13:
   push 2
   stop
 
-// A `jump` to a block that does not follow lowers to a push, which adds a word to the peak.
+// A `jump` to a block that does not follow lowers to a push, which layout can remove.
 // CHECK-LABEL: bb14:
-// CHECK: +   dup 1
-// CHECK-NEXT: {{^ +}}push 0
+// CHECK: {{^ +}}push 0
 // CHECK-NEXT: {{^ +}}mstore
-// CHECK-NEXT: -   push 0
-// CHECK-NEXT: -   mload
+// CHECK-NEXT: {{^ +}}push 0
+// CHECK-NEXT: {{^ +}}mload
 bb14:
   push 7
   push 0
@@ -227,7 +226,7 @@ bb14:
   push 1
   jump bb16
 
-// A `jump` to the next block adds none.
+// The same with a `jump` to the next block.
 // CHECK-LABEL: bb15:
 // CHECK: {{^ +}}push 0
 // CHECK-NEXT: {{^ +}}mstore

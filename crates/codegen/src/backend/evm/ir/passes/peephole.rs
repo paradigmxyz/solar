@@ -13,7 +13,7 @@
 //! extractors, and edits preserve their existing metadata policy.
 //! The reload of a stored value raises its block's stack peak by a word. It fires where the old
 //! block already reaches that peak, counting the instructions before the window and those after
-//! it up to the first conditional jump or terminal, with the terminator's lowering growth. Else it
+//! it up to the first conditional jump or terminal. Else it
 //! needs the block's entry depth: when a block reaches that case, the pass computes the verifier's
 //! upper bounds once for the module and runs the block again. An unknown bound or too little room
 //! rejects the rewrite, and such a block is not recorded as clean.
@@ -189,10 +189,6 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
         let label = block.label;
-        let terminator_growth = block
-            .terminator
-            .as_ref()
-            .map_or(0, |term| term.kind.lowering_stack_growth(module.next_block(block_id)));
         // The late rules are separate from the cached early and final ones.
         let key = (rules != Rules::Late).then(|| clean_key(&block.instructions));
         let recorded = key.and_then(|key| module.peephole_clean.get(key));
@@ -207,11 +203,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
                 target,
                 rules,
                 block: label,
-                stack: StackBound::new(
-                    depths.as_ref().map(|depths| depths[block_id]),
-                    &needed,
-                    terminator_growth,
-                ),
+                stack: StackBound::new(depths.as_ref().map(|depths| depths[block_id]), &needed),
             };
             let block = &mut module.blocks[block_id];
             rewrites =
