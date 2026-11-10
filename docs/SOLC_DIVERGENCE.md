@@ -1077,18 +1077,19 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   later scalar checks, which complicates the prologue.
 - Coverage: `tests/ui/codegen/run-call/abi-decode/abi_argument_check_order.sol`.
 
-### CODEGEN-016: A forged calldata struct pointer must have its whole head in calldata
+### CODEGEN-016: A forged calldata struct or array pointer must have its whole head in calldata
 
 - ID: CODEGEN-016
 - Status: intentional
-- Difference: returning a calldata struct that assembly pointed at fewer bytes
-  than its head reverts in `solar`. `solc` reads the missing words as zero and
-  returns the struct.
+- Difference: returning a calldata struct or fixed-size array that assembly
+  pointed at fewer bytes than its head reverts in `solar`. `solc` reads the
+  missing words as zero and returns the value.
 - Rationale: only assembly forges such a pointer, and the entry prologue's
   head check is the same one that rejects short calldata. Reading the missing
-  words as zero would need struct returns to read their head lazily, which
-  complicates the codegen.
-- Coverage: `tests/ui/codegen/run-call/calldata/calldata_struct_short_head.sol`.
+  words as zero would need struct and array returns to read their head lazily,
+  which complicates the codegen.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_struct_short_head.sol`
+  and `tests/ui/codegen/run-call/calldata/calldata_array_short_head.sol`.
 
 ### CODEGEN-017: A calldata offset with bit 255 set is not rejected
 
