@@ -89,6 +89,9 @@ Options:
           
           Passes record each fact where they act on it, and a violated fact reverts with `AnalysisFactViolated(uint256,uint256,uint256)`. Accepts `true` or `false`; the last one given wins.
 
+      -Zprove-analyses <DIR>
+          Write an SMT-LIB query for every fact passes record for `-Zcheck-analyses` to this directory, and record them: Z3 answering `unsat` proves the fact for all inputs, and `sat` gives a counterexample. `-` writes them to stdout. See `tools/prove-analyses`
+
       -Zhelp
           Print help
 

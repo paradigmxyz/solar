@@ -22,10 +22,10 @@
 //!   records below are about it;
 //! - the branch condition of every dominating edge into a block with a single predecessor;
 //! - at each join, that execution came through one of its predecessors: the context up to that
-//!   predecessor's end below the join's dominators, under fresh names and with the facts checked
-//!   on it, the edge's condition, and each phi equal to its incoming value on that edge. For a
-//!   loop's back edge this is the earlier pass, whose facts are the induction hypothesis. Joins
-//!   inside such a context are encoded by their phis alone, each one of its incoming values;
+//!   predecessor's end below the join's dominators, under fresh names and with the facts checked on
+//!   it, the edge's condition, and each phi equal to its incoming value on that edge. For a loop's
+//!   back edge this is the earlier pass, whose facts are the induction hypothesis. Joins inside
+//!   such a context are encoded by their phis alone, each one of its incoming values;
 //! - every record at the end of a dominating block, and the records before this one in `B`.
 //!
 //! The query then asks whether the recorded predicate can fail.
@@ -35,9 +35,10 @@
 //! update it. Any other write to a location, and any call or create, replaces every array by a
 //! fresh one. At a join on the chain, each array is the one its predecessor's context ends with,
 //! in the disjunction over predecessors; entering any other block along an edge other than from
-//! the block before it in the chain replaces them too, since another path may have written them. Fresh arrays, and memory at the function's
-//! entry, are opaque. So a read CSE or load PRE forwarded from an earlier store is proven when the
-//! store dominates it with no unknown write between.
+//! the block before it in the chain replaces them too, since another path may have written them.
+//! Fresh arrays, and memory at the function's entry, are opaque. So a read CSE or load PRE
+//! forwarded from an earlier store is proven when the store dominates it with no unknown write
+//! between.
 //!
 //! Memory is split after Grossman et al., "Practical Verification of Smart Contracts using Memory
 //! Splitting" (OOPSLA 2024), so that a load of a whole word is one term rather than 32 byte
