@@ -860,3 +860,48 @@ fn @tail_called_result() -> i256 {
     mstore v1, 1
     ret 0
 }
+
+fn @const_word() -> i256 {
+  bb0:
+    ret 128
+}
+
+// A call result that the callee computes from a constant is stored as the pointer like a constant
+// word, so it is raised to the heap floor.
+// CHECK-LABEL: {{^[ +].*}}fn @store_returned_word{{[( ]}}
+// CHECK: [[WORD:v[0-9]+]] = icall @const_word
+// CHECK-NEXT: - mstore 64, [[WORD]]
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt [[WORD]], [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], [[WORD]]
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @store_returned_word() -> i256 {
+  bb0:
+    v0 = icall @const_word
+    mstore 64, v0
+    v1 = mload 64
+    mstore v1, 1
+    ret v1
+}
+
+// A parameter that a caller passes a constant for is stored as the pointer like a constant word,
+// so the callee raises it to the heap floor.
+// CHECK-LABEL: {{^[ +].*}}fn @set_slot{{[( ]}}
+// CHECK: - mstore 64, arg0
+// CHECK-NEXT: + [[FLOOR:v[0-9]+]] = heap_floor
+// CHECK-NEXT: + [[BELOW:v[0-9]+]] = lt arg0, [[FLOOR]]
+// CHECK-NEXT: + [[CLAMPED:v[0-9]+]] = select [[BELOW]], [[FLOOR]], arg0
+// CHECK-NEXT: + mstore 64, [[CLAMPED]]
+fn @set_slot(arg0: i256) {
+  bb0:
+    mstore 64, arg0
+    ret
+}
+
+fn @store_passed_word() -> i256 {
+  bb0:
+    icall @set_slot, 128
+    v0 = mload 64
+    mstore v0, 1
+    ret v0
+}
