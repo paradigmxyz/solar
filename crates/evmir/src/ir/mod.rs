@@ -1104,6 +1104,12 @@ impl StackEffect {
     pub const fn new(inputs: u8, outputs: u8) -> Self {
         Self { inputs, outputs }
     }
+
+    /// Returns the change in stack height.
+    #[must_use]
+    pub const fn net_growth(self) -> isize {
+        self.outputs as isize - self.inputs as isize
+    }
 }
 
 pub fn default_terminator_stack_effect(kind: &TerminatorKind) -> Option<StackEffect> {

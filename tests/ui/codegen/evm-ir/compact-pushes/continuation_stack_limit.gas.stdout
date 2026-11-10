@@ -252,4 +252,58 @@
     push 0xffffffffffffffffffffffffffffffffffffffff
     pop
     stop
+  bb60 [stack=10]:
+    push bb62
+    jump bb61
+  bb61:
+    push 7
+    swap 1
+    jump
+  bb62 [continuation]:
+    push bb63
+    jump bb61
+  bb63 [continuation]:
+-   push 0xffffffffffffffffffffffffffffffffffffffff
++   push 0
++   not
++   push 96
++   shr
+    pop
+    stop
+  bb64 [stack=10]:
+    push bb66
+    jump bb65
+  bb65:
+    push 7
+    swap 1
+    jump
+  bb66 [continuation]:
+    push 1
+    push bb68
+    jumpi
+    push bb66
+    jump bb65
+  bb68:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
+  bb71 [stack=1021]:
+    push bb74
+    jump bb72
+  bb72:
+    push 1
+    push bb73
+    jumpi
+    push 7
+    swap 1
+    jump
+  bb73:
+    push 7
+    push 8
+    swap 2
+    jump
+  bb74 [continuation]:
+    push 0xffffffffffffffffffffffffffffffffffffffff
+    pop
+    stop
   

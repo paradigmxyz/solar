@@ -27,9 +27,10 @@
 //! can only be entered by a jump that consumes it, and no jump can be modeled from the address's
 //! block alone when a branch carries it into other code, so the bound traces the word itself. It
 //! follows the word's distance from the top over every stack operation and direct edge to the
-//! jumps that consume it, and enters its block at the depth of the deepest of them. A word that
-//! is copied, read, passed to a callee, or left on a path that can still reach a dynamic jump
-//! through a word the trace cannot name has no bound.
+//! jumps that consume it, and enters its block at the depth of the deepest of them, counted from
+//! the entry bound of the block that pushed it. A word that is copied, read, passed to a callee,
+//! or left on a path that can still reach a dynamic jump through a word the trace cannot name has
+//! no bound, and neither has one whose path leaves more words behind on each round of a cycle.
 //!
 //! The walk instead propagates a range of entry depths per block and checks each bound where it
 //! is the worst case. Operand availability (`dup`, `swap`, `pop`, and every instruction's inputs)
@@ -793,7 +794,10 @@ impl<'a> Verifier<'a> {
     ///
     /// A pushed label that the direct edges do not model, such as a return address that a branch
     /// carries into other code, has no walked depth. `bound_pushed_labels` bounds it by
-    /// following the word to the jumps that consume it, and the blocks it reaches from there.
+    /// following the word to the jumps that consume it, and the blocks it reaches from there. The
+    /// depth it takes is counted from the block that pushed the label, so the bound of a
+    /// continuation does not depend on the other callers of the code it returns from. Only a
+    /// cycle that leaves words behind on each round, such as a recursive call, stays unknown.
     pub fn stack_entry_upper_bounds(
         module: &Module,
         evm_version: EvmVersion,
@@ -1244,18 +1248,6 @@ const fn depth_after(stack: usize, effect: StackEffect) -> usize {
     stack.saturating_sub(effect.inputs as usize) + effect.outputs as usize
 }
 
-/// Returns the depth a block entered at `entry` ends at, after its terminator.
-fn exit_depth(block: &Block, entry: usize) -> usize {
-    let terminator =
-        block.terminator.iter().filter_map(|term| default_terminator_stack_effect(&term.kind));
-    block
-        .instructions
-        .iter()
-        .map(Instruction::stack_effect)
-        .chain(terminator)
-        .fold(entry, depth_after)
-}
-
 /// Calls `edge` with each direct successor of `block` and the depth it is entered at when the
 /// block is entered at `stack`, as the walk propagates it.
 fn bound_edges(
@@ -1283,10 +1275,6 @@ fn bound_edges(
     }
 }
 
-/// The block that ends with the jump that consumes a followed word, and the effect the jump has
-/// on the stack it leaves for the word's block: a call's, or none for a dynamic jump.
-type Consumer = (BlockId, StackEffect);
-
 /// The words a trace follows, by distance from the top of the stack.
 #[derive(Clone, PartialEq, Eq)]
 struct Words {
@@ -1295,12 +1283,15 @@ struct Words {
     /// The labels the trace has seen pushed after it, sorted by distance. A jump through one goes
     /// to the block it names.
     labels: SmallVec<[(usize, BlockId); 4]>,
+    /// The stack height here, less the height the push's block was entered at.
+    height: isize,
 }
 
 impl Words {
     /// Applies an operation. Returns `None` when it consumes the followed word.
     fn apply(&mut self, effect: StackEffect) -> Option<()> {
         let (inputs, outputs) = (usize::from(effect.inputs), usize::from(effect.outputs));
+        self.height += effect.net_growth();
         self.word = self.word.checked_sub(inputs)? + outputs;
         self.labels.retain(|(distance, _)| *distance >= inputs);
         for (distance, _) in &mut self.labels {
@@ -1312,6 +1303,7 @@ impl Words {
     /// Applies a stack operation. Returns `None` when it copies the followed word, and
     /// `Some(false)` when it discards it.
     fn apply_stack_op(&mut self, stack_op: op::StackOp) -> Option<bool> {
+        self.height += stack_op.net_growth();
         match stack_op.track(self.word) {
             op::TrackedWord::At(word) => self.word = word,
             op::TrackedWord::Copied(_) => return None,
@@ -1341,27 +1333,37 @@ impl Words {
 }
 
 /// Follows the word pushed by the instruction at `push` in `start` over the direct edges, and
-/// returns the jumps that consume it, or `None` when it can leave the followed paths: it is
-/// copied, read by another instruction, passed to a callee, carried to a dynamic jump through a
-/// word the trace cannot name, or it sits at different distances from the top at the entry of one
-/// block. A path where the word leaves the trace but no dynamic jump or storage write can follow
-/// is dropped, as nothing is left to consume it.
+/// returns the stack height each jump that consumes it leaves, relative to the height `start` is
+/// entered at, or `None` when it can leave the followed paths: it is copied, read by another
+/// instruction, passed to a callee, carried to a dynamic jump through a word the trace cannot
+/// name, or it sits at different distances from the top at the entry of one block. A path where
+/// the word leaves the trace but no dynamic jump or storage write can follow is dropped, as
+/// nothing is left to consume it.
 ///
 /// A jump through a label that the trace saw pushed after the word goes to the block it names,
 /// where the trace continues. A callee leaves the words below its arguments as they are, as the
 /// call effect that models it assumes, so the word follows the call's continuation.
+///
+/// The height is the largest over the paths to a jump, taken from the push site and not from the
+/// jump's own block, which other callers of the same code also enter. A path that grows the stack
+/// by more than the stack holds runs round a cycle that leaves words behind, so the word has no
+/// bound.
 fn trace_pushed_word(
     module: &Module,
     flows: &IndexVec<BlockId, LabelFlow>,
     may_leak: &DenseBitSet<BlockId>,
     start: BlockId,
     push: usize,
-) -> Option<Vec<Consumer>> {
-    let mut consumers = Vec::new();
+) -> Option<Vec<isize>> {
+    let mut heights = Vec::new();
     // The words at the entry of each block reached.
     let mut entries = FxHashMap::<BlockId, Words>::default();
     // The block to run, the first instruction to run in it, and the words.
-    let mut pending = vec![(start, push + 1, Words { word: 0, labels: SmallVec::new() })];
+    let height = module.blocks[start].instructions[..=push]
+        .iter()
+        .map(|inst| inst.stack_effect().net_growth())
+        .sum();
+    let mut pending = vec![(start, push + 1, Words { word: 0, labels: SmallVec::new(), height })];
     'blocks: while let Some((block_id, from, mut words)) = pending.pop() {
         // Gives up on the path unless the word cannot reach a dynamic jump or storage from here.
         macro_rules! lost {
@@ -1380,9 +1382,10 @@ fn trace_pushed_word(
                     if known.word != words.word {
                         lost!();
                     }
-                    let before = known.labels.len();
+                    let before = (known.labels.len(), known.height);
                     known.intersect(&words);
-                    if known.labels.len() == before {
+                    known.height = known.height.max(words.height);
+                    if (known.labels.len(), known.height) == before {
                         continue;
                     }
                     words = known.clone();
@@ -1391,6 +1394,9 @@ fn trace_pushed_word(
                     entry.insert(words.clone());
                 }
             }
+        }
+        if words.height > MAX_STACK_DEPTH as isize {
+            return None;
         }
         let block = &module.blocks[block_id];
         for (at, inst) in block.instructions.iter().enumerate().skip(from) {
@@ -1423,7 +1429,8 @@ fn trace_pushed_word(
         match &block.terminator.as_ref()?.kind {
             TerminatorKind::Op(op::JUMP) => {
                 if words.word == 0 {
-                    consumers.push((block_id, StackEffect::new(0, 0)));
+                    // The jump pops the word.
+                    heights.push(words.height - 1);
                     continue;
                 }
                 let continuation = words
@@ -1436,7 +1443,7 @@ fn trace_pushed_word(
                 if let Some(call) = module.blocks[*target].metadata.call_effect =>
             {
                 if words.word == usize::from(call.ret) {
-                    consumers.push((block_id, call.effect));
+                    heights.push(words.height + call.effect.net_growth());
                     continue;
                 }
                 let Some(continuation) = words
@@ -1459,17 +1466,21 @@ fn trace_pushed_word(
             }
         }
     }
-    Some(consumers)
+    Some(heights)
 }
 
 /// Bounds the entry depth of every pushed label that no direct edge enters, by following each
 /// pushed word to the jumps that consume it, and propagates the bound to the blocks it reaches.
 ///
-/// A jump through the word enters the label's block at the depth the jump leaves its own block,
-/// which is the bound of the walk's depth at that block, less the address the jump pops. A label
-/// whose word escapes the trace has no bound, and neither has what it reaches. A raised block
-/// can raise the jumps in it, and a jump can sit in a block that another label bounds, so the
-/// bounds are repeated until none changes.
+/// A jump through the word enters the label's block at the depth the jump leaves the stack. The
+/// bound counts that depth from the block that pushed the word: its entry bound, plus the growth
+/// along the path to the jump, over every push of the label and every path. It does not use the
+/// entry bound of the jump's own block, which is the maximum over every caller of the code it
+/// ends and so would feed the depth of a later call back into the continuation of an earlier one.
+/// A label whose word escapes the trace has no bound, and neither has what it reaches. A raised
+/// block can raise the labels it pushes, so the bounds are repeated until none changes. A label
+/// pushed on a cycle that leaves a word behind each round raises its own bound past the stack
+/// limit, which is when it gives up.
 fn bound_pushed_labels(
     module: &Module,
     flows: &IndexVec<BlockId, LabelFlow>,
@@ -1488,37 +1499,42 @@ fn bound_pushed_labels(
                 .iter()
                 .any(|inst| inst.as_evm_opcode().is_some_and(op::writes_storage))
     });
-    let mut consumers = FxHashMap::<BlockId, Vec<Consumer>>::default();
+    // For each label, the blocks that push it, with the height above their entry that the jumps
+    // consuming the word leave the stack at.
+    let mut sites = FxHashMap::<BlockId, Vec<(BlockId, isize)>>::default();
     let mut escaped = Vec::new();
     for &(block_id, at, label) in pushes {
         match trace_pushed_word(module, flows, &may_leak, block_id, at) {
-            Some(found) => consumers.entry(label).or_default().extend(found),
+            Some(found) => {
+                if let Some(height) = found.into_iter().max() {
+                    sites.entry(label).or_default().push((block_id, height));
+                }
+            }
             None => escaped.push(label),
         }
     }
     forget_reached(module, flows, upper, unknown, escaped);
     let mut changed = true;
     while std::mem::take(&mut changed) {
-        // The labels with a consumer in a block that has no bound yet, and the labels whose
-        // bound keeps growing past the stack limit.
+        // The labels pushed from a block that has no bound yet, and the labels whose bound keeps
+        // growing past the stack limit.
         let mut waiting = Vec::new();
         let mut growing = Vec::new();
-        'labels: for (&label, found) in &consumers {
+        'labels: for (&label, found) in &sites {
             if unknown.contains(label) {
                 continue;
             }
             let mut bound = 0;
-            for &(block_id, effect) in found {
-                let block = &module.blocks[block_id];
+            for &(block_id, height) in found {
                 let Some(entry) = upper[block_id] else {
                     waiting.push(label);
                     continue 'labels;
                 };
-                bound = bound.max(depth_after(exit_depth(block, entry), effect));
+                bound = bound.max(entry.saturating_add_signed(height));
             }
             if bound > MAX_STACK_DEPTH {
                 growing.push(label);
-            } else if !found.is_empty() && upper[label].is_none_or(|known| known < bound) {
+            } else if upper[label].is_none_or(|known| known < bound) {
                 upper[label] = Some(bound);
                 changed = true;
                 raise_reached(module, flows, upper, unknown, label);

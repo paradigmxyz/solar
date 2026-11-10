@@ -357,3 +357,79 @@ bb59:
   push 0xffffffffffffffffffffffffffffffffffffffff
   pop
   stop
+
+// Two calls share a helper that leaves a result. Each continuation is bounded from the block that
+// pushed it, so the depth the second call gives the helper does not return to the first
+// continuation one word higher on every round, and the block after the second call has a bound.
+// CHECK-LABEL: bb63 [continuation]:
+// CHECK: + push 0
+// CHECK-NEXT: + not
+bb60 [stack=10]:
+  push bb62
+  jump bb61
+
+bb61:
+  push 7
+  swap 1
+  jump
+
+bb62 [continuation]:
+  push bb63
+  jump bb61
+
+bb63 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// A continuation that calls the helper again on every round leaves one more word each time, so
+// it has no bound, and neither has the block it branches to.
+// CHECK-LABEL: bb68:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb64 [stack=10]:
+  push bb66
+  jump bb65
+
+bb65:
+  push 7
+  swap 1
+  jump
+
+bb66 [continuation]:
+  push 1
+  push bb68
+  jumpi
+  push bb66
+  jump bb65
+
+bb68:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
+
+// The continuation is entered at the deepest of the paths to the jump: the branch of the helper
+// that leaves two words puts it at 1023.
+// CHECK-LABEL: bb74 [continuation]:
+// CHECK-NEXT: {{^ +}}push 0xffffffffffffffffffffffffffffffffffffffff
+bb71 [stack=1021]:
+  push bb74
+  jump bb72
+
+bb72:
+  push 1
+  push bb73
+  jumpi
+  push 7
+  swap 1
+  jump
+
+bb73:
+  push 7
+  push 8
+  swap 2
+  jump
+
+bb74 [continuation]:
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  pop
+  stop
