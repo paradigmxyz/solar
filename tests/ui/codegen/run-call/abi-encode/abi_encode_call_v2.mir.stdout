@@ -191,9 +191,9 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v157 = calldatasize
     v158 = gt v156, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v158
-    v159 = sub v157, v156
-    v160 = ptrtoint ptr<calldata> v155 to i256
-    v161 = slt v159, v160
+    v159 = ptrtoint ptr<calldata> v155 to i256
+    v160 = add v159, v156
+    v161 = lt v157, v160
     icall revert_if<calldata_tail_too_short>, v161
     v162 = extract_value slice<calldata>, v154, 1
     v163 = add v162, 31
@@ -245,9 +245,9 @@ fn @callMeMaybe(arg0: slice<calldata>, arg1: i256, arg2: ptr<memory>) [selector=
     v201 = calldatasize
     v202 = gt v200, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v202
-    v203 = sub v201, v200
-    v204 = ptrtoint ptr<calldata> v199 to i256
-    v205 = slt v203, v204
+    v203 = ptrtoint ptr<calldata> v199 to i256
+    v204 = add v203, v200
+    v205 = lt v201, v204
     icall revert_if<calldata_tail_too_short>, v205
     v206 = extract_value slice<calldata>, v198, 1
     v207 = add v206, 31

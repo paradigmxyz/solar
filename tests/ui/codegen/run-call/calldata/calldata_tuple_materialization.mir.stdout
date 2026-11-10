@@ -54,8 +54,8 @@ fn @memoryTuple(arg0: slice<calldata>) -> struct1 [selector=0x32e034d0, pure, ab
     icall panic_if<0x41>, v7
     v8 = calldatasize
     v9 = ptrtoint ptr<calldata> v5 to i256
-    v10 = sub v8, v9
-    v11 = slt v10, v6
+    v10 = add v9, v6
+    v11 = lt v8, v10
     icall revert_if<calldata_tail_too_short>, v11
     v12 = mul v4, 32
     v13 = gt v4, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -202,8 +202,8 @@ fn @sliceTuple(arg0: slice<calldata>) -> struct3 [selector=0x09979d7d, abi_param
     icall panic_if<0x41>, v12
     v13 = calldatasize
     v14 = ptrtoint ptr<calldata> v10 to i256
-    v15 = sub v13, v14
-    v16 = slt v15, v11
+    v15 = add v14, v11
+    v16 = lt v13, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = mul v9, 32
     v18 = gt v9, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

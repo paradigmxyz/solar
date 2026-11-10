@@ -1050,3 +1050,30 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
+
+### CODEGEN-023: A forged nested calldata offset reverts a storage copy or revert reason
+
+- ID: CODEGEN-023
+- Status: intentional
+- Difference: assigning a `bytes` or `string` calldata value to storage, pushing
+  it onto a storage array, or using it as a `require` or `revert` reason
+  reverts with empty data in `solar` when its nested ABI offset is `2**255`.
+  `solc` stores an empty value or reverts with `Error("")`. Both reject the
+  same input when the value is copied to memory.
+- Rationale: only malformed calldata reaches it, and `solar` is the stricter
+  of the two. These consumers share the copy to memory that rejects the
+  address; telling them apart would thread a flag through every consumer for
+  input that no ABI encoder produces.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_nested_high_offset_storage.sol`.
+
+### CODEGEN-024: A wrapping array range runs out of gas instead of panicking
+
+- ID: CODEGEN-024
+- Status: intentional
+- Difference: copying a calldata array to memory when inline assembly gave it
+  a start and a length whose sum wraps past `2**256` runs out of gas in
+  `solar`. `solc` reverts with `Panic(0x41)` at the allocation.
+- Rationale: only assembly builds such a slice, and the call fails either way.
+  Rejecting a wrapping sum would add two instructions to every calldata range
+  check, which also guards ordinary decoding.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_array_wrapping_range.sol`.

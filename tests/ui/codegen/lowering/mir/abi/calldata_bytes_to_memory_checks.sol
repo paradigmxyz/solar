@@ -18,15 +18,15 @@
 // CHECK-LABEL: fn @lengthSet
 // CHECK: [[LENGTH:v[0-9]+]] = calldataload 36
 // CHECK: shr [[LENGTH]], 64
-// CHECK: slt
+// CHECK: = lt
 // CHECK-LABEL: fn @offsetSet
 // CHECK: shr {{[^ ,]+}}, 64{{$}}
-// CHECK: slt
+// CHECK: = lt
 
 // A public function also takes slices from internal calls, so it keeps them.
 // CHECK-LABEL: fn @forwarded
 // CHECK: shr {{[^ ,]+}}, 64{{$}}
-// CHECK: slt
+// CHECK: = lt
 contract CalldataBytesToMemoryChecks {
     function length(bytes memory b) internal pure returns (uint256) {
         return b.length;

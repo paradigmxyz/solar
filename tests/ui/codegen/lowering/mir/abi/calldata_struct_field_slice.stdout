@@ -121,8 +121,8 @@ fn @tailHash.1() {
   bb2:                                            ; preds = bb6
     v20 = sub v31, 20
     v22 = add v33, 20
-    v38 = sub v1, v20
-    v40 = slt v38, v22
+    v39 = add v22, v20
+    v40 = lt v1, v39
     jumpi v40, bb1, bb7
   bb7:                                            ; preds = bb2
     v44 = heap_floor
