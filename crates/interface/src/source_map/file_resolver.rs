@@ -43,6 +43,8 @@ pub struct FileResolver<'a> {
     remappings: Vec<ImportRemapping>,
     /// Base path for source unit names.
     base_path: Option<PathBuf>,
+    /// Whether imports may only resolve to loaded sources, like solc's `--no-import-callback`.
+    no_import_callback: bool,
 
     /// Custom current directory.
     custom_current_dir: Option<PathBuf>,
@@ -61,6 +63,7 @@ impl<'a> FileResolver<'a> {
             include_paths: Vec::new(),
             remappings: Vec::new(),
             base_path,
+            no_import_callback: false,
             custom_current_dir: None,
             env_current_dir: OnceLock::new(),
             last_input: OnceLock::new(),
@@ -81,6 +84,7 @@ impl<'a> FileResolver<'a> {
         if let Some(base_path) = &opts.base_path {
             self.base_path = Some(self.absolute(base_path));
         }
+        self.no_import_callback = opts.no_import_callback;
     }
 
     /// Clears the internal state.
@@ -88,6 +92,7 @@ impl<'a> FileResolver<'a> {
         self.include_paths.clear();
         self.remappings.clear();
         self.base_path = None;
+        self.no_import_callback = false;
         self.custom_current_dir = None;
         self.env_current_dir.take();
         self.last_input.take();
@@ -283,6 +288,12 @@ impl<'a> FileResolver<'a> {
             }
         }
 
+        if self.no_import_callback {
+            let e =
+                io::Error::new(io::ErrorKind::Unsupported, "File import callback not supported");
+            return Err(ResolveError::ReadFile(unit.into(), e));
+        }
+
         let mut found = SmallVec::<[_; 1]>::new();
         for candidate in self.search_paths(&unit) {
             // Quick deduplication when include paths are duplicated.
@@ -344,29 +355,36 @@ impl<'a> FileResolver<'a> {
         } else {
             self.roots().map(|root| normalize_unit(&root.join(unit))).collect()
         };
-        let mut found = SmallVec::<[(PathBuf, String); 1]>::new();
+        // Keep only the first match's contents: any further match makes the import ambiguous.
+        let mut found = SmallVec::<[PathBuf; 1]>::new();
+        let mut first = None;
         let mut read_error = None;
         for candidate in candidates {
             let Ok(path) = loader.canonicalize_path(&candidate) else { continue };
-            if found.iter().any(|(found, _)| *found == path) {
+            if found.contains(&path) {
                 continue;
             }
             match loader.load_file(&path) {
-                Ok(src) => found.push((path, src)),
+                Ok(src) => {
+                    first.get_or_insert(Ok(src));
+                    found.push(path);
+                }
+                // Like solc, a file that exists but is refused still makes the import ambiguous.
+                Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                    first.get_or_insert(Err(e));
+                    found.push(path);
+                }
                 // A read callback need not serve every root.
                 Err(e) => {
                     read_error.get_or_insert(ResolveError::ReadFile(path, e));
                 }
             }
         }
-        match found.len() {
-            0 => read_error.map_or(Ok(None), Err),
-            1 => Ok(found.pop().map(|(_, src)| src)),
-            _ => {
-                let paths = found.into_iter().map(|(path, _)| path).collect();
-                Err(ResolveError::MultipleMatches(path.into(), paths))
-            }
+        let Some(first) = first else { return read_error.map_or(Ok(None), Err) };
+        if found.len() > 1 {
+            return Err(ResolveError::MultipleMatches(path.into(), found.into_vec()));
         }
+        first.map(Some).map_err(|e| ResolveError::ReadFile(found.swap_remove(0), e))
     }
 
     /// Returns the source unit name that `path` refers to when imported from `parent`.

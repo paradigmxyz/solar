@@ -21,8 +21,20 @@
 -   bb2:                                            ; preds = bb0
 -     ret 7 !metadata(span=50..60)
 -   bb1:                                            ; preds = bb0
--     ret 7 !metadata(span=30..40)
-+     ret 7 !metadata(spans=[30..40, 50..60])
+      ret 7 !metadata(span=30..40)
++   bb1 [cold]:
++     invalid
++   bb2 [cold]:
++     invalid
+  }
+  
+  fn @reached_second_return() -> i256 {
+    bb0:
+-     jumpi false, bb1, bb2
+-   bb2:                                            ; preds = bb0
+      ret 7 !metadata(span=90..100, modifier_depth=1)
+-   bb1:                                            ; preds = bb0
+-     ret 7 !metadata(span=70..80)
 +   bb1 [cold]:
 +     invalid
 +   bb2 [cold]:

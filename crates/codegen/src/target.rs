@@ -1416,7 +1416,7 @@ impl Target {
             | InstKind::Zext(_) => Cost::ZERO,
             InstKind::PtrAdd(..) => self.opcode(op::ADD),
             InstKind::Fmp | InstKind::FrameLoad { .. } => self.opcode(op::MLOAD),
-            InstKind::SetFmp(_) | InstKind::FrameStore { .. } => self.opcode(op::MSTORE),
+            InstKind::FrameStore { .. } => self.opcode(op::MSTORE),
             // Bump the free-memory pointer past the allocation.
             InstKind::Alloc { .. } => self.opcodes(&[op::MLOAD, op::ADD, op::MSTORE]),
             // Reserve the buffer, store the selector, produce the slice, store every argument's

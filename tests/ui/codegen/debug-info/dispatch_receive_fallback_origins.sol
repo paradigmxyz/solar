@@ -2,9 +2,9 @@
 //@ filecheck:
 //@ normalize-stdout-test: "(?s).+" -> ""
 
-// With `receive`, `fallback` and revert strings, the empty-calldata check, the selector switch, the
-// non-payable fallback's callvalue check and the `Error(string)` revert are all part of the
-// dispatcher, which belongs to the contract definition as in solc.
+// With `receive`, `fallback` and revert strings, the empty-calldata check, the selector switch and
+// the `Error(string)` revert are all part of the dispatcher, which belongs to the contract
+// definition as in solc.
 
 // CHECK-LABEL: (scheduled runtime) ===
 // CHECK: bb0: {{.*}}runtime dispatch entry
@@ -12,9 +12,6 @@
 // CHECK-NEXT: push {{bb[0-9]+}} !metadata(span=[[C]])
 // CHECK-NEXT: jumpi !metadata(span=[[C]])
 // CHECK: shr !metadata(span=[[C]])
-// CHECK: callvalue !metadata(span=[[C]])
-// CHECK-NEXT: push {{bb[0-9]+}} !metadata(span=[[C]])
-// CHECK-NEXT: jumpi !metadata(span=[[C]])
 // CHECK: mstore !metadata(span=[[C]])
 // CHECK: revert !metadata(span=[[C]])
 contract C {

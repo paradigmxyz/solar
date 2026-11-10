@@ -1,0 +1,19 @@
+{
+  "sources": {
+    "../lib/dep/C.sol": {
+      "id": 0
+    },
+    "file://../lib/dep/D.sol": {
+      "id": 1
+    },
+    "../lib/dep/B.sol": {
+      "id": 2
+    },
+    "amb/E.sol": {
+      "id": 3
+    },
+    "src/A.sol": {
+      "id": 4
+    }
+  }
+}

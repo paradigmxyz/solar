@@ -14,7 +14,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn resolve_lvalue_place(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<LValuePlace<'gcx>> {
         let expr = expr.peel_parens();
         if let ExprKind::YulMember(receiver, name) = &expr.kind {
@@ -87,7 +87,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn resolve_yul_suffix_place(
         &mut self,
-        receiver: &hir::Expr<'_>,
+        receiver: &'gcx hir::Expr<'gcx>,
         name: Ident,
         span: Span,
     ) -> Option<LValuePlace<'gcx>> {
@@ -192,7 +192,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn resolve_storage_byte_place(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<LValuePlace<'gcx>> {
         let expr = expr.peel_parens();
         if let Some((callee, arguments, _)) = expr.as_call()
@@ -276,6 +276,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 return Some(self.builder.imm(location.slot));
             }
             let slot = self.builder.imm(location.slot);
+            // A storage aggregate is its slot, like any other storage reference; the consumer
+            // converts it.
+            if ty.is_ref_at(DataLocation::Storage) {
+                return Some(slot);
+            }
             return self.load_storage_value(
                 ty,
                 StorageAccess { slot, location, offset: None },
@@ -386,13 +391,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn store_lvalue(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> Option<()> {
+    pub(super) fn store_lvalue(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        value: ValueId,
+    ) -> Option<()> {
         self.store_lvalue_with_source(expr, value, None)
     }
 
     pub(super) fn store_lvalue_with_source(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         value: ValueId,
         source_ty: Option<Ty<'gcx>>,
     ) -> Option<()> {
@@ -513,7 +522,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.store_variable(id, value, span)
     }
 
-    pub(super) fn delete_lvalue(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+    pub(super) fn delete_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<()> {
         let ty = self.cx.gcx.type_of_expr(expr.id)?;
         if ty.is_ref_at(DataLocation::Storage)
             && let Some(access) = self.storage_access(expr)

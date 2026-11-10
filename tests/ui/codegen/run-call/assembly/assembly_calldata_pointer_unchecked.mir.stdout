@@ -121,19 +121,13 @@ fn @concatIt() -> ptr<memory> [selector=0xe95a0beb, pure, abi_params=[], abi_ret
 fn @shaIt() -> i256 [selector=0x43234fee, pure, abi_params=[], abi_returns=[word], abi_return_params=[bytes32]] {
   bb0:
     v0 = icall @b
-    v1 = extract_value slice<calldata>, v0, 1
-    v2 = extract_value slice<calldata>, v0, 0
-    v3 = add v1, 31
-    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v5 = add v4, 32
-    v6 = lt v5, v1
-    icall panic_if<0x41>, v6
-    v7 = alloc v5
-    mstore v7, v1
-    v8 = ptradd v7, 32
-    calldatacopy v8, v2, v1 !metadata(memory=heap)
-    v9 = icall sha256<>, v7
-    ret v9
+    v1 = extract_value slice<calldata>, v0, 0
+    v2 = extract_value slice<calldata>, v0, 1
+    v3 = fmp
+    calldatacopy v3, v1, v2 !metadata(memory=heap)
+    v4 = make_memory_slice v3, v2
+    v5 = icall sha256<>, v4
+    ret v5
 }
 
 ; function decodeIt() external pure returns (uint256) [selector 0xd2549072]

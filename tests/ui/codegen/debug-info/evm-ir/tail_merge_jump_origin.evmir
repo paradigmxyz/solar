@@ -2,10 +2,10 @@
 //@ filecheck:
 @module JumpOrigin
 
-// The jump into the shared tail copies its site's first removed instruction as is. Here that
-// instruction has no origin, so the jump has none, even though a later removed one has.
+// The jump into the shared tail copies the first removed instruction that has an origin. Here the
+// first removed instruction has none, so the jump takes the next one's.
 // CHECK-LABEL: {{^[ +].*}}bb0:
-// CHECK: + jump [[TAIL:bb[0-9]+]]{{$}}
+// CHECK: + jump [[TAIL:bb[0-9]+]] !metadata(span=11..15){{$}}
 bb0:
   push 11 !metadata(span=1..5)
   push 22
