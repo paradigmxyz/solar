@@ -189,6 +189,13 @@ unsupported checks with expectations. Report coverage counts, reduce new
 failures into regression tests, and record accepted differences in
 [SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md).
 
+- Do not chase solc parity on differences ordinary Solidity would not hit, such
+  as revert data only, assembly-forged values, dirty bits, malformed calldata,
+  or absurd type sizes: record them in SOLC_DIVERGENCE.md with a UI test that
+  pins our behavior. Never accept a parity fix that makes the compiler more
+  complex or slower, or the generated code bigger or slower, unless the
+  difference matters by that test.
+
 ### Codegen / MIR Pass Tests
 
 Every MIR and EVM IR pass module starts with module docs that let a reviewer
