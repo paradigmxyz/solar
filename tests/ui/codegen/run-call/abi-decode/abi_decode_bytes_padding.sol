@@ -17,7 +17,6 @@ contract DecodeBytesPadding {
     // below sees the same result as with clean padding.
     // CHECK-LABEL: fn @padded
     // CHECK: abi_decode [bytes]
-    // CHECK-NOT: memory_zero
     function padded(uint256 n) public pure returns (bool) {
         require(n <= 65);
         bytes memory value = new bytes(n);

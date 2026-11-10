@@ -11,7 +11,7 @@
 //! into the output or the hash buffer, as solc does, so the value has no memory copy and costs no
 //! free-memory growth. Storage is read here, after the arguments ran. Whole words are written, so a
 //! part may write up to 31 bytes past its end: the next part overwrites them, and after the last
-//! part they lie in the cleared word or above the allocation.
+//! part they lie in the padding or above the allocation.
 //! An array of full words that need no cleanup copies as one block, as the standard encoder
 //! copies it: one `MCOPY` from memory and one `CALLDATACOPY` from calldata. An array of fixed
 //! arrays of words in calldata takes the standard encoder's wrap guard. Words that need cleanup
