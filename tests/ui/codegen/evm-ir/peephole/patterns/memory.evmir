@@ -26,7 +26,7 @@ bb0:
   mload
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-LABEL: {{^[ +].*}}bb1 [stack=0]:
 // CHECK: {{^[ +].*}}push 1
 // CHECK-NEXT: {{^[ +].*}}dup 1
 // CHECK-NEXT: {{^[ +].*}}push 32
@@ -34,7 +34,7 @@ bb0:
 // CHECK-NEXT: - pop
 // CHECK-NEXT: - push 32
 // CHECK-NEXT: - mload
-bb1:
+bb1 [stack=0]:
   push 1
   dup 1
   push 32
@@ -113,11 +113,11 @@ bb6 [stack=1019]:
   mload
   stop
 
-// CHECK-LABEL: bb7:
+// CHECK-LABEL: bb7 [stack=0]:
 // CHECK: +   dup 1
 // CHECK: {{^[ +].*}}sstore
 // CHECK: -   sload
-bb7:
+bb7 [stack=0]:
   push 7
   push 4
   sstore
@@ -125,11 +125,11 @@ bb7:
   sload
   stop
 
-// CHECK-LABEL: bb8:
+// CHECK-LABEL: bb8 [stack=0]:
 // CHECK: +   dup 1
 // CHECK: {{^[ +].*}}tstore
 // CHECK: -   tload
-bb8:
+bb8 [stack=0]:
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   push 0
   tstore

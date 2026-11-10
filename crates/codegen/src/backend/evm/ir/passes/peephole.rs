@@ -11,6 +11,9 @@
 //! passes expose few new opportunities. Rules never cross a block boundary;
 //! target legality, push removability, and symbolic stack bounds stay in the
 //! extractors, and edits preserve their existing metadata policy.
+//! A rule that raises a block's stack peak, such as the reload of a stored value, also needs the
+//! block's entry depth. The pass takes it from the verifier's upper bounds, only for blocks where
+//! such a rule can match, and rejects the rewrite where that bound is unknown or leaves no room.
 //! Comparison inversion tracks a constant through up to 24 instructions that cannot observe
 //! or copy it. Adjusting that bound and flipping LT/GT or SLT/SGT removes ISZERO after branch
 //! layout chooses the taken edge. Operand computations stay in place; wrapping bounds,
@@ -55,7 +58,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Instruction, Metadata, Module, ModuleTarget, TerminatorKind},
+        ir::{Instruction, Metadata, Module, ModuleTarget, TerminatorKind, verify::Verifier},
         op,
     },
     target::Target,
@@ -146,24 +149,45 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-/// Returns the length and hash of the keys of `instructions`, which key the module's records of
-/// block contents on which a peephole run found no rewrite, so the same contents can be skipped.
+/// Returns the length and hash of the keys of `instructions` and the entry bound, which key the
+/// module's records of block contents on which a peephole run found no rewrite, so the same
+/// contents can be skipped.
 ///
 /// Matching reads only each instruction's opcode, encoding, value, stack operation, and
-/// `keep_with_next` flag, and no other metadata, so equal keys produce the same result. The final
-/// rules extend the early ones, so contents clean under them are clean under both. Records are
-/// keyed by contents rather than by block, so they survive block reordering and removal and cover
-/// every block with equal contents.
+/// `keep_with_next` flag, and no other metadata, and the entry bound where a rule needs it, so
+/// equal keys produce the same result. The final rules extend the early ones, so contents clean
+/// under them are clean under both. Records are keyed by contents rather than by block, so they
+/// survive block reordering and removal and cover every block with equal contents.
 ///
 /// NOTE: Records hold a hash of the keys rather than a copy, which would retain every clean
 /// block's contents a second time for the module's lifetime. A collision between recorded and
 /// current contents of equal length would skip a rewrite; the result stays deterministic.
-fn clean_key(instructions: &[Instruction]) -> (u32, u64) {
+fn clean_key(instructions: &[Instruction], entry: Option<usize>) -> (u32, u64) {
     let mut hasher = FxHasher::default();
+    entry.hash(&mut hasher);
     for inst in instructions {
         MachineInstKey::new(inst).hash(&mut hasher);
     }
     (instructions.len() as u32, hasher.finish())
+}
+
+/// Returns whether a rule that raises the stack peak can match `instructions`: a store followed
+/// by a load of the same kind of storage.
+fn may_raise_peak(instructions: &[Instruction]) -> bool {
+    let mut stored = [false; 3];
+    instructions.iter().any(|inst| {
+        let Some(opcode) = inst.as_evm_opcode() else { return false };
+        match opcode {
+            op::MSTORE => stored[0] = true,
+            op::SSTORE => stored[1] = true,
+            op::TSTORE => stored[2] = true,
+            _ => {}
+        }
+        matches!(
+            (opcode, stored),
+            (op::MLOAD, [true, ..]) | (op::SLOAD, [_, true, _]) | (op::TLOAD, [.., true])
+        )
+    })
 }
 
 fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
@@ -171,10 +195,17 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
     let final_cleanup = rules == Rules::Final;
     let mut changed = false;
     let mut scratch = Vec::new();
+    let entry_depths = (rules != Rules::Late
+        && module.blocks.iter().any(|block| may_raise_peak(&block.instructions)))
+    .then(|| Verifier::stack_entry_upper_bounds(module, target.evm_version()));
     let clean = &mut module.peephole_clean;
-    for block in &mut module.blocks {
+    for (block_id, block) in module.blocks.iter_mut_enumerated() {
         // The late rules are separate from the cached early and final ones.
-        let key = (rules != Rules::Late).then(|| clean_key(&block.instructions));
+        let entry = entry_depths
+            .as_ref()
+            .filter(|_| may_raise_peak(&block.instructions))
+            .and_then(|depths| depths[block_id]);
+        let key = (rules != Rules::Late).then(|| clean_key(&block.instructions, entry));
         let recorded = key.and_then(|key| clean.get(key));
         let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
         let early_clean = final_cleanup && recorded == Some(false);
@@ -183,7 +214,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
         let rewrites = if skip {
             0
         } else {
-            Driver { target, rules, block: block.label }.run(
+            Driver { target, rules, block: block.label, entry }.run(
                 &mut block.instructions,
                 &mut scratch,
                 early_clean,
@@ -231,6 +262,8 @@ struct Driver {
     target: Target,
     rules: Rules,
     block: u32,
+    /// The upper bound on the block's entry depth, where known and a rule needs it.
+    entry: Option<usize>,
 }
 
 impl Driver {
@@ -245,7 +278,8 @@ impl Driver {
         // The early rules match no prefix of an early-clean block, so only the final
         // rules can supply its first rewrite.
         let first = (1..=instructions.len()).find_map(|end| {
-            let mut context = isle::PeepContext::new(&instructions[..end], self.target, self.rules);
+            let mut context =
+                isle::PeepContext::new(&instructions[..end], self.target, self.rules, self.entry);
             if early_clean { context.final_rewrite() } else { context.select() }
                 .map(|rewrite| (end, rewrite))
         });
@@ -270,7 +304,8 @@ impl Driver {
     }
 
     fn step(self, instructions: &mut Vec<Instruction>) -> bool {
-        let Some(rewrite) = isle::PeepContext::new(instructions, self.target, self.rules).select()
+        let Some(rewrite) =
+            isle::PeepContext::new(instructions, self.target, self.rules, self.entry).select()
         else {
             return false;
         };

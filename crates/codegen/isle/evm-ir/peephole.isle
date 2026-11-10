@@ -142,6 +142,9 @@
 ;; `DUP1 NOT SWAP1 SUB` dominates `DUP1 ADD PUSH1 1 OR`.
 (decl pure complement_odd_dominates () bool)
 (extern constructor complement_odd_dominates complement_odd_dominates)
+;; The stack has room for the `DUP1` of a reload, one word above the peak it replaces.
+(decl pure has_room_to_reload () bool)
+(extern constructor has_room_to_reload has_room_to_reload)
 ;; The shift pair of a `PUSH0 NOT PUSH s SHR AND` mask dominates it in gas and bytes.
 (decl pure shift_pair_mask_profitable (U256) bool)
 (extern constructor shift_pair_mask_profitable shift_pair_mask_profitable)
@@ -248,6 +251,7 @@
 
 ;; `PUSH x MSTORE PUSH x MLOAD -> DUP1 PUSH x MSTORE`.
 (rule 130 (peep_op (last4 (push a) (opcode $MSTORE) (push a) (opcode $MLOAD)))
+        (if-let true (has_room_to_reload))
         (rewrite 4 (Edit.ReloadStoredValue)))
 
 ;; `DUP1 PUSH x MSTORE POP -> PUSH x MSTORE`.

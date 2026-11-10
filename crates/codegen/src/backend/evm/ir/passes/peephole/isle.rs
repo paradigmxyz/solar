@@ -11,6 +11,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
+        codegen::MAX_STACK_DEPTH,
         ir::{ImmediateMaterialization, Instruction, StackEffect, immediate_materialization_cost},
         op,
         op::*,
@@ -206,11 +207,17 @@ pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
     target: Target,
     rules: Rules,
+    entry: Option<usize>,
 }
 
 impl<'a> PeepContext<'a> {
-    pub(super) fn new(instructions: &'a [Instruction], target: Target, rules: Rules) -> Self {
-        Self { instructions, target, rules }
+    pub(super) fn new(
+        instructions: &'a [Instruction],
+        target: Target,
+        rules: Rules,
+        entry: Option<usize>,
+    ) -> Self {
+        Self { instructions, target, rules, entry }
     }
 
     /// Target-only cleanup deferred until structural sharing has finished. Only the final rules
@@ -226,6 +233,7 @@ impl<'a> PeepContext<'a> {
             )
             && let Some(slot) = address.concrete_immediate()
             && loaded.concrete_immediate() == Some(slot)
+            && self.has_room_to_reload()
         {
             return Some(Rewrite { skip: 4, edit: Edit::ReloadStoredValue });
         }
@@ -299,6 +307,21 @@ impl<'a> PeepContext<'a> {
         let target = self.target;
         let after = target.push(U256::ZERO) + target.opcode(NOT) + target.opcode(NOT);
         target.dominates(after, before)
+    }
+
+    /// Returns whether a reload of the four-instruction window that ends the block fits the stack
+    /// limit. Its `DUP1; PUSH` peak is one word above the `PUSH; STORE; PUSH; LOAD` it replaces,
+    /// so it needs two words above the depth before the window. An unknown entry depth gives no
+    /// room.
+    fn has_room_to_reload(&self) -> bool {
+        let prefix = &self.instructions[..self.instructions.len() - 4];
+        self.entry.is_some_and(|entry| {
+            let depth = prefix.iter().fold(entry, |depth, inst| {
+                let StackEffect { inputs, outputs } = inst.stack_effect();
+                depth.saturating_sub(usize::from(inputs)) + usize::from(outputs)
+            });
+            depth + 2 <= MAX_STACK_DEPTH
+        })
     }
 
     /// Returns whether materializing `value` needs at most `peak` stack words, as many as the code
@@ -648,6 +671,10 @@ impl generated::Context for PeepContext<'_> {
 
     fn u256_is_one(&mut self, value: U256) -> bool {
         value == U256::ONE
+    }
+
+    fn has_room_to_reload(&mut self) -> bool {
+        PeepContext::has_room_to_reload(self)
     }
 
     fn complement_odd_dominates(&mut self) -> bool {

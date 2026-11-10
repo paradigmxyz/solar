@@ -1,0 +1,111 @@
+//@ compile-flags: -Zevm-ir-pipeline=peephole
+//@ filecheck:
+@module ReloadStoredValueStackLimit
+
+// The reload keeps the stored value with a `DUP1` that peaks one word above the `PUSH; MLOAD` it
+// replaces. At 1023 words that is 1025, so the window stays; at 1022 words it fits.
+
+// Memory reload kept at 1023 words.
+// CHECK-LABEL: bb0 [stack=1023]:
+// CHECK-NEXT: {{^ +}}push 0
+// CHECK-NEXT: {{^ +}}mstore
+// CHECK-NEXT: {{^ +}}push 0
+// CHECK-NEXT: {{^ +}}mload
+bb0 [stack=1023]:
+  push 0
+  mstore
+  push 0
+  mload
+  push 32
+  mstore
+  push 32
+  push 32
+  return
+
+// Storage reload kept at 1023 words.
+// CHECK-LABEL: bb1 [stack=1023]:
+// CHECK-NEXT: {{^ +}}push 0
+// CHECK-NEXT: {{^ +}}sstore
+// CHECK-NEXT: {{^ +}}push 0
+// CHECK-NEXT: {{^ +}}sload
+bb1 [stack=1023]:
+  push 0
+  sstore
+  push 0
+  sload
+  push 32
+  sstore
+  push 32
+  push 32
+  return
+
+// Transient storage reload kept at 1023 words.
+// CHECK-LABEL: bb2 [stack=1023]:
+// CHECK-NEXT: {{^ +}}push 0
+// CHECK-NEXT: {{^ +}}tstore
+// CHECK-NEXT: {{^ +}}push 0
+// CHECK-NEXT: {{^ +}}tload
+bb2 [stack=1023]:
+  push 0
+  tstore
+  push 0
+  tload
+  push 32
+  tstore
+  push 32
+  push 32
+  return
+
+// Memory reload rewritten at 1022 words.
+// CHECK-LABEL: bb3 [stack=1022]:
+// CHECK-NEXT: +   dup 1
+// CHECK-NEXT: {{^ +}}push 0
+// CHECK-NEXT: {{^ +}}mstore
+// CHECK-NEXT: -   push 0
+// CHECK-NEXT: -   mload
+bb3 [stack=1022]:
+  push 0
+  mstore
+  push 0
+  mload
+  push 32
+  mstore
+  push 32
+  push 32
+  return
+
+// Storage reload rewritten at 1022 words.
+// CHECK-LABEL: bb4 [stack=1022]:
+// CHECK-NEXT: +   dup 1
+// CHECK-NEXT: {{^ +}}push 0
+// CHECK-NEXT: {{^ +}}sstore
+// CHECK-NEXT: -   push 0
+// CHECK-NEXT: -   sload
+bb4 [stack=1022]:
+  push 0
+  sstore
+  push 0
+  sload
+  push 32
+  sstore
+  push 32
+  push 32
+  return
+
+// Transient storage reload rewritten at 1022 words.
+// CHECK-LABEL: bb5 [stack=1022]:
+// CHECK-NEXT: +   dup 1
+// CHECK-NEXT: {{^ +}}push 0
+// CHECK-NEXT: {{^ +}}tstore
+// CHECK-NEXT: -   push 0
+// CHECK-NEXT: -   tload
+bb5 [stack=1022]:
+  push 0
+  tstore
+  push 0
+  tload
+  push 32
+  tstore
+  push 32
+  push 32
+  return
