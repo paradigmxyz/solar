@@ -758,12 +758,17 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
         let stub = module.add_block(stub);
         for site in group.sites {
             let source = &module.blocks[site.block].instructions[site.start..];
-            let parameters = group
+            let mut parameters = group
                 .parameters
                 .iter()
                 .rev()
                 .map(|&index| source[index].clone())
                 .collect::<Vec<_>>();
+            // NOTE: The parameter pushes run before the part of the run that moved into the stub,
+            // so their events would start a function early. The call sequence takes them.
+            for parameter in &mut parameters {
+                parameter.metadata.drop_function_events();
+            }
             edits.push(Edit { site, stub, parameters });
         }
     }
@@ -897,13 +902,12 @@ fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32)
     let range = &module.blocks[block].instructions[start..start + len];
     let location = call_site_location(range);
     // NOTE: The shared body keeps a call only where every site has it. A site whose run starts
-    // the callee, when the body or the site's own parameters do not carry that, enters it at the
-    // call sequence instead, which runs once for the site, as the run did.
+    // the callee, when the body does not carry that, enters it at the call sequence instead,
+    // which runs once for the site, as the run did.
     let events = RunEvents::of(range.iter().map(|inst| &inst.metadata));
     let covered = |function| {
         let carries = |inst: &Instruction| inst.metadata.function_invoke() == Some(function);
         module.blocks[edit.stub].instructions.iter().any(carries)
-            || edit.parameters.iter().any(carries)
     };
     let events = events.invoke().filter(|&function| !covered(function)).map(|_| events);
     // prefix; push continuation; rotate return below inputs; push parameters; jump stub
