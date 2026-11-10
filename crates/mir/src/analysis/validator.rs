@@ -1220,7 +1220,7 @@ impl<'a> Validator<'a> {
                     }
                     InstKind::StorageBytesLoad(_) => inst.result_ty == Some(MirType::MEMPTR),
                     InstKind::ExtCall { policy, value, .. } => {
-                        policy.is_valid() && (policy.kind == ExtCallKind::Call || value.is_none())
+                        policy.kind == ExtCallKind::Call || value.is_none()
                     }
                     InstKind::Load(.., location) => *location != PtrLocation::Returndata,
                     InstKind::Store(.., location) => {

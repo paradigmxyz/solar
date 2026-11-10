@@ -1377,7 +1377,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // gas = gas() | sub(gas(), reserve)
         let gas = self.call_gas(options.gas, options.value_set, false);
         // ok = call|staticcall|delegatecall(gas, address, [value,] input, ret_offset, ret_size)
-        let policy = CallPolicy { kind, output: CallOutput::None, on_failure: CallFailure::Return };
+        let policy = CallPolicy { kind, output: CallOutput::None };
         let success = emit_call(
             &mut self.builder,
             self.cx.gcx.sess.opts.evm_version,
@@ -1387,8 +1387,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(gas),
             Some(options.value),
             Some((plan.offset, plan.size)),
-        )
-        .expect("a returning call yields its success flag");
+        );
         (success, plan)
     }
 

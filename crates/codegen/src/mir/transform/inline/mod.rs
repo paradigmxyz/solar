@@ -68,11 +68,10 @@
 
 use crate::{
     mir::{
-        AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, CallFailure, CallPolicy, Callee,
-        EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder,
-        FunctionId as MirFunctionId, Immediate, InstId, InstKind, Instruction, InstructionMetadata,
-        MirModuleTarget, MirPhase, MirType, Module, PtrLocation, StorageAlias, Terminator, Value,
-        ValueId,
+        AbiLayout, AbiType, AllocationSemantics, BlockId, Builtin, Callee, EffectKind, FrameMode,
+        FrameSlotKind, Function, FunctionBuilder, FunctionId as MirFunctionId, Immediate, InstId,
+        InstKind, Instruction, InstructionMetadata, MirModuleTarget, MirPhase, MirType, Module,
+        PtrLocation, StorageAlias, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, CallGraphInfo, Liveness, LoopAnalyzer, MemoryCallSummaries,
             direct_callees,
@@ -1030,10 +1029,6 @@ fn summarize_function(
                 | InstKind::StorageBytesStoreLiteral { .. }
                 | InstKind::StorageClearWords(..)
                 | InstKind::CheckedBinary { .. }
-                | InstKind::ExtCall {
-                    policy: CallPolicy { on_failure: CallFailure::Revert, .. },
-                    ..
-                }
                 | InstKind::ICall {
                     function:
                         Callee::Builtin(

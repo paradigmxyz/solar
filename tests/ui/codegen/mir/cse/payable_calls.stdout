@@ -13,23 +13,23 @@
       v7 = selfbalance
       v8 = sload 0
       v9 = tload 0
-      extcall revert v0, gas 0, value 1
-      v10 = balance arg0
-      v11 = selfbalance
-      v12 = sload 0
-      v13 = tload 0
-      v14 = add v1, v2
-      v15 = add v3, v4
-      v16 = add v6, v7
-      v17 = add v8, v9
-      v18 = add v10, v11
-      v19 = add v12, v13
-      v20 = add v14, v15
-      v21 = add v16, v17
-      v22 = add v18, v19
-      v23 = add v20, v21
-      v24 = add v23, v22
-      ret v24
+      v10 = extcall v0, gas 0, value 1
+      v11 = balance arg0
+      v12 = selfbalance
+      v13 = sload 0
+      v14 = tload 0
+      v15 = add v1, v2
+      v16 = add v3, v4
+      v17 = add v6, v7
+      v18 = add v8, v9
+      v19 = add v11, v12
+      v20 = add v13, v14
+      v21 = add v15, v16
+      v22 = add v17, v18
+      v23 = add v19, v20
+      v24 = add v21, v22
+      v25 = add v24, v23
+      ret v25
   }
   
 - ; === ROOT/tests/ui/codegen/mir/cse/payable_calls.mir (before dce) ===
@@ -47,22 +47,22 @@
       v7 = selfbalance
       v8 = sload 0
       v9 = tload 0
-      extcall revert v0, gas 0, value 1
-      v10 = balance arg0
-      v11 = selfbalance
-      v12 = sload 0
-      v13 = tload 0
-      v14 = add v1, v2
-      v15 = add v3, v4
-      v16 = add v6, v7
-      v17 = add v8, v9
-      v18 = add v10, v11
-      v19 = add v12, v13
-      v20 = add v14, v15
-      v21 = add v16, v17
-      v22 = add v18, v19
-      v23 = add v20, v21
-      v24 = add v23, v22
-      ret v24
+      v10 = extcall v0, gas 0, value 1
+      v11 = balance arg0
+      v12 = selfbalance
+      v13 = sload 0
+      v14 = tload 0
+      v15 = add v1, v2
+      v16 = add v3, v4
+      v17 = add v6, v7
+      v18 = add v8, v9
+      v19 = add v11, v12
+      v20 = add v13, v14
+      v21 = add v15, v16
+      v22 = add v17, v18
+      v23 = add v19, v20
+      v24 = add v21, v22
+      v25 = add v24, v23
+      ret v25
   }
   

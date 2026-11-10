@@ -126,8 +126,13 @@ fn @shaIt() -> i256 [selector=0x43234fee, pure, abi_params=[], abi_returns=[word
     v3 = fmp
     calldatacopy v3, v1, v2 !metadata(memory=heap)
     v4 = make_memory_slice v3, v2
-    v5 = extcall static word revert i160 2, v4
-    ret v5
+    v5 = extcall static word i160 2, v4
+    jumpi v5, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v6 = mload 0 !metadata(memory=scratch)
+    ret v6
 }
 
 ; function decodeIt() external pure returns (uint256) [selector 0xd2549072]

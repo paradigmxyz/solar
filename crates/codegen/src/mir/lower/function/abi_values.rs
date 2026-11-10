@@ -951,18 +951,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.materialize_memory_argument(memory_ty, input, span)?
         };
         // The digest is a full word, so it can land in scratch memory.
-        // result = extcall static word revert (sha256 ? 2 : 3), input
+        // success = extcall static word (sha256 ? 2 : 3), input
+        // branch success, done, failed
+        // failed: revert_returndata
+        // done: digest = mload 0
         let ripemd = builtin == Builtin::Ripemd160;
         let address = self.builder.imm(if ripemd { 3 } else { 2 });
-        let policy = CallPolicy {
-            kind: ExtCallKind::Static,
-            output: CallOutput::Word,
-            on_failure: CallFailure::Revert,
-        };
-        let digest = self
-            .builder
-            .extcall(policy, address, Some(input), None, None)
-            .expect("a scratch word call yields its word");
+        let policy = CallPolicy { kind: ExtCallKind::Static, output: CallOutput::Word };
+        let success = self.builder.extcall(policy, address, Some(input), None, None);
+        let digest = self.load_call_word(success);
         if ripemd {
             // result = digest << 96
             let scale = self.builder.imm(1_u128 << 96);
@@ -982,7 +979,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // base = fmp
         // mstore(base, hash), mstore(base + 32, v), mstore(base + 64, r), mstore(base + 96, s)
         // input = make_memory_slice base, 128
-        // result = extcall static word revert 1, input
+        // success = extcall static word 1, input
+        // branch success, done, failed
+        // failed: revert_returndata
+        // done: result = mload 0
         let base = self.builder.fmp();
         let words = self.builder.cast_word(base);
         for (offset, value) in (0..).step_by(32).zip(values) {
@@ -993,12 +993,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let size = self.builder.imm(128);
         let input = self.builder.make_slice(base, size, PtrLocation::Memory);
         let address = self.builder.imm(1);
-        let policy = CallPolicy {
-            kind: ExtCallKind::Static,
-            output: CallOutput::Word,
-            on_failure: CallFailure::Revert,
-        };
-        self.builder.extcall(policy, address, Some(input), None, None)
+        let policy = CallPolicy { kind: ExtCallKind::Static, output: CallOutput::Word };
+        let success = self.builder.extcall(policy, address, Some(input), None, None);
+        Some(self.load_call_word(success))
+    }
+
+    /// Reverts with the returndata of a failed call, and otherwise loads the word that a call with
+    /// a word output left in scratch memory.
+    fn load_call_word(&mut self, success: ValueId) -> ValueId {
+        self.builder.revert_returndata_unless(success);
+        let scratch = self.builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+        self.builder.load(scratch, PtrLocation::Memory)
     }
 
     /// `keccak256(abi.encode(..))` of one or two value-type words, hashed in scratch space like

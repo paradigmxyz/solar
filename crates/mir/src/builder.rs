@@ -1765,9 +1765,8 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::SlotNum, Some(MirType::I256))
     }
 
-    /// Emits an `extcall` over a bytes object or memory slice, or over no bytes at all.
-    ///
-    /// Returns the success flag, the output word, or nothing, as `policy` says.
+    /// Emits an `extcall` over a bytes object or memory slice, or over no bytes at all, and
+    /// returns its success flag.
     pub fn extcall(
         &mut self,
         policy: CallPolicy,
@@ -1775,16 +1774,9 @@ impl<'a> FunctionBuilder<'a> {
         input: Option<ValueId>,
         gas: Option<ValueId>,
         value: Option<ValueId>,
-    ) -> Option<ValueId> {
-        // result? = extcall <policy> address, input?, gas?, value?
-        let kind = InstKind::ExtCall { policy, address, input, gas, value };
-        match policy.result_type() {
-            Some(ty) => Some(self.emit_inst(kind, Some(ty))),
-            None => {
-                self.emit_void_inst(kind);
-                None
-            }
-        }
+    ) -> ValueId {
+        // success = extcall <policy> address, input?, gas?, value?
+        self.emit_inst(InstKind::ExtCall { policy, address, input, gas, value }, Some(MirType::I1))
     }
 
     /// Copies the current returndata into a fresh bytes object.

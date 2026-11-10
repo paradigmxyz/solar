@@ -858,43 +858,16 @@ pub enum ExtCallKind {
 pub enum CallOutput {
     /// The call discards its output: it expands to an empty output range.
     None,
-    /// The call writes a 32-byte word at the start of scratch memory, which becomes the result.
+    /// The call writes a 32-byte word at the start of scratch memory, where the caller reads it.
     Word,
 }
 
-/// What an `extcall` does when the callee fails.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum CallFailure {
-    /// The success flag is the result.
-    Return,
-    /// The caller reverts with the callee's returndata.
-    Revert,
-}
-
-/// What an `extcall` means apart from its operands.
+/// What an `extcall` means apart from its operands. Its result is the success flag.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CallPolicy {
     /// `CALL`, `STATICCALL` (a zero-value `CALL` before Byzantium), or `DELEGATECALL`.
     pub kind: ExtCallKind,
     pub output: CallOutput,
-    pub on_failure: CallFailure,
-}
-
-impl CallPolicy {
-    /// Whether the policy names one result. Only a call that reverts on failure can return its
-    /// output word, because a call that returns on failure returns its success flag.
-    pub const fn is_valid(self) -> bool {
-        !matches!((self.output, self.on_failure), (CallOutput::Word, CallFailure::Return))
-    }
-
-    /// The type of the call's result: the success flag, the output word, or nothing.
-    pub const fn result_type(self) -> Option<MirType> {
-        match (self.on_failure, self.output) {
-            (CallFailure::Return, _) => Some(MirType::I1),
-            (CallFailure::Revert, CallOutput::Word) => Some(MirType::I256),
-            (CallFailure::Revert, CallOutput::None) => None,
-        }
-    }
 }
 
 impl InstKind {
@@ -970,7 +943,6 @@ impl InstKind {
                     && ty(b) == result
             }
             Self::AbiDecode { ref layout, .. } => result.is_some() != layout.types.is_empty(),
-            Self::ExtCall { policy, .. } => result == policy.result_type(),
             Self::InsertValue { .. }
             | Self::ExtractValue { .. }
             | Self::StorageBytesLoad(..)

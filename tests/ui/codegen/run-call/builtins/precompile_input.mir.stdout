@@ -13,20 +13,30 @@ fn @calldataHashes(arg0: slice<calldata>) -> struct0 [selector=0xbe0f2d16, pure,
     v3 = fmp
     calldatacopy v3, v1, v2 !metadata(memory=heap)
     v4 = make_memory_slice v3, v2
-    v5 = extcall static word revert i160 2, v4
-    v6 = extract_value slice<calldata>, arg0, 0
-    v7 = extract_value slice<calldata>, arg0, 1
-    v8 = fmp
-    calldatacopy v8, v6, v7 !metadata(memory=heap)
-    v9 = make_memory_slice v8, v7
-    v10 = extcall static word revert i160 3, v9
-    v11 = mul v10, 0x1000000000000000000000000
-    v12 = mload 64 !metadata(memory=scratch)
-    v13 = sub v12, v0
-    v14 = insert_value struct0, undef struct0, 0, v5
-    v15 = insert_value struct0, v14, 1, v11
-    v16 = insert_value struct0, v15, 2, v13
-    ret v16
+    v5 = extcall static word i160 2, v4
+    jumpi v5, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v6 = mload 0 !metadata(memory=scratch)
+    v7 = extract_value slice<calldata>, arg0, 0
+    v8 = extract_value slice<calldata>, arg0, 1
+    v9 = fmp
+    calldatacopy v9, v7, v8 !metadata(memory=heap)
+    v10 = make_memory_slice v9, v8
+    v11 = extcall static word i160 3, v10
+    jumpi v11, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v12 = mload 0 !metadata(memory=scratch)
+    v13 = mul v12, 0x1000000000000000000000000
+    v14 = mload 64 !metadata(memory=scratch)
+    v15 = sub v14, v0
+    v16 = insert_value struct0, undef struct0, 0, v6
+    v17 = insert_value struct0, v16, 1, v13
+    v18 = insert_value struct0, v17, 2, v15
+    ret v18
 }
 
 ; function sliceHashes(bytes calldata input, uint256 start, uint256 end) external pure returns (bytes32, bytes20) [selector 0x8a26a444]
@@ -47,38 +57,58 @@ fn @sliceHashes(arg0: slice<calldata>, arg1: i256, arg2: i256) -> struct1 [selec
     v11 = fmp
     calldatacopy v11, v9, v10 !metadata(memory=heap)
     v12 = make_memory_slice v11, v10
-    v13 = extcall static word revert i160 2, v12
-    v14 = extract_value slice<calldata>, arg0, 0
-    v15 = extract_value slice<calldata>, arg0, 1
-    v16 = lt v15, arg2
-    v17 = lt arg2, arg1
-    v18 = or v16, v17
-    v19 = zext i1 v18 to i256
-    icall revert_if<empty>, v18
-    v20 = sub arg2, arg1
-    v21 = ptradd v14, arg1
-    v22 = make_calldata_slice v21, v20
-    v23 = extract_value slice<calldata>, v22, 0
-    v24 = extract_value slice<calldata>, v22, 1
-    v25 = fmp
-    calldatacopy v25, v23, v24 !metadata(memory=heap)
-    v26 = make_memory_slice v25, v24
-    v27 = extcall static word revert i160 3, v26
-    v28 = mul v27, 0x1000000000000000000000000
-    v29 = insert_value struct1, undef struct1, 0, v13
-    v30 = insert_value struct1, v29, 1, v28
-    ret v30
+    v13 = extcall static word i160 2, v12
+    jumpi v13, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v14 = mload 0 !metadata(memory=scratch)
+    v15 = extract_value slice<calldata>, arg0, 0
+    v16 = extract_value slice<calldata>, arg0, 1
+    v17 = lt v16, arg2
+    v18 = lt arg2, arg1
+    v19 = or v17, v18
+    v20 = zext i1 v19 to i256
+    icall revert_if<empty>, v19
+    v21 = sub arg2, arg1
+    v22 = ptradd v15, arg1
+    v23 = make_calldata_slice v22, v21
+    v24 = extract_value slice<calldata>, v23, 0
+    v25 = extract_value slice<calldata>, v23, 1
+    v26 = fmp
+    calldatacopy v26, v24, v25 !metadata(memory=heap)
+    v27 = make_memory_slice v26, v25
+    v28 = extcall static word i160 3, v27
+    jumpi v28, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v29 = mload 0 !metadata(memory=scratch)
+    v30 = mul v29, 0x1000000000000000000000000
+    v31 = insert_value struct1, undef struct1, 0, v14
+    v32 = insert_value struct1, v31, 1, v30
+    ret v32
 }
 
 ; function memoryHashes(bytes memory input) external pure returns (bytes32, bytes20) [selector 0xf691234d]
 fn @memoryHashes(arg0: ptr<memory>) -> struct1 [selector=0xf691234d, pure, abi_params=[bytes], abi_returns=[word, word<bytes20>], abi_return_params=[bytes32, bytes20]] {
   bb0:
-    v0 = extcall static word revert i160 2, arg0
-    v1 = extcall static word revert i160 3, arg0
-    v2 = mul v1, 0x1000000000000000000000000
-    v3 = insert_value struct1, undef struct1, 0, v0
-    v4 = insert_value struct1, v3, 1, v2
-    ret v4
+    v0 = extcall static word i160 2, arg0
+    jumpi v0, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v1 = mload 0 !metadata(memory=scratch)
+    v2 = extcall static word i160 3, arg0
+    jumpi v2, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v3 = mload 0 !metadata(memory=scratch)
+    v4 = mul v3, 0x1000000000000000000000000
+    v5 = insert_value struct1, undef struct1, 0, v1
+    v6 = insert_value struct1, v5, 1, v4
+    ret v6
 }
 
 ; function forgedHashes(uint256 offset, uint256 length) external pure returns (bytes32, bytes20) [selector 0x8c192089]
@@ -95,17 +125,27 @@ fn @forgedHashes(arg0: i256, arg1: i256) -> struct1 [selector=0x8c192089, pure, 
     v8 = fmp
     calldatacopy v8, v6, v7 !metadata(memory=heap)
     v9 = make_memory_slice v8, v7
-    v10 = extcall static word revert i160 2, v9
-    v11 = extract_value slice<calldata>, v5, 0
-    v12 = extract_value slice<calldata>, v5, 1
-    v13 = fmp
-    calldatacopy v13, v11, v12 !metadata(memory=heap)
-    v14 = make_memory_slice v13, v12
-    v15 = extcall static word revert i160 3, v14
-    v16 = mul v15, 0x1000000000000000000000000
-    v17 = insert_value struct1, undef struct1, 0, v10
-    v18 = insert_value struct1, v17, 1, v16
-    ret v18
+    v10 = extcall static word i160 2, v9
+    jumpi v10, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v11 = mload 0 !metadata(memory=scratch)
+    v12 = extract_value slice<calldata>, v5, 0
+    v13 = extract_value slice<calldata>, v5, 1
+    v14 = fmp
+    calldatacopy v14, v12, v13 !metadata(memory=heap)
+    v15 = make_memory_slice v14, v13
+    v16 = extcall static word i160 3, v15
+    jumpi v16, bb4, bb3
+  bb3:                                            ; preds = bb2
+    revert_returndata
+  bb4:                                            ; preds = bb2
+    v17 = mload 0 !metadata(memory=scratch)
+    v18 = mul v17, 0x1000000000000000000000000
+    v19 = insert_value struct1, undef struct1, 0, v11
+    v20 = insert_value struct1, v19, 1, v18
+    ret v20
 }
 
 ; function recover(bytes32 hash, uint8 v, bytes32 r, bytes32 s) external pure returns (address) [selector 0xc2bf17b0]
@@ -122,7 +162,12 @@ fn @recover(arg0: i256, arg1: i8, arg2: i256, arg3: i256) -> i160 [selector=0xc2
     v5 = add v1, 96
     mstore v5, arg3
     v6 = make_memory_slice v0, 128
-    v7 = extcall static word revert i160 1, v6
-    v8 = trunc i256 v7 to i160
-    ret v8
+    v7 = extcall static word i160 1, v6
+    jumpi v7, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v8 = mload 0 !metadata(memory=scratch)
+    v9 = trunc i256 v8 to i160
+    ret v9
 }

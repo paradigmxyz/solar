@@ -6,7 +6,7 @@
 //! requires dependence and profitability proofs; a memory read may expand EVM memory.
 
 use super::{EffectKind, InstKind};
-use crate::{Builtin, CallFailure, CallPolicy, Callee, ExtCallKind, PtrLocation};
+use crate::{Builtin, CallPolicy, Callee, ExtCallKind, PtrLocation};
 
 /// Control behavior that must survive even when an operation's result is unused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -100,9 +100,6 @@ impl InstKind {
     pub const fn effects(&self) -> InstructionEffects {
         let control = match self {
             Self::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. }
-            | Self::ExtCall {
-                policy: CallPolicy { on_failure: CallFailure::Revert, .. }, ..
-            }
             | Self::ValidateStorageBytes(..)
             | Self::StorageBytesLoad(..)
             | Self::StorageArrayLoad { .. }

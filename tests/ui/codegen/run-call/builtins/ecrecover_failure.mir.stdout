@@ -13,9 +13,14 @@ fn @recover() -> i160 [selector=0xce746024, pure, abi_params=[], abi_returns=[wo
     v4 = add v1, 96
     mstore v4, 0x4c1a971652e0ada880120ef8025e709fff2080c4a39aae068d12eed009b68c89
     v5 = make_memory_slice v0, 128
-    v6 = extcall static word revert i160 1, v5
-    v7 = trunc i256 v6 to i160
-    ret v7
+    v6 = extcall static word i160 1, v5
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v7 = mload 0 !metadata(memory=scratch)
+    v8 = trunc i256 v7 to i160
+    ret v8
 }
 
 ; function recoverInvalidDirtyScratch() external pure returns (address) [selector 0x5721fb2d]
@@ -32,9 +37,14 @@ fn @recoverInvalidDirtyScratch() -> i160 [selector=0x5721fb2d, pure, abi_params=
     v4 = add v1, 96
     mstore v4, 0
     v5 = make_memory_slice v0, 128
-    v6 = extcall static word revert i160 1, v5
-    v7 = trunc i256 v6 to i160
-    ret v7
+    v6 = extcall static word i160 1, v5
+    jumpi v6, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v7 = mload 0 !metadata(memory=scratch)
+    v8 = trunc i256 v7 to i160
+    ret v8
 }
 
 ; function recoverUnderGasPressure() external view returns (uint256 zeros) [selector 0x8ea61220]

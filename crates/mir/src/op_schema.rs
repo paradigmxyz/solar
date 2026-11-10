@@ -1333,7 +1333,7 @@ define_mir_ops! {
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::packed_types(func, parts)))]
     AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
-    #[mir_op(mnemonic = "extcall", result = Custom, phases = PhaseSet::SEMANTIC,
+    #[mir_op(mnemonic = "extcall", result = I1, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::address_call_types(func, *input, gas.is_some(), value.is_some())))]
     ExtCall {

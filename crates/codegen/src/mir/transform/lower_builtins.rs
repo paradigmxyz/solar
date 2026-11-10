@@ -6,12 +6,13 @@
 //! overflow checks, repairing successor phi labels when it splits blocks. Revert outlining can
 //! then share builtin failure payloads.
 //!
-//! Every `extcall` expands through the one call emitter, `emit_call`: the low-level calls
-//! with their explicit gas and value options, the stipend-limited `send` and `transfer`, and the
-//! `ecrecover`, `sha256` and `ripemd160` precompiles. The operation's policy states what differs
-//! between them. A precompile's 32-byte result lands in scratch memory instead of an allocation,
-//! and, as in solc, a failed call forwards its return data. Return-data capture allocates and
-//! copies after the call, before any later call can replace the data.
+//! Every `extcall` expands through the one call emitter, `emit_call`: the low-level calls with
+//! their explicit gas and value options, the stipend-limited `send` and `transfer`, and the
+//! `ecrecover`, `sha256` and `ripemd160` precompiles. The operation's policy states the call kind
+//! and whether the callee leaves a word in scratch memory, which the expansion zeroes first unless
+//! the callee always writes it whole. The frontend branches on the success flag, as solc does,
+//! forwarding the return data of a failed call, and reads the word afterwards. Return-data capture
+//! allocates and copies after the call, before any later call can replace the data.
 
 use crate::mir::{
     AllocationSemantics, Builtin, CallPolicy, Callee, ExtCallKind, FunctionBuilder, InstKind,
@@ -201,12 +202,7 @@ impl MirPass for LowerBuiltins {
                             super::lower_storage_bytes::load(builder, slot)
                         }
                         InstKind::ExtCall { policy, address, input, gas, value } => {
-                            let Some(result) = lower_address_call(
-                                builder, evm, policy, address, input, gas, value,
-                            ) else {
-                                return true;
-                            };
-                            result
+                            lower_extcall(builder, evm, policy, address, input, gas, value)
                         }
                         InstKind::ICall {
                             function: Callee::Builtin(Builtin::ReturndataBytes),
@@ -241,7 +237,7 @@ fn is_builtin(kind: &InstKind) -> bool {
     kind.op_def().phase_category == Some(PhaseCategory::Builtin)
 }
 
-fn lower_address_call(
+fn lower_extcall(
     builder: &mut FunctionBuilder<'_>,
     evm: EvmVersion,
     policy: CallPolicy,
@@ -249,10 +245,10 @@ fn lower_address_call(
     input: Option<ValueId>,
     gas: Option<ValueId>,
     value: Option<ValueId>,
-) -> Option<ValueId> {
+) -> ValueId {
     // offset = add (ptrtoint input), 32
     // size = mload input
-    // result? = emit_call(policy, address, (offset, size), gas?, value?)
+    // success = emit_call(policy, address, (offset, size), gas?, value?)
     let input = input.map(|input| (builder.memory_data(input), builder.memory_len(input)));
     emit_call(builder, evm, policy, address, input, gas, value, None)
 }

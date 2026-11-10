@@ -7,9 +7,7 @@ use super::{
     Immediate, InstId, InstKind, InstructionMetadata, MemoryRegion, MirType, Module, StorageAlias,
     Terminator, Value, ValueId,
 };
-use crate::{
-    Builtin, CallFailure, CallOutput, Callee, ExtCallKind, RequireKind, analysis::CfgInfo,
-};
+use crate::{Builtin, CallOutput, Callee, ExtCallKind, RequireKind, analysis::CfgInfo};
 use arrayvec::ArrayVec;
 use solar_ast::StateMutability;
 use solar_data_structures::{
@@ -473,7 +471,6 @@ fn display_inst_kind<'a>(
                     ExtCallKind::Delegate => Some("delegate"),
                 },
                 (policy.output == CallOutput::Word).then_some("word"),
-                (policy.on_failure == CallFailure::Revert).then_some("revert"),
             ];
             for flag in flags.into_iter().flatten() {
                 write!(f, " {flag}")?;

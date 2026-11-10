@@ -173,17 +173,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => unreachable!(),
         };
         // success = extcall(address, data, gas?, value?)
-        let policy = CallPolicy { kind, output: CallOutput::None, on_failure: CallFailure::Return };
-        let success = self
-            .builder
-            .extcall(
-                policy,
-                address,
-                Some(data),
-                options.gas,
-                options.value_set.then_some(options.value),
-            )
-            .expect("a returning call yields its success flag");
+        let policy = CallPolicy { kind, output: CallOutput::None };
+        let success = self.builder.extcall(
+            policy,
+            address,
+            Some(data),
+            options.gas,
+            options.value_set.then_some(options.value),
+        );
         // data = capture ? returndata() : none
         let returndata = capture_returndata.then(|| self.materialize_returndata_bytes());
         Some((success, returndata))
@@ -204,18 +201,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let stipend = self.builder.imm(2300);
         let amount_is_zero = self.builder.eq_zero(amount);
         let gas = self.builder.select(amount_is_zero, stipend, zero);
-        let policy = CallPolicy {
-            kind: ExtCallKind::Call,
-            output: CallOutput::None,
-            on_failure: if builtin == Builtin::AddressPayableTransfer {
-                CallFailure::Revert
-            } else {
-                CallFailure::Return
-            },
-        };
-        // success? = extcall(address, gas, value amount)
+        let policy = CallPolicy { kind: ExtCallKind::Call, output: CallOutput::None };
+        // success = extcall address, gas, value amount
         let success = self.builder.extcall(policy, address, None, Some(gas), Some(amount));
-        Some(success.map_or(CallResult::Void, CallResult::Value))
+        if builtin == Builtin::AddressPayableTransfer {
+            // branch success, done, failed
+            // failed: revert_returndata
+            self.builder.revert_returndata_unless(success);
+            Some(CallResult::Void)
+        } else {
+            Some(CallResult::Value(success))
+        }
     }
 
     pub(super) fn low_level_call_builtin(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Builtin> {

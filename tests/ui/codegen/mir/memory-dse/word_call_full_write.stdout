@@ -1,18 +1,18 @@
 - ; === ROOT/tests/ui/codegen/mir/memory-dse/word_call_full_write.mir (before memory-dse) ===
 + ; === ROOT/tests/ui/codegen/mir/memory-dse/word_call_full_write.mir (after memory-dse) ===
   @module WordCallFullWrite
-  fn @hash(arg0: i160) -> i256 {
+  fn @hash(arg0: i160) -> i1 {
     bb0:
 -     mstore 0, 7 !metadata(memory=scratch)
-      v0 = extcall static word revert i160 2, gas 0xc350
+      v0 = extcall static word i160 2, gas 0xc350
       mstore 0, 9 !metadata(memory=scratch)
       ret v0
   }
   
-  fn @unknown(arg0: i160) -> i256 {
+  fn @unknown(arg0: i160) -> i1 {
     bb0:
 -     mstore 0, 7 !metadata(memory=scratch)
-      v0 = extcall static word revert arg0, gas 0xc350
+      v0 = extcall static word arg0, gas 0xc350
       mstore 0, 9 !metadata(memory=scratch)
       ret v0
   }

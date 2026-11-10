@@ -235,13 +235,14 @@ constant checks fold only when they pass. Revert outlining runs after check and
 builtin expansion, before checked arithmetic expands.
 Every call to an address that sends bytes and reads at most one word back is an
 `extcall`: the low-level calls, `send` and `transfer`, and the `ecrecover`,
-`sha256` and `ripemd160` precompiles. Its policy prints as keywords after the mnemonic, in
-this order: `static` or `delegate` for the call kind, `word` when the result is the 32-byte word
-the callee leaves in scratch memory, and `revert` when a failed call reverts with the returndata
-instead of returning the success flag. Whether the expansion zeroes the word first, and whether a
-pre-EIP-150 default gas reserves the callee's account creation, follow from the operands: the word
-is cleared unless the callee is the constant `sha256` or `ripemd160` precompile, which writes all 32
-bytes, and an `extcall` without a gas operand always reserves it.
+`sha256` and `ripemd160` precompiles. Its result is the success flag, and a failed
+`transfer` or precompile call reverts with the returndata in an explicit branch after it.
+Its policy prints as keywords after the mnemonic, in this order: `static` or `delegate` for the
+call kind, and `word` when the callee leaves a 32-byte word in scratch memory for the caller to
+read. Everything else follows from the operands: the expansion zeroes the word first unless the
+callee is the constant `sha256` or `ripemd160` precompile, which writes all 32 bytes, and an
+`extcall` without a gas operand always reserves the callee's account creation in its pre-EIP-150
+default gas.
 The operation retains its address, an optional bytes input or memory slice, and
 evaluated gas and value options. Its external-call effects invalidate account
 observations and storage reads even while the call remains opaque. Conversion

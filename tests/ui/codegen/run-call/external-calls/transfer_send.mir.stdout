@@ -85,7 +85,11 @@ fn @transferValue() [selector=0x2d9ed8d5, payable, abi_params=[], abi_returns=[]
     v1 = trunc i256 v0 to i160
     v2 = eq 1, 0
     v3 = select v2, 0x8fc, 0
-    extcall revert v1, gas v3, value 1
+    v4 = extcall v1, gas v3, value 1
+    jumpi v4, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
     ret
 }
 
@@ -123,14 +127,18 @@ fn @balances() -> struct0 [selector=0x7bb98a68, payable, abi_params=[], abi_retu
     v9 = balance v8
     v10 = eq 1, 0
     v11 = select v10, 0x8fc, 0
-    extcall revert i160 0xbeef, gas v11, value 1
-    v12 = address
-    v13 = zext i160 v12 to i256
-    v14 = balance v13
-    v15 = insert_value struct0, undef struct0, 0, v2
-    v16 = insert_value struct0, v15, 1, v9
-    v17 = insert_value struct0, v16, 2, v14
-    ret v17
+    v12 = extcall i160 0xbeef, gas v11, value 1
+    jumpi v12, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v13 = address
+    v14 = zext i160 v13 to i256
+    v15 = balance v14
+    v16 = insert_value struct0, undef struct0, 0, v2
+    v17 = insert_value struct0, v16, 1, v9
+    v18 = insert_value struct0, v17, 2, v15
+    ret v18
 }
 
 ; function sendRevertData() external returns (bytes4 data) [selector 0x2acce81c]
@@ -153,7 +161,11 @@ fn @transferOutOfGas() [selector=0xb3a4387c, payable, abi_params=[], abi_returns
     v1 = trunc i256 v0 to i160
     v2 = eq 1, 0
     v3 = select v2, 0x8fc, 0
-    extcall revert v1, gas v3, value 1
+    v4 = extcall v1, gas v3, value 1
+    jumpi v4, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
     ret
 }
 
@@ -162,6 +174,10 @@ fn @transferInsufficient() [selector=0x44d19381, abi_params=[], abi_returns=[], 
   bb0:
     v0 = eq 1, 0
     v1 = select v0, 0x8fc, 0
-    extcall revert i160 0xbeef, gas v1, value 1
+    v2 = extcall i160 0xbeef, gas v1, value 1
+    jumpi v2, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
     ret
 }

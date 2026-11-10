@@ -115,7 +115,7 @@
     bb3 [cold]:                                     ; preds = bb2
       v3 = trunc i256 arg0 to i160
       v4 = extcall v3, gas 0, value 0
-      extcall revert v3, gas 0, value 0
+      v5 = extcall v3, gas 0, value 0
       revert_returndata
     bb4:                                            ; preds = bb2
       jump bb1

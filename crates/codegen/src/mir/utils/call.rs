@@ -1,20 +1,18 @@
-//! The expansion of a call: gas, opcode, output, and failure.
+//! The expansion of a call: gas, opcode, and output.
 //!
 //! Every call that sends bytes and reads at most one word back goes through [`emit_call`]: the
 //! `extcall` operation, which `lower-builtins` expands, and the external calls the frontend
 //! emits itself. The caller states the differences between them as a [`CallPolicy`].
 
 use crate::mir::{
-    CallFailure, CallOutput, CallPolicy, ExtCallKind, FunctionBuilder, PtrLocation, ValueId,
-    memory::EvmMemoryLayout,
+    CallOutput, CallPolicy, ExtCallKind, FunctionBuilder, ValueId, memory::EvmMemoryLayout,
 };
 use solar_config::EvmVersion;
 
-/// Emits the opcode of a call and what follows it, and returns the success flag, the output word,
-/// or nothing, as `policy.result_type()` says.
+/// Emits the opcode of a call and returns its success flag.
 ///
-/// `input` and `output` are `(offset, size)` ranges, empty when absent. A scratch word output
-/// overrides `output`.
+/// `input` and `output` are `(offset, size)` ranges, empty when absent. A word output overrides
+/// `output`, and is zeroed first unless the callee is a precompile that always writes it whole.
 ///
 /// `gas` is the explicit operand. Without it the call forwards `gas()`, less the pre-EIP-150
 /// reserve where the target needs it. A `STATICCALL` becomes a `CALL` of no value where the target
@@ -29,14 +27,12 @@ pub(crate) fn emit_call(
     gas: Option<ValueId>,
     value: Option<ValueId>,
     output: Option<(ValueId, ValueId)>,
-) -> Option<ValueId> {
+) -> ValueId {
     let mut zero = None;
-    let mut scratch = None;
     let output = match policy.output {
         CallOutput::None => output,
         CallOutput::Word => {
             let slot = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
-            scratch = Some(slot);
             if builder.func().extcall_clears_word(address) {
                 // mstore(scratch, 0)
                 let zero = *zero.get_or_insert_with(|| builder.imm(0));
@@ -64,7 +60,7 @@ pub(crate) fn emit_call(
     // success = call(gas, address, value, input, output)
     //         | staticcall(gas, address, input, output)
     //         | delegatecall(gas, address, input, output)
-    let success = match policy.kind {
+    match policy.kind {
         ExtCallKind::Call => {
             let value = value.unwrap_or_else(|| *zero.get_or_insert_with(|| builder.imm(0)));
             builder.call(gas, address, value, input_offset, input_size, output_offset, output_size)
@@ -78,25 +74,6 @@ pub(crate) fn emit_call(
         }
         ExtCallKind::Delegate => {
             builder.delegatecall(gas, address, input_offset, input_size, output_offset, output_size)
-        }
-    };
-    match (policy.on_failure, policy.output) {
-        (CallFailure::Return, _) => Some(success),
-        (CallFailure::Revert, CallOutput::None) => {
-            // branch success, done, failed
-            // failed: revert_returndata
-            builder.revert_returndata_unless(success);
-            None
-        }
-        (CallFailure::Revert, CallOutput::Word) => {
-            // branch success, done, failed
-            // failed: revert_returndata
-            // done: result = mload(scratch)
-            builder.revert_returndata_unless(success);
-            Some(builder.load(
-                scratch.expect("a scratch word call has a scratch slot"),
-                PtrLocation::Memory,
-            ))
         }
     }
 }

@@ -36,11 +36,11 @@
 use super::{
     AbiEncodeMode, AbiLayout, AbiLayoutRef, AbiParamLayout, AbiParamLayoutRef, AbiParamType,
     AbiType, AllocationFailure, AllocationInitialization, AllocationSemantics, BackendMemory,
-    BlockId, CallFailure, CallOutput, CallPolicy, DataId, DataRef, DataSize, Disambiguator,
-    EffectKind, ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId,
-    HirExprId, Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata,
-    LogTopics, MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module,
-    StorageAlias, StructId, StructType, Terminator, Value, ValueId,
+    BlockId, CallOutput, CallPolicy, DataId, DataRef, DataSize, Disambiguator, EffectKind,
+    ExtCallKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, HirExprId,
+    Immediate, ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, LogTopics,
+    MangledSymbol, MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias,
+    StructId, StructType, Terminator, Value, ValueId,
 };
 use crate::{AbiWordValidator, Callee, MirType, PtrLocation, TypeSize};
 use smallvec::SmallVec;
@@ -1989,7 +1989,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 inst!(StorageBytesLoad(a) => MirType::MEMPTR)
             }
             sym::extcall => {
-                // extcall [static | delegate] [word] [revert]
+                // extcall [static | delegate] [word]
                 let kind = if self.parser.eat_keyword(kw::Static) {
                     ExtCallKind::Static
                 } else if self.parser.eat_keyword(sym::delegate) {
@@ -2002,12 +2002,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 } else {
                     CallOutput::None
                 };
-                let on_failure = if self.parser.eat_keyword(kw::Revert) {
-                    CallFailure::Revert
-                } else {
-                    CallFailure::Return
-                };
-                let policy = CallPolicy { kind, output, on_failure };
+                let policy = CallPolicy { kind, output };
                 let address = self.parse_value(builder)?;
                 let mut input = None;
                 let mut gas = None;
@@ -2031,7 +2026,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         return Err(self.parser.error("invalid or duplicate extcall input"));
                     }
                 }
-                (InstKind::ExtCall { policy, address, input, gas, value }, policy.result_type())
+                (InstKind::ExtCall { policy, address, input, gas, value }, Some(MirType::I1))
             }
             sym::mapping_slot => inst!(MappingSlot(key, slot) => MirType::I256),
             sym::mapping_slot_bytes => inst!(MappingSlotBytes(key, slot) => MirType::I256),

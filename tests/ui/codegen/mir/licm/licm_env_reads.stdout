@@ -119,7 +119,7 @@
     bb2:                                            ; preds = bb1
       v1 = returndatasize
       v2 = mul v1, 3
-      v3 = extcall static word revert i160 2, arg0
+      v3 = extcall static word i160 2, arg0
       jump bb1
   }
   
@@ -134,7 +134,7 @@
     bb2:                                            ; preds = bb1
       v1 = returndatasize
       v2 = mul v1, 3
-      v3 = extcall static word revert i160 3, arg0
+      v3 = extcall static word i160 3, arg0
       jump bb1
   }
   
@@ -150,7 +150,7 @@
       v1 = returndatasize
       v2 = mul v1, 3
       v3 = abi_encode [word, word, word, word], scratch, args 1, 28, 2, 3
-      v4 = extcall static word revert i160 1, v3
+      v4 = extcall static word i160 1, v3
       jump bb1
   }
   
@@ -165,7 +165,7 @@
     bb2:                                            ; preds = bb1
       v1 = mul arg0, 3
       v2 = abi_encode [word, word, word, word], scratch, args 1, 28, 2, 3
-      v3 = extcall static word revert i160 1, v2
+      v3 = extcall static word i160 1, v2
       jump bb1
   }
   

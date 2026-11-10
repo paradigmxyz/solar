@@ -13,7 +13,7 @@ fn @observe(arg0: i256) -> i256 {
     v6 = selfbalance
     v7 = sload 0
     v8 = tload 0
-    extcall revert v24, gas 0, value 1
+    v25 = extcall v24, gas 0, value 1
     v9 = balance arg0
     v10 = selfbalance
     v11 = sload 0

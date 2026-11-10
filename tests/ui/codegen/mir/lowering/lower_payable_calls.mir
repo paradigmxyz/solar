@@ -14,10 +14,10 @@ fn @transfer_value(arg0: i1, arg1: i160, arg2: i256) -> i256 {
   bb0:
     jumpi arg0, bb1, bb2
   bb1:
-    extcall revert arg1, gas 2300, value arg2 !metadata(span=30..40, modifier_depth=3)
+    v3 = extcall arg1, gas 2300, value arg2 !metadata(span=30..40, modifier_depth=3)
     v0 = extcall arg1, gas 2300, value 0
     v2 = zext i1 v0 to i256
-    extcall revert arg1, gas 0, value 1
+    v4 = extcall arg1, gas 0, value 1
     jump bb3
   bb2:
     jump bb3

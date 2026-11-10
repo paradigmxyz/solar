@@ -7,11 +7,13 @@
 //@[homestead] filecheck: --check-prefixes=CHECK,HOMESTEAD
 @module ExtCallExpansion
 
-// A precompile reads a bytes object at its payload and lands its word in scratch memory. A failure
-// forwards the returndata.
+// A precompile reads a bytes object at its payload and lands its word in scratch memory, which the
+// caller reads. Calling a hash precompile skips the clear of the word, which the callee writes
+// whole.
 // CHECK-LABEL: fn @hash_object
 // CHECK: [[DATA:v[0-9]+]] = ptradd arg0, 32
 // CHECK: [[LEN:v[0-9]+]] = mload arg0
+// CHECK-NOT: mstore 0, 0
 // CANCUN: [[GAS:v[0-9]+]] = gas
 // CANCUN: [[OK:v[0-9]+]] = staticcall [[GAS]], 2, [[DATA]], [[LEN]], 0, 32
 // SPURIOUS: [[GAS:v[0-9]+]] = gas
@@ -19,15 +21,10 @@
 // HOMESTEAD: [[GAS:v[0-9]+]] = gas
 // HOMESTEAD: [[RESERVED:v[0-9]+]] = sub [[GAS]], 0x61da
 // HOMESTEAD: [[OK:v[0-9]+]] = call [[RESERVED]], 2, 0, [[DATA]], [[LEN]], 0, 32
-// CHECK: jumpi [[OK]], bb2, bb1
-// CHECK: bb1 [cold]:
-// CHECK-NEXT: revert_returndata
-// CHECK: bb2:
-// CHECK-NEXT: [[WORD:v[0-9]+]] = mload 0
-// CHECK-NEXT: ret [[WORD]]
-fn @hash_object(arg0: ptr<memory>) -> i256 {
+// CHECK-NEXT: ret [[OK]]
+fn @hash_object(arg0: ptr<memory>) -> i1 {
   bb0:
-    v0 = extcall static word revert i160 2, arg0
+    v0 = extcall static word i160 2, arg0
     ret v0
 }
 
@@ -36,46 +33,35 @@ fn @hash_object(arg0: ptr<memory>) -> i256 {
 // CHECK: [[PTR:v[0-9]+]] = extract_value slice<memory>, arg0, 0
 // CHECK-NEXT: [[SIZE:v[0-9]+]] = extract_value slice<memory>, arg0, 1
 // CHECK: {{call|staticcall}} {{v[0-9]+}}, 3, {{(0, )?}}[[PTR]], [[SIZE]], 0, 32
-// CHECK: mload 0
-fn @hash_slice(arg0: slice<memory>) -> i256 {
+fn @hash_slice(arg0: slice<memory>) -> i1 {
   bb0:
-    v0 = extcall static word revert i160 3, arg0
+    v0 = extcall static word i160 3, arg0
     ret v0
 }
 
 // A callee that can return less than a word, such as the `ecrecover` precompile, which returns
 // nothing for a rejected signature, has the output word cleared before the call, and the clear
-// precedes the gas read. The hash precompiles write all 32 bytes, so a call of one skips the clear.
+// precedes the gas read.
 // CHECK-LABEL: fn @recover
 // CHECK: mstore 0, 0
 // CHECK-NEXT: = gas
 // CHECK: {{call|staticcall}} {{v[0-9]+}}, 1, {{(0, )?}}{{v[0-9]+}}, {{v[0-9]+}}, 0, 32
-// CHECK: mload 0
-fn @recover(arg0: slice<memory>) -> i256 {
+fn @recover(arg0: slice<memory>) -> i1 {
   bb0:
-    v0 = extcall static word revert i160 1, arg0
+    v0 = extcall static word i160 1, arg0
     ret v0
 }
 
 // CHECK-LABEL: fn @unknown_callee
 // CHECK: mstore 0, 0
 // CHECK-NEXT: = gas
-fn @unknown_callee(arg0: i160, arg1: slice<memory>) -> i256 {
+fn @unknown_callee(arg0: i160, arg1: slice<memory>) -> i1 {
   bb0:
-    v0 = extcall word revert arg0, arg1
+    v0 = extcall word arg0, arg1
     ret v0
 }
 
-// CHECK-LABEL: fn @hash_skips_clear
-// CHECK-NOT: mstore 0, 0
-// CHECK: = gas
-fn @hash_skips_clear(arg0: slice<memory>) -> i256 {
-  bb0:
-    v0 = extcall static word revert i160 3, arg0
-    ret v0
-}
-
-// A send has no bytes and no output, and returns the success flag.
+// A send has no bytes and no output.
 // CHECK-LABEL: fn @send
 // CHECK: [[ADDRESS:v[0-9]+]] = zext i160 arg0 to i256
 // CHECK-NEXT: [[SENT:v[0-9]+]] = call arg2, [[ADDRESS]], arg1, 0, 0, 0, 0
@@ -84,18 +70,6 @@ fn @send(arg0: i160, arg1: i256, arg2: i256) -> i1 {
   bb0:
     v0 = extcall arg0, gas arg2, value arg1
     ret v0
-}
-
-// A transfer forwards the returndata of a failed call.
-// CHECK-LABEL: fn @transfer
-// CHECK: [[OK:v[0-9]+]] = call arg2, {{v[0-9]+}}, arg1, 0, 0, 0, 0
-// CHECK-NEXT: jumpi [[OK]], bb2, bb1
-// CHECK: bb1 [cold]:
-// CHECK-NEXT: revert_returndata
-fn @transfer(arg0: i160, arg1: i256, arg2: i256) {
-  bb0:
-    extcall revert arg0, gas arg2, value arg1
-    ret
 }
 
 // Before EIP-150 a low-level call withholds the cost of the call, of the value it sends, and of

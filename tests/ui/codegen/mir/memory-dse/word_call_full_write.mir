@@ -7,22 +7,22 @@
 // before either call is dead.
 // CHECK-LABEL: fn @hash
 // CHECK-NOT: {{^[ +].*}}mstore 0, 7
-// CHECK: extcall static word revert i160 2
-fn @hash(arg0: i160) -> i256 {
+// CHECK: extcall static word i160 2
+fn @hash(arg0: i160) -> i1 {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
-    v0 = extcall static word revert i160 2, gas 50000
+    v0 = extcall static word i160 2, gas 50000
     mstore 0, 9 !metadata(memory=scratch)
     ret v0
 }
 
 // CHECK-LABEL: fn @unknown
 // CHECK-NOT: {{^[ +].*}}mstore 0, 7
-// CHECK: extcall static word revert arg0
-fn @unknown(arg0: i160) -> i256 {
+// CHECK: extcall static word arg0
+fn @unknown(arg0: i160) -> i1 {
   bb0:
     mstore 0, 7 !metadata(memory=scratch)
-    v0 = extcall static word revert arg0, gas 50000
+    v0 = extcall static word arg0, gas 50000
     mstore 0, 9 !metadata(memory=scratch)
     ret v0
 }

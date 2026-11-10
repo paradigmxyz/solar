@@ -50,7 +50,7 @@ contract TransferSend {
     }
 
     // CHECK-LABEL: fn @transferValue
-    // CHECK: extcall revert
+    // CHECK: = extcall
     function transferValue() external payable {
         payable(address(revertReceiver)).transfer(1);
     }
