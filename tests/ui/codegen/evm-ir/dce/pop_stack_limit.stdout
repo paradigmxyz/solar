@@ -1,0 +1,37 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/dce/pop_stack_limit.evmir (before dce) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/dce/pop_stack_limit.evmir (after dce) ===
+  @module DcePopStackLimit
+  bb0 [stack=1023]:
+    pop
+    jump bb1
+  bb1:
+    push 5
+    push 0
+    mstore
+    stop
+  bb2 [stack=1022]:
+-   pop
+    jump bb3
+  bb3:
+    push 5
+    push 0
+    mstore
+    stop
+  bb4 [stack=1023]:
+    pop
+    push 0
+    push 0
+    return
+  bb5 [stack=1024]:
+    pop
+    jump bb7
+  bb6:
+    stop
+  bb7:
+    stop
+  bb8 [stack=1024]:
+-   pop
+    jump bb9
+  bb9:
+    stop
+  

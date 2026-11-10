@@ -1,0 +1,68 @@
+//@ compile-flags: -Zevm-ir-pipeline=dce
+//@ filecheck:
+@module DcePopStackLimit
+
+// Removing the `pop` would start `bb1` one word deeper, so its pushes would
+// exceed the 1024-word stack limit.
+// CHECK-LABEL: bb0 [stack=1023]:
+// CHECK: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}jump bb1
+bb0 [stack=1023]:
+  pop
+  jump bb1
+
+bb1:
+  push 5
+  push 0
+  mstore
+  stop
+
+// With one word less on entry the same cleanup has room, so the `pop` goes.
+// CHECK-LABEL: bb2 [stack=1022]:
+// CHECK-NOT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}jump bb3
+bb2 [stack=1022]:
+  pop
+  jump bb3
+
+bb3:
+  push 5
+  push 0
+  mstore
+  stop
+
+// The same limit applies when the block halts itself.
+// CHECK-LABEL: bb4 [stack=1023]:
+// CHECK: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}return
+bb4 [stack=1023]:
+  pop
+  push 0
+  push 0
+  return
+
+// A jump to a block that is not next pushes its label, so the removal would
+// leave no room for it.
+// CHECK-LABEL: bb5 [stack=1024]:
+// CHECK: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}jump bb7
+bb5 [stack=1024]:
+  pop
+  jump bb7
+
+bb6:
+  stop
+
+bb7:
+  stop
+
+// A jump to the next block falls through without a label, so the `pop` goes.
+// CHECK-LABEL: bb8 [stack=1024]:
+// CHECK-NOT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}jump bb9
+bb8 [stack=1024]:
+  pop
+  jump bb9
+
+bb9:
+  stop
