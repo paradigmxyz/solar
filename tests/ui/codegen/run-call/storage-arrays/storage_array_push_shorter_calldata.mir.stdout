@@ -11,8 +11,8 @@ fn @pushShorterCalldata(arg0: slice<calldata>) -> struct0 [selector=0x4e10bf3a, 
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = ptrtoint ptr<calldata> v0 to i256
-    v3 = add v2, 64
-    v4 = lt v1, v3
+    v3 = sub v1, v2
+    v4 = slt v3, 64
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 64
     v6 = make_calldata_slice v0, 64
@@ -90,8 +90,8 @@ fn @pushNarrowCalldata(arg0: slice<calldata>) -> struct0 [selector=0x3c12c61b, a
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = ptrtoint ptr<calldata> v0 to i256
-    v3 = add v2, 64
-    v4 = lt v1, v3
+    v3 = sub v1, v2
+    v4 = slt v3, 64
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 64
     jump bb1
@@ -184,8 +184,8 @@ fn @pushNestedShorterCalldata(arg0: slice<calldata>) -> struct1 [selector=0xae05
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = ptrtoint ptr<calldata> v0 to i256
-    v3 = add v2, 128
-    v4 = lt v1, v3
+    v3 = sub v1, v2
+    v4 = slt v3, 128
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 64
     jump bb1
@@ -380,8 +380,8 @@ fn @pushExactCalldata(arg0: slice<calldata>) -> struct2 [selector=0x9b4dcbee, ab
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = ptrtoint ptr<calldata> v0 to i256
-    v3 = add v2, 64
-    v4 = lt v1, v3
+    v3 = sub v1, v2
+    v4 = slt v3, 64
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 64
     v6 = make_calldata_slice v0, 64

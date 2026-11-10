@@ -125,8 +125,8 @@ fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_par
     v5 = extract_value slice<calldata>, v3, 0
     v6 = calldatasize
     v7 = ptrtoint ptr<calldata> v5 to i256
-    v8 = add v7, 64
-    v9 = lt v6, v8
+    v8 = sub v6, v7
+    v9 = slt v8, 64
     icall revert_if<calldata_tail_too_short>, v9
     v10 = alloc 64
     v11 = make_calldata_slice v5, 64

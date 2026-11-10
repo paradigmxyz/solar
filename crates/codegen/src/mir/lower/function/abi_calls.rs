@@ -1063,7 +1063,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if validate_bounds {
             // check_range(base, length * element_head_size)
             let head_size = self.builder.imm(length.checked_mul(element_head_size)?);
-            self.check_calldata_copy_range(base, head_size);
+            self.check_calldata_range(base, head_size);
         }
         // object = fixed_array(length)
         let byte_length = length.checked_mul(32)?;
@@ -1127,7 +1127,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         let nested_validate = if validate_bounds && all_static {
             // check_range(base, head_size)
             let head_size = self.builder.imm(head_size);
-            self.check_calldata_copy_range(base, head_size);
+            self.check_calldata_range(base, head_size);
             false
         } else {
             validate_bounds
