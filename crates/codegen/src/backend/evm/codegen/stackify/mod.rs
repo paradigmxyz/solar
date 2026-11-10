@@ -392,11 +392,9 @@ struct Analysis {
     reads: DenseBitSet<ValueId>,
 }
 
-/// Why an artifact could not be lowered.
-enum Decline {
-    /// The function uses a shape this lowering does not implement.
-    Unsupported(FunctionId, &'static str),
-}
+/// Why an artifact could not be lowered: the function uses a shape this lowering does not
+/// implement.
+struct Decline(FunctionId, &'static str);
 
 /// Planning restarts that spill one value each before spills come in batches.
 const SINGLE_SPILL_RESTARTS: u32 = 64;
@@ -470,15 +468,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn report_decline(&self, module: &Module, decline: Decline) {
-        match decline {
-            Decline::Unsupported(func, reason) => {
-                let func = &module.functions[func];
-                self.gcx.dcx().emit_err(
-                    func.name_span,
-                    format!("codegen cannot lower `{}`: {reason}", func.name),
-                );
-            }
-        }
+        let Decline(func, reason) = decline;
+        let func = &module.functions[func];
+        self.gcx
+            .dcx()
+            .emit_err(func.name_span, format!("codegen cannot lower `{}`: {reason}", func.name));
     }
 
     /// Plans `bodies`: `entry` and the external entries, which terminate the message call,
@@ -504,16 +498,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                         .instructions()
                         .any(|inst| matches!(func.inst(inst).kind, InstKind::InternalFrameAddr(_)))
                     {
-                        return Err(Decline::Unsupported(
-                            func_id,
-                            "recursive function with a frame object",
-                        ));
+                        return Err(Decline(func_id, "recursive function with a frame object"));
                     }
                 } else if !Self::static_frame_offsets_are_local(func) {
-                    return Err(Decline::Unsupported(
-                        func_id,
-                        "frame address outside the local region",
-                    ));
+                    return Err(Decline(func_id, "frame address outside the local region"));
                 }
             }
         }
@@ -793,7 +781,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     restarts >= single_spills,
                     &hints,
                 )
-                .map_err(|reason| Decline::Unsupported(func_id, reason))?;
+                .map_err(|reason| Decline(func_id, reason))?;
                 if round == 1 && restarts == 0 && target.optimizes_stack_plans() {
                     constants = planner.constants_to_retain();
                 }
@@ -814,11 +802,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 }
                             }
                             Some(Victim::Ret) if !ret_spilled => ret_spilled = true,
-                            _ => return Err(Decline::Unsupported(func_id, "stack too deep")),
+                            _ => return Err(Decline(func_id, "stack too deep")),
                         }
                     }
                     Err(Fail::Unsupported(reason)) => {
-                        return Err(Decline::Unsupported(func_id, reason));
+                        return Err(Decline(func_id, reason));
                     }
                 }
             };
