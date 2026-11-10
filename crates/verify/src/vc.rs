@@ -97,7 +97,7 @@ pub(crate) struct Vc<'p, 'a> {
     /// calls run under the same lock, so they reach only those entry points again.
     lock_modset: std::cell::Cell<bool>,
     pub split_wins: usize,
-    ranges: FxHashMap<String, crate::interval::Iv>,
+    ranges: FxHashMap<String, crate::interval::Interval>,
     defs: FxHashMap<String, String>,
     warnings: Vec<String>,
     /// `@custom:reveal f(..)` being evaluated: unfold opaque `f` once
@@ -242,7 +242,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         out
     }
-    fn iv(&self, t: &str) -> Option<crate::interval::Iv> {
+    fn iv(&self, t: &str) -> Option<crate::interval::Interval> {
         crate::interval::interval(t, &self.ranges)
     }
     /// `wrap`, unless the interval analysis shows the value is already in range.
@@ -4430,7 +4430,7 @@ fn bv_view(
     t: &str,
     n: u32,
     defs: &FxHashMap<String, String>,
-    ranges: &FxHashMap<String, crate::interval::Iv>,
+    ranges: &FxHashMap<String, crate::interval::Interval>,
     declared: &mut FxHashSet<String>,
     pending: &mut Vec<String>,
     depth: usize,

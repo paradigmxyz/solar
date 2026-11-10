@@ -9,980 +9,971 @@
 //! which only weakens the lowered query, so the implication still holds. Quantified variables
 //! without a range are allowed only where they are effectively universal (an assumption), where
 //! restricting their domain also only weakens the query.
+//!
+//! [`lower`] works in three steps. It first collects what the script declares and asserts: the
+//! sort of every constant and function, the range facts `(and (<= low t) (<= t high))`, the SSA
+//! definitions `(= x term)` and the hints. [`Analysis::check_formula`] then finds the [`Kind`] of
+//! every subterm of each assertion, an interval for an Int term and a width for a bitvector, and
+//! the assertions with a subterm it cannot bound are dropped. Last, [`Emitter`] writes the kept
+//! assertions over BV-W.
+
+use crate::{
+    interval::{Interval, pow2},
+    operator::{IndexedOperator, Operator},
+    sexp::{self, Sexp},
+};
 use num_bigint::BigInt;
-use num_traits::{One, Signed, Zero};
+use num_traits::{Signed, Zero};
 use solar_parse::interface::data_structures::map::{FxHashMap, FxHashSet};
 use std::cell::RefCell;
 
-type Iv = (BigInt, BigInt);
+/// Why a term cannot be lowered.
+type Lowering<T> = Result<T, String>;
 
-#[derive(Debug, Clone)]
-enum S {
-    A(String),
-    L(Vec<Self>),
-}
+/// The kinds of the variables that quantifiers bind around a subterm.
+type Scope = FxHashMap<String, Kind>;
 
-fn tokenize(s: &str, hints: &mut Vec<String>) -> Vec<String> {
-    let b: Vec<char> = s.chars().collect();
-    let mut out = vec![];
-    let mut i = 0;
-    while i < b.len() {
-        let c = b[i];
-        if c == ';' {
-            let mut j = i;
-            while j < b.len() && b[j] != '\n' {
-                j += 1;
-            }
-            let line: String = b[i..j].iter().collect();
-            if line.starts_with(";@") {
-                hints.push(line);
-            }
-            i = j;
-        } else if c == '(' || c == ')' {
-            out.push(c.to_string());
-            i += 1;
-        } else if c.is_whitespace() {
-            i += 1;
-        } else if c == '|' {
-            let mut j = i + 1;
-            while j < b.len() && b[j] != '|' {
-                j += 1;
-            }
-            out.push(b[i..=j.min(b.len() - 1)].iter().collect());
-            i = j + 1;
-        } else if c == '"' {
-            let mut j = i + 1;
-            while j < b.len() && b[j] != '"' {
-                j += 1;
-            }
-            out.push(b[i..=j.min(b.len() - 1)].iter().collect());
-            i = j + 1;
-        } else {
-            let mut j = i;
-            while j < b.len() && !b[j].is_whitespace() && b[j] != '(' && b[j] != ')' {
-                j += 1;
-            }
-            out.push(b[i..j].iter().collect());
-            i = j;
-        }
-    }
-    out
-}
-
-fn parse_all(toks: &[String]) -> Vec<S> {
-    let mut i = 0;
-    let mut out = vec![];
-    while i < toks.len() {
-        match parse_at(toks, &mut i) {
-            Some(s) => out.push(s),
-            None => break,
-        }
-    }
-    out
-}
-
-fn parse_at(t: &[String], i: &mut usize) -> Option<S> {
-    let tok = t.get(*i)?;
-    *i += 1;
-    if tok == "(" {
-        let mut v = vec![];
-        while t.get(*i)? != ")" {
-            v.push(parse_at(t, i)?);
-        }
-        *i += 1;
-        Some(S::L(v))
-    } else {
-        Some(S::A(tok.clone()))
-    }
-}
-
-fn pr(s: &S) -> String {
-    fn go(s: &S, o: &mut String) {
-        match s {
-            S::A(a) => o.push_str(a),
-            S::L(v) => {
-                o.push('(');
-                for (i, x) in v.iter().enumerate() {
-                    if i > 0 {
-                        o.push(' ');
-                    }
-                    go(x, o);
-                }
-                o.push(')');
-            }
-        }
-    }
-    let mut o = String::new();
-    go(s, &mut o);
-    o
-}
-
-fn num(s: &S) -> Option<BigInt> {
-    match s {
-        S::A(a) => a.parse().ok(),
-        S::L(v) => match v.as_slice() {
-            [S::A(m), x] if m == "-" => num(x).map(|n| -n),
-            _ => None,
-        },
-    }
-}
-
+/// The sort of a declared constant, a function's parameter or result, or a bound variable.
 #[derive(Debug, Clone, PartialEq)]
 enum Sort {
     Int,
     Bool,
-    Bv(u32),
-    Arr(Box<Self>, Box<Self>),
+    Bitvector(u32),
+    /// An array from the index sort to the element sort.
+    Array(Box<Self>, Box<Self>),
+    /// A sort the lowering does not handle.
     Other,
 }
 
-fn sort_of(s: &S) -> Sort {
-    match s {
-        S::A(a) if a == "Int" => Sort::Int,
-        S::A(a) if a == "Bool" => Sort::Bool,
-        S::L(v) => match v.as_slice() {
-            [S::A(u), S::A(b), S::A(n)] if u == "_" && b == "BitVec" => {
-                n.parse().map(Sort::Bv).unwrap_or(Sort::Other)
+impl Sort {
+    /// The sort `term` spells.
+    fn of(term: &Sexp) -> Self {
+        match term {
+            Sexp::Atom(atom) if atom == "Int" => Self::Int,
+            Sexp::Atom(atom) if atom == "Bool" => Self::Bool,
+            Sexp::List(items) => match items.as_slice() {
+                [Sexp::Atom(underscore), Sexp::Atom(bitvec), Sexp::Atom(width)]
+                    if underscore == "_" && bitvec == "BitVec" =>
+                {
+                    width.parse().map(Self::Bitvector).unwrap_or(Self::Other)
+                }
+                [Sexp::Atom(array), index, element] if array == "Array" => {
+                    Self::Array(Box::new(Self::of(index)), Box::new(Self::of(element)))
+                }
+                _ => Self::Other,
+            },
+            Sexp::Atom(_) => Self::Other,
+        }
+    }
+
+    /// The sort over BV-`width`, where Int becomes `(_ BitVec width)`; `None` for a sort the
+    /// lowering does not handle.
+    fn lowered(&self, width: u32) -> Option<String> {
+        Some(match self {
+            Self::Int => format!("(_ BitVec {width})"),
+            Self::Bool => "Bool".into(),
+            Self::Bitvector(bits) => format!("(_ BitVec {bits})"),
+            Self::Array(index, element) => {
+                format!("(Array {} {})", index.lowered(width)?, element.lowered(width)?)
             }
-            [S::A(a), k, e] if a == "Array" => {
-                Sort::Arr(Box::new(sort_of(k)), Box::new(sort_of(e)))
-            }
-            _ => Sort::Other,
-        },
-        _ => Sort::Other,
+            Self::Other => return None,
+        })
+    }
+
+    /// How many arrays the sort nests: 2 for `(Array Int (Array Int Int))`.
+    fn array_depth(&self) -> usize {
+        match self {
+            Self::Array(_, element) => 1 + element.array_depth(),
+            _ => 0,
+        }
     }
 }
 
-fn lower_sort(s: &Sort, w: u32) -> Option<String> {
-    Some(match s {
-        Sort::Int => format!("(_ BitVec {w})"),
-        Sort::Bool => "Bool".into(),
-        Sort::Bv(n) => format!("(_ BitVec {n})"),
-        Sort::Arr(k, e) => format!("(Array {} {})", lower_sort(k, w)?, lower_sort(e, w)?),
-        Sort::Other => return None,
-    })
-}
-
-/// Kind of a term: its bound (Int), or its shape.
+/// What the analysis knows about a term: the bounds of an Int, or the shape of any other term.
 #[derive(Debug, Clone)]
-enum K {
-    Int(Iv),
+enum Kind {
+    Int(Interval),
     Bool,
-    Bv(u32),
-    Arr(Box<Self>),
+    Bitvector(u32),
+    /// An array, with the kind of its elements.
+    Array(Box<Self>),
 }
 
-fn union(a: &K, b: &K) -> Option<K> {
-    Some(match (a, b) {
-        (K::Int((l1, h1)), K::Int((l2, h2))) => K::Int((l1.min(l2).clone(), h1.max(h2).clone())),
-        (K::Bool, K::Bool) => K::Bool,
-        (K::Bv(n), K::Bv(m)) if n == m => K::Bv(*n),
-        (K::Arr(x), K::Arr(y)) => K::Arr(Box::new(union(x, y)?)),
-        _ => return None,
-    })
-}
+impl Kind {
+    /// An Int in `interval` under `depth` arrays.
+    fn nested(depth: usize, interval: Interval) -> Self {
+        let mut kind = Self::Int(interval);
+        for _ in 0..depth {
+            kind = Self::Array(Box::new(kind));
+        }
+        kind
+    }
 
-fn bits(x: &BigInt) -> u64 {
-    x.abs().bits()
-}
-
-fn pow2(n: u64) -> BigInt {
-    BigInt::one() << n
-}
-
-type R<T> = Result<T, String>;
-
-struct Ctx {
-    consts: FxHashMap<String, Sort>,
-    funs: FxHashMap<String, (Vec<Sort>, Sort)>,
-    ranges: FxHashMap<String, Iv>,
-    defs: FxHashMap<String, S>,
-    facts: FxHashMap<String, Iv>,
-    elem: FxHashMap<String, Iv>,
-    ret: FxHashMap<String, Iv>,
-    memo: RefCell<FxHashMap<String, Option<K>>>,
-    maxbits: RefCell<u64>,
-}
-
-fn intersect(a: Option<Iv>, b: Option<Iv>) -> Option<Iv> {
-    match (a, b) {
-        (Some((l1, h1)), Some((l2, h2))) => Some((l1.max(l2), h1.min(h2))),
-        (x, None) | (None, x) => x,
+    /// The kind that covers both, as for the arms of an `ite`; `None` when their shapes differ.
+    fn union(&self, other: &Self) -> Option<Self> {
+        Some(match (self, other) {
+            (Self::Int((low, high)), Self::Int((other_low, other_high))) => {
+                Self::Int((low.min(other_low).clone(), high.max(other_high).clone()))
+            }
+            (Self::Bool, Self::Bool) => Self::Bool,
+            (Self::Bitvector(width), Self::Bitvector(other)) if width == other => {
+                Self::Bitvector(*width)
+            }
+            (Self::Array(element), Self::Array(other)) => {
+                Self::Array(Box::new(element.union(other)?))
+            }
+            _ => return None,
+        })
     }
 }
 
-fn nest(depth: usize, iv: Iv) -> K {
-    let mut k = K::Int(iv);
-    for _ in 0..depth {
-        k = K::Arr(Box::new(k));
-    }
-    k
+/// The bits of `value`'s magnitude.
+fn bit_length(value: &BigInt) -> u64 {
+    value.abs().bits()
 }
 
-fn arr_depth(s: &Sort) -> usize {
-    match s {
-        Sort::Arr(_, e) => 1 + arr_depth(e),
-        _ => 0,
+/// Both bounds where there are two, else the one there is.
+fn intersect(first: Option<Interval>, second: Option<Interval>) -> Option<Interval> {
+    match (first, second) {
+        (Some((low, high)), Some((other_low, other_high))) => {
+            Some((low.max(other_low), high.min(other_high)))
+        }
+        (only, None) | (None, only) => only,
     }
 }
 
-/// (lo <= t <= hi) facts in the encoder's shape.
-fn range_fact(s: &S) -> Option<(S, Iv)> {
-    let S::L(v) = s else { return None };
-    let [S::A(and), a, b] = v.as_slice() else {
-        return None;
-    };
-    if and != "and" {
-        return None;
+/// The value of a numeral, `5` or `(- 5)`.
+fn numeral(term: &Sexp) -> Option<BigInt> {
+    match term {
+        Sexp::Atom(atom) => atom.parse().ok(),
+        Sexp::List(items) => match items.as_slice() {
+            [Sexp::Atom(minus), value] if minus == "-" => numeral(value).map(|value| -value),
+            _ => None,
+        },
     }
-    let (S::L(a), S::L(b)) = (a, b) else {
-        return None;
-    };
-    match (a.as_slice(), b.as_slice()) {
-        ([S::A(le1), lo, t1], [S::A(le2), t2, hi])
-            if le1 == "<=" && le2 == "<=" && pr(t1) == pr(t2) =>
-        {
-            Some((t1.clone(), (num(lo)?, num(hi)?)))
+}
+
+/// Whether `value` is a positive power of two.
+fn is_power_of_two(value: &BigInt) -> bool {
+    value.is_positive() && (value & (value - 1u32)).is_zero()
+}
+
+/// The head operator of an application and its arguments.
+fn application(term: &Sexp) -> Option<(Operator, &[Sexp])> {
+    let (head, arguments) = term.as_list()?.split_first()?;
+    Some((Operator::of(head.as_atom()?)?, arguments))
+}
+
+/// A range fact in the encoder's shape, `(and (<= low term) (<= term high))`.
+fn range_fact(fact: &Sexp) -> Option<(Sexp, Interval)> {
+    let (Operator::And, [lower, upper]) = application(fact)? else { return None };
+    match (application(lower)?, application(upper)?) {
+        ((Operator::Le, [low, term]), (Operator::Le, [same, high])) if term == same => {
+            Some((term.clone(), (numeral(low)?, numeral(high)?)))
         }
         _ => None,
     }
 }
 
-impl Ctx {
-    fn note(&self, iv: &Iv) {
-        let b = bits(&iv.0).max(bits(&iv.1));
-        let mut m = self.maxbits.borrow_mut();
-        if b > *m {
-            *m = b;
-        }
+/// The exponent of `(|pow2| exponent)`.
+fn pow2_exponent(term: &Sexp) -> Option<&Sexp> {
+    match application(term)? {
+        (Operator::Pow2, [exponent]) => Some(exponent),
+        _ => None,
+    }
+}
+
+/// `term`, cut to 80 bytes for an error message.
+fn abbreviate(term: &Sexp) -> String {
+    let text = term.to_string();
+    if text.len() > 80 { format!("{}…", &text[..80]) } else { text }
+}
+
+/// What the script says about its symbols, and the widest bound found so far.
+struct Analysis {
+    /// The sort of every declared constant.
+    constants: FxHashMap<String, Sort>,
+    /// The parameter and result sorts of every declared function.
+    functions: FxHashMap<String, (Vec<Sort>, Sort)>,
+    /// The range facts asserted about constants.
+    ranges: FxHashMap<String, Interval>,
+    /// The term each SSA constant is asserted equal to, the first time.
+    definitions: FxHashMap<String, Sexp>,
+    /// The range facts asserted about other terms, keyed by their text.
+    term_ranges: FxHashMap<String, Interval>,
+    /// `;@elem array low high`: the range of an array constant's elements.
+    element_ranges: FxHashMap<String, Interval>,
+    /// `;@ret function low high`: the range of an uninterpreted function's results.
+    result_ranges: FxHashMap<String, Interval>,
+    /// The kind of each constant, once found; `None` when it is unbounded.
+    constant_kinds: RefCell<FxHashMap<String, Option<Kind>>>,
+    /// The bit length of the widest bound found.
+    max_bits: RefCell<u64>,
+}
+
+impl Analysis {
+    /// Records the bits `interval` needs.
+    fn note_bits(&self, interval: &Interval) {
+        let bits = bit_length(&interval.0).max(bit_length(&interval.1));
+        let mut max_bits = self.max_bits.borrow_mut();
+        *max_bits = (*max_bits).max(bits);
     }
 
-    fn atom(&self, a: &str, scope: &FxHashMap<String, K>) -> R<K> {
-        if let Some(k) = scope.get(a) {
-            return Ok(k.clone());
+    fn symbol_kind(&self, symbol: &str, scope: &Scope) -> Lowering<Kind> {
+        if let Some(kind) = scope.get(symbol) {
+            return Ok(kind.clone());
         }
-        if a == "true" || a == "false" {
-            return Ok(K::Bool);
+        if symbol == "true" || symbol == "false" {
+            return Ok(Kind::Bool);
         }
-        if let Ok(n) = a.parse::<BigInt>() {
-            return Ok(K::Int((n.clone(), n)));
+        if let Ok(value) = symbol.parse::<BigInt>() {
+            return Ok(Kind::Int((value.clone(), value)));
         }
-        if let Some(m) = self.memo.borrow().get(a) {
-            return m.clone().ok_or_else(|| format!("unbounded {a}"));
+        if let Some(kind) = self.constant_kinds.borrow().get(symbol) {
+            return kind.clone().ok_or_else(|| format!("unbounded {symbol}"));
         }
-        let sort = self.consts.get(a).cloned().ok_or_else(|| format!("unknown symbol {a}"))?;
-        let r = match &sort {
-            Sort::Bool => Some(K::Bool),
-            Sort::Bv(n) => Some(K::Bv(*n)),
+        let sort = self
+            .constants
+            .get(symbol)
+            .cloned()
+            .ok_or_else(|| format!("unknown symbol {symbol}"))?;
+        let definition_kind = || {
+            self.definitions
+                .get(symbol)
+                .and_then(|definition| self.kind(definition, &Scope::default()).ok())
+        };
+        let kind = match &sort {
+            Sort::Bool => Some(Kind::Bool),
+            Sort::Bitvector(width) => Some(Kind::Bitvector(*width)),
             Sort::Int => {
-                let def = self.defs.get(a).and_then(|d| match self.bnd(d, &FxHashMap::default()) {
-                    Ok(K::Int(iv)) => Some(iv),
+                let defined = match definition_kind() {
+                    Some(Kind::Int(interval)) => Some(interval),
                     _ => None,
-                });
-                intersect(self.ranges.get(a).cloned(), def).map(K::Int)
+                };
+                intersect(self.ranges.get(symbol).cloned(), defined).map(Kind::Int)
             }
-            Sort::Arr(..) => {
-                let d = arr_depth(&sort);
-                let from_def =
-                    self.defs.get(a).and_then(|d| self.bnd(d, &FxHashMap::default()).ok());
-                match (self.elem.get(a), from_def) {
-                    (Some(iv), _) => Some(nest(d, iv.clone())),
-                    (None, Some(k)) => Some(k),
-                    _ => None,
-                }
-            }
+            Sort::Array(..) => match (self.element_ranges.get(symbol), definition_kind()) {
+                (Some(elements), _) => Some(Kind::nested(sort.array_depth(), elements.clone())),
+                (None, defined) => defined,
+            },
             Sort::Other => None,
         };
-        self.memo.borrow_mut().insert(a.to_string(), r.clone());
-        r.ok_or_else(|| format!("unbounded {a}"))
+        self.constant_kinds.borrow_mut().insert(symbol.to_string(), kind.clone());
+        kind.ok_or_else(|| format!("unbounded {symbol}"))
     }
 
-    fn int(&self, s: &S, sc: &FxHashMap<String, K>) -> R<Iv> {
-        match self.bnd(s, sc)? {
-            K::Int(iv) => Ok(iv),
-            k => Err(format!("expected Int, got {k:?} in {}", short(s))),
+    /// The bounds of an Int term.
+    fn interval(&self, term: &Sexp, scope: &Scope) -> Lowering<Interval> {
+        match self.kind(term, scope)? {
+            Kind::Int(interval) => Ok(interval),
+            kind => Err(format!("expected Int, got {kind:?} in {}", abbreviate(term))),
         }
     }
 
-    fn bnd(&self, s: &S, sc: &FxHashMap<String, K>) -> R<K> {
-        let k = self.bnd_inner(s, sc)?;
-        if let K::Int(iv) = &k {
-            self.note(iv);
+    /// The kind of `term`, recording the bits its bounds need.
+    fn kind(&self, term: &Sexp, scope: &Scope) -> Lowering<Kind> {
+        let kind = self.compute_kind(term, scope)?;
+        if let Kind::Int(interval) = &kind {
+            self.note_bits(interval);
         }
-        Ok(k)
+        Ok(kind)
     }
 
-    fn bnd_inner(&self, s: &S, sc: &FxHashMap<String, K>) -> R<K> {
-        let v = match s {
-            S::A(a) => return self.atom(a, sc),
-            S::L(v) => v,
+    fn compute_kind(&self, term: &Sexp, scope: &Scope) -> Lowering<Kind> {
+        let items = match term {
+            Sexp::Atom(symbol) => return self.symbol_kind(symbol, scope),
+            Sexp::List(items) => items,
         };
-        if let Some(n) = num(s) {
-            return Ok(K::Int((n.clone(), n)));
+        if let Some(value) = numeral(term) {
+            return Ok(Kind::Int((value.clone(), value)));
         }
-        let head = match v.first() {
-            Some(S::A(h)) => h.as_str(),
-            Some(S::L(h)) => {
-                // indexed / qualified heads
-                match h.as_slice() {
-                    [S::A(u), S::A(f), S::A(n)] if u == "_" && f == "int2bv" => {
-                        self.int(&v[1], sc)?;
-                        return Ok(K::Bv(n.parse().map_err(|_| "bad width")?));
-                    }
-                    [S::A(u), S::A(f), S::A(i), S::A(j)] if u == "_" && f == "extract" => {
-                        self.bnd(&v[1], sc)?;
-                        let (i, j): (u32, u32) =
-                            (i.parse().map_err(|_| "w")?, j.parse().map_err(|_| "w")?);
-                        return Ok(K::Bv(i - j + 1));
-                    }
-                    [S::A(u), S::A(f), S::A(k)]
-                        if u == "_" && (f == "zero_extend" || f == "sign_extend") =>
-                    {
-                        let K::Bv(n) = self.bnd(&v[1], sc)? else {
-                            return Err("ext".into());
-                        };
-                        return Ok(K::Bv(n + k.parse::<u32>().map_err(|_| "w")?));
-                    }
-                    [S::A(a), S::A(c), _] if a == "as" && c == "const" => {
-                        return Ok(K::Arr(Box::new(self.bnd(&v[1], sc)?)));
-                    }
-                    _ => return Err(format!("unsupported head {}", short(s))),
+        let Some((head, arguments)) = items.split_first() else { return Err("empty".into()) };
+        let Sexp::Atom(symbol) = head else {
+            return self.indexed_kind(term, head, arguments, scope);
+        };
+        let Some(operator) = Operator::of(symbol) else {
+            return self.function_kind(term, symbol, arguments, scope);
+        };
+        let intervals = || -> Lowering<Vec<Interval>> {
+            arguments.iter().map(|argument| self.interval(argument, scope)).collect()
+        };
+        Ok(match operator {
+            Operator::Indexed => match arguments {
+                // `(_ bvN width)`
+                [Sexp::Atom(value), Sexp::Atom(width)] if value.starts_with("bv") => {
+                    Kind::Bitvector(width.parse().map_err(|_| "w")?)
                 }
-            }
-            None => return Err("empty".into()),
-        };
-        let args = &v[1..];
-        let ints = |me: &Self| -> R<Vec<Iv>> { args.iter().map(|a| me.int(a, sc)).collect() };
-        Ok(match head {
-            "_" => match args {
-                [S::A(b), S::A(n)] if b.starts_with("bv") => K::Bv(n.parse().map_err(|_| "w")?),
                 _ => return Err("indexed".into()),
             },
-            "+" | "-" | "*" => {
-                let xs = ints(self)?;
-                if head == "-" && xs.len() == 1 {
-                    let (l, h) = &xs[0];
-                    return Ok(K::Int((-h, -l)));
+            Operator::Add | Operator::Sub | Operator::Mul => {
+                let intervals = intervals()?;
+                if operator == Operator::Sub && intervals.len() == 1 {
+                    let (low, high) = &intervals[0];
+                    return Ok(Kind::Int((-high, -low)));
                 }
-                let mut acc = xs[0].clone();
-                for (l, h) in &xs[1..] {
-                    acc = match head {
-                        "+" => (acc.0 + l, acc.1 + h),
-                        "-" => (acc.0 - h, acc.1 - l),
+                let mut result = intervals[0].clone();
+                for (low, high) in &intervals[1..] {
+                    result = match operator {
+                        Operator::Add => (result.0 + low, result.1 + high),
+                        Operator::Sub => (result.0 - high, result.1 - low),
                         _ => {
-                            let c = [&acc.0 * l, &acc.0 * h, &acc.1 * l, &acc.1 * h];
-                            (c.iter().min().unwrap().clone(), c.iter().max().unwrap().clone())
+                            let corners = [
+                                &result.0 * low,
+                                &result.0 * high,
+                                &result.1 * low,
+                                &result.1 * high,
+                            ];
+                            let low = corners.iter().min().unwrap().clone();
+                            (low, corners.iter().max().unwrap().clone())
                         }
                     };
                 }
-                K::Int(acc)
+                Kind::Int(result)
             }
-            "div" | "mod" => {
-                let xs = ints(self)?;
-                let ((al, ah), (bl, bh)) = (&xs[0], &xs[1]);
-                if !bl.is_positive() {
+            Operator::Div | Operator::Mod => {
+                let intervals = intervals()?;
+                let ((low, high), (divisor_low, divisor_high)) = (&intervals[0], &intervals[1]);
+                if !divisor_low.is_positive() {
                     return Err("division by a possibly non-positive value".into());
                 }
-                if head == "mod" {
-                    if !al.is_negative() && ah < bl {
-                        K::Int((al.clone(), ah.clone()))
+                if operator == Operator::Mod {
+                    if !low.is_negative() && high < divisor_low {
+                        Kind::Int((low.clone(), high.clone()))
                     } else {
-                        K::Int((BigInt::zero(), bh - 1))
+                        Kind::Int((BigInt::zero(), divisor_high - 1))
                     }
+                } else if !low.is_negative() {
+                    Kind::Int((low / divisor_high, high / divisor_low))
                 } else {
-                    let m = al.abs().max(ah.abs());
-                    if !al.is_negative() {
-                        K::Int((al / bh, ah / bl))
-                    } else {
-                        K::Int((-(&m) - 1, m))
-                    }
+                    let magnitude = low.abs().max(high.abs());
+                    Kind::Int((-(&magnitude) - 1, magnitude))
                 }
             }
-            "abs" => {
-                let (l, h) = self.int(&args[0], sc)?;
-                let m = l.abs().max(h.abs());
-                K::Int((BigInt::zero(), m))
+            Operator::Abs => {
+                let (low, high) = self.interval(&arguments[0], scope)?;
+                Kind::Int((BigInt::zero(), low.abs().max(high.abs())))
             }
-            "ite" => {
-                self.boolean(&args[0], sc)?;
-                let (a, b) = (self.bnd(&args[1], sc)?, self.bnd(&args[2], sc)?);
-                union(&a, &b).ok_or("ite of mismatched kinds")?
+            Operator::Ite => {
+                self.check_formula(&arguments[0], scope)?;
+                let then = self.kind(&arguments[1], scope)?;
+                let otherwise = self.kind(&arguments[2], scope)?;
+                then.union(&otherwise).ok_or("ite of mismatched kinds")?
             }
-            "<" | "<=" | ">" | ">=" => {
-                ints(self)?;
-                K::Bool
+            Operator::Lt | Operator::Le | Operator::Gt | Operator::Ge => {
+                intervals()?;
+                Kind::Bool
             }
-            "=" | "distinct" => {
-                let ks: Vec<K> = args.iter().map(|a| self.bnd(a, sc)).collect::<R<_>>()?;
-                if ks.iter().any(|k| matches!(k, K::Arr(_))) {
-                    // array (in)equality is not preserved by restricting the index domain
+            Operator::Eq | Operator::Distinct => {
+                let kinds: Vec<Kind> = arguments
+                    .iter()
+                    .map(|argument| self.kind(argument, scope))
+                    .collect::<Lowering<_>>()?;
+                if kinds.iter().any(|kind| matches!(kind, Kind::Array(_))) {
+                    // Restricting the index domain does not preserve array (in)equality.
                     return Err("array equality".into());
                 }
-                K::Bool
+                Kind::Bool
             }
-            "and" | "or" | "not" | "=>" | "xor" => {
-                for a in args {
-                    self.boolean(a, sc)?;
+            Operator::And | Operator::Or | Operator::Not | Operator::Implies | Operator::Xor => {
+                for argument in arguments {
+                    self.check_formula(argument, scope)?;
                 }
-                K::Bool
+                Kind::Bool
             }
-            "select" => {
-                let a = self.bnd(&args[0], sc)?;
-                self.int(&args[1], sc)?;
-                let fact = if sc.is_empty() { self.facts.get(&pr(s)).cloned() } else { None };
-                let elem = match a {
-                    K::Arr(e) => *e,
-                    _ => return Err("select of non-array".into()),
+            Operator::Select => {
+                let array = self.kind(&arguments[0], scope)?;
+                self.interval(&arguments[1], scope)?;
+                let fact = self.term_range(term, scope);
+                let Kind::Array(element) = array else {
+                    return Err("select of non-array".into());
                 };
-                match (fact, elem) {
-                    (Some(f), K::Int(e)) => K::Int(intersect(Some(f), Some(e)).unwrap()),
-                    (Some(f), _) => K::Int(f),
-                    (None, e) => e,
+                match (fact, *element) {
+                    (Some(fact), Kind::Int(element)) => {
+                        Kind::Int(intersect(Some(fact), Some(element)).unwrap())
+                    }
+                    (Some(fact), _) => Kind::Int(fact),
+                    (None, element) => element,
                 }
             }
-            "store" => {
-                let a = self.bnd(&args[0], sc)?;
-                self.int(&args[1], sc)?;
-                let x = self.bnd(&args[2], sc)?;
-                match a {
-                    K::Arr(e) => K::Arr(Box::new(union(&e, &x).ok_or("store kind")?)),
-                    _ => return Err("store of non-array".into()),
-                }
+            Operator::Store => {
+                let array = self.kind(&arguments[0], scope)?;
+                self.interval(&arguments[1], scope)?;
+                let value = self.kind(&arguments[2], scope)?;
+                let Kind::Array(element) = array else {
+                    return Err("store of non-array".into());
+                };
+                Kind::Array(Box::new(element.union(&value).ok_or("store kind")?))
             }
-            "bv2nat" | "bv2int" => {
-                let K::Bv(n) = self.bnd(&args[0], sc)? else {
+            Operator::BvToNat | Operator::BvToInt => {
+                let Kind::Bitvector(width) = self.kind(&arguments[0], scope)? else {
                     return Err("bv2nat".into());
                 };
-                K::Int((BigInt::zero(), pow2(n as u64) - 1))
+                Kind::Int((BigInt::zero(), pow2(width as u64) - 1))
             }
-            "|pow2|" | "|pow2w|" => {
-                let (l, h) = self.int(&args[0], sc)?;
+            Operator::Pow2 => {
+                let (low, high) = self.interval(&arguments[0], scope)?;
+                // `|pow2|` is 2^256 from 256 up. Exponents are never negative, but a bound that
+                // allows a negative one keeps the result's bounds wide.
                 let cap = BigInt::from(256);
-                let neg = l.is_negative();
-                let lo: u64 = if l >= cap || (neg && h.is_negative()) {
+                let negative = low.is_negative();
+                let low: u64 = if low >= cap || (negative && high.is_negative()) {
                     256
-                } else if neg {
+                } else if negative {
                     0
                 } else {
-                    (&l).try_into().unwrap()
+                    (&low).try_into().unwrap()
                 };
-                let hi: u64 = if h >= cap || neg { 256 } else { (&h).try_into().unwrap() };
-                let lo = if head == "|pow2w|" { BigInt::zero() } else { pow2(lo.min(hi)) };
-                K::Int((lo, pow2(hi)))
+                let high: u64 =
+                    if high >= cap || negative { 256 } else { (&high).try_into().unwrap() };
+                Kind::Int((pow2(low.min(high)), pow2(high)))
             }
-            "concat" => {
-                let mut n = 0;
-                for a in args {
-                    let K::Bv(m) = self.bnd(a, sc)? else {
+            Operator::Concat => {
+                let mut width = 0;
+                for argument in arguments {
+                    let Kind::Bitvector(part) = self.kind(argument, scope)? else {
                         return Err("concat".into());
                     };
-                    n += m;
+                    width += part;
                 }
-                K::Bv(n)
+                Kind::Bitvector(width)
             }
-            "bvult" | "bvule" | "bvugt" | "bvuge" | "bvslt" | "bvsle" | "bvsgt" | "bvsge" => {
-                for a in args {
-                    self.bnd(a, sc)?;
+            Operator::BvCompare => {
+                for argument in arguments {
+                    self.kind(argument, scope)?;
                 }
-                K::Bool
+                Kind::Bool
             }
-            h if h.starts_with("bv") => {
-                let mut w = None;
-                for a in args {
-                    if let K::Bv(n) = self.bnd(a, sc)? {
-                        w = Some(n);
+            Operator::Bv => {
+                let mut width = None;
+                for argument in arguments {
+                    if let Kind::Bitvector(bits) = self.kind(argument, scope)? {
+                        width = Some(bits);
                     }
                 }
-                K::Bv(w.ok_or("bv op")?)
+                Kind::Bitvector(width.ok_or("bv op")?)
             }
-            "forall" | "exists" => return Err("nested quantifier outside boolean context".into()),
-            "!" => self.bnd(&args[0], sc)?,
-            f => {
-                let (ps, ret) =
-                    self.funs.get(f).cloned().ok_or_else(|| format!("unknown function {f}"))?;
-                for (a, p) in args.iter().zip(&ps) {
-                    let k = self.bnd(a, sc)?;
-                    if *p == Sort::Int && !matches!(k, K::Int(_)) {
-                        return Err("arg".into());
-                    }
-                }
-                match ret {
-                    Sort::Int => {
-                        let fact =
-                            if sc.is_empty() { self.facts.get(&pr(s)).cloned() } else { None };
-                        K::Int(
-                            intersect(fact, self.ret.get(f).cloned())
-                                .ok_or_else(|| format!("unbounded result of {f}"))?,
-                        )
-                    }
-                    Sort::Bool => K::Bool,
-                    Sort::Bv(n) => K::Bv(n),
-                    _ => return Err("fun sort".into()),
-                }
+            Operator::Forall | Operator::Exists => {
+                return Err("nested quantifier outside boolean context".into());
+            }
+            Operator::Annotated => self.kind(&arguments[0], scope)?,
+        })
+    }
+
+    /// The kind of an application with an indexed or qualified head, such as `(_ int2bv 256)`.
+    fn indexed_kind(
+        &self,
+        term: &Sexp,
+        head: &Sexp,
+        arguments: &[Sexp],
+        scope: &Scope,
+    ) -> Lowering<Kind> {
+        let Some(operator) = IndexedOperator::of(head) else {
+            return Err(format!("unsupported head {}", abbreviate(term)));
+        };
+        Ok(match operator {
+            IndexedOperator::IntToBv(width) => {
+                self.interval(&arguments[0], scope)?;
+                Kind::Bitvector(width)
+            }
+            IndexedOperator::Extract(high, low) => {
+                self.kind(&arguments[0], scope)?;
+                Kind::Bitvector(high - low + 1)
+            }
+            IndexedOperator::ZeroExtend(bits) | IndexedOperator::SignExtend(bits) => {
+                let Kind::Bitvector(width) = self.kind(&arguments[0], scope)? else {
+                    return Err("ext".into());
+                };
+                Kind::Bitvector(width + bits)
+            }
+            IndexedOperator::ConstArray(_) => {
+                Kind::Array(Box::new(self.kind(&arguments[0], scope)?))
             }
         })
     }
 
-    /// Boolean structure with quantifiers; `pos` = polarity (Some(true) positive, Some(false)
-    /// negative, None both).
-    fn boolean(&self, s: &S, sc: &FxHashMap<String, K>) -> R<()> {
-        self.boolean_p(s, sc, Some(true))
+    /// The kind of an application of a declared function.
+    fn function_kind(
+        &self,
+        term: &Sexp,
+        function: &str,
+        arguments: &[Sexp],
+        scope: &Scope,
+    ) -> Lowering<Kind> {
+        let (parameters, result) = self
+            .functions
+            .get(function)
+            .cloned()
+            .ok_or_else(|| format!("unknown function {function}"))?;
+        for (argument, parameter) in arguments.iter().zip(&parameters) {
+            let kind = self.kind(argument, scope)?;
+            if *parameter == Sort::Int && !matches!(kind, Kind::Int(_)) {
+                return Err("arg".into());
+            }
+        }
+        Ok(match result {
+            Sort::Int => Kind::Int(
+                intersect(self.term_range(term, scope), self.result_ranges.get(function).cloned())
+                    .ok_or_else(|| format!("unbounded result of {function}"))?,
+            ),
+            Sort::Bool => Kind::Bool,
+            Sort::Bitvector(width) => Kind::Bitvector(width),
+            _ => return Err("fun sort".into()),
+        })
     }
 
-    fn boolean_p(&self, s: &S, sc: &FxHashMap<String, K>, pol: Option<bool>) -> R<()> {
-        let flip = |p: Option<bool>| p.map(|b| !b);
-        if let S::L(v) = s
-            && let Some(S::A(h)) = v.first()
-        {
-            match h.as_str() {
-                "not" => return self.boolean_p(&v[1], sc, flip(pol)),
-                "and" | "or" => {
-                    for a in &v[1..] {
-                        self.boolean_p(a, sc, pol)?;
+    /// The range fact asserted about `term`, which holds only outside quantifiers.
+    fn term_range(&self, term: &Sexp, scope: &Scope) -> Option<Interval> {
+        if scope.is_empty() { self.term_ranges.get(&term.to_string()).cloned() } else { None }
+    }
+
+    /// Checks that `formula` lowers, where it is asserted.
+    fn check_formula(&self, formula: &Sexp, scope: &Scope) -> Lowering<()> {
+        self.check_formula_with_polarity(formula, scope, Some(true))
+    }
+
+    /// Checks that `formula` lowers, where it occurs positively (`Some(true)`), negatively
+    /// (`Some(false)`) or both (`None`). The polarity says which quantifiers are universal, whose
+    /// unranged variables can be restricted to BV-W.
+    fn check_formula_with_polarity(
+        &self,
+        formula: &Sexp,
+        scope: &Scope,
+        polarity: Option<bool>,
+    ) -> Lowering<()> {
+        let flip = |polarity: Option<bool>| polarity.map(|positive| !positive);
+        if let Some((operator, arguments)) = application(formula) {
+            match operator {
+                Operator::Not => {
+                    return self.check_formula_with_polarity(&arguments[0], scope, flip(polarity));
+                }
+                Operator::And | Operator::Or => {
+                    for argument in arguments {
+                        self.check_formula_with_polarity(argument, scope, polarity)?;
                     }
                     return Ok(());
                 }
-                "=>" => {
-                    for a in &v[1..v.len() - 1] {
-                        self.boolean_p(a, sc, flip(pol))?;
-                    }
-                    return self.boolean_p(v.last().unwrap(), sc, pol);
-                }
-                "!" => return self.boolean_p(&v[1], sc, pol),
-                "forall" | "exists" => {
-                    let universal = match pol {
-                        Some(p) => (h == "forall") == p,
-                        None => false,
+                Operator::Implies => {
+                    let Some((conclusion, premises)) = arguments.split_last() else {
+                        return Err("empty implication".into());
                     };
-                    let S::L(bs) = &v[1] else {
-                        return Err("binders".into());
-                    };
-                    let body = &v[2];
-                    // the encoder's shape: (=> rng body) / (and rng body)
-                    let mut ranges: FxHashMap<String, Iv> = FxHashMap::default();
-                    let rng = match body {
-                        S::L(b)
-                            if matches!(b.first(), Some(S::A(x)) if x == "=>" || x == "and")
-                                && b.len() == 3 =>
-                        {
-                            Some(&b[1])
-                        }
-                        _ => None,
-                    };
-                    if let Some(r) = rng {
-                        let cs: Vec<&S> = match r {
-                            S::L(c)
-                                if matches!(c.first(), Some(S::A(x)) if x == "and")
-                                    && range_fact(r).is_none() =>
-                            {
-                                c[1..].iter().collect()
-                            }
-                            _ => vec![r],
-                        };
-                        for c in cs {
-                            if let Some((S::A(x), iv)) = range_fact(c) {
-                                ranges.insert(x, iv);
-                            }
-                        }
+                    for premise in premises {
+                        self.check_formula_with_polarity(premise, scope, flip(polarity))?;
                     }
-                    let mut sc2 = sc.clone();
-                    for b in bs {
-                        let S::L(b) = b else {
-                            return Err("binder".into());
-                        };
-                        let (S::A(name), srt) = (&b[0], sort_of(&b[1])) else {
-                            return Err("binder".into());
-                        };
-                        let k = match srt {
-                            Sort::Int => match ranges.get(name) {
-                                Some(iv) => K::Int(iv.clone()),
-                                None if universal => K::Int((-pow2(256), pow2(256))),
-                                None => return Err("unranged existential binder".into()),
-                            },
-                            Sort::Bool => K::Bool,
-                            Sort::Bv(n) => K::Bv(n),
-                            _ => return Err("binder sort".into()),
-                        };
-                        sc2.insert(name.clone(), k);
-                    }
-                    return self.boolean_p(body, &sc2, pol);
+                    return self.check_formula_with_polarity(conclusion, scope, polarity);
                 }
-                "ite" => {
-                    self.boolean_p(&v[1], sc, None)?;
-                    self.boolean_p(&v[2], sc, pol)?;
-                    return self.boolean_p(&v[3], sc, pol);
+                Operator::Annotated => {
+                    return self.check_formula_with_polarity(&arguments[0], scope, polarity);
                 }
-                "=" if v.len() == 3 => {
-                    if let (Ok(K::Bool), Ok(K::Bool)) =
-                        (self.bnd_quiet(&v[1], sc), self.bnd_quiet(&v[2], sc))
-                    {
-                        self.boolean_p(&v[1], sc, None)?;
-                        return self.boolean_p(&v[2], sc, None);
+                Operator::Forall | Operator::Exists => {
+                    let universal =
+                        polarity.is_some_and(|positive| (operator == Operator::Forall) == positive);
+                    return self.check_quantifier(arguments, scope, polarity, universal);
+                }
+                Operator::Ite => {
+                    self.check_formula_with_polarity(&arguments[0], scope, None)?;
+                    self.check_formula_with_polarity(&arguments[1], scope, polarity)?;
+                    return self.check_formula_with_polarity(&arguments[2], scope, polarity);
+                }
+                // `=` between formulas is an equivalence, and both sides occur both ways.
+                Operator::Eq if arguments.len() == 2 => {
+                    if let (Ok(Kind::Bool), Ok(Kind::Bool)) = (
+                        self.shallow_kind(&arguments[0], scope),
+                        self.shallow_kind(&arguments[1], scope),
+                    ) {
+                        self.check_formula_with_polarity(&arguments[0], scope, None)?;
+                        return self.check_formula_with_polarity(&arguments[1], scope, None);
                     }
                 }
                 _ => {}
             }
         }
-        match self.bnd(s, sc)? {
-            K::Bool => Ok(()),
+        match self.kind(formula, scope)? {
+            Kind::Bool => Ok(()),
             _ => Err("expected Bool".into()),
         }
     }
 
-    fn bnd_quiet(&self, s: &S, sc: &FxHashMap<String, K>) -> R<K> {
-        // shape only (cheap for the Bool test)
-        match s {
-            S::A(a) if a == "true" || a == "false" => Ok(K::Bool),
-            S::A(a) => self.atom(a, sc),
-            S::L(v) => match v.first() {
-                Some(S::A(h))
-                    if [
-                        "and", "or", "not", "=>", "<", "<=", ">", ">=", "=", "distinct", "forall",
-                        "exists", "xor",
-                    ]
-                    .contains(&h.as_str())
-                        || h.starts_with("bvu")
-                        || h.starts_with("bvs") && h.len() == 5 =>
-                {
-                    Ok(K::Bool)
+    /// Checks `(forall (binders) body)` or `(exists (binders) body)`. A bound Int needs a range
+    /// from the body, in the encoder's shape `(=> ranges body)` or `(and ranges body)`, unless the
+    /// quantifier is universal.
+    fn check_quantifier(
+        &self,
+        arguments: &[Sexp],
+        scope: &Scope,
+        polarity: Option<bool>,
+        universal: bool,
+    ) -> Lowering<()> {
+        let Sexp::List(binders) = &arguments[0] else { return Err("binders".into()) };
+        let body = &arguments[1];
+        let mut ranges = FxHashMap::default();
+        if let Some((Operator::Implies | Operator::And, [guard, _])) = application(body) {
+            let conjuncts: Vec<&Sexp> = match application(guard) {
+                Some((Operator::And, conjuncts)) if range_fact(guard).is_none() => {
+                    conjuncts.iter().collect()
                 }
-                _ => self.bnd(s, sc),
-            },
+                _ => vec![guard],
+            };
+            for conjunct in conjuncts {
+                if let Some((Sexp::Atom(variable), range)) = range_fact(conjunct) {
+                    ranges.insert(variable, range);
+                }
+            }
+        }
+        let mut inner = scope.clone();
+        for binder in binders {
+            let Some([Sexp::Atom(name), sort]) = binder.as_list() else {
+                return Err("binder".into());
+            };
+            let kind = match Sort::of(sort) {
+                Sort::Int => match ranges.get(name) {
+                    Some(range) => Kind::Int(range.clone()),
+                    None if universal => Kind::Int((-pow2(256), pow2(256))),
+                    None => return Err("unranged existential binder".into()),
+                },
+                Sort::Bool => Kind::Bool,
+                Sort::Bitvector(width) => Kind::Bitvector(width),
+                _ => return Err("binder sort".into()),
+            };
+            inner.insert(name.clone(), kind);
+        }
+        self.check_formula_with_polarity(body, &inner, polarity)
+    }
+
+    /// The kind of `term`, taking an application of a predicate to be a formula without looking
+    /// inside it.
+    fn shallow_kind(&self, term: &Sexp, scope: &Scope) -> Lowering<Kind> {
+        match term {
+            Sexp::Atom(symbol) => self.symbol_kind(symbol, scope),
+            _ if application(term).is_some_and(|(operator, _)| operator.is_predicate()) => {
+                Ok(Kind::Bool)
+            }
+            _ => self.kind(term, scope),
         }
     }
 }
 
-fn pow2_name(s: &S) -> Option<&str> {
-    match s {
-        S::L(v) if v.len() == 2 => match &v[0] {
-            S::A(h) if h == "|pow2|" || h == "|pow2w|" => Some(h.as_str()),
-            _ => None,
-        },
-        _ => None,
-    }
+/// Writes terms the analysis bounded over BV-`width`.
+struct Emitter<'a> {
+    analysis: &'a Analysis,
+    width: u32,
 }
 
-fn is_pow2_app(s: &S) -> Option<&S> {
-    pow2_name(s)?;
-    let S::L(v) = s else { return None };
-    Some(&v[1])
-}
-
-fn short(s: &S) -> String {
-    let p = pr(s);
-    if p.len() > 80 { format!("{}…", &p[..80]) } else { p }
-}
-
-struct Em<'c> {
-    c: &'c Ctx,
-    w: u32,
-    fresh: RefCell<usize>,
-}
-
-impl Em<'_> {
-    fn lit(&self, n: &BigInt) -> String {
-        let m = pow2(self.w as u64);
-        let v = ((n % &m) + &m) % &m;
-        format!("(_ bv{v} {})", self.w)
+impl Emitter<'_> {
+    /// `value` modulo 2^width, as a BV-width literal.
+    fn literal(&self, value: &BigInt) -> String {
+        let modulus = pow2(self.width as u64);
+        let value = ((value % &modulus) + &modulus) % &modulus;
+        format!("(_ bv{value} {})", self.width)
     }
 
-    fn em(&self, s: &S, sc: &FxHashMap<String, K>) -> R<String> {
-        let w = self.w;
-        if let Some(n) = num(s) {
-            return Ok(self.lit(&n));
+    /// Whether the Int `term` lies in [0, 2^256).
+    fn is_word(&self, term: &Sexp, scope: &Scope) -> bool {
+        self.analysis
+            .interval(term, scope)
+            .is_ok_and(|(low, high)| !low.is_negative() && high < pow2(256))
+    }
+
+    /// Whether the Int `term` is non-negative.
+    fn is_non_negative(&self, term: &Sexp, scope: &Scope) -> bool {
+        self.analysis.interval(term, scope).is_ok_and(|(low, _)| !low.is_negative())
+    }
+
+    /// The bits k of a `mod 2^k` this width can take as an extract.
+    fn low_bits_modulus(&self, modulus: &Sexp) -> Option<u64> {
+        let modulus = numeral(modulus)?;
+        let bits = modulus.bits().checked_sub(1)?;
+        (is_power_of_two(&modulus) && bits < self.width as u64).then_some(bits)
+    }
+
+    fn emit(&self, term: &Sexp, scope: &Scope) -> Lowering<String> {
+        let width = self.width;
+        if let Some(value) = numeral(term) {
+            return Ok(self.literal(&value));
         }
-        let v = match s {
-            S::A(a) => return Ok(a.clone()),
-            S::L(v) => v,
+        let items = match term {
+            Sexp::Atom(symbol) => return Ok(symbol.clone()),
+            Sexp::List(items) => items,
         };
-        let e = |x: &S| self.em(x, sc);
-        if let S::L(h) = &v[0] {
-            return Ok(match h.as_slice() {
-                [S::A(u), S::A(f), S::A(n)] if u == "_" && f == "int2bv" => {
-                    let n: u32 = n.parse().unwrap();
-                    let t = e(&v[1])?;
-                    if n <= w {
-                        format!("((_ extract {} 0) {t})", n - 1)
+        let emit = |term: &Sexp| self.emit(term, scope);
+        let (head, arguments) = items.split_first().ok_or("empty")?;
+        let emit_all = || -> Lowering<Vec<String>> { arguments.iter().map(emit).collect() };
+        let Sexp::Atom(symbol) = head else {
+            return Ok(match IndexedOperator::of(head) {
+                Some(IndexedOperator::IntToBv(bits)) => {
+                    let value = emit(&arguments[0])?;
+                    if bits <= width {
+                        format!("((_ extract {} 0) {value})", bits - 1)
                     } else {
-                        format!("((_ sign_extend {}) {t})", n - w)
+                        format!("((_ sign_extend {}) {value})", bits - width)
                     }
                 }
-                [S::A(a), S::A(c), srt] if a == "as" && c == "const" => {
-                    format!(
-                        "((as const {}) {})",
-                        lower_sort(&sort_of(srt), w).ok_or("sort")?,
-                        e(&v[1])?
-                    )
+                Some(IndexedOperator::ConstArray(sort)) => {
+                    let sort = Sort::of(sort).lowered(width).ok_or("sort")?;
+                    format!("((as const {sort}) {})", emit(&arguments[0])?)
                 }
-                _ => format!(
-                    "({} {})",
-                    pr(&v[0]),
-                    v[1..].iter().map(e).collect::<R<Vec<_>>>()?.join(" ")
-                ),
+                _ => format!("({head} {})", emit_all()?.join(" ")),
             });
-        }
-        let S::A(head) = &v[0] else { unreachable!() };
-        let args = &v[1..];
-        let ea = || -> R<Vec<String>> { args.iter().map(e).collect() };
-        let fold = |op: &str, xs: Vec<String>| -> String {
-            let mut acc = xs[0].clone();
-            for x in &xs[1..] {
-                acc = format!("({op} {acc} {x})");
-            }
-            acc
         };
-        Ok(match head.as_str() {
-            "_" => pr(s),
-            "+" => fold("bvadd", ea()?),
-            "*" => fold("bvmul", ea()?),
-            "-" if args.len() == 1 => format!("(bvneg {})", e(&args[0])?),
-            "-" => fold("bvsub", ea()?),
-            "<" => format!("(bvslt {} {})", e(&args[0])?, e(&args[1])?),
-            "<=" => format!("(bvsle {} {})", e(&args[0])?, e(&args[1])?),
-            ">" => format!("(bvsgt {} {})", e(&args[0])?, e(&args[1])?),
-            ">=" => format!("(bvsge {} {})", e(&args[0])?, e(&args[1])?),
-            "abs" => {
-                let a = e(&args[0])?;
-                format!("(ite (bvslt {a} {}) (bvneg {a}) {a})", self.lit(&BigInt::zero()))
+        let Some(operator) = Operator::of(symbol) else {
+            return Ok(format!("({symbol} {})", emit_all()?.join(" ")));
+        };
+        // `(op (op a b) c)`
+        let fold = |operator: &str, operands: Vec<String>| -> String {
+            let mut result = operands[0].clone();
+            for operand in &operands[1..] {
+                result = format!("({operator} {result} {operand})");
             }
-            // a / 2^e with 0 <= a < 2^256  ->  logical shift (2^e for e outside [0,256) is 2^256 or
-            // the shift amount is >= w, and both give 0)
-            "div"
-                if is_pow2_app(&args[1]).is_some()
-                    && pow2_name(&args[1]) == Some("|pow2|")
-                    && self
-                        .c
-                        .int(&args[0], sc)
-                        .map(|(l, h)| !l.is_negative() && h < pow2(256))
-                        .unwrap_or(false) =>
-            {
-                format!("(bvlshr {} {})", e(&args[0])?, e(is_pow2_app(&args[1]).unwrap())?)
+            result
+        };
+        let compare = |operator: &str| -> Lowering<String> {
+            Ok(format!("({operator} {} {})", emit(&arguments[0])?, emit(&arguments[1])?))
+        };
+        let zero = self.literal(&BigInt::zero());
+        Ok(match operator {
+            Operator::Indexed => term.to_string(),
+            Operator::Add => fold("bvadd", emit_all()?),
+            Operator::Mul => fold("bvmul", emit_all()?),
+            Operator::Sub if arguments.len() == 1 => format!("(bvneg {})", emit(&arguments[0])?),
+            Operator::Sub => fold("bvsub", emit_all()?),
+            Operator::Lt => compare("bvslt")?,
+            Operator::Le => compare("bvsle")?,
+            Operator::Gt => compare("bvsgt")?,
+            Operator::Ge => compare("bvsge")?,
+            Operator::Abs => {
+                let value = emit(&arguments[0])?;
+                format!("(ite (bvslt {value} {zero}) (bvneg {value}) {value})")
             }
-            // x mod 2^k  ->  low k bits (two's complement low bits are the Euclidean remainder)
-            "mod"
-                if num(&args[1]).is_some_and(|m| {
-                    m.is_positive() && (&m & (&m - 1u32)).is_zero() && m.bits() - 1 < w as u64
-                }) =>
+            // `a / 2^e` with 0 <= a < 2^256 is a logical shift: for e outside [0, 256), 2^e is
+            // 2^256 or the shift is at least the width, and both give 0.
+            Operator::Div
+                if pow2_exponent(&arguments[1]).is_some() && self.is_word(&arguments[0], scope) =>
             {
-                let k = num(&args[1]).unwrap().bits() - 1;
-                if k == 0 {
-                    self.lit(&BigInt::zero())
-                } else {
-                    format!(
+                let exponent = pow2_exponent(&arguments[1]).unwrap();
+                format!("(bvlshr {} {})", emit(&arguments[0])?, emit(exponent)?)
+            }
+            // `x mod 2^k` is the low k bits: in two's complement, they are the Euclidean
+            // remainder.
+            Operator::Mod if self.low_bits_modulus(&arguments[1]).is_some() => {
+                match self.low_bits_modulus(&arguments[1]).unwrap() {
+                    0 => zero,
+                    bits => format!(
                         "((_ zero_extend {}) ((_ extract {} 0) {}))",
-                        w as u64 - k,
-                        k - 1,
-                        e(&args[0])?
-                    )
+                        width as u64 - bits,
+                        bits - 1,
+                        emit(&arguments[0])?
+                    ),
                 }
             }
-            "div" | "mod" => {
-                let (a, b) = (e(&args[0])?, e(&args[1])?);
-                let nonneg =
-                    self.c.int(&args[0], sc).map(|iv| !iv.0.is_negative()).unwrap_or(false);
-                let z = self.lit(&BigInt::zero());
-                if nonneg {
-                    format!("({} {a} {b})", if head == "div" { "bvudiv" } else { "bvurem" })
-                } else if head == "mod" {
-                    format!("(let ((r (bvsrem {a} {b}))) (ite (bvslt r {z}) (bvadd r {b}) r))")
-                } else {
+            Operator::Div | Operator::Mod => {
+                let (dividend, divisor) = (emit(&arguments[0])?, emit(&arguments[1])?);
+                if self.is_non_negative(&arguments[0], scope) {
+                    let operator = if operator == Operator::Div { "bvudiv" } else { "bvurem" };
+                    format!("({operator} {dividend} {divisor})")
+                } else if operator == Operator::Mod {
                     format!(
-                        "(ite (and (bvslt {a} {z}) (not (= (bvsrem {a} {b}) {z}))) (bvsub (bvsdiv {a} {b}) {}) (bvsdiv {a} {b}))",
-                        self.lit(&BigInt::one())
+                        "(let ((r (bvsrem {dividend} {divisor}))) (ite (bvslt r {zero}) (bvadd r {divisor}) r))"
+                    )
+                } else {
+                    // Euclidean division rounds the inexact quotient of a negative dividend down.
+                    format!(
+                        "(ite (and (bvslt {dividend} {zero}) (not (= (bvsrem {dividend} {divisor}) {zero}))) (bvsub (bvsdiv {dividend} {divisor}) {}) (bvsdiv {dividend} {divisor}))",
+                        self.literal(&BigInt::from(1))
                     )
                 }
             }
-            "bv2nat" | "bv2int" => {
-                let K::Bv(n) = self.c.bnd(&args[0], sc)? else {
+            Operator::BvToNat | Operator::BvToInt => {
+                let Kind::Bitvector(bits) = self.analysis.kind(&arguments[0], scope)? else {
                     return Err("bv2nat".into());
                 };
-                let x = e(&args[0])?;
-                if n < w {
-                    format!("((_ zero_extend {}) {x})", w - n)
+                let value = emit(&arguments[0])?;
+                if bits < width {
+                    format!("((_ zero_extend {}) {value})", width - bits)
                 } else {
-                    format!("((_ extract {} 0) {x})", w - 1)
+                    format!("((_ extract {} 0) {value})", width - 1)
                 }
             }
-            "|pow2|" | "|pow2w|" => {
-                let x = e(&args[0])?;
-                let z = self.lit(&BigInt::zero());
-                let c256 = self.lit(&BigInt::from(256));
-                let big = self.lit(&pow2(256));
-                let shl = format!("(bvshl {} {x})", self.lit(&BigInt::one()));
-                let inr = format!("(and (bvsge {x} {z}) (bvslt {x} {c256}))");
-                if head == "|pow2|" {
-                    format!("(ite {inr} {shl} {big})")
-                } else {
-                    format!("(ite {inr} {shl} (ite (bvsge {x} {c256}) {z} {big}))")
-                }
+            Operator::Pow2 => {
+                let exponent = emit(&arguments[0])?;
+                let limit = self.literal(&BigInt::from(256));
+                let shifted = format!("(bvshl {} {exponent})", self.literal(&BigInt::from(1)));
+                let in_range =
+                    format!("(and (bvsge {exponent} {zero}) (bvslt {exponent} {limit}))");
+                format!("(ite {in_range} {shifted} {})", self.literal(&pow2(256)))
             }
-            "forall" | "exists" => {
-                let S::L(bs) = &args[0] else {
-                    return Err("binders".into());
-                };
-                let mut sc2 = sc.clone();
-                let mut out = vec![];
-                for b in bs {
-                    let S::L(b) = b else {
+            Operator::Forall | Operator::Exists => {
+                let Sexp::List(binders) = &arguments[0] else { return Err("binders".into()) };
+                let mut inner = scope.clone();
+                let mut lowered = vec![];
+                for binder in binders {
+                    let Some([Sexp::Atom(name), sort]) = binder.as_list() else {
                         return Err("binder".into());
                     };
-                    let S::A(name) = &b[0] else {
-                        return Err("binder".into());
-                    };
-                    let srt = sort_of(&b[1]);
-                    out.push(format!("({name} {})", lower_sort(&srt, w).ok_or("sort")?));
-                    sc2.insert(name.clone(), K::Bool); // shape is irrelevant while emitting
+                    let sort = Sort::of(sort).lowered(width).ok_or("sort")?;
+                    lowered.push(format!("({name} {sort})"));
+                    // The kind does not matter while emitting.
+                    inner.insert(name.clone(), Kind::Bool);
                 }
-                format!("({head} ({}) {})", out.join(" "), self.em(&args[1], &sc2)?)
+                format!("({symbol} ({}) {})", lowered.join(" "), self.emit(&arguments[1], &inner)?)
             }
-            "!" => e(&args[0])?,
-            _ => format!("({head} {})", ea()?.join(" ")),
+            Operator::Annotated => emit(&arguments[0])?,
+            _ => format!("({symbol} {})", emit_all()?.join(" ")),
         })
     }
 }
 
-/// Lower a whole query script. Returns the BV script and how many assertions were dropped.
+/// Lowers a whole query script. Returns the bitvector script, how many assertions it dropped,
+/// and the width W.
 pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
-    let mut hints = vec![];
-    let toks = tokenize(script, &mut hints);
-    let cmds = parse_all(&toks);
-    let mut c = Ctx {
-        consts: FxHashMap::default(),
-        funs: FxHashMap::default(),
+    let commands = sexp::parse(script).collect::<Result<Vec<_>, _>>().ok()?;
+    let mut analysis = Analysis {
+        constants: FxHashMap::default(),
+        functions: FxHashMap::default(),
         ranges: FxHashMap::default(),
-        defs: FxHashMap::default(),
-        facts: FxHashMap::default(),
-        elem: FxHashMap::default(),
-        ret: FxHashMap::default(),
-        memo: RefCell::new(FxHashMap::default()),
-        maxbits: RefCell::new(8),
+        definitions: FxHashMap::default(),
+        term_ranges: FxHashMap::default(),
+        element_ranges: FxHashMap::default(),
+        result_ranges: FxHashMap::default(),
+        constant_kinds: RefCell::new(FxHashMap::default()),
+        max_bits: RefCell::new(8),
     };
-    for h in &hints {
-        let p: Vec<&str> = h.split_whitespace().collect();
-        if p.len() == 4
-            && let (Ok(lo), Ok(hi)) = (p[2].parse::<BigInt>(), p[3].parse::<BigInt>())
+    // The encoder writes its hints as comments at the start of a line.
+    for hint in script.lines().map(str::trim_start).filter(|line| line.starts_with(";@")) {
+        let words: Vec<&str> = hint.split_whitespace().collect();
+        if let [kind, symbol, low, high] = words[..]
+            && let (Ok(low), Ok(high)) = (low.parse::<BigInt>(), high.parse::<BigInt>())
         {
-            match p[0] {
-                ";@elem" => {
-                    c.elem.insert(p[1].to_string(), (lo, hi));
-                }
-                ";@ret" => {
-                    c.ret.insert(p[1].to_string(), (lo, hi));
-                }
-                _ => {}
-            }
+            let ranges = match kind {
+                ";@elem" => &mut analysis.element_ranges,
+                ";@ret" => &mut analysis.result_ranges,
+                _ => continue,
+            };
+            ranges.insert(symbol.to_string(), (low, high));
         }
     }
-    for cmd in &cmds {
-        let S::L(v) = cmd else { continue };
-        let Some(S::A(h)) = v.first() else { continue };
-        match h.as_str() {
+    for command in &commands {
+        let Some((Sexp::Atom(name), arguments)) = command.as_list().and_then(<[_]>::split_first)
+        else {
+            continue;
+        };
+        match name.as_str() {
             "declare-const" => {
-                if let S::A(n) = &v[1] {
-                    c.consts.insert(n.clone(), sort_of(&v[2]));
+                if let Sexp::Atom(constant) = &arguments[0] {
+                    analysis.constants.insert(constant.clone(), Sort::of(&arguments[1]));
                 }
             }
             "declare-fun" => {
-                if let (S::A(n), S::L(ps)) = (&v[1], &v[2]) {
-                    c.funs.insert(n.clone(), (ps.iter().map(sort_of).collect(), sort_of(&v[3])));
+                if let (Sexp::Atom(function), Sexp::List(parameters)) =
+                    (&arguments[0], &arguments[1])
+                {
+                    let parameters = parameters.iter().map(Sort::of).collect();
+                    let result = Sort::of(&arguments[2]);
+                    analysis.functions.insert(function.clone(), (parameters, result));
                 }
             }
             "assert" => {
-                let t = &v[1];
-                if let Some((x, iv)) = range_fact(t) {
-                    match &x {
-                        S::A(a) => {
-                            let cur = c.ranges.remove(a);
-                            c.ranges.insert(a.clone(), intersect(cur, Some(iv)).unwrap());
+                let assertion = &arguments[0];
+                if let Some((term, range)) = range_fact(assertion) {
+                    match &term {
+                        Sexp::Atom(constant) => {
+                            let known = analysis.ranges.remove(constant);
+                            let range = intersect(known, Some(range)).unwrap();
+                            analysis.ranges.insert(constant.clone(), range);
                         }
                         _ => {
-                            c.facts.insert(pr(&x), iv);
+                            analysis.term_ranges.insert(term.to_string(), range);
                         }
                     }
                 }
-                if let S::L(e) = t
-                    && let [S::A(eq), S::A(x), d] = e.as_slice()
-                    && eq == "="
-                    && !c.defs.contains_key(x)
+                // `(= x definition)`
+                if let Some((Operator::Eq, [Sexp::Atom(constant), definition])) =
+                    application(assertion)
+                    && !analysis.definitions.contains_key(constant)
                 {
-                    c.defs.insert(x.clone(), d.clone());
+                    analysis.definitions.insert(constant.clone(), definition.clone());
                 }
             }
             _ => {}
         }
     }
-    // pass 1: which assertions lower, and the width they need
-    let mut keep = vec![];
+    // Which assertions lower, and the width they need.
+    let mut kept = FxHashSet::default();
     let mut dropped = 0;
-    for (i, cmd) in cmds.iter().enumerate() {
-        if let S::L(v) = cmd
-            && matches!(v.first(), Some(S::A(h)) if h == "assert")
-        {
-            match c.boolean(&v[1], &FxHashMap::default()) {
-                Ok(()) => keep.push(i),
-                Err(_) => dropped += 1,
+    for (index, command) in commands.iter().enumerate() {
+        if command.head() != Some("assert") {
+            continue;
+        }
+        match analysis.check_formula(&command.as_list().unwrap()[1], &Scope::default()) {
+            Ok(()) => {
+                kept.insert(index);
             }
+            Err(_) => dropped += 1,
         }
     }
-    let w = (*c.maxbits.borrow() + 2) as u32;
-    if w > 2048 {
+    let width = (*analysis.max_bits.borrow() + 2) as u32;
+    if width > 2048 {
         return None;
     }
-    let em = Em { c: &c, w, fresh: RefCell::new(0) };
-    let _ = &em.fresh;
+    let emitter = Emitter { analysis: &analysis, width };
     let mut out = String::new();
-    let keep: FxHashSet<usize> = keep.into_iter().collect();
-    for (i, cmd) in cmds.iter().enumerate() {
-        let S::L(v) = cmd else { continue };
-        let Some(S::A(h)) = v.first() else { continue };
-        match h.as_str() {
+    for (index, command) in commands.iter().enumerate() {
+        let Some((Sexp::Atom(name), arguments)) = command.as_list().and_then(<[_]>::split_first)
+        else {
+            continue;
+        };
+        match name.as_str() {
             "declare-const" => {
-                let srt = sort_of(&v[2]);
-                if let Some(ls) = lower_sort(&srt, w) {
-                    out.push_str(&format!("(declare-const {} {ls})\n", pr(&v[1])));
+                if let Some(sort) = Sort::of(&arguments[1]).lowered(width) {
+                    out.push_str(&format!("(declare-const {} {sort})\n", arguments[0]));
                 }
             }
             "declare-fun" => {
-                let (S::L(ps), r) = (&v[2], sort_of(&v[3])) else {
-                    continue;
-                };
-                let ps: Option<Vec<String>> =
-                    ps.iter().map(|p| lower_sort(&sort_of(p), w)).collect();
-                if let (Some(ps), Some(r)) = (ps, lower_sort(&r, w)) {
-                    out.push_str(&format!("(declare-fun {} ({}) {r})\n", pr(&v[1]), ps.join(" ")));
+                let Sexp::List(parameters) = &arguments[1] else { continue };
+                let parameters: Option<Vec<String>> =
+                    parameters.iter().map(|parameter| Sort::of(parameter).lowered(width)).collect();
+                if let (Some(parameters), Some(result)) =
+                    (parameters, Sort::of(&arguments[2]).lowered(width))
+                {
+                    out.push_str(&format!(
+                        "(declare-fun {} ({}) {result})\n",
+                        arguments[0],
+                        parameters.join(" ")
+                    ));
                 }
             }
-            "assert" if keep.contains(&i) => {
-                if let Ok(t) = em.em(&v[1], &FxHashMap::default()) {
-                    out.push_str(&format!("(assert {t})\n"))
+            "assert" if kept.contains(&index) => {
+                if let Ok(assertion) = emitter.emit(&arguments[0], &Scope::default()) {
+                    out.push_str(&format!("(assert {assertion})\n"));
                 }
             }
             "push" | "pop" | "check-sat" => {
-                out.push_str(&pr(cmd));
+                out.push_str(&command.to_string());
                 out.push('\n');
             }
             _ => {}
         }
     }
-    Some((out, dropped, w))
+    Some((out, dropped, width))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
-    fn lowers_min_trick() {
-        let q = "(declare-const |x| Int)\n(assert (and (<= 0 |x|) (<= |x| 255)))\n(declare-const |y| Int)\n(assert (and (<= 0 |y|) (<= |y| 255)))\n\
-                 (assert (not (= (+ |x| |y|) (+ |y| |x|))))\n(check-sat)\n";
-        let (l, dropped, w) = lower(q).unwrap();
+    fn lowers_commutativity() {
+        let query = "(declare-const |x| Int)\n(assert (and (<= 0 |x|) (<= |x| 255)))\n\
+                     (declare-const |y| Int)\n(assert (and (<= 0 |y|) (<= |y| 255)))\n\
+                     (assert (not (= (+ |x| |y|) (+ |y| |x|))))\n(check-sat)\n";
+        let (lowered, dropped, width) = lower(query).unwrap();
         assert_eq!(dropped, 0);
-        assert_eq!(w, 11);
-        assert!(l.contains("(_ BitVec 11)") && l.contains("bvadd"), "{l}");
+        assert_eq!(width, 11);
+        assert!(lowered.contains("(_ BitVec 11)") && lowered.contains("bvadd"), "{lowered}");
     }
+
     #[test]
     fn drops_unbounded() {
-        let q = "(declare-const |x| Int)\n(assert (> |x| 3))\n(check-sat)\n";
-        let (_, dropped, _) = lower(q).unwrap();
+        let query = "(declare-const |x| Int)\n(assert (> |x| 3))\n(check-sat)\n";
+        let (_, dropped, _) = lower(query).unwrap();
         assert_eq!(dropped, 1);
     }
 }

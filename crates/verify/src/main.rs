@@ -2,7 +2,9 @@
 mod bvlower;
 mod interval;
 mod mutate;
+mod operator;
 mod prog;
+mod sexp;
 mod smt;
 mod spec;
 mod ty;
