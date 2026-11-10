@@ -333,3 +333,104 @@ fn garbage_words_do_not_share_selector_and_lane_draws() {
     assert!(predictions > 128);
     assert!(coupled * 4 < predictions, "{coupled} exact predictions out of {predictions}");
 }
+
+#[test]
+fn recursive_probes_cover_blocks_and_results() {
+    with_module(
+        "@module Recursive
+@phase lowered
+fn @f(arg0: i256) -> i256 {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb1:
+    v1 = add arg0, 0
+    jump bb3
+  bb2:
+    v2 = sub arg0, 1
+    v3 = icall @f, v2
+    v4 = add v3, 1
+    jump bb3
+  bb3:
+    v5 = phi [bb1: v1], [bb2: v4]
+    ret v5
+}",
+        |session, module| {
+            let id = FunctionId::new(0);
+            let original = &module.functions[id];
+            let replacement =
+                candidate(session, module, &module.candidate_text(original).to_string());
+            for machine in
+                [Machine::new(module), Machine::with_replacement(module, id, &replacement)]
+            {
+                let run =
+                    machine.probe(id, &[U256::from(2)], Memory::zeroed(), None, LIMITS, &mut ());
+                assert_eq!(run.outcome, returned(2));
+                assert_eq!(run.visited.count(), 4);
+                // The recursive base case alone reaches bb1. Calls, arithmetic and the join
+                // phi produce both zero and nonzero values across activations of this body.
+                let body = machine.body(id).unwrap();
+                for inst in body.instructions() {
+                    let expected = match body.inst(inst).kind {
+                        InstKind::Eq(..)
+                        | InstKind::Sub(..)
+                        | InstKind::ICall { .. }
+                        | InstKind::Phi(..) => 3,
+                        InstKind::Add(value, _) if matches!(body.value(value), Value::Arg(_)) => 1,
+                        InstKind::Add(..) => 2,
+                        _ => panic!("unexpected instruction in recursive test"),
+                    };
+                    assert_eq!(run.outcomes[inst], expected, "{inst:?}");
+                }
+            }
+        },
+    );
+}
+
+#[test]
+fn replacement_probes_preserve_entry_heap() {
+    with_module(
+        "@module EntryHeap
+@phase lowered
+// backend-memory-v1
+// backend-entry 0 0x400
+fn @f() -> i256 { bb0: v0 = mload 64 ret v0 }
+fn @caller() -> i256 { bb0: v0 = icall @f ret v0 }
+",
+        |session, module| {
+            let id = FunctionId::new(0);
+            let original_body = &module.functions[id];
+            for text in [
+                module.candidate_text(original_body).to_string(),
+                "fn @f() -> i256 { bb0: v0 = mload 64 v1 = add v0, 0 ret v1 }".to_owned(),
+            ] {
+                let replacement = candidate(session, module, &text);
+                for entry in [id, FunctionId::new(1)] {
+                    let mut initial = Memory::zeroed();
+                    initial.set(EvmMemoryLayout::FMP_SLOT, U256::from(128));
+                    let original = Machine::new(module).probe(
+                        entry,
+                        &[],
+                        initial.clone(),
+                        None,
+                        LIMITS,
+                        &mut (),
+                    );
+                    assert_eq!(original.outcome, returned(0x400));
+                    let replaced = Machine::with_replacement(module, id, &replacement).probe(
+                        entry,
+                        &[],
+                        initial,
+                        None,
+                        LIMITS,
+                        &mut (),
+                    );
+                    assert_eq!(replaced.outcome, original.outcome);
+                    assert_eq!(replaced.memory.first_difference(&original.memory), None);
+                    assert_eq!(replaced.memory.first_write_outside(&original.memory), None);
+                    assert_eq!(replaced.memory.word(EvmMemoryLayout::FMP_SLOT), U256::from(0x400));
+                }
+            }
+        },
+    );
+}

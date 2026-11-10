@@ -451,7 +451,8 @@ impl<'a> Machine<'a> {
     /// Runs the module with one proposed function body replaced.
     /// Backend placements and stack-return records belong to the original body and
     /// are not reused for the replacement. Layout-dependent candidate operations
-    /// without fresh placements return [`Outcome::Unsupported`].
+    /// without fresh placements return [`Outcome::Unsupported`]. The captured entry's
+    /// initial free memory pointer remains part of the shared execution environment.
     pub fn with_replacement(module: &'a Module, id: FunctionId, body: &'a Function) -> Self {
         Self { module, replacement: Some((id, body)) }
     }
@@ -575,7 +576,8 @@ impl<'a> Machine<'a> {
         }
     }
 
-    /// Records are keyed to a body's instruction and value IDs, not its public interface.
+    /// Body-dependent placements cannot be reused after replacement. The function-keyed entry
+    /// initialization is read separately in `Run::call`, without importing stale body records.
     fn backend_memory(&self, function: FunctionId) -> Option<&'a BackendMemory> {
         if self.replacement.is_some_and(|(id, _)| id == function) {
             return None;
@@ -748,14 +750,20 @@ impl<'a> Run<'_, 'a, '_> {
         if body.blocks.is_empty() {
             return ControlFlow::Break(Outcome::Unsupported("function without blocks"));
         }
-        if let Some(layout) = self.machine.backend_memory(function) {
-            if let Some(&end) = layout.frame_ends.get(&function) {
-                self.frames_end = self.frames_end.max(end);
-            }
-            if let Some(floor) = layout.entry_heaps.get(&function) {
-                // mstore 0x40, entry_heap
-                limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
-            }
+        if let Some(layout) = self.machine.backend_memory(function)
+            && let Some(&end) = layout.frame_ends.get(&function)
+        {
+            self.frames_end = self.frames_end.max(end);
+        }
+        if let Some(floor) = self
+            .machine
+            .module
+            .backend_memory
+            .as_ref()
+            .and_then(|layout| layout.entry_heaps.get(&function))
+        {
+            // mstore 0x40, entry_heap
+            limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
         }
         self.frames.push(Frame::new(function, body, args, result));
         ControlFlow::Continue(())
@@ -781,23 +789,18 @@ impl<'a> Run<'_, 'a, '_> {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
         let frame = self.frames.last().expect("a run always has a frame");
+        let function = frame.function;
         if let Some(probe) = &mut self.probe {
             probe.meter.instruction(body, inst, &|value| frame.word(value));
         }
         let result = match semantics {
-            Semantics::HeapFloor if self.transaction.is_some() => {
-                let function = frame.function;
-                self.machine
-                    .backend_memory(function)
-                    .and_then(|layout| layout.heap_floors.get(&function).copied())
-                    .unwrap_or_else(|| {
-                        self.world
-                            .as_mut()
-                            .expect("a transaction has a host")
-                            .host
-                            .free_memory_start()
-                    })
-            }
+            Semantics::HeapFloor if self.transaction.is_some() => self
+                .machine
+                .backend_memory(function)
+                .and_then(|layout| layout.heap_floors.get(&function).copied())
+                .unwrap_or_else(|| {
+                    self.world.as_mut().expect("a transaction has a host").host.free_memory_start()
+                }),
             Semantics::Phi(_) => {
                 return ControlFlow::Break(Outcome::Unsupported("phi after other instructions"));
             }
@@ -839,7 +842,7 @@ impl<'a> Run<'_, 'a, '_> {
             return ControlFlow::Break(Outcome::Unsupported("result without a value"));
         };
         if let Some(probe) = &mut self.probe {
-            if self.frames.len() == 1 && self.frames[0].function == probe.function {
+            if function == probe.function {
                 probe.outcomes[inst] |= if result.is_zero() { 1 } else { 2 };
             }
             probe.meter.result(result);
@@ -1113,7 +1116,7 @@ impl<'a> Run<'_, 'a, '_> {
         let frame = self.frames.last().expect("a run always has a frame");
         if let Some(probe) = &mut self.probe {
             probe.meter.terminator(body, block, &|value| frame.word(value));
-            if self.frames.len() == 1 && frame.function == probe.function {
+            if frame.function == probe.function {
                 probe.visited.insert(block);
             }
         }
@@ -1161,8 +1164,7 @@ impl<'a> Run<'_, 'a, '_> {
                     }
                 }
                 if let Some(probe) = &mut self.probe
-                    && self.frames.len() == 1
-                    && self.frames[0].function == probe.function
+                    && self.frames.last().expect("caller").function == probe.function
                     && let Some(inst) = frame.caller_inst
                     && let Some(value) = values.first()
                 {
@@ -1234,7 +1236,7 @@ impl<'a> Run<'_, 'a, '_> {
             if let Some(probe) = &mut self.probe {
                 probe.meter.instruction(body, inst, &|value| frame.word(value));
                 probe.meter.result(word);
-                if self.frames.len() == 1 && frame.function == probe.function {
+                if frame.function == probe.function {
                     probe.outcomes[inst] |= if word.is_zero() { 1 } else { 2 };
                 }
             }
@@ -1760,9 +1762,9 @@ pub struct ProbeExecution {
     pub memory: Memory,
     /// Work consumed by the run.
     pub fuel: u64,
-    /// Completed blocks of the function under test.
+    /// Completed blocks of the function under test, including recursive activations.
     pub visited: DenseBitSet<BlockId>,
-    /// Whether each instruction produced zero and nonzero results.
+    /// Whether each instruction produced zero and nonzero results across all its activations.
     pub outcomes: IndexVec<InstId, u8>,
     /// Storage writes and logs, including those preceding a revert.
     pub effects: Effects,
