@@ -17,9 +17,9 @@ bb1 [invoke=first@1..10]:
   dup 1 !metadata(span=16..19)
   revert !metadata(span=20..25)
 
-// A copy's own entry goes. The survivor takes an entry only when every copy enters the same
-// function, and these do not.
-// CHECK-LABEL: {{^[ +].*}}bb2:
+// The survivor takes an entry only when every copy enters the same function, and these do not.
+// The copy keeps its own, since only its callers run it.
+// CHECK-LABEL: {{^[ +].*}}bb2 [invoke=second@11..20]:
 // CHECK: + jump bb1
 bb2 [invoke=second@11..20]:
   push 0 !metadata(span=31..35, invoke=nested_second@31..45)
