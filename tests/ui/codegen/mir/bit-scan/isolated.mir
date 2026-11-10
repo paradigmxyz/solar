@@ -217,3 +217,176 @@ fn @two_words(arg0: i256, arg1: i256) -> i256 {
     v36 = or v33, v35
     ret v36
 }
+
+// A select that takes the search for every word but zero, and in its other operand a checked
+// addition that overflows for every word but zero. The addition runs whichever operand is
+// chosen, so the function reverts where the search alone would return: the search inside is
+// replaced, and the select and the addition stay.
+// CHECK-LABEL: {{^[ +].*}}fn @unchosen_revert{{[( ]}}
+// CHECK: {{^}}+ [[ODD:v[0-9]+]] = or arg0, 1
+// CHECK-NEXT: {{^}}+ [[ZEROS:v[0-9]+]] = clz [[ODD]]
+// CHECK-NEXT: {{^}}+ [[INDEX:v[0-9]+]] = sub 255, [[ZEROS]]
+// CHECK-NEXT: [[SUM:v[0-9]+]] = checked_add uint256, arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECK-NEXT: [[NONE:v[0-9]+]] = eq arg0, 0
+// CHECK-NEXT: [[RESULT:v[0-9]+]] = select [[NONE]], [[SUM]], [[INDEX]]
+// CHECK-NEXT: ret [[RESULT]]
+fn @unchosen_revert(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v3 = shl v1, 7
+    v4 = shr arg0, v3
+    v5 = gt v4, 0xffffffffffffffff
+    v6 = zext i1 v5 to i256
+    v8 = shl v6, 6
+    v9 = or v3, v8
+    v10 = shr arg0, v9
+    v11 = gt v10, 0xffffffff
+    v12 = zext i1 v11 to i256
+    v14 = shl v12, 5
+    v15 = or v9, v14
+    v16 = shr arg0, v15
+    v17 = gt v16, 0xffff
+    v18 = zext i1 v17 to i256
+    v20 = shl v18, 4
+    v21 = or v15, v20
+    v22 = shr arg0, v21
+    v23 = gt v22, 255
+    v24 = zext i1 v23 to i256
+    v26 = shl v24, 3
+    v27 = or v21, v26
+    v28 = shr arg0, v27
+    v29 = gt v28, 15
+    v30 = zext i1 v29 to i256
+    v32 = shl v30, 2
+    v33 = or v27, v32
+    v34 = shr arg0, v33
+    v35 = byte v34, 0x10102020202030303030303030300000000000000000000000000000000
+    v36 = or v33, v35
+    v37 = checked_add uint256, arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v38 = eq arg0, 0
+    v39 = select v38, v37, v36
+    ret v39
+}
+
+// The same select over an addition that cannot revert: the value is the index for every word
+// but zero and `2**256 - 1` for zero, and the addition goes with the search.
+// CHECK-LABEL: {{^[ +].*}}fn @unchosen_wrap{{[( ]}}
+// CHECK: {{^}}+ [[ZEROS:v[0-9]+]] = clz arg0
+// CHECK-NEXT: {{^}}+ [[INDEX:v[0-9]+]] = sub 255, [[ZEROS]]
+// CHECK-NEXT: {{^}} ret [[INDEX]]
+fn @unchosen_wrap(arg0: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v3 = shl v1, 7
+    v4 = shr arg0, v3
+    v5 = gt v4, 0xffffffffffffffff
+    v6 = zext i1 v5 to i256
+    v8 = shl v6, 6
+    v9 = or v3, v8
+    v10 = shr arg0, v9
+    v11 = gt v10, 0xffffffff
+    v12 = zext i1 v11 to i256
+    v14 = shl v12, 5
+    v15 = or v9, v14
+    v16 = shr arg0, v15
+    v17 = gt v16, 0xffff
+    v18 = zext i1 v17 to i256
+    v20 = shl v18, 4
+    v21 = or v15, v20
+    v22 = shr arg0, v21
+    v23 = gt v22, 255
+    v24 = zext i1 v23 to i256
+    v26 = shl v24, 3
+    v27 = or v21, v26
+    v28 = shr arg0, v27
+    v29 = gt v28, 15
+    v30 = zext i1 v29 to i256
+    v32 = shl v30, 2
+    v33 = or v27, v32
+    v34 = shr arg0, v33
+    v35 = byte v34, 0x10102020202030303030303030300000000000000000000000000000000
+    v36 = or v33, v35
+    v37 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v38 = eq arg0, 0
+    v39 = select v38, v37, v36
+    ret v39
+}
+// Two searches in one block, each over its own word: both are replaced where they stand.
+// CHECK-LABEL: {{^[ +].*}}fn @two_words_apart{{[( ]}}
+// CHECK: {{^}}+ [[ODD0:v[0-9]+]] = or arg0, 1
+// CHECK-NEXT: {{^}}+ [[ZEROS0:v[0-9]+]] = clz [[ODD0]]
+// CHECK-NEXT: {{^}}+ [[INDEX0:v[0-9]+]] = sub 255, [[ZEROS0]]
+// CHECK: {{^}}+ [[ODD1:v[0-9]+]] = or arg1, 1
+// CHECK-NEXT: {{^}}+ [[ZEROS1:v[0-9]+]] = clz [[ODD1]]
+// CHECK-NEXT: {{^}}+ [[INDEX1:v[0-9]+]] = sub 255, [[ZEROS1]]
+// CHECK-NEXT: [[SUM:v[0-9]+]] = add [[INDEX0]], [[INDEX1]]
+// CHECK-NEXT: ret [[SUM]]
+fn @two_words_apart(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+    v1 = zext i1 v0 to i256
+    v3 = shl v1, 7
+    v4 = shr arg0, v3
+    v5 = gt v4, 0xffffffffffffffff
+    v6 = zext i1 v5 to i256
+    v8 = shl v6, 6
+    v9 = or v3, v8
+    v10 = shr arg0, v9
+    v11 = gt v10, 0xffffffff
+    v12 = zext i1 v11 to i256
+    v14 = shl v12, 5
+    v15 = or v9, v14
+    v16 = shr arg0, v15
+    v17 = gt v16, 0xffff
+    v18 = zext i1 v17 to i256
+    v20 = shl v18, 4
+    v21 = or v15, v20
+    v22 = shr arg0, v21
+    v23 = gt v22, 255
+    v24 = zext i1 v23 to i256
+    v26 = shl v24, 3
+    v27 = or v21, v26
+    v28 = shr arg0, v27
+    v29 = gt v28, 15
+    v30 = zext i1 v29 to i256
+    v32 = shl v30, 2
+    v33 = or v27, v32
+    v34 = shr arg0, v33
+    v35 = byte v34, 0x10102020202030303030303030300000000000000000000000000000000
+    v36 = or v33, v35
+    v100 = gt arg1, 0xffffffffffffffffffffffffffffffff
+    v101 = zext i1 v100 to i256
+    v103 = shl v101, 7
+    v104 = shr arg1, v103
+    v105 = gt v104, 0xffffffffffffffff
+    v106 = zext i1 v105 to i256
+    v108 = shl v106, 6
+    v109 = or v103, v108
+    v110 = shr arg1, v109
+    v111 = gt v110, 0xffffffff
+    v112 = zext i1 v111 to i256
+    v114 = shl v112, 5
+    v115 = or v109, v114
+    v116 = shr arg1, v115
+    v117 = gt v116, 0xffff
+    v118 = zext i1 v117 to i256
+    v120 = shl v118, 4
+    v121 = or v115, v120
+    v122 = shr arg1, v121
+    v123 = gt v122, 255
+    v124 = zext i1 v123 to i256
+    v126 = shl v124, 3
+    v127 = or v121, v126
+    v128 = shr arg1, v127
+    v129 = gt v128, 15
+    v130 = zext i1 v129 to i256
+    v132 = shl v130, 2
+    v133 = or v127, v132
+    v134 = shr arg1, v133
+    v135 = byte v134, 0x10102020202030303030303030300000000000000000000000000000000
+    v136 = or v133, v135
+    v200 = add v36, v136
+    ret v200
+}

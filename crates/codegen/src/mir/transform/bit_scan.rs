@@ -22,9 +22,11 @@
 //!
 //! The pass does not match those shapes. It proves what a value computes. A test of the upper
 //! half of a word `x`, a comparison with `2**128` or `2**128 - 1` or a right shift by 128 bits,
-//! marks `x` as the possible input of a scan. The pure instructions of that block whose operands
-//! are `x`, constants, and earlier such instructions are the cone of `x`: every value in it is a
-//! function of `x` alone.
+//! marks `x` as the possible input of a scan. The pure instructions of that block that cannot
+//! revert and whose operands are `x`, constants, and earlier such instructions are the cone of
+//! `x`: every value in it is a function of `x` alone, and computing it does nothing else. A
+//! checked operation is not one of them: the proof does not evaluate the operand a select
+//! leaves unchosen, so it could not tell that an operation there never reverts.
 //!
 //! A few concrete inputs first discard the values of the cone that are neither the index `m` of
 //! the highest set bit nor `255 - m`, the number of leading zeros. Each remaining value is then
@@ -80,7 +82,10 @@
 //!
 //! The target must have `CLZ` (Osaka). The cone lies in one block: a scan written with branches
 //! is found once if-conversion has made it straight-line. A scan that narrows the word to more
-//! than eight bits before a table would need more classes than the pass tries.
+//! than eight bits before a table would need more classes than the pass tries. The instructions
+//! evaluated for one input are bounded, at several times what the proofs of a library's scans
+//! take, so that code with hundreds of values that pass the probes cannot make the pass slow:
+//! the values left when the bound is reached keep their code.
 //!
 //! The pass runs early in the semantic pipeline, after the first e-graph run has put comparisons
 //! in canonical form, so that the inliner prices a scan helper as the few operations it becomes.
@@ -100,8 +105,12 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_sema::Gcx;
+use std::{cell::Cell, cmp::Reverse, collections::BinaryHeap};
 
 /// Bound on the instructions of one cone.
 const MAX_CONE: usize = 256;
@@ -109,6 +118,9 @@ const MAX_CONE: usize = 256;
 const MAX_SCAN: usize = 96;
 /// The leading bits a class may fix: a scan narrows its word to a byte before a table.
 const WINDOW: u32 = 8;
+/// Bound on the instructions evaluated for one input, over all its probes and proofs. The
+/// proof of a library's scan evaluates 10 to 50 thousand, and an input has a scan or two.
+const MAX_WORK: u32 = 1 << 18;
 
 pub(crate) struct BitScan;
 
@@ -203,30 +215,103 @@ struct Scan {
 }
 
 /// The pure instructions of one block that compute functions of `input` alone, in block order.
-struct Cone {
+struct Cone<'a> {
     input: ValueId,
     steps: Vec<Step>,
+    /// The instructions the pass may still evaluate for this input.
+    work: &'a Cell<u32>,
 }
 
 fn run_function(func: &mut Function, target: &Target) -> bool {
-    let mut inputs = SmallVec::<[(BlockId, ValueId); 2]>::new();
+    let mut inputs = Vec::new();
+    let mut found = FxHashSet::default();
     for (block, data) in func.blocks.iter_enumerated() {
         for &inst in &data.instructions {
             let input = half_test(func, inst).or_else(|| {
                 func.inst_result_value(inst).filter(|&value| is_lowest_bit(func, value))
             });
             if let Some(input) = input
-                && !inputs.contains(&(block, input))
+                && found.insert((block, input))
             {
                 inputs.push((block, input));
             }
         }
     }
+    let mut index = Index::default();
     let mut changed = false;
     for (block, input) in inputs {
-        changed |= rewrite_scans(func, target, block, input);
+        changed |= rewrite_scans(func, target, &mut index, block, input);
     }
+    index.apply(func);
     changed
+}
+
+/// The blocks the pass works in, as its rewrites leave them. A function may test the upper half
+/// of thousands of words in one block, so the cone of an input is found from the readers of its
+/// values, and a rewrite is recorded here and reaches the block once, when the pass is done
+/// with the function: neither walks the block.
+#[derive(Default)]
+struct Index {
+    blocks: FxHashMap<BlockId, BlockIndex>,
+    /// How many operands read each value, counted at the first rewrite.
+    uses: Option<IndexVec<ValueId, u32>>,
+}
+
+#[derive(Default)]
+struct BlockIndex {
+    /// Where each instruction stands in the block. The instructions of a rewrite stand between
+    /// the value they replace and the instruction before it.
+    places: FxHashMap<InstId, (u32, u32)>,
+    /// The instructions of the block that read each value.
+    readers: FxHashMap<ValueId, SmallVec<[InstId; 2]>>,
+    /// The instructions that rewrites removed.
+    removed: FxHashSet<InstId>,
+    /// The instructions that rewrites put before an instruction.
+    inserted: FxHashMap<InstId, Vec<InstId>>,
+}
+
+impl Index {
+    fn block(&mut self, func: &Function, block: BlockId) -> &mut BlockIndex {
+        self.blocks.entry(block).or_insert_with(|| {
+            let mut index = BlockIndex::default();
+            for (place, &inst) in func.blocks[block].instructions.iter().enumerate() {
+                index.places.insert(inst, (place as u32 + 1, 0));
+                index.read(func, inst);
+            }
+            index
+        })
+    }
+
+    /// Makes the blocks what the rewrites left of them.
+    fn apply(self, func: &mut Function) {
+        for (block, index) in self.blocks {
+            if index.removed.is_empty() && index.inserted.is_empty() {
+                continue;
+            }
+            let old = std::mem::take(&mut func.blocks[block].instructions);
+            let instructions = &mut func.blocks[block].instructions;
+            for inst in old {
+                let before = index.inserted.get(&inst).into_iter().flatten();
+                for inst in before.chain([&inst]) {
+                    if !index.removed.contains(inst) {
+                        instructions.push(*inst);
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl BlockIndex {
+    /// Records `inst` as a reader of its operands.
+    fn read(&mut self, func: &Function, inst: InstId) {
+        func.inst(inst).kind.visit_operands(|operand| {
+            let readers = self.readers.entry(operand).or_default();
+            if readers.last() != Some(&inst) {
+                readers.push(inst);
+            }
+        });
+    }
 }
 
 /// Whether `value` is the lowest set bit of a word, `y & -y`, which has at most one bit set.
@@ -264,13 +349,24 @@ fn half_test(func: &Function, inst: InstId) -> Option<ValueId> {
 }
 
 /// Rewrites every scan of `input` in `block`.
-fn rewrite_scans(func: &mut Function, target: &Target, block: BlockId, input: ValueId) -> bool {
+fn rewrite_scans(
+    func: &mut Function,
+    target: &Target,
+    index: &mut Index,
+    block: BlockId,
+    input: ValueId,
+) -> bool {
     let mut changed = false;
     // Each instruction is tried once: a rewrite changes the cone, which is then built again.
     let mut tried = FxHashSet::default();
     let one_bit = is_lowest_bit(func, input);
+    let work = &Cell::new(MAX_WORK);
     loop {
-        let cone = Cone::new(func, block, input);
+        // The values left untried when the work runs out keep their code.
+        if work.get() == 0 {
+            return changed;
+        }
+        let cone = Cone::new(func, index.block(func, block), input, work);
         let mut rewritten = false;
         // The last value first: where a count is taken from an index, or zero is given its own
         // result after the search, the outer value is a scan too, and the inner one goes with it.
@@ -285,7 +381,7 @@ fn rewrite_scans(func: &mut Function, target: &Target, block: BlockId, input: Va
             let Some(scan) = cone.prove(func, &needed, root, leading_zeros, one_bit) else {
                 continue;
             };
-            if let Some(inserted) = rewrite(func, target, block, &cone, root, scan) {
+            if let Some(inserted) = rewrite(func, target, index, block, &cone, root, scan) {
                 tried.extend(inserted);
                 rewritten = true;
                 break;
@@ -298,16 +394,35 @@ fn rewrite_scans(func: &mut Function, target: &Target, block: BlockId, input: Va
     }
 }
 
-impl Cone {
-    fn new(func: &Function, block: BlockId, input: ValueId) -> Self {
+impl<'a> Cone<'a> {
+    fn new(func: &Function, index: &BlockIndex, input: ValueId, work: &'a Cell<u32>) -> Self {
         let mut steps = Vec::<Step>::new();
-        let mut index = FxHashMap::default();
-        for &inst in &func.blocks[block].instructions {
+        let mut step_of = FxHashMap::default();
+        // The readers of the input and of the steps, in block order: an instruction is reached
+        // after every step it reads, since each of them stands before it.
+        let mut reached = FxHashSet::default();
+        let mut pending = BinaryHeap::new();
+        let mut reach = |value, pending: &mut BinaryHeap<_>| {
+            for &reader in index.readers.get(&value).into_iter().flatten() {
+                if let Some(&place) = index.places.get(&reader)
+                    && reached.insert(reader)
+                {
+                    pending.push(Reverse((place, reader)));
+                }
+            }
+        };
+        reach(input, &mut pending);
+        while let Some(Reverse((_, inst))) = pending.pop() {
             if steps.len() == MAX_CONE {
                 break;
             }
             let data = func.inst(inst);
-            if !is_pure(data) || matches!(data.kind, InstKind::Phi(..)) {
+            // A value of the cone goes with the scan that alone reads it, so it must leave nothing
+            // but its result: a checked operation, which reverts for some operands, stays out.
+            if !is_pure(data)
+                || data.kind.effects().control.any()
+                || matches!(data.kind, InstKind::Phi(..))
+            {
                 continue;
             }
             let Some(result) = func.inst_result_value(inst) else { continue };
@@ -316,7 +431,7 @@ impl Cone {
             for value in data.kind.operands() {
                 let slot = if value == input {
                     Slot::Input
-                } else if let Some(&step) = index.get(&value) {
+                } else if let Some(&step) = step_of.get(&value) {
                     Slot::Step(step)
                 } else if let Some(constant) = func.value_u256(value) {
                     Slot::Constant(constant)
@@ -327,11 +442,12 @@ impl Cone {
                 operands.push((value, slot));
             }
             if reads_input && operands.len() == data.kind.operands().len() {
-                index.insert(result, steps.len() as u32);
+                step_of.insert(result, steps.len() as u32);
                 steps.push(Step { inst, operands });
+                reach(result, &mut pending);
             }
         }
-        Self { input, steps }
+        Self { input, steps, work }
     }
 
     /// The word-sized values of the cone that agree with a scan on a few inputs, with whether
@@ -478,6 +594,9 @@ impl Cone {
         let mut blocked = None::<u32>;
         for &step in needed {
             if words[step as usize].is_none() {
+                // Out of work: the step has no word, and so nothing that reads it is proved.
+                let Some(work) = self.work.get().checked_sub(1) else { break };
+                self.work.set(work);
                 let mut bits = None;
                 words[step as usize] =
                     self.evaluate_step(func, step as usize, input, class, words, &mut bits);
@@ -656,8 +775,9 @@ fn clz_form(
 fn rewrite(
     func: &mut Function,
     target: &Target,
+    index: &mut Index,
     block: BlockId,
-    cone: &Cone,
+    cone: &Cone<'_>,
     root: usize,
     scan: Scan,
 ) -> Option<Vec<InstId>> {
@@ -673,7 +793,7 @@ fn rewrite(
     };
 
     // The instructions that only the scan reads go with it.
-    let uses = super::egraph::use_counts(func);
+    let uses = index.uses.get_or_insert_with(|| super::egraph::use_counts(func));
     let mut left = FxHashMap::default();
     let mut removed = FxHashSet::default();
     let mut pending = vec![root as u32];
@@ -721,11 +841,36 @@ fn rewrite(
         inserted.push(inst);
         value
     });
-    let instructions = &mut func.blocks[block].instructions;
-    let position =
-        instructions.iter().position(|&inst| inst == root_inst).expect("the scan is in its block");
-    instructions.splice(position..position, inserted.iter().copied());
-    instructions.retain(|inst| !removed.contains(inst));
+    // The block and the counts as the rewrite leaves them.
+    uses.raw.resize(func.num_values(), 0);
+    let mut count = |kind: &InstKind, add: bool| {
+        kind.visit_operands(|operand| {
+            if add {
+                uses[operand] += 1;
+            } else {
+                uses[operand] -= 1;
+            }
+        });
+    };
+    for &inst in removed.iter().chain([&root_inst]) {
+        count(&func.inst(inst).kind, false);
+    }
+    for &inst in &inserted {
+        count(&func.inst(inst).kind, true);
+    }
+    count(&last, true);
     func.replace_inst_kind(root_inst, last);
+    let index = index.block(func, block);
+    let (place, _) = index.places[&root_inst];
+    for (nth, &inst) in inserted.iter().enumerate() {
+        index.places.insert(inst, (place - 1, nth as u32 + 1));
+        index.read(func, inst);
+    }
+    index.read(func, root_inst);
+    for inst in &removed {
+        index.places.remove(inst);
+    }
+    index.removed.extend(removed);
+    index.inserted.entry(root_inst).or_default().extend(inserted.iter().copied());
     Some(inserted)
 }

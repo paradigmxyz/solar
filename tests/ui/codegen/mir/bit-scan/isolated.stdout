@@ -194,3 +194,160 @@
       ret v30
   }
   
+  fn @unchosen_revert(arg0: i256) -> i256 {
+    bb0:
+-     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+-     v1 = zext i1 v0 to i256
+-     v2 = shl v1, 7
+-     v3 = shr arg0, v2
+-     v4 = gt v3, 0xffffffffffffffff
+-     v5 = zext i1 v4 to i256
+-     v6 = shl v5, 6
+-     v7 = or v2, v6
+-     v8 = shr arg0, v7
+-     v9 = gt v8, 0xffffffff
+-     v10 = zext i1 v9 to i256
+-     v11 = shl v10, 5
+-     v12 = or v7, v11
+-     v13 = shr arg0, v12
+-     v14 = gt v13, 0xffff
+-     v15 = zext i1 v14 to i256
+-     v16 = shl v15, 4
+-     v17 = or v12, v16
+-     v18 = shr arg0, v17
+-     v19 = gt v18, 255
+-     v20 = zext i1 v19 to i256
+-     v21 = shl v20, 3
+-     v22 = or v17, v21
+-     v23 = shr arg0, v22
+-     v24 = gt v23, 15
+-     v25 = zext i1 v24 to i256
+-     v26 = shl v25, 2
+-     v27 = or v22, v26
+-     v28 = shr arg0, v27
+-     v29 = byte v28, 0x10102020202030303030303030300000000000000000000000000000000
+-     v30 = or v27, v29
++     v34 = or arg0, 1
++     v35 = clz v34
++     v30 = sub 255, v35
+      v31 = checked_add uint256, arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+      v32 = eq arg0, 0
+      v33 = select v32, v31, v30
+      ret v33
+  }
+  
+  fn @unchosen_wrap(arg0: i256) -> i256 {
+    bb0:
+-     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+-     v1 = zext i1 v0 to i256
+-     v2 = shl v1, 7
+-     v3 = shr arg0, v2
+-     v4 = gt v3, 0xffffffffffffffff
+-     v5 = zext i1 v4 to i256
+-     v6 = shl v5, 6
+-     v7 = or v2, v6
+-     v8 = shr arg0, v7
+-     v9 = gt v8, 0xffffffff
+-     v10 = zext i1 v9 to i256
+-     v11 = shl v10, 5
+-     v12 = or v7, v11
+-     v13 = shr arg0, v12
+-     v14 = gt v13, 0xffff
+-     v15 = zext i1 v14 to i256
+-     v16 = shl v15, 4
+-     v17 = or v12, v16
+-     v18 = shr arg0, v17
+-     v19 = gt v18, 255
+-     v20 = zext i1 v19 to i256
+-     v21 = shl v20, 3
+-     v22 = or v17, v21
+-     v23 = shr arg0, v22
+-     v24 = gt v23, 15
+-     v25 = zext i1 v24 to i256
+-     v26 = shl v25, 2
+-     v27 = or v22, v26
+-     v28 = shr arg0, v27
+-     v29 = byte v28, 0x10102020202030303030303030300000000000000000000000000000000
+-     v30 = or v27, v29
+-     v31 = add arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+-     v32 = eq arg0, 0
+-     v33 = select v32, v31, v30
++     v34 = clz arg0
++     v33 = sub 255, v34
+      ret v33
+  }
+  
+  fn @two_words_apart(arg0: i256, arg1: i256) -> i256 {
+    bb0:
+-     v0 = gt arg0, 0xffffffffffffffffffffffffffffffff
+-     v1 = zext i1 v0 to i256
+-     v2 = shl v1, 7
+-     v3 = shr arg0, v2
+-     v4 = gt v3, 0xffffffffffffffff
+-     v5 = zext i1 v4 to i256
+-     v6 = shl v5, 6
+-     v7 = or v2, v6
+-     v8 = shr arg0, v7
+-     v9 = gt v8, 0xffffffff
+-     v10 = zext i1 v9 to i256
+-     v11 = shl v10, 5
+-     v12 = or v7, v11
+-     v13 = shr arg0, v12
+-     v14 = gt v13, 0xffff
+-     v15 = zext i1 v14 to i256
+-     v16 = shl v15, 4
+-     v17 = or v12, v16
+-     v18 = shr arg0, v17
+-     v19 = gt v18, 255
+-     v20 = zext i1 v19 to i256
+-     v21 = shl v20, 3
+-     v22 = or v17, v21
+-     v23 = shr arg0, v22
+-     v24 = gt v23, 15
+-     v25 = zext i1 v24 to i256
+-     v26 = shl v25, 2
+-     v27 = or v22, v26
+-     v28 = shr arg0, v27
+-     v29 = byte v28, 0x10102020202030303030303030300000000000000000000000000000000
+-     v30 = or v27, v29
+-     v31 = gt arg1, 0xffffffffffffffffffffffffffffffff
+-     v32 = zext i1 v31 to i256
+-     v33 = shl v32, 7
+-     v34 = shr arg1, v33
+-     v35 = gt v34, 0xffffffffffffffff
+-     v36 = zext i1 v35 to i256
+-     v37 = shl v36, 6
+-     v38 = or v33, v37
+-     v39 = shr arg1, v38
+-     v40 = gt v39, 0xffffffff
+-     v41 = zext i1 v40 to i256
+-     v42 = shl v41, 5
+-     v43 = or v38, v42
+-     v44 = shr arg1, v43
+-     v45 = gt v44, 0xffff
+-     v46 = zext i1 v45 to i256
+-     v47 = shl v46, 4
+-     v48 = or v43, v47
+-     v49 = shr arg1, v48
+-     v50 = gt v49, 255
+-     v51 = zext i1 v50 to i256
+-     v52 = shl v51, 3
+-     v53 = or v48, v52
+-     v54 = shr arg1, v53
+-     v55 = gt v54, 15
+-     v56 = zext i1 v55 to i256
+-     v57 = shl v56, 2
+-     v58 = or v53, v57
+-     v59 = shr arg1, v58
+-     v60 = byte v59, 0x10102020202030303030303030300000000000000000000000000000000
+-     v61 = or v58, v60
++     v63 = or arg0, 1
++     v64 = clz v63
++     v30 = sub 255, v64
++     v65 = or arg1, 1
++     v66 = clz v65
++     v61 = sub 255, v66
+      v62 = add v30, v61
+      ret v62
+  }
+  
