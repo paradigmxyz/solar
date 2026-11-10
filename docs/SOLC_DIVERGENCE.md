@@ -1140,8 +1140,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   the free memory pointer by 32 bytes, and after `catch Panic(uint256)` by 96
   bytes. `solc` points the empty result at the zero slot, and reads the panic
   selector and code through scratch memory, so it leaves the pointer in place.
-  Only inline assembly that reads `mload(0x40)` can see it; results are the
-  same.
+  Only inline assembly that reads `mload(0x40)` sees the pointer itself, and
+  results are the same. In a loop the memory grows by that amount on every call,
+  which adds quadratic memory gas: 20,000 caught panics in one transaction
+  exceed the 30M gas limit, where `solc` uses 15.7M. A loop of 1,000 calls of
+  either kind costs less with `solar`.
 - Rationale: matching `solc` made the minimal-proxy benchmark 21 bytes bigger
   and 19 gas dearer per call.
 - Coverage: `tests/ui/codegen/run-call/memory/low_level_call_empty_returndata_fmp.sol`
