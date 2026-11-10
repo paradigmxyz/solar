@@ -16,3 +16,19 @@ bb0:
   mstore
   pop
   stop
+
+// Two deleted instructions that start different functions are ambiguous, so the next one that runs
+// starts neither.
+// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-NOT: {{^[ +].*invoke}}
+// CHECK: {{^[ +].*}}mstore
+bb1:
+  push 7
+  dup 1
+  push 1
+  add
+  swap 1 !metadata(invoke=first@1..10)
+  pop !metadata(invoke=second@11..20)
+  push 0
+  mstore
+  stop

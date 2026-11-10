@@ -393,8 +393,9 @@ fn apply_edits(
 ) {
     std::mem::swap(instructions, scratch);
     let mut edits = edits.iter().peekable();
-    // The entry of a deleted instruction, which the next instruction that runs takes.
-    let mut carried = None;
+    // The entry of the deleted instructions before the next one that runs, which that one takes.
+    // Two different entries are ambiguous, so none is kept.
+    let (mut carried, mut ambiguous) = (None, false);
     for (index, inst) in scratch.drain(..).enumerate() {
         let first = instructions.len();
         if let Some(edit) = edits.next_if(|edit| edit.index == index) {
@@ -404,19 +405,24 @@ fn apply_edits(
                 }),
             );
             RunEvents::of([&inst.metadata]).place(&mut instructions[first..]);
-            if instructions.len() == first {
-                carried = carried.or(inst.metadata.function_invoke());
+            if instructions.len() == first
+                && let Some(function) = inst.metadata.function_invoke()
+            {
+                ambiguous |= carried.is_some_and(|other| other != function);
+                carried = Some(function);
             }
         } else {
             instructions.push(inst);
         }
-        if let Some(function) = carried
+        if (carried.is_some() || ambiguous)
             && let Some(next) = instructions.get_mut(first)
         {
-            if next.metadata.function_invoke().is_none() {
+            if let Some(function) = carried.filter(|_| !ambiguous)
+                && next.metadata.function_invoke().is_none()
+            {
                 next.metadata.set_function_invoke(function);
             }
-            carried = None;
+            (carried, ambiguous) = (None, false);
         }
     }
 }

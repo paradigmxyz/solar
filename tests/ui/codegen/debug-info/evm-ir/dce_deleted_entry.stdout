@@ -12,4 +12,14 @@
     mstore
 -   pop
     stop
+  bb1:
+    push 7
+-   dup 1
+    push 1
+    add
+-   swap 1 !metadata(invoke=first@1..10)
+-   pop !metadata(invoke=second@11..20)
+    push 0
+    mstore
+    stop
   
