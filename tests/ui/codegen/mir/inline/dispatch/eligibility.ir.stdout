@@ -171,7 +171,8 @@ fn @a() {
     v28 = lt v27, v24
     v46 = or v23, v28
     v2 = shl v24, 5
-    v7 = slt v26, v2
+    v6 = add v25, v2
+    v7 = lt v17, v6
     v47 = or v46, v7
     jumpi v47, bb2, bb3
   bb3:                                            ; preds = bb0

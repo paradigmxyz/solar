@@ -10,8 +10,8 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
-    v6 = sub v4, v5
-    v7 = slt v6, v2
+    v6 = add v5, v2
+    v7 = lt v4, v6
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -332,8 +332,8 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v16 = ptrtoint ptr<calldata> v1 to i256
     v17 = add v16, v15
     v18 = calldatasize
-    v19 = sub v18, v17
-    v20 = slt v19, 32
+    v19 = add v17, 32
+    v20 = lt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
     v21 = calldataload v17
     v22 = ptrtoint ptr<calldata> v1 to i256
@@ -379,8 +379,8 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     v44 = mul v42, 32
     v45 = add v34, v44
     v46 = calldatasize
-    v47 = sub v46, v45
-    v48 = slt v47, 32
+    v47 = add v45, 32
+    v48 = lt v46, v47
     icall revert_if<calldata_tail_too_short>, v48
     v49 = calldataload v45
     v50 = add v34, v49
@@ -392,8 +392,8 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     icall revert_if<invalid_calldata_tail_offset>, v55
     v56 = alloc 64
     v57 = calldatasize
-    v58 = sub v57, v50
-    v59 = slt v58, 32
+    v58 = add v50, 32
+    v59 = lt v57, v58
     icall revert_if<calldata_tail_too_short>, v59
     v60 = calldataload v50
     v61 = add v50, v60
@@ -430,8 +430,8 @@ fn @copy(arg0: slice<calldata>) -> i256 [selector=0xc58b68ae, abi_params=[array<
     mstore v56, v89
     v90 = add v50, 32
     v91 = calldatasize
-    v92 = sub v91, v90
-    v93 = slt v92, 64
+    v92 = add v90, 64
+    v93 = lt v91, v92
     icall revert_if<calldata_tail_too_short>, v93
     v94 = alloc 64
     jump bb10
@@ -483,8 +483,8 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = ptrtoint ptr<calldata> v0 to i256
-    v3 = sub v1, v2
-    v4 = slt v3, 32
+    v3 = add v2, 32
+    v4 = lt v1, v3
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 32
     jump bb1
@@ -921,8 +921,8 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
     v11 = calldatasize
-    v12 = sub v11, v10
-    v13 = slt v12, 32
+    v12 = add v10, 32
+    v13 = lt v11, v12
     icall revert_if<calldata_tail_too_short>, v13
     v14 = calldataload v10
     v15 = ptrtoint ptr<calldata> v0 to i256
@@ -967,8 +967,8 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     v37 = mul v35, 32
     v38 = add v27, v37
     v39 = calldatasize
-    v40 = sub v39, v38
-    v41 = slt v40, 32
+    v40 = add v38, 32
+    v41 = lt v39, v40
     icall revert_if<calldata_tail_too_short>, v41
     v42 = calldataload v38
     v43 = add v27, v42
@@ -980,8 +980,8 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     icall revert_if<invalid_calldata_tail_offset>, v48
     v49 = alloc 64
     v50 = calldatasize
-    v51 = sub v50, v43
-    v52 = slt v51, 32
+    v51 = add v43, 32
+    v52 = lt v50, v51
     icall revert_if<calldata_tail_too_short>, v52
     v53 = calldataload v43
     v54 = add v43, v53
@@ -1018,8 +1018,8 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x39bd9a66, abi_params=[a
     mstore v49, v82
     v83 = add v43, 32
     v84 = calldatasize
-    v85 = sub v84, v83
-    v86 = slt v85, 64
+    v85 = add v83, 64
+    v86 = lt v84, v85
     icall revert_if<calldata_tail_too_short>, v86
     v87 = alloc 64
     jump bb10
@@ -1075,8 +1075,8 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
-    v6 = sub v4, v5
-    v7 = slt v6, v2
+    v6 = add v5, v2
+    v7 = lt v4, v6
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -1483,8 +1483,8 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v16 = ptrtoint ptr<calldata> v1 to i256
     v17 = add v16, v15
     v18 = calldatasize
-    v19 = sub v18, v17
-    v20 = slt v19, 32
+    v19 = add v17, 32
+    v20 = lt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
     v21 = calldataload v17
     v22 = ptrtoint ptr<calldata> v1 to i256
@@ -1497,8 +1497,8 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v29 = eq v28, false
     icall revert_if<invalid_calldata_tail_offset>, v29
     v30 = calldatasize
-    v31 = sub v30, v23
-    v32 = slt v31, 32
+    v31 = add v23, 32
+    v32 = lt v30, v31
     icall revert_if<calldata_tail_too_short>, v32
     v33 = alloc 32
     jump bb4
@@ -1518,8 +1518,8 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     v36 = mul v34, 32
     v37 = add v23, v36
     v38 = calldatasize
-    v39 = sub v38, v37
-    v40 = slt v39, 32
+    v39 = add v37, 32
+    v40 = lt v38, v39
     icall revert_if<calldata_tail_too_short>, v40
     v41 = calldataload v37
     v42 = add v23, v41
@@ -1531,8 +1531,8 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     icall revert_if<invalid_calldata_tail_offset>, v47
     v48 = alloc 64
     v49 = calldatasize
-    v50 = sub v49, v42
-    v51 = slt v50, 32
+    v50 = add v42, 32
+    v51 = lt v49, v50
     icall revert_if<calldata_tail_too_short>, v51
     v52 = calldataload v42
     v53 = add v42, v52
@@ -1569,8 +1569,8 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0x62d70355, abi_pa
     mstore v48, v81
     v82 = add v42, 32
     v83 = calldatasize
-    v84 = sub v83, v82
-    v85 = slt v84, 64
+    v84 = add v82, 64
+    v85 = lt v83, v84
     icall revert_if<calldata_tail_too_short>, v85
     v86 = alloc 64
     jump bb10

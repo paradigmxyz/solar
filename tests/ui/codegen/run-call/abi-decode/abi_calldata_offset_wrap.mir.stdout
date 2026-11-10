@@ -20,8 +20,8 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[
     v6 = ptrtoint ptr<calldata> v5 to i256
     v7 = add v6, 0
     v8 = calldatasize
-    v9 = sub v8, v7
-    v10 = slt v9, 32
+    v9 = add v7, 32
+    v10 = lt v8, v9
     icall revert_if<calldata_tail_too_short>, v10
     v11 = calldataload v7
     v12 = ptrtoint ptr<calldata> v5 to i256
@@ -61,8 +61,8 @@ fn @f(arg0: slice<calldata>) -> struct0 [selector=0xc26b6b9a, pure, abi_params=[
     v36 = ptrtoint ptr<calldata> v35 to i256
     v37 = add v36, 32
     v38 = calldatasize
-    v39 = sub v38, v37
-    v40 = slt v39, 32
+    v39 = add v37, 32
+    v40 = lt v38, v39
     icall revert_if<calldata_tail_too_short>, v40
     v41 = calldataload v37
     v42 = ptrtoint ptr<calldata> v35 to i256

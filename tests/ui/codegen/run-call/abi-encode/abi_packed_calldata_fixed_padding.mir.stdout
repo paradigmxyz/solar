@@ -134,8 +134,8 @@ fn @checkedCopy(arg0: i256) -> ptr<memory> [selector=0xc77131b7, pure, abi_param
     v2 = extract_value slice<calldata>, v0, 0
     v3 = calldatasize
     v4 = ptrtoint ptr<calldata> v2 to i256
-    v5 = sub v3, v4
-    v6 = slt v5, 64
+    v5 = add v4, 64
+    v6 = lt v3, v5
     icall revert_if<calldata_tail_too_short>, v6
     v7 = alloc 64
     jump bb1

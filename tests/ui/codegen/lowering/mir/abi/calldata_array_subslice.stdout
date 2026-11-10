@@ -20,8 +20,8 @@ fn @word(arg0: slice<calldata>) -> ptr<memory> [selector=0x37948b05, pure, abi_p
     icall panic_if<0x41>, v12
     v13 = calldatasize
     v14 = ptrtoint ptr<calldata> v10 to i256
-    v15 = sub v13, v14
-    v16 = slt v15, v11
+    v15 = add v14, v11
+    v16 = lt v13, v15
     icall revert_if<calldata_tail_too_short>, v16
     v17 = mul v9, 32
     v18 = gt v9, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

@@ -23,8 +23,8 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x6575
     icall panic_if<0x41>, v14
     v15 = calldatasize
     v16 = ptrtoint ptr<calldata> v12 to i256
-    v17 = sub v15, v16
-    v18 = slt v17, v13
+    v17 = add v16, v13
+    v18 = lt v15, v17
     icall revert_if<calldata_tail_too_short>, v18
     v19 = mul v11, 32
     v20 = gt v11, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -83,8 +83,8 @@ fn @forward(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x4
     icall panic_if<0x41>, v14
     v15 = calldatasize
     v16 = ptrtoint ptr<calldata> v12 to i256
-    v17 = sub v15, v16
-    v18 = slt v17, v13
+    v17 = add v16, v13
+    v18 = lt v15, v17
     icall revert_if<calldata_tail_too_short>, v18
     v19 = mul v11, 32
     v20 = gt v11, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -127,8 +127,8 @@ fn @literal(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0x7
     icall panic_if<0x41>, v15
     v16 = calldatasize
     v17 = ptrtoint ptr<calldata> v13 to i256
-    v18 = sub v16, v17
-    v19 = slt v18, v14
+    v18 = add v17, v14
+    v19 = lt v16, v18
     icall revert_if<calldata_tail_too_short>, v19
     v20 = mul v12, 32
     v21 = gt v12, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff

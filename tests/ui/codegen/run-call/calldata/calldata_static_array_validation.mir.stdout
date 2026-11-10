@@ -96,8 +96,8 @@ fn @copyToMemory(arg0: slice<calldata>) -> i8 [selector=0x13aac4cb, pure, abi_pa
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = ptrtoint ptr<calldata> v0 to i256
-    v3 = sub v1, v2
-    v4 = slt v3, 64
+    v3 = add v2, 64
+    v4 = lt v1, v3
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 64
     jump bb1

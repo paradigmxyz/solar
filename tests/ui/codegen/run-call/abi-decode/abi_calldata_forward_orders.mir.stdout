@@ -154,8 +154,8 @@ fn @forwardOne(arg0: slice<calldata>, arg1: i256) -> i256 [selector=0x82731354, 
     v8 = ptrtoint ptr<calldata> v5 to i256
     v9 = add v8, v6
     v10 = calldatasize
-    v11 = sub v10, v9
-    v12 = slt v11, 32
+    v11 = add v9, 32
+    v12 = lt v10, v11
     icall revert_if<calldata_tail_too_short>, v12
     v13 = calldataload v9
     v14 = ptrtoint ptr<calldata> v5 to i256

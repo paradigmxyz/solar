@@ -89,8 +89,8 @@ fn @sum(arg0: slice<calldata>) -> i256 [selector=0xe3db0bf3, pure, abi_params=[a
     v11 = ptrtoint ptr<calldata> v8 to i256
     v12 = add v11, v9
     v13 = calldatasize
-    v14 = sub v13, v12
-    v15 = slt v14, 32
+    v14 = add v12, 32
+    v15 = lt v13, v14
     icall revert_if<calldata_tail_too_short>, v15
     v16 = calldataload v12
     v17 = ptrtoint ptr<calldata> v8 to i256
@@ -204,8 +204,8 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x903f85b3, pure, abi_pa
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 0
     v6 = calldatasize
-    v7 = sub v6, v5
-    v8 = slt v7, 32
+    v7 = add v5, 32
+    v8 = lt v6, v7
     icall revert_if<calldata_tail_too_short>, v8
     v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256
@@ -223,8 +223,8 @@ fn @inspect(arg0: slice<calldata>) -> struct0 [selector=0x903f85b3, pure, abi_pa
     v21 = ptrtoint ptr<calldata> v20 to i256
     v22 = add v21, 64
     v23 = calldatasize
-    v24 = sub v23, v22
-    v25 = slt v24, 32
+    v24 = add v22, 32
+    v25 = lt v23, v24
     icall revert_if<calldata_tail_too_short>, v25
     v26 = calldataload v22
     v27 = ptrtoint ptr<calldata> v20 to i256

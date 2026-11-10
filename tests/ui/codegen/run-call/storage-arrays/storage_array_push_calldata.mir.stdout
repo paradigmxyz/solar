@@ -10,8 +10,8 @@ fn @pushArray(arg0: slice<calldata>) -> i120 [selector=0xac513f44, abi_params=[a
     icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
-    v6 = sub v4, v5
-    v7 = slt v6, v2
+    v6 = add v5, v2
+    v7 = lt v4, v6
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -142,8 +142,8 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v1 = alloc 128
     v2 = calldatasize
     v3 = ptrtoint ptr<calldata> v0 to i256
-    v4 = sub v2, v3
-    v5 = slt v4, 32
+    v4 = add v3, 32
+    v5 = lt v2, v4
     icall revert_if<calldata_tail_too_short>, v5
     v6 = calldataload v0
     v7 = gt v6, 0xffff
@@ -152,8 +152,8 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v8 = ptrtoint ptr<calldata> v0 to i256
     v9 = add v8, 32
     v10 = calldatasize
-    v11 = sub v10, v9
-    v12 = slt v11, 32
+    v11 = add v9, 32
+    v12 = lt v10, v11
     icall revert_if<calldata_tail_too_short>, v12
     v13 = calldataload v9
     v14 = gt v13, 0xffff
@@ -163,8 +163,8 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v16 = ptrtoint ptr<calldata> v0 to i256
     v17 = add v16, 64
     v18 = calldatasize
-    v19 = sub v18, v17
-    v20 = slt v19, 96
+    v19 = add v17, 96
+    v20 = lt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
     v21 = alloc 96
     jump bb1
@@ -184,8 +184,8 @@ fn @pushStruct(arg0: slice<calldata>) -> i256 [selector=0x1696eca8, abi_params=[
     v35 = ptrtoint ptr<calldata> v0 to i256
     v36 = add v35, 160
     v37 = calldatasize
-    v38 = sub v37, v36
-    v39 = slt v38, 32
+    v38 = add v36, 32
+    v39 = lt v37, v38
     icall revert_if<calldata_tail_too_short>, v39
     v40 = calldataload v36
     v41 = ptrtoint ptr<calldata> v0 to i256

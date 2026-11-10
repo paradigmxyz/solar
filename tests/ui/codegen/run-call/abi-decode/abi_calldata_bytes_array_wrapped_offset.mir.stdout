@@ -11,8 +11,8 @@ fn @first(arg0: slice<calldata>) -> ptr<memory> [selector=0xcf452bd8, pure, abi_
     v4 = ptrtoint ptr<calldata> v3 to i256
     v5 = add v4, 0
     v6 = calldatasize
-    v7 = sub v6, v5
-    v8 = slt v7, 32
+    v7 = add v5, 32
+    v8 = lt v6, v7
     icall revert_if<calldata_tail_too_short>, v8
     v9 = calldataload v5
     v10 = ptrtoint ptr<calldata> v3 to i256

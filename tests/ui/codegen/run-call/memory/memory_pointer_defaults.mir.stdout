@@ -477,8 +477,8 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
-    v6 = sub v4, v5
-    v7 = slt v6, v2
+    v6 = add v5, v2
+    v7 = lt v4, v6
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -500,8 +500,8 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     v16 = ptrtoint ptr<calldata> v1 to i256
     v17 = add v16, v15
     v18 = calldatasize
-    v19 = sub v18, v17
-    v20 = slt v19, 32
+    v19 = add v17, 32
+    v20 = lt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
     v21 = calldataload v17
     v22 = ptrtoint ptr<calldata> v1 to i256
@@ -518,15 +518,15 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     icall revert_if<invalid_calldata_tail_offset>, v31
     v33 = alloc 96
     v34 = calldatasize
-    v35 = sub v34, v23
-    v36 = slt v35, 32
+    v35 = add v23, 32
+    v36 = lt v34, v35
     icall revert_if<calldata_tail_too_short>, v36
     v37 = calldataload v23
     mstore v33, v37
     v38 = add v23, 32
     v39 = calldatasize
-    v40 = sub v39, v38
-    v41 = slt v40, 32
+    v40 = add v38, 32
+    v41 = lt v39, v40
     icall revert_if<calldata_tail_too_short>, v41
     v42 = calldataload v38
     v43 = add v23, v42
@@ -566,8 +566,8 @@ fn @copyCalldata(arg0: slice<calldata>) -> ptr<memory> [selector=0x175ae975, pur
     mstore v70, v69
     v71 = add v23, 64
     v72 = calldatasize
-    v73 = sub v72, v71
-    v74 = slt v73, 32
+    v73 = add v71, 32
+    v74 = lt v72, v73
     icall revert_if<calldata_tail_too_short>, v74
     v75 = calldataload v71
     v76 = add v23, v75

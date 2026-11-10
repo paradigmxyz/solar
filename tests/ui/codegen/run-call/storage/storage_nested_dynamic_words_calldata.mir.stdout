@@ -10,8 +10,8 @@ fn @copyDynamic(arg0: slice<calldata>) -> i256 [selector=0x2662f0b3, abi_params=
     icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
-    v6 = sub v4, v5
-    v7 = slt v6, v2
+    v6 = add v5, v2
+    v7 = lt v4, v6
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -144,8 +144,8 @@ fn @copyDynamic(arg0: slice<calldata>) -> i256 [selector=0x2662f0b3, abi_params=
     v16 = ptrtoint ptr<calldata> v1 to i256
     v17 = add v16, v15
     v18 = calldatasize
-    v19 = sub v18, v17
-    v20 = slt v19, 32
+    v19 = add v17, 32
+    v20 = lt v18, v19
     icall revert_if<calldata_tail_too_short>, v20
     v21 = calldataload v17
     v22 = ptrtoint ptr<calldata> v1 to i256
@@ -195,8 +195,8 @@ fn @copyFixedDynamic(arg0: slice<calldata>) -> i256 [selector=0x8b16421b, abi_pa
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = ptrtoint ptr<calldata> v0 to i256
-    v3 = sub v1, v2
-    v4 = slt v3, 64
+    v3 = add v2, 64
+    v4 = lt v1, v3
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 64
     jump bb1
@@ -331,8 +331,8 @@ fn @copyFixedDynamic(arg0: slice<calldata>) -> i256 [selector=0x8b16421b, abi_pa
     v9 = ptrtoint ptr<calldata> v0 to i256
     v10 = add v9, v8
     v11 = calldatasize
-    v12 = sub v11, v10
-    v13 = slt v12, 32
+    v12 = add v10, 32
+    v13 = lt v11, v12
     icall revert_if<calldata_tail_too_short>, v13
     v14 = calldataload v10
     v15 = ptrtoint ptr<calldata> v0 to i256
@@ -385,8 +385,8 @@ fn @copyDynamicFixed(arg0: slice<calldata>) -> i256 [selector=0xde674e0a, abi_pa
     icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
-    v6 = sub v4, v5
-    v7 = slt v6, v2
+    v6 = add v5, v2
+    v7 = lt v4, v6
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -526,8 +526,8 @@ fn @copyDynamicFixedWiden(arg0: slice<calldata>) -> i256 [selector=0x48878fa6, a
     icall panic_if<0x41>, v3
     v4 = calldatasize
     v5 = ptrtoint ptr<calldata> v1 to i256
-    v6 = sub v4, v5
-    v7 = slt v6, v2
+    v6 = add v5, v2
+    v7 = lt v4, v6
     icall revert_if<calldata_tail_too_short>, v7
     v8 = mul v0, 32
     v9 = gt v0, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
@@ -684,8 +684,8 @@ fn @copyFixed(arg0: slice<calldata>) -> i256 [selector=0x4ae52609, abi_params=[a
     v0 = extract_value slice<calldata>, arg0, 0
     v1 = calldatasize
     v2 = ptrtoint ptr<calldata> v0 to i256
-    v3 = sub v1, v2
-    v4 = slt v3, 128
+    v3 = add v2, 128
+    v4 = lt v1, v3
     icall revert_if<calldata_tail_too_short>, v4
     v5 = alloc 64
     jump bb1

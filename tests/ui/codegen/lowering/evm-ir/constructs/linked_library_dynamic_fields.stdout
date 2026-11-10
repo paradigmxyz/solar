@@ -417,46 +417,49 @@ bb8 [entry]:                                      ; function go(uint256 base, ui
   dup 1
   calldatasize
   sub
-  swap 2
-  dup 3
   push 5
   shr
-  dup 6
+  dup 5
   gt
+  swap 1
+  swap 2
   or
   push 68
   calldataload
   push 4
   dup 2
   add
-  swap 5
+  swap 4
   lt
-  dup 5
+  dup 4
   calldataload
-  swap 5
+  swap 4
   push 32
   add
   swap 1
   dup 2
   calldatasize
   sub
-  dup 7
+  dup 6
   gt
   or
   swap 1
   swap 2
   or
-  dup 6
+  dup 5
   push 5
   shl
-  swap 4
+  swap 1
+  dup 2
   dup 5
-  sgt
+  add
+  calldatasize
+  lt
   or
   push bb4
   jumpi
   push 32
-  dup 4
+  dup 2
   add
   push 32
   dup 2
@@ -476,9 +479,9 @@ bb8 [entry]:                                      ; function go(uint256 base, ui
   push 32
   dup 2
   add
-  swap 4
+  swap 2
+  dup 5
   dup 4
-  dup 6
   calldatacopy
   push 63
   dup 6
@@ -497,7 +500,7 @@ bb8 [entry]:                                      ; function go(uint256 base, ui
   dup 7
   add
   swap 5
-  dup 3
+  dup 4
   dup 7
   calldatacopy
   push 64
@@ -548,14 +551,14 @@ bb8 [entry]:                                      ; function go(uint256 base, ui
   add
   swap 5
   swap 2
-  swap 8
+  swap 6
   swap 1
   mcopy
-  dup 6
+  dup 4
   dup 4
   sub
   push 64
-  dup 8
+  dup 6
   add
   mstore
   swap 7
@@ -586,25 +589,23 @@ bb8 [entry]:                                      ; function go(uint256 base, ui
   swap 1
   swap 3
   mcopy
-  swap 3
+  swap 1
   push 96
   add
   push 100
   calldataload
   swap 1
   mstore
-  pop
-  pop
-  swap 2
+  swap 4
   swap 1
-  swap 2
+  swap 4
   sub
   push 4
   add
-  push 0
-  swap 1
   push 32
-  swap 3
+  push 0
+  dup 3
+  dup 6
   push 0x1000000000000000000000000000000000000001
   gas
   delegatecall

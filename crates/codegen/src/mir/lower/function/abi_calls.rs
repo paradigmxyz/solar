@@ -920,14 +920,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Reverts unless `size` bytes at `start` lie inside calldata.
     ///
-    /// The bound is `slt(sub(calldatasize(), start), size)`: a pointer that wrapped through an
-    /// accepted negative tail offset compares as in range and reads zero-filled calldata.
+    /// The bound is `gt(add(start, size), calldatasize())`, unsigned: a pointer that wrapped
+    /// through an accepted negative tail offset lies above calldata, as solc's copy to memory
+    /// finds, and a signed compare would take it for in range and read zero-filled calldata.
     ///
     /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/codegen/YulUtilFunctions.cpp#L2550-L2557>
     fn check_calldata_range(&mut self, start: ValueId, size: ValueId) {
         let calldata_size = self.builder.calldatasize();
-        let remaining = self.builder.sub(calldata_size, start);
-        let invalid = self.builder.slt(remaining, size);
+        let end = self.builder.add(start, size);
+        let invalid = self.builder.gt(end, calldata_size);
         self.builder.revert_if(invalid, RevertReason::CalldataTailTooShort);
     }
 

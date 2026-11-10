@@ -23,8 +23,8 @@ fn @copy(arg0: slice<calldata>, arg1: i256, arg2: i256) -> i256 [selector=0xaabf
     icall panic_if<0x41>, v14
     v15 = calldatasize
     v16 = ptrtoint ptr<calldata> v12 to i256
-    v17 = sub v15, v16
-    v18 = slt v17, v13
+    v17 = add v16, v13
+    v18 = lt v15, v17
     icall revert_if<calldata_tail_too_short>, v18
     v19 = mul v11, 32
     v20 = gt v11, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
