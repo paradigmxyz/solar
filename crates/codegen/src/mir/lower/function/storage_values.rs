@@ -877,16 +877,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if let Some((size, encoding)) = self.cx.storage.packed_encoding(element)
             && size.bits() < 256
         {
-            // slot = slot_base + index / elements_per_slot
-            // offset = (index % elements_per_slot) * element_bytes
             let bytes = u64::from(size.bytes());
-            if bytes > 16 {
+            let per_slot = U256::from(32 / bytes);
+            if per_slot == U256::ONE {
                 // slot = slot_base + index, the element owns its slot
                 let slot = self.fixed_array_element_slot(slot_base, index, U256::ONE);
                 let location = StorageLocation::exclusive_word(size, encoding);
                 return Some(StorageAccess { slot, location, offset: None });
             }
-            let per_slot = U256::from(32 / bytes);
+            // slot = slot_base + index / elements_per_slot
+            // offset = (index % elements_per_slot) * element_bytes
             let location = StorageLocation::packed_word(size, encoding);
             if let Some(index) = self.builder.func().value_u256(index) {
                 // slot = add slot_base, imm index / elements_per_slot
@@ -1473,8 +1473,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // }
         self.builder.switch_to_block(cleanup_block);
         if let Some(location) = packed {
-            let new_slots = self.packed_array_slots(length, location);
-            let old_slots = self.packed_array_slots(old_length, location);
+            let new_slots = self.packed_array_slots(length, location.size.bytes());
+            let old_slots = self.packed_array_slots(old_length, location.size.bytes());
             self.builder.clear_storage_words(slot, new_slots, old_slots);
             self.builder.jump(write_block);
         } else {
@@ -1528,10 +1528,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// The number of data slots a packed array of `length` elements occupies.
-    fn packed_array_slots(&mut self, length: ValueId, location: StorageLocation) -> ValueId {
+    fn packed_array_slots(&mut self, length: ValueId, element_bytes: u8) -> ValueId {
         // slots = length / per_slot + (length % per_slot != 0)
         let (full_slots, remainder) =
-            packed_storage_array_position(&mut self.builder, length, location.size.bytes());
+            packed_storage_array_position(&mut self.builder, length, element_bytes);
         let has_partial_slot = self.builder.ne_zero(remainder);
         self.builder.add(full_slots, has_partial_slot)
     }
@@ -1556,9 +1556,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // }
         let (size, encoding) = self.cx.storage.packed_encoding(element)?;
         let location = StorageLocation::packed_word(size, encoding);
-        let bits = u64::from(size.bits());
-        let per_slot = self.builder.imm(256 / bits);
-        let slots = self.packed_array_slots(length, location);
+        let per_slot = self.builder.imm(256 / u64::from(size.bits()));
+        let element_bits = self.builder.imm(u64::from(size.bits()));
+        let zero = self.builder.imm(0);
+        let slots = self.packed_array_slots(length, size.bytes());
         let data_slot = self.builder.storage_array_data_slot(slot);
         self.counted_loop(slots, |this, word_index| {
             let first = this.builder.mul(word_index, per_slot);
@@ -1566,13 +1567,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let short = this.builder.lt(rest, per_slot);
             let count = this.builder.select(short, rest, per_slot);
 
+            // word = 0
+            // for j in 0..count { word |= field(object[first + j]) << j * element_bits }
             let preheader = this.builder.current_block();
             let header = this.builder.create_block();
             let body = this.builder.create_block();
             let exit = this.builder.create_block();
             this.builder.jump(header);
             this.builder.switch_to_block(header);
-            let zero = this.builder.imm(0);
             let index_in_word = this.builder.phi(vec![(preheader, zero)]);
             let word = this.builder.phi(vec![(preheader, zero)]);
             let more = this.builder.lt(index_in_word, count);
@@ -1584,8 +1586,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = this.decode_memory_scalar(source_element, value);
             this.validate_enum(element, value);
             let field = location.field_word(&mut this.builder, value);
-            let bits = this.builder.imm(bits);
-            let shift = this.builder.mul(index_in_word, bits);
+            let shift = this.builder.mul(index_in_word, element_bits);
             let field = this.builder.shl(field, shift);
             let next_word = this.builder.or(word, field);
             let next_index = this.builder.add_offset(index_in_word, 1);
@@ -1594,6 +1595,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             this.builder.add_phi_incoming(index_in_word, backedge, next_index);
             this.builder.add_phi_incoming(word, backedge, next_word);
 
+            // sstore(data_slot + w, word)
             this.builder.switch_to_block(exit);
             let word_slot = this.builder.add(data_slot, word_index);
             this.builder.sstore(word_slot, word);
