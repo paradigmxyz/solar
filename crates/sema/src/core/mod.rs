@@ -74,6 +74,21 @@ pub enum CoreIntrinsic {
     Copy { calldata: bool },
     Truncate,
     KeccakRange,
+    ReturnAbiEncoded,
+    ReturnRaw,
+    Forward,
+    ForwardDelegate,
+    GasFirst,
+}
+
+impl CoreIntrinsic {
+    /// Whether this operation ends the current external call successfully.
+    pub fn returns_from_call(self) -> bool {
+        matches!(
+            self,
+            Self::ReturnAbiEncoded | Self::ReturnRaw | Self::Forward | Self::ForwardDelegate
+        )
+    }
 }
 
 /// Identifies declarations by their exact compiler-owned source, never a user function's name.
@@ -83,6 +98,18 @@ pub fn intrinsic_of(gcx: crate::Gcx<'_>, function: hir::FunctionId) -> Option<Co
     let path = module_path(&gcx.hir.source(function.source).file.name)?;
     let name = gcx.item_name(id).name;
     match path {
+        "solar:core/Build.sol" if name == sym::gasFirst => Some(GasFirst),
+        "solar:core/Return.sol" => match name {
+            sym::abiEncoded => Some(ReturnAbiEncoded),
+            sym::raw => Some(ReturnRaw),
+            _ => None,
+        },
+        "solar:core/Calls.sol" => match name {
+            sym::forward => Some(Forward),
+            sym::forwardDelegate => Some(ForwardDelegate),
+            _ => None,
+        },
+
         "solar:core/Bits.sol" => match name {
             sym::leadingZeros => Some(LeadingZeros),
             sym::highestSetBit => Some(HighestSetBit),

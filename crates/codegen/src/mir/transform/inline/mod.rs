@@ -86,6 +86,7 @@ use crate::{
 use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_evmir::debug::DebugLocKind;
+use solar_interface::Span;
 use solar_sema::Gcx;
 
 mod all_sites;
@@ -1633,6 +1634,42 @@ fn inline_call_impl(
     callee: &Function,
     caller_is_external: bool,
 ) -> Option<()> {
+    if is_small_literal_return(callee) {
+        let call_inst = caller.blocks[call_block].instructions[call_inst_index];
+        let InstKind::ICall { args, .. } = caller.inst(call_inst).kind.clone() else { return None };
+        return inline_literal_call(
+            caller,
+            call_block,
+            call_inst_index,
+            callee,
+            args,
+            caller.inst_result_value(call_inst)?,
+        );
+    }
+    let replacements = inline_analysis_call(
+        caller,
+        call_block,
+        call_inst_index,
+        callee,
+        caller_is_external,
+        |_, _, _| {},
+    )?;
+    caller.replace_uses(&replacements);
+    rebuild_predecessors(caller);
+    prune_phi_incoming_to_predecessors(caller);
+    Some(())
+}
+
+/// Clones one call for an analysis, leaving use replacement and CFG repair to the batch's end.
+/// The caller must discard its analysis copy if cloning fails.
+pub(crate) fn inline_analysis_call(
+    caller: &mut Function,
+    call_block: BlockId,
+    call_inst_index: usize,
+    callee: &Function,
+    caller_is_external: bool,
+    mut returned: impl FnMut(BlockId, &[ValueId], Option<Span>),
+) -> Option<FxHashMap<ValueId, ValueId>> {
     let call_inst = caller.blocks[call_block].instructions[call_inst_index];
     let InstKind::ICall { args, .. } = caller.inst(call_inst).kind.clone() else {
         return None;
@@ -1642,17 +1679,6 @@ fn inline_call_impl(
     let call_result = caller.inst_result_value(call_inst);
     if returns > 0 && call_result.is_none() {
         return None;
-    }
-
-    if is_small_literal_return(callee) {
-        return inline_literal_call(
-            caller,
-            call_block,
-            call_inst_index,
-            callee,
-            args,
-            call_result?,
-        );
     }
 
     // Calls can carry raw pointer words; cloned semantic operations still require
@@ -1716,6 +1742,9 @@ fn inline_call_impl(
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
     cloner.caller.blocks[call_block].terminator_metadata = call_metadata.clone();
 
+    for (block, values) in &cloner.return_edges {
+        returned(*block, values, cloner.caller.blocks[*block].terminator_metadata.source_span());
+    }
     let mut replacements = FxHashMap::default();
     if returns > 0 {
         let return_values = build_return_values(
@@ -1736,10 +1765,7 @@ fn inline_call_impl(
         )?;
     }
 
-    cloner.caller.replace_uses(&replacements);
-    rebuild_predecessors(cloner.caller);
-    prune_phi_incoming_to_predecessors(cloner.caller);
-    Some(())
+    Some(replacements)
 }
 
 /// Splices a literal initializer into the call block so ABI lowering can see

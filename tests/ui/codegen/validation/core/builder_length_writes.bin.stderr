@@ -1,0 +1,28 @@
+error: this uses a builder after `finish` emptied it
+   ╭▸ ROOT/tests/ui/codegen/validation/core/builder_length_writes.sol:LL:CC
+   │
+LL │             Buffers.appendByte(b, parts[i]);
+   │             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: the builder is emptied here
+   ╭▸ ROOT/tests/ui/codegen/validation/core/builder_length_writes.sol:LL:CC
+   │
+LL │             if (i + 1 == parts.length) out = Buffers.finish(b);
+   │                                              ━━━━━━━━━━━━━━━━━
+   ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
+
+error: this uses a builder after `finish` emptied it
+   ╭▸ ROOT/tests/ui/codegen/validation/core/builder_length_writes.sol:LL:CC
+   │
+LL │             if (i + 1 == parts.length) out = Buffers.finish(b);
+   │                                              ━━━━━━━━━━━━━━━━━
+   ╰╴
+note: an earlier iteration empties the builder here
+   ╭▸ ROOT/tests/ui/codegen/validation/core/builder_length_writes.sol:LL:CC
+   │
+LL │             if (i + 1 == parts.length) out = Buffers.finish(b);
+   │                                              ━━━━━━━━━━━━━━━━━
+   ╰ help: finish a builder once, after its last append, and start another with `Buffers.create`
+
+error: aborting due to 2 previous errors
+

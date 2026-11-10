@@ -31,3 +31,6 @@ mod source_maps;
 
 #[cfg(feature = "codegen")]
 mod debugify;
+
+#[cfg(feature = "cli")]
+mod core_buffers;

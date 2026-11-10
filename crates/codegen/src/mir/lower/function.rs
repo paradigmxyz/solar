@@ -31,6 +31,7 @@ use std::{fmt::Display, sync::Arc};
 
 mod abi_calls;
 mod abi_values;
+mod builders;
 mod builtins;
 mod calls;
 mod control_flow;
@@ -47,6 +48,8 @@ mod statements;
 mod storage_values;
 mod values;
 mod word;
+
+pub(super) use builders::{check_builder_finishes, finish_functions};
 
 use word::Word;
 
@@ -463,6 +466,8 @@ fn helper_name(prefix: Symbol, suffix: impl Display) -> Symbol {
 pub(super) struct InternalFunctionPointerRegistry {
     /// Pointer targets in first-use order; a pointer value is the target's index plus one.
     targets: FxIndexSet<hir::FunctionId>,
+    /// Whether any builtin needs the objective of an indirect call site.
+    contextual_objective: bool,
     dispatchers: FxHashMap<FunctionId, InternalFunctionPointerDispatch>,
     /// Functions whose pointers may reach inline assembly, which can retype them.
     assembly_exposed: FxHashSet<hir::FunctionId>,
@@ -492,6 +497,8 @@ pub(super) struct InternalFunctionPointerDispatch {
     /// Whether the pointers may come from inline assembly, which also makes the functions
     /// exposed to assembly with a word-compatible shape reachable.
     from_assembly: bool,
+    /// The caller's objective for context-sensitive builtins, when any target needs it.
+    gas_first: Option<bool>,
 }
 
 fn internal_function_pointer_id(index: usize) -> u64 {
@@ -1141,7 +1148,9 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
         .filter(|(_, function)| function.attributes.is_function_pointer_dispatcher)
         .map(|(id, _)| (state.pointer_registry.dispatchers[&id].clone(), id))
         .collect::<Vec<_>>();
-    for (InternalFunctionPointerDispatch { shape, from_assembly }, dispatcher) in dispatchers {
+    for (InternalFunctionPointerDispatch { shape, from_assembly, gas_first }, dispatcher) in
+        dispatchers
+    {
         let candidates = state
             .pointer_registry
             .targets
@@ -1199,6 +1208,29 @@ pub(super) fn generate_internal_function_pointer_dispatchers(
 
                 builder.switch_to_block(case_block);
                 let previous_span = builder.replace_source_span(gcx.hir.function(function_id).span);
+                if matches!(
+                    solar_sema::core::intrinsic_of(gcx, function_id),
+                    Some(solar_sema::core::CoreIntrinsic::GasFirst)
+                ) && let Some(gas_first) = gas_first
+                {
+                    // Keep the caller's objective even through an assembly-retyped pointer.
+                    // result = reinterpret caller_gas_first to the dispatcher's return carrier
+                    // ret result
+                    let value = builder.imm_bool(gas_first);
+                    let carrier = builder.func().return_type();
+                    let value = reinterpret_word(
+                        &mut builder,
+                        value,
+                        candidate_shape.returns[0],
+                        shape.returns[0],
+                        carrier,
+                        carrier == MirType::I256,
+                    );
+                    builder.ret([value]);
+                    builder.replace_source_span(previous_span);
+                    builder.switch_to_block(next_block);
+                    continue;
+                }
                 let call_arguments = arguments
                     .iter()
                     .copied()

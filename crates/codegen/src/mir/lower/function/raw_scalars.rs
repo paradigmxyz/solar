@@ -542,6 +542,13 @@ impl LoweringState {
         contract: hir::ContractId,
         functions: &[(hir::FunctionId, bool)],
     ) {
+        self.pointer_registry.contextual_objective = !gcx.sess.opts.unstable.no_core_intrinsics
+            && functions.iter().any(|&(id, _)| {
+                matches!(
+                    solar_sema::core::intrinsic_of(gcx, id),
+                    Some(solar_sema::core::CoreIntrinsic::GasFirst)
+                )
+            });
         let mut exposure = Exposure {
             gcx,
             contract,

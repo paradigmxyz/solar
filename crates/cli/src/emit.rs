@@ -108,6 +108,8 @@ pub(crate) fn emit_requested(
         None
     };
 
+    validate_unemitted_builders(gcx, artifacts.as_ref())?;
+
     if let Some(contracts) = &dump_contracts
         && has_mir_dump(gcx)
     {
@@ -1003,4 +1005,40 @@ pub(crate) fn to_json<W: io::Write, T: serde::Serialize>(
     } else {
         serde_json::to_writer(writer, value)
     }
+}
+
+/// Builder lifetime validation needs semantic MIR even when only an ABI was requested. Do not
+/// run optimization or the backend for these contracts, and do not lower one twice when its
+/// requested bytecode or IR already checked it.
+fn validate_unemitted_builders(
+    gcx: Gcx<'_>,
+    artifacts: Option<&FxHashMap<ContractId, ContractArtifact>>,
+) -> Result {
+    let Some(source) = gcx.hir.source_ids().find(|&id| {
+        solar_sema::core::module_path(&gcx.hir.source(id).file.name)
+            == Some("solar:core/Buffers.sol")
+    }) else {
+        return Ok(());
+    };
+    let finish = gcx
+        .hir
+        .function_ids()
+        .filter(|&id| {
+            let function = gcx.hir.function(id);
+            function.source == source
+                && function.name.is_some_and(|name| name.name == solar_interface::sym::finish)
+        })
+        .collect::<solar_data_structures::map::FxHashSet<_>>();
+    for id in gcx.hir.contract_ids() {
+        if gcx.hir.contract(id).can_be_deployed()
+            && !artifacts.is_some_and(|artifacts| artifacts.contains_key(&id))
+            && gcx
+                .contract_reachable_functions(id)
+                .iter()
+                .any(|function| finish.contains(&function))
+        {
+            drop(solar_codegen::mir::lower::lower_contract(gcx, id));
+        }
+    }
+    gcx.dcx().has_errors()
 }
