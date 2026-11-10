@@ -241,11 +241,24 @@ impl Session {
     /// Symbols are the same in both sessions, so code running inside this session's
     /// [`enter`](Self::enter) can parse through the fork and keep what it parses, while every
     /// diagnostic stays in `dcx`, for example a buffer the caller inspects instead of failing the
-    /// compilation. The fork uses the diagnostics context's source map when it has one.
+    /// compilation. Both sessions allocate source spans in the same source map, so parsed spans
+    /// also resolve correctly through global consumers after the fork is dropped.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `dcx` has a source map different from this session's. Build private emitters with
+    /// [`clone_source_map`](Self::clone_source_map), or without a source map for unlocated
+    /// messages.
     pub fn with_diagnostics(&self, dcx: DiagCtxt) -> Self {
+        if let Some(source_map) = dcx.source_map() {
+            assert!(
+                Arc::ptr_eq(&source_map, &self.source_map),
+                "forked diagnostics source map must match the session source map"
+            );
+        }
         Self {
             opts: self.opts.clone(),
-            source_map: dcx.source_map().unwrap_or_else(|| self.source_map.clone()),
+            source_map: self.source_map.clone(),
             dcx,
             globals: self.globals.clone(),
             thread_pool: OnceLock::new(),
@@ -949,5 +962,56 @@ mod tests {
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
         let err = fork.dcx.emitted_errors().unwrap().unwrap_err();
         assert!(err.to_string().contains("error: private"), "{err:?}");
+    }
+
+    #[test]
+    #[should_panic(expected = "forked diagnostics source map must match the session source map")]
+    fn diagnostic_fork_rejects_a_foreign_source_map() {
+        let sess = enter_tests_session();
+        let foreign = Arc::new(SourceMap::empty());
+        foreign
+            .new_source_file(crate::source_map::FileName::Custom("foreign".into()), "other")
+            .unwrap();
+        let dcx = DiagCtxt::with_buffer_emitter(Some(foreign), ColorChoice::Never);
+        let _ = sess.with_diagnostics(dcx);
+    }
+
+    #[test]
+    fn diagnostic_fork_spans_keep_their_global_source_identity() {
+        let sess = enter_tests_session();
+        let source_map = sess.clone_source_map();
+        let dcx = DiagCtxt::with_buffer_emitter(Some(source_map), ColorChoice::Never)
+            .with_flags(|flags| flags.track_diagnostics = false);
+        let fork = sess.with_diagnostics(dcx);
+        let file = fork
+            .source_map()
+            .new_source_file(crate::source_map::FileName::Custom("candidate".into()), "body")
+            .unwrap();
+        let span = crate::Span::new(file.start_pos, file.end_position());
+        sess.enter(|| {
+            assert!(fork.is_entered());
+            assert_eq!(fork.source_map().span_to_snippet(span).unwrap(), "body");
+            snapbox::assert_data_eq!(format!("{span:?}"), snapbox::str!["<candidate>:1:1: 1:5"]);
+            fork.dcx.err("candidate error").span(span).emit();
+        });
+        assert_eq!(sess.dcx.err_count(), 0);
+        assert_eq!(fork.dcx.err_count(), 1);
+        snapbox::assert_data_eq!(
+            fork.emitted_diagnostics().unwrap().to_string(),
+            snapbox::str![[r#"
+error: candidate error
+  ╭▸ <candidate>:1:1
+  │
+1 │ body
+  ╰╴━━━━
+
+
+"#]]
+        );
+        drop(fork);
+        sess.enter(|| {
+            snapbox::assert_data_eq!(format!("{span:?}"), snapbox::str!["<candidate>:1:1: 1:5"]);
+            assert_eq!(sess.source_map().span_to_snippet(span).unwrap(), "body");
+        });
     }
 }

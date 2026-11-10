@@ -75,8 +75,9 @@ pub(super) fn parse(sess: &Session, source: &SourceFile) -> Result<Module> {
 ///
 /// Candidate text is untrusted, so it may not use what the module-level parser accepts on trust:
 /// `!metadata`, `undef`, `err`, implicit arguments, numeric `fnN` references, `entry`, ABI
-/// layouts, or libraries and struct types the module does not declare. Exactly one function must
-/// follow, and its function references resolve against `module` by name.
+/// layouts in instructions, or libraries and struct types the module does not declare. Function
+/// ABI headers can round-trip, but replacement validation must match them to the original.
+/// Exactly one function must follow, with function references resolved against `module` by name.
 pub(super) fn parse_candidate(
     sess: &Session,
     source: &SourceFile,
@@ -457,7 +458,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if !self.parser.is_eof() {
             return Err(self.parser.error("expected the end of the candidate after its function"));
         }
-        // ABI layouts, the only source of new struct types, are rejected where they start.
+        // Instruction layouts may not introduce struct types into the unchanged module.
         if self.struct_types.len() != module.struct_types.len() {
             return Err(self.parser.error("candidates may not declare struct types"));
         }
@@ -492,6 +493,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             function.internal_frame_size = original.internal_frame_size;
             function.external_static_return_size = original.external_static_return_size;
+            // Data locations are compiler-owned and have no textual spelling. Keep them even
+            // for an edited body; validation still rejects changed ABI layouts or signatures.
+            function.abi_param_locations = original.abi_param_locations.clone();
         }
         Ok(function)
     }
@@ -720,15 +724,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 sym::abi_returns => {
                     self.parser.expect(TokenKind::Eq)?;
-                    builder.func_mut().abi_returns = Some(self.parse_abi_layout()?);
+                    builder.func_mut().abi_returns = Some(self.parse_abi_layout_contents()?);
                 }
                 sym::abi_return_params => {
                     self.parser.expect(TokenKind::Eq)?;
-                    builder.func_mut().abi_return_params = Some(self.parse_abi_param_layout()?);
+                    builder.func_mut().abi_return_params =
+                        Some(self.parse_abi_param_layout_contents()?);
                 }
                 sym::abi_params => {
                     self.parser.expect(TokenKind::Eq)?;
-                    builder.func_mut().abi_params = Some(self.parse_abi_param_layout()?);
+                    builder.func_mut().abi_params = Some(self.parse_abi_param_layout_contents()?);
                 }
                 sym::abi_wrapper => builder.func_mut().attributes.is_abi_wrapper = true,
                 sym::entry if self.candidate => {
@@ -1067,6 +1072,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// layouts are interned so repeated encodes share one allocation.
     fn parse_abi_layout(&mut self) -> PResult<'sess, AbiLayoutRef> {
         self.reject_candidate_abi_layout()?;
+        self.parse_abi_layout_contents()
+    }
+
+    /// Parses a function's ABI header as data, without granting it any trusted body facts.
+    fn parse_abi_layout_contents(&mut self) -> PResult<'sess, AbiLayoutRef> {
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
         let mut types = Vec::new();
         if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
@@ -1097,8 +1107,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         layout
     }
 
-    /// Rejects an ABI layout in a candidate: lowered MIR has none, and a layout could declare
-    /// struct types the module lacks.
+    /// Rejects instruction ABI layouts in candidates: they can introduce struct types that the
+    /// unchanged module lacks. Function headers use the contents parsers and remain validated.
     fn reject_candidate_abi_layout(&self) -> PResult<'sess, ()> {
         if self.candidate {
             return Err(self.parser.error("candidates may not use ABI layouts"));
@@ -1179,6 +1189,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_abi_param_layout(&mut self) -> PResult<'sess, AbiParamLayout> {
         self.reject_candidate_abi_layout()?;
+        self.parse_abi_param_layout_contents()
+    }
+
+    /// Parses ABI parameter headers; the replacement validator checks them against the original.
+    fn parse_abi_param_layout_contents(&mut self) -> PResult<'sess, AbiParamLayout> {
         self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
         let mut types = Vec::new();
         if !self.parser.eat(TokenKind::CloseDelim(Delimiter::Bracket)) {
@@ -2491,11 +2506,7 @@ mod candidate_tests {
     use super::*;
     use crate::AbiParamLocation;
     use snapbox::{assert_data_eq, str};
-    use solar_interface::{
-        ColorChoice,
-        diagnostics::DiagCtxt,
-        source_map::{FileName, SourceMap},
-    };
+    use solar_interface::{ColorChoice, diagnostics::DiagCtxt, source_map::FileName};
     use std::sync::Arc;
 
     #[test]
@@ -2757,14 +2768,16 @@ error: expected `fn`
 
     /// Parses `input` as a candidate for `module`, rendering diagnostics privately.
     fn parse_candidate(sess: &Session, module: &Module, input: &str) -> Result<Function, String> {
-        let source_map = Arc::new(SourceMap::empty());
+        let source_map = sess.clone_source_map();
+        let name = format!("candidate{}", source_map.files().len());
         let dcx = DiagCtxt::with_buffer_emitter(Some(Arc::clone(&source_map)), ColorChoice::Never)
             .with_flags(|flags| flags.track_diagnostics = false);
         let fork = sess.with_diagnostics(dcx);
-        let file = source_map.new_source_file(FileName::Custom("candidate".into()), input).unwrap();
-        module
-            .parse_function(&fork, &file)
-            .map_err(|_| fork.dcx.emitted_diagnostics().unwrap().to_string())
+        let file = source_map.new_source_file(FileName::Custom(name.clone()), input).unwrap();
+        module.parse_function(&fork, &file).map_err(|_| {
+            // Normalize only the fresh test file's name; spans still use the shared source map.
+            fork.dcx.emitted_diagnostics().unwrap().to_string().replace(&name, "candidate")
+        })
     }
 
     #[test]
@@ -2820,6 +2833,61 @@ error: expected `fn`
                 crate::MirPhase::Semantic,
             )
             .is_err());
+        });
+    }
+
+    #[test]
+    fn semantic_entry_candidates_keep_abi_headers_and_locations() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let mut module = parse_module(&sess, "@module AbiCandidates
+fn @constructor(arg0: ptr<memory>) [abi_params=[bytes], creation_only] {
+  bb0:
+    mstore arg0, 1
+    ret
+}
+fn @entry_f(arg0: ptr<memory>) -> i256 [selector=0x12345678, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = add 1, 2
+    ret v0
+}
+fn @from_calldata(arg0: slice<calldata>) -> i256 [selector=0x87654321, abi_params=[bytes], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = add 1, 2
+    ret v0
+}").unwrap();
+            for (index, location) in [(0, AbiParamLocation::Memory), (1, AbiParamLocation::Memory), (2, AbiParamLocation::Calldata)] {
+                let id = FunctionId::new(index);
+                module.functions[id].abi_param_locations = Some(Box::new([location]));
+                let original = &module.functions[id];
+                let printed = module.candidate_text(original).to_string();
+                let unchanged = parse_candidate(&sess, &module, &printed).unwrap();
+                let edited = printed.replace("mstore arg0, 1", "mstore arg0, 2")
+                    .replace("add 2, 1", "add 2, 3");
+                assert_ne!(edited, printed);
+                let candidate = parse_candidate(&sess, &module, &edited).unwrap();
+                for body in [&unchanged, &candidate] {
+                    assert_eq!(body.abi_params, original.abi_params);
+                    assert_eq!(body.abi_returns, original.abi_returns);
+                    assert_eq!(body.abi_return_params, original.abi_return_params);
+                    assert_eq!(body.abi_param_locations, original.abi_param_locations);
+                    let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+                    assert!(crate::analysis::validate_function_at_phase(
+                        &dcx, &module, id, body, crate::MirPhase::Semantic,
+                    ).is_ok(), "{}", dcx.emitted_diagnostics().unwrap());
+                }
+                // Header syntax is data to validate, never permission to change the interface.
+                for text in [
+                    edited.replace("abi_params=[bytes]", "abi_params=[uint256]"),
+                    edited.replace("abi_params=[bytes]", "abi_params=[]"),
+                ] {
+                    let candidate = parse_candidate(&sess, &module, &text).unwrap();
+                    let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never);
+                    assert!(crate::analysis::validate_function_at_phase(
+                        &dcx, &module, id, &candidate, crate::MirPhase::Semantic,
+                    ).is_err());
+                }
+            }
         });
     }
 }
