@@ -235,7 +235,7 @@ impl Smt {
             }
             jobs.push((
                 "z3(bv)".into(),
-                "z3".into(),
+                std::env::var("SOLVERUS_Z3").unwrap_or_else(|_| "z3".into()),
                 vec!["-in".into(), "-smt2".into(), format!("-t:{t}")],
                 bv.clone(),
             ));
