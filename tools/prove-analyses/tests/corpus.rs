@@ -3,7 +3,8 @@
 //! loses facts it proves today nor starts proving false ones.
 //!
 //! The test needs Z3 and is skipped, with a message on stderr, when it is missing: set
-//! `SOLAR_Z3` to the binary, or `SOLAR_REQUIRE_Z3=1` to fail instead. It builds the compiler unless `SOLAR_BIN` names one.
+//! `SOLAR_Z3` to the binary, or `SOLAR_REQUIRE_Z3=1` to fail instead. It builds the compiler unless
+//! `SOLAR_BIN` names one.
 
 #![allow(clippy::disallowed_methods)]
 
