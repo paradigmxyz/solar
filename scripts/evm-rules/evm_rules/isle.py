@@ -339,7 +339,9 @@ class Context:
             )
             return value
         if name == "word_value" and not args:
-            self.contracts.add("word_value: the Rust extractor excludes `i1` values")
+            self.contracts.add(
+                "word_value: the Rust extractor matches only integers wider than `i1`"
+            )
             return self.fresh()
         raise Unsupported(f"unmodeled extractor: {name}")
 

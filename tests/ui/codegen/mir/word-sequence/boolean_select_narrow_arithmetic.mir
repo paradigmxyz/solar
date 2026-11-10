@@ -3,7 +3,7 @@
 //@[size] compile-flags: -Osize -Zmir-pipeline=word-sequence,lower-evm-shaped
 @module BooleanSelectNarrowArithmetic
 
-// A select of booleans keeps no recipe that needs arithmetic at one bit: `lowered` MIR rejects it.
+// No select recipe needs arithmetic at one bit, which `lowered` MIR rejects.
 fn @all_ones_left(arg0: i1, arg1: i1) -> i1 {
   bb0:
     v0 = select arg0, true, arg1

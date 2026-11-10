@@ -31,7 +31,7 @@
 (decl bool_value () Value)
 (extern extractor bool_value bool_value)
 
-;; A value that is not an `i1`: arithmetic on it is not narrow, so it may stay in the `lowered` phase.
+;; An integer value wider than `i1`: arithmetic on it is not narrow, so it may stay in the `lowered` phase.
 (decl word_value () Value)
 (extern extractor word_value word_value)
 
