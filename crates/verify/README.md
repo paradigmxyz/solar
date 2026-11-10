@@ -1,6 +1,6 @@
 # solar-verify
 
-`solar-verify`, a deductive verifier for Solidity, and `specmut`, a tester for its specs.
+`solar-verify`, a deductive verifier for Solidity, with mutation testing of its specs.
 
 Specs are written next to the code in NatSpec `@custom:` tags. Every function is proved
 **modularly** with Z3: a ✔ means the property holds for all inputs and storage states, under the
@@ -141,15 +141,32 @@ skipped, so a ✔ is never produced over code solar-verify did not model.
 
 ## Spec mutation testing
 
-`tools/specmut.py` measures how much a file's specs pin down. It mutates the bodies of functions
-that verify and re-verifies each mutant and every function that can reach it. A mutant is killed
-only by a failure with a counterexample. Surviving mutants whose optimized bytecode equals the
-original's are equivalent (this needs solc, from `--solc`, `$SOLC` or `PATH`); the rest are
-reported with their diffs. Triage records live next to the file in `<file>.equiv.json`.
+`solar-verify mutate FILE.sol` measures how much a file's specs pin down. It mutates the bodies of
+functions that verify and that some spec reaches, re-verifies each mutant in the mutated function
+and every function that can reach it, and reports each surviving mutant as a warning at the
+mutated code. Only a failure with a counterexample kills a mutant.
 
-```sh
-uv run crates/verify/tools/specmut.py --bin target/release/solar-verify -j 8 crates/verify/examples/Token.sol
+The operators replace relational (ROR), arithmetic (AOR) and logical (LCR) operators, booleans
+(BOOL) and decimal constants (CRP), and delete expression statements (SDL) and `if` guards that
+only revert (GDL). Inline assembly is not mutated.
+
+```text
+$ solar-verify mutate --per-fn 3 examples/Counter.sol
+killed     Counter.constructor SDL line 11: `limit = _limit;` -> `` (by Counter.constructor)
+...
+survived   Counter.max ROR line 34: `>=` -> `>`
+mutation results:: 7 killed, 1 survived, 0 equivalent, 0 undecided, 0 stillborn; score 7/8 = 88%
 ```
 
-`--list` prints the mutants without verifying them, `--only REGEX` restricts them to matching
-`Contract.fn`, and `--rerun` re-runs survivors after the specs change.
+Flags:
+
+- `--list`: print the mutants of every function a spec reaches, without running the verifier.
+- `--json`: also print one JSON row per mutant.
+- `--ops ROR,AOR,...`: the operators to use (default all).
+- `--per-fn N`: at most N mutants per function (default 12), drawn round-robin over its operators
+  in a `--seed`ed order.
+- `--max-affected N`: re-verify at most N functions per mutant (default 8).
+- `--only Contract[.fn]`, `--jobs N`, `--timeout MS`, `--strict`: as for verification.
+- `--solc PATH`, `--no-tce`: with solc (from `--solc`, `$SOLC` or `PATH`), a survivor whose
+  optimized bytecode equals the original's is equivalent and leaves the score; one in a function
+  no bytecode contains, or in an internal function or modifier, stays a survivor with a note.

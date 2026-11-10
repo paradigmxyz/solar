@@ -1,6 +1,7 @@
 //! solar-verify: Verus-style deductive verification for Solidity, built on Solar.
 mod bvlower;
 mod interval;
+mod mutate;
 mod prog;
 mod smt;
 mod spec;
@@ -17,8 +18,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[cfg(test)]
-use serde_json as _;
 #[cfg(test)]
 use snapbox as _;
 
@@ -60,12 +59,12 @@ fn parse_cli() -> Cli {
             "-h" | "--help" => {
                 println!(
                     "usage: solar-verify [--strict] [--timeout MS] [--only Contract.fn] [--jobs N] [--dump-smt FILE] [--instrument OUT.sol] FILE.sol...\n\n\
-                     --dry-run  generate every obligation without running a solver (see --dump-smt)
-\
+                     --dry-run  generate every obligation without running a solver (see --dump-smt)\n\
                      --instrument OUT.sol  write FILE with every @custom:check claim as a require\n\
                      \x20          (deploy that: the verification assumed the checks hold)\n\
                      --strict   arithmetic overflow, division by zero, out-of-bounds and pop-on-empty are\n\
-                     \x20          verification errors instead of (sound) reverting paths"
+                     \x20          verification errors instead of (sound) reverting paths\n\n\
+                     solar-verify mutate --help: spec mutation testing"
                 );
                 std::process::exit(0);
             }
@@ -221,6 +220,10 @@ fn run_parallel(cli: &Cli) -> ! {
 }
 
 fn main() {
+    let mut args = std::env::args().skip(1).peekable();
+    if args.peek().is_some_and(|a| a == "mutate") {
+        mutate::main(args.skip(1));
+    }
     let cli = parse_cli();
     if cli.jobs > 1 && cli.only.is_none() && cli.dump_smt.is_none() && cli.instrument.is_none() {
         run_parallel(&cli);

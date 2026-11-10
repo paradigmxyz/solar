@@ -1,7 +1,8 @@
 //! Tests of the `solar-verify` binary.
 //!
-//! The snapshot tests need no solver: they run `--dry-run` or `--instrument` and pin the
-//! frontend's diagnostics, the SMT-LIB obligations of a function and the instrumented source.
+//! The snapshot tests need no solver: they run `--dry-run`, `--instrument` or `mutate --list` and
+//! pin the frontend's diagnostics, the SMT-LIB obligations of a function, the instrumented source
+//! and the mutants drawn for a file.
 //!
 //! The other tests need z3 and are skipped, with a message on stderr, when it is missing (set
 //! `SOLAR_VERIFY_Z3`, or `SOLAR_VERIFY_REQUIRE_Z3=1` to fail instead). In each case file every
@@ -190,6 +191,23 @@ fn instrument() {
     let in_tests = Path::new("tests/snapshots/instrument.instrumented.sol");
     check(in_tests.to_str().unwrap());
     let _ = std::fs::remove_file(&out);
+}
+
+#[test]
+fn mutate_list() {
+    let run = run_verifier(&["mutate", "--list", "--per-fn", "100", "tests/snapshots/mutants.sol"]);
+    assert_data_eq!(tidy(&run.stdout), file!["snapshots/mutants.list"]);
+}
+
+/// Counter's specs kill every drawn mutant but one: `>=` -> `>` in `max`, which no spec
+/// constrains.
+#[test]
+fn mutate_counter() {
+    if z3_missing() {
+        return;
+    }
+    let run = run_verifier(&["mutate", "--per-fn", "3", "--no-tce", "examples/Counter.sol"]);
+    assert_data_eq!(tidy(&run.stdout), file!["snapshots/counter.mutate.stdout"]);
 }
 
 #[test]
