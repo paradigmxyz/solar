@@ -190,11 +190,12 @@ failures into regression tests, and record accepted differences in
 [SOLC_DIVERGENCE.md](docs/SOLC_DIVERGENCE.md).
 
 - Do not chase solc parity on differences ordinary Solidity would not hit, such
-  as revert data only, assembly-forged values, dirty bits, malformed calldata,
-  or absurd type sizes: record them in SOLC_DIVERGENCE.md with a UI test that
-  pins our behavior. Never accept a parity fix that makes the compiler more
-  complex or slower, or the generated code bigger or slower, unless the
-  difference matters by that test.
+  as revert data only, assembly-forged values, dirty bits left by earlier storage
+  writes, or absurd type sizes: record them in SOLC_DIVERGENCE.md with a UI test
+  that pins our behavior. Malformed calldata may differ from solc only in revert
+  data: never accept an input that solc rejects. Never accept a parity fix that
+  makes the compiler more complex or slower, or the generated code bigger or
+  slower, unless the difference matters by that test.
 
 ### Codegen / MIR Pass Tests
 

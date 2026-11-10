@@ -1092,22 +1092,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Coverage: `tests/ui/codegen/run-call/calldata/calldata_struct_short_head.sol`
   and `tests/ui/codegen/run-call/calldata/calldata_array_short_head.sol`.
 
-### CODEGEN-017: A calldata offset with bit 255 set is not rejected
-
-- ID: CODEGEN-017
-- Status: intentional
-- Difference: reading or copying a `bytes calldata` or `string calldata` whose
-  offset has bit 255 set returns zeros in `solar`, and `solc` reverts with
-  empty data. Two inputs reach it: an offset that inline assembly sets, and
-  malformed calldata with a nested ABI offset of `2**255`, as in `a[0]` of a
-  `bytes[]` or `string[]` calldata array or the `bytes` or `string` member of a
-  calldata struct. Dynamic arrays behind such an offset revert in both.
-- Rationale: both need forged assembly or malformed calldata. The range check is
-  signed, so such an offset passes; an unsigned bound would add a comparison to
-  every calldata read.
-- Coverage: `tests/ui/codegen/run-call/calldata/calldata_slice_high_offset_copy.sol`
-  and `tests/ui/codegen/run-call/calldata/calldata_nested_high_offset.sol`.
-
 ### CODEGEN-018: Dirty storage padding of arrays survives a copy
 
 - ID: CODEGEN-018
