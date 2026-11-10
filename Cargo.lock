@@ -4700,6 +4700,8 @@ version = "0.3.0"
 dependencies = [
  "num-bigint 0.5.1",
  "num-traits",
+ "serde_json",
+ "snapbox",
  "solar-parse",
 ]
 

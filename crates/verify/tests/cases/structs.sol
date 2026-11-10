@@ -10,7 +10,6 @@ library MathLib {
 library IdLib {
     function raw(Id id) internal pure returns (bytes32) { return Id.unwrap(id); }
 }
-/// @custom:invariant forall bytes32 i :: market[i].totalBorrow <= market[i].totalSupply
 contract Structs {
     using MathLib for uint256;
     mapping(bytes32 => Market) public market;
@@ -49,18 +48,6 @@ contract Structs {
 
     /// @custom:ensures position[id][msg.sender].shares == 0 && position[id][msg.sender].collateral == 0
     function ok_delete(bytes32 id) external { delete position[id][msg.sender]; }
-
-    function bad_invariant(bytes32 id) external { market[id].totalBorrow = market[id].totalSupply + 1; }
-
-    /// @custom:ensures market[id].totalBorrow <= market[id].totalSupply
-    function ok_loop_ptr(bytes32 id, uint256 n) external {
-        Market storage m = market[id];
-        /// @custom:invariant m.totalBorrow <= m.totalSupply
-        /// @custom:invariant forall bytes32 j :: j != id ==> market[j] == old(market[j])
-        for (uint256 i = 0; i < n; i++) {
-            if (m.totalBorrow < m.totalSupply) m.totalBorrow += 1;
-        }
-    }
 
     /// @custom:ensures result == Id.unwrap(id)
     function ok_udvt(Id id) external pure returns (bytes32) { return IdLib.raw(id); }

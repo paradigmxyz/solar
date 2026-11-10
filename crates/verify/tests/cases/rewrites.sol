@@ -228,6 +228,9 @@ contract H {
         bytes32 h = keccak256(abi.encode(v, r, a));
         emit E(h);
     }
+    /// Each hash of a dynamic array is arbitrary, so this must not verify. z3 finds no model of
+    /// the hash axioms, so the verdict is unknown rather than a counterexample.
+    // expect: solver returned unknown
     /// @custom:ensures result == keccak256(abi.encode(v, r))
     function bad_hash_arrays(uint64 v, address[] calldata r) external pure returns (bytes32 result) {
         result = keccak256(abi.encode(v, r));

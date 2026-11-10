@@ -12,7 +12,15 @@ use solar_parse::{
     Parser, ast,
     interface::{Session, Span, data_structures::map::FxHashSet},
 };
-use std::path::{Path, PathBuf};
+use std::{
+    io::IsTerminal,
+    path::{Path, PathBuf},
+};
+
+#[cfg(test)]
+use serde_json as _;
+#[cfg(test)]
+use snapbox as _;
 
 struct Cli {
     files: Vec<PathBuf>,
@@ -23,6 +31,7 @@ struct Cli {
     json: bool,
     jobs: usize,
     instrument: Option<PathBuf>,
+    dry_run: bool,
 }
 
 fn parse_cli() -> Cli {
@@ -35,6 +44,7 @@ fn parse_cli() -> Cli {
         json: false,
         instrument: None,
         jobs: 1,
+        dry_run: false,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -44,11 +54,14 @@ fn parse_cli() -> Cli {
             "--dump-smt" => c.dump_smt = it.next().map(PathBuf::from),
             "--only" => c.only = it.next(),
             "--json" => c.json = true,
+            "--dry-run" => c.dry_run = true,
             "--instrument" => c.instrument = it.next().map(PathBuf::from),
             "--jobs" | "-j" => c.jobs = it.next().and_then(|x| x.parse().ok()).unwrap_or(1),
             "-h" | "--help" => {
                 println!(
                     "usage: solverus [--strict] [--timeout MS] [--only Contract.fn] [--jobs N] [--dump-smt FILE] [--instrument OUT.sol] FILE.sol...\n\n\
+                     --dry-run  generate every obligation without running a solver (see --dump-smt)
+\
                      --instrument OUT.sol  write FILE with every @custom:check claim as a require\n\
                      \x20          (deploy that: the verification assumed the checks hold)\n\
                      --strict   arithmetic overflow, division by zero, out-of-bounds and pop-on-empty are\n\
@@ -66,23 +79,38 @@ fn parse_cli() -> Cli {
     c
 }
 
-fn loc(sess: &Session, sp: Span) -> (String, usize, usize, String) {
-    let l = sess.source_map().lookup_char_pos(sp.lo());
-    let line = l.file.get_line(l.data.line - 1).map(|s| s.to_string()).unwrap_or_default();
-    (format!("{}", l.file.name.display()), l.data.line, l.data.col.0 + 1, line)
+/// The 1-based line of `sp`.
+fn line(sess: &Session, sp: Span) -> usize {
+    sess.source_map().lookup_char_pos(sp.lo()).data.line
 }
 
 fn report(sess: &Session, kind: &str, sp: Span, notes: &[String]) {
-    let (f, line, col, text) = loc(sess, sp);
-    eprintln!("\x1b[1;31merror\x1b[0m\x1b[1m: {kind}\x1b[0m");
-    eprintln!("   \x1b[1;34m-->\x1b[0m {f}:{line}:{col}");
-    eprintln!("    \x1b[1;34m|\x1b[0m");
-    eprintln!("\x1b[1;34m{line:>3} |\x1b[0m {}", text.trim_end());
-    eprintln!("    \x1b[1;34m|\x1b[0m");
+    let mut diag = sess.dcx.err(kind.to_string()).span(sp);
     for n in notes {
-        eprintln!("    \x1b[1;34m=\x1b[0m {n}");
+        diag = diag.note(n.clone());
     }
-    eprintln!();
+    diag.emit();
+}
+
+/// The verdict mark, coloured when stdout is a terminal.
+fn mark(ok: bool) -> &'static str {
+    match (ok, std::io::stdout().is_terminal()) {
+        (true, true) => "\x1b[32m✔\x1b[0m",
+        (true, false) => "✔",
+        (false, true) => "\x1b[31m✘\x1b[0m",
+        (false, false) => "✘",
+    }
+}
+
+/// A session whose diagnostics go to stderr. None are deduplicated (two failures may read alike)
+/// or tracked (they are verification results, not compiler bugs).
+fn session() -> Session {
+    let s = Session::builder().with_stderr_emitter().build();
+    s.dcx.set_flags(|f| {
+        f.deduplicate_diagnostics = false;
+        f.track_diagnostics = false;
+    });
+    s
 }
 
 /// --jobs N: verify each function in its own child process, N at a time. Children re-parse the
@@ -90,7 +118,7 @@ fn report(sess: &Session, kind: &str, sp: Span, notes: &[String]) {
 fn run_parallel(cli: &Cli) -> ! {
     let mut names: Vec<(PathBuf, String)> = vec![];
     let mut fe_errors = 0;
-    let sess = Session::builder().with_stderr_emitter().build();
+    let sess = session();
     let ok = sess.enter_sequential(|| -> Result<(), ()> {
         let arena = ast::Arena::new();
         for file in &cli.files {
@@ -140,6 +168,9 @@ fn run_parallel(cli: &Cli) -> ! {
                     ]);
                     if cli.strict {
                         cmd.arg("--strict");
+                    }
+                    if cli.dry_run {
+                        cmd.arg("--dry-run");
                     }
                     if cli.json {
                         cmd.arg("--json");
@@ -195,7 +226,7 @@ fn main() {
         run_parallel(&cli);
     }
     let child = std::env::var_os("SOLVERUS_CHILD").is_some();
-    let sess = Session::builder().with_stderr_emitter().build();
+    let sess = session();
     let mut total_ok = 0;
     let mut total_err = 0;
     let mut smt_log = String::new();
@@ -232,7 +263,11 @@ fn main() {
                         continue;
                     }
                     let t0 = std::time::Instant::now();
-                    let smt = smt::Smt::new(cli.timeout, cli.dump_smt.is_some()).expect("could not start z3 (set SOLVERUS_Z3)");
+                    let smt = if cli.dry_run {
+                        smt::Smt::dry(cli.dump_smt.is_some())
+                    } else {
+                        smt::Smt::new(cli.timeout, cli.dump_smt.is_some()).expect("could not start z3 (set SOLVERUS_Z3)")
+                    };
                     let mut v = vc::Vc::new(&program, c, smt, &vc::Opts { strict: cli.strict });
                     if v.inlined_only(f) {
                         continue;
@@ -262,12 +297,12 @@ fn main() {
                         };
                         let mut msgs: Vec<String> = vec![];
                         if let Some((sp, m)) = &rep.unsupported {
-                            msgs.push(format!("{}:{}", loc(&sess, *sp).1, m));
+                            msgs.push(format!("{}:{}", line(&sess, *sp), m));
                         }
                         for fl in &rep.fails {
                             let sp = fl.spec.as_ref().map(|s| s.1).unwrap_or(fl.span);
                             let n = fl.note.clone().map(|n| format!(" ({n})")).unwrap_or_default();
-                            msgs.push(format!("{}:{}{}{}", loc(&sess, sp).1, fl.kind, fl.spec.as_ref().map(|s| format!(": {}", s.0)).unwrap_or_default(), n));
+                            msgs.push(format!("{}:{}{}{}", line(&sess, sp), fl.kind, fl.spec.as_ref().map(|s| format!(": {}", s.0)).unwrap_or_default(), n));
                         }
                         let msgs: Vec<String> = msgs.iter().map(|m| format!("\"{}\"", esc(m))).collect();
                         json_rows.push(format!(
@@ -282,25 +317,24 @@ fn main() {
                     }
                     for w in &rep.warnings {
                         if let Some(n) = w.strip_prefix("note: ") {
-                            eprintln!("\x1b[1;36mnote\x1b[0m: {}: {n}", rep.name);
+                            sess.dcx.note(format!("{}: {n}", rep.name)).emit();
                         } else {
-                            eprintln!("\x1b[1;33mwarning\x1b[0m: {}: {w}", rep.name);
+                            sess.dcx.warn(format!("{}: {w}", rep.name)).emit();
                         }
                     }
                     if rep.fails.is_empty() {
                         total_ok += 1;
-                        println!("\x1b[32m✔\x1b[0m {} ({} obligations)", rep.name, rep.checks);
+                        println!("{} {} ({} obligations)", mark(true), rep.name, rep.checks);
                     } else {
                         total_err += 1;
-                        println!("\x1b[31m✘\x1b[0m {} ({} of {} obligations failed)", rep.name, rep.fails.len(), rep.checks);
+                        println!("{} {} ({} of {} obligations failed)", mark(false), rep.name, rep.fails.len(), rep.checks);
                         for fl in &rep.fails {
                             let mut notes = vec![format!("in {}", rep.name)];
                             let mut sp = fl.span;
                             if let Some((text, ssp)) = &fl.spec {
                                 notes.push(format!("failing spec: {text}"));
                                 if ssp != &fl.span {
-                                    let (_, l, _, _) = loc(&sess, *ssp);
-                                    let (_, l2, _, _) = loc(&sess, fl.span);
+                                    let (l, l2) = (line(&sess, *ssp), line(&sess, fl.span));
                                     if l != l2 {
                                         notes.push(format!("spec declared at line {l}; checked at line {l2}"));
                                     }

@@ -15,10 +15,10 @@ pub(crate) enum Res {
 /// arithmetic in particular), so every answer is read against a wall-clock deadline: on overrun the
 /// process is killed, a fresh one is started and the persistent part of the transcript (everything
 /// sent outside check) is replayed, so later obligations still run.
+///
+/// A dry-run `Smt` has no process: it records the transcript and answers every query unknown.
 pub(crate) struct Smt {
-    child: Child,
-    inp: ChildStdin,
-    out: Receiver<String>,
+    z3: Option<Z3>,
     timeout_ms: u64,
     transcript: String,
     pub log: Option<String>,
@@ -36,7 +36,13 @@ pub(crate) struct Stats {
     pub wins: std::collections::BTreeMap<String, usize>,
 }
 
-fn spawn(timeout_ms: u64) -> std::io::Result<(Child, ChildStdin, Receiver<String>)> {
+struct Z3 {
+    child: Child,
+    inp: ChildStdin,
+    out: Receiver<String>,
+}
+
+fn spawn(timeout_ms: u64) -> std::io::Result<Z3> {
     let mut child = Command::new(std::env::var("SOLVERUS_Z3").unwrap_or_else(|_| "z3".into()))
         .args(["-in", "-smt2"])
         .stdin(Stdio::piped())
@@ -61,36 +67,45 @@ fn spawn(timeout_ms: u64) -> std::io::Result<(Child, ChildStdin, Receiver<String
     let _ = inp.write_all(
         format!("(set-option :produce-models true)\n(set-option :timeout {timeout_ms})\n(set-option :smt.mbqi true)\n").as_bytes(),
     );
-    Ok((child, inp, rx))
+    Ok(Z3 { child, inp, out: rx })
 }
 
 impl Drop for Smt {
     fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        if let Some(z3) = &mut self.z3 {
+            let _ = z3.child.kill();
+            let _ = z3.child.wait();
+        }
     }
 }
 
 impl Smt {
     pub(crate) fn new(timeout_ms: u64, log: bool) -> std::io::Result<Self> {
-        let (child, inp, out) = spawn(timeout_ms)?;
-        Ok(Self {
-            child,
-            inp,
-            out,
-            timeout_ms,
+        let mut smt = Self::dry(log);
+        smt.z3 = Some(spawn(timeout_ms)?);
+        smt.timeout_ms = timeout_ms;
+        Ok(smt)
+    }
+
+    /// An `Smt` that runs no solver (`--dry-run`).
+    pub(crate) fn dry(log: bool) -> Self {
+        Self {
+            z3: None,
+            timeout_ms: 0,
             transcript: String::new(),
             log: if log { Some(String::new()) } else { None },
             stats: Stats::default(),
             error: None,
-        })
+        }
     }
 
     fn raw(&mut self, s: &str) {
         if let Some(l) = &mut self.log {
             l.push_str(s);
         }
-        let _ = self.inp.write_all(s.as_bytes());
+        if let Some(z3) = &mut self.z3 {
+            let _ = z3.inp.write_all(s.as_bytes());
+        }
     }
 
     /// Persistent commands (declarations, assertions, push/pop of a function scope).
@@ -101,20 +116,25 @@ impl Smt {
 
     fn restart(&mut self) {
         self.stats.kills += 1;
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-        if let Ok((c, i, o)) = spawn(self.timeout_ms) {
-            self.child = c;
-            self.inp = i;
-            self.out = o;
-            let t = self.transcript.clone();
-            let _ = self.inp.write_all(t.as_bytes());
+        let Some(z3) = &mut self.z3 else { return };
+        let _ = z3.child.kill();
+        let _ = z3.child.wait();
+        if let Ok(mut fresh) = spawn(self.timeout_ms) {
+            let _ = fresh.inp.write_all(self.transcript.as_bytes());
+            *z3 = fresh;
+        }
+    }
+
+    fn flush(&mut self) {
+        if let Some(z3) = &mut self.z3 {
+            let _ = z3.inp.flush();
         }
     }
 
     fn line(&mut self, deadline: Instant) -> Option<String> {
         let left = deadline.saturating_duration_since(Instant::now());
-        match self.out.recv_timeout(left) {
+        let z3 = self.z3.as_ref()?;
+        match z3.out.recv_timeout(left) {
             Ok(l) => Some(l),
             Err(RecvTimeoutError::Timeout) | Err(RecvTimeoutError::Disconnected) => None,
         }
@@ -178,6 +198,12 @@ impl Smt {
     }
 
     pub(crate) fn check(&mut self, guard: &str, goal: &str, cex: &[(String, String)]) -> Res {
+        if self.z3.is_none() {
+            self.stats.queries += 1;
+            self.raw(&format!("(push 1)\n(assert {guard})\n(assert (not {goal}))\n(check-sat)\n"));
+            self.raw("(pop 1)\n");
+            return Res::Unknown("unknown (--dry-run)".into());
+        }
         let r = self.check_z3(guard, goal, cex);
         if let Some(e) = &self.error {
             return Res::Unknown(format!("internal solver error: {e}"));
@@ -294,7 +320,7 @@ impl Smt {
         let t0 = Instant::now();
         let deadline = t0 + Duration::from_millis(self.timeout_ms + 2000);
         self.raw(&format!("(push 1)\n(assert {guard})\n(assert (not {goal}))\n(check-sat)\n"));
-        let _ = self.inp.flush();
+        self.flush();
         let Some(ans) = self.read_answer(deadline) else {
             self.restart();
             self.stats.solver_ms += t0.elapsed().as_millis();
@@ -307,7 +333,7 @@ impl Smt {
                 let deadline = Instant::now() + Duration::from_secs(5);
                 for (name, term) in cex {
                     self.raw(&format!("(get-value ({term}))\n"));
-                    let _ = self.inp.flush();
+                    self.flush();
                     let Some(s) = self.read_sexp(deadline) else {
                         break;
                     };
@@ -320,7 +346,7 @@ impl Smt {
             }
             other => {
                 self.raw("(get-info :reason-unknown)\n");
-                let _ = self.inp.flush();
+                self.flush();
                 let why =
                     self.read_sexp(Instant::now() + Duration::from_secs(2)).unwrap_or_default();
                 Res::Unknown(format!("{other} {}", why.trim()))
