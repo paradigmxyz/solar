@@ -60,6 +60,10 @@ struct Args {
     /// The Z3 binary: `SOLAR_PROVE_ANALYSES_Z3`, or `z3` on `PATH`.
     #[arg(long)]
     z3: Option<PathBuf>,
+    /// A Bitwuzla binary to try on the queries Z3 leaves undecided alone, for `--timeout`
+    /// seconds each. Its limit is wall-clock time, so these verdicts can vary between runs.
+    #[arg(long)]
+    bitwuzla: Option<PathBuf>,
     /// Comma-separated `-O` levels.
     #[arg(long, default_value = "gas,size", value_delimiter = ',')]
     levels: Vec<String>,
@@ -253,6 +257,7 @@ fn run(mut command: Command, input: Option<String>, timeout: Duration) -> Option
 
 struct Solver {
     z3: PathBuf,
+    bitwuzla: Option<PathBuf>,
     batch_limit: u64,
     limit: u64,
     timeout: Duration,
@@ -268,6 +273,7 @@ impl Solver {
             .map_err(|e| format!("cannot run {}: {e}; pass --z3", z3.display()))?;
         Ok(Self {
             z3,
+            bitwuzla: args.bitwuzla.clone(),
             batch_limit: args.rlimit_batch,
             limit: args.rlimit,
             timeout: Duration::from_secs(args.timeout),
@@ -336,18 +342,26 @@ impl Solver {
             self.limit,
             fs::read_to_string(query).unwrap_or_default()
         );
-        let output = self.z3(script, self.timeout + Duration::from_secs(10));
-        let mut lines = output.as_deref().map(str::lines).into_iter().flatten();
-        let verdict = match output.as_deref() {
-            None => "timeout",
-            Some(_) => match lines.next() {
-                Some(line) if line.starts_with("(error") && line.contains("memory") => "memout",
-                Some(line) if line.starts_with("(error") => "error",
-                Some(line) => line,
-                None => "error",
-            },
-        };
-        let mut record = record(query, source, verdict, "exact");
+        let mut output = self.z3(script, self.timeout + Duration::from_secs(10));
+        let mut tier = "exact";
+        if !matches!(verdict_of(output.as_deref()), "sat" | "unsat")
+            && let Some(bitwuzla) = &self.bitwuzla
+        {
+            // Bitwuzla's abstraction of wide multiplication and division decides many of the
+            // queries Z3 runs out of resources on.
+            let mut command = Command::new(bitwuzla);
+            let limit = self.timeout.as_millis().to_string();
+            let memory = self.memory.to_string();
+            command.args(["-m", "-t", &limit, "-M", &memory]).arg(query);
+            let fallback = run(command, None, self.timeout + Duration::from_secs(10));
+            if matches!(verdict_of(fallback.as_deref()), "sat" | "unsat") {
+                output = fallback;
+                tier = "bitwuzla";
+            }
+        }
+        let verdict = verdict_of(output.as_deref());
+        let mut lines = output.as_deref().map(str::lines).into_iter().flatten().skip(1);
+        let mut record = record(query, source, verdict, tier);
         if verdict == "sat"
             && let Some(model) = lines.next()
         {
@@ -367,6 +381,17 @@ impl Solver {
         let mut command = Command::new(&self.z3);
         command.args(["-in", "-smt2", &format!("-memory:{}", self.memory)]);
         run(command, Some(script), timeout)
+    }
+}
+
+/// A solver's verdict from its output, or `timeout` without one.
+fn verdict_of(output: Option<&str>) -> &str {
+    let Some(output) = output else { return "timeout" };
+    match output.lines().next() {
+        Some(line) if line.starts_with("(error") && line.contains("memory") => "memout",
+        Some(line) if line.starts_with("(error") => "error",
+        Some(line) => line,
+        None => "error",
     }
 }
 
