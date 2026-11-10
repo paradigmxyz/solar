@@ -1,0 +1,112 @@
+- ; === ROOT/tests/ui/codegen/debug-info/mir/merge_equivalent_functions_label_origins.mir (before merge-equivalent-functions) ===
++ ; === ROOT/tests/ui/codegen/debug-info/mir/merge_equivalent_functions_label_origins.mir (after merge-equivalent-functions) ===
+  @module SharedLabels
+  fn @first(arg0: i256) -> i256 {
+-   bb0 !metadata(span=10..20):
+-     v0 = add arg0, 1 !metadata(span=30..40)
+-     ret v0 !metadata(span=30..40)
++   bb0 !metadata(spans=[10..20, 50..60]):
++     v0 = add arg0, 1 !metadata(spans=[30..40, 70..80])
++     ret v0 !metadata(spans=[30..40, 70..80])
+  }
+  
+  fn @second(arg0: i256) -> i256 {
+    bb0 !metadata(span=50..60):
+      v0 = add arg0, 1 !metadata(span=70..80)
+      ret v0 !metadata(span=70..80)
+  }
+  
+  fn @live(arg0: i256) -> i256 {
+    bb0 !metadata(span=90..100):
+-     v0 = add arg0, 7 !metadata(span=110..120)
+-     ret v0 !metadata(span=110..120)
++     v0 = add arg0, 7 !metadata(spans=[110..120, 150..160])
++     ret v0 !metadata(spans=[110..120, 150..160])
+  }
+  
+  fn @uncalled(arg0: i256) -> i256 {
+    bb0 !metadata(span=130..140):
+      v0 = add arg0, 7 !metadata(span=150..160)
+      ret v0 !metadata(span=150..160)
+  }
+  
+  fn @reached(arg0: i256) -> i256 {
+    bb0 !metadata(span=170..180):
+-     v0 = add arg0, 9 !metadata(span=190..200)
+-     ret v0 !metadata(span=190..200)
++     v0 = add arg0, 9 !metadata(spans=[190..200, 230..240])
++     ret v0 !metadata(spans=[190..200, 230..240])
+  }
+  
+  fn @dead_callee(arg0: i256) -> i256 {
+    bb0 !metadata(span=210..220):
+      v0 = add arg0, 9 !metadata(span=230..240)
+      ret v0 !metadata(span=230..240)
+  }
+  
+  fn @dead_caller(arg0: i256) -> i256 {
+    bb0:
+-     v0 = icall @dead_callee, arg0
++     v0 = icall @reached, arg0
+      ret v0
+  }
+  
+  fn @uncalled_first(arg0: i256) -> i256 {
+-   bb0 !metadata(span=250..260):
+-     v0 = add arg0, 11 !metadata(span=290..300)
+-     ret v0 !metadata(span=290..300)
++   bb0 !metadata(span=270..280):
++     v0 = add arg0, 11 !metadata(spans=[290..300, 310..320])
++     ret v0 !metadata(spans=[290..300, 310..320])
+  }
+  
+  fn @called_second(arg0: i256) -> i256 {
+    bb0 !metadata(span=270..280):
+      v0 = add arg0, 11 !metadata(span=310..320)
+      ret v0 !metadata(span=310..320)
+  }
+  
+  fn @uncalled_base(arg0: i256) -> i256 {
+-   bb0 !metadata(span=330..340):
+-     v0 = add arg0, 13 !metadata(span=390..400)
+-     ret v0 !metadata(span=390..400)
++   bb0 !metadata(spans=[350..360, 370..380]):
++     v0 = add arg0, 13 !metadata(spans=[390..400, 410..420, 430..440])
++     ret v0 !metadata(spans=[390..400, 410..420, 430..440])
+  }
+  
+  fn @called_a(arg0: i256) -> i256 {
+    bb0 !metadata(span=350..360):
+      v0 = add arg0, 13 !metadata(span=410..420)
+      ret v0 !metadata(span=410..420)
+  }
+  
+  fn @called_b(arg0: i256) -> i256 {
+    bb0 !metadata(span=370..380):
+      v0 = add arg0, 13 !metadata(span=430..440)
+      ret v0 !metadata(span=430..440)
+  }
+  
+  ; selector 0x01020304
+  fn @entry(arg0: i256) -> i256 [selector=0x01020304] {
+    bb0:
+      v0 = icall @first, arg0
+-     v1 = icall @second, arg0
++     v1 = icall @first, arg0
+      v2 = icall @live, arg0
+      v3 = icall @reached, arg0
+-     v4 = icall @called_second, arg0
++     v4 = icall @uncalled_first, arg0
+      v5 = add v0, v1
+      v6 = add v2, v3
+      v7 = add v5, v6
+      v8 = add v7, v4
+-     v9 = icall @called_a, arg0
+-     v10 = icall @called_b, arg0
++     v9 = icall @uncalled_base, arg0
++     v10 = icall @uncalled_base, arg0
+      v11 = add v9, v10
+      v12 = add v8, v11
+      ret v12
+  }
+  
