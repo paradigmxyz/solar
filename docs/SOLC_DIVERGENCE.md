@@ -1123,10 +1123,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - ID: CODEGEN-019
 - Status: intentional
 - Difference: reading a default element of a memory struct whose static field
-  needs `2**45` bytes or more (`2**40` words) reverts with `Panic(0x41)` or runs
-  out of gas in `solar`. `solc` with the optimizer returns zero, because it drops
-  the allocation. Fields up to `2**16` words return zero in both, and fields
-  from `2**17` to `2**30` words run out of gas in both.
+  needs `2**32` words (`2**37` bytes) or more reverts with `Panic(0x41)` or
+  runs out of gas in `solar`. `solc` via-IR returns zero, with or without the
+  optimizer, because it truncates the field length to 32 bits and allocates
+  nothing. Fields up to `2**16` words return zero in both, and fields from
+  `2**17` to `2**31` words run out of gas in both.
 - Rationale: no contract can allocate such a type. Matching `solc` would need
   the zero defaults to be read without backing memory, which adds compiler
   complexity for a size nothing can use.
