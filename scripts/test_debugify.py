@@ -3,6 +3,7 @@
 import json
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 from debugify_report import has_changes, load_baseline, markdown, summarize
@@ -56,6 +57,25 @@ class DebugifyReportTests(unittest.TestCase):
             },
         )
         self.assertIn("mir/example.mir/report", markdown(report))
+        self.assertEqual(
+            report["by_test_pass"],
+            [
+                {
+                    "test": "mir/example.mir/check",
+                    "ir": "MIR",
+                    "pass": "dce",
+                    "losses": 1,
+                    "lost_origins": 1,
+                },
+                {
+                    "test": "mir/example.mir/report",
+                    "ir": "MIR",
+                    "pass": "dce",
+                    "losses": 1,
+                    "lost_origins": 2,
+                },
+            ],
+        )
 
     def test_baseline_comparison_lists_changed_passes_and_tests(self):
         self.write(
@@ -174,7 +194,11 @@ class DebugifyReportTests(unittest.TestCase):
         self.assertIn("No shared test changed its lost origins", report)
         self.assertIn("Added tests (no same-test comparison)", report)
         self.assertIn("| b/default | 1 | 2 |", report)
-        self.assertIn("Changed pass totals vs `main` (all tests", report)
+        self.assertIn("No shared pass changed its lost origins", report)
+        self.assertNotIn("Changed passes vs", report)
+        self.assertNotIn("❌", report)
+        self.assertIn("Added tests pass totals (no same-test comparison)", report)
+        self.assertIn("| MIR | dce | 1 | 2 |", report)
         self.assertTrue(has_changes(head, base))
 
     def test_test_set_changes_do_not_hide_shared_test_regressions(self):
@@ -194,6 +218,8 @@ class DebugifyReportTests(unittest.TestCase):
             "| lost origins (shared tests) | 1 | 2 | ❌ +1, +100.00% |", report
         )
         self.assertIn("Changed shared tests vs `main`", report)
+        self.assertIn("Changed passes vs `main` (shared tests only)", report)
+        self.assertIn("| MIR | dce | 1 | 1 → 2 (❌ +1, +100.00%) |", report)
         self.assertIn("| a/default | 1 | 1 → 2 (❌ +1, +100.00%) |", report)
         self.assertIn("| lost origins (all tests) | 3 | 2 | test sets differ |", report)
         self.assertNotIn("No shared test changed", report)
@@ -210,6 +236,9 @@ class DebugifyReportTests(unittest.TestCase):
         self.assertIn("Removed tests: 1 (1 lost origins)", report)
         self.assertIn("Removed tests (no same-test comparison)", report)
         self.assertIn("| b/default | 1 | 1 |", report)
+        self.assertIn("Removed tests pass totals (no same-test comparison)", report)
+        self.assertNotIn("✅", report)
+        self.assertNotIn("Changed passes vs", report)
 
     def test_gap_regressions_in_new_tests_remain_visible(self):
         self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 1, 1, []))
@@ -324,6 +353,126 @@ class DebugifyReportTests(unittest.TestCase):
         self.write("bad.jsonl", self.record("MIR", "dce", 2, 2, [[10, 20]]))
         with self.assertRaisesRegex(ValueError, "inconsistent origin counts"):
             summarize(self.root)
+
+    def test_new_pass_on_shared_tests_is_a_real_regression(self):
+        self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 1, 0, [[1, 2]]))
+        self.write(
+            "head/a/default/x.jsonl",
+            self.record("MIR", "dce", 1, 0, [[1, 2]]),
+            self.record("EVM IR", "new-pass", 2, 0, [[3, 4], [5, 6]]),
+        )
+        self.write(
+            "head/added/default/x.jsonl",
+            self.record("MIR", "added-only", 1, 0, [[7, 8]]),
+        )
+        base = summarize(self.root / "base")
+        head = summarize(self.root / "head")
+        report = markdown(head, base, "main")
+        self.assertIn("| EVM IR | new-pass | 0 → 1 (❌ +1) | 0 → 2 (❌ +2) |", report)
+        self.assertNotIn("| MIR | added-only | 0 →", report)
+        self.assertIn("| MIR | added-only | 1 | 1 |", report)
+
+    def test_loss_run_changes_are_reported_when_origin_totals_match(self):
+        self.write(
+            "base/a/default/x.jsonl", self.record("MIR", "dce", 2, 0, [[1, 2], [3, 4]])
+        )
+        self.write(
+            "head/a/default/x.jsonl",
+            self.record("MIR", "dce", 1, 0, [[1, 2]]),
+            self.record("MIR", "dce", 1, 0, [[3, 4]]),
+        )
+        base = summarize(self.root / "base")
+        head = summarize(self.root / "head")
+        self.assertEqual(base["lost_origins"], head["lost_origins"])
+        self.assertTrue(has_changes(head, base))
+        self.assertIn(
+            "| MIR | dce | 1 → 2 (❌ +1, +100.00%) | 2 |", markdown(head, base, "main")
+        )
+
+    def test_missing_per_test_pass_counts_are_not_guessed(self):
+        self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 1, 0, [[1, 2]]))
+        self.write(
+            "base/removed/default/x.jsonl",
+            self.record("MIR", "removed-only", 1, 0, [[3, 4]]),
+        )
+        self.write("head/a/default/x.jsonl", self.record("MIR", "dce", 1, 0, [[1, 2]]))
+        self.write(
+            "head/added/default/x.jsonl",
+            self.record("MIR", "added-only", 1, 0, [[5, 6]]),
+        )
+        base = summarize(self.root / "base")
+        head = summarize(self.root / "head")
+        for side in ("base", "head"):
+            before, after = deepcopy(base), deepcopy(head)
+            del (before if side == "base" else after)["by_test_pass"]
+            report = markdown(after, before, "main")
+            self.assertIn("Shared-test per-pass comparison unavailable", report)
+            self.assertNotIn("Changed passes vs", report)
+            self.assertNotIn("No shared pass changed", report)
+
+    def test_older_summary_can_compare_its_whole_test_set(self):
+        self.write("base/a/default/x.jsonl", self.record("MIR", "dce", 1, 0, [[1, 2]]))
+        self.write("head/a/default/x.jsonl", self.record("MIR", "dce", 1, 0, [[1, 2]]))
+        self.write(
+            "head/added/default/x.jsonl",
+            self.record("MIR", "dce", 2, 0, [[3, 4], [5, 6]]),
+        )
+        base = summarize(self.root / "base")
+        del base["by_test_pass"]
+        report = markdown(summarize(self.root / "head"), base, "main")
+        self.assertIn("No shared pass changed", report)
+        self.assertNotIn("comparison unavailable", report)
+        self.assertNotIn("❌", report)
+
+    def test_rebuild_older_baseline_from_verified_raw_audits(self):
+        self.write(
+            "base/a/default/x.jsonl", self.record("MIR", "dce", 2, 0, [[1, 2], [3, 4]])
+        )
+        expected = summarize(self.root / "base")
+        old = deepcopy(expected)
+        del old["by_test_pass"]
+        path = self.root / "baseline.json"
+        original = json.dumps(old)
+        path.write_text(original)
+        self.assertEqual(load_baseline(path, self.root / "base"), expected)
+        self.assertEqual(path.read_text(), original)
+        for field in ("lost_origins", "by_test", "by_pass"):
+            bad = deepcopy(old)
+            if field == "lost_origins":
+                bad[field] += 1
+            else:
+                bad[field][0]["losses"] += 1
+            path.write_text(json.dumps(bad))
+            with (
+                self.subTest(field=field),
+                self.assertRaisesRegex(ValueError, "raw baseline audits disagree"),
+            ):
+                load_baseline(path, self.root / "base")
+
+    def test_invalid_per_test_pass_counts_are_rejected(self):
+        self.write("a/default/x.jsonl", self.record("MIR", "dce", 1, 0, [[1, 2]]))
+        summary = summarize(self.root)
+        item = summary["by_test_pass"][0]
+        path = self.root / "baseline.json"
+        for index in (
+            None,
+            {},
+            [],
+            [item, item],
+            [{**item, "losses": 0}],
+            [{**item, "losses": True}],
+            [{**item, "losses": 2}],
+            [{**item, "lost_origins": 2}],
+            [{**item, "test": "missing"}],
+            [{**item, "ir": "unknown"}],
+            [{**item, "pass": ""}],
+        ):
+            path.write_text(json.dumps({**summary, "by_test_pass": index}))
+            with (
+                self.subTest(index=index),
+                self.assertRaisesRegex(ValueError, "invalid baseline summary"),
+            ):
+                load_baseline(path)
 
     @staticmethod
     def gaps(ir, name, opcodes):

@@ -48,8 +48,11 @@ output. It can be combined with either diagnostic mode. The
 suite without changing its diagnostic snapshots.
 
 When the audited test set changes, the report compares lost-origin totals on shared test/revision
-pairs and lists added and removed tests separately. All-test totals and per-pass counts remain
-visible; gaps always include every test, including new ones.
+pairs, including the per-pass comparison. Added and removed tests have separate absolute pass
+totals. Summaries keep a sparse index of per-test pass losses; older baselines can be rebuilt from
+their exact raw audits after checking that their counts agree. If those audits are unavailable,
+the report says which comparisons it cannot make. All-test totals remain visible, and gaps always
+include every test, including new ones.
 
 ## Operation Schema and ISLE Rules
 
