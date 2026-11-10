@@ -111,9 +111,9 @@
   
   fn @precompiles(arg0: ptr<memory>, arg1: i160) -> i256 {
     bb0:
-      v0 = extcall static scratch revert create i160 2, arg0
-      v1 = extcall static scratch revert create i160 3, arg0
-      v2 = extcall static scratch_clear revert create i160 1, arg0
+      v0 = extcall static word revert i160 2, arg0
+      v1 = extcall static word revert i160 3, arg0
+      v2 = extcall static word revert i160 1, arg0
       v3 = extcall arg1, arg0, gas 0x8fc, value 1
       extcall revert arg1, gas 0x8fc, value 1
       ret v2

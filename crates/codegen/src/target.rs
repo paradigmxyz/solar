@@ -1523,7 +1523,9 @@ impl Target {
             | InstKind::StorageArrayElementSlot { .. } => {
                 self.slot_expansion(func, kind).expect("a slot hash is priced")
             }
-            InstKind::ExtCall { policy, .. } => self.extcall(*policy),
+            InstKind::ExtCall { policy, address, .. } => {
+                self.extcall(*policy, func.extcall_clears_word(*address))
+            }
             InstKind::ICall { function: Callee::Builtin(Builtin::ReturndataBytes), .. } => {
                 Cost::new(60, 24)
             }
@@ -1596,16 +1598,16 @@ impl Target {
 
     /// Estimated code of an `extcall`, as `lower-builtins` expands it, excluding the staging
     /// of its input: the call with its gas and ranges, the branch to the shared revert of a
-    /// failure that forwards returndata, and the scratch word that a result is read from, and
-    /// that may be zeroed first.
-    pub(crate) fn extcall(&self, policy: CallPolicy) -> Cost {
+    /// failure that forwards returndata, and the scratch word that a result is read from, which
+    /// the expansion zeroes first when `clears_word` says so.
+    pub(crate) fn extcall(&self, policy: CallPolicy, clears_word: bool) -> Cost {
         let mut cost = Cost::new(720, 12);
         if policy.on_failure == CallFailure::Revert {
             cost += self.branch();
         }
-        if let CallOutput::ScratchWord { clear } = policy.output {
+        if policy.output == CallOutput::Word {
             cost += self.push(U256::ZERO) + self.opcode(op::MLOAD);
-            if clear {
+            if clears_word {
                 cost += self.push(U256::ZERO).times(2) + self.opcode(op::MSTORE);
             }
         }
@@ -1846,23 +1848,19 @@ mod tests {
             OptimizationMode::Gas,
             Target::DEFAULT_EXPECTED_EXECUTIONS,
         );
-        let price = |on_failure, output| {
-            target.extcall(CallPolicy {
-                kind: ExtCallKind::Static,
-                output,
-                on_failure,
-                may_create_account: true,
-            })
+        let price = |on_failure, output, clears_word| {
+            target
+                .extcall(CallPolicy { kind: ExtCallKind::Static, output, on_failure }, clears_word)
         };
-        let call = price(CallFailure::Return, CallOutput::None);
+        let call = price(CallFailure::Return, CallOutput::None, false);
         assert_eq!(call, Cost::new(720, 12));
         // A failure that reverts adds one branch to the shared revert.
-        let revert = price(CallFailure::Revert, CallOutput::None);
+        let revert = price(CallFailure::Revert, CallOutput::None, false);
         assert_eq!(revert, call + target.branch());
-        // A scratch word is loaded after the call, and zeroed before it when asked.
-        let word = price(CallFailure::Revert, CallOutput::ScratchWord { clear: false });
+        // A word is loaded after the call, and zeroed before it when the expansion asks.
+        let word = price(CallFailure::Revert, CallOutput::Word, false);
         assert_eq!(word, revert + target.push(U256::ZERO) + target.opcode(op::MLOAD));
-        let cleared = price(CallFailure::Revert, CallOutput::ScratchWord { clear: true });
+        let cleared = price(CallFailure::Revert, CallOutput::Word, true);
         assert_eq!(cleared, word + target.push(U256::ZERO).times(2) + target.opcode(op::MSTORE));
     }
 

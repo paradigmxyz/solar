@@ -1989,7 +1989,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 inst!(StorageBytesLoad(a) => MirType::MEMPTR)
             }
             sym::extcall => {
-                // extcall [static | delegate] [scratch | scratch_clear] [revert] [create]
+                // extcall [static | delegate] [word] [revert]
                 let kind = if self.parser.eat_keyword(kw::Static) {
                     ExtCallKind::Static
                 } else if self.parser.eat_keyword(sym::delegate) {
@@ -1997,10 +1997,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 } else {
                     ExtCallKind::Call
                 };
-                let output = if self.parser.eat_keyword(sym::scratch) {
-                    CallOutput::ScratchWord { clear: false }
-                } else if self.parser.eat_keyword(sym::scratch_clear) {
-                    CallOutput::ScratchWord { clear: true }
+                let output = if self.parser.eat_keyword(sym::word) {
+                    CallOutput::Word
                 } else {
                     CallOutput::None
                 };
@@ -2009,8 +2007,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 } else {
                     CallFailure::Return
                 };
-                let may_create_account = self.parser.eat_keyword(kw::Create);
-                let policy = CallPolicy { kind, output, on_failure, may_create_account };
+                let policy = CallPolicy { kind, output, on_failure };
                 let address = self.parse_value(builder)?;
                 let mut input = None;
                 let mut gas = None;

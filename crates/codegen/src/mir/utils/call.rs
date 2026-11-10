@@ -34,10 +34,10 @@ pub(crate) fn emit_call(
     let mut scratch = None;
     let output = match policy.output {
         CallOutput::None => output,
-        CallOutput::ScratchWord { clear } => {
+        CallOutput::Word => {
             let slot = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
             scratch = Some(slot);
-            if clear {
+            if builder.func().extcall_clears_word(address) {
                 // mstore(scratch, 0)
                 let zero = *zero.get_or_insert_with(|| builder.imm(0));
                 builder.store(slot, zero);
@@ -50,7 +50,7 @@ pub(crate) fn emit_call(
         if evm.can_overcharge_gas_for_call() {
             builder.gas()
         } else {
-            super::pre_tangerine_call_gas(builder, value.is_some(), policy.may_create_account)
+            super::pre_tangerine_call_gas(builder, value.is_some(), true)
         }
     });
     let (input_offset, input_size) = input.unwrap_or_else(|| {
@@ -88,7 +88,7 @@ pub(crate) fn emit_call(
             builder.revert_returndata_unless(success);
             None
         }
-        (CallFailure::Revert, CallOutput::ScratchWord { .. }) => {
+        (CallFailure::Revert, CallOutput::Word) => {
             // branch success, done, failed
             // failed: revert_returndata
             // done: result = mload(scratch)

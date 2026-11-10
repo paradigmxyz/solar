@@ -5,7 +5,7 @@
 //@[cancun] filecheck: --check-prefixes=CHECK,CANCUN
 //@[spuriousDragon] filecheck: --check-prefixes=CHECK,SPURIOUS
 //@[homestead] filecheck: --check-prefixes=CHECK,HOMESTEAD
-@module AddressCallExpansion
+@module ExtCallExpansion
 
 // A precompile reads a bytes object at its payload and lands its word in scratch memory. A failure
 // forwards the returndata.
@@ -27,7 +27,7 @@
 // CHECK-NEXT: ret [[WORD]]
 fn @hash_object(arg0: ptr<memory>) -> i256 {
   bb0:
-    v0 = extcall static scratch revert create i160 2, arg0
+    v0 = extcall static word revert i160 2, arg0
     ret v0
 }
 
@@ -39,12 +39,13 @@ fn @hash_object(arg0: ptr<memory>) -> i256 {
 // CHECK: mload 0
 fn @hash_slice(arg0: slice<memory>) -> i256 {
   bb0:
-    v0 = extcall static scratch revert create i160 3, arg0
+    v0 = extcall static word revert i160 3, arg0
     ret v0
 }
 
-// A call that a failed callee leaves without data clears the output word before it, and the
-// clear precedes the gas read.
+// A callee that can return less than a word, such as the `ecrecover` precompile, which returns
+// nothing for a rejected signature, has the output word cleared before the call, and the clear
+// precedes the gas read. The hash precompiles write all 32 bytes, so a call of one skips the clear.
 // CHECK-LABEL: fn @recover
 // CHECK: mstore 0, 0
 // CHECK-NEXT: = gas
@@ -52,7 +53,25 @@ fn @hash_slice(arg0: slice<memory>) -> i256 {
 // CHECK: mload 0
 fn @recover(arg0: slice<memory>) -> i256 {
   bb0:
-    v0 = extcall static scratch_clear revert create i160 1, arg0
+    v0 = extcall static word revert i160 1, arg0
+    ret v0
+}
+
+// CHECK-LABEL: fn @unknown_callee
+// CHECK: mstore 0, 0
+// CHECK-NEXT: = gas
+fn @unknown_callee(arg0: i160, arg1: slice<memory>) -> i256 {
+  bb0:
+    v0 = extcall word revert arg0, arg1
+    ret v0
+}
+
+// CHECK-LABEL: fn @hash_skips_clear
+// CHECK-NOT: mstore 0, 0
+// CHECK: = gas
+fn @hash_skips_clear(arg0: slice<memory>) -> i256 {
+  bb0:
+    v0 = extcall static word revert i160 3, arg0
     ret v0
 }
 
@@ -94,7 +113,7 @@ fn @transfer(arg0: i160, arg1: i256, arg2: i256) {
 // HOMESTEAD-NEXT: call [[RESERVED]], [[ADDRESS]], arg2,
 fn @bare_with_value(arg0: i160, arg1: ptr<memory>, arg2: i256) -> i1 {
   bb0:
-    v0 = extcall create arg0, arg1, value arg2
+    v0 = extcall arg0, arg1, value arg2
     ret v0
 }
 
@@ -112,6 +131,6 @@ fn @bare_with_value(arg0: i160, arg1: ptr<memory>, arg2: i256) -> i1 {
 // HOMESTEAD-NEXT: delegatecall [[RESERVED]], [[ADDRESS]],
 fn @bare_delegate(arg0: i160, arg1: ptr<memory>) -> i1 {
   bb0:
-    v0 = extcall delegate create arg0, arg1
+    v0 = extcall delegate arg0, arg1
     ret v0
 }

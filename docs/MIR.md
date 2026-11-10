@@ -236,10 +236,12 @@ builtin expansion, before checked arithmetic expands.
 Every call to an address that sends bytes and reads at most one word back is an
 `extcall`: the low-level calls, `send` and `transfer`, and the `ecrecover`,
 `sha256` and `ripemd160` precompiles. Its policy prints as keywords after the mnemonic, in
-this order: `static` or `delegate`, `scratch` or `scratch_clear`, `revert`, `create`. It names
-the call kind, whether the output is a scratch word (zeroed first or not),
-whether a failed call returns the success flag or reverts with the returndata,
-and whether the default pre-EIP-150 gas reserves the callee's account creation.
+this order: `static` or `delegate` for the call kind, `word` when the result is the 32-byte word
+the callee leaves in scratch memory, and `revert` when a failed call reverts with the returndata
+instead of returning the success flag. Whether the expansion zeroes the word first, and whether a
+pre-EIP-150 default gas reserves the callee's account creation, follow from the operands: the word
+is cleared unless the callee is the constant `sha256` or `ripemd160` precompile, which writes all 32
+bytes, and an `extcall` without a gas operand always reserves it.
 The operation retains its address, an optional bytes input or memory slice, and
 evaluated gas and value options. Its external-call effects invalidate account
 observations and storage reads even while the call remains opaque. Conversion

@@ -472,13 +472,8 @@ fn display_inst_kind<'a>(
                     ExtCallKind::Static => Some("static"),
                     ExtCallKind::Delegate => Some("delegate"),
                 },
-                match policy.output {
-                    CallOutput::None => None,
-                    CallOutput::ScratchWord { clear: false } => Some("scratch"),
-                    CallOutput::ScratchWord { clear: true } => Some("scratch_clear"),
-                },
+                (policy.output == CallOutput::Word).then_some("word"),
                 (policy.on_failure == CallFailure::Revert).then_some("revert"),
-                policy.may_create_account.then_some("create"),
             ];
             for flag in flags.into_iter().flatten() {
                 write!(f, " {flag}")?;

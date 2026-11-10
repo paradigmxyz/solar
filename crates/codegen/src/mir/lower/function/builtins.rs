@@ -173,12 +173,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => unreachable!(),
         };
         // success = extcall(address, data, gas?, value?)
-        let policy = CallPolicy {
-            kind,
-            output: CallOutput::None,
-            on_failure: CallFailure::Return,
-            may_create_account: true,
-        };
+        let policy = CallPolicy { kind, output: CallOutput::None, on_failure: CallFailure::Return };
         let success = self
             .builder
             .extcall(
@@ -217,7 +212,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 CallFailure::Return
             },
-            may_create_account: false,
         };
         // success? = extcall(address, gas, value amount)
         let success = self.builder.extcall(policy, address, None, Some(gas), Some(amount));

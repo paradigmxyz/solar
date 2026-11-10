@@ -148,7 +148,7 @@ fn @keep_returndatasize_with_sha256(arg0: ptr<memory>) -> i256 {
   bb2:
     v0 = returndatasize
     v1 = mul v0, 3
-    v2 = extcall static scratch revert create i160 2, arg0
+    v2 = extcall static word revert i160 2, arg0
     jump bb1
   bb3:
     ret v3
@@ -167,7 +167,7 @@ fn @keep_returndatasize_with_ripemd160(arg0: ptr<memory>) -> i256 {
   bb2:
     v0 = returndatasize
     v1 = mul v0, 3
-    v2 = extcall static scratch revert create i160 3, arg0
+    v2 = extcall static word revert i160 3, arg0
     jump bb1
   bb3:
     ret v3
@@ -187,7 +187,7 @@ fn @keep_returndatasize_with_ecrecover() -> i256 {
     v0 = returndatasize
     v1 = mul v0, 3
     v4 = abi_encode [word, word, word, word], scratch, args 1, 28, 2, 3
-    v2 = extcall static scratch_clear revert create i160 1, v4
+    v2 = extcall static word revert i160 1, v4
     jump bb1
   bb3:
     ret v3
@@ -206,7 +206,7 @@ fn @gas_precompile(arg0: i256, arg1: ptr<memory>) -> i256 {
   bb2:
     v1 = mul arg0, 3
     v4 = abi_encode [word, word, word, word], scratch, args 1, 28, 2, 3
-    v2 = extcall static scratch_clear revert create i160 1, v4
+    v2 = extcall static word revert i160 1, v4
     jump bb1
   bb3:
     ret v3
@@ -225,7 +225,7 @@ fn @gas_default_call(arg0: i256, arg1: ptr<memory>) -> i256 {
   bb2:
     v1 = mul arg0, 3
     v100 = trunc i256 0xbeef to i160
-    v2 = extcall create v100, arg1
+    v2 = extcall v100, arg1
     jump bb1
   bb3:
     ret v3
@@ -243,7 +243,7 @@ fn @gas_explicit_call(arg0: i256, arg1: ptr<memory>) -> i256 {
   bb2:
     v1 = mul arg0, 3
     v100 = trunc i256 0xbeef to i160
-    v2 = extcall create v100, arg1, gas 1000
+    v2 = extcall v100, arg1, gas 1000
     jump bb1
   bb3:
     ret v3

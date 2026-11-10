@@ -40,7 +40,7 @@ fn @constructor(arg0: i160) [constructor, abi_params=[address]] {
   bb0:
     v0 = gas
     v1 = abi_encode [], object, selector 0xe1c7392a00000000000000000000000000000000000000000000000000000000
-    v2 = extcall delegate create arg0, v1, gas v0
+    v2 = extcall delegate arg0, v1, gas v0
     icall require<short_string>, v2, 11, 0x696e6974206661696c6564000000000000000000000000000000000000000000
     ret
 }

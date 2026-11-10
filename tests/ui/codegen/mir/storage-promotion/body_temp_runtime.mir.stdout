@@ -21,7 +21,7 @@ fn @f(arg0: i256) -> i256 [selector=0xb3de648b, abi_params=[uint256], abi_return
   bb2:                                            ; preds = bb5
     v8 = address
     v9 = gas
-    v10 = extcall static create v8, ptr<memory> 96, gas v9
+    v10 = extcall static v8, ptr<memory> 96, gas v9
     jumpi v10, bb7, bb8
   bb8:                                            ; preds = bb2
     jump bb9

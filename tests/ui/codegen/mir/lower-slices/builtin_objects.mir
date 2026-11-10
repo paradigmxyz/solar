@@ -11,7 +11,7 @@
 // CHECK: staticcall {{v[0-9]+}}, 2, [[DATA]], [[LEN]], 0, 32
 fn @sha_object(arg0: ptr<memory>) -> i256 {
   bb0:
-    v0 = extcall static scratch revert create i160 2, arg0
+    v0 = extcall static word revert i160 2, arg0
     ret v0
 }
 
@@ -19,6 +19,6 @@ fn @sha_object(arg0: ptr<memory>) -> i256 {
 // CHECK: staticcall {{v[0-9]+}}, 3,
 fn @ripemd_object(arg0: ptr<memory>) -> i256 {
   bb0:
-    v0 = extcall static scratch revert create i160 3, arg0
+    v0 = extcall static word revert i160 3, arg0
     ret v0
 }

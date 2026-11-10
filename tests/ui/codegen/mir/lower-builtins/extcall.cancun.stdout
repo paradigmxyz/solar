@@ -1,9 +1,9 @@
 - ; === ROOT/tests/ui/codegen/mir/lower-builtins/extcall.mir (before lower-builtins) ===
 + ; === ROOT/tests/ui/codegen/mir/lower-builtins/extcall.mir (after lower-builtins) ===
-  @module AddressCallExpansion
+  @module ExtCallExpansion
   fn @hash_object(arg0: ptr<memory>) -> i256 {
     bb0:
--     v0 = extcall static scratch revert create i160 2, arg0
+-     v0 = extcall static word revert i160 2, arg0
 -     ret v0
 +     v1 = ptradd arg0, 32
 +     v2 = mload arg0
@@ -19,7 +19,7 @@
   
   fn @hash_slice(arg0: slice<memory>) -> i256 {
     bb0:
--     v0 = extcall static scratch revert create i160 3, arg0
+-     v0 = extcall static word revert i160 3, arg0
 -     ret v0
 +     v1 = extract_value slice<memory>, arg0, 0
 +     v2 = extract_value slice<memory>, arg0, 1
@@ -35,13 +35,47 @@
   
   fn @recover(arg0: slice<memory>) -> i256 {
     bb0:
--     v0 = extcall static scratch_clear revert create i160 1, arg0
+-     v0 = extcall static word revert i160 1, arg0
 -     ret v0
 +     v1 = extract_value slice<memory>, arg0, 0
 +     v2 = extract_value slice<memory>, arg0, 1
 +     mstore 0, 0 !metadata(memory=scratch)
 +     v3 = gas
 +     v4 = staticcall v3, 1, v1, v2, 0, 32
++     jumpi v4, bb2, bb1
++   bb1 [cold]:                                     ; preds = bb0
++     revert_returndata
++   bb2:                                            ; preds = bb0
++     v5 = mload 0 !metadata(memory=scratch)
++     ret v5
+  }
+  
+  fn @unknown_callee(arg0: i160, arg1: slice<memory>) -> i256 {
+    bb0:
+-     v0 = extcall word revert arg0, arg1
+-     ret v0
++     v1 = extract_value slice<memory>, arg1, 0
++     v2 = extract_value slice<memory>, arg1, 1
++     mstore 0, 0 !metadata(memory=scratch)
++     v3 = gas
++     v4 = zext i160 arg0 to i256
++     v5 = call v3, v4, 0, v1, v2, 0, 32
++     jumpi v5, bb2, bb1
++   bb1 [cold]:                                     ; preds = bb0
++     revert_returndata
++   bb2:                                            ; preds = bb0
++     v6 = mload 0 !metadata(memory=scratch)
++     ret v6
+  }
+  
+  fn @hash_skips_clear(arg0: slice<memory>) -> i256 {
+    bb0:
+-     v0 = extcall static word revert i160 3, arg0
+-     ret v0
++     v1 = extract_value slice<memory>, arg0, 0
++     v2 = extract_value slice<memory>, arg0, 1
++     v3 = gas
++     v4 = staticcall v3, 3, v1, v2, 0, 32
 +     jumpi v4, bb2, bb1
 +   bb1 [cold]:                                     ; preds = bb0
 +     revert_returndata
@@ -73,7 +107,7 @@
   
   fn @bare_with_value(arg0: i160, arg1: ptr<memory>, arg2: i256) -> i1 {
     bb0:
--     v0 = extcall create arg0, arg1, value arg2
+-     v0 = extcall arg0, arg1, value arg2
 -     ret v0
 +     v1 = ptradd arg1, 32
 +     v2 = mload arg1
@@ -85,7 +119,7 @@
   
   fn @bare_delegate(arg0: i160, arg1: ptr<memory>) -> i1 {
     bb0:
--     v0 = extcall delegate create arg0, arg1
+-     v0 = extcall delegate arg0, arg1
 -     ret v0
 +     v1 = ptradd arg1, 32
 +     v2 = mload arg1

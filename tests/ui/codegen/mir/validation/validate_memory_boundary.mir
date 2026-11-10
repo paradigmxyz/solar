@@ -86,7 +86,7 @@ fn @dynamic_deferred(arg0: i256) -> ptr<memory> {
 //~? ERROR: [fn9] [bb0, inst0] builtin instruction `extcall` survives the `lowered` phase boundary
 fn @unlowered_precompile(arg0: ptr<memory>) -> i256 {
   bb0:
-    v0 = extcall static scratch_clear revert create i160 1, arg0
+    v0 = extcall static word revert i160 1, arg0
     ret v0
 }
 
@@ -160,6 +160,6 @@ fn @payable(arg0: i256) {
 fn @unlowered_address_call(arg0: i256) {
   bb0:
     v0 = icall returndata_bytes<>
-    v1 = extcall create arg0, v0
+    v1 = extcall arg0, v0
     ret
 }
