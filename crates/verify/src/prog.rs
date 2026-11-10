@@ -433,9 +433,6 @@ impl<'s, 'a> Builder<'s, 'a> {
                 spec_body = Some(&**e);
             }
         }
-        if let Some(b) = f.body.as_ref() {
-            let _ = b;
-        }
         let name = match f.kind {
             ast::FunctionKind::Constructor => "constructor".to_string(),
             ast::FunctionKind::Fallback => "fallback".to_string(),
