@@ -113,3 +113,52 @@ fn @bare() -> i256 [selector=0x8095dd0b, view, abi_params=[], abi_returns=[word]
   bb3:
     ret 0
 }
+
+; function small() external pure [selector 0x6cf3c25e]
+fn @small() [selector=0x6cf3c25e, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = eq false, false
+    icall panic_if<0x1>, v0
+    ret
+}
+
+; function pointerDelta() external view returns (uint256) [selector 0xf5e98587]
+fn @pointerDelta() -> i256 [selector=0xf5e98587, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = address
+    v2 = gas
+    mstore 0, 0x6cf3c25e !metadata(memory=scratch)
+    v3 = zext i160 v1 to i256
+    v4 = extcodesize v3
+    v5 = eq v4, 0
+    icall revert_if<target_contract_has_no_code>, v5
+    v6 = zext i160 v1 to i256
+    v7 = staticcall v2, v6, 28, 4, 0, 0
+    jumpi v7, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    v8 = returndatasize
+    v9 = lt v8, 32
+    v10 = select v9, v8, 32
+    returndatacopy 0, 0, v10 !metadata(memory=scratch)
+    v11 = mload 0 !metadata(memory=scratch)
+    v12 = shr v11, 224
+    v13 = eq v12, 0x4e487b71
+    v14 = lt v8, 36
+    v15 = eq v14, false
+    v16 = and v13, v15
+    v17 = zext i1 v16 to i256
+    jumpi v16, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2
+    revert_returndata
+  bb4 [cold_hint]:                                ; preds = bb2
+    returndatacopy 0, 4, 32 !metadata(memory=scratch)
+    v18 = mload 0 !metadata(memory=scratch)
+    v19 = mload 64 !metadata(memory=scratch)
+    v20 = checked_sub uint256, v19, v0
+    ret v20
+  bb1:                                            ; preds = bb0
+    ret 999
+  bb3:
+    ret 0
+}

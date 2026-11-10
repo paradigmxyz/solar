@@ -2,6 +2,7 @@
 //@ run-call: panicCode(); gas=3500000 => 17
 //@ run-call: panicOrAnything(); gas=3500000 => 17
 //@ run-call: bare(); gas=3500000 => 2
+//@ run-call: pointerDelta() => 0
 
 // `catch Panic(uint256)` and a bare `catch` read only the selector and the code, so a callee that
 // reverts with a large Panic payload does not make the caller copy it.
@@ -37,6 +38,26 @@ contract C {
             return 1;
         } catch {
             return 2;
+        }
+    }
+
+    function small() external pure {
+        assert(false);
+    }
+
+    function pointerDelta() external view returns (uint256) {
+        uint256 beforePtr;
+        assembly {
+            beforePtr := mload(0x40)
+        }
+        try this.small() {
+            return 999;
+        } catch Panic(uint256) {
+            uint256 afterPtr;
+            assembly {
+                afterPtr := mload(0x40)
+            }
+            return afterPtr - beforePtr;
         }
     }
 }
