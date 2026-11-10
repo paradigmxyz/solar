@@ -13,10 +13,8 @@
 
 import {WordArrays} from "solar:core/WordArrays.sol";
 
-// Builds that do not optimize for gas share one paired quicksort between
-// plain sorts and `groupSum`. A plain sort passes a zero pair distance and
-// flips signed keys by `2**255`; `groupSum` passes the distance from its keys
-// to its values and no flip.
+// Exercise signed sorting and raw-word grouping, including empty arrays and
+// duplicate keys. These are portable library bodies, not compiler sort kernels.
 contract Test {
     function sortInts(int256[] memory a) public pure returns (int256[] memory) {
         WordArrays.sort(a);

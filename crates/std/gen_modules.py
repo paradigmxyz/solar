@@ -348,6 +348,9 @@ def word_arrays_module() -> str:
 /// @dev Compiler-owned module, imported as `solar:core/WordArrays.sol`.
 /// The bodies are portable checked Solidity and define the behavior.
 /// Low-level range operations use the primitive core intrinsics where available.
+/// Sorting uses heapsort with bounded insertion sort for small arrays. Duplicate
+/// checks cap hash probes and sort a copy on collisions: adversarial inputs cannot
+/// turn either algorithm into quadratic work. No operation uses source assembly.
 library WordArrays {
 """,
     ]
@@ -358,17 +361,51 @@ library WordArrays {
         "bytes32": "uint256(a[i])",
     }
     for ty, value in duplicate_types.items():
-        out.append(f"""    /// @dev Sorts `a` in ascending order.
+        out.append(f"""    /// @dev Sorts `a` in ascending order in O(n log n) worst-case work.
     function sort({ty}[] memory a) internal pure {{
-        for (uint256 i = 1; i < a.length; ++i) {{
-            {ty} value = a[i];
-            uint256 j = i;
-            while (j != 0 && a[j - 1] > value) {{
-                a[j] = a[j - 1];
-                --j;
+        uint256 n = a.length;
+        if (n < 2) return;
+        if (n <= 16) {{
+            for (uint256 i = 1; i < n; ++i) {{
+                {ty} value = a[i];
+                uint256 j = i;
+                while (j != 0 && a[j - 1] > value) {{
+                    a[j] = a[j - 1];
+                    --j;
+                }}
+                a[j] = value;
             }}
-            a[j] = value;
+            return;
         }}
+        uint256 ordered = 1;
+        while (ordered < n) {{
+            {ty} value = a[ordered];
+            if (a[ordered - 1] > value) break;
+            a[ordered] = value;
+            ++ordered;
+        }}
+        if (ordered == n) return;
+        for (uint256 root = n / 2; root != 0;) {{
+            --root;
+            _sift(a, root, n, a[root]);
+        }}
+        for (uint256 end = n - 1; end != 0; --end) {{
+            {ty} value = a[end];
+            a[end] = a[0];
+            _sift(a, 0, end, value);
+        }}
+    }}
+
+    /// @dev Moves the larger child into the hole until `value` fits the max-heap.
+    function _sift({ty}[] memory a, uint256 root, uint256 end, {ty} value) private pure {{
+        while (root < end / 2) {{
+            uint256 child = root * 2 + 1;
+            if (child + 1 < end && a[child] < a[child + 1]) ++child;
+            if (value >= a[child]) break;
+            a[root] = a[child];
+            root = child;
+        }}
+        a[root] = value;
     }}
 
 """)
@@ -383,8 +420,17 @@ library WordArrays {
             --i;
             uint256 slot =
                 mulmod({value}, 0x100000000000000000000000000000051, ~uint256(0xbc)) & mask;
+            uint256 probes;
             while (seen[slot] != 0) {{
                 if (a[seen[slot] - 1] == a[i]) return true;
+                if (++probes == 8) {{
+                    {ty}[] memory ordered = copy(a);
+                    sort(ordered);
+                    for (uint256 j = 1; j < ordered.length; ++j) {{
+                        if (ordered[j - 1] == ordered[j]) return true;
+                    }}
+                    return false;
+                }}
                 slot = (slot + 1) & mask;
             }}
             seen[slot] = i + 1;
@@ -524,17 +570,42 @@ library WordArrays {
         uint256 n = keys.length;
         if (values.length != n) n = _outOfBounds();
         if (n < 2) return;
-        for (uint256 i = 1; i < n; ++i) {{
-            {ty} key = keys[i];
-            uint256 value = values[i];
-            uint256 j = i;
-            while (j != 0 && {before}) {{
-                keys[j] = keys[j - 1];
-                values[j] = values[j - 1];
-                --j;
+        uint256 ordered = 1;
+        while (n > 16 && ordered < n) {{
+            {ty} key = keys[ordered];
+            uint256 value = values[ordered];
+            if ({word.format("keys[ordered - 1]")} > {word.format("key")}) break;
+            keys[ordered] = key;
+            values[ordered] = value;
+            ++ordered;
+        }}
+        if (ordered != n) {{
+            if (n <= 16) {{
+                for (uint256 i = ordered; i < n; ++i) {{
+                    {ty} key = keys[i];
+                    uint256 value = values[i];
+                    uint256 j = i;
+                    while (j != 0 && {before}) {{
+                        keys[j] = keys[j - 1];
+                        values[j] = values[j - 1];
+                        --j;
+                    }}
+                    keys[j] = key;
+                    values[j] = value;
+                }}
+            }} else {{
+                for (uint256 root = n / 2; root != 0;) {{
+                    --root;
+                    _siftPair(keys, values, root, n, keys[root], values[root]);
+                }}
+                for (uint256 end = n - 1; end != 0; --end) {{
+                    {ty} key = keys[end];
+                    uint256 value = values[end];
+                    keys[end] = keys[0];
+                    values[end] = values[0];
+                    _siftPair(keys, values, 0, end, key, value);
+                }}
             }}
-            keys[j] = key;
-            values[j] = value;
         }}
         uint256 kept = 0;
         uint256 sum = values[0];
@@ -550,6 +621,25 @@ library WordArrays {
         values[kept] = sum;
         Arrays.truncate(keys, kept + 1);
         Arrays.truncate(values, kept + 1);
+    }}
+
+""")
+        out.append(f"""    /// @dev Sifts paired keys and values. Hole movement also works when the
+    /// two arguments are the same array; swapping each array would undo itself.
+    function _siftPair(
+        {ty}[] memory keys, uint256[] memory values, uint256 root, uint256 end,
+        {ty} key, uint256 value
+    ) private pure {{
+        while (root < end / 2) {{
+            uint256 child = root * 2 + 1;
+            if (child + 1 < end && {word.format("keys[child]")} < {word.format("keys[child + 1]")}) ++child;
+            if ({word.format("key")} >= {word.format("keys[child]")}) break;
+            keys[root] = keys[child];
+            values[root] = values[child];
+            root = child;
+        }}
+        keys[root] = key;
+        values[root] = value;
     }}
 
 """)

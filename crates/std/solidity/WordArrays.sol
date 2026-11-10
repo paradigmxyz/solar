@@ -8,18 +8,55 @@ import {Arrays} from "solar:core/Arrays.sol";
 /// @dev Compiler-owned module, imported as `solar:core/WordArrays.sol`.
 /// The bodies are portable checked Solidity and define the behavior.
 /// Low-level range operations use the primitive core intrinsics where available.
+/// Sorting uses heapsort with bounded insertion sort for small arrays. Duplicate
+/// checks cap hash probes and sort a copy on collisions: adversarial inputs cannot
+/// turn either algorithm into quadratic work. No operation uses source assembly.
 library WordArrays {
-    /// @dev Sorts `a` in ascending order.
+    /// @dev Sorts `a` in ascending order in O(n log n) worst-case work.
     function sort(uint256[] memory a) internal pure {
-        for (uint256 i = 1; i < a.length; ++i) {
-            uint256 value = a[i];
-            uint256 j = i;
-            while (j != 0 && a[j - 1] > value) {
-                a[j] = a[j - 1];
-                --j;
+        uint256 n = a.length;
+        if (n < 2) return;
+        if (n <= 16) {
+            for (uint256 i = 1; i < n; ++i) {
+                uint256 value = a[i];
+                uint256 j = i;
+                while (j != 0 && a[j - 1] > value) {
+                    a[j] = a[j - 1];
+                    --j;
+                }
+                a[j] = value;
             }
-            a[j] = value;
+            return;
         }
+        uint256 ordered = 1;
+        while (ordered < n) {
+            uint256 value = a[ordered];
+            if (a[ordered - 1] > value) break;
+            a[ordered] = value;
+            ++ordered;
+        }
+        if (ordered == n) return;
+        for (uint256 root = n / 2; root != 0;) {
+            --root;
+            _sift(a, root, n, a[root]);
+        }
+        for (uint256 end = n - 1; end != 0; --end) {
+            uint256 value = a[end];
+            a[end] = a[0];
+            _sift(a, 0, end, value);
+        }
+    }
+
+    /// @dev Moves the larger child into the hole until `value` fits the max-heap.
+    function _sift(uint256[] memory a, uint256 root, uint256 end, uint256 value) private pure {
+        while (root < end / 2) {
+            uint256 child = root * 2 + 1;
+            if (child + 1 < end && a[child] < a[child + 1]) ++child;
+            if (value >= a[child]) break;
+            a[root] = a[child];
+            root = child;
+        }
+        a[root] = value;
     }
 
     /// @dev Whether `a` contains the same value at two indices.
@@ -33,8 +70,17 @@ library WordArrays {
             --i;
             uint256 slot =
                 mulmod(uint256(a[i]), 0x100000000000000000000000000000051, ~uint256(0xbc)) & mask;
+            uint256 probes;
             while (seen[slot] != 0) {
                 if (a[seen[slot] - 1] == a[i]) return true;
+                if (++probes == 8) {
+                    uint256[] memory ordered = copy(a);
+                    sort(ordered);
+                    for (uint256 j = 1; j < ordered.length; ++j) {
+                        if (ordered[j - 1] == ordered[j]) return true;
+                    }
+                    return false;
+                }
                 slot = (slot + 1) & mask;
             }
             seen[slot] = i + 1;
@@ -168,17 +214,42 @@ library WordArrays {
         uint256 n = keys.length;
         if (values.length != n) n = _outOfBounds();
         if (n < 2) return;
-        for (uint256 i = 1; i < n; ++i) {
-            uint256 key = keys[i];
-            uint256 value = values[i];
-            uint256 j = i;
-            while (j != 0 && keys[j - 1] > key) {
-                keys[j] = keys[j - 1];
-                values[j] = values[j - 1];
-                --j;
+        uint256 ordered = 1;
+        while (n > 16 && ordered < n) {
+            uint256 key = keys[ordered];
+            uint256 value = values[ordered];
+            if (keys[ordered - 1] > key) break;
+            keys[ordered] = key;
+            values[ordered] = value;
+            ++ordered;
+        }
+        if (ordered != n) {
+            if (n <= 16) {
+                for (uint256 i = ordered; i < n; ++i) {
+                    uint256 key = keys[i];
+                    uint256 value = values[i];
+                    uint256 j = i;
+                    while (j != 0 && keys[j - 1] > key) {
+                        keys[j] = keys[j - 1];
+                        values[j] = values[j - 1];
+                        --j;
+                    }
+                    keys[j] = key;
+                    values[j] = value;
+                }
+            } else {
+                for (uint256 root = n / 2; root != 0;) {
+                    --root;
+                    _siftPair(keys, values, root, n, keys[root], values[root]);
+                }
+                for (uint256 end = n - 1; end != 0; --end) {
+                    uint256 key = keys[end];
+                    uint256 value = values[end];
+                    keys[end] = keys[0];
+                    values[end] = values[0];
+                    _siftPair(keys, values, 0, end, key, value);
+                }
             }
-            keys[j] = key;
-            values[j] = value;
         }
         uint256 kept = 0;
         uint256 sum = values[0];
@@ -196,17 +267,69 @@ library WordArrays {
         Arrays.truncate(values, kept + 1);
     }
 
-    /// @dev Sorts `a` in ascending order.
-    function sort(int256[] memory a) internal pure {
-        for (uint256 i = 1; i < a.length; ++i) {
-            int256 value = a[i];
-            uint256 j = i;
-            while (j != 0 && a[j - 1] > value) {
-                a[j] = a[j - 1];
-                --j;
-            }
-            a[j] = value;
+    /// @dev Sifts paired keys and values. Hole movement also works when the
+    /// two arguments are the same array; swapping each array would undo itself.
+    function _siftPair(
+        uint256[] memory keys, uint256[] memory values, uint256 root, uint256 end,
+        uint256 key, uint256 value
+    ) private pure {
+        while (root < end / 2) {
+            uint256 child = root * 2 + 1;
+            if (child + 1 < end && keys[child] < keys[child + 1]) ++child;
+            if (key >= keys[child]) break;
+            keys[root] = keys[child];
+            values[root] = values[child];
+            root = child;
         }
+        keys[root] = key;
+        values[root] = value;
+    }
+
+    /// @dev Sorts `a` in ascending order in O(n log n) worst-case work.
+    function sort(int256[] memory a) internal pure {
+        uint256 n = a.length;
+        if (n < 2) return;
+        if (n <= 16) {
+            for (uint256 i = 1; i < n; ++i) {
+                int256 value = a[i];
+                uint256 j = i;
+                while (j != 0 && a[j - 1] > value) {
+                    a[j] = a[j - 1];
+                    --j;
+                }
+                a[j] = value;
+            }
+            return;
+        }
+        uint256 ordered = 1;
+        while (ordered < n) {
+            int256 value = a[ordered];
+            if (a[ordered - 1] > value) break;
+            a[ordered] = value;
+            ++ordered;
+        }
+        if (ordered == n) return;
+        for (uint256 root = n / 2; root != 0;) {
+            --root;
+            _sift(a, root, n, a[root]);
+        }
+        for (uint256 end = n - 1; end != 0; --end) {
+            int256 value = a[end];
+            a[end] = a[0];
+            _sift(a, 0, end, value);
+        }
+    }
+
+    /// @dev Moves the larger child into the hole until `value` fits the max-heap.
+    function _sift(int256[] memory a, uint256 root, uint256 end, int256 value) private pure {
+        while (root < end / 2) {
+            uint256 child = root * 2 + 1;
+            if (child + 1 < end && a[child] < a[child + 1]) ++child;
+            if (value >= a[child]) break;
+            a[root] = a[child];
+            root = child;
+        }
+        a[root] = value;
     }
 
     /// @dev Whether `a` contains the same value at two indices.
@@ -220,8 +343,17 @@ library WordArrays {
             --i;
             uint256 slot =
                 mulmod(uint256(a[i]), 0x100000000000000000000000000000051, ~uint256(0xbc)) & mask;
+            uint256 probes;
             while (seen[slot] != 0) {
                 if (a[seen[slot] - 1] == a[i]) return true;
+                if (++probes == 8) {
+                    int256[] memory ordered = copy(a);
+                    sort(ordered);
+                    for (uint256 j = 1; j < ordered.length; ++j) {
+                        if (ordered[j - 1] == ordered[j]) return true;
+                    }
+                    return false;
+                }
                 slot = (slot + 1) & mask;
             }
             seen[slot] = i + 1;
@@ -355,17 +487,42 @@ library WordArrays {
         uint256 n = keys.length;
         if (values.length != n) n = _outOfBounds();
         if (n < 2) return;
-        for (uint256 i = 1; i < n; ++i) {
-            int256 key = keys[i];
-            uint256 value = values[i];
-            uint256 j = i;
-            while (j != 0 && uint256(keys[j - 1]) > uint256(key)) {
-                keys[j] = keys[j - 1];
-                values[j] = values[j - 1];
-                --j;
+        uint256 ordered = 1;
+        while (n > 16 && ordered < n) {
+            int256 key = keys[ordered];
+            uint256 value = values[ordered];
+            if (uint256(keys[ordered - 1]) > uint256(key)) break;
+            keys[ordered] = key;
+            values[ordered] = value;
+            ++ordered;
+        }
+        if (ordered != n) {
+            if (n <= 16) {
+                for (uint256 i = ordered; i < n; ++i) {
+                    int256 key = keys[i];
+                    uint256 value = values[i];
+                    uint256 j = i;
+                    while (j != 0 && uint256(keys[j - 1]) > uint256(key)) {
+                        keys[j] = keys[j - 1];
+                        values[j] = values[j - 1];
+                        --j;
+                    }
+                    keys[j] = key;
+                    values[j] = value;
+                }
+            } else {
+                for (uint256 root = n / 2; root != 0;) {
+                    --root;
+                    _siftPair(keys, values, root, n, keys[root], values[root]);
+                }
+                for (uint256 end = n - 1; end != 0; --end) {
+                    int256 key = keys[end];
+                    uint256 value = values[end];
+                    keys[end] = keys[0];
+                    values[end] = values[0];
+                    _siftPair(keys, values, 0, end, key, value);
+                }
             }
-            keys[j] = key;
-            values[j] = value;
         }
         uint256 kept = 0;
         uint256 sum = values[0];
@@ -383,17 +540,69 @@ library WordArrays {
         Arrays.truncate(values, kept + 1);
     }
 
-    /// @dev Sorts `a` in ascending order.
-    function sort(address[] memory a) internal pure {
-        for (uint256 i = 1; i < a.length; ++i) {
-            address value = a[i];
-            uint256 j = i;
-            while (j != 0 && a[j - 1] > value) {
-                a[j] = a[j - 1];
-                --j;
-            }
-            a[j] = value;
+    /// @dev Sifts paired keys and values. Hole movement also works when the
+    /// two arguments are the same array; swapping each array would undo itself.
+    function _siftPair(
+        int256[] memory keys, uint256[] memory values, uint256 root, uint256 end,
+        int256 key, uint256 value
+    ) private pure {
+        while (root < end / 2) {
+            uint256 child = root * 2 + 1;
+            if (child + 1 < end && uint256(keys[child]) < uint256(keys[child + 1])) ++child;
+            if (uint256(key) >= uint256(keys[child])) break;
+            keys[root] = keys[child];
+            values[root] = values[child];
+            root = child;
         }
+        keys[root] = key;
+        values[root] = value;
+    }
+
+    /// @dev Sorts `a` in ascending order in O(n log n) worst-case work.
+    function sort(address[] memory a) internal pure {
+        uint256 n = a.length;
+        if (n < 2) return;
+        if (n <= 16) {
+            for (uint256 i = 1; i < n; ++i) {
+                address value = a[i];
+                uint256 j = i;
+                while (j != 0 && a[j - 1] > value) {
+                    a[j] = a[j - 1];
+                    --j;
+                }
+                a[j] = value;
+            }
+            return;
+        }
+        uint256 ordered = 1;
+        while (ordered < n) {
+            address value = a[ordered];
+            if (a[ordered - 1] > value) break;
+            a[ordered] = value;
+            ++ordered;
+        }
+        if (ordered == n) return;
+        for (uint256 root = n / 2; root != 0;) {
+            --root;
+            _sift(a, root, n, a[root]);
+        }
+        for (uint256 end = n - 1; end != 0; --end) {
+            address value = a[end];
+            a[end] = a[0];
+            _sift(a, 0, end, value);
+        }
+    }
+
+    /// @dev Moves the larger child into the hole until `value` fits the max-heap.
+    function _sift(address[] memory a, uint256 root, uint256 end, address value) private pure {
+        while (root < end / 2) {
+            uint256 child = root * 2 + 1;
+            if (child + 1 < end && a[child] < a[child + 1]) ++child;
+            if (value >= a[child]) break;
+            a[root] = a[child];
+            root = child;
+        }
+        a[root] = value;
     }
 
     /// @dev Whether `a` contains the same value at two indices.
@@ -407,8 +616,17 @@ library WordArrays {
             --i;
             uint256 slot =
                 mulmod(uint256(uint160(a[i])), 0x100000000000000000000000000000051, ~uint256(0xbc)) & mask;
+            uint256 probes;
             while (seen[slot] != 0) {
                 if (a[seen[slot] - 1] == a[i]) return true;
+                if (++probes == 8) {
+                    address[] memory ordered = copy(a);
+                    sort(ordered);
+                    for (uint256 j = 1; j < ordered.length; ++j) {
+                        if (ordered[j - 1] == ordered[j]) return true;
+                    }
+                    return false;
+                }
                 slot = (slot + 1) & mask;
             }
             seen[slot] = i + 1;
@@ -542,17 +760,42 @@ library WordArrays {
         uint256 n = keys.length;
         if (values.length != n) n = _outOfBounds();
         if (n < 2) return;
-        for (uint256 i = 1; i < n; ++i) {
-            address key = keys[i];
-            uint256 value = values[i];
-            uint256 j = i;
-            while (j != 0 && keys[j - 1] > key) {
-                keys[j] = keys[j - 1];
-                values[j] = values[j - 1];
-                --j;
+        uint256 ordered = 1;
+        while (n > 16 && ordered < n) {
+            address key = keys[ordered];
+            uint256 value = values[ordered];
+            if (keys[ordered - 1] > key) break;
+            keys[ordered] = key;
+            values[ordered] = value;
+            ++ordered;
+        }
+        if (ordered != n) {
+            if (n <= 16) {
+                for (uint256 i = ordered; i < n; ++i) {
+                    address key = keys[i];
+                    uint256 value = values[i];
+                    uint256 j = i;
+                    while (j != 0 && keys[j - 1] > key) {
+                        keys[j] = keys[j - 1];
+                        values[j] = values[j - 1];
+                        --j;
+                    }
+                    keys[j] = key;
+                    values[j] = value;
+                }
+            } else {
+                for (uint256 root = n / 2; root != 0;) {
+                    --root;
+                    _siftPair(keys, values, root, n, keys[root], values[root]);
+                }
+                for (uint256 end = n - 1; end != 0; --end) {
+                    address key = keys[end];
+                    uint256 value = values[end];
+                    keys[end] = keys[0];
+                    values[end] = values[0];
+                    _siftPair(keys, values, 0, end, key, value);
+                }
             }
-            keys[j] = key;
-            values[j] = value;
         }
         uint256 kept = 0;
         uint256 sum = values[0];
@@ -570,17 +813,69 @@ library WordArrays {
         Arrays.truncate(values, kept + 1);
     }
 
-    /// @dev Sorts `a` in ascending order.
-    function sort(bytes32[] memory a) internal pure {
-        for (uint256 i = 1; i < a.length; ++i) {
-            bytes32 value = a[i];
-            uint256 j = i;
-            while (j != 0 && a[j - 1] > value) {
-                a[j] = a[j - 1];
-                --j;
-            }
-            a[j] = value;
+    /// @dev Sifts paired keys and values. Hole movement also works when the
+    /// two arguments are the same array; swapping each array would undo itself.
+    function _siftPair(
+        address[] memory keys, uint256[] memory values, uint256 root, uint256 end,
+        address key, uint256 value
+    ) private pure {
+        while (root < end / 2) {
+            uint256 child = root * 2 + 1;
+            if (child + 1 < end && keys[child] < keys[child + 1]) ++child;
+            if (key >= keys[child]) break;
+            keys[root] = keys[child];
+            values[root] = values[child];
+            root = child;
         }
+        keys[root] = key;
+        values[root] = value;
+    }
+
+    /// @dev Sorts `a` in ascending order in O(n log n) worst-case work.
+    function sort(bytes32[] memory a) internal pure {
+        uint256 n = a.length;
+        if (n < 2) return;
+        if (n <= 16) {
+            for (uint256 i = 1; i < n; ++i) {
+                bytes32 value = a[i];
+                uint256 j = i;
+                while (j != 0 && a[j - 1] > value) {
+                    a[j] = a[j - 1];
+                    --j;
+                }
+                a[j] = value;
+            }
+            return;
+        }
+        uint256 ordered = 1;
+        while (ordered < n) {
+            bytes32 value = a[ordered];
+            if (a[ordered - 1] > value) break;
+            a[ordered] = value;
+            ++ordered;
+        }
+        if (ordered == n) return;
+        for (uint256 root = n / 2; root != 0;) {
+            --root;
+            _sift(a, root, n, a[root]);
+        }
+        for (uint256 end = n - 1; end != 0; --end) {
+            bytes32 value = a[end];
+            a[end] = a[0];
+            _sift(a, 0, end, value);
+        }
+    }
+
+    /// @dev Moves the larger child into the hole until `value` fits the max-heap.
+    function _sift(bytes32[] memory a, uint256 root, uint256 end, bytes32 value) private pure {
+        while (root < end / 2) {
+            uint256 child = root * 2 + 1;
+            if (child + 1 < end && a[child] < a[child + 1]) ++child;
+            if (value >= a[child]) break;
+            a[root] = a[child];
+            root = child;
+        }
+        a[root] = value;
     }
 
     /// @dev Whether `a` contains the same value at two indices.
@@ -594,8 +889,17 @@ library WordArrays {
             --i;
             uint256 slot =
                 mulmod(uint256(a[i]), 0x100000000000000000000000000000051, ~uint256(0xbc)) & mask;
+            uint256 probes;
             while (seen[slot] != 0) {
                 if (a[seen[slot] - 1] == a[i]) return true;
+                if (++probes == 8) {
+                    bytes32[] memory ordered = copy(a);
+                    sort(ordered);
+                    for (uint256 j = 1; j < ordered.length; ++j) {
+                        if (ordered[j - 1] == ordered[j]) return true;
+                    }
+                    return false;
+                }
                 slot = (slot + 1) & mask;
             }
             seen[slot] = i + 1;
@@ -729,17 +1033,42 @@ library WordArrays {
         uint256 n = keys.length;
         if (values.length != n) n = _outOfBounds();
         if (n < 2) return;
-        for (uint256 i = 1; i < n; ++i) {
-            bytes32 key = keys[i];
-            uint256 value = values[i];
-            uint256 j = i;
-            while (j != 0 && keys[j - 1] > key) {
-                keys[j] = keys[j - 1];
-                values[j] = values[j - 1];
-                --j;
+        uint256 ordered = 1;
+        while (n > 16 && ordered < n) {
+            bytes32 key = keys[ordered];
+            uint256 value = values[ordered];
+            if (keys[ordered - 1] > key) break;
+            keys[ordered] = key;
+            values[ordered] = value;
+            ++ordered;
+        }
+        if (ordered != n) {
+            if (n <= 16) {
+                for (uint256 i = ordered; i < n; ++i) {
+                    bytes32 key = keys[i];
+                    uint256 value = values[i];
+                    uint256 j = i;
+                    while (j != 0 && keys[j - 1] > key) {
+                        keys[j] = keys[j - 1];
+                        values[j] = values[j - 1];
+                        --j;
+                    }
+                    keys[j] = key;
+                    values[j] = value;
+                }
+            } else {
+                for (uint256 root = n / 2; root != 0;) {
+                    --root;
+                    _siftPair(keys, values, root, n, keys[root], values[root]);
+                }
+                for (uint256 end = n - 1; end != 0; --end) {
+                    bytes32 key = keys[end];
+                    uint256 value = values[end];
+                    keys[end] = keys[0];
+                    values[end] = values[0];
+                    _siftPair(keys, values, 0, end, key, value);
+                }
             }
-            keys[j] = key;
-            values[j] = value;
         }
         uint256 kept = 0;
         uint256 sum = values[0];
@@ -755,6 +1084,24 @@ library WordArrays {
         values[kept] = sum;
         Arrays.truncate(keys, kept + 1);
         Arrays.truncate(values, kept + 1);
+    }
+
+    /// @dev Sifts paired keys and values. Hole movement also works when the
+    /// two arguments are the same array; swapping each array would undo itself.
+    function _siftPair(
+        bytes32[] memory keys, uint256[] memory values, uint256 root, uint256 end,
+        bytes32 key, uint256 value
+    ) private pure {
+        while (root < end / 2) {
+            uint256 child = root * 2 + 1;
+            if (child + 1 < end && keys[child] < keys[child + 1]) ++child;
+            if (key >= keys[child]) break;
+            keys[root] = keys[child];
+            values[root] = values[child];
+            root = child;
+        }
+        keys[root] = key;
+        values[root] = value;
     }
 
     /// @dev Raises the `Panic(0x32)` an out-of-range index raises, which is the

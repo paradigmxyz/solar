@@ -55,6 +55,14 @@ libraries. Algorithms are compiled through the normal optimization pipeline;
 there are no baked sorting or codec kernels in the compiler. The byte-range
 primitives still receive intrinsic lowering, with portable fallbacks for tests.
 
+Substring searches use KMP for needles longer than 16 bytes and bounded byte
+comparisons otherwise. Non-overlapping searches make two linear scans with one
+prefix table to allocate exactly the result size. Sorting and paired grouping use
+in-place heapsort above 16 elements; smaller inputs use insertion sort. Duplicate
+checks cap hash probing at eight occupied slots before sorting a copy, so crafted
+collisions cannot force quadratic work and the input stays unchanged. Signed
+sorting uses signed order; signed grouping keeps raw word order.
+
 For a Foundry project whose library imports live under `src/`, the solc remapping
 is `src/:solar:core/=path/to/solidity/`. The explicit context preserves the colon
 in the import prefix when Foundry serializes its remappings.

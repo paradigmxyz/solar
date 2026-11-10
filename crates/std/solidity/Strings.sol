@@ -9,7 +9,9 @@ import {Bytes} from "solar:core/Bytes.sol";
 /// is an ordinary source library over `Bytes` and `Buffers`. Strings are
 /// treated as bytes: no function but `isValidUTF8` validates or depends on
 /// UTF-8, and `escapeJSON` escapes only what JSON requires, so a valid UTF-8
-/// input stays valid.
+/// input stays valid. Substring search uses KMP for needles longer than 16 bytes,
+/// bounding comparisons by the combined input lengths; short needles need no
+/// prefix table. Non-overlapping results are counted before their exact allocation.
 library Strings {
     using Buffers for ByteBuilder;
 
@@ -181,6 +183,22 @@ library Strings {
             }
             return string(expanded);
         }
+        if (n.length > 16) {
+            uint256[] memory positions = indicesOf(subject, needle);
+            bytes memory out = new bytes(s.length + positions.length * r.length - positions.length * n.length);
+            uint256 copied;
+            uint256 o;
+            for (uint256 i; i < positions.length; ++i) {
+                uint256 at = positions[i];
+                Bytes.copyInto(out, o, s, copied, at - copied);
+                o += at - copied;
+                Bytes.copyInto(out, o, r, 0, r.length);
+                o += r.length;
+                copied = at + n.length;
+            }
+            Bytes.copyInto(out, o, s, copied, s.length - copied);
+            return string(out);
+        }
         uint256 count;
         for (uint256 i; i + n.length <= s.length;) {
             if (_matchAt(s, n, i)) {
@@ -235,6 +253,24 @@ library Strings {
             for (uint256 i; i <= s.length; ++i) every[i] = i;
             return every;
         }
+        if (n.length > 16) {
+            uint256[] memory prefix = _prefix(n, false);
+            uint256 count;
+            uint256 at = _find(s, n, 0, prefix);
+            while (at != type(uint256).max) {
+                ++count;
+                at = _find(s, n, at + n.length, prefix);
+            }
+            // Two linear scans share one prefix table and allocate only the matches.
+            uint256[] memory found = new uint256[](count);
+            at = 0;
+            for (uint256 i; i < count; ++i) {
+                at = _find(s, n, at, prefix);
+                found[i] = at;
+                at += n.length;
+            }
+            return found;
+        }
         uint256 count;
         for (uint256 i; i + n.length <= s.length;) {
             if (_matchAt(s, n, i)) {
@@ -270,6 +306,8 @@ library Strings {
         if (n.length == 0) return from > s.length ? s.length : from;
         if (n.length > s.length) return type(uint256).max;
         uint256 last = s.length - n.length;
+        if (from > last) return type(uint256).max;
+        if (n.length > 16) return _find(s, n, from, _prefix(n, false));
         for (uint256 i = from; i <= last; ++i) {
             if (_matchAt(s, n, i)) return i;
         }
@@ -289,6 +327,18 @@ library Strings {
         if (n.length > s.length) return type(uint256).max;
         uint256 last = s.length - n.length;
         if (from > last) from = last;
+        if (n.length > 16) {
+            uint256[] memory prefix = _prefix(n, true);
+            uint256 matched;
+            for (uint256 i = from + n.length; i != 0;) {
+                --i;
+                bytes1 c = s[i];
+                while (matched != 0 && c != n[n.length - 1 - matched]) matched = prefix[matched - 1];
+                if (c == n[n.length - 1 - matched]) ++matched;
+                if (matched == n.length) return i;
+            }
+            return type(uint256).max;
+        }
         for (uint256 i = from + 1; i != 0;) {
             --i;
             if (_matchAt(s, n, i)) return i;
@@ -522,6 +572,36 @@ library Strings {
         bytes memory b = new bytes(bLength);
         for (uint256 i; i < bLength; ++i) b[i] = packed[aLength + i + 2];
         return (string(a), string(b));
+    }
+
+    /// @dev KMP failure lengths, optionally for a needle read backwards.
+    function _prefix(bytes memory needle, bool reverse) private pure returns (uint256[] memory table) {
+        uint256 n = needle.length;
+        table = new uint256[](n);
+        uint256 matched;
+        for (uint256 i = 1; i < n; ++i) {
+            bytes1 c = needle[reverse ? n - 1 - i : i];
+            while (matched != 0 && c != needle[reverse ? n - 1 - matched : matched]) {
+                matched = table[matched - 1];
+            }
+            if (c == needle[reverse ? n - 1 - matched : matched]) ++matched;
+            table[i] = matched;
+        }
+    }
+
+    /// @dev First match from `from`; callers pass a nonempty needle and its table.
+    function _find(bytes memory subject, bytes memory needle, uint256 from, uint256[] memory prefix)
+        private pure returns (uint256)
+    {
+        if (from > subject.length - needle.length) return type(uint256).max;
+        uint256 matched;
+        for (uint256 i = from; i < subject.length; ++i) {
+            bytes1 c = subject[i];
+            while (matched != 0 && c != needle[matched]) matched = prefix[matched - 1];
+            if (c == needle[matched]) ++matched;
+            if (matched == needle.length) return i + 1 - matched;
+        }
+        return type(uint256).max;
     }
 
 }
