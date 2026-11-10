@@ -41,77 +41,63 @@ fn @targetSelector(arg0: ptr<memory>) {
     v13 = lt v11, v12
     jumpi v13, bb1, bb2
   bb1:                                            ; preds = bb0
-    jump bb3
-  bb3:                                            ; preds = bb1, bb4
-    v14 = phi [bb1: v11], [bb4: v28]
-    v15 = lt v14, v12
-    jumpi v15, bb4, bb5
-  bb5:                                            ; preds = bb3
+    v14 = shr v11, 3
+    v15 = and v11, 7
+    v16 = ne v15, 0
+    v17 = zext i1 v16 to i256
+    v18 = add v14, v17
+    v19 = shr v12, 3
+    v20 = and v12, 7
+    v21 = ne v20, 0
+    v22 = zext i1 v21 to i256
+    v23 = add v19, v22
+    clear_storage_words v8, v18, v23
     jump bb2
-  bb2:                                            ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb1
     sstore v8, v11 !metadata(storage=offset(v5, 1))
-    jump bb6
-  bb6:                                            ; preds = bb2, bb7
-    v29 = phi [bb2: 0], [bb7: v50]
-    v30 = lt v29, v11
-    jumpi v30, bb7, bb8
-  bb8:                                            ; preds = bb6
-    v51 = shr v11, 3
-    v52 = and v11, 7
-    v53 = eq v52, 0
-    jumpi v53, bb10, bb9
-  bb9:                                            ; preds = bb8
-    v54 = mul v52, 32
-    v55 = shl 1, v54
-    v56 = sub v55, 1
-    v57 = storage_array_data_slot v8
-    v58 = add v57, v51
-    v59 = sload v58 !metadata(storage=symbolic(v58))
-    v60 = and v59, v56
-    sstore v58, v60 !metadata(storage=symbolic(v58))
-    jump bb10
-  bb10:                                           ; preds = bb8, bb9
+    v24 = shr v11, 3
+    v25 = and v11, 7
+    v26 = ne v25, 0
+    v27 = zext i1 v26 to i256
+    v28 = add v24, v27
+    v29 = storage_array_data_slot v8
+    jump bb3
+  bb3:                                            ; preds = bb2, bb8
+    v30 = phi [bb2: 0], [bb8: v51]
+    v31 = lt v30, v28
+    jumpi v31, bb4, bb5
+  bb5:                                            ; preds = bb3
     sstore 1, v2 !metadata(storage=slot(1))
     ret
-  bb7:                                            ; preds = bb6
-    v31 = shl v29, 5
-    v32 = inttoptr i256 v10 to ptr<memory>
-    v33 = ptradd v32, v31
-    v34 = ptradd v33, 32
-    v35 = mload v34
-    v36 = storage_array_data_slot v8
-    v37 = div v29, 8
-    v38 = add v36, v37
-    v39 = mod v29, 8
-    v40 = mul v39, 4
-    v41 = mul v40, 8
-    v42 = shl 0xffffffff, v41
-    v43 = sload v38 !metadata(storage=symbolic(v38))
-    v44 = not v42
-    v45 = and v43, v44
-    v46 = shr v35, 224
-    v47 = and v46, 0xffffffff
-    v48 = shl v47, v41
-    v49 = or v45, v48
-    sstore v38, v49 !metadata(storage=symbolic(v38))
-    v50 = add v29, 1
-    jump bb6
   bb4:                                            ; preds = bb3
-    v16 = storage_array_data_slot v8
-    v17 = div v14, 8
-    v18 = add v16, v17
-    v19 = mod v14, 8
-    v20 = mul v19, 4
-    v21 = mul v20, 8
-    v22 = shl 0xffffffff, v21
-    v23 = sload v18 !metadata(storage=symbolic(v18))
-    v24 = not v22
-    v25 = and v23, v24
-    v26 = shl 0, v21
-    v27 = or v25, v26
-    sstore v18, v27 !metadata(storage=symbolic(v18))
-    v28 = add v14, 1
+    v32 = mul v30, 8
+    v33 = sub v11, v32
+    v34 = lt v33, 8
+    v35 = select v34, v33, 8
+    jump bb6
+  bb6:                                            ; preds = bb4, bb7
+    v36 = phi [bb4: 0], [bb7: v49]
+    v37 = phi [bb4: 0], [bb7: v48]
+    v38 = lt v36, v35
+    jumpi v38, bb7, bb8
+  bb8:                                            ; preds = bb6
+    v50 = add v29, v30
+    sstore v50, v37 !metadata(storage=symbolic(v50))
+    v51 = add v30, 1
     jump bb3
+  bb7:                                            ; preds = bb6
+    v39 = add v32, v36
+    v40 = shl v39, 5
+    v41 = inttoptr i256 v10 to ptr<memory>
+    v42 = ptradd v41, v40
+    v43 = ptradd v42, 32
+    v44 = mload v43
+    v45 = shr v44, 224
+    v46 = mul v36, 32
+    v47 = shl v45, v46
+    v48 = or v47, v37
+    v49 = add v36, 1
+    jump bb6
 }
 
 ; function targetContracts() public view returns (address[] memory) [selector 0x3f7286f4]

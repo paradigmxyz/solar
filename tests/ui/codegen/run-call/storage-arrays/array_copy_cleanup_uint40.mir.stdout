@@ -376,307 +376,294 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v307 = lt v305, v306
     jumpi v307, bb1, bb2
   bb1:                                            ; preds = bb0
-    jump bb3
-  bb3:                                            ; preds = bb1, bb4
-    v308 = phi [bb1: v305], [bb4: v322]
-    v309 = lt v308, v306
-    jumpi v309, bb4, bb5
-  bb5:                                            ; preds = bb3
+    v308 = div v305, 6
+    v309 = mod v305, 6
+    v310 = ne v309, 0
+    v311 = zext i1 v310 to i256
+    v312 = add v308, v311
+    v313 = div v306, 6
+    v314 = mod v306, 6
+    v315 = ne v314, 0
+    v316 = zext i1 v315 to i256
+    v317 = add v313, v316
+    clear_storage_words 0, v312, v317
     jump bb2
-  bb2:                                            ; preds = bb0, bb5
+  bb2:                                            ; preds = bb0, bb1
     sstore 0, v305 !metadata(storage=slot(0))
-    jump bb6
-  bb6:                                            ; preds = bb2, bb7
-    v323 = phi [bb2: 0], [bb7: v342]
-    v324 = lt v323, v305
-    jumpi v324, bb7, bb8
-  bb8:                                            ; preds = bb6
-    v343 = div v305, 6
-    v344 = mod v305, 6
-    v345 = eq v344, 0
-    jumpi v345, bb10, bb9
-  bb9:                                            ; preds = bb8
-    v346 = mul v344, 40
-    v347 = shl 1, v346
-    v348 = sub v347, 1
-    v349 = storage_array_data_slot 0
-    v350 = add v349, v343
-    v351 = sload v350 !metadata(storage=symbolic(v350))
-    v352 = and v351, v348
-    sstore v350, v352 !metadata(storage=symbolic(v350))
-    jump bb10
-  bb10:                                           ; preds = bb8, bb9
-    sstore 0, 20 !metadata(storage=slot(0))
-    v353 = sload 0 !metadata(storage=slot(0))
-    v354 = gt v353, 0
-    v355 = eq v354, false
-    icall panic_if<0x32>, v355
-    v356 = storage_array_data_slot 0
-    v357 = sload v356 !metadata(storage=symbolic(v356))
-    v358 = shr v357, 0
-    v359 = trunc i256 v358 to i40
-    v360 = eq v359, i40 23
-    v361 = eq v360, false
-    icall panic_if<0x1>, v361
-    v362 = sload 0 !metadata(storage=slot(0))
-    v363 = gt v362, 1
-    v364 = eq v363, false
-    icall panic_if<0x32>, v364
-    v365 = storage_array_data_slot 0
-    v366 = sload v365 !metadata(storage=symbolic(v365))
-    v367 = shr v366, 40
-    v368 = trunc i256 v367 to i40
-    v369 = eq v368, i40 0
-    v370 = eq v369, false
-    icall panic_if<0x1>, v370
-    v371 = sload 0 !metadata(storage=slot(0))
-    v372 = gt v371, 2
-    v373 = eq v372, false
-    icall panic_if<0x32>, v373
-    v374 = storage_array_data_slot 0
-    v375 = sload v374 !metadata(storage=symbolic(v374))
-    v376 = shr v375, 80
-    v377 = trunc i256 v376 to i40
-    v378 = eq v377, i40 0
-    v379 = eq v378, false
-    icall panic_if<0x1>, v379
-    v380 = sload 0 !metadata(storage=slot(0))
-    v381 = gt v380, 3
-    v382 = eq v381, false
-    icall panic_if<0x32>, v382
-    v383 = storage_array_data_slot 0
-    v384 = sload v383 !metadata(storage=symbolic(v383))
-    v385 = shr v384, 120
-    v386 = trunc i256 v385 to i40
-    v387 = eq v386, i40 0
-    v388 = eq v387, false
-    icall panic_if<0x1>, v388
-    v389 = sload 0 !metadata(storage=slot(0))
-    v390 = gt v389, 4
-    v391 = eq v390, false
-    icall panic_if<0x32>, v391
-    v392 = storage_array_data_slot 0
-    v393 = sload v392 !metadata(storage=symbolic(v392))
-    v394 = shr v393, 160
-    v395 = trunc i256 v394 to i40
-    v396 = eq v395, i40 0
-    v397 = eq v396, false
-    icall panic_if<0x1>, v397
-    v398 = sload 0 !metadata(storage=slot(0))
-    v399 = gt v398, 5
-    v400 = eq v399, false
-    icall panic_if<0x32>, v400
-    v401 = storage_array_data_slot 0
-    v402 = sload v401 !metadata(storage=symbolic(v401))
-    v403 = shr v402, 200
-    v404 = trunc i256 v403 to i40
-    v405 = eq v404, i40 0
-    v406 = eq v405, false
-    icall panic_if<0x1>, v406
-    v407 = sload 0 !metadata(storage=slot(0))
-    v408 = gt v407, 6
-    v409 = eq v408, false
-    icall panic_if<0x32>, v409
-    v410 = storage_array_data_slot 0
-    v411 = add v410, 1
-    v412 = sload v411 !metadata(storage=offset(v410, 1))
-    v413 = shr v412, 0
-    v414 = trunc i256 v413 to i40
-    v415 = eq v414, i40 0
-    v416 = eq v415, false
-    icall panic_if<0x1>, v416
-    v417 = sload 0 !metadata(storage=slot(0))
-    v418 = gt v417, 7
-    v419 = eq v418, false
-    icall panic_if<0x32>, v419
-    v420 = storage_array_data_slot 0
-    v421 = add v420, 1
-    v422 = sload v421 !metadata(storage=offset(v420, 1))
-    v423 = shr v422, 40
-    v424 = trunc i256 v423 to i40
-    v425 = eq v424, i40 0
-    v426 = eq v425, false
-    icall panic_if<0x1>, v426
-    v427 = sload 0 !metadata(storage=slot(0))
-    v428 = gt v427, 8
-    v429 = eq v428, false
-    icall panic_if<0x32>, v429
-    v430 = storage_array_data_slot 0
-    v431 = add v430, 1
-    v432 = sload v431 !metadata(storage=offset(v430, 1))
-    v433 = shr v432, 80
-    v434 = trunc i256 v433 to i40
-    v435 = eq v434, i40 0
-    v436 = eq v435, false
-    icall panic_if<0x1>, v436
-    v437 = sload 0 !metadata(storage=slot(0))
-    v438 = gt v437, 9
-    v439 = eq v438, false
-    icall panic_if<0x32>, v439
-    v440 = storage_array_data_slot 0
-    v441 = add v440, 1
-    v442 = sload v441 !metadata(storage=offset(v440, 1))
-    v443 = shr v442, 120
-    v444 = trunc i256 v443 to i40
-    v445 = eq v444, i40 0
-    v446 = eq v445, false
-    icall panic_if<0x1>, v446
-    v447 = sload 0 !metadata(storage=slot(0))
-    v448 = gt v447, 10
-    v449 = eq v448, false
-    icall panic_if<0x32>, v449
-    v450 = storage_array_data_slot 0
-    v451 = add v450, 1
-    v452 = sload v451 !metadata(storage=offset(v450, 1))
-    v453 = shr v452, 160
-    v454 = trunc i256 v453 to i40
-    v455 = eq v454, i40 0
-    v456 = eq v455, false
-    icall panic_if<0x1>, v456
-    v457 = sload 0 !metadata(storage=slot(0))
-    v458 = gt v457, 11
-    v459 = eq v458, false
-    icall panic_if<0x32>, v459
-    v460 = storage_array_data_slot 0
-    v461 = add v460, 1
-    v462 = sload v461 !metadata(storage=offset(v460, 1))
-    v463 = shr v462, 200
-    v464 = trunc i256 v463 to i40
-    v465 = eq v464, i40 0
-    v466 = eq v465, false
-    icall panic_if<0x1>, v466
-    v467 = sload 0 !metadata(storage=slot(0))
-    v468 = gt v467, 12
-    v469 = eq v468, false
-    icall panic_if<0x32>, v469
-    v470 = storage_array_data_slot 0
-    v471 = add v470, 2
-    v472 = sload v471 !metadata(storage=offset(v470, 2))
-    v473 = shr v472, 0
-    v474 = trunc i256 v473 to i40
-    v475 = eq v474, i40 0
-    v476 = eq v475, false
-    icall panic_if<0x1>, v476
-    v477 = sload 0 !metadata(storage=slot(0))
-    v478 = gt v477, 13
-    v479 = eq v478, false
-    icall panic_if<0x32>, v479
-    v480 = storage_array_data_slot 0
-    v481 = add v480, 2
-    v482 = sload v481 !metadata(storage=offset(v480, 2))
-    v483 = shr v482, 40
-    v484 = trunc i256 v483 to i40
-    v485 = eq v484, i40 0
-    v486 = eq v485, false
-    icall panic_if<0x1>, v486
-    v487 = sload 0 !metadata(storage=slot(0))
-    v488 = gt v487, 14
-    v489 = eq v488, false
-    icall panic_if<0x32>, v489
-    v490 = storage_array_data_slot 0
-    v491 = add v490, 2
-    v492 = sload v491 !metadata(storage=offset(v490, 2))
-    v493 = shr v492, 80
-    v494 = trunc i256 v493 to i40
-    v495 = eq v494, i40 0
-    v496 = eq v495, false
-    icall panic_if<0x1>, v496
-    v497 = sload 0 !metadata(storage=slot(0))
-    v498 = gt v497, 15
-    v499 = eq v498, false
-    icall panic_if<0x32>, v499
-    v500 = storage_array_data_slot 0
-    v501 = add v500, 2
-    v502 = sload v501 !metadata(storage=offset(v500, 2))
-    v503 = shr v502, 120
-    v504 = trunc i256 v503 to i40
-    v505 = eq v504, i40 0
-    v506 = eq v505, false
-    icall panic_if<0x1>, v506
-    v507 = sload 0 !metadata(storage=slot(0))
-    v508 = gt v507, 16
-    v509 = eq v508, false
-    icall panic_if<0x32>, v509
-    v510 = storage_array_data_slot 0
-    v511 = add v510, 2
-    v512 = sload v511 !metadata(storage=offset(v510, 2))
-    v513 = shr v512, 160
-    v514 = trunc i256 v513 to i40
-    v515 = eq v514, i40 0
-    v516 = eq v515, false
-    icall panic_if<0x1>, v516
-    v517 = sload 0 !metadata(storage=slot(0))
-    v518 = gt v517, 17
-    v519 = eq v518, false
-    icall panic_if<0x32>, v519
-    v520 = storage_array_data_slot 0
-    v521 = add v520, 2
-    v522 = sload v521 !metadata(storage=offset(v520, 2))
-    v523 = shr v522, 200
-    v524 = trunc i256 v523 to i40
-    v525 = eq v524, i40 0
-    v526 = eq v525, false
-    icall panic_if<0x1>, v526
-    v527 = sload 0 !metadata(storage=slot(0))
-    v528 = gt v527, 18
-    v529 = eq v528, false
-    icall panic_if<0x32>, v529
-    v530 = storage_array_data_slot 0
-    v531 = add v530, 3
-    v532 = sload v531 !metadata(storage=offset(v530, 3))
-    v533 = shr v532, 0
-    v534 = trunc i256 v533 to i40
-    v535 = eq v534, i40 0
-    v536 = eq v535, false
-    icall panic_if<0x1>, v536
-    v537 = sload 0 !metadata(storage=slot(0))
-    v538 = gt v537, 19
-    v539 = eq v538, false
-    icall panic_if<0x32>, v539
-    v540 = storage_array_data_slot 0
-    v541 = add v540, 3
-    v542 = sload v541 !metadata(storage=offset(v540, 3))
-    v543 = shr v542, 40
-    v544 = trunc i256 v543 to i40
-    v545 = eq v544, i40 0
-    v546 = eq v545, false
-    icall panic_if<0x1>, v546
-    ret true
-  bb7:                                            ; preds = bb6
-    v325 = shl v323, 5
-    v326 = ptradd v300, v325
-    v327 = ptradd v326, 32
-    v328 = mload v327
-    v329 = storage_array_data_slot 0
-    v330 = div v323, 6
-    v331 = add v329, v330
-    v332 = mod v323, 6
-    v333 = mul v332, 5
-    v334 = mul v333, 8
-    v335 = shl 0xffffffffff, v334
-    v336 = sload v331 !metadata(storage=symbolic(v331))
-    v337 = not v335
-    v338 = and v336, v337
-    v339 = and v328, 0xffffffffff
-    v340 = shl v339, v334
-    v341 = or v338, v340
-    sstore v331, v341 !metadata(storage=symbolic(v331))
-    v342 = add v323, 1
-    jump bb6
-  bb4:                                            ; preds = bb3
-    v310 = storage_array_data_slot 0
-    v311 = div v308, 6
-    v312 = add v310, v311
-    v313 = mod v308, 6
-    v314 = mul v313, 5
-    v315 = mul v314, 8
-    v316 = shl 0xffffffffff, v315
-    v317 = sload v312 !metadata(storage=symbolic(v312))
-    v318 = not v316
-    v319 = and v317, v318
-    v320 = shl 0, v315
-    v321 = or v319, v320
-    sstore v312, v321 !metadata(storage=symbolic(v312))
-    v322 = add v308, 1
+    v318 = div v305, 6
+    v319 = mod v305, 6
+    v320 = ne v319, 0
+    v321 = zext i1 v320 to i256
+    v322 = add v318, v321
+    v323 = storage_array_data_slot 0
     jump bb3
+  bb3:                                            ; preds = bb2, bb8
+    v324 = phi [bb2: 0], [bb8: v344]
+    v325 = lt v324, v322
+    jumpi v325, bb4, bb5
+  bb5:                                            ; preds = bb3
+    sstore 0, 20 !metadata(storage=slot(0))
+    v345 = sload 0 !metadata(storage=slot(0))
+    v346 = gt v345, 0
+    v347 = eq v346, false
+    icall panic_if<0x32>, v347
+    v348 = storage_array_data_slot 0
+    v349 = sload v348 !metadata(storage=symbolic(v348))
+    v350 = shr v349, 0
+    v351 = trunc i256 v350 to i40
+    v352 = eq v351, i40 23
+    v353 = eq v352, false
+    icall panic_if<0x1>, v353
+    v354 = sload 0 !metadata(storage=slot(0))
+    v355 = gt v354, 1
+    v356 = eq v355, false
+    icall panic_if<0x32>, v356
+    v357 = storage_array_data_slot 0
+    v358 = sload v357 !metadata(storage=symbolic(v357))
+    v359 = shr v358, 40
+    v360 = trunc i256 v359 to i40
+    v361 = eq v360, i40 0
+    v362 = eq v361, false
+    icall panic_if<0x1>, v362
+    v363 = sload 0 !metadata(storage=slot(0))
+    v364 = gt v363, 2
+    v365 = eq v364, false
+    icall panic_if<0x32>, v365
+    v366 = storage_array_data_slot 0
+    v367 = sload v366 !metadata(storage=symbolic(v366))
+    v368 = shr v367, 80
+    v369 = trunc i256 v368 to i40
+    v370 = eq v369, i40 0
+    v371 = eq v370, false
+    icall panic_if<0x1>, v371
+    v372 = sload 0 !metadata(storage=slot(0))
+    v373 = gt v372, 3
+    v374 = eq v373, false
+    icall panic_if<0x32>, v374
+    v375 = storage_array_data_slot 0
+    v376 = sload v375 !metadata(storage=symbolic(v375))
+    v377 = shr v376, 120
+    v378 = trunc i256 v377 to i40
+    v379 = eq v378, i40 0
+    v380 = eq v379, false
+    icall panic_if<0x1>, v380
+    v381 = sload 0 !metadata(storage=slot(0))
+    v382 = gt v381, 4
+    v383 = eq v382, false
+    icall panic_if<0x32>, v383
+    v384 = storage_array_data_slot 0
+    v385 = sload v384 !metadata(storage=symbolic(v384))
+    v386 = shr v385, 160
+    v387 = trunc i256 v386 to i40
+    v388 = eq v387, i40 0
+    v389 = eq v388, false
+    icall panic_if<0x1>, v389
+    v390 = sload 0 !metadata(storage=slot(0))
+    v391 = gt v390, 5
+    v392 = eq v391, false
+    icall panic_if<0x32>, v392
+    v393 = storage_array_data_slot 0
+    v394 = sload v393 !metadata(storage=symbolic(v393))
+    v395 = shr v394, 200
+    v396 = trunc i256 v395 to i40
+    v397 = eq v396, i40 0
+    v398 = eq v397, false
+    icall panic_if<0x1>, v398
+    v399 = sload 0 !metadata(storage=slot(0))
+    v400 = gt v399, 6
+    v401 = eq v400, false
+    icall panic_if<0x32>, v401
+    v402 = storage_array_data_slot 0
+    v403 = add v402, 1
+    v404 = sload v403 !metadata(storage=offset(v402, 1))
+    v405 = shr v404, 0
+    v406 = trunc i256 v405 to i40
+    v407 = eq v406, i40 0
+    v408 = eq v407, false
+    icall panic_if<0x1>, v408
+    v409 = sload 0 !metadata(storage=slot(0))
+    v410 = gt v409, 7
+    v411 = eq v410, false
+    icall panic_if<0x32>, v411
+    v412 = storage_array_data_slot 0
+    v413 = add v412, 1
+    v414 = sload v413 !metadata(storage=offset(v412, 1))
+    v415 = shr v414, 40
+    v416 = trunc i256 v415 to i40
+    v417 = eq v416, i40 0
+    v418 = eq v417, false
+    icall panic_if<0x1>, v418
+    v419 = sload 0 !metadata(storage=slot(0))
+    v420 = gt v419, 8
+    v421 = eq v420, false
+    icall panic_if<0x32>, v421
+    v422 = storage_array_data_slot 0
+    v423 = add v422, 1
+    v424 = sload v423 !metadata(storage=offset(v422, 1))
+    v425 = shr v424, 80
+    v426 = trunc i256 v425 to i40
+    v427 = eq v426, i40 0
+    v428 = eq v427, false
+    icall panic_if<0x1>, v428
+    v429 = sload 0 !metadata(storage=slot(0))
+    v430 = gt v429, 9
+    v431 = eq v430, false
+    icall panic_if<0x32>, v431
+    v432 = storage_array_data_slot 0
+    v433 = add v432, 1
+    v434 = sload v433 !metadata(storage=offset(v432, 1))
+    v435 = shr v434, 120
+    v436 = trunc i256 v435 to i40
+    v437 = eq v436, i40 0
+    v438 = eq v437, false
+    icall panic_if<0x1>, v438
+    v439 = sload 0 !metadata(storage=slot(0))
+    v440 = gt v439, 10
+    v441 = eq v440, false
+    icall panic_if<0x32>, v441
+    v442 = storage_array_data_slot 0
+    v443 = add v442, 1
+    v444 = sload v443 !metadata(storage=offset(v442, 1))
+    v445 = shr v444, 160
+    v446 = trunc i256 v445 to i40
+    v447 = eq v446, i40 0
+    v448 = eq v447, false
+    icall panic_if<0x1>, v448
+    v449 = sload 0 !metadata(storage=slot(0))
+    v450 = gt v449, 11
+    v451 = eq v450, false
+    icall panic_if<0x32>, v451
+    v452 = storage_array_data_slot 0
+    v453 = add v452, 1
+    v454 = sload v453 !metadata(storage=offset(v452, 1))
+    v455 = shr v454, 200
+    v456 = trunc i256 v455 to i40
+    v457 = eq v456, i40 0
+    v458 = eq v457, false
+    icall panic_if<0x1>, v458
+    v459 = sload 0 !metadata(storage=slot(0))
+    v460 = gt v459, 12
+    v461 = eq v460, false
+    icall panic_if<0x32>, v461
+    v462 = storage_array_data_slot 0
+    v463 = add v462, 2
+    v464 = sload v463 !metadata(storage=offset(v462, 2))
+    v465 = shr v464, 0
+    v466 = trunc i256 v465 to i40
+    v467 = eq v466, i40 0
+    v468 = eq v467, false
+    icall panic_if<0x1>, v468
+    v469 = sload 0 !metadata(storage=slot(0))
+    v470 = gt v469, 13
+    v471 = eq v470, false
+    icall panic_if<0x32>, v471
+    v472 = storage_array_data_slot 0
+    v473 = add v472, 2
+    v474 = sload v473 !metadata(storage=offset(v472, 2))
+    v475 = shr v474, 40
+    v476 = trunc i256 v475 to i40
+    v477 = eq v476, i40 0
+    v478 = eq v477, false
+    icall panic_if<0x1>, v478
+    v479 = sload 0 !metadata(storage=slot(0))
+    v480 = gt v479, 14
+    v481 = eq v480, false
+    icall panic_if<0x32>, v481
+    v482 = storage_array_data_slot 0
+    v483 = add v482, 2
+    v484 = sload v483 !metadata(storage=offset(v482, 2))
+    v485 = shr v484, 80
+    v486 = trunc i256 v485 to i40
+    v487 = eq v486, i40 0
+    v488 = eq v487, false
+    icall panic_if<0x1>, v488
+    v489 = sload 0 !metadata(storage=slot(0))
+    v490 = gt v489, 15
+    v491 = eq v490, false
+    icall panic_if<0x32>, v491
+    v492 = storage_array_data_slot 0
+    v493 = add v492, 2
+    v494 = sload v493 !metadata(storage=offset(v492, 2))
+    v495 = shr v494, 120
+    v496 = trunc i256 v495 to i40
+    v497 = eq v496, i40 0
+    v498 = eq v497, false
+    icall panic_if<0x1>, v498
+    v499 = sload 0 !metadata(storage=slot(0))
+    v500 = gt v499, 16
+    v501 = eq v500, false
+    icall panic_if<0x32>, v501
+    v502 = storage_array_data_slot 0
+    v503 = add v502, 2
+    v504 = sload v503 !metadata(storage=offset(v502, 2))
+    v505 = shr v504, 160
+    v506 = trunc i256 v505 to i40
+    v507 = eq v506, i40 0
+    v508 = eq v507, false
+    icall panic_if<0x1>, v508
+    v509 = sload 0 !metadata(storage=slot(0))
+    v510 = gt v509, 17
+    v511 = eq v510, false
+    icall panic_if<0x32>, v511
+    v512 = storage_array_data_slot 0
+    v513 = add v512, 2
+    v514 = sload v513 !metadata(storage=offset(v512, 2))
+    v515 = shr v514, 200
+    v516 = trunc i256 v515 to i40
+    v517 = eq v516, i40 0
+    v518 = eq v517, false
+    icall panic_if<0x1>, v518
+    v519 = sload 0 !metadata(storage=slot(0))
+    v520 = gt v519, 18
+    v521 = eq v520, false
+    icall panic_if<0x32>, v521
+    v522 = storage_array_data_slot 0
+    v523 = add v522, 3
+    v524 = sload v523 !metadata(storage=offset(v522, 3))
+    v525 = shr v524, 0
+    v526 = trunc i256 v525 to i40
+    v527 = eq v526, i40 0
+    v528 = eq v527, false
+    icall panic_if<0x1>, v528
+    v529 = sload 0 !metadata(storage=slot(0))
+    v530 = gt v529, 19
+    v531 = eq v530, false
+    icall panic_if<0x32>, v531
+    v532 = storage_array_data_slot 0
+    v533 = add v532, 3
+    v534 = sload v533 !metadata(storage=offset(v532, 3))
+    v535 = shr v534, 40
+    v536 = trunc i256 v535 to i40
+    v537 = eq v536, i40 0
+    v538 = eq v537, false
+    icall panic_if<0x1>, v538
+    ret true
+  bb4:                                            ; preds = bb3
+    v326 = mul v324, 6
+    v327 = sub v305, v326
+    v328 = lt v327, 6
+    v329 = select v328, v327, 6
+    jump bb6
+  bb6:                                            ; preds = bb4, bb7
+    v330 = phi [bb4: 0], [bb7: v342]
+    v331 = phi [bb4: 0], [bb7: v341]
+    v332 = lt v330, v329
+    jumpi v332, bb7, bb8
+  bb8:                                            ; preds = bb6
+    v343 = add v323, v324
+    sstore v343, v331 !metadata(storage=symbolic(v343))
+    v344 = add v324, 1
+    jump bb3
+  bb7:                                            ; preds = bb6
+    v333 = add v326, v330
+    v334 = shl v333, 5
+    v335 = ptradd v300, v334
+    v336 = ptradd v335, 32
+    v337 = mload v336
+    v338 = and v337, 0xffffffffff
+    v339 = mul v330, 40
+    v340 = shl v338, v339
+    v341 = or v340, v331
+    v342 = add v330, 1
+    jump bb6
 }

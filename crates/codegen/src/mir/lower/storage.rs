@@ -90,6 +90,22 @@ impl StorageLocation {
         }
     }
 
+    /// The value as the low bits of a word, with zero padding above them.
+    pub(super) fn field_word(self, builder: &mut FunctionBuilder<'_>, value: ValueId) -> ValueId {
+        match self.encoding {
+            StorageEncoding::FixedBytes => {
+                // field = value >> align_shift
+                let shift = builder.imm(u64::from(Self::word_bytes() - self.size.bytes()) * 8);
+                builder.shr(value, shift)
+            }
+            StorageEncoding::Unsigned | StorageEncoding::Signed => {
+                // field = value & field_mask
+                let field_mask = builder.imm(self.mask());
+                builder.and(value, field_mask)
+            }
+        }
+    }
+
     pub(super) fn load_word(
         self,
         builder: &mut FunctionBuilder<'_>,
@@ -224,7 +240,9 @@ impl<'gcx> StorageLayout<'gcx> {
             return;
         }
         if location.exclusive {
-            self.store_exclusive(builder, location, slot, value);
+            // store(slot, field)
+            let field = location.field_word(builder, value);
+            location.store(builder, slot, field);
             return;
         }
         let shift = (location.offset != 0).then(|| builder.imm(u64::from(location.offset) * 8));
@@ -247,29 +265,6 @@ impl<'gcx> StorageLayout<'gcx> {
         let eight = builder.imm(8);
         let shift = builder.mul(offset, eight);
         self.store_word(builder, location, slot, Some(shift), value);
-    }
-
-    fn store_exclusive(
-        &self,
-        builder: &mut FunctionBuilder<'_>,
-        location: StorageLocation,
-        slot: ValueId,
-        value: ValueId,
-    ) {
-        // word = fixed_bytes ? value >> align_shift : value & field_mask
-        // store(slot, word)
-        let word = match location.encoding {
-            StorageEncoding::FixedBytes => {
-                let shift = builder
-                    .imm(u64::from(StorageLocation::word_bytes() - location.size.bytes()) * 8);
-                builder.shr(value, shift)
-            }
-            StorageEncoding::Unsigned | StorageEncoding::Signed => {
-                let field_mask = builder.imm(location.mask());
-                builder.and(value, field_mask)
-            }
-        };
-        location.store(builder, slot, word);
     }
 
     fn store_word(

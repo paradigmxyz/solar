@@ -1446,16 +1446,20 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             _ => source_ty,
         };
         let source_layout = self.types.memory_layout(source_ty)?;
-        let (source_element, length, fixed_length) = match source_ty.kind {
-            TyKind::DynArray(source_element) => {
-                (source_element, self.builder.memory_len(object), None)
-            }
+        let (source_element, length) = match source_ty.kind {
+            TyKind::DynArray(source_element) => (source_element, self.builder.memory_len(object)),
             TyKind::Array(source_element, source_len) => {
                 let source_len = u64::try_from(source_len).ok()?;
-                (source_element, self.builder.imm(source_len), Some(source_len))
+                (source_element, self.builder.imm(source_len))
             }
             _ => return self.cx.report_unsupported(span, "storage array conversion"),
         };
+        let packed = self
+            .cx
+            .storage
+            .packed_encoding(element)
+            .filter(|(size, _)| 32 / size.bytes() > 1)
+            .map(|(size, encoding)| StorageLocation::packed_word(size, encoding));
 
         let old_length = self.builder.sload(slot);
         let needs_cleanup = self.builder.gt(old_length, length);
@@ -1464,33 +1468,52 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.branch(needs_cleanup, cleanup_block, write_block);
 
         // if old_length > length {
-        //     for i in length..old_length { clear_storage(element_slot(i)) }
+        //     packed: clear_storage_words(slot, slots(length), slots(old_length))
+        //     else: for i in length..old_length { clear_storage(element_slot(i)) }
         // }
         self.builder.switch_to_block(cleanup_block);
-        let preheader = self.builder.current_block();
-        let header = self.builder.create_block();
-        let body = self.builder.create_block();
-        let exit = self.builder.create_block();
-        self.builder.jump(header);
-        self.builder.switch_to_block(header);
-        let index = self.builder.phi(vec![(preheader, length)]);
-        let condition = self.builder.lt(index, old_length);
-        self.builder.branch(condition, body, exit);
+        if let Some(location) = packed {
+            let new_slots = self.packed_array_slots(length, location);
+            let old_slots = self.packed_array_slots(old_length, location);
+            self.builder.clear_storage_words(slot, new_slots, old_slots);
+            self.builder.jump(write_block);
+        } else {
+            let preheader = self.builder.current_block();
+            let header = self.builder.create_block();
+            let body = self.builder.create_block();
+            let exit = self.builder.create_block();
+            self.builder.jump(header);
+            self.builder.switch_to_block(header);
+            let index = self.builder.phi(vec![(preheader, length)]);
+            let condition = self.builder.lt(index, old_length);
+            self.builder.branch(condition, body, exit);
 
-        self.builder.switch_to_block(body);
-        let access = self.storage_array_element_access(slot, index, element, true, span)?;
-        self.clear_storage_access(element, access, span)?;
-        let next = self.builder.add_offset(index, 1);
-        let backedge = self.builder.current_block();
-        self.builder.jump(header);
-        self.builder.add_phi_incoming(index, backedge, next);
-        self.builder.switch_to_block(exit);
-        self.builder.jump(write_block);
+            self.builder.switch_to_block(body);
+            let access = self.storage_array_element_access(slot, index, element, true, span)?;
+            self.clear_storage_access(element, access, span)?;
+            let next = self.builder.add_offset(index, 1);
+            let backedge = self.builder.current_block();
+            self.builder.jump(header);
+            self.builder.add_phi_incoming(index, backedge, next);
+            self.builder.switch_to_block(exit);
+            self.builder.jump(write_block);
+        }
 
         self.builder.switch_to_block(write_block);
         // sstore(slot, length)
         // for i in 0..length { store_storage(element_slot(i), object[i]) }
         self.builder.sstore(slot, length);
+
+        if packed.is_some() {
+            return self.store_packed_array_words(
+                element,
+                source_element,
+                source_layout,
+                slot,
+                object,
+                length,
+            );
+        }
 
         self.counted_loop(length, |this, index| {
             let value = if this.types.memory_layout(source_element).is_some() {
@@ -1501,57 +1524,81 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             };
             let access = this.storage_array_element_access(slot, index, element, true, span)?;
             this.store_storage_value_with_source(element, source_element, access, value, span)
-        })?;
-
-        if let Some((size, _)) = self.cx.storage.packed_encoding(element)
-            && 32 / size.bytes() > 1
-        {
-            // Packed element stores preserve neighboring bits, including stale values past the
-            // logical length.
-            let per_slot = u64::from(32 / size.bytes());
-            if let Some(length) = fixed_length {
-                let remainder = (length % per_slot) as u16;
-                if remainder != 0 {
-                    let slot_index = self.builder.imm(length / per_slot);
-                    let used_bits = size.bits() * remainder;
-                    let mask = (U256::ONE << used_bits) - U256::ONE;
-                    let mask = self.builder.imm(mask);
-                    self.clear_unused_packed_array_elements(slot, slot_index, mask);
-                }
-            } else {
-                let (slot_index, remainder) =
-                    packed_storage_array_position(&mut self.builder, length, size.bytes());
-                let no_partial_slot = self.builder.eq_zero(remainder);
-                let cleanup_block = self.builder.create_block();
-                let merge_block = self.builder.create_block();
-                self.builder.branch(no_partial_slot, merge_block, cleanup_block);
-
-                self.builder.switch_to_block(cleanup_block);
-                let element_bits = self.builder.imm(u64::from(size.bits()));
-                let used_bits = self.builder.mul(remainder, element_bits);
-                let one = self.builder.imm(1);
-                let high_bit = self.builder.shl(one, used_bits);
-                let mask = self.builder.sub(high_bit, one);
-                self.clear_unused_packed_array_elements(slot, slot_index, mask);
-                self.builder.jump(merge_block);
-
-                self.builder.switch_to_block(merge_block);
-            }
-        }
-        Some(())
+        })
     }
 
-    fn clear_unused_packed_array_elements(
+    /// The number of data slots a packed array of `length` elements occupies.
+    fn packed_array_slots(&mut self, length: ValueId, location: StorageLocation) -> ValueId {
+        // slots = length / per_slot + (length % per_slot != 0)
+        let (full_slots, remainder) =
+            packed_storage_array_position(&mut self.builder, length, location.size.bytes());
+        let has_partial_slot = self.builder.ne_zero(remainder);
+        self.builder.add(full_slots, has_partial_slot)
+    }
+
+    /// Stores packed elements of a memory array one slot at a time: each slot word is built from
+    /// its elements in a register and written once, padding included.
+    fn store_packed_array_words(
         &mut self,
+        element: Ty<'gcx>,
+        source_element: Ty<'gcx>,
+        source_layout: MemoryObjectLayout,
         slot: ValueId,
-        slot_index: ValueId,
-        mask: ValueId,
-    ) {
+        object: ValueId,
+        length: ValueId,
+    ) -> Option<()> {
+        // for w in 0..slots {
+        //     first = w * per_slot
+        //     count = min(per_slot, length - first)
+        //     word = 0
+        //     for j in 0..count { word |= field(object[first + j]) << j * element_bits }
+        //     sstore(data_slot + w, word)
+        // }
+        let (size, encoding) = self.cx.storage.packed_encoding(element)?;
+        let location = StorageLocation::packed_word(size, encoding);
+        let bits = u64::from(size.bits());
+        let per_slot = self.builder.imm(256 / bits);
+        let slots = self.packed_array_slots(length, location);
         let data_slot = self.builder.storage_array_data_slot(slot);
-        let partial_slot = self.builder.add(data_slot, slot_index);
-        let word = self.builder.sload(partial_slot);
-        let word = self.builder.and(word, mask);
-        self.builder.sstore(partial_slot, word);
+        self.counted_loop(slots, |this, word_index| {
+            let first = this.builder.mul(word_index, per_slot);
+            let rest = this.builder.sub(length, first);
+            let short = this.builder.lt(rest, per_slot);
+            let count = this.builder.select(short, rest, per_slot);
+
+            let preheader = this.builder.current_block();
+            let header = this.builder.create_block();
+            let body = this.builder.create_block();
+            let exit = this.builder.create_block();
+            this.builder.jump(header);
+            this.builder.switch_to_block(header);
+            let zero = this.builder.imm(0);
+            let index_in_word = this.builder.phi(vec![(preheader, zero)]);
+            let word = this.builder.phi(vec![(preheader, zero)]);
+            let more = this.builder.lt(index_in_word, count);
+            this.builder.branch(more, body, exit);
+
+            this.builder.switch_to_block(body);
+            let index = this.builder.add(first, index_in_word);
+            let value = this.builder.memory_load_element(object, source_layout, index);
+            let value = this.decode_memory_scalar(source_element, value);
+            this.validate_enum(element, value);
+            let field = location.field_word(&mut this.builder, value);
+            let bits = this.builder.imm(bits);
+            let shift = this.builder.mul(index_in_word, bits);
+            let field = this.builder.shl(field, shift);
+            let next_word = this.builder.or(word, field);
+            let next_index = this.builder.add_offset(index_in_word, 1);
+            let backedge = this.builder.current_block();
+            this.builder.jump(header);
+            this.builder.add_phi_incoming(index_in_word, backedge, next_index);
+            this.builder.add_phi_incoming(word, backedge, next_word);
+
+            this.builder.switch_to_block(exit);
+            let word_slot = this.builder.add(data_slot, word_index);
+            this.builder.sstore(word_slot, word);
+            Some(())
+        })
     }
 
     fn store_storage_struct_fields_with_source(
