@@ -281,7 +281,7 @@ fn lower_evm_ir_once(
                     program.set_function_invoke(first, Some(function));
                 }
                 if let Some(function) = inst.metadata.function_invoke() {
-                    program.mark_last_function_invoke(Some(function));
+                    program.set_function_invoke(first, Some(function));
                 }
                 program.mark_last_function_exit(inst.metadata.function_exit());
             }
@@ -308,7 +308,7 @@ fn lower_evm_ir_once(
                     program.set_function_invoke(first, Some(function));
                 }
                 if let Some(function) = terminator.metadata.function_invoke() {
-                    program.mark_last_function_invoke(Some(function));
+                    program.set_function_invoke(first, Some(function));
                 }
                 program.mark_last_function_exit(terminator.metadata.function_exit());
             }

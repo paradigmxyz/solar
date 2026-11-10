@@ -121,7 +121,7 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
         terminator.metadata.preserve_debug_loc(&term.metadata);
         block.terminator = Some(terminator);
         block.instructions[condition_end] = push;
-        shared_used |= is_empty;
+        shared_used |= is_empty && revert != target_revert;
         if let Some((start, bound, opposite)) = inverted {
             block.instructions[start].replace_preserving_metadata(Instruction::push_value(bound));
             block.instructions[condition_end - 1]
