@@ -31,10 +31,10 @@ use solar_ir::link::LibraryId;
 
 use super::{
     AbiEncodeMode, AbiLayoutRef, AbiParamLayoutRef, AddressCallKind, AllocationSemantics,
-    ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, DataSize, EffectKind, FrameMode,
-    FrameSlotKind, Function, FunctionId, ImmutableId, InstructionMetadata, MemoryObjectKind,
-    MemoryObjectLayout, MirPhase, MirType, PackedPart, PtrLocation, RevertKind, Semantics,
-    StructId, ValueId, ValueLayout, typing,
+    ArithmeticKind, AssumePredicate, BlockId, Builtin, Callee, CheckedOp, DataRef, DataSize,
+    EffectKind, FactSource, FrameMode, FrameSlotKind, Function, FunctionId, ImmutableId,
+    InstructionMetadata, MemoryObjectKind, MemoryObjectLayout, MirPhase, MirType, PackedPart,
+    PtrLocation, RevertKind, Semantics, StructId, ValueId, ValueLayout, typing,
 };
 use smallvec::{Array, SmallVec, smallvec};
 use std::fmt::Write as _;
@@ -662,6 +662,8 @@ attributes! {
     MemoryObjectKind,
     MemoryObjectLayout,
     PtrLocation,
+    AssumePredicate,
+    FactSource,
 }
 
 opaque_attributes! {
@@ -2766,5 +2768,21 @@ define_mir_ops! {
     #[operand_types(func => Some(smallvec![MirType::I256, MirType::I256]))]
     #[semantics(opcode(signextend))]
     SignExtend(byte: ValueId, value: ValueId),
+
+    // Recorded facts
+    /// A fact the `source` pass relied on: `predicate(lhs, rhs)` holds wherever this executes.
+    /// Recorded only with `-Zcheck-analyses`, never read by an analysis, and turned into a
+    /// run-time check by `lower-assumes`; see the `assume` module.
+    #[mir_op(
+        mnemonic = "assume",
+        result = None,
+        phases = PhaseSet::ALL,
+        effect = Pure,
+        traits = OpTraits::NONE,
+        side_effects = true,
+        category = None
+    )]
+    #[operand_types(func => None)]
+    Assume { predicate: AssumePredicate, source: FactSource, lhs: ValueId, rhs: ValueId },
 }
 }

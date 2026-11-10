@@ -326,3 +326,6 @@
 
 (decl signextend (Value Value) Value)
 (extractor (signextend byte value) (inst (Op.SignExtend byte value)))
+
+(decl assume (AssumePredicate FactSource Value Value) Value)
+(extractor (assume predicate source lhs rhs) (inst (Op.Assume predicate source lhs rhs)))
