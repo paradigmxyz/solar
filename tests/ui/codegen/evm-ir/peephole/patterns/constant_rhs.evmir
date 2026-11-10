@@ -490,7 +490,7 @@ bb39:
   mstore
   stop
 
-// A bound whose materialization needs a second stack word is still taken.
+// Adjusting a wide bound inverts the comparison.
 // CHECK-LABEL: {{^[ +].*}}bb40:
 // CHECK: {{^[ +].*}}push 0x10000000000
 // CHECK: {{^[ +].*}}gt
