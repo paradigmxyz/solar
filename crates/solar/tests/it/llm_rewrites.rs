@@ -62,10 +62,19 @@ fn rewrite(
     rewriter: Arc<impl LlmRewriter + 'static>,
     check: impl FnOnce(&Module) + Send,
 ) {
+    rewrite_pipeline(text, rewriter, "llm-optimize", check);
+}
+
+fn rewrite_pipeline(
+    text: &str,
+    rewriter: Arc<impl LlmRewriter + 'static>,
+    pipeline: &str,
+    check: impl FnOnce(&Module) + Send,
+) {
     let mut opts = CompileOpts { optimization: OptimizationMode::Gas, ..Default::default() };
     opts.unstable.llm_optimize = Some(LlmOptimizeMode::Live);
     opts.unstable.llm_samples = Some(64);
-    opts.unstable.mir_pipeline = Some("llm-optimize".into());
+    opts.unstable.mir_pipeline = Some(pipeline.into());
     let session = Session::builder().opts(opts).with_buffer_emitter(ColorChoice::Never).build();
     let compiler = Compiler::new(session);
     compiler.enter(|compiler| {
@@ -195,10 +204,10 @@ fn rewrite_choices_bind_metadata_and_embedded_contracts() {
     let dir = tempfile::tempdir().unwrap();
     let script = dir.path().join("choices.txt");
     let input = dir.path().join("input.json");
-    let pipeline = "lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,llm-optimize";
+    let pipeline = "lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,llm-optimize,none,egraph,llm-optimize";
     let json = serde_json::json!({
         "language": "Solidity",
-        "sources": {"C.sol": {"content": "contract C { function f(uint x) external pure returns(uint) { return h(x); } function h(uint x) internal pure returns(uint) { unchecked { return (x + 0) * 1; } } } contract Parent { function create() external returns(C) { return new C(); } }"}},
+        "sources": {"C.sol": {"content": "contract C { function f(uint x) external pure returns(uint) { return h(x); } function h(uint x) internal pure returns(uint) { unchecked { return (x + 0) * 1; } } } contract Parent { function create() external returns(C) { return new C(); } } contract Other { function f(uint x) external pure returns(uint) { return h(x); } function h(uint x) internal pure returns(uint) { unchecked { return (x + 0) * 1; } } }"}},
         "settings": {
             "optimizer": {"enabled": true},
             "solar": {"unstable": [format!("mir-pipeline={pipeline}")]},
@@ -208,13 +217,22 @@ fn rewrite_choices_bind_metadata_and_embedded_contracts() {
     std::fs::write(&input, json.to_string()).unwrap();
     let compile = |enabled: bool| {
         let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_solar"));
-        command.args(["--standard-json", input.to_str().unwrap(), "-j1"]);
+        command.args(["--standard-json", input.to_str().unwrap(), "-j2"]);
         if enabled {
-            command.args(["-Zllm-optimize=script", "-Zllm-samples=64"]);
+            command.args(["-Zllm-optimize=script", "-Zllm-samples=64", "-Zllm-trace"]);
             command.arg(format!("-Zllm-script={}", script.display()));
         }
         let output = command.output().unwrap();
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        if enabled {
+            let diagnostics = String::from_utf8_lossy(&output.stderr);
+            let offers = diagnostics
+                .lines()
+                .filter(|line| line.split_whitespace().skip(2).take(2).eq(["@h:", "offered"]))
+                .count();
+            // C and Other each have one h; preparing again or repeating the pass costs no turns.
+            assert_eq!(offers, 2, "{diagnostics}");
+        }
         let output: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
         assert!(
             !output["errors"]
@@ -230,6 +248,33 @@ fn rewrite_choices_bind_metadata_and_embedded_contracts() {
     )
     .unwrap();
     let first = compile(true);
+    let first_id = first["ethdebug"]["compilation"]["id"].clone();
+    assert!(first_id.as_str().is_some());
+    for selection in [
+        serde_json::json!({"*": {"*": ["metadata"]}}),
+        serde_json::json!({"*": {"*": ["metadata", "ethdebug.resources"]}}),
+        serde_json::json!({"C.sol": {"C": ["metadata", "ethdebug.resources"]}}),
+        serde_json::json!({"C.sol": {"Parent": ["metadata", "ethdebug.resources"]}}),
+        serde_json::json!({"C.sol": {"Other": ["metadata", "ethdebug.resources"]}}),
+        serde_json::json!({"*": {"*": ["ethdebug.resources"]}}),
+        serde_json::json!({"*": {"*": ["metadata", "evm.bytecode.ethdebug"]}}),
+    ] {
+        let mut request = json.clone();
+        request["settings"]["outputSelection"] = selection;
+        std::fs::write(&input, request.to_string()).unwrap();
+        let selected = compile(true);
+        if !selected["ethdebug"].is_null() {
+            assert_eq!(selected["ethdebug"]["compilation"]["id"], first_id);
+        }
+        if let Some(contracts) = selected["contracts"]["C.sol"].as_object() {
+            for (name, contract) in contracts {
+                if let Some(metadata) = contract.get("metadata") {
+                    assert_eq!(metadata, &first["contracts"]["C.sol"][name]["metadata"]);
+                }
+            }
+        }
+    }
+    std::fs::write(&input, json.to_string()).unwrap();
     // A different verified choice at the same host path must receive a different identity.
     std::fs::write(&script, "--- function h\n--- candidate\nfn @h(arg0: i256) -> i256 { bb0: v0 = xor arg0, 0 ret v0 }\n").unwrap();
     let second = compile(true);
@@ -312,5 +357,34 @@ fn candidates_are_bounded_before_execution() {
             |module| assert!(module.rewrite_digests.is_empty()),
         );
         assert_eq!(*rejected.lock().unwrap(), [Stage::Constraints]);
+    }
+}
+
+#[test]
+fn repeated_pipeline_entries_cannot_reopen_rewriter_sessions() {
+    let source = "@module Once
+@phase lowered
+fn @main() [entry] { bb0: v0 = calldataload 0 v1 = icall @g, v0 mstore 0, v1 returndata 0, 32 }
+fn @g(arg0: i256) -> i256 { bb0: v0 = add arg0, 0 v1 = mul v0, 1 ret v1 }";
+    // Empty and successful sessions both consume the opportunity. Separators and intervening
+    // mutations must not reset it, even after analysis caches are invalidated.
+    for accepts in [false, true] {
+        let rewriter = Arc::new(Rewriter {
+            candidates: if accepts {
+                BTreeMap::from([("g", "fn @g(arg0: i256) -> i256 { bb0: ret arg0 }")])
+            } else {
+                BTreeMap::new()
+            },
+            ..Default::default()
+        });
+        rewrite_pipeline(
+            source,
+            Arc::clone(&rewriter),
+            "llm-optimize,none,egraph,llm-optimize,none,llm-optimize",
+            move |module| assert_eq!(module.rewrite_digests.len(), usize::from(accepts)),
+        );
+        let requests = rewriter.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].0, "g");
     }
 }

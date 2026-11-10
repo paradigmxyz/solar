@@ -380,6 +380,19 @@ impl SourceMap {
         })
     }
 
+    /// Creates a source file without interning its name.
+    ///
+    /// Every call allocates a distinct source range, even if the name is already used. This keeps
+    /// temporary parser inputs in the session's shared span space without reusing another file.
+    pub fn new_source_file_uninterned(
+        &self,
+        name: impl Into<FileName>,
+        src: impl Into<String>,
+    ) -> io::Result<Arc<SourceFile>> {
+        let file = SourceFile::new(name.into(), Arc::new(src.into()))?;
+        self.append_source_file(file)
+    }
+
     fn append_source_file(&self, mut file: SourceFile) -> io::Result<Arc<SourceFile>> {
         trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
 

@@ -751,3 +751,20 @@ fn borrowed_lines_into_owned_preserves_allocation() {
     };
     assert_eq!(owned.data.len(), 2);
 }
+
+#[test]
+fn uninterned_sources_keep_distinct_shared_spans() {
+    let map = SourceMap::empty();
+    let name = FileName::Custom("candidate".into());
+    let original = map.new_source_file(name.clone(), "original").unwrap();
+    let first = map.new_source_file_uninterned(name.clone(), "first").unwrap();
+    let second = map.new_source_file_uninterned(name.clone(), "second").unwrap();
+    for (file, text) in [(&original, "original"), (&first, "first"), (&second, "second")] {
+        let span = Span::new(file.start_pos, file.end_position());
+        assert_eq!(map.span_to_snippet(span).unwrap(), text);
+    }
+    assert!(original.end_position() < first.start_pos);
+    assert!(first.end_position() < second.start_pos);
+    // Temporary input does not replace the source that is interned under the same name.
+    assert!(Arc::ptr_eq(&original, &map.new_source_file(name, "unused").unwrap()));
+}

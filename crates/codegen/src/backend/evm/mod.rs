@@ -10,6 +10,7 @@
 use alloy_primitives::B256;
 use solar_data_structures::{index::IndexVec, sync::Mutex};
 use solar_sema::hir::ContractId;
+use std::sync::OnceLock;
 
 mod codegen;
 use codegen::PlanCache;
@@ -42,6 +43,9 @@ pub(crate) struct CodegenState {
     plans: PlanCache,
     pub(crate) debugify_output: crate::debugify::Output,
     pub(crate) rewrite_digests: Mutex<IndexVec<ContractId, Vec<B256>>>,
+    pub(crate) prepared_rewrites: OnceLock<
+        solar_interface::Result<IndexVec<ContractId, Option<crate::contract::PreparedContract>>>,
+    >,
 }
 
 impl CodegenState {

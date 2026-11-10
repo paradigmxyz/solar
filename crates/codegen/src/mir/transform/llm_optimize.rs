@@ -15,7 +15,8 @@
 //! options cannot change which rewrites apply. A rewriter session then proposes candidates over at
 //! most `-Zllm-rounds` rounds. Each candidate gets a [`Verdict`], and the rewriter is asked for
 //! something cheaper than the best so far, until it has nothing, fails, or is rejected three times
-//! in a row. A rewriter failure never fails the compilation.
+//! in a row. A module consumes this opportunity once, including failed or empty sessions; repeated
+//! pipeline entries cannot reset the host's budget. A rewriter failure never fails the compilation.
 //!
 //! # Checks
 //!
@@ -119,6 +120,9 @@ impl MirPass for LlmOptimize {
     }
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, _analyses: &mut ModuleAnalyses) -> bool {
+        if !module.begin_external_rewrite() {
+            return false;
+        }
         let Some(optimizer) = Optimizer::new(gcx, module.optimization) else { return false };
         let rewrites = optimizer.run(module);
         let changed = !rewrites.is_empty();
@@ -665,10 +669,10 @@ fn emitted(dcx: &DiagCtxt) -> String {
 }
 
 fn parse_candidate(gcx: Gcx<'_>, module: &Module, text: &str) -> Result<Function, String> {
-    let source_map = Arc::new(SourceMap::empty());
+    let source_map = gcx.sess.clone_source_map();
     let session = gcx.sess.with_diagnostics(private_diagnostics(Some(Arc::clone(&source_map))));
     let file = source_map
-        .new_source_file(FileName::Custom("candidate".into()), text)
+        .new_source_file_uninterned(FileName::Custom("candidate".into()), text)
         .map_err(|error| error.to_string())?;
     module.parse_function(&session, &file).map_err(|_| emitted(&session.dcx))
 }

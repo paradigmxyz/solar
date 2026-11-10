@@ -206,6 +206,10 @@ Its instruction metadata is empty, and its debug information is marked as intent
 Callees are checked before callers, which see the accepted callee bodies. Rewritten modules use
 conservative raw-memory spill handling. Every accepted decision is included in metadata and the
 ETHDebug compilation identity, including embedded contracts' decisions in their parents' metadata.
+With rewriting enabled, the MIR pipeline runs once for every deployable contract before any
+output is generated, including metadata-only or debug-resource requests. Its canonical modules
+are cached and reused for bytecode generation. Output selection cannot choose a different set
+of rewrite decisions or omit them from the returned metadata.
 The actual runtime and creation bytecode must fit the target's code-size limits; exceeding one
 fails compilation rather than emitting an undeployable rewritten artifact.
 
@@ -274,6 +278,10 @@ cost, or rejected with the stage, the reason, and for behavior differences, the 
 it. The next proposal must beat the best so far. A session ends when the rewriter has nothing
 cheaper, after `-Zllm-rounds` rounds, after three rejections in a row, or when the rewriter fails.
 A failure never fails the compilation.
+
+Each module gets one rewrite opportunity. Repeating `llm-optimize` in a custom pipeline, even
+with other passes or `none` separators between occurrences, cannot open additional sessions.
+An unsuccessful or empty session consumes that opportunity too; cloning the module retains it.
 
 Functions are decided in deterministic callee-first order. Each caller sees the callee bodies
 that have already passed every check, so the tested composition is the one installed.
@@ -363,6 +371,11 @@ An embedder that resolves a project's sources itself compiles them with
 rewriter in the embedder's session on the sources a closure adds to the parsing context; the
 closure can also set the context's import remappings and include paths. `forge optimize`
 compiles a Foundry project this way.
+
+Private diagnostic sessions share their parent's source map. When parsing candidate text, use
+`Session::clone_source_map()` for the emitter and `SourceMap::new_source_file_uninterned` for a
+temporary input. Reusing a display name then allocates fresh source ranges without reusing an
+unrelated source file, and the retained spans still resolve through the parent session.
 
 ## Limits
 

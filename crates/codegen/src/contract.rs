@@ -185,6 +185,7 @@ pub fn generate_contract_bytecodes(
     // The bytecode of a failed compilation is withheld, and lowering reports the
     // construct that analysis already rejected as a second, misleading error.
     gcx.dcx().has_errors()?;
+    prepare_contract_rewrites(gcx)?;
     let captures = ContractCaptures {
         bytecode: contracts,
         mir: capture_mir,
@@ -211,13 +212,6 @@ pub fn generate_contract_bytecodes(
         }
         priorities
     };
-    let prepared = gcx
-        .sess
-        .opts
-        .unstable
-        .llm_optimize
-        .is_some()
-        .then(|| IndexVec::from_vec((0..contract_count).map(|_| Mutex::new(None)).collect()));
     let jobs = ContractJobs {
         gcx,
         span: tracing::Span::current(),
@@ -225,7 +219,6 @@ pub fn generate_contract_bytecodes(
         graph: &graph,
         artifacts: IndexVec::from_vec((0..contract_count).map(|_| OnceLock::new()).collect()),
         scheduled: IndexVec::from_vec((0..contract_count).map(|_| Mutex::new(None)).collect()),
-        prepared,
         diagnostics: IndexVec::from_vec((0..contract_count).map(|_| Mutex::default()).collect()),
         remaining_inputs: IndexVec::from_vec(
             graph
@@ -237,36 +230,6 @@ pub fn generate_contract_bytecodes(
         queue: ContractQueue::new(gcx.sess, &graph, priorities),
         parallel,
     };
-    if gcx.sess.opts.unstable.llm_optimize.is_some() {
-        // Resolve external choices for every embedded contract before any metadata is hashed.
-        // A parent's executable code also depends on the rewrites in its embedded children.
-        for &id in &graph.order {
-            if !(captures.bytecode.contains(id)
-                || captures.evm_ir.contains(id)
-                || captures.debug_info.contains(id)
-                || !graph.dependents[id].is_empty()
-                || dumps_final_mir(gcx))
-            {
-                continue;
-            }
-            let mut module = lower::lower_contract(gcx, id);
-            gcx.dcx().has_errors()?;
-            let built_mir = (captures.mir.contains(id)
-                && !module.is_optimized()
-                && gcx.sess.opts.unstable.mir_pipeline.is_none())
-            .then(|| module.clone());
-            module.set_debug_info_tracked(
-                captures.debug_info.contains(id) || crate::debugify::enabled(gcx),
-            );
-            let _changed = run_pipeline(gcx, &mut module, None);
-            gcx.dcx().has_errors()?;
-            let mut digests = gcx.codegen_state::<CodegenState>().rewrite_digests.lock();
-            digests.resize_with(contract_count, Vec::new);
-            digests[id] = module.rewrite_digests.clone();
-            *jobs.prepared.as_ref().expect("external rewrite preparation")[id].lock() =
-                Some(PreparedContract { module, built_mir });
-        }
-    }
     // Every contract is queued up front; only its completion waits for the bytecode of the
     // contracts it creates.
     for contract_id in graph.reachable.iter() {
@@ -623,8 +586,9 @@ struct ScheduledContract<'gcx> {
     built_mir: Option<Module>,
 }
 
-/// MIR optimized before resolving rewrite-dependent metadata.
-struct PreparedContract {
+/// Canonical MIR optimized before resolving output selections or rewrite-dependent metadata.
+#[derive(Clone)]
+pub(crate) struct PreparedContract {
     module: Module,
     built_mir: Option<Module>,
 }
@@ -638,7 +602,6 @@ struct ContractJobs<'a, 'gcx> {
     graph: &'a ContractGraph,
     artifacts: IndexVec<ContractId, OnceLock<ContractArtifact>>,
     scheduled: IndexVec<ContractId, Mutex<Option<ScheduledContract<'gcx>>>>,
-    prepared: Option<IndexVec<ContractId, Mutex<Option<PreparedContract>>>>,
     /// Diagnostics of each contract's jobs, withheld because the jobs run in any order.
     diagnostics: IndexVec<ContractId, Mutex<DeferredDiagnostics>>,
     /// Unfinished inputs of each contract: its own scheduling and each dependency.
@@ -740,8 +703,12 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             contract = %gcx.contract_fully_qualified_name(contract_id)
         )
         .entered();
-        let prepared =
-            self.prepared.as_ref().and_then(|prepared| prepared[contract_id].lock().take());
+        let prepared = gcx
+            .codegen_state::<CodegenState>()
+            .prepared_rewrites
+            .get()
+            .and_then(|result| result.as_ref().ok())
+            .and_then(|prepared| prepared[contract_id].clone());
         let preoptimized = prepared.is_some();
         let (mut module, prepared_built) = match prepared {
             Some(PreparedContract { module, built_mir }) => (module, built_mir),
@@ -1051,4 +1018,43 @@ fn dumps_final_mir(gcx: Gcx<'_>) -> bool {
         .dump
         .as_ref()
         .is_some_and(|dump| dump.kinds.contains(&DumpKind::MirFinal))
+}
+
+/// Resolves external rewrite choices once for every deployable contract, independently of outputs.
+///
+/// Metadata-only and debug-resource requests must identify the same executable decisions as
+/// bytecode requests. The canonical modules remain cached so later codegen reuses those decisions
+/// without opening further model sessions. Builds without external rewriting do no work here.
+pub fn prepare_contract_rewrites(gcx: Gcx<'_>) -> Result {
+    if gcx.sess.opts.unstable.llm_optimize.is_none() {
+        return Ok(());
+    }
+    let state = gcx.codegen_state::<CodegenState>();
+    state
+        .prepared_rewrites
+        .get_or_init(|| {
+            let graph = ContractGraph::discover(gcx, &ContractSelection::All)?;
+            let count = gcx.hir.contract_ids().len();
+            let mut prepared = IndexVec::from_vec((0..count).map(|_| None).collect());
+            let mut digests = IndexVec::from_vec((0..count).map(|_| Vec::new()).collect());
+            for &id in &graph.order {
+                let mut module = lower::lower_contract(gcx, id);
+                gcx.dcx().has_errors()?;
+                let built_mir = (!module.is_optimized()
+                    && gcx.sess.opts.unstable.mir_pipeline.is_none())
+                .then(|| module.clone());
+                // Preserve locations for any later output, without making output selection a pass
+                // input.
+                module.set_debug_info_tracked(true);
+                let _changed = run_pipeline(gcx, &mut module, None);
+                gcx.dcx().has_errors()?;
+                digests[id] = module.rewrite_digests.clone();
+                prepared[id] = Some(PreparedContract { module, built_mir });
+            }
+            *state.rewrite_digests.lock() = digests;
+            Ok(prepared)
+        })
+        .as_ref()
+        .map(|_| ())
+        .map_err(|&error| error)
 }
