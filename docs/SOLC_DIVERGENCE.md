@@ -1065,18 +1065,20 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   the second store, which adds pass complexity for no ordinary Solidity.
 - Coverage: `tests/ui/codegen/run-call/assembly/fmp_slot_self_store.sol`.
 
-### CODEGEN-026: Only the literal address 0x40 reads the free memory pointer slot
+### CODEGEN-026: The heap floor misses slot reads at addresses lowering does not fold
 
 - ID: CODEGEN-026
 - Status: intentional
-- Difference: the `heap-floor` pass recognizes a read of the free memory pointer
-  slot only at the literal address `0x40`. A load at an address that lowering
-  does not fold, such as `exp(0x40, 1)`, is a data read at a computed address,
-  as any address known only at runtime must be, so a forged pointer stays
-  unraised there. After `mstore(0x40, n)`, `return(mload(exp(0x40, 1)), 0x20)`
-  reads the scratch word below the heap in `solar`, as `solc` does, while the
-  same program spelled `mload(0x40)` reads the heap floor (CODEGEN-010).
+- Difference: the `heap-floor` pass recognizes a read of the free memory
+  pointer slot only when lowering has folded its address to `0x40`. A load at
+  an address it does not fold, such as `exp(0x40, 1)`, is a data read at a
+  computed address, as any address known only at runtime must be, so a forged
+  pointer stays unraised. With `mstore(0x00, 0x1111)` and `mstore(0x40, 0)`,
+  returning 32 bytes at `mload(0x40)` gives zero in `solar` (CODEGEN-010) and
+  `0x1111` in `solc`, while the same at `mload(exp(0x40, 1))` gives `0x1111` in
+  both. The
+  next allocation at the unraised pointer can then overwrite compiler frames.
 - Rationale: only assembly that forges the pointer and spells the slot address
   indirectly reaches it. Proving every such expression equal to `0x40` would
-  need value tracking in a pass that runs before constant folding.
+  need value tracking in a pass that runs before the optimizer folds them.
 - Coverage: `tests/ui/codegen/run-call/assembly/heap_floor_slot_spelling.sol`.

@@ -1,14 +1,11 @@
-//@ revisions: none gas size
+//@ codegen-matrix: standard
 //@ compile-flags: --no-warnings
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
 //@ run-call: plain(uint256) 0 => 0
 //@ run-call: spelled(uint256) 0 => 0x1111
 
-// The heap-floor pass recognizes a read of the free memory pointer slot only at the literal address
-// `0x40`. A load at `exp(0x40, 1)` is a data read at a computed address, so the forged pointer stays
-// unraised. solc returns 0x1111 for both functions (CODEGEN-026, CODEGEN-010).
+// The heap-floor pass recognizes a read of the free memory pointer slot only when lowering folds
+// its address to `0x40`. A load at `exp(0x40, 1)` is a data read at a computed address, so the
+// forged pointer stays unraised. solc returns 0x1111 for both functions (CODEGEN-026, CODEGEN-010).
 contract C {
     function plain(uint256 n) external pure returns (uint256) {
         assembly {

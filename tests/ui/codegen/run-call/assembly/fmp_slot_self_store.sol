@@ -1,8 +1,5 @@
-//@ revisions: none gas size
+//@ codegen-matrix: standard
 //@ compile-flags: --no-warnings
-//@[none] compile-flags: -O none
-//@[gas] compile-flags: -O gas
-//@[size] compile-flags: -O size
 //@ run-call: f() => 0x80
 
 // The heap-floor pass reads `mstore(0x40, mload(0x40))` as a pointer read, because the loaded word
