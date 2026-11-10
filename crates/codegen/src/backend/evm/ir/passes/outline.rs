@@ -39,8 +39,8 @@
 //! Each shared body instruction takes the merged locations of the sites' instructions at its
 //! position, and the stub's return jump takes the merged locations of each site's last located
 //! instruction. Each site's call sequence takes the first location in the run it replaces. A body
-//! instruction keeps a function event only when every site has it, and the call sequence takes
-//! none.
+//! instruction keeps a function event only when every site has it; otherwise the call sequence of
+//! the site that had it takes the entry.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
@@ -64,7 +64,8 @@
 use super::{
     EvmPass,
     utils::{
-        FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point, lower_bound,
+        FreshLabels, MachineInstKey, RunEvents, instruction_size_lower_bound, is_split_point,
+        lower_bound,
     },
 };
 use crate::{
@@ -895,6 +896,16 @@ fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32)
     let Site { block, start, len, inputs, .. } = edit.site;
     let range = &module.blocks[block].instructions[start..start + len];
     let location = call_site_location(range);
+    // NOTE: The shared body keeps a call only where every site has it. A site whose run starts
+    // the callee, when the body or the site's own parameters do not carry that, enters it at the
+    // call sequence instead, which runs once for the site, as the run did.
+    let events = RunEvents::of(range.iter().map(|inst| &inst.metadata));
+    let covered = |function| {
+        let carries = |inst: &Instruction| inst.metadata.function_invoke() == Some(function);
+        module.blocks[edit.stub].instructions.iter().any(carries)
+            || edit.parameters.iter().any(carries)
+    };
+    let events = events.invoke().filter(|&function| !covered(function)).map(|_| events);
     // prefix; push continuation; rotate return below inputs; push parameters; jump stub
     // continuation: suffix; original terminator
     let mut continuation = Block::new(continuation_label);
@@ -911,7 +922,12 @@ fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32)
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
     let instructions = &mut module.blocks[block].instructions;
-    instructions.push(Instruction::push_block(continuation).with_debug_loc(&location));
+    let mut call = [Instruction::push_block(continuation).with_debug_loc(&location)];
+    if let Some(events) = events {
+        events.place(&mut call);
+    }
+    let [call] = call;
+    instructions.push(call);
     instructions
         .extend((1..=usize::from(inputs)).rev().map(|depth| swap(depth).with_debug_loc(&location)));
     instructions.extend_from_slice(&edit.parameters);

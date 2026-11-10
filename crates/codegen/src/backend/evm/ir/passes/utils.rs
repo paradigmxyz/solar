@@ -218,6 +218,11 @@ impl RunEvents {
         }
     }
 
+    /// The function entry of the run, if its invokes agree.
+    pub(super) fn invoke(&self) -> Option<DebugFunction> {
+        self.invoke
+    }
+
     /// Replaces the function events of `replacement`, which takes the run's place, with the run's.
     /// An empty replacement drops them: no instruction is left to carry them.
     pub(super) fn place(self, replacement: &mut [Instruction]) {

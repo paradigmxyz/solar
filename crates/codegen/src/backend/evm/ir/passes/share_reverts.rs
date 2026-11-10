@@ -142,8 +142,17 @@ fn share_reverts(gcx: Gcx<'_>, module: &mut Module) -> bool {
     // run on paths that do not call that function. Leave the entry unknown rather than choose
     // another block to share, which changes the code.
     if shared_used && let Some(shared) = shared {
-        module.blocks[shared].metadata.function_invoke = None;
-        module.blocks[shared].metadata.lent_invoke = None;
+        let shared = &mut module.blocks[shared];
+        shared.metadata.function_invoke = None;
+        shared.metadata.lent_invoke = None;
+        for metadata in shared
+            .instructions
+            .iter_mut()
+            .map(|inst| &mut inst.metadata)
+            .chain(shared.terminator.iter_mut().map(|term| &mut term.metadata))
+        {
+            metadata.take_function_invoke();
+        }
     }
     changed
 }

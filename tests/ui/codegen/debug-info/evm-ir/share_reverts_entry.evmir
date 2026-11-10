@@ -8,7 +8,7 @@
 // CHECK-NOT: {{^[ +].*invoke}}
 // CHECK: {{^[ +].*}}stop
 bb0 [invoke=callee@1..10]:
-  push 0
+  push 0 !metadata(invoke=inner@1..10)
   push 0
   revert
 bb1:
