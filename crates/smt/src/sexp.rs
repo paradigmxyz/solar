@@ -156,9 +156,9 @@ impl Reader {
 fn next(text: &str, offset: usize, eof: bool) -> Result<Option<(Sexp, usize)>, Error> {
     let bytes = text.as_bytes();
     let mut stack: Vec<Vec<Sexp>> = Vec::new();
-    let mut i = offset;
+    let mut position = offset;
     loop {
-        let Some(&byte) = bytes.get(i) else {
+        let Some(&byte) = bytes.get(position) else {
             return if stack.is_empty() {
                 Ok(None)
             } else if eof {
@@ -169,45 +169,48 @@ fn next(text: &str, offset: usize, eof: bool) -> Result<Option<(Sexp, usize)>, E
         };
         let atom = match byte {
             b' ' | b'\t' | b'\n' | b'\r' => {
-                i += 1;
+                position += 1;
                 continue;
             }
             b';' => {
-                i = bytes[i..].iter().position(|&b| b == b'\n').map_or(bytes.len(), |n| i + n);
+                position = bytes[position..]
+                    .iter()
+                    .position(|&byte| byte == b'\n')
+                    .map_or(bytes.len(), |length| position + length);
                 continue;
             }
             b'(' => {
                 stack.push(Vec::new());
-                i += 1;
+                position += 1;
                 continue;
             }
             b')' => {
-                let Some(items) = stack.pop() else { return Err(Error::Unopened(i)) };
-                i += 1;
+                let Some(items) = stack.pop() else { return Err(Error::Unopened(position)) };
+                position += 1;
                 Sexp::List(items)
             }
             b'"' | b'|' => {
-                let Some(end) = quoted_end(bytes, i) else {
+                let Some(end) = quoted_end(bytes, position) else {
                     return if eof { Err(Error::Unterminated) } else { Ok(None) };
                 };
-                let atom = Sexp::Atom(text[i..end].to_owned());
-                i = end;
+                let atom = Sexp::Atom(text[position..end].to_owned());
+                position = end;
                 atom
             }
             _ => {
-                let start = i;
-                while bytes.get(i).is_some_and(|&b| !is_delimiter(b)) {
-                    i += 1;
+                let start = position;
+                while bytes.get(position).is_some_and(|&byte| !is_delimiter(byte)) {
+                    position += 1;
                 }
-                if i == bytes.len() && !eof && stack.is_empty() {
+                if position == bytes.len() && !eof && stack.is_empty() {
                     return Ok(None);
                 }
-                Sexp::Atom(text[start..i].to_owned())
+                Sexp::Atom(text[start..position].to_owned())
             }
         };
         match stack.last_mut() {
             Some(items) => items.push(atom),
-            None => return Ok(Some((atom, i))),
+            None => return Ok(Some((atom, position))),
         }
     }
 }
@@ -215,19 +218,19 @@ fn next(text: &str, offset: usize, eof: bool) -> Result<Option<(Sexp, usize)>, E
 /// The offset just past the string or quoted symbol that starts at `start`.
 fn quoted_end(bytes: &[u8], start: usize) -> Option<usize> {
     let quote = bytes[start];
-    let mut i = start + 1;
-    while let Some(&byte) = bytes.get(i) {
+    let mut position = start + 1;
+    while let Some(&byte) = bytes.get(position) {
         if quote == b'"' && byte == b'\\' {
-            i += 2;
+            position += 2;
         } else if byte == quote {
             // `""` is an escaped quote in a string.
-            if quote == b'"' && bytes.get(i + 1) == Some(&b'"') {
-                i += 2;
+            if quote == b'"' && bytes.get(position + 1) == Some(&b'"') {
+                position += 2;
             } else {
-                return Some(i + 1);
+                return Some(position + 1);
             }
         } else {
-            i += 1;
+            position += 1;
         }
     }
     None
