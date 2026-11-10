@@ -1106,18 +1106,20 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Coverage: `tests/ui/codegen/run-call/calldata/calldata_slice_high_offset_copy.sol`
   and `tests/ui/codegen/run-call/calldata/calldata_nested_high_offset.sol`.
 
-### CODEGEN-018: Dirty storage padding of external function arrays survives a copy
+### CODEGEN-018: Dirty storage padding of arrays survives a copy
 
 - ID: CODEGEN-018
 - Status: intentional
-- Difference: after assembly writes dirty bits into the unused high 8 bytes of
-  an external-function array element's storage slot, copying a memory array over
-  it keeps those bits in `solar`. `solc` clears them. Solidity never reads the
-  padding.
+- Difference: after assembly writes dirty bits into the unused high bits of a
+  storage array's slot, copying an array over it from memory, storage, or
+  calldata keeps those bits in `solar`. `solc` clears them. This holds for
+  element types that leave padding in the slot: external functions, `address`,
+  `bytes20`, `uint200`, and `uint80` arrays. Solidity never reads the padding.
 - Rationale: only assembly or raw storage writes make the padding dirty, and
   clearing it needs a masked write or an extra partial-slot cleanup for each
   copy of such an array.
-- Coverage: `tests/ui/codegen/run-call/function-pointers/external_function_pointer_memory_to_storage_padding.sol`.
+- Coverage: `tests/ui/codegen/run-call/function-pointers/external_function_pointer_memory_to_storage_padding.sol`
+  and `tests/ui/codegen/run-call/storage-arrays/storage_array_dirty_slot_padding.sol`.
 
 ### CODEGEN-019: Implicit memory defaults of absurdly large fields panic
 
