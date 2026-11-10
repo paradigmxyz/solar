@@ -4649,6 +4649,7 @@ dependencies = [
  "ruint",
  "serde_json",
  "sha2 0.11.1",
+ "solar-smt",
  "tempfile",
 ]
 
@@ -4686,6 +4687,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-smt"
+version = "0.3.0"
+
+[[package]]
 name = "solar-tester"
 version = "0.3.0"
 dependencies = [
@@ -4706,6 +4711,18 @@ dependencies = [
  "tempfile",
  "toml_edit",
  "ui_test",
+]
+
+[[package]]
+name = "solar-verify"
+version = "0.3.0"
+dependencies = [
+ "num-bigint 0.5.1",
+ "num-traits",
+ "serde_json",
+ "snapbox",
+ "solar-parse",
+ "solar-smt",
 ]
 
 [[package]]

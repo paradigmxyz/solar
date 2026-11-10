@@ -1,0 +1,43 @@
+$ solar-verify examples/ArrayMax.sol
+✔ ArrayMax.max (9 obligations)
+✔ ArrayMax.clamp (1 obligations)
+verification results:: 2 verified, 0 errors
+
+$ solar-verify examples/Bugs.sol
+✘ Bugs.countTo (1 of 6 obligations failed)
+✘ Bugs.reserve (1 of 1 obligations failed)
+✘ Bugs.payout (1 of 2 obligations failed)
+✘ Bugs.addCredit (1 of 2 obligations failed)
+✘ Bugs.useHalf (1 of 2 obligations failed)
+✔ Bugs.half (2 obligations)
+✘ Bugs.check (1 of 2 obligations failed)
+✔ Bugs.constructor (1 obligations)
+verification results:: 2 verified, 6 errors
+
+$ solar-verify examples/Counter.sol
+✔ Counter.constructor (2 obligations)
+✔ Counter.increment (2 obligations)
+✔ Counter.bump (7 obligations)
+✔ Counter.max (3 obligations)
+verification results:: 4 verified, 0 errors
+
+$ solar-verify examples/Token.sol
+✔ Token.constructor (2 obligations)
+✔ Token.mint (4 obligations)
+✔ Token.transfer (5 obligations)
+✔ Token.burn (2 obligations)
+verification results:: 4 verified, 0 errors
+
+$ solar-verify examples/Vault.sol
+✔ Vault.constructor (2 obligations)
+✔ Vault.deposit (6 obligations)
+✔ Vault.withdraw (7 obligations)
+verification results:: 3 verified, 0 errors
+
+$ solar-verify examples/struct_slot.sol
+✔ C.f (1 obligations)
+✔ C.g (1 obligations)
+✔ C.h (1 obligations)
+✘ C.bad (1 of 1 obligations failed)
+✔ C.constructor (0 obligations)
+verification results:: 4 verified, 1 errors
