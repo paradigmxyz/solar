@@ -15,13 +15,13 @@ bb0:
   mstore
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-LABEL: {{^[ +].*}}bb1 [stack=0]:
 // CHECK: {{^[ +].*}}push 32
 // CHECK-NEXT: {{^[ +].*}}push_data literal_0
 // CHECK-NEXT: {{^[ +].*}}dup 3
 // CHECK-NEXT: {{^[ +].*}}codecopy
 // CHECK-NOT: {{^[ +].*}}mstore
-bb1:
+bb1 [stack=0]:
   push 256
   push 0x112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00
   dup 2

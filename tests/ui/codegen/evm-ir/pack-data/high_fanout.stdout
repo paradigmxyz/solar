@@ -20,7 +20,7 @@
 +   dup 3
 +   codecopy
     stop
-  bb1:
+  bb1 [stack=0]:
     push 256
 -   push 0x11112222333344445555666677778888
 -   dup 2
@@ -36,7 +36,7 @@
 +   dup 3
 +   codecopy
     stop
-  bb2:
+  bb2 [stack=0]:
     push 384
 -   push 0x11112222333344445555666677778888
 -   dup 2
@@ -52,7 +52,7 @@
 +   dup 3
 +   codecopy
     stop
-  bb3:
+  bb3 [stack=0]:
     push 512
 -   push 0x11112222333344445555666677778888
 -   dup 2
@@ -68,7 +68,7 @@
 +   dup 3
 +   codecopy
     stop
-  bb4:
+  bb4 [stack=0]:
     push 640
 -   push 0x11112222333344445555666677778888
 -   dup 2

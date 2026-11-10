@@ -22,10 +22,10 @@ bb0:
   mstore
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-LABEL: {{^[ +].*}}bb1 [stack=0]:
 // CHECK: push_data literal_0
 // CHECK-NOT: mstore
-bb1:
+bb1 [stack=0]:
   push 256
   push 0x11112222333344445555666677778888
   dup 2
@@ -38,10 +38,10 @@ bb1:
   mstore
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-LABEL: {{^[ +].*}}bb2 [stack=0]:
 // CHECK: push_data literal_0
 // CHECK-NOT: mstore
-bb2:
+bb2 [stack=0]:
   push 384
   push 0x11112222333344445555666677778888
   dup 2
@@ -54,10 +54,10 @@ bb2:
   mstore
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-LABEL: {{^[ +].*}}bb3 [stack=0]:
 // CHECK: push_data literal_0
 // CHECK-NOT: mstore
-bb3:
+bb3 [stack=0]:
   push 512
   push 0x11112222333344445555666677778888
   dup 2
@@ -70,10 +70,10 @@ bb3:
   mstore
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK-LABEL: {{^[ +].*}}bb4 [stack=0]:
 // CHECK: push_data literal_0
 // CHECK-NOT: mstore
-bb4:
+bb4 [stack=0]:
   push 640
   push 0x11112222333344445555666677778888
   dup 2

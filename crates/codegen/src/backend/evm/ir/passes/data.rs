@@ -23,6 +23,15 @@
 //! runs inside them are judged the same way. A copy of data that ends in zeros stops before them
 //! when a zero word store clears the last word first, if that is cheaper.
 //!
+//! A copy needs the destination, source, and size on the stack at once, so it can peak above the
+//! stores it replaces and past `MAX_STACK_DEPTH`. The input is valid, so every depth its path
+//! reaches fits. A copy is safe when its peak, measured from the block's entry, is no higher than
+//! the highest depth the old path reaches: the instructions before the run, and those after it up
+//! to the first conditional jump or terminal, with the terminator's own growth. Otherwise the
+//! entry bound from `Verifier::stack_entry_upper_bounds` must show that the peak fits. With
+//! neither, the stores stay. The copy rebuilds the stack the run left, so the checks of different
+//! runs in a block do not affect each other.
+//!
 //! The pass leaves a module alone when a data address may reach anything but a `CODECOPY` that
 //! stays inside its entry. The last entry of creation code is the tail: the runtime code ends the
 //! deployment code and constructor arguments follow it, which they find by subtracting its address
@@ -45,9 +54,10 @@
 use super::{EvmPass, utils::is_split_point};
 use crate::{
     backend::evm::{
+        codegen::MAX_STACK_DEPTH,
         ir::{
             BlockId, BlockTarget, Data, DataId, DataRef, DataSize, Instruction, Metadata, Module,
-            ModuleTarget, PushValue, Terminator, TerminatorKind,
+            ModuleTarget, PushValue, Terminator, TerminatorKind, verify::Verifier,
         },
         op::{self, WORD_BYTES},
     },
@@ -58,6 +68,7 @@ use crate::{
 use alloy_primitives::{Bytes, U256};
 use memchr::memmem;
 use smallvec::SmallVec;
+use solar_config::EvmVersion;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
@@ -65,7 +76,7 @@ use solar_data_structures::{
 };
 use solar_interface::sym;
 use solar_sema::Gcx;
-use std::ops::Range;
+use std::{cell::OnceCell, ops::Range};
 
 /// Bounds quadratic arbitrary-substring pooling; exact interning remains unbounded.
 const MAX_DATA_SUBSTRING_ENTRIES: usize = 1024;
@@ -89,9 +100,12 @@ impl EvmPass for PackData {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let Some(mut scan) = scan_data_references(module, None) else { return false };
-        let groups = find_runs(gcx, module);
+        let entries = OnceCell::new();
+        let evm_version = gcx.sess.opts.evm_version;
+        let groups =
+            find_runs(gcx, module, &StackLimits { module, evm_version, entries: &entries });
         let packed = pack_data(module, &mut scan);
-        let materialized = materialize_data(gcx, module, groups);
+        let materialized = materialize_data(gcx, module, groups, evm_version, &entries);
         if materialized && let Some(mut scan) = scan_data_references(module, scan.tail) {
             pack_data(module, &mut scan);
         }
@@ -203,6 +217,8 @@ fn materialize_data(
     gcx: Gcx<'_>,
     module: &mut Module,
     groups: FxHashMap<Bytes, Vec<Rewrite>>,
+    evm_version: EvmVersion,
+    entries: &OnceCell<IndexVec<BlockId, Option<usize>>>,
 ) -> bool {
     if groups.is_empty() {
         return false;
@@ -277,11 +293,13 @@ fn materialize_data(
         // evaluation of whole runs, which can accept a run that only pays when sites share it.
         if splits {
             let mut inner = FxHashMap::<Bytes, Vec<Rewrite>>::default();
+            let limits = StackLimits { module, evm_version, entries };
             for rewrite in rejected.drain(..).flat_map(|(_, rewrites)| rewrites) {
                 let block = &module.blocks[rewrite.block];
                 let target = block.target(gcx, module.optimization, module.code_follows);
+                let stack = BlockStack::new(&limits, rewrite.block);
                 for (data, mut window) in
-                    split_run(&target, &block.instructions, &rewrite, &mut scratch)
+                    split_run(&target, &block.instructions, &rewrite, &stack, &mut scratch)
                 {
                     window.repeats = rewrite.repeats;
                     inner.entry(data).or_default().push(window);
@@ -331,7 +349,11 @@ fn materialize_data(
 }
 
 /// Finds the literal-store runs of every block, grouped by the bytes they write.
-fn find_runs(gcx: Gcx<'_>, module: &Module) -> FxHashMap<Bytes, Vec<Rewrite>> {
+fn find_runs(
+    gcx: Gcx<'_>,
+    module: &Module,
+    limits: &StackLimits<'_>,
+) -> FxHashMap<Bytes, Vec<Rewrite>> {
     let mut groups = FxHashMap::<_, Vec<_>>::default();
     let mut scratch = RunScratch::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
@@ -344,10 +366,11 @@ fn find_runs(gcx: Gcx<'_>, module: &Module) -> FxHashMap<Bytes, Vec<Rewrite>> {
             continue;
         };
         let target = block.target(gcx, module.optimization, module.code_follows);
+        let stack = BlockStack::new(limits, block_id);
         let mut start = 0;
         while start <= last_store {
             let Some((data, mut rewrite)) =
-                find_run(&target, block_id, &block.instructions, start, &mut scratch)
+                find_run(&target, &stack, &block.instructions, start, &mut scratch)
             else {
                 start += 1;
                 continue;
@@ -365,14 +388,14 @@ fn find_runs(gcx: Gcx<'_>, module: &Module) -> FxHashMap<Bytes, Vec<Rewrite>> {
 /// copy would only rebuild add nothing.
 fn find_run(
     target: &Target,
-    block: BlockId,
+    stack: &BlockStack<'_>,
     instructions: &[Instruction],
     start: usize,
     scratch: &mut RunScratch,
 ) -> Option<(Bytes, Rewrite)> {
-    let mut best = scan_run(target, block, instructions, start, scratch)?;
+    let mut best = scan_run(target, stack, instructions, start, scratch)?;
     for later in start + 1..best.first_store {
-        if let Some(run) = scan_run(target, block, instructions, later, scratch)
+        if let Some(run) = scan_run(target, stack, instructions, later, scratch)
             && run.rewrite.end == best.rewrite.end
             && run.data == best.data
             && run.saves_at_least(&best, target)
@@ -390,6 +413,7 @@ fn for_each_window(
     target: &Target,
     instructions: &[Instruction],
     parent: &Rewrite,
+    stack: &BlockStack<'_>,
     scratch: &mut RunScratch,
     mut visit: impl FnMut(Run),
 ) {
@@ -404,7 +428,7 @@ fn for_each_window(
         scan_ends(target, instructions, start, scratch);
         for index in 0..scratch.ends.len() {
             if scratch.ends[index].end <= parent.end
-                && let Some(window) = run_ending_at(target, parent.block, scratch, index)
+                && let Some(window) = run_ending_at(target, stack, scratch, index)
             {
                 visit(window);
             }
@@ -418,11 +442,12 @@ fn split_run(
     target: &Target,
     instructions: &[Instruction],
     run: &Rewrite,
+    stack: &BlockStack<'_>,
     scratch: &mut RunScratch,
 ) -> Vec<(Bytes, Rewrite)> {
     let mut windows = Vec::<Run>::new();
     let mut best = None::<Run>;
-    for_each_window(target, instructions, run, scratch, |window| {
+    for_each_window(target, instructions, run, stack, scratch, |window| {
         if (window.rewrite.start, window.rewrite.end) == (run.start, run.end)
             || !window.is_profitable(target)
         {
@@ -533,13 +558,13 @@ impl Run {
 /// range and whose final stack a copy can rebuild.
 fn scan_run(
     target: &Target,
-    block: BlockId,
+    stack: &BlockStack<'_>,
     instructions: &[Instruction],
     start: usize,
     scratch: &mut RunScratch,
 ) -> Option<Run> {
     scan_ends(target, instructions, start, scratch);
-    run_ending_at(target, block, scratch, scratch.ends.len().checked_sub(1)?)
+    run_ending_at(target, stack, scratch, scratch.ends.len().checked_sub(1)?)
 }
 
 /// Scans the stores from `start` and leaves every point where the run can stop in `scratch.ends`.
@@ -653,7 +678,7 @@ fn scan_ends(
 /// Builds and prices the copy that replaces the run that stops at `scratch.ends[index]`.
 fn run_ending_at(
     target: &Target,
-    block: BlockId,
+    stack: &BlockStack<'_>,
     scratch: &RunScratch,
     index: usize,
 ) -> Option<Run> {
@@ -680,7 +705,7 @@ fn run_ending_at(
     let destination = RunWord { slot: *destination, offset: U256::from(low) };
     let plan = CopyPlan {
         target,
-        block,
+        stack,
         start: *start,
         first_store: *first_store,
         end,
@@ -707,7 +732,7 @@ fn run_ending_at(
 /// What a copy that replaces the stores of a run depends on.
 struct CopyPlan<'a> {
     target: &'a Target,
-    block: BlockId,
+    stack: &'a BlockStack<'a>,
     start: usize,
     first_store: usize,
     end: usize,
@@ -721,7 +746,7 @@ impl CopyPlan<'_> {
     /// Prices the copy of `data` to `destination`, which first clears the word at `clear` bytes
     /// from the start of the range, if any.
     fn price(&self, destination: RunWord, data: &[u8], clear: Option<usize>) -> Option<Run> {
-        let Self { target, block, start, first_store, end, old, inputs, kept, extras } = *self;
+        let Self { target, stack, start, first_store, end, old, inputs, kept, extras } = *self;
         let zero = data.iter().all(|&byte| byte == 0);
         let tail = copy_tail(destination, zero, inputs, kept, extras);
         // push 0; mstore destination + clear
@@ -733,15 +758,102 @@ impl CopyPlan<'_> {
                 .chain([Instruction::opcode(op::MSTORE)])
                 .collect()
         });
+        if !stack.admits(start, &head, &tail) {
+            return None;
+        }
         let mut new = target.copy_operands(data.len(), zero);
         for inst in head.iter().chain(&tail) {
             new += instruction_cost(target, inst)?;
         }
         let data = Bytes::copy_from_slice(data);
         let size = data.len();
-        let rewrite = Rewrite { block, start, end, size, old, new, head, tail, repeats: false };
+        let rewrite =
+            Rewrite { block: stack.block, start, end, size, old, new, head, tail, repeats: false };
         Some(Run { rewrite, data, zero, first_store })
     }
+}
+
+/// The stack depth bounds of a module's blocks.
+struct StackLimits<'a> {
+    module: &'a Module,
+    evm_version: EvmVersion,
+    /// The verifier's entry bounds, computed when a copy first needs them.
+    entries: &'a OnceCell<IndexVec<BlockId, Option<usize>>>,
+}
+
+/// The stack limit of one block: what its original path reaches, and so what a copy may reach.
+struct BlockStack<'a> {
+    limits: &'a StackLimits<'a>,
+    block: BlockId,
+    /// The depth before each instruction, relative to the block's entry.
+    depths: Vec<isize>,
+    /// The highest depth, relative to the block's entry, that the original path reaches around
+    /// each instruction: before it, and after it up to the first conditional jump or terminal,
+    /// with the terminator's own growth.
+    peaks: Vec<isize>,
+}
+
+impl<'a> BlockStack<'a> {
+    fn new(limits: &'a StackLimits<'a>, block_id: BlockId) -> Self {
+        let block = &limits.module.blocks[block_id];
+        let mut depths = vec![0];
+        for inst in &block.instructions {
+            depths.push(depths[depths.len() - 1] + net_growth(inst));
+        }
+        let growth = block.terminator.as_ref().map_or(0, |term| {
+            term.kind.lowering_stack_growth(limits.module.next_block(block_id)) as isize
+        });
+        let mut peaks = vec![0; depths.len()];
+        let mut reach = depths[block.instructions.len()] + growth;
+        for (index, inst) in block.instructions.iter().enumerate().rev() {
+            if inst
+                .as_evm_opcode()
+                .is_some_and(|opcode| opcode == op::JUMPI || op::is_terminal(opcode))
+            {
+                reach = depths[index + 1];
+            }
+            reach = reach.max(depths[index]);
+            peaks[index] = reach;
+        }
+        let mut before = 0;
+        for (peak, &depth) in peaks.iter_mut().zip(&depths) {
+            before = before.max(depth);
+            *peak = (*peak).max(before);
+        }
+        Self { limits, block: block_id, depths, peaks }
+    }
+
+    /// Returns whether the copy of `head`, the size and source pushes, and `tail` can replace the
+    /// run that starts at `start` without passing the stack limit.
+    fn admits(&self, start: usize, head: &[Instruction], tail: &[Instruction]) -> bool {
+        let mut depth = self.depths[start];
+        let mut peak = depth;
+        for inst in head {
+            depth += net_growth(inst);
+            peak = peak.max(depth);
+        }
+        // push size; push data | calldatasize
+        depth += 2;
+        peak = peak.max(depth);
+        for inst in tail {
+            depth += net_growth(inst);
+            peak = peak.max(depth);
+        }
+        peak <= self.peaks[start] || {
+            let limits = self.limits;
+            let entries = limits.entries.get_or_init(|| {
+                Verifier::stack_entry_upper_bounds(limits.module, limits.evm_version)
+            });
+            entries[self.block]
+                .is_some_and(|entry| entry as isize + peak <= MAX_STACK_DEPTH as isize)
+        }
+    }
+}
+
+/// The words the instruction leaves on the stack, less the words it takes.
+fn net_growth(inst: &Instruction) -> isize {
+    let effect = inst.stack_effect();
+    isize::from(effect.outputs) - isize::from(effect.inputs)
 }
 
 /// Adds `range` to the sorted disjoint `ranges`, merging touching ranges.

@@ -21,7 +21,7 @@ bb0:
   swap 1
   mstore
   stop
-bb1:
+bb1 [stack=0]:
   push 256
   push 0x11112222333344445555666677778888
   dup 2
@@ -34,7 +34,7 @@ bb1:
   mstore
   stop
 
-// CHECK-LABEL: {{^[ +].*}}bb1:
+// CHECK-LABEL: {{^[ +].*}}bb1 [stack=0]:
 // CHECK: {{^[ +].*}}push 64
 // CHECK-NEXT: {{^[ +].*}}push_data literal_0
 // CHECK-NEXT: {{^[ +].*}}dup 3

@@ -1,0 +1,112 @@
+//@ compile-flags: -Zvalidate-ir=true -Zevm-ir-pipeline=pack-data
+//@ filecheck:
+@module PackDataStackLimit
+
+// The copy holds the size, source, and destination at once, one word above the two the stores
+// peak at. From 1022 words that is 1025, so the stores stay.
+// CHECK-LABEL: {{^[ +].*}}bb0 [stack=1022]:
+// CHECK-NOT: codecopy
+// CHECK: {{^[ +].*}}mstore
+bb0 [stack=1022]:
+  push 0
+  push 64
+  mstore
+  push 0
+  push 96
+  mstore
+  push 0
+  push 128
+  mstore
+  push 0
+  push 160
+  mstore
+  stop
+
+// One word lower the copy fits.
+// CHECK-LABEL: {{^[ +].*}}bb1 [stack=1021]:
+// CHECK-NOT: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}calldatacopy
+bb1 [stack=1021]:
+  push 0
+  push 64
+  mstore
+  push 0
+  push 96
+  mstore
+  push 0
+  push 128
+  mstore
+  push 0
+  push 160
+  mstore
+  stop
+
+// A block with no known entry depth keeps the stores.
+// CHECK-LABEL: {{^[ +].*}}bb2:
+// CHECK-NOT: codecopy
+// CHECK: {{^[ +].*}}mstore
+bb2:
+  push 0
+  push 64
+  mstore
+  push 0
+  push 96
+  mstore
+  push 0
+  push 128
+  mstore
+  push 0
+  push 160
+  mstore
+  stop
+
+// Without an entry bound, the copy fits where the block's own path reaches its peak: three words
+// pushed after the run.
+// CHECK-LABEL: {{^[ +].*}}bb3:
+// CHECK-NOT: {{^[ +].*}}mstore
+// CHECK: {{^[ +].*}}calldatacopy
+bb3:
+  push 0
+  push 64
+  mstore
+  push 0
+  push 96
+  mstore
+  push 0
+  push 128
+  mstore
+  push 0
+  push 160
+  mstore
+  push 1
+  push 2
+  push 3
+  stop
+
+// Growth after a conditional jump is not on the path through the run.
+// CHECK-LABEL: {{^[ +].*}}bb4:
+// CHECK-NOT: codecopy
+// CHECK: {{^[ +].*}}mstore
+bb4:
+  push 0
+  push 64
+  mstore
+  push 0
+  push 96
+  mstore
+  push 0
+  push 128
+  mstore
+  push 0
+  push 160
+  mstore
+  push 1
+  push bb5
+  jumpi
+  push 1
+  push 2
+  push 3
+  stop
+
+bb5:
+  stop

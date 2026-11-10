@@ -20,7 +20,7 @@ bb0:
   stop
 
 // Stores to absolute addresses.
-bb1:
+bb1 [stack=0]:
   push 0x3333333333333333333333333333333333333333333333333333333333333333
   push 0
   mstore
@@ -33,7 +33,7 @@ bb1:
   stop
 
 // Single bytes and a word computed from constants.
-bb2:
+bb2 [stack=0]:
   push 128
   push 0x5555555555555555555555555555555555555555555555555555555555555555
   dup 2
@@ -63,7 +63,7 @@ bb2:
   stop
 
 // The run leaves an address word on the stack for later code.
-bb3:
+bb3 [stack=0]:
   push 128
   push 0x8888888888888888888888888888888888888888888888888888888888888888
   dup 2
@@ -84,7 +84,7 @@ bb3:
   stop
 
 // A gap between stores keeps them: a copy would overwrite the gap.
-bb4:
+bb4 [stack=0]:
   push 128
   push 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   dup 2
