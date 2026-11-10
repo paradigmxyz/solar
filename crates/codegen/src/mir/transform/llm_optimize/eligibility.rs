@@ -16,7 +16,8 @@
 //!   contracts, `gas`, or reads of code.
 //!
 //! A module that reads `msize` offers nothing: a candidate may touch memory its original does not,
-//! which `msize` anywhere else would observe.
+//! which `msize` anywhere else would observe. A module with persistent storage writes also offers
+//! nothing: value equivalence and average gas do not prove EIP-2200 sentry safety.
 
 use super::equivalence;
 use crate::mir::{
@@ -29,6 +30,18 @@ pub(super) const MAX_INSTRUCTIONS: usize = 256;
 
 /// Returns why `module` offers no function, if one reason covers them all.
 pub(super) fn module_exclusion(module: &Module) -> Option<&'static str> {
+    // Gas before any SSTORE is observable through its EIP-2200 sentry, including work in callees.
+    // Modeled average gas and value equivalence cannot prove that every write keeps enough gas.
+    if module.functions.iter().any(|function| {
+        function.instructions().any(|inst| {
+            matches!(
+                function.inst(inst).kind,
+                InstKind::Store(.., crate::mir::PtrLocation::Storage)
+            )
+        })
+    }) {
+        return Some("the module writes storage; SSTORE gas-prefix safety is unproved");
+    }
     let reads_msize = module.functions.iter().any(|function| {
         function.instructions().any(|inst| matches!(function.inst(inst).kind, InstKind::MSize))
     });

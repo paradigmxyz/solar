@@ -5,8 +5,9 @@ small functions, and keeps only the candidates it can check. It is off unless
 `-Zllm-optimize` is given, so no default build depends on a model, a network, or a cache.
 
 The pass runs on lowered MIR, in the lowered pipeline after `dce` and before stack scheduling,
-in gas and size builds. Rewrites are tested against the original, not proved equivalent:
-treat them like the output of an unverified optimizer, and benchmark them.
+in gas and size builds. Candidates must agree with the original on generated inputs and reduce
+to identical MIR through trusted passes. The cost model is approximate, so benchmark accepted
+rewrites.
 
 ## Modes
 
@@ -20,8 +21,8 @@ treat them like the output of an unverified optimizer, and benchmark them.
 
 Other flags:
 
-- `-Zllm-rounds=N` (default 6): candidates asked for per function.
-- `-Zllm-samples=N` (default 512): generated inputs each candidate runs on.
+- `-Zllm-rounds=N` (default 6, maximum 64): candidates asked for per function.
+- `-Zllm-samples=N` (default 512, maximum 4,096): generated inputs each candidate runs on.
 - `-Zllm-model=PROVIDER/MODEL`: the model `live` asks, such as `gpt-6-astra` (the default),
   `anthropic/claude-opus-5-5`, or `opencode/deepseek-v4.1-flash`; see [Live mode](#live-mode).
 - `-Zllm-endpoint=URL`: the API base URL `live` asks instead of the provider's, such as a proxy.
@@ -86,23 +87,11 @@ each verdict, and what the pass keeps. Lines name the module and function, so co
 run at once interleave by whole lines, and a request sent again says why. A function whose
 rewrite `-Zllm-cache` already holds says so and is not sent to the model; build without the cache,
 or delete the function's entry, to ask again. Nothing is printed when `--error-format` is
-machine-readable. A short conversation reads:
+machine-readable.
 
-```text
-llm-optimize Triangle @sumBelow: costs 5047 gas, 47 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
-llm-optimize Triangle @sumBelow: round 1
-  Triangle @sumBelow ┆ The loop adds 0 through n - 1, an arithmetic series.
-  Triangle @sumBelow │ ```mir
-  Triangle @sumBelow │ fn @sumBelow(arg0: i256) -> i256 [pure] {
-  ...
-llm-optimize Triangle @sumBelow: replied in 41.3 s using 5062 tokens, an estimated $0.0049
-llm-optimize Triangle @sumBelow: accepted at 81 gas, 32 bytes
-llm-optimize Triangle @sumBelow: round 2
-  Triangle @sumBelow │ NO_IMPROVEMENT
-llm-optimize Triangle @sumBelow: replied in 9.8 s using 1320 tokens, an estimated $0.0006
-llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 5047 gas, 47 bytes
-```
+A proposal that agrees on samples but cannot be normalized to the original is rejected at
+`proof`; a session can keep trying within its configured rounds. The rejection is sent back to
+the rewriter just like a counterexample or a cost rejection.
 
 `-Zllm-effort` sets how much the model reasons, in its provider's terms: nanocodex's thinking
 level for OpenAI, adaptive thinking at that `output_config.effort` for Anthropic (`none` turns
@@ -126,6 +115,9 @@ four times, waiting between tries as long as the provider asks, or two seconds a
 long each time. The compiler's client follows no redirect, which would carry a key elsewhere. A
 failed session leaves its function with the best candidate so far.
 
+LLM options are host-owned. Standard JSON `settings.solar.unstable` cannot enable rewriting,
+choose a script or cache path, or override the host's resource limits.
+
 ## What is offered
 
 A function is offered when the interpreter can run everything a call to it reaches, and its
@@ -140,7 +132,9 @@ interface is a few words the tests can generate:
   `keccak256`, persistent and transient storage, logs, reads of the call and block context other
   than code sizes and hashes, calls to functions that meet the same conditions, and the
   terminators other than `selfdestruct` and `revert_returndata`, with no `undef` values;
-- in a module that never reads `msize`, since a candidate may touch memory its original does not.
+- in a module that never reads `msize` or writes persistent storage. Memory extent is observable
+  through `msize`, and average modeled gas cannot prove that an SSTORE still has enough gas for
+  the EIP-2200 sentry, including when the changed work is in a callee.
 
 The interpreter runs each instruction by the semantics its operation schema row declares
 (`crates/codegen/src/mir/semantics.rs`), computing pure opcodes with the opcode table's word
@@ -171,6 +165,8 @@ same syntax, with a stricter grammar than MIR files:
 
 Each candidate goes through these stages, and the verdict names the one that rejected it:
 
+Candidates are limited to 256 instructions and 256 KiB of text.
+
 1. **Parse.** The candidate grammar above, with diagnostics kept out of the compilation.
 2. **Constraints.** The signature, operations the interpreter runs and the target EVM version
    has, callees, tail calls, and `switch` cases that are distinct constants. A candidate tail
@@ -192,18 +188,26 @@ Each candidate goes through these stages, and the verdict names the one that rej
    the same fuel: if it runs on too, what either would do is unknown, and if it ends, the original
    runs again until it ends or has spent twice a block's gas, as on inputs at the candidate's
    constants, and the candidate must end as it does. Where the original runs on even then, what it
-   would do is unknown, so a candidate that ends there fails. A formula replaces a loop only when
-   every input keeps the loop within that gas, as a masked bound does, and the original needs at
+   would do is unknown, so a candidate that ends there fails. Even before the normalization
+   proof, a formula can replace a loop only when every input keeps the loop within that gas, as a masked bound does, and the original needs at
    most four times that gas in all to finish the inputs its fuel does not. The inputs must exercise
    the candidate as they exercise the original, under the rules above. Decisions are comparisons and
    the `and`, `or`, and `xor` of booleans, which is how if-converted code combines comparisons
    without branching; values must come out nonzero because a path the inputs only complete on null
    pointers or empty data computes nothing a change would alter.
-5. **Cost.** The target cost model prices the candidate, which must beat the best so far: by at
+5. **Proof.** Both bodies must normalize to identical MIR through existing SCCP, egraph, CSE,
+   CFG simplification and dead-code elimination passes. This is a conservative sufficient check:
+   sample agreement cannot prove arbitrary rewrites, and unproved loop closed forms are rejected.
+6. **Cost.** The target cost model prices the candidate, which must beat the best so far: by at
    least one stack copy of lifetime gas in gas builds, and in bytes, then gas, in size builds.
 
 The adopted function keeps the original's name, signature, attributes, spans, and memory layout.
-Its metadata is empty, and its debug information is marked as intentionally dropped.
+Its instruction metadata is empty, and its debug information is marked as intentionally dropped.
+Callees are checked before callers, which see the accepted callee bodies. Rewritten modules use
+conservative raw-memory spill handling. Every accepted decision is included in metadata and the
+ETHDebug compilation identity, including embedded contracts' decisions in their parents' metadata.
+The actual runtime and creation bytecode must fit the target's code-size limits; exceeding one
+fails compilation rather than emitting an undeployable rewritten artifact.
 
 ### Inputs
 
@@ -212,11 +216,12 @@ Constants come from the function and every function it can call, with their neig
 left-aligned forms for `bytesN` comparisons. Arguments mix zero; powers of two, their neighbors,
 and their negations; constants; small numbers; addresses near the free memory pointer; repeated
 arguments to exercise aliasing; and random words, masked to their types. Memory holds seeded
-garbage, except for the zero word at `0x60`, a free memory pointer from `0x80` up, which is
+garbage, including both zero and dirty words at `0x60`, a free memory pointer from `0x80` up, which is
 sometimes unaligned, and the objects at pointer arguments: a small length, which keeps loops over
 memory short, then flags and constants. Garbage words are random, or small numbers, addresses
 near the heap start, and constants, so that a function following pointers through memory reaches
-nested objects.
+nested objects. Some inputs contain dirty, already-expanded memory above the free memory pointer,
+as earlier temporary encodings can leave it.
 
 Each input also has a world derived from its seed, which answers storage, transient storage, and
 context reads: zero, a small number, a constant, one of the input's arguments, the caller, or a
@@ -232,7 +237,9 @@ context, make each constant the world's answer to every read, or to half of them
 also run with every constant it uses, and the powers of two its shifts cross, in its arguments and
 its world, smallest first: a constant may be a bound past which a candidate stops agreeing. A
 candidate whose constants make more than 1,024 such inputs is rejected rather than tested on some
-of them.
+of them. Long reruns at these constants share the same four-`PROBE_GAS` allowance as unfinished
+original inputs, including cached runs. Exhaustion rejects the candidate. A candidate that hits the
+memory limit cannot stand in for an original that merely runs past the tests' fuel or depth.
 
 Memory writes must stay within the original's because the backend keeps call frames and spill
 slots in memory no function addresses, and callers may keep scratch words across a call. A
@@ -268,8 +275,8 @@ it. The next proposal must beat the best so far. A session ends when the rewrite
 cheaper, after `-Zllm-rounds` rounds, after three rejections in a row, or when the rewriter fails.
 A failure never fails the compilation.
 
-Every function is decided against the unchanged module, and rewrites are applied afterwards in
-function order, so the result does not depend on parallel compilation.
+Functions are decided in deterministic callee-first order. Each caller sees the callee bodies
+that have already passed every check, so the tested composition is the one installed.
 
 ## Cache
 
@@ -359,25 +366,15 @@ compiles a Foundry project this way.
 
 ## Limits
 
-- Testing is not proof. A candidate that differs only on inputs no generator reaches is
-  accepted. Over the fifteen project archives of the runtime benchmark corpus, four single-site
-  mutants of each of the 3,875 offered functions (a changed operation, operand order, constant,
-  or branch, or a deleted memory store, storage write, or event) were checked: 15,200 of 15,348
-  fail equivalence. The 148 that pass are equivalent, such as stores another store overwrites,
-  scratch words a callee already wrote, the offset of an empty log or revert, or the low bytes of
-  a four-byte error selector, or change behavior only on inputs the generators rarely reach,
-  such as a bound one exact value reaches or a stored string shrinking to exactly one word.
-  Proving loop-free candidates with the SMT checker in `scripts/evm-rules/` is future work.
-- On an input the original does not finish within the tests' budget, its fuel or, at a candidate's
-  constants, twice a block's gas, a candidate that runs past the same budget is not compared, since
-  what either returns later is unknown. A candidate that runs as long as the original but ends
-  differently on such inputs passes, as does one that differs only past a bound that neither its
-  constants nor its shifts name.
-- The interpreter models no calldata, `gas`, code reads, or calls to other contracts, so functions
-  that use them are not offered. On the project archives, 28% of the reachable internal functions
-  are offered. Decisions the inputs never complete both ways without reverting account for most
-  of the rest, chiefly the allocator's wraparound check, which no free memory pointer the inputs
-  choose trips, followed by `gas`, calldata, paths the tests do not complete, functions over 256
-  instructions, and several return values.
+- Differential testing finds counterexamples; it cannot authorize arbitrary code. Adoption also
+  requires identical MIR after trusted normalization. This rejects many useful transformations,
+  including loop closed forms, until a stronger proof mechanism is available.
+- Unfinished original runs give no evidence about their eventual results. Fuel and call-depth
+  limits remain inconclusive; a candidate memory-limit failure is a rejection. Long reruns share
+  a bounded allowance, and exhausting it rejects the candidate.
+- Modules with persistent storage writes are excluded because the SSTORE gas sentry makes the
+  placement of expensive work observable. `msize` also excludes a module.
+- The interpreter models no calldata, `gas`, code reads, or calls to other contracts. Functions
+  that use them, or whose generated inputs do not exercise their code, are not offered.
 - The cost model sees one stack copy per operand, not the stack scheduler's decisions.
 - `live` sends function MIR to the rewriter's provider.

@@ -1,10 +1,10 @@
-llm-optimize EarlyEnds @main: not offered: is the dispatch entry
-llm-optimize EarlyEnds @sum: offered at 4186 gas, 91 bytes
-llm-optimize EarlyEnds @sum: round 1: rejected at equivalence: the original returns 0x492e5ad9, but the candidate returns 0x192e5ad8
-  on arg0 = 0x6db3efe379042b626e717508e81f94fe9ad134c2f9d614e82afd2941c1c192b3, free memory pointer 0x140
-llm-optimize EarlyEnds @sum: round 2: accepted at 1839 gas, 63 bytes
+llm-optimize EarlyEnds @sum: offered at 4896 gas, 91 bytes
+llm-optimize EarlyEnds @sum: round 1: rejected at equivalence: the original returns 0x310332bd, but the candidate returns 0x10332bc
+  on arg0 = 0x7e9d9b77067c05dd15bd179afe63c931fdaad6773c3b98439a8a7809329e6aed, free memory pointer 0x1e8c0
+llm-optimize EarlyEnds @sum: round 2: accepted at 2138 gas, 63 bytes
 llm-optimize EarlyEnds @sum: round 3: nothing cheaper
-llm-optimize EarlyEnds @sum: rewritten from 4186 gas, 91 bytes to 1839 gas, 63 bytes
+llm-optimize EarlyEnds @sum: rewritten from 4896 gas, 91 bytes to 2138 gas, 63 bytes
+llm-optimize EarlyEnds @main: not offered: is the dispatch entry
 - ; === ROOT/tests/ui/codegen/mir/llm-optimize/early_ends.mir (before llm-optimize) ===
 + ; === ROOT/tests/ui/codegen/mir/llm-optimize/early_ends.mir (after llm-optimize) ===
   @module EarlyEnds

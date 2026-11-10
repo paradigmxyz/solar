@@ -383,6 +383,7 @@ fn compile(
                     )
                 };
                 let bytecodes = if gcx.sess.is_parallel()
+                    && gcx.sess.opts.unstable.llm_optimize.is_none()
                     && let Some(contract_metadata) = &contract_metadata
                     && let Some(metadata_contracts) = requested_metadata_contracts(
                         gcx,

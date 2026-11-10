@@ -1,7 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
 //@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/storage_writes.script
-// A write fails in a static call whatever it stores, so a candidate must keep a write that stores
-// the value a slot already holds, in persistent and in transient storage.
+// Persistent writes anywhere in the module exclude every function, including callees whose
+// reordered work could make a later SSTORE fail its EIP-2200 gas sentry. Keep the original body.
 @module StorageWrites
 @phase lowered
 fn @main() [entry] {

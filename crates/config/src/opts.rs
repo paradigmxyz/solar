@@ -607,15 +607,16 @@ impl UnstableOpts {
             time_passes: _,
             forget_gcx: _,
             help: _,
-            llm_optimize,
-            llm_cache,
-            llm_script,
-            llm_model,
-            llm_endpoint,
-            llm_effort,
-            llm_rounds,
-            llm_samples,
-            llm_trace,
+            // Native rewriters, credentials, host paths and resource budgets are host-owned.
+            llm_optimize: _,
+            llm_cache: _,
+            llm_script: _,
+            llm_model: _,
+            llm_endpoint: _,
+            llm_effort: _,
+            llm_rounds: _,
+            llm_samples: _,
+            llm_trace: _,
             _non_exhaustive: _,
             #[cfg(test)]
                 test_bool: _,
@@ -632,15 +633,6 @@ impl UnstableOpts {
         self.switch_max_bit_slice_gas_code_growth = switch_max_bit_slice_gas_code_growth;
         self.tune = tune;
         self.pack_wide_jump_tables = pack_wide_jump_tables;
-        self.llm_optimize = llm_optimize;
-        self.llm_cache = llm_cache;
-        self.llm_script = llm_script;
-        self.llm_model = llm_model;
-        self.llm_endpoint = llm_endpoint;
-        self.llm_effort = llm_effort;
-        self.llm_rounds = llm_rounds;
-        self.llm_samples = llm_samples;
-        self.llm_trace = llm_trace;
     }
 }
 
@@ -735,5 +727,45 @@ mod tests {
         assert_eq!(unstable.test_value, Some(2));
 
         // DON'T ADD ANY MORE TESTS HERE.
+    }
+
+    #[test]
+    fn json_output_options_cannot_control_rewriters() {
+        let options = UnstableOpts {
+            llm_optimize: Some(LlmOptimizeMode::Script),
+            llm_cache: Some("host-cache".into()),
+            llm_script: Some("host-script".into()),
+            llm_model: Some("host-model".into()),
+            llm_endpoint: Some("host-endpoint".into()),
+            llm_effort: Some(crate::LlmEffort::High),
+            llm_rounds: Some(6),
+            llm_samples: Some(64),
+            llm_trace: true,
+            ..Default::default()
+        };
+        let llm_fields = |opts: &UnstableOpts| {
+            (
+                opts.llm_optimize,
+                opts.llm_cache.clone(),
+                opts.llm_script.clone(),
+                opts.llm_model.clone(),
+                opts.llm_endpoint.clone(),
+                opts.llm_effort,
+                opts.llm_rounds,
+                opts.llm_samples,
+                opts.llm_trace,
+            )
+        };
+        let mut disabled = UnstableOpts::default();
+        disabled.set_output_options(options.clone());
+        assert_eq!(llm_fields(&disabled), llm_fields(&UnstableOpts::default()));
+        let mut trusted = options.clone();
+        trusted.set_output_options(UnstableOpts::default());
+        assert_eq!(llm_fields(&trusted), llm_fields(&options));
+        let mut untrusted = options.clone();
+        untrusted.llm_samples = Some(usize::MAX);
+        untrusted.llm_script = Some("untrusted-script".into());
+        trusted.set_output_options(untrusted);
+        assert_eq!(llm_fields(&trusted), llm_fields(&options));
     }
 }

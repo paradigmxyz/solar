@@ -173,6 +173,31 @@ fn metadata_json(metadata: &Metadata<'_, '_, '_>, contract_id: ContractId) -> St
     if !metadata.settings.solar.unstable.is_empty() {
         value["settings"]["solar"] = json!({ "unstable": metadata.settings.solar.unstable });
     }
+    if opts.unstable.llm_optimize.is_some() {
+        let mut pending = vec![contract_id];
+        let mut dependencies = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
+        while let Some(id) = pending.pop() {
+            if dependencies.insert(id) {
+                pending.extend(gcx.contract_bytecode_dependencies(id).iter());
+            }
+        }
+        let rewrites = dependencies
+            .iter()
+            .filter_map(|id| {
+                let digests = solar_codegen::llm::rewrite_digests(gcx, id);
+                if digests.is_empty() {
+                    return None;
+                }
+                Some(json!({
+                    "contract": gcx.contract_fully_qualified_name(id).to_string(),
+                    "digests": digests.iter().map(|digest| format!("{digest:#x}")).collect::<Vec<_>>()
+                }))
+            })
+            .collect::<Vec<_>>();
+        if !rewrites.is_empty() {
+            value["settings"]["solar"]["rewrites"] = json!(rewrites);
+        }
+    }
     serde_json::to_string(&value).expect("contract metadata must serialize")
 }
 

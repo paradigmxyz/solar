@@ -9,7 +9,8 @@
 //!
 //! Rewriters are never trusted. The pass parses each candidate with a stricter grammar than MIR
 //! files use, checks its signature, operations, and callees, validates it, runs it against the
-//! original on generated inputs, and prices it with the target cost model. It keeps a candidate
+//! original on generated inputs, requires identical bodies after trusted normalization, and
+//! prices it with the target cost model. It keeps a candidate
 //! only when every check passes and the candidate is cheaper than the best so far, and each
 //! [`Verdict`] tells the rewriter which check decided, so the next proposal can improve on it.
 
@@ -124,6 +125,8 @@ pub enum Stage {
     Validation,
     /// Running it against the original.
     Equivalence,
+    /// Reducing both bodies to the same MIR with trusted compiler rewrites.
+    Proof,
     /// Comparing its cost with the best so far.
     Cost,
 }
@@ -135,6 +138,7 @@ impl fmt::Display for Stage {
             Self::Constraints => "constraints",
             Self::Validation => "validation",
             Self::Equivalence => "equivalence",
+            Self::Proof => "proof",
             Self::Cost => "cost",
         })
     }
@@ -159,6 +163,20 @@ impl fmt::Display for LlmError {
 }
 
 impl std::error::Error for LlmError {}
+
+/// The external rewrites actually installed in this contract, in deterministic application order.
+/// Code generation publishes them before requesting runtime metadata.
+pub fn rewrite_digests(
+    gcx: solar_sema::Gcx<'_>,
+    contract: solar_sema::hir::ContractId,
+) -> Vec<alloy_primitives::B256> {
+    gcx.codegen_state::<crate::backend::evm::CodegenState>()
+        .rewrite_digests
+        .lock()
+        .get(contract)
+        .cloned()
+        .unwrap_or_default()
+}
 
 /// Binds the rewriter that `-Zllm-optimize=live` asks in `sess`, and in sessions forked from it,
 /// until the returned binding drops. No other session asks it, so a compilation's functions only

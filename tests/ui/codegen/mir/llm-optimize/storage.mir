@@ -1,9 +1,7 @@
 //@ compile-flags: -Zmir-pipeline=llm-optimize -Zllm-optimize=script -Zllm-trace --evm-version=cancun
 //@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/storage.script
-// Storage, transient storage, logs, and context reads run in the tests, on storage and context
-// derived from each input. A candidate must leave every slot the original writes the same, write
-// no other slot, and log the same events, also when the original reverts, since any write fails
-// in a static call; storage accesses cost what the slots' states cost.
+// Persistent writes anywhere in the module exclude every function, including callees whose
+// reordered work could make a later SSTORE fail its EIP-2200 gas sentry. Keep the original body.
 @module Storage
 @phase lowered
 fn @main() [entry] {

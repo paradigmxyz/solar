@@ -1,12 +1,12 @@
-llm-optimize ContextWidths @main: not offered: is the dispatch entry
 llm-optimize ContextWidths @price: offered at 54 gas, 21 bytes
-llm-optimize ContextWidths @price: round 1: rejected at equivalence: the original returns 0x0, but the candidate returns 0x10000000000000000
-  on free memory pointer 0x15fc0, `gasprice` = 0x10000000000000000
+llm-optimize ContextWidths @price: round 1: rejected at equivalence: the original returns 0x13b1953eed3b7f21, but the candidate returns 0x4af431adab9d0fc25d3f13c1ce38482d6e1ecb3759779e513b1953eed3b7f21
+  on free memory pointer 0x276, `gasprice` = 0x4af431adab9d0fc25d3f13c1ce38482d6e1ecb3759779e513b1953eed3b7f21
 llm-optimize ContextWidths @price: round 2: nothing cheaper
 llm-optimize ContextWidths @sender: offered at 54 gas, 21 bytes
 llm-optimize ContextWidths @sender: round 1: accepted at 37 gas, 14 bytes
 llm-optimize ContextWidths @sender: round 2: nothing cheaper
 llm-optimize ContextWidths @sender: rewritten from 54 gas, 21 bytes to 37 gas, 14 bytes
+llm-optimize ContextWidths @main: not offered: is the dispatch entry
 - ; === ROOT/tests/ui/codegen/mir/llm-optimize/context_widths.mir (before llm-optimize) ===
 + ; === ROOT/tests/ui/codegen/mir/llm-optimize/context_widths.mir (after llm-optimize) ===
   @module ContextWidths

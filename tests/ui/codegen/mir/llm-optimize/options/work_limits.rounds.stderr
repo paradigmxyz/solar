@@ -1,0 +1,2 @@
+error: `-Zllm-rounds` must not exceed 64
+

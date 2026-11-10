@@ -211,6 +211,13 @@ pub fn generate_contract_bytecodes(
         }
         priorities
     };
+    let prepared = gcx
+        .sess
+        .opts
+        .unstable
+        .llm_optimize
+        .is_some()
+        .then(|| IndexVec::from_vec((0..contract_count).map(|_| Mutex::new(None)).collect()));
     let jobs = ContractJobs {
         gcx,
         span: tracing::Span::current(),
@@ -218,6 +225,7 @@ pub fn generate_contract_bytecodes(
         graph: &graph,
         artifacts: IndexVec::from_vec((0..contract_count).map(|_| OnceLock::new()).collect()),
         scheduled: IndexVec::from_vec((0..contract_count).map(|_| Mutex::new(None)).collect()),
+        prepared,
         diagnostics: IndexVec::from_vec((0..contract_count).map(|_| Mutex::default()).collect()),
         remaining_inputs: IndexVec::from_vec(
             graph
@@ -229,6 +237,36 @@ pub fn generate_contract_bytecodes(
         queue: ContractQueue::new(gcx.sess, &graph, priorities),
         parallel,
     };
+    if gcx.sess.opts.unstable.llm_optimize.is_some() {
+        // Resolve external choices for every embedded contract before any metadata is hashed.
+        // A parent's executable code also depends on the rewrites in its embedded children.
+        for &id in &graph.order {
+            if !(captures.bytecode.contains(id)
+                || captures.evm_ir.contains(id)
+                || captures.debug_info.contains(id)
+                || !graph.dependents[id].is_empty()
+                || dumps_final_mir(gcx))
+            {
+                continue;
+            }
+            let mut module = lower::lower_contract(gcx, id);
+            gcx.dcx().has_errors()?;
+            let built_mir = (captures.mir.contains(id)
+                && !module.is_optimized()
+                && gcx.sess.opts.unstable.mir_pipeline.is_none())
+            .then(|| module.clone());
+            module.set_debug_info_tracked(
+                captures.debug_info.contains(id) || crate::debugify::enabled(gcx),
+            );
+            let _changed = run_pipeline(gcx, &mut module, None);
+            gcx.dcx().has_errors()?;
+            let mut digests = gcx.codegen_state::<CodegenState>().rewrite_digests.lock();
+            digests.resize_with(contract_count, Vec::new);
+            digests[id] = module.rewrite_digests.clone();
+            *jobs.prepared.as_ref().expect("external rewrite preparation")[id].lock() =
+                Some(PreparedContract { module, built_mir });
+        }
+    }
     // Every contract is queued up front; only its completion waits for the bytecode of the
     // contracts it creates.
     for contract_id in graph.reachable.iter() {
@@ -285,6 +323,7 @@ pub fn generate_mir_input_bytecode(gcx: Gcx<'_>, module: &mut Module) -> Result<
     let artifact = codegen.lower_module(module, &EmbeddedBytecodes::default());
     module.backend_memory = artifact.backend_memory.clone();
     gcx.dcx().has_errors()?;
+    check_rewrite_size(gcx, None, module, artifact.deployment.len(), artifact.runtime.len())?;
     Ok(artifact)
 }
 
@@ -584,6 +623,12 @@ struct ScheduledContract<'gcx> {
     built_mir: Option<Module>,
 }
 
+/// MIR optimized before resolving rewrite-dependent metadata.
+struct PreparedContract {
+    module: Module,
+    built_mir: Option<Module>,
+}
+
 /// Shared state of the contract code generation jobs.
 struct ContractJobs<'a, 'gcx> {
     gcx: Gcx<'gcx>,
@@ -593,6 +638,7 @@ struct ContractJobs<'a, 'gcx> {
     graph: &'a ContractGraph,
     artifacts: IndexVec<ContractId, OnceLock<ContractArtifact>>,
     scheduled: IndexVec<ContractId, Mutex<Option<ScheduledContract<'gcx>>>>,
+    prepared: Option<IndexVec<ContractId, Mutex<Option<PreparedContract>>>>,
     /// Diagnostics of each contract's jobs, withheld because the jobs run in any order.
     diagnostics: IndexVec<ContractId, Mutex<DeferredDiagnostics>>,
     /// Unfinished inputs of each contract: its own scheduling and each dependency.
@@ -694,7 +740,13 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             contract = %gcx.contract_fully_qualified_name(contract_id)
         )
         .entered();
-        let mut module = lower::lower_contract(gcx, contract_id);
+        let prepared =
+            self.prepared.as_ref().and_then(|prepared| prepared[contract_id].lock().take());
+        let preoptimized = prepared.is_some();
+        let (mut module, prepared_built) = match prepared {
+            Some(PreparedContract { module, built_mir }) => (module, built_mir),
+            None => (lower::lower_contract(gcx, contract_id), None),
+        };
         gcx.dcx().has_errors()?;
         let capture_mir = captures.mir.contains(contract_id);
         let final_mir = dumps_final_mir(gcx);
@@ -703,6 +755,10 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             || captures.debug_info.contains(contract_id)
             || !graph.dependents[contract_id].is_empty()
             || final_mir;
+        let capture_built =
+            capture_mir && !module.is_optimized() && gcx.sess.opts.unstable.mir_pipeline.is_none();
+        let mut built_mir =
+            prepared_built.or_else(|| (capture_built && needs_backend).then(|| module.clone()));
         let runtime_data =
             captures.runtime_data.filter(|_| needs_backend).map(|data| data(contract_id));
         append_runtime_data(
@@ -710,14 +766,19 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             runtime_data.as_ref(),
             crate::link::qualified_name(gcx, contract_id),
         );
-        let capture_built =
-            capture_mir && !module.is_optimized() && gcx.sess.opts.unstable.mir_pipeline.is_none();
-        let built_mir = (capture_built && needs_backend).then(|| module.clone());
+        if let Some(built) = &mut built_mir {
+            append_runtime_data(
+                built,
+                runtime_data.as_ref(),
+                crate::link::qualified_name(gcx, contract_id),
+            );
+        }
         let codegen = if needs_backend {
             let track_debug =
                 captures.debug_info.contains(contract_id) || crate::debugify::enabled(gcx);
             module.set_debug_info_tracked(track_debug);
             let mut codegen = Box::new(EvmCodegen::new(gcx));
+            codegen.set_run_pipeline(!preoptimized);
             codegen.set_capture_mir(capture_mir && (!capture_built || final_mir));
             codegen.set_capture_evm_ir(captures.evm_ir.contains(contract_id));
             codegen.set_capture_scheduled_evm_ir(
@@ -795,6 +856,13 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             None => EvmArtifact::default(),
         };
         let capture_mir = captures.mir.contains(contract_id);
+        check_rewrite_size(
+            gcx,
+            Some(contract_id),
+            &module,
+            artifact.deployment.len(),
+            artifact.runtime.len(),
+        )?;
         warn_code_size_limits(
             gcx,
             Some(contract_id),
@@ -877,6 +945,51 @@ fn append_runtime_data(module: &mut Module, data: Option<&Bytes>, contract: Qual
     if let Some(data) = data.filter(|data| !data.is_empty()) {
         module.append_runtime_data(data.clone(), None, contract);
     }
+}
+
+/// An external optimizer may not emit an undeployable artifact based on an estimated MIR size.
+fn check_rewrite_size(
+    gcx: Gcx<'_>,
+    contract: Option<ContractId>,
+    module: &Module,
+    deployment: usize,
+    runtime: usize,
+) -> Result {
+    if module.rewrite_digests.is_empty() {
+        if gcx.sess.opts.unstable.llm_optimize.is_none() {
+            return Ok(());
+        }
+        let mut pending = contract.into_iter().collect::<Vec<_>>();
+        let mut seen = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
+        let mut embedded_rewrites = false;
+        while let Some(id) = pending.pop() {
+            if seen.insert(id) {
+                embedded_rewrites |= !crate::llm::rewrite_digests(gcx, id).is_empty();
+                pending.extend(gcx.contract_bytecode_dependencies(id).iter());
+            }
+        }
+        if !embedded_rewrites {
+            return Ok(());
+        }
+    }
+    let evm = gcx.sess.opts.evm_version;
+    for (kind, size, limit) in [
+        ("runtime", runtime, evm.runtime_code_size_limit()),
+        ("creation", deployment, evm.initcode_size_limit()),
+    ] {
+        if let Some(limit) = limit
+            && size > limit
+        {
+            let mut diagnostic = gcx.dcx().err(format!("external rewrites produce {size} bytes of {kind} code, exceeding the {limit}-byte limit"));
+            if let Some(contract) = contract {
+                diagnostic = diagnostic.span(gcx.hir.contract(contract).span);
+            }
+            return Err(diagnostic
+                .help("compile without `-Zllm-optimize` or optimize this contract for size")
+                .emit());
+        }
+    }
+    Ok(())
 }
 
 /// Returns whether the session dumps runtime EVM IR as stack scheduling emits it.

@@ -50,10 +50,11 @@
 //! functions that read storage or their context, make each constant every answer of the world, or
 //! half of them.
 //!
-//! Memory holds seeded garbage except for the zero word at `0x60`, the free memory pointer at
-//! `0x40`, which varies from `0x80` up and is sometimes unaligned, and the objects at pointer
+//! Memory holds seeded garbage, including zero and dirty variants at `0x60`, a free memory pointer
+//! at `0x40`, which varies from `0x80` up and is sometimes unaligned, and the objects at pointer
 //! arguments: a small length or a constant, which keeps loops short, followed by small numbers
-//! such as flags, and constants. Memory starts as large as the free memory pointer. Its garbage
+//! such as flags, and constants. Memory starts at or beyond the free memory pointer, including
+//! unreserved words left by earlier temporary encodings. Its garbage
 //! holds small numbers, addresses near the heap start, and constants as well as random words, so
 //! that chains of loads through pointers reach nested objects.
 //!
@@ -67,7 +68,9 @@
 //! transaction starts it empty. The tests answer no reads of code sizes or hashes: a rewrite
 //! changes the contract's own code, and with it what such reads return on chain.
 //!
-//! Testing is not proof: a difference on an input no generator reaches goes unnoticed.
+//! These tests find counterexamples; the separate normalization proof gates adoption. Long runs
+//! triggered by unfinished inputs and candidate constants share one per-candidate gas budget.
+//! A candidate memory-limit failure is never treated as an unfinished computation.
 
 use super::cost::{GasMeter, code_bytes};
 use crate::{
@@ -109,8 +112,8 @@ const MAX_LONG_RUNS: usize = 32;
 /// give or take the cost model's error, is compared.
 const PROBE_GAS: u64 = 2 * Target::BLOCK_GAS_LIMIT;
 /// Gas the original may spend in all, for one candidate, running again on the inputs it did not
-/// finish but the candidate does: four runs of [`PROBE_GAS`]. A candidate that needs more is
-/// rejected rather than compared on some of them.
+/// finish, including inputs at candidate constants: four runs of [`PROBE_GAS`]. A candidate that
+/// needs more is rejected rather than compared on some of them.
 const EARLY_END_GAS: u64 = 4 * PROBE_GAS;
 /// Call depth of one run.
 const DEPTH: usize = 64;
@@ -368,30 +371,20 @@ impl<'a> Tests<'a> {
             gas.push(run_gas(self.target, &reference.input, &execution, spent));
         }
         let original = Machine::new(self.module);
-        let mut rerun_gas = 0u64;
+        let mut reruns = RerunBudget(EARLY_END_GAS);
         for unfinished in &self.unfinished {
             let execution = self.run_within(&machine, &unfinished.input, unfinished.budget);
-            if matches!(execution.outcome, Outcome::Limit(_)) {
+            if runs_on(&execution.outcome) {
                 // Both run on, and what either does next is unknown.
                 continue;
             }
             // The candidate ends where the original had not, so the original runs on as long as a
             // call could on chain, and the candidate must end as it does.
-            let (longer, gas) =
-                unfinished.longer.get_or_init(|| self.run_longer(&original, &unfinished.input));
-            rerun_gas = rerun_gas.saturating_add(*gas);
-            if rerun_gas > EARLY_END_GAS {
-                let reason = format!(
-                    "the candidate ends early on inputs the original does not finish within the \
-                     tests' fuel, and finishing them takes the original more than \
-                     {EARLY_END_GAS} gas in all, more than the tests spend"
-                );
-                return Err(Rejection {
-                    stage: Stage::Equivalence,
-                    reason,
-                    counterexample: Some(self.describe(&unfinished.input)),
-                });
-            }
+            let allowance = reruns.allowance()?;
+            let (longer, gas) = unfinished.longer.get_or_init(|| {
+                self.run_longer_with_limit(&original, &unfinished.input, allowance)
+            });
+            reruns.charge(*gas)?;
             if self.ends_as(&unfinished.input, longer, &execution)? {
                 coverage.add(&execution);
             }
@@ -403,8 +396,11 @@ impl<'a> Tests<'a> {
             if matches!(execution.outcome, Outcome::Limit(Limit::Fuel)) {
                 // A candidate's constant may be where it stops agreeing, so the original runs as
                 // long as a call could on chain before the input counts as endless.
-                execution = self.run_longer(&original, &input).0;
-                budget = Budget::Gas(PROBE_GAS);
+                let allowance = reruns.allowance()?;
+                let (longer, spent) = self.run_longer_with_limit(&original, &input, allowance);
+                reruns.charge(spent)?;
+                execution = longer;
+                budget = Budget::Gas(allowance);
             }
             match execution.outcome {
                 Outcome::Unsupported(_) | Outcome::Limit(Limit::Memory) => continue,
@@ -412,7 +408,7 @@ impl<'a> Tests<'a> {
                     // What the original does past the budget is unknown, so the candidate must
                     // run on past it as well.
                     let candidate_execution = self.run_within(&machine, &input, budget);
-                    if !matches!(candidate_execution.outcome, Outcome::Limit(_)) {
+                    if !runs_on(&candidate_execution.outcome) {
                         return Err(self.ends_early(&input, &execution, &candidate_execution));
                     }
                     continue;
@@ -483,10 +479,13 @@ impl<'a> Tests<'a> {
         }
     }
 
-    /// Runs the original, which `original` runs, on `input` until it ends or has spent
-    /// [`PROBE_GAS`], as long as a call could run on chain. Returns the run and the gas it spent.
-    fn run_longer(&self, original: &Machine<'_>, input: &Input) -> (Execution, u64) {
-        let mut meter = GasMeter::new(self.target, self.module).with_limit(PROBE_GAS);
+    fn run_longer_with_limit(
+        &self,
+        original: &Machine<'_>,
+        input: &Input,
+        gas: u64,
+    ) -> (Execution, u64) {
+        let mut meter = GasMeter::new(self.target, self.module).with_limit(gas);
         let execution = execute(original, self.id, input, &self.palette, u64::MAX, &mut meter);
         (execution, meter.take())
     }
@@ -1054,10 +1053,18 @@ fn generate(
         _ => EvmMemoryLayout::HEAP_START + rng.below(512),
     });
     let fmp = free_memory_pointer.to::<u64>();
-    let mut memory = Memory::new(rng.next(), fmp.div_ceil(EvmMemoryLayout::WORD_SIZE))
+    // Internal callers may leave dirty scratch space and unreserved encodings above the FMP.
+    // Keep both fresh and already-expanded memory among the inputs, without assuming 0x60 is zero.
+    let tail = match rng.below(4) {
+        0 => 0,
+        _ => OBJECT_WORDS + rng.below(PRICED_GROWTH_WORDS),
+    };
+    let mut memory = Memory::new(rng.next(), fmp.div_ceil(EvmMemoryLayout::WORD_SIZE) + tail)
         .with_palette(Arc::clone(palette));
     memory.set(EvmMemoryLayout::FMP_SLOT, free_memory_pointer);
-    memory.set(EvmMemoryLayout::ZERO_SLOT, U256::ZERO);
+    if rng.below(4) == 0 {
+        memory.set(EvmMemoryLayout::ZERO_SLOT, U256::ZERO);
+    }
     let constant = |rng: &mut Rng| {
         (!constants.is_empty()).then(|| constants[rng.below(constants.len() as u64) as usize])
     };
@@ -1326,5 +1333,58 @@ impl Rng {
 
     fn word(&mut self) -> U256 {
         U256::from_limbs([self.next(), self.next(), self.next(), self.next()])
+    }
+}
+
+/// Fuel and depth leave the result unknown; exceeding the memory limit is not running on.
+fn runs_on(outcome: &Outcome) -> bool {
+    matches!(outcome, Outcome::Limit(Limit::Fuel | Limit::Depth))
+}
+
+/// One allowance shared by cached unfinished runs and candidate-constant probes.
+struct RerunBudget(u64);
+
+impl RerunBudget {
+    fn allowance(&self) -> Result<u64, Rejection> {
+        if self.0 == 0 {
+            return Err(Self::exhausted());
+        }
+        Ok(self.0.min(PROBE_GAS))
+    }
+
+    fn charge(&mut self, gas: u64) -> Result<(), Rejection> {
+        self.0 = self.0.checked_sub(gas).ok_or_else(Self::exhausted)?;
+        Ok(())
+    }
+
+    fn exhausted() -> Rejection {
+        Rejection::new(Stage::Equivalence, "probes exhaust the shared rerun gas budget")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn long_probes_share_one_budget() {
+        let mut budget = RerunBudget(EARLY_END_GAS);
+        // A cached unfinished run and a constant probe consume the same allowance.
+        budget.charge(PROBE_GAS / 2).unwrap();
+        for _ in 0..3 {
+            assert_eq!(budget.allowance().unwrap(), PROBE_GAS);
+            budget.charge(PROBE_GAS).unwrap();
+        }
+        assert_eq!(budget.allowance().unwrap(), PROBE_GAS / 2);
+        budget.charge(PROBE_GAS / 2).unwrap();
+        assert!(budget.allowance().is_err());
+        assert!(budget.charge(1).is_err());
+    }
+
+    #[test]
+    fn memory_exhaustion_is_not_an_unfinished_run() {
+        assert!(runs_on(&Outcome::Limit(Limit::Fuel)));
+        assert!(runs_on(&Outcome::Limit(Limit::Depth)));
+        assert!(!runs_on(&Outcome::Limit(Limit::Memory)));
     }
 }

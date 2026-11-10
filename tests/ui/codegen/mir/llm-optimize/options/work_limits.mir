@@ -1,0 +1,9 @@
+//@ revisions: samples rounds
+//@ compile-flags: -Zllm-optimize=replay -Zllm-cache=cache
+//@[samples] compile-flags: -Zllm-samples=4097
+//@[rounds] compile-flags: -Zllm-rounds=65
+@module Options
+@phase lowered
+fn @main() [entry] { bb0: stop }
+//~[samples]? ERROR: `-Zllm-samples` must not exceed 4096
+//~[rounds]? ERROR: `-Zllm-rounds` must not exceed 64

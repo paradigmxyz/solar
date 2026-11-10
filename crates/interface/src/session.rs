@@ -337,6 +337,12 @@ impl Session {
         if unstable.llm_samples == Some(0) {
             return Err(self.dcx.err("`-Zllm-samples` must be positive").emit());
         }
+        if unstable.llm_samples.is_some_and(|samples| samples > 4096) {
+            return Err(self.dcx.err("`-Zllm-samples` must not exceed 4096").emit());
+        }
+        if unstable.llm_rounds.is_some_and(|rounds| rounds > 64) {
+            return Err(self.dcx.err("`-Zllm-rounds` must not exceed 64").emit());
+        }
         match mode {
             Some(LlmOptimizeMode::Script) if unstable.llm_script.is_none() => {
                 Err(self.dcx.err("`-Zllm-optimize=script` requires `-Zllm-script`").emit())

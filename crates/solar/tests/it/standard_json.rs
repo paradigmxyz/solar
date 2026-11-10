@@ -399,3 +399,31 @@ fn no_import_callback_ignores_callback() {
         "couldn't read X.sol: File import callback not supported"
     );
 }
+
+#[test]
+fn json_cannot_enable_host_rewriter_paths() {
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"C.sol": {"content": "contract C { function f(uint x) external pure returns(uint) { return x; } }"}},
+        "settings": {
+            "optimizer": {"enabled": true},
+            "solar": {"unstable": ["llm-optimize=script", "llm-script=nonexistent-script", "llm-cache=nonexistent-cache", "llm-samples=99999999", "llm-rounds=99999999"]},
+            "outputSelection": {"*": {"*": ["evm.bytecode.object"]}}
+        }
+    });
+    let mut bytes = Vec::new();
+    compile_standard_json(&input.to_string(), CompileOpts::default(), None, &mut bytes).unwrap();
+    let output: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        !output["errors"]
+            .as_array()
+            .is_some_and(|errors| errors.iter().any(|error| error["severity"] == "error")),
+        "{output:#}"
+    );
+    assert!(
+        !output["contracts"]["C.sol"]["C"]["evm"]["bytecode"]["object"]
+            .as_str()
+            .unwrap()
+            .is_empty()
+    );
+}

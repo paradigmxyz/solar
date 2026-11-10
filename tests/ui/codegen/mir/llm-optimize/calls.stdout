@@ -1,14 +1,11 @@
-llm-optimize Calls @main: not offered: is the dispatch entry
 llm-optimize Calls @increment: offered at 52 gas, 21 bytes
 llm-optimize Calls @increment: round 1: nothing cheaper
 llm-optimize Calls @twice: offered at 429 gas, 75 bytes
-llm-optimize Calls @twice: round 1: accepted at 52 gas, 21 bytes
+llm-optimize Calls @twice: round 1: rejected at proof: equivalence is unproved: trusted normalization does not produce the same body
 llm-optimize Calls @twice: round 2: nothing cheaper
-llm-optimize Calls @twice: rewritten from 429 gas, 75 bytes to 52 gas, 21 bytes
 llm-optimize Calls @forward: offered at 236 gas, 46 bytes
-llm-optimize Calls @forward: round 1: accepted at 52 gas, 21 bytes
+llm-optimize Calls @forward: round 1: rejected at proof: equivalence is unproved: trusted normalization does not produce the same body
 llm-optimize Calls @forward: round 2: nothing cheaper
-llm-optimize Calls @forward: rewritten from 236 gas, 46 bytes to 52 gas, 21 bytes
 llm-optimize Calls @gas_left: not offered: uses `gas`
 llm-optimize Calls @reads_gas: not offered: calls `@gas_left`, which uses `gas`
 llm-optimize Calls @recursive: not offered: is recursive
@@ -16,6 +13,7 @@ llm-optimize Calls @code_size: not offered: uses `codesize`
 llm-optimize Calls @pair: not offered: returns several values
 llm-optimize Calls @uses_pair: not offered: calls `@pair`, which returns several values
 llm-optimize Calls @framed: not offered: uses `internal_frame_addr`
+llm-optimize Calls @main: not offered: is the dispatch entry
 - ; === ROOT/tests/ui/codegen/mir/llm-optimize/calls.mir (before llm-optimize) ===
 + ; === ROOT/tests/ui/codegen/mir/llm-optimize/calls.mir (after llm-optimize) ===
   @module Calls
@@ -45,17 +43,14 @@ llm-optimize Calls @framed: not offered: uses `internal_frame_addr`
   
   fn @twice(arg0: i256) -> i256 {
     bb0:
--     v0 = icall @increment, arg0
--     v1 = icall @increment, v0
--     ret v1
-+     v0 = add arg0, 2
-+     ret v0
+      v0 = icall @increment, arg0
+      v1 = icall @increment, v0
+      ret v1
   }
   
   fn @forward(arg0: i256) -> i256 {
     bb0:
--     v0 = icall @increment, arg0
-+     v0 = add arg0, 1
+      v0 = icall @increment, arg0
       ret v0
   }
   

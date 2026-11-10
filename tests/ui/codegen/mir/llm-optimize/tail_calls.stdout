@@ -1,23 +1,4 @@
-llm-optimize TailCalls @constructor: not offered: is an external entry
-llm-optimize TailCalls @main: not offered: is the dispatch entry
-llm-optimize TailCalls @helper: offered at 52 gas, 21 bytes
-llm-optimize TailCalls @helper: round 1: nothing cheaper
-llm-optimize TailCalls @parity: not offered: is recursive
-llm-optimize TailCalls @wraps: offered at 255 gas, 53 bytes
-llm-optimize TailCalls @wraps: round 1: rejected at constraints: tail calls `@helper`, which returns; call it and return its results instead
-llm-optimize TailCalls @wraps: round 2: accepted at 245 gas, 50 bytes
-llm-optimize TailCalls @wraps: round 3: nothing cheaper
-llm-optimize TailCalls @wraps: rewritten from 255 gas, 53 bytes to 245 gas, 50 bytes
-llm-optimize TailCalls @forwards: offered at 368 gas, 50 bytes
-llm-optimize TailCalls @forwards: round 1: nothing cheaper
-llm-optimize TailCalls @shared: offered at 247 gas, 50 bytes
-llm-optimize TailCalls @shared: round 1: nothing cheaper
-llm-optimize TailCalls @ends: offered at 47 gas, 13 bytes
-llm-optimize TailCalls @ends: round 1: accepted at 37 gas, 10 bytes
-llm-optimize TailCalls @ends: round 2: nothing cheaper
-llm-optimize TailCalls @ends: rewritten from 47 gas, 13 bytes to 37 gas, 10 bytes
-llm-optimize TailCalls @finish: offered at 13 gas, 7 bytes
-llm-optimize TailCalls @finish: round 1: nothing cheaper
+llm-optimize TailCalls: offers nothing: the module writes storage; SSTORE gas-prefix safety is unproved
 - ; === ROOT/tests/ui/codegen/mir/llm-optimize/tail_calls.mir (before llm-optimize) ===
 + ; === ROOT/tests/ui/codegen/mir/llm-optimize/tail_calls.mir (after llm-optimize) ===
   @module TailCalls
@@ -62,13 +43,10 @@ llm-optimize TailCalls @finish: round 1: nothing cheaper
   
   fn @wraps(arg0: i256) -> i256 {
     bb0:
--     v0 = mul arg0, 4
--     v1 = add v0, 0
--     v2 = icall @helper, v1
--     ret v2
-+     v0 = shl arg0, 2
-+     v1 = icall @helper, v0
-+     ret v1
+      v0 = mul arg0, 4
+      v1 = add v0, 0
+      v2 = icall @helper, v1
+      ret v2
   }
   
   fn @forwards(arg0: i256) -> i256 {
@@ -87,11 +65,9 @@ llm-optimize TailCalls @finish: round 1: nothing cheaper
   
   fn @ends(arg0: i256) {
     bb0:
--     v0 = mul arg0, 4
--     v1 = add v0, 0
--     tail_call @finish, v1
-+     v0 = shl arg0, 2
-+     tail_call @finish, v0
+      v0 = mul arg0, 4
+      v1 = add v0, 0
+      tail_call @finish, v1
   }
   
   fn @finish(arg0: i256) {

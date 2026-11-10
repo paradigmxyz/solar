@@ -8,7 +8,8 @@
 //! # Sessions
 //!
 //! [`eligibility`] decides which functions are offered: internal, non-recursive functions of a few
-//! words, whose every reachable operation the tests run, storage and logs included. Each offered
+//! words, whose every reachable operation the tests run. Modules that write persistent storage
+//! are excluded until gas-prefix safety at SSTORE can be established. Each offered
 //! function is printed as candidate text, lowered MIR without metadata, parsed back, and printed
 //! again; that fixed point is what the rewriter sees and what the cache is keyed by, so debug
 //! options cannot change which rewrites apply. A rewriter session then proposes candidates over at
@@ -33,14 +34,17 @@
 //!    storage and context; it must end the same way, write only memory the original writes and
 //!    exactly the storage slots it writes, leave them the same, log the same events, run every
 //!    block, and run on wherever the original runs past the tests' fuel.
-//! 5. Cost: [`cost`] prices it with the target cost model, and it must beat the best so far: by a
+//! 5. Proof: [`proof`] normalizes both bodies with trusted passes and requires identical MIR.
+//!    Agreement on generated inputs alone never permits adoption.
+//! 6. Cost: [`cost`] prices it with the target cost model, and it must beat the best so far: by a
 //!    stack copy's lifetime gas when optimizing gas, and in bytes, then gas, for size.
 //!
 //! The adopted function keeps the original's name, signature, attributes, spans, and memory
 //! layout, and takes the candidate's body after dead code elimination, with every instruction's
-//! metadata empty and its debug information marked as dropped. Every function is decided against
-//! the unchanged module and the rewrites are applied afterwards in function order, so the result
-//! does not depend on parallel compilation.
+//! metadata empty and its debug information marked as dropped. Callees are decided before callers,
+//! and each caller is checked in the composed environment that will ship. Rewritten modules use
+//! conservative raw-memory spill handling. Accepted decisions enter metadata and compilation IDs
+//! before bytecode emission; an artifact exceeding its target code-size limit fails compilation.
 //!
 //! # Cache
 //!
@@ -50,8 +54,10 @@
 //!
 //! # Limits
 //!
-//! Testing is not proof: a candidate that differs only on inputs no generator reaches passes.
-//! This is why the pass stays behind an unstable flag. The cost model ignores stack scheduling
+//! Candidates are bounded to 256 instructions and 256 KiB of text. Samples and rounds have host
+//! limits, and long probes share a per-candidate budget. Normalization is deliberately
+//! conservative: a loop closed form may agree on every input tested and still be rejected as
+//! unproved. The cost model ignores stack scheduling
 //! beyond one stack copy per operand, so accepted rewrites need benchmarks. `-Zllm-trace` prints
 //! every offer, verdict, and decision.
 
@@ -74,7 +80,7 @@ use crate::{
 };
 use alloy_primitives::{B256, keccak256};
 use solar_config::{LlmOptimizeMode, OptimizationMode};
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::{graph::sccs, map::FxHashSet};
 use solar_evmir::debug::DebugLocKind;
 use solar_interface::{
     ColorChoice,
@@ -89,6 +95,7 @@ mod cache;
 mod cost;
 mod eligibility;
 mod equivalence;
+mod proof;
 
 /// Candidates asked for per function unless `-Zllm-rounds` says otherwise.
 const DEFAULT_ROUNDS: usize = 6;
@@ -118,6 +125,10 @@ impl MirPass for LlmOptimize {
         for (id, rewrite) in rewrites {
             *module.function_mut(id) = rewrite.function;
             module.rewrite_digests.push(rewrite.digest);
+        }
+        if changed {
+            // Rewritten addresses must take the backend's raw-memory spill hazard path.
+            module.set_unsafe_assembly(true);
         }
         changed
     }
@@ -208,15 +219,18 @@ impl<'gcx> Optimizer<'gcx> {
         })
     }
 
-    /// Decides every offered function of `module` and returns the rewrites, in function order.
+    /// Checks callees before callers, testing each caller against the bodies that will ship.
     fn run(mut self, module: &Module) -> Vec<(FunctionId, Rewrite)> {
         if let Some(reason) = eligibility::module_exclusion(module) {
             self.trace(module, None, format_args!("offers nothing: {reason}"));
             return Vec::new();
         }
         let graph = CallGraphInfo::new(module);
+        let order = sccs(module.functions.len(), |id| graph.callees(id).collect::<Vec<_>>());
+        let mut working = module.clone();
         let mut rewrites = Vec::new();
-        for id in module.functions.indices() {
+        for id in order.into_iter().flatten() {
+            let module = &working;
             if module.objective(id) == OptimizationMode::None {
                 continue;
             }
@@ -225,6 +239,8 @@ impl<'gcx> Optimizer<'gcx> {
             if let Some(reason) = eligibility::exclusion(module, &graph, id) {
                 self.trace(module, Some(id), format_args!("not offered: {reason}"));
             } else if let Some(rewrite) = self.optimize(module, id) {
+                *working.function_mut(id) = rewrite.function.clone();
+                working.set_unsafe_assembly(true);
                 rewrites.push((id, rewrite));
             }
         }
@@ -428,6 +444,10 @@ impl<'gcx> Optimizer<'gcx> {
         text: &str,
         bar: CostReport,
     ) -> Result<Accepted, Rejection> {
+        // Bound parsing work before inspecting the candidate's bounded instruction count.
+        if text.len() > 256 * 1024 {
+            return Err(Rejection::new(Stage::Constraints, "candidate text exceeds 256 KiB"));
+        }
         let original = module.function(id);
         let candidate =
             self.parse(module, text).map_err(|error| Rejection::new(Stage::Parse, error))?;
@@ -449,6 +469,8 @@ impl<'gcx> Optimizer<'gcx> {
             return Err(Rejection::new(Stage::Constraints, reason));
         }
         let cost = tests.check(&function)?;
+        proof::check(self.gcx, module, id, &function)
+            .map_err(|reason| Rejection::new(Stage::Proof, reason))?;
         if !self.beats(cost, bar) {
             let reason = format!("costs {cost}, which does not beat {bar}");
             return Err(Rejection::new(Stage::Cost, reason));
@@ -475,13 +497,7 @@ impl<'gcx> Optimizer<'gcx> {
 
     /// Parses candidate `text` for `module`, keeping its diagnostics private.
     fn parse(&self, module: &Module, text: &str) -> Result<Function, String> {
-        let source_map = Arc::new(SourceMap::empty());
-        let session =
-            self.gcx.sess.with_diagnostics(private_diagnostics(Some(Arc::clone(&source_map))));
-        let file = source_map
-            .new_source_file(FileName::Custom("candidate".into()), text)
-            .map_err(|error| error.to_string())?;
-        module.parse_function(&session, &file).map_err(|_| emitted(&session.dcx))
+        parse_candidate(self.gcx, module, text)
     }
 
     /// Prints a trace line with `-Zllm-trace`: on stdout, or on stderr when stdout carries
@@ -512,6 +528,9 @@ fn constraints(
     id: FunctionId,
     candidate: &Function,
 ) -> Result<(), String> {
+    if candidate.instructions().count() > eligibility::MAX_INSTRUCTIONS {
+        return Err(format!("has more than {} instructions", eligibility::MAX_INSTRUCTIONS));
+    }
     let original = module.function(id);
     if candidate.name != original.name {
         return Err(format!("renames the function to `@{}`", candidate.name));
@@ -532,6 +551,9 @@ fn constraints(
     for inst in candidate.instructions() {
         let kind = &candidate.inst(inst).kind;
         let mnemonic = kind.op_def().mnemonic;
+        if matches!(kind, InstKind::Store(.., crate::mir::PtrLocation::Storage)) {
+            return Err("SSTORE gas-prefix safety is unproved".into());
+        }
         if !equivalence::runs(kind) {
             return Err(format!("uses `{mnemonic}`, which the tests cannot run"));
         }
@@ -640,4 +662,13 @@ fn private_diagnostics(source_map: Option<Arc<SourceMap>>) -> DiagCtxt {
 /// Returns what `dcx` rendered.
 fn emitted(dcx: &DiagCtxt) -> String {
     dcx.emitted_diagnostics().map(|diagnostics| diagnostics.to_string()).unwrap_or_default()
+}
+
+fn parse_candidate(gcx: Gcx<'_>, module: &Module, text: &str) -> Result<Function, String> {
+    let source_map = Arc::new(SourceMap::empty());
+    let session = gcx.sess.with_diagnostics(private_diagnostics(Some(Arc::clone(&source_map))));
+    let file = source_map
+        .new_source_file(FileName::Custom("candidate".into()), text)
+        .map_err(|error| error.to_string())?;
+    module.parse_function(&session, &file).map_err(|_| emitted(&session.dcx))
 }

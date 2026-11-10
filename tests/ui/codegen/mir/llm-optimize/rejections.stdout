@@ -1,5 +1,3 @@
-llm-optimize Rejections @main: not offered: is the dispatch entry
-llm-optimize Rejections @helper: not offered: is unreachable
 llm-optimize Rejections @syntax: offered at 52 gas, 21 bytes
 llm-optimize Rejections @syntax: round 1: rejected at parse: error: expected value reference, got `ret`
   ╭▸ <candidate>:4:9
@@ -50,6 +48,8 @@ llm-optimize Rejections @coverage: round 2: nothing cheaper
 llm-optimize Rejections @costlier: offered at 52 gas, 21 bytes
 llm-optimize Rejections @costlier: round 1: rejected at cost: costs 61 gas, 25 bytes, which does not beat 52 gas, 21 bytes
 llm-optimize Rejections @costlier: round 2: nothing cheaper
+llm-optimize Rejections @main: not offered: is the dispatch entry
+llm-optimize Rejections @helper: not offered: is unreachable
 - ; === ROOT/tests/ui/codegen/mir/llm-optimize/rejections.mir (before llm-optimize) ===
 + ; === ROOT/tests/ui/codegen/mir/llm-optimize/rejections.mir (after llm-optimize) ===
   @module Rejections
