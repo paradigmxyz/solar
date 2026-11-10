@@ -16,6 +16,7 @@ use solar_parse::{
     interface::{
         Span,
         data_structures::map::{FxHashMap, FxHashSet},
+        sym,
     },
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -1664,7 +1665,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             ExprKind::Call(callee, args) => {
                 let callee = match &callee.kind {
                     ExprKind::CallOptions(c, opts) => {
-                        if opts.iter().any(|o| o.name.as_str() == "value") {
+                        if opts.iter().any(|o| o.name.name == sym::value) {
                             out.insert("__balance".into());
                         }
                         c
@@ -2044,7 +2045,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 };
                 self.assign(base, nb)
             }
-            ExprKind::Member(base, m) if m.as_str() == "length" => {
+            ExprKind::Member(base, m) if m.name == sym::length => {
                 let mut b = self.eval(base)?;
                 b.len = Some(v.t);
                 self.assign(base, b)
@@ -2954,7 +2955,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let argv: Vec<&'a Expr<'a>> = args.exprs().collect();
         let callee = match &callee.kind {
             ExprKind::CallOptions(c, opts) => {
-                if let Some(o) = opts.iter().find(|o| o.name.as_str() == "value") {
+                if let Some(o) = opts.iter().find(|o| o.name.name == sym::value) {
                     let v = self.eval(o.value)?;
                     self.call_value = Some(v.t);
                 }
@@ -3011,7 +3012,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         let mut flat = vec![];
                         for a in &argv {
                             match &a.kind {
-                                ExprKind::Call(c2, inner) if matches!(&c2.kind, ExprKind::Member(b, _) if matches!(&b.kind, ExprKind::Ident(i) if i.as_str() == "abi")) => {
+                                ExprKind::Call(c2, inner) if matches!(&c2.kind, ExprKind::Member(b, _) if matches!(&b.kind, ExprKind::Ident(i) if i.name == sym::abi)) => {
                                     for x in inner.exprs() {
                                         flat.push(self.eval(x)?.t);
                                     }
@@ -3563,7 +3564,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         ExprKind::Ident(i) if names.contains(i.as_str()) => hit = true,
                         ExprKind::Call(c, _) => match &c.kind {
                             ExprKind::Ident(i) => calls.push(i.as_str().to_string()),
-                            ExprKind::Member(b, m) if matches!(&b.kind, ExprKind::Ident(i) if i.as_str() == "super") => {
+                            ExprKind::Member(b, m) if matches!(&b.kind, ExprKind::Ident(i) if i.name == sym::super_) => {
                                 calls.push(m.as_str().to_string())
                             }
                             _ => {}

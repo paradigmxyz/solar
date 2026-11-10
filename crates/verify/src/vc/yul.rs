@@ -22,7 +22,7 @@ use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
 use solar_parse::{
     ast::{self, Expr, ExprKind, LitKind, StmtKind, yul},
-    interface::{Span, data_structures::map::FxHashMap},
+    interface::{Span, data_structures::map::FxHashMap, sym},
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -519,7 +519,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let abi_call = |a: &'a Expr<'a>| -> Option<(&'a str, &'a ast::CallArgs<'a>)> {
             if let ExprKind::Call(c2, inner) = &a.kind
                 && let ExprKind::Member(b, m) = &c2.kind
-                && matches!(&b.kind, ExprKind::Ident(i) if i.as_str() == "abi")
+                && matches!(&b.kind, ExprKind::Ident(i) if i.name == sym::abi)
             {
                 return Some((m.as_str(), inner));
             }
@@ -1265,7 +1265,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             return Ok(None);
         };
         let segs = p.segments();
-        if segs.len() != 2 || segs[1].as_str() != "slot" {
+        if segs.len() != 2 || segs[1].name != sym::slot {
             return Ok(None);
         }
         let ptr = segs[0].as_str().to_string();
