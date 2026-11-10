@@ -441,6 +441,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         .expect("error catch match helper construction cannot fail")
     }
 
+    /// Reads the code of a `Panic(uint256)` payload through scratch memory.
+    pub(super) fn lower_panic_catch_scratch_word(&mut self) -> ValueId {
+        // returndatacopy(0, 4, 32)
+        // code = mload(0)
+        let zero = self.builder.imm(U256::ZERO);
+        let four = self.builder.imm(4);
+        let word = self.builder.imm(32);
+        self.builder.copy(zero, four, word, PtrLocation::Returndata);
+        self.builder.load(zero, PtrLocation::Memory)
+    }
+
     pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
         let payload_ptr = self.builder.memory_data_at(data, 4);
         self.builder.load(payload_ptr, PtrLocation::Memory)

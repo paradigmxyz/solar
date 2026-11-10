@@ -1,0 +1,115 @@
+; === ROOT/tests/ui/codegen/run-call/try-catch/try_catch_panic_large_payload.sol:C ===
+@module C
+; function bomb() external pure [selector 0xb1b0c49e]
+fn @bomb() [selector=0xb1b0c49e, pure, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 0x100000
+}
+
+; function panicCode() external view returns (uint256) [selector 0x81b1da97]
+fn @panicCode() -> i256 [selector=0x81b1da97, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    mstore 0, 0xb1b0c49e !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, 28, 4, 0, 0
+    jumpi v6, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    v7 = returndatasize
+    v8 = lt v7, 32
+    v9 = select v8, v7, 32
+    returndatacopy 0, 0, v9 !metadata(memory=scratch)
+    v10 = mload 0 !metadata(memory=scratch)
+    v11 = shr v10, 224
+    v12 = eq v11, 0x4e487b71
+    v13 = lt v7, 36
+    v14 = eq v13, false
+    v15 = and v12, v14
+    v16 = zext i1 v15 to i256
+    jumpi v15, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2
+    revert_returndata
+  bb4 [cold_hint]:                                ; preds = bb2
+    returndatacopy 0, 4, 32 !metadata(memory=scratch)
+    v17 = mload 0 !metadata(memory=scratch)
+    ret v17
+  bb1:                                            ; preds = bb0
+    ret 1
+  bb3:
+    ret 0
+}
+
+; function panicOrAnything() external view returns (uint256) [selector 0x2a58bbc2]
+fn @panicOrAnything() -> i256 [selector=0x2a58bbc2, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    mstore 0, 0xb1b0c49e !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, 28, 4, 0, 0
+    jumpi v6, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    v7 = returndatasize
+    v8 = lt v7, 32
+    v9 = select v8, v7, 32
+    returndatacopy 0, 0, v9 !metadata(memory=scratch)
+    v10 = mload 0 !metadata(memory=scratch)
+    v11 = shr v10, 224
+    v12 = eq v11, 0x4e487b71
+    v13 = lt v7, 36
+    v14 = eq v13, false
+    v15 = and v12, v14
+    v16 = zext i1 v15 to i256
+    jumpi v15, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2
+    jumpi true, bb6, bb7
+  bb7 [cold_hint]:                                ; preds = bb5
+    revert_returndata
+  bb6 [cold_hint]:                                ; preds = bb5
+    ret 3
+  bb4 [cold_hint]:                                ; preds = bb2
+    returndatacopy 0, 4, 32 !metadata(memory=scratch)
+    v17 = mload 0 !metadata(memory=scratch)
+    ret v17
+  bb1:                                            ; preds = bb0
+    ret 1
+  bb3:
+    ret 0
+}
+
+; function bare() external view returns (uint256) [selector 0x8095dd0b]
+fn @bare() -> i256 [selector=0x8095dd0b, view, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = address
+    v1 = gas
+    mstore 0, 0xb1b0c49e !metadata(memory=scratch)
+    v2 = zext i160 v0 to i256
+    v3 = extcodesize v2
+    v4 = eq v3, 0
+    icall revert_if<target_contract_has_no_code>, v4
+    v5 = zext i160 v0 to i256
+    v6 = staticcall v1, v5, 28, 4, 0, 0
+    jumpi v6, bb1, bb2
+  bb2 [cold_hint]:                                ; preds = bb0
+    jumpi true, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2
+    icall revert_if<empty>, true
+    invalid
+  bb4 [cold_hint]:                                ; preds = bb2
+    ret 2
+  bb1:                                            ; preds = bb0
+    ret 1
+  bb3:
+    ret 0
+}
