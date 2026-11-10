@@ -594,8 +594,8 @@ impl Chat for HttpChat {
         prompt: String,
         voice: &Arc<Voice>,
     ) -> Result<Turn, LlmError> {
-        self.transcript.push_prompt(&prompt);
-        let body = self.transcript.request(INSTRUCTIONS);
+        self.transcript.push_prompt(&prompt).map_err(provider_error)?;
+        let body = self.transcript.request(INSTRUCTIONS).map_err(provider_error)?;
         let reply = self.transcript.reply_stream();
         let (client, budget, voice) =
             (Arc::clone(&self.client), Arc::clone(shared), Arc::clone(voice));

@@ -23,31 +23,29 @@ use std::{
     thread,
 };
 
-const SOURCE: &str = include_str!("../../../../tests/ui/codegen/mir/llm-optimize/triangle.sol");
+const SOURCE: &str =
+    include_str!("../../../../tests/ui/codegen/mir/llm-optimize/auxiliary/provider.sol");
+// Retain redundant arithmetic so the provider must propose a cheaper, provable body.
+pub(super) const PIPELINE: &str = "lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,llm-optimize";
 
-/// `sumBelow` as `m * (m + 1) / 2` for `m = n % 256`: wrong by `m`.
-const WRONG: &str = "fn @sumBelow(arg0: i256) -> i256 [pure] {
+/// Incorrectly adds one after the byte mask.
+const WRONG: &str = "fn @identity(arg0: i256) -> i256 [pure] {
   bb0:
-    v3 = and arg0, 255
-    v0 = add v3, 1
-    v1 = mul v3, v0
-    v2 = shr v1, 1
-    ret v2
+    v0 = and arg0, 255
+    v1 = add v0, 1
+    ret v1
 }
 ";
 
-/// `sumBelow` as `m * (m - 1) / 2` for `m = n % 256`.
-const RIGHT: &str = "fn @sumBelow(arg0: i256) -> i256 [pure] {
+/// Preserves the mask and removes only redundant arithmetic.
+const RIGHT: &str = "fn @identity(arg0: i256) -> i256 [pure] {
   bb0:
-    v3 = and arg0, 255
-    v0 = sub v3, 1
-    v1 = mul v3, v0
-    v2 = shr v1, 1
-    ret v2
+    v0 = and arg0, 255
+    ret v0
 }
 ";
 
-/// Proposes the wrong closed form and then the right one, recording the verdicts.
+/// Proposes an incorrect body and then a provably equivalent one, recording the verdicts.
 struct Rewriter {
     verdicts: Arc<Mutex<Vec<(String, Verdict)>>>,
 }
@@ -55,7 +53,7 @@ struct Rewriter {
 impl LlmRewriter for Rewriter {
     fn session(&self, request: &RewriteRequest) -> Result<Box<dyn LlmSession>, LlmError> {
         let candidates =
-            if request.function_name == "sumBelow" { vec![WRONG, RIGHT] } else { vec![] };
+            if request.function_name == "identity" { vec![WRONG, RIGHT] } else { vec![] };
         Ok(Box::new(Session {
             function: request.function_name.clone(),
             candidates: candidates.into_iter(),
@@ -79,16 +77,28 @@ impl LlmSession for Session {
     }
 }
 
-/// Compiles `triangle.sol` through Standard JSON in `mode`, with `rewriter` bound to the session.
+/// Compiles `probe.sol` through Standard JSON in `mode`, with `rewriter` bound to the session.
 fn compile(mode: Option<LlmOptimizeMode>, rewriter: Option<Arc<dyn LlmRewriter>>) -> Value {
+    compile_outputs(
+        mode,
+        rewriter,
+        &["metadata", "evm.bytecode.object", "evm.deployedBytecode.object", "ethdebug.resources"],
+    )
+}
+
+fn compile_outputs(
+    mode: Option<LlmOptimizeMode>,
+    rewriter: Option<Arc<dyn LlmRewriter>>,
+    outputs: &[&str],
+) -> Value {
     let input = json!({
         "language": "Solidity",
-        "sources": {"triangle.sol": {"content": SOURCE}},
+        "sources": {"probe.sol": {"content": SOURCE}},
         "settings": {
             "evmVersion": "cancun",
             "optimizer": {"enabled": true, "runs": 200},
-            "solar": {"unstable": mode.map(|mode| format!("llm-optimize={mode}")).into_iter().collect::<Vec<_>>()},
-            "outputSelection": {"*": {"*": ["evm.deployedBytecode.object"]}}
+            "solar": {"unstable": [format!("mir-pipeline={PIPELINE}")]},
+            "outputSelection": {"*": {"*": outputs}}
         }
     });
     let opts = CompileOpts {
@@ -110,28 +120,52 @@ fn compile(mode: Option<LlmOptimizeMode>, rewriter: Option<Arc<dyn LlmRewriter>>
 #[test]
 fn embedded_rewriter() {
     let runtime = |output: &Value| {
-        output["contracts"]["triangle.sol"]["Triangle"]["evm"]["deployedBytecode"]["object"].clone()
+        output["contracts"]["probe.sol"]["Probe"]["evm"]["deployedBytecode"]["object"].clone()
     };
     let plain = compile(None, None);
     let verdicts = Arc::new(Mutex::new(Vec::new()));
     let embedded = Arc::new(Rewriter { verdicts: Arc::clone(&verdicts) });
     let rewritten = compile(Some(LlmOptimizeMode::Live), Some(embedded));
 
-    // The embedder's rewriter stays in place, and hears why its first candidate failed.
+    // No LLM controls occur in the JSON input: only the host enables this rewriter.
+    // The embedder stays in place and hears why its first candidate failed.
     let verdicts = verdicts.lock().unwrap();
     let [(first_function, first), (second_function, second)] = verdicts.as_slice() else {
         panic!("expected two verdicts, got {verdicts:?}");
     };
-    assert_eq!((first_function.as_str(), second_function.as_str()), ("sumBelow", "sumBelow"));
+    assert_eq!((first_function.as_str(), second_function.as_str()), ("identity", "identity"));
     let Verdict::Rejected { stage: Stage::Equivalence, counterexample: Some(_), .. } = first else {
-        panic!("the wrong closed form was not rejected with an input: {first:?}");
+        panic!("the incorrect body was not rejected with an input: {first:?}");
     };
     let Verdict::Accepted { cost } = second else {
-        panic!("the right closed form was not accepted: {second:?}");
+        panic!("the equivalent body was not accepted: {second:?}");
     };
     assert!(cost.gas > 0 && cost.bytes > 0);
     assert!(runtime(&plain).as_str().is_some_and(|code| !code.is_empty()));
     assert_ne!(runtime(&rewritten), runtime(&plain));
+    let metadata = |output: &Value| {
+        serde_json::from_str::<Value>(
+            output["contracts"]["probe.sol"]["Probe"]["metadata"].as_str().unwrap(),
+        )
+        .unwrap()
+    };
+    assert!(metadata(&plain)["settings"]["solar"]["rewrites"].is_null());
+    let rewritten_metadata = metadata(&rewritten);
+    let decisions = rewritten_metadata["settings"]["solar"]["rewrites"].as_array().unwrap();
+    assert_eq!(decisions.len(), 1);
+    assert_eq!(decisions[0]["contract"], "probe.sol:Probe");
+    assert!(!decisions[0]["digests"].as_array().unwrap().is_empty());
+    assert_ne!(rewritten["ethdebug"]["compilation"]["id"], plain["ethdebug"]["compilation"]["id"]);
+    let metadata_only = compile_outputs(
+        Some(LlmOptimizeMode::Live),
+        Some(Arc::new(Rewriter { verdicts: Arc::new(Mutex::new(Vec::new())) })),
+        &["metadata", "ethdebug.resources"],
+    );
+    assert_eq!(metadata(&metadata_only), rewritten_metadata);
+    assert_eq!(
+        metadata_only["ethdebug"]["compilation"]["id"],
+        rewritten["ethdebug"]["compilation"]["id"]
+    );
 }
 
 /// An embedder that loads the sources itself gets the command line's outputs, and the rewriter it
@@ -143,7 +177,11 @@ fn embedded_sources() {
         evm_version: EvmVersion::Cancun,
         emit: vec![CompilerOutput::BinRuntime],
         out_dir: Some(out.path().to_path_buf()),
-        unstable: UnstableOpts { llm_optimize: Some(LlmOptimizeMode::Live), ..Default::default() },
+        unstable: UnstableOpts {
+            llm_optimize: Some(LlmOptimizeMode::Live),
+            mir_pipeline: Some(PIPELINE.into()),
+            ..Default::default()
+        },
         ..Default::default()
     };
     let verdicts = Arc::new(Mutex::new(Vec::new()));
@@ -152,7 +190,7 @@ fn embedded_sources() {
     assert!(rewriter(&solar::interface::Session::new(CompileOpts::default())).is_none());
     let compiled = solar::cli::run_compiler_with_sources(sess, |pcx| {
         let file =
-            pcx.sess.source_map().new_source_file(PathBuf::from("triangle.sol"), SOURCE).unwrap();
+            pcx.sess.source_map().new_source_file(PathBuf::from("probe.sol"), SOURCE).unwrap();
         pcx.add_file(file);
         Ok(())
     });
@@ -161,14 +199,14 @@ fn embedded_sources() {
     assert_eq!(verdicts.lock().unwrap().len(), 2);
     let combined = std::fs::File::open(out.path().join("combined.json")).unwrap();
     let combined = serde_json::from_reader::<_, Value>(combined).unwrap();
-    let runtime = &combined["contracts"]["triangle.sol:Triangle"]["bin-runtime"];
+    let runtime = &combined["contracts"]["probe.sol:Probe"]["bin-runtime"];
     assert!(runtime.as_str().is_some_and(|code| !code.is_empty()), "{combined:#}");
 }
 
 /// The compiler, built with the features the tests run with.
 #[cfg(feature = "llm")]
 const SOLAR: &str = env!("CARGO_BIN_EXE_solar");
-/// The directory holding `triangle.sol`.
+/// The directory holding `probe.sol`.
 #[cfg(feature = "llm")]
 const FIXTURES: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/ui/codegen/mir/llm-optimize");
@@ -314,13 +352,13 @@ fn events(path: &str, reply: &Value) -> String {
     events
 }
 
-/// The stand-in model: the right closed form when first asked about `sumBelow`, and no
+/// The stand-in model: the equivalent body when first asked about `identity`, and no
 /// improvement otherwise.
 #[cfg(feature = "llm")]
 fn answer(messages: &[Value], prompt: &str) -> String {
     let prompts = messages.iter().filter(|message| message["role"] == "user").count();
-    if prompts == 1 && prompt.contains("fn @sumBelow") {
-        format!("The loop sums an arithmetic series.\n```mir\n{RIGHT}```")
+    if prompts == 1 && prompt.contains("fn @identity") {
+        format!("Keep the byte mask.\n```mir\n{RIGHT}```")
     } else {
         "NO_IMPROVEMENT".into()
     }
@@ -337,7 +375,7 @@ fn anthropic_reply(body: &Value) -> Value {
         "role": "assistant",
         "model": body["model"],
         "content": [
-            {"type": "thinking", "thinking": "Summing an arithmetic series.", "signature": "sig"},
+            {"type": "thinking", "thinking": "Removing redundant arithmetic.", "signature": "sig"},
             {"type": "text", "text": answer(messages, prompt)},
         ],
         "stop_reason": "end_turn",
@@ -364,7 +402,7 @@ fn chat_reply(body: &Value) -> Value {
             "message": {
                 "role": "assistant",
                 "content": answer(messages, prompt),
-                "reasoning_content": "Summing an arithmetic series.",
+                "reasoning_content": "Removing redundant arithmetic.",
             },
             "finish_reason": "stop",
         }],
@@ -372,11 +410,17 @@ fn chat_reply(body: &Value) -> Value {
     })
 }
 
-/// Compiles `triangle.sol` for gas with `args`, giving the compiler only the key in `key`.
+/// Compiles `probe.sol` for gas with `args`, giving the compiler only the key in `key`.
 #[cfg(feature = "llm")]
 fn build(args: &[&str], key: Option<&str>) -> Output {
     let mut command = Command::new(SOLAR);
-    command.current_dir(FIXTURES).args(["triangle.sol", "-O", "gas", "--emit=bin-runtime"]);
+    command.current_dir(FIXTURES).args([
+        "auxiliary/provider.sol",
+        "-O",
+        "gas",
+        "--emit=bin-runtime,ethdebug-resources",
+    ]);
+    command.arg(format!("-Zmir-pipeline={PIPELINE}"));
     command.args(["--threads", "1", "--evm-version", "cancun", "--allow", "2264", "-Zui-testing"]);
     command.args(args);
     for variable in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENCODE_ZEN_API_KEY"] {
@@ -388,16 +432,18 @@ fn build(args: &[&str], key: Option<&str>) -> Output {
     command.output().unwrap()
 }
 
-/// The runtime bytecode of a successful build.
+/// The runtime bytecode and compilation identity of a successful build.
 #[cfg(feature = "llm")]
-fn runtime(output: &Output) -> Value {
+fn artifact(output: &Output) -> Value {
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     let output = serde_json::from_slice::<Value>(&output.stdout).unwrap();
     let [contract] = &output["contracts"].as_object().unwrap().values().collect::<Vec<_>>()[..]
     else {
         panic!("expected one contract: {output}");
     };
-    contract["bin-runtime"].clone()
+    let identity = &output["ethdebug"]["compilation"]["id"];
+    assert!(identity.as_str().is_some());
+    json!({"bytecode": contract["bin-runtime"], "compilationId": identity})
 }
 
 /// Asks `model` at a local stand-in for its provider, returning the build and the requests.
@@ -423,7 +469,7 @@ fn openai_endpoint() {
         Some("OPENAI_API_KEY"),
     );
     // A model that fails never fails the build.
-    runtime(&output);
+    artifact(&output);
     let requests = requests.lock().unwrap();
     assert!(!requests.is_empty(), "{}", String::from_utf8_lossy(&output.stderr));
     for request in requests.iter() {
@@ -435,37 +481,34 @@ fn openai_endpoint() {
 #[cfg(feature = "llm")]
 #[test]
 fn anthropic_rewrites() {
-    let plain = runtime(&build(&[], None));
+    let plain = artifact(&build(&[], None));
     let (output, requests) =
         ask("anthropic/claude-opus-5-5", "high", "ANTHROPIC_API_KEY", anthropic_reply);
-    assert_ne!(runtime(&output), plain);
+    assert_ne!(artifact(&output), plain);
     assert_data_eq!(
         String::from_utf8_lossy(&output.stderr).into_owned(),
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: costs 4668 gas, 47 bytes; asking anthropic/claude-opus-5-5 for something cheaper
-llm-optimize Triangle @sumBelow: round 1
-  Triangle @sumBelow ┆ Summing an arithmetic series.
-  Triangle @sumBelow │ The loop sums an arithmetic series.
-  Triangle @sumBelow │ ```mir
-  Triangle @sumBelow │ fn @sumBelow(arg0: i256) -> i256 [pure] {
-  Triangle @sumBelow │   bb0:
-  Triangle @sumBelow │     v3 = and arg0, 255
-  Triangle @sumBelow │     v0 = sub v3, 1
-  Triangle @sumBelow │     v1 = mul v3, v0
-  Triangle @sumBelow │     v2 = shr v1, 1
-  Triangle @sumBelow │     ret v2
-  Triangle @sumBelow │ }
-  Triangle @sumBelow │ ```
-llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.008
-llm-optimize Triangle @sumBelow: accepted at 81 gas, 32 bytes
-llm-optimize Triangle @sumBelow: round 2
-  Triangle @sumBelow ┆ Summing an arithmetic series.
-  Triangle @sumBelow │ NO_IMPROVEMENT
-llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.008
-llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 4668 gas, 47 bytes
+llm-optimize Probe @identity: costs 71 gas, 28 bytes; asking anthropic/claude-opus-5-5 for something cheaper
+llm-optimize Probe @identity: round 1
+  Probe @identity ┆ Removing redundant arithmetic.
+  Probe @identity │ Keep the byte mask.
+  Probe @identity │ ```mir
+  Probe @identity │ fn @identity(arg0: i256) -> i256 [pure] {
+  Probe @identity │   bb0:
+  Probe @identity │     v0 = and arg0, 255
+  Probe @identity │     ret v0
+  Probe @identity │ }
+  Probe @identity │ ```
+llm-optimize Probe @identity: replied in [..] s using 1200 tokens, an estimated $0.008
+llm-optimize Probe @identity: accepted at 52 gas, 21 bytes
+llm-optimize Probe @identity: round 2
+  Probe @identity ┆ Removing redundant arithmetic.
+  Probe @identity │ NO_IMPROVEMENT
+llm-optimize Probe @identity: replied in [..] s using 1200 tokens, an estimated $0.008
+llm-optimize Probe @identity: the model has nothing cheaper
+llm-optimize Probe @identity: keeps a rewrite at 52 gas, 21 bytes, down from 71 gas, 28 bytes
 note: `llm-optimize` asked Anthropic 2 turns using 2400 tokens, an estimated $0.016
 
 
@@ -487,7 +530,7 @@ note: `llm-optimize` asked Anthropic 2 turns using 2400 tokens, an estimated $0.
     assert!(first_prompt["content"][0].get("cache_control").is_none());
     assert_eq!(
         reply["content"][0],
-        json!({"type": "thinking", "thinking": "Summing an arithmetic series.", "signature": "sig"})
+        json!({"type": "thinking", "thinking": "Removing redundant arithmetic.", "signature": "sig"})
     );
     assert!(verdict["content"][0]["text"].as_str().unwrap().starts_with("Accepted"));
     assert_eq!(verdict["content"][0]["cache_control"], json!({"type": "ephemeral"}));
@@ -496,37 +539,34 @@ note: `llm-optimize` asked Anthropic 2 turns using 2400 tokens, an estimated $0.
 #[cfg(feature = "llm")]
 #[test]
 fn opencode_rewrites() {
-    let plain = runtime(&build(&[], None));
+    let plain = artifact(&build(&[], None));
     let (output, requests) =
         ask("opencode/deepseek-v4.1-flash", "max", "OPENCODE_ZEN_API_KEY", chat_reply);
-    assert_ne!(runtime(&output), plain);
+    assert_ne!(artifact(&output), plain);
     assert_data_eq!(
         String::from_utf8_lossy(&output.stderr).into_owned(),
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: costs 4668 gas, 47 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
-llm-optimize Triangle @sumBelow: round 1
-  Triangle @sumBelow ┆ Summing an arithmetic series.
-  Triangle @sumBelow │ The loop sums an arithmetic series.
-  Triangle @sumBelow │ ```mir
-  Triangle @sumBelow │ fn @sumBelow(arg0: i256) -> i256 [pure] {
-  Triangle @sumBelow │   bb0:
-  Triangle @sumBelow │     v3 = and arg0, 255
-  Triangle @sumBelow │     v0 = sub v3, 1
-  Triangle @sumBelow │     v1 = mul v3, v0
-  Triangle @sumBelow │     v2 = shr v1, 1
-  Triangle @sumBelow │     ret v2
-  Triangle @sumBelow │ }
-  Triangle @sumBelow │ ```
-llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.00054
-llm-optimize Triangle @sumBelow: accepted at 81 gas, 32 bytes
-llm-optimize Triangle @sumBelow: round 2
-  Triangle @sumBelow ┆ Summing an arithmetic series.
-  Triangle @sumBelow │ NO_IMPROVEMENT
-llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.00054
-llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 4668 gas, 47 bytes
+llm-optimize Probe @identity: costs 71 gas, 28 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
+llm-optimize Probe @identity: round 1
+  Probe @identity ┆ Removing redundant arithmetic.
+  Probe @identity │ Keep the byte mask.
+  Probe @identity │ ```mir
+  Probe @identity │ fn @identity(arg0: i256) -> i256 [pure] {
+  Probe @identity │   bb0:
+  Probe @identity │     v0 = and arg0, 255
+  Probe @identity │     ret v0
+  Probe @identity │ }
+  Probe @identity │ ```
+llm-optimize Probe @identity: replied in 0.0 s using 1200 tokens, an estimated $0.00054
+llm-optimize Probe @identity: accepted at 52 gas, 21 bytes
+llm-optimize Probe @identity: round 2
+  Probe @identity ┆ Removing redundant arithmetic.
+  Probe @identity │ NO_IMPROVEMENT
+llm-optimize Probe @identity: replied in 0.0 s using 1200 tokens, an estimated $0.00054
+llm-optimize Probe @identity: the model has nothing cheaper
+llm-optimize Probe @identity: keeps a rewrite at 52 gas, 21 bytes, down from 71 gas, 28 bytes
 note: `llm-optimize` asked OpenCode Zen 2 turns using 2400 tokens, an estimated $0.00108
 
 
@@ -542,7 +582,7 @@ note: `llm-optimize` asked OpenCode Zen 2 turns using 2400 tokens, an estimated 
     // The verdict on the rewrite follows the reply it answers, with the reasoning behind it.
     let verdict = requests.iter().find(|request| request.messages().len() == 4).unwrap();
     let [_, _, reply, verdict] = verdict.messages() else { unreachable!() };
-    assert_eq!(reply["reasoning_content"], "Summing an arithmetic series.");
+    assert_eq!(reply["reasoning_content"], "Removing redundant arithmetic.");
     assert!(verdict["content"].as_str().unwrap().starts_with("Accepted"));
 }
 
@@ -578,43 +618,40 @@ error: `deepseek-v4.1-flash` does not take `-Zllm-effort=medium`
 #[cfg(feature = "llm")]
 #[test]
 fn chat_provider_retries() {
-    let plain = runtime(&build(&[], None));
+    let plain = artifact(&build(&[], None));
     // This provider does not stream, so each reply arrives whole.
     let (url, requests) = serve(chat_reply, 2, false);
     let endpoint = format!("-Zllm-endpoint={url}");
     let live = ["-Zllm-optimize=live", "-Zllm-model=opencode/deepseek-v4.1-flash", &endpoint];
     let output = build(&live, Some("OPENCODE_ZEN_API_KEY"));
     // Two rate-limited attempts precede the conversation, which goes on as if they never happened.
-    assert_ne!(runtime(&output), plain);
+    assert_ne!(artifact(&output), plain);
     assert_data_eq!(
         String::from_utf8_lossy(&output.stderr).into_owned(),
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: costs 4668 gas, 47 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
-llm-optimize Triangle @sumBelow: round 1
-llm-optimize Triangle @sumBelow: OpenCode Zen answered 429 Too Many Requests: slow down; sending again in 0.0 s
-llm-optimize Triangle @sumBelow: OpenCode Zen answered 429 Too Many Requests: slow down; sending again in 0.0 s
-  Triangle @sumBelow ┆ Summing an arithmetic series.
-  Triangle @sumBelow │ The loop sums an arithmetic series.
-  Triangle @sumBelow │ ```mir
-  Triangle @sumBelow │ fn @sumBelow(arg0: i256) -> i256 [pure] {
-  Triangle @sumBelow │   bb0:
-  Triangle @sumBelow │     v3 = and arg0, 255
-  Triangle @sumBelow │     v0 = sub v3, 1
-  Triangle @sumBelow │     v1 = mul v3, v0
-  Triangle @sumBelow │     v2 = shr v1, 1
-  Triangle @sumBelow │     ret v2
-  Triangle @sumBelow │ }
-  Triangle @sumBelow │ ```
-llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.00054
-llm-optimize Triangle @sumBelow: accepted at 81 gas, 32 bytes
-llm-optimize Triangle @sumBelow: round 2
-  Triangle @sumBelow ┆ Summing an arithmetic series.
-  Triangle @sumBelow │ NO_IMPROVEMENT
-llm-optimize Triangle @sumBelow: replied in [..] s using 1200 tokens, an estimated $0.00054
-llm-optimize Triangle @sumBelow: the model has nothing cheaper
-llm-optimize Triangle @sumBelow: keeps a rewrite at 81 gas, 32 bytes, down from 4668 gas, 47 bytes
+llm-optimize Probe @identity: costs 71 gas, 28 bytes; asking opencode/deepseek-v4.1-flash for something cheaper
+llm-optimize Probe @identity: round 1
+llm-optimize Probe @identity: OpenCode Zen answered 429 Too Many Requests: slow down; sending again in 0.0 s
+llm-optimize Probe @identity: OpenCode Zen answered 429 Too Many Requests: slow down; sending again in 0.0 s
+  Probe @identity ┆ Removing redundant arithmetic.
+  Probe @identity │ Keep the byte mask.
+  Probe @identity │ ```mir
+  Probe @identity │ fn @identity(arg0: i256) -> i256 [pure] {
+  Probe @identity │   bb0:
+  Probe @identity │     v0 = and arg0, 255
+  Probe @identity │     ret v0
+  Probe @identity │ }
+  Probe @identity │ ```
+llm-optimize Probe @identity: replied in [..] s using 1200 tokens, an estimated $0.00054
+llm-optimize Probe @identity: accepted at 52 gas, 21 bytes
+llm-optimize Probe @identity: round 2
+  Probe @identity ┆ Removing redundant arithmetic.
+  Probe @identity │ NO_IMPROVEMENT
+llm-optimize Probe @identity: replied in [..] s using 1200 tokens, an estimated $0.00054
+llm-optimize Probe @identity: the model has nothing cheaper
+llm-optimize Probe @identity: keeps a rewrite at 52 gas, 21 bytes, down from 71 gas, 28 bytes
 note: `llm-optimize` asked OpenCode Zen 2 turns using 2400 tokens, an estimated $0.00108
 
 
@@ -640,13 +677,13 @@ fn cached_rewrites_skip_the_model() {
     // The second build finds the rewrite in the cache and asks nothing, which it says.
     let second = build(&live, Some("OPENCODE_ZEN_API_KEY"));
     assert_eq!(requests.lock().unwrap().len(), asked);
-    assert_eq!(runtime(&second), runtime(&first));
+    assert_eq!(artifact(&second), artifact(&first));
     assert_data_eq!(
         String::from_utf8_lossy(&second.stderr).into_owned(),
         str![[r#"
 warning: `-Zllm-optimize=live` sends the MIR of offered functions to `127.0.0.1`
 
-llm-optimize Triangle @sumBelow: reuses its cached rewrite at 81 gas, 32 bytes, down from 4668 gas, 47 bytes, without asking opencode/deepseek-v4.1-flash
+llm-optimize Probe @identity: reuses its cached rewrite at 52 gas, 21 bytes, down from 71 gas, 28 bytes, without asking opencode/deepseek-v4.1-flash
 
 "#]]
     );

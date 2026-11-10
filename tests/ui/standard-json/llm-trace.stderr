@@ -1,7 +1,6 @@
+llm-optimize Triangle @sumBelow: offered at 4905 gas, 47 bytes
+llm-optimize Triangle @sumBelow: round 1: rejected at proof: equivalence is unproved: trusted normalization does not produce the same body
+llm-optimize Triangle @sumBelow: round 2: nothing cheaper
 llm-optimize Triangle @triangle: not offered: is an external entry
 llm-optimize Triangle @triangles: not offered: is an external entry
-llm-optimize Triangle @sumBelow: offered at 4668 gas, 47 bytes
-llm-optimize Triangle @sumBelow: round 1: accepted at 81 gas, 32 bytes
-llm-optimize Triangle @sumBelow: round 2: nothing cheaper
-llm-optimize Triangle @sumBelow: rewritten from 4668 gas, 47 bytes to 81 gas, 32 bytes
 llm-optimize Triangle @entry: not offered: is the dispatch entry

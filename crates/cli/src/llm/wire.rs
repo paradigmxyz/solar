@@ -12,13 +12,21 @@
 //! reads streamed and whole replies alike.
 
 use super::provider::Usage;
+use serde::Serialize;
 use serde_json::{Map, Value, json};
 use solar_config::LlmEffort;
+use std::io::{self, Write};
 
 /// The Messages API version the requests follow.
 pub(super) const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// The most tokens a reply may use, reasoning included.
 const MAX_OUTPUT_TOKENS: u64 = 32_000;
+/// Aggregate retained history, independent of provider-reported usage.
+const MAX_TRANSCRIPT_BYTES: usize = 8 << 20;
+/// Bound container overhead as well as text, including reasoning and encrypted payloads.
+const MAX_TRANSCRIPT_VALUES: usize = 64 << 10;
+/// Serialized requests include the instructions and model as well as the retained history.
+const MAX_REQUEST_BYTES: usize = 16 << 20;
 
 /// The wire format of a chat provider.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -49,28 +57,45 @@ pub(super) struct Transcript {
     model: String,
     effort: Option<LlmEffort>,
     messages: Vec<Value>,
+    bytes: usize,
+    values: usize,
 }
 
 impl Transcript {
     pub(super) fn new(protocol: Protocol, model: String, effort: Option<LlmEffort>) -> Self {
-        Self { protocol, model, effort, messages: Vec::new() }
+        Self { protocol, model, effort, messages: Vec::new(), bytes: 0, values: 0 }
     }
 
     /// Adds a prompt.
-    pub(super) fn push_prompt(&mut self, text: &str) {
-        self.messages.push(match self.protocol {
+    pub(super) fn push_prompt(&mut self, text: &str) -> Result<(), String> {
+        if text.len() > MAX_TRANSCRIPT_BYTES.saturating_sub(self.bytes) {
+            return Err(transcript_limit());
+        }
+        let message = match self.protocol {
             Protocol::Messages => {
                 json!({"role": "user", "content": [{"type": "text", "text": text}]})
             }
             Protocol::ChatCompletions | Protocol::Responses => {
                 json!({"role": "user", "content": text})
             }
-        });
+        };
+        let (bytes, values) = self.append_size(&message)?;
+        self.messages.push(message);
+        self.bytes += bytes;
+        self.values += values;
+        Ok(())
     }
 
     /// The request for a reply to the conversation so far, which `instructions` open.
-    pub(super) fn request(&self, instructions: &str) -> Value {
-        match self.protocol {
+    pub(super) fn request(&self, instructions: &str) -> Result<Value, String> {
+        // Check borrowed inputs before cloning history. Reserve the fixed protocol envelope;
+        // the exact encoded request is checked again before any HTTP serialization allocates it.
+        let mut room = MAX_REQUEST_BYTES.saturating_sub(self.bytes + 1024);
+        for text in [instructions, &self.model] {
+            let size = serialized_size(text, room).map_err(|_| request_limit())?;
+            room -= size;
+        }
+        let body = match self.protocol {
             Protocol::Messages => {
                 // Only the newest prompt is a breakpoint, since a request may carry four.
                 let mut messages = self.messages.clone();
@@ -129,7 +154,9 @@ impl Transcript {
                 }
                 body
             }
-        }
+        };
+        serialized_size(&body, MAX_REQUEST_BYTES).map_err(|_| request_limit())?;
+        Ok(body)
     }
 
     pub(super) fn model(&self) -> &str {
@@ -190,7 +217,10 @@ impl Transcript {
 
     /// Adds `reply` to the conversation, returning its text.
     pub(super) fn push_reply(&mut self, reply: &Value) -> Result<String, String> {
-        match self.protocol {
+        // Charge the complete borrowed response before cloning retained content or extracting text.
+        // This conservatively includes unused envelope fields and does not trust token counts.
+        let (bytes, values) = self.append_size(reply)?;
+        let text: Result<String, String> = match self.protocol {
             Protocol::Messages => {
                 let content = reply["content"].as_array().ok_or("the reply holds no content")?;
                 if reply["stop_reason"] == "refusal" {
@@ -250,7 +280,11 @@ impl Transcript {
                 self.messages.push(sent);
                 Ok(text)
             }
-        }
+        };
+        let text = text?;
+        self.bytes += bytes;
+        self.values += values;
+        Ok(text)
     }
 
     /// Starts reading a streamed reply to the conversation.
@@ -265,6 +299,14 @@ impl Transcript {
             ended: false,
             response: None,
         }
+    }
+
+    fn append_size(&self, value: &Value) -> Result<(usize, usize), String> {
+        // Allow for the assistant wrapper, separators and prompt-cache markers.
+        let values = value_count(value, MAX_TRANSCRIPT_VALUES.saturating_sub(self.values + 8))?;
+        let bytes = serialized_size(value, MAX_TRANSCRIPT_BYTES.saturating_sub(self.bytes + 128))
+            .map_err(|_| transcript_limit())?;
+        Ok((bytes + 128, values + 8))
     }
 }
 
@@ -544,6 +586,72 @@ fn block_index(data: &Value) -> Result<usize, String> {
         .ok_or_else(|| "the reply streamed an event without a block index".to_string())
 }
 
+fn transcript_limit() -> String {
+    format!("the conversation exceeds its {} MiB transcript limit", MAX_TRANSCRIPT_BYTES >> 20)
+}
+
+fn request_limit() -> String {
+    format!("the conversation request exceeds {} MiB", MAX_REQUEST_BYTES >> 20)
+}
+
+/// Count encoded bytes without allocating another serialized copy of the history.
+fn serialized_size(
+    value: &(impl Serialize + ?Sized),
+    limit: usize,
+) -> Result<usize, serde_json::Error> {
+    let mut counter = SizeCounter { bytes: 0, limit };
+    serde_json::to_writer(&mut counter, value)?;
+    Ok(counter.bytes)
+}
+
+struct SizeCounter {
+    bytes: usize,
+    limit: usize,
+}
+
+impl Write for SizeCounter {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        if bytes.len() > self.limit - self.bytes {
+            return Err(io::Error::other("byte limit exceeded"));
+        }
+        self.bytes += bytes.len();
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn value_count(value: &Value, limit: usize) -> Result<usize, String> {
+    let error = || format!("the conversation exceeds {MAX_TRANSCRIPT_VALUES} retained JSON values");
+    if limit == 0 {
+        return Err(error());
+    }
+    let mut pending = vec![value];
+    let mut count = 0;
+    while let Some(value) = pending.pop() {
+        count += 1;
+        let room = limit - count - pending.len();
+        match value {
+            Value::Array(values) => {
+                if values.len() > room {
+                    return Err(error());
+                }
+                pending.extend(values);
+            }
+            Value::Object(values) => {
+                if values.len() > room {
+                    return Err(error());
+                }
+                pending.extend(values.values());
+            }
+            _ => {}
+        }
+    }
+    Ok(count)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -571,7 +679,7 @@ mod tests {
     fn messages() {
         let mut transcript =
             Transcript::new(Protocol::Messages, "claude-opus-5-5".into(), Some(LlmEffort::High));
-        transcript.push_prompt("first");
+        transcript.push_prompt("first").unwrap();
         let reply = json!({
             "content": [
                 {"type": "thinking", "thinking": "", "signature": "sig"},
@@ -590,9 +698,9 @@ mod tests {
         let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(text, "ab");
         assert_eq!(usage, Usage { input: 5, output: 7, cache_read: 13, cache_write: 11 });
-        transcript.push_prompt("second");
+        transcript.push_prompt("second").unwrap();
         assert_data_eq!(
-            pretty(&transcript.request("brief")),
+            pretty(&transcript.request("brief").unwrap()),
             str![[r#"
 {
   "max_tokens": 32000,
@@ -679,7 +787,7 @@ mod tests {
             "deepseek-v4.1-flash".into(),
             Some(LlmEffort::Max),
         );
-        transcript.push_prompt("first");
+        transcript.push_prompt("first").unwrap();
         let reply = json!({
             "choices": [{
                 "message": {"role": "assistant", "content": "a", "reasoning_content": "because"},
@@ -691,7 +799,7 @@ mod tests {
         let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(text, "a");
         assert_eq!(usage, Usage { input: 4, output: 7, cache_read: 16, cache_write: 0 });
-        transcript.push_prompt("second");
+        transcript.push_prompt("second").unwrap();
         let reply = json!({
             "choices": [{"message": {"role": "assistant", "content": null}}],
             "usage": {
@@ -704,9 +812,9 @@ mod tests {
         let text = transcript.push_reply(&reply).unwrap();
         assert_eq!(text, "");
         assert_eq!(usage, Usage { input: 0, output: 1, cache_read: 20, cache_write: 0 });
-        transcript.push_prompt("third");
+        transcript.push_prompt("third").unwrap();
         assert_data_eq!(
-            pretty(&transcript.request("brief")),
+            pretty(&transcript.request("brief").unwrap()),
             str![[r#"
 {
   "max_tokens": 32000,
@@ -936,8 +1044,8 @@ data: [DONE]
     fn responses_have_no_tools_and_reject_tool_calls() {
         let mut transcript =
             Transcript::new(Protocol::Responses, "gpt-6-sol".into(), Some(LlmEffort::Low));
-        transcript.push_prompt("make it cheaper");
-        let request = transcript.request("brief");
+        transcript.push_prompt("make it cheaper").unwrap();
+        let request = transcript.request("brief").unwrap();
         assert_eq!(request["tools"], json!([]));
         assert_eq!(request["tool_choice"], "none");
         assert_eq!(request["instructions"], "brief");
@@ -973,7 +1081,7 @@ data: [DONE]
         assert_eq!(reply, whole);
         let mut transcript = Transcript::new(Protocol::Responses, "gpt-6-sol".into(), None);
         assert_eq!(transcript.push_reply(&reply).unwrap(), "NO_IMPROVEMENT");
-        assert_eq!(transcript.request("brief")["input"][0], whole["output"][0]);
+        assert_eq!(transcript.request("brief").unwrap()["input"][0], whole["output"][0]);
         assert!(Transcript::has_usage(Protocol::Responses, &reply));
         assert_eq!(Transcript::usage(Protocol::Responses, &reply).total(), 7);
     }
@@ -1008,5 +1116,78 @@ data: [DONE]
             assert_eq!(reply.content[0]["text"].as_str().unwrap().as_ptr(), pointer);
         }
         assert_eq!(reply.content[0]["text"].as_str().unwrap().len(), 66561);
+    }
+
+    #[test]
+    fn transcripts_bound_reasoning_across_zero_usage_turns() {
+        let payload = "r".repeat(128 << 10);
+        for protocol in [Protocol::Messages, Protocol::ChatCompletions, Protocol::Responses] {
+            let mut transcript = Transcript::new(protocol, "model".into(), None);
+            let reply = match protocol {
+                Protocol::Messages => json!({
+                    "content": [{"type":"thinking", "thinking":payload, "signature":"sig"}, {"type":"text", "text":"answer"}],
+                    "usage": {"input_tokens":0, "output_tokens":0}
+                }),
+                Protocol::ChatCompletions => json!({
+                    "choices": [{"message": {"content":"answer", "reasoning_content":payload}}],
+                    "usage": {"prompt_tokens":0, "completion_tokens":0}
+                }),
+                Protocol::Responses => json!({
+                    "output": [{"type":"reasoning", "encrypted_content":payload}, {"type":"message", "content":[{"type":"output_text", "text":"answer"}]}],
+                    "usage": {"input_tokens":0, "output_tokens":0}
+                }),
+            };
+            assert_eq!(Transcript::usage(protocol, &reply).total(), 0);
+            let mut accepted = 0;
+            loop {
+                transcript.push_prompt("try again").unwrap();
+                let before = (transcript.messages.len(), transcript.bytes, transcript.values);
+                match transcript.push_reply(&reply) {
+                    Ok(text) => {
+                        assert_eq!(text, "answer");
+                        accepted += 1;
+                    }
+                    Err(error) => {
+                        assert_eq!(error, transcript_limit());
+                        assert_eq!(
+                            (transcript.messages.len(), transcript.bytes, transcript.values),
+                            before
+                        );
+                        break;
+                    }
+                }
+                assert!(accepted < 128, "history did not stop zero-usage replies");
+            }
+            assert!(accepted > 1);
+            assert!(transcript.bytes <= MAX_TRANSCRIPT_BYTES);
+            assert!(transcript.values <= MAX_TRANSCRIPT_VALUES);
+            let request = transcript.request("brief").unwrap();
+            assert!(serialized_size(&request, MAX_REQUEST_BYTES).is_ok());
+        }
+    }
+
+    #[test]
+    fn transcript_limits_count_json_structure_and_escaping() {
+        let mut transcript = Transcript::new(Protocol::Messages, "model".into(), None);
+        let reply = json!({"content": vec![Value::Null; MAX_TRANSCRIPT_VALUES]});
+        assert_eq!(
+            transcript.push_reply(&reply).unwrap_err(),
+            format!("the conversation exceeds {MAX_TRANSCRIPT_VALUES} retained JSON values")
+        );
+        assert!(transcript.messages.is_empty());
+        let escaped = "\0".repeat(1 << 20);
+        transcript.push_prompt(&escaped).unwrap();
+        let before = (transcript.messages.len(), transcript.bytes, transcript.values);
+        assert_eq!(transcript.push_prompt(&escaped).unwrap_err(), transcript_limit());
+        assert_eq!((transcript.messages.len(), transcript.bytes, transcript.values), before);
+    }
+
+    #[test]
+    fn oversized_instructions_are_rejected_before_request_cloning() {
+        let mut transcript = Transcript::new(Protocol::Responses, "model".into(), None);
+        transcript.push_prompt("prompt").unwrap();
+        let instructions = "x".repeat(MAX_REQUEST_BYTES);
+        assert_eq!(transcript.request(&instructions).unwrap_err(), request_limit());
+        assert_eq!(transcript.messages.len(), 1);
     }
 }

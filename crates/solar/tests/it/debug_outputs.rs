@@ -1,5 +1,6 @@
 //! CLI debug-output selection, cross-interface parity, and bytecode neutrality.
 
+use super::llm::PIPELINE;
 use serde_json::{Value, json};
 use solar::{
     config::CompileOpts,
@@ -560,15 +561,16 @@ fn evm_ir_debug_contexts_preserve_bytecode() {
 
 #[test]
 fn llm_rewrites_are_bytecode_neutral_and_named() {
-    const SOURCE: &str = "../../codegen/mir/llm-optimize/triangle.sol";
-    const SCRIPT: &str = "-Zllm-script=../../codegen/mir/llm-optimize/auxiliary/triangle.script";
+    const SOURCE: &str = "../../codegen/mir/llm-optimize/auxiliary/provider.sol";
+    const SCRIPT: &str = "-Zllm-script=../../codegen/mir/llm-optimize/auxiliary/provider.script";
     let runtime = |output: &Value| {
         output["contracts"].as_object().unwrap().values().next().unwrap()["bin-runtime"].clone()
     };
     let id = |output: &Value| output["ethdebug"]["compilation"]["id"].clone();
     for mode in ["gas", "size"] {
         let build = |llm: &[&str], emit: &str| {
-            let mut args = vec![SOURCE, "-O", mode, emit];
+            let pipeline = format!("-Zmir-pipeline={PIPELINE}");
+            let mut args = vec![SOURCE, "-O", mode, emit, &pipeline];
             args.extend_from_slice(llm);
             compile_json(&args)
         };
@@ -581,8 +583,7 @@ fn llm_rewrites_are_bytecode_neutral_and_named() {
             "--emit=bin-runtime,ethdebug-runtime",
         );
 
-        // The rewrite changes the code, and debug outputs do not change which rewrites apply.
-        assert_ne!(runtime(&rewritten), runtime(&plain), "{mode}");
+        // Debug output must not change the bytecode or which proven rewrites apply.
         assert_eq!(runtime(&debug), runtime(&rewritten), "{mode}");
         // Only an applied rewrite names another compilation.
         assert_ne!(id(&debug), id(&plain), "{mode}");

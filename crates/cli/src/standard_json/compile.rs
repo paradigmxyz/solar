@@ -276,9 +276,9 @@ fn compile<T>(
 
     opts.import_remappings = parsed_remappings;
     // Like solc, Standard JSON takes the settings that change its output only from its input, so
-    // that the input and the compiler version determine the output: the command line's
-    // `--evm-version`, `--stop-after`, `--revert-strings` and `-Z` flags that change output do not
-    // apply, and `settings.solar.unstable` replaces the latter.
+    // that ordinary codegen settings come from the input: the command line's `--evm-version`,
+    // `--stop-after`, `--revert-strings` and output-changing `-Z` flags do not apply.
+    // Rewriting is a host capability; its actual decisions are recorded in metadata.
     opts.evm_version = EvmVersion::default();
     opts.stop_after = None;
     opts.revert_strings = RevertStrings::Default;
@@ -439,7 +439,7 @@ fn compile<T>(
                     // independently of the code-generation options stored in the session.
                     let metadata_identity =
                         alloy_primitives::keccak256(format!("{metadata:?}{:?}", solar.unstable));
-                    make_ethdebug_compilation(gcx, Some(metadata_identity), bytecodes.as_ref())
+                    make_ethdebug_compilation(gcx, Some(metadata_identity))
                 });
                 let compilation_id = compilation.as_ref().map(EthdebugCompilation::id);
 
@@ -533,17 +533,9 @@ fn apply_llm_settings(dcx: &DiagCtxt, trusted: &mut UnstableOpts, input: Unstabl
         dcx.err("LLM provider options must be configured outside Standard JSON input").emit();
         return;
     }
-    let mode = trusted.llm_optimize;
-    let model = trusted.llm_model.take();
-    let endpoint = trusted.llm_endpoint.take();
-    let effort = trusted.llm_effort;
+    // set_output_options preserves all host-owned rewriting controls. Accepted decisions are
+    // bound to metadata by the engine before either metadata-only or bytecode outputs run.
     trusted.set_output_options(input);
-    trusted.llm_model = model;
-    trusted.llm_endpoint = endpoint;
-    trusted.llm_effort = effort;
-    if trusted.llm_optimize.is_none() && mode == Some(LlmOptimizeMode::Live) {
-        trusted.llm_optimize = mode;
-    }
 }
 
 struct StandardJsonFileLoader {

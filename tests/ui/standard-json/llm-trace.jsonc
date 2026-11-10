@@ -1,3 +1,5 @@
+//@ compile-flags: -Zllm-optimize=script -Zllm-trace
+//@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/triangle.script
 // `-Zllm-trace` reports on stderr in Standard JSON mode, where stdout carries the JSON output.
 // CHECK: "contracts": {
 // CHECK: "deployedBytecode": {
@@ -9,13 +11,6 @@
     }
   },
   "settings": {
-    "solar": {
-      "unstable": [
-        "llm-optimize=script",
-        "llm-trace",
-        "llm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/triangle.script"
-      ]
-    },
     "optimizer": { "enabled": true, "runs": 200 },
     "evmVersion": "cancun",
     "outputSelection": { "*": { "*": ["evm.deployedBytecode.object"] } }

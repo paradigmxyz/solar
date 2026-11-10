@@ -66,8 +66,10 @@ The command line supports `live` when the compiler is built with its `llm` featu
 The key goes only to the provider's client. `-Zllm-endpoint` replaces the base URL, for a proxy or
 another server that speaks the same API, and every request then goes there. All providers use
 one bounded HTTP reader: replies are capped at 16 MiB, error bodies at 64 KiB, and a terminal SSE
-event ends the turn without waiting for the server to close the body. The
-compiler warns that `live` sends the MIR of every
+event ends the turn without waiting for the server to close the body. Retained conversations
+are limited to 8 MiB of encoded history and 65,536 JSON values, including prompts, reasoning,
+signatures and encrypted payloads. Requests are capped at 16 MiB. These limits do not depend on
+reported token usage; exceeding one ends the session without truncating its history. The compiler warns that `live` sends the MIR of every
 offered function to the provider, or to the host `-Zllm-endpoint` names, and ends with a note of
 the turns, tokens, and estimated cost it spent.
 

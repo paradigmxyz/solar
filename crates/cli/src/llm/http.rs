@@ -15,7 +15,7 @@
 //! begun, a failure ends the turn rather than sending the request again. A server that ignores
 //! the request to stream sends its reply whole, which is shown whole. A reply beyond 16 MiB ends
 //! the turn, and only the first 64 KiB of an error reply are read, so an endpoint cannot exhaust
-//! the compiler's memory.
+//! the compiler's memory in one response. The transcript has a separate aggregate limit.
 
 use super::{
     ChatTransport,
@@ -510,8 +510,8 @@ data: {"type":"message_stop"}
     /// Asks `client` one turn, returning the reply's text.
     async fn ask(client: &ChatClient) -> Result<String, String> {
         let mut transcript = Transcript::new(client.protocol(), "test-model".into(), None);
-        transcript.push_prompt("make it cheaper");
-        let body = transcript.request("brief");
+        transcript.push_prompt("make it cheaper").unwrap();
+        let body = transcript.request("brief")?;
         let reply = client.send(&body, transcript.reply_stream(), |_| {}, |_| {}).await?;
         transcript.push_reply(&reply)
     }
