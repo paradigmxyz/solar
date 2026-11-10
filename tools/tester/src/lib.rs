@@ -136,7 +136,14 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             program: cmd.into(),
             args: {
                 let mut args: Vec<OsString> =
-                    ["-j1", "--error-format=rustc-json", "-Zvalidate-ir=true"]
+                    // Debug builds check analysis facts at run time by default; snapshots stay
+                    // unchecked. See `run_call::check_analyses`.
+                    [
+                        "-j1",
+                        "--error-format=rustc-json",
+                        "-Zvalidate-ir=true",
+                        "-Zcheck-analyses=false",
+                    ]
                         .into_iter()
                         .map(Into::into)
                         .collect();

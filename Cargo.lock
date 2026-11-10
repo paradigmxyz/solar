@@ -4684,6 +4684,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "snapbox",
  "solar-config",
  "solar-evmir",
  "solar-evmir-interpreter",
