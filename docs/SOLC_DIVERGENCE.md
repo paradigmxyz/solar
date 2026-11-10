@@ -1153,17 +1153,21 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   and 19 gas dearer per call.
 - Coverage: `tests/ui/codegen/run-call/memory/low_level_call_empty_returndata_fmp.sol`.
 
-### CODEGEN-021: Internal function pointers stored with another function type panic
+### CODEGEN-021: Internal function pointers stored through an unnamed slot with another function type panic
 
 - ID: CODEGEN-021
 - Status: intentional
 - Difference: calling an internal function pointer that assembly stored into a
-  variable of a different function type panics with `Panic(0x51)` in `solar`.
-  `solc` calls the function. A pointer of the variable's own type stored the same
-  way works in both.
+  variable of a different function type panics with `Panic(0x51)` in `solar`
+  when the store goes through a slot the assembly block does not name, such as
+  `sstore(0, raw)`. `solc` calls the function. A pointer of the variable's own
+  type stored the same way works in both. Naming the variable with
+  `sstore(stored.slot, raw)` does not compile on this build: the compiler stops
+  with an MIR validation error.
 - Rationale: Solidity cannot express that type punning, so only assembly
-  reaches it, and supporting it would change how every internal function
-  pointer is represented.
+  reaches it, and recognising the pointer behind a literal or computed slot
+  needs the compiler to track it through the slot store, which adds compiler
+  complexity.
 - Coverage: `tests/ui/codegen/run-call/function-pointers/internal_function_pointer_computed_storage_store.sol`
   and `tests/ui/codegen/run-call/function-pointers/internal_function_pointer_computed_storage_same_type.sol`.
 
