@@ -30,6 +30,7 @@ pub(crate) mod lower_abi;
 pub(crate) mod lower_abi_encode;
 pub(crate) mod lower_alloc;
 pub(crate) mod lower_arithmetic;
+pub(crate) mod lower_assumes;
 pub(crate) mod lower_builtins;
 pub(crate) mod lower_checks;
 pub(crate) mod lower_dispatch;

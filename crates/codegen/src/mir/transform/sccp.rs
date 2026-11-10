@@ -14,11 +14,15 @@
 //! After reaching a fixed point, the rewrite phase replaces constant results with immediates,
 //! folds branches and switches with one distinct executable successor into jumps, and
 //! invalidates blocks that are never executable. Functions without a local constant seed are
-//! skipped.
+//! skipped. With `-Zcheck-analyses`, a folded value keeps its instruction and records
+//! `assume eq sccp, v, constant` in its block for `lower-assumes` to test; folded branches are
+//! covered by the record of their condition.
 
 use crate::mir::{
-    BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId,
+    AssumePredicate, BlockId, FactSource, Function, Immediate, InstId, InstKind, Module,
+    Terminator, Value, ValueId,
     pass::{MirPass, run_function_pass},
+    transform::lower_assumes::{NonRecordReads, record_fact, should_check_analyses},
     utils::{eval, fold_terminator_to_jump, invalidate_unreachable_blocks},
 };
 use alloy_primitives::U256;
@@ -39,11 +43,12 @@ impl MirPass for Sccp {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| run(func) != 0)
+        let record = should_check_analyses(gcx.sess);
+        run_function_pass(module, analyses, |func, _| run(func, record) != 0)
     }
 }
 
@@ -123,7 +128,9 @@ impl ValueUsers {
 
 /// Runs SCCP on a function. Returns the total number of mutations,
 /// including unreachable-block cleanup and phi repairs.
-fn run(func: &mut Function) -> usize {
+/// With `record`, keeps every value it folds to a constant and records the fact for
+/// `lower-assumes`.
+fn run(func: &mut Function, record: bool) -> usize {
     if !can_change(func) {
         return 0;
     }
@@ -132,7 +139,7 @@ fn run(func: &mut Function) -> usize {
     let Solver { lattice, executable_blocks, executable_edges, .. } = Solver::solve(func, &users);
 
     // Rewrite phase: apply the lattice results to the function.
-    rewrite(func, &lattice, &executable_blocks, &executable_edges)
+    rewrite(func, &lattice, &executable_blocks, &executable_edges, record)
 }
 
 /// Worklist solver holding the lattice and the executable CFG.
@@ -393,11 +400,16 @@ fn rewrite(
     lattice: &IndexVec<ValueId, LatticeValue>,
     executable_blocks: &DenseBitSet<BlockId>,
     executable_edges: &FxHashSet<(BlockId, BlockId)>,
+    record: bool,
 ) -> usize {
     // Phase 1: Replace instructions whose results are constant with
     // immediate values, and remove the instruction from the block.
     let mut const_values = FxHashMap::default();
     let mut dead_insts = DenseBitSet::new_empty(func.num_insts());
+    // A recorded value keeps its instruction as the evidence its `assume` tests, unless only
+    // earlier records still read it.
+    let recorded = record.then(|| NonRecordReads::new(func));
+    let mut kept = Vec::new();
 
     let value_insts = func
         .instructions()
@@ -409,11 +421,18 @@ fn rewrite(
             if func.inst(inst_id).kind.has_side_effects() {
                 continue;
             }
+            if recorded.as_ref().is_some_and(|reads| reads.only_records(vid)) {
+                continue;
+            }
             // Create an immediate replacement of the instruction's result type.
             let imm = Immediate::for_type(func.inst(inst_id).result_ty, c);
             let imm_vid = func.alloc_value(Value::Immediate(imm));
             const_values.insert(vid, imm_vid);
-            dead_insts.insert(inst_id);
+            if record {
+                kept.push((inst_id, vid, imm_vid));
+            } else {
+                dead_insts.insert(inst_id);
+            }
         }
     }
 
@@ -426,6 +445,17 @@ fn rewrite(
     // Phase 3: Replace all uses of folded values with immediates.
     // use %v -> use constant
     func.replace_uses(&const_values);
+    // assume eq sccp, %v, constant
+    if !kept.is_empty() {
+        let blocks = func.inst_block_table();
+        for (inst, value, constant) in kept {
+            if let Some(block) = blocks[inst]
+                && executable_blocks.contains(block)
+            {
+                record_fact(func, block, FactSource::Sccp, AssumePredicate::Eq, value, constant);
+            }
+        }
+    }
 
     // Phase 4: Fold branches and switches with one distinct executable successor.
     let mut changes = const_values.len();

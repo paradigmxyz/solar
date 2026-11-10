@@ -477,6 +477,24 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub pack_wide_jump_tables: bool,
 
+    /// Check every fact MIR optimizations rely on at run time. Enabled by default in debug
+    /// builds.
+    ///
+    /// Passes record each fact where they act on it, and a violated fact reverts with
+    /// `AnalysisFactViolated(uint256,uint256,uint256)`. Accepts `true` or `false`; the last one
+    /// given wins.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            long,
+            require_equals = true,
+            value_name = "BOOL",
+            hide_possible_values = true,
+            overrides_with = "check_analyses"
+        )
+    )]
+    pub check_analyses: Option<bool>,
+
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
@@ -547,6 +565,7 @@ impl UnstableOpts {
             debugify: _,
             debugify_output: _,
             validate_ir: _,
+            check_analyses: _,
             time_passes: _,
             forget_gcx: _,
             help: _,

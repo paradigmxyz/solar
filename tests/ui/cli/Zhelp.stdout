@@ -84,6 +84,11 @@ Options:
       -Zpack-wide-jump-tables
           Pack indexed jump table entries wider than one byte into words and pick them with a shift and a mask. Off by default: jump analysis in bytecode JITs cannot resolve the pick
 
+      -Zcheck-analyses=<BOOL>
+          Check every fact MIR optimizations rely on at run time. Enabled by default in debug builds.
+          
+          Passes record each fact where they act on it, and a violated fact reverts with `AnalysisFactViolated(uint256,uint256,uint256)`. Accepts `true` or `false`; the last one given wins.
+
       -Zhelp
           Print help
 
