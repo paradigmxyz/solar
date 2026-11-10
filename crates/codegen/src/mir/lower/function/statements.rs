@@ -637,7 +637,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 parameter_ty,
                                 value,
                                 argument.span,
-                                false,
                             )?;
                             abi_type = self.abi_type_for_value(value, abi_type);
                         }

@@ -1219,11 +1219,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let value = if preserve_calldata_slice {
                     rhs_value
                 } else {
-                    if lhs_ty.is_ref_at(DataLocation::Storage) {
-                        self.materialize_memory_argument(memory_rhs_ty, rhs_value, rhs.span)?
+                    let materialize_ty = if lhs_ty.is_ref_at(DataLocation::Storage) {
+                        memory_rhs_ty
                     } else {
-                        self.materialize_memory_copy(lhs_ty, rhs_value, rhs.span)?
-                    }
+                        lhs_ty
+                    };
+                    self.materialize_memory_argument(materialize_ty, rhs_value, rhs.span)?
                 };
                 let value = self.coerce_value(value, rhs_ty, lhs_ty);
                 let place = match place {

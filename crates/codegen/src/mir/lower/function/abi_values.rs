@@ -572,7 +572,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else if abi_type.as_ref().is_some_and(Self::is_calldata_word_array) {
                 self.validate_calldata_word_array(value, ty);
             } else {
-                value = self.materialize_calldata_argument(ty, value, expr.span, false)?;
+                value = self.materialize_calldata_argument(ty, value, expr.span)?;
             }
         }
         if let Some(location) = location {

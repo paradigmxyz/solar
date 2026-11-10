@@ -51,7 +51,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             } else {
                 let value = self.operand(element)?.id();
                 let value = self.coerce_value(value, source_ty, element_ty);
-                self.materialize_memory_copy(element_ty, value, element.span)?
+                self.materialize_memory_argument(element_ty, value, element.span)?
             };
             let value = self.encode_memory_scalar(element_ty, value);
             self.builder.memory_store_field(object, index as u64, value);
@@ -98,7 +98,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let field_ty = field_ty(this, index);
                 let span = operand.span;
                 let value = this.convert_operand(operand)?.clean(this, field_ty);
-                let value = this.materialize_memory_copy(field_ty, value, span)?;
+                let value = this.materialize_memory_argument(field_ty, value, span)?;
                 Some(this.encode_memory_scalar(field_ty, value))
             },
         )?;

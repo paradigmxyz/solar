@@ -1727,7 +1727,7 @@ fn calldata_dynamic_value(
     // position = base + offset
     let offset = builder.load(head, PtrLocation::Calldata);
     let calldata_end = builder.calldatasize();
-    builder.check_calldata_tail_offset(tail, base, offset, calldata_end, ty.tail_size(), false);
+    builder.check_calldata_tail_offset(tail, base, offset, calldata_end, ty.tail_size());
     let position = builder.add(base, offset);
     let stride = match ty {
         AbiType::Bytes(_) => 1,

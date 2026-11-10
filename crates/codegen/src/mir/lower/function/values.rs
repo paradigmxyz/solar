@@ -117,7 +117,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let carried = self.lower_typed_expr(expr, ty)?;
             let carried = if ty.is_ref_at(DataLocation::Memory) {
                 let value = carried.clean(self, ty);
-                Word::from_clean(self.materialize_memory_copy(ty, value, expr.span)?)
+                Word::from_clean(self.materialize_memory_argument(ty, value, expr.span)?)
             } else {
                 carried
             };
@@ -144,7 +144,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let carried = this.convert_operand(operand)?;
                     if ty.is_ref_at(DataLocation::Memory) {
                         let value = carried.clean(this, ty);
-                        this.materialize_memory_copy(ty, value, span).map(Word::from_clean)
+                        this.materialize_memory_argument(ty, value, span).map(Word::from_clean)
                     } else {
                         Some(carried)
                     }
@@ -209,7 +209,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let carried = if target_ty.is_ref_at(DataLocation::Memory) {
             let value = carried.clean(self, source_ty);
-            Word::from_clean(self.materialize_memory_copy(target_ty, value, span)?)
+            Word::from_clean(self.materialize_memory_argument(target_ty, value, span)?)
         } else {
             carried
         };
@@ -368,7 +368,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         let value = if target_ty.is_ref_at(DataLocation::Memory) {
             let value = value.clean(self, source_ty);
-            Word::from_clean(self.materialize_memory_copy(target_ty, value, span)?)
+            Word::from_clean(self.materialize_memory_argument(target_ty, value, span)?)
         } else {
             value
         };

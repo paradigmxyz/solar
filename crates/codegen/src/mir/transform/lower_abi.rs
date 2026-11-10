@@ -4115,7 +4115,7 @@ fn copy_calldata_member(
     let tail = CalldataTail::Decode;
     let offset = builder.load(head, PtrLocation::Calldata);
     let end = builder.calldatasize();
-    builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size(), false);
+    builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size());
     let position = builder.add(base, offset);
     let Some(stride) = ty.calldata_stride() else {
         return copy_calldata_value(builder, ty, position, None);
