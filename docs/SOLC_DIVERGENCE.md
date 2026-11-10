@@ -1057,7 +1057,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Status: intentional
 - Difference: copying a calldata slice to memory reverts with empty data in
   `solar` and with `Panic(0x41)` in `solc` when inline assembly set its length
-  to `2**64` or more.
+  to `2**64` or more, or to a length just below that, within the free memory
+  pointer plus 63 bytes of `2**64`, where the allocation no longer fits.
 - Rationale: only assembly can build such a slice, and the call reverts either
   way. Panicking first means checking the allocation size before the range
   check, which adds a branch to every such copy; measured, it grew two runtime
@@ -1095,11 +1096,12 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 - ID: CODEGEN-017
 - Status: intentional
-- Difference: reading or copying a `bytes calldata` whose offset has bit 255 set
-  returns zeros in `solar`, and `solc` reverts with empty data. Two inputs
-  reach it: an offset that inline assembly sets, and malformed calldata with a
-  nested ABI offset of `2**255`, as in `a[0]` of a `bytes[] calldata` or the
-  `bytes` member of a calldata struct.
+- Difference: reading or copying a `bytes calldata` or `string calldata` whose
+  offset has bit 255 set returns zeros in `solar`, and `solc` reverts with
+  empty data. Two inputs reach it: an offset that inline assembly sets, and
+  malformed calldata with a nested ABI offset of `2**255`, as in `a[0]` of a
+  `bytes[]` or `string[]` calldata array or the `bytes` or `string` member of a
+  calldata struct. Dynamic arrays behind such an offset revert in both.
 - Rationale: both need forged assembly or malformed calldata. The range check is
   signed, so such an offset passes; an unsigned bound would add a comparison to
   every calldata read.

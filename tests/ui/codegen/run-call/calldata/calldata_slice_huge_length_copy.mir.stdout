@@ -31,3 +31,35 @@ fn @f() -> ptr<memory> [selector=0x26121ff0, pure, abi_params=[], abi_returns=[m
     calldatacopy v18, v19, v20
     ret v10
 }
+
+; function nearLimit() external pure returns (bytes memory) [selector 0x5867f014]
+fn @nearLimit() -> ptr<memory> [selector=0x5867f014, pure, abi_params=[], abi_returns=[memory_bytes], abi_return_params=[bytes]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = make_calldata_slice ptr<calldata> 4, v1
+    v3 = extract_value slice<calldata>, v2, 0
+    v4 = make_calldata_slice v3, 0xffffffffffffffff
+    v5 = extract_value slice<calldata>, v4, 1
+    v6 = add v5, 31
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v8 = add v7, 32
+    v9 = lt v8, v5
+    icall panic_if<0x41>, v9
+    v10 = alloc v8
+    mstore v10, v5
+    v11 = extract_value slice<calldata>, v4, 0
+    v12 = extract_value slice<calldata>, v4, 1
+    v13 = calldatasize
+    v14 = gt v12, 0xffffffffffffffff
+    icall revert_if<invalid_calldata_tail_length>, v14
+    v15 = sub v13, v12
+    v16 = ptrtoint ptr<calldata> v11 to i256
+    v17 = slt v15, v16
+    icall revert_if<calldata_tail_too_short>, v17
+    v18 = ptradd v10, 32
+    v19 = extract_value slice<calldata>, v4, 0
+    v20 = extract_value slice<calldata>, v4, 1
+    calldatacopy v18, v19, v20
+    ret v10
+}
