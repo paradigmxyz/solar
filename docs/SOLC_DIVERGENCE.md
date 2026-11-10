@@ -1178,6 +1178,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Difference: reading an out-of-range enum value from storage into a local
   panics with `Panic(0x21)` at the load in `solar`. `solc` via-IR panics only
   where the value is used, so it returns normally when the local is unused.
+  Copying an enum array, or a struct holding one, from storage to storage
+  panics the same way in `solar`, while `solc` copies the slots and returns.
 - Rationale: only assembly or a broken storage layout writes such a value, and
   moving the check to each use cost about a thousand lines of compiler code.
 - Coverage: `tests/ui/codegen/run-call/storage/storage_dirty_enum_load.sol`.
