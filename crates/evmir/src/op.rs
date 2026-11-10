@@ -73,6 +73,12 @@ pub enum Availability {
     SlotNum,
     /// Gated by [`EvmVersion::has_extended_stack_ops`].
     ExtendedStackOps,
+    /// A compiler instrumentation opcode that no EVM version defines: only instrumentation passes,
+    /// such as pass plugins, emit it, for an instrumented interpreter. It encodes in every EVM
+    /// version, but no Yul builtin, MIR operation or instruction selection names it, and a normal
+    /// EVM executes it as an undefined opcode. Every instrumentation opcode first pops a site ID,
+    /// which the push kept with it supplies; see [`is_instrumentation`].
+    Instrumentation,
 }
 
 macro_rules! opcode_mnemonic {
@@ -114,6 +120,9 @@ macro_rules! opcode_availability {
     };
     (extended_stack_ops) => {
         Availability::ExtendedStackOps
+    };
+    (instrumentation) => {
+        Availability::Instrumentation
     };
 }
 
@@ -471,6 +480,15 @@ opcodes! {
     0xa2 => LOG2 => log2 => stack_io(4, 0) => traits() => gas(log2) => available(legacy);
     0xa3 => LOG3 => log3 => stack_io(5, 0) => traits() => gas(log3) => available(legacy);
     0xa4 => LOG4 => log4 => stack_io(6, 0) => traits() => gas(log4) => available(legacy);
+    // Edge coverage probe: records a hit of the edge ID on top of the stack. Its only effect is
+    // outside the EVM state, so no trait lets a pass drop, merge or reorder it.
+    0xc0 => EDGECOV => edgecov => stack_io(1, 0) => traits() => gas(zero) => available(instrumentation);
+    // Comparison operand log (AFL++ CMPLOG): pops the probe word on top of the stack,
+    // `(site ID << 8) | comparison opcode`, records the two words below it as the comparison's
+    // operands (the top one first, as the comparison pops them) and leaves them in place. Its only
+    // effect is outside the EVM state, so no trait lets a pass fold, drop, merge or reorder it, and
+    // its outputs are opaque words, not its inputs.
+    0xc1 => CMPLOG => cmplog => stack_io(3, 2) => traits() => gas(zero) => available(instrumentation);
     0xe6 => DUPN => dupn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe7 => SWAPN => swapn => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
     0xe8 => EXCHANGE => exchange => stack_io(_, _) => traits() => gas(verylow) => available(extended_stack_ops);
@@ -519,7 +537,15 @@ impl OpDef {
             Availability::Since(version) => evm_version >= version,
             Availability::SlotNum => evm_version.has_slot_num(),
             Availability::ExtendedStackOps => evm_version.has_extended_stack_ops(),
+            Availability::Instrumentation => true,
         }
+    }
+
+    /// Returns whether only compiler instrumentation emits this operation; see
+    /// [`Availability::Instrumentation`].
+    #[must_use]
+    pub const fn is_instrumentation(self) -> bool {
+        matches!(self.availability, Availability::Instrumentation)
     }
 
     /// Returns whether the top two stack operands of this operation may be swapped without changing
@@ -1025,6 +1051,18 @@ pub const fn is_plain_access(op: u8) -> bool {
     matches!(op, MLOAD | MSTORE | MSTORE8 | SLOAD | SSTORE | TLOAD | TSTORE | KECCAK256)
 }
 
+/// Returns whether only compiler instrumentation emits an opcode: an edge coverage probe,
+/// `push <id>; edgecov`, or a comparison operand log, `push <id>; cmplog`. Each pops the site ID
+/// that the push kept with it supplies, and `cmplog` then leaves the two words below it unchanged,
+/// so a probe's net effect on the stack is nothing.
+#[must_use]
+pub const fn is_instrumentation(op: u8) -> bool {
+    match definition(op) {
+        Some(definition) => definition.is_instrumentation(),
+        None => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1104,6 +1142,7 @@ mod tests {
                 ("observes_gas", def.observes_gas()),
                 ("context_read", def.is_context_read()),
                 ("sets_returndata", def.sets_returndata()),
+                ("instrumentation", def.is_instrumentation()),
             ];
             for (name, set) in traits {
                 if set {

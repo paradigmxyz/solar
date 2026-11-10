@@ -4442,6 +4442,7 @@ dependencies = [
  "solar-codegen",
  "solar-config",
  "solar-data-structures",
+ "solar-edgecov-plugin",
  "solar-evmir",
  "solar-evmir-interpreter",
  "solar-interface",
@@ -4483,6 +4484,13 @@ dependencies = [
  "rayon",
  "rustc-hash",
  "smallvec",
+]
+
+[[package]]
+name = "solar-edgecov-plugin"
+version = "0.3.0"
+dependencies = [
+ "solar-pass-plugin",
 ]
 
 [[package]]

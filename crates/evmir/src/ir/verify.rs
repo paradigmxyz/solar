@@ -236,10 +236,27 @@ impl<'a> Verifier<'a> {
     /// call setup alone, so the pair is checked by shape: a glued `gas` is followed by a glued
     /// `sub`, and a glued `sub` by the call opcode itself. Anything else carrying the flag has no
     /// rule to check it and is rejected, which keeps a new use of the flag from passing
-    /// verification unverified.
+    /// verification unverified. Instrumentation glues each probe's site ID to its opcode,
+    /// `push <id>; edgecov` or `push <id>; cmplog`, so an instrumented interpreter can refund the
+    /// push and find every probe by its shape: a glued immediate push is followed by an
+    /// instrumentation opcode, and every instrumentation opcode follows one.
     fn verify_keep_with_next(&self, block_id: BlockId, block: &Block) {
         const CALLS: [u8; 4] = [op::CALL, op::CALLCODE, op::DELEGATECALL, op::STATICCALL];
         for (index, inst) in block.instructions.iter().enumerate() {
+            if op::is_instrumentation(inst.opcode)
+                && !index.checked_sub(1).is_some_and(|previous| {
+                    let previous = &block.instructions[previous];
+                    previous.keeps_with_next() && previous.pushed_value().is_some()
+                })
+            {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "`{}` must follow the `push` of its site ID, kept with it",
+                        inst.mnemonic()
+                    ),
+                );
+            }
             if !inst.keeps_with_next() {
                 continue;
             }
@@ -258,6 +275,10 @@ impl<'a> Verifier<'a> {
                 op::GAS => "a `sub` kept with the call",
                 op::SUB if CALLS.contains(&next.opcode) => continue,
                 op::SUB => "a call",
+                _ if inst.pushed_value().is_some() && op::is_instrumentation(next.opcode) => {
+                    continue;
+                }
+                _ if inst.pushed_value().is_some() => "`edgecov` or `cmplog`",
                 _ => {
                     self.error_in_block(
                         block_id,

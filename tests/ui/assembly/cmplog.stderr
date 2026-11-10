@@ -1,0 +1,8 @@
+error: unresolved symbol `cmplog`
+   ╭▸ ROOT/tests/ui/assembly/cmplog.sol:LL:CC
+   │
+LL │             cmplog(1, 2, 3)
+   ╰╴            ━━━━━━
+
+error: aborting due to 1 previous error
+

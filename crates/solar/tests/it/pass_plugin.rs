@@ -10,6 +10,7 @@ use std::{
 };
 
 mod artifact;
+mod edgecov_tests;
 mod frontend;
 mod frontend_review;
 mod graph_tests;

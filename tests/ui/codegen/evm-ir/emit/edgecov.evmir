@@ -1,0 +1,17 @@
+//@ compile-flags: --emit=bin-runtime -Zdump=disasm-runtime
+
+// An edge coverage probe assembles to its push and the single instrumentation byte `0xc0`, and a
+// comparison operand log to its push and `0xc1`; a normal EVM defines neither.
+@module program
+bb0:
+  push 1 !meta(keep_with_next)
+  edgecov
+  push 0x10000 !meta(keep_with_next)
+  edgecov
+  push 1
+  push 2
+  push 0x114 !meta(keep_with_next)
+  cmplog
+  eq
+  pop
+  stop

@@ -688,6 +688,15 @@ impl<'m> Run<'_, 'm> {
                 Effect::Push(U256::from_be_bytes(word))
             }
             (op::CALLDATASIZE, &[]) => Effect::Push(U256::from(self.calldata.len())),
+            // An edge coverage probe only records a hit outside the EVM state.
+            (op::EDGECOV, &[_]) => Effect::Next,
+            // A comparison operand log only records its two words outside the EVM state and leaves
+            // them in place.
+            (op::CMPLOG, &[_, a, b]) => {
+                self.push(b)?;
+                self.push(a)?;
+                Effect::Next
+            }
             (op::CALLDATACOPY, &[dest, offset, len]) => {
                 let range = self.memory_range(dest, len)?;
                 copy_padded(self.calldata, offset, &mut self.memory.0[range]);

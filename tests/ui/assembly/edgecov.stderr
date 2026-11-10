@@ -1,0 +1,8 @@
+error: unresolved symbol `edgecov`
+   ╭▸ ROOT/tests/ui/assembly/edgecov.sol:LL:CC
+   │
+LL │             edgecov(1)
+   ╰╴            ━━━━━━━
+
+error: aborting due to 1 previous error
+

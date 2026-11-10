@@ -1,0 +1,28 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/emit/edgecov.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/emit/edgecov.evmir (after none) ===
+  @module program
+  bb0:
+    push 1 !metadata(keep_with_next)
+    edgecov
+    push 0x10000 !metadata(keep_with_next)
+    edgecov
+    push 1
+    push 2
+    push 276 !metadata(keep_with_next)
+    cmplog
+    eq
+    pop
+    stop
+  
+; === program (runtime) ===
+PUSH1 0x01
+EDGECOV
+PUSH3 0x010000
+EDGECOV
+PUSH1 0x01
+PUSH1 0x02
+PUSH2 0x0114
+CMPLOG
+EQ
+POP
+{"contracts":{"ROOT/tests/ui/codegen/evm-ir/emit/edgecov.evmir:program":{"bin-runtime":"6001c062010000c060016002610114c11450"}},"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}

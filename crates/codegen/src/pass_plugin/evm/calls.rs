@@ -8,9 +8,16 @@
 //! annotations; new and changed callees are checked separately, including recursive helpers. A
 //! return must consume the original return word and leave exactly the declared outputs. Unsupported
 //! indirect transfers are rejected rather than accepting an annotation as a proof.
+//!
+//! Instrumentation probes leave the stack as they found it: an edge coverage probe,
+//! `push <id>; edgecov`, neither reads nor leaves stack words, and a comparison operand log,
+//! `push <id>; cmplog`, leaves the two words it records unchanged. A new block holding only probes
+//! and a jump therefore forwards its incoming stack unchanged. Comparing a helper with its input
+//! skips probes and follows such forwarding blocks to their targets, so instrumenting a trusted
+//! helper keeps it trusted.
 
 use crate::backend::evm::{
-    ir::{self, BlockId, Module, StackEffect, TerminatorKind},
+    ir::{self, BlockId, Instruction, Module, StackEffect, TerminatorKind},
     op,
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec};
@@ -170,15 +177,25 @@ fn unchanged_helper(previous: &Module, module: &Module, entry: BlockId) -> bool 
         }
         let Some(before) = previous.blocks.get(id) else { return false };
         let after = &module.blocks[id];
+        let forward = |block| forward_probe_blocks(previous, module, block);
+        let after_terminator = after.terminator.as_ref().map(|term| {
+            let mut kind = term.kind.clone();
+            kind.visit_targets_mut(|target| *target = forward(*target));
+            kind
+        });
+        let (before_body, after_body) =
+            (unprobed(&before.instructions), unprobed(&after.instructions));
         // Debug context must never influence whether executable code is accepted.
         if before.metadata.call_effect != after.metadata.call_effect
-            || before.terminator.as_ref().map(|term| &term.kind)
-                != after.terminator.as_ref().map(|term| &term.kind)
-            || before.instructions.len() != after.instructions.len()
-            || !before.instructions.iter().zip(&after.instructions).all(|(a, b)| {
+            || before.terminator.as_ref().map(|term| &term.kind) != after_terminator.as_ref()
+            || before_body.len() != after_body.len()
+            || !before_body.iter().zip(&after_body).all(|(a, b)| {
                 a.opcode == b.opcode
                     && a.encoding == b.encoding
-                    && a.value == b.value
+                    && match (a.pushed_block(), b.pushed_block()) {
+                        (Some(a), Some(b)) => a == forward(b),
+                        _ => a.value == b.value,
+                    }
                     && a.as_stack_op() == b.as_stack_op()
                     && a.metadata.keep_with_next == b.metadata.keep_with_next
             })
@@ -195,17 +212,54 @@ fn unchanged_helper(previous: &Module, module: &Module, entry: BlockId) -> bool 
                 pending.push(target);
             }
         };
-        for inst in &after.instructions {
+        for inst in &after_body {
             if let Some(label) = inst.pushed_block() {
-                target(label);
+                target(forward(label));
             }
         }
-        if let Some(term) = &after.terminator {
-            term.kind.visit_targets(&mut target);
+        if let Some(term) = &after_terminator {
+            term.visit_targets(&mut target);
         }
         if !same_contracts {
             return false;
         }
     }
     true
+}
+
+/// Returns the instructions without instrumentation probes, `push <id>; edgecov` and
+/// `push <id>; cmplog`, whose net stack effect is nothing.
+fn unprobed(instructions: &[Instruction]) -> Vec<&Instruction> {
+    let probe =
+        |inst: Option<&Instruction>| inst.is_some_and(|inst| op::is_instrumentation(inst.opcode));
+    instructions
+        .iter()
+        .enumerate()
+        .filter(|&(index, inst)| {
+            !probe(Some(inst))
+                && !(inst.keeps_with_next()
+                    && inst.pushed_value().is_some()
+                    && probe(instructions.get(index + 1)))
+        })
+        .map(|(_, inst)| inst)
+        .collect()
+}
+
+/// Follows blocks the edit added that hold only probes and a jump to the block they forward to.
+fn forward_probe_blocks(previous: &Module, module: &Module, mut block: BlockId) -> BlockId {
+    for _ in 0..module.blocks.len() {
+        let body = &module.blocks[block];
+        if block.index() < previous.blocks.len()
+            || body.metadata.call_effect.is_some()
+            || !unprobed(&body.instructions).is_empty()
+        {
+            break;
+        }
+        let Some(TerminatorKind::Jump(next)) = body.terminator.as_ref().map(|term| &term.kind)
+        else {
+            break;
+        };
+        block = *next;
+    }
+    block
 }

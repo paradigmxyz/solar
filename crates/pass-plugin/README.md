@@ -67,9 +67,11 @@ and EVM IR text excludes optional debug context and dump-only block comments;
 requesting dumps, source maps,
 ETHDebug, or debugify does not change the request. MIR
 snapshots include types, operands, scalar constants, and each function's
-objective. IDs are local to that invocation. The plugin returns ordered
-edits against those IDs, not a replacement text dump or a claimed `changed`
-flag. EVM instruction indices refer to the current block at each edit, so
+objective. EVM IR blocks include their terminator, and pushes of a block
+address name that block, so a pass can rebuild the CFG, including branches
+inside a block (`push <target>; jumpi`). IDs are local to that invocation. The
+plugin returns ordered edits against those IDs, not a replacement text dump or
+a claimed `changed` flag. EVM instruction indices refer to the current block at each edit, so
 independent edits are usually easiest to return from the end backwards.
 
 Version 1 supports SSA rewrites, instruction splices, new internal MIR
@@ -106,9 +108,20 @@ all blocks before building their bodies, allowing forward edges and cycles.
 Instructions can copy existing code, including debug context and relocations,
 from the same block or another block, or create an opcode/push.
 
+New opcodes include the instrumentation opcodes `EDGECOV` (`0xc0`) and `CMPLOG`
+(`0xc1`), which no EVM version defines and no Yul builtin names. A pass emits each
+only as a push of its ID word directly followed by the opcode; the host glues the
+pair so later passes keep it intact. `EDGECOV` pops an edge ID. `CMPLOG` pops
+`(site ID << 8) | comparison opcode` and leaves the two words below it unchanged,
+so placed directly before a comparison it records that comparison's operands, the
+top one first. The [edge coverage plugin](../../tools/edgecov-plugin) uses them
+for AFL++-style coverage and CmpLog builds. Instrumented bytecode is for fuzzing
+and coverage interpreters only.
+
 Copies retain known debug context; generated instructions and transfers are
-unmapped. Splits move the original terminator's context with it. Protected
-EVM instruction pairs cannot be split or copied individually. New operation
+unmapped. A retargeted terminator of the same kind keeps its location. Splits
+move the original terminator's context with it. Protected EVM instruction pairs
+cannot be split or copied individually. New operation
 definitions, type-table entries, and verbatim bytecode remain outside this API.
 
 MIR copies retain semantic allocation obligations. Nonempty MIR edits discard

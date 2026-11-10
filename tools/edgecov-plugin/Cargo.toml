@@ -1,0 +1,18 @@
+[package]
+name = "solar-edgecov-plugin"
+description = "AFL++-style edge coverage instrumentation pass plugin"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["rlib", "dylib"]
+
+[dependencies]
+solar-pass-plugin.workspace = true

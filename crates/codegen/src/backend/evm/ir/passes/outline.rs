@@ -500,11 +500,14 @@ fn outline_parametric_machine_runs(
     const MAX_PARAMETERS: usize = 8;
 
     let target = module.runtime_target(gcx);
-    let hashes = RunHashes::new(module, |inst| {
-        inst.concrete_immediate().is_none().then(|| MachineInstKey::new(inst))
-    });
+    // A push kept with its next instruction, such as an instrumentation probe's ID, stays in the
+    // body: passing it as a parameter would move it away from the instruction it is kept with.
+    let parameter =
+        |inst: &Instruction| inst.concrete_immediate().is_some() && !inst.keeps_with_next();
+    let hashes =
+        RunHashes::new(module, |inst| (!parameter(inst)).then(|| MachineInstKey::new(inst)));
     let metrics = hashes.metrics(module, |_, inst| {
-        shared_body_effect(inst).map(|effect| (effect, inst.concrete_immediate().is_some()))
+        shared_body_effect(inst).map(|effect| (effect, parameter(inst)))
     });
     let groups = repeated_runs(
         module,

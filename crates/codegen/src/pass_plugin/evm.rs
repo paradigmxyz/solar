@@ -72,11 +72,13 @@ impl EvmPluginPass {
                             text: inst.mnemonic().to_string(),
                             opcode: inst.as_evm_opcode().unwrap_or(inst.opcode),
                             immediate: inst.pushed_value().map(|value| format!("{value:#x}")),
+                            block: inst.pushed_block().map(|block| block.index() as u32),
                             protected: inst.metadata.keep_with_next
                                 || (index != 0
                                     && block.instructions[index - 1].metadata.keep_with_next),
                         })
                         .collect(),
+                    terminator: snapshot_terminator(block.terminator.as_ref()),
                 })
                 .collect(),
         };
@@ -162,7 +164,14 @@ fn apply_edit(module: &mut Module, edit: Edit) -> Result<(), String> {
     }
     if let Edit::SetEvmTerminator { block, terminator } = edit {
         let block = checked_block(module, block)?;
-        let terminator = build_terminator(module, terminator)?;
+        let mut terminator = build_terminator(module, terminator)?;
+        // A retargeted transfer of the same kind is a replacement for one instruction: it keeps
+        // the original's location (LLVM's Preserve rule).
+        if let Some(old) = &module.blocks[block].terminator
+            && std::mem::discriminant(&old.kind) == std::mem::discriminant(&terminator.kind)
+        {
+            terminator.metadata = old.metadata.clone();
+        }
         // bb.terminator => terminator
         module.blocks[block].terminator = Some(terminator);
         return Ok(());
@@ -215,6 +224,19 @@ fn materialize(
             NewEvmInstruction::Opcode { opcode, source } => {
                 if op::definition(opcode).is_none() || (op::PUSH1..=op::PUSH32).contains(&opcode) {
                     return Err("unknown opcode or missing push immediate".into());
+                }
+                if op::is_instrumentation(opcode) {
+                    // push <id> !metadata(keep_with_next)
+                    // edgecov | cmplog
+                    let Some(push) =
+                        replacement.last_mut().filter(|inst| inst.pushed_value().is_some())
+                    else {
+                        let mnemonic = op::mnemonic(opcode).unwrap_or_default();
+                        return Err(format!(
+                            "`{mnemonic}` must directly follow the push of its site ID"
+                        ));
+                    };
+                    push.keep_with_next();
                 }
                 (Instruction::opcode(opcode).with_debug_loc_dropped(), source)
             }
@@ -273,11 +295,27 @@ fn build_terminator(module: &Module, term: EvmTerminator) -> Result<Terminator, 
             )
         }
         EvmTerminator::Opcode { opcode } => {
-            if op::definition(opcode).is_none() {
+            if op::definition(opcode).is_none_or(|definition| definition.is_instrumentation()) {
                 return Err("unknown EVM terminator opcode".into());
             }
             TerminatorKind::Op(opcode)
         }
     };
     Ok(Terminator::new(kind).with_debug_loc_dropped())
+}
+
+fn snapshot_terminator(term: Option<&Terminator>) -> EvmTerminator {
+    let index = |block: BlockId| block.index() as u32;
+    match term.map(|term| &term.kind) {
+        Some(TerminatorKind::Jump(target)) => EvmTerminator::Jump { target: index(*target) },
+        Some(TerminatorKind::JumpI { then_block, else_block }) => {
+            EvmTerminator::Branch { then_block: index(*then_block), else_block: index(*else_block) }
+        }
+        Some(TerminatorKind::IndexedJump(targets)) => {
+            EvmTerminator::IndexedJump { targets: targets.iter().copied().map(index).collect() }
+        }
+        Some(TerminatorKind::Op(opcode)) => EvmTerminator::Opcode { opcode: *opcode },
+        // Verified IR always has a terminator; an incomplete block cannot continue.
+        None => EvmTerminator::Opcode { opcode: op::INVALID },
+    }
 }

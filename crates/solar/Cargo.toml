@@ -57,6 +57,7 @@ snapbox.workspace = true
 solar-tester.workspace = true
 solar-mir-interpreter.workspace = true
 solar-evmir-interpreter.workspace = true
+solar-edgecov-plugin = { path = "../../tools/edgecov-plugin" }
 solar-pass-plugin-example = { path = "../../tools/pass-plugin-example" }
 solar-pass-plugin-fixture = { path = "../../tools/pass-plugin-fixture" }
 solar-pass-plugin.workspace = true

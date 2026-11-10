@@ -238,6 +238,8 @@ pub struct EvmBlock {
     pub id: u32,
     pub label: u32,
     pub instructions: Vec<EvmInstruction>,
+    /// The block's control transfer. Targets are block IDs; a dynamic `jump` is an opcode.
+    pub terminator: EvmTerminator,
 }
 
 #[derive(Clone, Debug)]
@@ -246,6 +248,9 @@ pub struct EvmInstruction {
     pub text: String,
     pub opcode: u8,
     pub immediate: Option<String>,
+    /// The block whose address this push pushes. A conditional branch inside a block is
+    /// `push <target>; jumpi`; other pushed addresses are dynamic jump targets, such as returns.
+    pub block: Option<u32>,
     pub protected: bool,
 }
 
@@ -320,6 +325,11 @@ pub enum Edit {
 
 /// Existing instructions can be copied with their relocations. Newly constructed instructions
 /// can inherit a known source instruction's debug context, or explicitly remain unmapped.
+/// Opcodes include the instrumentation opcodes `EDGECOV` (`0xc0`) and `CMPLOG` (`0xc1`), which a
+/// pass emits only as a `Push` of the probe's ID word immediately followed by the opcode; the host
+/// glues the pair so later passes keep it intact. `EDGECOV` pops its edge ID. `CMPLOG` pops
+/// `(site ID << 8) | comparison opcode` and leaves the two words below it, the comparison's
+/// operands, unchanged.
 #[derive(Clone, Debug)]
 pub enum NewEvmInstruction {
     Copy { index: u32 },

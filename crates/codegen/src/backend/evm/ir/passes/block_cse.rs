@@ -200,7 +200,10 @@ impl Cse {
         {
             self.const_exprs.insert(expr, address);
         }
+        // A push kept with its next instruction, such as an instrumentation probe's ID, stays a
+        // push.
         if inst.is_duplicable_push(self.evm_version)
+            && !inst.keeps_with_next()
             && let Some(depth) = self.reachable_depth(expr)
         {
             self.emit_dup(depth, expr, inst.metadata);
