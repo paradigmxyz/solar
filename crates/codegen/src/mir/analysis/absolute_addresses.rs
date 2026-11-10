@@ -19,7 +19,7 @@ use crate::mir::{
 use solar_data_structures::index::{IndexVec, index_vec};
 
 /// The origins a word may have.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct AddressInputs(u8);
 
 impl AddressInputs {
@@ -53,12 +53,25 @@ impl AddressInputs {
     /// of origins.
     fn combine(self, other: Self) -> Self {
         let mut combined = 0;
-        for lhs in (0..3).map(|bit| self.0 & (1 << bit)).filter(|&bit| bit != 0) {
-            for rhs in (0..3).map(|bit| other.0 & (1 << bit)).filter(|&bit| bit != 0) {
+        for lhs in self.origins() {
+            for rhs in other.origins() {
                 combined |= lhs.max(rhs);
             }
         }
         Self(combined)
+    }
+
+    /// Returns the origins one at a time, from the most to the least known.
+    fn origins(self) -> impl Iterator<Item = u8> {
+        (0..3).map(move |bit| self.0 & (1 << bit)).filter(|&origin| origin != 0)
+    }
+
+    /// Adds `other` to the origins, and returns whether they grew.
+    fn raise(&mut self, other: Self) -> bool {
+        let raised = self.union(other);
+        let grew = raised != *self;
+        *self = raised;
+        grew
     }
 }
 
@@ -81,7 +94,7 @@ pub(crate) fn absolute_address_inputs(module: &Module) -> ModuleAddressInputs {
     // the outside calls too.
     let outside = module.root_functions();
     let mut state = State {
-        inputs: IndexVec::new(),
+        inputs: module.functions.iter().map(initial_inputs).collect(),
         args: module
             .functions
             .iter_enumerated()
@@ -97,17 +110,6 @@ pub(crate) fn absolute_address_inputs(module: &Module) -> ModuleAddressInputs {
         returns: index_vec![AddressInputs::NONE; module.functions.len()],
     };
     let arg_values = module.functions.iter().map(Function::arg_uses).collect::<IndexVec<_, _>>();
-    for func in &module.functions {
-        let mut inputs = index_vec![AddressInputs::NONE; func.num_values()];
-        for (value, input) in inputs.iter_mut_enumerated() {
-            *input = match func.value(value) {
-                Value::Immediate(_) => AddressInputs::CONSTANT,
-                Value::Inst(_) | Value::Arg(_) => AddressInputs::NONE,
-                Value::Undef(_) | Value::Error(_) => AddressInputs::OTHER,
-            };
-        }
-        state.inputs.push(inputs);
-    }
     let mut changed = true;
     while changed {
         changed = false;
@@ -116,6 +118,20 @@ pub(crate) fn absolute_address_inputs(module: &Module) -> ModuleAddressInputs {
         }
     }
     state.inputs
+}
+
+/// Returns the origins of `func`'s values before any pass: constants for immediates, nothing yet
+/// for results and parameters, and other for the values lowering left undefined.
+fn initial_inputs(func: &Function) -> IndexVec<ValueId, AddressInputs> {
+    let mut inputs = index_vec![AddressInputs::NONE; func.num_values()];
+    for (value, input) in inputs.iter_mut_enumerated() {
+        *input = match func.value(value) {
+            Value::Immediate(_) => AddressInputs::CONSTANT,
+            Value::Inst(_) | Value::Arg(_) => AddressInputs::NONE,
+            Value::Undef(_) | Value::Error(_) => AddressInputs::OTHER,
+        };
+    }
+    inputs
 }
 
 /// The sets the analysis has reached so far.
@@ -140,18 +156,22 @@ impl State {
         let mut changed = false;
         for (index, values) in arg_values.iter_enumerated() {
             for &value in values {
-                changed |= raise(&mut self.inputs[func_id][value], self.args[func_id][index]);
+                changed |= self.inputs[func_id][value].raise(self.args[func_id][index]);
             }
         }
         for block in &func.blocks {
             match &block.terminator {
+                // A call's result is the first returned component.
                 Some(Terminator::Return { values }) => {
-                    for &value in values {
-                        changed |= raise(&mut self.returns[func_id], self.inputs[func_id][value]);
+                    if let Some(&value) = values.first() {
+                        changed |= self.returns[func_id].raise(self.inputs[func_id][value]);
                     }
                 }
+                // A tail call delivers the callee's results as its own.
                 Some(Terminator::TailCall { function, args }) => {
                     changed |= self.pass_args(func_id, *function, args);
+                    let returned = self.returns[*function];
+                    changed |= self.returns[func_id].raise(returned);
                 }
                 _ => {}
             }
@@ -188,7 +208,7 @@ impl State {
                 InstKind::ICall { function: Callee::Function(callee), .. } => self.returns[*callee],
                 _ => AddressInputs::OTHER,
             };
-            changed |= raise(&mut self.inputs[func_id][value], input);
+            changed |= self.inputs[func_id][value].raise(input);
         }
         changed
     }
@@ -198,16 +218,8 @@ impl State {
     fn pass_args(&mut self, caller: FunctionId, callee: FunctionId, args: &[ValueId]) -> bool {
         let mut changed = false;
         for (&value, param) in args.iter().zip(self.args[callee].iter_mut()) {
-            changed |= raise(param, self.inputs[caller][value]);
+            changed |= param.raise(self.inputs[caller][value]);
         }
         changed
     }
-}
-
-/// Adds `input` to `current`, and returns whether it grew.
-fn raise(current: &mut AddressInputs, input: AddressInputs) -> bool {
-    let raised = current.union(input);
-    let grew = raised != *current;
-    *current = raised;
-    grew
 }
