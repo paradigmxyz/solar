@@ -22,7 +22,7 @@ use super::{
 };
 use crate::mir::{
     BlockId, Callee, EffectKind, InstructionMetadata, PtrLocation, RawMemoryAccess,
-    analysis::{AddressInput, absolute_address_inputs},
+    analysis::{ModuleAddressInputs, absolute_address_inputs},
     utils::{eval::eval_inst, u256_to_u64},
 };
 
@@ -895,6 +895,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             .collect::<FxHashMap<_, _>>();
         let mut function_ranges = index_vec![None; module.functions.len()];
         let mut owns_low_memory = index_vec![None; module.functions.len()];
+        let mut address_inputs = None;
         let mut local_ends = FxHashMap::default();
         let ranges = entries
             .iter()
@@ -925,7 +926,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 if (sizes[&entry] != 0 || static_spans[&entry] != 0)
                     && own_reach.iter().any(|func_id| {
                         *owns_low_memory[func_id].get_or_insert_with(|| {
-                            Self::writes_calldata_addressed_memory(&module.functions[func_id])
+                            Self::writes_calldata_addressed_memory(
+                                module,
+                                func_id,
+                                &mut address_inputs,
+                            )
                         })
                     })
                 {
@@ -1431,7 +1436,12 @@ impl<'gcx> EvmCodegen<'gcx> {
     /// is, so layout only keeps them out of the low memory such layouts usually fit in. A layout
     /// that grows past the bound can still reach the spill area, and one indexed only by a loop
     /// counter is not recognized. See CODEGEN-010.
-    fn writes_calldata_addressed_memory(func: &Function) -> bool {
+    fn writes_calldata_addressed_memory(
+        module: &Module,
+        func_id: FunctionId,
+        address_inputs: &mut Option<ModuleAddressInputs>,
+    ) -> bool {
+        let func = &module.functions[func_id];
         let mut destinations = Vec::new();
         for inst_id in func.instructions() {
             let inst = func.inst(inst_id);
@@ -1454,8 +1464,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         if destinations.is_empty() {
             return false;
         }
-        let inputs = absolute_address_inputs(func);
-        destinations.into_iter().any(|dest| inputs[dest] == AddressInput::Calldata)
+        let inputs =
+            &address_inputs.get_or_insert_with(|| absolute_address_inputs(module))[func_id];
+        destinations.into_iter().any(|dest| inputs[dest].may_be_calldata())
     }
 
     pub(in crate::backend::evm::codegen) fn constructor_spill_base(
