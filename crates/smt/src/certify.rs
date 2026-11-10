@@ -6,14 +6,14 @@
 //! [`Certifier::certify`] works in three steps.
 //!
 //! 1. It writes the query as a reference script: the query's logic, declarations and assertions,
-//!    with every `define-fun` inlined at its uses, since Ethos reads a reference's definitions
-//!    with parameters as constants and rejects their applications. Responses such as
-//!    `get-value` go, since a proof of `unsat` has no model.
+//!    with every `define-fun` inlined at its uses, since Ethos reads a reference's definitions with
+//!    parameters as constants and rejects their applications. Responses such as `get-value` go,
+//!    since a proof of `unsat` has no model.
 //! 2. cvc5 proves the reference script and prints the proof.
-//! 3. Ethos checks the proof, which names the query with `(reference ...)`, which makes it reject any assumption that is
-//!    not an assertion of the reference script, so a proof of another query, or one that assumes
-//!    `false`, fails. Ethos reports an empty proof as correct, so the proof's last step must
-//!    also conclude `false`.
+//! 3. Ethos checks the proof, which names the query with `(reference ...)`, which makes it reject
+//!    any assumption that is not an assertion of the reference script, so a proof of another query,
+//!    or one that assumes `false`, fails. Ethos reports an empty proof as correct, so the proof's
+//!    last step must also conclude `false`.
 //!
 //! What a certificate still trusts: Ethos, the CPC signature it includes (the path of `Cpc.eo`
 //! in cvc5's `proofs/eo/cpc`), and the reference script standing for the
