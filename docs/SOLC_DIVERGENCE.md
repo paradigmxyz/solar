@@ -1076,8 +1076,8 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   pointer stays unraised. With `mstore(0x00, 0x1111)` and `mstore(0x40, 0)`,
   returning 32 bytes at `mload(0x40)` gives zero in `solar` (CODEGEN-010) and
   `0x1111` in `solc`, while the same at `mload(exp(0x40, 1))` gives `0x1111` in
-  both. The
-  next allocation at the unraised pointer can then overwrite compiler frames.
+  both. The next allocation at the unraised pointer can then overwrite
+  compiler frames.
 - Rationale: only assembly that forges the pointer and spells the slot address
   indirectly reaches it. Proving every such expression equal to `0x40` would
   need value tracking in a pass that runs before the optimizer folds them.
