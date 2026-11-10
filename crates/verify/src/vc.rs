@@ -119,7 +119,8 @@ pub(crate) struct Vc<'p, 'a> {
     /// the location a just-inlined function's storage return points at
     ret_alias: Option<(&'a Expr<'a>, Env)>,
     ret_alias_out: Option<(&'a Expr<'a>, Env)>,
-    /// Defining contract of each function body being executed (`` inside a modifier), for `super`.
+    /// Defining contract of each function body being executed (empty inside a modifier), for
+    /// `super`.
     cur: Vec<String>,
 }
 
@@ -4010,7 +4011,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             }
         };
-        if std::env::var_os("SV_DEBUG_USING").is_some() {
+        if std::env::var_os("SOLVERUS_DEBUG").is_some() {
             eprintln!(
                 "using {m}: {} candidates, receiver {:?}, picked {}({:?})",
                 cands.len(),
