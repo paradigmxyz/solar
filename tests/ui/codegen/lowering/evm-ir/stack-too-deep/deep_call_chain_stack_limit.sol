@@ -1,10 +1,15 @@
-//@ compile-flags: -O size
-//@ run-call: run 1 => 112251006636738356412528838120051654405700337221568568889046144637683131196577
+//@ revisions: size none
+//@[size] compile-flags: -O size
+//@[size] run-call: run 1 => 112251006636738356412528838120051654405700337221568568889046144637683131196577
+//@[none] compile-flags: -O none
+//~[none]? ERROR: EVM IR verification failed: block 116: `dup` grows the stack to 1025 words, exceeding the limit of 1024
 
 // A chain of 120 internal calls, each keeping some of its eight arguments on
-// the stack across the call. Kept words add up across the chain and pass the
-// EVM's 1024-word stack limit, so codegen must notice and stop keeping caller
-// words on the stack. Otherwise the call overflows the stack at run time.
+// the stack across the call. Kept words add up across the chain. Size builds
+// keep few enough for the chain to fit in the EVM's 1024-word stack. `-O none`
+// keeps them all, so the chain provably passes the limit and the EVM IR
+// verifier rejects it. Nothing else bounds the stack: a chain that passes the
+// limit only at run time fails there, as in solc.
 contract DeepChain {
     function run(uint256 x) external pure returns (uint256) { return f0(x + 0, x + 1, x + 2, x + 3, x + 4, x + 5, x + 6, x + 7); }
 
