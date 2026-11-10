@@ -269,7 +269,7 @@ fn main() {
                     let smt = if cli.dry_run {
                         smt::Smt::dry(cli.dump_smt.is_some())
                     } else {
-                        smt::Smt::new(cli.timeout, cli.dump_smt.is_some()).expect("could not start z3 (set SOLAR_VERIFY_Z3)")
+                        smt::Smt::new(cli.timeout, cli.dump_smt.is_some()).expect("could not start z3 (set SOLAR_Z3)")
                     };
                     let mut v = vc::Vc::new(&program, c, smt, &vc::Opts { strict: cli.strict });
                     if v.inlined_only(f) {

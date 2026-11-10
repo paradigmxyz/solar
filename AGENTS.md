@@ -61,6 +61,10 @@ Pipeline: lex -> parse -> sema (AST -> HIR, typeck) -> MIR -> EVM IR -> bytecode
   `tests/ui/cli/Zhelp.stdout`). `crates/cli`: driver.
   `crates/solar`: binary and test entry point. Also `lsp`, `lint`, `capi`,
   `macros`.
+- `crates/smt`: the SMT solver processes the provers share: discovery from
+  `SOLAR_Z3`, `SOLAR_CVC5` and `SOLAR_BITWUZLA`, limits, verdicts, races and the
+  z3 test-skip convention (`SOLAR_REQUIRE_Z3=1` fails instead). `crates/verify`
+  (`solar-verify`) and `tools/prove-analyses` use it.
 - `crates/verify`: `solar-verify`, an SMT-based deductive verifier over the AST
   (`vc.rs`, `vc/yul.rs`), and its spec mutation tester (`mutate.rs`).
 - `tools/tester`: UI and integration test runners. `tools/xtask`: `cargo tq`.

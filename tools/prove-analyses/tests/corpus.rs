@@ -3,8 +3,7 @@
 //! loses facts it proves today nor starts proving false ones.
 //!
 //! The test needs Z3 and is skipped, with a message on stderr, when it is missing: set
-//! `SOLAR_PROVE_ANALYSES_Z3` to the binary, or `SOLAR_PROVE_ANALYSES_REQUIRE_Z3=1` to fail
-//! instead. It builds the compiler unless `SOLAR_BIN` names one.
+//! `SOLAR_Z3` to the binary, or `SOLAR_REQUIRE_Z3=1` to fail instead. It builds the compiler unless `SOLAR_BIN` names one.
 
 #![allow(clippy::disallowed_methods)]
 
@@ -24,23 +23,14 @@ use std::{
 
 #[test]
 fn corpus() {
-    let z3 = env::var_os("SOLAR_PROVE_ANALYSES_Z3").map_or_else(|| "z3".into(), PathBuf::from);
-    if Command::new(&z3).arg("--version").output().is_err() {
-        assert!(
-            env::var_os("SOLAR_PROVE_ANALYSES_REQUIRE_Z3").is_none(),
-            "z3 not found at {}",
-            z3.display()
-        );
-        eprintln!("skipping: z3 not found; set SOLAR_PROVE_ANALYSES_Z3 to run the prover corpus");
-        return;
-    }
+    let Some(z3) = solar_smt::require_z3() else { return };
     let cases = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/cases");
     let out = tempfile::tempdir().unwrap();
     let status = Command::new(env!("CARGO_BIN_EXE_solar-prove-analyses"))
         .arg("--solar")
         .arg(solar())
         .arg("--z3")
-        .arg(&z3)
+        .arg(&z3.path)
         .args(["--levels", "gas,size", "--out"])
         .arg(out.path())
         .arg(&cases)

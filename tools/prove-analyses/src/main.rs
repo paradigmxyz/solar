@@ -31,6 +31,7 @@ use regex::Regex;
 use ruint::aliases::U256;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
+use solar_smt::{self as smt, Limits, SolverKind, Verdict};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
@@ -57,13 +58,14 @@ struct Args {
     /// The compiler binary.
     #[arg(long, default_value = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/release/solar"))]
     solar: PathBuf,
-    /// The Z3 binary: `SOLAR_PROVE_ANALYSES_Z3`, or `z3` on `PATH`.
+    /// The Z3 binary: `SOLAR_Z3`, or `z3` on `PATH`.
     #[arg(long)]
     z3: Option<PathBuf>,
-    /// A Bitwuzla binary to try on the queries Z3 leaves undecided alone, for `--timeout`
-    /// seconds each. Its limit is wall-clock time, so these verdicts can vary between runs.
+    /// Try Bitwuzla (`SOLAR_BITWUZLA`, or `bitwuzla` on `PATH`) on the queries Z3 leaves
+    /// undecided alone, for `--timeout` seconds each. Its limit is wall-clock time, so these
+    /// verdicts can vary between runs.
     #[arg(long)]
-    bitwuzla: Option<PathBuf>,
+    bitwuzla: bool,
     /// Comma-separated `-O` levels.
     #[arg(long, default_value = "gas,size", value_delimiter = ',')]
     levels: Vec<String>,
@@ -256,8 +258,8 @@ fn run(mut command: Command, input: Option<String>, timeout: Duration) -> Option
 }
 
 struct Solver {
-    z3: PathBuf,
-    bitwuzla: Option<PathBuf>,
+    z3: smt::Solver,
+    bitwuzla: Option<smt::Solver>,
     batch_limit: u64,
     limit: u64,
     timeout: Duration,
@@ -266,14 +268,22 @@ struct Solver {
 
 impl Solver {
     fn new(args: &Args) -> Result<Self, String> {
-        let z3 = args.z3.clone().unwrap_or_else(z3_binary);
-        Command::new(&z3)
-            .arg("--version")
-            .output()
-            .map_err(|e| format!("cannot run {}: {e}; pass --z3", z3.display()))?;
+        let z3 = match &args.z3 {
+            Some(path) => smt::Solver::at(SolverKind::Z3, path),
+            None => smt::Solver::find(SolverKind::Z3),
+        }
+        .ok_or("cannot run z3: install it, set SOLAR_Z3 or pass --z3")?;
+        let bitwuzla = if args.bitwuzla {
+            Some(
+                smt::Solver::find(SolverKind::Bitwuzla)
+                    .ok_or("cannot run bitwuzla: install it or set SOLAR_BITWUZLA")?,
+            )
+        } else {
+            None
+        };
         Ok(Self {
             z3,
-            bitwuzla: args.bitwuzla.clone(),
+            bitwuzla,
             batch_limit: args.rlimit_batch,
             limit: args.rlimit,
             timeout: Duration::from_secs(args.timeout),
@@ -302,10 +312,7 @@ impl Solver {
         if queries.is_empty() {
             return Vec::new();
         }
-        let mut script = format!(
-            "(set-option :print-success false)\n(set-logic QF_AUFBV)\n(set-option :rlimit {})\n",
-            self.batch_limit
-        );
+        let mut script = String::from("(set-option :print-success false)\n(set-logic QF_AUFBV)\n");
         for (index, query) in queries.iter().enumerate() {
             let tier = abstract_of(query);
             let text =
@@ -319,8 +326,8 @@ impl Solver {
             }
             script.push_str(&format!("(echo \"@{index}\")\n(check-sat)\n(pop)\n"));
         }
-        let timeout = self.timeout * queries.len() as u32 + Duration::from_secs(10);
-        let output = self.z3(script, timeout).unwrap_or_default();
+        let wall = self.timeout * queries.len() as u32 + Duration::from_secs(10);
+        let output = self.z3.run(&script, &self.limits(wall, self.batch_limit)).stdout;
         let mut verdicts = vec!["unknown".to_string(); queries.len()];
         let mut current = None;
         for line in output.lines() {
@@ -337,33 +344,24 @@ impl Solver {
     }
 
     fn alone(&self, query: &Path, source: &str) -> Record {
-        let script = format!(
-            "(set-option :rlimit {})\n{}",
-            self.limit,
-            fs::read_to_string(query).unwrap_or_default()
-        );
-        let mut output = self.z3(script, self.timeout + Duration::from_secs(10));
+        let script = fs::read_to_string(query).unwrap_or_default();
+        let mut outcome = self.z3.run(&script, &self.limits(self.timeout, self.limit));
         let mut tier = "exact";
-        if !matches!(verdict_of(output.as_deref()), "sat" | "unsat")
+        if !outcome.verdict.is_definite()
             && let Some(bitwuzla) = &self.bitwuzla
         {
             // Bitwuzla's abstraction of wide multiplication and division decides many of the
             // queries Z3 runs out of resources on.
-            let mut command = Command::new(bitwuzla);
-            let limit = self.timeout.as_millis().to_string();
-            let memory = self.memory.to_string();
-            command.args(["-m", "-t", &limit, "-M", &memory]).arg(query);
-            let fallback = run(command, None, self.timeout + Duration::from_secs(10));
-            if matches!(verdict_of(fallback.as_deref()), "sat" | "unsat") {
-                output = fallback;
+            let fallback = bitwuzla.run(&script, &self.limits(self.timeout, self.limit));
+            if fallback.verdict.is_definite() {
+                outcome = fallback;
                 tier = "bitwuzla";
             }
         }
-        let verdict = verdict_of(output.as_deref());
-        let mut lines = output.as_deref().map(str::lines).into_iter().flatten().skip(1);
+        let verdict = outcome.verdict.name();
         let mut record = record(query, source, verdict, tier);
-        if verdict == "sat"
-            && let Some(model) = lines.next()
+        if outcome.verdict == Verdict::Sat
+            && let Some(model) = outcome.after_verdict().next()
         {
             record.insert("counterexample".into(), json!(model));
             if is_trip_count_bound(&record) {
@@ -377,21 +375,8 @@ impl Solver {
         record
     }
 
-    fn z3(&self, script: String, timeout: Duration) -> Option<String> {
-        let mut command = Command::new(&self.z3);
-        command.args(["-in", "-smt2", &format!("-memory:{}", self.memory)]);
-        run(command, Some(script), timeout)
-    }
-}
-
-/// A solver's verdict from its output, or `timeout` without one.
-fn verdict_of(output: Option<&str>) -> &str {
-    let Some(output) = output else { return "timeout" };
-    match output.lines().next() {
-        Some(line) if line.starts_with("(error") && line.contains("memory") => "memout",
-        Some(line) if line.starts_with("(error") => "error",
-        Some(line) => line,
-        None => "error",
+    fn limits(&self, wall: Duration, rlimit: u64) -> Limits {
+        Limits { wall, rlimit: Some(rlimit), memory_mb: Some(self.memory) }
     }
 }
 
@@ -480,11 +465,6 @@ fn summarize(records: &[Record]) {
             field(record, "counterexample"),
         );
     }
-}
-
-/// The Z3 binary when `--z3` is not given.
-fn z3_binary() -> PathBuf {
-    std::env::var_os("SOLAR_PROVE_ANALYSES_Z3").map_or_else(|| "z3".into(), PathBuf::from)
 }
 
 fn hex(bytes: &[u8]) -> String {

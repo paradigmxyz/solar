@@ -23,8 +23,8 @@ error: contract invariant must hold before an external call (reentrancy)
 
 ## Running
 
-Install Z3 (any version from 4.8) on `PATH`, or point `SOLAR_VERIFY_Z3` at it. When cvc5 and Bitwuzla
-are on `PATH` (or named by `SOLAR_VERIFY_CVC5` and `SOLAR_VERIFY_BITWUZLA`; `off` disables either), they
+Install Z3 (any version from 4.8) on `PATH`, or point `SOLAR_Z3` at it. When cvc5 and Bitwuzla
+are on `PATH` (or named by `SOLAR_CVC5` and `SOLAR_BITWUZLA`; `off` disables either), they
 race Z3 on the queries it gives up on.
 
 ```sh
@@ -45,7 +45,7 @@ Flags:
 - `--dry-run`: generate every obligation without running a solver (with `--dump-smt`).
 - `--instrument OUT.sol`: write the file with every `@custom:check` as a `require`.
 
-Without Z3 the tests that need it are skipped with a message on stderr; set `SOLAR_VERIFY_REQUIRE_Z3=1`
+Without Z3 the tests that need it are skipped with a message on stderr; set `SOLAR_REQUIRE_Z3=1`
 to make them fail instead.
 
 ## Spec language

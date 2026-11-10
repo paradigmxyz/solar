@@ -5,7 +5,7 @@
 //! and the mutants drawn for a file.
 //!
 //! The other tests need z3 and are skipped, with a message on stderr, when it is missing (set
-//! `SOLAR_VERIFY_Z3`, or `SOLAR_VERIFY_REQUIRE_Z3=1` to fail instead). In each case file every
+//! `SOLAR_Z3`, or `SOLAR_REQUIRE_Z3=1` to fail instead). In each case file every
 //! function named `ok_*` must verify and every `bad_*` must fail with a definite verdict: a
 //! counterexample or an unsupported construct, not an unknown from the solver. `// expect: text`
 //! comments right above a function pin text in its diagnostics; `// expect: solver returned
@@ -140,16 +140,7 @@ fn check(file: &str) {
 
 /// Whether z3 is missing, in which case the calling test is skipped.
 fn z3_missing() -> bool {
-    let z3 = std::env::var("SOLAR_VERIFY_Z3").unwrap_or_else(|_| "z3".into());
-    if Command::new(&z3).arg("-version").output().is_ok() {
-        return false;
-    }
-    assert!(
-        std::env::var_os("SOLAR_VERIFY_REQUIRE_Z3").is_none(),
-        "z3 not found (`{z3}`) and SOLAR_VERIFY_REQUIRE_Z3 is set"
-    );
-    eprintln!("skipped: z3 not found (`{z3}`); set SOLAR_VERIFY_Z3 to run this test");
-    true
+    solar_smt::require_z3().is_none()
 }
 
 #[test]

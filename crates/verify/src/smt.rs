@@ -1,3 +1,4 @@
+use solar_smt::{Entrant, Limits, SolverKind, Verdict};
 use std::{
     io::{BufRead, BufReader, Write},
     process::{Child, ChildStdin, Command, Stdio},
@@ -43,7 +44,9 @@ struct Z3 {
 }
 
 fn spawn(timeout_ms: u64) -> std::io::Result<Z3> {
-    let mut child = Command::new(std::env::var("SOLAR_VERIFY_Z3").unwrap_or_else(|_| "z3".into()))
+    let z3 = solar_smt::Solver::find(SolverKind::Z3)
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "z3 not found"))?;
+    let mut child = Command::new(z3.path)
         .args(["-in", "-smt2"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -230,17 +233,15 @@ impl Smt {
         let q = format!("(assert {guard})\n(assert (not {goal}))\n(check-sat)\n");
         let int_script =
             format!("(set-logic ALL)\n{}{q}", self.transcript.replace("bv2int", "bv2nat"));
-        let mut jobs: Vec<(String, String, Vec<String>, String)> = vec![];
-        let t = self.timeout_ms;
-        let cvc5 = std::env::var("SOLAR_VERIFY_CVC5").unwrap_or_else(|_| "cvc5".into());
-        if cvc5 != "off" {
-            jobs.push((
-                "cvc5".into(),
-                cvc5.clone(),
-                vec!["--lang=smt2".into(), "--incremental".into(), format!("--tlimit={t}")],
-                int_script,
-            ));
-        }
+        let mut entrants = vec![];
+        let entrant = |label: &str, kind, script: String| {
+            solar_smt::Solver::find(kind).map(|solver| Entrant {
+                label: label.into(),
+                solver,
+                script,
+            })
+        };
+        entrants.extend(entrant("cvc5", SolverKind::Cvc5, int_script));
         let lowered = crate::bvlower::lower(&format!("{}{q}", self.transcript));
         if let Some((bv, dropped, w)) = &lowered {
             if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some() {
@@ -250,66 +251,38 @@ impl Smt {
                 let _ = std::fs::write(d, bv);
             }
             let quantified = bv.contains("(forall") || bv.contains("(exists");
-            let bw = std::env::var("SOLAR_VERIFY_BITWUZLA").unwrap_or_else(|_| "bitwuzla".into());
-            if bw != "off" && !quantified {
-                jobs.push((
-                    "bitwuzla(bv)".into(),
-                    bw,
-                    vec![format!("--time-limit={t}")],
-                    bv.clone(),
-                ));
+            if !quantified {
+                entrants.extend(entrant("bitwuzla(bv)", SolverKind::Bitwuzla, bv.clone()));
             }
-            jobs.push((
-                "z3(bv)".into(),
-                std::env::var("SOLAR_VERIFY_Z3").unwrap_or_else(|_| "z3".into()),
-                vec!["-in".into(), "-smt2".into(), format!("-t:{t}")],
-                bv.clone(),
-            ));
-            if quantified && cvc5 != "off" {
-                jobs.push((
-                    "cvc5(bv)".into(),
-                    cvc5,
-                    vec!["--lang=smt2".into(), format!("--tlimit={t}")],
+            entrants.extend(entrant("z3(bv)", SolverKind::Z3, bv.clone()));
+            if quantified {
+                entrants.extend(entrant(
+                    "cvc5(bv)",
+                    SolverKind::Cvc5,
                     format!("(set-logic ALL)\n{bv}"),
                 ));
             }
         }
         let exact = matches!(&lowered, Some((_, 0, _)));
         let t0 = Instant::now();
-        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let (tx, rx) = channel::<(String, Option<bool>)>();
-        let n = jobs.len();
-        let mut hs = vec![];
-        for (name, bin, args, script) in jobs {
-            let (tx, cancel) = (tx.clone(), cancel.clone());
-            hs.push(std::thread::spawn(move || {
-                let r = run_solver(&bin, &args, &script, t + 2000, &cancel);
-                let _ = tx.send((name, r));
-            }));
-        }
-        drop(tx);
-        let mut answer = None;
-        for _ in 0..n {
-            let Ok((name, r)) = rx.recv() else { break };
-            if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some() {
-                eprintln!("race: {name} -> {r:?} after {} ms", t0.elapsed().as_millis());
+        let debug = std::env::var_os("SOLAR_VERIFY_DEBUG").is_some();
+        let limits = Limits::wall(Duration::from_millis(self.timeout_ms));
+        // A model of the bitvector lowering is a model of the query only when it dropped nothing.
+        let answer = solar_smt::race(entrants, &limits, |label, outcome| {
+            if debug {
+                eprintln!(
+                    "race: {label} -> {:?} after {} ms",
+                    outcome.verdict,
+                    t0.elapsed().as_millis()
+                );
             }
-            match r {
-                Some(true) => {
-                    answer = Some((true, name));
-                    break;
-                }
-                Some(false) if answer.is_none() && (name == "cvc5" || exact) => {
-                    answer = Some((false, name));
-                    break;
-                }
-                _ => {}
+            match outcome.verdict {
+                Verdict::Unsat => true,
+                Verdict::Sat => label == "cvc5" || exact,
+                _ => false,
             }
-        }
-        cancel.store(true, std::sync::atomic::Ordering::SeqCst);
-        for h in hs {
-            let _ = h.join();
-        }
+        })
+        .map(|(label, outcome)| (outcome.verdict == Verdict::Unsat, label));
         self.stats.cvc5_queries += 1;
         self.stats.solver_ms += t0.elapsed().as_millis();
         answer
@@ -364,65 +337,4 @@ fn pretty(v: &str) -> String {
         return format!("-{n}");
     }
     if v.len() > 120 { format!("{}…", &v[..120]) } else { v.to_string() }
-}
-
-/// Run one solver on a script; Some(true) = unsat, Some(false) = sat, None = unknown/timeout/error.
-fn run_solver(
-    bin: &str,
-    args: &[String],
-    script: &str,
-    timeout_ms: u64,
-    cancel: &std::sync::atomic::AtomicBool,
-) -> Option<bool> {
-    let mut child = Command::new(bin)
-        .args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .ok()?;
-    let mut inp = child.stdin.take()?;
-    let script = script.to_string();
-    let w = std::thread::spawn(move || {
-        let _ = inp.write_all(script.as_bytes());
-    });
-    let mut out = child.stdout.take()?;
-    let reader = std::thread::spawn(move || {
-        let mut s = String::new();
-        let _ = std::io::Read::read_to_string(&mut out, &mut s);
-        s
-    });
-    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) => {
-                if cancel.load(std::sync::atomic::Ordering::SeqCst) || Instant::now() > deadline {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    break;
-                }
-                std::thread::sleep(Duration::from_millis(15));
-            }
-            Err(_) => break,
-        }
-    }
-    let _ = w.join();
-    let text = reader.join().unwrap_or_default();
-    if std::env::var_os("SOLAR_VERIFY_DEBUG").is_some()
-        && let Some(e) = text.lines().find(|l| l.contains("error"))
-    {
-        eprintln!("{bin}: {e}");
-    }
-    let last = text
-        .lines()
-        .rev()
-        .find(|l| matches!(l.trim(), "sat" | "unsat" | "unknown"))?
-        .trim()
-        .to_string();
-    match last.as_str() {
-        "unsat" => Some(true),
-        "sat" => Some(false),
-        _ => None,
-    }
 }
