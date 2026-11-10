@@ -4,7 +4,7 @@ error: unknown compiler module `solar:core/Missing.sol`
 LL │ import "solar:core/Missing.sol";
    │        ━━━━━━━━━━━━━━━━━━━━━━━━
    │
-   ╰ note: available compiler modules: solar:core/Bytes.sol, solar:core/Return.sol, solar:core/Code.sol, solar:core/Build.sol, solar:core/Buffers.sol, solar:core/Abi.sol, solar:core/Arrays.sol, solar:core/Revert.sol, solar:core/Hash.sol, solar:core/Create.sol, solar:core/Calls.sol, solar:core/Bits.sol, solar:core/Math.sol, solar:core/Cast.sol, solar:core/Precompiles.sol, solar:core/CalldataBytes.sol, solar:core/Slots.sol
+   ╰ note: available compiler modules: solar:core/Bytes.sol, solar:core/codecs/Hex.sol, solar:core/codecs/Base64.sol, solar:core/Strings.sol, solar:core/WordArrays.sol, solar:core/Return.sol, solar:core/Code.sol, solar:core/Build.sol, solar:core/Buffers.sol, solar:core/Abi.sol, solar:core/Arrays.sol, solar:core/Revert.sol, solar:core/Hash.sol, solar:core/Create.sol, solar:core/Calls.sol, solar:core/Bits.sol, solar:core/Math.sol, solar:core/Cast.sol, solar:core/Precompiles.sol, solar:core/CalldataBytes.sol, solar:core/Slots.sol
 
 error: aborting due to 1 previous error
 
