@@ -22,6 +22,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
+use std::cell::Cell;
 
 /// How far back a rule may simulate the block's stack.
 const MAX_STACK_WINDOW: usize = 24;
@@ -207,7 +208,23 @@ pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
     target: Target,
     rules: Rules,
-    entry: Option<usize>,
+    entry: EntryBound<'a>,
+}
+
+/// What the rules know of the entry depth of the block they rewrite.
+#[derive(Clone, Copy)]
+pub(super) struct EntryBound<'a> {
+    /// The verifier's upper bound: `None` until the pass has computed the bounds, then `None`
+    /// again for a block without one.
+    depth: Option<Option<usize>>,
+    /// Set when a rule consulted the bound.
+    needed: &'a Cell<bool>,
+}
+
+impl<'a> EntryBound<'a> {
+    pub(super) fn new(depth: Option<Option<usize>>, needed: &'a Cell<bool>) -> Self {
+        Self { depth, needed }
+    }
 }
 
 impl<'a> PeepContext<'a> {
@@ -215,7 +232,7 @@ impl<'a> PeepContext<'a> {
         instructions: &'a [Instruction],
         target: Target,
         rules: Rules,
-        entry: Option<usize>,
+        entry: EntryBound<'a>,
     ) -> Self {
         Self { instructions, target, rules, entry }
     }
@@ -314,13 +331,13 @@ impl<'a> PeepContext<'a> {
     /// so it needs two words above the depth before the window. An unknown entry depth gives no
     /// room.
     fn has_room_to_reload(&self) -> bool {
+        self.entry.needed.set(true);
         let prefix = &self.instructions[..self.instructions.len() - 4];
-        self.entry.is_some_and(|entry| {
-            let depth = prefix.iter().fold(entry, |depth, inst| {
-                let StackEffect { inputs, outputs } = inst.stack_effect();
-                depth.saturating_sub(usize::from(inputs)) + usize::from(outputs)
-            });
-            depth + 2 <= MAX_STACK_DEPTH
+        self.entry.depth.flatten().is_some_and(|entry| {
+            prefix
+                .iter()
+                .try_fold(entry, |depth, inst| apply_effect(depth, inst.stack_effect()))
+                .is_some_and(|depth| depth + 2 <= MAX_STACK_DEPTH)
         })
     }
 

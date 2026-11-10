@@ -11,9 +11,10 @@
 //! passes expose few new opportunities. Rules never cross a block boundary;
 //! target legality, push removability, and symbolic stack bounds stay in the
 //! extractors, and edits preserve their existing metadata policy.
-//! A rule that raises a block's stack peak, such as the reload of a stored value, also needs the
-//! block's entry depth. The pass takes it from the verifier's upper bounds, only for blocks where
-//! such a rule can match, and rejects the rewrite where that bound is unknown or leaves no room.
+//! The reload of a stored value raises its block's stack peak by a word, so it also needs the
+//! block's entry depth. When a block reaches that rule, the pass computes the verifier's upper
+//! bounds once for the module and runs the block again. The rule rejects the rewrite where the
+//! bound is unknown or leaves no room, and such a block is not recorded as clean.
 //! Comparison inversion tracks a constant through up to 24 instructions that cannot observe
 //! or copy it. Adjusting that bound and flipping LT/GT or SLT/SGT removes ISZERO after branch
 //! layout chooses the taken edge. Operand computations stay in place; wrapping bounds,
@@ -58,21 +59,26 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Instruction, Metadata, Module, ModuleTarget, TerminatorKind, verify::Verifier},
+        ir::{
+            BlockId, Instruction, Metadata, Module, ModuleTarget, TerminatorKind, verify::Verifier,
+        },
         op,
     },
     target::Target,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHasher;
+use solar_data_structures::{index::IndexVec, map::FxHasher};
 use solar_sema::Gcx;
 use std::{
+    cell::Cell,
     fmt,
     hash::{Hash, Hasher},
 };
 use tracing::trace;
 
 mod isle;
+
+use isle::EntryBound;
 
 pub(super) use isle::invert_comparison;
 
@@ -149,45 +155,25 @@ impl<T: EvmPass> EvmPass for Cleanup<T> {
 
 const TRACE_TARGET: &str = "solar::codegen::evm_ir::peephole";
 
-/// Returns the length and hash of the keys of `instructions` and the entry bound, which key the
-/// module's records of block contents on which a peephole run found no rewrite, so the same
-/// contents can be skipped.
+/// Returns the length and hash of the keys of `instructions`, which key the module's records of
+/// block contents on which a peephole run found no rewrite, so the same contents can be skipped.
 ///
 /// Matching reads only each instruction's opcode, encoding, value, stack operation, and
-/// `keep_with_next` flag, and no other metadata, and the entry bound where a rule needs it, so
-/// equal keys produce the same result. The final rules extend the early ones, so contents clean
-/// under them are clean under both. Records are keyed by contents rather than by block, so they
-/// survive block reordering and removal and cover every block with equal contents.
+/// `keep_with_next` flag, and no other metadata, so equal keys produce the same result. A block
+/// whose result depended on its entry depth is never recorded. The final rules extend the early
+/// ones, so contents clean under them are clean under both. Records are keyed by contents rather
+/// than by block, so they survive block reordering and removal and cover every block with equal
+/// contents.
 ///
 /// NOTE: Records hold a hash of the keys rather than a copy, which would retain every clean
 /// block's contents a second time for the module's lifetime. A collision between recorded and
 /// current contents of equal length would skip a rewrite; the result stays deterministic.
-fn clean_key(instructions: &[Instruction], entry: Option<usize>) -> (u32, u64) {
+fn clean_key(instructions: &[Instruction]) -> (u32, u64) {
     let mut hasher = FxHasher::default();
-    entry.hash(&mut hasher);
     for inst in instructions {
         MachineInstKey::new(inst).hash(&mut hasher);
     }
     (instructions.len() as u32, hasher.finish())
-}
-
-/// Returns whether a rule that raises the stack peak can match `instructions`: a store followed
-/// by a load of the same kind of storage.
-fn may_raise_peak(instructions: &[Instruction]) -> bool {
-    let mut stored = [false; 3];
-    instructions.iter().any(|inst| {
-        let Some(opcode) = inst.as_evm_opcode() else { return false };
-        match opcode {
-            op::MSTORE => stored[0] = true,
-            op::SSTORE => stored[1] = true,
-            op::TSTORE => stored[2] = true,
-            _ => {}
-        }
-        matches!(
-            (opcode, stored),
-            (op::MLOAD, [true, ..]) | (op::SLOAD, [_, true, _]) | (op::TLOAD, [.., true])
-        )
-    })
 }
 
 fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
@@ -195,40 +181,51 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
     let final_cleanup = rules == Rules::Final;
     let mut changed = false;
     let mut scratch = Vec::new();
-    let entry_depths = (rules != Rules::Late
-        && module.blocks.iter().any(|block| may_raise_peak(&block.instructions)))
-    .then(|| Verifier::stack_entry_upper_bounds(module, target.evm_version()));
-    let clean = &mut module.peephole_clean;
-    for (block_id, block) in module.blocks.iter_mut_enumerated() {
+    // The verifier's entry depths, computed when the first block needs them. Rewrites keep each
+    // block's net stack effect, so they stay valid while the pass runs.
+    let mut entry_depths = None;
+    let needed = Cell::new(false);
+    for block_id in module.blocks.indices() {
+        let block = &module.blocks[block_id];
+        let label = block.label;
         // The late rules are separate from the cached early and final ones.
-        let entry = entry_depths
-            .as_ref()
-            .filter(|_| may_raise_peak(&block.instructions))
-            .and_then(|depths| depths[block_id]);
-        let key = (rules != Rules::Late).then(|| clean_key(&block.instructions, entry));
-        let recorded = key.and_then(|key| clean.get(key));
+        let key = (rules != Rules::Late).then(|| clean_key(&block.instructions));
+        let recorded = key.and_then(|key| module.peephole_clean.get(key));
         let skip = recorded.is_some_and(|recorded_final| recorded_final || !final_cleanup);
         let early_clean = final_cleanup && recorded == Some(false);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
         // elimination's to remove; this pass only rewrites what it can see locally.
-        let rewrites = if skip {
-            0
-        } else {
-            Driver { target, rules, block: block.label, entry }.run(
-                &mut block.instructions,
-                &mut scratch,
-                early_clean,
-            )
-        };
+        needed.set(false);
+        let mut rewrites = 0;
+        if !skip {
+            let driver = |depths: &Option<IndexVec<BlockId, Option<usize>>>| Driver {
+                target,
+                rules,
+                block: label,
+                entry: EntryBound::new(depths.as_ref().map(|depths| depths[block_id]), &needed),
+            };
+            let block = &mut module.blocks[block_id];
+            rewrites =
+                driver(&entry_depths).run(&mut block.instructions, &mut scratch, early_clean);
+            if needed.get() && entry_depths.is_none() {
+                entry_depths =
+                    Some(Verifier::stack_entry_upper_bounds(module, target.evm_version()));
+                let block = &mut module.blocks[block_id];
+                rewrites +=
+                    driver(&entry_depths).run(&mut block.instructions, &mut scratch, early_clean);
+            }
+        }
         // The unchanged contents are clean under these rules, and under the final rules as well
         // when they were already clean under the early ones.
         if let Some(key) = key
             && !skip
             && rewrites == 0
+            && !needed.get()
         {
-            clean.record(key, final_cleanup);
+            module.peephole_clean.record(key, final_cleanup);
         }
         changed |= rewrites != 0;
+        let block = &mut module.blocks[block_id];
         // mstore(offset, value); return(offset, 32)
         // -> mstore(0, value); return(0, 32)
         if final_cleanup
@@ -258,15 +255,14 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
 
 /// Applies the rules of one run to the blocks it visits.
 #[derive(Clone, Copy)]
-struct Driver {
+struct Driver<'a> {
     target: Target,
     rules: Rules,
     block: u32,
-    /// The upper bound on the block's entry depth, where known and a rule needs it.
-    entry: Option<usize>,
+    entry: EntryBound<'a>,
 }
 
-impl Driver {
+impl Driver<'_> {
     fn run(
         self,
         instructions: &mut Vec<Instruction>,
