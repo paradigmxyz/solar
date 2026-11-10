@@ -317,12 +317,14 @@
     stop
   bb40:
     calldatasize
-    push 0x10000000001
+-   push 0x10000000001
++   push 0x10000000000
     swap 1
     pop
     push 0
     calldataload
-    lt
-    iszero
+-   lt
+-   iszero
++   gt
     stop
   
