@@ -33,9 +33,6 @@ pub struct Function {
     /// Source signature for the text dumps, set only when a dump is requested. It never affects
     /// code generation.
     pub debug_signature: Option<Symbol>,
-    /// Whether `lower-dispatch` routed calls to this function by selector before it cleared the
-    /// entry attributes, so it runs only once `calldatasize` covers a selector.
-    pub selector_dispatched: bool,
     /// Function selector (4 bytes, for external functions).
     pub selector: Option<[u8; 4]>,
     /// Function attributes.
@@ -97,7 +94,6 @@ impl Function {
             declaration_span: name.span,
             debug_identifier: None,
             debug_signature: None,
-            selector_dispatched: false,
             selector: None,
             attributes: FunctionAttributes::default(),
             params: IndexVec::new(),
@@ -192,7 +188,6 @@ impl Function {
         {
             self.debug_signature = Some(Symbol::intern(&note));
         }
-        self.selector_dispatched |= self.selector.is_some();
         self.selector = None;
         self.abi_returns = None;
         self.abi_return_params = None;

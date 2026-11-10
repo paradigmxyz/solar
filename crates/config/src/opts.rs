@@ -497,7 +497,7 @@ pub struct UnstableOpts {
 
     /// Write an SMT-LIB query for every fact passes record for `-Zcheck-analyses` to this
     /// directory, and record them: Z3 answering `unsat` proves the fact for all inputs, and
-    /// `sat` gives a counterexample. See `scripts/prove-analyses.py`.
+    /// `sat` gives a counterexample. `-` writes them to stdout. See `tools/prove-analyses`.
     #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
     pub prove_analyses: Option<std::path::PathBuf>,
 

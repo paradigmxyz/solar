@@ -4640,6 +4640,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-prove-analyses"
+version = "0.3.0"
+dependencies = [
+ "clap",
+ "rayon",
+ "regex",
+ "ruint",
+ "serde_json",
+ "sha2 0.11.1",
+ "tempfile",
+]
+
+[[package]]
 name = "solar-sema"
 version = "0.3.0"
 dependencies = [

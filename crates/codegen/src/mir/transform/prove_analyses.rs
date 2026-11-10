@@ -5,7 +5,8 @@
 //! record becomes an SMT-LIB query in `DIR` whose satisfiability means the fact can fail. Z3
 //! answering `unsat` proves the fact for every execution, so its run-time check can never fire;
 //! `sat` gives a counterexample, which is either an analysis bug or a case the encoding below is
-//! too coarse to rule out, and needs triage. `scripts/prove-analyses.py` runs a corpus.
+//! too coarse to rule out, and needs triage. With `-` for `DIR`, the queries go to stdout
+//! instead, each after a `; query: NAME` line. `tools/prove-analyses` runs a corpus through Z3.
 //!
 //! A query encodes the claim at the end of the record's block `B` as straight-line SSA over
 //! 256-bit words, with the records the run-time checks would have tested earlier as
@@ -27,9 +28,15 @@
 //!   inside such a context are encoded by their phis alone, each one of its incoming values;
 //! - every record at the end of a dominating block, and the records before this one in `B`.
 //!
-//! The query then asks whether the recorded predicate can fail. Memory contents are not
-//! encoded, so a read CSE or load PRE forwarded from an earlier value is not proven here; a
-//! memory model is the natural next step.
+//! The query then asks whether the recorded predicate can fail.
+//!
+//! Memory is an array of bytes, and storage and transient storage arrays of words, threaded
+//! through the dominator chain: loads read the current array, and stores, `mstore8` included,
+//! update it. Any other write to a location, and any call or create, replaces every array by a
+//! fresh one, as does entering a block along an edge other than from the block before it in the
+//! chain, since another path may have written them. Fresh arrays, and memory at the function's
+//! entry, are opaque. So a read CSE or load PRE forwarded from an earlier store is proven when the
+//! store dominates it with no unknown write between.
 //!
 //! Each query comes in up to two tiers. The exact tier is written as `NAME.smt2`. When the
 //! query multiplies, divides or takes a remainder by a value that is not a constant, the
@@ -46,8 +53,8 @@ use super::lower_assumes::Fact;
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
-        AssumePredicate, BlockId, Function, FunctionId, InstId, InstKind, ResultKind, Semantics,
-        Terminator, Value, ValueId,
+        AssumePredicate, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, PtrLocation,
+        ResultKind, Semantics, Terminator, Value, ValueId,
         analysis::{CfgInfo, integers::integer_mask},
         memory::EvmMemoryLayout,
     },
@@ -58,58 +65,71 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxIndexSet},
 };
-use std::{
-    fmt::Write,
-    path::Path,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::{fmt::Write, io::Write as _, path::Path};
 
-/// Writes a query for every fact `func` recorded to `dir`.
+/// Writes a query for every fact `func` recorded to `dir`, or to stdout when `dir` is `-`.
+///
+/// A query's name is its module, function, block, value, analysis and its index among the
+/// function's facts, so it does not depend on the order functions compile in.
 pub(super) fn write_queries(
     module: &str,
     id: FunctionId,
     func: &Function,
     facts: &[Fact],
     dir: &Path,
-) {
-    static QUERIES: AtomicUsize = AtomicUsize::new(0);
-    if facts.is_empty() || func.blocks.is_empty() || std::fs::create_dir_all(dir).is_err() {
-        return;
+) -> std::io::Result<()> {
+    if facts.is_empty() || func.blocks.is_empty() {
+        return Ok(());
+    }
+    let to_stdout = dir == Path::new("-");
+    if !to_stdout {
+        std::fs::create_dir_all(dir)?;
     }
     let prover = Prover::new(func, facts);
+    let mut stdout = String::new();
     for (index, fact) in facts.iter().enumerate() {
         let goal = Goal { fact: index };
         let query = prover.query(&goal);
         let (lhs, rhs) = (prover.term_name(fact.lhs), prover.term_name(fact.rhs));
         let name = format!(
-            "{}-f{}-bb{}-{lhs}-{}-{}.smt2",
+            "{}-f{}-bb{}-{lhs}-{}-{index}.smt2",
             sanitize(module),
             id.index(),
             fact.block.index(),
             fact.source.name(),
-            QUERIES.fetch_add(1, Ordering::Relaxed),
         );
         let definition = match func.value(fact.lhs) {
             Value::Inst(inst) => func.inst(*inst).kind.mnemonic(),
             Value::Arg(_) => "argument",
             _ => "constant",
         };
-        let mut header = format!(
-            "; module: {module}\n; function: #{} {}\n; claim: {} {lhs} {} {rhs} at the end of bb{}\n; definition: {definition}\n",
+        let header = format!(
+            "; module: {module}\n; function: #{} {}\n; claim: {} {lhs} {} {rhs} at the end of bb{}\n; definition: {definition}\n; opaque: {}\n; axioms: {}\n",
             id.index(),
             func.name,
             fact.source.name(),
             fact.predicate.name(),
             fact.block.index(),
+            query.opaque.join(" "),
+            query.axioms.join(" "),
         );
-        let _ = writeln!(header, "; opaque: {}", query.opaque.join(" "));
-        let _ = writeln!(header, "; axioms: {}", query.axioms.join(" "));
+        let mut files = vec![(name.clone(), header.clone() + &query.exact)];
         if let Some(abstracted) = &query.abstracted {
-            let name = name.replace(".smt2", ".abstract.smt2");
-            let _ = std::fs::write(dir.join(name), header.clone() + abstracted);
+            files.push((name.replace(".smt2", ".abstract.smt2"), header + abstracted));
         }
-        let _ = std::fs::write(dir.join(name), header + &query.exact);
+        for (name, text) in files {
+            if to_stdout {
+                stdout.push_str(&format!("; query: {name}\n{text}"));
+            } else {
+                std::fs::write(dir.join(name), text)?;
+            }
+        }
     }
+    if to_stdout {
+        // One write per function keeps its queries together when modules compile in parallel.
+        std::io::stdout().lock().write_all(stdout.as_bytes())?;
+    }
+    Ok(())
 }
 
 /// A file-name-safe form of a module name.
@@ -211,11 +231,21 @@ impl<'a> Prover<'a> {
         for &block in &chain {
             in_chain.insert(block);
         }
+        let mut previous = None;
         for &current in &chain {
             // The enclosing query already encodes the blocks it shares.
             if query.is_shared(current) {
+                previous = Some(current);
                 continue;
             }
+            // Memory and storage flow on along an edge from the block before in the chain;
+            // reached any other way, another path may have written them.
+            if let Some(previous) = previous
+                && self.func.blocks[current].predecessors.as_slice() != [previous]
+            {
+                query.havoc_states();
+            }
+            previous = Some(current);
             let body = &self.func.blocks[current];
             let count = if current == block {
                 prefix.unwrap_or(body.instructions.len())
@@ -227,7 +257,10 @@ impl<'a> Prover<'a> {
                 self.encode_join(query, current);
             }
             for &inst in &body.instructions[..count] {
-                let Some(value) = self.func.inst_result_value(inst) else { continue };
+                let Some(value) = self.func.inst_result_value(inst) else {
+                    query.apply_effects(inst);
+                    continue;
+                };
                 if let InstKind::Phi(incoming) = &self.func.inst(inst).kind {
                     if joined {
                         let term = query.declare(value);
@@ -238,6 +271,7 @@ impl<'a> Prover<'a> {
                 } else {
                     query.define(value);
                 }
+                query.apply_effects(inst);
             }
             // The edge into this block, when it has a single predecessor.
             if let [predecessor] = body.predecessors.as_slice()
@@ -420,6 +454,12 @@ struct Query<'a> {
     deps: FxHashMap<String, Vec<String>>,
     /// The facts the query takes on trust, by name.
     axioms: FxIndexSet<&'static str>,
+    /// The current memory, storage and transient storage, as SMT arrays.
+    states: [String; 3],
+    /// Every array the query declares, with whether it is byte-addressed memory.
+    arrays: FxIndexSet<(String, bool)>,
+    /// The states each nested context entered from, to restore when it ends.
+    saved_states: Vec<[String; 3]>,
     /// Prepended to the names of values defined outside `shared`, for an earlier pass.
     prefix: String,
     shared: Option<DenseBitSet<BlockId>>,
@@ -445,6 +485,93 @@ impl<'a> Query<'a> {
             axioms: FxIndexSet::default(),
             prefix: String::new(),
             shared: None,
+            states: ["mem0".into(), "sto0".into(), "tra0".into()],
+            arrays: [("mem0".into(), true), ("sto0".into(), false), ("tra0".into(), false)]
+                .into_iter()
+                .collect(),
+            saved_states: Vec::new(),
+        }
+        // Memory on entry is the caller's, which the query does not follow.
+        .with_opaque("mem0")
+    }
+
+    fn with_opaque(mut self, symbol: &str) -> Self {
+        self.opaque.insert(symbol.to_owned());
+        self
+    }
+
+    /// Replaces memory, storage and transient storage with states the query knows nothing about.
+    fn havoc_states(&mut self) {
+        for state in 0..3 {
+            self.havoc_state(state);
+        }
+    }
+
+    fn havoc_state(&mut self, state: usize) {
+        let name = format!("{}{}{}", self.prefix, ["mem", "sto", "tra"][state], self.arrays.len());
+        self.arrays.insert((name.clone(), state == 0));
+        self.opaque.insert(name.clone());
+        self.states[state] = name;
+    }
+
+    /// A new state of `state` equal to `update` of the previous one.
+    fn update_state(
+        &mut self,
+        state: usize,
+        update: impl FnOnce(&str) -> String,
+        reads: Vec<String>,
+    ) {
+        let previous = self.states[state].clone();
+        let name = format!("{}{}{}", self.prefix, ["mem", "sto", "tra"][state], self.arrays.len());
+        self.arrays.insert((name.clone(), state == 0));
+        let definition = update(&previous);
+        self.assert(format!("(= {name} {definition})"));
+        self.depend(&name, reads.into_iter().chain([previous]));
+        self.states[state] = name;
+    }
+
+    /// Updates the states for what `inst` writes: memory, storage and transient stores exactly,
+    /// and every other write, call or creation by forgetting what it may change.
+    fn apply_effects(&mut self, inst: InstId) {
+        let kind = &self.func.inst(inst).kind;
+        match *kind {
+            InstKind::Store(ptr, value, location) => {
+                let state = match location {
+                    PtrLocation::Memory => 0,
+                    PtrLocation::Storage => 1,
+                    PtrLocation::Transient => 2,
+                    _ => return,
+                };
+                let (ptr, value) = (self.term(ptr), self.term(value));
+                let reads = vec![ptr.clone(), value.clone()];
+                if state == 0 {
+                    self.update_state(0, |memory| store_word(memory, &ptr, &value), reads);
+                } else {
+                    self.update_state(
+                        state,
+                        |array| format!("(store {array} {ptr} {value})"),
+                        reads,
+                    );
+                }
+            }
+            InstKind::Store8(ptr, value) => {
+                let (ptr, value) = (self.term(ptr), self.term(value));
+                let reads = vec![ptr.clone(), value.clone()];
+                self.update_state(
+                    0,
+                    |memory| format!("(store {memory} {ptr} ((_ extract 7 0) {value}))"),
+                    reads,
+                );
+            }
+            _ => match kind.effect_kind() {
+                EffectKind::MemoryWrite => self.havoc_state(0),
+                EffectKind::StorageWrite => self.havoc_state(1),
+                EffectKind::TransientWrite => self.havoc_state(2),
+                EffectKind::ExternalCall | EffectKind::ICall | EffectKind::Create => {
+                    self.havoc_states();
+                }
+                _ => {}
+            },
         }
     }
 
@@ -455,6 +582,7 @@ impl<'a> Query<'a> {
         shared: DenseBitSet<BlockId>,
     ) -> (String, Option<DenseBitSet<BlockId>>) {
         let prefix = format!("{}{prefix}", self.prefix);
+        self.saved_states.push(self.states.clone());
         (std::mem::replace(&mut self.prefix, prefix), self.shared.replace(shared))
     }
 
@@ -465,6 +593,9 @@ impl<'a> Query<'a> {
     fn leave(&mut self, (prefix, shared): (String, Option<DenseBitSet<BlockId>>)) {
         self.prefix = prefix;
         self.shared = shared;
+        if let Some(states) = self.saved_states.pop() {
+            self.states = states;
+        }
     }
 
     fn assert(&mut self, term: String) {
@@ -549,11 +680,33 @@ impl<'a> Query<'a> {
             return;
         }
         let mut reads = Vec::new();
+        // A read of memory, storage or transient storage reads the current state.
+        if let InstKind::Load(ptr, location) = *kind
+            && let Some(state) = match location {
+                PtrLocation::Memory => Some(0),
+                PtrLocation::Storage => Some(1),
+                PtrLocation::Transient => Some(2),
+                _ => None,
+            }
+        {
+            let ptr = self.term(ptr);
+            let array = self.states[state].clone();
+            let read = if state == 0 {
+                load_word(&array, &ptr)
+            } else {
+                format!("(select {array} {ptr})")
+            };
+            self.depend(&symbol, [ptr, array]);
+            self.assert(format!("(= {symbol} {read})"));
+            return;
+        }
         // A transaction's input is the same at every read with the same operands.
-        if is_input(kind.mnemonic()) {
+        if let Some(opcode) = kind.evm_opcode()
+            && op::is_tx_input(opcode)
+        {
             let operands: Vec<_> =
                 kind.operands().iter().map(|&operand| self.term(operand)).collect();
-            let function = format!("input_{}", kind.mnemonic());
+            let function = format!("input_{}", op::mnemonic(opcode).unwrap_or("unknown"));
             let read = if operands.is_empty() {
                 function.clone()
             } else {
@@ -562,25 +715,22 @@ impl<'a> Query<'a> {
             self.inputs.insert((function, operands.len()));
             self.depend(&symbol, operands);
             self.assert(format!("(= {symbol} {read})"));
-            // A function with a selector runs only after the dispatcher matched one.
-            let dispatched = self.func.selector.is_some() || self.func.selector_dispatched;
-            if kind.mnemonic() == "calldatasize" && dispatched {
-                self.assert(format!("(bvuge {symbol} {})", word(U256::from(4))));
-                self.axioms.insert("dispatched");
-            }
             self.guarantee(&symbol, value);
             return;
         }
         let definition = match kind.semantics() {
-            Some(Semantics::Opcode(name, operands)) => {
+            Some(Semantics::Opcode(_, operands)) => {
                 let operands: Vec<_> = operands.iter().map(|&operand| self.term(operand)).collect();
                 reads.extend(operands.iter().cloned());
-                let exact = pure_opcode(name, &operands);
-                if let Some(exact) = &exact
-                    && let Some((abstracted, functions)) = abstract_opcode(name, &operands, &symbol)
+                let operands: Vec<_> = operands.iter().map(String::as_str).collect();
+                let opcode = kind.evm_opcode().filter(|&opcode| op::is_pure(opcode));
+                let exact = opcode.and_then(|opcode| op::word::smt_opcode(opcode, &operands));
+                if let (Some(opcode), Some(exact)) = (opcode, &exact)
+                    && let Some((abstracted, function)) =
+                        op::word::smt_opcode_abstract(opcode, &operands, &symbol)
                 {
                     self.abstractions.push((format!("(= {symbol} {exact})"), abstracted));
-                    self.functions.extend(functions);
+                    self.functions.insert(function);
                 }
                 exact
             }
@@ -622,9 +772,7 @@ impl<'a> Query<'a> {
                 self.assert(format!("(= {symbol} {definition})"));
             }
             None => {
-                if !is_input(kind.mnemonic()) {
-                    self.opaque.insert(symbol.clone());
-                }
+                self.opaque.insert(symbol.clone());
                 self.guarantee(&symbol, value);
             }
         }
@@ -633,11 +781,18 @@ impl<'a> Query<'a> {
     fn finish(self, goals: &[String]) -> Encoded {
         let render = |assertions: &str, functions: &FxIndexSet<&'static str>| {
             let mut out = String::from(
-                "(set-logic QF_UFBV)
+                "(set-logic QF_AUFBV)
 ",
             );
             for name in &self.declared {
                 let _ = writeln!(out, "(declare-const {name} (_ BitVec 256))");
+            }
+            for (name, bytes) in &self.arrays {
+                let element = if *bytes { 8 } else { 256 };
+                let _ = writeln!(
+                    out,
+                    "(declare-const {name} (Array (_ BitVec 256) (_ BitVec {element})))"
+                );
             }
             for (name, arity) in &self.inputs {
                 let operands = vec!["(_ BitVec 256)"; *arity].join(" ");
@@ -691,7 +846,7 @@ struct Encoded {
     exact: String,
     /// Multiplications, divisions and remainders by unknown values replaced by uninterpreted
     /// functions with the bounds they obey, when the query has any. It over-approximates
-    /// @exact@, so @unsat@ proves the fact too, often far faster; @sat@ is inconclusive.
+    /// `exact`, so `unsat` proves the fact too, often far faster; `sat` is inconclusive.
     abstracted: Option<String>,
     /// The opaque symbols the goal depends on: a counterexample is concrete only without them.
     opaque: Vec<String>,
@@ -699,74 +854,30 @@ struct Encoded {
     axioms: Vec<String>,
 }
 
-/// Whether an operation the query leaves free reads an input a transaction chooses, so a
-/// counterexample may pick any value for it.
-fn is_input(mnemonic: &str) -> bool {
-    matches!(
-        mnemonic,
-        "calldataload"
-            | "calldatasize"
-            | "callvalue"
-            | "caller"
-            | "origin"
-            | "timestamp"
-            | "number"
-            | "chainid"
-            | "gasprice"
-            | "basefee"
-            | "coinbase"
-            | "gaslimit"
-    )
+/// The big-endian word at `ptr` in byte-addressed `memory`.
+fn load_word(memory: &str, ptr: &str) -> String {
+    let bytes: Vec<_> = (0..32u64)
+        .map(|offset| format!("(select {memory} (bvadd {ptr} {}))", word(U256::from(offset))))
+        .collect();
+    format!("(concat {})", bytes.join(" "))
 }
 
-/// The abstract tier's definition of @symbol@ for a multiplication, division or remainder by a
-/// value that is not a constant: an uninterpreted function with the laws the exact operation
-/// obeys, and the functions it uses.
-fn abstract_opcode(
-    name: &str,
-    operands: &[String],
-    symbol: &str,
-) -> Option<(String, Vec<&'static str>)> {
-    let zero = word(U256::ZERO);
-    let one = word(U256::ONE);
-    let constant = |term: &String| term.starts_with('#');
-    let (function, laws) = match (name, operands) {
-        ("mul", [a, b]) if !constant(a) && !constant(b) => (
-            "umul",
-            format!(
-                "(=> (or (= {a} {zero}) (= {b} {zero})) (= {symbol} {zero})) (=> (= {a} {one}) (= {symbol} {b})) (=> (= {b} {one}) (= {symbol} {a})) (= {symbol} (umul {b} {a}))"
-            ),
-        ),
-        ("div", [a, b]) if !constant(b) => (
-            "udiv",
-            format!(
-                "(=> (= {b} {zero}) (= {symbol} {zero})) (bvule {symbol} {a}) (=> (= {b} {one}) (= {symbol} {a}))"
-            ),
-        ),
-        ("mod", [a, b]) if !constant(b) => (
-            "umod",
-            format!(
-                "(=> (= {b} {zero}) (= {symbol} {zero})) (=> (distinct {b} {zero}) (bvult {symbol} {b})) (bvule {symbol} {a}) (=> (bvult {a} {b}) (= {symbol} {a}))"
-            ),
-        ),
-        ("addmod" | "mulmod", [a, b, n]) if !constant(n) || !constant(a) || !constant(b) => (
-            if name == "addmod" { "addmod3" } else { "mulmod3" },
-            format!(
-                "(=> (= {n} {zero}) (= {symbol} {zero})) (=> (distinct {n} {zero}) (bvult {symbol} {n}))"
-            ),
-        ),
-        _ => return None,
-    };
-    let call = match operands {
-        [a, b, n] => format!("({function} {a} {b} {n})"),
-        [a, b] => format!("({function} {a} {b})"),
-        _ => return None,
-    };
-    Some((format!("(and (= {symbol} {call}) {laws})"), vec![function]))
+/// `memory` with the big-endian word `value` written at `ptr`.
+fn store_word(memory: &str, ptr: &str, value: &str) -> String {
+    let mut out = memory.to_owned();
+    for offset in 0..32u64 {
+        let high = 255 - 8 * offset;
+        out = format!(
+            "(store {out} (bvadd {ptr} {}) ((_ extract {high} {}) {value}))",
+            word(U256::from(offset)),
+            high - 7
+        );
+    }
+    out
 }
 
 fn word(value: U256) -> String {
-    format!("#x{value:064x}")
+    op::word::smt_word(value)
 }
 
 /// `lo <= term <= hi`, leaving out the bound that always holds.
@@ -779,55 +890,4 @@ fn within(term: &str, lo: U256, hi: U256) -> String {
         parts.push(format!("(bvule {term} {})", word(hi)));
     }
     format!("(and true {})", parts.join(" "))
-}
-
-/// The word an EVM opcode computes from its operands, in pop order, when it is pure and modelled.
-fn pure_opcode(name: &str, operands: &[String]) -> Option<String> {
-    let zero = word(U256::ZERO);
-    let one = word(U256::ONE);
-    let bool_word = |condition: String| format!("(ite {condition} {one} {zero})");
-    let shift_limit = word(U256::from(256));
-    Some(match (name, operands) {
-        ("add", [a, b]) => format!("(bvadd {a} {b})"),
-        ("sub", [a, b]) => format!("(bvsub {a} {b})"),
-        ("mul", [a, b]) => format!("(bvmul {a} {b})"),
-        ("div", [a, b]) => format!("(ite (= {b} {zero}) {zero} (bvudiv {a} {b}))"),
-        ("sdiv", [a, b]) => format!("(ite (= {b} {zero}) {zero} (bvsdiv {a} {b}))"),
-        ("mod", [a, b]) => format!("(ite (= {b} {zero}) {zero} (bvurem {a} {b}))"),
-        ("smod", [a, b]) => format!("(ite (= {b} {zero}) {zero} (bvsrem {a} {b}))"),
-        ("addmod", [a, b, n]) => format!(
-            "(ite (= {n} {zero}) {zero} ((_ extract 255 0) (bvurem (bvadd ((_ zero_extend 1) {a}) ((_ zero_extend 1) {b})) ((_ zero_extend 1) {n}))))"
-        ),
-        ("mulmod", [a, b, n]) => format!(
-            "(ite (= {n} {zero}) {zero} ((_ extract 255 0) (bvurem (bvmul ((_ zero_extend 256) {a}) ((_ zero_extend 256) {b})) ((_ zero_extend 256) {n}))))"
-        ),
-        ("lt", [a, b]) => bool_word(format!("(bvult {a} {b})")),
-        ("gt", [a, b]) => bool_word(format!("(bvugt {a} {b})")),
-        ("slt", [a, b]) => bool_word(format!("(bvslt {a} {b})")),
-        ("sgt", [a, b]) => bool_word(format!("(bvsgt {a} {b})")),
-        ("eq", [a, b]) => bool_word(format!("(= {a} {b})")),
-        ("iszero", [a]) => bool_word(format!("(= {a} {zero})")),
-        ("and", [a, b]) => format!("(bvand {a} {b})"),
-        ("or", [a, b]) => format!("(bvor {a} {b})"),
-        ("xor", [a, b]) => format!("(bvxor {a} {b})"),
-        ("not", [a]) => format!("(bvnot {a})"),
-        ("shl", [shift, value]) => {
-            format!("(ite (bvuge {shift} {shift_limit}) {zero} (bvshl {value} {shift}))")
-        }
-        ("shr", [shift, value]) => {
-            format!("(ite (bvuge {shift} {shift_limit}) {zero} (bvlshr {value} {shift}))")
-        }
-        ("sar", [shift, value]) => format!(
-            "(ite (bvuge {shift} {shift_limit}) (bvashr {value} {}) (bvashr {value} {shift}))",
-            word(U256::from(255))
-        ),
-        ("byte", [index, value]) => format!(
-            "(ite (bvuge {index} {}) {zero} (bvand (bvlshr {value} (bvmul (bvsub {} {index}) {})) {}))",
-            word(U256::from(32)),
-            word(U256::from(31)),
-            word(U256::from(8)),
-            word(U256::from(0xff))
-        ),
-        _ => return None,
-    })
 }

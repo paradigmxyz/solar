@@ -96,19 +96,29 @@ impl MirPass for LowerAssumes {
     ) -> bool {
         let mut changed = false;
         let module_name = module.name.to_string();
+        let mut write_error = None;
         for (id, func) in module.functions.iter_mut_enumerated() {
             // Dropping records that hold by their constants changes the function too.
             let had_records = func
                 .instructions()
                 .any(|inst| matches!(func.inst(inst).kind, InstKind::Assume { .. }));
             let facts = take_assumed(func);
-            if let Some(dir) = &gcx.sess.opts.unstable.prove_analyses {
-                super::prove_analyses::write_queries(&module_name, id, func, &facts, dir);
+            if let Some(dir) = &gcx.sess.opts.unstable.prove_analyses
+                && write_error.is_none()
+                && let Err(error) =
+                    super::prove_analyses::write_queries(&module_name, id, func, &facts, dir)
+            {
+                write_error = Some((dir, error));
             }
             if !facts.is_empty() {
                 instrument(func, id, &facts);
             }
             changed |= had_records;
+        }
+        if let Some((dir, error)) = write_error {
+            gcx.dcx()
+                .err(format!("cannot write the analysis queries to `{}`: {error}", dir.display()))
+                .emit();
         }
         changed
     }
