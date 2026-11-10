@@ -1055,9 +1055,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 - ID: CODEGEN-023
 - Status: intentional
-- Difference: a `bytes` object that `abi.decode` allocates or `abi.encodePacked`
-  returns keeps whatever the memory or the input held in the padding after its
-  last byte, up to the next word. `solc` writes zeros there. Only assembly can
+- Difference: a `bytes` or `string` object that `abi.decode` allocates (including
+  external call returns and `catch Error(string)` reasons) or that
+  `abi.encodePacked`, `bytes.concat` or `string.concat` returns keeps whatever
+  the memory or the input held in the padding after its last byte, up to the
+  next word. `solc` writes zeros there. Only assembly can
   read the padding: every Solidity use of the object, such as `bytes32(b)`,
   `keccak256`, `bytes.concat`, `abi.encode`, a storage copy or an external
   `return`, reads or copies only the length and masks the rest or writes its own
