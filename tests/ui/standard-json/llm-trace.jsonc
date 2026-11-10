@@ -1,6 +1,7 @@
 //@ compile-flags: -Zllm-optimize=script -Zllm-trace
 //@ compile-flags: -Zllm-script=../../tests/ui/codegen/mir/llm-optimize/auxiliary/triangle.script
 // `-Zllm-trace` reports on stderr in Standard JSON mode, where stdout carries the JSON output.
+// Omit version-dependent metadata trailers; this tests trace routing.
 // CHECK: "contracts": {
 // CHECK: "deployedBytecode": {
 {
@@ -13,6 +14,7 @@
   "settings": {
     "optimizer": { "enabled": true, "runs": 200 },
     "evmVersion": "cancun",
+    "metadata": { "appendCBOR": false },
     "outputSelection": { "*": { "*": ["evm.deployedBytecode.object"] } }
   }
 }
