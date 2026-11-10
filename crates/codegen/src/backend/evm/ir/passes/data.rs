@@ -100,12 +100,11 @@ impl EvmPass for PackData {
 
     fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module) -> bool {
         let Some(mut scan) = scan_data_references(module, None) else { return false };
-        let entries = OnceCell::new();
-        let evm_version = gcx.sess.opts.evm_version;
-        let groups =
-            find_runs(gcx, module, &StackLimits { module, evm_version, entries: &entries });
+        let limits =
+            StackLimits { evm_version: gcx.sess.opts.evm_version, entries: OnceCell::new() };
+        let groups = find_runs(gcx, module, &limits);
         let packed = pack_data(module, &mut scan);
-        let materialized = materialize_data(gcx, module, groups, evm_version, &entries);
+        let materialized = materialize_data(gcx, module, groups, &limits);
         if materialized && let Some(mut scan) = scan_data_references(module, scan.tail) {
             pack_data(module, &mut scan);
         }
@@ -217,8 +216,7 @@ fn materialize_data(
     gcx: Gcx<'_>,
     module: &mut Module,
     groups: FxHashMap<Bytes, Vec<Rewrite>>,
-    evm_version: EvmVersion,
-    entries: &OnceCell<IndexVec<BlockId, Option<usize>>>,
+    limits: &StackLimits,
 ) -> bool {
     if groups.is_empty() {
         return false;
@@ -293,11 +291,10 @@ fn materialize_data(
         // evaluation of whole runs, which can accept a run that only pays when sites share it.
         if splits {
             let mut inner = FxHashMap::<Bytes, Vec<Rewrite>>::default();
-            let limits = StackLimits { module, evm_version, entries };
             for rewrite in rejected.drain(..).flat_map(|(_, rewrites)| rewrites) {
                 let block = &module.blocks[rewrite.block];
                 let target = block.target(gcx, module.optimization, module.code_follows);
-                let stack = BlockStack::new(&limits, rewrite.block);
+                let stack = BlockStack::new(module, limits, rewrite.block);
                 for (data, mut window) in
                     split_run(&target, &block.instructions, &rewrite, &stack, &mut scratch)
                 {
@@ -352,7 +349,7 @@ fn materialize_data(
 fn find_runs(
     gcx: Gcx<'_>,
     module: &Module,
-    limits: &StackLimits<'_>,
+    limits: &StackLimits,
 ) -> FxHashMap<Bytes, Vec<Rewrite>> {
     let mut groups = FxHashMap::<_, Vec<_>>::default();
     let mut scratch = RunScratch::default();
@@ -366,7 +363,7 @@ fn find_runs(
             continue;
         };
         let target = block.target(gcx, module.optimization, module.code_follows);
-        let stack = BlockStack::new(limits, block_id);
+        let stack = BlockStack::new(module, limits, block_id);
         let mut start = 0;
         while start <= last_store {
             let Some((data, mut rewrite)) =
@@ -773,17 +770,16 @@ impl CopyPlan<'_> {
     }
 }
 
-/// The stack depth bounds of a module's blocks.
-struct StackLimits<'a> {
-    module: &'a Module,
+/// The verifier's entry bounds for a module, computed when a copy first needs them.
+struct StackLimits {
     evm_version: EvmVersion,
-    /// The verifier's entry bounds, computed when a copy first needs them.
-    entries: &'a OnceCell<IndexVec<BlockId, Option<usize>>>,
+    entries: OnceCell<IndexVec<BlockId, Option<usize>>>,
 }
 
 /// The stack limit of one block: what its original path reaches, and so what a copy may reach.
 struct BlockStack<'a> {
-    limits: &'a StackLimits<'a>,
+    module: &'a Module,
+    limits: &'a StackLimits,
     block: BlockId,
     /// The depth before each instruction, relative to the block's entry.
     depths: Vec<isize>,
@@ -794,14 +790,14 @@ struct BlockStack<'a> {
 }
 
 impl<'a> BlockStack<'a> {
-    fn new(limits: &'a StackLimits<'a>, block_id: BlockId) -> Self {
-        let block = &limits.module.blocks[block_id];
+    fn new(module: &'a Module, limits: &'a StackLimits, block_id: BlockId) -> Self {
+        let block = &module.blocks[block_id];
         let mut depths = vec![0];
         for inst in &block.instructions {
             depths.push(depths[depths.len() - 1] + net_growth(inst));
         }
         let growth = block.terminator.as_ref().map_or(0, |term| {
-            term.kind.lowering_stack_growth(limits.module.next_block(block_id)) as isize
+            term.kind.lowering_stack_growth(module.next_block(block_id)) as isize
         });
         let mut peaks = vec![0; depths.len()];
         let mut reach = depths[block.instructions.len()] + growth;
@@ -820,7 +816,7 @@ impl<'a> BlockStack<'a> {
             before = before.max(depth);
             *peak = (*peak).max(before);
         }
-        Self { limits, block: block_id, depths, peaks }
+        Self { module, limits, block: block_id, depths, peaks }
     }
 
     /// Returns whether the copy of `head`, the size and source pushes, and `tail` can replace the
@@ -840,9 +836,8 @@ impl<'a> BlockStack<'a> {
             peak = peak.max(depth);
         }
         peak <= self.peaks[start] || {
-            let limits = self.limits;
-            let entries = limits.entries.get_or_init(|| {
-                Verifier::stack_entry_upper_bounds(limits.module, limits.evm_version)
+            let entries = self.limits.entries.get_or_init(|| {
+                Verifier::stack_entry_upper_bounds(self.module, self.limits.evm_version)
             });
             entries[self.block]
                 .is_some_and(|entry| entry as isize + peak <= MAX_STACK_DEPTH as isize)
