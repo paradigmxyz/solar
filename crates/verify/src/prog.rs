@@ -9,9 +9,12 @@ use solar_parse::{
         self, ContractKind, ElementaryType, Expr, ItemFunction, ItemKind, NatSpecKind, SourceUnit,
         Stmt, StmtKind, Type, TypeKind,
     },
-    interface::{Session, Span, source_map::FileName},
+    interface::{
+        Session, Span,
+        data_structures::map::{FxHashMap, FxHashSet},
+        source_map::FileName,
+    },
 };
-use std::collections::HashMap;
 
 pub(crate) struct Spec<'a> {
     pub expr: &'a Expr<'a>,
@@ -82,7 +85,7 @@ pub(crate) struct Contract<'a> {
     pub kind: ContractKind,
     pub state: Vec<StateVar<'a>>,
     pub funcs: Vec<Func<'a>>,
-    pub modifiers: HashMap<String, &'a ItemFunction<'a>>,
+    pub modifiers: FxHashMap<String, &'a ItemFunction<'a>>,
     pub invariants: Vec<Spec<'a>>,
     /// `@custom:lock-stable P`: entry points callable under the reentrancy lock keep P true.
     pub lock_stable: Vec<Spec<'a>>,
@@ -97,27 +100,27 @@ pub(crate) struct Contract<'a> {
     /// constructors of base contracts, in linearization order (bases first)
     pub base_ctors: Vec<(String, &'a ItemFunction<'a>)>,
     /// `is B(args)` arguments given anywhere in the hierarchy
-    pub base_args: HashMap<String, &'a ast::CallArgs<'a>>,
+    pub base_args: FxHashMap<String, &'a ast::CallArgs<'a>>,
 }
 
 pub(crate) struct Program<'a> {
     pub contracts: Vec<Contract<'a>>,
     pub quants: Vec<QInfo>,
     /// statement span -> (tag, spec) for `@custom:invariant|decreases|assert|ghost`
-    pub stmt_specs: HashMap<Span, Vec<(String, Spec<'a>)>>,
+    pub stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
     /// `@custom:assert` / `@custom:assume` comments after the last statement of a block (Solar
     /// attaches them to nothing), keyed by the block's span: they run when the block ends.
-    pub block_tail: HashMap<Span, Vec<(String, Spec<'a>)>>,
-    pub enums: HashMap<String, usize>,
-    pub enum_variants: HashMap<String, usize>,
+    pub block_tail: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
+    pub enums: FxHashMap<String, usize>,
+    pub enum_variants: FxHashMap<String, usize>,
     pub structs: Vec<(String, Vec<(String, Ty)>)>,
-    pub udvts: HashMap<String, Ty>,
+    pub udvts: FxHashMap<String, Ty>,
     /// spans of variable-declaration statements that carry specs (--instrument keeps their scope)
-    pub decl_stmts: std::collections::HashSet<Span>,
+    pub decl_stmts: FxHashSet<Span>,
     /// `@custom:invariant` on a struct declaration, over its field names
-    pub struct_invs: HashMap<String, Vec<Spec<'a>>>,
+    pub struct_invs: FxHashMap<String, Vec<Spec<'a>>>,
     /// constants with a literal integer value (to size fixed arrays)
-    pub const_sizes: HashMap<String, u64>,
+    pub const_sizes: FxHashMap<String, u64>,
     pub errors: Vec<(Span, String)>,
 }
 
@@ -156,16 +159,16 @@ struct Builder<'s, 'a> {
     nspec: usize,
     quants: Vec<QInfo>,
     errors: Vec<(Span, String)>,
-    enums: HashMap<String, usize>,
-    enum_variants: HashMap<String, usize>,
-    udvts: HashMap<String, &'a Type<'a>>,
+    enums: FxHashMap<String, usize>,
+    enum_variants: FxHashMap<String, usize>,
+    udvts: FxHashMap<String, &'a Type<'a>>,
     struct_items: Vec<&'a ast::ItemStruct<'a>>,
     struct_docs: Vec<(String, &'a ast::DocComments<'a>)>,
-    decl_stmts: std::collections::HashSet<Span>,
+    decl_stmts: FxHashSet<Span>,
     contract_names: Vec<String>,
-    stmt_specs: HashMap<Span, Vec<(String, Spec<'a>)>>,
-    block_tail: HashMap<Span, Vec<(String, Spec<'a>)>>,
-    const_sizes: HashMap<String, u64>,
+    stmt_specs: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
+    block_tail: FxHashMap<Span, Vec<(String, Spec<'a>)>>,
+    const_sizes: FxHashMap<String, u64>,
     /// Spans of the doc comments some statement carries.
     seen_docs: Vec<Span>,
 }
@@ -469,19 +472,20 @@ pub(crate) fn build<'a>(
         nspec: 0,
         quants: vec![],
         errors: vec![],
-        enums: HashMap::new(),
-        enum_variants: HashMap::new(),
-        udvts: HashMap::new(),
+        enums: FxHashMap::default(),
+        enum_variants: FxHashMap::default(),
+        udvts: FxHashMap::default(),
         struct_items: vec![],
         struct_docs: vec![],
         decl_stmts: Default::default(),
         contract_names: vec![],
-        stmt_specs: HashMap::new(),
-        block_tail: HashMap::new(),
-        const_sizes: HashMap::new(),
+        stmt_specs: FxHashMap::default(),
+        block_tail: FxHashMap::default(),
+        const_sizes: FxHashMap::default(),
         seen_docs: vec![],
     };
-    let mut items: HashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)> = HashMap::new();
+    let mut items: FxHashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)> =
+        FxHashMap::default();
     // file-level constants, visible in every contract
     let mut file_consts: Vec<(String, &'a ast::VariableDefinition<'a>)> = vec![];
     // inline assembly anywhere in a library (inlined into contracts that call it)
@@ -549,7 +553,7 @@ pub(crate) fn build<'a>(
             .collect();
         structs.push((st.name.as_str().to_string(), fields));
     }
-    let mut struct_invs: HashMap<String, Vec<Spec<'a>>> = HashMap::new();
+    let mut struct_invs: FxHashMap<String, Vec<Spec<'a>>> = FxHashMap::default();
     for (n, docs) in b.struct_docs.clone() {
         for (tag, content, span) in custom_tags(docs) {
             if tag == "invariant"
@@ -559,7 +563,7 @@ pub(crate) fn build<'a>(
             }
         }
     }
-    let mut udvts = HashMap::new();
+    let mut udvts = FxHashMap::default();
     for (n, t) in b.udvts.clone() {
         udvts.insert(n, b.ty(t));
     }
@@ -569,7 +573,7 @@ pub(crate) fn build<'a>(
         let mut lin: Vec<String> = vec![];
         fn dfs<'a>(
             n: &str,
-            items: &HashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)>,
+            items: &FxHashMap<String, (&'a ast::Item<'a>, &'a ast::ItemContract<'a>)>,
             lin: &mut Vec<String>,
         ) {
             if lin.iter().any(|x| x == n) {
@@ -589,7 +593,7 @@ pub(crate) fn build<'a>(
             kind: own.kind,
             state: vec![],
             funcs: vec![],
-            modifiers: HashMap::new(),
+            modifiers: FxHashMap::default(),
             invariants: vec![],
             lock_stable: vec![],
             lock: None,
@@ -597,7 +601,7 @@ pub(crate) fn build<'a>(
             overridden: vec![],
             lin: lin.clone(),
             base_ctors: vec![],
-            base_args: HashMap::new(),
+            base_args: FxHashMap::default(),
         };
         let mut has_asm = false;
         for cn in &lin {
@@ -885,7 +889,7 @@ pub(crate) fn build<'a>(
 }
 
 /// The value of a fixed array's size expression: an integer literal, or a constant naming one.
-pub(crate) fn array_size(consts: &HashMap<String, u64>, e: &ast::Expr<'_>) -> Option<u64> {
+pub(crate) fn array_size(consts: &FxHashMap<String, u64>, e: &ast::Expr<'_>) -> Option<u64> {
     use solar_parse::ast::{ExprKind, LitKind};
     match &e.kind {
         ExprKind::Lit(l, None) => match &l.kind {

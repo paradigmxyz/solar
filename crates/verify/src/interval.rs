@@ -3,7 +3,7 @@
 //! case-split on (the main cost on arithmetic-heavy code such as Uniswap's math libraries).
 use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
-use std::collections::HashMap;
+use solar_parse::interface::data_structures::map::FxHashMap;
 
 pub(crate) type Iv = (BigInt, BigInt);
 
@@ -69,7 +69,7 @@ fn pow2(n: u64) -> BigInt {
     BigInt::one() << n
 }
 
-fn eval(s: &S, env: &HashMap<String, Iv>) -> Option<Iv> {
+fn eval(s: &S, env: &FxHashMap<String, Iv>) -> Option<Iv> {
     match s {
         S::Atom(a) => {
             if let Ok(n) = a.parse::<BigInt>() {
@@ -155,7 +155,7 @@ fn eval(s: &S, env: &HashMap<String, Iv>) -> Option<Iv> {
     }
 }
 
-pub(crate) fn interval(term: &str, env: &HashMap<String, Iv>) -> Option<Iv> {
+pub(crate) fn interval(term: &str, env: &FxHashMap<String, Iv>) -> Option<Iv> {
     if term.len() > 20_000 {
         return None;
     }
@@ -167,7 +167,7 @@ mod tests {
     use super::*;
     #[test]
     fn basic() {
-        let mut env = HashMap::new();
+        let mut env = FxHashMap::default();
         env.insert("|k@1|".to_string(), (BigInt::from(0), BigInt::from(255)));
         assert_eq!(interval("(* 2 |k@1|)", &env), Some((BigInt::from(0), BigInt::from(510))));
         assert_eq!(

@@ -13,9 +13,12 @@ use crate::{
 use num_bigint::BigInt;
 use solar_parse::{
     ast::{self, BinOpKind, Expr, ExprKind, IndexKind, LitKind, Stmt, StmtKind, UnOpKind},
-    interface::Span,
+    interface::{
+        Span,
+        data_structures::map::{FxHashMap, FxHashSet},
+    },
 };
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[path = "yul.rs"]
 mod yul;
@@ -79,13 +82,13 @@ pub(crate) struct Vc<'p, 'a> {
     checks: usize,
     cex_terms: Vec<(String, String)>,
     depth: usize,
-    declared_funs: HashSet<String>,
+    declared_funs: FxHashSet<String>,
     splits: Vec<String>,
     /// The `value:` option of the call being evaluated (ETH it sends), consumed by external_call.
     call_value: Option<String>,
     /// Invariant terms assumed at function entry, before any branch: every path implies them, so a
     /// later check of the identical term (the state it reads is unchanged) needs no solver call.
-    inv_entry: HashSet<String>,
+    inv_entry: FxHashSet<String>,
     /// Path conditions under which the function reverts (revert, a failing require, a panic): a
     /// succeeds_if proof shows none is reachable. Loop havoc over-approximates the reachable
     /// states, so proving them unreachable is sound.
@@ -94,25 +97,25 @@ pub(crate) struct Vc<'p, 'a> {
     /// calls run under the same lock, so they reach only those entry points again.
     lock_modset: std::cell::Cell<bool>,
     pub split_wins: usize,
-    ranges: std::collections::HashMap<String, crate::interval::Iv>,
-    defs: std::collections::HashMap<String, String>,
+    ranges: FxHashMap<String, crate::interval::Iv>,
+    defs: FxHashMap<String, String>,
     warnings: Vec<String>,
     /// `@custom:reveal f(..)` being evaluated: unfold opaque `f` once
     reveal: Option<String>,
     /// structs whose invariant was already checked against the zero value in this function
-    zero_checked: HashSet<String>,
+    zero_checked: FxHashSet<String>,
     /// the function being verified (lemma cycles)
     cur_fn: Option<(String, String)>,
     rets: Vec<String>,
-    aliases: std::collections::HashMap<String, &'a Expr<'a>>,
+    aliases: FxHashMap<String, &'a Expr<'a>>,
     storage_param_out: Vec<Val>,
     /// The contract being verified: its state stays live (as `@host.<name>`) while library code
     /// runs, so external calls made from libraries havoc it and check its invariants.
     host: &'p Contract<'a>,
     /// storage-pointer locals (and storage return variables) of the running function
-    slocals: HashSet<String>,
+    slocals: FxHashSet<String>,
     /// values of the callee's names a pointer returned by a function was built from
-    alias_env: std::collections::HashMap<String, Env>,
+    alias_env: FxHashMap<String, Env>,
     /// the location a just-inlined function's storage return points at
     ret_alias: Option<(&'a Expr<'a>, Env)>,
     ret_alias_out: Option<(&'a Expr<'a>, Env)>,
@@ -178,25 +181,25 @@ impl<'p, 'a> Vc<'p, 'a> {
             checks: 0,
             cex_terms: vec![],
             depth: 0,
-            declared_funs: HashSet::new(),
+            declared_funs: FxHashSet::default(),
             splits: vec![],
             split_wins: 0,
             call_value: None,
-            inv_entry: HashSet::new(),
+            inv_entry: FxHashSet::default(),
             revert_sites: vec![],
             lock_modset: std::cell::Cell::new(false),
             ranges: Default::default(),
             defs: Default::default(),
             warnings: vec![],
             reveal: None,
-            zero_checked: HashSet::new(),
+            zero_checked: FxHashSet::default(),
             cur_fn: None,
             rets: vec![],
             aliases: Default::default(),
             storage_param_out: vec![],
             host: c,
             cur: vec![],
-            slocals: HashSet::new(),
+            slocals: FxHashSet::default(),
             alias_env: Default::default(),
             ret_alias: None,
             ret_alias_out: None,
@@ -623,7 +626,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             return Err((sp.span, format!("lemma `{}` must be pure: a use is erased", lf.name)));
         }
         if let Some((cc, cf)) = self.cur_fn.clone() {
-            let mut seen = HashSet::new();
+            let mut seen = FxHashSet::default();
             if (lc.name == cc && lf.name == cf) || self.lemma_reaches(lc, lf, &cc, &cf, &mut seen) {
                 return Err((
                     sp.span,
@@ -695,7 +698,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         f: &'p Func<'a>,
         cc: &str,
         cf: &str,
-        seen: &mut HashSet<String>,
+        seen: &mut FxHashSet<String>,
     ) -> bool {
         if !seen.insert(format!("{}.{}", c.name, f.name)) {
             return false;
@@ -965,8 +968,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             // Solidity order: every base constructor's arguments are evaluated first, from the
             // most derived constructor down (a base constructor's modifier list can pass arguments
             // to its own bases, evaluated with its parameters bound), then bodies run base-first.
-            let mut argvals: std::collections::HashMap<String, Vec<Val>> =
-                std::collections::HashMap::new();
+            let mut argvals: FxHashMap<String, Vec<Val>> = FxHashMap::default();
             {
                 let mut sources: ModifierSources<'a> = vec![(&f.item.header.modifiers[..], vec![])];
                 for (bn, a) in &c.base_args {
@@ -1613,7 +1615,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let mut out = BTreeSet::new();
         let mut all_state = false;
         let visit = |e: &'a Expr<'a>, out: &mut BTreeSet<String>, all: &mut bool| {
-            walk::sub_exprs(e, &mut |x| self.effects(x, out, all, &mut HashSet::new()));
+            walk::sub_exprs(e, &mut |x| self.effects(x, out, all, &mut FxHashSet::default()));
         };
         if let Some(n) = next {
             visit(n, &mut out, &mut all_state);
@@ -1654,7 +1656,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         e: &'a Expr<'a>,
         out: &mut BTreeSet<String>,
         all: &mut bool,
-        seen: &mut HashSet<String>,
+        seen: &mut FxHashSet<String>,
     ) {
         match &e.kind {
             ExprKind::Assign(l, ..) => out.extend(walk::root(l)),
@@ -1754,7 +1756,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         args: &[&'a Expr<'a>],
         out: &mut BTreeSet<String>,
         all: &mut bool,
-        seen: &mut HashSet<String>,
+        seen: &mut FxHashSet<String>,
     ) {
         match self.modset_raw(f, seen) {
             None => *all = true,
@@ -1767,7 +1769,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         out.extend(walk::root(a));
                     }
                 }
-                let state: HashSet<&str> = self.c.state.iter().map(|s| s.name.as_str()).collect();
+                let state: FxHashSet<&str> = self.c.state.iter().map(|s| s.name.as_str()).collect();
                 out.extend(raw.into_iter().filter(|n| state.contains(n.as_str())));
             }
         }
@@ -1776,10 +1778,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     /// Storage-pointer locals declared in these statements: name -> roots it points into.
     /// `extra`: storage-located return variables. A pointer from something we cannot trace (a
     /// call's result) points at "*": anything.
-    fn alias_roots(
-        stmts: &[&'a Stmt<'a>],
-        extra: &[String],
-    ) -> std::collections::HashMap<String, Vec<String>> {
+    fn alias_roots(stmts: &[&'a Stmt<'a>], extra: &[String]) -> FxHashMap<String, Vec<String>> {
         fn roots<'a>(e: &'a Expr<'a>) -> Vec<String> {
             match &e.peel_parens().kind {
                 ExprKind::Ternary(_, a, b) => {
@@ -1793,9 +1792,8 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
             }
         }
-        let mut m: std::collections::HashMap<String, Vec<String>> =
-            std::collections::HashMap::new();
-        let mut names: HashSet<String> = extra.iter().cloned().collect();
+        let mut m: FxHashMap<String, Vec<String>> = FxHashMap::default();
+        let mut names: FxHashSet<String> = extra.iter().cloned().collect();
         for s in stmts {
             walk::all_stmts(s, &mut |s| {
                 if let StmtKind::DeclSingle(v) = &s.kind
@@ -1825,13 +1823,10 @@ impl<'p, 'a> Vc<'p, 'a> {
         m
     }
 
-    fn expand(
-        names: BTreeSet<String>,
-        al: &std::collections::HashMap<String, Vec<String>>,
-    ) -> BTreeSet<String> {
+    fn expand(names: BTreeSet<String>, al: &FxHashMap<String, Vec<String>>) -> BTreeSet<String> {
         let mut out = BTreeSet::new();
         let mut work: Vec<String> = names.into_iter().collect();
-        let mut seen = HashSet::new();
+        let mut seen = FxHashSet::default();
         while let Some(n) = work.pop() {
             if !seen.insert(n.clone()) {
                 continue;
@@ -1875,15 +1870,19 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     /// State variables a function may write; None = anything (external calls).
-    fn modset(&self, f: &'p Func<'a>, seen: &mut HashSet<String>) -> Option<BTreeSet<String>> {
+    fn modset(&self, f: &'p Func<'a>, seen: &mut FxHashSet<String>) -> Option<BTreeSet<String>> {
         let raw = self.modset_raw(f, seen)?;
-        let state: HashSet<&str> = self.c.state.iter().map(|s| s.name.as_str()).collect();
+        let state: FxHashSet<&str> = self.c.state.iter().map(|s| s.name.as_str()).collect();
         Some(raw.into_iter().filter(|n| state.contains(n.as_str())).collect())
     }
 
     /// Names a function may write (state variables and its own storage parameters), with storage
     /// pointers resolved; None = anything.
-    fn modset_raw(&self, f: &'p Func<'a>, seen: &mut HashSet<String>) -> Option<BTreeSet<String>> {
+    fn modset_raw(
+        &self,
+        f: &'p Func<'a>,
+        seen: &mut FxHashSet<String>,
+    ) -> Option<BTreeSet<String>> {
         if f.is_static() {
             return Some(BTreeSet::new());
         }
@@ -3534,8 +3533,8 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     /// State names (constants included) a guard expression mentions: an entry point that reaches
     /// one of them, through its modifiers and internal calls, is taken to take the lock.
-    fn lock_names(&self) -> HashSet<String> {
-        let mut out = HashSet::new();
+    fn lock_names(&self) -> FxHashSet<String> {
+        let mut out = FxHashSet::default();
         if let Some(sp) = &self.c.lock_expr {
             walk::sub_exprs(sp.expr, &mut |x| {
                 if let ExprKind::Ident(i) = &x.kind
@@ -3553,8 +3552,8 @@ impl<'p, 'a> Vc<'p, 'a> {
     fn reaches_names(
         &self,
         stmts: Vec<&'a Stmt<'a>>,
-        names: &HashSet<String>,
-        seen: &mut HashSet<String>,
+        names: &FxHashSet<String>,
+        seen: &mut FxHashSet<String>,
     ) -> bool {
         let mut hit = false;
         let mut calls: Vec<String> = vec![];
@@ -3766,13 +3765,13 @@ impl<'p, 'a> Vc<'p, 'a> {
         }
         if self.c.lock_expr.is_some() {
             let names = self.lock_names();
-            return !self.reaches_names(self.fn_stmts(f), &names, &mut HashSet::new());
+            return !self.reaches_names(self.fn_stmts(f), &names, &mut FxHashSet::default());
         }
         // the plain-variable form: an entry point is under the lock when its body or modifiers
         // reach the variable, directly or through internal calls (such as _lock() in a modifier);
         // every such entry point is then proven to revert while the lock is held (verify_lock)
-        let names: HashSet<String> = [g.clone()].into_iter().collect();
-        !self.reaches_names(self.fn_stmts(f), &names, &mut HashSet::new())
+        let names: FxHashSet<String> = [g.clone()].into_iter().collect();
+        !self.reaches_names(self.fn_stmts(f), &names, &mut FxHashSet::default())
     }
 
     /// addr.transfer(v) / addr.send(v): moves v wei out of this contract (2300 gas: no reentry).
@@ -3884,7 +3883,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 self.bind("__balance", bal.ty.clone(), nb);
             }
             if !open.is_empty() {
-                let mut seen = HashSet::new();
+                let mut seen = FxHashSet::default();
                 let mut names: Option<BTreeSet<String>> = Some(BTreeSet::new());
                 self.lock_modset.set(true);
                 for f in &open {
@@ -4161,7 +4160,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
                 self.old = Some(self.env.clone());
                 if let Some(ms) =
-                    self.modset(f, &mut HashSet::new()).map(Some).unwrap_or_else(|| {
+                    self.modset(f, &mut FxHashSet::default()).map(Some).unwrap_or_else(|| {
                         Some(
                             c.state
                                 .iter()
@@ -4182,7 +4181,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         }
                     }
                 }
-                if library && !f.trusted && self.modset(f, &mut HashSet::new()).is_none() {
+                if library && !f.trusted && self.modset(f, &mut FxHashSet::default()).is_none() {
                     // a library function that may call out: everything of the caller may change
                     // (a @custom:trusted library function is trusted not to reenter: like a
                     // summary, it touches the caller only through its storage parameters)
@@ -4429,9 +4428,9 @@ fn pick_in<'q, 'a>(cands: Vec<&'q Func<'a>>, args: &[Val]) -> Option<&'q Func<'a
 fn bv_view(
     t: &str,
     n: u32,
-    defs: &std::collections::HashMap<String, String>,
-    ranges: &std::collections::HashMap<String, crate::interval::Iv>,
-    declared: &mut HashSet<String>,
+    defs: &FxHashMap<String, String>,
+    ranges: &FxHashMap<String, crate::interval::Iv>,
+    declared: &mut FxHashSet<String>,
     pending: &mut Vec<String>,
     depth: usize,
 ) -> String {

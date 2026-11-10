@@ -10,7 +10,7 @@ mod walk;
 
 use solar_parse::{
     Parser, ast,
-    interface::{Session, Span},
+    interface::{Session, Span, data_structures::map::FxHashSet},
 };
 use std::path::{Path, PathBuf};
 
@@ -362,7 +362,7 @@ fn instrument(sess: &Session, program: &prog::Program<'_>, file: &Path, out: &Pa
     };
     // (offset, text to insert), applied from the end
     let mut ins: Vec<(usize, String)> = vec![];
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = FxHashSet::default();
     for c in &program.contracts {
         for f in &c.funcs {
             let Some(b) = &f.item.body else { continue };

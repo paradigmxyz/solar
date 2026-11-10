@@ -11,7 +11,8 @@
 //! restricting their domain also only weakens the query.
 use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
-use std::{cell::RefCell, collections::HashMap};
+use solar_parse::interface::data_structures::map::{FxHashMap, FxHashSet};
+use std::cell::RefCell;
 
 type Iv = (BigInt, BigInt);
 
@@ -192,14 +193,14 @@ fn pow2(n: u64) -> BigInt {
 type R<T> = Result<T, String>;
 
 struct Ctx {
-    consts: HashMap<String, Sort>,
-    funs: HashMap<String, (Vec<Sort>, Sort)>,
-    ranges: HashMap<String, Iv>,
-    defs: HashMap<String, S>,
-    facts: HashMap<String, Iv>,
-    elem: HashMap<String, Iv>,
-    ret: HashMap<String, Iv>,
-    memo: RefCell<HashMap<String, Option<K>>>,
+    consts: FxHashMap<String, Sort>,
+    funs: FxHashMap<String, (Vec<Sort>, Sort)>,
+    ranges: FxHashMap<String, Iv>,
+    defs: FxHashMap<String, S>,
+    facts: FxHashMap<String, Iv>,
+    elem: FxHashMap<String, Iv>,
+    ret: FxHashMap<String, Iv>,
+    memo: RefCell<FxHashMap<String, Option<K>>>,
     maxbits: RefCell<u64>,
 }
 
@@ -256,7 +257,7 @@ impl Ctx {
         }
     }
 
-    fn atom(&self, a: &str, scope: &HashMap<String, K>) -> R<K> {
+    fn atom(&self, a: &str, scope: &FxHashMap<String, K>) -> R<K> {
         if let Some(k) = scope.get(a) {
             return Ok(k.clone());
         }
@@ -274,7 +275,7 @@ impl Ctx {
             Sort::Bool => Some(K::Bool),
             Sort::Bv(n) => Some(K::Bv(*n)),
             Sort::Int => {
-                let def = self.defs.get(a).and_then(|d| match self.bnd(d, &HashMap::new()) {
+                let def = self.defs.get(a).and_then(|d| match self.bnd(d, &FxHashMap::default()) {
                     Ok(K::Int(iv)) => Some(iv),
                     _ => None,
                 });
@@ -282,7 +283,8 @@ impl Ctx {
             }
             Sort::Arr(..) => {
                 let d = arr_depth(&sort);
-                let from_def = self.defs.get(a).and_then(|d| self.bnd(d, &HashMap::new()).ok());
+                let from_def =
+                    self.defs.get(a).and_then(|d| self.bnd(d, &FxHashMap::default()).ok());
                 match (self.elem.get(a), from_def) {
                     (Some(iv), _) => Some(nest(d, iv.clone())),
                     (None, Some(k)) => Some(k),
@@ -295,14 +297,14 @@ impl Ctx {
         r.ok_or_else(|| format!("unbounded {a}"))
     }
 
-    fn int(&self, s: &S, sc: &HashMap<String, K>) -> R<Iv> {
+    fn int(&self, s: &S, sc: &FxHashMap<String, K>) -> R<Iv> {
         match self.bnd(s, sc)? {
             K::Int(iv) => Ok(iv),
             k => Err(format!("expected Int, got {k:?} in {}", short(s))),
         }
     }
 
-    fn bnd(&self, s: &S, sc: &HashMap<String, K>) -> R<K> {
+    fn bnd(&self, s: &S, sc: &FxHashMap<String, K>) -> R<K> {
         let k = self.bnd_inner(s, sc)?;
         if let K::Int(iv) = &k {
             self.note(iv);
@@ -310,7 +312,7 @@ impl Ctx {
         Ok(k)
     }
 
-    fn bnd_inner(&self, s: &S, sc: &HashMap<String, K>) -> R<K> {
+    fn bnd_inner(&self, s: &S, sc: &FxHashMap<String, K>) -> R<K> {
         let v = match s {
             S::A(a) => return self.atom(a, sc),
             S::L(v) => v,
@@ -523,11 +525,11 @@ impl Ctx {
 
     /// Boolean structure with quantifiers; `pos` = polarity (Some(true) positive, Some(false)
     /// negative, None both).
-    fn boolean(&self, s: &S, sc: &HashMap<String, K>) -> R<()> {
+    fn boolean(&self, s: &S, sc: &FxHashMap<String, K>) -> R<()> {
         self.boolean_p(s, sc, Some(true))
     }
 
-    fn boolean_p(&self, s: &S, sc: &HashMap<String, K>, pol: Option<bool>) -> R<()> {
+    fn boolean_p(&self, s: &S, sc: &FxHashMap<String, K>, pol: Option<bool>) -> R<()> {
         let flip = |p: Option<bool>| p.map(|b| !b);
         if let S::L(v) = s
             && let Some(S::A(h)) = v.first()
@@ -557,7 +559,7 @@ impl Ctx {
                     };
                     let body = &v[2];
                     // the encoder's shape: (=> rng body) / (and rng body)
-                    let mut ranges: HashMap<String, Iv> = HashMap::new();
+                    let mut ranges: FxHashMap<String, Iv> = FxHashMap::default();
                     let rng = match body {
                         S::L(b)
                             if matches!(b.first(), Some(S::A(x)) if x == "=>" || x == "and")
@@ -627,7 +629,7 @@ impl Ctx {
         }
     }
 
-    fn bnd_quiet(&self, s: &S, sc: &HashMap<String, K>) -> R<K> {
+    fn bnd_quiet(&self, s: &S, sc: &FxHashMap<String, K>) -> R<K> {
         // shape only (cheap for the Bool test)
         match s {
             S::A(a) if a == "true" || a == "false" => Ok(K::Bool),
@@ -684,7 +686,7 @@ impl Em<'_> {
         format!("(_ bv{v} {})", self.w)
     }
 
-    fn em(&self, s: &S, sc: &HashMap<String, K>) -> R<String> {
+    fn em(&self, s: &S, sc: &FxHashMap<String, K>) -> R<String> {
         let w = self.w;
         if let Some(n) = num(s) {
             return Ok(self.lit(&n));
@@ -845,14 +847,14 @@ pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
     let toks = tokenize(script, &mut hints);
     let cmds = parse_all(&toks);
     let mut c = Ctx {
-        consts: HashMap::new(),
-        funs: HashMap::new(),
-        ranges: HashMap::new(),
-        defs: HashMap::new(),
-        facts: HashMap::new(),
-        elem: HashMap::new(),
-        ret: HashMap::new(),
-        memo: RefCell::new(HashMap::new()),
+        consts: FxHashMap::default(),
+        funs: FxHashMap::default(),
+        ranges: FxHashMap::default(),
+        defs: FxHashMap::default(),
+        facts: FxHashMap::default(),
+        elem: FxHashMap::default(),
+        ret: FxHashMap::default(),
+        memo: RefCell::new(FxHashMap::default()),
         maxbits: RefCell::new(8),
     };
     for h in &hints {
@@ -916,7 +918,7 @@ pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
         if let S::L(v) = cmd
             && matches!(v.first(), Some(S::A(h)) if h == "assert")
         {
-            match c.boolean(&v[1], &HashMap::new()) {
+            match c.boolean(&v[1], &FxHashMap::default()) {
                 Ok(()) => keep.push(i),
                 Err(_) => dropped += 1,
             }
@@ -929,7 +931,7 @@ pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
     let em = Em { c: &c, w, fresh: RefCell::new(0) };
     let _ = &em.fresh;
     let mut out = String::new();
-    let keep: std::collections::HashSet<usize> = keep.into_iter().collect();
+    let keep: FxHashSet<usize> = keep.into_iter().collect();
     for (i, cmd) in cmds.iter().enumerate() {
         let S::L(v) = cmd else { continue };
         let Some(S::A(h)) = v.first() else { continue };
@@ -951,7 +953,7 @@ pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
                 }
             }
             "assert" if keep.contains(&i) => {
-                if let Ok(t) = em.em(&v[1], &HashMap::new()) {
+                if let Ok(t) = em.em(&v[1], &FxHashMap::default()) {
                     out.push_str(&format!("(assert {t})\n"))
                 }
             }

@@ -22,9 +22,9 @@ use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
 use solar_parse::{
     ast::{self, Expr, ExprKind, LitKind, StmtKind, yul},
-    interface::Span,
+    interface::{Span, data_structures::map::FxHashMap},
 };
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 type Iv = (BigInt, BigInt);
 
@@ -164,19 +164,19 @@ struct Yc<'a> {
     words: Vec<String>,
     /// Solidity memory structs used as pointers: name, base, byte length
     regions: Vec<(String, u64, u64)>,
-    funcs: Vec<HashMap<String, &'a yul::Function<'a>>>,
+    funcs: Vec<FxHashMap<String, &'a yul::Function<'a>>>,
     scopes: Vec<Vec<String>>,
     leaves: Vec<Vec<(String, Env)>>,
     /// ranges of terms known from Solidity types (binder symbols in quantified specs)
-    extra: HashMap<String, Iv>,
+    extra: FxHashMap<String, Iv>,
     /// xor results and their operands, to cancel x ^ (x ^ y)
-    xors: HashMap<String, (String, String)>,
+    xors: FxHashMap<String, (String, String)>,
     depth: usize,
     /// the free memory pointer read at the start of the block (`mload(0x40)`), if any: memory at
     /// `fmp + k` is free (memory-safe assembly may use it) and modelled at FREE_BASE + k
     fmp: Option<String>,
     /// Solidity memory/calldata pointers (bytes, strings, arrays) read in this block
-    ptrs: HashMap<String, String>,
+    ptrs: FxHashMap<String, String>,
 }
 
 const SCRATCH_END: u64 = 0x80;
@@ -749,7 +749,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     fn y_block(&mut self, cx: &mut Yc<'a>, b: &'a yul::Block<'a>) -> R<()> {
-        let mut fs = HashMap::new();
+        let mut fs = FxHashMap::default();
         for s in b.stmts.iter() {
             if let yul::StmtKind::FunctionDef(f) = &s.kind {
                 fs.insert(f.name.as_str().to_string(), f);
@@ -1928,11 +1928,11 @@ impl<'a> Yc<'a> {
             funcs: vec![],
             scopes: vec![],
             leaves: vec![],
-            extra: HashMap::new(),
-            xors: HashMap::new(),
+            extra: FxHashMap::default(),
+            xors: FxHashMap::default(),
             depth: 0,
             fmp: None,
-            ptrs: HashMap::new(),
+            ptrs: FxHashMap::default(),
         }
     }
 }
