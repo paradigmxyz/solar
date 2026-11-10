@@ -4689,6 +4689,10 @@ dependencies = [
 [[package]]
 name = "solar-smt"
 version = "0.3.0"
+dependencies = [
+ "snapbox",
+ "tempfile",
+]
 
 [[package]]
 name = "solar-tester"

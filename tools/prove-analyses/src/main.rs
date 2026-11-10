@@ -15,6 +15,11 @@
 //! under the full `--rlimit`. Resource counts do not depend on machine load, so a run's verdicts
 //! are reproducible; `--timeout` is only a wall-clock backstop.
 //!
+//! With `--certify`, every `unsat` verdict also gets a proof certificate: cvc5 proves the query
+//! again with a CPC proof, which Ethos checks against it (see `solar_smt::certify`). The
+//! certificate, `<query>.cpc` beside `<query>.ref.smt2`, moves trust from Z3 and Bitwuzla to
+//! Ethos and CPC's rules, and `ethos <query>.cpc` checks it again without a solver.
+//!
 //! A source's `//@ compile-flags:` lines pass on its `--evm-version` and `-Zmir-pipeline` flags,
 //! so MIR text with hand-written `assume` records runs too.
 //!
@@ -31,7 +36,7 @@ use regex::Regex;
 use ruint::aliases::U256;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use solar_smt::sexp;
+use solar_smt::{Certificate, Certifier, sexp};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
@@ -83,6 +88,20 @@ struct Args {
     /// Parallel compiles and solver processes.
     #[arg(long, short)]
     jobs: Option<usize>,
+    /// Certify each `unsat` verdict with a cvc5 proof that Ethos checks, for `--timeout` seconds
+    /// each.
+    #[arg(long)]
+    certify: bool,
+    /// The cvc5 binary for `--certify`: `SOLAR_PROVE_ANALYSES_CVC5`, or `cvc5` on `PATH`.
+    #[arg(long)]
+    cvc5: Option<PathBuf>,
+    /// The Ethos binary for `--certify`: `SOLAR_PROVE_ANALYSES_ETHOS`, or `ethos` on `PATH`.
+    #[arg(long)]
+    ethos: Option<PathBuf>,
+    /// cvc5's `proofs/eo/cpc/Cpc.eo`, the rules Ethos checks proofs with, for `--certify`:
+    /// `SOLAR_PROVE_ANALYSES_CPC_SIGNATURE`.
+    #[arg(long)]
+    cpc_signature: Option<PathBuf>,
     /// Keep queries and write `results.jsonl` here.
     #[arg(long)]
     out: Option<PathBuf>,
@@ -126,7 +145,7 @@ fn main() -> ExitCode {
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
-            if !name.ends_with(".smt2") || name.ends_with(".abstract.smt2") {
+            if !is_query(&name) {
                 continue;
             }
             let function = name.split('-').take(2).collect::<Vec<_>>().join("-");
@@ -216,7 +235,7 @@ fn compile(solar: &Path, source: &Path, level: &str, out: &Path) -> usize {
         .filter(|entry| {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            name.ends_with(".smt2") && !name.ends_with(".abstract.smt2")
+            is_query(&name)
         })
         .count()
 }
@@ -259,6 +278,7 @@ fn run(mut command: Command, input: Option<String>, timeout: Duration) -> Option
 struct Solver {
     z3: PathBuf,
     bitwuzla: Option<PathBuf>,
+    certifier: Option<Certifier>,
     batch_limit: u64,
     limit: u64,
     timeout: Duration,
@@ -272,9 +292,24 @@ impl Solver {
             .arg("--version")
             .output()
             .map_err(|e| format!("cannot run {}: {e}; pass --z3", z3.display()))?;
+        let certifier = if args.certify {
+            let binary = |given: &Option<PathBuf>, var: &str, default: &str| {
+                given.clone().unwrap_or_else(|| {
+                    std::env::var_os(var).map_or_else(|| default.into(), PathBuf::from)
+                })
+            };
+            Some(Certifier::new(
+                binary(&args.cvc5, "SOLAR_PROVE_ANALYSES_CVC5", "cvc5"),
+                binary(&args.ethos, "SOLAR_PROVE_ANALYSES_ETHOS", "ethos"),
+                binary(&args.cpc_signature, "SOLAR_PROVE_ANALYSES_CPC_SIGNATURE", ""),
+            )?)
+        } else {
+            None
+        };
         Ok(Self {
             z3,
             bitwuzla: args.bitwuzla.clone(),
+            certifier,
             batch_limit: args.rlimit_batch,
             limit: args.rlimit,
             timeout: Duration::from_secs(args.timeout),
@@ -289,14 +324,38 @@ impl Solver {
             .iter()
             .zip(verdicts)
             .map(|(query, verdict)| {
-                if verdict == "unsat" {
+                let mut record = if verdict == "unsat" {
                     let tier = if abstract_of(query).exists() { "abstract" } else { "exact" };
                     record(query, source, "unsat", &format!("batch-{tier}"))
                 } else {
                     self.alone(query, source)
+                };
+                if let Some(certifier) = &self.certifier
+                    && record.get("result").and_then(Value::as_str) == Some("unsat")
+                {
+                    let (certificate, tier) = self.certify(certifier, query);
+                    record.insert("certificate".into(), json!(certificate.describe()));
+                    record.insert("certified_tier".into(), json!(tier));
                 }
+                record
             })
             .collect()
+    }
+
+    /// A certificate for a proved query: of the exact query, or else of its abstract tier, which
+    /// implies it.
+    fn certify(&self, certifier: &Certifier, query: &Path) -> (Certificate, &'static str) {
+        let text = fs::read_to_string(query).unwrap_or_default();
+        let exact = certifier.certify(&text, &query.with_extension(""), self.timeout);
+        let tier = abstract_of(query);
+        if exact == Certificate::Checked || !tier.exists() {
+            return (exact, "exact");
+        }
+        let text = fs::read_to_string(&tier).unwrap_or_default();
+        match certifier.certify(&text, &tier.with_extension(""), self.timeout) {
+            Certificate::Checked => (Certificate::Checked, "abstract"),
+            _ => (exact, "exact"),
+        }
     }
 
     fn batch(&self, queries: &[&Path]) -> Vec<String> {
@@ -420,6 +479,12 @@ fn record(query: &Path, source: &str, verdict: &str, tier: &str) -> Record {
     record
 }
 
+/// Whether a file in a compile's output directory is a query, rather than a query's abstract
+/// tier or a certificate's reference script.
+fn is_query(name: &str) -> bool {
+    name.ends_with(".smt2") && !name.ends_with(".abstract.smt2") && !name.ends_with(".ref.smt2")
+}
+
 fn abstract_of(query: &Path) -> PathBuf {
     let name = query.file_name().unwrap().to_string_lossy().replace(".smt2", ".abstract.smt2");
     query.with_file_name(name)
@@ -458,7 +523,12 @@ fn summarize(records: &[Record]) {
     let mut table: BTreeMap<(String, String), usize> = BTreeMap::new();
     let mut tiers: BTreeMap<String, usize> = BTreeMap::new();
     let mut axioms: BTreeMap<String, usize> = BTreeMap::new();
+    let mut certificates: BTreeMap<String, usize> = BTreeMap::new();
     for record in records {
+        let certificate = field(record, "certificate");
+        if let Some(kind) = certificate.split_whitespace().next() {
+            *certificates.entry(kind.to_string()).or_default() += 1;
+        }
         let claim = field(record, "claim");
         let analysis = claim.split_whitespace().next().unwrap_or("?").to_string();
         let result = field(record, "result");
@@ -477,6 +547,9 @@ fn summarize(records: &[Record]) {
         map.iter().map(|(k, n)| format!("{k}{sep}{n}")).collect::<Vec<_>>().join(", ")
     };
     println!("proved by tier: {}", join(&tiers, " "));
+    if !certificates.is_empty() {
+        println!("certificates: {}", join(&certificates, " "));
+    }
     let trusted: Vec<_> = axioms.iter().map(|(a, n)| format!("{a} in {n} queries")).collect();
     println!("trusted: trip-count bounds (gas), {}", trusted.join(", "));
     for record in records.iter().filter(|record| field(record, "result") == "sat") {

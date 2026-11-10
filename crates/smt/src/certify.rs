@@ -1,0 +1,410 @@
+//! Proof certificates for the provers' `unsat` verdicts: cvc5 writes a proof in its CPC format,
+//! and Ethos, cvc5's standalone proof checker, checks it against the query. A checked
+//! certificate moves trust from the solver that answered to Ethos and CPC's rules, and the
+//! certificate files can be checked again without any solver.
+//!
+//! [`Certifier::certify`] works in three steps.
+//!
+//! 1. It writes the query as a reference script: the query's logic, declarations and assertions,
+//!    with every `define-fun` inlined at its uses, since Ethos reads a reference's definitions
+//!    with parameters as constants and rejects their applications. Responses such as
+//!    `get-value` go, since a proof of `unsat` has no model.
+//! 2. cvc5 proves the reference script and prints the proof.
+//! 3. Ethos checks the proof, which names the query with `(reference ...)`, which makes it reject any assumption that is
+//!    not an assertion of the reference script, so a proof of another query, or one that assumes
+//!    `false`, fails. Ethos reports an empty proof as correct, so the proof's last step must
+//!    also conclude `false`.
+//!
+//! What a certificate still trusts: Ethos, the CPC signature it includes (the path of `Cpc.eo`
+//! in cvc5's `proofs/eo/cpc`), and the reference script standing for the
+//! query, that is, the inlining in [`reference_script`].
+
+use crate::{Sexp, sexp};
+use std::{
+    collections::HashMap,
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
+};
+
+/// cvc5 and Ethos, ready to certify verdicts.
+#[derive(Clone, Debug)]
+pub struct Certifier {
+    /// The cvc5 binary.
+    pub cvc5: PathBuf,
+    /// The Ethos binary.
+    pub ethos: PathBuf,
+    /// The CPC signature's top file, `Cpc.eo`.
+    pub signature: PathBuf,
+}
+
+/// What [`Certifier::certify`] found.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Certificate {
+    /// Ethos checked the proof against the query.
+    Checked,
+    /// cvc5 gave no proof: its answer, such as `sat`, `unknown` or `timeout`.
+    NoProof(&'static str),
+    /// The query or the proof is not one Ethos accepts, and why.
+    Rejected(String),
+}
+
+impl Certificate {
+    /// The certificate's name in reports, with its reason when it has one.
+    pub fn describe(&self) -> String {
+        match self {
+            Self::Checked => "checked".into(),
+            Self::NoProof(answer) => format!("no-proof {answer}"),
+            Self::Rejected(reason) => format!("rejected {reason}"),
+        }
+    }
+}
+
+impl Certifier {
+    /// The certifier with these binaries and signature; an error says which one is missing.
+    pub fn new(cvc5: PathBuf, ethos: PathBuf, signature: PathBuf) -> Result<Self, String> {
+        for (binary, flag) in [(&cvc5, "--version"), (&ethos, "--help")] {
+            let runs = Command::new(binary)
+                .arg(flag)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .is_ok();
+            if !runs {
+                return Err(format!("cannot run {}", binary.display()));
+            }
+        }
+        if !signature.is_file() {
+            return Err(format!("no CPC signature at {}", signature.display()));
+        }
+        Ok(Self { cvc5, ethos, signature })
+    }
+
+    /// Proves `query` with cvc5 and checks the proof with Ethos, for `timeout` each. Writes the
+    /// reference script to `stem.ref.smt2` and the proof to `stem.cpc`, which names the reference
+    /// script, so `ethos stem.cpc` checks it again.
+    pub fn certify(&self, query: &str, stem: &Path, timeout: Duration) -> Certificate {
+        let reference = match reference_script(query) {
+            Ok(reference) => reference,
+            Err(reason) => return Certificate::Rejected(reason),
+        };
+        let with_suffix = |suffix: &str| {
+            let mut name = stem.as_os_str().to_owned();
+            name.push(suffix);
+            PathBuf::from(name)
+        };
+        let (reference_path, proof_path) = (with_suffix(".ref.smt2"), with_suffix(".cpc"));
+        if let Err(error) = fs::write(&reference_path, &reference) {
+            return Certificate::Rejected(format!(
+                "cannot write {}: {error}",
+                reference_path.display()
+            ));
+        }
+
+        let mut command = Command::new(&self.cvc5);
+        command
+            .args(["--lang=smt2", "--dump-proofs", "--proof-format-mode=cpc"])
+            .arg(format!("--tlimit={}", timeout.as_millis()))
+            .arg(&reference_path);
+        let Some(output) = run(command, timeout) else {
+            return Certificate::NoProof("timeout");
+        };
+        let proof = match proof_of(&output) {
+            Ok(proof) => proof,
+            Err(certificate) => return certificate,
+        };
+        let text = format!(
+            "(include \"{}\")\n(reference \"{}\")\n{}",
+            self.signature.display(),
+            std::path::absolute(&reference_path)
+                .unwrap_or_else(|_| reference_path.clone())
+                .display(),
+            proof.iter().map(|command| format!("{command}\n")).collect::<String>()
+        );
+        if let Err(error) = fs::write(&proof_path, text) {
+            return Certificate::Rejected(format!(
+                "cannot write {}: {error}",
+                proof_path.display()
+            ));
+        }
+
+        let mut command = Command::new(&self.ethos);
+        command.arg(&proof_path);
+        let Some(output) = run(command, timeout) else {
+            return Certificate::Rejected("ethos timed out".into());
+        };
+        match output.lines().map(str::trim).rfind(|line| !line.is_empty()) {
+            Some("correct") => Certificate::Checked,
+            Some(_) => {
+                Certificate::Rejected(format!("ethos: {}", output.trim().replace('\n', " ")))
+            }
+            None => Certificate::Rejected("ethos printed nothing".into()),
+        }
+    }
+}
+
+/// The proof commands in cvc5's output, without the declarations the reference script makes, or
+/// the certificate when there is no proof to check.
+fn proof_of(output: &str) -> Result<Vec<Sexp>, Certificate> {
+    let mut responses = sexp::parse(output);
+    let verdict = loop {
+        match responses.next() {
+            Some(Ok(Sexp::Atom(atom))) => match atom.as_str() {
+                "unsat" => break "unsat",
+                "sat" => break "sat",
+                "unknown" => break "unknown",
+                _ => {}
+            },
+            Some(Ok(_)) => {}
+            Some(Err(error)) => return Err(Certificate::Rejected(format!("cvc5 output: {error}"))),
+            // cvc5 prints no verdict when it stops at its time limit.
+            None => return Err(Certificate::NoProof("unknown")),
+        }
+    };
+    if verdict != "unsat" {
+        return Err(Certificate::NoProof(verdict));
+    }
+    let Some(Ok(Sexp::List(commands))) = responses.next() else {
+        // cvc5 can reach its time limit while it prints the proof.
+        return Err(Certificate::Rejected("cvc5's proof is incomplete".into()));
+    };
+    let proof: Vec<Sexp> = commands
+        .into_iter()
+        .filter(|command| !matches!(command.head(), Some("declare-const" | "declare-fun")))
+        .collect();
+    // Ethos accepts a proof that proves nothing, so the last step must refute the assertions.
+    let last = proof.iter().rev().find(|command| command.head() == Some("step"));
+    let concludes_false = last
+        .and_then(Sexp::as_list)
+        .is_some_and(|step| step.get(2).and_then(Sexp::as_atom) == Some("false"));
+    if !concludes_false {
+        return Err(Certificate::Rejected("the proof's last step does not conclude false".into()));
+    }
+    Ok(proof)
+}
+
+/// Runs `command` and returns what it printed, stdout then stderr, or `None` when it does not
+/// start or runs past `timeout`, which a solver's own time limit does not always keep.
+fn run(mut command: Command, timeout: Duration) -> Option<String> {
+    command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child = command.spawn().ok()?;
+    let read = |pipe: Option<Box<dyn Read + Send>>| {
+        thread::spawn(move || {
+            let mut output = String::new();
+            if let Some(mut pipe) = pipe {
+                let _ = pipe.read_to_string(&mut output);
+            }
+            output
+        })
+    };
+    let stdout = read(child.stdout.take().map(|pipe| Box::new(pipe) as _));
+    let stderr = read(child.stderr.take().map(|pipe| Box::new(pipe) as _));
+    let deadline = Instant::now() + timeout + Duration::from_secs(2);
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(5)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    }
+    let mut output = stdout.join().unwrap_or_default();
+    output.push_str(&stderr.join().unwrap_or_default());
+    Some(output)
+}
+
+/// `query` as a script Ethos can take as a reference: its logic, declarations, assertions and
+/// `check-sat`, with every `define-fun` inlined at its uses.
+pub fn reference_script(query: &str) -> Result<String, String> {
+    let mut definitions: HashMap<String, (Vec<String>, Sexp)> = HashMap::new();
+    let mut script = String::new();
+    for command in sexp::parse(query) {
+        let command = command.map_err(|error| format!("query: {error}"))?;
+        match command.head() {
+            Some("set-logic" | "declare-const" | "declare-fun" | "declare-sort" | "check-sat") => {
+                script.push_str(&format!("{command}\n"));
+            }
+            Some("assert") => {
+                let items = command.as_list().unwrap_or_default();
+                let [_, term] = items else { return Err(format!("malformed {command}")) };
+                let term = inline(term, &definitions, &HashMap::new());
+                script.push_str(&format!("(assert {term})\n"));
+            }
+            Some("define-fun") => {
+                let items = command.as_list().unwrap_or_default();
+                let [_, Sexp::Atom(name), Sexp::List(parameters), _, body] = items else {
+                    return Err(format!("malformed {command}"));
+                };
+                let parameters = parameters
+                    .iter()
+                    .map(|parameter| parameter.head().map(str::to_owned))
+                    .collect::<Option<Vec<_>>>()
+                    .ok_or_else(|| format!("malformed parameters in {command}"))?;
+                // Earlier definitions are inlined now, so each body is closed over the
+                // declarations and its own parameters.
+                let body = inline(body, &definitions, &HashMap::new());
+                definitions.insert(name.clone(), (parameters, body));
+            }
+            // Responses and options: a proof of `unsat` has no model to print, and Z3's options
+            // mean nothing to cvc5.
+            _ => {}
+        }
+    }
+    Ok(script)
+}
+
+/// `term` with each application of a definition replaced by its body, and each variable
+/// `substitution` names replaced by its value. Binders shadow both.
+fn inline(
+    term: &Sexp,
+    definitions: &HashMap<String, (Vec<String>, Sexp)>,
+    substitution: &HashMap<String, Sexp>,
+) -> Sexp {
+    match term {
+        Sexp::Atom(atom) => {
+            if let Some(value) = substitution.get(atom) {
+                value.clone()
+            } else if let Some((parameters, body)) = definitions.get(atom)
+                && parameters.is_empty()
+            {
+                body.clone()
+            } else {
+                term.clone()
+            }
+        }
+        Sexp::List(items) => match items.as_slice() {
+            [Sexp::Atom(binder), Sexp::List(bindings), body]
+                if matches!(binder.as_str(), "let" | "forall" | "exists" | "lambda") =>
+            {
+                let mut inner = substitution.clone();
+                let mut definitions = definitions.clone();
+                let mut bound = Vec::with_capacity(bindings.len());
+                for binding in bindings {
+                    let Some([Sexp::Atom(name), value]) = binding.as_list() else {
+                        bound.push(inline(binding, &definitions, substitution));
+                        continue;
+                    };
+                    // A `let` value is in the outer scope; a quantifier's is a sort.
+                    let value = if binder == "let" {
+                        inline(value, &definitions, substitution)
+                    } else {
+                        value.clone()
+                    };
+                    inner.remove(name);
+                    definitions.remove(name);
+                    bound.push(Sexp::List(vec![Sexp::Atom(name.clone()), value]));
+                }
+                let body = inline(body, &definitions, &inner);
+                Sexp::List(vec![Sexp::Atom(binder.clone()), Sexp::List(bound), body])
+            }
+            [Sexp::Atom(head), arguments @ ..]
+                if let Some((parameters, body)) = definitions.get(head)
+                    && parameters.len() == arguments.len()
+                    && !parameters.is_empty()
+                    && !substitution.contains_key(head) =>
+            {
+                let values = parameters
+                    .iter()
+                    .cloned()
+                    .zip(arguments.iter().map(|a| inline(a, definitions, substitution)))
+                    .collect();
+                inline(body, &HashMap::new(), &values)
+            }
+            _ => Sexp::List(
+                items.iter().map(|item| inline(item, definitions, substitution)).collect(),
+            ),
+        },
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::disallowed_methods)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inlines_definitions() {
+        let query = "(set-logic QF_BV)
+(set-option :rlimit 5)
+(declare-const x (_ BitVec 8))
+(define-fun double ((v (_ BitVec 8))) (_ BitVec 8) (bvadd v v))
+(define-fun four () (_ BitVec 8) (double #x02))
+(assert (= (double x) four))
+(assert (let ((v x)) (= (double v) v)))
+(check-sat)
+(get-value (x))
+";
+        snapbox::assert_data_eq!(
+            reference_script(query).unwrap(),
+            snapbox::str![[r#"
+(set-logic QF_BV)
+(declare-const x (_ BitVec 8))
+(assert (= (bvadd x x) (bvadd #x02 #x02)))
+(assert (let ((v x)) (= (bvadd v v) v)))
+(check-sat)
+
+"#]]
+        );
+    }
+
+    /// Needs cvc5, Ethos and the CPC signature, which the prover's environment variables name
+    /// (`SOLAR_PROVE_ANALYSES_CVC5`, `SOLAR_PROVE_ANALYSES_ETHOS`,
+    /// `SOLAR_PROVE_ANALYSES_CPC_SIGNATURE`); skips without them.
+    #[test]
+    fn certifies() {
+        let var = |name: &str, default: &str| {
+            std::env::var_os(name).map_or_else(|| PathBuf::from(default), PathBuf::from)
+        };
+        let certifier = Certifier::new(
+            var("SOLAR_PROVE_ANALYSES_CVC5", "cvc5"),
+            var("SOLAR_PROVE_ANALYSES_ETHOS", "ethos"),
+            var("SOLAR_PROVE_ANALYSES_CPC_SIGNATURE", ""),
+        );
+        let certifier = match certifier {
+            Ok(certifier) => certifier,
+            Err(reason) => {
+                eprintln!("skipping: {reason}");
+                return;
+            }
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let timeout = Duration::from_secs(60);
+        let unsat = "(set-logic QF_BV)
+(declare-const x (_ BitVec 8))
+(define-fun double ((v (_ BitVec 8))) (_ BitVec 8) (bvadd v v))
+(assert (= (double x) #x01))
+(check-sat)
+(get-value (x))
+";
+        assert_eq!(
+            certifier.certify(unsat, &dir.path().join("unsat"), timeout),
+            Certificate::Checked
+        );
+        let sat =
+            "(set-logic QF_BV)\n(declare-const x (_ BitVec 8))\n(assert (= x #x01))\n(check-sat)\n";
+        assert_eq!(
+            certifier.certify(sat, &dir.path().join("sat"), timeout),
+            Certificate::NoProof("sat")
+        );
+
+        // A proof checked against another query fails: its assumption is not in the reference.
+        let stem = dir.path().join("unsat");
+        let other = dir.path().join("other.smt2");
+        fs::write(&other, "(set-logic QF_BV)\n(declare-const x (_ BitVec 8))\n(assert (= (bvadd x x) #x02))\n(check-sat)\n").unwrap();
+        let proof = fs::read_to_string(stem.with_extension("cpc")).unwrap();
+        let reference = std::path::absolute(stem.with_extension("ref.smt2")).unwrap();
+        let swapped = proof.replace(&reference.display().to_string(), &other.display().to_string());
+        assert_ne!(swapped, proof);
+        let tampered = dir.path().join("tampered.cpc");
+        fs::write(&tampered, swapped).unwrap();
+        let output = Command::new(&certifier.ethos).arg(&tampered).output().unwrap();
+        let output = String::from_utf8_lossy(&output.stdout);
+        assert_ne!(output.lines().last().map(str::trim), Some("correct"), "{output}");
+    }
+}
