@@ -1,0 +1,18 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A false forwarding fact: the store at a computed offset into the same
+// allocation overwrites the word the read reads when the offset is below 32.
+// counterexample: opaque
+@module MemorySplitAlias
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = heap_floor
+    v1 = calldataload 0
+    mstore v0, 7
+    v2 = add v0, v1
+    mstore v2, 9
+    v3 = mload v0
+    assume eq cse, v3, 7
+    mstore 0, v3
+    returndata 0, 32
+}

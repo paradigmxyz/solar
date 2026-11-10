@@ -75,9 +75,15 @@ fn corpus() {
         }
     }
     for entry in std::fs::read_dir(cases.join("refuted")).unwrap() {
-        let name = format!("refuted/{}", entry.unwrap().file_name().to_string_lossy());
-        let refuted =
-            verdicts.get(&name).is_some_and(|facts| facts.iter().any(|f| f.starts_with("sat:")));
+        let entry = entry.unwrap();
+        let name = format!("refuted/{}", entry.file_name().to_string_lossy());
+        // A counterexample through memory reads the caller's memory, which the queries leave
+        // free, so such a case accepts one the runner marks opaque.
+        let source = std::fs::read_to_string(entry.path()).unwrap();
+        let opaque = source.contains("// counterexample: opaque");
+        let refuted = verdicts.get(&name).is_some_and(|facts| {
+            facts.iter().any(|f| f.starts_with("sat:") || (opaque && f.starts_with("sat-opaque:")))
+        });
         if !refuted {
             failures.push(format!("{name}: no counterexample"));
         }

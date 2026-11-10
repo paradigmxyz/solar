@@ -39,6 +39,22 @@
 //! entry, are opaque. So a read CSE or load PRE forwarded from an earlier store is proven when the
 //! store dominates it with no unknown write between.
 //!
+//! Memory is split after Grossman et al., "Practical Verification of Smart Contracts using Memory
+//! Splitting" (OOPSLA 2024), so that a load of a whole word is one term rather than 32 byte
+//! selects, and a store forwards to it without array reasoning. An address is a root value plus
+//! a constant offset, through additions and subtractions of constants, or a constant. A word some
+//! load reads, at an offset no other load or store from the same root overlaps only partly
+//! ([`split_words`]), is tracked as its own 256-bit symbol from the first load or store that
+//! reaches it. The split takes nothing on trust. The byte array stays exact, since every store
+//! still writes it, and a tracked word is a cache of the 32 bytes at its address: a store makes it
+//! the stored value when it is that word, leaves it when it misses it modulo 2^256, and otherwise
+//! makes it the word the new byte array holds (`word_write`, `byte_write`). Whether words of two
+//! roots overlap is the solver's to decide; an unattributed or byte write thus reaches every word
+//! it may touch, and the byte and word views never diverge. Any other memory write replaces the
+//! byte array and every tracked word. A deferred `alloc` writes nothing but the free-memory
+//! pointer, whichever way the backend places it; its result lies above the reserved words and
+//! apart from every other deferred allocation, an axiom of the backend's placement.
+//!
 //! Each query comes in up to two tiers. The exact tier is written as `NAME.smt2`. When the
 //! query multiplies, divides or takes a remainder by a value that is not a constant, the
 //! abstract tier `NAME.abstract.smt2` replaces those operations by uninterpreted functions
@@ -64,7 +80,7 @@ use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     index::IndexVec,
-    map::{FxHashMap, FxIndexSet},
+    map::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet},
 };
 use std::{fmt::Write, io::Write as _, path::Path};
 
@@ -151,6 +167,8 @@ struct Prover<'a> {
     cfg: CfgInfo,
     definitions: IndexVec<InstId, Option<BlockId>>,
     names: FxHashMap<InstId, u32>,
+    /// The memory words a query may track as symbols beside the byte array.
+    split: FxHashSet<(Option<ValueId>, U256)>,
 }
 
 impl<'a> Prover<'a> {
@@ -161,7 +179,14 @@ impl<'a> Prover<'a> {
             .filter(|&id| func.inst(id).result_ty.is_some())
             .zip(0..)
             .collect();
-        Self { func, facts, cfg: CfgInfo::new(func), definitions: func.inst_block_table(), names }
+        Self {
+            func,
+            facts,
+            cfg: CfgInfo::new(func),
+            definitions: func.inst_block_table(),
+            names,
+            split: split_words(func),
+        }
     }
 
     /// A value's name in a query's file name: its MIR text name, or its constant.
@@ -184,7 +209,7 @@ impl<'a> Prover<'a> {
     }
 
     fn query(&self, goal: &Goal) -> Encoded {
-        let mut query = Query::new(self.func, &self.names, &self.definitions);
+        let mut query = Query::new(self.func, &self.names, &self.definitions, &self.split);
         let fact = &self.facts[goal.fact];
         self.encode_context(&mut query, fact.block, None, Some(goal.fact), 0);
         let claim = self.claim(&mut query, fact, None);
@@ -325,6 +350,10 @@ impl<'a> Prover<'a> {
             .collect();
         // Memory, storage and transient storage at the join are each one of the predecessors'.
         let merged: [String; 3] = std::array::from_fn(|state| query.new_state(state));
+        // So is every word tracked at the join; the words a context splits off end with it.
+        let keys: Vec<_> = query.words.keys().cloned().collect();
+        let merged_words: Vec<_> =
+            keys.into_iter().map(|word| (word, query.fresh_word("word"))).collect();
         let mut paths = Vec::new();
         for (index, &predecessor) in self.func.blocks[join].predecessors.iter().enumerate() {
             if !self.cfg.is_reachable(predecessor) {
@@ -342,10 +371,16 @@ impl<'a> Prover<'a> {
                 })
                 .collect();
             let ends = query.states.clone();
+            let word_ends = query.words.clone();
             query.leave(saved);
             for (state, end) in ends.into_iter().enumerate() {
                 query.depend(&merged[state], [end.clone()]);
                 query.assert(format!("(= {} {end})", merged[state]));
+            }
+            for (word, merged) in &merged_words {
+                let end = word_ends[word].value.clone();
+                query.depend(merged, [end.clone()]);
+                query.assert(format!("(= {merged} {end})"));
             }
             for (phi, term) in incoming {
                 let phi = query.declare(phi);
@@ -364,6 +399,10 @@ impl<'a> Prover<'a> {
         } else {
             query.assert(format!("(or false {})", paths.join(" ")));
             query.states = merged;
+            for (word, merged) in merged_words {
+                query.words[&word].value = merged;
+            }
+            query.pristine = false;
         }
     }
 
@@ -471,8 +510,22 @@ struct Query<'a> {
     states: [String; 3],
     /// Every array the query declares, with whether it is byte-addressed memory.
     arrays: FxIndexSet<(String, bool)>,
+    /// Memory words tracked as symbols beside the byte array, by root and offset: see
+    /// [`split_words`].
+    words: FxIndexMap<Word, Tracked>,
+    /// Whether the byte array is one nothing has read or written since it was declared, so a word
+    /// split off it starts out unconstrained too.
+    pristine: bool,
+    /// The words a query may split off, from [`split_words`].
+    split: &'a FxHashSet<(Option<ValueId>, U256)>,
+    /// Numbers the fresh symbols for words.
+    counter: usize,
+    /// The memory word functions the query uses: see [`MEMORY_FUNCTIONS`].
+    memory_functions: FxIndexSet<usize>,
+    /// The deferred allocations the query defines, with their symbols and sizes.
+    allocations: Vec<(InstId, String, U256)>,
     /// The states each nested context entered from, to restore when it ends.
-    saved_states: Vec<[String; 3]>,
+    saved_states: Vec<Saved>,
     /// Prepended to the names of values defined outside `shared`, for an earlier pass.
     prefix: String,
     shared: Option<DenseBitSet<BlockId>>,
@@ -483,6 +536,7 @@ impl<'a> Query<'a> {
         func: &'a Function,
         names: &'a FxHashMap<InstId, u32>,
         definitions: &'a IndexVec<InstId, Option<BlockId>>,
+        split: &'a FxHashSet<(Option<ValueId>, U256)>,
     ) -> Self {
         Self {
             func,
@@ -502,6 +556,12 @@ impl<'a> Query<'a> {
             arrays: [("mem0".into(), true), ("sto0".into(), false), ("tra0".into(), false)]
                 .into_iter()
                 .collect(),
+            words: FxIndexMap::default(),
+            pristine: true,
+            split,
+            counter: 0,
+            memory_functions: FxIndexSet::default(),
+            allocations: Vec::new(),
             saved_states: Vec::new(),
         }
         // Memory on entry is the caller's, which the query does not follow.
@@ -524,6 +584,14 @@ impl<'a> Query<'a> {
         let name = self.new_state(state);
         self.opaque.insert(name.clone());
         self.states[state] = name;
+        if state == 0 {
+            self.pristine = true;
+            for index in 0..self.words.len() {
+                let fresh = self.fresh_word("word");
+                self.opaque.insert(fresh.clone());
+                self.words[index].value = fresh;
+            }
+        }
     }
 
     /// Declares a new array for `state`: memory, storage or transient storage.
@@ -561,26 +629,26 @@ impl<'a> Query<'a> {
                     PtrLocation::Transient => 2,
                     _ => return,
                 };
+                if state == 0 {
+                    let value = self.term(value);
+                    self.store_memory(ptr, value, 32);
+                    return;
+                }
                 let (ptr, value) = (self.term(ptr), self.term(value));
                 let reads = vec![ptr.clone(), value.clone()];
-                if state == 0 {
-                    self.update_state(0, |memory| store_word(memory, &ptr, &value), reads);
-                } else {
-                    self.update_state(
-                        state,
-                        |array| format!("(store {array} {ptr} {value})"),
-                        reads,
-                    );
-                }
+                self.update_state(state, |array| format!("(store {array} {ptr} {value})"), reads);
             }
             InstKind::Store8(ptr, value) => {
-                let (ptr, value) = (self.term(ptr), self.term(value));
-                let reads = vec![ptr.clone(), value.clone()];
-                self.update_state(
-                    0,
-                    |memory| format!("(store {memory} {ptr} ((_ extract 7 0) {value}))"),
-                    reads,
-                );
+                let value = self.term(value);
+                self.store_memory(ptr, value, 1);
+            }
+            // A deferred allocation is either placed statically, which writes nothing, or bumps
+            // the free-memory pointer: either way it writes nothing but that word.
+            InstKind::Alloc { .. } if self.func.inst(inst).metadata.deferred_alloc() => {
+                let slot = U256::from(EvmMemoryLayout::FMP_SLOT);
+                let bumped = self.fresh_word("fmp");
+                self.opaque.insert(bumped.clone());
+                self.store_bytes(&word(slot), &(None, slot), 32, &bumped);
             }
             _ => match kind.effect_kind() {
                 EffectKind::MemoryWrite => self.havoc_state(0),
@@ -594,6 +662,102 @@ impl<'a> Query<'a> {
         }
     }
 
+    /// A fresh symbol for a memory word, numbered across the query.
+    fn fresh_word(&mut self, kind: &str) -> String {
+        self.counter += 1;
+        let name = format!("{}{kind}{}", self.prefix, self.counter);
+        self.fresh(&name)
+    }
+
+    /// The address term of a memory access at `ptr`, the word it names, and whether the query
+    /// tracks that word: whether it is one of [`split_words`].
+    fn memory_word(&mut self, ptr: ValueId) -> (String, Word, bool) {
+        let (root, offset) = memory_address(self.func, ptr);
+        let split = self.split.contains(&(root, offset));
+        let key = (root.map(|root| self.term(root)), offset);
+        (self.term(ptr), key, split)
+    }
+
+    /// The word a memory load at `ptr` reads, with the symbols it reads.
+    fn load_memory(&mut self, ptr: ValueId) -> (String, Vec<String>) {
+        let (address, key, tracked) = self.memory_word(ptr);
+        if let Some(word) = self.words.get(&key) {
+            return (word.value.clone(), vec![word.value.clone()]);
+        }
+        if !tracked {
+            return self.read_bytes(&address);
+        }
+        // Split off, the word starts as the bytes it replaces.
+        let value = self.fresh_word("word");
+        if self.pristine {
+            self.opaque.insert(value.clone());
+        } else {
+            let (read, reads) = self.read_bytes(&address);
+            self.depend(&value, reads);
+            self.assert(format!("(= {value} {read})"));
+        }
+        self.words.insert(key, Tracked { address, value: value.clone() });
+        (value.clone(), vec![value])
+    }
+
+    /// The 32 bytes of the byte array at `address`.
+    fn read_bytes(&mut self, address: &str) -> (String, Vec<String>) {
+        let memory = self.states[0].clone();
+        self.pristine = false;
+        (load_word(&memory, address), vec![address.to_owned(), memory])
+    }
+
+    /// Writes the low `size` bytes of `value`, 32 or 1, to memory at `ptr`.
+    fn store_memory(&mut self, ptr: ValueId, value: String, size: u64) {
+        let (address, key, tracked) = self.memory_word(ptr);
+        self.store_bytes(&address, &key, size, &value);
+        if size == 32 && tracked {
+            self.words.entry(key).or_insert(Tracked { address, value });
+        }
+    }
+
+    /// Writes the low `size` bytes of `value` to the byte array at `address`, which `key`
+    /// names, and updates every tracked word the write may overlap: the value itself for the word
+    /// it is, the old word for one it misses, and otherwise the word the new byte array holds.
+    fn store_bytes(&mut self, address: &str, key: &Word, size: u64, value: &str) {
+        let reads = vec![address.to_owned(), value.to_owned()];
+        if size == 32 {
+            self.update_state(0, |memory| store_word(memory, address, value), reads);
+        } else {
+            self.update_state(
+                0,
+                |memory| format!("(store {memory} {address} ((_ extract 7 0) {value}))"),
+                reads,
+            );
+        }
+        self.pristine = false;
+        let memory = self.states[0].clone();
+        for index in 0..self.words.len() {
+            let (other, tracked) = self.words.get_index(index).unwrap();
+            let updated = match overlap(key, size, other) {
+                Overlap::Same => value.to_owned(),
+                Overlap::Disjoint => continue,
+                Overlap::Unknown => {
+                    let Tracked { address: word_address, value: current } = tracked.clone();
+                    let symbol = self.fresh_word("word");
+                    let function = if size == 32 { WRITE_WORD } else { WRITE_BYTE };
+                    self.memory_functions.insert(function);
+                    let name = MEMORY_FUNCTIONS[function].0;
+                    let update = if size == 32 {
+                        format!("({name} {current} {word_address} {address} {value} {memory})")
+                    } else {
+                        format!("({name} {current} {word_address} {address} {memory})")
+                    };
+                    let reads = [current, word_address, address.to_owned(), value.to_owned()];
+                    self.depend(&symbol, reads.into_iter().chain([memory.clone()]));
+                    self.assert(format!("(= {symbol} {update})"));
+                    symbol
+                }
+            };
+            self.words[index].value = updated;
+        }
+    }
+
     /// Names values defined outside `shared` with `prefix` until [`Self::leave`].
     fn enter(
         &mut self,
@@ -601,7 +765,11 @@ impl<'a> Query<'a> {
         shared: DenseBitSet<BlockId>,
     ) -> (String, Option<DenseBitSet<BlockId>>) {
         let prefix = format!("{}{prefix}", self.prefix);
-        self.saved_states.push(self.states.clone());
+        self.saved_states.push(Saved {
+            states: self.states.clone(),
+            words: self.words.clone(),
+            pristine: self.pristine,
+        });
         (std::mem::replace(&mut self.prefix, prefix), self.shared.replace(shared))
     }
 
@@ -612,8 +780,10 @@ impl<'a> Query<'a> {
     fn leave(&mut self, (prefix, shared): (String, Option<DenseBitSet<BlockId>>)) {
         self.prefix = prefix;
         self.shared = shared;
-        if let Some(states) = self.saved_states.pop() {
-            self.states = states;
+        if let Some(saved) = self.saved_states.pop() {
+            self.states = saved.states;
+            self.words = saved.words;
+            self.pristine = saved.pristine;
         }
     }
 
@@ -698,6 +868,29 @@ impl<'a> Query<'a> {
             self.axioms.insert("heap-floor");
             return;
         }
+        // A deferred allocation lies above the reserved words like the heap, and apart from every
+        // other: the backend places each at its own static address, or bumps the free-memory
+        // pointer for each, and `defer-alloc` defers none in a function that resets the pointer
+        // before an allocation or calls a function that may.
+        if let InstKind::Alloc { size, .. } = *kind
+            && self.func.inst(inst).metadata.deferred_alloc()
+            && let Some(size) = self.func.value_u256(size)
+        {
+            let (lo, hi) = (U256::from(EvmMemoryLayout::HEAP_START), integer_mask(66));
+            self.assert(within(&symbol, lo, hi));
+            for (other, other_symbol, other_size) in self.allocations.clone() {
+                if other != inst {
+                    let (end, other_end) = (word(size), word(other_size));
+                    self.assert(format!(
+                        "(or (bvule (bvadd {symbol} {end}) {other_symbol}) (bvule (bvadd {other_symbol} {other_end}) {symbol}))"
+                    ));
+                }
+            }
+            self.allocations.push((inst, symbol.clone(), size));
+            self.opaque.insert(symbol);
+            self.axioms.insert("allocation");
+            return;
+        }
         let mut reads = Vec::new();
         // A read of memory, storage or transient storage reads the current state.
         if let InstKind::Load(ptr, location) = *kind
@@ -708,15 +901,16 @@ impl<'a> Query<'a> {
                 _ => None,
             }
         {
+            if state == 0 {
+                let (read, reads) = self.load_memory(ptr);
+                self.depend(&symbol, reads);
+                self.assert(format!("(= {symbol} {read})"));
+                return;
+            }
             let ptr = self.term(ptr);
             let array = self.states[state].clone();
-            let read = if state == 0 {
-                load_word(&array, &ptr)
-            } else {
-                format!("(select {array} {ptr})")
-            };
-            self.depend(&symbol, [ptr, array]);
-            self.assert(format!("(= {symbol} {read})"));
+            self.depend(&symbol, [ptr.clone(), array.clone()]);
+            self.assert(format!("(= {symbol} (select {array} {ptr}))"));
             return;
         }
         // A transaction's input is the same at every read with the same operands.
@@ -803,6 +997,27 @@ impl<'a> Query<'a> {
                 "(set-logic QF_AUFBV)
 ",
             );
+            for &function in &self.memory_functions {
+                let (name, parameters, body) = MEMORY_FUNCTIONS[function];
+                // The last parameter is the byte array.
+                let parameters: Vec<_> = parameters
+                    .iter()
+                    .map(|&name| {
+                        let sort = if name == "m" {
+                            "(Array (_ BitVec 256) (_ BitVec 8))"
+                        } else {
+                            "(_ BitVec 256)"
+                        };
+                        format!("({name} {sort})")
+                    })
+                    .collect();
+                let _ = writeln!(
+                    out,
+                    "(define-fun {name} ({}) (_ BitVec 256) {})",
+                    parameters.join(" "),
+                    body()
+                );
+            }
             for name in &self.declared {
                 let _ = writeln!(out, "(declare-const {name} (_ BitVec 256))");
             }
@@ -893,6 +1108,153 @@ fn store_word(memory: &str, ptr: &str, value: &str) -> String {
         );
     }
     out
+}
+
+/// A memory word: a root value's symbol, or none for an absolute address, and a constant byte
+/// offset from it.
+type Word = (Option<String>, U256);
+
+/// A memory word a query tracks as a symbol.
+#[derive(Clone)]
+struct Tracked {
+    /// Its address.
+    address: String,
+    /// Its current value.
+    value: String,
+}
+
+/// The memory a nested context entered from, to restore when it ends.
+struct Saved {
+    states: [String; 3],
+    words: FxIndexMap<Word, Tracked>,
+    pristine: bool,
+}
+
+/// How an access relates to a tracked word, as far as their offsets from a common root decide it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Overlap {
+    /// The access is exactly the word.
+    Same,
+    /// The access misses every byte of the word.
+    Disjoint,
+    /// Only their addresses decide it.
+    Unknown,
+}
+
+/// How a `size`-byte access at `key` relates to the word `other`.
+fn overlap(key: &Word, size: u64, other: &Word) -> Overlap {
+    if key.0 != other.0 {
+        return Overlap::Unknown;
+    }
+    offset_overlap(key.1, size, other.1)
+}
+
+/// How a `size`-byte access at offset `access` relates to the word at offset `word` of the
+/// same root, modulo 2^256 as addresses wrap.
+fn offset_overlap(access: U256, size: u64, word: U256) -> Overlap {
+    let (after, before) = (access.wrapping_sub(word), word.wrapping_sub(access));
+    if after.is_zero() && size == 32 {
+        Overlap::Same
+    } else if after >= U256::from(EvmMemoryLayout::WORD_SIZE) && before >= U256::from(size) {
+        Overlap::Disjoint
+    } else {
+        Overlap::Unknown
+    }
+}
+
+/// The memory words queries may track as symbols: those a memory load reads at a
+/// constant offset from a root value, or at a constant address, that no other load or store with
+/// the same root overlaps only partly.
+///
+/// Code that reads and writes a root's bytes at offsets that are not a whole word apart keeps the
+/// bytewise model alone.
+fn split_words(func: &Function) -> FxHashSet<(Option<ValueId>, U256)> {
+    let mut accesses: FxHashMap<Option<ValueId>, FxIndexSet<(U256, u64, bool)>> =
+        FxHashMap::default();
+    for block in func.blocks.iter() {
+        for &inst in &block.instructions {
+            let (ptr, size, load) = match func.inst(inst).kind {
+                InstKind::Load(ptr, PtrLocation::Memory) => (ptr, 32, true),
+                InstKind::Store(ptr, _, PtrLocation::Memory) => (ptr, 32, false),
+                InstKind::Store8(ptr, _) => (ptr, 1, false),
+                _ => continue,
+            };
+            let (root, offset) = memory_address(func, ptr);
+            accesses.entry(root).or_default().insert((offset, size, load));
+        }
+    }
+    let mut split = FxHashSet::default();
+    for (&root, accesses) in &accesses {
+        for &(offset, _, _) in accesses.iter().filter(|&&(_, _, load)| load) {
+            if accesses
+                .iter()
+                .all(|&(other, size, _)| offset_overlap(other, size, offset) != Overlap::Unknown)
+            {
+                split.insert((root, offset));
+            }
+        }
+    }
+    split
+}
+
+/// Splits a memory address into a root value and a constant offset from it, through additions
+/// and subtractions of constants. A constant address has no root.
+///
+/// NOTE: an address at a runtime offset, such as an array element's, is a root of its own, so
+/// two such accesses are one word only when they use the same value; otherwise the solver
+/// relates them through their addresses.
+fn memory_address(func: &Function, mut value: ValueId) -> (Option<ValueId>, U256) {
+    let mut offset = U256::ZERO;
+    loop {
+        if let Some(constant) = func.value_u256(value) {
+            return (None, offset.wrapping_add(constant));
+        }
+        match func.value_inst_kind(value) {
+            Some(&InstKind::Add(a, b)) if let Some(constant) = func.value_u256(b) => {
+                offset = offset.wrapping_add(constant);
+                value = a;
+            }
+            Some(&InstKind::Add(a, b)) if let Some(constant) = func.value_u256(a) => {
+                offset = offset.wrapping_add(constant);
+                value = b;
+            }
+            Some(&InstKind::Sub(a, b)) if let Some(constant) = func.value_u256(b) => {
+                offset = offset.wrapping_sub(constant);
+                value = a;
+            }
+            _ => return (Some(value), offset),
+        }
+    }
+}
+
+/// A function queries define: its name, parameters and body.
+type MemoryFunction = (&'static str, &'static [&'static str], fn() -> String);
+
+/// The functions queries define for tracked memory words: their names, parameters and bodies.
+/// Each gives the word `w` at `a` after a write at `p`, whose result is the byte array `m`.
+const MEMORY_FUNCTIONS: [MemoryFunction; 2] = [
+    ("word_write", &["w", "a", "p", "v", "m"], write_word_body),
+    ("byte_write", &["w", "a", "p", "m"], write_byte_body),
+];
+const WRITE_WORD: usize = 0;
+const WRITE_BYTE: usize = 1;
+
+/// After the word `v` is written at `p`: `v` when it is the word, `w` when it misses it
+/// modulo 2^256, and otherwise the bytes of `m`.
+fn write_word_body() -> String {
+    let size = word(U256::from(EvmMemoryLayout::WORD_SIZE));
+    // ite (p = a) v (ite (p - a >= 32 && a - p >= 32) w (mload m a))
+    format!(
+        "(ite (= p a) v (ite (and (bvuge (bvsub p a) {size}) (bvuge (bvsub a p) {size})) w {}))",
+        load_word("m", "a")
+    )
+}
+
+/// After a byte is written at `p`: `w` when it misses the word, and otherwise the bytes of `m`.
+fn write_byte_body() -> String {
+    let size = word(U256::from(EvmMemoryLayout::WORD_SIZE));
+    // ite (p - a >= 32) w (mload m a)
+    format!("(ite (bvuge (bvsub p a) {size}) w {})", load_word("m", "a"))
 }
 
 fn word(value: U256) -> String {
