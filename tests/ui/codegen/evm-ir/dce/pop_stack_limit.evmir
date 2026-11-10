@@ -66,3 +66,39 @@ bb8 [stack=1024]:
 
 bb9:
   stop
+
+// The block has no entry bound, but the pushes after the pops rise no higher than
+// the `push; push` before them, so every pop goes.
+// CHECK-LABEL: bb10:
+// CHECK: {{^[ +].*}}mstore
+// CHECK-NOT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}revert
+bb10:
+  pop
+  push 1
+  push 2
+  mstore
+  pop
+  pop
+  pop
+  push 0
+  push 0
+  revert
+
+// Removing all three pops would raise the pushes above the old peak, but removing
+// the last one does not, so two stay.
+// CHECK-LABEL: bb11:
+// CHECK: {{^[ +].*}}mload
+// CHECK: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}pop
+// CHECK-NOT: {{^[ +].*}}pop
+// CHECK: {{^[ +].*}}revert
+bb11:
+  push 0
+  mload
+  pop
+  pop
+  pop
+  push 0
+  push 0
+  revert

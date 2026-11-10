@@ -18,11 +18,14 @@
 //! unconditional edge to a block that never reads its incoming stack. The computation may use pure
 //! operations and reads of the call's context, whose only effect is their static gas.
 //!
-//! Removing a tail that pops more words than it pushes leaves the code after it one word deeper
-//! per word popped, which can exceed `MAX_STACK_DEPTH`. The pass keeps such a tail unless that
-//! code adds nothing above the tail's start, or the entry bound from
-//! `Verifier::stack_entry_upper_bounds` shows that it still fits. The bounds stay valid across the
-//! pass because every edited block halts or jumps to a block that ignores its entry stack.
+//! Removing a tail that pops more words than it pushes leaves the code after it deeper, which can
+//! exceed `MAX_STACK_DEPTH`. The input is valid, so every depth its path reaches fits. A removal
+//! is safe when the new path, with its terminator's label push and a jump target's code, never
+//! rises above the highest depth the old path reaches from the same entry. Otherwise the entry
+//! bound from `Verifier::stack_entry_upper_bounds` must show that the new path fits. When neither
+//! holds, the pass removes the longest suffix of the tail that passes, or none. The bounds stay
+//! valid across the pass: an edit changes the entry of a halting block only, and no check reads
+//! the bound of a halting block after an edit to its predecessor.
 
 use super::{EvmPass, block_layout::terminator_kind};
 use crate::backend::evm::{
@@ -34,7 +37,7 @@ use smallvec::{SmallVec, smallvec};
 use solar_config::EvmVersion;
 use solar_data_structures::index::IndexVec;
 use solar_sema::Gcx;
-use std::cell::OnceCell;
+use std::{cell::OnceCell, ops::Range};
 
 pub(super) struct Dce;
 
@@ -54,20 +57,13 @@ fn cleanup_dead_stack_tails(module: &mut Module, evm_version: EvmVersion) -> boo
     let entries = OnceCell::new();
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
-        if let Some(range) = block
+        if let Some(tail) = block
             .terminator
             .as_ref()
             .and_then(|term| halting_terminal_tail_range(&block.instructions, term))
-            && keeps_fit(
-                module,
-                &entries,
-                evm_version,
-                block_id,
-                &range,
-                peak_above(&block.instructions[range.end..]),
-            )
+            && let Some(removed) = longest_removal(module, &entries, evm_version, block_id, tail, 0)
         {
-            module.blocks[block_id].instructions.drain(range);
+            module.blocks[block_id].instructions.drain(removed);
             changed = true;
         }
     }
@@ -78,12 +74,13 @@ fn cleanup_dead_stack_tails(module: &mut Module, evm_version: EvmVersion) -> boo
         if let Some(kind @ TerminatorKind::Jump(target)) = terminator_kind(block)
             && ignored_entries[*target]
             && let Some(start) = discardable_tail_start(&block.instructions)
-            && let removed = (start..block.instructions.len())
-            && let above = peak_above(&module.blocks[*target].instructions)
+            && let tail = (start..block.instructions.len())
+            && let after = path_peak(&module.blocks[*target].instructions, &(0..0), 0)
                 .max(kind.lowering_stack_growth(module.next_block(block_id)))
-            && keeps_fit(module, &entries, evm_version, block_id, &removed, above)
+            && let Some(removed) =
+                longest_removal(module, &entries, evm_version, block_id, tail, after)
         {
-            module.blocks[block_id].instructions.truncate(start);
+            module.blocks[block_id].instructions.truncate(removed.start);
             changed = true;
         }
     }
@@ -96,42 +93,54 @@ fn net_growth(inst: &Instruction) -> isize {
     isize::from(effect.outputs) - isize::from(effect.inputs)
 }
 
-/// The most words the instructions leave above the stack they start with.
-fn peak_above(instructions: &[Instruction]) -> usize {
+/// The most words the instructions without `removed` leave above the stack they start with, or
+/// that `after` more words reach above their end.
+fn path_peak(instructions: &[Instruction], removed: &Range<usize>, after: usize) -> usize {
     let mut depth = 0isize;
     let mut peak = 0isize;
-    for inst in instructions {
-        depth += net_growth(inst);
-        peak = peak.max(depth);
+    for (index, inst) in instructions.iter().enumerate() {
+        if !removed.contains(&index) {
+            depth += net_growth(inst);
+            peak = peak.max(depth);
+        }
     }
-    peak as usize
+    peak.max(depth + after as isize) as usize
 }
 
-/// Whether removing `removed` from a block leaves the stack within `MAX_STACK_DEPTH`, given that
-/// the code after it takes up to `above` words above the stack at `removed.start`.
-///
-/// Removing instructions that do not pop more than they push never deepens the stack. Otherwise
-/// the stack at `removed.start` is as before the removal, so code that grows nothing above it
-/// fits, and any other needs the block's entry bound to locate it.
-fn keeps_fit(
+/// Returns the longest suffix of `tail` that a block can lose and still fit within
+/// `MAX_STACK_DEPTH`, if any, given that `after` more words rise above the block's end.
+fn longest_removal(
     module: &Module,
     entries: &OnceCell<IndexVec<BlockId, Option<usize>>>,
     evm_version: EvmVersion,
     block_id: BlockId,
-    removed: &std::ops::Range<usize>,
-    above: usize,
-) -> bool {
+    tail: Range<usize>,
+    after: usize,
+) -> Option<Range<usize>> {
     let instructions = &module.blocks[block_id].instructions;
-    if above == 0 || instructions[removed.clone()].iter().map(net_growth).sum::<isize>() >= 0 {
-        return true;
-    }
-    let bounds = entries.get_or_init(|| Verifier::stack_entry_upper_bounds(module, evm_version));
-    let Some(entry) = bounds[block_id] else { return false };
-    let depth = instructions[..removed.start].iter().fold(entry, |depth, inst| {
-        let effect = inst.stack_effect();
-        depth.saturating_sub(usize::from(effect.inputs)) + usize::from(effect.outputs)
-    });
-    depth + above <= MAX_STACK_DEPTH
+    let old_peak = path_peak(instructions, &(0..0), after);
+    (tail.start..tail.end)
+        .find_map(|start| {
+            let removed = start..tail.end;
+            // The new path stays at or under the old peak, so it fits wherever the old path does.
+            // Otherwise the entry bound locates the stack at `start`, which the removal leaves as
+            // it was.
+            let fits = path_peak(instructions, &removed, after) <= old_peak || {
+                let bounds =
+                    entries.get_or_init(|| Verifier::stack_entry_upper_bounds(module, evm_version));
+                bounds[block_id].is_some_and(|entry| {
+                    let depth = instructions[..start].iter().fold(entry, |depth, inst| {
+                        let effect = inst.stack_effect();
+                        depth.saturating_sub(usize::from(effect.inputs))
+                            + usize::from(effect.outputs)
+                    });
+                    let rest = path_peak(&instructions[tail.end..], &(0..0), after);
+                    depth + rest <= MAX_STACK_DEPTH
+                })
+            };
+            fits.then_some(removed)
+        })
+        .filter(|removed| !removed.is_empty())
 }
 
 fn block_ignores_entry_stack(block: &Block) -> bool {
@@ -154,7 +163,7 @@ fn block_ignores_entry_stack(block: &Block) -> bool {
 fn halting_terminal_tail_range(
     instructions: &[Instruction],
     terminator: &Terminator,
-) -> Option<std::ops::Range<usize>> {
+) -> Option<Range<usize>> {
     let operands = instructions.len().checked_sub(halting_inputs(terminator)?)?;
     if !instructions[operands..].iter().all(Instruction::is_encoded_push) {
         return None;
