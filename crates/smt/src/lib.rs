@@ -8,7 +8,7 @@
 //! limit, and a memory cap. [`race`] runs several solvers on their scripts and returns the
 //! first answer its caller accepts, cancelling the rest. [`require_z3`] is the skip
 //! convention for tests that need Z3: skip with a message, or fail when
-//! `SOLAR_REQUIRE_Z3=1`.
+//! `SOLAR_REQUIRE_Z3=1`. [`sexp`] reads the S-expressions of scripts and solver responses.
 
 use std::{
     ffi::OsString,
@@ -23,6 +23,9 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+
+pub mod sexp;
+pub use sexp::Sexp;
 
 /// A solver the provers can run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -104,6 +107,16 @@ impl Verdict {
         }
     }
 
+    /// The verdict a `check-sat` response line gives.
+    pub fn from_response(line: &str) -> Option<Self> {
+        match line.trim() {
+            "sat" => Some(Self::Sat),
+            "unsat" => Some(Self::Unsat),
+            "unknown" => Some(Self::Unknown),
+            _ => None,
+        }
+    }
+
     /// Whether the solver decided the query.
     pub const fn is_definite(self) -> bool {
         matches!(self, Self::Sat | Self::Unsat)
@@ -120,9 +133,16 @@ pub struct Outcome {
 }
 
 impl Outcome {
-    /// The lines after the verdict line, such as the model.
-    pub fn after_verdict(&self) -> impl Iterator<Item = &str> {
-        self.stdout.lines().skip_while(|line| !is_verdict_line(line)).skip(1)
+    /// The responses after the verdict line, such as `get-value` and `get-model` answers.
+    pub fn after_verdict(&self) -> sexp::Parser<'_> {
+        let mut rest = self.stdout.as_str();
+        while let Some((line, next)) = rest.split_once('\n') {
+            rest = next;
+            if Verdict::from_response(line).is_some() {
+                return sexp::parse(rest);
+            }
+        }
+        sexp::parse("")
     }
 }
 
@@ -240,23 +260,16 @@ impl Solver {
 pub fn parse_verdict(stdout: &str) -> Verdict {
     let mut verdict = Verdict::Error;
     for line in stdout.lines().map(str::trim) {
-        match line {
-            "sat" => return Verdict::Sat,
-            "unsat" => return Verdict::Unsat,
-            "unknown" => return Verdict::Unknown,
-            _ if (line.starts_with("(error") || line.starts_with("[error]"))
-                && line.to_ascii_lowercase().contains("memory") =>
-            {
-                verdict = Verdict::Memout;
-            }
-            _ => {}
+        if let Some(answer) = Verdict::from_response(line) {
+            return answer;
+        }
+        if (line.starts_with("(error") || line.starts_with("[error]"))
+            && line.to_ascii_lowercase().contains("memory")
+        {
+            verdict = Verdict::Memout;
         }
     }
     verdict
-}
-
-fn is_verdict_line(line: &str) -> bool {
-    matches!(line.trim(), "sat" | "unsat" | "unknown")
 }
 
 /// One entrant of a [`race`]: a label for reports, the solver and its script.

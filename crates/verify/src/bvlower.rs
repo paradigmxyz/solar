@@ -12,116 +12,18 @@
 use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
 use solar_parse::interface::data_structures::map::{FxHashMap, FxHashSet};
+use solar_smt::{Sexp, sexp};
 use std::cell::RefCell;
 
 type Iv = (BigInt, BigInt);
 
-#[derive(Debug, Clone)]
-enum S {
-    A(String),
-    L(Vec<Self>),
-}
-
-fn tokenize(s: &str, hints: &mut Vec<String>) -> Vec<String> {
-    let b: Vec<char> = s.chars().collect();
-    let mut out = vec![];
-    let mut i = 0;
-    while i < b.len() {
-        let c = b[i];
-        if c == ';' {
-            let mut j = i;
-            while j < b.len() && b[j] != '\n' {
-                j += 1;
-            }
-            let line: String = b[i..j].iter().collect();
-            if line.starts_with(";@") {
-                hints.push(line);
-            }
-            i = j;
-        } else if c == '(' || c == ')' {
-            out.push(c.to_string());
-            i += 1;
-        } else if c.is_whitespace() {
-            i += 1;
-        } else if c == '|' {
-            let mut j = i + 1;
-            while j < b.len() && b[j] != '|' {
-                j += 1;
-            }
-            out.push(b[i..=j.min(b.len() - 1)].iter().collect());
-            i = j + 1;
-        } else if c == '"' {
-            let mut j = i + 1;
-            while j < b.len() && b[j] != '"' {
-                j += 1;
-            }
-            out.push(b[i..=j.min(b.len() - 1)].iter().collect());
-            i = j + 1;
-        } else {
-            let mut j = i;
-            while j < b.len() && !b[j].is_whitespace() && b[j] != '(' && b[j] != ')' {
-                j += 1;
-            }
-            out.push(b[i..j].iter().collect());
-            i = j;
-        }
-    }
-    out
-}
-
-fn parse_all(toks: &[String]) -> Vec<S> {
-    let mut i = 0;
-    let mut out = vec![];
-    while i < toks.len() {
-        match parse_at(toks, &mut i) {
-            Some(s) => out.push(s),
-            None => break,
-        }
-    }
-    out
-}
-
-fn parse_at(t: &[String], i: &mut usize) -> Option<S> {
-    let tok = t.get(*i)?;
-    *i += 1;
-    if tok == "(" {
-        let mut v = vec![];
-        while t.get(*i)? != ")" {
-            v.push(parse_at(t, i)?);
-        }
-        *i += 1;
-        Some(S::L(v))
-    } else {
-        Some(S::A(tok.clone()))
-    }
-}
-
-fn pr(s: &S) -> String {
-    fn go(s: &S, o: &mut String) {
-        match s {
-            S::A(a) => o.push_str(a),
-            S::L(v) => {
-                o.push('(');
-                for (i, x) in v.iter().enumerate() {
-                    if i > 0 {
-                        o.push(' ');
-                    }
-                    go(x, o);
-                }
-                o.push(')');
-            }
-        }
-    }
-    let mut o = String::new();
-    go(s, &mut o);
-    o
-}
+type S = Sexp;
 
 fn num(s: &S) -> Option<BigInt> {
     match s {
-        S::A(a) => a.parse().ok(),
-        S::L(v) => match v.as_slice() {
-            [S::A(m), x] if m == "-" => num(x).map(|n| -n),
+        S::Atom(a) => a.parse().ok(),
+        S::List(v) => match v.as_slice() {
+            [S::Atom(m), x] if m == "-" => num(x).map(|n| -n),
             _ => None,
         },
     }
@@ -138,13 +40,13 @@ enum Sort {
 
 fn sort_of(s: &S) -> Sort {
     match s {
-        S::A(a) if a == "Int" => Sort::Int,
-        S::A(a) if a == "Bool" => Sort::Bool,
-        S::L(v) => match v.as_slice() {
-            [S::A(u), S::A(b), S::A(n)] if u == "_" && b == "BitVec" => {
+        S::Atom(a) if a == "Int" => Sort::Int,
+        S::Atom(a) if a == "Bool" => Sort::Bool,
+        S::List(v) => match v.as_slice() {
+            [S::Atom(u), S::Atom(b), S::Atom(n)] if u == "_" && b == "BitVec" => {
                 n.parse().map(Sort::Bv).unwrap_or(Sort::Other)
             }
-            [S::A(a), k, e] if a == "Array" => {
+            [S::Atom(a), k, e] if a == "Array" => {
                 Sort::Arr(Box::new(sort_of(k)), Box::new(sort_of(e)))
             }
             _ => Sort::Other,
@@ -228,19 +130,19 @@ fn arr_depth(s: &Sort) -> usize {
 
 /// (lo <= t <= hi) facts in the encoder's shape.
 fn range_fact(s: &S) -> Option<(S, Iv)> {
-    let S::L(v) = s else { return None };
-    let [S::A(and), a, b] = v.as_slice() else {
+    let S::List(v) = s else { return None };
+    let [S::Atom(and), a, b] = v.as_slice() else {
         return None;
     };
     if and != "and" {
         return None;
     }
-    let (S::L(a), S::L(b)) = (a, b) else {
+    let (S::List(a), S::List(b)) = (a, b) else {
         return None;
     };
     match (a.as_slice(), b.as_slice()) {
-        ([S::A(le1), lo, t1], [S::A(le2), t2, hi])
-            if le1 == "<=" && le2 == "<=" && pr(t1) == pr(t2) =>
+        ([S::Atom(le1), lo, t1], [S::Atom(le2), t2, hi])
+            if le1 == "<=" && le2 == "<=" && t1 == t2 =>
         {
             Some((t1.clone(), (num(lo)?, num(hi)?)))
         }
@@ -314,28 +216,30 @@ impl Ctx {
 
     fn bnd_inner(&self, s: &S, sc: &FxHashMap<String, K>) -> R<K> {
         let v = match s {
-            S::A(a) => return self.atom(a, sc),
-            S::L(v) => v,
+            S::Atom(a) => return self.atom(a, sc),
+            S::List(v) => v,
         };
         if let Some(n) = num(s) {
             return Ok(K::Int((n.clone(), n)));
         }
         let head = match v.first() {
-            Some(S::A(h)) => h.as_str(),
-            Some(S::L(h)) => {
+            Some(S::Atom(h)) => h.as_str(),
+            Some(S::List(h)) => {
                 // indexed / qualified heads
                 match h.as_slice() {
-                    [S::A(u), S::A(f), S::A(n)] if u == "_" && f == "int2bv" => {
+                    [S::Atom(u), S::Atom(f), S::Atom(n)] if u == "_" && f == "int2bv" => {
                         self.int(&v[1], sc)?;
                         return Ok(K::Bv(n.parse().map_err(|_| "bad width")?));
                     }
-                    [S::A(u), S::A(f), S::A(i), S::A(j)] if u == "_" && f == "extract" => {
+                    [S::Atom(u), S::Atom(f), S::Atom(i), S::Atom(j)]
+                        if u == "_" && f == "extract" =>
+                    {
                         self.bnd(&v[1], sc)?;
                         let (i, j): (u32, u32) =
                             (i.parse().map_err(|_| "w")?, j.parse().map_err(|_| "w")?);
                         return Ok(K::Bv(i - j + 1));
                     }
-                    [S::A(u), S::A(f), S::A(k)]
+                    [S::Atom(u), S::Atom(f), S::Atom(k)]
                         if u == "_" && (f == "zero_extend" || f == "sign_extend") =>
                     {
                         let K::Bv(n) = self.bnd(&v[1], sc)? else {
@@ -343,7 +247,7 @@ impl Ctx {
                         };
                         return Ok(K::Bv(n + k.parse::<u32>().map_err(|_| "w")?));
                     }
-                    [S::A(a), S::A(c), _] if a == "as" && c == "const" => {
+                    [S::Atom(a), S::Atom(c), _] if a == "as" && c == "const" => {
                         return Ok(K::Arr(Box::new(self.bnd(&v[1], sc)?)));
                     }
                     _ => return Err(format!("unsupported head {}", short(s))),
@@ -355,7 +259,9 @@ impl Ctx {
         let ints = |me: &Self| -> R<Vec<Iv>> { args.iter().map(|a| me.int(a, sc)).collect() };
         Ok(match head {
             "_" => match args {
-                [S::A(b), S::A(n)] if b.starts_with("bv") => K::Bv(n.parse().map_err(|_| "w")?),
+                [S::Atom(b), S::Atom(n)] if b.starts_with("bv") => {
+                    K::Bv(n.parse().map_err(|_| "w")?)
+                }
                 _ => return Err("indexed".into()),
             },
             "+" | "-" | "*" => {
@@ -429,7 +335,8 @@ impl Ctx {
             "select" => {
                 let a = self.bnd(&args[0], sc)?;
                 self.int(&args[1], sc)?;
-                let fact = if sc.is_empty() { self.facts.get(&pr(s)).cloned() } else { None };
+                let fact =
+                    if sc.is_empty() { self.facts.get(&s.to_string()).cloned() } else { None };
                 let elem = match a {
                     K::Arr(e) => *e,
                     _ => return Err("select of non-array".into()),
@@ -508,8 +415,11 @@ impl Ctx {
                 }
                 match ret {
                     Sort::Int => {
-                        let fact =
-                            if sc.is_empty() { self.facts.get(&pr(s)).cloned() } else { None };
+                        let fact = if sc.is_empty() {
+                            self.facts.get(&s.to_string()).cloned()
+                        } else {
+                            None
+                        };
                         K::Int(
                             intersect(fact, self.ret.get(f).cloned())
                                 .ok_or_else(|| format!("unbounded result of {f}"))?,
@@ -531,8 +441,8 @@ impl Ctx {
 
     fn boolean_p(&self, s: &S, sc: &FxHashMap<String, K>, pol: Option<bool>) -> R<()> {
         let flip = |p: Option<bool>| p.map(|b| !b);
-        if let S::L(v) = s
-            && let Some(S::A(h)) = v.first()
+        if let S::List(v) = s
+            && let Some(S::Atom(h)) = v.first()
         {
             match h.as_str() {
                 "not" => return self.boolean_p(&v[1], sc, flip(pol)),
@@ -554,15 +464,15 @@ impl Ctx {
                         Some(p) => (h == "forall") == p,
                         None => false,
                     };
-                    let S::L(bs) = &v[1] else {
+                    let S::List(bs) = &v[1] else {
                         return Err("binders".into());
                     };
                     let body = &v[2];
                     // the encoder's shape: (=> rng body) / (and rng body)
                     let mut ranges: FxHashMap<String, Iv> = FxHashMap::default();
                     let rng = match body {
-                        S::L(b)
-                            if matches!(b.first(), Some(S::A(x)) if x == "=>" || x == "and")
+                        S::List(b)
+                            if matches!(b.first(), Some(S::Atom(x)) if x == "=>" || x == "and")
                                 && b.len() == 3 =>
                         {
                             Some(&b[1])
@@ -571,8 +481,8 @@ impl Ctx {
                     };
                     if let Some(r) = rng {
                         let cs: Vec<&S> = match r {
-                            S::L(c)
-                                if matches!(c.first(), Some(S::A(x)) if x == "and")
+                            S::List(c)
+                                if matches!(c.first(), Some(S::Atom(x)) if x == "and")
                                     && range_fact(r).is_none() =>
                             {
                                 c[1..].iter().collect()
@@ -580,17 +490,17 @@ impl Ctx {
                             _ => vec![r],
                         };
                         for c in cs {
-                            if let Some((S::A(x), iv)) = range_fact(c) {
+                            if let Some((S::Atom(x), iv)) = range_fact(c) {
                                 ranges.insert(x, iv);
                             }
                         }
                     }
                     let mut sc2 = sc.clone();
                     for b in bs {
-                        let S::L(b) = b else {
+                        let S::List(b) = b else {
                             return Err("binder".into());
                         };
-                        let (S::A(name), srt) = (&b[0], sort_of(&b[1])) else {
+                        let (S::Atom(name), srt) = (&b[0], sort_of(&b[1])) else {
                             return Err("binder".into());
                         };
                         let k = match srt {
@@ -632,10 +542,10 @@ impl Ctx {
     fn bnd_quiet(&self, s: &S, sc: &FxHashMap<String, K>) -> R<K> {
         // shape only (cheap for the Bool test)
         match s {
-            S::A(a) if a == "true" || a == "false" => Ok(K::Bool),
-            S::A(a) => self.atom(a, sc),
-            S::L(v) => match v.first() {
-                Some(S::A(h))
+            S::Atom(a) if a == "true" || a == "false" => Ok(K::Bool),
+            S::Atom(a) => self.atom(a, sc),
+            S::List(v) => match v.first() {
+                Some(S::Atom(h))
                     if [
                         "and", "or", "not", "=>", "<", "<=", ">", ">=", "=", "distinct", "forall",
                         "exists", "xor",
@@ -654,8 +564,8 @@ impl Ctx {
 
 fn pow2_name(s: &S) -> Option<&str> {
     match s {
-        S::L(v) if v.len() == 2 => match &v[0] {
-            S::A(h) if h == "|pow2|" || h == "|pow2w|" => Some(h.as_str()),
+        S::List(v) if v.len() == 2 => match &v[0] {
+            S::Atom(h) if h == "|pow2|" || h == "|pow2w|" => Some(h.as_str()),
             _ => None,
         },
         _ => None,
@@ -664,12 +574,12 @@ fn pow2_name(s: &S) -> Option<&str> {
 
 fn is_pow2_app(s: &S) -> Option<&S> {
     pow2_name(s)?;
-    let S::L(v) = s else { return None };
+    let S::List(v) = s else { return None };
     Some(&v[1])
 }
 
 fn short(s: &S) -> String {
-    let p = pr(s);
+    let p = s.to_string();
     if p.len() > 80 { format!("{}…", &p[..80]) } else { p }
 }
 
@@ -692,13 +602,13 @@ impl Em<'_> {
             return Ok(self.lit(&n));
         }
         let v = match s {
-            S::A(a) => return Ok(a.clone()),
-            S::L(v) => v,
+            S::Atom(a) => return Ok(a.clone()),
+            S::List(v) => v,
         };
         let e = |x: &S| self.em(x, sc);
-        if let S::L(h) = &v[0] {
+        if let S::List(h) = &v[0] {
             return Ok(match h.as_slice() {
-                [S::A(u), S::A(f), S::A(n)] if u == "_" && f == "int2bv" => {
+                [S::Atom(u), S::Atom(f), S::Atom(n)] if u == "_" && f == "int2bv" => {
                     let n: u32 = n.parse().unwrap();
                     let t = e(&v[1])?;
                     if n <= w {
@@ -707,21 +617,19 @@ impl Em<'_> {
                         format!("((_ sign_extend {}) {t})", n - w)
                     }
                 }
-                [S::A(a), S::A(c), srt] if a == "as" && c == "const" => {
+                [S::Atom(a), S::Atom(c), srt] if a == "as" && c == "const" => {
                     format!(
                         "((as const {}) {})",
                         lower_sort(&sort_of(srt), w).ok_or("sort")?,
                         e(&v[1])?
                     )
                 }
-                _ => format!(
-                    "({} {})",
-                    pr(&v[0]),
-                    v[1..].iter().map(e).collect::<R<Vec<_>>>()?.join(" ")
-                ),
+                _ => {
+                    format!("({} {})", v[0], v[1..].iter().map(e).collect::<R<Vec<_>>>()?.join(" "))
+                }
             });
         }
-        let S::A(head) = &v[0] else { unreachable!() };
+        let S::Atom(head) = &v[0] else { unreachable!() };
         let args = &v[1..];
         let ea = || -> R<Vec<String>> { args.iter().map(e).collect() };
         let fold = |op: &str, xs: Vec<String>| -> String {
@@ -732,7 +640,7 @@ impl Em<'_> {
             acc
         };
         Ok(match head.as_str() {
-            "_" => pr(s),
+            "_" => s.to_string(),
             "+" => fold("bvadd", ea()?),
             "*" => fold("bvmul", ea()?),
             "-" if args.len() == 1 => format!("(bvneg {})", e(&args[0])?),
@@ -817,16 +725,16 @@ impl Em<'_> {
                 }
             }
             "forall" | "exists" => {
-                let S::L(bs) = &args[0] else {
+                let S::List(bs) = &args[0] else {
                     return Err("binders".into());
                 };
                 let mut sc2 = sc.clone();
                 let mut out = vec![];
                 for b in bs {
-                    let S::L(b) = b else {
+                    let S::List(b) = b else {
                         return Err("binder".into());
                     };
-                    let S::A(name) = &b[0] else {
+                    let S::Atom(name) = &b[0] else {
                         return Err("binder".into());
                     };
                     let srt = sort_of(&b[1]);
@@ -843,9 +751,9 @@ impl Em<'_> {
 
 /// Lower a whole query script. Returns the BV script and how many assertions were dropped.
 pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
-    let mut hints = vec![];
-    let toks = tokenize(script, &mut hints);
-    let cmds = parse_all(&toks);
+    let hints: Vec<_> =
+        script.lines().map(str::trim_start).filter(|line| line.starts_with(";@")).collect();
+    let cmds = sexp::parse(script).collect::<Result<Vec<_>, _>>().ok()?;
     let mut c = Ctx {
         consts: FxHashMap::default(),
         funs: FxHashMap::default(),
@@ -874,16 +782,16 @@ pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
         }
     }
     for cmd in &cmds {
-        let S::L(v) = cmd else { continue };
-        let Some(S::A(h)) = v.first() else { continue };
+        let S::List(v) = cmd else { continue };
+        let Some(S::Atom(h)) = v.first() else { continue };
         match h.as_str() {
             "declare-const" => {
-                if let S::A(n) = &v[1] {
+                if let S::Atom(n) = &v[1] {
                     c.consts.insert(n.clone(), sort_of(&v[2]));
                 }
             }
             "declare-fun" => {
-                if let (S::A(n), S::L(ps)) = (&v[1], &v[2]) {
+                if let (S::Atom(n), S::List(ps)) = (&v[1], &v[2]) {
                     c.funs.insert(n.clone(), (ps.iter().map(sort_of).collect(), sort_of(&v[3])));
                 }
             }
@@ -891,17 +799,17 @@ pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
                 let t = &v[1];
                 if let Some((x, iv)) = range_fact(t) {
                     match &x {
-                        S::A(a) => {
+                        S::Atom(a) => {
                             let cur = c.ranges.remove(a);
                             c.ranges.insert(a.clone(), intersect(cur, Some(iv)).unwrap());
                         }
                         _ => {
-                            c.facts.insert(pr(&x), iv);
+                            c.facts.insert(x.to_string(), iv);
                         }
                     }
                 }
-                if let S::L(e) = t
-                    && let [S::A(eq), S::A(x), d] = e.as_slice()
+                if let S::List(e) = t
+                    && let [S::Atom(eq), S::Atom(x), d] = e.as_slice()
                     && eq == "="
                     && !c.defs.contains_key(x)
                 {
@@ -915,8 +823,8 @@ pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
     let mut keep = vec![];
     let mut dropped = 0;
     for (i, cmd) in cmds.iter().enumerate() {
-        if let S::L(v) = cmd
-            && matches!(v.first(), Some(S::A(h)) if h == "assert")
+        if let S::List(v) = cmd
+            && matches!(v.first(), Some(S::Atom(h)) if h == "assert")
         {
             match c.boolean(&v[1], &FxHashMap::default()) {
                 Ok(()) => keep.push(i),
@@ -933,23 +841,23 @@ pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
     let mut out = String::new();
     let keep: FxHashSet<usize> = keep.into_iter().collect();
     for (i, cmd) in cmds.iter().enumerate() {
-        let S::L(v) = cmd else { continue };
-        let Some(S::A(h)) = v.first() else { continue };
+        let S::List(v) = cmd else { continue };
+        let Some(S::Atom(h)) = v.first() else { continue };
         match h.as_str() {
             "declare-const" => {
                 let srt = sort_of(&v[2]);
                 if let Some(ls) = lower_sort(&srt, w) {
-                    out.push_str(&format!("(declare-const {} {ls})\n", pr(&v[1])));
+                    out.push_str(&format!("(declare-const {} {ls})\n", v[1]));
                 }
             }
             "declare-fun" => {
-                let (S::L(ps), r) = (&v[2], sort_of(&v[3])) else {
+                let (S::List(ps), r) = (&v[2], sort_of(&v[3])) else {
                     continue;
                 };
                 let ps: Option<Vec<String>> =
                     ps.iter().map(|p| lower_sort(&sort_of(p), w)).collect();
                 if let (Some(ps), Some(r)) = (ps, lower_sort(&r, w)) {
-                    out.push_str(&format!("(declare-fun {} ({}) {r})\n", pr(&v[1]), ps.join(" ")));
+                    out.push_str(&format!("(declare-fun {} ({}) {r})\n", v[1], ps.join(" ")));
                 }
             }
             "assert" if keep.contains(&i) => {
@@ -958,7 +866,7 @@ pub(crate) fn lower(script: &str) -> Option<(String, usize, u32)> {
                 }
             }
             "push" | "pop" | "check-sat" => {
-                out.push_str(&pr(cmd));
+                out.push_str(&cmd.to_string());
                 out.push('\n');
             }
             _ => {}

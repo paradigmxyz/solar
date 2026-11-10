@@ -298,7 +298,7 @@ impl Solver {
             .iter()
             .zip(verdicts)
             .map(|(query, verdict)| {
-                if verdict == "unsat" {
+                if verdict == Verdict::Unsat {
                     let tier = if abstract_of(query).exists() { "abstract" } else { "exact" };
                     record(query, source, "unsat", &format!("batch-{tier}"))
                 } else {
@@ -308,7 +308,7 @@ impl Solver {
             .collect()
     }
 
-    fn batch(&self, queries: &[&Path]) -> Vec<String> {
+    fn batch(&self, queries: &[&Path]) -> Vec<Verdict> {
         if queries.is_empty() {
             return Vec::new();
         }
@@ -318,25 +318,29 @@ impl Solver {
             let text =
                 fs::read_to_string(if tier.exists() { &tier } else { *query }).unwrap_or_default();
             script.push_str("(push)\n");
-            for line in
-                text.lines().filter(|l| l.starts_with("(declare") || l.starts_with("(assert"))
-            {
-                script.push_str(line);
-                script.push('\n');
+            // The query's declarations, definitions and assertions; its own logic and
+            // `check-sat` are the batch's.
+            for command in smt::sexp::parse(&text).map_while(Result::ok).filter(|command| {
+                command.head().is_some_and(|head| {
+                    head.starts_with("declare-") || head.starts_with("define-") || head == "assert"
+                })
+            }) {
+                script.push_str(&format!("{command}\n"));
             }
             script.push_str(&format!("(echo \"@{index}\")\n(check-sat)\n(pop)\n"));
         }
         let wall = self.timeout * queries.len() as u32 + Duration::from_secs(10);
         let output = self.z3.run(&script, &self.limits(wall, self.batch_limit)).stdout;
-        let mut verdicts = vec!["unknown".to_string(); queries.len()];
+        let mut verdicts = vec![Verdict::Unknown; queries.len()];
         let mut current = None;
-        for line in output.lines() {
-            if let Some(index) = line.strip_prefix('@').and_then(|i| i.parse::<usize>().ok()) {
+        for response in smt::sexp::parse(&output).map_while(Result::ok) {
+            let Some(atom) = response.as_atom() else { continue };
+            if let Some(index) = atom.strip_prefix('@').and_then(|i| i.parse::<usize>().ok()) {
                 current = Some(index);
             } else if let Some(index) = current
-                && matches!(line, "sat" | "unsat" | "unknown")
+                && let Some(verdict) = Verdict::from_response(atom)
             {
-                verdicts[index] = line.to_string();
+                verdicts[index] = verdict;
                 current = None;
             }
         }
@@ -361,9 +365,10 @@ impl Solver {
         let verdict = outcome.verdict.name();
         let mut record = record(query, source, verdict, tier);
         if outcome.verdict == Verdict::Sat
-            && let Some(model) = outcome.after_verdict().next()
+            && let Some(Ok(values)) = outcome.after_verdict().next()
         {
-            record.insert("counterexample".into(), json!(model));
+            // The `get-value` answer, on one line.
+            record.insert("counterexample".into(), json!(values.to_string()));
             if is_trip_count_bound(&record) {
                 record.insert("result".into(), json!("trip-count"));
             } else if record.get("opaque").and_then(Value::as_str).is_some_and(|o| !o.is_empty()) {

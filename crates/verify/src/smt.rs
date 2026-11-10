@@ -1,4 +1,4 @@
-use solar_smt::{Entrant, Limits, SolverKind, Verdict};
+use solar_smt::{Entrant, Limits, Sexp, SolverKind, Verdict, sexp};
 use std::{
     io::{BufRead, BufReader, Write},
     process::{Child, ChildStdin, Command, Stdio},
@@ -41,6 +41,8 @@ struct Z3 {
     child: Child,
     inp: ChildStdin,
     out: Receiver<String>,
+    /// The output lines read so far that do not yet make a whole response.
+    responses: sexp::Reader,
 }
 
 fn spawn(timeout_ms: u64) -> std::io::Result<Z3> {
@@ -70,7 +72,7 @@ fn spawn(timeout_ms: u64) -> std::io::Result<Z3> {
     let _ = inp.write_all(
         format!("(set-option :produce-models true)\n(set-option :timeout {timeout_ms})\n(set-option :smt.mbqi true)\n").as_bytes(),
     );
-    Ok(Z3 { child, inp, out: rx })
+    Ok(Z3 { child, inp, out: rx, responses: sexp::Reader::new() })
 }
 
 impl Drop for Smt {
@@ -134,48 +136,39 @@ impl Smt {
         }
     }
 
-    fn line(&mut self, deadline: Instant) -> Option<String> {
-        let left = deadline.saturating_duration_since(Instant::now());
-        let z3 = self.z3.as_ref()?;
-        match z3.out.recv_timeout(left) {
-            Ok(l) => Some(l),
-            Err(RecvTimeoutError::Timeout) | Err(RecvTimeoutError::Disconnected) => None,
+    /// The solver's next response, or `None` past `deadline`.
+    fn response(&mut self, deadline: Instant) -> Option<Sexp> {
+        let z3 = self.z3.as_mut()?;
+        loop {
+            match z3.responses.read() {
+                Some(Ok(response)) => return Some(response),
+                // An unmatched `)`: the reader drops it and goes on.
+                Some(Err(_)) => continue,
+                None => {}
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            match z3.out.recv_timeout(left) {
+                Ok(line) => {
+                    z3.responses.push(&line);
+                    z3.responses.push("\n");
+                }
+                Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => return None,
+            }
         }
     }
 
-    fn read_answer(&mut self, deadline: Instant) -> Option<String> {
+    fn read_answer(&mut self, deadline: Instant) -> Option<Verdict> {
         loop {
-            let l = self.line(deadline)?;
-            let l = l.trim();
-            if l == "sat" || l == "unsat" || l == "unknown" {
-                return Some(l.to_string());
+            let response = self.response(deadline)?;
+            if let Some(verdict) = response.as_atom().and_then(Verdict::from_response) {
+                return Some(verdict);
             }
-            if l.starts_with("(error") {
-                eprintln!("internal: z3 {l}");
+            if response.head() == Some("error") {
+                eprintln!("internal: z3 {response}");
                 // a rejected command means the query is not the one we meant: no answer counts
                 if self.error.is_none() {
-                    self.error = Some(l.to_string());
+                    self.error = Some(response.to_string());
                 }
-            }
-        }
-    }
-
-    fn read_sexp(&mut self, deadline: Instant) -> Option<String> {
-        let mut acc = String::new();
-        let mut depth = 0i32;
-        loop {
-            let line = self.line(deadline)?;
-            for c in line.chars() {
-                if c == '(' {
-                    depth += 1
-                } else if c == ')' {
-                    depth -= 1
-                }
-            }
-            acc.push_str(line.trim());
-            acc.push(' ');
-            if depth <= 0 && acc.contains('(') {
-                return Some(acc);
             }
         }
     }
@@ -299,30 +292,37 @@ impl Smt {
             self.stats.solver_ms += t0.elapsed().as_millis();
             return Res::Unknown(format!("timeout after {} ms (solver killed)", self.timeout_ms));
         };
-        let res = match ans.as_str() {
-            "unsat" => Res::Unsat,
-            "sat" => {
+        let res = match ans {
+            Verdict::Unsat => Res::Unsat,
+            Verdict::Sat => {
                 let mut vals = vec![];
                 let deadline = Instant::now() + Duration::from_secs(5);
                 for (name, term) in cex {
                     self.raw(&format!("(get-value ({term}))\n"));
                     self.flush();
-                    let Some(s) = self.read_sexp(deadline) else {
+                    let Some(response) = self.response(deadline) else {
                         break;
                     };
-                    let inner = s.trim().trim_start_matches('(').trim_start_matches('(');
-                    let inner = inner.trim_end().trim_end_matches(')').trim_end_matches(')');
-                    let v = inner.strip_prefix(term.as_str()).unwrap_or(inner).trim().to_string();
-                    vals.push((name.clone(), pretty(&v)));
+                    // `((term value))`
+                    let value = match response.as_list() {
+                        Some([pair]) => match pair.as_list() {
+                            Some([_, value]) => value.to_string(),
+                            _ => pair.to_string(),
+                        },
+                        _ => response.to_string(),
+                    };
+                    vals.push((name.clone(), pretty(&value)));
                 }
                 Res::Sat(vals)
             }
             other => {
                 self.raw("(get-info :reason-unknown)\n");
                 self.flush();
-                let why =
-                    self.read_sexp(Instant::now() + Duration::from_secs(2)).unwrap_or_default();
-                Res::Unknown(format!("{other} {}", why.trim()))
+                let why = self
+                    .response(Instant::now() + Duration::from_secs(2))
+                    .map(|why| why.to_string())
+                    .unwrap_or_default();
+                Res::Unknown(format!("{} {why}", other.name()))
             }
         };
         self.raw("(pop 1)\n");
