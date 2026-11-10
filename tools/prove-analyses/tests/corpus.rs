@@ -15,6 +15,7 @@ use regex as _;
 use ruint as _;
 use serde_json::Value;
 use sha2 as _;
+use solar_smt as _;
 use std::{
     collections::BTreeMap,
     env,

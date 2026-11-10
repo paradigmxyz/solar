@@ -31,6 +31,7 @@ use regex::Regex;
 use ruint::aliases::U256;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
+use solar_smt::sexp;
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
@@ -311,11 +312,14 @@ impl Solver {
             let text =
                 fs::read_to_string(if tier.exists() { &tier } else { *query }).unwrap_or_default();
             script.push_str("(push)\n");
-            for line in
-                text.lines().filter(|l| l.starts_with("(declare") || l.starts_with("(assert"))
-            {
-                script.push_str(line);
-                script.push('\n');
+            // The query's declarations, definitions and assertions; its own logic and
+            // `check-sat` are the batch's.
+            for command in sexp::parse(&text).map_while(Result::ok).filter(|command| {
+                command.head().is_some_and(|head| {
+                    head.starts_with("declare-") || head.starts_with("define-") || head == "assert"
+                })
+            }) {
+                script.push_str(&format!("{command}\n"));
             }
             script.push_str(&format!("(echo \"@{index}\")\n(check-sat)\n(pop)\n"));
         }
@@ -323,13 +327,14 @@ impl Solver {
         let output = self.z3(script, timeout).unwrap_or_default();
         let mut verdicts = vec!["unknown".to_string(); queries.len()];
         let mut current = None;
-        for line in output.lines() {
-            if let Some(index) = line.strip_prefix('@').and_then(|i| i.parse::<usize>().ok()) {
+        for response in sexp::parse(&output).map_while(Result::ok) {
+            let Some(atom) = response.as_atom() else { continue };
+            if let Some(index) = atom.strip_prefix('@').and_then(|i| i.parse::<usize>().ok()) {
                 current = Some(index);
             } else if let Some(index) = current
-                && matches!(line, "sat" | "unsat" | "unknown")
+                && matches!(atom, "sat" | "unsat" | "unknown")
             {
-                verdicts[index] = line.to_string();
+                verdicts[index] = atom.to_string();
                 current = None;
             }
         }
@@ -360,12 +365,16 @@ impl Solver {
             }
         }
         let verdict = verdict_of(output.as_deref());
-        let mut lines = output.as_deref().map(str::lines).into_iter().flatten().skip(1);
         let mut record = record(query, source, verdict, tier);
+        // The `get-value` answer after the verdict line, which spans a line per goal.
+        let values = output
+            .as_deref()
+            .and_then(|output| output.split_once('\n'))
+            .and_then(|(_, rest)| sexp::parse(rest).next()?.ok());
         if verdict == "sat"
-            && let Some(model) = lines.next()
+            && let Some(values) = values
         {
-            record.insert("counterexample".into(), json!(model));
+            record.insert("counterexample".into(), json!(values.to_string()));
             if is_trip_count_bound(&record) {
                 record.insert("result".into(), json!("trip-count"));
             } else if record.get("opaque").and_then(Value::as_str).is_some_and(|o| !o.is_empty()) {

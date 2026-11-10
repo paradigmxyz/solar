@@ -4649,6 +4649,7 @@ dependencies = [
  "ruint",
  "serde_json",
  "sha2 0.11.1",
+ "solar-smt",
  "tempfile",
 ]
 
@@ -4684,6 +4685,10 @@ dependencies = [
  "thread_local",
  "tracing",
 ]
+
+[[package]]
+name = "solar-smt"
+version = "0.3.0"
 
 [[package]]
 name = "solar-tester"
