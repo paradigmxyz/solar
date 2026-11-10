@@ -1,0 +1,20 @@
+// CHECK: "Claims": {
+// CHECK: "storageLayout": {
+// CHECK: "bitmaps": [
+// CHECK: "label": "claimed"
+// CHECK: "slot": "1"
+// CHECK: "t_mapping(t_uint256,t_bool)"
+// CHECK: "Plain": {
+// CHECK-NOT: "bitmaps"
+// CHECK: "types"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "bitmap.sol": {
+        "Claims": ["storageLayout"],
+        "Plain": ["storageLayout"]
+      }
+    }
+  }
+}

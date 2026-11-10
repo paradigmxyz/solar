@@ -1,0 +1,24 @@
+// CHECK: "Lists": {
+// CHECK: "storageLayout": {
+// CHECK: "label": "plain"
+// CHECK: "slot": "2"
+// CHECK: "inline": [
+// CHECK: "label": "small"
+// CHECK: "slot": "1"
+// CHECK: "t_array(t_uint64)dyn_storage"
+// CHECK: "label": "codes"
+// CHECK: "slot": "3"
+// CHECK: "Plain": {
+// CHECK-NOT: "inline"
+// CHECK: "types"
+{
+  "language": "Solidity",
+  "settings": {
+    "outputSelection": {
+      "inline.sol": {
+        "Lists": ["storageLayout"],
+        "Plain": ["storageLayout"]
+      }
+    }
+  }
+}
