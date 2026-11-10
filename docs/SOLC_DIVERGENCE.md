@@ -1050,3 +1050,80 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
+
+### CODEGEN-014: Oversized calldata slice copies revert empty
+
+- ID: CODEGEN-014
+- Status: intentional
+- Difference: copying a calldata slice to memory reverts with empty data in
+  `solar` and with `Panic(0x41)` in `solc` when inline assembly set its length
+  to `2**64` or more.
+- Rationale: only assembly can build such a slice, and the call reverts either
+  way. Panicking first means checking the allocation size before the range
+  check, which adds a branch to every such copy; measured, it grew two runtime
+  corpus cases by 2 to 7 bytes.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_slice_huge_length_copy.sol`.
+
+### CODEGEN-015: A dirty later argument reverts before an earlier allocation panic
+
+- ID: CODEGEN-015
+- Status: intentional
+- Difference: for `f(uint256[] memory, uint8)` called with an array length of
+  `2**59` and a dirty `uint8` word, `solar` reverts with empty data and `solc`
+  with `Panic(0x41)`. The entry prologue validates all scalar head words before
+  it decodes a memory argument.
+- Rationale: only malformed calldata reaches it, and the call reverts either
+  way. Matching the order would mean decoding each memory argument before the
+  later scalar checks, which complicates the prologue.
+- Coverage: `tests/ui/codegen/run-call/abi-decode/abi_argument_check_order.sol`.
+
+### CODEGEN-016: A forged calldata struct pointer must have its whole head in calldata
+
+- ID: CODEGEN-016
+- Status: intentional
+- Difference: returning a calldata struct that assembly pointed at fewer bytes
+  than its head reverts in `solar`. `solc` reads the missing words as zero and
+  returns the struct.
+- Rationale: only assembly forges such a pointer, and the entry prologue's
+  head check is the same one that rejects short calldata. Reading the missing
+  words as zero would need struct returns to read their head lazily, which
+  complicates the codegen.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_struct_short_head.sol`.
+
+### CODEGEN-017: A forged calldata offset with bit 255 set is not rejected
+
+- ID: CODEGEN-017
+- Status: intentional
+- Difference: copying a `bytes calldata` whose assembly-set offset has bit 255
+  set returns zeros in `solar`. `solc` reverts with empty data.
+- Rationale: only assembly builds the offset. The top-level range check is
+  signed, so the offset passes; an unsigned bound would add a comparison to
+  every calldata copy.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_slice_high_offset_copy.sol`.
+
+### CODEGEN-018: Dirty storage padding of external function arrays survives a copy
+
+- ID: CODEGEN-018
+- Status: intentional
+- Difference: after assembly writes dirty bits into the unused high 8 bytes of
+  an external-function array element's storage slot, copying a memory array over
+  it keeps those bits in `solar`. `solc` clears them. Solidity never reads the
+  padding.
+- Rationale: only assembly or raw storage writes make the padding dirty, and
+  clearing it needs a masked write or an extra partial-slot cleanup for each
+  copy of such an array.
+- Coverage: `tests/ui/codegen/run-call/function-pointers/external_function_pointer_memory_to_storage_padding.sol`.
+
+### CODEGEN-019: Implicit memory defaults of absurdly large fields panic
+
+- ID: CODEGEN-019
+- Status: intentional
+- Difference: reading a default element of a memory struct whose static field
+  needs `2**45` bytes or more (`2**40` words) reverts with `Panic(0x41)` or runs
+  out of gas in `solar`. `solc` with the optimizer returns zero, because it drops
+  the allocation. Fields up to `2**16` words return zero in both, and fields
+  from `2**17` to `2**30` words run out of gas in both.
+- Rationale: no contract can allocate such a type. Matching `solc` would need
+  the zero defaults to be read without backing memory, which adds compiler
+  complexity for a size nothing can use.
+- Coverage: `tests/ui/codegen/run-call/memory/memory_default_oversized_field.sol`.
