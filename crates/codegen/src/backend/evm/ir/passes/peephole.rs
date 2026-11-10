@@ -73,7 +73,7 @@ use alloy_primitives::U256;
 use solar_data_structures::{index::IndexVec, map::FxHasher};
 use solar_sema::Gcx;
 use std::{
-    cell::Cell,
+    cell::{Cell, RefCell},
     fmt,
     hash::{Hash, Hasher},
 };
@@ -186,6 +186,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
     // block's net stack effect, so they stay valid while the pass runs.
     let mut entry_depths = None;
     let needed = Cell::new(false);
+    let net_depths = RefCell::new(Vec::new());
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
         let label = block.label;
@@ -203,7 +204,11 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
                 target,
                 rules,
                 block: label,
-                stack: StackBound::new(depths.as_ref().map(|depths| depths[block_id]), &needed),
+                stack: StackBound::new(
+                    depths.as_ref().map(|depths| depths[block_id]),
+                    &needed,
+                    &net_depths,
+                ),
             };
             let block = &mut module.blocks[block_id];
             rewrites =
@@ -270,6 +275,7 @@ impl Driver<'_> {
         scratch: &mut Vec<Instruction>,
         early_clean: bool,
     ) -> usize {
+        self.stack.net_depths.borrow_mut().clear();
         // Inspect the original prefix without copying instructions. Until the first
         // rewrite, this is exactly the optimized prefix the streaming matcher sees.
         // The early rules match no prefix of an early-clean block, so only the final
@@ -323,6 +329,7 @@ impl Driver<'_> {
         let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
             .then(|| instructions[start..].to_vec());
         rewrite.edit.apply(self.target, instructions, start);
+        self.stack.net_depths.borrow_mut().truncate(start + 1);
         if let Some(input) = input {
             trace!(
                 target: TRACE_TARGET,

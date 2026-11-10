@@ -22,7 +22,7 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 /// How far back a rule may simulate the block's stack.
 const MAX_STACK_WINDOW: usize = 24;
@@ -222,11 +222,19 @@ pub(super) struct StackBound<'a> {
     entry: Option<Option<usize>>,
     /// Set when a rule consulted the entry bound.
     needed: &'a Cell<bool>,
+    /// The net stack effect of the first `n` instructions of the block, at index `n`, filled as
+    /// rules ask. A rewrite at `start` truncates it to `start + 1`, keeping the entries for the
+    /// instructions before it.
+    pub(super) net_depths: &'a RefCell<Vec<isize>>,
 }
 
 impl<'a> StackBound<'a> {
-    pub(super) fn new(entry: Option<Option<usize>>, needed: &'a Cell<bool>) -> Self {
-        Self { entry, needed }
+    pub(super) fn new(
+        entry: Option<Option<usize>>,
+        needed: &'a Cell<bool>,
+        net_depths: &'a RefCell<Vec<isize>>,
+    ) -> Self {
+        Self { entry, needed, net_depths }
     }
 }
 
@@ -341,15 +349,19 @@ impl<'a> PeepContext<'a> {
             return true;
         }
         self.stack.needed.set(true);
-        let prefix = &self.instructions[..self.instructions.len() - 4];
+        let end = self.instructions.len() - 4;
         self.stack.entry.flatten().is_some_and(|entry| {
-            // No instruction grows the stack by more than a word, so a short prefix cannot reach
-            // the limit; only a block near it needs the exact depth.
-            entry + prefix.len() + 2 <= MAX_STACK_DEPTH
-                || prefix
-                    .iter()
-                    .try_fold(entry, |depth, inst| apply_effect(depth, inst.stack_effect()))
-                    .is_some_and(|depth| depth + 2 <= MAX_STACK_DEPTH)
+            let mut nets = self.stack.net_depths.borrow_mut();
+            if nets.is_empty() {
+                nets.push(0);
+            }
+            while nets.len() <= end {
+                let index = nets.len() - 1;
+                let StackEffect { inputs, outputs } = self.instructions[index].stack_effect();
+                let net = nets[index] + isize::from(outputs) - isize::from(inputs);
+                nets.push(net);
+            }
+            entry as isize + nets[end] + 2 <= MAX_STACK_DEPTH as isize
         })
     }
 

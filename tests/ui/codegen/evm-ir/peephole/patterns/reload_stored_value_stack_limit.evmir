@@ -288,3 +288,28 @@ bb18:
   stop
 bb19:
   stop
+
+// A rewrite earlier in the block leaves the depth before a later window unchanged: the first
+// reload fits at 1022 words, the second at 1023 does not.
+// CHECK-LABEL: bb20 [stack=1019]:
+// CHECK: +   dup 1
+// CHECK: -   push 0
+// CHECK-NEXT: -   mload
+// CHECK: {{^ +}}push 32
+// CHECK-NEXT: {{^ +}}mstore
+// CHECK-NEXT: {{^ +}}push 32
+// CHECK-NEXT: {{^ +}}mload
+bb20 [stack=1019]:
+  push 1
+  push 2
+  push 3
+  push 0
+  mstore
+  push 0
+  mload
+  push 4
+  push 32
+  mstore
+  push 32
+  mload
+  stop

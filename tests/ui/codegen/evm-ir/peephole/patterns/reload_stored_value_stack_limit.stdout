@@ -167,4 +167,19 @@
     stop
   bb19:
     stop
+  bb20 [stack=1019]:
+    push 1
+    push 2
+    push 3
++   dup 1
+    push 0
+    mstore
+-   push 0
+-   mload
+    push 4
+    push 32
+    mstore
+    push 32
+    mload
+    stop
   
