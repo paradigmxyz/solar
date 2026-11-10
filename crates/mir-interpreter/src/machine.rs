@@ -60,19 +60,20 @@ use alloy_primitives::{U256, keccak256};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::{
+    bit_set::DenseBitSet,
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
 use solar_evmir::op;
 use solar_mir::{
-    AllocationPlacement, ArgIdx, BlockId, Callee, DataRef, Function, FunctionId, InstId, InstKind,
-    Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AllocationPlacement, ArgIdx, BackendMemory, BlockId, Callee, DataRef, Function, FunctionId,
+    InstId, InstKind, Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
-use std::{convert::Infallible, ops::ControlFlow};
+use std::{convert::Infallible, ops::ControlFlow, sync::Arc};
 
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,
 /// more than any block holds.
-pub(crate) const MEMORY_LIMIT: u64 = 1 << 24;
+pub const MEMORY_LIMIT: u64 = 1 << 24;
 
 /// The opcodes a run executes on its memory, besides the pure opcodes it evaluates.
 const MEMORY_OPCODES: [u8; 6] =
@@ -105,7 +106,7 @@ pub(crate) const HOST_OPCODES: [u8; 21] = [
 
 /// How an execution ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Outcome {
+pub enum Outcome {
     /// The function returned these values.
     Return(SmallVec<[U256; 2]>),
     /// Execution reverted with this payload.
@@ -126,7 +127,7 @@ pub(crate) enum Outcome {
 
 /// A bound on one execution.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Limit {
+pub enum Limit {
     /// The fuel budget ran out.
     Fuel,
     /// Calls nested deeper than the call depth.
@@ -137,11 +138,11 @@ pub(crate) enum Limit {
 
 /// The bounds of one execution.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Limits {
+pub struct Limits {
     /// Units of work before the run stops: one per operation and per word copied or hashed.
-    pub(crate) fuel: u64,
+    pub fuel: u64,
     /// Frames that may be live at once, the called function's included.
-    pub(crate) depth: usize,
+    pub depth: usize,
 }
 
 /// What one execution did.
@@ -156,13 +157,13 @@ pub(crate) struct Execution {
 
 /// What an execution did outside memory.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct Effects {
+pub struct Effects {
     /// The persistent storage slots it wrote, with their final values.
-    pub(crate) storage: FxHashMap<U256, U256>,
+    pub storage: FxHashMap<U256, U256>,
     /// The transient storage slots it wrote, with their final values.
-    pub(crate) transient: FxHashMap<U256, U256>,
+    pub transient: FxHashMap<U256, U256>,
     /// The events it logged, in order.
-    pub(crate) logs: Vec<Log>,
+    pub logs: Vec<Log>,
 }
 
 /// Answers what a run reads from its context and cannot know itself.
@@ -207,31 +208,109 @@ pub(crate) struct TransactionExecution {
     pub(crate) effects: Effects,
 }
 
-/// Byte-addressed EVM memory, zero where nothing wrote.
+/// Byte-addressed EVM memory with seeded initial contents and zeroed expansion.
 #[derive(Clone, Debug)]
-pub(crate) struct Memory {
+pub struct Memory {
+    /// What unwritten words hold, which is zero without it.
+    garbage: Option<Garbage>,
     /// Materialized words by word index.
     words: FxHashMap<u64, [u8; 32]>,
+    /// Bytes a run wrote, as a mask per word index.
+    written: FxHashMap<u64, u32>,
     /// The size in words, as `MSIZE` reports it.
     size: u64,
 }
 
+/// The contents of unwritten memory words, derived from a seed per word.
+///
+/// A word is random, or one of the words programs keep in memory: a small number such as a
+/// length, a flag, or an enum; an address near the heap start; or a word of the palette, such as
+/// the constants of the code under test. A program that loads a word and follows it as a pointer
+/// then reaches more such words, so chains of loads through garbage can end in data it accepts.
+#[derive(Clone, Debug)]
+struct Garbage {
+    seed: u64,
+    palette: Arc<[U256]>,
+    /// Only the initial extent is seeded; EVM memory expansion always reads zero.
+    words: u64,
+}
+
+impl Garbage {
+    /// Words above the heap start that garbage addresses point into: 64 KiB.
+    const ADDRESS_WORDS: u64 = 2048;
+    /// The largest small number garbage holds.
+    const SMALL: u64 = 32;
+
+    fn word(&self, index: u64) -> [u8; 32] {
+        // Give the selector and four random lanes distinct counter draws, including
+        // across adjacent words. Reusing a lane as the next selector couples them.
+        let base = index.wrapping_mul(5);
+        let pick = mix64(self.seed ^ mix64(base));
+        let rest = pick >> 3;
+        let word = match pick % 8 {
+            0 | 1 => U256::from(rest % (Self::SMALL + 1)),
+            2 | 3 => {
+                let offset = EvmMemoryLayout::WORD_SIZE * (rest % Self::ADDRESS_WORDS);
+                U256::from(EvmMemoryLayout::HEAP_START + offset)
+            }
+            4 if !self.palette.is_empty() => {
+                self.palette[(rest % self.palette.len() as u64) as usize]
+            }
+            _ => {
+                let mut bytes = [0; 32];
+                for (lane, chunk) in bytes.as_chunks_mut::<8>().0.iter_mut().enumerate() {
+                    let lane = mix64(base.wrapping_add(lane as u64 + 1));
+                    *chunk = mix64(self.seed ^ lane).to_be_bytes();
+                }
+                return bytes;
+            }
+        };
+        word.to_be_bytes()
+    }
+}
+
 impl Memory {
+    /// Creates memory of `size` words whose contents derive from `seed`.
+    /// Expansion beyond that initial extent reads zero. A probe rejects initial sizes
+    /// greater than [`MEMORY_LIMIT`] bytes before running any operation.
+    pub fn new(seed: u64, size: u64) -> Self {
+        let garbage = Garbage { seed, palette: Arc::from([]), words: size };
+        Self {
+            garbage: Some(garbage),
+            words: FxHashMap::default(),
+            written: FxHashMap::default(),
+            size,
+        }
+    }
+
+    /// Makes some unwritten words hold words of `palette`.
+    pub fn with_palette(mut self, palette: Arc<[U256]>) -> Self {
+        if let Some(garbage) = &mut self.garbage {
+            garbage.palette = palette;
+        }
+        self
+    }
+
     /// Creates empty memory whose bytes are zero, as a transaction starts with.
-    pub(crate) fn zeroed() -> Self {
-        Self { words: FxHashMap::default(), size: 0 }
+    pub fn zeroed() -> Self {
+        Self { garbage: None, words: FxHashMap::default(), written: FxHashMap::default(), size: 0 }
     }
 
     /// Sets the word at byte `offset` before a run, without counting it as written or growing
     /// memory.
-    pub(crate) fn set(&mut self, offset: u64, value: U256) {
+    pub fn set(&mut self, offset: u64, value: U256) {
         for (index, byte) in value.to_be_bytes::<32>().into_iter().enumerate() {
             self.set_byte(offset.wrapping_add(index as u64), byte);
         }
     }
 
+    /// Returns the size in words.
+    pub fn size(&self) -> u64 {
+        self.size
+    }
+
     /// Returns the word at byte `offset`, without growing memory.
-    pub(crate) fn word(&self, offset: u64) -> U256 {
+    pub fn word(&self, offset: u64) -> U256 {
         let mut bytes = [0; 32];
         for (index, byte) in bytes.iter_mut().enumerate() {
             *byte = self.byte(offset.wrapping_add(index as u64));
@@ -239,16 +318,62 @@ impl Memory {
         U256::from_be_bytes(bytes)
     }
 
+    /// Returns the lowest byte address that either memory wrote and where their contents
+    /// differ.
+    pub fn first_difference(&self, other: &Self) -> Option<u64> {
+        let mut first = None::<u64>;
+        for (&word, &mask) in self.written.iter().chain(&other.written) {
+            for index in 0..EvmMemoryLayout::WORD_SIZE {
+                let address = word * EvmMemoryLayout::WORD_SIZE + index;
+                if mask & (1 << index) != 0
+                    && first.is_none_or(|first| address < first)
+                    && self.byte(address) != other.byte(address)
+                {
+                    first = Some(address);
+                }
+            }
+        }
+        first
+    }
+
+    /// Returns the lowest byte address this memory wrote and `other` did not.
+    pub fn first_write_outside(&self, other: &Self) -> Option<u64> {
+        let mut first = None::<u64>;
+        for (&word, &mask) in &self.written {
+            let outside = mask & !other.written.get(&word).copied().unwrap_or_default();
+            if outside != 0 {
+                let address =
+                    word * EvmMemoryLayout::WORD_SIZE + u64::from(outside.trailing_zeros());
+                first = Some(first.map_or(address, |first| first.min(address)));
+            }
+        }
+        first
+    }
+
     fn byte(&self, address: u64) -> u8 {
         let (word, index) =
             (address / EvmMemoryLayout::WORD_SIZE, (address % EvmMemoryLayout::WORD_SIZE) as usize);
-        self.words.get(&word).map_or(0, |bytes| bytes[index])
+        self.words.get(&word).map_or_else(|| self.seeded(word)[index], |bytes| bytes[index])
     }
 
     fn set_byte(&mut self, address: u64, value: u8) {
         let (word, index) =
             (address / EvmMemoryLayout::WORD_SIZE, (address % EvmMemoryLayout::WORD_SIZE) as usize);
-        self.words.entry(word).or_insert([0; 32])[index] = value;
+        let seeded = self.seeded(word);
+        self.words.entry(word).or_insert(seeded)[index] = value;
+    }
+
+    fn write_byte(&mut self, address: u64, value: u8) {
+        self.set_byte(address, value);
+        *self.written.entry(address / EvmMemoryLayout::WORD_SIZE).or_default() |=
+            1 << (address % EvmMemoryLayout::WORD_SIZE);
+    }
+
+    fn seeded(&self, word: u64) -> [u8; 32] {
+        self.garbage
+            .as_ref()
+            .filter(|garbage| word < garbage.words)
+            .map_or([0; 32], |garbage| garbage.word(word))
     }
 
     /// Checks an access of `len` bytes at `offset` against the memory limit and grows memory
@@ -276,14 +401,14 @@ impl Memory {
         let offset =
             self.access(offset, U256::from(EvmMemoryLayout::WORD_SIZE))?.unwrap_or_default();
         for (index, byte) in value.to_be_bytes::<32>().into_iter().enumerate() {
-            self.set_byte(offset + index as u64, byte);
+            self.write_byte(offset + index as u64, byte);
         }
         Ok(())
     }
 
     fn store8(&mut self, offset: U256, value: U256) -> Result<(), Limit> {
         let offset = self.access(offset, U256::ONE)?.unwrap_or_default();
-        self.set_byte(offset, value.byte(0));
+        self.write_byte(offset, value.byte(0));
         Ok(())
     }
 
@@ -296,7 +421,7 @@ impl Memory {
     fn write(&mut self, offset: U256, bytes: &[u8]) -> Result<(), Limit> {
         let Some(offset) = self.access(offset, U256::from(bytes.len()))? else { return Ok(()) };
         for (index, &byte) in bytes.iter().enumerate() {
-            self.set_byte(offset + index as u64, byte);
+            self.write_byte(offset + index as u64, byte);
         }
         Ok(())
     }
@@ -305,23 +430,73 @@ impl Memory {
         let Some(dest) = self.access(dest, len)? else { return Ok(()) };
         let bytes = self.read(src, len)?;
         for (index, byte) in bytes.into_iter().enumerate() {
-            self.set_byte(dest + index as u64, byte);
+            self.write_byte(dest + index as u64, byte);
         }
         Ok(())
     }
 }
 
 /// Runs functions of one lowered module.
-pub(crate) struct Machine<'a> {
+pub struct Machine<'a> {
     module: &'a Module,
+    replacement: Option<(FunctionId, &'a Function)>,
 }
 
 impl<'a> Machine<'a> {
     /// Runs `module`'s functions as they are.
-    pub(crate) fn new(module: &'a Module) -> Self {
-        Self { module }
+    pub fn new(module: &'a Module) -> Self {
+        Self { module, replacement: None }
     }
 
+    /// Runs the module with one proposed function body replaced.
+    /// Backend placements and stack-return records belong to the original body and
+    /// are not reused for the replacement. Layout-dependent candidate operations
+    /// without fresh placements return [`Outcome::Unsupported`]. The captured entry's
+    /// initial free memory pointer remains part of the shared execution environment.
+    pub fn with_replacement(module: &'a Module, id: FunctionId, body: &'a Function) -> Self {
+        Self { module, replacement: Some((id, body)) }
+    }
+
+    /// Runs one function with seeded memory, coverage and an operation meter.
+    /// The write footprint includes only this run, even when `memory` is from a prior probe.
+    pub fn probe<'h>(
+        &self,
+        function: FunctionId,
+        args: &[U256],
+        mut memory: Memory,
+        host: Option<&'h mut dyn Host>,
+        limits: Limits,
+        meter: &'h mut dyn Meter,
+    ) -> ProbeExecution {
+        let body = self.body(function).expect("probe function belongs to module");
+        memory.written.clear();
+        let mut run = Run {
+            machine: self,
+            memory,
+            limits,
+            fuel: 0,
+            frames: Vec::new(),
+            world: host.map(|host| World { host, effects: Effects::default() }),
+            transaction: None,
+            frames_end: U256::ZERO,
+            probe: Some(Probe {
+                function,
+                meter,
+                visited: DenseBitSet::new_empty(body.blocks.len()),
+                outcomes: index_vec![0; body.num_insts()],
+            }),
+        };
+        let ControlFlow::Break(outcome) = run.execute(function, args);
+        let probe = run.probe.take().expect("probe run");
+        ProbeExecution {
+            outcome,
+            memory: run.memory,
+            fuel: run.fuel,
+            visited: probe.visited,
+            outcomes: probe.outcomes,
+            effects: run.world.map(|world| world.effects).unwrap_or_default(),
+        }
+    }
     /// Runs `function` on `args` and `memory` within `limits`. With a `host`, the run also reads
     /// and writes storage and transient storage, logs events, and reads the context values the
     /// host answers.
@@ -343,6 +518,7 @@ impl<'a> Machine<'a> {
             world: host.map(|host| World { host, effects: Effects::default() }),
             transaction: None,
             frames_end: U256::ZERO,
+            probe: None,
         };
         let ControlFlow::Break(outcome) = run.execute(function, args);
         let effects = run.world.map(|world| world.effects).unwrap_or_default();
@@ -379,6 +555,7 @@ impl<'a> Machine<'a> {
             world: Some(World { host, effects: Effects::default() }),
             transaction: Some(Transaction { calldata, evm_version }),
             frames_end: U256::ZERO,
+            probe: None,
         };
         let ControlFlow::Break(outcome) = run.execute(entry, &[]);
         let outcome = match outcome {
@@ -393,14 +570,19 @@ impl<'a> Machine<'a> {
     }
 
     fn body(&self, id: FunctionId) -> Option<&'a Function> {
-        self.module.functions.get(id)
+        match self.replacement {
+            Some((replaced, body)) if replaced == id => Some(body),
+            _ => self.module.functions.get(id),
+        }
     }
-    fn function_id(&self, body: &Function) -> FunctionId {
-        self.module
-            .functions
-            .iter_enumerated()
-            .find_map(|(id, function)| std::ptr::eq(function, body).then_some(id))
-            .expect("body belongs to module")
+
+    /// Body-dependent placements cannot be reused after replacement. The function-keyed entry
+    /// initialization is read separately in `Run::call`, without importing stale body records.
+    fn backend_memory(&self, function: FunctionId) -> Option<&'a BackendMemory> {
+        if self.replacement.is_some_and(|(id, _)| id == function) {
+            return None;
+        }
+        self.module.backend_memory.as_ref()
     }
 }
 
@@ -409,7 +591,7 @@ struct Frame<'a> {
     function: FunctionId,
     body: &'a Function,
     /// The original callee whose caller publishes its return buffer, across tail calls.
-    return_owner: &'a Function,
+    return_owner: FunctionId,
     caller_inst: Option<InstId>,
     args: IndexVec<ArgIdx, U256>,
     values: IndexVec<ValueId, Option<U256>>,
@@ -431,7 +613,7 @@ impl<'a> Frame<'a> {
         Self {
             function,
             body,
-            return_owner: body,
+            return_owner: function,
             caller_inst: None,
             args,
             values,
@@ -496,27 +678,30 @@ struct Run<'m, 'a, 't> {
     /// The end of the frames and spill slots of the runtime entries the run entered, which the
     /// backend writes without MIR showing it.
     frames_end: U256,
+    probe: Option<Probe<'t>>,
 }
 
 impl<'a> Run<'_, 'a, '_> {
     fn execute(&mut self, function: FunctionId, args: &[U256]) -> ControlFlow<Outcome, Infallible> {
-        let Some(body) = self.machine.body(function) else {
-            return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
-        };
-        self.call(body, args.iter().copied().collect(), None)?;
+        if self.memory.size > MEMORY_LIMIT / EvmMemoryLayout::WORD_SIZE {
+            return ControlFlow::Break(Outcome::Limit(Limit::Memory));
+        }
+        self.call(function, args.iter().copied().collect(), None)?;
         loop {
+            if self.probe.as_ref().is_some_and(|probe| probe.meter.exhausted()) {
+                return ControlFlow::Break(Outcome::Limit(Limit::Fuel));
+            }
             let frame = self.frame();
             let (function, body, block, next) =
                 (frame.function, frame.body, frame.block, frame.next);
             match body.blocks[block].instructions.get(next) {
                 Some(&inst) => {
                     self.frame().next += 1;
-                    let elided =
-                        self.machine.module.backend_memory.as_ref().is_some_and(|layout| {
-                            layout.stack_returns.iter().any(|(&(owner, _), protocol)| {
-                                owner == function && protocol.elided.contains(&inst)
-                            })
-                        });
+                    let elided = self.machine.backend_memory(function).is_some_and(|layout| {
+                        layout.stack_returns.iter().any(|(&(owner, _), protocol)| {
+                            owner == function && protocol.elided.contains(&inst)
+                        })
+                    });
                     if !elided {
                         self.instruction(body, inst)?;
                     }
@@ -546,13 +731,16 @@ impl<'a> Run<'_, 'a, '_> {
         self.burn(len.to::<u64>().div_ceil(EvmMemoryLayout::WORD_SIZE))
     }
 
-    /// Pushes a frame running `body` on `args`, returning its first value into `result`.
+    /// Pushes a frame running `function` on `args`, returning its first value into `result`.
     fn call(
         &mut self,
-        body: &'a Function,
+        function: FunctionId,
         args: IndexVec<ArgIdx, U256>,
         result: Option<ValueId>,
     ) -> ControlFlow<Outcome> {
+        let Some(body) = self.machine.body(function) else {
+            return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
+        };
         if self.frames.len() >= self.limits.depth {
             return ControlFlow::Break(Outcome::Limit(Limit::Depth));
         }
@@ -562,15 +750,20 @@ impl<'a> Run<'_, 'a, '_> {
         if body.blocks.is_empty() {
             return ControlFlow::Break(Outcome::Unsupported("function without blocks"));
         }
-        let function = self.machine.function_id(body);
-        if let Some(layout) = &self.machine.module.backend_memory {
-            if let Some(&end) = layout.frame_ends.get(&function) {
-                self.frames_end = self.frames_end.max(end);
-            }
-            if let Some(floor) = layout.entry_heaps.get(&function) {
-                // mstore 0x40, entry_heap
-                limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
-            }
+        if let Some(layout) = self.machine.backend_memory(function)
+            && let Some(&end) = layout.frame_ends.get(&function)
+        {
+            self.frames_end = self.frames_end.max(end);
+        }
+        if let Some(floor) = self
+            .machine
+            .module
+            .backend_memory
+            .as_ref()
+            .and_then(|layout| layout.entry_heaps.get(&function))
+        {
+            // mstore 0x40, entry_heap
+            limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
         }
         self.frames.push(Frame::new(function, body, args, result));
         ControlFlow::Continue(())
@@ -596,22 +789,18 @@ impl<'a> Run<'_, 'a, '_> {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
         let frame = self.frames.last().expect("a run always has a frame");
+        let function = frame.function;
+        if let Some(probe) = &mut self.probe {
+            probe.meter.instruction(body, inst, &|value| frame.word(value));
+        }
         let result = match semantics {
-            Semantics::HeapFloor if self.transaction.is_some() => {
-                let function = frame.function;
-                self.machine
-                    .module
-                    .backend_memory
-                    .as_ref()
-                    .and_then(|layout| layout.heap_floors.get(&function).copied())
-                    .unwrap_or_else(|| {
-                        self.world
-                            .as_mut()
-                            .expect("a transaction has a host")
-                            .host
-                            .free_memory_start()
-                    })
-            }
+            Semantics::HeapFloor if self.transaction.is_some() => self
+                .machine
+                .backend_memory(function)
+                .and_then(|layout| layout.heap_floors.get(&function).copied())
+                .unwrap_or_else(|| {
+                    self.world.as_mut().expect("a transaction has a host").host.free_memory_start()
+                }),
             Semantics::Phi(_) => {
                 return ControlFlow::Break(Outcome::Unsupported("phi after other instructions"));
             }
@@ -628,10 +817,7 @@ impl<'a> Run<'_, 'a, '_> {
             }
             Semantics::Call(&Callee::Function(id), args) => {
                 let args = frame.read_all(args)?.into_iter().collect();
-                let Some(callee) = self.machine.body(id) else {
-                    return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
-                };
-                self.call(callee, args, instruction.result())?;
+                self.call(id, args, instruction.result())?;
                 self.frame().caller_inst = Some(inst);
                 return ControlFlow::Continue(());
             }
@@ -655,6 +841,12 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(value) = instruction.result() else {
             return ControlFlow::Break(Outcome::Unsupported("result without a value"));
         };
+        if let Some(probe) = &mut self.probe {
+            if function == probe.function {
+                probe.outcomes[inst] |= if result.is_zero() { 1 } else { 2 };
+            }
+            probe.meter.result(result);
+        }
         self.frame().values[value] = Some(result);
         ControlFlow::Continue(())
     }
@@ -787,9 +979,22 @@ impl<'a> Run<'_, 'a, '_> {
             (op::SLOAD, &[slot]) => {
                 let original = world.host.storage(slot);
                 let current = world.effects.storage.get(&slot).copied().unwrap_or(original);
+                if let Some(probe) = &mut self.probe {
+                    probe.meter.storage(StorageAccess { slot, original, current, new: None });
+                }
                 Some(current)
             }
             (op::SSTORE, &[slot, value]) => {
+                if let Some(probe) = &mut self.probe {
+                    let original = world.host.storage(slot);
+                    let current = world.effects.storage.get(&slot).copied().unwrap_or(original);
+                    probe.meter.storage(StorageAccess {
+                        slot,
+                        original,
+                        current,
+                        new: Some(value),
+                    });
+                }
                 world.effects.storage.insert(slot, value);
                 None
             }
@@ -849,7 +1054,7 @@ impl<'a> Run<'_, 'a, '_> {
         if size > U256::from(MEMORY_LIMIT) {
             return ControlFlow::Break(Outcome::Unsupported("alloc"));
         }
-        if let Some(layout) = &self.machine.module.backend_memory {
+        if let Some(layout) = self.machine.backend_memory(function) {
             let Some(placement) = layout.allocations.get(&(function, inst)) else {
                 return ControlFlow::Break(Outcome::Unsupported(
                     "missing backend allocation placement",
@@ -872,13 +1077,16 @@ impl<'a> Run<'_, 'a, '_> {
 
     /// Publishes the results after the first of a call returning several values the way the
     /// backend does: result `k` at `buffer + 32 * k`, with `buffer` in the word at `0x20`.
-    fn publish_multi_return(&mut self, body: &Function, values: &[U256]) -> ControlFlow<Outcome> {
+    fn publish_multi_return(
+        &mut self,
+        function: FunctionId,
+        values: &[U256],
+    ) -> ControlFlow<Outcome> {
         let Some(_) = &self.transaction else {
             // Further results pass through a memory buffer the backend owns.
             return ControlFlow::Break(Outcome::Unsupported("call returning several values"));
         };
-        let buffer = if let Some(layout) = &self.machine.module.backend_memory {
-            let function = self.machine.function_id(body);
+        let buffer = if let Some(layout) = self.machine.backend_memory(function) {
             let Some(buffer) = layout.returns.get(&function) else {
                 return ControlFlow::Break(Outcome::Unsupported(
                     "missing backend return buffer placement",
@@ -906,6 +1114,12 @@ impl<'a> Run<'_, 'a, '_> {
             return ControlFlow::Break(Outcome::Unsupported("block without a terminator"));
         };
         let frame = self.frames.last().expect("a run always has a frame");
+        if let Some(probe) = &mut self.probe {
+            probe.meter.terminator(body, block, &|value| frame.word(value));
+            if frame.function == probe.function {
+                probe.visited.insert(block);
+            }
+        }
         match terminator {
             &Terminator::Jump(target) => self.enter(target),
             &Terminator::Branch { condition, then_block, else_block } => {
@@ -931,7 +1145,7 @@ impl<'a> Run<'_, 'a, '_> {
                 }
                 if values.len() > 1 {
                     let caller_id = self.frames.last().expect("caller").function;
-                    let protocol = self.machine.module.backend_memory.as_ref().and_then(|layout| {
+                    let protocol = self.machine.backend_memory(caller_id).and_then(|layout| {
                         layout.stack_returns.get(&(caller_id, frame.caller_inst?))
                     });
                     if let Some(protocol) = protocol {
@@ -948,6 +1162,13 @@ impl<'a> Run<'_, 'a, '_> {
                     } else {
                         self.publish_multi_return(frame.return_owner, &values)?;
                     }
+                }
+                if let Some(probe) = &mut self.probe
+                    && self.frames.last().expect("caller").function == probe.function
+                    && let Some(inst) = frame.caller_inst
+                    && let Some(value) = values.first()
+                {
+                    probe.outcomes[inst] |= if value.is_zero() { 1 } else { 2 };
                 }
                 let caller = self.frame();
                 if let Some(result) = frame.result {
@@ -975,11 +1196,8 @@ impl<'a> Run<'_, 'a, '_> {
             Terminator::Invalid => ControlFlow::Break(Outcome::Invalid),
             Terminator::TailCall { function, args } => {
                 let args = frame.read_all(args)?.into_iter().collect();
-                let Some(callee) = self.machine.body(*function) else {
-                    return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
-                };
                 let frame = self.frames.pop().expect("a run always has a frame");
-                self.call(callee, args, frame.result)?;
+                self.call(*function, args, frame.result)?;
                 self.frame().return_owner = frame.return_owner;
                 self.frame().caller_inst = frame.caller_inst;
                 ControlFlow::Continue(())
@@ -1000,22 +1218,33 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(block) = body.blocks.get(target) else {
             return ControlFlow::Break(Outcome::Unsupported("jump to an unknown block"));
         };
-        let mut incoming = SmallVec::<[(ValueId, U256); 8]>::new();
+        let mut incoming = SmallVec::<[(InstId, ValueId, U256); 8]>::new();
         for &inst in &block.instructions {
             let instruction = body.inst(inst);
             let InstKind::Phi(inputs) = &instruction.kind else { break };
+            if self.probe.as_ref().is_some_and(|probe| probe.meter.exhausted()) {
+                return ControlFlow::Break(Outcome::Limit(Limit::Fuel));
+            }
+            self.burn(1)?;
+            let frame = self.frames.last().expect("a run always has a frame");
             let (Some(&(_, value)), Some(result)) =
                 (inputs.iter().find(|&&(block, _)| block == from), instruction.result())
             else {
                 return ControlFlow::Break(Outcome::Unsupported("phi without an input"));
             };
             let word = frame.read(value)?;
-            incoming.push((result, word));
+            if let Some(probe) = &mut self.probe {
+                probe.meter.instruction(body, inst, &|value| frame.word(value));
+                probe.meter.result(word);
+                if frame.function == probe.function {
+                    probe.outcomes[inst] |= if word.is_zero() { 1 } else { 2 };
+                }
+            }
+            incoming.push((inst, result, word));
         }
-        self.burn(incoming.len() as u64)?;
         let frame = self.frame();
         frame.next = incoming.len();
-        for &(result, value) in &incoming {
+        for &(_, result, value) in &incoming {
             frame.values[result] = Some(value);
         }
         frame.block = target;
@@ -1458,3 +1687,95 @@ fn @world(arg0: i256) -> i256 {
         });
     }
 }
+
+/// Mixes a word into a well-distributed one: the SplitMix64 finalizer.
+pub fn mix64(value: u64) -> u64 {
+    let mut z = value.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    z ^ (z >> 31)
+}
+
+/// An access to a persistent storage slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StorageAccess {
+    pub slot: U256,
+    /// What the slot held when the run started.
+    pub original: U256,
+    /// What the slot holds before the access.
+    pub current: U256,
+    /// What an `SSTORE` writes, or `None` for an `SLOAD`.
+    pub new: Option<U256>,
+}
+
+/// Observes every operation an execution runs, for example to price it.
+///
+/// Each method runs before the operation it reports, and `operand` reads the values of the
+/// frame running it.
+pub trait Meter {
+    /// Instruction `inst` of `function` runs, including each phi of a block the run enters.
+    fn instruction(
+        &mut self,
+        function: &Function,
+        inst: InstId,
+        operand: &dyn Fn(ValueId) -> Option<U256>,
+    ) {
+        let _ = (function, inst, operand);
+    }
+
+    /// The terminator of `block` in `function` runs.
+    fn terminator(
+        &mut self,
+        function: &Function,
+        block: BlockId,
+        operand: &dyn Fn(ValueId) -> Option<U256>,
+    ) {
+        let _ = (function, block, operand);
+    }
+
+    /// The `SLOAD` or `SSTORE` [`Self::instruction`] just reported accesses persistent storage.
+    fn storage(&mut self, access: StorageAccess) {
+        let _ = access;
+    }
+
+    /// The instruction [`Self::instruction`] just reported produced `value`. A call's result is
+    /// not reported: the callee's return delivers it.
+    fn result(&mut self, value: U256) {
+        let _ = value;
+    }
+
+    /// Whether the run has spent all the meter allows, which ends it as running out of fuel
+    /// does, before its next operation.
+    fn exhausted(&self) -> bool {
+        false
+    }
+}
+
+impl Meter for () {}
+
+/// The observed result of a single-function probe, including writes made before a revert.
+#[derive(Clone, Debug)]
+pub struct ProbeExecution {
+    /// How execution ended.
+    pub outcome: Outcome,
+    /// The final memory contents and write footprint.
+    pub memory: Memory,
+    /// Work consumed by the run.
+    pub fuel: u64,
+    /// Completed blocks of the function under test, including recursive activations.
+    pub visited: DenseBitSet<BlockId>,
+    /// Whether each instruction produced zero and nonzero results across all its activations.
+    pub outcomes: IndexVec<InstId, u8>,
+    /// Storage writes and logs, including those preceding a revert.
+    pub effects: Effects,
+}
+
+struct Probe<'a> {
+    function: FunctionId,
+    meter: &'a mut dyn Meter,
+    visited: DenseBitSet<BlockId>,
+    outcomes: IndexVec<InstId, u8>,
+}
+
+#[cfg(test)]
+mod probe_tests;
