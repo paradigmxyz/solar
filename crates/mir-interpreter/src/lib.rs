@@ -310,6 +310,10 @@ fn @twice(arg0: i256) -> i256 {
 }
 
 /// Instrumented single-function execution for testing proposed rewrites.
+///
+/// Probes retain the initial memory's contents but track only the current run's writes.
+/// Seeded contents cover the initial extent; expansion reads zero. A replacement keeps its
+/// requested function identity and does not inherit the old body's backend placements.
 pub mod testing {
     pub use super::machine::{
         Effects, Limit, Limits, MEMORY_LIMIT, Machine, Memory, Meter, Outcome, ProbeExecution,

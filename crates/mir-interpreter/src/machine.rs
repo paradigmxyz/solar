@@ -66,8 +66,8 @@ use solar_data_structures::{
 };
 use solar_evmir::op;
 use solar_mir::{
-    AllocationPlacement, ArgIdx, BlockId, Callee, DataRef, Function, FunctionId, InstId, InstKind,
-    Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AllocationPlacement, ArgIdx, BackendMemory, BlockId, Callee, DataRef, Function, FunctionId,
+    InstId, InstKind, Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow, sync::Arc};
 
@@ -208,7 +208,7 @@ pub(crate) struct TransactionExecution {
     pub(crate) effects: Effects,
 }
 
-/// Byte-addressed EVM memory whose unwritten words hold seeded garbage, or zero.
+/// Byte-addressed EVM memory with seeded initial contents and zeroed expansion.
 #[derive(Clone, Debug)]
 pub struct Memory {
     /// What unwritten words hold, which is zero without it.
@@ -231,6 +231,8 @@ pub struct Memory {
 struct Garbage {
     seed: u64,
     palette: Arc<[U256]>,
+    /// Only the initial extent is seeded; EVM memory expansion always reads zero.
+    words: u64,
 }
 
 impl Garbage {
@@ -240,7 +242,10 @@ impl Garbage {
     const SMALL: u64 = 32;
 
     fn word(&self, index: u64) -> [u8; 32] {
-        let pick = mix64(self.seed ^ mix64(index.wrapping_mul(4).wrapping_sub(1)));
+        // Give the selector and four random lanes distinct counter draws, including
+        // across adjacent words. Reusing a lane as the next selector couples them.
+        let base = index.wrapping_mul(5);
+        let pick = mix64(self.seed ^ mix64(base));
         let rest = pick >> 3;
         let word = match pick % 8 {
             0 | 1 => U256::from(rest % (Self::SMALL + 1)),
@@ -254,7 +259,7 @@ impl Garbage {
             _ => {
                 let mut bytes = [0; 32];
                 for (lane, chunk) in bytes.as_chunks_mut::<8>().0.iter_mut().enumerate() {
-                    let lane = mix64(index.wrapping_mul(4).wrapping_add(lane as u64));
+                    let lane = mix64(base.wrapping_add(lane as u64 + 1));
                     *chunk = mix64(self.seed ^ lane).to_be_bytes();
                 }
                 return bytes;
@@ -266,8 +271,10 @@ impl Garbage {
 
 impl Memory {
     /// Creates memory of `size` words whose contents derive from `seed`.
+    /// Expansion beyond that initial extent reads zero. A probe rejects initial sizes
+    /// greater than [`MEMORY_LIMIT`] bytes before running any operation.
     pub fn new(seed: u64, size: u64) -> Self {
-        let garbage = Garbage { seed, palette: Arc::from([]) };
+        let garbage = Garbage { seed, palette: Arc::from([]), words: size };
         Self {
             garbage: Some(garbage),
             words: FxHashMap::default(),
@@ -363,7 +370,10 @@ impl Memory {
     }
 
     fn seeded(&self, word: u64) -> [u8; 32] {
-        self.garbage.as_ref().map_or([0; 32], |garbage| garbage.word(word))
+        self.garbage
+            .as_ref()
+            .filter(|garbage| word < garbage.words)
+            .map_or([0; 32], |garbage| garbage.word(word))
     }
 
     /// Checks an access of `len` bytes at `offset` against the memory limit and grows memory
@@ -433,22 +443,32 @@ pub struct Machine<'a> {
 }
 
 impl<'a> Machine<'a> {
+    /// Runs `module`'s functions as they are.
+    pub fn new(module: &'a Module) -> Self {
+        Self { module, replacement: None }
+    }
+
     /// Runs the module with one proposed function body replaced.
+    /// Backend placements and stack-return records belong to the original body and
+    /// are not reused for the replacement. Layout-dependent candidate operations
+    /// without fresh placements return [`Outcome::Unsupported`].
     pub fn with_replacement(module: &'a Module, id: FunctionId, body: &'a Function) -> Self {
         Self { module, replacement: Some((id, body)) }
     }
 
     /// Runs one function with seeded memory, coverage and an operation meter.
+    /// The write footprint includes only this run, even when `memory` is from a prior probe.
     pub fn probe<'h>(
         &self,
         function: FunctionId,
         args: &[U256],
-        memory: Memory,
+        mut memory: Memory,
         host: Option<&'h mut dyn Host>,
         limits: Limits,
         meter: &'h mut dyn Meter,
     ) -> ProbeExecution {
         let body = self.body(function).expect("probe function belongs to module");
+        memory.written.clear();
         let mut run = Run {
             machine: self,
             memory,
@@ -476,11 +496,6 @@ impl<'a> Machine<'a> {
             effects: run.world.map(|world| world.effects).unwrap_or_default(),
         }
     }
-    /// Runs `module`'s functions as they are.
-    pub fn new(module: &'a Module) -> Self {
-        Self { module, replacement: None }
-    }
-
     /// Runs `function` on `args` and `memory` within `limits`. With a `host`, the run also reads
     /// and writes storage and transient storage, logs events, and reads the context values the
     /// host answers.
@@ -559,17 +574,13 @@ impl<'a> Machine<'a> {
             _ => self.module.functions.get(id),
         }
     }
-    fn function_id(&self, body: &Function) -> FunctionId {
-        if let Some((id, candidate)) = self.replacement
-            && std::ptr::eq(candidate, body)
-        {
-            return id;
+
+    /// Records are keyed to a body's instruction and value IDs, not its public interface.
+    fn backend_memory(&self, function: FunctionId) -> Option<&'a BackendMemory> {
+        if self.replacement.is_some_and(|(id, _)| id == function) {
+            return None;
         }
-        self.module
-            .functions
-            .iter_enumerated()
-            .find_map(|(id, function)| std::ptr::eq(function, body).then_some(id))
-            .expect("body belongs to module")
+        self.module.backend_memory.as_ref()
     }
 }
 
@@ -578,7 +589,7 @@ struct Frame<'a> {
     function: FunctionId,
     body: &'a Function,
     /// The original callee whose caller publishes its return buffer, across tail calls.
-    return_owner: &'a Function,
+    return_owner: FunctionId,
     caller_inst: Option<InstId>,
     args: IndexVec<ArgIdx, U256>,
     values: IndexVec<ValueId, Option<U256>>,
@@ -600,7 +611,7 @@ impl<'a> Frame<'a> {
         Self {
             function,
             body,
-            return_owner: body,
+            return_owner: function,
             caller_inst: None,
             args,
             values,
@@ -670,10 +681,10 @@ struct Run<'m, 'a, 't> {
 
 impl<'a> Run<'_, 'a, '_> {
     fn execute(&mut self, function: FunctionId, args: &[U256]) -> ControlFlow<Outcome, Infallible> {
-        let Some(body) = self.machine.body(function) else {
-            return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
-        };
-        self.call(body, args.iter().copied().collect(), None)?;
+        if self.memory.size > MEMORY_LIMIT / EvmMemoryLayout::WORD_SIZE {
+            return ControlFlow::Break(Outcome::Limit(Limit::Memory));
+        }
+        self.call(function, args.iter().copied().collect(), None)?;
         loop {
             if self.probe.as_ref().is_some_and(|probe| probe.meter.exhausted()) {
                 return ControlFlow::Break(Outcome::Limit(Limit::Fuel));
@@ -684,12 +695,11 @@ impl<'a> Run<'_, 'a, '_> {
             match body.blocks[block].instructions.get(next) {
                 Some(&inst) => {
                     self.frame().next += 1;
-                    let elided =
-                        self.machine.module.backend_memory.as_ref().is_some_and(|layout| {
-                            layout.stack_returns.iter().any(|(&(owner, _), protocol)| {
-                                owner == function && protocol.elided.contains(&inst)
-                            })
-                        });
+                    let elided = self.machine.backend_memory(function).is_some_and(|layout| {
+                        layout.stack_returns.iter().any(|(&(owner, _), protocol)| {
+                            owner == function && protocol.elided.contains(&inst)
+                        })
+                    });
                     if !elided {
                         self.instruction(body, inst)?;
                     }
@@ -719,13 +729,16 @@ impl<'a> Run<'_, 'a, '_> {
         self.burn(len.to::<u64>().div_ceil(EvmMemoryLayout::WORD_SIZE))
     }
 
-    /// Pushes a frame running `body` on `args`, returning its first value into `result`.
+    /// Pushes a frame running `function` on `args`, returning its first value into `result`.
     fn call(
         &mut self,
-        body: &'a Function,
+        function: FunctionId,
         args: IndexVec<ArgIdx, U256>,
         result: Option<ValueId>,
     ) -> ControlFlow<Outcome> {
+        let Some(body) = self.machine.body(function) else {
+            return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
+        };
         if self.frames.len() >= self.limits.depth {
             return ControlFlow::Break(Outcome::Limit(Limit::Depth));
         }
@@ -735,8 +748,7 @@ impl<'a> Run<'_, 'a, '_> {
         if body.blocks.is_empty() {
             return ControlFlow::Break(Outcome::Unsupported("function without blocks"));
         }
-        let function = self.machine.function_id(body);
-        if let Some(layout) = &self.machine.module.backend_memory {
+        if let Some(layout) = self.machine.backend_memory(function) {
             if let Some(&end) = layout.frame_ends.get(&function) {
                 self.frames_end = self.frames_end.max(end);
             }
@@ -776,9 +788,7 @@ impl<'a> Run<'_, 'a, '_> {
             Semantics::HeapFloor if self.transaction.is_some() => {
                 let function = frame.function;
                 self.machine
-                    .module
-                    .backend_memory
-                    .as_ref()
+                    .backend_memory(function)
                     .and_then(|layout| layout.heap_floors.get(&function).copied())
                     .unwrap_or_else(|| {
                         self.world
@@ -804,10 +814,7 @@ impl<'a> Run<'_, 'a, '_> {
             }
             Semantics::Call(&Callee::Function(id), args) => {
                 let args = frame.read_all(args)?.into_iter().collect();
-                let Some(callee) = self.machine.body(id) else {
-                    return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
-                };
-                self.call(callee, args, instruction.result())?;
+                self.call(id, args, instruction.result())?;
                 self.frame().caller_inst = Some(inst);
                 return ControlFlow::Continue(());
             }
@@ -1044,7 +1051,7 @@ impl<'a> Run<'_, 'a, '_> {
         if size > U256::from(MEMORY_LIMIT) {
             return ControlFlow::Break(Outcome::Unsupported("alloc"));
         }
-        if let Some(layout) = &self.machine.module.backend_memory {
+        if let Some(layout) = self.machine.backend_memory(function) {
             let Some(placement) = layout.allocations.get(&(function, inst)) else {
                 return ControlFlow::Break(Outcome::Unsupported(
                     "missing backend allocation placement",
@@ -1067,13 +1074,16 @@ impl<'a> Run<'_, 'a, '_> {
 
     /// Publishes the results after the first of a call returning several values the way the
     /// backend does: result `k` at `buffer + 32 * k`, with `buffer` in the word at `0x20`.
-    fn publish_multi_return(&mut self, body: &Function, values: &[U256]) -> ControlFlow<Outcome> {
+    fn publish_multi_return(
+        &mut self,
+        function: FunctionId,
+        values: &[U256],
+    ) -> ControlFlow<Outcome> {
         let Some(_) = &self.transaction else {
             // Further results pass through a memory buffer the backend owns.
             return ControlFlow::Break(Outcome::Unsupported("call returning several values"));
         };
-        let buffer = if let Some(layout) = &self.machine.module.backend_memory {
-            let function = self.machine.function_id(body);
+        let buffer = if let Some(layout) = self.machine.backend_memory(function) {
             let Some(buffer) = layout.returns.get(&function) else {
                 return ControlFlow::Break(Outcome::Unsupported(
                     "missing backend return buffer placement",
@@ -1132,7 +1142,7 @@ impl<'a> Run<'_, 'a, '_> {
                 }
                 if values.len() > 1 {
                     let caller_id = self.frames.last().expect("caller").function;
-                    let protocol = self.machine.module.backend_memory.as_ref().and_then(|layout| {
+                    let protocol = self.machine.backend_memory(caller_id).and_then(|layout| {
                         layout.stack_returns.get(&(caller_id, frame.caller_inst?))
                     });
                     if let Some(protocol) = protocol {
@@ -1184,11 +1194,8 @@ impl<'a> Run<'_, 'a, '_> {
             Terminator::Invalid => ControlFlow::Break(Outcome::Invalid),
             Terminator::TailCall { function, args } => {
                 let args = frame.read_all(args)?.into_iter().collect();
-                let Some(callee) = self.machine.body(*function) else {
-                    return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
-                };
                 let frame = self.frames.pop().expect("a run always has a frame");
-                self.call(callee, args, frame.result)?;
+                self.call(*function, args, frame.result)?;
                 self.frame().return_owner = frame.return_owner;
                 self.frame().caller_inst = frame.caller_inst;
                 ControlFlow::Continue(())
@@ -1213,6 +1220,11 @@ impl<'a> Run<'_, 'a, '_> {
         for &inst in &block.instructions {
             let instruction = body.inst(inst);
             let InstKind::Phi(inputs) = &instruction.kind else { break };
+            if self.probe.as_ref().is_some_and(|probe| probe.meter.exhausted()) {
+                return ControlFlow::Break(Outcome::Limit(Limit::Fuel));
+            }
+            self.burn(1)?;
+            let frame = self.frames.last().expect("a run always has a frame");
             let (Some(&(_, value)), Some(result)) =
                 (inputs.iter().find(|&&(block, _)| block == from), instruction.result())
             else {
@@ -1228,7 +1240,6 @@ impl<'a> Run<'_, 'a, '_> {
             }
             incoming.push((inst, result, word));
         }
-        self.burn(incoming.len() as u64)?;
         let frame = self.frame();
         frame.next = incoming.len();
         for &(_, result, value) in &incoming {
@@ -1765,41 +1776,4 @@ struct Probe<'a> {
 }
 
 #[cfg(test)]
-mod probe_tests {
-    use super::*;
-    use solar_interface::{ColorChoice, Session, source_map::FileName};
-    #[derive(Default)]
-    struct Budget(usize);
-    impl Meter for Budget {
-        fn instruction(&mut self, _: &Function, _: InstId, _: &dyn Fn(ValueId) -> Option<U256>) {
-            self.0 += 1;
-        }
-        fn exhausted(&self) -> bool {
-            self.0 >= 1
-        }
-    }
-
-    #[test]
-    fn coverage_memory_replacement_and_meter() {
-        let session = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        session.enter(|| {
-        let source = session.source_map().new_source_file(FileName::Custom("probe.mir".into()), "@module Probe\n@phase lowered\nfn @f(arg0: i256) -> i256 {\n  bb0:\n    v0 = add arg0, 1\n    mstore 128, v0\n    ret v0\n}\n").unwrap();
-        let module = Module::parse(&session, &source).unwrap();
-        let (id, function) = module.iter_functions().next().unwrap();
-        let limits = Limits { fuel: 100, depth: 8 };
-        let initial = Memory::new(7, 0);
-        let run = Machine::new(&module).probe(id, &[U256::from(4)], initial.clone(), None, limits, &mut ());
-        assert_eq!(run.outcome, Outcome::Return([U256::from(5)].into_iter().collect()));
-        assert_eq!(run.memory.word(128), U256::from(5));
-        assert_eq!(run.memory.first_write_outside(&initial), Some(128));
-        assert_eq!(run.visited.count(), 1);
-        assert_eq!(run.outcomes[function.instructions().next().unwrap()], 2);
-        let stopped = Machine::new(&module).probe(id, &[U256::from(4)], initial.clone(), None, limits, &mut Budget::default());
-        assert_eq!(stopped.outcome, Outcome::Limit(Limit::Fuel));
-        let candidate_file = session.source_map().new_source_file(FileName::Custom("candidate.mir".into()), "fn @f(arg0: i256) -> i256 {\n  bb0:\n    ret arg0\n}\n").unwrap();
-        let candidate = module.parse_function(&session, &candidate_file).unwrap();
-        let replaced = Machine::with_replacement(&module, id, &candidate).probe(id, &[U256::from(4)], initial, None, limits, &mut ());
-        assert_eq!(replaced.outcome, Outcome::Return([U256::from(4)].into_iter().collect()));
-    });
-    }
-}
+mod probe_tests;
