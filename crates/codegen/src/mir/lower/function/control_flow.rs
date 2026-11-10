@@ -24,16 +24,12 @@ enum TryCallee<'a> {
     },
 }
 
-/// The failed call's return data, which the catch clauses match on and bind.
+/// The failed call's return data, which the catch clauses match on.
 ///
 /// Absent before Byzantium, where the only lowerable clause is a bare `catch { }` and there is no
 /// `RETURNDATACOPY` to read the data with.
 #[derive(Clone, Copy)]
 struct TryCatchData {
-    /// The `bytes` object holding the return data, unless no clause needs the whole data.
-    object: Option<ValueId>,
-    /// Pointer to the object's first data byte, unless no clause needs the whole data.
-    data: Option<ValueId>,
     /// The data's length in bytes.
     len: ValueId,
     /// The leading selector word; each typed clause checks the required payload length.
@@ -529,42 +525,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(catch_block);
         let needs_data =
             catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());
-        // Only `catch Error(string)` and `catch (bytes memory)` read the whole return data. When
-        // none is written, the clauses read the selector and the panic code through scratch
-        // memory, as solc does, and a payload no clause matches is bubbled up from the
-        // return data buffer, so a large payload costs nothing here.
-        let needs_object = catch_clauses.iter().any(|clause| {
-            clause.name.is_some_and(|name| name.name == sym::Error)
-                || (clause.name.is_none() && !clause.args.is_empty())
-        });
-        // data = returndata()
-        // selector = mload(data) >> 224
+        // Every clause reads the selector and length through scratch memory, as solc does. Only
+        // `catch Error(string)` and `catch (bytes memory)` copy the return data into a `bytes`
+        // object, and only on the path that reaches them, so a large payload that no such clause
+        // takes costs nothing here. A payload no clause matches is bubbled up from the return data
+        // buffer.
+        // len = returndatasize
+        // returndatacopy(0, 0, min(len, 32))
+        // selector = mload(0) >> 224
         let catch_data = (supports_returndata && needs_data).then(|| {
-            if needs_object {
-                let object = self.materialize_returndata_bytes();
-                let view = self.builder.memory_slice(object);
-                let data = self.builder.slice_ptr(view);
-                let len = self.builder.slice_len(view);
-                let zero = self.builder.imm(U256::ZERO);
-                let selector_word = self.builder.slice_load_word(view, zero);
-                let selector_shift = self.builder.imm(224);
-                let selector = self.builder.shr(selector_word, selector_shift);
-                TryCatchData { object: Some(object), data: Some(data), len, selector }
-            } else {
-                // len = returndatasize
-                // returndatacopy(0, 0, min(len, 32))
-                // selector = mload(0) >> 224
-                let len = self.builder.returndatasize();
-                let word = self.builder.imm(32);
-                let below = self.builder.lt(len, word);
-                let size = self.builder.select(below, len, word);
-                let zero = self.builder.imm(U256::ZERO);
-                self.builder.copy(zero, zero, size, PtrLocation::Returndata);
-                let selector_word = self.builder.load(zero, PtrLocation::Memory);
-                let selector_shift = self.builder.imm(224);
-                let selector = self.builder.shr(selector_word, selector_shift);
-                TryCatchData { object: None, data: None, len, selector }
-            }
+            let len = self.builder.returndatasize();
+            let word = self.builder.imm(32);
+            let below = self.builder.lt(len, word);
+            let size = self.builder.select(below, len, word);
+            let zero = self.builder.imm(U256::ZERO);
+            self.builder.copy(zero, zero, size, PtrLocation::Returndata);
+            let selector_word = self.builder.load(zero, PtrLocation::Memory);
+            let selector_shift = self.builder.imm(224);
+            let selector = self.builder.shr(selector_word, selector_shift);
+            TryCatchData { len, selector }
         });
         // Solidity matches the typed clauses before the low-level one, whichever order they are
         // written in: `catch Error(string)` first, then `catch Panic(uint256)`, and the bare or
@@ -584,15 +563,28 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.builder.switch_to_block(next_catch);
             let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
             let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
+            let clause_block = self.builder.create_block();
+            let next_block = self.builder.create_block();
+            let mut error_object = None;
             // A typed clause is rejected before Byzantium, so its data is always there.
-            let condition = if catch_error {
-                // selector_matches = selector == Error(string)
-                // valid = selector_matches ? try_decode_error_message(data) : false
+            if catch_error {
+                // if selector == Error(string) {
+                //     object = returndata()
+                //     if try_decode_error_message(object) { clause } else { next_catch }
+                // } else { next_catch }
                 let data = catch_data?;
                 let expected =
                     self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
                 let matches = self.builder.eq(data.selector, expected);
-                self.lower_error_catch_match(data.data?, data.len, matches)
+                let probe_block = self.builder.create_block();
+                self.builder.branch(matches, probe_block, next_block);
+                self.builder.switch_to_block(probe_block);
+                let object = self.materialize_returndata_bytes();
+                let view = self.builder.memory_slice(object);
+                let ptr = self.builder.slice_ptr(view);
+                let valid = self.lower_error_catch_match(ptr, data.len);
+                self.builder.branch(valid, clause_block, next_block);
+                error_object = Some(object);
             } else if catch_panic {
                 // valid = data.length >= 36 && selector == Panic(uint256)
                 let data = catch_data?;
@@ -601,28 +593,22 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let size = self.builder.imm(36);
                 let short = self.builder.lt(data.len, size);
                 let has_payload = self.builder.eq_zero(short);
-                self.builder.and(matches, has_payload)
+                let valid = self.builder.and(matches, has_payload);
+                self.builder.branch(valid, clause_block, next_block);
             } else {
-                self.builder.imm_bool(true)
-            };
-            let clause_block = self.builder.create_block();
-            let next_block = self.builder.create_block();
-            self.builder.branch(condition, clause_block, next_block);
+                self.builder.jump(clause_block);
+            }
 
             self.values = before.clone();
             self.storage_refs = before_storage_refs.clone();
             self.builder.switch_to_block(clause_block);
             if let Some(&binding) = catch_clause.args.first() {
-                let object = catch_data?.object;
-                let value = if catch_error {
-                    self.lower_error_catch_string(object?)?
+                let value = if let Some(object) = error_object {
+                    self.lower_error_catch_string(object)?
                 } else if catch_panic {
-                    match object {
-                        Some(object) => self.lower_panic_catch_word(object),
-                        None => self.lower_panic_catch_scratch_word(),
-                    }
+                    self.lower_panic_catch_scratch_word()
                 } else {
-                    object?
+                    self.materialize_returndata_bytes()
                 };
                 self.values.insert(binding, value);
             }
@@ -640,15 +626,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             next_catch = next_block;
         }
         self.builder.switch_to_block(next_catch);
-        match catch_data {
-            // revert(data.data, data.length) | revert(returndata)
-            Some(TryCatchData { data: Some(data), len, .. }) => self.builder.revert(data, len),
-            Some(_) => self.builder.revert_returndata(),
-            // Unreachable: a bare catch matches unconditionally.
+        // Unreachable without data: a bare catch matches unconditionally.
+        if catch_data.is_some() {
+            // revert(returndata)
+            self.builder.revert_returndata();
+        } else {
             // revert(0, 0)
-            None => {
-                self.builder.revert_with(RevertReason::Empty);
-            }
+            self.builder.revert_with(RevertReason::Empty);
         }
 
         // values, storage_refs = phi(success, catches)
