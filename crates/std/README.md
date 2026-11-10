@@ -40,7 +40,7 @@ entry point, including ABI-only builds. Backing memory remains zero-initialized.
 
 Builder lifetime checks follow helpers with their actual arguments, including
 aliases, conditional finishes and reverting paths. Analysis is limited to 16,384
-cloned instructions and blocks per contract, eight paths per block, and 64 scalar
+cloned instructions and blocks per entry, eight paths per block, and 64 scalar
 facts and finished references per path. Beyond these limits it merges paths,
 forgets scalar facts or rejects the analysis. Recursion it cannot prove safe is
 rejected; complex entries may need to be split. The analysis never edits emitted
