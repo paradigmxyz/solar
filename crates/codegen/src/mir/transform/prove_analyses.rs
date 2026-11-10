@@ -33,8 +33,9 @@
 //! Memory is an array of bytes, and storage and transient storage arrays of words, threaded
 //! through the dominator chain: loads read the current array, and stores, `mstore8` included,
 //! update it. Any other write to a location, and any call or create, replaces every array by a
-//! fresh one, as does entering a block along an edge other than from the block before it in the
-//! chain, since another path may have written them. Fresh arrays, and memory at the function's
+//! fresh one. At a join on the chain, each array is the one its predecessor's context ends with,
+//! in the disjunction over predecessors; entering any other block along an edge other than from
+//! the block before it in the chain replaces them too, since another path may have written them. Fresh arrays, and memory at the function's
 //! entry, are opaque. So a read CSE or load PRE forwarded from an earlier store is proven when the
 //! store dominates it with no unknown write between.
 //!
@@ -238,21 +239,23 @@ impl<'a> Prover<'a> {
                 previous = Some(current);
                 continue;
             }
-            // Memory and storage flow on along an edge from the block before in the chain;
-            // reached any other way, another path may have written them.
-            if let Some(previous) = previous
-                && self.func.blocks[current].predecessors.as_slice() != [previous]
+            let body = &self.func.blocks[current];
+            let joined = depth == 0 && body.predecessors.len() > 1;
+            // Memory and storage flow on along an edge from the block before in the chain; a
+            // join merges them from its predecessors' contexts. Reached any other way, another
+            // path may have written them.
+            if !joined
+                && let Some(previous) = previous
+                && body.predecessors.as_slice() != [previous]
             {
                 query.havoc_states();
             }
             previous = Some(current);
-            let body = &self.func.blocks[current];
             let count = if current == block {
                 prefix.unwrap_or(body.instructions.len())
             } else {
                 body.instructions.len()
             };
-            let joined = depth == 0 && body.predecessors.len() > 1;
             if joined {
                 self.encode_join(query, current);
             }
@@ -320,6 +323,8 @@ impl<'a> Prover<'a> {
                 _ => None,
             })
             .collect();
+        // Memory, storage and transient storage at the join are each one of the predecessors'.
+        let merged: [String; 3] = std::array::from_fn(|state| query.new_state(state));
         let mut paths = Vec::new();
         for (index, &predecessor) in self.func.blocks[join].predecessors.iter().enumerate() {
             if !self.cfg.is_reachable(predecessor) {
@@ -336,7 +341,12 @@ impl<'a> Prover<'a> {
                     Some((phi, query.term(value)))
                 })
                 .collect();
+            let ends = query.states.clone();
             query.leave(saved);
+            for (state, end) in ends.into_iter().enumerate() {
+                query.depend(&merged[state], [end.clone()]);
+                query.assert(format!("(= {} {end})", merged[state]));
+            }
             for (phi, term) in incoming {
                 let phi = query.declare(phi);
                 query.depend(&phi, [term.clone()]);
@@ -349,8 +359,11 @@ impl<'a> Prover<'a> {
                 .collect();
             paths.push(format!("(and true {})", terms.join(" ")));
         }
-        if !paths.is_empty() {
+        if paths.is_empty() {
+            query.havoc_states();
+        } else {
             query.assert(format!("(or false {})", paths.join(" ")));
+            query.states = merged;
         }
     }
 
@@ -508,10 +521,16 @@ impl<'a> Query<'a> {
     }
 
     fn havoc_state(&mut self, state: usize) {
-        let name = format!("{}{}{}", self.prefix, ["mem", "sto", "tra"][state], self.arrays.len());
-        self.arrays.insert((name.clone(), state == 0));
+        let name = self.new_state(state);
         self.opaque.insert(name.clone());
         self.states[state] = name;
+    }
+
+    /// Declares a new array for `state`: memory, storage or transient storage.
+    fn new_state(&mut self, state: usize) -> String {
+        let name = format!("{}{}{}", self.prefix, ["mem", "sto", "tra"][state], self.arrays.len());
+        self.arrays.insert((name.clone(), state == 0));
+        name
     }
 
     /// A new state of `state` equal to `update` of the previous one.
