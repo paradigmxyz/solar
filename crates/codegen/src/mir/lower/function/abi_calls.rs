@@ -1013,11 +1013,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.is_decoded_external_argument(slice) {
             return;
         }
-        // calldata_tail_data(pointer, length, 1)
+        // calldata_copy_data(pointer, length, 1)
         let pointer = self.builder.slice_ptr(slice);
         let length = self.builder.slice_len(slice);
         let calldata_size = self.builder.calldatasize();
-        self.builder.calldata_tail_data(CalldataTail::Access, pointer, 0, length, calldata_size, 1);
+        self.builder.calldata_copy_data(CalldataTail::Access, pointer, 0, length, calldata_size, 1);
     }
 
     fn materialize_calldata_fixed_array(

@@ -10,9 +10,9 @@ fn @f(arg0: slice<calldata>) -> ptr<memory> [selector=0x15cfcc01, pure, abi_para
     v4 = calldatasize
     v5 = gt v3, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v5
-    v6 = sub v4, v3
-    v7 = ptrtoint ptr<calldata> v2 to i256
-    v8 = slt v6, v7
+    v6 = ptrtoint ptr<calldata> v2 to i256
+    v7 = add v6, v3
+    v8 = lt v4, v7
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
     v10 = add v9, 31
@@ -39,9 +39,9 @@ fn @f2(arg0: slice<calldata>) -> ptr<memory> [selector=0xdc0ee233, pure, abi_par
     v4 = calldatasize
     v5 = gt v3, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v5
-    v6 = sub v4, v3
-    v7 = ptrtoint ptr<calldata> v2 to i256
-    v8 = slt v6, v7
+    v6 = ptrtoint ptr<calldata> v2 to i256
+    v7 = add v6, v3
+    v8 = lt v4, v7
     icall revert_if<calldata_tail_too_short>, v8
     v9 = extract_value slice<calldata>, v1, 1
     v10 = add v9, 31

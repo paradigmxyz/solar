@@ -74,9 +74,9 @@ fn @mixedBytes(arg0: slice<calldata>) -> struct2 [selector=0x48f52f2f, pure, abi
     v21 = calldatasize
     v22 = gt v20, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v22
-    v23 = sub v21, v20
-    v24 = ptrtoint ptr<calldata> v19 to i256
-    v25 = slt v23, v24
+    v23 = ptrtoint ptr<calldata> v19 to i256
+    v24 = add v23, v20
+    v25 = lt v21, v24
     icall revert_if<calldata_tail_too_short>, v25
     v26 = ptradd v18, 32
     v27 = extract_value slice<calldata>, v12, 0
@@ -116,9 +116,9 @@ fn @mixedString(arg0: slice<calldata>) -> struct4 [selector=0x9824992c, pure, ab
     v20 = calldatasize
     v21 = gt v19, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v21
-    v22 = sub v20, v19
-    v23 = ptrtoint ptr<calldata> v18 to i256
-    v24 = slt v22, v23
+    v22 = ptrtoint ptr<calldata> v18 to i256
+    v23 = add v22, v19
+    v24 = lt v20, v23
     icall revert_if<calldata_tail_too_short>, v24
     v25 = ptradd v17, 32
     v26 = extract_value slice<calldata>, v11, 0

@@ -28,9 +28,9 @@ fn @bytesChain(arg0: slice<calldata>) -> ptr<memory> [selector=0x2007c472, pure,
     v20 = calldatasize
     v21 = gt v19, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v21
-    v22 = sub v20, v19
-    v23 = ptrtoint ptr<calldata> v18 to i256
-    v24 = slt v22, v23
+    v22 = ptrtoint ptr<calldata> v18 to i256
+    v23 = add v22, v19
+    v24 = lt v20, v23
     icall revert_if<calldata_tail_too_short>, v24
     v25 = extract_value slice<calldata>, v17, 1
     v26 = add v25, 31

@@ -189,9 +189,9 @@ fn @hashField(arg0: slice<calldata>) -> i256 [selector=0xdd0f255f, pure, abi_par
     v25 = calldatasize
     v26 = gt v24, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = sub v25, v24
-    v28 = ptrtoint ptr<calldata> v23 to i256
-    v29 = slt v27, v28
+    v27 = ptrtoint ptr<calldata> v23 to i256
+    v28 = add v27, v24
+    v29 = lt v25, v28
     icall revert_if<calldata_tail_too_short>, v29
     v30 = extract_value slice<calldata>, v22, 1
     v31 = add v30, 31
@@ -336,9 +336,9 @@ fn @copyField(arg0: slice<calldata>) -> i256 [selector=0xda205eee, pure, abi_par
     v25 = calldatasize
     v26 = gt v24, 0xffffffffffffffff
     icall revert_if<invalid_calldata_tail_length>, v26
-    v27 = sub v25, v24
-    v28 = ptrtoint ptr<calldata> v23 to i256
-    v29 = slt v27, v28
+    v27 = ptrtoint ptr<calldata> v23 to i256
+    v28 = add v27, v24
+    v29 = lt v25, v28
     icall revert_if<calldata_tail_too_short>, v29
     v30 = extract_value slice<calldata>, v22, 1
     v31 = add v30, 31
