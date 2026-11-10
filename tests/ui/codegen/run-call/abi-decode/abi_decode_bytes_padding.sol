@@ -12,10 +12,12 @@
 //@ run-call: padded 65 => true
 
 contract DecodeBytesPadding {
-    // A decoded bytes object owns its rounded allocation, including zero padding.
-    // The incoming encoding need not have clean padding, and free memory need not be zero.
+    // A decoded bytes object does not clear its padding, so assembly can read the dirty bytes of
+    // the encoding or of free memory there. Solidity reads only the length, so every consumer
+    // below sees the same result as with clean padding.
     // CHECK-LABEL: fn @padded
     // CHECK: abi_decode [bytes]
+    // CHECK-NOT: memory_zero
     function padded(uint256 n) public pure returns (bool) {
         require(n <= 65);
         bytes memory value = new bytes(n);
@@ -30,13 +32,9 @@ contract DecodeBytesPadding {
             }
         }
         bytes memory decoded = abi.decode(encoded, (bytes));
-        bool clean;
-        assembly {
-            // Check that the returned object's padding is reserved as well as cleared.
-            mstore(mload(0x40), not(0))
-            let last := mload(add(add(decoded, 0x20), and(n, not(31))))
-            clean := or(iszero(and(n, 31)), iszero(shl(mul(and(n, 31), 8), last)))
-        }
-        return clean && keccak256(decoded) == keccak256(value);
+        return decoded.length == n && keccak256(decoded) == keccak256(value)
+            && bytes4(decoded) == bytes4(value) && bytes32(decoded) == bytes32(value)
+            && keccak256(abi.encode(decoded)) == keccak256(abi.encode(value))
+            && keccak256(bytes.concat(decoded, hex"01")) == keccak256(bytes.concat(value, hex"01"));
     }
 }

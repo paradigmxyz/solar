@@ -55,8 +55,6 @@
 //! place as well, with the calldata decoders the entries use: offsets resolve against the slice's
 //! base and every read stays below its end, as solc decodes it, so no copy of the encoding into
 //! memory precedes the decode.
-//! A decoded `bytes` object clears its padding bytes after the copy, so they are zero whatever
-//! the input and free memory held; the clear stays inside the object.
 //!
 //! A module the pass cannot lower fails a preflight scan before any rewriting, and the pass
 //! reports an error: a return layout that does not match the returned values, constructor
@@ -1849,19 +1847,6 @@ impl LowerAbiCx {
                 Self::guard_bytes_data(builder, data, len, input_end, current, true);
                 let source = builder.make_slice(data, len, location);
                 builder.memory_copy_from_slice(ptr, source);
-                // payload = ptradd ptr, 32
-                // tail = ptradd payload, len
-                // padding = and (sub 0, len), 31
-                // memory_zero tail, padding
-                // After the copy, which may read memory the new object overlaps. The clear stays
-                // inside the object: it spans the padding bytes only.
-                let payload = builder.memory_data(ptr);
-                let tail = builder.ptradd(payload, len);
-                let zero = builder.imm(0);
-                let negative_len = builder.sub(zero, len);
-                let mask = builder.imm(EvmMemoryLayout::WORD_SIZE - 1);
-                let padding = builder.and(negative_len, mask);
-                builder.memory_zero(tail, padding);
                 ptr
             }
             AbiParamType::Tuple(fields) => {

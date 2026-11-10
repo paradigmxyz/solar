@@ -1050,3 +1050,21 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
+
+### CODEGEN-014: Memory `bytes` may carry nonzero bytes past their length
+
+- ID: CODEGEN-014
+- Status: intentional
+- Difference: a `bytes` object that `abi.decode` allocates or `abi.encodePacked`
+  returns keeps whatever the memory or the input held in the padding after its
+  last byte, up to the next word. `solc` writes zeros there. Only assembly can
+  read the padding: every Solidity use of the object, such as `bytes32(b)`,
+  `keccak256`, `bytes.concat`, `abi.encode`, a storage copy or an external
+  `return`, reads or copies only the length and masks the rest or writes its own
+  zeros.
+- Rationale: clearing the padding adds a store to every such `abi.decode` and
+  non-word-aligned `abi.encodePacked`, which grows the bytecode and costs gas
+  for a difference that Solidity cannot observe.
+- Coverage: `tests/ui/codegen/run-call/abi-decode/abi_decode_bytes_padding.sol`,
+  `tests/ui/codegen/run-call/abi-decode/abi_decode_bytes_dirty_memory.sol` and
+  `tests/ui/codegen/run-call/abi-encode/abi_encode_packed_padding.sol`.
