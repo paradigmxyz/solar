@@ -207,34 +207,51 @@ fn protected_word_depth(instructions: &[Instruction]) -> Option<usize> {
 pub(super) struct PeepContext<'a> {
     instructions: &'a [Instruction],
     target: Target,
+    rest: Rest<'a>,
     rules: Rules,
-    entry: EntryBound<'a>,
+    stack: StackBound<'a>,
 }
 
-/// What the rules know of the entry depth of the block they rewrite.
+/// The instructions of the block after the ones a rule inspects, which the pass has not visited.
 #[derive(Clone, Copy)]
-pub(super) struct EntryBound<'a> {
-    /// The verifier's upper bound: `None` until the pass has computed the bounds, then `None`
-    /// again for a block without one.
-    depth: Option<Option<usize>>,
-    /// Set when a rule consulted the bound.
-    needed: &'a Cell<bool>,
+pub(super) enum Rest<'a> {
+    /// In block order.
+    Forward(&'a [Instruction]),
+    /// Last instruction first.
+    Reversed(&'a [Instruction]),
 }
 
-impl<'a> EntryBound<'a> {
-    pub(super) fn new(depth: Option<Option<usize>>, needed: &'a Cell<bool>) -> Self {
-        Self { depth, needed }
+/// What the rules know of the stack limit in the block they rewrite.
+#[derive(Clone, Copy)]
+pub(super) struct StackBound<'a> {
+    /// The verifier's upper bound on the entry depth: `None` until the pass has computed the
+    /// bounds, then `None` again for a block without one.
+    entry: Option<Option<usize>>,
+    /// Set when a rule consulted the entry bound.
+    needed: &'a Cell<bool>,
+    /// The words the block's terminator adds when lowered.
+    terminator_growth: usize,
+}
+
+impl<'a> StackBound<'a> {
+    pub(super) fn new(
+        entry: Option<Option<usize>>,
+        needed: &'a Cell<bool>,
+        terminator_growth: usize,
+    ) -> Self {
+        Self { entry, needed, terminator_growth }
     }
 }
 
 impl<'a> PeepContext<'a> {
     pub(super) fn new(
         instructions: &'a [Instruction],
+        rest: Rest<'a>,
         target: Target,
         rules: Rules,
-        entry: EntryBound<'a>,
+        stack: StackBound<'a>,
     ) -> Self {
-        Self { instructions, target, rules, entry }
+        Self { instructions, target, rest, rules, stack }
     }
 
     /// Target-only cleanup deferred until structural sharing has finished. Only the final rules
@@ -327,18 +344,56 @@ impl<'a> PeepContext<'a> {
     }
 
     /// Returns whether a reload of the four-instruction window that ends the block fits the stack
-    /// limit. Its `DUP1; PUSH` peak is one word above the `PUSH; STORE; PUSH; LOAD` it replaces,
-    /// so it needs two words above the depth before the window. An unknown entry depth gives no
-    /// room.
+    /// limit. Its `DUP1; PUSH` peak is one word above the `PUSH; STORE; PUSH; LOAD` it replaces.
+    ///
+    /// It fits when that peak is no higher than the block's own, which the input already
+    /// proved to fit. Otherwise it needs two words above the depth before the window, from the
+    /// verifier's entry bound, and an unknown bound gives no room.
     fn has_room_to_reload(&self) -> bool {
-        self.entry.needed.set(true);
+        let fits_block_peak = match self.rest {
+            Rest::Forward(rest) => self.reload_within_block_peak(rest.iter()),
+            Rest::Reversed(rest) => self.reload_within_block_peak(rest.iter().rev()),
+        };
+        if fits_block_peak {
+            return true;
+        }
+        self.stack.needed.set(true);
         let prefix = &self.instructions[..self.instructions.len() - 4];
-        self.entry.depth.flatten().is_some_and(|entry| {
+        self.stack.entry.flatten().is_some_and(|entry| {
             prefix
                 .iter()
                 .try_fold(entry, |depth, inst| apply_effect(depth, inst.stack_effect()))
                 .is_some_and(|depth| depth + 2 <= MAX_STACK_DEPTH)
         })
+    }
+
+    /// Returns whether the reload's peak, relative to the block's entry, is at most the peak of
+    /// the path through the window: the instructions before it, and those after it up to the
+    /// first conditional jump or terminal, or to the end with the terminator's lowering growth.
+    fn reload_within_block_peak<'i>(&self, rest: impl Iterator<Item = &'i Instruction>) -> bool {
+        let step = |depth: isize, inst: &Instruction| {
+            let StackEffect { inputs, outputs } = inst.stack_effect();
+            depth + isize::from(outputs) - isize::from(inputs)
+        };
+        let window = self.instructions.len() - 4;
+        let (mut depth, mut peak, mut before_window) = (0, 0, 0);
+        for (index, inst) in self.instructions.iter().enumerate() {
+            if index == window {
+                before_window = depth;
+            }
+            depth = step(depth, inst);
+            peak = isize::max(peak, depth);
+        }
+        for inst in rest {
+            if inst.as_evm_opcode().is_some_and(|opcode| opcode == JUMPI || op::is_terminal(opcode))
+            {
+                return before_window + 2 <= peak;
+            }
+            depth = step(depth, inst);
+            peak = isize::max(peak, depth);
+        }
+        peak = isize::max(peak, depth + self.stack.terminator_growth as isize);
+        before_window + 2 <= peak
     }
 
     /// Returns whether materializing `value` needs at most `peak` stack words, as many as the code

@@ -11,10 +11,12 @@
 //! passes expose few new opportunities. Rules never cross a block boundary;
 //! target legality, push removability, and symbolic stack bounds stay in the
 //! extractors, and edits preserve their existing metadata policy.
-//! The reload of a stored value raises its block's stack peak by a word, so it also needs the
-//! block's entry depth. When a block reaches that rule, the pass computes the verifier's upper
-//! bounds once for the module and runs the block again. The rule rejects the rewrite where the
-//! bound is unknown or leaves no room, and such a block is not recorded as clean.
+//! The reload of a stored value raises its block's stack peak by a word. It fires where the old
+//! block already reaches that peak, counting the instructions before the window and those after
+//! it up to the first conditional jump or terminal, with the terminator's lowering growth. Else it
+//! needs the block's entry depth: when a block reaches that case, the pass computes the verifier's
+//! upper bounds once for the module and runs the block again. An unknown bound or too little room
+//! rejects the rewrite, and such a block is not recorded as clean.
 //! Comparison inversion tracks a constant through up to 24 instructions that cannot observe
 //! or copy it. Adjusting that bound and flipping LT/GT or SLT/SGT removes ISZERO after branch
 //! layout chooses the taken edge. Operand computations stay in place; wrapping bounds,
@@ -78,7 +80,7 @@ use tracing::trace;
 
 mod isle;
 
-use isle::EntryBound;
+use isle::{Rest, StackBound};
 
 pub(super) use isle::invert_comparison;
 
@@ -188,6 +190,10 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
     for block_id in module.blocks.indices() {
         let block = &module.blocks[block_id];
         let label = block.label;
+        let terminator_growth = block
+            .terminator
+            .as_ref()
+            .map_or(0, |term| term.kind.lowering_stack_growth(module.next_block(block_id)));
         // The late rules are separate from the cached early and final ones.
         let key = (rules != Rules::Late).then(|| clean_key(&block.instructions));
         let recorded = key.and_then(|key| module.peephole_clean.get(key));
@@ -202,7 +208,11 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
                 target,
                 rules,
                 block: label,
-                entry: EntryBound::new(depths.as_ref().map(|depths| depths[block_id]), &needed),
+                stack: StackBound::new(
+                    depths.as_ref().map(|depths| depths[block_id]),
+                    &needed,
+                    terminator_growth,
+                ),
             };
             let block = &mut module.blocks[block_id];
             rewrites =
@@ -259,7 +269,7 @@ struct Driver<'a> {
     target: Target,
     rules: Rules,
     block: u32,
-    entry: EntryBound<'a>,
+    stack: StackBound<'a>,
 }
 
 impl Driver<'_> {
@@ -274,8 +284,14 @@ impl Driver<'_> {
         // The early rules match no prefix of an early-clean block, so only the final
         // rules can supply its first rewrite.
         let first = (1..=instructions.len()).find_map(|end| {
-            let mut context =
-                isle::PeepContext::new(&instructions[..end], self.target, self.rules, self.entry);
+            let rest = Rest::Forward(&instructions[end..]);
+            let mut context = isle::PeepContext::new(
+                &instructions[..end],
+                rest,
+                self.target,
+                self.rules,
+                self.stack,
+            );
             if early_clean { context.final_rewrite() } else { context.select() }
                 .map(|rewrite| (end, rewrite))
         });
@@ -284,27 +300,32 @@ impl Driver<'_> {
         // unchanged prefix; matched suffix => unchanged prefix; replacement
         // Resume the streaming matcher at the first changed tail, including cascades.
         scratch.clear();
-        scratch.extend(instructions.drain(end..));
+        scratch.extend(instructions.drain(end..).rev());
         self.rewrite(instructions, first);
         let mut rewrites = 1;
-        while self.step(instructions) {
+        while self.step(instructions, scratch) {
             rewrites += 1;
         }
-        for inst in scratch.drain(..) {
+        while let Some(inst) = scratch.pop() {
             instructions.push(inst);
-            while self.step(instructions) {
+            while self.step(instructions, scratch) {
                 rewrites += 1;
             }
         }
         rewrites
     }
 
-    fn step(self, instructions: &mut Vec<Instruction>) -> bool {
-        let Some(rewrite) =
-            isle::PeepContext::new(instructions, self.target, self.rules, self.entry).select()
-        else {
-            return false;
-        };
+    /// Applies the rule matching the tail of `instructions`; `rest` is the unvisited rest of the
+    /// block, last instruction first.
+    fn step(self, instructions: &mut Vec<Instruction>, rest: &[Instruction]) -> bool {
+        let mut context = isle::PeepContext::new(
+            instructions,
+            Rest::Reversed(rest),
+            self.target,
+            self.rules,
+            self.stack,
+        );
+        let Some(rewrite) = context.select() else { return false };
         self.rewrite(instructions, rewrite);
         true
     }

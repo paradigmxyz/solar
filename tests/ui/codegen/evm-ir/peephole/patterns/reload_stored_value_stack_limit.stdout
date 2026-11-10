@@ -109,4 +109,33 @@
     push 0
     mload
     stop
+  bb13:
+    push 7
++   dup 1
+    push 0
+    mstore
+-   push 0
+-   mload
+    push 1
+    push 2
+    stop
+  bb14:
+    push 7
++   dup 1
+    push 0
+    mstore
+-   push 0
+-   mload
+    push 1
+    jump bb16
+  bb15:
+    push 7
+    push 0
+    mstore
+    push 0
+    mload
+    push 1
+    jump bb16
+  bb16:
+    stop
   
