@@ -199,7 +199,6 @@ pub(super) fn count_block_references(module: &Module, references: &mut IndexVec<
 /// Every instruction of the replacement runs exactly once, in order, wherever the rewrite places
 /// the events, so [`Self::place`] puts the invoke on the first instruction, which starts the
 /// callee, and the exit on the last, which leaves it.
-#[derive(Clone, Copy, Default)]
 pub(super) struct RunEvents {
     invoke: Option<DebugFunction>,
     exit: Option<DebugFunctionExit>,
@@ -208,26 +207,15 @@ pub(super) struct RunEvents {
 impl RunEvents {
     /// Collects the events of `run`. Two different invokes, or two different exits, in one run
     /// are ambiguous, so the run keeps neither.
-    pub(super) fn of<'a>(run: impl IntoIterator<Item = &'a Metadata>) -> Self {
-        let mut events = Self::default();
-        let (mut invoke_conflict, mut exit_conflict) = (false, false);
-        for metadata in run {
-            if let Some(function) = metadata.function_invoke() {
-                invoke_conflict |= events.invoke.is_some_and(|other| other != function);
-                events.invoke = Some(function);
-            }
-            if let Some(exit) = metadata.function_exit() {
-                exit_conflict |= events.exit.is_some_and(|other| other != exit);
-                events.exit = Some(exit);
-            }
+    pub(super) fn of<'a>(run: impl IntoIterator<Item = &'a Metadata> + Clone) -> Self {
+        fn agreed<T: Eq>(mut events: impl Iterator<Item = T>) -> Option<T> {
+            let first = events.next()?;
+            events.all(|event| event == first).then_some(first)
         }
-        if invoke_conflict {
-            events.invoke = None;
+        Self {
+            invoke: agreed(run.clone().into_iter().filter_map(Metadata::function_invoke)),
+            exit: agreed(run.into_iter().filter_map(Metadata::function_exit)),
         }
-        if exit_conflict {
-            events.exit = None;
-        }
-        events
     }
 
     /// Replaces the function events of `replacement`, which takes the run's place, with the run's.

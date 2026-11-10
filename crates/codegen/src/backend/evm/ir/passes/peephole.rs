@@ -173,6 +173,7 @@ fn clean_key(instructions: &[Instruction]) -> (u32, u64) {
 fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
     let target = module.runtime_target(gcx);
     let final_cleanup = rules == Rules::Final;
+    let track_events = module.debug_info_is_tracked();
     let mut changed = false;
     let mut scratch = Vec::new();
     let clean = &mut module.peephole_clean;
@@ -187,7 +188,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
         let rewrites = if skip {
             0
         } else {
-            Driver { target, rules, block: block.label }.run(
+            Driver { target, rules, block: block.label, track_events }.run(
                 &mut block.instructions,
                 &mut scratch,
                 early_clean,
@@ -235,6 +236,8 @@ struct Driver {
     target: Target,
     rules: Rules,
     block: u32,
+    /// Whether function events can exist and have to move with a rewrite.
+    track_events: bool,
 }
 
 impl Driver {
@@ -288,9 +291,13 @@ impl Driver {
         let start = instructions.len() - usize::from(rewrite.skip);
         let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
             .then(|| instructions[start..].to_vec());
-        let events = RunEvents::of(instructions[start..].iter().map(|inst| &inst.metadata));
+        let events = self
+            .track_events
+            .then(|| RunEvents::of(instructions[start..].iter().map(|inst| &inst.metadata)));
         rewrite.edit.apply(self.target, instructions, start);
-        events.place(&mut instructions[start..]);
+        if let Some(events) = events {
+            events.place(&mut instructions[start..]);
+        }
         if let Some(input) = input {
             trace!(
                 target: TRACE_TARGET,

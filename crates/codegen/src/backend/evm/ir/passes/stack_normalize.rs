@@ -252,6 +252,7 @@ impl Normalizer {
                 } else {
                     replacement.metadata.drop_debug_loc(DebugLocKind::Dropped);
                 }
+                // Drain the originals that this output replaces.
                 replaced.for_each(drop);
                 instructions.push(replacement);
             }

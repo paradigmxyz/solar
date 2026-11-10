@@ -527,15 +527,13 @@ fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
 /// does.
 fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
     let suffix = &block.instructions[block.instructions.len() - len..];
-    let all = suffix
+    let mut all = suffix
         .iter()
         .map(|inst| &inst.metadata)
         .chain(block.terminator.iter().map(|term| &term.metadata));
     let mut metadata = Metadata::default();
     metadata.preserve_debug_loc(
-        all.clone()
-            .find(|metadata| metadata.source_span().is_some())
-            .unwrap_or(&suffix[0].metadata),
+        all.find(|metadata| metadata.source_span().is_some()).unwrap_or(&suffix[0].metadata),
     );
     metadata
 }

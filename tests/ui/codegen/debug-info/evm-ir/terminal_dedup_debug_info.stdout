@@ -18,7 +18,7 @@
 +   push 0
     dup 1
     revert
-+ bb2 [invoke=second@11..20]:
++ bb2:
 +   jump bb1
 + bb3:
 +   jump bb1

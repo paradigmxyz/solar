@@ -62,8 +62,8 @@ use super::{
     block_layout::{terminator_kind, triangle_arm},
     terminal_dedup::absorb_equal_terminal,
     utils::{
-        FreshLabels, RunEvents, count_block_references, is_split_point, lower_bound,
-        remap_block_order, retain_blocks,
+        FreshLabels, count_block_references, is_split_point, lower_bound, remap_block_order,
+        retain_blocks,
     },
 };
 use crate::backend::evm::{
@@ -76,7 +76,6 @@ use crate::backend::evm::{
 };
 use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 use solar_sema::Gcx;
-use std::slice;
 
 pub(super) struct CfgSimplify {
     thread_shared_jumps: bool,
@@ -265,14 +264,15 @@ fn inline_shared_return_thunks(
         // thunk: jump return_body -> thunk: mstore(offset, value); return(offset, 32)
         let mut instructions = body.instructions.clone();
         let mut terminator = body.terminator.clone();
-        // NOTE: The copy runs on the path of the thunk's jump, so it carries neither the entry
-        // of the body's label nor the entries of its instructions: they mark the body's own
-        // callers. The removed jump takes its origins with it. Its entry moves to the first
-        // instruction of the copy, which runs first, and its exit to the last, which leaves.
-        for inst in &mut instructions {
-            inst.metadata.take_function_invoke();
-        }
-        if let Some(function) = jump.metadata.function_invoke() {
+        // NOTE: The copy runs on the path of the thunk's jump, which enters the body's function
+        // if the body's label does, so the entry of the label moves to the first instruction of
+        // the copy, as in `tail_copy`. The removed jump takes its origins with it. Its entry also
+        // moves to the first instruction, which runs first, and its exit to the last, which
+        // leaves.
+        if instructions[0].metadata.function_invoke().is_none()
+            && let Some(function) =
+                body.metadata.function_invoke.or(jump.metadata.function_invoke())
+        {
             instructions[0].metadata.set_function_invoke(function);
         }
         if let Some(terminator) = &mut terminator
@@ -430,7 +430,8 @@ fn simplify_degenerate_branches(module: &mut Module) -> bool {
         {
             let mut pop = Instruction::stack_op(op::StackOp::Pop);
             pop.metadata.preserve_debug_loc(&jumpi.metadata);
-            RunEvents::of([&pushed.metadata, &jumpi.metadata]).place(slice::from_mut(&mut pop));
+            pop.metadata.move_function_events(&pushed.metadata);
+            pop.metadata.move_function_events(&jumpi.metadata);
             block.instructions.truncate(block.instructions.len() - 2);
             block.instructions.push(pop);
             changed = true;
@@ -482,11 +483,13 @@ fn redirect_jump_thunks(
         if addressed.contains(block_id) {
             return false;
         }
+        thunk.entered = block.metadata.function_invoke;
         if let Some(terminator) = &block.terminator {
-            thunk.exit.move_function_events(&terminator.metadata);
+            thunk.entered = thunk.entered.or(terminator.metadata.function_invoke());
+            if let Some(exit) = terminator.metadata.function_exit() {
+                thunk.exit.set_function_exit(exit);
+            }
         }
-        let entered = thunk.exit.take_function_invoke();
-        thunk.entered = block.metadata.function_invoke.or(entered);
         true
     });
     if thunks.is_empty() {

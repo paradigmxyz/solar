@@ -98,6 +98,10 @@ impl EvmPass for TerminalDedup {
                 module.blocks[target].metadata.in_loop |= module.blocks[block].metadata.in_loop;
                 module.blocks[target].metadata.repeats |= module.blocks[block].metadata.repeats;
                 // duplicate terminal body -> jump canonical body
+                // NOTE: The survivor holds the entry of the copies that agree on it, and the copy
+                // is a thunk now, so its own entry would run a second time on the way to it.
+                module.blocks[block].metadata.function_invoke = None;
+                module.blocks[block].metadata.lent_invoke = None;
                 module.blocks[block].instructions.clear();
                 let mut terminator = Terminator::new(TerminatorKind::Jump(target));
                 terminator.metadata.drop_debug_loc(DebugLocKind::Dropped);
