@@ -136,7 +136,7 @@ fn @zeroHash() {
 ; function zeroWordHash() external pure returns (bytes32) [selector 0x0d00d797]
 fn @zeroWordHash() {
   bb0:
-    v7 = heap_floor
+    v7 = heap_floor !metadata(alloc_ptr)
     mstore v7, 32
     v2 = mload v7
     v11 = add v7, 32
