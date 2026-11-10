@@ -1,6 +1,6 @@
 //! Contract-level lowering and function discovery.
 
-use super::{function, storage::StorageLayout};
+use super::{function, storage::StorageLayout, types};
 use solar_config::OptimizationMode;
 use solar_data_structures::{
     Never,
@@ -146,7 +146,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
             let Some(name) = variable.name else { continue };
             let mir_id = module.add_immutable(
                 name,
-                state.immutable_layout(gcx, id),
+                types::TypeLowerer::value_layout(gcx.type_of_item(id.into())),
                 Some(HirVariableId::from_usize(id.index())),
             );
             immutable_ids.insert(id, mir_id);
@@ -251,7 +251,7 @@ pub(super) fn lower(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
                 let mut builder =
                     FunctionBuilder::new_semantic(context.module.function_mut(mir_id));
                 for &param in function.parameters {
-                    builder.add_param(context.state.scalar_carrier(gcx, param));
+                    builder.add_param(types::TypeLowerer::mir_type(gcx.type_of_item(param.into())));
                 }
                 if let Some(ty) = return_type {
                     builder.set_return_type(ty);

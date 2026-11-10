@@ -15,17 +15,20 @@ fn @structConstructor() -> i8 [selector=0x9b40f93f, pure, abi_params=[], abi_ret
     v3 = eq v2, false
     icall panic_if<0x21>, v3
     v4 = trunc i256 v1 to i8
-    v5 = zext i8 v4 to i256
-    mstore v0, v5
-    v6 = mload v0
-    v7 = lt v6, 3
-    v8 = eq v7, false
-    icall panic_if<0x21>, v8
-    v9 = trunc i256 v6 to i8
-    v10 = lt v9, i8 3
-    v11 = eq v10, false
-    icall panic_if<0x21>, v11
-    ret v9
+    v5 = lt v4, i8 3
+    v6 = eq v5, false
+    icall panic_if<0x21>, v6
+    v7 = zext i8 v4 to i256
+    mstore v0, v7
+    v8 = mload v0
+    v9 = lt v8, 3
+    v10 = eq v9, false
+    icall panic_if<0x21>, v10
+    v11 = trunc i256 v8 to i8
+    v12 = lt v11, i8 3
+    v13 = eq v12, false
+    icall panic_if<0x21>, v13
+    ret v11
 }
 
 ; function arrayLiteral() external pure returns (Mode) [selector 0x7e94f0e2]
@@ -62,29 +65,35 @@ fn @arrayElement() -> i8 [selector=0x050651a8, pure, abi_params=[], abi_returns=
     v0 = alloc zeroed checked 64
     mstore v0, 1
     v1 = icall @dirty
-    v2 = mload v0
-    v3 = gt v2, 0
-    v4 = eq v3, false
-    icall panic_if<0x32>, v4
-    v5 = lt v1, 3
+    v2 = lt v1, 3
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
+    v4 = trunc i256 v1 to i8
+    v5 = lt v4, i8 3
     v6 = eq v5, false
     icall panic_if<0x21>, v6
-    v7 = trunc i256 v1 to i8
-    v8 = zext i8 v7 to i256
-    v9 = ptradd v0, 32
-    mstore v9, v8
-    v10 = mload v0
-    v11 = gt v10, 0
-    v12 = eq v11, false
-    icall panic_if<0x32>, v12
-    v13 = ptradd v0, 32
-    v14 = mload v13
-    v15 = lt v14, 3
+    v7 = mload v0
+    v8 = gt v7, 0
+    v9 = eq v8, false
+    icall panic_if<0x32>, v9
+    v10 = zext i8 v4 to i256
+    v11 = ptradd v0, 32
+    mstore v11, v10
+    v12 = lt v4, i8 3
+    v13 = eq v12, false
+    icall panic_if<0x21>, v13
+    v14 = mload v0
+    v15 = gt v14, 0
     v16 = eq v15, false
-    icall panic_if<0x21>, v16
-    v17 = trunc i256 v14 to i8
-    v18 = lt v17, i8 3
-    v19 = eq v18, false
-    icall panic_if<0x21>, v19
-    ret v17
+    icall panic_if<0x32>, v16
+    v17 = ptradd v0, 32
+    v18 = mload v17
+    v19 = lt v18, 3
+    v20 = eq v19, false
+    icall panic_if<0x21>, v20
+    v21 = trunc i256 v18 to i8
+    v22 = lt v21, i8 3
+    v23 = eq v22, false
+    icall panic_if<0x21>, v23
+    ret v21
 }

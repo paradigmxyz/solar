@@ -234,7 +234,11 @@ fn @repeatedLoopExit(arg0: i256, arg1: i256) -> struct0 [selector=0x6c126bdd, ab
     v13 = extract_value struct0, v11, 1
     v14 = insert_value struct0, undef struct0, 0, v12
     v15 = insert_value struct0, v14, 1, v13
-    ret v15
+    v16 = extract_value struct0, v15, 0
+    v17 = extract_value struct0, v15, 1
+    v18 = insert_value struct0, undef struct0, 0, v16
+    v19 = insert_value struct0, v18, 1, v17
+    ret v19
   bb4:                                            ; preds = bb1
     v7 = sub v5, 1
     v8 = shl v5, 160

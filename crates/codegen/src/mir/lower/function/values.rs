@@ -3,7 +3,7 @@
 use super::*;
 
 enum PreparedTupleAssignment<'gcx> {
-    Value { place: LValuePlace<'gcx>, target_ty: Ty<'gcx>, rhs: TupleAssignmentRhs<'gcx> },
+    Value { place: LValuePlace<'gcx>, rhs: TupleAssignmentRhs<'gcx> },
     StorageReference { id: VariableId, access: StorageAccess },
 }
 
@@ -11,7 +11,7 @@ enum TupleAssignmentRhs<'gcx> {
     /// A value of `source_ty`. A storage aggregate is its slot, which the assignment copies to
     /// memory when it is committed.
     Materialized {
-        value: Word,
+        value: ValueId,
         source_ty: Option<Ty<'gcx>>,
         span: Span,
     },
@@ -21,7 +21,7 @@ enum TupleAssignmentRhs<'gcx> {
 }
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
-    pub(super) fn lower_values(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Vec<Word>> {
+    pub(super) fn lower_values(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Vec<ValueId>> {
         let expr = expr.peel_parens();
         if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_unit()) {
             self.lower_discarded_expr(expr)?;
@@ -33,8 +33,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
         if let Some((callee, args, call_opts)) = expr.as_call() {
             if let Some(builtin) = self.low_level_call_builtin(expr) {
-                let values = self.lower_low_level_call_values(expr, builtin, 2, false)?;
-                return Some(values.into_iter().map(Word::from_clean).collect());
+                return self.lower_low_level_call_values(expr, builtin, 2, false);
             }
             let resolved_builtin = self.cx.gcx.resolved_builtin(callee);
             if resolved_builtin == Some(Builtin::AbiDecode)
@@ -42,9 +41,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 && let ExprKind::Tuple(elements) = types.kind
                 && elements.len() > 1
             {
-                let value = self.operand(expr)?.id();
-                let values = self.unpack_return_value(value);
-                return Some(values.into_iter().map(Word::from_clean).collect());
+                let value = self.lower_expr(expr)?;
+                return Some(self.unpack_return_value(value));
             }
             let function_ty = self.cx.gcx.type_of_expr(callee.id).and_then(|ty| match ty.kind {
                 TyKind::Fn(function) => Some(function),
@@ -58,42 +56,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if let Some(function) = function_pointer
                 && function.is_external()
             {
-                let values = self.lower_external_function_pointer_call_values(
+                return self.lower_external_function_pointer_call_values(
                     callee, function, *args, call_opts,
-                )?;
-                return Some(values.into_iter().map(Word::from_clean).collect());
+                );
             }
             if let Some(returns) = returns
                 && returns > 1
             {
-                // The fields are raw words where the callee's return variable is a raw carrier.
-                let value = self.operand(expr)?.id();
-                let fields = self.unpack_return_value(value);
-                return Some(match (resolved_function, function_pointer) {
-                    // An external call decodes its results at their native widths.
-                    (Some(_), _)
-                        if !function_ty.is_some_and(|function| {
-                            function.is_internal() && !function.is_delegate_call()
-                        }) =>
-                    {
-                        fields.into_iter().map(Word::from_clean).collect()
-                    }
-                    (Some(function_id), _) => {
-                        let function_id = self.resolve_call_target(callee, function_id);
-                        let returns = self.cx.gcx.hir.function(function_id).returns;
-                        fields
-                            .into_iter()
-                            .zip(returns)
-                            .map(|(field, &id)| self.binding_word(field, id))
-                            .collect()
-                    }
-                    (None, Some(function)) => fields
-                        .into_iter()
-                        .zip(function.returns)
-                        .map(|(field, &ty)| self.pointer_word(field, ty))
-                        .collect(),
-                    (None, None) => fields.into_iter().map(Word::from_clean).collect(),
-                });
+                let value = self.lower_expr(expr)?;
+                return Some(self.unpack_return_value(value));
             }
         }
         match &expr.kind {
@@ -104,7 +75,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_return_values(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Vec<Word>> {
+    pub(super) fn lower_return_values(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+    ) -> Option<Vec<ValueId>> {
         if self.cx.gcx.type_of_expr(expr.id)?.is_unit() {
             self.lower_discarded_expr(expr)?;
             return Some(Vec::new());
@@ -112,16 +86,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if self.returns.len() == 1 {
             let ty = self.cx.gcx.type_of_item(self.returns[0].into());
             if ty.is_ref_at(DataLocation::Storage) {
-                return Some(vec![Word::from_clean(self.require_storage_access(expr)?.slot)]);
+                return Some(vec![self.require_storage_access(expr)?.slot]);
             }
-            let carried = self.lower_typed_expr(expr, ty)?;
-            let carried = if ty.is_ref_at(DataLocation::Memory) {
-                let value = carried.clean(self, ty);
-                Word::from_clean(self.materialize_memory_copy(ty, value, expr.span)?)
+            let value = self.lower_typed_expr(expr, ty)?;
+            let value = if ty.is_ref_at(DataLocation::Memory) {
+                self.materialize_memory_copy(ty, value, expr.span)?
             } else {
-                carried
+                value
             };
-            return Some(vec![carried]);
+            return Some(vec![value]);
         }
         if self.returns.len() > 1
             && let ExprKind::Tuple(values) = &expr.peel_parens().kind
@@ -141,12 +114,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 |this, index, operand| {
                     let ty = return_ty(this, index);
                     let span = operand.span;
-                    let carried = this.convert_operand(operand)?;
+                    let value = this.convert_operand(operand)?;
                     if ty.is_ref_at(DataLocation::Memory) {
-                        let value = carried.clean(this, ty);
-                        this.materialize_memory_copy(ty, value, span).map(Word::from_clean)
+                        this.materialize_memory_copy(ty, value, span)
                     } else {
-                        Some(carried)
+                        Some(value)
                     }
                 },
             );
@@ -189,15 +161,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Converts an already-lowered tuple component to its target type.
     pub(super) fn convert_tuple_component(
         &mut self,
-        carried: Word,
+        value: ValueId,
         source_ty: Ty<'gcx>,
         target_ty: Ty<'gcx>,
         span: Span,
-    ) -> Option<Word> {
+    ) -> Option<ValueId> {
         // A storage reference is its slot in both the source and the declared return, so the
         // value already has the right shape.
         if target_ty.is_ref_at(DataLocation::Storage) {
-            return Some(carried);
+            return Some(value);
         }
         if source_ty.is_ref_at(DataLocation::Storage) {
             // A target without a memory layout has nowhere to hold the copy, so there is no
@@ -205,29 +177,27 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             if self.types.memory_layout(target_ty).is_none() {
                 return self.cx.report_unsupported(span, "storage reference return");
             }
-            return self.convert_value(carried, source_ty, target_ty, span);
+            return self.convert_value(value, source_ty, target_ty, span);
         }
-        let carried = if target_ty.is_ref_at(DataLocation::Memory) {
-            let value = carried.clean(self, source_ty);
-            Word::from_clean(self.materialize_memory_copy(target_ty, value, span)?)
+        let value = if target_ty.is_ref_at(DataLocation::Memory) {
+            self.materialize_memory_copy(target_ty, value, span)?
         } else {
-            carried
+            value
         };
         // value = coerce(value, source_ty, target_ty)
         Some(if source_ty == target_ty {
-            carried
+            value
         } else {
-            let value = carried.clean(self, source_ty);
-            Word::from_clean(self.coerce_value(value, source_ty, target_ty))
+            self.coerce_value(value, source_ty, target_ty)
         })
     }
 
     /// Lowers one component of a multi-value expression in the shape `convert_tuple_component`
     /// expects.
-    pub(super) fn lower_component(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Word> {
+    pub(super) fn lower_component(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<ValueId> {
         match self.cx.gcx.type_of_expr(expr.id) {
             Some(ty) if ty.is_value_type() => self.lower_typed_expr(expr, ty),
-            _ => Some(Word::from_clean(self.operand(expr)?.id())),
+            _ => self.lower_expr(expr),
         }
     }
 
@@ -260,7 +230,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         continue;
                     }
                     let value = TupleAssignmentRhs::Materialized {
-                        value: Word::from_clean(access.slot),
+                        value: access.slot,
                         source_ty: Some(source_ty),
                         span: rhs.span,
                     };
@@ -298,7 +268,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     .flatten()
                     .copied()
                     .zip(values)
-                    .map(|(element, value)| (element, Word::from_clean(value), None)),
+                    .map(|(element, value)| (element, value, None)),
             );
         }
         if let ExprKind::Tuple(rhs_elements) = &rhs.peel_parens().kind {
@@ -367,24 +337,21 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             });
         }
         let value = if target_ty.is_ref_at(DataLocation::Memory) {
-            let value = value.clean(self, source_ty);
-            Word::from_clean(self.materialize_memory_copy(target_ty, value, span)?)
+            self.materialize_memory_copy(target_ty, value, span)?
         } else {
             value
         };
-        // An equal-type copy keeps its raw bits, like any copy edge.
         let value = if source_ty == target_ty {
             value
         } else {
-            let value = value.clean(self, source_ty);
-            Word::from_clean(self.coerce_value(value, source_ty, target_ty))
+            self.coerce_value(value, source_ty, target_ty)
         };
         Some(TupleAssignmentRhs::Materialized { value, source_ty: Some(source_ty), span })
     }
 
     fn store_tuple_values(
         &mut self,
-        values: impl IntoIterator<Item = (&'gcx hir::Expr<'gcx>, Word, Option<Ty<'gcx>>)>,
+        values: impl IntoIterator<Item = (&'gcx hir::Expr<'gcx>, ValueId, Option<Ty<'gcx>>)>,
     ) -> Option<()> {
         let values = values
             .into_iter()
@@ -416,8 +383,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     }
                     rhs => {
                         let place = self.resolve_lvalue_place(element)?;
-                        let target_ty = self.type_of_expr_or_variable(element)?;
-                        PreparedTupleAssignment::Value { place, target_ty, rhs }
+                        PreparedTupleAssignment::Value { place, rhs }
                     }
                 })
             })
@@ -431,7 +397,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<()> {
         for assignment in assignments.into_iter().rev() {
             match assignment {
-                PreparedTupleAssignment::Value { place, target_ty, rhs } => {
+                PreparedTupleAssignment::Value { place, rhs } => {
                     let TupleAssignmentRhs::Materialized { value, source_ty, span } = rhs else {
                         unreachable!("storage reference reached value assignment")
                     };
@@ -444,7 +410,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         }
                         _ => value,
                     };
-                    self.store_word(&place, value, source_ty, target_ty)?;
+                    self.store_lvalue_place_with_source(&place, value, source_ty)?;
                 }
                 PreparedTupleAssignment::StorageReference { id, access } => {
                     self.storage_refs.insert(id, access);
@@ -497,7 +463,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         }
                         let value = if rhs_ty.is_ref_at(DataLocation::Storage) {
                             let access = StorageAccess {
-                                slot: value.clean(self, rhs_ty),
+                                slot: value,
                                 location: StorageLocation::word(U256::ZERO),
                                 offset: None,
                             };
@@ -505,7 +471,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 TupleAssignmentRhs::StorageReference { access }
                             } else if self.types.memory_layout(rhs_ty).is_some() {
                                 TupleAssignmentRhs::Materialized {
-                                    value: Word::from_clean(access.slot),
+                                    value: access.slot,
                                     source_ty: Some(rhs_ty),
                                     span: rhs.span,
                                 }
@@ -539,7 +505,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         }) {
                             let access = self.require_storage_access(rhs)?;
                             TupleAssignmentRhs::Materialized {
-                                value: Word::from_clean(access.slot),
+                                value: access.slot,
                                 source_ty,
                                 span: rhs.span,
                             }
@@ -549,7 +515,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             // A literal for fixed bytes is the target's word already, as in a
                             // single assignment, rather than a string object to convert.
                             TupleAssignmentRhs::Materialized {
-                                value: Word::from_clean(value),
+                                value,
                                 source_ty: Some(target_ty),
                                 span: rhs.span,
                             }
@@ -585,7 +551,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_storage_reference_values(
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
-    ) -> Option<Vec<(Word, Ty<'gcx>, Option<StorageAccess>)>> {
+    ) -> Option<Vec<(ValueId, Ty<'gcx>, Option<StorageAccess>)>> {
         if expr.as_call().is_none() && !matches!(expr.kind, ExprKind::Ternary(..)) {
             return None;
         }
@@ -604,7 +570,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 .zip(types)
                 .map(|(value, &ty)| {
                     let access = ty.is_ref_at(DataLocation::Storage).then(|| StorageAccess {
-                        slot: value.clean(self, ty),
+                        slot: value,
                         location: StorageLocation::word(U256::ZERO),
                         offset: None,
                     });
@@ -635,8 +601,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// Splits the value that a call returns into its fields. The fields of an internal call are
-    /// raw words where the return variable is a raw carrier, so the caller wraps them in `Word`.
+    /// Splits the value that a call returns into its fields.
     pub(super) fn unpack_return_value(&mut self, value: ValueId) -> Vec<ValueId> {
         let Some(MirType::Struct(id)) = self.builder.func().value_ty(value) else {
             return vec![value];

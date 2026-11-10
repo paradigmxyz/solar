@@ -58,9 +58,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object = lower(receiver)
         // index = lower(index)
         let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
-        let object = self.operand(receiver)?.id();
+        let object = self.lower_expr(receiver)?;
         let uint256 = self.cx.gcx.types.uint(256);
-        let index = self.lower_typed_expr(index, uint256)?.clean(self, uint256);
+        let index = self.lower_typed_expr(index, uint256)?;
         if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
             receiver_ty.peel_refs().kind
         {
@@ -164,7 +164,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         end: Option<&'gcx hir::Expr<'gcx>>,
     ) -> Option<ValueId> {
         let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
-        let value = self.operand(receiver)?.id();
+        let value = self.lower_expr(receiver)?;
         let (source, location) = match self.builder.func().value_ty(value) {
             Some(MirType::Slice(location)) => (value, location),
             _ => {
@@ -194,15 +194,11 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // end = provided_end | base.length
         let uint256 = self.cx.gcx.types.uint(256);
         let start = if let Some(start) = start {
-            self.lower_typed_expr(start, uint256)?.clean(self, uint256)
+            self.lower_typed_expr(start, uint256)?
         } else {
             self.builder.imm(0)
         };
-        let end = if let Some(end) = end {
-            self.lower_typed_expr(end, uint256)?.clean(self, uint256)
-        } else {
-            base_len
-        };
+        let end = if let Some(end) = end { self.lower_typed_expr(end, uint256)? } else { base_len };
         let past_end = self.builder.gt(end, base_len);
         let backwards = self.builder.lt(end, start);
         if self.builder.encodes_revert_reasons() {

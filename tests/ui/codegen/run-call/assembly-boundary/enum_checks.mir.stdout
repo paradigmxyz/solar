@@ -1,0 +1,71 @@
+; === ROOT/tests/ui/codegen/run-call/assembly-boundary/enum_checks.sol:AssemblyBoundaryEnumChecks ===
+@module AssemblyBoundaryEnumChecks
+@types
+  struct0: {i256, i256}
+
+; function assemblyOnly() external pure returns (uint256 first, uint256 second) [selector 0x54bf0769]
+fn @assemblyOnly() -> struct0 [selector=0x54bf0769, pure, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = insert_value struct0, undef struct0, 0, 7
+    v1 = insert_value struct0, v0, 1, 7
+    ret v1
+}
+
+; function readInvalid() external pure returns (uint256) [selector 0x2d2890a9]
+fn @readInvalid() -> i256 [selector=0x2d2890a9, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt 2, 2
+    v1 = eq v0, false
+    icall panic_if<0x21>, v1
+    ret 2
+}
+
+; function copyInvalid() external pure returns (uint256 seen) [selector 0x099c0a43]
+fn @copyInvalid() -> i256 [selector=0x099c0a43, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt 2, 2
+    v1 = eq v0, false
+    icall panic_if<0x21>, v1
+    v2 = lt i8 2, i8 2
+    v3 = eq v2, false
+    icall panic_if<0x21>, v3
+    ret 2
+}
+
+; function readHighBits() external pure returns (uint256) [selector 0x539e1c84]
+fn @readHighBits() -> i256 [selector=0x539e1c84, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt 257, 2
+    v1 = eq v0, false
+    icall panic_if<0x21>, v1
+    ret 1
+}
+
+; function returnInvalid() external pure returns (Choice) [selector 0xd48d2420]
+fn @returnInvalid() -> i8 [selector=0xd48d2420, pure, abi_params=[], abi_returns=[word<enum 2>], abi_return_params=[enum<2, uint8>]] {
+  bb0:
+    v0 = icall @invalid
+    v1 = lt v0, 2
+    v2 = eq v1, false
+    icall panic_if<0x21>, v2
+    v3 = trunc i256 v0 to i8
+    v4 = lt v3, i8 2
+    v5 = eq v4, false
+    icall panic_if<0x21>, v5
+    ret v3
+}
+
+; function readValid() external pure returns (uint256) [selector 0xee2d20c3]
+fn @readValid() -> i256 [selector=0xee2d20c3, pure, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt 1, 2
+    v1 = eq v0, false
+    icall panic_if<0x21>, v1
+    ret 1
+}
+
+; function invalid() internal pure returns (Choice choice)
+fn @invalid() -> i256 [pure] {
+  bb0:
+    ret 2
+}

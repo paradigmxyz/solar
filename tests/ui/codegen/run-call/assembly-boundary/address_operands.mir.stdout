@@ -1,0 +1,60 @@
+; === ROOT/tests/ui/codegen/run-call/assembly-boundary/address_operands.sol:AssemblyBoundaryAddressOperands ===
+@module AssemblyBoundaryAddressOperands
+; receive() external payable [receive]
+fn @receive() [receive, payable] {
+  bb0:
+    ret
+}
+
+; function dirtySelf() internal view returns (address account)
+fn @dirtySelf() -> i256 [view] {
+  bb0:
+    v0 = address
+    v1 = zext i160 v0 to i256
+    v2 = or v1, 0x10000000000000000000000000000000000000000
+    ret v2
+}
+
+; function balanceOfDirty() external payable returns (uint256) [selector 0x29805048]
+fn @balanceOfDirty() -> i256 [selector=0x29805048, payable, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = icall @dirtySelf
+    v1 = trunc i256 v0 to i160
+    v2 = zext i160 v1 to i256
+    v3 = balance v2
+    ret v3
+}
+
+; function callDirty() external returns (bool success) [selector 0x5e6526e1]
+fn @callDirty() -> i1 [selector=0x5e6526e1, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @dirtySelf
+    v1 = trunc i256 v0 to i160
+    v2 = gas
+    v3 = address_call v1, ptr<memory> 96, gas v2
+    ret v3
+}
+
+; function codeSizeOfDirty() external view returns (bool) [selector 0x2b01f482]
+fn @codeSizeOfDirty() -> i1 [selector=0x2b01f482, view, abi_params=[], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = icall @dirtySelf
+    v1 = trunc i256 v0 to i160
+    v2 = zext i160 v1 to i256
+    v3 = extcodesize v2
+    v4 = address
+    v5 = zext i160 v4 to i256
+    v6 = extcodesize v5
+    v7 = eq v3, v6
+    jumpi v7, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    v8 = zext i160 v1 to i256
+    v9 = extcodesize v8
+    v10 = ne v9, 0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v11 = phi [bb1: v10], [bb2: false]
+    ret v11
+}

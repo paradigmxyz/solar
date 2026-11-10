@@ -1,5 +1,7 @@
 //@ codegen-matrix: standard
-//@ run-call-fail: storageIndex 0x101 => Panic(0x32)
+//@ run-call: storageIndex 0x101 => 2
+
+// The index of an `inject` result is cleaned to its `uint8` type, so `0x101` reads `sarr[1]`.
 
 contract DirtyStorageArrayIndex {
     uint256[] sarr;

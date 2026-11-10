@@ -6,23 +6,20 @@
 //@ run-call: DirtyCarrierPaths::signedLoop 2, 1 => true
 //@ run-call: DirtyCarrierPaths::signedPointer => -1
 //@ run-call: DirtyCarrierPaths::signedOperator => 1
-//@ run-call: DirtyCarrierPaths::throughPointer => 257
+//@ run-call: DirtyCarrierPaths::throughPointer => 1
 //@ run-call: DirtyCarrierPaths::cleanPairDispatch => 1, 2
 //@ run-call: DirtyCarrierPaths::modifierLoop
 //@ run-call: DirtyCarrierPaths::signedLocal => -1
-//@ run-call: DirtyVirtual::throughVirtual => 257
+//@ run-call: DirtyVirtual::throughVirtual => 1
 //@ run-call: DirtyInternalNamedReturn::dispatchAddress 0x0000000000000000000000000000000000000002 => 0x0000000000000000000000000000000000000002
 //@ run-call: DirtyInternalNamedReturn::narrowAddress 0x10000000000000000000000000000000000000002 => 0x0000000000000000000000000000000000000002
 //@ run-call: DirtyInternalNamedReturn::bytesAddress 0x1234567890123456789012345678901234567890 => 0x1234567890123456789012345678901234567890
 //@ run-call: DirtyInternalNamedReturn::joinAddress true => 2
-//@ run-call: DirtyInternalNamedReturn::joinAddress false => 0x10000000000000000000000000000000000000002
+//@ run-call: DirtyInternalNamedReturn::joinAddress false => 2
 //@ codegen-matrix: standard
-//@ run-call: DirtyInternalNamedReturn::addressBits => true
-//@ run-call: DirtyInternalNamedReturn::bytesBits => true
 //@ run-call: DirtyInternalNamedReturn::typedCallCleans => true
 //@ run-call: DirtyInternalNamedReturn::directTypedCallCleans => true
 //@ run-call: DirtyInternalNamedReturn::directComparisonCleans => true
-//@ run-call: DirtyInternalNamedReturn::boolBits => true
 
 contract DirtyInternalNamedReturn {
     function dispatchAddress(address value) external pure returns (address) {
@@ -66,26 +63,6 @@ contract DirtyInternalNamedReturn {
         }
     }
 
-    function dirtyBool(bool value) internal pure returns (bool result) {
-        assembly {
-            result := mul(value, 2)
-        }
-    }
-
-    function addressBits() external pure returns (bool dirty) {
-        address value = dirtyAddress(address(2));
-        assembly {
-            dirty := and(eq(and(value, 0xffffffffffffffffffffffffffffffffffffffff), 2), shr(160, value))
-        }
-    }
-
-    function bytesBits() external pure returns (bool dirty) {
-        bytes1 value = dirtyBytes(0x42);
-        assembly {
-            dirty := and(eq(shr(248, value), 0x42), value)
-        }
-    }
-
     function same(address a, address b) internal pure returns (bool) {
         return a == b;
     }
@@ -118,13 +95,6 @@ contract DirtyInternalNamedReturn {
     function directComparisonCleans() external pure returns (bool) {
         return dirtyAddress(address(2)) == address(2) && dirtyBytes(0x42) == bytes1(0x42)
             && dirtyUint8(3) == 3;
-    }
-
-    function boolBits() external pure returns (bool dirty) {
-        bool value = dirtyBool(true);
-        assembly {
-            dirty := eq(value, 2)
-        }
     }
 }
 

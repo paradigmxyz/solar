@@ -93,8 +93,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     let access = this.require_storage_access(argument)?;
                     this.storage_refs.insert(parameter, access);
                 } else {
-                    let carried = this.lower_typed_expr(argument, parameter_ty)?;
-                    let value = this.bind_word(parameter, carried, argument.span)?;
+                    let value = this.lower_typed_expr(argument, parameter_ty)?;
+                    let value = this.bind_local(parameter, value, argument.span)?;
                     this.values.insert(parameter, value);
                 }
                 Some(())

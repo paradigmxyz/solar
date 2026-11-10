@@ -1,8 +1,8 @@
 ; === ROOT/tests/ui/codegen/lowering/evm-ir/constructs/immutable_widths.sol:ImmutableWidths (runtime) ===
 @module ImmutableWidths_runtime
-bb0:                                              ; runtime dispatch entry
+bb0:                                              ; runtime dispatch entry + function read() external view returns (uint8, int16, bytes3, address, uint, Tiny, bool) [selector 0x57de26a4]
   callvalue
-  push bb4
+  push bb3
   jumpi
   push 0
   calldataload
@@ -10,20 +10,9 @@ bb0:                                              ; runtime dispatch entry
   shr
   dup 1
   push 0x57de26a4
-  eq
-  push bb5
+  sub
+  push bb3
   jumpi
-  dup 1
-  push 0xf8bad2c3
-  eq
-  push bb6
-  jumpi
-  jump bb4
-bb4 [cold]:
-  push 0
-  push 0
-  revert
-bb5 [entry]:                                      ; function read() external view returns (uint8, int16, bytes3, address, uint, Tiny, bool) [selector 0x57de26a4]
   push_immutable 0, 1
   push_immutable 1, 32
   push_immutable 2, 32
@@ -53,14 +42,7 @@ bb5 [entry]:                                      ; function read() external vie
   push 224
   push 128
   return
-bb6 [entry]:                                      ; function readRaw() external view returns (address) [selector 0xf8bad2c3]
-  push_immutable 7, 32
-  push 96
-  shl
-  push 96
-  shr
+bb3 [cold]:
   push 0
-  mstore
-  push 32
   push 0
-  return
+  revert

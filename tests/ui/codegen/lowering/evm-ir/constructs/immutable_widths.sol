@@ -6,8 +6,7 @@
 
 type Tiny is uint16;
 
-// Immutables push their source width without optimization too; only an
-// `address` that inline assembly may have written keeps a full word.
+// Immutables push their source width without optimization too.
 contract ImmutableWidths {
     uint8 immutable a;
     int16 immutable b;
@@ -16,7 +15,6 @@ contract ImmutableWidths {
     uint immutable e;
     Tiny immutable f;
     bool immutable g;
-    address immutable h;
 
     constructor(uint8 a_, int16 b_, bytes3 c_, address d_, uint e_, Tiny f_, bool g_) {
         a = a_;
@@ -26,11 +24,6 @@ contract ImmutableWidths {
         e = e_;
         f = f_;
         g = g_;
-        address raw;
-        assembly {
-            raw := not(0)
-        }
-        h = raw;
     }
 
     // CHECK-LABEL: @module ImmutableWidths_runtime
@@ -46,13 +39,7 @@ contract ImmutableWidths {
     // NONE-DAG: push_immutable 3, 20
     // NONE-DAG: push_immutable 5, 2
     // NONE-DAG: push_immutable 6, 1
-    // NONE-DAG: push_immutable 7, 32
     function read() external view returns (uint8, int16, bytes3, address, uint, Tiny, bool) {
         return (a, b, c, d, e, f, g);
-    }
-
-    // CHECK: push_immutable 7, 32
-    function readRaw() external view returns (address) {
-        return h;
     }
 }

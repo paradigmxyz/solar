@@ -266,12 +266,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    /// Lowers `expr` and converts it to `ty`. A raw word of the same type stays raw.
+    /// Lowers `expr` and converts it to `ty`.
     pub(super) fn lower_typed_expr(
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
-    ) -> Option<Word> {
+    ) -> Option<ValueId> {
         let operand = self.lower_operand(expr, ty)?;
         self.convert_operand(operand)
     }
@@ -285,7 +285,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     ) -> Option<Lowered<'gcx>> {
         let span = expr.span;
         if let Some(value) = self.lower_fixed_bytes_literal(ty, expr) {
-            let value = LoweredValue::Word(Word::from_clean(value));
+            let value = LoweredValue::Value(value);
             return Some(Lowered { value, source: None, target: ty, span });
         }
         let source_expr = self.peel_bytes_conversion(expr);
@@ -303,13 +303,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             let value = LoweredValue::BytesLiteral(*bytes);
             return Some(Lowered { value, source: None, target: ty, span });
         }
-        let word = self.lower_expr(expr)?;
+        let value = self.lower_expr(expr)?;
         let source = self.cx.gcx.type_of_expr(expr.id).or_else(|| {
             let ExprKind::Lit(lit) = &expr.kind else { return None };
             let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
             Some(self.cx.gcx.mk_ty_string_literal(bytes.as_byte_str()))
         });
-        Some(Lowered { value: LoweredValue::Word(word), source, target: ty, span })
+        Some(Lowered { value: LoweredValue::Value(value), source, target: ty, span })
     }
 
     /// Whether lowering `operand` can write state, as sema's view and pure checker finds. Before
@@ -346,43 +346,36 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Converts a lowered operand to its target type.
-    pub(super) fn convert_operand(&mut self, operand: Lowered<'gcx>) -> Option<Word> {
+    pub(super) fn convert_operand(&mut self, operand: Lowered<'gcx>) -> Option<ValueId> {
         match (operand.value, operand.source) {
-            (LoweredValue::BytesLiteral(bytes), _) => {
-                self.lower_shared_bytes_literal(bytes).map(Word::from_clean)
+            (LoweredValue::BytesLiteral(bytes), _) => self.lower_shared_bytes_literal(bytes),
+            (LoweredValue::Value(value), Some(source)) => {
+                self.convert_value(value, source, operand.target, operand.span)
             }
-            (LoweredValue::Word(word), Some(source)) => {
-                self.convert_value(word, source, operand.target, operand.span)
-            }
-            (LoweredValue::Word(word), None) => Some(word),
+            (LoweredValue::Value(value), None) => Some(value),
         }
     }
 
     /// Converts the value of an expression of type `source_ty` to `target_ty`, as via-IR's
     /// `convert`. A storage reference stays its slot for a storage target and is copied to memory
-    /// for a memory one; a raw word of the same type stays raw.
+    /// for a memory one.
     pub(super) fn convert_value(
         &mut self,
-        word: Word,
+        value: ValueId,
         source_ty: Ty<'gcx>,
         target_ty: Ty<'gcx>,
         span: Span,
-    ) -> Option<Word> {
+    ) -> Option<ValueId> {
         if target_ty.is_ref_at(DataLocation::Storage) {
-            return Some(word);
+            return Some(value);
         }
         if source_ty.is_ref_at(DataLocation::Storage)
             && self.types.memory_layout(target_ty).is_some()
         {
-            let slot = word.clean(self, source_ty);
             // object = load_storage_object(target_ty, slot)
-            return self.load_storage_object(target_ty, slot, span).map(Word::from_clean);
+            return self.load_storage_object(target_ty, value, span);
         }
-        if word.is_raw() && source_ty == target_ty {
-            return Some(word);
-        }
-        let value = word.clean(self, source_ty);
-        Some(Word::from_clean(self.coerce_value(value, source_ty, target_ty)))
+        Some(self.coerce_value(value, source_ty, target_ty))
     }
 
     /// Lowers the operand `expr` of an ABI encoding that is not `bytes` or `string`, as the memory
@@ -399,7 +392,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if operand.waits() {
             return Some(Step::Wait(operand));
         }
-        let value = self.convert_operand(operand)?.clean(self, ty);
+        let value = self.convert_operand(operand)?;
         prepare(self, value).map(Step::Done)
     }
 
@@ -432,7 +425,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             Step::Wait(operand) => {
                 let ty = operand.target;
-                let object = self.convert_operand(operand)?.clean(self, ty);
+                let object = self.convert_operand(operand)?;
                 Some((object, Self::memory_abi_type(self.types.abi_type(ty)?)))
             }
         }
@@ -452,7 +445,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         {
             return Some((self.require_storage_access(source)?.slot, PtrLocation::Storage));
         }
-        let value = self.lower_typed_expr(expr, ty)?.clean(self, ty);
+        let value = self.lower_typed_expr(expr, ty)?;
         Some((
             value,
             self.builder.func().value_slice_location(value).unwrap_or(PtrLocation::Memory),
