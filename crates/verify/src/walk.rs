@@ -1,102 +1,64 @@
-use solar_parse::ast::{Expr, ExprKind, Stmt, StmtKind};
+//! AST traversal helpers over [`Visit`].
+use solar_parse::{
+    ast::{Expr, ExprKind, Stmt, visit::Visit},
+    interface::data_structures::Never,
+};
+use std::ops::ControlFlow;
 
+/// Calls `f` on every statement directly nested in `s` (not on `s`, and not deeper).
 pub(crate) fn sub_stmts<'a>(s: &'a Stmt<'a>, f: &mut dyn FnMut(&'a Stmt<'a>)) {
-    match &s.kind {
-        StmtKind::Block(b) | StmtKind::UncheckedBlock(b) => b.stmts.iter().for_each(&mut *f),
-        StmtKind::If(_, a, b) => {
-            f(a);
-            if let Some(b) = b {
-                f(b)
-            }
+    struct V<'f, 'a>(&'f mut dyn FnMut(&'a Stmt<'a>));
+    impl<'a> Visit<'a> for V<'_, 'a> {
+        type BreakValue = Never;
+        fn visit_stmt(&mut self, s: &'a Stmt<'a>) -> ControlFlow<Never> {
+            (self.0)(s);
+            ControlFlow::Continue(())
         }
-        StmtKind::While(_, b) | StmtKind::DoWhile(b, _) => f(b),
-        StmtKind::For { init, body, .. } => {
-            if let Some(i) = init {
-                f(i)
-            }
-            f(body)
-        }
-        StmtKind::Try(t) => t.clauses.iter().for_each(|c| c.block.stmts.iter().for_each(&mut *f)),
-        _ => {}
     }
+    let _ = V(f).walk_stmt(s);
 }
 
-/// Visit every expression directly in this statement (not nested statements).
+/// Calls `f` on every expression directly in `s`: not in nested statements, and not on the
+/// subexpressions of those expressions.
 pub(crate) fn stmt_exprs<'a>(s: &'a Stmt<'a>, f: &mut dyn FnMut(&'a Expr<'a>)) {
-    match &s.kind {
-        StmtKind::DeclSingle(v) => {
-            if let Some(i) = &v.initializer {
-                f(i)
-            }
+    struct V<'f, 'a>(&'f mut dyn FnMut(&'a Expr<'a>));
+    impl<'a> Visit<'a> for V<'_, 'a> {
+        type BreakValue = Never;
+        fn visit_stmt(&mut self, _: &'a Stmt<'a>) -> ControlFlow<Never> {
+            ControlFlow::Continue(())
         }
-        StmtKind::DeclMulti(_, e) | StmtKind::Expr(e) => f(e),
-        StmtKind::If(c, ..) | StmtKind::While(c, _) | StmtKind::DoWhile(_, c) => f(c),
-        StmtKind::For { cond, next, .. } => {
-            if let Some(c) = cond {
-                f(c)
-            }
-            if let Some(n) = next {
-                f(n)
-            }
+        fn visit_expr(&mut self, e: &'a Expr<'a>) -> ControlFlow<Never> {
+            (self.0)(e);
+            ControlFlow::Continue(())
         }
-        StmtKind::Return(Some(e)) => f(e),
-        StmtKind::Emit(_, a) | StmtKind::Revert(_, a) => a.exprs().for_each(&mut *f),
-        StmtKind::Try(t) => f(t.expr),
-        _ => {}
     }
+    let _ = V(f).walk_stmt(s);
 }
 
+/// Calls `f` on `s` and every statement nested in it, in pre-order.
 pub(crate) fn all_stmts<'a>(s: &'a Stmt<'a>, f: &mut dyn FnMut(&'a Stmt<'a>)) {
-    f(s);
-    sub_stmts(s, &mut |c| all_stmts(c, f));
+    struct V<'f, 'a>(&'f mut dyn FnMut(&'a Stmt<'a>));
+    impl<'a> Visit<'a> for V<'_, 'a> {
+        type BreakValue = Never;
+        fn visit_stmt(&mut self, s: &'a Stmt<'a>) -> ControlFlow<Never> {
+            (self.0)(s);
+            self.walk_stmt(s)
+        }
+    }
+    let _ = V(f).visit_stmt(s);
 }
 
+/// Calls `f` on `e` and every subexpression of it, in pre-order.
 pub(crate) fn sub_exprs<'a>(e: &'a Expr<'a>, f: &mut dyn FnMut(&'a Expr<'a>)) {
-    f(e);
-    let mut g = |x: &'a Expr<'a>| sub_exprs(x, f);
-    match &e.kind {
-        ExprKind::Array(xs) => xs.iter().for_each(|x| g(x)),
-        ExprKind::Assign(a, _, b) | ExprKind::Binary(a, _, b) => {
-            g(a);
-            g(b)
+    struct V<'f, 'a>(&'f mut dyn FnMut(&'a Expr<'a>));
+    impl<'a> Visit<'a> for V<'_, 'a> {
+        type BreakValue = Never;
+        fn visit_expr(&mut self, e: &'a Expr<'a>) -> ControlFlow<Never> {
+            (self.0)(e);
+            self.walk_expr(e)
         }
-        ExprKind::Call(c, args) => {
-            g(c);
-            args.exprs().for_each(&mut g)
-        }
-        ExprKind::CallOptions(c, opts) => {
-            g(c);
-            opts.iter().for_each(|o| g(o.value))
-        }
-        ExprKind::Delete(x) | ExprKind::Member(x, _) | ExprKind::Unary(_, x) => g(x),
-        ExprKind::Index(b, k) => {
-            g(b);
-            match k {
-                solar_parse::ast::IndexKind::Index(Some(i)) => g(i),
-                solar_parse::ast::IndexKind::Range(a, b2) => {
-                    if let Some(a) = a {
-                        g(a)
-                    }
-                    if let Some(b2) = b2 {
-                        g(b2)
-                    }
-                }
-                _ => {}
-            }
-        }
-        ExprKind::Ternary(a, b, c) => {
-            g(a);
-            g(b);
-            g(c)
-        }
-        ExprKind::Tuple(xs) => xs.iter().for_each(|x| {
-            if let Some(x) = x.as_ref().unspan() {
-                g(x)
-            }
-        }),
-        ExprKind::Payable(args) => args.exprs().for_each(&mut g),
-        _ => {}
     }
+    let _ = V(f).visit_expr(e);
 }
 
 /// Root variable name of an lvalue (`a[i][j].x` -> `a`).

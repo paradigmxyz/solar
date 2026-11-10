@@ -20,7 +20,6 @@ use solar_parse::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
-#[path = "yul.rs"]
 mod yul;
 
 #[derive(Clone, Debug)]
