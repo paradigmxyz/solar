@@ -739,3 +739,24 @@
       ret v0
   }
   
+  fn @const_pair() -> struct0 {
+    bb0:
+      v0 = insert_value struct0, undef struct0, 0, 1
+      v1 = insert_value struct0, v0, 1, 128
+      ret v1
+  }
+  
+  fn @store_pair_word() -> i256 {
+    bb0:
+      v0 = icall @const_pair
+      v1 = extract_value struct0, v0, 1
+-     mstore 64, v1
++     v3 = heap_floor
++     v4 = lt v1, v3
++     v5 = select v4, v3, v1
++     mstore 64, v5
+      v2 = mload 64
+      mstore v2, 1
+      ret v2
+  }
+  

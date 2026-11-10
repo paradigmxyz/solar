@@ -8,15 +8,18 @@
 //! still reports calldata.
 //!
 //! The analysis only sees values that move through registers. A word the module stores to memory
-//! and loads again is `Other`, and so is a function's second and later results, which travel in a
-//! buffer.
+//! and loads again is `Other`, and so is a function's second and later results once lowering moves
+//! them into a buffer. Before that, a struct holds the union of its fields.
 
 use crate::mir::{
     ArgIdx, Callee, Function, FunctionId, InstKind, Module, PtrLocation, Terminator, Value,
     ValueId,
     analysis::{direct_callees, is_floor_clamp},
 };
-use solar_data_structures::index::{IndexVec, index_vec};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+};
 
 /// The origins a word may have.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -81,13 +84,19 @@ pub(crate) type ModuleAddressInputs = IndexVec<FunctionId, IndexVec<ValueId, Add
 /// Classifies every value of every function in `module` as an absolute address by what it is
 /// computed from.
 ///
-/// Sets only grow, so repeating the passes until none changes a set reaches the fixed point.
-/// Shared operands are classified once, however many expressions read them.
+/// Sets only grow, so revisiting a function whenever a set it reads grows reaches the fixed
+/// point. A change wakes the callee whose parameters it feeds, or the callers that receive the
+/// results it returns, so a chain of calls costs one visit per link. Shared operands are
+/// classified once, however many expressions read them.
 pub(crate) fn absolute_address_inputs(module: &Module) -> ModuleAddressInputs {
     let mut called = index_vec![false; module.functions.len()];
-    for func in &module.functions {
+    let mut callers = index_vec![Vec::new(); module.functions.len()];
+    for (caller, func) in module.functions.iter_enumerated() {
         for callee in direct_callees(func) {
             called[callee] = true;
+            if callers[callee].last() != Some(&caller) {
+                callers[callee].push(caller);
+            }
         }
     }
     // Nothing in the module passes the parameters of a function it does not call, or of one that
@@ -108,14 +117,14 @@ pub(crate) fn absolute_address_inputs(module: &Module) -> ModuleAddressInputs {
             })
             .collect(),
         returns: index_vec![AddressInputs::NONE; module.functions.len()],
+        callers,
+        awake: DenseBitSet::new_filled(module.functions.len()),
+        queue: module.functions.indices().rev().collect(),
     };
     let arg_values = module.functions.iter().map(Function::arg_uses).collect::<IndexVec<_, _>>();
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for (func_id, func) in module.functions.iter_enumerated() {
-            changed |= state.propagate(func_id, func, &arg_values[func_id]);
-        }
+    while let Some(func_id) = state.queue.pop() {
+        state.awake.remove(func_id);
+        while state.propagate(func_id, &module.functions[func_id], &arg_values[func_id]) {}
     }
     state.inputs
 }
@@ -141,12 +150,18 @@ struct State {
     args: IndexVec<FunctionId, IndexVec<ArgIdx, AddressInputs>>,
     /// What each function returns.
     returns: IndexVec<FunctionId, AddressInputs>,
+    /// The functions that call or tail call each function.
+    callers: IndexVec<FunctionId, Vec<FunctionId>>,
+    /// The functions in `queue`.
+    awake: DenseBitSet<FunctionId>,
+    /// The functions to visit again.
+    queue: Vec<FunctionId>,
 }
 
 impl State {
     /// Runs one pass over `func`, which takes its parameters from `self.args`, adds what its calls
-    /// pass to `self.args` and what it returns to `self.returns`, and returns whether any set
-    /// grew.
+    /// pass to `self.args` and what it returns to `self.returns`, wakes the functions that read
+    /// what grew, and returns whether any set of `func` grew.
     fn propagate(
         &mut self,
         func_id: FunctionId,
@@ -164,14 +179,15 @@ impl State {
                 // A call's result is the first returned component.
                 Some(Terminator::Return { values }) => {
                     if let Some(&value) = values.first() {
-                        changed |= self.returns[func_id].raise(self.inputs[func_id][value]);
+                        let returned = self.inputs[func_id][value];
+                        changed |= self.raise_returns(func_id, returned);
                     }
                 }
                 // A tail call delivers the callee's results as its own.
                 Some(Terminator::TailCall { function, args }) => {
                     changed |= self.pass_args(func_id, *function, args);
                     let returned = self.returns[*function];
-                    changed |= self.returns[func_id].raise(returned);
+                    changed |= self.raise_returns(func_id, returned);
                 }
                 _ => {}
             }
@@ -202,6 +218,13 @@ impl State {
                 }
                 InstKind::Select(_, lhs, rhs) => inputs[*lhs].union(inputs[*rhs]),
                 InstKind::Zext(inner) | InstKind::IntToPtr(inner) => inputs[*inner],
+                // A struct holds the union of its fields, so a multi-result call's result keeps
+                // what its callee inserts. An undefined base adds no field.
+                InstKind::InsertValue { aggregate, value, .. } => match func.value(*aggregate) {
+                    Value::Undef(_) => inputs[*value],
+                    _ => inputs[*aggregate].union(inputs[*value]),
+                },
+                InstKind::ExtractValue { aggregate, .. } => inputs[*aggregate],
                 InstKind::Phi(incoming) => incoming
                     .iter()
                     .fold(AddressInputs::NONE, |origins, &(_, value)| origins.union(inputs[value])),
@@ -220,6 +243,28 @@ impl State {
         for (&value, param) in args.iter().zip(self.args[callee].iter_mut()) {
             changed |= param.raise(self.inputs[caller][value]);
         }
+        if changed {
+            self.wake(callee);
+        }
         changed
+    }
+
+    /// Adds `returned` to what `func_id` returns, wakes its callers if that grew it, and returns
+    /// whether it grew.
+    fn raise_returns(&mut self, func_id: FunctionId, returned: AddressInputs) -> bool {
+        let changed = self.returns[func_id].raise(returned);
+        if changed {
+            for index in 0..self.callers[func_id].len() {
+                self.wake(self.callers[func_id][index]);
+            }
+        }
+        changed
+    }
+
+    /// Queues `func_id` for another visit.
+    fn wake(&mut self, func_id: FunctionId) {
+        if self.awake.insert(func_id) {
+            self.queue.push(func_id);
+        }
     }
 }
