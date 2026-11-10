@@ -114,3 +114,60 @@ fn call_exits_handle_many_entries_with_a_shared_chain() {
     let output = compile(dir.path(), &source, "none", "--emit=abi");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
 }
+
+#[test]
+fn builder_expansion_budget_is_per_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut source = String::from(
+        r#"import {Buffers, ByteBuilder} from "solar:core/Buffers.sol";
+contract C {"#,
+    );
+    // Every small entry expands the same chain. Their combined work exceeds the per-entry
+    // limit, but none of their individual builder lifetimes needs a large proof.
+    for i in 0..128 {
+        source.push_str(&format!("function f{i}() public pure returns (bytes memory) {{ return h0(Buffers.create(1)); }}\n"));
+    }
+    for i in 0..64 {
+        source.push_str(&format!("function h{i}(ByteBuilder memory b) internal pure returns (bytes memory) {{ return h{}(b); }}\n", i + 1));
+    }
+    source.push_str("function h64(ByteBuilder memory b) internal pure returns (bytes memory) { return Buffers.finish(b); } }");
+    let output = compile(dir.path(), &source, "none", "--emit=abi");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+}
+
+#[test]
+fn builder_expansion_still_bounds_each_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut source = String::from(
+        r#"import {Buffers, ByteBuilder} from "solar:core/Buffers.sol";
+contract C { function f() public pure returns (bytes memory) {
+ByteBuilder memory b = Buffers.create(1); h0(b); return Buffers.finish(b); }"#,
+    );
+    // A compact source can request exponentially many helper clones. Giving each root its own
+    // budget must not allow an individual expansion to grow without a bound.
+    for i in 0..14 {
+        source.push_str(&format!(
+            "function h{i}(ByteBuilder memory b) internal pure {{ h{}(b); h{}(b); }}\n",
+            i + 1,
+            i + 1
+        ));
+    }
+    source.push_str(
+        "function h14(ByteBuilder memory b) internal pure { Buffers.appendByte(b, 0x01); } }",
+    );
+    let output = compile(dir.path(), &source, "none", "--emit=abi");
+    assert!(!output.status.success());
+    let diagnostics = String::from_utf8(output.stderr).unwrap();
+    let errors = diagnostics
+        .lines()
+        .filter(|line| line.starts_with("error:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    snapbox::assert_data_eq!(
+        errors,
+        snapbox::str![[r#"
+error: cannot prove builder lifetime through this call
+error: aborting due to 1 previous error
+"#]]
+    );
+}

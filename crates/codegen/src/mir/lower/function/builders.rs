@@ -118,7 +118,6 @@ pub(in crate::mir::lower) fn check_builder_finishes(
     let assembly = calling_closure(&callers, user_assembly);
     let mut analysis = module.clone();
     let mut checked = FxHashMap::default();
-    let mut budget = 16_384usize;
     let calls = CallContext {
         module,
         graph: &graph,
@@ -130,6 +129,8 @@ pub(in crate::mir::lower) fn check_builder_finishes(
         if !relevant.contains(root) {
             continue;
         }
+        // Each entry has an independent proof; earlier entries cannot spend its budget.
+        let mut budget = 16_384usize;
         let mut function = module.function(root).clone();
         let mut uses = AnalysisUses::default();
         if expand_calls(gcx, &calls, &mut function, &mut budget, &mut uses) {
