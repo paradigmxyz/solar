@@ -1050,17 +1050,3 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
-
-### CODEGEN-014: Nested calldata offsets above `2**64 - 1` are bounded only by the signed check
-
-- ID: CODEGEN-014
-- Status: intentional
-- Difference: `solc`'s ABI decoder rejects every nested offset above `2**64 - 1`
-  when it copies a calldata value to memory. `solar` bounds the nested offsets
-  of such a copy only by the signed range check that element access,
-  `abi.encode` and copies to storage use. A forged offset in
-  `[2**255, 2**256)` wraps back onto earlier calldata, so
-  `uint256[][] memory x = a` decodes it where `solc` reverts.
-- Rationale: the offset reads words the caller wrote anyway, so the copy exposes
-  nothing, and the extra check would make every nested copy larger and slower.
-- Coverage: `tests/ui/codegen/run-call/calldata/calldata_nested_copy_offset.sol`.
