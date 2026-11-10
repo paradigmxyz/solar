@@ -285,7 +285,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                         .or_else(|| Some(self.lower_typed_expr(index, key)?.clean(self, key)))?;
                     let slot = self.mapping_slot(index, key, base.slot);
                     if let Some((size, encoding)) = self.cx.storage.packed_encoding(value) {
-                        let location = StorageLocation::packed_word(size, encoding);
+                        let location = StorageLocation::exclusive_word(size, encoding);
                         return Some(StorageAccess { slot, location, offset: None });
                     }
                     return Some(StorageAccess {
@@ -880,6 +880,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             // slot = slot_base + index / elements_per_slot
             // offset = (index % elements_per_slot) * element_bytes
             let bytes = u64::from(size.bytes());
+            if bytes > 16 {
+                // slot = slot_base + index, the element owns its slot
+                let slot = self.fixed_array_element_slot(slot_base, index, U256::ONE);
+                let location = StorageLocation::exclusive_word(size, encoding);
+                return Some(StorageAccess { slot, location, offset: None });
+            }
             let per_slot = U256::from(32 / bytes);
             let location = StorageLocation::packed_word(size, encoding);
             if let Some(index) = self.builder.func().value_u256(index) {

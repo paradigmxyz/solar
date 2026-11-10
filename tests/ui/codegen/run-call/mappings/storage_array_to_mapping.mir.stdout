@@ -194,37 +194,17 @@ fn @constructor() [constructor] {
     icall panic_if<0x41>, v244
     v245 = add v243, 1
     v246 = storage_array_data_slot 2
-    v247 = div v243, 1
-    v248 = add v246, v247
-    v249 = mod v243, 1
-    v250 = mul v249, 20
-    v251 = mul v250, 8
-    v252 = shl 0xffffffffffffffffffffffffffffffffffffffff, v251
-    v253 = sload v248 !metadata(storage=symbolic(v248))
-    v254 = not v252
-    v255 = and v253, v254
-    v256 = shl 1, v251
-    v257 = or v255, v256
-    sstore v248, v257 !metadata(storage=symbolic(v248))
+    v247 = add v246, v243
+    sstore v247, 1 !metadata(storage=symbolic(v247))
     sstore 2, v245 !metadata(storage=slot(2))
-    v258 = sload 2 !metadata(storage=slot(2))
-    v259 = gt v258, 0xffffffffffffffff
-    icall panic_if<0x41>, v259
-    v260 = add v258, 1
-    v261 = storage_array_data_slot 2
-    v262 = div v258, 1
-    v263 = add v261, v262
-    v264 = mod v258, 1
-    v265 = mul v264, 20
-    v266 = mul v265, 8
-    v267 = shl 0xffffffffffffffffffffffffffffffffffffffff, v266
-    v268 = sload v263 !metadata(storage=symbolic(v263))
-    v269 = not v267
-    v270 = and v268, v269
-    v271 = shl 2, v266
-    v272 = or v270, v271
-    sstore v263, v272 !metadata(storage=symbolic(v263))
-    sstore 2, v260 !metadata(storage=slot(2))
+    v248 = sload 2 !metadata(storage=slot(2))
+    v249 = gt v248, 0xffffffffffffffff
+    icall panic_if<0x41>, v249
+    v250 = add v248, 1
+    v251 = storage_array_data_slot 2
+    v252 = add v251, v248
+    sstore v252, 2 !metadata(storage=symbolic(v252))
+    sstore 2, v250 !metadata(storage=slot(2))
     ret
   bb38:                                           ; preds = bb37
     v179 = shl v177, 5
