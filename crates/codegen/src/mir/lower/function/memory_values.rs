@@ -353,13 +353,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn default_binding_value(&mut self, ty: Ty<'gcx>) -> ValueId {
         if ty.is_ref_at(DataLocation::Calldata) {
             let zero = self.builder.imm(U256::ZERO);
-            return self.builder.make_slice(zero, zero, PtrLocation::Calldata);
+            let length = self.calldata_static_length(ty);
+            return self.builder.make_slice(zero, length, PtrLocation::Calldata);
         }
         self.default_object_with_mode(ty, true).unwrap_or_else(|| self.builder.imm(U256::ZERO))
     }
 
     pub(super) fn default_object(&mut self, ty: Ty<'gcx>) -> Option<ValueId> {
         self.default_object_with_mode(ty, false)
+    }
+
+    /// The length of a calldata reference of type `ty`: the type's own for a static array, else
+    /// zero.
+    pub(super) fn calldata_static_length(&mut self, ty: Ty<'gcx>) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::Array(_, length) => self.builder.imm(u64::try_from(length).unwrap_or(0)),
+            _ => self.builder.imm(U256::ZERO),
+        }
     }
 
     fn default_object_with_mode(&mut self, ty: Ty<'gcx>, preserve_fmp: bool) -> Option<ValueId> {
