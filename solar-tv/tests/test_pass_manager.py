@@ -41,6 +41,7 @@ class PassManagerTests(unittest.TestCase):
             ("checked", "mir", "check-elim"),
             ("typed-branch", "mir", "cfg-simplify"),
             ("peephole", "evmir", "peephole"),
+            ("symbolic-stack", "evmir", "peephole"),
         ]:
             with self.subTest(example=example):
                 source = ROOT / "examples" / ext / example / f"before.{ext}"
