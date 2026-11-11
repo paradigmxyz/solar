@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import evmir, memory, mir, report
+from . import evmir, gas, memory, mir, report
 from .common import Program, Unsupported
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,19 +28,41 @@ def run(args: list, cwd: Path, timeout: int) -> subprocess.CompletedProcess:
     )
 
 
-def load(kind: str, path: Path, solar: str, timeout: int) -> Program:
+def load(
+    kind: str,
+    path: Path,
+    solar: str,
+    timeout: int,
+    *,
+    gas_mode: str | None = None,
+    evm_version: str | None = None,
+) -> Program:
+    if gas_mode is not None and kind != "evmir":
+        raise Unsupported("gas auditing requires scheduled EVM IR, not MIR")
     suffix = ".mir" if kind == "mir" else ".evmir"
     if path.suffix != suffix or path.stat().st_size > 128 * 1024:
         raise Unsupported(f"expected a {suffix} file of at most 128 KiB")
     pipeline = "mir" if kind == "mir" else "evm-ir"
     parsed = run(
-        [solar, path.resolve(), f"-Z{pipeline}-pipeline=none", "-Zvalidate-ir=true"],
+        [
+            solar,
+            path.resolve(),
+            f"-Z{pipeline}-pipeline=none",
+            "-Zvalidate-ir=true",
+            *([f"--evm-version={evm_version}"] if evm_version is not None else []),
+        ],
         ROOT,
         timeout,
     )
     if parsed.returncode:
         raise Unsupported(parsed.stderr.strip() or "compiler rejected input")
-    program = (mir.translate if kind == "mir" else evmir.translate)(parsed.stdout)
+    program = (
+        mir.translate(parsed.stdout)
+        if kind == "mir"
+        else evmir.translate(
+            parsed.stdout, gas=gas_mode, evm_version=evm_version or "cancun"
+        )
+    )
     program.canonical_ir = parsed.stdout
     return program
 
@@ -102,14 +124,20 @@ def check(
     )
 
     def relation(lhs: str, rhs: str) -> str:
+        if a.gas == "refine":
+            return f"EVM.Gas.refines ({lhs}) ({rhs})"
         if a.result_type.startswith("Outcome "):
             return f"refines ({lhs}) ({rhs})"
         return f"({lhs}) = ({rhs})"
 
     statement = f"theorem pair_correct {binders} : {relation(f'before {args}', f'after {args}')} := by\n"
     unfold = UNFOLD + (", " + memory.UNFOLD if a.memory else "")
+    if a.gas is not None:
+        unfold += ", " + gas.UNFOLD
     projection = (
-        "Memory.code"
+        "EVM.Gas.code"
+        if a.gas is not None
+        else "Memory.code"
         if a.memory and a.result_type.startswith("Outcome ")
         else "EVM.Memory.code"
         if a.memory
@@ -122,7 +150,7 @@ def check(
     # bv_decide can find witnesses; its native proof axioms remain rejected below.
     simplify = (
         f"simp [refines_iff_eq, {unfold}, BitVec.add_comm, BitVec.sub_eq_iff_eq_add]"
-        if a.result_type in {"EVM.Execution", "EVM.Memory.Execution"}
+        if a.result_type in {"EVM.Execution", "EVM.Memory.Execution", "EVM.Gas.Result"}
         else f"simp only [refines_iff_eq, {unfold}]"
     )
     proof = (
@@ -133,6 +161,12 @@ def check(
         "BitVec.ssubOverflow, BitVec.smulOverflow, "
         "BitVec.toNat_eq, BitVec.ult_iff_toNat_lt, BitVec.add_comm] <;> omega\n"
     )
+    if a.gas is not None:
+        proof = (
+            f"  {simplify}\n"
+            "  repeat' (first | omega | (split <;> simp_all [BitVec.add_comm]))\n"
+            "  all_goals omega\n"
+        )
     with tempfile.TemporaryDirectory() as directory:
         file = Path(directory) / "Pair.lean"
 
@@ -149,6 +183,7 @@ def check(
             query_only = a.result_type.startswith("Outcome ") or a.result_type in {
                 "EVM.Execution",
                 "EVM.Memory.Execution",
+                "EVM.Gas.Result",
             }
             query = (
                 f"example {binders} : {projection} (before {args}) = "
@@ -197,6 +232,8 @@ def check(
             vals.append(value)
 
         def display(term: str) -> str:
+            if a.gas is not None:
+                return f"#eval IO.println (EVM.Gas.describe ({term}))"
             if a.memory:
                 describe = (
                     "Memory.describeReturn"
@@ -211,7 +248,9 @@ def check(
             return f"#eval IO.println (EVM.describe ({term}))"
 
         replay_proof = (
-            "simp only [refines_iff_eq]; decide"
+            "simp only [EVM.Gas.refines]; decide"
+            if a.gas == "refine"
+            else "simp only [refines_iff_eq]; decide"
             if a.result_type.startswith("Outcome ")
             else "decide"
         )
@@ -221,6 +260,8 @@ def check(
         assignments = [zero] if vals == zero else [zero, vals]
         if a.memory:
             assignments.extend(memory.witnesses(a.inputs))
+        if a.gas is not None:
+            assignments.extend(gas.witnesses(a.inputs, a.gas_cost, b.gas_cost))
         for vals in assignments:
             inputs = " ".join(
                 f"{value}#{width}" for value, width in zip(vals, widths, strict=True)
@@ -281,11 +322,29 @@ def main() -> int:
         action="store_true",
         help="show full IR diffs and prover diagnostics",
     )
+    parser.add_argument(
+        "--gas",
+        choices=["exact", "refine"],
+        default=os.getenv("SOLAR_TV_GAS"),
+        help="audit exact gas behavior or resource refinement (EVM IR only)",
+    )
+    parser.add_argument(
+        "--evm-version",
+        help="target version for parsing and gas auditing (gas default: Cancun)",
+    )
     args = parser.parse_args()
+    version = args.evm_version or ("cancun" if args.gas is not None else None)
     replay = report.replay_command(
-        args.ir, args.before, args.after, args.solar, args.timeout
+        args.ir,
+        args.before,
+        args.after,
+        args.solar,
+        args.timeout,
+        gas=args.gas,
+        evm_version=version,
     )
     try:
+        gas.validate(args.gas, version or "cancun")
         solar = shutil.which(args.solar)
         if not solar or args.timeout <= 0:
             raise Unsupported(
@@ -293,10 +352,23 @@ def main() -> int:
             )
         solar = str(Path(solar).resolve())
         replay = report.replay_command(
-            args.ir, args.before, args.after, solar, args.timeout
+            args.ir,
+            args.before,
+            args.after,
+            solar,
+            args.timeout,
+            gas=args.gas,
+            evm_version=version,
         )
         programs = [
-            load(args.ir, path, solar, args.timeout)
+            load(
+                args.ir,
+                path,
+                solar,
+                args.timeout,
+                gas_mode=args.gas,
+                evm_version=version,
+            )
             for path in (args.before, args.after)
         ]
         return check(

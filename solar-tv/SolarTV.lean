@@ -9,6 +9,8 @@ import SolarTV.EVMIR.StackSafety
 import SolarTV.EVMIR.Memory
 import SolarTV.MIR.Transforms.DeadStore
 import SolarTV.MemorySafety
+import SolarTV.EVMIR.GasSafety
+import SolarTV.EVMIR.Transforms.GasSwapAdd
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -51,3 +53,7 @@ import SolarTV.MemorySafety
 /-- info: 'SolarTV.MIR.dead_store' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.dead_store
+
+/-- info: 'SolarTV.EVM.Gas.swap_add_refines' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.EVM.Gas.swap_add_refines
