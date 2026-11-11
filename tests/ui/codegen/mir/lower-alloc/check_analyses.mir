@@ -1,0 +1,114 @@
+//@ revisions: off on
+//@[off] compile-flags: -Zmir-pipeline=lower-alloc
+//@[off] filecheck: --check-prefixes=CHECK,OFF
+//@[on] compile-flags: -Zmir-pipeline=lower-alloc -Zcheck-analyses=true
+//@[on] filecheck: --check-prefixes=CHECK,ON
+@module LowerAllocCheckAnalyses
+
+// With `-Zcheck-analyses`, a read of the free memory pointer that takes the heap floor also loads
+// the slot and records the two equal, and a zero fill dropped because nothing wrote the memory
+// reads back words of its range and records each zero. Without the flag neither is emitted.
+
+// A dynamic range reads its first and last words, masked to the range when it is shorter than a
+// word.
+// CHECK-LABEL: {{^[ +].*}}fn @dynamic_fill{{[( ]}}
+// CHECK: + [[FLOOR:v[0-9]+]] = heap_floor
+// ON: + [[SLOT:v[0-9]+]] = mload 64
+// ON-NEXT: + assume eq lower_alloc, [[FLOOR]], [[SLOT]]
+// ON: + [[COVERED:v[0-9]+]] = select {{v[0-9]+}}, {{v[0-9]+}}, 32
+// ON: + [[FIRST:v[0-9]+]] = shr {{v[0-9]+}}, {{v[0-9]+}}
+// ON-NEXT: + assume eq lower_alloc, [[FIRST]], 0
+// ON: + [[LAST:v[0-9]+]] = shr {{v[0-9]+}}, {{v[0-9]+}}
+// ON-NEXT: + assume eq lower_alloc, [[LAST]], 0
+// OFF-NOT: assume
+// CHECK-NOT: {{^[ +] +}}memory_zero
+fn @dynamic_fill() -> i256 {
+  bb0:
+    v900 = calldataload 4
+    v2 = and v900, 4095
+    v0 = alloc zeroed checked v2 !metadata(preserves_fmp, effect=memory_write)
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// A constant range of at most eight words reads every word.
+// CHECK-LABEL: {{^[ +].*}}fn @constant_fill{{[( ]}}
+// ON: + [[W0:v[0-9]+]] = mload [[PTR:v[0-9]+]]
+// ON-NEXT: + assume eq lower_alloc, [[W0]], 0
+// ON-NEXT: + {{v[0-9]+}} = add [[PTR]], 32
+// ON: + {{v[0-9]+}} = add [[PTR]], 64
+// ON: + {{v[0-9]+}} = add [[PTR]], 96
+// ON-NEXT: + [[W3:v[0-9]+]] = mload
+// ON-NEXT: + assume eq lower_alloc, [[W3]], 0
+// OFF-NOT: assume
+// CHECK-NOT: {{^[ +] +}}memory_zero
+fn @constant_fill() -> i256 {
+  bb0:
+    v0 = alloc 128
+    memory_zero v0, 128
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// A longer one reads its first and last words.
+// CHECK-LABEL: {{^[ +].*}}fn @long_fill{{[( ]}}
+// ON: + [[W0:v[0-9]+]] = mload [[PTR:v[0-9]+]]
+// ON-NEXT: + assume eq lower_alloc, [[W0]], 0
+// ON-NEXT: + {{v[0-9]+}} = add [[PTR]], 968
+// ON-NEXT: + [[LAST:v[0-9]+]] = mload
+// ON-NEXT: + assume eq lower_alloc, [[LAST]], 0
+// ON-NOT: add
+// OFF-NOT: assume
+// CHECK-NOT: {{^[ +] +}}memory_zero
+fn @long_fill() -> i256 {
+  bb0:
+    v0 = alloc 1000
+    memory_zero v0, 1000
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// A range shorter than a word reads the bytes it covers out of the word that starts it.
+// CHECK-LABEL: {{^[ +].*}}fn @short_fill{{[( ]}}
+// ON: + [[WORD:v[0-9]+]] = mload {{v[0-9]+$}}
+// ON-NEXT: + [[HIGH:v[0-9]+]] = shr [[WORD]], 96
+// ON-NEXT: + assume eq lower_alloc, [[HIGH]], 0
+// OFF-NOT: assume
+// CHECK-NOT: {{^[ +] +}}memory_zero
+fn @short_fill() -> i256 {
+  bb0:
+    v0 = alloc 20
+    memory_zero v0, 20
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
+
+// A dropped zero word store reads its word.
+// CHECK-LABEL: {{^[ +].*}}fn @zero_store_fill{{[( ]}}
+// ON: + [[WORD:v[0-9]+]] = mload {{v[0-9]+$}}
+// ON-NEXT: + assume eq lower_alloc, [[WORD]], 0
+// OFF-NOT: assume
+fn @zero_store_fill() {
+  bb0:
+    v0 = alloc 64
+    v1 = ptrtoint ptr<memory> v0 to i256
+    mstore v1, 0
+    stop
+}
+
+fn @dispatch() -> i256 [entry] {
+  bb0:
+    v2 = calldataload 0
+    v3 = shr v2, 224
+    switch v3, default bb1, [0x30000001 => bb2, 0x30000002 => bb3, 0x30000003 => bb4, 0x30000004 => bb5]
+  bb1:
+    tail_call @dynamic_fill
+  bb2:
+    tail_call @constant_fill
+  bb3:
+    tail_call @long_fill
+  bb4:
+    tail_call @short_fill
+  bb5:
+    tail_call @zero_store_fill
+}

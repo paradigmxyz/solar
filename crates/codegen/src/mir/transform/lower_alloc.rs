@@ -27,15 +27,32 @@
 //! Memory above the pointer that nothing wrote since the entry still holds zeros, so the
 //! initialization of a zeroed allocation made there, and a `memory_zero` or zero word store into
 //! it that nothing wrote before, are dead and dropped (see [`FreshHeap`]).
+//!
+//! With `-Zcheck-analyses`, both answers of [`FreshHeap`] are recorded where they are used. A
+//! fresh read also loads the slot and records the two equal, `assume eq lower_alloc, floor, word`;
+//! the load makes codegen initialize the slot at the entry, so the check compares the floor with
+//! what the slot holds unless something wrote it. A dropped fill reads back words of the range it
+//! would have cleared and records each zero: every word when the range is a constant of at most
+//! [`ZERO_FILL_SAMPLE_WORDS`] words, its first and last words otherwise, and the bytes of a range
+//! shorter than a word through a shift of the word that starts it. A wrong answer shows at the
+//! ends of a range: a buffer laid out earlier, by this function or a callee, starts at the old
+//! pointer, which is where the range starts, and a write the analysis missed covers whole words.
+//! Each sampled word is a load and a comparison, so the sample stays small and fixed rather than
+//! growing with the range, which may be up to [`EvmMemoryLayout::MAX_DEAD_FILL`] bytes. Fills are
+//! dropped only in modules that do not read `msize`, so the memory a read past the range of a
+//! short fill expands changes the gas of a check build only.
 
 use crate::mir::{
-    AllocationFailure, AllocationInitialization, AllocationSemantics, EffectKind, Function,
-    FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType, Module, PanicCode,
-    PtrLocation, Value, ValueId,
+    AllocationFailure, AllocationInitialization, AllocationSemantics, AssumePredicate, EffectKind,
+    FactSource, Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, MirType,
+    Module, PanicCode, PtrLocation, Value, ValueId,
     analysis::FreshHeap,
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
-    transform::utils::expand_block,
+    transform::{
+        lower_assumes::{record_fact, should_check_analyses},
+        utils::expand_block,
+    },
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, sym};
@@ -53,17 +70,23 @@ impl MirPass for LowerAlloc {
         true
     }
 
-    fn run_pass(&self, _gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
+    fn run_pass(&self, gcx: Gcx<'_>, module: &mut Module, analyses: &mut ModuleAnalyses) -> bool {
         let fresh = FreshHeap::new(module, || analyses.call_summaries(module));
-        lower_alloc(module, analyses, &fresh)
+        lower_alloc(module, analyses, &fresh, should_check_analyses(gcx.sess))
     }
 }
 
-fn lower_alloc(module: &mut Module, analyses: &mut ModuleAnalyses, fresh: &FreshHeap) -> bool {
-    let mut changed = share_checked_allocations(module, analyses, fresh);
+/// Lowers allocation, recording the answers of `fresh` it used with `record`.
+fn lower_alloc(
+    module: &mut Module,
+    analyses: &mut ModuleAnalyses,
+    fresh: &FreshHeap,
+    record: bool,
+) -> bool {
+    let mut changed = share_checked_allocations(module, analyses, fresh, record);
     changed |= run_lowering_function_pass(module, analyses, |func, function_analyses| {
         let id = function_analyses.function();
-        lower_function(func, fresh, id)
+        lower_function(func, fresh, id, record)
     });
     changed
 }
@@ -77,6 +100,7 @@ fn share_checked_allocations(
     module: &mut Module,
     analyses: &mut ModuleAnalyses,
     fresh: &FreshHeap,
+    record: bool,
 ) -> bool {
     let count = module
         .functions
@@ -108,7 +132,8 @@ fn share_checked_allocations(
                     builder.func().inst_result_value(inst).expect("allocation has a result");
                 // object = icall checked_alloc size
                 let object = builder.icall(helper, vec![size], MirType::MEMPTR);
-                initialize(builder, object, size, fresh.initialization(func_id, inst, semantics));
+                let initialization = fresh.initialization(func_id, inst, semantics);
+                initialize(builder, object, size, semantics, initialization, record);
                 replacements.insert(result, object);
                 true
             });
@@ -153,7 +178,7 @@ fn create_checked_alloc(module: &mut Module) -> FunctionId {
     module.add_function(function)
 }
 
-fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> bool {
+fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId, record: bool) -> bool {
     let is_fresh = |inst| fresh.contains(id, inst);
     let has_abstract_memory = func
         .instructions()
@@ -175,7 +200,7 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
             let continuation = builder.create_block();
             let panic = builder.create_block();
             // ptr = mload 64 | heap_floor
-            rewrite_as_fmp_read(builder, inst, is_fresh(inst));
+            rewrite_as_fmp_read(builder, inst, is_fresh(inst), record);
             // next = add ptr, size
             // invalid = next < ptr || next > limit
             let (next, invalid) = bump_checked(builder, ptr, size);
@@ -189,7 +214,8 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
             // continuation: mstore 64, next
             builder.switch_to_block(continuation);
             store_fmp(builder, next);
-            initialize(builder, ptr, size, fresh.initialization(id, inst, semantics));
+            let initialization = fresh.initialization(id, inst, semantics);
+            initialize(builder, ptr, size, semantics, initialization, record);
             true
         });
     }
@@ -208,7 +234,7 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
             match builder.func().inst(inst).kind {
                 InstKind::Fmp => {
                     changed = true;
-                    rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
+                    rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst), record);
                     peek.start(builder.func(), inst);
                 }
                 InstKind::Alloc { size, semantics }
@@ -230,13 +256,22 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
                     builder.func_mut().blocks[block].instructions.push(inst);
                     let next = bump(&mut builder, word, size);
                     store_fmp(&mut builder, next);
-                    initialize(&mut builder, ptr, size, fresh.initialization(id, inst, semantics));
+                    let initialization = fresh.initialization(id, inst, semantics);
+                    initialize(&mut builder, ptr, size, semantics, initialization, record);
                 }
                 // memory_zero ptr, size | mstore ptr, 0 -> dropped
                 InstKind::MemoryZero(..) | InstKind::Store(..)
                     if fresh.skips_zero_fill(id, inst) =>
                 {
                     changed = true;
+                    if record {
+                        let (ptr, size) = match builder.func().inst(inst).kind {
+                            InstKind::MemoryZero(ptr, size) => (ptr, size),
+                            InstKind::Store(ptr, ..) => (ptr, builder.imm(32)),
+                            _ => unreachable!(),
+                        };
+                        record_zero_range(&mut builder, ptr, size);
+                    }
                 }
                 // The backend may still place a deferred allocation with a runtime bump.
                 InstKind::Alloc { .. } if builder.func().inst(inst).metadata.deferred_alloc() => {
@@ -249,10 +284,11 @@ fn lower_function(func: &mut Function, fresh: &FreshHeap, id: FunctionId) -> boo
                         .func()
                         .inst_result_value(inst)
                         .expect("allocation must produce a value");
-                    rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst));
+                    rewrite_as_fmp_read(&mut builder, inst, is_fresh(inst), record);
                     let next = bump(&mut builder, ptr, size);
                     store_fmp(&mut builder, next);
-                    initialize(&mut builder, ptr, size, fresh.initialization(id, inst, semantics));
+                    let initialization = fresh.initialization(id, inst, semantics);
+                    initialize(&mut builder, ptr, size, semantics, initialization, record);
                 }
                 _ => {
                     peek.observe(builder.func(), inst);
@@ -343,25 +379,108 @@ impl FmpPeek {
     }
 }
 
+/// Initializes an allocation of `semantics` as `initialization` says, which is uninitialized when
+/// its zero fill is dead; with `record`, a dropped fill records the memory zero instead.
 fn initialize(
     builder: &mut FunctionBuilder<'_>,
     ptr: ValueId,
     size: ValueId,
+    semantics: AllocationSemantics,
     initialization: AllocationInitialization,
+    record: bool,
 ) {
     if initialization == AllocationInitialization::Zeroed {
         builder.memory_zero(ptr, size);
+    } else if record && semantics.initialization == AllocationInitialization::Zeroed {
+        record_zero_range(builder, ptr, size);
+    }
+}
+
+/// The most words of a dropped zero fill of constant size that a check build reads back one by
+/// one; a longer or dynamic range reads its first and last words.
+const ZERO_FILL_SAMPLE_WORDS: u64 = 8;
+
+/// Records that the `size` bytes at `ptr`, a zero fill [`FreshHeap`] found dead, are zero, by
+/// reading back a sample of their words; see the module docs.
+fn record_zero_range(builder: &mut FunctionBuilder<'_>, ptr: ValueId, size: ValueId) {
+    // Memory objects are lowered by now, so addresses are words.
+    // ptr = ptrtoint ptr<memory> ptr to i256
+    let ptr = if builder.func().value_ty(ptr).is_some_and(MirType::is_pointer) {
+        builder.cast(ptr, MirType::I256)
+    } else {
+        ptr
+    };
+    let zero = builder.imm(0);
+    let record_zero = |builder: &mut FunctionBuilder<'_>, word| {
+        let block = builder.current_block();
+        // assume eq lower_alloc, word, 0
+        let func = builder.func_mut();
+        record_fact(func, block, FactSource::LowerAlloc, AssumePredicate::Eq, word, zero);
+    };
+    let Some(size) = builder.func().value_u64(size) else {
+        // short = lt size, 32; covered = select short, size, 32
+        // shift = shl (sub 32, covered), 3
+        // first = shr (mload ptr), shift; last = shr (mload (add ptr, size - covered)), shift
+        let word = builder.imm(32);
+        let short = builder.lt(size, word);
+        let covered = builder.select(short, size, word);
+        let uncovered = builder.sub(word, covered);
+        let three = builder.imm(3);
+        let shift = builder.shl(uncovered, three);
+        let start = builder.load(ptr, PtrLocation::Memory);
+        let first = builder.shr(start, shift);
+        record_zero(builder, first);
+        let offset = builder.sub(size, covered);
+        let address = builder.add(ptr, offset);
+        let end = builder.load(address, PtrLocation::Memory);
+        let last = builder.shr(end, shift);
+        record_zero(builder, last);
+        return;
+    };
+    if size == 0 {
+        return;
+    }
+    if size < 32 {
+        // high = shr (mload ptr), 8 * (32 - size)
+        let word = builder.load(ptr, PtrLocation::Memory);
+        let shift = builder.imm(8 * (32 - size));
+        let high = builder.shr(word, shift);
+        record_zero(builder, high);
+        return;
+    }
+    let last = size - 32;
+    let mut offsets = if size <= 32 * ZERO_FILL_SAMPLE_WORDS {
+        (0..size / 32).map(|word| word * 32).collect::<Vec<_>>()
+    } else {
+        vec![0]
+    };
+    offsets.push(last);
+    offsets.dedup();
+    for offset in offsets {
+        // word = mload (add ptr, offset)
+        let address = if offset == 0 {
+            ptr
+        } else {
+            let offset = builder.imm(offset);
+            builder.add(ptr, offset)
+        };
+        let word = builder.load(address, PtrLocation::Memory);
+        record_zero(builder, word);
     }
 }
 
 /// Rewrites the detached `inst` to read the pointer from its slot, or the heap floor when nothing
 /// wrote the slot before it, and appends it to the current block after any pointer read it needs.
-fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: InstId, fresh: bool) {
+/// With `record`, a heap floor read records that the slot holds the floor.
+fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: InstId, fresh: bool, record: bool) {
     // ptr = mload 64 | heap_floor
     // object = inttoptr ptr
+    let mut floor = None;
     let kind = if builder.func().inst(inst).result_ty.is_some_and(MirType::is_pointer) {
         let ptr = if fresh {
-            builder.heap_floor()
+            let ptr = builder.heap_floor();
+            floor = Some(ptr);
+            ptr
         } else {
             let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
             builder.load(slot, PtrLocation::Memory)
@@ -382,6 +501,17 @@ fn rewrite_as_fmp_read(builder: &mut FunctionBuilder<'_>, inst: InstId, fresh: b
     instruction.metadata.set_alloc_ptr(is_load);
     let block = builder.current_block();
     builder.func_mut().blocks[block].instructions.push(inst);
+    if record && fresh {
+        let floor = floor.unwrap_or_else(|| {
+            builder.func().inst_result_value(inst).expect("a pointer read has a result")
+        });
+        // word = mload 64
+        // assume eq lower_alloc, floor, word
+        let slot = builder.imm(EvmMemoryLayout::FMP_SLOT);
+        let word = builder.load(slot, PtrLocation::Memory);
+        let func = builder.func_mut();
+        record_fact(func, block, FactSource::LowerAlloc, AssumePredicate::Eq, floor, word);
+    }
 }
 
 /// Emits `ptr + size`, marked so the sum keeps the bound of `ptr`. A wrapped sum is unreachable:
