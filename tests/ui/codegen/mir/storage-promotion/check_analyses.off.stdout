@@ -1,0 +1,120 @@
+- ; === ROOT/tests/ui/codegen/mir/storage-promotion/check_analyses.mir (before storage-promotion) ===
++ ; === ROOT/tests/ui/codegen/mir/storage-promotion/check_analyses.mir (after storage-promotion) ===
+  @module StoragePromotionCheckAnalyses
+  ; selector 0x01020304
+  fn @recomputed_slot(arg0: i256) [selector=0x01020304] {
+    bb0:
+      v0 = add arg0, 1
+-     sstore v0, 1
++     mstore 128, 1
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v1 = phi [bb0: 0], [bb2: v7]
+      v2 = lt v1, 4
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
++     v8 = mload 128
++     sstore v0, v8
+      stop
+    bb2:                                            ; preds = bb1
+      v3 = add arg0, 1
+-     v4 = sload v3
++     v4 = mload 128
+      v5 = mul v4, 2
+      v6 = add arg0, 1
+-     sstore v6, v5
++     mstore 128, v5
+      v7 = add v1, 1
+      jump bb1
+  }
+  
+  ; selector 0x01020305
+  fn @other_slot(arg0: i256) [selector=0x01020305] {
+    bb0:
+      v0 = add arg0, 1
+-     sstore v0, 0
++     mstore 128, 0
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v1 = phi [bb0: 0], [bb2: v7]
+      v2 = lt v1, 4
+      jumpi v2, bb2, bb3
+    bb3:                                            ; preds = bb1
++     v8 = mload 128
++     sstore v0, v8
+      stop
+    bb2:                                            ; preds = bb1
+-     v3 = sload v0
++     v3 = mload 128
+      v4 = add arg0, 2
+-     v5 = sload v4
++     v5 = sload v4 !metadata(storage=offset(arg0, 2))
+      v6 = add v3, v5
+-     sstore v0, v6
++     mstore 128, v6
+      v7 = add v1, 1
+      jump bb1
+  }
+  
+  ; selector 0x01020306
+  fn @two_slots(arg0: i256) [selector=0x01020306] {
+    bb0:
+-     sstore 1, 0
+-     sstore 2, 0
++     mstore 128, 0
++     mstore 160, 0
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v4]
+      v1 = lt v0, arg0
+      jumpi v1, bb2, bb3
+    bb3:                                            ; preds = bb1
++     v6 = mload 160
++     sstore 2, v6
++     v5 = mload 128
++     sstore 1, v5
+      stop
+    bb2:                                            ; preds = bb1
+-     v2 = sload 1
++     v2 = mload 128
+      v3 = add v2, v0
+-     sstore 1, v3
+-     sstore 2, v2
++     mstore 128, v3
++     mstore 160, v2
+      v4 = add v0, 1
+      jump bb1
+  }
+  
+  ; selector 0x01020307
+  fn @lone_slot(arg0: i256) [selector=0x01020307] {
+    bb0:
++     v5 = sload arg0
++     mstore 128, v5
++     mstore 160, 0
+      jump bb1
+    bb1:                                            ; preds = bb0, bb2
+      v0 = phi [bb0: 0], [bb2: v4]
+      v1 = lt v0, 4
+      jumpi v1, bb2, bb3
+    bb3:                                            ; preds = bb1
++     v6 = mload 160
++     v7 = ne v6, 0
++     jumpi v7, bb5, bb4
++   bb5:                                            ; preds = bb3
++     v8 = mload 128
++     sstore arg0, v8
++     jump bb4
++   bb4:                                            ; preds = bb3, bb5
+      stop
+    bb2:                                            ; preds = bb1
+-     v2 = sload arg0
++     v2 = mload 128
+      v3 = add v2, 1
+-     sstore arg0, v3
++     mstore 128, v3
++     mstore 160, 1
+      v4 = add v0, 1
+      jump bb1
+  }
+  
