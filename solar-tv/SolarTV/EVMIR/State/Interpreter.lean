@@ -1,9 +1,10 @@
-import SolarTV.EVMIR.State.Decode
+import SolarTV.EVMIR.State.Selfdestruct
+import SolarTV.EVMIR.Precompiles.Execute
 
 /-! Gas-charged bytecode execution with real nested frames and constructors.
 Every frame owns its stack, memory and return-data buffer. Accounts, original
 storage and access sets are transaction-wide and journaled at call boundaries.
-Unsupported opcodes/precompiles and finite evaluator limits are model errors;
+Unsupported opcodes and finite evaluator limits are model errors;
 they never become EVM exceptions and cannot prove a pair correct.
 
 The explicit-world mode starts after transaction validation, with zero root
@@ -193,6 +194,13 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
         withMemory world frame (info.base + perWord * ((size + 31) / 32)) b.toNat size fun frame =>
           .ok (.create (if opcode = 0xf5 then some (values[3]?.getD 0) else none) a
             (readBytes frame.memory b.toNat size) world {frame with stack := rest, pc := frame.pc + 1})
+    | 0xff =>
+      let beneficiary := a.setWidth 160
+      let charge := destructionPrice cfg.fork world frame.environment.address beneficiary
+      if frame.environment.isStatic then stepFailed world
+      else if frame.gas < charge then stepExhausted world
+      else .ok (.done ⟨.success, [], destroy cfg.fork world frame.environment.address beneficiary,
+        frame.gas - charge⟩)
     | opcode =>
       if 0xa0 ≤ opcode ∧ opcode ≤ 0xa4 then
         if frame.environment.isStatic then stepFailed world else
@@ -231,11 +239,9 @@ def run (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run :=
             .error "delegated EIP-7702 code is not modeled"
           else
             let child ← if precompile cfg.fork message.destination then
-                if message.destination != 4 then .error "unmodeled precompile"
-                else
-                  let price := 15 + 3 * ((message.input.length + 31) / 32)
-                  if budget.supplied < price then exhausted childWorld
-                  else .ok ⟨.success, message.input, childWorld, budget.supplied - price⟩
+                do
+                  let (stop,data,gas) ← Precompiles.execute cfg.fork message.destination message.input budget.supplied
+                  pure ⟨stop,data,childWorld,gas⟩
               else run fuel cfg childWorld {environment := Calls.childEnvironment frame.environment message, code, gas := budget.supplied}
             let committed := if child.stop = .success then child.world else checkpoint
             let data := if child.stop = .exception || child.stop = .outOfGas then [] else child.data
@@ -265,6 +271,7 @@ def run (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run :=
             code := []
             storage := []
             transient := []}
+          let fresh := {fresh with created := true, destroyed := false}
           let entered := putAccount checkpoint fresh
           let entered := {entered with original := fresh :: entered.original.filter (fun a => a.address != target)}
           let entered := (transfer entered creator.address target value).getD entered
@@ -290,7 +297,7 @@ termination_by structural fuel
 /-- Frame rollback keeps parent-side warming/nonce changes in the checkpoint. -/
 def execute (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run := do
   let result ← run fuel cfg world frame
-  return if result.stop = .success then result else
+  return if result.stop = .success then {result with world := finalize result.world} else
     {result with world, gas := if result.stop = .exception || result.stop = .outOfGas then 0 else result.gas}
 
 end SolarTV.EVM.State

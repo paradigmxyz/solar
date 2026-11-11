@@ -17,6 +17,7 @@ use std::{
 };
 use strum::IntoEnumIterator;
 
+mod precompile;
 mod world;
 
 #[derive(Deserialize)]
@@ -37,6 +38,14 @@ struct Request {
 }
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--precompiles") {
+        let output = match precompile::replay() {
+            Ok(observations) => json!({"version": 1, "status": "ok", "observations": observations}),
+            Err(reason) => json!({"version": 1, "status": "unsupported", "reason": reason}),
+        };
+        println!("{output}");
+        return;
+    }
     if std::env::args().nth(1).as_deref() == Some("--catalog") {
         println!("{}", catalog());
         return;
@@ -231,5 +240,5 @@ fn catalog() -> serde_json::Value {
             })
         })
         .collect::<Vec<_>>();
-    json!({"version": 1, "mir": mir, "evmir": evmir})
+    json!({"version": 1, "mir": mir, "evmir": evmir, "precompiles": precompile::catalog()})
 }

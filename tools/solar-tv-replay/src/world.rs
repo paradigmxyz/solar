@@ -135,7 +135,7 @@ impl Inspector<BaseEvmTypes> for Observer {
     }
 }
 
-fn spec(text: &str) -> Result<SpecId, String> {
+pub(super) fn spec(text: &str) -> Result<SpecId, String> {
     Ok(match text {
         "istanbul" => SpecId::ISTANBUL,
         "berlin" => SpecId::BERLIN,

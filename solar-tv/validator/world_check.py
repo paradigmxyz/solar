@@ -56,10 +56,13 @@ def check(
     statement = f"theorem pair_correct {binders} : {relation('before ' + arguments, 'after ' + arguments)} := by\n"
     # Closed executions use kernel evaluation directly. Trying definitional
     # equality first duplicates hash evaluation and is much slower for creation.
-    reflexivity = "    | rfl\n" if a.inputs else ""
     proof = (
-        "  first\n" + reflexivity + "    | decide +kernel\n"
-        f"    | (simp [{UNFOLD}] <;> (repeat (first | split | intro _)); all_goals simp_all <;> omega)\n"
+        (
+            "  first\n    | rfl\n    | decide +kernel\n"
+            f"    | (simp [{UNFOLD}] <;> (repeat (first | split | intro _)); all_goals simp_all <;> omega)\n"
+        )
+        if a.inputs
+        else "  decide +kernel\n"
     )
     with tempfile.TemporaryDirectory(prefix="solar-tv-world-proof-") as tmp:
         file = Path(tmp) / "WorldPair.lean"
@@ -72,9 +75,35 @@ def check(
                 timeout,
             )
 
-        result = lean(statement + proof + "#print axioms pair_correct\n")
-        log = result.stdout + result.stderr
-        verified = result.returncode == 0
+        # A closed pair has only one input. VM evaluation may choose the theorem
+        # to attempt, but never supplies proof evidence. In particular, avoid an
+        # expensive failing positive proof before checking a concrete mismatch.
+        different = False
+        if not a.inputs:
+            probe = lean(
+                f'#eval IO.println (if decide ({relation("before", "after")}) then "equivalent" else "different")\n'
+            )
+            lines = probe.stdout.strip().splitlines()
+            if (
+                probe.returncode
+                or not lines
+                or lines[-1] not in {"equivalent", "different"}
+            ):
+                raise Inconclusive(
+                    "invalid closed-pair evaluation\n" + probe.stdout + probe.stderr
+                )
+            different = lines[-1] == "different"
+        result = (
+            None
+            if different
+            else lean(statement + proof + "#print axioms pair_correct\n")
+        )
+        log = (
+            "VM proposes a mismatch; kernel witness required"
+            if result is None
+            else result.stdout + result.stderr
+        )
+        verified = result is not None and result.returncode == 0
         if verified:
             axioms = re.search(
                 r"^'pair_correct' depends on axioms: \[(.*?)\]$", log, re.MULTILINE

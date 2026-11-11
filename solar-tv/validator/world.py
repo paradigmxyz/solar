@@ -202,10 +202,15 @@ def runtime(text: str, kind: str, solar: str, version: str, timeout: int) -> byt
 
 
 def configuration(solar: str, version: str, root: str, timeout: int) -> str:
-    definitions = {
-        op["opcode"]: op
-        for op in native.catalog(native.default(solar), timeout)["evmir"]
-    }
+    catalog = native.catalog(native.default(solar), timeout)
+    precompiles = catalog.get("precompiles")
+    if not isinstance(precompiles, dict):
+        raise Unsupported("rebuild the native replay helper for precompile activation")
+    if root in precompiles.get(version, []):
+        raise Unsupported(
+            "world root must be a bytecode account, not an active precompile"
+        )
+    definitions = {op["opcode"]: op for op in catalog["evmir"]}
     rows = []
     for opcode in range(256):
         if opcode not in definitions:
@@ -276,7 +281,7 @@ def translate(
             list(code) if account["address"] == fixture["address"] else account["code"]
         )
         accounts.append(
-            f"⟨{account['address']}, {account['nonce']}, {account['balance']}, {image}, {slots}, []⟩"
+            f"⟨{account['address']}, {account['nonce']}, {account['balance']}, {image}, {slots}, [], false, false⟩"
         )
     warm = [fixture["address"], fixture["caller"], *map(str, range(1, 10))]
     if version in {"cancun", "prague", "osaka"}:

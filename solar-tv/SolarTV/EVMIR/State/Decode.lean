@@ -35,8 +35,7 @@ def validJump (code : List Byte) (target : Word) : Bool :=
 def pushValue (code : List Byte) (pc count : Nat) : Word :=
   (readBytes code (pc + 1) count).foldl (fun value byte => (value <<< 8) ||| byte.setWidth 256) 0
 
-/-- The supported precompile is identity. Other precompiles are model errors,
-never successful empty accounts. Fork-specific sets include BLS and P256. -/
+/-- Fork-specific precompile activation, shared by decoding and execution. -/
 def precompile (fork : Fork) (address : Address) : Bool :=
   let n := address.toNat
   (1 ≤ n && n ≤ 4) ||

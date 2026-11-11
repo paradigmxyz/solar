@@ -227,11 +227,14 @@ class WorldTests(unittest.TestCase):
         )
 
     def test_unsupported_child_cannot_prove_identity(self):
-        # SHA256 is a real precompile, not an empty successful account.
+        # An unmodeled child opcode must not become an empty successful account.
         result, record = self.pair(
-            call(2) + "\npop\nstop", call(2) + "\npop\nstop", status=2
+            call() + "\npop\nstop",
+            call() + "\npop\nstop",
+            fixture={"accounts": [{"address": MID, "code": "0x5f4000"}]},
+            status=2,
         )
-        self.assertIn("unmodeled precompile", result.stderr)
+        self.assertIn("unmodeled world opcode", result.stderr)
         self.assertEqual(record["status"], "unsupported")
 
     def test_create_deploys_and_calls_the_new_contract(self):
@@ -465,6 +468,8 @@ class WorldTests(unittest.TestCase):
             ("mir", "storage", "broken", 1),
             ("evmir", "storage", "after", 0),
             ("evmir", "creation", "broken", 1),
+            ("evmir", "sha256", "after", 0),
+            ("evmir", "selfdestruct", "broken", 1),
         ]:
             with self.subTest(example=example, layer=layer):
                 folder = ROOT / "examples" / layer / example

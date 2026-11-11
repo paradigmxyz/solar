@@ -19,6 +19,8 @@ import SolarTV.WordSafety
 
 import SolarTV.EVMIR.State.Observe
 import SolarTV.EVMIR.State.Safety
+import SolarTV.EVMIR.Precompiles.Observe
+import SolarTV.EVMIR.Precompiles.Safety
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
