@@ -367,7 +367,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// zero.
     pub(super) fn calldata_static_length(&mut self, ty: Ty<'gcx>) -> ValueId {
         match ty.peel_refs().kind {
-            TyKind::Array(_, length) => self.builder.imm(u64::try_from(length).unwrap_or(0)),
+            TyKind::Array(_, length) => self.builder.imm(length),
             _ => self.builder.imm(U256::ZERO),
         }
     }
