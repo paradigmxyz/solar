@@ -3439,7 +3439,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                         if let Some(f) = iface {
                             self.iface_requires(f, &avals, e.span)?;
                         }
-                        let out = self.external_call(rets, st, e.span)?;
+                        let mut out = self.external_call(rets, st, e.span)?;
+                        if st && target.is_some() {
+                            let tv = Var { ty: bv.ty.clone(), t: bv.t.clone(), len: None };
+                            self.deterministic_view(cn, m, &tv, &avals, &mut out);
+                        }
                         if let Some(f) = iface {
                             self.iface_ensures(f, &avals, &out, e.span)?;
                         }
@@ -3958,6 +3962,78 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         Ok(rets.iter().map(|t| self.fresh_var("ext_ret", t)).collect())
+    }
+
+    /// A view call's results as a function of the call (contract, function, target and
+    /// arguments) and of the world it reads: this contract's state, raw storage, ETH balances
+    /// and the code epoch (which outside code moves). Two view calls in the same world, in the
+    /// body or in a spec, then answer alike; any write between them changes the world value.
+    fn deterministic_view(
+        &mut self,
+        cn: &str,
+        m: &str,
+        target: &Var,
+        args: &[Val],
+        out: &mut [Val],
+    ) {
+        let scalar = |ty: &Ty| {
+            matches!(ty, Ty::Uint(_) | Ty::Int(_) | Ty::Bool | Ty::Addr | Ty::Contract(_))
+        };
+        if self.in_library()
+            || !self.bound.is_empty()
+            || !scalar(&target.ty)
+            || !args.iter().all(|a| scalar(&a.ty))
+            || !out.iter().all(|o| scalar(&o.ty))
+        {
+            return;
+        }
+        let mut names: Vec<String> = self
+            .c
+            .state
+            .iter()
+            .filter(|s| {
+                !s.constant
+                    && !s.immutable
+                    && (!s.ghost || s.name == "__balance" || s.name == "__code_epoch")
+            })
+            .map(|s| s.name.clone())
+            .collect();
+        names.push("__raw".into());
+        names.push("__traw".into());
+        let world: Vec<Var> = names.iter().filter_map(|n| self.env.get(n).cloned()).collect();
+        if !self.env.contains_key("__code_epoch") {
+            return;
+        }
+        let sorts: Vec<String> = world.iter().map(|v| v.ty.sort()).collect();
+        // The sorts name the function, so one contract's world has one function. A struct's sort is
+        // a quoted symbol, whose bars can't appear inside the quoted name.
+        let wfun = format!("|sv_world {}|", sorts.join(" ").replace('|', ""));
+        if self.declared_funs.insert(wfun.clone()) {
+            self.smt.send(&format!("(declare-fun {wfun} ({}) Int)\n", sorts.join(" ")));
+        }
+        let w = if world.is_empty() {
+            "0".to_string()
+        } else {
+            format!("({wfun} {})", world.iter().map(|v| v.t.as_str()).collect::<Vec<_>>().join(" "))
+        };
+        let mut asorts = vec![target.ty.sort()];
+        asorts.extend(args.iter().map(|a| a.ty.sort()));
+        asorts.push("Int".into());
+        let mut avs = vec![target.t.clone()];
+        avs.extend(args.iter().map(|a| a.t.clone()));
+        avs.push(w);
+        for (i, o) in out.iter_mut().enumerate() {
+            let f = format!("|sv_view {cn}.{m}/{} {i}|", args.len());
+            if self.declared_funs.insert(format!("{f}:{}", asorts.join(","))) {
+                self.smt.send(&format!(
+                    "(declare-fun {f} ({}) {})\n",
+                    asorts.join(" "),
+                    o.ty.sort()
+                ));
+            }
+            let term = format!("({f} {})", avs.join(" "));
+            self.smt.send(&format!("(assert (= {} {term}))\n", o.t));
+        }
     }
 
     /// The declared named type of an expression, where it is visible syntactically: a call

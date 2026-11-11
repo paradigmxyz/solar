@@ -138,6 +138,10 @@ skipped, so a ✔ is never produced over code solar-verify did not model.
   assembly is memory-safe.
 - A library named `Math` with a `mulDiv(x, y, denominator)` and no specs of its own is summarized
   as OpenZeppelin's `Math.mulDiv`.
+- A high-level call to a `view` or `pure` function answers as a function of its target, its
+  arguments and the state it can read (this contract's storage, ETH balances and the code at every
+  address), so two such calls with nothing in between answer alike. A callee whose answer depends
+  on the gas it is given breaks this.
 
 ## Spec mutation testing
 
