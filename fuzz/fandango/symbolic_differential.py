@@ -1010,7 +1010,7 @@ def _anvil(anvil: str, evm_version: str, timeout: float) -> Iterator[str]:
             "--port",
             "0",
             "--hardfork",
-            evm_version.lower(),
+            _anvil_hardfork(evm_version),
             "--disable-code-size-limit",
         ],
         stdin=subprocess.DEVNULL,
@@ -1032,6 +1032,13 @@ def _anvil(anvil: str, evm_version: str, timeout: float) -> Iterator[str]:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
+
+
+def _anvil_hardfork(evm_version: str) -> str:
+    """Returns anvil's name for a solc EVM version."""
+    # Anvil calls tangerineWhistle "tangerine"; the other names match.
+    name = evm_version.lower()
+    return {"tangerinewhistle": "tangerine"}.get(name, name)
 
 
 def _anvil_url(process: subprocess.Popen[str], stdout: IO[str], timeout: float) -> str:
