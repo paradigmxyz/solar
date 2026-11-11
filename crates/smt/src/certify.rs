@@ -21,12 +21,11 @@
 
 use crate::{Sexp, sexp};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     io::Read,
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::atomic::{AtomicUsize, Ordering},
     thread,
     time::{Duration, Instant},
 };
@@ -227,6 +226,7 @@ fn run(mut command: Command, timeout: Duration) -> Option<String> {
 /// does not know, is refused.
 pub fn reference_script(query: &str) -> Result<String, String> {
     let mut definitions: HashMap<String, (Vec<String>, Sexp)> = HashMap::new();
+    let mut names = Names::of(query);
     let mut script = String::new();
     for command in sexp::parse(query) {
         let command = command.map_err(|error| format!("query: {error}"))?;
@@ -241,7 +241,7 @@ pub fn reference_script(query: &str) -> Result<String, String> {
             Some("assert") => {
                 let items = command.as_list().unwrap_or_default();
                 let [_, term] = items else { return Err(format!("malformed {command}")) };
-                let term = inline(term, &definitions, &HashMap::new());
+                let term = inline(term, &definitions, &HashMap::new(), &mut names);
                 script.push_str(&format!("(assert {term})\n"));
             }
             Some("define-fun") => {
@@ -264,13 +264,12 @@ pub fn reference_script(query: &str) -> Result<String, String> {
                     .into_iter()
                     .map(|parameter| {
                         visible.remove(&parameter);
-                        let fresh =
-                            format!("{parameter}!{}", FRESH.fetch_add(1, Ordering::Relaxed));
+                        let fresh = names.fresh(&parameter);
                         renamed.insert(parameter, Sexp::Atom(fresh.clone()));
                         fresh
                     })
                     .collect();
-                let body = inline(body, &visible, &renamed);
+                let body = inline(body, &visible, &renamed, &mut names);
                 definitions.insert(name.clone(), (parameters, body));
             }
             // Responses and options: a proof of `unsat` has no model to print, and Z3's options
@@ -289,6 +288,7 @@ fn inline(
     term: &Sexp,
     definitions: &HashMap<String, (Vec<String>, Sexp)>,
     substitution: &HashMap<String, Sexp>,
+    names: &mut Names,
 ) -> Sexp {
     match term {
         Sexp::Atom(atom) => {
@@ -311,12 +311,12 @@ fn inline(
                 let mut bound = Vec::with_capacity(bindings.len());
                 for binding in bindings {
                     let Some([Sexp::Atom(name), value]) = binding.as_list() else {
-                        bound.push(inline(binding, &definitions, substitution));
+                        bound.push(inline(binding, &definitions, substitution, names));
                         continue;
                     };
                     // A `let` value is in the outer scope; a quantifier's is a sort.
                     let value = if binder == "let" {
-                        inline(value, &definitions, substitution)
+                        inline(value, &definitions, substitution, names)
                     } else {
                         value.clone()
                     };
@@ -329,7 +329,7 @@ fn inline(
                         });
                     definitions.remove(name);
                     let name = if captures {
-                        let fresh = format!("{name}!{}", FRESH.fetch_add(1, Ordering::Relaxed));
+                        let fresh = names.fresh(name);
                         inner.insert(name.clone(), Sexp::Atom(fresh.clone()));
                         fresh
                     } else {
@@ -338,7 +338,7 @@ fn inline(
                     };
                     bound.push(Sexp::List(vec![Sexp::Atom(name), value]));
                 }
-                let body = inline(body, &definitions, &inner);
+                let body = inline(body, &definitions, &inner, names);
                 Sexp::List(vec![Sexp::Atom(binder.clone()), Sexp::List(bound), body])
             }
             [Sexp::Atom(head), arguments @ ..]
@@ -350,19 +350,58 @@ fn inline(
                 let values = parameters
                     .iter()
                     .cloned()
-                    .zip(arguments.iter().map(|a| inline(a, definitions, substitution)))
+                    .zip(arguments.iter().map(|a| inline(a, definitions, substitution, names)))
                     .collect();
-                inline(body, &HashMap::new(), &values)
+                inline(body, &HashMap::new(), &values, names)
             }
             _ => Sexp::List(
-                items.iter().map(|item| inline(item, definitions, substitution)).collect(),
+                items.iter().map(|item| inline(item, definitions, substitution, names)).collect(),
             ),
         },
     }
 }
 
-/// Numbers the fresh names [`inline`] gives binders.
-static FRESH: AtomicUsize = AtomicUsize::new(0);
+/// The symbols of a query, and the fresh names [`inline`] gives binders and parameters, none of
+/// which the query uses.
+struct Names {
+    used: HashSet<String>,
+    next: usize,
+}
+
+impl Names {
+    /// The symbols of `query`, quoted ones without their bars, since `|x|` and `x` are one symbol.
+    fn of(query: &str) -> Self {
+        fn collect(term: &Sexp, used: &mut HashSet<String>) {
+            match term {
+                Sexp::Atom(atom) => {
+                    used.insert(unquoted(atom).to_owned());
+                }
+                Sexp::List(items) => items.iter().for_each(|item| collect(item, used)),
+            }
+        }
+        let mut used = HashSet::new();
+        for command in sexp::parse(query).map_while(Result::ok) {
+            collect(&command, &mut used);
+        }
+        Self { used, next: 0 }
+    }
+
+    /// A name based on `base` that neither the query nor an earlier fresh name uses.
+    fn fresh(&mut self, base: &str) -> String {
+        loop {
+            let name = format!("{}!{}", unquoted(base), self.next);
+            self.next += 1;
+            if self.used.insert(name.clone()) {
+                return name;
+            }
+        }
+    }
+}
+
+/// `symbol` without the bars of a quoted symbol.
+fn unquoted(symbol: &str) -> &str {
+    symbol.strip_prefix('|').and_then(|s| s.strip_suffix('|')).unwrap_or(symbol)
+}
 
 /// Whether `symbol` occurs anywhere in `term`.
 fn mentions(term: &Sexp, symbol: &str) -> bool {
@@ -484,6 +523,21 @@ mod tests {
 
 "#]]
         );
+    }
+
+    #[test]
+    fn fresh_names_are_unused() {
+        // The query already uses `y!0` and `|y!1|`, so the renamed binder takes `y!2`.
+        let query = "(set-logic BV)
+(declare-const y (_ BitVec 8))
+(declare-const y!0 (_ BitVec 8))
+(declare-const |y!1| (_ BitVec 8))
+(define-fun bigger ((v (_ BitVec 8))) Bool (exists ((y (_ BitVec 8))) (bvult v y)))
+(assert (and (bigger y) (= y!0 |y!1|)))
+(check-sat)
+";
+        let script = reference_script(query).unwrap();
+        assert!(script.contains("(exists ((y!2 (_ BitVec 8))) (bvult y y!2))"), "{script}");
     }
 
     #[test]
