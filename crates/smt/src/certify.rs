@@ -229,7 +229,8 @@ pub fn reference_script(query: &str) -> Result<String, String> {
     let mut names = Names::of(query);
     let mut script = String::new();
     for command in sexp::parse(query) {
-        let command = command.map_err(|error| format!("query: {error}"))?;
+        // One spelling per symbol, so inlining can compare symbols as text.
+        let command = canonical(&command.map_err(|error| format!("query: {error}"))?);
         match command.head() {
             Some("set-logic" | "declare-const" | "declare-fun" | "declare-sort") => {
                 script.push_str(&format!("{command}\n"));
@@ -369,12 +370,12 @@ struct Names {
 }
 
 impl Names {
-    /// The symbols of `query`, quoted ones without their bars, since `|x|` and `x` are one symbol.
+    /// The symbols of `query`, in their [`canonical`] spelling.
     fn of(query: &str) -> Self {
         fn collect(term: &Sexp, used: &mut HashSet<String>) {
             match term {
                 Sexp::Atom(atom) => {
-                    used.insert(unquoted(atom).to_owned());
+                    used.insert(canonical_atom(atom));
                 }
                 Sexp::List(items) => items.iter().for_each(|item| collect(item, used)),
             }
@@ -386,10 +387,14 @@ impl Names {
         Self { used, next: 0 }
     }
 
-    /// A name based on `base` that neither the query nor an earlier fresh name uses.
+    /// A name based on `base`, a canonical symbol, that neither the query nor an earlier fresh
+    /// name uses. It keeps `base`'s bars, which a symbol that needs them cannot do without.
     fn fresh(&mut self, base: &str) -> String {
         loop {
-            let name = format!("{}!{}", unquoted(base), self.next);
+            let name = match base.strip_prefix('|').and_then(|inner| inner.strip_suffix('|')) {
+                Some(inner) => format!("|{inner}!{}|", self.next),
+                None => format!("{base}!{}", self.next),
+            };
             self.next += 1;
             if self.used.insert(name.clone()) {
                 return name;
@@ -398,9 +403,27 @@ impl Names {
     }
 }
 
-/// `symbol` without the bars of a quoted symbol.
-fn unquoted(symbol: &str) -> &str {
-    symbol.strip_prefix('|').and_then(|s| s.strip_suffix('|')).unwrap_or(symbol)
+/// `term` with each quoted symbol that does not need its bars written without them. SMT-LIB
+/// reads `|x|` and `x` as one symbol, and after this they are one atom.
+fn canonical(term: &Sexp) -> Sexp {
+    match term {
+        Sexp::Atom(atom) => Sexp::Atom(canonical_atom(atom)),
+        Sexp::List(items) => Sexp::List(items.iter().map(canonical).collect()),
+    }
+}
+
+/// `atom`'s canonical spelling: without bars when what they quote is a simple symbol.
+fn canonical_atom(atom: &str) -> String {
+    let Some(inner) = atom.strip_prefix('|').and_then(|inner| inner.strip_suffix('|')) else {
+        return atom.to_owned();
+    };
+    const SPECIAL: &str = "~!@$%^&*_-+=<>.?/";
+    // Reserved words are not simple symbols, so `|let|` keeps its bars.
+    const RESERVED: &[&str] = &["_", "!", "as", "let", "exists", "forall", "match", "par"];
+    let simple = inner.chars().next().is_some_and(|first| !first.is_ascii_digit())
+        && inner.chars().all(|c| c.is_ascii_alphanumeric() || SPECIAL.contains(c))
+        && !RESERVED.contains(&inner);
+    if simple { inner.to_owned() } else { atom.to_owned() }
 }
 
 /// Whether `symbol` occurs anywhere in `term`.
@@ -538,6 +561,36 @@ mod tests {
 ";
         let script = reference_script(query).unwrap();
         assert!(script.contains("(exists ((y!2 (_ BitVec 8))) (bvult y y!2))"), "{script}");
+    }
+
+    #[test]
+    fn quoted_symbols_are_one_symbol() {
+        // `f` returns its argument: `|y|` is the parameter `y`, not the declared constant.
+        let query = "(set-logic `F_UF)
+(declare-const y Bool)
+(define-fun f ((y Bool)) Bool |y|)
+(assert (and (not y) (f true)))
+(check-sat)
+";
+        snapbox::assert_data_eq!(
+            reference_script(query).unwrap(),
+            snapbox::str![[r#"
+(set-logic `F_UF)
+(declare-const y Bool)
+(assert (and (not y) true))
+(check-sat)
+
+"#]]
+        );
+        // A renamed binder that needs bars keeps them.
+        let query = "(set-logic BV)
+(declare-const |a b| (_ BitVec 8))
+(define-fun big ((v (_ BitVec 8))) Bool (exists ((|a b| (_ BitVec 8))) (bvult v |a b|)))
+(assert (big |a b|))
+(check-sat)
+";
+        let script = reference_script(query).unwrap();
+        assert!(script.contains("(exists ((|a b!"), "{script}");
     }
 
     #[test]
