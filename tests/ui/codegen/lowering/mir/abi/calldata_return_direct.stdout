@@ -4,7 +4,6 @@
 ; backend-memory-v1
 ; backend-entry 1 0x80
 ; backend-floor 1 0x80
-; backend-entry 3 0x80
 ; backend-floor 3 0x80
 
 ; runtime dispatch entry
@@ -103,42 +102,40 @@ fn @narrow() {
     v4 = add v3, 4
     v6 = sub v1, 36
     v7 = lt v6, v3
-    v49 = or v2, v7
+    v47 = or v2, v7
     v8 = calldataload v4
     v9 = add v4, 32
     v10 = sub v1, v9
     v11 = shr v10, 5
     v12 = lt v11, v8
-    v50 = or v49, v12
-    jumpi v50, bb1, bb2
+    v48 = or v47, v12
+    jumpi v48, bb1, bb2
   bb2:                                            ; preds = bb0
     v42 = heap_floor !metadata(alloc_ptr)
     v20 = add v42, 32
     mstore v42, 32
-    mstore v20, v8
-    v24 = shl v8, 5
-    v25 = add v20, 32
-    v27 = add v25, v24
-    v47 = shl v8, 5
-    v48 = add v9, v47
+    v45 = shl v8, 5
+    v46 = add v9, v45
     jump bb3
   bb3:                                            ; preds = bb2, bb6
     v43 = phi [bb2: v9], [bb6: v44]
-    v45 = phi [bb2: v25], [bb6: v46]
-    v29 = ne v48, v43
-    jumpi v29, bb4, bb5
+    v26 = ne v46, v43
+    jumpi v26, bb4, bb5
   bb5:                                            ; preds = bb3
-    v38 = sub v27, v42
+    mstore v20, v8
+    v33 = shl v8, 5
+    v34 = add v20, 32
+    v36 = add v34, v33
+    calldatacopy v34, v9, v33
+    v38 = sub v36, v42
     returndata v42, v38
   bb4:                                            ; preds = bb3
-    v34 = calldataload v43
-    v51 = shr v34, 160
-    v35 = ne v51, 0
-    jumpi v35, bb1, bb6
+    v30 = calldataload v43
+    v49 = shr v30, 160
+    v31 = ne v49, 0
+    jumpi v31, bb1, bb6
   bb6:                                            ; preds = bb4
-    mstore v45, v34
     v44 = add v43, 32
-    v46 = add v45, 32
     jump bb3
   bb1 [cold]:                                     ; preds = bb0, bb4
     revert 0, 0
