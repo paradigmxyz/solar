@@ -199,16 +199,16 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     jump bb5
   bb5:                                            ; preds = bb3, bb4
     sstore 1, v24 !metadata(storage=slot(1))
-    v37 = shr v24, 4
-    v38 = and v24, 15
-    v39 = ne v38, 0
-    v40 = zext i1 v39 to i256
-    v41 = add v37, v40
-    v42 = storage_array_data_slot 1
+    v37 = storage_array_data_slot 1
+    v38 = shr v24, 4
+    v39 = and v24, 15
+    v40 = ne v39, 0
+    v41 = zext i1 v40 to i256
+    v42 = add v38, v41
     jump bb6
   bb6:                                            ; preds = bb5, bb11
     v43 = phi [bb5: 0], [bb11: v63]
-    v44 = lt v43, v41
+    v44 = lt v43, v42
     jumpi v44, bb7, bb8
   bb8:                                            ; preds = bb6
     v64 = sload 1 !metadata(storage=slot(1))
@@ -233,7 +233,7 @@ fn @storeSmall(arg0: slice<calldata>) -> i256 [selector=0x48de48f7, abi_params=[
     v51 = lt v49, v48
     jumpi v51, bb10, bb11
   bb11:                                           ; preds = bb9
-    v62 = add v42, v43
+    v62 = add v37, v43
     sstore v62, v50 !metadata(storage=symbolic(v62))
     v63 = add v43, 1
     jump bb6
@@ -310,16 +310,16 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     jump bb5
   bb5:                                            ; preds = bb3, bb4
     sstore 2, v25 !metadata(storage=slot(2))
-    v38 = shr v25, 4
-    v39 = and v25, 15
-    v40 = ne v39, 0
-    v41 = zext i1 v40 to i256
-    v42 = add v38, v41
-    v43 = storage_array_data_slot 2
+    v38 = storage_array_data_slot 2
+    v39 = shr v25, 4
+    v40 = and v25, 15
+    v41 = ne v40, 0
+    v42 = zext i1 v41 to i256
+    v43 = add v39, v42
     jump bb6
   bb6:                                            ; preds = bb5, bb11
     v44 = phi [bb5: 0], [bb11: v64]
-    v45 = lt v44, v42
+    v45 = lt v44, v43
     jumpi v45, bb7, bb8
   bb8:                                            ; preds = bb6
     v65 = sload 2 !metadata(storage=slot(2))
@@ -347,7 +347,7 @@ fn @storeLeft(arg0: slice<calldata>) -> i256 [selector=0x2d92e508, abi_params=[a
     v52 = lt v50, v49
     jumpi v52, bb10, bb11
   bb11:                                           ; preds = bb9
-    v63 = add v43, v44
+    v63 = add v38, v44
     sstore v63, v51 !metadata(storage=symbolic(v63))
     v64 = add v44, 1
     jump bb6

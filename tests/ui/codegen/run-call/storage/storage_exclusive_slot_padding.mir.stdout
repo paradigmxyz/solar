@@ -100,18 +100,31 @@ fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word
     ret v1
 }
 
+; function singleElement() external returns (uint256 r) [selector 0x35d48478]
+fn @singleElement() -> i256 [selector=0x35d48478, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff !metadata(storage=slot(5))
+    v0 = lt 0, 1
+    v1 = eq v0, false
+    icall panic_if<0x32>, v1
+    sstore 5, 1 !metadata(storage=slot(5))
+    v2 = sload 5 !metadata(storage=slot(5))
+    v3 = shr v2, 8
+    ret v3
+}
+
 ; function sharedSlot() external returns (uint256) [selector 0xd08b9948]
 fn @sharedSlot() -> i256 [selector=0xd08b9948, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
   bb0:
-    v0 = sload 5 !metadata(storage=slot(5))
+    v0 = sload 6 !metadata(storage=slot(6))
     v1 = and v0, 0xffffffffffffffffffffff00ffffffffffffffffffffffffffffffffffffffff
     v2 = or v1, 0x70000000000000000000000000000000000000000
-    sstore 5, v2 !metadata(storage=slot(5))
-    v3 = sload 5 !metadata(storage=slot(5))
+    sstore 6, v2 !metadata(storage=slot(6))
+    v3 = sload 6 !metadata(storage=slot(6))
     v4 = and v3, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
     v5 = or v4, 1
-    sstore 5, v5 !metadata(storage=slot(5))
-    v6 = sload 5 !metadata(storage=slot(5))
+    sstore 6, v5 !metadata(storage=slot(6))
+    v6 = sload 6 !metadata(storage=slot(6))
     v7 = shr v6, 160
     v8 = trunc i256 v7 to i8
     v9 = zext i8 v8 to i256

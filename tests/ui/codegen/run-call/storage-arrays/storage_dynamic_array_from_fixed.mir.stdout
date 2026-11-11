@@ -32,14 +32,14 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
     jump bb2
   bb2:                                            ; preds = bb0, bb1
     sstore 0, 2 !metadata(storage=slot(0))
-    v16 = ne 2, 0
-    v17 = zext i1 v16 to i256
-    v18 = add v17, 0
-    v19 = storage_array_data_slot 0
+    v16 = storage_array_data_slot 0
+    v17 = ne 2, 0
+    v18 = zext i1 v17 to i256
+    v19 = add v18, 0
     jump bb3
   bb3:                                            ; preds = bb2, bb8
     v20 = phi [bb2: 0], [bb8: v41]
-    v21 = lt v20, v18
+    v21 = lt v20, v19
     jumpi v21, bb4, bb5
   bb5:                                            ; preds = bb3
     v42 = sload 0 !metadata(storage=slot(0))
@@ -87,7 +87,7 @@ fn @assign() -> struct0 [selector=0x12ae6397, abi_params=[], abi_returns=[word, 
     v28 = lt v26, v25
     jumpi v28, bb7, bb8
   bb8:                                            ; preds = bb6
-    v40 = add v19, v20
+    v40 = add v16, v20
     sstore v40, v27 !metadata(storage=symbolic(v40))
     v41 = add v20, 1
     jump bb3

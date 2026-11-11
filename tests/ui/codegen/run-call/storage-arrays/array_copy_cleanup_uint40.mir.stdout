@@ -390,16 +390,16 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     jump bb2
   bb2:                                            ; preds = bb0, bb1
     sstore 0, v305 !metadata(storage=slot(0))
-    v318 = div v305, 6
-    v319 = mod v305, 6
-    v320 = ne v319, 0
-    v321 = zext i1 v320 to i256
-    v322 = add v318, v321
-    v323 = storage_array_data_slot 0
+    v318 = storage_array_data_slot 0
+    v319 = div v305, 6
+    v320 = mod v305, 6
+    v321 = ne v320, 0
+    v322 = zext i1 v321 to i256
+    v323 = add v319, v322
     jump bb3
   bb3:                                            ; preds = bb2, bb8
     v324 = phi [bb2: 0], [bb8: v344]
-    v325 = lt v324, v322
+    v325 = lt v324, v323
     jumpi v325, bb4, bb5
   bb5:                                            ; preds = bb3
     sstore 0, 20 !metadata(storage=slot(0))
@@ -650,7 +650,7 @@ fn @f() -> i1 [selector=0x26121ff0, abi_params=[], abi_returns=[word<bool>], abi
     v332 = lt v330, v329
     jumpi v332, bb7, bb8
   bb8:                                            ; preds = bb6
-    v343 = add v323, v324
+    v343 = add v318, v324
     sstore v343, v331 !metadata(storage=symbolic(v343))
     v344 = add v324, 1
     jump bb3

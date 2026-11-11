@@ -57,16 +57,16 @@ fn @constructor() [constructor] {
     jump bb21
   bb21:                                           ; preds = bb11, bb20
     sstore v74, v75 !metadata(storage=symbolic(v74))
-    v88 = shr v75, 5
-    v89 = and v75, 31
-    v90 = ne v89, 0
-    v91 = zext i1 v90 to i256
-    v92 = add v88, v91
-    v93 = storage_array_data_slot v74
+    v88 = storage_array_data_slot v74
+    v89 = shr v75, 5
+    v90 = and v75, 31
+    v91 = ne v90, 0
+    v92 = zext i1 v91 to i256
+    v93 = add v89, v92
     jump bb22
   bb22:                                           ; preds = bb21, bb27
     v94 = phi [bb21: 0], [bb27: v114]
-    v95 = lt v94, v92
+    v95 = lt v94, v93
     jumpi v95, bb23, bb24
   bb24:                                           ; preds = bb22
     v115 = sload 1 !metadata(storage=slot(1))
@@ -124,16 +124,16 @@ fn @constructor() [constructor] {
     jump bb29
   bb29:                                           ; preds = bb24, bb28
     sstore v142, v143 !metadata(storage=offset(v141, 1))
-    v156 = shr v143, 5
-    v157 = and v143, 31
-    v158 = ne v157, 0
-    v159 = zext i1 v158 to i256
-    v160 = add v156, v159
-    v161 = storage_array_data_slot v142
+    v156 = storage_array_data_slot v142
+    v157 = shr v143, 5
+    v158 = and v143, 31
+    v159 = ne v158, 0
+    v160 = zext i1 v159 to i256
+    v161 = add v157, v160
     jump bb30
   bb30:                                           ; preds = bb29, bb35
     v162 = phi [bb29: 0], [bb35: v182]
-    v163 = lt v162, v160
+    v163 = lt v162, v161
     jumpi v163, bb31, bb32
   bb32:                                           ; preds = bb30
     v183 = sload 1 !metadata(storage=slot(1))
@@ -210,7 +210,7 @@ fn @constructor() [constructor] {
     v170 = lt v168, v167
     jumpi v170, bb34, bb35
   bb35:                                           ; preds = bb33
-    v181 = add v161, v162
+    v181 = add v156, v162
     sstore v181, v169 !metadata(storage=symbolic(v181))
     v182 = add v162, 1
     jump bb30
@@ -238,7 +238,7 @@ fn @constructor() [constructor] {
     v102 = lt v100, v99
     jumpi v102, bb26, bb27
   bb27:                                           ; preds = bb25
-    v113 = add v93, v94
+    v113 = add v88, v94
     sstore v113, v101 !metadata(storage=symbolic(v113))
     v114 = add v94, 1
     jump bb22
@@ -280,16 +280,16 @@ fn @constructor() [constructor] {
     jump bb13
   bb13:                                           ; preds = bb10, bb12
     sstore v28, v29 !metadata(storage=symbolic(v28))
-    v42 = shr v29, 5
-    v43 = and v29, 31
-    v44 = ne v43, 0
-    v45 = zext i1 v44 to i256
-    v46 = add v42, v45
-    v47 = storage_array_data_slot v28
+    v42 = storage_array_data_slot v28
+    v43 = shr v29, 5
+    v44 = and v29, 31
+    v45 = ne v44, 0
+    v46 = zext i1 v45 to i256
+    v47 = add v43, v46
     jump bb14
   bb14:                                           ; preds = bb13, bb19
     v48 = phi [bb13: 0], [bb19: v68]
-    v49 = lt v48, v46
+    v49 = lt v48, v47
     jumpi v49, bb15, bb16
   bb16:                                           ; preds = bb14
     v69 = add v21, 1
@@ -306,7 +306,7 @@ fn @constructor() [constructor] {
     v56 = lt v54, v53
     jumpi v56, bb18, bb19
   bb19:                                           ; preds = bb17
-    v67 = add v47, v48
+    v67 = add v42, v48
     sstore v67, v55 !metadata(storage=symbolic(v67))
     v68 = add v48, 1
     jump bb14
@@ -454,16 +454,16 @@ fn @from_storage() -> ptr<memory> [selector=0x904f60db, abi_params=[], abi_retur
     jump bb13
   bb13:                                           ; preds = bb10, bb12
     sstore v46, v47 !metadata(storage=symbolic(v46))
-    v60 = shr v47, 5
-    v61 = and v47, 31
-    v62 = ne v61, 0
-    v63 = zext i1 v62 to i256
-    v64 = add v60, v63
-    v65 = storage_array_data_slot v46
+    v60 = storage_array_data_slot v46
+    v61 = shr v47, 5
+    v62 = and v47, 31
+    v63 = ne v62, 0
+    v64 = zext i1 v63 to i256
+    v65 = add v61, v64
     jump bb14
   bb14:                                           ; preds = bb13, bb19
     v66 = phi [bb13: 0], [bb19: v86]
-    v67 = lt v66, v64
+    v67 = lt v66, v65
     jumpi v67, bb15, bb16
   bb16:                                           ; preds = bb14
     v87 = add v39, 1
@@ -480,7 +480,7 @@ fn @from_storage() -> ptr<memory> [selector=0x904f60db, abi_params=[], abi_retur
     v74 = lt v72, v71
     jumpi v74, bb18, bb19
   bb19:                                           ; preds = bb17
-    v85 = add v65, v66
+    v85 = add v60, v66
     sstore v85, v73 !metadata(storage=symbolic(v85))
     v86 = add v66, 1
     jump bb14
@@ -632,16 +632,16 @@ fn @from_storage_ptr() -> ptr<memory> [selector=0x764eb525, abi_params=[], abi_r
     jump bb13
   bb13:                                           ; preds = bb10, bb12
     sstore v46, v47 !metadata(storage=symbolic(v46))
-    v60 = shr v47, 5
-    v61 = and v47, 31
-    v62 = ne v61, 0
-    v63 = zext i1 v62 to i256
-    v64 = add v60, v63
-    v65 = storage_array_data_slot v46
+    v60 = storage_array_data_slot v46
+    v61 = shr v47, 5
+    v62 = and v47, 31
+    v63 = ne v62, 0
+    v64 = zext i1 v63 to i256
+    v65 = add v61, v64
     jump bb14
   bb14:                                           ; preds = bb13, bb19
     v66 = phi [bb13: 0], [bb19: v86]
-    v67 = lt v66, v64
+    v67 = lt v66, v65
     jumpi v67, bb15, bb16
   bb16:                                           ; preds = bb14
     v87 = add v39, 1
@@ -658,7 +658,7 @@ fn @from_storage_ptr() -> ptr<memory> [selector=0x764eb525, abi_params=[], abi_r
     v74 = lt v72, v71
     jumpi v74, bb18, bb19
   bb19:                                           ; preds = bb17
-    v85 = add v65, v66
+    v85 = add v60, v66
     sstore v85, v73 !metadata(storage=symbolic(v85))
     v86 = add v66, 1
     jump bb14
@@ -809,16 +809,16 @@ fn @from_memory() -> ptr<memory> [selector=0x841ae8f5, abi_params=[], abi_return
     jump bb13
   bb13:                                           ; preds = bb10, bb12
     sstore v45, v46 !metadata(storage=symbolic(v45))
-    v59 = shr v46, 5
-    v60 = and v46, 31
-    v61 = ne v60, 0
-    v62 = zext i1 v61 to i256
-    v63 = add v59, v62
-    v64 = storage_array_data_slot v45
+    v59 = storage_array_data_slot v45
+    v60 = shr v46, 5
+    v61 = and v46, 31
+    v62 = ne v61, 0
+    v63 = zext i1 v62 to i256
+    v64 = add v60, v63
     jump bb14
   bb14:                                           ; preds = bb13, bb19
     v65 = phi [bb13: 0], [bb19: v85]
-    v66 = lt v65, v63
+    v66 = lt v65, v64
     jumpi v66, bb15, bb16
   bb16:                                           ; preds = bb14
     v86 = add v38, 1
@@ -835,7 +835,7 @@ fn @from_memory() -> ptr<memory> [selector=0x841ae8f5, abi_params=[], abi_return
     v73 = lt v71, v70
     jumpi v73, bb18, bb19
   bb19:                                           ; preds = bb17
-    v84 = add v64, v65
+    v84 = add v59, v65
     sstore v84, v72 !metadata(storage=symbolic(v84))
     v85 = add v65, 1
     jump bb14
@@ -987,16 +987,16 @@ fn @from_calldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xbc57f638, ab
     jump bb16
   bb16:                                           ; preds = bb13, bb15
     sstore v79, v80 !metadata(storage=symbolic(v79))
-    v93 = shr v80, 5
-    v94 = and v80, 31
-    v95 = ne v94, 0
-    v96 = zext i1 v95 to i256
-    v97 = add v93, v96
-    v98 = storage_array_data_slot v79
+    v93 = storage_array_data_slot v79
+    v94 = shr v80, 5
+    v95 = and v80, 31
+    v96 = ne v95, 0
+    v97 = zext i1 v96 to i256
+    v98 = add v94, v97
     jump bb17
   bb17:                                           ; preds = bb16, bb22
     v99 = phi [bb16: 0], [bb22: v119]
-    v100 = lt v99, v97
+    v100 = lt v99, v98
     jumpi v100, bb18, bb19
   bb19:                                           ; preds = bb17
     v120 = add v72, 1
@@ -1013,7 +1013,7 @@ fn @from_calldata(arg0: slice<calldata>) -> ptr<memory> [selector=0xbc57f638, ab
     v107 = lt v105, v104
     jumpi v107, bb21, bb22
   bb22:                                           ; preds = bb20
-    v118 = add v98, v99
+    v118 = add v93, v99
     sstore v118, v106 !metadata(storage=symbolic(v118))
     v119 = add v99, 1
     jump bb17

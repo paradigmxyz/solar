@@ -179,16 +179,16 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
     jump bb16
   bb16:                                           ; preds = bb13, bb15
     sstore v105, v106 !metadata(storage=symbolic(v105))
-    v119 = shr v106, 5
-    v120 = and v106, 31
-    v121 = ne v120, 0
-    v122 = zext i1 v121 to i256
-    v123 = add v119, v122
-    v124 = storage_array_data_slot v105
+    v119 = storage_array_data_slot v105
+    v120 = shr v106, 5
+    v121 = and v106, 31
+    v122 = ne v121, 0
+    v123 = zext i1 v122 to i256
+    v124 = add v120, v123
     jump bb17
   bb17:                                           ; preds = bb16, bb22
     v125 = phi [bb16: 0], [bb22: v145]
-    v126 = lt v125, v123
+    v126 = lt v125, v124
     jumpi v126, bb18, bb19
   bb19:                                           ; preds = bb17
     v146 = add v98, 1
@@ -205,7 +205,7 @@ fn @test(arg0: slice<calldata>) [selector=0x787210b9, abi_params=[array<_, array
     v133 = lt v131, v130
     jumpi v133, bb21, bb22
   bb22:                                           ; preds = bb20
-    v144 = add v124, v125
+    v144 = add v119, v125
     sstore v144, v132 !metadata(storage=symbolic(v144))
     v145 = add v125, 1
     jump bb17
@@ -516,16 +516,16 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
     jump bb46
   bb46:                                           ; preds = bb43, bb45
     sstore v181, v182 !metadata(storage=symbolic(v181))
-    v195 = shr v182, 5
-    v196 = and v182, 31
-    v197 = ne v196, 0
-    v198 = zext i1 v197 to i256
-    v199 = add v195, v198
-    v200 = storage_array_data_slot v181
+    v195 = storage_array_data_slot v181
+    v196 = shr v182, 5
+    v197 = and v182, 31
+    v198 = ne v197, 0
+    v199 = zext i1 v198 to i256
+    v200 = add v196, v199
     jump bb47
   bb47:                                           ; preds = bb46, bb52
     v201 = phi [bb46: 0], [bb52: v221]
-    v202 = lt v201, v199
+    v202 = lt v201, v200
     jumpi v202, bb48, bb49
   bb49:                                           ; preds = bb47
     v222 = add v174, 1
@@ -542,7 +542,7 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
     v209 = lt v207, v206
     jumpi v209, bb51, bb52
   bb52:                                           ; preds = bb50
-    v220 = add v200, v201
+    v220 = add v195, v201
     sstore v220, v208 !metadata(storage=symbolic(v220))
     v221 = add v201, 1
     jump bb47
@@ -686,16 +686,16 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
     jump bb24
   bb24:                                           ; preds = bb21, bb23
     sstore v56, v57 !metadata(storage=symbolic(v56))
-    v70 = shr v57, 5
-    v71 = and v57, 31
-    v72 = ne v71, 0
-    v73 = zext i1 v72 to i256
-    v74 = add v70, v73
-    v75 = storage_array_data_slot v56
+    v70 = storage_array_data_slot v56
+    v71 = shr v57, 5
+    v72 = and v57, 31
+    v73 = ne v72, 0
+    v74 = zext i1 v73 to i256
+    v75 = add v71, v74
     jump bb25
   bb25:                                           ; preds = bb24, bb30
     v76 = phi [bb24: 0], [bb30: v96]
-    v77 = lt v76, v74
+    v77 = lt v76, v75
     jumpi v77, bb26, bb27
   bb27:                                           ; preds = bb25
     v97 = add v49, 1
@@ -712,7 +712,7 @@ fn @test2(arg0: slice<calldata>) [selector=0x56647b67, abi_params=[array<_, arra
     v84 = lt v82, v81
     jumpi v84, bb29, bb30
   bb30:                                           ; preds = bb28
-    v95 = add v75, v76
+    v95 = add v70, v76
     sstore v95, v83 !metadata(storage=symbolic(v95))
     v96 = add v76, 1
     jump bb25

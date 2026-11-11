@@ -4,6 +4,7 @@
 //@ run-call: arrayPush() => 0
 //@ run-call: mappingValue() => 0
 //@ run-call: structField() => 0
+//@ run-call: singleElement() => 0
 //@ run-call: sharedSlot() => 7
 
 // A value that owns its slot is written as the whole word, so dirty padding that assembly left
@@ -18,6 +19,7 @@ contract C {
         uint256 b;
     }
     S s;
+    uint8[1] single;
     address first;
     uint8 second;
 
@@ -80,6 +82,16 @@ contract C {
         s.a = address(1);
         assembly {
             r := shr(160, sload(s.slot))
+        }
+    }
+
+    function singleElement() external returns (uint256 r) {
+        assembly {
+            sstore(single.slot, not(0))
+        }
+        single[0] = 1;
+        assembly {
+            r := shr(8, sload(single.slot))
         }
     }
 

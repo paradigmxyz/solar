@@ -24,16 +24,16 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     jump bb2
   bb2:                                            ; preds = bb0, bb1
     sstore 0, v1 !metadata(storage=slot(0))
-    v14 = shr v1, 2
-    v15 = and v1, 3
-    v16 = ne v15, 0
-    v17 = zext i1 v16 to i256
-    v18 = add v14, v17
-    v19 = storage_array_data_slot 0
+    v14 = storage_array_data_slot 0
+    v15 = shr v1, 2
+    v16 = and v1, 3
+    v17 = ne v16, 0
+    v18 = zext i1 v17 to i256
+    v19 = add v15, v18
     jump bb3
   bb3:                                            ; preds = bb2, bb8
     v20 = phi [bb2: 0], [bb8: v40]
-    v21 = lt v20, v18
+    v21 = lt v20, v19
     jumpi v21, bb4, bb5
   bb5:                                            ; preds = bb3
     v41 = sload 0 !metadata(storage=slot(0))
@@ -67,16 +67,16 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     jump bb10
   bb10:                                           ; preds = bb5, bb9
     sstore 1, v51 !metadata(storage=slot(1))
-    v64 = shr v51, 2
-    v65 = and v51, 3
-    v66 = ne v65, 0
-    v67 = zext i1 v66 to i256
-    v68 = add v64, v67
-    v69 = storage_array_data_slot 1
+    v64 = storage_array_data_slot 1
+    v65 = shr v51, 2
+    v66 = and v51, 3
+    v67 = ne v66, 0
+    v68 = zext i1 v67 to i256
+    v69 = add v65, v68
     jump bb11
   bb11:                                           ; preds = bb10, bb16
     v70 = phi [bb10: 0], [bb16: v90]
-    v71 = lt v70, v68
+    v71 = lt v70, v69
     jumpi v71, bb12, bb13
   bb13:                                           ; preds = bb11
     v91 = sload 1 !metadata(storage=slot(1))
@@ -103,7 +103,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v78 = lt v76, v75
     jumpi v78, bb15, bb16
   bb16:                                           ; preds = bb14
-    v89 = add v69, v70
+    v89 = add v64, v70
     sstore v89, v77 !metadata(storage=symbolic(v89))
     v90 = add v70, 1
     jump bb11
@@ -131,7 +131,7 @@ fn @test() -> i256 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word], abi_
     v28 = lt v26, v25
     jumpi v28, bb7, bb8
   bb8:                                            ; preds = bb6
-    v39 = add v19, v20
+    v39 = add v14, v20
     sstore v39, v27 !metadata(storage=symbolic(v39))
     v40 = add v20, 1
     jump bb3

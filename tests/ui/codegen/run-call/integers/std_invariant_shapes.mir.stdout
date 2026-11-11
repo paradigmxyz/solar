@@ -55,16 +55,16 @@ fn @targetSelector(arg0: ptr<memory>) {
     jump bb2
   bb2:                                            ; preds = bb0, bb1
     sstore v8, v11 !metadata(storage=offset(v5, 1))
-    v24 = shr v11, 3
-    v25 = and v11, 7
-    v26 = ne v25, 0
-    v27 = zext i1 v26 to i256
-    v28 = add v24, v27
-    v29 = storage_array_data_slot v8
+    v24 = storage_array_data_slot v8
+    v25 = shr v11, 3
+    v26 = and v11, 7
+    v27 = ne v26, 0
+    v28 = zext i1 v27 to i256
+    v29 = add v25, v28
     jump bb3
   bb3:                                            ; preds = bb2, bb8
     v30 = phi [bb2: 0], [bb8: v51]
-    v31 = lt v30, v28
+    v31 = lt v30, v29
     jumpi v31, bb4, bb5
   bb5:                                            ; preds = bb3
     sstore 1, v2 !metadata(storage=slot(1))
@@ -81,7 +81,7 @@ fn @targetSelector(arg0: ptr<memory>) {
     v38 = lt v36, v35
     jumpi v38, bb7, bb8
   bb8:                                            ; preds = bb6
-    v50 = add v29, v30
+    v50 = add v24, v30
     sstore v50, v37 !metadata(storage=symbolic(v50))
     v51 = add v30, 1
     jump bb3

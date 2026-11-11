@@ -27,16 +27,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     jump bb2
   bb2:                                            ; preds = bb0, bb1
     sstore 0, v1 !metadata(storage=slot(0))
-    v14 = shr v1, 2
-    v15 = and v1, 3
-    v16 = ne v15, 0
-    v17 = zext i1 v16 to i256
-    v18 = add v14, v17
-    v19 = storage_array_data_slot 0
+    v14 = storage_array_data_slot 0
+    v15 = shr v1, 2
+    v16 = and v1, 3
+    v17 = ne v16, 0
+    v18 = zext i1 v17 to i256
+    v19 = add v15, v18
     jump bb3
   bb3:                                            ; preds = bb2, bb8
     v20 = phi [bb2: 0], [bb8: v40]
-    v21 = lt v20, v18
+    v21 = lt v20, v19
     jumpi v21, bb4, bb5
   bb5:                                            ; preds = bb3
     jump bb9
@@ -74,16 +74,16 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     jump bb16
   bb16:                                           ; preds = bb10, bb15
     sstore 1, v72 !metadata(storage=slot(1))
-    v85 = div v72, 3
-    v86 = mod v72, 3
-    v87 = ne v86, 0
-    v88 = zext i1 v87 to i256
-    v89 = add v85, v88
-    v90 = storage_array_data_slot 1
+    v85 = storage_array_data_slot 1
+    v86 = div v72, 3
+    v87 = mod v72, 3
+    v88 = ne v87, 0
+    v89 = zext i1 v88 to i256
+    v90 = add v86, v89
     jump bb17
   bb17:                                           ; preds = bb16, bb22
     v91 = phi [bb16: 0], [bb22: v111]
-    v92 = lt v91, v89
+    v92 = lt v91, v90
     jumpi v92, bb18, bb19
   bb19:                                           ; preds = bb17
     v112 = sload 1 !metadata(storage=slot(1))
@@ -147,7 +147,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v99 = lt v97, v96
     jumpi v99, bb21, bb22
   bb22:                                           ; preds = bb20
-    v110 = add v90, v91
+    v110 = add v85, v91
     sstore v110, v98 !metadata(storage=symbolic(v110))
     v111 = add v91, 1
     jump bb17
@@ -204,7 +204,7 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word<byt
     v28 = lt v26, v25
     jumpi v28, bb7, bb8
   bb8:                                            ; preds = bb6
-    v39 = add v19, v20
+    v39 = add v14, v20
     sstore v39, v27 !metadata(storage=symbolic(v39))
     v40 = add v20, 1
     jump bb3

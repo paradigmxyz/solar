@@ -102,16 +102,16 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     jump bb2
   bb2:                                            ; preds = bb0, bb1
     sstore 0, v65 !metadata(storage=slot(0))
-    v78 = shr v65, 1
-    v79 = and v65, 1
-    v80 = ne v79, 0
-    v81 = zext i1 v80 to i256
-    v82 = add v78, v81
-    v83 = storage_array_data_slot 0
+    v78 = storage_array_data_slot 0
+    v79 = shr v65, 1
+    v80 = and v65, 1
+    v81 = ne v80, 0
+    v82 = zext i1 v81 to i256
+    v83 = add v79, v82
     jump bb3
   bb3:                                            ; preds = bb2, bb8
     v84 = phi [bb2: 0], [bb8: v104]
-    v85 = lt v84, v82
+    v85 = lt v84, v83
     jumpi v85, bb4, bb5
   bb5:                                            ; preds = bb3
     sstore 0, 4 !metadata(storage=slot(0))
@@ -171,7 +171,7 @@ fn @f() -> i128 [selector=0x26121ff0, abi_params=[], abi_returns=[word<uint128>]
     v92 = lt v90, v89
     jumpi v92, bb7, bb8
   bb8:                                            ; preds = bb6
-    v103 = add v83, v84
+    v103 = add v78, v84
     sstore v103, v91 !metadata(storage=symbolic(v103))
     v104 = add v84, 1
     jump bb3
@@ -291,16 +291,16 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     jump bb2
   bb2:                                            ; preds = bb0, bb1
     sstore 1, v65 !metadata(storage=slot(1))
-    v78 = shr v65, 2
-    v79 = and v65, 3
-    v80 = ne v79, 0
-    v81 = zext i1 v80 to i256
-    v82 = add v78, v81
-    v83 = storage_array_data_slot 1
+    v78 = storage_array_data_slot 1
+    v79 = shr v65, 2
+    v80 = and v65, 3
+    v81 = ne v80, 0
+    v82 = zext i1 v81 to i256
+    v83 = add v79, v82
     jump bb3
   bb3:                                            ; preds = bb2, bb8
     v84 = phi [bb2: 0], [bb8: v104]
-    v85 = lt v84, v82
+    v85 = lt v84, v83
     jumpi v85, bb4, bb5
   bb5:                                            ; preds = bb3
     sstore 1, 4 !metadata(storage=slot(1))
@@ -358,7 +358,7 @@ fn @g() -> i64 [selector=0xe2179b8e, abi_params=[], abi_returns=[word<uint64>], 
     v92 = lt v90, v89
     jumpi v92, bb7, bb8
   bb8:                                            ; preds = bb6
-    v103 = add v83, v84
+    v103 = add v78, v84
     sstore v103, v91 !metadata(storage=symbolic(v103))
     v104 = add v84, 1
     jump bb3
@@ -478,16 +478,16 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     jump bb2
   bb2:                                            ; preds = bb0, bb1
     sstore 2, v65 !metadata(storage=slot(2))
-    v78 = shr v65, 1
-    v79 = and v65, 1
-    v80 = ne v79, 0
-    v81 = zext i1 v80 to i256
-    v82 = add v78, v81
-    v83 = storage_array_data_slot 2
+    v78 = storage_array_data_slot 2
+    v79 = shr v65, 1
+    v80 = and v65, 1
+    v81 = ne v80, 0
+    v82 = zext i1 v81 to i256
+    v83 = add v79, v82
     jump bb3
   bb3:                                            ; preds = bb2, bb8
     v84 = phi [bb2: 0], [bb8: v104]
-    v85 = lt v84, v82
+    v85 = lt v84, v83
     jumpi v85, bb4, bb5
   bb5:                                            ; preds = bb3
     sstore 2, 4 !metadata(storage=slot(2))
@@ -547,7 +547,7 @@ fn @h() -> i120 [selector=0xb8c9d365, abi_params=[], abi_returns=[word<uint120>]
     v92 = lt v90, v89
     jumpi v92, bb7, bb8
   bb8:                                            ; preds = bb6
-    v103 = add v83, v84
+    v103 = add v78, v84
     sstore v103, v91 !metadata(storage=symbolic(v103))
     v104 = add v84, 1
     jump bb3

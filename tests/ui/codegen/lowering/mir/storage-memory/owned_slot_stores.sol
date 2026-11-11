@@ -18,6 +18,8 @@ contract OwnedSlotStores {
     address[] dynamic;
     address[3] fixedArray;
     mapping(uint256 => address) owners;
+    uint8[1] single;
+    uint8[3] triple;
 
     // CHECK-LABEL: fn @constructor(
     // CHECK-NOT: 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
@@ -103,5 +105,19 @@ contract OwnedSlotStores {
     // CHECK: sstore 0,
     function fromCall(Ext e) external {
         owner = e.get();
+    }
+
+    // CHECK-LABEL: fn @setSingle(
+    // CHECK-NOT: sload
+    // CHECK: sstore
+    function setSingle(uint8 x) external {
+        single[0] = x;
+    }
+
+    // CHECK-LABEL: fn @copyTriple(
+    // CHECK-NOT: sload
+    // CHECK: sstore
+    function copyTriple(uint8[3] memory x) external {
+        triple = x;
     }
 }
