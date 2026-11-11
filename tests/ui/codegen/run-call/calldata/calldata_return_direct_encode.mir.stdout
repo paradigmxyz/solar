@@ -1,0 +1,109 @@
+; === ROOT/tests/ui/codegen/run-call/calldata/calldata_return_direct_encode.sol:CalldataReturnDirectEncode ===
+@module CalldataReturnDirectEncode
+@types
+  struct0: {i256, slice<calldata>, slice<calldata>}
+
+; function dynamic(S calldata s) external pure returns (S calldata) [selector 0xfa986505]
+fn @dynamic(arg0: slice<calldata>) -> slice<calldata> [selector=0xfa986505, pure, abi_params=[tuple<uint256, bytes>], abi_returns=[tuple<word, memory_bytes>], abi_return_params=[tuple<uint256, bytes>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    ret arg0
+}
+
+; function narrow(Narrow calldata n) external pure returns (Narrow calldata) [selector 0x66423386]
+fn @narrow(arg0: slice<calldata>) -> slice<calldata> [selector=0x66423386, pure, abi_params=[tuple<uint8, bool, address>], abi_returns=[tuple<word<uint8>, word<bool>, word<uint160>>], abi_return_params=[tuple<uint8, bool, address>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    ret arg0
+}
+
+; function nested(Outer calldata o) external pure returns (Outer calldata) [selector 0x29cdf8ac]
+fn @nested(arg0: slice<calldata>) -> slice<calldata> [selector=0x29cdf8ac, pure, abi_params=[tuple<tuple<uint8, bool, address>, tuple<uint16, bytes>, uint256>], abi_returns=[tuple<tuple<word<uint8>, word<bool>, word<uint160>>, tuple<word<uint16>, memory_bytes>, word>], abi_return_params=[tuple<tuple<uint8, bool, address>, tuple<uint16, bytes>, uint256>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    ret arg0
+}
+
+; function words(uint256[2] calldata a) external pure returns (uint256[2] calldata) [selector 0x2556ff17]
+fn @words(arg0: slice<calldata>) -> slice<calldata> [selector=0x2556ff17, pure, abi_params=[array<2, uint256>], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    ret arg0
+}
+
+; function narrowWords(uint8[2] calldata a) external pure returns (uint8[2] calldata) [selector 0x40877cc9]
+fn @narrowWords(arg0: slice<calldata>) -> slice<calldata> [selector=0x40877cc9, pure, abi_params=[array<2, uint8>], abi_returns=[array<2, word<uint8>>], abi_return_params=[array<2, uint8>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    ret arg0
+}
+
+; function bytesPair(bytes[2] calldata a) external pure returns (bytes[2] calldata) [selector 0x2647162a]
+fn @bytesPair(arg0: slice<calldata>) -> slice<calldata> [selector=0x2647162a, pure, abi_params=[array<2, bytes>], abi_returns=[array<2, memory_bytes>], abi_return_params=[array<2, bytes>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    ret arg0
+}
+
+; function dynamicItems(S[] calldata a) external pure returns (S[] calldata) [selector 0xbb328e16]
+fn @dynamicItems(arg0: slice<calldata>) -> slice<calldata> [selector=0xbb328e16, pure, abi_params=[array<_, tuple<uint256, bytes>>], abi_returns=[memory_array<tuple<word, memory_bytes>>], abi_return_params=[array<_, tuple<uint256, bytes>>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    ret arg0
+}
+
+; function narrowItems(Narrow[] calldata a) external pure returns (Narrow[] calldata) [selector 0xc12d713a]
+fn @narrowItems(arg0: slice<calldata>) -> slice<calldata> [selector=0xc12d713a, pure, abi_params=[array<_, tuple<uint8, bool, address>>], abi_returns=[memory_array<tuple<word<uint8>, word<bool>, word<uint160>>>], abi_return_params=[array<_, tuple<uint8, bool, address>>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    ret arg0
+}
+
+; function mixed(uint256 x, S calldata s, uint256[2] calldata a) external pure returns (uint256, S calldata, uint256[2] calldata) [selector 0x18716194]
+fn @mixed(arg0: i256, arg1: slice<calldata>, arg2: slice<calldata>) -> struct0 [selector=0x18716194, pure, abi_params=[uint256, tuple<uint256, bytes>, array<2, uint256>], abi_returns=[word, tuple<word, memory_bytes>, array<2, word>], abi_return_params=[uint256, tuple<uint256, bytes>, array<2, uint256>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = make_calldata_slice ptr<calldata> 0, 0
+    v2 = insert_value struct0, undef struct0, 0, arg0
+    v3 = insert_value struct0, v2, 1, arg1
+    v4 = insert_value struct0, v3, 2, arg2
+    ret v4
+}
+
+; function emitNarrow(Narrow calldata n) external [selector 0xd295ec69]
+fn @emitNarrow(arg0: slice<calldata>) [selector=0xd295ec69, abi_params=[tuple<uint8, bool, address>], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = abi_encode [tuple<word<uint8>, word<bool>, word<uint160>>], scratch, args arg0
+    v1 = extract_value slice<memory>, v0, 0
+    v2 = extract_value slice<memory>, v0, 1
+    log v1, v2, 0x50292e27ca32a7e0199684364b9e3b981f4a14c97a266e52033b0f7aad3dcfba
+    ret
+}
+
+; function forgedItems(uint256 offset, uint256 length) external pure returns (Pair[] calldata p) [selector 0xb7b0e273]
+fn @forgedItems(arg0: i256, arg1: i256) -> slice<calldata> [selector=0xb7b0e273, pure, abi_params=[uint256, uint256], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<uint256, uint256>>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = inttoptr i256 arg0 to ptr<calldata>
+    v3 = make_calldata_slice v2, v1
+    v4 = extract_value slice<calldata>, v3, 0
+    v5 = make_calldata_slice v4, arg1
+    ret v5
+}
+
+; function wrapWords(uint256 p) external pure returns (uint256[2] calldata a) [selector 0x1260966b]
+fn @wrapWords(arg0: i256) -> slice<calldata> [selector=0x1260966b, pure, abi_params=[uint256], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
+  bb0:
+    v0 = inttoptr i256 arg0 to ptr<calldata>
+    v1 = make_calldata_slice v0, 2
+    ret v1
+}
+
+; function wrapStruct(uint256 p) external pure returns (Pair calldata s) [selector 0x9eaa990e]
+fn @wrapStruct(arg0: i256) -> slice<calldata> [selector=0x9eaa990e, pure, abi_params=[uint256], abi_returns=[tuple<word, word>], abi_return_params=[tuple<uint256, uint256>]] {
+  bb0:
+    v0 = inttoptr i256 arg0 to ptr<calldata>
+    v1 = make_calldata_slice v0, 0
+    ret v1
+}
