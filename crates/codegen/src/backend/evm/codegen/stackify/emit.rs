@@ -22,7 +22,10 @@ use crate::{
     },
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -198,6 +201,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         // instructions, so the buffer loads, and the values bound to the extra results, are the
         // same in both.
         if self.capture_mir {
+            let published = plan
+                .blocks
+                .iter()
+                .flatten()
+                .flat_map(|block| &block.steps)
+                .filter_map(|step| match step {
+                    &Step::Publish { inst, .. } => Some(inst),
+                    _ => None,
+                })
+                .collect::<FxHashSet<_>>();
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for (index, &inst) in block.instructions.iter().enumerate() {
                     let InstKind::ICall { function: Callee::Function(callee), .. } =
@@ -212,15 +225,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     let Some(protocol) = call_projection(func, block_id, index, arity) else {
                         continue;
                     };
-                    let published = plan
-                        .blocks
-                        .iter()
-                        .flatten()
-                        .flat_map(|block| &block.steps)
-                        .any(|step| {
-                            matches!(step, Step::Publish { callee: target, .. } if *target == callee)
-                        });
-                    if protocol.extras.iter().any(Option::is_some) || !published {
+                    if protocol.extras.iter().any(Option::is_some) || !published.contains(&inst) {
                         self.stack_return_sites.insert(
                             (func_id, inst),
                             StackReturn {
@@ -583,7 +588,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 self.asm.define_continuation_label(return_label);
             }
-            &Step::Publish { callee, arity, params } => {
+            &Step::Publish { callee, arity, params, .. } => {
                 // [result(m-1), ..., result1, result0]
                 // swap1; push frame[return + 32 * k]; mstore   (k = 1..m)
                 // push frame[return]; push 0x20; mstore

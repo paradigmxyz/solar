@@ -26,35 +26,32 @@ fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, wor
     v3 = sload v2 !metadata(storage=symbolic(v2))
     v4 = trunc i256 v3 to i128
     v5 = checked_add uint128, v4, i128 5
-    v6 = sload v2 !metadata(storage=symbolic(v2))
-    v7 = and v6, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v8 = zext i128 v5 to i256
-    v9 = and v8, 0xffffffffffffffffffffffffffffffff
-    v10 = or v7, v9
-    sstore v2, v10 !metadata(storage=symbolic(v2))
-    v11 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
-    v12 = add v11, 1
-    v13 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v12
-    v14 = sload v13 !metadata(storage=symbolic(v13))
-    v15 = trunc i256 v14 to i128
-    v16 = zext i128 v15 to i256
-    v17 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
-    v18 = add v17, 1
-    v19 = icall @_get, v18, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
-    v20 = sload v19 !metadata(storage=symbolic(v19))
-    v21 = trunc i256 v20 to i128
-    v22 = zext i128 v21 to i256
-    v23 = add v0, 1
-    v24 = icall @_get, v23, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
-    v25 = add v24, 1
-    sstore v25, 12 !metadata(storage=offset(v24, 1))
-    v26 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
-    v27 = add v26, 1
-    v28 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v27
-    v29 = add v28, 1
-    v30 = sload v29 !metadata(storage=offset(v28, 1))
-    v31 = insert_value struct0, undef struct0, 0, v16
-    v32 = insert_value struct0, v31, 1, v22
-    v33 = insert_value struct0, v32, 2, v30
-    ret v33
+    v6 = zext i128 v5 to i256
+    v7 = and v6, 0xffffffffffffffffffffffffffffffff
+    sstore v2, v7 !metadata(storage=symbolic(v2))
+    v8 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
+    v9 = add v8, 1
+    v10 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v9
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = trunc i256 v11 to i128
+    v13 = zext i128 v12 to i256
+    v14 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v15 = add v14, 1
+    v16 = icall @_get, v15, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = trunc i256 v17 to i128
+    v19 = zext i128 v18 to i256
+    v20 = add v0, 1
+    v21 = icall @_get, v20, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
+    v22 = add v21, 1
+    sstore v22, 12 !metadata(storage=offset(v21, 1))
+    v23 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
+    v24 = add v23, 1
+    v25 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v24
+    v26 = add v25, 1
+    v27 = sload v26 !metadata(storage=offset(v25, 1))
+    v28 = insert_value struct0, undef struct0, 0, v13
+    v29 = insert_value struct0, v28, 1, v19
+    v30 = insert_value struct0, v29, 2, v27
+    ret v30
 }

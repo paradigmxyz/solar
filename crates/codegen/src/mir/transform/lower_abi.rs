@@ -4003,21 +4003,8 @@ fn materialize_calldata_return(
         return copy_calldata_value(builder, ty, data, Some(len));
     }
     // base = extract_value returned_slice, 0
-    // check_range(base, head_size)
     // object = copy_calldata_value(base)
-    let input_end = builder.calldatasize();
     let base = builder.slice_ptr(base);
-    let mut current = builder.current_block();
-    let reason = LowerAbiCx::aggregate_short_reason(ty, true);
-    LowerAbiCx::guard_input_range(
-        builder,
-        base,
-        ty.data_head_size(),
-        input_end,
-        &mut current,
-        reason,
-    );
-    builder.switch_to_block(current);
     copy_calldata_value(builder, ty, base, None)
 }
 
