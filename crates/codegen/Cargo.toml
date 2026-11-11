@@ -33,10 +33,11 @@ memchr.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
+tempfile.workspace = true
 
 [dev-dependencies]
 snapbox.workspace = true
-tempfile.workspace = true
+solar-smt.workspace = true
 
 [build-dependencies]
 cranelift-isle.workspace = true

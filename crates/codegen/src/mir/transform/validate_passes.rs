@@ -1177,8 +1177,7 @@ impl Encoder {
                     }
                     let term = self.pure(opcode, mnemonic, &operands);
                     return Ok(match result.and_then(narrow) {
-                        Some(bits) => self
-                            .define(WORD, format!("(bvand {term} {})", word(integer_mask(bits)))),
+                        Some(bits) => self.low_bits(&term, bits),
                         None => term,
                     });
                 }
@@ -1189,28 +1188,21 @@ impl Encoder {
                 self.effect(mnemonic, opcode, kind.effect_kind(), operands, destination, state)?
             }
             Semantics::Word(operand) => run.term(operand)?,
-            Semantics::LowBits(operand, 256) => run.term(operand)?,
-            Semantics::LowBits(operand, bits) if (1..256).contains(&bits) => {
+            Semantics::LowBits(operand, bits) if (1..=256).contains(&bits) => {
                 let operand = run.term(operand)?;
-                self.define(WORD, format!("(bvand {operand} {})", word(integer_mask(bits))))
+                self.low_bits(&operand, bits)
             }
             Semantics::SignExtend(operand, from, to) if from >= 1 && from <= to && to <= 256 => {
                 let operand = run.term(operand)?;
-                let extended = format!(
-                    "((_ sign_extend {}) ((_ extract {} 0) {operand}))",
-                    256 - from,
-                    from - 1
-                );
-                self.define(WORD, format!("(bvand {extended} {})", word(integer_mask(to))))
+                self.sign_extend(&operand, from, to)
             }
             Semantics::NotEqual(a, b) => {
                 let (a, b) = (run.term(a)?, run.term(b)?);
-                let (zero, one) = (word(U256::ZERO), word(U256::ONE));
-                self.define(WORD, format!("(ite (= {a} {b}) {zero} {one})"))
+                self.not_equal(&a, &b)
             }
             Semantics::Select(condition, a, b) => {
                 let (condition, a, b) = (run.term(condition)?, run.term(a)?, run.term(b)?);
-                self.define(WORD, format!("(ite (= {condition} {}) {b} {a})", word(U256::ZERO)))
+                self.select(&condition, &a, &b)
             }
             _ => return Err(format!("`{}` is not modeled", kind.mnemonic())),
         })
@@ -1305,6 +1297,33 @@ impl Encoder {
         }
         let arguments: Vec<_> = operands.iter().map(|o| (o.clone(), WORD)).collect();
         self.apply(&format!("op_{mnemonic}"), &arguments, WORD)
+    }
+
+    /// The low `bits` bits of the word `term`, which is how a value of a narrow integer type is
+    /// kept clean.
+    pub(crate) fn low_bits(&mut self, term: &str, bits: u32) -> String {
+        if bits >= 256 {
+            return term.to_owned();
+        }
+        self.define(WORD, format!("(bvand {term} {})", word(integer_mask(bits))))
+    }
+
+    /// The low `from` bits of the word `term`, sign-extended to `to` bits.
+    pub(crate) fn sign_extend(&mut self, term: &str, from: u32, to: u32) -> String {
+        let extended =
+            format!("((_ sign_extend {}) ((_ extract {} 0) {term}))", 256 - from, from - 1);
+        self.define(WORD, format!("(bvand {extended} {})", word(integer_mask(to))))
+    }
+
+    /// One when the words `a` and `b` differ, zero otherwise.
+    pub(crate) fn not_equal(&mut self, a: &str, b: &str) -> String {
+        let (zero, one) = (word(U256::ZERO), word(U256::ONE));
+        self.define(WORD, format!("(ite (= {a} {b}) {zero} {one})"))
+    }
+
+    /// `a` when the word `condition` is nonzero, otherwise `b`.
+    pub(crate) fn select(&mut self, condition: &str, a: &str, b: &str) -> String {
+        self.define(WORD, format!("(ite (= {condition} {}) {b} {a})", word(U256::ZERO)))
     }
 
     /// Whether outcomes `a` and `b` differ in an observable, as a Boolean term.
@@ -1585,4 +1604,332 @@ fn exp(base: &str, exponent: &str) -> Option<String> {
         term = format!("(bvmul {term} {base})");
     }
     Some(term)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_smt::certify::lean::word_term;
+
+    /// The words the agreement theorems bind, as the encoder names its operands.
+    const DECLARATIONS: &str = "(declare-const a (_ BitVec 256))
+(declare-const b (_ BitVec 256))
+(declare-const c (_ BitVec 256))
+(declare-const e (_ BitVec 256))
+(declare-const t (_ BitVec 256))
+(declare-fun umul ((_ BitVec 256) (_ BitVec 256)) (_ BitVec 256))
+(declare-fun udiv ((_ BitVec 256) (_ BitVec 256)) (_ BitVec 256))
+(declare-fun umod ((_ BitVec 256) (_ BitVec 256)) (_ BitVec 256))
+(declare-fun addmod3 ((_ BitVec 256) (_ BitVec 256) (_ BitVec 256)) (_ BitVec 256))
+(declare-fun mulmod3 ((_ BitVec 256) (_ BitVec 256) (_ BitVec 256)) (_ BitVec 256))";
+
+    /// The pure opcodes the encoder models exactly, with their arities.
+    const WORD_OPCODES: &[(u8, &str, usize)] = &[
+        (op::ADD, "add", 2),
+        (op::MUL, "mul", 2),
+        (op::SUB, "sub", 2),
+        (op::DIV, "div", 2),
+        (op::SDIV, "sdiv", 2),
+        (op::MOD, "mod", 2),
+        (op::SMOD, "smod", 2),
+        (op::ADDMOD, "addmod", 3),
+        (op::MULMOD, "mulmod", 3),
+        (op::SIGNEXTEND, "signextend", 2),
+        (op::LT, "lt", 2),
+        (op::GT, "gt", 2),
+        (op::SLT, "slt", 2),
+        (op::SGT, "sgt", 2),
+        (op::EQ, "eq", 2),
+        (op::ISZERO, "iszero", 1),
+        (op::AND, "and", 2),
+        (op::OR, "or", 2),
+        (op::XOR, "xor", 2),
+        (op::NOT, "not", 1),
+        (op::BYTE, "byte", 2),
+        (op::SHL, "shl", 2),
+        (op::SHR, "shr", 2),
+        (op::SAR, "sar", 2),
+    ];
+
+    /// MIR operations with an opcode, by name: the opcode, whether their result is an `i1`,
+    /// whether they read a sign bit, and their Lean definition over the operands `x` and `y`.
+    const MIR_OPCODES: &[(&str, u8, bool, bool, &str)] = &[
+        ("add", op::ADD, false, false, "MIR.eval .add x y"),
+        ("sub", op::SUB, false, false, "MIR.eval .sub x y"),
+        ("mul", op::MUL, false, false, "MIR.eval .mul x y"),
+        ("and", op::AND, false, false, "MIR.eval .and x y"),
+        ("or", op::OR, false, false, "MIR.eval .or x y"),
+        ("xor", op::XOR, false, false, "MIR.eval .xor x y"),
+        ("div", op::DIV, false, false, "MIR.eval .div x y"),
+        ("mod", op::MOD, false, false, "MIR.eval .mod x y"),
+        ("sdiv", op::SDIV, false, true, "MIR.eval .sdiv x y"),
+        ("smod", op::SMOD, false, true, "MIR.eval .smod x y"),
+        ("shl", op::SHL, false, false, "MIR.eval .shl x y"),
+        ("shr", op::SHR, false, false, "MIR.eval .shr x y"),
+        ("sar", op::SAR, false, true, "MIR.eval .sar x y"),
+        ("not", op::NOT, false, false, "MIR.not x"),
+        ("lt", op::LT, true, false, "MIR.compare .lt x y"),
+        ("gt", op::GT, true, false, "MIR.compare .gt x y"),
+        ("slt", op::SLT, true, true, "MIR.compare .slt x y"),
+        ("sgt", op::SGT, true, true, "MIR.compare .sgt x y"),
+        ("eq", op::EQ, true, false, "MIR.compare .eq x y"),
+    ];
+
+    const WIDTHS: [u32; 3] = [1, 160, 256];
+
+    /// `term` with every symbol the encoder defined replaced by its definition.
+    fn expand(encoder: &Encoder, term: &str) -> String {
+        let names: FxHashMap<&str, &str> =
+            encoder.definitions.iter().map(|(term, name)| (name.as_str(), term.as_str())).collect();
+        let mut out = String::new();
+        let mut token = String::new();
+        let flush = |token: &mut String, out: &mut String| {
+            match names.get(token.as_str()) {
+                Some(definition) => out.push_str(&expand(encoder, definition)),
+                None => out.push_str(token),
+            }
+            token.clear();
+        };
+        for ch in term.chars() {
+            if matches!(ch, '(' | ')' | ' ') {
+                flush(&mut token, &mut out);
+                out.push(ch);
+            } else {
+                token.push(ch);
+            }
+        }
+        flush(&mut token, &mut out);
+        out
+    }
+
+    /// `term` of an encoder in Lean.
+    fn lean(encoder: &Encoder, term: &str) -> String {
+        word_term(DECLARATIONS, &expand(encoder, term)).unwrap()
+    }
+
+    fn operands(arity: usize) -> Vec<String> {
+        ["a", "b", "c"][..arity].iter().map(|name| (*name).to_owned()).collect()
+    }
+
+    fn idents(names: &[String]) -> String {
+        names
+            .iter()
+            .map(|name| solar_smt::certify::lean::ident(name).unwrap())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// Binders for MIR operands of `widths`, named `x`, `y` and `z`, the encoder's words `a`,
+    /// `b` and `c` for them, and hypotheses that each word is its operand zero-extended.
+    fn mir_binders(widths: &[u32]) -> String {
+        let mut out = String::new();
+        let names = ["x", "y", "z"];
+        for (name, width) in names.iter().zip(widths) {
+            let _ = write!(out, "({name} : BitVec {width}) ");
+        }
+        let words = operands(widths.len());
+        let _ = write!(out, "({} : Word)", idents(&words));
+        for (name, word) in names.iter().zip(&words) {
+            let ident = solar_smt::certify::lean::ident(word).unwrap();
+            let _ = write!(out, "\n    (h{word} : {ident} = {name}.setWidth 256)");
+        }
+        out
+    }
+
+    /// The Lean theorems that the terms [`Encoder`] gives each pure opcode and MIR operation
+    /// equal their Lean semantics, regenerated with `SNAPSHOTS=overwrite`.
+    #[test]
+    fn lean_agreement() {
+        let mut out = String::from(
+            "import SolarTV.Agreement.Tactic
+
+/-! Agreement of the pass validation encoder with the Lean semantics.
+
+Generated by the `lean_agreement` test in
+`crates/codegen/src/mir/transform/validate_passes.rs`: do not edit by hand. Each term is
+the one the encoder (`Encoder::pure`, `low_bits`, `sign_extend`, `not_equal` and
+`select`) gives an operation on symbolic operands, translated to Lean by the certifier's
+`word_term`, so a mistranslation of either fails these proofs.
+
+- `word_X` and `step_X`: the term of each pure opcode the encoder models exactly is its
+  `EvmRules.Evm` definition, and so the result `SolarTV.EVM.step` pushes.
+- `exp_X`: the constant shapes of `EXP` the encoder computes exactly.
+- `abstract_X`: the abstract tier's laws hold of the exact operation, so replacing it
+  with an uninterpreted function constrained by them only allows more models.
+- `mir_X_iN`: the term of each MIR operation on `iN` operands, which the encoder keeps
+  as zero-extended words and masks to their width, is the zero-extended result of its
+  `SolarTV.MIR` definition. Signed operations read the sign bit of a word, so the
+  encoder rejects them on narrow integers and they appear at `i256` only.
+-/
+
+namespace SolarTV.Agreement
+
+open EvmRules
+
+set_option linter.unusedSimpArgs false
+
+",
+        );
+
+        for &(opcode, mnemonic, arity) in WORD_OPCODES {
+            let mut encoder = Encoder::default();
+            let names = operands(arity);
+            let term = encoder.pure(opcode, mnemonic, &names);
+            let term = lean(&encoder, &term);
+            let args = idents(&names);
+            let stack: Vec<_> = args.split(' ').collect();
+            let _ = writeln!(
+                out,
+                "theorem word_{mnemonic} ({args} : Word) :
+    {term} =
+      Evm.{mnemonic} {args} := by
+  agree_word
+
+theorem step_{mnemonic} (ctx : EVM.Context) ({args} : Word) (rest : EVM.Stack) :
+    EVM.step ctx .{mnemonic} ({} :: rest) =
+      some ({term} :: rest) := by
+  rw [word_{mnemonic}]; rfl
+",
+                stack.join(" :: ")
+            );
+        }
+
+        // The constant shapes of EXP: a base of zero, one or a power of two, and small exponents.
+        for base in [0u64, 1, 2, 16, 256] {
+            let mut encoder = Encoder::default();
+            let term = encoder.pure(op::EXP, "exp", &[word(U256::from(base)), "e".into()]);
+            let term = lean(&encoder, &term);
+            let _ = writeln!(
+                out,
+                "theorem exp_base_{base} («$e» : Word) :
+    {term} =
+      Evm.exp {base}#256 «$e» := by
+  agree_exp
+"
+            );
+        }
+        for exponent in [0u64, 1, 2, 8] {
+            let mut encoder = Encoder::default();
+            let term = encoder.pure(op::EXP, "exp", &["a".into(), word(U256::from(exponent))]);
+            let term = lean(&encoder, &term);
+            let _ = writeln!(
+                out,
+                "theorem exp_power_{exponent} («$a» : Word) :
+    {term} =
+      Evm.exp «$a» {exponent}#256 := by
+  agree_exp
+"
+            );
+        }
+
+        // The abstract tier's laws, with the exact value for the symbol and the exact operation
+        // for the uninterpreted function.
+        for (opcode, mnemonic, arity) in [
+            (op::MUL, "mul", 2),
+            (op::DIV, "div", 2),
+            (op::MOD, "mod", 2),
+            (op::ADDMOD, "addmod", 3),
+            (op::MULMOD, "mulmod", 3),
+        ] {
+            let names = operands(arity);
+            let refs: Vec<_> = names.iter().map(String::as_str).collect();
+            let (laws, function) = op::word::smt_opcode_abstract(opcode, &refs, "t").unwrap();
+            let laws = word_term(DECLARATIONS, &laws).unwrap();
+            let args = idents(&names);
+            let function = solar_smt::certify::lean::ident(function).unwrap();
+            let binders = vec!["Word"; arity + 1].join(" → ");
+            let _ = writeln!(
+                out,
+                "theorem abstract_{mnemonic} ({args} «$t» : Word) ({function} : {binders})
+    (hf : ∀ {}, {function} {} = Evm.{mnemonic} {})
+    (ht : «$t» = Evm.{mnemonic} {args}) :
+    {laws} := by
+  agree_abstract
+",
+                ["p", "q", "r"][..arity].join(" "),
+                ["p", "q", "r"][..arity].join(" "),
+                ["p", "q", "r"][..arity].join(" "),
+            );
+        }
+
+        for width in WIDTHS {
+            for &(name, opcode, boolean, signed, definition) in MIR_OPCODES {
+                if signed && width < 256 {
+                    continue;
+                }
+                let arity = if opcode == op::NOT { 1 } else { 2 };
+                let mut encoder = Encoder::default();
+                let term = encoder.pure(opcode, name, &operands(arity));
+                let term = encoder.low_bits(&term, if boolean { 1 } else { width });
+                let term = lean(&encoder, &term);
+                let binders = mir_binders(&vec![width; arity]);
+                let _ = writeln!(
+                    out,
+                    "theorem mir_{name}_i{width} {binders} :
+    {term} =
+      ({definition}).setWidth 256 := by
+  agree_mir
+"
+                );
+            }
+            let mut encoder = Encoder::default();
+            let term = encoder.not_equal("a", "b");
+            let term = lean(&encoder, &term);
+            let _ = writeln!(
+                out,
+                "theorem mir_ne_i{width} {} :
+    {term} =
+      (MIR.compare .ne x y).setWidth 256 := by
+  agree_mir
+",
+                mir_binders(&[width, width])
+            );
+            let mut encoder = Encoder::default();
+            let term = encoder.select("a", "b", "c");
+            let term = lean(&encoder, &term);
+            let _ = writeln!(
+                out,
+                "theorem mir_select_i{width} {} :
+    {term} =
+      (MIR.select x y z).setWidth 256 := by
+  agree_mir
+",
+                mir_binders(&[1, width, width])
+            );
+        }
+
+        // Casts: `trunc` keeps the low bits, `zext` the word and `sext` extends the sign bit.
+        for from in WIDTHS {
+            for to in WIDTHS {
+                let mut encoder = Encoder::default();
+                let (kind, term) = match from.cmp(&to) {
+                    std::cmp::Ordering::Greater => ("trunc", encoder.low_bits("a", to)),
+                    std::cmp::Ordering::Less => ("zext", "a".to_owned()),
+                    std::cmp::Ordering::Equal => continue,
+                };
+                let mut casts = vec![(kind, term)];
+                if from < to {
+                    casts.push(("sext", encoder.sign_extend("a", from, to)));
+                }
+                for (kind, term) in casts {
+                    let term = lean(&encoder, &term);
+                    let _ = writeln!(
+                        out,
+                        "theorem mir_{kind}_i{from}_i{to} {} :
+    {term} =
+      (MIR.cast .{kind} {to} x).setWidth 256 := by
+  agree_mir
+",
+                        mir_binders(&[from])
+                    );
+                }
+            }
+        }
+
+        out.push_str("end SolarTV.Agreement\n");
+        snapbox::assert_data_eq!(
+            out,
+            snapbox::file!["../../../../../solar-tv/SolarTV/Agreement/Encoder.lean"].raw()
+        );
+    }
 }

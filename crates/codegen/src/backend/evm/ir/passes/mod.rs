@@ -258,7 +258,6 @@ fn run_passes(
             let origins =
                 crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::evm(module));
             let errors_before = gcx.dcx().err_count();
-            let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let cache_key = PassCacheKey::new(*pass);
             let cached = unchanged.contains(&cache_key);
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
@@ -270,6 +269,8 @@ fn run_passes(
                 .then_some(gcx.sess.opts.unstable.validate_evm_ir_passes.as_ref())
                 .flatten()
                 .map(|dir| (dir, module.clone()));
+            let tv = crate::solar_tv::Snapshot::capture(gcx, cached, module.to_text());
+            let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let pass_changed = !cached
                 && tracing::trace_span!("evm_ir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module));
@@ -302,6 +303,11 @@ fn run_passes(
                         dir.display()
                     ))
                     .emit();
+                return changed;
+            }
+            if let Some(tv) = tv
+                && tv.check(gcx, "evmir", pass_name, module.name(), module.to_text()).is_err()
+            {
                 return changed;
             }
             if pass_changed && let Some(target_support_before) = target_support_before {
@@ -373,6 +379,9 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
     for pass in passes {
         if let Some(pass) = pass {
             changed |= run_passes(gcx, module, &[pass], Some(&name));
+            if gcx.dcx().has_errors().is_err() {
+                break;
+            }
         } else if gcx.sess.opts.unstable.pass_diff {
             let text = module.to_text();
             print_pass_diff(&name, "none", &text, &text);
