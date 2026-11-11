@@ -13,6 +13,7 @@ mod block_layout;
 mod cfg_simplify;
 mod coalesce_copies;
 pub(crate) mod compact_pushes;
+mod const_fold;
 pub(super) mod data;
 mod dce;
 mod jumpi_fallthrough;
@@ -116,6 +117,7 @@ static ALL_PASSES: &[&dyn EvmPass] = &[
     &peephole::Peephole::EARLY,
     &peephole::Peephole::FINAL,
     &peephole::LateWord,
+    &const_fold::ConstFold,
     &dce::Dce,
     &tail_copy::InlineReturns,
     &reorder_pushes::REORDER_PUSHES,

@@ -20,9 +20,7 @@ bb0:                                              ; runtime dispatch entry + fun
   jumpi
   push 128
   push 7
-  push 64
-  dup 3
-  add
+  push 192
   mstore
   dup 1
   keccak256
@@ -37,22 +35,8 @@ bb4 [cold]:
   revert
 bb6 [entry]:                                      ; function dynamicArray() public pure returns (bytes32 result) [selector 0x0e77e024]
   push 128
-  dup 1
-  dup 2
-  add
-  dup 1
-  push 64
-  shr
-  swap 1
-  dup 3
-  gt
-  or
-  push bb8
-  jumpi
   push 7
-  push 96
-  dup 3
-  add
+  push 224
   mstore
   push 32
   add
@@ -64,13 +48,3 @@ bb6 [entry]:                                      ; function dynamicArray() publ
   push 32
   push 0
   return
-bb8 [cold]:
-  push 65
-  push 32
-  mstore
-  push 0x4e487b71
-  push 0
-  mstore
-  push 36
-  push 28
-  revert

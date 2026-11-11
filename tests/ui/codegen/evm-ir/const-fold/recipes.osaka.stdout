@@ -1,0 +1,41 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/const-fold/recipes.evmir (before const-fold) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/const-fold/recipes.evmir (after const-fold) ===
+  @module Recipes
+  bb0:
+    push 0
+    not
+    push 0
+    mstore
+    push 0
+    not
+    push 8
+    shr
+    push 32
+    mstore
+    stop
+  bb1:
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 0
+    mstore
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 32
+    mstore
+    stop
+  bb2:
+-   push 0
+-   not
+-   push 8
+-   shr
+    push 255
+-   and
+    push 0
+    mstore
+-   push 0
++   push 255
+    not
+-   push 8
+-   shl
+    push 32
+    mstore
+    stop
+  

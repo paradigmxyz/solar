@@ -1,0 +1,56 @@
+//@ compile-flags: -Zevm-ir-pipeline=const-fold -Zdebugify=check
+// A materialization takes the folded operation's origin and the function events the range agrees
+// on. Removed operands take their origins with them, and a removed instruction's function events
+// move to the instruction before it. No rewrite invents a location.
+@module DebugConstFold
+bb0:
+  push 128 !metadata(span=1..2)
+  push 32 !metadata(span=3..4, invoke=folded@10..30)
+  dup 2 !metadata(span=5..6)
+  add !metadata(span=7..8)
+  stop
+
+// A `DUP` of zero becomes `PUSH0` with its own origin.
+bb1:
+  push 0 !metadata(span=11..12)
+  dup 1 !metadata(span=13..14)
+  stop
+
+// An identity deletes the constant and the operation; the survivor keeps its own origin.
+bb2:
+  calldatasize !metadata(span=21..22)
+  push 0 !metadata(span=23..24, invoke=folded@10..30)
+  add !metadata(span=25..26)
+  stop
+
+// An absorbing constant leaves a `POP` and the result, both with the operation's origin.
+bb3:
+  calldatasize !metadata(span=31..32)
+  push 0 !metadata(span=33..34)
+  mul !metadata(span=35..36, exit=return)
+  stop
+
+// A closed other operand goes with the constant, and the result takes the operation's origin.
+bb4:
+  push 7 !metadata(span=41..42)
+  push 0 !metadata(span=43..44)
+  mul !metadata(span=45..46)
+  stop
+
+// A dead producer and its `POP` go, and the exit event moves to the instruction before.
+bb5:
+  calldatasize !metadata(span=51..52)
+  push 9 !metadata(span=53..54, exit=return)
+  pop !metadata(span=55..56)
+  stop
+
+// A constant zero branch goes with its label and condition.
+bb6:
+  calldatasize !metadata(span=61..62)
+  push 0 !metadata(span=63..64)
+  push bb7 !metadata(span=65..66)
+  jumpi !metadata(span=67..68)
+  stop
+
+bb7:
+  stop !metadata(span=71..72)

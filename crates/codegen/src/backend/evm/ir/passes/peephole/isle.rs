@@ -6,7 +6,7 @@
 //! window extractors, instruction facets, and opcode classes the rules call.
 
 use super::{
-    super::utils::{is_split_point, symbolic_stack_op},
+    super::utils::{is_split_point, is_unprotected, symbolic_stack_op},
     Edit, Rules,
 };
 use crate::{
@@ -126,12 +126,6 @@ fn word_effect(inst: &Instruction) -> Option<StackEffect> {
         || inst.as_stack_op().is_some()
         || inst.as_evm_opcode().is_some_and(op::is_unaffected_by_preceding_push))
     .then(|| inst.stack_effect())
-}
-
-/// Returns whether the instructions from `start` on, and the boundary before them, may be replaced.
-fn is_unprotected(instructions: &[Instruction], start: usize) -> bool {
-    is_split_point(instructions, start)
-        && !instructions[start..].iter().any(Instruction::keeps_with_next)
 }
 
 /// Counts the trailing `POP`s of `instructions`, up to `limit`, and returns them with the depth

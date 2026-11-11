@@ -1,0 +1,87 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/const-fold/fold.evmir (before const-fold) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/const-fold/fold.evmir (after const-fold) ===
+  @module Fold
+  bb0:
+    push 128
+-   push 32
+-   dup 2
+-   add
++   push 160
+    push 0
+    mstore
+    stop
+  bb1:
+-   push 5
+-   push 100
+-   sub
+-   push 3
+-   mul
++   push 285
+    push 0
+    mstore
+    stop
+  bb2:
+    push 0
+    push 7
+    dup 2
+    push 0
+    mstore
+    push 32
+    mstore
+    pop
+    stop
+  bb3:
+    push 7
+    dup 1
+    push 0
+    mstore
+    push 32
+    mstore
+    stop
+  bb4:
+    calldatasize
+    push 32
+    dup 2
+    add
+    push 0
+    mstore
+    push 1
+    calldatasize
+    push 2
+    add
+    add
+    push 32
+    mstore
+    stop
+  bb5:
+    push 1
+-   push 2
+-   dup 2
+-   add
+-   dup 2
+-   mul
++   push 3
+    push 0
+    mstore
+    pop
+    stop
+  bb6:
+-   push 1
+-   push 8
+-   shl
+-   push 4
+-   shr
++   push 16
+    push 0
+    mstore
+    stop
+  bb7:
++   push 1
+    push 200
+-   push 2
+-   exp
++   shl
+    push 0
+    mstore
+    stop
+  

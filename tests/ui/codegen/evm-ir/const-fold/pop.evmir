@@ -1,0 +1,39 @@
+//@ revisions: paris osaka
+//@ compile-flags: -Zevm-ir-pipeline=const-fold
+//@[paris] compile-flags: --evm-version=paris
+//@[osaka] compile-flags: --evm-version=osaka
+@module Pop
+
+// A closed producer right before `POP` goes with it: a push, a label, a `DUP`, or a pure
+// operation over closed operands. Words below the block are unknown and stay.
+bb0 [stack=2]:
+  push 7
+  pop
+  push bb1
+  pop
+  dup 2
+  pop
+  dup 1
+  iszero
+  pop
+  push 3
+  push 4
+  add
+  pop
+  stop
+
+// The producer must end right before the `POP`, and an operation that reads state is not pure.
+bb1:
+  calldatasize
+  pop
+  push 1
+  swap 1
+  pop
+  push 1
+  calldatasize
+  add
+  pop
+  push 0
+  mload
+  pop
+  stop

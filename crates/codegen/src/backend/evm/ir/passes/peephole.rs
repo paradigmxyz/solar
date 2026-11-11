@@ -1,8 +1,9 @@
 //! Local peephole optimization over scheduled EVM IR.
 //!
 //! The rewrite rules are written in ISLE in `isle/evm-ir/peephole.isle`; this module
-//! drives them over each block and applies the edits they return. Matching uses
-//! the same ordered rules on each successive prefix, retrying its tail after
+//! drives them over each block and applies the edits they return. The early and final runs
+//! first fold constants in each block they do not skip, as the `const-fold` pass does. Matching
+//! uses the same ordered rules on each successive prefix, retrying its tail after
 //! every edit so newly adjacent operations can simplify immediately.
 //!
 //! Prefixes are inspected in place until the first rewrite. Only then is the
@@ -50,8 +51,11 @@
 //! instruction. Removed operand locations are dropped, and function events are moved once.
 
 use super::{
-    EvmPass, block_layout::terminator_kind, compact_pushes::materialize_immediate,
-    utils::MachineInstKey,
+    EvmPass,
+    block_layout::terminator_kind,
+    compact_pushes::materialize_immediate,
+    const_fold::{self, Folder},
+    utils::{MachineInstKey, replacement_debug_info},
 };
 use crate::{
     backend::evm::{
@@ -171,6 +175,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
     let final_cleanup = rules == Rules::Final;
     let mut changed = false;
     let mut scratch = Vec::new();
+    let mut folder = Folder::new(target);
     let clean = &mut module.peephole_clean;
     for block in &mut module.blocks {
         // The late rules are separate from the cached early and final ones.
@@ -180,14 +185,21 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
         let early_clean = final_cleanup && recorded == Some(false);
         // Dead stack traffic before a terminator that cannot observe it is dead-code
         // elimination's to remove; this pass only rewrites what it can see locally.
+        // Folding found nothing in contents that are early-clean, and the late rules leave it out.
         let rewrites = if skip {
             0
         } else {
-            Driver { target, rules, block: block.label }.run(
-                &mut block.instructions,
-                &mut scratch,
-                early_clean,
-            )
+            let folded = if early_clean || rules == Rules::Late {
+                0
+            } else {
+                folder.run(&mut block.instructions, &mut scratch)
+            };
+            folded
+                + Driver { target, rules, block: block.label }.run(
+                    &mut block.instructions,
+                    &mut scratch,
+                    early_clean,
+                )
         };
         // The unchanged contents are clean under these rules, and under the final rules as well
         // when they were already clean under the early ones.
@@ -416,20 +428,7 @@ impl Edit {
                 instructions.remove(start);
             }
             Self::FoldConstants { value } => {
-                // NOTE: The materialization computes the old root's value on the same path, so
-                // every instruction of it takes the root's source context. Operand locations
-                // disappear.
-                let context =
-                    replacement_debug_info(&instructions[start..], instructions.len() - start - 1);
-                instructions.truncate(start);
-                materialize_immediate(instructions, target.evm_version(), value, &context);
-                let last = instructions.last_mut().unwrap();
-                if let Some(exit) = context.function_exit() {
-                    last.metadata.set_function_exit(exit);
-                }
-                if let Some(function) = context.function_invoke() {
-                    instructions[start].metadata.set_function_invoke(function);
-                }
+                const_fold::replace_with_constant(target, instructions, start, value, false);
             }
             Self::AddNegated { value } => {
                 // push -c; add
@@ -641,13 +640,6 @@ fn instruction_sequence(instructions: &[Instruction]) -> impl fmt::Display + '_ 
         }
         Ok(())
     })
-}
-
-/// Keeps the replaced result's source context and the window's compatible function events.
-fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata {
-    let mut context = instructions[root].metadata.clone();
-    context.merge_function_events(instructions.iter().map(|inst| &inst.metadata));
-    context
 }
 
 /// Gives a survivor that lacks a location, with no explained kind, the location of the removed

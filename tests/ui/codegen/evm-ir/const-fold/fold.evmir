@@ -1,0 +1,99 @@
+//@ revisions: paris osaka
+//@ compile-flags: -Zevm-ir-pipeline=const-fold
+//@[paris] compile-flags: --evm-version=paris
+//@[osaka] compile-flags: --evm-version=osaka
+@module Fold
+
+// A `DUP` of a known constant is a constant, so the sum folds: `PUSH1 160` is shorter and cheaper
+// than `PUSH1 32; DUP2; ADD`.
+bb0:
+  push 128
+  push 32
+  dup 2
+  add
+  push 0
+  mstore
+  stop
+
+// Nested operations fold bottom up, and the operand order of a non-commutative operation holds.
+bb1:
+  push 5
+  push 100
+  sub
+  push 3
+  mul
+  push 0
+  mstore
+  stop
+
+// A `DUP` of zero becomes `PUSH0` where the target has it, and stays where `PUSH1 0` costs more.
+bb2:
+  push 0
+  push 7
+  dup 2
+  push 0
+  mstore
+  push 32
+  mstore
+  pop
+  stop
+
+// A `DUP` of another constant is a byte shorter than a push, so it stays.
+bb3:
+  push 7
+  dup 1
+  push 0
+  mstore
+  push 32
+  mstore
+  stop
+
+// An unknown operand, or operand producers that are not adjacent, leave the operation alone.
+bb4:
+  calldatasize
+  push 32
+  dup 2
+  add
+  push 0
+  mstore
+  push 1
+  calldatasize
+  push 2
+  add
+  add
+  push 32
+  mstore
+  stop
+
+// The folded word is closed, so it folds again with the constant that follows.
+bb5:
+  push 1
+  push 2
+  dup 2
+  add
+  dup 2
+  mul
+  push 0
+  mstore
+  pop
+  stop
+
+// Constant shifts collapse into the one word they compute.
+bb6:
+  push 1
+  push 8
+  shl
+  push 4
+  shr
+  push 0
+  mstore
+  stop
+
+// A folded word may take several instructions: `2^200` is cheaper as a shift than as `EXP`.
+bb7:
+  push 200
+  push 2
+  exp
+  push 0
+  mstore
+  stop

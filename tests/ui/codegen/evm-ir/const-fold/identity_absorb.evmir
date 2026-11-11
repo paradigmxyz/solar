@@ -1,0 +1,143 @@
+//@ revisions: paris osaka
+//@ compile-flags: -Zevm-ir-pipeline=const-fold
+//@[paris] compile-flags: --evm-version=paris
+//@[osaka] compile-flags: --evm-version=osaka
+@module IdentityAbsorb
+
+// A constant top operand that makes the operation return its other operand deletes both. The
+// word below, here the first calldata word, is unknown and is never inspected.
+bb0:
+  push 4
+  calldataload
+  push 0
+  add
+  push 0
+  or
+  push 0
+  xor
+  push 0
+  shl
+  push 0
+  shr
+  push 0
+  sar
+  push 1
+  mul
+  push 0
+  mstore
+  stop
+
+// A constant that absorbs the other operand leaves a `POP` and the constant, and the unknown
+// word cannot be dropped any other way.
+bb1:
+  push 4
+  calldataload
+  push 0
+  mul
+  push 0
+  mstore
+  push 36
+  calldataload
+  push 0
+  div
+  push 32
+  mstore
+  push 68
+  calldataload
+  push 0
+  sdiv
+  push 64
+  mstore
+  push 100
+  calldataload
+  push 0
+  mod
+  push 96
+  mstore
+  push 132
+  calldataload
+  push 0
+  smod
+  push 128
+  mstore
+  push 164
+  calldataload
+  push 0
+  and
+  push 160
+  mstore
+  push 196
+  calldataload
+  push 0
+  gt
+  push 192
+  mstore
+  push 228
+  calldataload
+  push 1
+  exp
+  push 224
+  mstore
+  stop
+
+// When the other operand has a closed producer, it goes too.
+bb2:
+  push 7
+  push 0
+  mul
+  push 0
+  mstore
+  push 5
+  dup 1
+  push 1
+  exp
+  pop
+  stop
+
+// A top operand from a `DUP` of a known constant works as a pushed one.
+bb3:
+  push 0
+  push 4
+  calldataload
+  dup 2
+  add
+  push 0
+  mstore
+  pop
+  stop
+
+// These are neither: the constant is the deeper operand, a different constant, a non-identity
+// operation, or not produced right before the operation.
+bb4:
+  push 0
+  push 4
+  calldataload
+  add
+  push 1
+  push 36
+  calldataload
+  add
+  push 0
+  push 68
+  calldataload
+  sub
+  push 0
+  push 100
+  calldataload
+  eq
+  push 0
+  push 132
+  calldataload
+  swap 1
+  add
+  push 0
+  mstore
+  push 32
+  mstore
+  push 64
+  mstore
+  push 96
+  mstore
+  push 128
+  mstore
+  stop

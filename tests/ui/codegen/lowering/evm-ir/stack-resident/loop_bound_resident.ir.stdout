@@ -129,9 +129,7 @@ bb0:                                              ; runtime dispatch entry + fun
   lt
   push bb3
   jumpi
-  push 32
-  dup 2
-  add
+  push 192
   dup 4
   dup 4
   dup 3

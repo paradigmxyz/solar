@@ -1,0 +1,49 @@
+//@ revisions: paris osaka
+//@ compile-flags: -Zevm-ir-pipeline=const-fold
+//@[paris] compile-flags: --evm-version=paris
+//@[osaka] compile-flags: --evm-version=osaka
+@module Recipes
+
+// The compact materializations of a mask are already the cheapest pushes of their words, so
+// folding them is no improvement and leaves them alone.
+bb0:
+  push 0
+  not
+  push 0
+  mstore
+  push 0
+  not
+  push 8
+  shr
+  push 32
+  mstore
+  stop
+
+// A literal push of the same word is not rewritten either; compact pushes owns that choice.
+bb1:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0
+  mstore
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 32
+  mstore
+  stop
+
+// A recipe folds with a constant that follows when the result is cheaper, and a shifted mask
+// folds to the shorter complement of a small word.
+bb2:
+  push 0
+  not
+  push 8
+  shr
+  push 255
+  and
+  push 0
+  mstore
+  push 0
+  not
+  push 8
+  shl
+  push 32
+  mstore
+  stop

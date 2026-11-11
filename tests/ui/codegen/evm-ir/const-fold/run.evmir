@@ -1,0 +1,64 @@
+//@ revisions: paris osaka
+//@ compile-flags: -Zevm-ir-pipeline=const-fold
+//@[paris] compile-flags: --evm-version=paris
+//@[osaka] compile-flags: --evm-version=osaka
+//@ run-call: f(uint256)(uint256,uint256,uint256,uint256) 0 => 0, 160, 1, 7
+//@ run-call: f(uint256)(uint256,uint256,uint256,uint256) 9 => 9, 160, 1, 7
+//@ run-call: f(uint256)(uint256,uint256,uint256,uint256) 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff => 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 160, 1, 7
+
+// Folds that change the code but not what it computes, for any calldata word `x`:
+// `x + 0 | 0 * 1` is `x`; `128 + 32` through a `DUP` is 160 and `x * 0` adds nothing; `x ** 1`
+// is 1 and `x > 0` is 0 in a sum; a branch on `5 - 5` never jumps.
+@module run
+bb0:
+  push 4
+  calldataload
+  push 0
+  add
+  push 0
+  or
+  push 1
+  mul
+  push 0
+  mstore
+  push 128
+  push 32
+  dup 2
+  add
+  push 4
+  calldataload
+  push 0
+  mul
+  add
+  push 32
+  mstore
+  pop
+  push 4
+  calldataload
+  push 1
+  exp
+  push 4
+  calldataload
+  push 0
+  gt
+  add
+  push 64
+  mstore
+  push 5
+  push 5
+  sub
+  push bb1
+  jumpi
+  push 7
+  push 96
+  mstore
+  push 128
+  push 0
+  return
+bb1:
+  push 9
+  push 96
+  mstore
+  push 128
+  push 0
+  return

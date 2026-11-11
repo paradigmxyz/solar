@@ -175,9 +175,7 @@ bb26 [entry]:                                     ; function at(uint256[] memory
   push 36
   calldataload
   swap 3
-  push 32
-  dup 4
-  add
+  push 160
   calldatacopy
   swap 2
   dup 2

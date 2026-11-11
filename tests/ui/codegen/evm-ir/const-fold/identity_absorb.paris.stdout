@@ -1,0 +1,137 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/const-fold/identity_absorb.evmir (before const-fold) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/const-fold/identity_absorb.evmir (after const-fold) ===
+  @module IdentityAbsorb
+  bb0:
+    push 4
+    calldataload
+    push 0
+-   add
+-   push 0
+-   or
+-   push 0
+-   xor
+-   push 0
+-   shl
+-   push 0
+-   shr
+-   push 0
+-   sar
+-   push 1
+-   mul
+-   push 0
+    mstore
+    stop
+  bb1:
+    push 4
+    calldataload
++   pop
+    push 0
+-   mul
+    push 0
+    mstore
+    push 36
+    calldataload
++   pop
+    push 0
+-   div
+    push 32
+    mstore
+    push 68
+    calldataload
++   pop
+    push 0
+-   sdiv
+    push 64
+    mstore
+    push 100
+    calldataload
++   pop
+    push 0
+-   mod
+    push 96
+    mstore
+    push 132
+    calldataload
++   pop
+    push 0
+-   smod
+    push 128
+    mstore
+    push 164
+    calldataload
++   pop
+    push 0
+-   and
+    push 160
+    mstore
+    push 196
+    calldataload
++   pop
+    push 0
+-   gt
+    push 192
+    mstore
+    push 228
+    calldataload
++   pop
+    push 1
+-   exp
+    push 224
+    mstore
+    stop
+  bb2:
+-   push 7
+    push 0
+-   mul
+    push 0
+    mstore
+    push 5
+-   dup 1
+-   push 1
+-   exp
+-   pop
+    stop
+  bb3:
+    push 0
+    push 4
+    calldataload
+-   dup 2
+-   add
+    push 0
+    mstore
+    pop
+    stop
+  bb4:
+    push 0
+    push 4
+    calldataload
+    add
+    push 1
+    push 36
+    calldataload
+    add
+    push 0
+    push 68
+    calldataload
+    sub
+    push 0
+    push 100
+    calldataload
+    eq
+    push 0
+    push 132
+    calldataload
+    swap 1
+    add
+    push 0
+    mstore
+    push 32
+    mstore
+    push 64
+    mstore
+    push 96
+    mstore
+    push 128
+    mstore
+    stop
+  

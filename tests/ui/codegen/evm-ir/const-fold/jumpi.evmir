@@ -1,0 +1,44 @@
+//@ revisions: paris osaka
+//@ compile-flags: -Zevm-ir-pipeline=const-fold
+//@[paris] compile-flags: --evm-version=paris
+//@[osaka] compile-flags: --evm-version=osaka
+@module Jumpi
+
+// A constant zero condition never branches, so the condition, the label, and the jump go.
+bb0:
+  push 0
+  push bb3
+  jumpi
+  push 5
+  push 5
+  sub
+  push bb3
+  jumpi
+  push 1
+  push 1
+  gt
+  push bb3
+  jumpi
+  stop
+
+// A taken or unknown condition, a condition not produced right before the label, and a jump to
+// a computed destination stay.
+bb1:
+  push 1
+  push bb3
+  jumpi
+  calldatasize
+  push bb3
+  jumpi
+  push 0
+  calldatasize
+  pop
+  push bb3
+  jumpi
+  push 0
+  calldatasize
+  jumpi
+  stop
+
+bb3:
+  stop

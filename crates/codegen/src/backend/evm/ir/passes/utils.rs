@@ -6,7 +6,7 @@
 
 use crate::{
     backend::evm::{
-        ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
+        ir::{BlockId, Instruction, Metadata, Module, PushValue, TerminatorKind},
         op,
     },
     target::Target,
@@ -104,6 +104,19 @@ pub(super) fn symbolic_stack_op(inst: &Instruction) -> Option<SymbolicStackOp> {
 pub(super) fn is_split_point(instructions: &[Instruction], index: usize) -> bool {
     debug_assert!(index <= instructions.len());
     index == 0 || !instructions[index - 1].keeps_with_next()
+}
+
+/// Returns whether the instructions from `start` on, and the boundary before them, may be replaced.
+pub(super) fn is_unprotected(instructions: &[Instruction], start: usize) -> bool {
+    is_split_point(instructions, start)
+        && !instructions[start..].iter().any(Instruction::keeps_with_next)
+}
+
+/// Keeps the replaced result's source context and the window's compatible function events.
+pub(super) fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata {
+    let mut context = instructions[root].metadata.clone();
+    context.merge_function_events(instructions.iter().map(|inst| &inst.metadata));
+    context
 }
 
 /// Allocates unused textual block labels without assuming labels are dense.

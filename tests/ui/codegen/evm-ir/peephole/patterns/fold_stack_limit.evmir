@@ -10,5 +10,4 @@
 bb0 [stack=1023]:
   push 0x00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
   not
-  pop
   stop

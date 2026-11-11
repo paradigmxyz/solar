@@ -1,0 +1,13 @@
+debugify: EVM IR DebugConstFold after const-fold: 11/23 origins retained, 12 lost
+debugify: lost 3..4
+debugify: lost 5..6
+debugify: lost 23..24
+debugify: lost 25..26
+debugify: lost 33..34
+debugify: lost 41..42
+debugify: lost 43..44
+debugify: lost 53..54
+debugify: lost 55..56
+debugify: lost 63..64
+debugify: lost 65..66
+debugify: lost 67..68
