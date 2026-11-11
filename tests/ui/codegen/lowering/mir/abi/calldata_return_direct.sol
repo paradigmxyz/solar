@@ -3,7 +3,7 @@
 
 // A returned calldata struct, array, or array of narrow words encodes straight from calldata into
 // the return buffer, as `abi.encode` does: no memory object is allocated and no copy runs through
-// memory. A narrow word is validated in place, then the words copy as one block.
+// memory. A narrow word is validated in the one loop that copies it.
 contract CalldataReturnDirect {
     struct S {
         uint256 value;
@@ -34,11 +34,10 @@ contract CalldataReturnDirect {
     // CHECK-LABEL: fn @narrow()
     // CHECK-NOT: mstore 64
     // CHECK-NOT: mload
-    // CHECK: calldatacopy
-    // CHECK-NEXT: sub
-    // CHECK-NEXT: returndata
-    // CHECK: shr {{v[0-9]+}}, 160
-    // CHECK-NOT: mstore
+    // CHECK: returndata
+    // CHECK: [[WORD:v[0-9]+]] = calldataload
+    // CHECK-NEXT: shr [[WORD]], 160
+    // CHECK: mstore {{v[0-9]+}}, [[WORD]]
     function narrow(address[] calldata a) external pure returns (address[] calldata) {
         return a;
     }

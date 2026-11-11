@@ -1892,21 +1892,6 @@ fn encode_word_array(
         PtrLocation::Memory => memory_object_len(builder, value),
         _ => builder.slice_len(value),
     };
-    if let Some(cleanup) = cleanup
-        && location == PtrLocation::Calldata
-    {
-        // Like solc, validate each word the encoding reads, which then copies as one block.
-        // for index in 0..len:
-        //   if invalid(calldataload slice_ptr(value) + index * 32) { revert(0, 0) }
-        let word = builder.imm(32);
-        let source = builder.slice_ptr(value);
-        builder.counted_loop(len, |builder, index| {
-            let offset = builder.mul(index, word);
-            let position = builder.add(source, offset);
-            let value = builder.load(position, PtrLocation::Calldata);
-            validate_calldata_word(builder, cleanup, value);
-        });
-    }
     builder.store(dest, len);
     let word = builder.imm(32);
     let bytes = builder.mul(len, word);
@@ -1916,8 +1901,47 @@ fn encode_word_array(
         _ => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
-    // Memory elements that need cleanup are copied one word at a time; full words and validated
-    // calldata words copy as one block.
+    if let Some(cleanup) = cleanup
+        && location == PtrLocation::Calldata
+    {
+        // Like solc, one loop reads, validates, and writes each word at its own wrapping address.
+        // The loop ends at the end of the output, so a length whose byte size wraps, which solc
+        // runs out of gas on, must not reach it.
+        // if len > 2**251 - 1 { revert(0, 0) }
+        // delta = data_source - data_dest
+        // destination = data_dest
+        // while destination != tail:
+        //   word = calldataload destination + delta
+        //   if invalid(word) { revert(0, 0) }
+        //   mstore destination, word
+        //   destination += 32
+        let max_length = builder.imm(U256::MAX >> 5);
+        let too_long = builder.gt(len, max_length);
+        builder.revert_if(too_long, RevertReason::Empty);
+        let delta = builder.sub(data_source, data_dest);
+        let preheader = builder.current_block();
+        let header = builder.create_block();
+        let body = builder.create_block();
+        let done = builder.create_block();
+        builder.jump(header);
+        builder.switch_to_block(header);
+        let destination = builder.phi(vec![(preheader, data_dest)]);
+        let more = builder.ne(destination, tail);
+        builder.branch(more, body, done);
+        builder.switch_to_block(body);
+        let source = builder.add(destination, delta);
+        let value = builder.load(source, PtrLocation::Calldata);
+        validate_calldata_word(builder, cleanup, value);
+        builder.store(destination, value);
+        let next_destination = builder.add(destination, word);
+        let backedge = builder.current_block();
+        builder.jump(header);
+        builder.add_phi_incoming(destination, backedge, next_destination);
+        builder.switch_to_block(done);
+        return tail;
+    }
+    // Memory elements that need cleanup are copied one word at a time; full words copy as one
+    // block.
     if let Some(cleanup) = cleanup
         && location == PtrLocation::Memory
     {
