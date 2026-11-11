@@ -42,8 +42,9 @@
 //! `0xed572b27`): the fact and its two operands' words. The payload stays in the scratch words a
 //! panic uses, so the checks move no memory the program can observe. The fact word packs the
 //! predicate (1: `eq`, 2: `ne`, 3: `ult`, 4: `ule`) in bits 104 and up, the pass that relied on
-//! it (1: `sccp`, 2: `check-elim`, 3: `cse`, 4: `load-pre`, 5: `indvar-simplify`) in bits 96 to
-//! 103, then the function's index in its module, the block and the left operand, as MIR text
+//! it (1: `sccp`, 2: `check-elim`, 3: `cse`, 4: `load-pre`, 5: `indvar-simplify`, 7: a source
+//! `@custom:ensures` clause) in bits 96 to 103, then the function's index in its module, the block
+//! and the left operand, as MIR text
 //! numbers them (an argument with bit 31 set), in 32-bit fields, so
 //! `-Zcheck-analyses=true -Zdump=mir` shows the claim next to the code it was made about.
 //!
@@ -54,6 +55,14 @@
 //! analysis result only cost decisions read. A record keeps the values it is about alive, so a
 //! checked build can optimize slightly differently from an unchecked one; a record costs nothing
 //! in the cost model, which keeps that difference small.
+//!
+//! Source specifications are records too (see the function lowering's `spec` module): a
+//! `@custom:ensures` clause is a `spec_ensures` record at each return, tested and proved like any
+//! fact. A `@custom:requires` clause is a `spec_requires` record at function entry, a premise no
+//! one proved: it is neither tested nor proved, and no query assumes it, since every
+//! `spec_ensures` record already carries the function's premises as the left side of an
+//! implication. This pass drops premises with the pure computations only they read, so none
+//! reaches the backend.
 
 use crate::mir::{
     AssumePredicate, BlockId, EffectKind, FactSource, Function, FunctionBuilder, FunctionId,
@@ -151,6 +160,18 @@ pub(super) fn record_fact(
     let kind = InstKind::Assume { predicate, source, lhs, rhs };
     let inst = func.alloc_inst(Instruction::new(kind, None).with_debug_loc_dropped());
     func.blocks[block].instructions.push(inst);
+}
+
+/// Records a source specification clause `condition`, an `i1`, at the end of `block`: a premise
+/// for [`FactSource::SpecRequires`], an obligation for [`FactSource::SpecEnsures`].
+pub(crate) fn record_spec(
+    func: &mut Function,
+    block: BlockId,
+    source: FactSource,
+    condition: ValueId,
+    zero: ValueId,
+) {
+    record_fact(func, block, source, AssumePredicate::Ne, condition, zero);
 }
 
 /// Whether `module` holds a recorded fact, which only [`LowerAssumes`] lowers.
@@ -275,6 +296,8 @@ const fn source_id(source: FactSource) -> u8 {
         FactSource::Cse => 3,
         FactSource::LoadPre => 4,
         FactSource::IndvarSimplify => 5,
+        FactSource::SpecRequires => 6,
+        FactSource::SpecEnsures => 7,
     }
 }
 
@@ -288,15 +311,21 @@ fn holds(predicate: AssumePredicate, lhs: U256, rhs: U256) -> bool {
     }
 }
 
-/// Removes every `assume` from `func`, returning the facts they record in block order.
+/// Removes every `assume` from `func`, returning the facts they record in block order, all but
+/// specification premises, which are dropped with the pure computations only they read.
 fn take_assumed(func: &mut Function) -> Vec<Fact> {
     let mut facts = Vec::new();
+    let mut premises = Vec::new();
     for block in func.blocks.indices() {
         let mut instructions = std::mem::take(&mut func.blocks[block].instructions);
         instructions.retain(|&id| {
             let InstKind::Assume { predicate, source, lhs, rhs } = func.inst(id).kind else {
                 return true;
             };
+            if source == FactSource::SpecRequires {
+                premises.extend([lhs, rhs]);
+                return false;
+            }
             // A later rewrite may have replaced both operands with constants that satisfy the
             // fact; constants that do not still fail wherever the record is reached.
             let decided = func.value_u256(lhs).zip(func.value_u256(rhs));
@@ -307,7 +336,42 @@ fn take_assumed(func: &mut Function) -> Vec<Fact> {
         });
         func.blocks[block].instructions = instructions;
     }
+    remove_unused_pure(func, premises);
     facts
+}
+
+/// Removes the pure instructions computing `roots`, and those computing their operands, once
+/// nothing reads them.
+fn remove_unused_pure(func: &mut Function, roots: Vec<ValueId>) {
+    if roots.is_empty() {
+        return;
+    }
+    let mut uses: IndexVec<ValueId, u32> = IndexVec::from_vec(vec![0; func.num_values()]);
+    for block in &func.blocks {
+        for &inst in &block.instructions {
+            func.inst(inst).kind.visit_operands(|value| uses[value] += 1);
+        }
+        if let Some(terminator) = &block.terminator {
+            terminator.visit_operands(|value| uses[value] += 1);
+        }
+    }
+    let mut dead = DenseBitSet::new_empty(func.num_insts());
+    let mut worklist = roots;
+    while let Some(value) = worklist.pop() {
+        if let Value::Inst(inst) = *func.value(value)
+            && uses[value] == 0
+            && !func.inst(inst).kind.has_side_effects()
+            && dead.insert(inst)
+        {
+            func.inst(inst).kind.visit_operands(|operand| {
+                uses[operand] -= 1;
+                worklist.push(operand);
+            });
+        }
+    }
+    for block in func.blocks.iter_mut() {
+        block.instructions.retain(|inst| !dead.contains(*inst));
+    }
 }
 
 fn instrument(func: &mut Function, function: FunctionId, facts: &[Fact]) {

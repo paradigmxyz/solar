@@ -1,0 +1,24 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// The fact after the call holds: the callee stops for every word but zero, so the code after it
+// runs only for zero, and the check lowering inserts for the fact never reverts. The validator
+// sees it by running the callee's body.
+@module ValidateHaltingCall
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    icall @stop_unless_zero, v0
+    assume ult sccp, v0, 1
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @stop_unless_zero(arg0: i256) {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb2, bb1
+  bb1:
+    stop
+  bb2:
+    ret
+}

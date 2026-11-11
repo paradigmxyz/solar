@@ -52,7 +52,7 @@ pub(crate) mod memory_dse;
 pub(crate) mod merge_aborts;
 pub(crate) mod place_reads;
 pub(crate) mod pre;
-mod prove_analyses;
+pub(crate) mod prove_analyses;
 pub(crate) mod pure_eval;
 pub(crate) mod readonly_eval;
 pub(crate) mod sccp;
@@ -63,4 +63,5 @@ pub(crate) mod storage_dse;
 pub(crate) mod storage_promotion;
 mod utils;
 
+pub(crate) mod validate_passes;
 pub(crate) mod word_sequence;

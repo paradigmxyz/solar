@@ -938,6 +938,19 @@ impl Module {
         })
     }
 
+    /// Returns the textual MIR of one function, as [`Self::to_text`] prints it.
+    pub fn function_text(&self, id: FunctionId) -> impl fmt::Display + '_ {
+        let (receive, fallback) = (self.receive(), self.fallback());
+        super::display::display_function_text(
+            &self.functions[id],
+            Some(self),
+            self.constructor == Some(id),
+            self.dispatch_entry == Some(id),
+            receive == Some(id),
+            fallback == Some(id),
+        )
+    }
+
     /// Returns this module's DOT-format CFGs.
     pub fn to_dot(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {

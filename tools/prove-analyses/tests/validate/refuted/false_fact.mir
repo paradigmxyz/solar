@@ -1,0 +1,12 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A rewrite that changes the function: the fact is false, so the check lowering inserts for it
+// reverts for calldata the function before returned.
+@module ValidateFalseFact
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    assume ult sccp, v0, 10
+    mstore 0, v0
+    returndata 0, 32
+}

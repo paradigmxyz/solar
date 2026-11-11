@@ -13,7 +13,7 @@ pub(crate) mod analysis;
 pub mod lower;
 pub mod pass;
 pub(crate) mod pass_manager;
-mod transform;
+pub(crate) mod transform;
 pub(crate) mod utils;
 
 pub use transform::lower_assumes::should_check_analyses;

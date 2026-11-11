@@ -1,0 +1,13 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/validation/first_stack_overflow_per_module.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/validation/first_stack_overflow_per_module.evmir (after none) ===
+  @module module
+  bb0 [stack=1023]:
+    dup 1
+    dup 1
+    jump bb1
+  bb1:
+    push 0
+    push 0
+    stop
+  
+{"contracts":{"ROOT/tests/ui/codegen/evm-ir/validation/first_stack_overflow_per_module.evmir:module":{"bin-runtime":"80805f5f"}},"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}

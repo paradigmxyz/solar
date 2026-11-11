@@ -506,6 +506,31 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
     pub prove_analyses: Option<std::path::PathBuf>,
 
+    /// Write an SMT-LIB query to this directory for every function a MIR pass changes, asking
+    /// whether some input makes it differ from its version before the pass: Z3 answering `unsat`
+    /// proves the pass preserved it. `-` writes them to stdout. See `tools/prove-analyses`.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub validate_passes: Option<std::path::PathBuf>,
+
+    /// Write an SMT-LIB query to this directory for every block of every function stack
+    /// scheduling lowers, asking whether its scheduled EVM IR can differ from the MIR block when
+    /// the stack and memory hold the block's values where the schedule says: Z3 answering `unsat`
+    /// proves the block lowered faithfully. `-` writes them to stdout. See `tools/prove-analyses`.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub validate_backend: Option<std::path::PathBuf>,
+
+    /// Testing only: corrupt what `-Zvalidate-backend` reads, so that its queries must find a
+    /// difference. `layout` swaps the first two values of the first block layout that names two,
+    /// and `opcode` turns the first `add` of the scheduled EVM IR into `sub`. The compiled code is
+    /// unchanged.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "FAULT", hide = true))]
+    pub validate_backend_fault: Option<String>,
+    /// Write an SMT-LIB query to DIR for every code region an EVM IR pass changes, asking whether
+    /// some state makes it differ from its version before the pass: Z3 answering `unsat` proves
+    /// the pass preserved it. `-` writes them to stdout. See `tools/prove-analyses`.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub validate_evm_ir_passes: Option<std::path::PathBuf>,
+
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
@@ -579,6 +604,10 @@ impl UnstableOpts {
             validate_ir: _,
             check_analyses: _,
             prove_analyses: _,
+            validate_passes: _,
+            validate_backend: _,
+            validate_backend_fault: _,
+            validate_evm_ir_passes: _,
             time_passes: _,
             forget_gcx: _,
             help: _,

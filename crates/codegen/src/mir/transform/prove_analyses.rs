@@ -132,8 +132,15 @@ pub(super) fn write_queries(
             query.axioms.join(" "),
         );
         let mut files = vec![(name.clone(), header.clone() + &query.exact)];
+        let abstract_name = name.replace(".smt2", ".abstract.smt2");
         if let Some(abstracted) = &query.abstracted {
-            files.push((name.replace(".smt2", ".abstract.smt2"), header + abstracted));
+            files.push((abstract_name, header + abstracted));
+        } else if !to_stdout {
+            // An abstract tier an earlier compile wrote would stand for this query.
+            match std::fs::remove_file(dir.join(&abstract_name)) {
+                Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error),
+                _ => {}
+            }
         }
         for (name, text) in files {
             if to_stdout {
@@ -151,7 +158,7 @@ pub(super) fn write_queries(
 }
 
 /// A file-name-safe form of a module name.
-fn sanitize(name: &str) -> String {
+pub(crate) fn sanitize(name: &str) -> String {
     name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect()
 }
 
@@ -422,21 +429,23 @@ impl<'a> Prover<'a> {
                     is_zero
                 });
             }
+            // One of the cases that target the block matched, or none matched and the default
+            // targets it.
             Some(Terminator::Switch { value, default, cases }) => {
                 let scrutinee = query.term(*value);
-                let matched: Vec<_> = cases
+                let mut taken: Vec<_> = cases
                     .iter()
                     .filter(|&&(_, case_target)| case_target == target)
                     .map(|&(case, _)| format!("(= {scrutinee} {})", query.term(case)))
                     .collect();
-                if !matched.is_empty() {
-                    query.assert(format!("(or false {})", matched.join(" ")));
-                } else if *default == target {
-                    for &(case, _) in cases {
-                        let case = query.term(case);
-                        query.assert(format!("(not (= {scrutinee} {case}))"));
-                    }
+                if *default == target {
+                    let unmatched: Vec<_> = cases
+                        .iter()
+                        .map(|&(case, _)| format!("(not (= {scrutinee} {}))", query.term(case)))
+                        .collect();
+                    taken.push(format!("(and true {})", unmatched.join(" ")));
                 }
+                query.assert(format!("(or false {})", taken.join(" ")));
             }
             _ => {}
         }
@@ -469,15 +478,18 @@ impl<'a> Prover<'a> {
             query.opaque.insert(fresh.clone());
             query.depend(&phi_term, [fresh.clone()]);
             query.guarantee(&fresh, value);
-            // The facts its predecessor recorded about it, whose other operand the query has.
+            // The facts its predecessor recorded about it, whose other operand the query has,
+            // hold only on the executions that select it: the other operand may be shared with
+            // the other incoming values.
+            let mut option = format!("(= {phi_term} {fresh})");
             for fact in self.facts.iter().filter(|fact| fact.block == predecessor) {
                 let other = if fact.lhs == value { fact.rhs } else { fact.lhs };
                 if (fact.lhs == value || fact.rhs == value) && query.has(other) {
                     let claim = self.claim(query, fact, Some((value, &fresh)));
-                    query.assert(claim);
+                    write!(option, " {claim}").unwrap();
                 }
             }
-            options.push(format!("(= {phi_term} {fresh})"));
+            options.push(format!("(and true {option})"));
         }
         if !options.is_empty() {
             query.assert(format!("(or false {})", options.join(" ")));
@@ -1090,7 +1102,7 @@ struct Encoded {
 }
 
 /// The big-endian word at `ptr` in byte-addressed `memory`.
-fn load_word(memory: &str, ptr: &str) -> String {
+pub(super) fn load_word(memory: &str, ptr: &str) -> String {
     let bytes: Vec<_> = (0..32u64)
         .map(|offset| format!("(select {memory} (bvadd {ptr} {}))", word(U256::from(offset))))
         .collect();
@@ -1098,7 +1110,7 @@ fn load_word(memory: &str, ptr: &str) -> String {
 }
 
 /// `memory` with the big-endian word `value` written at `ptr`.
-fn store_word(memory: &str, ptr: &str, value: &str) -> String {
+pub(super) fn store_word(memory: &str, ptr: &str, value: &str) -> String {
     let mut out = memory.to_owned();
     for offset in 0..32u64 {
         let high = 255 - 8 * offset;
@@ -1258,7 +1270,7 @@ fn write_byte_body() -> String {
     format!("(ite (bvuge (bvsub p a) {size}) w {})", load_word("m", "a"))
 }
 
-fn word(value: U256) -> String {
+pub(crate) fn word(value: U256) -> String {
     op::word::smt_word(value)
 }
 

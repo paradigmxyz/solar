@@ -148,25 +148,28 @@ impl RunCall {
             abi_less,
         )?;
         let actual = execute(&call, spec_id, traced(config))?;
-        if !actual.success {
-            return Err(format!(
-                "`{}` failed with {:?}: 0x{}",
-                display_call(&self.call, call.function.as_deref()),
-                actual.stop,
-                hex::display(&actual.output)
-            ));
-        }
-        if actual.output != call.expected {
-            return Err(format!(
-                "`{}` returned 0x{}, expected 0x{}",
-                display_call(&self.call, call.function.as_deref()),
-                hex::display(&actual.output),
-                hex::display(&call.expected)
-            ));
-        }
-        check_mir(config, build_manager, &self.call, &call, &actual)?;
-        check_evm_ir(config, build_manager, &self.call, &call, &actual)?;
-        check_analyses(config, build_manager, &self.call, &call, &actual, spec_id)
+        let result = (|| {
+            if !actual.success {
+                return Err(format!(
+                    "`{}` failed with {:?}: 0x{}",
+                    display_call(&self.call, call.function.as_deref()),
+                    actual.stop,
+                    hex::display(&actual.output)
+                ));
+            }
+            if actual.output != call.expected {
+                return Err(format!(
+                    "`{}` returned 0x{}, expected 0x{}",
+                    display_call(&self.call, call.function.as_deref()),
+                    hex::display(&actual.output),
+                    hex::display(&call.expected)
+                ));
+            }
+            check_mir(config, build_manager, &self.call, &call, &actual)?;
+            check_evm_ir(config, build_manager, &self.call, &call, &actual)
+        })();
+        let analyses = check_analyses(config, build_manager, &self.call, &call, &actual, spec_id);
+        both(result, analyses)
     }
 }
 
@@ -213,24 +216,27 @@ impl RunCallFail {
             abi_less,
         )?;
         let actual = execute(&call, spec_id, traced(config))?;
-        if actual.success {
-            return Err(format!(
-                "`{}` succeeded with 0x{}, expected failure",
-                display_call(&self.call, call.function.as_deref()),
-                hex::display(&actual.output)
-            ));
-        }
-        if actual.output != call.expected {
-            return Err(format!(
-                "`{}` reverted with 0x{}, expected 0x{}",
-                display_call(&self.call, call.function.as_deref()),
-                hex::display(&actual.output),
-                hex::display(&call.expected)
-            ));
-        }
-        check_mir(config, build_manager, &self.call, &call, &actual)?;
-        check_evm_ir(config, build_manager, &self.call, &call, &actual)?;
-        check_analyses(config, build_manager, &self.call, &call, &actual, spec_id)
+        let result = (|| {
+            if actual.success {
+                return Err(format!(
+                    "`{}` succeeded with 0x{}, expected failure",
+                    display_call(&self.call, call.function.as_deref()),
+                    hex::display(&actual.output)
+                ));
+            }
+            if actual.output != call.expected {
+                return Err(format!(
+                    "`{}` reverted with 0x{}, expected 0x{}",
+                    display_call(&self.call, call.function.as_deref()),
+                    hex::display(&actual.output),
+                    hex::display(&call.expected)
+                ));
+            }
+            check_mir(config, build_manager, &self.call, &call, &actual)?;
+            check_evm_ir(config, build_manager, &self.call, &call, &actual)
+        })();
+        let analyses = check_analyses(config, build_manager, &self.call, &call, &actual, spec_id);
+        both(result, analyses)
     }
 }
 
@@ -329,6 +335,17 @@ fn check_analyses(
         return Ok(());
     }
     check_analyses::check(config, build_manager, directive, call, actual, spec_id)
+}
+
+/// A call's result with its `-Zcheck-analyses` run, which runs whether or not the call ended
+/// as the test expects, since a fact the call violates often explains why it did not: both
+/// failures when both fail.
+fn both(result: Result<(), String>, analyses: Result<(), String>) -> Result<(), String> {
+    match (result, analyses) {
+        (Ok(()), analyses) => analyses,
+        (Err(error), Ok(())) => Err(error),
+        (Err(error), Err(analyses)) => Err(format!("{error}\n{analyses}")),
+    }
 }
 
 fn parse_call(args: &str) -> Result<ParsedCall<'_>, String> {
@@ -983,6 +1000,22 @@ fn spec_id(config: &TestConfig) -> Result<SpecId, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reports_both_failures() {
+        let wrong = || Err("`f()` returned 0x02, expected 0x01".to_owned());
+        let violated = || Err("`f()` violates a fact sccp relied on".to_owned());
+        assert_eq!(both(Ok(()), Ok(())), Ok(()));
+        assert_eq!(both(wrong(), Ok(())), wrong());
+        assert_eq!(both(Ok(()), violated()), violated());
+        snapbox::assert_data_eq!(
+            both(wrong(), violated()).unwrap_err(),
+            snapbox::str![[r#"
+`f()` returned 0x02, expected 0x01
+`f()` violates a fact sccp relied on
+"#]]
+        );
+    }
 
     #[test]
     fn parses_empty_expected_output() {
