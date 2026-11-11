@@ -159,6 +159,15 @@ fn spec_errors() {
     assert_data_eq!(tidy(&run.stderr), file!["snapshots/spec_errors.stderr"]);
 }
 
+/// Ghost code that is not erasable: one error per broken non-interference rule, and nothing is
+/// verified.
+#[test]
+fn ghost_errors() {
+    let run = run_verifier(&["--dry-run", "tests/snapshots/ghost_errors.sol"]);
+    assert_data_eq!(tidy(&run.stdout), file!["snapshots/ghost_errors.stdout"]);
+    assert_data_eq!(tidy(&run.stderr), file!["snapshots/ghost_errors.stderr"]);
+}
+
 #[test]
 fn smt_obligations() {
     let out = std::env::temp_dir()
@@ -257,6 +266,11 @@ fn features() {
 #[test]
 fn fixedarrays() {
     check("tests/cases/fixedarrays.sol")
+}
+
+#[test]
+fn ghost() {
+    check("tests/cases/ghost.sol")
 }
 
 #[test]

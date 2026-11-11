@@ -1162,6 +1162,18 @@ impl<'p, 'a> Vc<'p, 'a> {
             );
             self.guard = exit;
         }
+        // A lemma's ensures are assumed at each `@custom:use`, which a lemma that reverts would
+        // make vacuous: what lemmas run must return normally wherever their requires hold.
+        if f.ghost_fn {
+            let exit = std::mem::replace(&mut self.guard, "true".into());
+            self.check(
+                &format!("(not {sites})"),
+                "ghost function may revert: what `@custom:use` runs must return wherever its requires hold",
+                f.item.header.span,
+                None,
+            );
+            self.guard = exit;
+        }
         for en in &f.ensures {
             let v = self.eval_spec(en.expr)?;
             self.check(&v.t, "postcondition not satisfied", en.span, Some(en));

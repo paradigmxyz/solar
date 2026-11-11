@@ -92,6 +92,25 @@ plus:
 - `__time`: the latest `block.timestamp` the contract has seen.
 - Calls to spec functions.
 
+## Ghost code
+
+Ghost updates, spec expressions and the lemmas `@custom:use` applies run only in the proof, so a proof
+holds of the deployed contract only if erasing them changes no real execution. Before any solver
+runs, solar-verify checks that ghost and real code do not interfere, after Filliâtre, Gondelman and
+Paskevich, [The Spirit of Ghost Code](https://inria.hal.science/hal-00873187v3) (CAV 2014), and
+verifies nothing in a file that breaks a rule:
+
+- ghost code writes only `@custom:ghost` variables; it may read real state;
+- ghost code never reverts (`require`, `assert`, `revert`), makes no external call, and no ghost
+  condition guards a real write;
+- ghost code terminates: it calls only pure and view functions, every loop in a lemma or a function
+  a ghost update calls has a `@custom:decreases` variant, and those functions are not recursive;
+- real code, including `@custom:check` claims, never reads a ghost variable, and no real declaration
+  takes a ghost's name.
+
+A lemma must also return normally wherever its requires hold, since its ensures are assumed at each
+use: that is one more obligation of the lemma and of the functions it runs.
+
 ## Semantics
 
 `require`, `revert` and Solidity's checked-arithmetic panics end their path: a reverted
@@ -129,7 +148,8 @@ skipped, so a ✔ is never produced over code solar-verify did not model.
 ## Trusted base
 
 - The parser, the encoding in `src/vc.rs` and `src/vc/yul.rs`, and the solvers.
-- Ghost updates, `@custom:assume`, `@custom:trusted`, and interface ensures.
+- `@custom:assume`, `@custom:trusted`, and interface ensures. Ghost updates are checked to be erasable
+  (see Ghost code) but their values are whatever they compute.
 - Other contracts reach this contract's storage only through its public functions: no
   `delegatecall` into it.
 - `keccak256` is injective and its results lie in `[2^128, 2^256)`, so they never collide with

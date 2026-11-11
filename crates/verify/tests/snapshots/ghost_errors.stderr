@@ -1,0 +1,115 @@
+error: ghost code is not erasable: ghost variable `x` has the name of a real state variable
+  ╭▸ tests/snapshots/ghost_errors.sol:5:6
+  │
+5 │ /// @custom:ghost uint256 x
+  │      ━━━━━━━━━━━━
+  │
+  ╰ note: non-interference: a ghost variable needs a name no real declaration uses
+
+error: ghost code is not erasable: ghost code writes real `y`
+   ╭▸ tests/snapshots/ghost_errors.sol:17:14
+   │
+17 │         /// @custom:ghost y = calls
+   │              ━━━━━━━━━━━━
+   │
+   ├ note: in GhostErrors.ghostWritesReal
+   ╰ note: non-interference: ghost code writes only ghost variables (`@custom:ghost T name`)
+
+error: ghost code is not erasable: real code reads ghost variable `calls`
+   ╭▸ tests/snapshots/ghost_errors.sol:22:13
+   │
+22 │         y = calls;
+   │             ━━━━━
+   │
+   ├ note: in GhostErrors.realReadsGhost
+   ╰ note: non-interference: real code never reads ghost state: erasing the ghost code would leave it undefined
+
+error: ghost code is not erasable: real control flow depends on ghost variable `calls`
+   ╭▸ tests/snapshots/ghost_errors.sol:26:13
+   │
+26 │         if (calls > 0) {
+   │             ━━━━━
+   │
+   ├ note: in GhostErrors.ghostGuardsReal
+   ╰ note: non-interference: real code never reads ghost state: erasing the ghost code would leave it undefined
+
+error: ghost code is not erasable: a ghost condition guards a write of real `y`
+   ╭▸ tests/snapshots/ghost_errors.sol:32:14
+   │
+32 │         /// @custom:ghost calls = calls > 0 ? (y = 1) : 0
+   │              ━━━━━━━━━━━━
+   │
+   ├ note: in GhostErrors.ghostConditionInUpdate
+   ╰ note: non-interference: a ghost value never decides whether real code runs
+
+error: ghost code is not erasable: ghost code calls `require`, which may revert
+   ╭▸ tests/snapshots/ghost_errors.sol:37:14
+   │
+37 │         /// @custom:ghost require(calls > 0)
+   │              ━━━━━━━━━━━━
+   │
+   ├ note: in GhostErrors.ghostReverts
+   ╰ note: non-interference: ghost code never reverts: that would change real control flow
+
+error: ghost code is not erasable: ghost code calls `nonPure`, which is not pure or view
+   ╭▸ tests/snapshots/ghost_errors.sol:42:14
+   │
+42 │         /// @custom:ghost calls = nonPure()
+   │              ━━━━━━━━━━━━
+   │
+   ├ note: in GhostErrors.ghostCallsNonPure
+   ╰ note: non-interference: ghost code calls only internal pure and view functions
+
+error: ghost code is not erasable: ghost code makes an external call (`.balanceOf`)
+   ╭▸ tests/snapshots/ghost_errors.sol:47:14
+   │
+47 │         /// @custom:ghost calls = token.balanceOf(address(this))
+   │              ━━━━━━━━━━━━
+   │
+   ├ note: in GhostErrors.ghostCallsOut
+   ╰ note: non-interference: ghost code calls only internal pure and view functions
+
+error: ghost code is not erasable: real code reads ghost variable `calls`
+   ╭▸ tests/snapshots/ghost_errors.sol:52:16
+   │
+52 │         return calls;
+   │                ━━━━━
+   │
+   ├ note: in GhostErrors.returnsGhost
+   ╰ note: non-interference: real code never reads ghost state: erasing the ghost code would leave it undefined
+
+error: ghost code is not erasable: `@custom:check` is real code (a require) and reads ghost variable `calls`
+   ╭▸ tests/snapshots/ghost_errors.sol:55:10
+   │
+55 │     /// @custom:check calls > 0
+   │          ━━━━━━━━━━━━
+   │
+   ├ note: in GhostErrors.checkReadsGhost
+   ╰ note: non-interference: real code never reads ghost state: erasing the ghost code would leave it undefined
+
+error: ghost code is not erasable: local `calls` has the name of a ghost variable
+   ╭▸ tests/snapshots/ghost_errors.sol:58:30
+   │
+58 │     function shadows(uint256 calls) external {
+   │                              ━━━━━
+   │
+   ├ note: in GhostErrors.shadows
+   ╰ note: non-interference: a ghost variable needs a name no real declaration uses
+
+error: ghost code is not erasable: loop in ghost function `divergent` has no `@custom:decreases` variant
+   ╭▸ tests/snapshots/ghost_errors.sol:81:9
+   │
+81 │         while (true) {}
+   │         ━━━━━━━━━━━━━━━
+   │
+   ├ note: in Lemmas.divergent
+   ╰ note: non-interference: ghost code terminates: every loop it runs needs a `@custom:decreases` variant
+
+error: ghost code is not erasable: ghost function `recursive` is recursive
+   ╭▸ tests/snapshots/ghost_errors.sol:85:5
+   │
+85 │     function recursive(uint256 n) internal pure {
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ├ note: in Lemmas.recursive
+   ╰ note: non-interference: ghost code terminates: ghost functions may not be recursive

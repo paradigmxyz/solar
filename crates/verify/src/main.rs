@@ -1,5 +1,6 @@
 //! solar-verify: Verus-style deductive verification for Solidity, built on Solar.
 mod bvlower;
+mod ghost;
 mod interval;
 mod mutate;
 mod operator;
@@ -93,6 +94,16 @@ fn report(sess: &Session, kind: &str, sp: Span, notes: &[String]) {
     diag.emit();
 }
 
+/// Reports the ghost code of `program` that is not erasable; returns how many violations there are.
+fn report_ghost(sess: &Session, program: &prog::Program<'_>) -> usize {
+    for v in &program.ghost_errors {
+        let mut notes: Vec<String> = v.func.iter().map(|f| format!("in {f}")).collect();
+        notes.push(format!("non-interference: {}", v.rule.note()));
+        report(sess, &format!("ghost code is not erasable: {}", v.msg), v.span, &notes);
+    }
+    program.ghost_errors.len()
+}
+
 /// The verdict mark, coloured when stdout is a terminal.
 fn mark(ok: bool) -> &'static str {
     match (ok, std::io::stdout().is_terminal()) {
@@ -132,6 +143,11 @@ fn run_parallel(cli: &Cli) -> ! {
             for (sp, msg) in &program.errors {
                 report(&sess, msg, *sp, &[]);
                 fe_errors += 1;
+            }
+            if !program.ghost_errors.is_empty() {
+                // Not erasable: nothing about this file is verified.
+                fe_errors += report_ghost(&sess, &program);
+                continue;
             }
             for c in program.contracts.iter().filter(|c| !c.kind.is_interface()) {
                 for f in &c.funcs {
@@ -254,6 +270,12 @@ fn main() {
                     report(&sess, msg, *sp, &[]);
                     total_err += 1;
                 }
+            }
+            if !program.ghost_errors.is_empty() {
+                // Ghost code that is not erasable: the proof would not be about the deployed
+                // program, so nothing in this file is verified.
+                total_err += report_ghost(&sess, &program);
+                continue;
             }
             for c in &program.contracts {
                 if c.kind.is_interface() {

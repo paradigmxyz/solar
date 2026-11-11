@@ -46,6 +46,9 @@ pub(crate) struct Func<'a> {
     /// `@custom:` statement specs in the body that no statement carries (a doc comment with no
     /// statement after it in its block): never silently dropped, verifying the function fails.
     pub orphans: Vec<(Span, String)>,
+    /// Reached by `@custom:use` (a lemma, or a function a lemma runs): its ensures are assumed
+    /// where it is used, so it must also return normally wherever its requires hold.
+    pub ghost_fn: bool,
 }
 
 impl Func<'_> {
@@ -75,6 +78,9 @@ pub(crate) struct StateVar<'a> {
     pub constant: bool,
     pub immutable: bool,
     pub ghost: bool,
+    /// The `@custom:ghost T name` tag that declared it: a user ghost variable, graded ghost by the
+    /// non-interference check (the model's own ghosts, such as `__balance`, stand for real state).
+    pub ghost_decl: Option<Span>,
     /// EIP-1153 transient storage (`transient` variables, and the ghost `__traw` behind
     /// tload/tstore): cleared at the end of every transaction.
     pub transient: bool,
@@ -122,6 +128,8 @@ pub(crate) struct Program<'a> {
     /// constants with a literal integer value (to size fixed arrays)
     pub const_sizes: FxHashMap<String, u64>,
     pub errors: Vec<(Span, String)>,
+    /// Ghost code that is not erasable (see `crate::ghost`): a program with any is not verified.
+    pub ghost_errors: Vec<crate::ghost::Violation>,
 }
 
 impl<'a> Program<'a> {
@@ -454,6 +462,7 @@ impl<'s, 'a> Builder<'s, 'a> {
             trusted,
             synthetic: false,
             orphans,
+            ghost_fn: false,
         }
     }
 }
@@ -640,6 +649,7 @@ pub(crate) fn build<'a>(
                                 constant: false,
                                 immutable: false,
                                 ghost: true,
+                                ghost_decl: Some(span),
                                 transient: false,
                             }),
                             None => {
@@ -666,6 +676,7 @@ pub(crate) fn build<'a>(
                             constant: v.mutability == Some(ast::VarMut::Constant),
                             immutable: v.mutability == Some(ast::VarMut::Immutable),
                             ghost: false,
+                            ghost_decl: None,
                             transient: v.data_location == Some(ast::DataLocation::Transient),
                         });
                     }
@@ -719,6 +730,7 @@ pub(crate) fn build<'a>(
                     constant: true,
                     immutable: false,
                     ghost: false,
+                    ghost_decl: None,
                     transient: false,
                 });
             }
@@ -735,6 +747,7 @@ pub(crate) fn build<'a>(
                 constant: false,
                 immutable: false,
                 ghost: true,
+                ghost_decl: None,
                 transient: true,
             });
             // raw storage slots that inline assembly reaches with sload/sstore (assumed disjoint
@@ -746,6 +759,7 @@ pub(crate) fn build<'a>(
                 constant: false,
                 immutable: false,
                 ghost: true,
+                ghost_decl: None,
                 transient: false,
             });
         }
@@ -766,6 +780,7 @@ pub(crate) fn build<'a>(
                 constant: false,
                 immutable: false,
                 ghost: true,
+                ghost_decl: None,
                 transient: false,
             });
         }
@@ -778,6 +793,7 @@ pub(crate) fn build<'a>(
                 constant: false,
                 immutable: false,
                 ghost: true,
+                ghost_decl: None,
                 transient: false,
             });
             if con.kind == ContractKind::Contract
@@ -806,6 +822,7 @@ pub(crate) fn build<'a>(
                     trusted: false,
                     synthetic: true,
                     orphans: vec![],
+                    ghost_fn: false,
                 });
             }
         }
@@ -869,7 +886,7 @@ pub(crate) fn build<'a>(
         }
         contracts.push(con);
     }
-    Program {
+    let mut program = Program {
         contracts,
         quants: b.quants,
         stmt_specs: b.stmt_specs,
@@ -882,7 +899,16 @@ pub(crate) fn build<'a>(
         decl_stmts: b.decl_stmts.clone(),
         const_sizes: b.const_sizes.clone(),
         errors: b.errors,
+        ghost_errors: vec![],
+    };
+    let (ghost_errors, lemmas) = crate::ghost::check(&program);
+    for c in &mut program.contracts {
+        for f in c.funcs.iter_mut().chain(&mut c.overridden) {
+            f.ghost_fn = lemmas.contains(&(f.contract.clone(), f.name.clone(), f.params.len()));
+        }
     }
+    program.ghost_errors = ghost_errors;
+    program
 }
 
 /// The value of a fixed array's size expression: an integer literal, or a constant naming one.
