@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import evmir, mir, report
+from . import evmir, memory, mir, report
 from .common import Program, Unsupported
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,6 +79,16 @@ def build_model(timeout: int) -> subprocess.CompletedProcess:
 def check(
     a: Program, b: Program, timeout: int, *, replay_command: str, verbose: bool = False
 ) -> int:
+    if a.memory != b.memory:
+        translate = evmir.translate if a.interface[0] == "evm-window" else mir.translate
+        for program in (a, b):
+            if not program.memory:
+                enriched = translate(program.canonical_ir, memory=True)
+                enriched.canonical_ir = program.canonical_ir
+                if program is a:
+                    a = enriched
+                else:
+                    b = enriched
     if a.interface != b.interface:
         raise Unsupported("input interfaces differ")
     build = build_model(timeout)
@@ -97,13 +107,23 @@ def check(
         return f"({lhs}) = ({rhs})"
 
     statement = f"theorem pair_correct {binders} : {relation(f'before {args}', f'after {args}')} := by\n"
+    unfold = UNFOLD + (", " + memory.UNFOLD if a.memory else "")
+    projection = (
+        "Memory.code"
+        if a.memory and a.result_type.startswith("Outcome ")
+        else "EVM.Memory.code"
+        if a.memory
+        else "Outcome.code"
+        if a.result_type.startswith("Outcome ")
+        else "EVM.code"
+    )
     # Simplify dead definitions first. Splitting branches and reasoning about
     # unsigned bounds with omega produces kernel proofs for guarded cleanups.
     # bv_decide can find witnesses; its native proof axioms remain rejected below.
     simplify = (
-        f"simp [refines_iff_eq, {UNFOLD}, BitVec.add_comm, BitVec.sub_eq_iff_eq_add]"
-        if a.result_type == "EVM.Execution"
-        else f"simp only [refines_iff_eq, {UNFOLD}]"
+        f"simp [refines_iff_eq, {unfold}, BitVec.add_comm, BitVec.sub_eq_iff_eq_add]"
+        if a.result_type in {"EVM.Execution", "EVM.Memory.Execution"}
+        else f"simp only [refines_iff_eq, {unfold}]"
     )
     proof = (
         f"  {simplify}\n"
@@ -126,21 +146,22 @@ def check(
         if result.returncode:
             # Outcomes with payloads are outside the solver's scalar fragment.
             # A tagged projection proposes witnesses; it never verifies a pair.
-            query_only = (
-                a.result_type.startswith("Outcome ") or a.result_type == "EVM.Execution"
-            )
-            projection = (
-                "Outcome.code" if a.result_type.startswith("Outcome ") else "EVM.code"
-            )
+            query_only = a.result_type.startswith("Outcome ") or a.result_type in {
+                "EVM.Execution",
+                "EVM.Memory.Execution",
+            }
             query = (
                 f"example {binders} : {projection} (before {args}) = "
                 f"{projection} (after {args}) := by\n"
                 if query_only
                 else statement
             )
+            query_unfold = f"{unfold}, MIR.checked, EVM.code"
+            if a.memory:
+                query_unfold += f", {projection}, Memory.snapshot"
             result = lean(
                 query
-                + f"  simp [{UNFOLD}, MIR.checked, EVM.code] <;> bv_decide\n"
+                + f"  simp [{query_unfold}] <;> bv_decide\n"
                 + ("" if query_only else "#print axioms pair_correct\n")
             )
         if result.returncode == 0 and not query_only:
@@ -176,6 +197,13 @@ def check(
             vals.append(value)
 
         def display(term: str) -> str:
+            if a.memory:
+                describe = (
+                    "Memory.describeReturn"
+                    if a.result_type.startswith("Outcome ")
+                    else "EVM.Memory.describe"
+                )
+                return f"#eval IO.println ({describe} ({term}))"
             if a.result_type.startswith("Outcome "):
                 return f"#eval IO.println (Outcome.describe ({term}))"
             if a.result_type == "Word" or a.result_type.startswith("BitVec "):
@@ -191,6 +219,8 @@ def check(
         # Both it and the solver assignment must pass the same kernel replay.
         zero = [0] * len(vals)
         assignments = [zero] if vals == zero else [zero, vals]
+        if a.memory:
+            assignments.extend(memory.witnesses(a.inputs))
         for vals in assignments:
             inputs = " ".join(
                 f"{value}#{width}" for value, width in zip(vals, widths, strict=True)

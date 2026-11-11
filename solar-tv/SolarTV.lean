@@ -6,6 +6,9 @@ import SolarTV.MIR.Transforms.RenamePhiPredecessors
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
 import SolarTV.EVMIR.Transforms.StackPeephole
 import SolarTV.EVMIR.StackSafety
+import SolarTV.EVMIR.Memory
+import SolarTV.MIR.Transforms.DeadStore
+import SolarTV.MemorySafety
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -44,3 +47,7 @@ import SolarTV.EVMIR.StackSafety
 /-- info: 'SolarTV.EVM.dropping_full_push_pop_changes_outcome' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.dropping_full_push_pop_changes_outcome
+
+/-- info: 'SolarTV.MIR.dead_store' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.dead_store
