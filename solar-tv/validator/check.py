@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import audit, evmir, gas, memory, mir, native, report
+from . import audit, evmir, gas, memory, mir, native, regions, report
 from .common import Inconclusive, Program, Unsupported
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,12 +36,16 @@ def load(
     *,
     gas_mode: str | None = None,
     evm_version: str | None = None,
+    function: str | None = None,
+    window: str | None = None,
+    stack_height: int | None = None,
 ) -> Program:
     if gas_mode is not None and kind != "evmir":
         raise Unsupported("gas auditing requires scheduled EVM IR, not MIR")
     suffix = ".mir" if kind == "mir" else ".evmir"
-    if path.suffix != suffix or path.stat().st_size > 128 * 1024:
-        raise Unsupported(f"expected a {suffix} file of at most 128 KiB")
+    limit = 1024 * 1024 if function is not None or window is not None else 128 * 1024
+    if path.suffix != suffix or path.stat().st_size > limit:
+        raise Unsupported(f"expected a {suffix} file of at most {limit // 1024} KiB")
     pipeline = "mir" if kind == "mir" else "evm-ir"
     parsed = run(
         [
@@ -56,14 +60,47 @@ def load(
     )
     if parsed.returncode:
         raise Unsupported(parsed.stderr.strip() or "compiler rejected input")
+    projection = parsed.stdout
+    following = None
+    if function is not None:
+        if kind != "mir":
+            raise Unsupported("--function requires MIR")
+        projection = regions.function(projection, function)
+    if window is not None:
+        if kind != "evmir" or stack_height is None:
+            raise Unsupported("--window requires EVM IR and --stack-height")
+        projection, following = regions.window(projection, window, stack_height)
+        with tempfile.TemporaryDirectory(prefix="solar-tv-window-") as directory:
+            selected = Path(directory) / "window.evmir"
+            selected.write_text(projection)
+            arguments = list(parsed.args)
+            arguments[1] = selected
+            checked = run(arguments, ROOT, timeout)
+            if checked.returncode:
+                raise Unsupported(
+                    "compiler rejected window projection\n" + checked.stderr
+                )
+            projection = checked.stdout
+    if len(projection.encode()) > 128 * 1024:
+        raise Unsupported("selected region exceeds 128 KiB")
     program = (
-        mir.translate(parsed.stdout)
+        mir.translate(projection)
         if kind == "mir"
         else evmir.translate(
-            parsed.stdout, gas=gas_mode, evm_version=evm_version or "cancun"
+            projection,
+            gas=gas_mode,
+            evm_version=evm_version or "cancun",
+            entry=window or "bb0",
+            following=following,
+            scoped=window is not None,
         )
     )
-    program.canonical_ir = parsed.stdout
+    program.canonical_ir = projection
+    if function is not None or window is not None:
+        program.replay_ir = parsed.stdout
+        program.selector = function or window
+        program.scope = "function" if function is not None else "window"
+        program.following = following
     program.evm_version = evm_version or "cancun"
     return program
 
@@ -108,12 +145,28 @@ def check(
     replay_executable: str,
     verbose: bool = False,
 ) -> audit.Result:
+    if a.scope == "window" and b.scope == "window" and a.selector is not None:
+        regions.compatible_windows(a.replay_ir, b.replay_ir, a.selector)
     if a.memory != b.memory:
         translate = evmir.translate if a.interface[0] == "evm-window" else mir.translate
         for program in (a, b):
             if not program.memory:
-                enriched = translate(program.canonical_ir, memory=True)
+                options = (
+                    {
+                        "entry": program.selector or "bb0",
+                        "following": program.following,
+                        "scoped": program.scope == "window",
+                    }
+                    if translate is evmir.translate
+                    else {}
+                )
+                enriched = translate(program.canonical_ir, memory=True, **options)
                 enriched.canonical_ir = program.canonical_ir
+                enriched.replay_ir = program.replay_ir
+                enriched.selector = program.selector
+                enriched.scope = program.scope
+                enriched.following = program.following
+                enriched.evm_version = program.evm_version
                 if program is a:
                     a = enriched
                 else:
@@ -290,6 +343,15 @@ def check(
                 + replay.stderr
             )
         outputs = [line for line in replay.stdout.splitlines() if line.strip()]
+        if a.scope == "window":
+            # Zero is a real stable label in full modules. Only the standalone pilot
+            # window uses it for an abstract fallthrough edge in Lean's formatter.
+            outputs = [
+                "bb0" + line[len("fallthrough") :]
+                if line.startswith("fallthrough,")
+                else line
+                for line in outputs
+            ]
         observed = native.replay(
             a, b, vals, executable=replay_executable, timeout=timeout
         )
@@ -363,6 +425,16 @@ def main() -> int:
     parser.add_argument(
         "--report", type=Path, help="write a versioned JSON audit record"
     )
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument(
+        "--function", help="check one function in the full MIR module"
+    )
+    selection.add_argument(
+        "--window", help="check one complete EVM block by stable label"
+    )
+    parser.add_argument(
+        "--stack-height", type=int, help="fixed incoming EVM window height"
+    )
     args = parser.parse_args()
     version = args.evm_version or "cancun"
     replay = report.replay_command(
@@ -374,6 +446,9 @@ def main() -> int:
         gas=args.gas,
         evm_version=version,
         replay=args.replay,
+        function=args.function,
+        window=args.window,
+        stack_height=args.stack_height,
     )
     programs: list[Program] = []
     model = audit.semantics()
@@ -395,6 +470,9 @@ def main() -> int:
             gas=args.gas,
             evm_version=version,
             replay=rust_replay,
+            function=args.function,
+            window=args.window,
+            stack_height=args.stack_height,
         )
         programs = [
             load(
@@ -404,6 +482,9 @@ def main() -> int:
                 args.timeout,
                 gas_mode=args.gas,
                 evm_version=version,
+                function=args.function,
+                window=args.window,
+                stack_height=args.stack_height,
             )
             for path in (args.before, args.after)
         ]
@@ -452,6 +533,13 @@ def main() -> int:
             after=args.after,
             model=model,
         )
+        if args.function or args.window:
+            record["region"] = {
+                "kind": "function" if args.function else "window",
+                "name": args.function or args.window,
+                "stack_height": args.stack_height,
+            }
+            record["whole_pass"] = False
         if args.report:
             audit.write(args.report, record)
     except OSError as error:

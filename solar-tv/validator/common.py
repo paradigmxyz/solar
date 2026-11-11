@@ -29,6 +29,10 @@ class Program:
     gas: str | None = None
     gas_cost: int = 0
     evm_version: str | None = None
+    replay_ir: str = ""
+    selector: str | None = None
+    scope: str | None = None
+    following: str | None = None
 
 
 def lines(text: str) -> list[str]:

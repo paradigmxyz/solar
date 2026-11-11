@@ -42,7 +42,7 @@ def translate(text: str, *, memory: bool = False) -> Program:
     src = lines(text)
     phase = src.pop(0) if src and src[0] == "@phase lowered" else "@phase semantic"
     header = re.fullmatch(
-        r"fn @(\w+)\((.*?)\) -> i(\d+)(?: \[cold\])? \{", src[0] if src else ""
+        r"fn @([^ (]+)\((.*?)\) -> i(\d+)(?: \[(.*)\])? \{", src[0] if src else ""
     )
     if not header or src[-1] != "}":
         raise Unsupported("expected one integer-returning MIR function")
@@ -248,6 +248,7 @@ def translate(text: str, *, memory: bool = False) -> Program:
             phase,
             *params,
             f"i{result_width}",
+            interface_attributes(header[4] or ""),
             *(("memory",) if memory else ()),
         ),
         inputs,
@@ -257,4 +258,23 @@ def translate(text: str, *, memory: bool = False) -> Program:
         body,
         tuple(input_widths),
         memory=memory,
+    )
+
+
+def interface_attributes(text: str) -> str:
+    # Coldness is inferred from a body's outcomes, not part of its calling interface.
+    # Split only top-level attributes; ABI tuples and arrays retain their contents.
+    parts = []
+    start = depth = 0
+    for index, char in enumerate(text):
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+        elif char == "," and depth == 0:
+            parts.append(text[start:index].strip())
+            start = index + 1
+    parts.append(text[start:].strip())
+    return ", ".join(
+        part for part in parts if part and part not in {"cold", "cold_hint"}
     )
