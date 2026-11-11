@@ -52,10 +52,13 @@ fn counterexample_stops_pipeline_and_replays() {
         .output()
         .unwrap();
     assert_eq!(replay.status.code(), Some(1));
+    // The checker prints the pair's absolute path, which the snapshot replaces.
+    #[allow(clippy::disallowed_methods)]
+    let canonical = pair.canonicalize().unwrap();
     assert_data_eq!(
         String::from_utf8(replay.stdout)
             .unwrap()
-            .replace(&pair.canonicalize().unwrap().display().to_string(), "PAIR")
+            .replace(&canonical.display().to_string(), "PAIR")
             .replace(&pair.display().to_string(), "PAIR")
             .replace(&std::env::var("SOLAR_TV").unwrap(), "CHECKER")
             .replace(env!("CARGO_BIN_EXE_solar"), "SOLAR"),
