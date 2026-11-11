@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 from .common import Inconclusive, Program, ReplayTimeout, Unsupported
@@ -76,3 +77,33 @@ def default(solar: str) -> str:
         return configured
     suffix = ".exe" if os.name == "nt" else ""
     return str(Path(solar).parent / f"solar-tv-replay{suffix}")
+
+
+@lru_cache(maxsize=4)
+def catalog(executable: str, timeout: int) -> dict:
+    binary = shutil.which(executable)
+    if binary is None:
+        raise Unsupported(
+            "build the Rust replay helper to check schema and target availability"
+        )
+    result = subprocess.run(
+        [binary, "--catalog"],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=timeout,
+    )
+    try:
+        value = json.loads(result.stdout)
+    except ValueError as error:
+        raise Unsupported(
+            "invalid operation catalog from Rust replay helper"
+        ) from error
+    if (
+        result.returncode
+        or not isinstance(value, dict)
+        or value.get("version") != 1
+        or not isinstance(value.get("evmir"), list)
+    ):
+        raise Unsupported("unsupported Rust operation catalog")
+    return value

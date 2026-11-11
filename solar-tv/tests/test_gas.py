@@ -118,9 +118,9 @@ class GasTests(unittest.TestCase):
 
     def test_unsupported_version_and_opcodes_are_inconclusive(self):
         path = ROOT / "examples/evmir/gas/before.evmir"
-        result = self.audit(path, path, version="paris")
+        result = self.audit(path, path, version="unknown")
         self.assertEqual(result.returncode, 2)
-        self.assertIn("supports Cancun, Prague and Osaka", result.stderr)
+        self.assertIn("unknown gas-audit EVM version", result.stderr)
         self.pair("push 0\nsload\npop\nstop", "stop", status=2)
 
     @unittest.skipIf(sys.platform == "win32", "POSIX shell replay")

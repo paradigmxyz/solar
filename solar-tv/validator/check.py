@@ -9,16 +9,19 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import audit, evmir, gas, memory, mir, native, regions, report
+from . import audit, evmir, gas, memory, mir, native, operations, regions, report
 from .common import Inconclusive, Program, Unsupported
 
 ROOT = Path(__file__).resolve().parents[1]
-PRELUDE = "import SolarTV\nopen SolarTV EvmRules\nset_option autoImplicit false\nset_option linter.unusedSimpArgs false\nset_option linter.unusedVariables false\nset_option maxRecDepth 4096\n"
+PRELUDE = "import SolarTV\nopen SolarTV EvmRules\nset_option autoImplicit false\nset_option linter.unusedSimpArgs false\nset_option linter.unusedVariables false\nset_option maxRecDepth 4096\nset_option exponentiation.threshold 1024\n"
 UNFOLD = (
     "before, after, MIR.eval, MIR.choose, MIR.phi, MIR.cast, MIR.compare, MIR.branch, MIR.guard, "
     "Outcome.bind_return, "
     "EVM.execute, EVM.finish, EVM.stepChecked, EVM.step, Evm.eq, Evm.iszero, Evm.not, "
-    "Evm.sub, Evm.add, Evm.mul, Evm.and, Evm.or, Evm.xor"
+    "Evm.sub, Evm.add, Evm.mul, Evm.and, Evm.or, Evm.xor, MIR.unary, MIR.shift, "
+    "MIR.select, MIR.wordBinary, MIR.ternary, Word.binary, Word.unary, Word.shift, "
+    "Evm.div, Evm.sdiv, Evm.mod, Evm.smod, Evm.exp, Evm.addmod, Evm.mulmod, "
+    "Evm.lt, Evm.gt, Evm.slt, Evm.sgt, Evm.shl, Evm.shr, Evm.sar, Evm.byte, Evm.signextend, Evm.clz"
 )
 
 
@@ -83,6 +86,19 @@ def load(
             projection = checked.stdout
     if len(projection.encode()) > 128 * 1024:
         raise Unsupported("selected region exceeds 128 KiB")
+    if kind == "mir":
+        # The direct opcode model and independent replay must use the same fork.
+        # Obtain availability from the opcode schema, rather than maintaining a
+        # second list of target-dependent operation classifications here.
+        catalog = native.catalog(native.default(solar), timeout)
+        definitions = {op["name"]: op for op in catalog["evmir"]}
+        for name in re.findall(r"\bv\d+ = ([a-z_]+)\b", projection):
+            if name in operations.UNARY | operations.BINARY | operations.TERNARY:
+                fork = definitions[name]["forks"].get(evm_version or "cancun")
+                if fork is None or not fork["available"]:
+                    raise Unsupported(
+                        f"MIR opcode `{name}` is unavailable on {evm_version or 'cancun'}"
+                    )
     program = (
         mir.translate(projection)
         if kind == "mir"
@@ -227,6 +243,18 @@ def check(
             "  repeat' (first | omega | (split <;> simp_all [BitVec.add_comm]))\n"
             "  all_goals omega\n"
         )
+    # Kernel reduction is cheap for closed word arithmetic and explicit stack
+    # windows. Do not normalize symbolic memory to individual bits first: that
+    # can exhaust the budget before the overwrite/expansion lemmas get a turn.
+    if not a.memory:
+        proof = (
+            "  first\n"
+            "    | (simp only [refines_iff_eq, before, after]; decide +kernel)\n"
+            f"    | ({simplify}; all_goals decide +kernel)\n"
+            "    | rfl\n"
+            "    | (simp only [refines_iff_eq]; rfl)\n"
+            "    |\n" + "\n".join("    " + line for line in proof.splitlines()) + "\n"
+        )
     with tempfile.TemporaryDirectory() as directory:
         file = Path(directory) / "Pair.lean"
 
@@ -307,11 +335,11 @@ def check(
             return f"#eval IO.println (EVM.describe ({term}))"
 
         replay_proof = (
-            "simp only [EVM.Gas.refines]; decide"
+            "simp only [EVM.Gas.refines]; decide +kernel"
             if a.gas == "refine"
-            else "simp only [refines_iff_eq]; decide"
+            else "simp only [refines_iff_eq]; decide +kernel"
             if a.result_type.startswith("Outcome ")
-            else "decide"
+            else "decide +kernel"
         )
         # Prefer a small witness when zero really demonstrates the mismatch.
         # Both it and the solver assignment must pass the same kernel replay.

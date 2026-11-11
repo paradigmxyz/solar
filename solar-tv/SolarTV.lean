@@ -12,6 +12,11 @@ import SolarTV.MemorySafety
 import SolarTV.EVMIR.GasSafety
 import SolarTV.EVMIR.Transforms.GasSwapAdd
 
+import SolarTV.State.StorageSafety
+import SolarTV.State.Calls
+import SolarTV.KeccakSafety
+import SolarTV.WordSafety
+
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
 /-- info: 'SolarTV.MIR.simplify_switch' depends on axioms: [propext] -/
@@ -57,3 +62,23 @@ import SolarTV.EVMIR.Transforms.GasSwapAdd
 /-- info: 'SolarTV.EVM.Gas.swap_add_refines' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.Gas.swap_add_refines
+
+/-- info: 'SolarTV.Word.power_eq_pow' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Word.power_eq_pow
+
+/-- info: 'SolarTV.Keccak.empty' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Keccak.empty
+
+/-- info: 'SolarTV.Storage.overwrite' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Storage.overwrite
+
+/-- info: 'SolarTV.Storage.sentry_rejects' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Storage.sentry_rejects
+
+/-- info: 'SolarTV.Calls.reverted_restores_journal' does not depend on any axioms -/
+#guard_msgs in
+#print axioms SolarTV.Calls.reverted_restores_journal

@@ -10,7 +10,7 @@ WIDTHS = (*(256 for _ in range(CAPACITY // 32)), 251)
 INITIAL = "Memory.initial [" + ", ".join(INPUTS[:-1]) + "] memoryWords"
 UNFOLD = (
     "Memory.expand, Memory.msize, Memory.store, Memory.storeByte, Memory.byte, "
-    "Memory.load, Memory.read, EVM.Memory.execute, EVM.Memory.finish, EVM.Memory.step, Except.map"
+    "Memory.load, Memory.read, Memory.copy, Memory.hash, Keccak.empty, EVM.Memory.execute, EVM.Memory.finish, EVM.Memory.step, Except.map"
 )
 
 

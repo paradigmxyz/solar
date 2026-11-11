@@ -733,6 +733,9 @@ impl<'m> Run<'_, 'm> {
                     | GasTier::Mid
                     | GasTier::High
                     | GasTier::Jumpdest
+                    | GasTier::Exp
+                    | GasTier::Keccak
+                    | GasTier::Copy
             ) {
                 return Err(unsupported("dynamic gas schedule outside replay fragment"));
             }
@@ -740,24 +743,46 @@ impl<'m> Run<'_, 'm> {
             let len = match opcode {
                 op::MLOAD | op::MSTORE => U256::from(32),
                 op::MSTORE8 => U256::ONE,
-                op::RETURN | op::REVERT => {
+                op::RETURN | op::REVERT | op::KECCAK256 => {
                     self.stack.get(self.stack.len().saturating_sub(2)).copied().unwrap_or_default()
+                }
+                op::MCOPY => {
+                    self.stack.get(self.stack.len().saturating_sub(3)).copied().unwrap_or_default()
                 }
                 _ => U256::ZERO,
             };
             let before = self.memory.0.len() as u64 / 32;
-            let end = if len.is_zero() {
+            let mut end = if len.is_zero() {
                 U256::ZERO
             } else {
                 offset.checked_add(len).ok_or(Outcome::Limit(Limit::Memory))?
             };
+            if opcode == op::MCOPY && !len.is_zero() {
+                let source =
+                    self.stack.get(self.stack.len().saturating_sub(2)).copied().unwrap_or_default();
+                end = end.max(source.checked_add(len).ok_or(Outcome::Limit(Limit::Memory))?);
+            }
             if end > U256::from(MEMORY_LIMIT) {
                 return Err(Outcome::Limit(Limit::Memory));
             }
             let after = before.max(end.to::<u64>().div_ceil(32));
             let charge = u128::from(definition.gas.gas(self.machine.evm_version))
                 + memory_cost(after)
-                - memory_cost(before);
+                - memory_cost(before)
+                + if definition.gas == GasTier::Exp {
+                    let exponent = self
+                        .stack
+                        .get(self.stack.len().saturating_sub(2))
+                        .copied()
+                        .unwrap_or_default();
+                    u128::from(definition.gas.dynamic_gas(self.machine.evm_version))
+                        * exponent.bit_len().div_ceil(8) as u128
+                } else if matches!(definition.gas, GasTier::Keccak | GasTier::Copy) {
+                    u128::from(definition.gas.dynamic_gas(self.machine.evm_version))
+                        * len.to::<u64>().div_ceil(32) as u128
+                } else {
+                    0
+                };
             self.charge(U256::from(charge))?;
         }
         let Some((inputs, _)) = definition.stack_io else {
