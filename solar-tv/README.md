@@ -52,7 +52,8 @@ select a compiler binary.
 
 The importer and the mapping from compiler operations to Lean are trusted.
 EVM windows compare live stack values at outgoing edges before executing either
-successor. Terminal halts discard the remaining stack. Gas costs, physical PCs,
+successor. Terminal halts discard the remaining stack. The default check assumes
+sufficient gas; the opt-in gas policies below add finite budgets. Physical PCs,
 dynamic memory addresses and general EVM control flow remain outside this fragment.
 
 | Layer | Operation semantics | Transform proofs |
@@ -63,6 +64,8 @@ dynamic memory addresses and general EVM control flow remain outside this fragme
 Both layers share [Memory.lean](SolarTV/Memory.lean). EVM memory instructions and
 output are defined in [EVMIR/Memory.lean](SolarTV/EVMIR/Memory.lean); the MIR
 dead-store proof lives in [MIR/Transforms/DeadStore.lean](SolarTV/MIR/Transforms/DeadStore.lean).
+Gas charging is defined in [EVMIR/Gas.lean](SolarTV/EVMIR/Gas.lean), with the
+resource proof in [EVMIR/Transforms/GasSwapAdd.lean](SolarTV/EVMIR/Transforms/GasSwapAdd.lean).
 
 ```sh
 (cd solar-tv && lake build)
@@ -188,7 +191,7 @@ A MIR function's successful return retains its live memory for its caller.
 An EVM outgoing edge retains the live stack, memory bytes and active size.
 EVM terminal halts discard private memory and compare the returned or reverted
 bytes instead. MIR raw memory-backed revert payloads remain unsupported.
-The model does not yet price expansion or check out-of-gas behavior.
+The optional EVM gas model also charges for memory expansion.
 
 The MIR example runs `memory-dse`: a later word store overwrites the earlier
 store and subsumes its expansion. The broken version moves the surviving store,
@@ -208,6 +211,56 @@ a few concrete memory patterns only propose counterexamples; each mismatch is
 replayed in the kernel before it is reported. Failure to prove or find a
 counterexample remains inconclusive.
 
+## Gas and out-of-gas
+
+Gas checks apply to **scheduled EVM IR**, where the instructions to charge are
+known. The default remains gas-independent. Choose a policy explicitly:
+
+- `--gas=exact`: preserve the modeled outcome and exact remaining gas at every
+  input budget, including out-of-gas. A cheaper rewrite can fail this check.
+- `--gas=refine`: whenever the original avoids out-of-gas, preserve its modeled
+  outcome and leave at least as much gas. Original out-of-gas is unconstrained.
+  This permits savings, but is weaker than full EVM equivalence: callers or
+  continuations that observe extra gas can distinguish them. Use `exact` when
+  that distinction matters.
+
+The budget `gas` is a symbolic 256-bit input. `GAS` observes it after paying its
+own two-gas charge. Instructions debit their base price and memory expansion
+before execution. Expansion costs `3 * words + words² / 512`; repeated accesses
+pay only for additional growth. Out-of-gas and other exceptions consume the
+remaining gas. Successful returns and reverts retain what is left.
+
+The prices and debit order follow [EVMYulLean's gas schedule](https://github.com/NethermindEth/EVMYulLean/blob/047f63070309f436b66c61e276ab3b6d1169265a/EvmYul/EVM/Gas.lean#L18)
+and [execution semantics](https://github.com/NethermindEth/EVMYulLean/blob/047f63070309f436b66c61e276ab3b6d1169265a/EvmYul/EVM/Semantics.lean#L442).
+The current subset supports Cancun, Prague and Osaka, with Cancun as the CLI
+default. `--evm-version` selects the parser target and checked schedule; other
+versions are inconclusive. Calls, storage, refunds and transaction intrinsic
+gas remain unsupported.
+
+These are explicit opcode windows: execution starts after any entry JUMPDEST,
+and ends before the outgoing successor executes. A static transfer includes its
+label PUSH and JUMP/JUMPI. Layout-dependent structured jumps remain unsupported.
+The checker does not estimate EVM gas from MIR; `mir --gas=...` is inconclusive.
+
+The real SWAP1/ADD peephole costs 17 gas before and 14 after, through its outgoing
+transfer. It verifies under `refine`, and fails `exact` with different remaining
+gas. The broken version adds a PUSH/POP: the original finishes at budget 17,
+while the candidate runs out of gas.
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/gas/{before,after}.evmir --gas=refine
+solar-tv/solar-tv evmir solar-tv/examples/evmir/gas/{before,after}.evmir --gas=exact
+solar-tv/solar-tv evmir solar-tv/examples/evmir/gas/{before,broken}.evmir --gas=refine
+solar-tv/solar-tv evmir solar-tv/examples/evmir/gas-observer/{before,broken}.evmir --gas=refine
+solar-tv/solar-tv evmir solar-tv/examples/evmir/gas-memory/{before,broken}.evmir --gas=refine
+```
+
+The observer example moves `GAS` across a PUSH/POP, changing the observed value
+from 16 to 11 at budget 18. The memory example reads farther from the start:
+both versions halt successfully with sufficient gas, but only the original
+finishes at budget 10. Reports and replay commands retain the policy, budget,
+target version and remaining gas.
+
 ## Check passes during compilation
 
 From the repository root:
@@ -218,7 +271,13 @@ target/debug/solar solar-tv/examples/mir/dce/before.mir \
   -Zmir-pipeline=dce -Zsolar-tv=target/tv
 target/debug/solar solar-tv/examples/evmir/peephole/before.evmir \
   -Zevm-ir-pipeline=peephole -Zsolar-tv=target/tv
+SOLAR_TV_GAS=refine target/debug/solar solar-tv/examples/evmir/gas/before.evmir \
+  --evm-version=cancun -Zevm-ir-pipeline=peephole -Zsolar-tv=target/tv
 ```
+
+`SOLAR_TV_GAS=exact|refine` enables gas auditing at EVM IR pass boundaries. The
+compiler forwards its actual EVM target version. MIR boundaries keep their
+gas-independent checks; the environment never assigns gas prices to MIR.
 
 The host flag also applies to compilation from Solidity. Each pass manager
 compares its module text before and after each pass that runs. A changed pair

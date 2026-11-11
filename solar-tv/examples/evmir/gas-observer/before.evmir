@@ -1,0 +1,9 @@
+@module GasObserver
+bb0:
+  gas
+  push 1
+  pop
+  push bb1
+  jump
+bb1 [stack=1]:
+  stop

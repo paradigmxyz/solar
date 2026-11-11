@@ -13,11 +13,22 @@ from .common import Program
 
 def region(program: Program) -> str:
     if program.interface[0] == "evm-window":
-        return f"EVM IR window bb0, entry stack height {program.interface[1]}"
+        region = f"EVM IR window bb0, entry stack height {program.interface[1]}"
+        if program.gas is not None:
+            region += f" (gas={program.gas}, evm={program.evm_version})"
+        return region
     return f"MIR function @{program.interface[0]}"
 
 
 def difference(before: str, after: str) -> str:
+    if before.startswith("out-of-gas") or after.startswith("out-of-gas"):
+        return "Out-of-gas behavior changed"
+    remaining = re.compile(r", gas=(\d+)$")
+    left_gas, right_gas = remaining.search(before), remaining.search(after)
+    if left_gas and right_gas:
+        if before[: left_gas.start()] == after[: right_gas.start()]:
+            return f"Remaining gas changed from {left_gas[1]} to {right_gas[1]}"
+        before, after = before[: left_gas.start()], after[: right_gas.start()]
     if before.startswith("revert") and after.startswith("revert"):
         return "Revert payload changed"
     if before.startswith("revert"):
@@ -93,7 +104,16 @@ def ir_diff(before: str, after: str, *, verbose: bool) -> str:
     return "\n".join(diff)
 
 
-def replay_command(ir: str, before: Path, after: Path, solar: str, timeout: int) -> str:
+def replay_command(
+    ir: str,
+    before: Path,
+    after: Path,
+    solar: str,
+    timeout: int,
+    *,
+    gas: str | None = None,
+    evm_version: str | None = None,
+) -> str:
     checker = Path(__file__).resolve().parents[1] / "solar-tv"
     argv = [
         str(checker),
@@ -105,6 +125,10 @@ def replay_command(ir: str, before: Path, after: Path, solar: str, timeout: int)
         "--timeout",
         str(timeout),
     ]
+    if gas is not None:
+        argv.extend(["--gas", gas])
+    if evm_version is not None:
+        argv.extend(["--evm-version", evm_version])
     if sys.platform == "win32":
         argv = [sys.executable, *argv]
         return "& " + " ".join("'" + arg.replace("'", "''") + "'" for arg in argv)
