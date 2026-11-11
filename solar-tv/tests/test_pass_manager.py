@@ -18,14 +18,28 @@ class PassManagerTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.out = Path(self.tmp.name) / "pairs"
 
-    def compile(self, source, pipeline, *, enabled=True):
+    def compile(
+        self,
+        source,
+        pipeline,
+        *,
+        enabled=True,
+        gas: str | None = None,
+        version: str | None = None,
+    ):
         ir = "mir" if source.suffix == ".mir" else "evm-ir"
         args = [SOLAR, source, "-Ogas", f"-Z{ir}-pipeline={pipeline}"]
         if enabled:
             args.append(f"-Zsolar-tv={self.out}")
+        if version is not None:
+            args.append(f"--evm-version={version}")
+        env: dict[str, str] = {**os.environ, "SOLAR_TV": CHECKER, "SOLAR": SOLAR}
+        env.pop("SOLAR_TV_GAS", None)
+        if gas is not None:
+            env["SOLAR_TV_GAS"] = gas
         return subprocess.run(
             args,
-            env={**os.environ, "SOLAR_TV": CHECKER, "SOLAR": SOLAR},
+            env=env,
             text=True,
             capture_output=True,
             timeout=120,
@@ -102,3 +116,33 @@ class PassManagerTests(unittest.TestCase):
         )
         self.assertTrue(output["contracts"]["C.sol"]["C"]["evm"]["bytecode"]["object"])
         self.assertFalse(self.out.exists())
+
+    def test_gas_policy_reaches_evm_passes_and_saved_replay(self):
+        source = ROOT / "examples/evmir/gas/before.evmir"
+        plain = self.compile(source, "peephole", enabled=False, version="cancun")
+        refined = self.compile(source, "peephole", gas="refine", version="cancun")
+        self.assertEqual(refined.returncode, 0, refined.stderr)
+        self.assertEqual(refined.stdout, plain.stdout)
+        self.assertIn("[gas=refine, evm=cancun]: verified", refined.stderr)
+        self.assertEqual(list(self.out.iterdir()), [])
+        exact = self.compile(source, "peephole", gas="exact", version="cancun")
+        self.assertEqual(exact.returncode, 1, exact.stderr)
+        self.assertIn("Remaining gas changed", exact.stderr)
+        (pair,) = self.out.iterdir()
+        self.assertIn(
+            "--gas exact --evm-version cancun", (pair / "result.txt").read_text()
+        )
+
+    def test_gas_environment_keeps_mir_checks_unpriced(self):
+        source = ROOT / "examples/mir/dce/before.mir"
+        result = self.compile(source, "dce", gas="refine", version="cancun")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(": verified", result.stderr)
+        self.assertNotIn("gas=refine", result.stderr)
+
+    def test_gas_auditing_uses_the_compiler_target_version(self):
+        source = ROOT / "examples/evmir/gas/before.evmir"
+        result = self.compile(source, "peephole", gas="refine", version="paris")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[gas=refine, evm=paris]: inconclusive", result.stderr)
+        self.assertIn("supports Cancun, Prague and Osaka", result.stderr)

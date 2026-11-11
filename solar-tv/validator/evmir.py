@@ -7,11 +7,19 @@ blocks are unchanged stop sentinels, never interpreted as arbitrary code.
 
 import re
 
+from . import gas as pricing
 from . import memory as mem
 from .common import Program, Unsupported, lines, literal
 
 
-def translate(text: str, *, memory: bool = False) -> Program:
+def translate(
+    text: str,
+    *,
+    memory: bool = False,
+    gas: str | None = None,
+    evm_version: str = "cancun",
+) -> Program:
+    memory |= gas is not None
     blocks: dict[str, list[str]] = {}
     heights = {}
     for line in lines(text):
@@ -40,6 +48,8 @@ def translate(text: str, *, memory: bool = False) -> Program:
 
     body = list(blocks["bb0"])
     terminal = body.pop()
+    estimate = 0
+    words = 0
     memory |= any(line in {"mload", "mstore", "mstore8", "msize"} for line in body)
     output = terminal in {"return", "revert"}
     if terminal == "stop" and body and body[-1] == "jumpi":
@@ -49,12 +59,14 @@ def translate(text: str, *, memory: bool = False) -> Program:
         if not jump or jump[1] == "bb0" or jump[1] not in blocks:
             raise Unsupported("expected a valid static JUMPI destination")
         terminal = f"(.branch {jump[1][2:]} 0)"
+        estimate += 13
     elif terminal == "jump":
         target = body.pop() if body else ""
         jump = re.fullmatch(r"push (bb\d+)", target)
         if not jump or jump[1] == "bb0" or jump[1] not in blocks:
             raise Unsupported("expected a valid static JUMP destination")
         terminal = f"(.jump {jump[1][2:]})"
+        estimate += 11
     elif terminal in {"return", "revert"}:
         # The top word is offset, the second is size. These exact forms prove
         # size zero without introducing assumptions about symbolic memory.
@@ -79,6 +91,14 @@ def translate(text: str, *, memory: bool = False) -> Program:
     ops = []
     constants: list[int | None] = [None] * heights["bb0"]
     for line in body:
+        if gas is not None:
+            estimate += pricing.estimate(line)
+        if line == "gas":
+            if gas is None:
+                raise Unsupported("GAS requires --gas=exact or --gas=refine")
+            ops.append(".gas")
+            constants.insert(0, None)
+            continue
         if line in {
             "calldatasize",
             "returndatasize",
@@ -118,22 +138,27 @@ def translate(text: str, *, memory: bool = False) -> Program:
         elif line in {"mload", "mstore", "mstore8", "msize"}:
             if line == "msize":
                 constants.insert(0, None)
-                ops.append(".size")
+                operation = ".size"
             else:
-                mem.check_range(constants[0], 1 if line == "mstore8" else 32)
+                words = max(
+                    words,
+                    mem.active_words(constants[0], 1 if line == "mstore8" else 32),
+                )
                 if line == "mload":
                     constants[0] = None
-                    ops.append(".load")
+                    operation = ".load"
                 else:
                     constants = constants[2:]
-                    ops.append(".storeByte" if line == "mstore8" else ".store")
+                    operation = ".storeByte" if line == "mstore8" else ".store"
+            ops.append(f".instruction ({operation})" if gas is not None else operation)
             continue
         else:
             raise Unsupported(f"unmodeled EVM IR instruction: {line}")
-        ops.append(f".stack ({operation})" if memory else operation)
+        operation = f".stack ({operation})" if memory else operation
+        ops.append(f".instruction ({operation})" if gas is not None else operation)
 
     if memory and output:
-        mem.check_range(constants[0], constants[1])
+        words = max(words, mem.active_words(constants[0], constants[1]))
     if memory and not output:
         terminal = f"(.control {terminal})"
 
@@ -142,11 +167,29 @@ def translate(text: str, *, memory: bool = False) -> Program:
     inputs = ["calldatasize", "returndatasize", *stack]
     if memory:
         inputs.extend(mem.INPUTS)
-    function = "EVM.Memory.execute" if memory else "EVM.execute"
+    if gas is not None:
+        inputs.append("gas")
+    function = (
+        "EVM.Gas.execute"
+        if gas is not None
+        else "EVM.Memory.execute"
+        if memory
+        else "EVM.execute"
+    )
     return Program(
-        ("evm-window", str(height), *blocks.keys(), *(("memory",) if memory else ())),
+        (
+            "evm-window",
+            str(height),
+            *blocks.keys(),
+            *(("memory",) if memory else ()),
+            *((gas, evm_version) if gas is not None else ()),
+        ),
         inputs,
-        "EVM.Memory.Execution" if memory else "EVM.Execution",
+        "EVM.Gas.Result"
+        if gas is not None
+        else "EVM.Memory.Execution"
+        if memory
+        else "EVM.Execution",
         function
         + " ⟨calldatasize, returndatasize⟩ ["
         + ", ".join(ops)
@@ -155,7 +198,13 @@ def translate(text: str, *, memory: bool = False) -> Program:
         + " ["
         + ", ".join(stack)
         + "]"
-        + (f" ({mem.INITIAL})" if memory else ""),
-        (*((256,) * (2 + height)), *mem.WIDTHS) if memory else (),
+        + (f" ({mem.INITIAL})" if memory else "")
+        + (" gas.toNat" if gas is not None else ""),
+        (*((256,) * (2 + height)), *mem.WIDTHS, *((256,) if gas is not None else ()))
+        if memory
+        else (),
         memory=memory,
+        gas=gas,
+        gas_cost=estimate + 3 * words + words * words // 512,
+        evm_version=evm_version if gas is not None else None,
     )

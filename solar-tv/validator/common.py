@@ -17,6 +17,9 @@ class Program:
     input_widths: tuple[int, ...] = ()
     canonical_ir: str = ""
     memory: bool = False
+    gas: str | None = None
+    gas_cost: int = 0
+    evm_version: str | None = None
 
 
 def lines(text: str) -> list[str]:

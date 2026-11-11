@@ -46,3 +46,11 @@ def check_range(offset: int | None, size: int | None) -> None:
         raise Unsupported("memory addresses and output sizes must be constant")
     if offset < 0 or size < 0 or offset + size > CAPACITY:
         raise Unsupported(f"memory access exceeds the {CAPACITY}-byte modeled prefix")
+
+
+def active_words(offset: int | None, size: int | None) -> int:
+    check_range(offset, size)
+    if size == 0:
+        return 0
+    assert offset is not None and size is not None
+    return (offset + size + 31) // 32

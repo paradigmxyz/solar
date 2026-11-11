@@ -31,7 +31,15 @@ impl<'a> Snapshot<'a> {
         if self.before == after {
             return Ok(());
         }
-        let context = format!("solar-tv: {layer} pass `{pass}` on `{module}`");
+        let gas_policy = (layer == "evmir").then(|| env::var_os("SOLAR_TV_GAS")).flatten();
+        let mut context = format!("solar-tv: {layer} pass `{pass}` on `{module}`");
+        if let Some(policy) = &gas_policy {
+            context.push_str(&format!(
+                " [gas={}, evm={}]",
+                policy.to_string_lossy(),
+                gcx.sess.opts.evm_version
+            ));
+        }
         let io_error = |error: io::Error| {
             gcx.dcx()
                 .err(format!(
@@ -56,13 +64,16 @@ impl<'a> Snapshot<'a> {
             .map(Ok)
             .unwrap_or_else(|| env::current_exe().map(Into::into))
             .and_then(|solar| {
-                Command::new(env::var_os("SOLAR_TV").unwrap_or_else(|| "solar-tv".into()))
-                    .arg(layer)
-                    .arg(before_path)
-                    .arg(after_path)
-                    .arg("--solar")
-                    .arg(solar)
-                    .output()
+                let mut command =
+                    Command::new(env::var_os("SOLAR_TV").unwrap_or_else(|| "solar-tv".into()));
+                command.arg(layer).arg(before_path).arg(after_path).arg("--solar").arg(solar);
+                if gas_policy.is_some() {
+                    command.arg("--evm-version").arg(gcx.sess.opts.evm_version.to_string());
+                } else {
+                    // MIR has no physical stack schedule, so keep its gas-independent audit.
+                    command.env_remove("SOLAR_TV_GAS");
+                }
+                command.output()
             });
         let (outcome, details, diagnostic) = match output {
             Ok(output) => {
