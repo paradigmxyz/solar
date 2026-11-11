@@ -292,9 +292,12 @@ test compares return bytes, revert behavior, logs, and normalized state diffs.
 ### Symbolic Solc-vs-Solar differential
 
 The [compiler-diff CLI](../../tools/compiler-diff/README.md#execution-engines)
-exposes Foundry's symbolic executor to compare a contract compiled by Solc and
-Solar over bounded symbolic inputs. `fuzz/bin/solsymdiff` remains a direct
-entry point.
+compares a contract compiled by Solc and Solar with Foundry's
+`forge equivalence`, which symbolically checks whether two runtime bytecodes
+behave the same on every input within its bounds. `fuzz/bin/solsymdiff` remains a
+direct entry point. It needs a Forge built after foundry-rs/foundry#18065, an
+SMT solver such as z3 or Bitwuzla, and anvil to run constructors; it prefers
+the anvil next to the `--forge` binary.
 
 Agents using this workflow should also follow the repository's
 [agent guidance](../../AGENTS.md).
@@ -309,170 +312,131 @@ uv run --project tools/compiler-diff compiler-diff symbolic -- \
   --contract Target \
   --signature 'probe(uint256,bytes)'
 
-# Every function and every two-call sequence, from a symbolic msg.sender.
+# Every function and raw calldata, from arbitrary starting storage.
 uv run --project tools/compiler-diff compiler-diff symbolic -- \
   --source /absolute/path/to/Target.sol \
   --solar "$PWD/target/debug/solar" \
   --contract Target \
-  --all-functions --depth 2 --symbolic-caller
+  --all-functions --arbitrary-storage
 ```
 
 Both compilers receive the same closed Standard JSON input and compiler
-settings. Each generated Foundry property takes a state snapshot, runs the
-Solc creation code with the constructor arguments and value, makes its calls,
-records the outcome, and reverts to the snapshot. It then runs the Solar
-creation code the same way, at the same address. Both builds therefore observe
-the same `address(this)`, external self-calls, log emitters, and created-contract
-addresses. The property compares:
+settings. solsymdiff then deploys both builds' creation code on a private
+anvil, from the same account and nonce and so at the same address, with
+`--constructor-args 0x...` (default: the zero value of every constructor input)
+and `--constructor-value` (default 0). The `<constructor>` check compares the two
+deployments' success, revert data, logs, storage, and balance; a difference is
+a mismatch in `constructor`, and `comparison` says which. When both deployments
+succeed, their deployed runtimes, with immutables filled in, are what the
+remaining checks compare. `--runtime-only` compares the runtimes as compiled
+instead; contracts with immutables require constructor execution.
 
-- the constructor's success and revert data;
-- every call's success and exact returndata, at any length;
-- ordered logs, including emitter, topics, and data, of the constructor and of
-  every call that succeeded; a reverted top-level call's logs are discarded on
-  chain, so they are not compared;
-- for the target and every contract it created with `CREATE`: every storage
-  slot either build wrote, read back after the last call, plus the final
-  balance, nonce, and whether code is present; slots neither build wrote keep
-  their initial zero, and created code itself is not compared because it
-  legitimately differs between compilers; and
-- the final balances of the harness, every symbolic caller, and a symbolic
-  `observer` account, so Ether sent to any account must agree.
+Each remaining check is one `forge equivalence` run, with Solc's runtime as code
+A and Solar's as code B. Both run at one address from the same starting state,
+on shared symbolic calldata, sender, origin, call value, block values, and gas
+price. On every pair of feasible paths Forge compares:
 
-Every call and the constructor carry a symbolic Ether value, so a missing
-`callvalue` check on a nonpayable function is a difference too. A mismatch
-reports what differs in `differs_in`, for example `storage`, `returndata`,
-`logs`, `call success`, `balance`, or `abi` when the two builds expose
-different functions or selectors; an ABI difference is reported without
-running Forge. The result schema is `solar:solsymdiff@v2`.
+- success and the exact return or revert data; and
+- when both succeed, the ordered logs and the storage, balance, nonce, and code
+  of every account either build changed.
 
-Constructor arguments are symbolic by default. `--constructor-args 0x...`
-fixes them to ABI-encoded values, which keeps solver queries small when
-immutables feed arithmetic. `--runtime-only` installs the runtime without
-running the constructor; contracts with immutables require constructor
-execution.
+Gas is not priced, so code that spends more gas to do the same thing agrees,
+but a build that runs out of memory gas where the other does not differs;
+`--ignore-out-of-gas` leaves those inputs out. Each build reads its own
+unconstrained `GAS`. Calls into unknown code answer as one fixed unknown function
+of their inputs; a state-changing call into unknown code may re-enter, so it
+makes the check incomplete unless `--promise-no-reent` promises that it does not.
+The call value is symbolic unless `--value WEI` fixes it, so a missing
+`callvalue` check on a nonpayable function is a difference too.
 
-`--signature` selects one function. `--all-functions` instead generates, per
-function, one property with ABI-encoded symbolic arguments and one that sends
-the function's selector followed by arbitrary bytes of lengths around its
-argument head, which exercises the compilers' ABI decoding with short data,
-dirty values, and bad offsets. It adds one property that sends calldata matching
-no selector (empty, short, selector-only, and one-word lengths), which reaches
-`fallback` and `receive`. Functions with inputs the symbolic executor cannot
-generate are listed under `skipped`. `--depth N` compares every call sequence
-of up to `N` calls whose earlier calls are state-changing functions, each with
-its own symbolic arguments, caller, and value; `--max-checks` caps the number
-of generated sequences. The result lists every sequence under `checks`. The
-overall status is `mismatch` if any sequence mismatched, otherwise `incomplete`
-if any sequence was incomplete; a sequence Forge cannot classify is reported
-incomplete on its own without hiding the others.
+`--signature` runs one check of ABI-encoded calls of one function
+(`forge equivalence --sig`). `--all-functions` runs one such check per function,
+labelled with its signature, then one `<other calldata>` check on raw calldata of
+fixed lengths: empty, one byte, short, selector-only, one word, and one byte
+short of, exactly, and one word past every function's argument head. Forge
+cannot fix the selector of raw calldata, so this check covers both calldata that
+matches no selector, which reaches `fallback` and `receive`, and short or dirty
+arguments of every function, which exercise the compilers' ABI decoding; a
+counterexample names the function whose selector it starts with. Lengths above
+`--max-calldata-bytes` (default 1024) are left out. Functions with inputs Forge
+cannot generate are listed under `skipped`. Dynamic inputs take each length in
+`--dynamic-lengths` (default `0,1,2,3`).
 
-`--arbitrary-storage` gives every fixed storage slot of the target a symbolic
-starting word, written after the constructor and before the first call, so a
-property covers states that no generated call sequence reaches. Solidity code
-never stores a `bool` other than 0 or 1, an enum value outside its members, or
-nonzero bytes outside a slot's declared fields, and compilers may treat such
-storage differently, so the property assumes those encodings away using Solc's
-storage layout and AST; the covered starting states are the validly encoded
-ones. A slot that holds a user-defined value type or an internal function
-pointer starts empty, because its encoding is not visible in the layout. The
-words are test inputs, so a counterexample reports them under `starting_storage`
-and Foundry replays them exactly. Mapping and dynamic-array
-contents, and `bytes` and `string` slots, start empty, because their contents
-live at hashed slots that concrete replay cannot reproduce. The mode needs a
-source compiled by this tool and rejects saved attempts, which carry no AST.
-Because a slot only one build wrote holds the other build's starting value,
-Solc runs a second time to read its final value at every slot either build
-wrote.
+Storage starts empty. Forge does not take the constructor's storage as the
+calls' starting state, so a call sees empty storage even where the constructor
+wrote, while immutables keep their constructed values. `--arbitrary-storage`
+starts every check from arbitrary storage instead, which covers states that only
+earlier calls reach. Forge does not restrict that storage to valid encodings: a
+`bool` other than 0 or 1, an enum value out of range, or dirty bytes beside a
+packed field are possible starting states. Solidity code never stores them, and
+the compilers may read them differently, so a mismatch in this mode can be an
+encoding artifact rather than a miscompilation; Forge's JSON does not report the
+starting storage, so reproduce such a counterexample before reporting it.
 
-Pure functions are enabled with `--signature` by default. `--include-view`,
-`--include-stateful`, and `--include-payable` allow the other mutabilities;
-`--all-functions` and `--depth` above one include every mutability.
-`--symbolic-caller` makes each call's `msg.sender` symbolic; without it, the
-harness is the caller. Top-level `address` inputs, symbolic callers, and the
-observer are assumed to be zero or above `0x100`: otherwise the solver can pick
-a precompile whose symbolic input Foundry does not model, which leaves the
-whole run incomplete even though both builds pass it the same address.
-`--allow-precompile-addresses` drops that assumption. A counterexample reports
-`constructor_args` and `constructor_value`, every call under `calls` with its
-calldata, `caller`, and `value`, the `observer`, and repeats the last call at
-the top level.
+The result lists every check under `checks` with its `status`:
+`bounded_agreement`, `mismatch`, or `incomplete`. The overall status is `mismatch`
+if any check mismatched, otherwise `incomplete` if any was. A mismatch reports
+`differs_in`: `call success`, `returndata`, `logs`, `storage`, `balance`, `nonce`,
+`out of gas`, `constructor`, or `abi` when the two builds expose different
+functions or selectors, which is reported without running Forge. Its
+`counterexample` holds the `calldata`, the decoded `args` of a function check,
+the `caller` and `value`, the block environment under `env`, each build's success,
+output, and logs under `solc` and `solar`, and the storage slots, balances, and
+accounts whose final values differ. Forge reports a counterexample only after
+replaying it concretely. A model it cannot replay, such as one that depends on
+`GAS` or on answers of unknown code, a bound that stops the search, an
+unsupported operation, a Forge error, and a timeout each leave that check
+incomplete with Forge's reason, without hiding the other checks. The result
+schema is `solar:solsymdiff@v3`.
 
-Repeat `--prefix-calldata 0x...` to prepend fixed zero-value calls before the
-symbolic calls. Prefix calldata includes the selector and ABI-encoded
-arguments; `0x` targets receive or fallback. Prefix success, returndata, logs,
-and storage writes are compared like every other call.
+Forge compares the code of created contracts byte for byte, and code created
+by Solc and Solar legitimately differs. A counterexample that differs only in
+created code is therefore reported incomplete, and a target whose runtime has
+`CREATE` or `CREATE2` lists that under `limitations`; compare a created
+contract's own source to cover its behavior.
 
-With call isolation, Forge runs each call of a property as its own
-transaction, as on chain. A target that ends a property without code, because
-SELFDESTRUCT deleted it as a same-transaction creation, is reported
-incomplete. Forge without foundry-rs/foundry#17865 runs all symbolic calls in
-one transaction; with such a Forge, when either build uses `TSTORE`, the
-constructor and the calls count as one sequence, and a sequence of more than
-one is reported incomplete, because transient storage would persist between
-them.
+`--timeout` (default 60 s) bounds each compiler run and each check: it is Forge's
+own timeout, and solsymdiff stops a Forge that runs a minute past it.
+`--max-paths`, `--max-depth` (opcodes per path), `--max-solver-queries`, the
+dynamic lengths, and the EVM version reach Forge through a `foundry.toml` in the
+run directory, and `result.json` records them under `bounds`. The run directory
+also keeps the compiler input, both compared runtimes (`solc.hex` and
+`solar.hex`), and each check's Forge command and output (`check-N.json`). It
+lives under `/tmp/solar-sourcify/<version>/engines/symbolic/<id>/` through the
+unified CLI; select another base directory with `--dir` before `symbolic`. The
+direct `fuzz/bin/solsymdiff` entry point defaults to `target/solsymdiff/` and
+accepts `--output-root`.
 
-Calls forward all remaining gas because Foundry's symbolic executor does not
-model gas and reports explicit gas caps, including those of Solidity's
-`transfer` and `send`, as incomplete. Calls to addresses without code are
-modeled as calls to empty accounts (`symbolic_call_targets = true`); in this
-closed world the only code belongs to the target, the contracts it creates,
-the harness, cheatcodes, and active precompiles. Calls into pre-existing
-external code and the behavior of created contracts are outside this lane;
-compare a created contract's own source to cover its behavior. Contracts
-created with `CREATE2` or by created contracts are not compared, and a target
-whose runtime uses `CREATE2` lists that under `limitations`. Forge without
-foundry-rs/foundry#17866 records the logs of inner frames that revert inside a
-successful call and does not say which frame emitted each log, so it cannot
-drop them. With such a Forge, for a build with a `LOG` opcode and any call or
-create opcode, a `logs` difference is reported incomplete, because it may come
-from such a frame, and agreement lists this under `limitations`, because a log
-committed in one build and reverted in the other matches in both recordings.
-solsymdiff probes each Forge binary once for both fixes and caches the answer
-under `$XDG_CACHE_HOME/solsymdiff`.
+Compared with the earlier harness (`solar:solsymdiff@v2`), which ran a generated
+Foundry test under `forge test --symbolic`, these are no longer covered:
 
-A generated symbolic bound is raised as needed to hold both builds' bytecode
-and is recorded in `result.json`. A mismatch is reported only after Foundry
-concretely replays the counterexample and the replay fails in one of the
-harness's comparisons; a replay that fails elsewhere, for example at a
-`vm.assume` because replay cannot materialize arbitrary storage read at
-symbolic mapping keys, is reported incomplete. The generated project, compiler input,
-and `result.json` are kept under
-`/tmp/solar-sourcify/<version>/engines/symbolic/<id>/` through the unified CLI;
-select another base directory with `--dir` before `symbolic`. The direct
-`fuzz/bin/solsymdiff` entry point defaults to `target/solsymdiff/` and accepts
-`--output-root`.
+- call sequences: each check is one call, so `--depth` is gone; use
+  `--arbitrary-storage` for states that need earlier calls;
+- contracts the target creates whose code differs between the builds;
+- the constructor's storage as the calls' starting state, and symbolic
+  constructor arguments and value: the constructor runs once, concretely;
+- arbitrary storage restricted to valid encodings; and
+- fixed calls before the symbolic ones (`--prefix-calldata`).
 
 To reuse recorded compilations, pass `--solc-attempt` and `--solar-attempt` with
 absolute attempt-directory paths. In this mode, `--source` names a source unit
 in the saved input, such as `src/Target.sol`. Both attempts must contain identical
 inputs, an explicit `evmVersion`, and runtime immutable/link reference outputs;
 attempts with creation bytecode run the constructor, and attempts without it
-run in runtime-only mode.
-Solc still compiles the harness. See the [saved-artifact example](../../tools/compiler-diff/README.md#execution-engines).
+run in runtime-only mode. See the
+[saved-artifact example](../../tools/compiler-diff/README.md#execution-engines).
 
 For real projects, use `--project-root`, repeat `--include-path`, and pass
 `--remapping prefix=target` as needed. Solc resolves the import closure once;
 the tool then embeds all resolved sources before compiling with either
 compiler, so the final compiler inputs are byte-for-byte identical.
 
-Programs whose result depends on remaining gas, transaction-local access
-warmth, or other dynamic gas context remain outside the sound comparison
-scope; Foundry reports gas observations as incomplete rather than proving them.
-
-The default dynamic input lengths are `0,1,2,3`. Use `--dynamic-lengths` to
-change all dynamic inputs or repeat `--input-length INDEX=LENGTHS` for a
-specific top-level array, `bytes`, or `string` argument of the selected
-`--signature`; overrides apply only to calls of that function. `--max-paths`,
-`--max-solver-queries`, `--max-depth`, `--max-calldata-bytes` (per call; the
-harness multiplies it by the number of symbolic calls and the constructor),
-`--symbolic-timeout`, and `--exploration-order` expose the search bounds an
-external campaign runner needs.
-
 `fuzz/fandango/run_symbolic_campaign.py` runs `--all-functions` over every
 deployable contract of the given sources and writes `results.jsonl` as results
 arrive plus a `summary.md` with mismatches, incomplete reasons, skipped
-functions, and limitations. It fails when a mismatch is found or a source has
-no deployable contract.
+functions, and limitations. Its `--timeout` applies to each compiler run and
+each check. It fails when a mismatch is found or a source has no deployable
+contract.
 
 A source ending in `.json` or `.json.gz` is a whole project: a Standard JSON
 input with inline sources, such as the archives in `testdata/projects/`. The
@@ -485,8 +449,7 @@ by default) from those saved attempts. A missing `evmVersion` becomes
 ```sh
 python3 fuzz/fandango/run_symbolic_campaign.py \
   testdata/projects/morpho-blue-1.0.0.json.gz \
-  --out target/solsymdiff-morpho --solc solc --solar target/release/solar -- \
-  --symbolic-caller
+  --out target/solsymdiff-morpho --solc solc --solar target/release/solar
 ```
 
 Exit status 0 means no mismatch was found within the recorded bounds, 1 means a

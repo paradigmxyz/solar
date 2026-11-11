@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 import io
 import json
 import os
 import pathlib
+import subprocess
 import tempfile
 import unittest
 from typing import Any
@@ -15,30 +15,180 @@ from unittest.mock import patch
 
 import symbolic_differential as symbolic
 
+# A replayed counterexample from `forge equivalence --sig 'quote(uint256)' --json`
+# on Bank.sol, compiled by Solc and by Solc with `return count == 1 ? 0 : ...`,
+# from arbitrary storage.
+NOT_EQUIVALENT = json.dumps(
+    {
+        "status": "not_equivalent",
+        "out_of_gas": False,
+        "calldata": "0xed1bd76c4000000000000000000000000000000000000000000000000000000000000000",
+        "args": [
+            "28948022309329048855892746252171976963317496166410141009864396001978282409984 [2.894e76]"
+        ],
+        "env": {
+            "address": "0x7fa9385be102ac3eac297483dd6233d62b3e1496",
+            "caller": "0x0000000000000000000000000000000000000000",
+            "origin": "0x0000000000000000000000000000000000000000",
+            "value": "0x0",
+            "timestamp": "0x0",
+            "number": "0x0",
+            "prevrandao": "0x0",
+            "gas_limit": "0x0",
+            "basefee": "0x0",
+            "chain_id": "0x0",
+            "coinbase": "0x0000000000000000000000000000000000000000",
+            "gas_price": "0x0",
+        },
+        "code_a": {
+            "success": False,
+            "output": "0x4e487b710000000000000000000000000000000000000000000000000000000000000011",
+            "logs": [],
+        },
+        "code_b": {
+            "success": True,
+            "output": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "logs": [],
+        },
+        "storage": [],
+        "balances": [],
+        "accounts": [],
+        "stats": {
+            "paths": 4,
+            "solver_queries": 7,
+            "smt_queries": 5,
+            "sat_queries": 10,
+            "model_queries": 1,
+            "sat_cache_hits": 4,
+            "model_cache_hits": 0,
+            "heuristic_witnesses": 0,
+            "solver_time_ms": 72,
+            "smt_input_bytes": 8976,
+            "smt_max_query_bytes": 1828,
+            "smt_build_time_ms": 0,
+            "smt_max_query_time_ms": 35,
+        },
+    }
+)
+# The same run on `read()` of Vault.sol, compiled by Solc and Solar.
+EQUIVALENT = json.dumps(
+    {
+        "status": "equivalent",
+        "stats": {
+            "paths": 6,
+            "solver_queries": 6,
+            "smt_queries": 2,
+            "sat_queries": 14,
+            "model_queries": 0,
+            "sat_cache_hits": 8,
+            "model_cache_hits": 0,
+            "heuristic_witnesses": 0,
+            "solver_time_ms": 31,
+            "smt_input_bytes": 3401,
+            "smt_max_query_bytes": 1801,
+            "smt_build_time_ms": 0,
+            "smt_max_query_time_ms": 21,
+        },
+    }
+)
+# Forge reports an incomplete check as an error, here on `bal(address)` of Vault.sol.
+INCOMPLETE = "Error: equivalence check incomplete (Error): the solver's counterexample 0x5580f72a000000000000000000000000ffffffffffffffffffffffffffffffffffffffff did not replay concretely\n"
+# `spawn(uint256)` of Bank.sol, compiled by Solc and Solar, differs only in the
+# code of the created contract.
+CREATED_CODE = json.dumps(
+    {
+        "status": "not_equivalent",
+        "out_of_gas": False,
+        "calldata": "0x7ec0c82d0000000000000000000000000000000000000000000000000000000000000000",
+        "args": ["0"],
+        "env": {
+            "address": "0x7fa9385be102ac3eac297483dd6233d62b3e1496",
+            "caller": "0x0000000000000000000000000000000000000000",
+            "origin": "0x0000000000000000000000000000000000000000",
+            "value": "0x0",
+            "timestamp": "0xffffffffffffffff",
+            "number": "0xffffffffffffffff",
+            "prevrandao": "0x0",
+            "gas_limit": "0xffffffffffffffff",
+            "basefee": "0xffffffffffffffff",
+            "chain_id": "0xffffffffffffffff",
+            "coinbase": "0xffffffffffffffffffffffffffffffffffffffff",
+            "gas_price": "0xffffffffffffffffffffffffffffffff",
+        },
+        "code_a": {
+            "success": True,
+            "output": "0x0000000000000000000000007d8cb8f412b3ee9ac79558791333f41d2b1ccdac",
+            "logs": [],
+        },
+        "code_b": {
+            "success": True,
+            "output": "0x0000000000000000000000007d8cb8f412b3ee9ac79558791333f41d2b1ccdac",
+            "logs": [],
+        },
+        "storage": [],
+        "balances": [],
+        "accounts": [
+            {
+                "address": "0x7d8cb8f412b3ee9ac79558791333f41d2b1ccdac",
+                "code_a": {
+                    "nonce": 1,
+                    "code_hash": "0x7742b692736346184d895cfc886315f59c6ae6bb999f02f19f22c4e2bfa35da6",
+                },
+                "code_b": {
+                    "nonce": 1,
+                    "code_hash": "0x4ed5274b1dc9d1cce882051c01fe75887922b7105426b05229ae1b5496f85231",
+                },
+            }
+        ],
+        "stats": {
+            "paths": 6,
+            "solver_queries": 4,
+            "smt_queries": 2,
+            "sat_queries": 7,
+            "model_queries": 1,
+            "sat_cache_hits": 4,
+            "model_cache_hits": 0,
+            "heuristic_witnesses": 0,
+            "solver_time_ms": 43,
+            "smt_input_bytes": 3181,
+            "smt_max_query_bytes": 1801,
+            "smt_build_time_ms": 0,
+            "smt_max_query_time_ms": 33,
+        },
+    }
+)
+
+
+def _function(
+    name: str = "f",
+    inputs: list[dict[str, Any]] | None = None,
+    mutability: str = "pure",
+) -> dict[str, Any]:
+    return {
+        "type": "function",
+        "name": name,
+        "inputs": [{"name": "value", "type": "uint256"}] if inputs is None else inputs,
+        "outputs": [{"name": "", "type": "uint256"}],
+        "stateMutability": mutability,
+    }
+
 
 def _artifact(
-    *,
-    mutability: str = "pure",
-    inputs: list[dict[str, Any]] | None = None,
-    selector: str = "b3de648b",
+    *functions: dict[str, Any],
+    selectors: dict[str, str] | None = None,
     runtime: str = "0x60006000f3",
     creation: str | None = "0x6001600055",
     constructor: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    inputs = inputs or [{"name": "value", "type": "uint256"}]
+    functions = functions or (_function(),)
+    if selectors is None:
+        selectors = {
+            symbolic._abi_signature(entry): f"{index:08x}"
+            for index, entry in enumerate(functions)
+        }
     return {
-        "abi": [
-            {
-                "type": "function",
-                "name": "f",
-                "inputs": inputs,
-                "outputs": [{"name": "", "type": "uint256"}],
-                "stateMutability": mutability,
-            }
-        ],
-        "method_identifiers": {
-            f"f({','.join(symbolic._canonical_type(item) for item in inputs)})": selector
-        },
+        "abi": list(functions),
+        "method_identifiers": selectors,
         "runtime": runtime,
         "creation": creation,
         "creation_links": False,
@@ -49,939 +199,498 @@ def _artifact(
             "stateMutability": "nonpayable",
         },
         "constructor": constructor or [],
-        "payable_fallback": False,
     }
 
 
-def _plan_args(**overrides: object) -> argparse.Namespace:
+def _args(**overrides: object) -> argparse.Namespace:
     values: dict[str, object] = {
-        "signature": "f(uint256)",
-        "include_view": True,
-        "include_stateful": True,
-        "include_payable": True,
-        "symbolic_caller": False,
+        "signature": None,
         "all_functions": False,
-        "depth": 1,
-        "max_checks": 256,
+        "constructor_args": None,
+        "constructor_value": 0,
+        "runtime_only": False,
+        "arbitrary_storage": False,
+        "value": None,
+        "promise_no_reent": False,
+        "ignore_out_of_gas": False,
+        "timeout": 30.5,
+        "max_paths": 64,
+        "max_solver_queries": 100,
+        "max_depth": 1000,
+        "max_calldata_bytes": 1024,
+        "dynamic_lengths": (0, 1),
+        "evm_version": "osaka",
     }
     values.update(overrides)
     return argparse.Namespace(**values)
 
 
-def _checks(
-    *,
-    inputs: list[dict[str, Any]] | None = None,
-    mutability: str = "pure",
-    symbolic_caller: bool = False,
-    all_functions: bool = False,
-    prefix: tuple[str, ...] = (),
-) -> list[dict[str, Any]]:
-    artifact = _artifact(mutability=mutability, inputs=inputs)
-    signature = next(iter(artifact["method_identifiers"]))
-    checks, _ = symbolic._plan_checks(
-        artifact,
-        artifact,
-        _plan_args(
-            signature=signature,
-            symbolic_caller=symbolic_caller,
-            all_functions=all_functions,
-        ),
-        prefix,
-    )
-    return checks
-
-
-def _symbolic_step(inputs: list[dict[str, Any]], mutability: str) -> dict[str, Any]:
-    return {
-        "kind": "symbolic",
-        "function": {
-            "signature": "g(bytes)",
-            "selector": "0xb3de648b",
-            "inputs": inputs,
-            "mutability": mutability,
-        },
-        "caller": False,
-    }
-
-
-def _generate(
-    checks: list[dict[str, Any]],
-    *,
-    runtime_only: bool = False,
-    constructor: list[dict[str, Any]] | None = None,
-    constructor_args: str | None = None,
-    allow_precompile_addresses: bool = False,
-) -> tuple[str, str]:
-    solc = _artifact(constructor=constructor)
-    solar = _artifact(
-        runtime="0x60016000f3", creation="0x6002600055", constructor=constructor
-    )
-    with tempfile.TemporaryDirectory() as tmp:
-        project = pathlib.Path(tmp)
-        symbolic._write_project(
-            project,
-            solc,
-            solar,
-            checks,
-            "osaka",
-            max_dynamic_length=256,
-            runtime_only=runtime_only,
-            constructor_args=constructor_args,
-            allow_precompile_addresses=allow_precompile_addresses,
-        )
-        return (
-            (project / "test" / "SymbolicDifferential.t.sol").read_text(),
-            (project / "foundry.toml").read_text(),
-        )
-
-
-def _forge_report(
-    status: str,
-    *,
-    replay: str = "not_required",
-    max_dynamic_length: int = 256,
-    reason: str = "returndata",
-    calldata: str = "0x12345678" + "00" * 96,
-) -> dict[str, Any]:
-    symbolic_result: dict[str, object] = {
-        "status": status,
-        "replay": {"status": replay},
-        "bounds": {
-            "timeout_seconds": 5,
-            "max_paths": 32,
-            "max_solver_queries": 100,
-            "max_calldata_bytes": 512,
-            "max_dynamic_length": max_dynamic_length,
-            "exploration_order": "bfs",
-            "storage_layout": "zero_init",
-            "default_array_lengths": [0, 1],
-            "default_bytes_lengths": [0, 1],
-            "dynamic_lengths": {},
-        },
-        "assumptions": [
-            {"kind": "bounded_exploration", "description": "bounded"},
-            {"kind": "hash_model", "description": "hashes"},
-        ],
-    }
-    outer_status = "Success" if status == "pass" else "Failure"
-    if status == "incomplete":
-        symbolic_result["incomplete"] = {"reason": "path limit reached"}
-    elif status == "fail_counterexample":
-        symbolic_result["counterexample"] = {"calldata": calldata}
-        symbolic_result["artifact"] = {
-            "path": "cache/symbolic-counterexample.json",
-        }
-    test_result: dict[str, object] = {
-        "status": outer_status,
-        "symbolic": symbolic_result,
-    }
-    if status == "fail_counterexample":
-        test_result["reason"] = reason
-    test_results: dict[str, object] = {
-        "checkSymbolicDifferential0(uint256,uint256,address)": test_result
-    }
-    return {
-        "test/SymbolicDifferential.t.sol:SymbolicDifferentialTest": {
-            "test_results": test_results
-        }
-    }
-
-
-class FunctionSelectionTests(unittest.TestCase):
-    def test_selects_one_matching_pure_function(self) -> None:
-        selected = symbolic._select_function(
-            _artifact(),
-            _artifact(),
-            "f(uint256)",
-        )
-
-        self.assertEqual(selected["signature"], "f(uint256)")
-        self.assertEqual(selected["selector"], "0xb3de648b")
-
-    def test_view_and_stateful_targets_require_explicit_opt_in(self) -> None:
-        with self.assertRaisesRegex(ValueError, "allowed: pure"):
-            symbolic._select_function(
-                _artifact(mutability="view"),
-                _artifact(mutability="view"),
-                "f(uint256)",
-            )
-
-        view = symbolic._select_function(
-            _artifact(mutability="view"),
-            _artifact(mutability="view"),
-            "f(uint256)",
-            include_view=True,
-        )
-        stateful = symbolic._select_function(
-            _artifact(mutability="nonpayable"),
-            _artifact(mutability="nonpayable"),
-            "f(uint256)",
-            include_stateful=True,
-        )
-
-        self.assertEqual(view["mutability"], "view")
-        self.assertEqual(stateful["mutability"], "nonpayable")
-
-        with self.assertRaisesRegex(ValueError, "allowed: nonpayable, pure"):
-            symbolic._select_function(
-                _artifact(mutability="payable"),
-                _artifact(mutability="payable"),
-                "f(uint256)",
-                include_stateful=True,
-            )
-        payable = symbolic._select_function(
-            _artifact(mutability="payable"),
-            _artifact(mutability="payable"),
-            "f(uint256)",
-            include_payable=True,
-        )
-        self.assertEqual(payable["mutability"], "payable")
-
-    def test_rejects_selector_disagreement(self) -> None:
-
-        with self.assertRaisesRegex(ValueError, "selector disagreement"):
-            symbolic._select_function(
-                _artifact(),
-                _artifact(selector="aaaaaaaa"),
-                "f(uint256)",
-            )
-
-    def test_validates_per_input_dynamic_lengths(self) -> None:
-        inputs = [{"type": "bytes"}, {"type": "uint256[]"}, {"type": "uint256"}]
-
-        self.assertEqual(
-            symbolic._normalize_input_lengths([(0, (0, 32)), (1, (1, 4))], inputs),
-            {"arg0": (0, 32), "arg1": (1, 4)},
-        )
-        with self.assertRaisesRegex(ValueError, "not a top-level dynamic input"):
-            symbolic._normalize_input_lengths([(2, (0,))], inputs)
-
-    def test_validates_prefix_calldata(self) -> None:
-        self.assertEqual(symbolic._prefix_calldata("0xAa00"), "0xaa00")
-        for value in ("", "1234", "0x0", "0xzz"):
-            with (
-                self.subTest(value=value),
-                self.assertRaisesRegex(
-                    argparse.ArgumentTypeError,
-                    "even-length hexadecimal",
-                ),
-            ):
-                symbolic._prefix_calldata(value)
-
-
-class ResultClassificationTests(unittest.TestCase):
-    def test_classifies_bounded_agreement_and_incomplete(self) -> None:
-        checks = _checks()
-        self.assertEqual(
-            symbolic._classify(_forge_report("pass"), checks),
-            {"status": "bounded_agreement"},
-        )
-        self.assertEqual(
-            symbolic._classify(_forge_report("incomplete"), checks),
-            {
-                "status": "incomplete",
-                "reason": "path limit reached",
-            },
-        )
-
-    def test_mismatch_names_what_differs_and_requires_replay(self) -> None:
-        checks = _checks()
-        result = symbolic._classify(
-            _forge_report("fail_counterexample", replay="confirmed", reason="storage"),
-            checks,
-        )
-
-        self.assertEqual(result["status"], "mismatch")
-        self.assertEqual(result["differs_in"], "storage")
-        self.assertEqual(result["counterexample"]["calldata"], "0xb3de648b" + "00" * 32)
-        self.assertEqual(result["counterexample"]["value"], "0")
-
-        result = symbolic._classify(_forge_report("fail_counterexample"), checks)
-        self.assertEqual(
-            result,
-            {
-                "status": "incomplete",
-                "reason": "Forge did not concretely replay the counterexample",
-            },
-        )
-
-    def test_logs_difference_with_inner_frames_is_incomplete(self) -> None:
-        report = _forge_report("fail_counterexample", replay="confirmed", reason="logs")
-        (check,) = _checks()
-        check["log_limit"] = symbolic._inner_frame_log_limit("0xa0f1")
-
-        self.assertEqual(
-            symbolic._classify(report, [check]),
-            {
-                "status": "incomplete",
-                "reason": "logs of reverted inner frames are not told apart from committed logs",
-            },
-        )
-        self.assertIsNone(symbolic._inner_frame_log_limit("0xa0", "0xf1"))
-        self.assertEqual(symbolic._classify(report, _checks())["status"], "mismatch")
-
-    def test_unsupported_failure_is_incomplete(self) -> None:
-        result = symbolic._classify(
-            _forge_report(
-                "fail_counterexample",
-                replay="confirmed",
-                reason="unsupported: SELFDESTRUCT within the comparison transaction",
-            ),
-            _checks(),
-        )
-
-        self.assertEqual(
-            result,
-            {
-                "status": "incomplete",
-                "reason": "SELFDESTRUCT within the comparison transaction",
-            },
-        )
-
-    def test_failure_outside_the_comparison_is_incomplete(self) -> None:
-        for reason in (
-            "FOUNDRY::ASSUME",
-            "panic: arithmetic underflow or overflow (0x11)",
-        ):
-            with self.subTest(reason=reason):
-                result = symbolic._classify(
-                    _forge_report(
-                        "fail_counterexample", replay="confirmed", reason=reason
-                    ),
-                    _checks(),
-                )
-
-                self.assertEqual(result["status"], "incomplete")
-                self.assertIn(reason, result["reason"])
-
-    def test_one_unclassifiable_check_keeps_the_others(self) -> None:
-        checks = _checks(all_functions=True)
-        report = _forge_report("fail_counterexample", replay="confirmed")
-        results = next(iter(report.values()))["test_results"]
-        # A counterexample that did not replay must not hide a confirmed one.
-        unconfirmed = _forge_report("fail_counterexample")
-        results["checkSymbolicDifferential1(bytes,uint256,address)"] = next(
-            iter(next(iter(unconfirmed.values()))["test_results"].values())
-        )
-        del results[next(iter(results))]
-        results["checkSymbolicDifferential0(uint256,uint256,address)"] = next(
-            iter(
-                next(
-                    iter(
-                        _forge_report(
-                            "fail_counterexample", replay="confirmed"
-                        ).values()
-                    )
-                )["test_results"].values()
-            )
-        )
-
-        result = symbolic._classify(report, checks)
-
-        self.assertEqual(result["status"], "mismatch")
-        self.assertEqual(
-            [(item["label"], item["status"]) for item in result["checks"]],
-            [
-                ("f(uint256)", "mismatch"),
-                ("f(uint256) <arbitrary arguments>", "incomplete"),
-                ("<other calldata>", "incomplete"),
-            ],
-        )
-        self.assertEqual(
-            result["checks"][2]["reason"], "Forge did not report this check"
-        )
-
-    def test_counterexample_separates_harness_inputs(self) -> None:
-        inputs = [
-            {"name": "a", "type": "uint256"},
-            {"name": "b", "type": "bytes"},
-            {"name": "c", "type": "uint8[2]"},
-        ]
-        target_args = (
-            (7).to_bytes(32)
-            + (128).to_bytes(32)
-            + (1).to_bytes(32)
-            + (2).to_bytes(32)
-            + (2).to_bytes(32)
-            + bytes.fromhex("abcd").ljust(32, b"\0")
-        )
-        harness_args = (
-            (7).to_bytes(32)
-            + (128 + 96).to_bytes(32)
-            + (1).to_bytes(32)
-            + (2).to_bytes(32)
-            + bytes(12)
-            + bytes.fromhex("00000000000000000000000000000000000000ca")
-            + (5).to_bytes(32)
-            + bytes(12)
-            + bytes.fromhex("00000000000000000000000000000000000000fe")
-            + (2).to_bytes(32)
-            + bytes.fromhex("abcd").ljust(32, b"\0")
-        )
-        (check,) = _checks(inputs=inputs, mutability="payable", symbolic_caller=True)
-
-        decoded = symbolic._decode_counterexample(
-            "0x12345678" + harness_args.hex(), check, None
-        )
-
-        self.assertEqual(decoded["calldata"], "0xb3de648b" + target_args.hex())
-        self.assertEqual(
-            decoded["caller"], "0x00000000000000000000000000000000000000ca"
-        )
-        self.assertEqual(decoded["value"], "5")
-        self.assertEqual(
-            decoded["observer"], "0x00000000000000000000000000000000000000fe"
-        )
-
-    def test_counterexample_splits_constructor_and_call_sequence(self) -> None:
-        inputs = [{"name": "data", "type": "bytes"}]
-        check = {
-            "name": "checkSymbolicDifferential0",
-            "label": "g(bytes) -> g(bytes) <arbitrary arguments>",
-            "steps": [
-                {"kind": "fixed", "calldata": "0xaabbccdd"},
-                _symbolic_step(inputs, "nonpayable"),
-                {
-                    "kind": "raw_args",
-                    "caller": False,
-                    "function": _symbolic_step(inputs, "nonpayable")["function"],
-                },
-            ],
-            "input_lengths": {},
-        }
-        constructor = [
-            {"name": "owner", "type": "address"},
-            {"name": "x", "type": "bytes"},
-        ]
-
-        def tail(payload: bytes) -> bytes:
-            return len(payload).to_bytes(32) + payload.ljust(32, b"\0")
-
-        # c0, c1, c_value, s1_a0, s1_value, s2_raw, s2_value, observer.
-        heads = [
-            bytes(12) + bytes.fromhex("00000000000000000000000000000000000000aa"),
-            (256).to_bytes(32),
-            (3).to_bytes(32),
-            (320).to_bytes(32),
-            (4).to_bytes(32),
-            (384).to_bytes(32),
-            (5).to_bytes(32),
-            bytes(12) + bytes.fromhex("00000000000000000000000000000000000000fe"),
-        ]
-        wrapper = (
-            b"".join(heads) + tail(b"\x01") + tail(b"\x02\x03") + tail(b"\x04\x05")
-        )
-
-        decoded = symbolic._decode_counterexample(
-            "0x12345678" + wrapper.hex(), check, constructor
-        )
-
-        self.assertEqual(
-            decoded["constructor_args"],
-            "0x" + (heads[0] + (64).to_bytes(32) + tail(b"\x01")).hex(),
-        )
-        self.assertEqual(decoded["constructor_value"], "3")
-        self.assertEqual(
-            [(call["calldata"], call.get("value")) for call in decoded["calls"]],
-            [
-                ("0xaabbccdd", None),
-                ("0xb3de648b" + ((32).to_bytes(32) + tail(b"\x02\x03")).hex(), "4"),
-                ("0xb3de648b0405", "5"),
-            ],
-        )
-
-    def test_bounded_agreement_requires_the_requested_forge_bounds(self) -> None:
-        expected = {
-            "solver_timeout_seconds": 5,
-            "max_paths": 32,
-            "max_solver_queries": 100,
-            "max_calldata_bytes": 512,
-            "max_dynamic_length": 256,
-            "max_depth": None,
-            "exploration_order": "bfs",
-            "storage_layout": "zero_init",
-            "dynamic_lengths": [0, 1],
-        }
-        report = _forge_report("pass")
-        checks = _checks()
-
-        self.assertEqual(
-            symbolic._classify(report, checks, expected),
-            {"status": "bounded_agreement"},
-        )
-        contract_report = next(iter(report.values()))
-        symbolic_result = next(iter(contract_report["test_results"].values()))
-        symbolic_result["symbolic"]["bounds"]["max_paths"] = 31
-        result = symbolic._classify(report, checks, expected)
-        self.assertEqual(result["status"], "incomplete")
-        self.assertIn("max_paths=31", result["reason"])
-
-
-class CheckPlanningTests(unittest.TestCase):
-    def test_all_functions_adds_arbitrary_and_unmatched_calldata(self) -> None:
-        checks = _checks(all_functions=True)
-
-        self.assertEqual(
-            [check["label"] for check in checks],
-            ["f(uint256)", "f(uint256) <arbitrary arguments>", "<other calldata>"],
-        )
-        raw_args = checks[1]["steps"][0]
-        self.assertEqual(raw_args["kind"], "raw_args")
-        self.assertEqual(raw_args["lengths"], (0, 31, 32, 64))
-        self.assertEqual(checks[1]["input_lengths"], {"s0_raw": (0, 31, 32, 64)})
-        raw = checks[2]["steps"][0]
-        self.assertEqual(raw["kind"], "raw")
-        self.assertEqual(raw["known_selectors"], ["0xb3de648b"])
-
-    def test_abi_disagreements_fail_closed(self) -> None:
-        solar = _artifact(selector="aaaaaaaa")
-        with self.assertRaisesRegex(symbolic.AbiDisagreement, "selector disagreement"):
-            symbolic._plan_checks(
-                _artifact(), solar, _plan_args(all_functions=True), ()
-            )
-
-        solar = _artifact()
-        solar["abi"] = []
-        with self.assertRaisesRegex(symbolic.AbiDisagreement, "only Solc has"):
-            symbolic._plan_checks(
-                _artifact(), solar, _plan_args(all_functions=True), ()
-            )
-
-    def test_depth_prefixes_state_changing_calls(self) -> None:
-        artifact = _artifact(mutability="nonpayable")
-        artifact["abi"].append(
-            {
-                "type": "function",
-                "name": "g",
-                "inputs": [],
-                "outputs": [],
-                "stateMutability": "view",
-            }
-        )
-        artifact["method_identifiers"]["g()"] = "e2179b8e"
+class PlanTests(unittest.TestCase):
+    def test_signature_selects_one_function_of_any_mutability(self) -> None:
+        artifact = _artifact(_function(mutability="payable"))
 
         checks, skipped = symbolic._plan_checks(
-            artifact, artifact, _plan_args(all_functions=True, depth=2), ()
+            artifact, artifact, _args(signature="f(uint256)")
+        )
+
+        self.assertEqual(checks, [{"label": "f(uint256)", "sig": "f(uint256)"}])
+        self.assertEqual(skipped, [])
+
+    def test_signature_is_required_without_all_functions(self) -> None:
+        artifact = _artifact()
+        with self.assertRaisesRegex(ValueError, "--signature is required"):
+            symbolic._plan_checks(artifact, artifact, _args())
+
+    def test_rejects_selector_and_shape_disagreements(self) -> None:
+        solc = _artifact()
+        solar = _artifact(selectors={"f(uint256)": "ffffffff"})
+        with self.assertRaisesRegex(symbolic.AbiDisagreement, "selector"):
+            symbolic._plan_checks(solc, solar, _args(signature="f(uint256)"))
+        solar = _artifact(_function(mutability="view"))
+        with self.assertRaisesRegex(symbolic.AbiDisagreement, "ABI disagreement"):
+            symbolic._plan_checks(solc, solar, _args(signature="f(uint256)"))
+
+    def test_all_functions_adds_raw_calldata(self) -> None:
+        artifact = _artifact(
+            _function("b", [{"name": "x", "type": "uint256"}]),
+            _function(
+                "a", [{"name": "x", "type": "bytes"}, {"name": "y", "type": "uint8[2]"}]
+            ),
+            _function("c", []),
+        )
+
+        checks, skipped = symbolic._plan_checks(
+            artifact, artifact, _args(all_functions=True)
         )
 
         self.assertEqual(skipped, [])
-        labels = [check["label"] for check in checks]
-        self.assertEqual(len(labels), 10)
         self.assertEqual(
-            labels[:5],
+            checks,
             [
-                "f(uint256)",
-                "g()",
-                "f(uint256) <arbitrary arguments>",
-                "g() <arbitrary arguments>",
-                "<other calldata>",
+                {"label": "a(bytes,uint8[2])", "sig": "a(bytes,uint8[2])"},
+                {"label": "b(uint256)", "sig": "b(uint256)"},
+                {"label": "c()", "sig": "c()"},
+                {
+                    "label": "<other calldata>",
+                    # Short calldata, and around the heads of 0, 32, and 96 bytes.
+                    "calldata_lengths": [0, 1, 3, 4, 35, 36, 68, 99, 100, 132],
+                },
             ],
         )
-        self.assertTrue(all(label.startswith("f(uint256) -> ") for label in labels[5:]))
-        with self.assertRaisesRegex(ValueError, "10 call sequences exceed"):
-            symbolic._plan_checks(
-                artifact,
-                artifact,
-                _plan_args(all_functions=True, depth=2, max_checks=9),
-                (),
-            )
 
-    def test_all_functions_skips_unsupported_inputs(self) -> None:
-        artifact = _artifact(inputs=[{"name": "f", "type": "function"}])
+    def test_raw_lengths_respect_the_calldata_limit(self) -> None:
+        abi = [_function(inputs=[{"name": "x", "type": "uint256[40]"}])]
+
+        self.assertEqual(symbolic._raw_lengths(abi, 1300), [0, 1, 3, 4, 36, 1283, 1284])
+        self.assertEqual(symbolic._raw_lengths(abi, 36), [0, 1, 3, 4, 36])
+
+    def test_all_functions_skips_inputs_forge_cannot_generate(self) -> None:
+        artifact = _artifact(
+            _function("f"),
+            _function("g", [{"name": "x", "type": "function"}]),
+            _function("h", [{"name": "x", "type": "fixed128x18"}]),
+        )
 
         checks, skipped = symbolic._plan_checks(
-            artifact, artifact, _plan_args(all_functions=True), ()
+            artifact, artifact, _args(all_functions=True)
         )
 
-        self.assertEqual([check["label"] for check in checks], ["<other calldata>"])
-        self.assertEqual(skipped[0]["signature"], "f(function)")
+        self.assertEqual(
+            [check["label"] for check in checks], ["f(uint256)", "<other calldata>"]
+        )
+        self.assertEqual(
+            [item["signature"] for item in skipped],
+            ["g(function)", "h(fixed128x18)"],
+        )
 
-    def test_signature_with_depth_reports_skipped_functions(self) -> None:
-        artifact = _artifact()
-        artifact["abi"].append(
+    def test_abi_disagreements_fail_closed(self) -> None:
+        solc = _artifact(_function("f"), _function("g", []))
+        solar = _artifact(_function("f"))
+        with self.assertRaisesRegex(symbolic.AbiDisagreement, "only Solc has"):
+            symbolic._plan_checks(solc, solar, _args(all_functions=True))
+        # A selector disagreement on a function Forge cannot generate still counts.
+        solc = _artifact(_function("g", [{"name": "x", "type": "function"}]))
+        solar = _artifact(
+            _function("g", [{"name": "x", "type": "function"}]),
+            selectors={"g(function)": "ffffffff"},
+        )
+        with self.assertRaisesRegex(symbolic.AbiDisagreement, "selector"):
+            symbolic._plan_checks(solc, solar, _args(all_functions=True))
+
+    def test_zero_arguments_encode_empty_dynamic_values(self) -> None:
+        def words(*values: int) -> str:
+            return "".join(f"{value:064x}" for value in values)
+
+        self.assertEqual(symbolic._zero_arguments([]), b"")
+        self.assertEqual(
+            symbolic._zero_arguments(
+                [{"type": "uint256"}, {"type": "address[2]"}]
+            ).hex(),
+            words(0, 0, 0),
+        )
+        encoded = symbolic._zero_arguments(
+            [
+                {"type": "bytes"},
+                {"type": "uint8"},
+                {"type": "string[]"},
+                {
+                    "type": "tuple",
+                    "components": [{"type": "uint256"}, {"type": "bytes"}],
+                },
+                {"type": "bytes[2]"},
+            ]
+        )
+        self.assertEqual(
+            encoded.hex(),
+            words(
+                # Heads: offsets of the dynamic values, then a zero uint8.
+                0xA0,
+                0,
+                0xC0,
+                0xE0,
+                0x140,
+                # bytes, string[], (uint256,bytes), and bytes[2].
+                0,
+                0,
+                0,
+                0x40,
+                0,
+                0x40,
+                0x60,
+                0,
+                0,
+            ),
+        )
+
+
+class ForgeTests(unittest.TestCase):
+    def test_command_compares_solc_and_solar_runtimes(self) -> None:
+        tools = {"forge": "/bin/forge", "solver": "bitwuzla"}
+
+        command = symbolic._forge_command(
+            tools, {"label": "f(uint256)", "sig": "f(uint256)"}, _args()
+        )
+
+        self.assertEqual(
+            command,
+            [
+                "/bin/forge",
+                "equivalence",
+                "--code-a-file",
+                "solc.hex",
+                "--code-b-file",
+                "solar.hex",
+                "--sig",
+                "f(uint256)",
+                "--max-calldata",
+                "1024",
+                "--solver",
+                "bitwuzla",
+                "--timeout",
+                "31",
+                "--empty-storage",
+                "--json",
+            ],
+        )
+
+    def test_command_passes_raw_lengths_and_options(self) -> None:
+        tools = {"forge": "forge", "solver": "z3"}
+        check = {"label": "<other calldata>", "calldata_lengths": [0, 4, 36]}
+
+        command = symbolic._forge_command(
+            tools,
+            check,
+            _args(
+                arbitrary_storage=True,
+                value=7,
+                promise_no_reent=True,
+                ignore_out_of_gas=True,
+            ),
+        )
+
+        self.assertIn("--calldata-lengths", command)
+        self.assertEqual(command[command.index("--calldata-lengths") + 1], "0,4,36")
+        self.assertNotIn("--sig", command)
+        self.assertNotIn("--empty-storage", command)
+        self.assertEqual(command[command.index("--value") + 1], "7")
+        self.assertIn("--promise-no-reent", command)
+        self.assertIn("--ignore-out-of-gas", command)
+
+    def test_foundry_toml_holds_the_symbolic_bounds(self) -> None:
+        self.assertEqual(
+            symbolic._foundry_toml(_args(evm_version="cancun")),
+            "[profile.default]\n"
+            'evm_version = "cancun"\n'
+            "\n"
+            "[profile.default.symbolic]\n"
+            "max_paths = 64\n"
+            "max_depth = 1000\n"
+            "max_solver_queries = 100\n"
+            "max_dynamic_length = 256\n"
+            "default_array_lengths = [0, 1]\n"
+            "default_bytes_lengths = [0, 1]\n",
+        )
+
+    def test_classifies_equivalence(self) -> None:
+        outcome = symbolic._classify(0, EQUIVALENT + "\n", "", {})
+
+        self.assertEqual(outcome["status"], "bounded_agreement")
+        self.assertEqual(outcome["stats"], json.loads(EQUIVALENT)["stats"])
+
+    def test_classifies_replayed_counterexample(self) -> None:
+        report = json.loads(NOT_EQUIVALENT)
+
+        outcome = symbolic._classify(
+            1,
+            NOT_EQUIVALENT + "\n",
+            "Error: contracts are not equivalent\n",
+            {"0xed1bd76c": "quote(uint256)"},
+        )
+
+        self.assertEqual(outcome["status"], "mismatch")
+        # Solc's build overflows where the mutated one returns 0.
+        self.assertEqual(outcome["differs_in"], "call success")
+        counterexample = outcome["counterexample"]
+        self.assertEqual(counterexample["calldata"], report["calldata"])
+        self.assertEqual(counterexample["function"], "quote(uint256)")
+        self.assertEqual(counterexample["args"], report["args"])
+        self.assertEqual(counterexample["caller"], report["env"]["caller"])
+        self.assertEqual(counterexample["value"], str(int(report["env"]["value"], 16)))
+        self.assertEqual(counterexample["solc"], report["code_a"])
+        self.assertEqual(counterexample["solar"], report["code_b"])
+
+    def test_names_what_differs(self) -> None:
+        base = json.loads(NOT_EQUIVALENT)
+        same = {"success": True, "output": "0x", "logs": []}
+        cases = [
+            ({"out_of_gas": True}, "out of gas"),
+            ({"code_b": {**same, "success": False}}, "call success"),
+            ({"code_b": {**same, "output": "0x01"}}, "returndata"),
+            ({"code_b": {**same, "logs": [{"topics": []}]}}, "logs"),
+            (
+                {
+                    "storage": [
+                        {
+                            "address": "0x1",
+                            "slot": "0x0",
+                            "code_a": "0x1",
+                            "code_b": "0x2",
+                        }
+                    ]
+                },
+                "storage",
+            ),
+            (
+                {"balances": [{"address": "0x1", "code_a": "0x1", "code_b": "0x2"}]},
+                "balance",
+            ),
+            (
+                {
+                    "accounts": [
+                        {
+                            "address": "0x1",
+                            "code_a": {"nonce": 1, "code_hash": "0xa"},
+                            "code_b": {"nonce": 2, "code_hash": "0xa"},
+                        }
+                    ]
+                },
+                "nonce",
+            ),
+        ]
+        for change, differs_in in cases:
+            with self.subTest(differs_in=differs_in):
+                report = {
+                    **base,
+                    "out_of_gas": False,
+                    "code_a": same,
+                    "code_b": same,
+                    "storage": [],
+                    "balances": [],
+                    "accounts": [],
+                    **change,
+                }
+                outcome = symbolic._classify(1, json.dumps(report), "", {})
+                self.assertEqual(outcome["status"], "mismatch")
+                self.assertEqual(outcome["differs_in"], differs_in)
+        storage = symbolic._classify(1, json.dumps({**base, **cases[4][0]}), "", {})
+        self.assertEqual(
+            storage["counterexample"]["storage"],
+            [{"address": "0x1", "slot": "0x0", "solc": "0x1", "solar": "0x2"}],
+        )
+
+    def test_created_code_difference_is_incomplete(self) -> None:
+        outcome = symbolic._classify(1, CREATED_CODE, "", {})
+
+        self.assertEqual(outcome["status"], "incomplete")
+        self.assertIn("different code", outcome["reason"])
+        self.assertIn("accounts", outcome["counterexample"])
+
+    def test_forge_errors_are_incomplete(self) -> None:
+        outcome = symbolic._classify(1, "", INCOMPLETE, {})
+        self.assertEqual(outcome["status"], "incomplete")
+        self.assertTrue(
+            outcome["reason"].startswith("equivalence check incomplete"),
+            outcome["reason"],
+        )
+        crash = symbolic._classify(-11, "", "", {})
+        self.assertEqual(
+            crash,
             {
-                "type": "function",
-                "name": "g",
-                "inputs": [{"name": "f", "type": "function"}],
-                "outputs": [],
-                "stateMutability": "nonpayable",
-            }
+                "status": "incomplete",
+                "reason": "forge equivalence exited with status -11 without a result",
+            },
         )
-        artifact["method_identifiers"]["g(function)"] = "c3de648b"
+        # A result must match the exit status.
+        self.assertEqual(
+            symbolic._classify(1, EQUIVALENT, "", {})["status"], "incomplete"
+        )
+        self.assertEqual(
+            symbolic._classify(0, NOT_EQUIVALENT, "", {})["status"], "incomplete"
+        )
 
-        _, skipped = symbolic._plan_checks(artifact, artifact, _plan_args(depth=2), ())
+    def test_timeout_is_incomplete_and_logged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = pathlib.Path(tmp)
+            with patch.object(
+                symbolic.subprocess,
+                "run",
+                side_effect=subprocess.TimeoutExpired(["forge"], 90),
+            ):
+                outcome = symbolic._run_check(["forge"], project, 3, 30.0, {})
+            log = json.loads((project / "check-3.json").read_text())
 
-        self.assertEqual([item["signature"] for item in skipped], ["g(function)"])
+        self.assertEqual(outcome["status"], "incomplete")
+        self.assertIn("did not finish within 90 seconds", outcome["reason"])
+        self.assertEqual(log, {"command": ["forge"]})
 
-    def test_selector_disagreement_on_an_unsupported_function_is_an_abi_mismatch(
-        self,
-    ) -> None:
-        inputs = [{"name": "f", "type": "function"}]
+    def test_runs_forge_with_only_the_project_configuration(self) -> None:
+        seen = {}
 
-        with self.assertRaises(symbolic.AbiDisagreement):
-            symbolic._plan_checks(
-                _artifact(inputs=inputs),
-                _artifact(inputs=inputs, selector="aaaaaaaa"),
-                _plan_args(all_functions=True),
-                (),
-            )
+        def run(command, **kwargs):
+            seen.update(kwargs)
+            return subprocess.CompletedProcess(command, 0, EQUIVALENT, "")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            project = pathlib.Path(tmp)
+            with (
+                patch.dict(os.environ, {"FOUNDRY_PROFILE": "ci"}),
+                patch.object(symbolic.subprocess, "run", side_effect=run),
+            ):
+                outcome = symbolic._run_check(["forge"], project, 0, 30.0, {})
+
+        self.assertEqual(outcome["status"], "bounded_agreement")
+        self.assertEqual(seen["cwd"], project)
+        self.assertEqual(seen["timeout"], 30.0 + symbolic.FORGE_GRACE_SECONDS)
+        self.assertNotIn("FOUNDRY_PROFILE", seen["env"])
+        self.assertEqual(seen["env"]["HOME"], str(project / ".home"))
+
+    def test_one_incomplete_check_hides_no_mismatch(self) -> None:
+        mismatch = {
+            "label": "g()",
+            "status": "mismatch",
+            "differs_in": "storage",
+            "counterexample": {"calldata": "0xe2179b8e"},
+        }
+        summary = symbolic._summarize(
+            [
+                {"label": "f()", "status": "incomplete", "reason": "path limit"},
+                mismatch,
+                {"label": "h()", "status": "bounded_agreement"},
+            ]
+        )
+
+        self.assertEqual(summary["status"], "mismatch")
+        self.assertEqual(summary["differs_in"], "storage")
+        self.assertEqual(summary["counterexample"], {"calldata": "0xe2179b8e"})
+        self.assertEqual(len(summary["checks"]), 3)
+        incomplete = symbolic._summarize(
+            [
+                {"label": "f()", "status": "bounded_agreement"},
+                {"label": "g()", "status": "incomplete", "reason": "path limit"},
+            ]
+        )
+        self.assertEqual(incomplete["status"], "incomplete")
+        self.assertEqual(incomplete["reason"], "g(): path limit")
+        self.assertEqual(symbolic._summarize([])["status"], "incomplete")
+
+
+class ConstructorTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.constructor = {"args": "0x", "value": "0"}
+
+    def _side(self, **overrides: object) -> dict[str, Any]:
+        side: dict[str, Any] = {
+            "success": True,
+            "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+            "runtime": "0x00",
+            "logs": [],
+            "storage_root": "0xaa",
+            "balance": "0",
+        }
+        side.update(overrides)
+        return side
+
+    def test_agreeing_deployments(self) -> None:
+        outcome = symbolic._compare_constructors(
+            {"solc": self._side(), "solar": self._side(runtime="0x01")},
+            self.constructor,
+        )
+        self.assertEqual(outcome, {"status": "bounded_agreement"})
+
+    def test_differences_are_mismatches(self) -> None:
+        failed = {"success": False, "data": "0x", "error": "execution reverted"}
+        cases = [
+            (failed, "success"),
+            (self._side(logs=[{"topics": [], "data": "0x"}]), "logs"),
+            (self._side(storage_root="0xbb"), "storage"),
+            (self._side(balance="1"), "balance"),
+        ]
+        for solar, comparison in cases:
+            with self.subTest(comparison=comparison):
+                outcome = symbolic._compare_constructors(
+                    {"solc": self._side(), "solar": solar}, self.constructor
+                )
+                self.assertEqual(outcome["status"], "mismatch")
+                self.assertEqual(outcome["differs_in"], "constructor")
+                self.assertEqual(outcome["comparison"], comparison)
+                self.assertNotIn("runtime", outcome["counterexample"]["solc"])
+        outcome = symbolic._compare_constructors(
+            {"solc": {**failed, "data": "0x01"}, "solar": failed}, self.constructor
+        )
+        self.assertEqual(outcome["comparison"], "revert data")
+
+    def test_identical_reverts_compare_nothing(self) -> None:
+        failed = {"success": False, "data": "0x01", "error": "execution reverted"}
+        outcome = symbolic._compare_constructors(
+            {"solc": failed, "solar": dict(failed)}, self.constructor
+        )
+        self.assertEqual(outcome["status"], "incomplete")
+        self.assertIn("--constructor-args", outcome["reason"])
+
+
+class ValidationTests(unittest.TestCase):
+    def test_validates_hex_wei_and_lengths(self) -> None:
+        self.assertEqual(symbolic._hex_data("0xAB"), "0xab")
+        for value in ("ab", "0xa", "0xzz"):
+            with self.assertRaises(argparse.ArgumentTypeError):
+                symbolic._hex_data(value)
+        self.assertEqual(symbolic._wei("0x10"), 16)
+        self.assertEqual(symbolic._wei("10"), 10)
+        with self.assertRaises(argparse.ArgumentTypeError):
+            symbolic._wei("-1")
+        self.assertEqual(symbolic._dynamic_lengths("0,2"), (0, 2))
+        for value in ("", "1,1", "257", "a"):
+            with self.assertRaises(argparse.ArgumentTypeError):
+                symbolic._dynamic_lengths(value)
 
     def test_runtime_opcodes_skip_push_data_and_metadata(self) -> None:
-        # PUSH1 0x5d, TSTORE, then CBOR metadata whose bytes include 0xf5.
-        metadata = bytes.fromhex("a164736f6c6343f5f5f5") + (10).to_bytes(2)
-        runtime = "0x605d5d" + metadata.hex()
-
-        self.assertEqual(symbolic._runtime_opcodes(runtime), {0x60, 0x5D})
+        self.assertEqual(symbolic._runtime_opcodes("0x60f0f5"), {0x60, 0xF5})
+        # Trailing CBOR metadata of two bytes, announced by its length.
+        self.assertEqual(symbolic._runtime_opcodes("0x00a1f00002"), {0x00})
 
 
-class ProjectGenerationTests(unittest.TestCase):
-    def test_pure_harness_runs_both_runtimes_at_one_address(self) -> None:
-        test_source, config = _generate(_checks(), runtime_only=True)
-
-        self.assertIn(
-            "function checkSymbolicDifferential0(uint256 s0_a0, uint256 s0_value, "
-            "address observer) public",
-            test_source,
-        )
-        self.assertIn(
-            "calls[0] = Call(abi.encodeWithSelector(bytes4(0xb3de648b), s0_a0), "
-            "address(this), false, s0_value);",
-            test_source,
-        )
-        self.assertNotIn("staticcall", test_source)
-        self.assertIn("60006000f3", test_source)
-        self.assertIn("60016000f3", test_source)
-        self.assertIn("bytes memory initA = _runtimeInit(SOLC_RUNTIME);", test_source)
-        self.assertIn("_compare(initA, initB, 0, start, calls, watched);", test_source)
-        self.assertNotIn("function setUp", test_source)
-        self.assertNotIn("{gas:", test_source)
-        self.assertNotIn("MAX_DATA_BYTES", test_source)
-        run_a = test_source.index(
-            "Outcome memory a = _run(initA, initValue, start, calls, watched);"
-        )
-        revert = test_source.index("assert(vm.revertToStateAndDelete(snapshot));")
-        run_b = test_source.index(
-            "Outcome memory b = _run(initB, initValue, start, calls, watched);"
-        )
-        self.assertLess(test_source.index("vm.snapshotState()"), run_a)
-        self.assertLess(run_a, revert)
-        self.assertLess(revert, run_b)
-        self.assertIn('evm_version = "osaka"', config)
-        self.assertIn("max_dynamic_length = 256", config)
-        self.assertIn("symbolic_call_targets = true", config)
-        self.assertNotIn("dynamic_lengths = {", config)
-
-    def test_harness_names_every_comparison(self) -> None:
-        test_source, config = _generate(_checks(mutability="nonpayable"))
-
-        for what in (
-            "constructor success",
-            "constructor returndata",
-            "call success",
-            "returndata",
-            "logs",
-            "storage",
-            "balance",
-            "nonce",
-            "code presence",
-            "created accounts",
-        ):
-            self.assertIn(f'"{what}"', test_source)
-        self.assertIn(
-            '"unsupported: SELFDESTRUCT within the comparison transaction"', test_source
-        )
-        self.assertIn("vm.assertTrue(equal, what);", test_source)
-        self.assertNotIn("assert(a.", test_source)
-        self.assertIn("vm.computeCreateAddress(target, k)", test_source)
-        self.assertIn(
-            "returndatacopy(add(initRet, 0x20), 0, returndatasize())", test_source
-        )
-        self.assertIn('storage_layout = "zero_init"', config)
-
-    def test_constructor_arguments_and_value_are_symbolic_or_fixed(self) -> None:
-        constructor = [{"name": "owner", "type": "address"}]
-        test_source, _ = _generate(_checks(), constructor=constructor)
-
-        self.assertIn(
-            "function checkSymbolicDifferential0(address c0, uint256 c_value, "
-            "uint256 s0_a0, uint256 s0_value, address observer) public",
-            test_source,
-        )
-        self.assertIn(
-            'bytes private constant SOLC_INIT = hex"6001600055";', test_source
-        )
-        self.assertIn(
-            "bytes memory initA = abi.encodePacked(SOLC_INIT, abi.encode(c0));",
-            test_source,
-        )
-        self.assertIn(
-            "_compare(initA, initB, c_value, start, calls, watched);", test_source
-        )
-        self.assertIn(
-            "target := create(initValue, add(init, 0x20), mload(init))", test_source
-        )
-
-        test_source, _ = _generate(
-            _checks(), constructor=constructor, constructor_args="0x" + "00" * 32
-        )
-
-        self.assertIn(
-            "function checkSymbolicDifferential0(uint256 c_value, uint256 s0_a0, "
-            "uint256 s0_value, address observer) public",
-            test_source,
-        )
-        self.assertIn(
-            f'bytes memory initA = abi.encodePacked(SOLC_INIT, hex"{"00" * 32}");',
-            test_source,
-        )
-
-    def test_payable_harness_sends_symbolic_value_from_symbolic_caller(self) -> None:
-        test_source, _ = _generate(_checks(mutability="payable", symbolic_caller=True))
-
-        self.assertIn(
-            "calls[0] = Call(abi.encodeWithSelector(bytes4(0xb3de648b), s0_a0), "
-            "s0_caller, true, s0_value);",
-            test_source,
-        )
-        self.assertIn(
-            "if (call.value != 0) vm.deal(call.sender, call.value);", test_source
-        )
-        self.assertIn("if (call.prank) vm.prank(call.sender);", test_source)
-        self.assertIn("target.call{value: call.value}(call.data);", test_source)
-        self.assertIn("watched[1] = s0_caller;", test_source)
-        self.assertIn("watched[2] = observer;", test_source)
-
-    def test_raw_calldata_checks_use_inline_lengths(self) -> None:
-        test_source, _ = _generate(_checks(all_functions=True))
-
-        self.assertIn(
-            "    /// forge-config: default.symbolic.dynamic_lengths = "
-            "{ s0_raw = [0, 31, 32, 64] }\n"
-            "    function checkSymbolicDifferential1(uint256 c_value, bytes calldata s0_raw, "
-            "uint256 s0_value, address observer) public",
-            test_source,
-        )
-        self.assertIn(
-            "calls[0] = Call(abi.encodePacked(bytes4(0xb3de648b), s0_raw), "
-            "address(this), false, s0_value);",
-            test_source,
-        )
-        self.assertIn(
-            "    /// forge-config: default.symbolic.dynamic_lengths = "
-            "{ s0_raw = [0, 3, 4, 36] }\n"
-            "    function checkSymbolicDifferential2(",
-            test_source,
-        )
-        self.assertIn("vm.assume(selector != bytes4(0xb3de648b));", test_source)
-
-    def test_address_inputs_exclude_precompiles_unless_allowed(self) -> None:
-        checks = _checks(
-            inputs=[{"name": "to", "type": "address"}], symbolic_caller=True
-        )
-        test_source, _ = _generate(checks)
-
-        for name in ("s0_a0", "s0_caller", "observer"):
-            self.assertIn(
-                f"vm.assume(uint160({name}) == 0 || uint160({name}) > 0x100);",
-                test_source,
-            )
-
-        test_source, _ = _generate(checks, allow_precompile_addresses=True)
-        self.assertNotIn("> 0x100", test_source)
-
-    def test_starting_storage_is_symbolic_and_validly_encoded(self) -> None:
-        layout = {
-            "storage": [
-                {"slot": "0", "offset": 0, "type": "t_bool"},
-                {"slot": "0", "offset": 1, "type": "t_enum(E)"},
-                {"slot": "1", "offset": 0, "type": "t_mapping"},
-            ],
-            "types": {
-                "t_bool": {
-                    "encoding": "inplace",
-                    "label": "bool",
-                    "numberOfBytes": "1",
-                },
-                "t_enum(E)": {
-                    "encoding": "inplace",
-                    "label": "enum C.E",
-                    "numberOfBytes": "1",
-                },
-                "t_mapping": {
-                    "encoding": "mapping",
-                    "label": "mapping",
-                    "numberOfBytes": "32",
-                },
-            },
-        }
-        (check,) = _checks(mutability="nonpayable")
-        check["starting_storage"] = symbolic._storage_constraints(layout, {"C.E": 3})
-        test_source, _ = _generate([check])
-
-        self.assertIn(
-            "function checkSymbolicDifferential0(uint256 c_value, uint256 st0, "
-            "uint256 s0_a0, uint256 s0_value, address observer) public",
-            test_source,
-        )
-        self.assertIn("vm.assume(st0 & 0x" + "f" * 60 + "0000 == 0);", test_source)
-        self.assertIn("vm.assume((st0 >> 0) & 0xff <= 1);", test_source)
-        self.assertIn("vm.assume((st0 >> 8) & 0xff < 3);", test_source)
-        self.assertIn(
-            "start[0] = Slot(bytes32(uint256(0)), bytes32(st0));", test_source
-        )
-        self.assertIn(
-            "_compareFromStartingStorage(initA, initB, c_value, start, calls, watched);",
-            test_source,
-        )
-        self.assertIn("vm.store(target, start[i].slot, start[i].word);", test_source)
-        self.assertNotIn("setArbitraryStorage", test_source)
-
-        with self.assertRaisesRegex(ValueError, "unknown member count"):
-            symbolic._storage_constraints(layout)
-
-    def test_counterexample_reports_starting_storage(self) -> None:
-        (check,) = _checks(mutability="nonpayable")
-        check["starting_storage"] = [(3, (1 << 256) - 1, [], [])]
-        # c_value, st3, s0_a0, s0_value, observer.
-        wrapper = (0).to_bytes(32) + (7).to_bytes(32) + bytes(96)
-
-        decoded = symbolic._decode_counterexample(
-            "0x12345678" + wrapper.hex(), check, []
-        )
-
-        self.assertEqual(
-            decoded["starting_storage"], {"3": "0x" + (7).to_bytes(32).hex()}
-        )
-
-    def test_storage_constraints_follow_the_layout(self) -> None:
-        full = (1 << 256) - 1
-        layout = {
-            "storage": [
-                {"slot": "0", "offset": 0, "type": "t_bool"},
-                {"slot": "0", "offset": 1, "type": "t_address"},
-                {"slot": "1", "offset": 0, "type": "t_struct(S)"},
-                {"slot": "3", "offset": 0, "type": "t_array(t_uint64)3_storage"},
-                {"slot": "4", "offset": 0, "type": "t_mapping"},
-                {"slot": "5", "offset": 0, "type": "t_string_storage"},
-                {"slot": "6", "offset": 0, "type": "t_flag"},
-                {"slot": "7", "offset": 0, "type": "t_function"},
-            ],
-            "types": {
-                "t_bool": {
-                    "encoding": "inplace",
-                    "label": "bool",
-                    "numberOfBytes": "1",
-                },
-                "t_address": {
-                    "encoding": "inplace",
-                    "label": "address",
-                    "numberOfBytes": "20",
-                },
-                "t_uint64": {
-                    "encoding": "inplace",
-                    "label": "uint64",
-                    "numberOfBytes": "8",
-                },
-                "t_uint256": {
-                    "encoding": "inplace",
-                    "label": "uint256",
-                    "numberOfBytes": "32",
-                },
-                "t_struct(S)": {
-                    "encoding": "inplace",
-                    "label": "struct C.S",
-                    "numberOfBytes": "64",
-                    "members": [
-                        {"slot": "0", "offset": 0, "type": "t_uint256"},
-                        {"slot": "1", "offset": 0, "type": "t_bool"},
-                    ],
-                },
-                "t_array(t_uint64)3_storage": {
-                    "base": "t_uint64",
-                    "encoding": "inplace",
-                    "label": "uint64[3]",
-                    "numberOfBytes": "32",
-                },
-                "t_mapping": {
-                    "encoding": "mapping",
-                    "label": "mapping",
-                    "numberOfBytes": "32",
-                },
-                "t_string_storage": {
-                    "encoding": "bytes",
-                    "label": "string",
-                    "numberOfBytes": "32",
-                },
-                # A user-defined `bool` and an internal function pointer hide
-                # their encodings behind their labels.
-                "t_flag": {
-                    "encoding": "inplace",
-                    "label": "Flag",
-                    "numberOfBytes": "1",
-                },
-                "t_function": {
-                    "encoding": "inplace",
-                    "label": "function (uint256) returns (uint256)",
-                    "numberOfBytes": "8",
-                },
-            },
-        }
-
-        self.assertEqual(
-            symbolic._storage_constraints(layout),
-            [
-                (0, (1 << 168) - 1, [0], []),
-                (1, full, [], []),
-                (2, 0xFF, [0], []),
-                (3, (1 << 192) - 1, [], []),
-            ],
-        )
-
-    def test_renders_nested_static_tuple_inputs(self) -> None:
-        inputs = [
-            {
-                "name": "value",
-                "type": "tuple[2]",
-                "components": [
-                    {"name": "x", "type": "uint256"},
-                    {
-                        "name": "inner",
-                        "type": "tuple",
-                        "components": [{"name": "ok", "type": "bool"}],
-                    },
-                ],
-            }
-        ]
-        test_source, _ = _generate(_checks(inputs=inputs))
-
-        self.assertIn("struct checkSymbolicDifferential0_s0_a0 {", test_source)
-        self.assertIn("struct checkSymbolicDifferential0_s0_a0_1 {", test_source)
-        self.assertIn(
-            "function checkSymbolicDifferential0(uint256 c_value, "
-            "checkSymbolicDifferential0_s0_a0[2] calldata s0_a0, uint256 s0_value, "
-            "address observer) public",
-            test_source,
-        )
-
-    def test_prefix_calls_run_before_symbolic_calls(self) -> None:
-        checks = _checks(mutability="view", prefix=("0x12345678", "0x"))
-        test_source, _ = _generate(checks)
-
-        self.assertIn(
-            'calls[0] = Call(hex"12345678", address(this), false, 0);', test_source
-        )
-        self.assertIn('calls[1] = Call(hex"", address(this), false, 0);', test_source)
-        self.assertIn(
-            "calls[2] = Call(abi.encodeWithSelector(bytes4(0xb3de648b), s2_a0), "
-            "address(this), false, s2_value);",
-            test_source,
-        )
-        self.assertIn("Call[] memory calls = new Call[](3);", test_source)
-        self.assertIn('_same(a.oks[i] == b.oks[i], "call success");', test_source)
-
-
-class CommandTests(unittest.TestCase):
-    def test_identical_compiler_input_reaches_the_focused_runner(self) -> None:
+class RunTests(unittest.TestCase):
+    def test_compares_identical_compiler_inputs_with_forge(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             source = root / "Probe.sol"
@@ -991,16 +700,10 @@ class CommandTests(unittest.TestCase):
             )
             solc_input = root / "solc-input.json"
             solar_input = root / "solar-input.json"
-            solc = self._write_compiler(root / "solc", solc_input, "60" * 300)
-            solar = self._write_compiler(root / "solar", solar_input, "60" * 400)
-            forge = self._write_forge(root / "forge", max_dynamic_length=400)
-            self._write_executable(root / "z3", "#!/bin/sh\nexit 0\n")
-            self.enterContext(
-                patch.dict(
-                    os.environ, {"PATH": f"{root}{os.pathsep}{os.environ['PATH']}"}
-                )
-            )
-            args = argparse.Namespace(
+            solc = self._write_compiler(root / "solc", solc_input, "6001")
+            solar = self._write_compiler(root / "solar", solar_input, "6002")
+            forge = self._write_forge(root / "forge")
+            args = _args(
                 source=source,
                 contract="Probe",
                 signature="f(uint256)",
@@ -1008,24 +711,11 @@ class CommandTests(unittest.TestCase):
                 solar=str(solar),
                 forge=str(forge),
                 solver="z3",
-                timeout=10.0,
-                max_paths=32,
-                max_solver_queries=100,
-                max_calldata_bytes=512,
-                max_depth=None,
-                symbolic_timeout=5,
-                exploration_order="bfs",
-                dynamic_lengths=(0, 1),
-                input_length=[],
-                evm_version="osaka",
+                solc_attempt=None,
+                solar_attempt=None,
                 optimize=True,
                 optimizer_runs=200,
                 via_ir=True,
-                include_view=False,
-                include_stateful=False,
-                include_payable=False,
-                symbolic_caller=False,
-                prefix_calldata=[],
                 project_root=None,
                 include_path=[],
                 remapping=[],
@@ -1033,16 +723,16 @@ class CommandTests(unittest.TestCase):
 
             result = symbolic.run(args, root / "out")
 
-            self.assertEqual(result["status"], "bounded_agreement")
-            self.assertEqual(result["bounds"]["max_dynamic_length"], 400)
-            self.assertEqual((root / "solver").read_text(), "z3")
-            args.solver = "./z3"
-            with contextlib.chdir(root):
-                symbolic.run(args, root / "path-out")
-            self.assertEqual(
-                (root / "solver").read_text(), str((root / "z3").resolve())
-            )
-            args.solver = "z3"
+            self.assertEqual(result["status"], "bounded_agreement", result)
+            self.assertEqual(result["checked"], ["f(uint256)"])
+            self.assertEqual(result["bounds"]["constructor"], "runtime_only")
+            self.assertEqual(result["schema"], "solar:solsymdiff@v3")
+            project = pathlib.Path(result["project"])
+            self.assertEqual((project / "solc.hex").read_text(), "6001\n")
+            self.assertEqual((project / "solar.hex").read_text(), "6002\n")
+            argv = json.loads((root / "argv").read_text())
+            self.assertEqual(argv[argv.index("--sig") + 1], "f(uint256)")
+            self.assertIn("max_paths = 64", (project / "foundry.toml").read_text())
             self.assertEqual(solc_input.read_bytes(), solar_input.read_bytes())
             standard_input = json.loads(solc_input.read_text())
             self.assertEqual(
@@ -1050,150 +740,153 @@ class CommandTests(unittest.TestCase):
                 {"enabled": True, "runs": 200},
             )
 
-            for name, runtime in (("solc", "60" * 300), ("solar", "60" * 400)):
+            for name, runtime in (("solc", "6001"), ("solar", "6002")):
                 directory = root / (name + "-attempt")
                 directory.mkdir()
                 (directory / "input.json").write_text(json.dumps(standard_input))
                 (directory / "result.json").write_text(
                     json.dumps({"returncode": 0, "error": None})
                 )
-                output = {
-                    "contracts": {
-                        "Probe.sol": {
-                            "Probe": {
-                                "abi": _artifact()["abi"],
-                                "evm": {
-                                    "methodIdentifiers": {"f(uint256)": "b3de648b"},
-                                    "deployedBytecode": {
-                                        "object": runtime,
-                                        "immutableReferences": {},
-                                        "linkReferences": {},
-                                    },
-                                },
-                            }
-                        }
-                    }
-                }
-                (directory / "stdout.txt").write_text(json.dumps(output))
+                (directory / "stdout.txt").write_text(json.dumps(self._output(runtime)))
+            with patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                code = symbolic.main(
+                    [
+                        "--source",
+                        "Probe.sol",
+                        "--contract",
+                        "Probe",
+                        "--all-functions",
+                        "--solc-attempt",
+                        str(root / "solc-attempt"),
+                        "--solar-attempt",
+                        str(root / "solar-attempt"),
+                        "--solc",
+                        "missing-compiler-must-not-be-resolved",
+                        "--forge",
+                        str(forge),
+                        "--output-root",
+                        str(root / "saved-out"),
+                    ]
+                )
+            saved = json.loads(stdout.getvalue())
+            self.assertEqual(code, 0, saved)
+            self.assertEqual(saved["checked"], ["f(uint256)", "<other calldata>"])
+            self.assertEqual(saved["sources"], ["Probe.sol"])
+            argv = json.loads((root / "argv").read_text())
+            self.assertEqual(
+                argv[argv.index("--calldata-lengths") + 1], "0,1,3,4,35,36,68"
+            )
+
+            (root / "solar-attempt" / "input.json").write_text("{}")
             args.solc_attempt = root / "solc-attempt"
             args.solar_attempt = root / "solar-attempt"
-            args.source = pathlib.Path("Probe.sol")
-            args.solar = "missing-compiler-must-not-be-resolved"
-            with patch.object(
-                symbolic,
-                "_compile",
-                side_effect=AssertionError("must reuse saved artifacts"),
-            ):
-                result = symbolic.run(args, root / "saved-out")
-            self.assertEqual(result["status"], "bounded_agreement")
-            self.assertEqual(
-                result["standard_input_sha256"],
-                symbolic.hashlib.sha256(
-                    json.dumps(
-                        standard_input,
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                        sort_keys=True,
-                    ).encode()
-                ).hexdigest(),
-            )
-            for source_unit in ("./C.sol", "https://example.com/C.sol"):
-                with self.subTest(source_unit=source_unit):
-                    request = {
-                        **standard_input,
-                        "sources": {
-                            source_unit: next(iter(standard_input["sources"].values()))
-                        },
-                    }
-                    for directory in (args.solc_attempt, args.solar_attempt):
-                        saved_output = json.loads(
-                            (directory / "stdout.txt").read_text()
-                        )
-                        saved_output["contracts"] = {
-                            source_unit: next(iter(saved_output["contracts"].values()))
-                        }
-                        (directory / "input.json").write_text(json.dumps(request))
-                        (directory / "stdout.txt").write_text(json.dumps(saved_output))
-                    with patch("sys.stdout", new_callable=io.StringIO) as stdout:
-                        code = symbolic.main(
-                            [
-                                "--source",
-                                source_unit,
-                                "--contract",
-                                "Probe",
-                                "--signature",
-                                "f(uint256)",
-                                "--solc-attempt",
-                                str(args.solc_attempt),
-                                "--solar-attempt",
-                                str(args.solar_attempt),
-                                "--solc",
-                                str(solc),
-                                "--forge",
-                                str(forge),
-                                "--solver",
-                                "z3",
-                                "--output-root",
-                                str(root / "literal-source-out"),
-                                "--max-paths",
-                                "32",
-                                "--max-solver-queries",
-                                "100",
-                                "--max-calldata-bytes",
-                                "512",
-                                "--symbolic-timeout",
-                                "5",
-                                "--dynamic-lengths",
-                                "0,1",
-                            ]
-                        )
-                    self.assertEqual(code, 0, stdout.getvalue())
-                    saved_result = json.loads(stdout.getvalue())
-                    self.assertEqual(saved_result["source"], source_unit)
-                    self.assertEqual(saved_result["sources"], [source_unit])
-            for directory in (args.solc_attempt, args.solar_attempt):
-                (directory / "input.json").write_text(json.dumps(standard_input))
-                (directory / "stdout.txt").write_text(json.dumps(output))
-            deployed = output["contracts"]["Probe.sol"]["Probe"]["evm"][
-                "deployedBytecode"
-            ]
-            # LOG0 and CALL: a log may come from a frame that later reverts.
-            deployed["object"] = "a0f1"
-            (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
-            logging_result = symbolic.run(args, root / "logging-out")
-            self.assertEqual(logging_result["status"], "bounded_agreement")
-            self.assertEqual(
-                logging_result["limitations"],
-                [
-                    "logs of reverted inner frames are not told apart from committed logs"
-                ],
-            )
-            fixed_logs = {"isolated_transactions": False, "reverted_logs_dropped": True}
-            with patch.object(symbolic, "_forge_semantics", return_value=fixed_logs):
-                dropped_result = symbolic.run(args, root / "dropped-logs-out")
-            self.assertEqual(dropped_result["limitations"], [])
-            deployed["object"] = "60" * 400
-            # The constructor's TSTORE would stay visible to the first call.
-            output["contracts"]["Probe.sol"]["Probe"]["evm"]["bytecode"] = {
-                "object": "5d"
-            }
-            for directory in (args.solc_attempt, args.solar_attempt):
-                (directory / "stdout.txt").write_text(json.dumps(output))
-            transient_result = symbolic.run(args, root / "transient-out")
-            self.assertEqual(transient_result["status"], "incomplete")
-            self.assertIn("transient storage", transient_result["reason"])
-            # Forge with call isolation runs each call as its own transaction.
-            fixed = {"isolated_transactions": True, "reverted_logs_dropped": True}
-            with patch.object(symbolic, "_forge_semantics", return_value=fixed):
-                isolated_result = symbolic.run(args, root / "isolated-out")
-            self.assertEqual(isolated_result["status"], "bounded_agreement")
-            deployed.pop("immutableReferences")
-            (args.solar_attempt / "stdout.txt").write_text(json.dumps(output))
-            with self.assertRaisesRegex(ValueError, "immutableReferences"):
-                symbolic.run(args, root / "saved-out")
-            (args.solar_attempt / "input.json").write_text("{}")
+            args.source = "Probe.sol"
             with self.assertRaisesRegex(ValueError, "different inputs"):
                 symbolic.run(args, root / "saved-out")
+
+    def test_runs_the_constructor_before_comparing_runtimes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            forge = self._write_forge(root / "forge")
+            constructor = [{"name": "f", "type": "uint256"}]
+            solc = _artifact(creation="0x60aa", constructor=constructor)
+            solar = _artifact(creation="0x60bb", constructor=constructor)
+            deployed = {
+                label: {
+                    "success": True,
+                    "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+                    "runtime": runtime,
+                    "logs": [],
+                    "storage_root": "0xaa",
+                    "balance": "0",
+                }
+                for label, runtime in (("solc", "0x6011"), ("solar", "0x6022"))
+            }
+            args = _args(
+                source=root / "Probe.sol",
+                contract="Probe",
+                signature="f(uint256)",
+                solc="solc",
+                solar="solar",
+                forge=str(forge),
+                solver="z3",
+                solc_attempt=None,
+                solar_attempt=None,
+                constructor_value=3,
+                optimize=True,
+                optimizer_runs=200,
+                via_ir=True,
+                project_root=None,
+                include_path=[],
+                remapping=[],
+            )
+            (root / "Probe.sol").write_text("")
+            with (
+                patch.object(symbolic, "_resolve_executable", side_effect=str),
+                patch.object(
+                    symbolic,
+                    "_standard_input",
+                    return_value={
+                        "input": {},
+                        "root_source": "Probe.sol",
+                        "settings": {},
+                        "sources": {"Probe.sol": {}},
+                        "sha256": "0",
+                    },
+                ),
+                patch.object(symbolic, "_compile", side_effect=[solc, solar]),
+                patch.object(symbolic, "_anvil_executable", return_value="anvil"),
+                patch.object(symbolic, "_deploy", return_value=deployed) as deploy,
+            ):
+                result = symbolic.run(args, root / "out")
+
+            zero = "00" * 32
+            deploy.assert_called_once_with(
+                "anvil",
+                "0x60aa" + zero,
+                "0x60bb" + zero,
+                value=3,
+                evm_version="osaka",
+                timeout=30.5,
+            )
+            self.assertEqual(result["status"], "bounded_agreement", result)
+            self.assertEqual(result["checked"], ["<constructor>", "f(uint256)"])
+            self.assertEqual(result["bounds"]["constructor"], "default_args")
+            self.assertEqual(
+                result["constructor"],
+                {
+                    "args": "0x" + zero,
+                    "value": "3",
+                    "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+                },
+            )
+            project = pathlib.Path(result["project"])
+            self.assertEqual((project / "solc.hex").read_text(), "6011\n")
+            self.assertEqual((project / "solar.hex").read_text(), "6022\n")
+
+            # A constructor that reverts in one build leaves no runtime to compare.
+            deployed["solar"] = {"success": False, "data": "0x", "error": "reverted"}
+            with (
+                patch.object(symbolic, "_resolve_executable", side_effect=str),
+                patch.object(
+                    symbolic,
+                    "_standard_input",
+                    return_value={
+                        "input": {},
+                        "root_source": "Probe.sol",
+                        "settings": {},
+                        "sources": {"Probe.sol": {}},
+                        "sha256": "0",
+                    },
+                ),
+                patch.object(symbolic, "_compile", side_effect=[solc, solar]),
+                patch.object(symbolic, "_anvil_executable", return_value="anvil"),
+                patch.object(symbolic, "_deploy", return_value=deployed),
+            ):
+                result = symbolic.run(args, root / "out")
+            self.assertEqual(result["status"], "mismatch")
+            self.assertEqual(result["differs_in"], "constructor")
+            self.assertEqual(result["checked"], ["<constructor>"])
 
     def test_import_discovery_uses_requested_evm_version(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1202,11 +895,7 @@ class CommandTests(unittest.TestCase):
             source_dir.mkdir()
             source = source_dir / "Probe.sol"
             imported = source_dir / "Lib.sol"
-            source_content = (
-                'import "./Lib.sol"; contract Probe { function f() external '
-                "pure returns (uint result) { assembly { let mcopy := 1 "
-                "result := mcopy } } }\n"
-            )
+            source_content = 'import "./Lib.sol"; contract Probe {}\n'
             source.write_text(source_content)
             imported.write_text("library Lib {}\n")
             compiler = self._write_executable(
@@ -1241,73 +930,51 @@ class CommandTests(unittest.TestCase):
         )
         self.assertEqual(materialized["settings"]["evmVersion"], "paris")
 
-    def _write_compiler(
-        self,
-        path: pathlib.Path,
-        captured_input: pathlib.Path,
-        runtime: str,
-    ) -> pathlib.Path:
-        artifact = {
+    def _output(self, runtime: str) -> dict[str, Any]:
+        return {
             "sources": {"Probe.sol": {"id": 0}},
             "contracts": {
                 "Probe.sol": {
                     "Probe": {
-                        "abi": _artifact()["abi"],
+                        "abi": [_function()],
                         "evm": {
                             "deployedBytecode": {
                                 "object": runtime,
                                 "immutableReferences": {},
                                 "linkReferences": {},
                             },
-                            "methodIdentifiers": {
-                                "f(uint256)": "b3de648b",
-                            },
+                            "methodIdentifiers": {"f(uint256)": "b3de648b"},
                         },
                     }
                 }
             },
         }
+
+    def _write_compiler(
+        self,
+        path: pathlib.Path,
+        captured_input: pathlib.Path,
+        runtime: str,
+    ) -> pathlib.Path:
         script = (
             "#!/usr/bin/env python3\n"
             "import pathlib, sys\n"
             f"pathlib.Path({str(captured_input)!r}).write_text(sys.stdin.read())\n"
-            f"print({json.dumps(artifact)!r})\n"
+            f"print({json.dumps(self._output(runtime))!r})\n"
         )
         return self._write_executable(path, script)
 
-    def _write_forge(
-        self,
-        path: pathlib.Path,
-        *,
-        max_dynamic_length: int,
-    ) -> pathlib.Path:
+    def _write_forge(self, path: pathlib.Path) -> pathlib.Path:
         script = (
             "#!/usr/bin/env python3\n"
             "import json, pathlib, sys\n"
-            "if '--help' in sys.argv:\n"
-            "    print('--allow-local-compiler')\n"
-            "    raise SystemExit\n"
-            "solver = sys.argv.index('--symbolic-solver')\n"
-            "pathlib.Path(__file__).with_name('solver').write_text(sys.argv[solver + 1])\n"
-            "index = sys.argv.index('--symbolic-max-dynamic-length')\n"
-            f"assert sys.argv[index + 1] == {str(max_dynamic_length)!r}\n"
-            f"assert 'max_dynamic_length = {max_dynamic_length}' in "
-            "pathlib.Path('foundry.toml').read_text()\n"
-            f"report = json.loads({json.dumps(_forge_report('pass', max_dynamic_length=max_dynamic_length))!r})\n"
-            "if '--symbolic-max-depth' in sys.argv:\n"
-            "    depth = int(sys.argv[sys.argv.index('--symbolic-max-depth') + 1])\n"
-            "    for contract in report.values():\n"
-            "        for test in contract['test_results'].values():\n"
-            "            test['symbolic']['bounds']['max_depth'] = depth\n"
-            "print(json.dumps(report))\n"
+            "assert pathlib.Path('foundry.toml').is_file()\n"
+            "pathlib.Path(__file__).with_name('argv').write_text(json.dumps(sys.argv))\n"
+            f"print({EQUIVALENT!r})\n"
         )
         return self._write_executable(path, script)
 
-    def _write_executable(
-        self,
-        path: pathlib.Path,
-        content: str,
-    ) -> pathlib.Path:
+    def _write_executable(self, path: pathlib.Path, content: str) -> pathlib.Path:
         path.write_text(content)
         path.chmod(0o755)
         return path
