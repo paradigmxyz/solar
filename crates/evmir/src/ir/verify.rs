@@ -27,7 +27,8 @@
 //! worst case for it. The 1024-word stack limit is checked at the minimum only, so it reports
 //! only provable overflows; a block some path enters deeper is not checked at that depth, and
 //! exceeding the limit there is a runtime failure, as it is for solc. A block's overflow is held
-//! back until the walk ends, because a later path can still lower the depth it was walked at.
+//! back until the walk ends and reported only from its lowest entry depth, because a later path can
+//! still lower the depth it was walked at.
 //!
 //! What lets a cycle that drops words every round compile is that the minima are split by how many
 //! cycle-closing edges the walk that carried them has crossed, where the cycle-closing edges are
@@ -63,15 +64,15 @@ type ReportedErrors = FxHashMap<(BlockId, String), ErrorGuaranteed>;
 /// Why a stack operation stopped the walk of a block.
 enum StackFault {
     /// A diagnostic was reported.
-    Reported(ErrorGuaranteed),
+    Reported,
     /// The stack passed the limit. The message is held back, because the entry depth the block was
     /// walked at is not final until the walk ends.
     Overflow(String),
 }
 
 impl From<ErrorGuaranteed> for StackFault {
-    fn from(guar: ErrorGuaranteed) -> Self {
-        Self::Reported(guar)
+    fn from(_: ErrorGuaranteed) -> Self {
+        Self::Reported
     }
 }
 
@@ -459,7 +460,7 @@ impl<'a> Verifier<'a> {
             .collect::<Vec<_>>();
         let cycle_edges = cycle_edges(module, flows, roots.iter().map(|&(block_id, _)| block_id));
         let mut entry_depths = index_vec![EntryDepths::default(); module.blocks.len()];
-        // The overflow of the last walk of each block, by the bounds that walk stood for.
+        // The overflow of the last walk of each block, by the bound that walk stood for.
         let mut overflows = index_vec![[None, None]; module.blocks.len()];
         let mut pending = Vec::with_capacity(roots.len());
         for (block_id, depth) in roots {
@@ -467,10 +468,17 @@ impl<'a> Verifier<'a> {
             pending.push((block_id, depth, Bounds::ENTRY));
         }
         while let Some((block_id, stack, bounds)) = pending.pop() {
+            // A lower depth that arrived since this item was queued makes it stale.
+            let depths = entry_depths[block_id];
+            let bounds = Bounds {
+                ingress_min: bounds.ingress_min && depths.ingress_min == Some(stack),
+                cycle_min: bounds.cycle_min && depths.cycle_min == Some(stack),
+            };
+            if bounds.is_empty() {
+                continue;
+            }
             let (targets, overflow) =
                 self.walk_block(module, flows, &mut reported, block_id, stack);
-            // A later walk at a lower depth replaces the overflow, so only the lowest depth over
-            // every path reports one.
             let slots = &mut overflows[block_id];
             if bounds.ingress_min {
                 slots[0] = overflow.clone();
@@ -486,16 +494,26 @@ impl<'a> Verifier<'a> {
                 }
             }
         }
+        // Only the lowest entry depth over every walk of a block can report an overflow.
         for (block_id, slots) in overflows.iter_enumerated() {
-            for msg in slots.iter().flatten() {
+            let depths = entry_depths[block_id];
+            let lowest = if depths
+                .cycle_min
+                .is_some_and(|cycle| depths.ingress_min.is_none_or(|ingress| cycle < ingress))
+            {
+                1
+            } else {
+                0
+            };
+            if let Some(msg) = &slots[lowest] {
                 self.error_in_block_once(&mut reported, block_id, msg);
             }
         }
     }
 
     /// Walks `block_id` entered at `stack`, returning the edges out of it with the depth each is
-    /// entered at, and the first stack limit overflow. A block that overflows or has a broken
-    /// stack operation has no edges.
+    /// entered at, and the first stack limit overflow. A block with an overflow in its
+    /// instructions or terminator, or with a broken stack operation, has no edges.
     fn walk_block(
         &self,
         module: &Module,
@@ -532,7 +550,7 @@ impl<'a> Verifier<'a> {
         };
         match walk() {
             Ok(()) => {}
-            Err(StackFault::Reported(_)) => return (Vec::new(), None),
+            Err(StackFault::Reported) => return (Vec::new(), None),
             Err(StackFault::Overflow(msg)) => return (Vec::new(), Some(msg)),
         }
         term.kind.visit_targets(|target| targets.push((target, stack)));
@@ -542,7 +560,7 @@ impl<'a> Verifier<'a> {
                 Err(StackFault::Overflow(msg)) => {
                     overflow.get_or_insert(msg);
                 }
-                Err(StackFault::Reported(_)) => {}
+                Err(StackFault::Reported) => {}
             }
         }
         (targets, overflow)

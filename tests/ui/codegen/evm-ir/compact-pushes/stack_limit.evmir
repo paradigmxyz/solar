@@ -2,7 +2,9 @@
 @module StackLimit
 
 // The pass does not look at stack depth: the recipe for the repeated byte pattern is
-// emitted at 1023 words, and the verifier rejects the peak that follows.
+// emitted at 1023 words, and the verifier rejects the peak that follows. A literal there peaks at
+// 1024 and fits, but exceeding the limit is otherwise a runtime failure, so keeping a literal
+// to avoid it is not worth the bytes.
 //~? ERROR: EVM IR verification failed: block 0: `push` grows the stack to 1025 words, exceeding the limit of 1024
 bb0 [stack=1023]:
   push 0x3030303030303030303030303030303030303030303030303030303030303030
