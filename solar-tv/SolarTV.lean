@@ -12,6 +12,7 @@ import SolarTV.MemorySafety
 import SolarTV.EVMIR.GasSafety
 import SolarTV.EVMIR.Transforms.GasSwapAdd
 import SolarTV.Agreement.Encoder
+import SolarTV.Composition
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -86,3 +87,29 @@ info: 'SolarTV.Agreement.mir_add_i160' depends on axioms: [propext,
 -/
 #guard_msgs in
 #print axioms SolarTV.Agreement.mir_add_i160
+-- Contract semantics and the composition of stages.
+/-- info: 'SolarTV.mir_to_evmir_certified' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.mir_to_evmir_certified
+
+/-- info: 'SolarTV.mir_to_bytecode' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.mir_to_bytecode
+
+/--
+info: 'SolarTV.MIR.Lowered.failureConvention' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.MIR.Lowered.failureConvention
+
+/--
+info: 'SolarTV.EVM.Program.failureConvention' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.EVM.Program.failureConvention
+
+/--
+info: 'SolarTV.EVM.Program.stepOp_project' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.EVM.Program.stepOp_project

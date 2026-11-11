@@ -410,3 +410,38 @@ reads are uninterpreted in the encoder and have no agreement theorem.
 EVM IR windows also accept DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT,
 GT, SLT, SGT, BYTE, SHL, SHR and SAR, with their Cancun prices in
 [EVMIR/Gas.lean](SolarTV/EVMIR/Gas.lean), EXP's 50 gas per exponent byte included.
+## Contract semantics and stages
+
+[Sem.lean](SolarTV/Sem.lean) restates solidity-lean's interface verbatim: a `Call`
+(calldata, call value, initial storage), its `Observable` result (success, output, logs,
+storage), a `Sem` that runs a program on a call, and `Stage A B p q scope`, which says
+that every result `p` gives on a call in scope, `q` gives too. Our additions follow a
+marker: `Stage.refl` and `Stage.mono`, the one-frame `environment` (caller 0x2000,
+callee 0x1000) and `Sem.FailureConvention` (a failed call logs nothing and keeps its
+initial storage).
+
+[Machine.lean](SolarTV/Machine.lean) is the state both layers share. Memory is the model
+of [Memory.lean](SolarTV/Memory.lean) on every byte; `Mem.project` is its 256-byte
+`Memory.State` and the `project_` lemmas show that expansion, `MSIZE`, loads, stores and
+byte stores agree with it. Storage and transient storage are total maps and the world is
+the history of logs and calls. Environment reads and call results come from an `Oracle`
+of functions of the world, as the encoder's uninterpreted functions. `observe` commits
+storage and logs only on success, and `Agree` compares two ends as `Encoder::differ`
+does. A `Layer` runs a program with fuel, monotonically, and its `sem` is fuel-free: a
+call's result is the end some fuel reaches. `Certified` (every end of one program has an
+agreeing end of the other) gives a stage (`stage_of_certified`). Gas is not priced: `GAS`
+is an environment read.
+
+[MIR/Program.lean](SolarTV/MIR/Program.lean) is MIR at the lowered phase, the input of
+`-Zvalidate-passes`, with phis, branches, the pure EVM operations of `EVM.step`,
+effects, and `ret`, `revert`, `stop` and `invalid`. `lower-abi` and `lower-dispatch` run
+before it, so they are outside this semantics. [EVMIR/Program.lean](SolarTV/EVMIR/Program.lean)
+runs scheduled EVM IR blocks over one stack with the checked operations of
+[EVMIR/Memory.lean](SolarTV/EVMIR/Memory.lean) (`stepOp_project`), effects, static
+`jump`/`jumpi` and halts. Both satisfy the failure convention.
+
+[Composition.lean](SolarTV/Composition.lean) chains the stages of a `Compilation` (the MIR,
+each MIR pass's output, the scheduled EVM IR and each EVM IR pass's output) into one stage
+from the MIR to the final EVM IR (`mir_to_evmir`, or `mir_to_evmir_certified` from
+certificates), and `mir_to_bytecode` appends `AssemblyStage`, the stage to bytecode that
+solidity-lean's bytecode semantics states.
