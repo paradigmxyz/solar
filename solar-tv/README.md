@@ -19,10 +19,27 @@ the live return with the input breaks it:
 ```console
 $ solar-tv/solar-tv mir solar-tv/examples/mir/dce/{before,broken}.mir
 counterexample
+  MIR function @with_dead_code
   arg0 = 0
   before = 1
   after  = 0
+
+Difference
+  Returned value changed
+
+Changed IR
+...
+
+Replay
+  /path/to/solar-tv mir /path/to/before.mir /path/to/broken.mir --solar /path/to/solar --timeout 60
 ```
+
+Failed checks identify the function or block window, concrete inputs and first
+differing observable: the return, revert, exception, outgoing edge or live stack.
+A short diff shows the changed IR, followed by a command to replay the pair.
+These are concrete observations, not a claim about which instruction caused the bug.
+Use `--verbose` for the full diff and compiler or prover diagnostics. Unsupported
+IR and checker limits remain inconclusive; they are not counterexamples.
 
 Exit codes are `0` for verified, `1` for a replayed counterexample and `2` for
 inconclusive (including unsupported IR and timeouts). Use `--solar PATH` to
@@ -169,6 +186,7 @@ pipeline. An inconclusive result emits a warning and compilation continues.
 A checker launch or protocol failure is a compiler error. Each unsuccessful
 check gets a separate directory containing `before`, `after` (with the IR
 extension), and `result.txt` with the pass, module and checker response.
+The diagnostic includes the witness or inconclusive reason and replay command.
 Replay a saved MIR pair from the directory named by the diagnostic:
 
 ```sh
