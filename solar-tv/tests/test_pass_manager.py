@@ -38,6 +38,7 @@ class PassManagerTests(unittest.TestCase):
             ("switch", "mir", "cfg-simplify"),
             ("phi", "mir", "cfg-simplify"),
             ("casts", "mir", "integer-cleanup"),
+            ("checked", "mir", "check-elim"),
             ("typed-branch", "mir", "cfg-simplify"),
             ("peephole", "evmir", "peephole"),
         ]:

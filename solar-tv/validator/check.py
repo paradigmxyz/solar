@@ -15,7 +15,8 @@ from .common import Program, Unsupported
 ROOT = Path(__file__).resolve().parents[1]
 PRELUDE = "import SolarTV\nopen SolarTV EvmRules\nset_option autoImplicit false\nset_option linter.unusedSimpArgs false\n"
 UNFOLD = (
-    "before, after, MIR.eval, MIR.choose, MIR.phi, MIR.cast, MIR.compare, MIR.branch, "
+    "before, after, MIR.eval, MIR.choose, MIR.phi, MIR.cast, MIR.compare, MIR.branch, MIR.guard, "
+    "Outcome.bind_return, "
     "EVM.run, EVM.step, Evm.eq, Evm.iszero, "
     "Evm.sub, Evm.add, Evm.mul, Evm.and, Evm.or, Evm.xor"
 )
@@ -85,14 +86,23 @@ def check(a: Program, b: Program, timeout: int) -> int:
     binders = " ".join(
         f"({arg} : BitVec {width})" for arg, width in zip(a.inputs, widths, strict=True)
     )
-    statement = f"theorem pair_correct {binders} : before {args} = after {args} := by\n"
+
+    def relation(lhs: str, rhs: str) -> str:
+        if a.result_type.startswith("Outcome "):
+            return f"refines ({lhs}) ({rhs})"
+        return f"({lhs}) = ({rhs})"
+
+    statement = f"theorem pair_correct {binders} : {relation(f'before {args}', f'after {args}')} := by\n"
     # Simplify dead definitions first. Splitting branches and reasoning about
     # unsigned bounds with omega produces kernel proofs for guarded cleanups.
     # bv_decide can find witnesses; its native proof axioms remain rejected below.
     proof = (
-        f"  simp [{UNFOLD}]\n"
+        f"  simp only [refines_iff_eq, {UNFOLD}]\n"
         "  repeat (first | intro _ | split)\n"
-        "  all_goals simp_all [BitVec.toNat_eq, BitVec.ult_iff_toNat_lt] <;> omega\n"
+        "  all_goals simp_all [MIR.checked, Outcome.bind, BitVec.uaddOverflow, "
+        "BitVec.usubOverflow, BitVec.umulOverflow, BitVec.saddOverflow, "
+        "BitVec.ssubOverflow, BitVec.smulOverflow, "
+        "BitVec.toNat_eq, BitVec.ult_iff_toNat_lt] <;> omega\n"
     )
     with tempfile.TemporaryDirectory() as directory:
         file = Path(directory) / "Pair.lean"
@@ -102,15 +112,23 @@ def check(a: Program, b: Program, timeout: int) -> int:
             return run(["lake", "env", "lean", file], ROOT, timeout)
 
         result = lean(statement + proof + "#print axioms pair_correct\n")
+        query_only = False
         if result.returncode:
-            # Run the solver in a fresh obligation so failed kernel tactics
-            # cannot hide its assignment or leave branch-local hypotheses.
-            result = lean(
-                statement
-                + f"  simp [{UNFOLD}] <;> bv_decide\n"
-                + "#print axioms pair_correct\n"
+            # Outcomes with payloads are outside the solver's scalar fragment.
+            # A tagged projection proposes witnesses; it never verifies a pair.
+            query_only = a.result_type.startswith("Outcome ")
+            query = (
+                f"example {binders} : Outcome.code (before {args}) = "
+                f"Outcome.code (after {args}) := by\n"
+                if query_only
+                else statement
             )
-        if result.returncode == 0:
+            result = lean(
+                query
+                + f"  simp [{UNFOLD}, MIR.checked] <;> bv_decide\n"
+                + ("" if query_only else "#print axioms pair_correct\n")
+            )
+        if result.returncode == 0 and not query_only:
             # Reject any proof that introduces an axiom outside Lean's standard
             # foundations, including sorryAx or an unchecked native computation.
             log = result.stdout
@@ -141,23 +159,41 @@ def check(a: Program, b: Program, timeout: int) -> int:
             if actual_width != width or value >= 2**width:
                 raise Unsupported("invalid counterexample input width")
             vals.append(value)
-        inputs = " ".join(
-            f"{value}#{width}" for value, width in zip(vals, widths, strict=True)
-        )
-        lhs, rhs = f"before {inputs}", f"after {inputs}"
 
         def display(term: str) -> str:
+            if a.result_type.startswith("Outcome "):
+                return f"#eval IO.println (Outcome.describe ({term}))"
             if a.result_type == "Word" or a.result_type.startswith("BitVec "):
                 return f"#eval IO.println (({term}).toNat)"
             return f"#eval IO.println (EVM.describe ({term}))"
 
-        replay = lean(
-            f"example : {lhs} ≠ {rhs} := by decide\n{display(lhs)}\n{display(rhs)}\n"
+        replay_proof = (
+            "simp only [refines_iff_eq]; decide"
+            if a.result_type.startswith("Outcome ")
+            else "decide"
         )
-        if replay.returncode:
+        # Prefer a small witness when zero really demonstrates the mismatch.
+        # Both it and the solver assignment must pass the same kernel replay.
+        zero = [0] * len(vals)
+        assignments = [zero] if vals == zero else [zero, vals]
+        for vals in assignments:
+            inputs = " ".join(
+                f"{value}#{width}" for value, width in zip(vals, widths, strict=True)
+            )
+            lhs, rhs = f"before {inputs}", f"after {inputs}"
+            replay = lean(
+                f"example : ¬ ({relation(lhs, rhs)}) := by {replay_proof}\n"
+                f"{display(lhs)}\n{display(rhs)}\n"
+            )
+            if replay.returncode == 0:
+                break
+        else:
             raise Unsupported(
                 "Lean could neither prove equivalence nor replay a counterexample\n"
                 + log
+                + "\nConcrete replay diagnostics\n"
+                + replay.stdout
+                + replay.stderr
             )
         outputs = [line for line in replay.stdout.splitlines() if line.strip()]
         print("counterexample")

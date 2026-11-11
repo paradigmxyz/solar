@@ -1,5 +1,6 @@
 import SolarTV.MIR.Transforms.DCE
 import SolarTV.MIR.Transforms.Casts
+import SolarTV.MIR.Transforms.CheckElim
 import SolarTV.MIR.Transforms.TrimSwitchDefaults
 import SolarTV.MIR.Transforms.RenamePhiPredecessors
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
@@ -25,3 +26,11 @@ import SolarTV.EVMIR.Transforms.EqIszeroJumpi
 /-- info: 'SolarTV.MIR.truncate_extended_address' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.truncate_extended_address
+
+/-- info: 'SolarTV.MIR.increment_below_bound' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.increment_below_bound
+
+/-- info: 'SolarTV.MIR.cannot_drop_overflow' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.cannot_drop_overflow
