@@ -25,10 +25,10 @@
 //! The walk propagates the lowest entry depth per block. Operand availability (`dup`, `swap`,
 //! `pop`, and every instruction's inputs) is monotone in the entry depth, so the minimum is the
 //! worst case for it. The 1024-word stack limit is checked at the minimum only, so it reports
-//! only provable overflows; a block some path enters deeper is not checked at that depth, and
-//! exceeding the limit there is a runtime failure, as it is for solc. A block's overflow is held
-//! back until the walk ends and reported only from its lowest entry depth, because a later path can
-//! still lower the depth it was walked at.
+//! an overflow only where every path the walk models passes the limit; a block some path enters
+//! deeper is not checked at that depth, and exceeding the limit there is a runtime failure, as it
+//! is for solc. A block's overflow is held back until the walk ends and reported only from its
+//! lowest entry depth, because a later path can still lower the depth it was walked at.
 //!
 //! What lets a cycle that drops words every round compile is that the minima are split by how many
 //! cycle-closing edges the walk that carried them has crossed, where the cycle-closing edges are
@@ -38,9 +38,10 @@
 //! bound and drops the post-cycle bound. So every new ingress bound is still propagated through one
 //! complete traversal of the cycle and checked there, and only a second traversal is cut. Both
 //! halves are least fixed points over the same DAG, the second seeded from the first, so the walk
-//! terminates structurally rather than by a depth or iteration bound, and its result does not
-//! depend on the order the worklist happens to run in. How many rounds a cycle runs is a runtime
-//! property, so cutting the second traversal is the only sound choice available statically.
+//! terminates structurally rather than by a depth or iteration bound, and whether it accepts a
+//! module does not depend on the order the worklist happens to run in. How many rounds a cycle runs
+//! is a runtime property, so cutting the second traversal is the only sound choice available
+//! statically.
 //!
 //! Because one block is walked once per minimum it receives, and a block with a broken stack
 //! operation is normally broken at every one of them, stack-operation diagnostics are reported
