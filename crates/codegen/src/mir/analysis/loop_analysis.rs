@@ -160,11 +160,7 @@ impl LoopAnalyzer {
         self.analyze_structure_with_cfg(func, Rc::new(CfgInfo::new(func)))
     }
 
-    pub(crate) fn analyze_structure_with_cfg(
-        &mut self,
-        func: &Function,
-        cfg: Rc<CfgInfo>,
-    ) -> LoopInfo {
+    fn analyze_structure_with_cfg(&mut self, func: &Function, cfg: Rc<CfgInfo>) -> LoopInfo {
         let mut info = LoopInfo::default();
         self.cfg = Some(cfg);
         let mut loops = self.find_natural_loops(func);
