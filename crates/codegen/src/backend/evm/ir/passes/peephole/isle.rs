@@ -286,19 +286,22 @@ impl<'a> PeepContext<'a> {
         Some(std::array::from_fn(|index| start + index))
     }
 
+    fn is_constant_source(&self, index: Inst) -> bool {
+        let inst = &self.instructions[index];
+        inst.concrete_immediate().is_some() || matches!(inst.as_stack_op(), Some(StackOp::Dup(_)))
+    }
+
     /// Returns the constant that the push or `DUP` at `index` pushes, and its cost.
     ///
-    /// A `DUP` pushes a constant when a push at most `MAX_STACK_WINDOW` instructions before it
-    /// pushed the word it copies. The search follows that word's stack position backwards, through
-    /// the stack operations and the stack effect of every other instruction, and stops at a
-    /// `JUMPDEST`.
+    /// A `DUP` pushes a constant when a push within `MAX_STACK_WINDOW` instructions pushed the
+    /// word it copies. The search follows the word's position from the top backwards through each
+    /// instruction's stack effect, and stops at a `JUMPDEST`.
     fn constant_operand(&self, index: Inst) -> Option<(U256, Cost)> {
         let inst = &self.instructions[index];
         if let Some(value) = inst.concrete_immediate() {
             return Some((value, self.target.push(value)));
         }
         let StackOp::Dup(depth) = inst.as_stack_op()? else { return None };
-        // The position of the word, counted from the top, before each instruction.
         let mut word = usize::from(depth);
         for inst in self.instructions[index.saturating_sub(MAX_STACK_WINDOW)..index].iter().rev() {
             if let Some(stack_op) = inst.as_stack_op() {
@@ -459,8 +462,8 @@ impl generated::Context for PeepContext<'_> {
     /// A `DUPn` of a known constant that its materialization replaces for less.
     fn duplicates_known_constant(&mut self, _: Window) -> Option<U256> {
         let target = self.target;
-        // Zero is the cheapest word to materialize: if it does not beat a `DUP`, no word does.
-        if !target.dominates(target.push(U256::ZERO), target.dup()) {
+        // Only `PUSH0` can beat a `DUP`; skip the search without it.
+        if !target.evm_version().has_push0() {
             return None;
         }
         let (value, dup) = self.constant_operand(self.instructions.len() - 1)?;
@@ -468,12 +471,13 @@ impl generated::Context for PeepContext<'_> {
     }
 
     /// Two adjacent constants, each a push or a `DUP` of a known constant, and the operation over
-    /// them, when materializing the evaluated result is no worse in both bytes and gas and better
-    /// in one.
+    /// them, when materializing the evaluated result is a Pareto improvement.
     fn fold_constants(&mut self, _: Window) -> Option<U256> {
         let [lhs, rhs, instruction] = self.tail()?;
-        let opcode = self.instructions[instruction].as_evm_opcode()?;
-        if !op::is_pure(opcode) {
+        let opcode =
+            self.instructions[instruction].as_evm_opcode().filter(|&op| op::is_pure(op))?;
+        // Walk only for a `DUP`, and only once both operands can be constants.
+        if ![lhs, rhs].into_iter().all(|index| self.is_constant_source(index)) {
             return None;
         }
         let (lhs_value, lhs_cost) = self.constant_operand(lhs)?;
@@ -489,14 +493,11 @@ impl generated::Context for PeepContext<'_> {
         target.dominates(target.push(result), input).then_some(result)
     }
 
-    /// Folds a unary expression of a constant push or `DUP` only when its materialization is
-    /// Pareto better.
+    /// Folds a unary expression of a constant only when its materialization is Pareto better.
     fn fold_unary_constant(&mut self, _: Window) -> Option<U256> {
         let [value, instruction] = self.unprotected_tail()?;
-        let opcode = self.instructions[instruction].as_evm_opcode()?;
-        if !op::is_pure(opcode) {
-            return None;
-        }
+        let opcode =
+            self.instructions[instruction].as_evm_opcode().filter(|&op| op::is_pure(op))?;
         let (value, cost) = self.constant_operand(value)?;
         let result = eval::eval_opcode(opcode, &[value])?;
         let target = self.target;
