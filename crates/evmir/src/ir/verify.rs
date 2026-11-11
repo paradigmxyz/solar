@@ -907,6 +907,44 @@ impl<'a> Verifier<'a> {
         }
         after
     }
+
+    /// Returns fixed entry heights justified by roots and every incoming direct edge.
+    ///
+    /// An upper bound alone cannot stand for a window's incoming stack. Check that roots and
+    /// all edges preserve the same height, and forget opaque label entries and their successors.
+    /// Growing cycles, joins at different heights and unmodeled returns remain unknown.
+    pub fn stack_entry_exact_depths(
+        module: &Module,
+        evm_version: EvmVersion,
+    ) -> IndexVec<BlockId, Option<usize>> {
+        let dcx = DiagCtxt::with_silent_emitter(None);
+        if !Verifier::for_evm_version(&dcx, evm_version).verify_module_shape(module) {
+            return index_vec![None; module.blocks.len()];
+        }
+        let flows = label_flows(module);
+        let mut depths = Self::stack_entry_upper_bounds(module, evm_version);
+        let mut pending = unmodeled_pushes(module, &flows)
+            .into_iter()
+            .map(|(_, _, label)| label)
+            .collect::<Vec<_>>();
+        for (id, block) in module.blocks.iter_enumerated() {
+            let root =
+                block.metadata.entry_depth.map(usize::from).or((id == BlockId::ENTRY).then_some(0));
+            if root.is_some() && root != depths[id] {
+                pending.push(id);
+            }
+            if let Some(depth) = depths[id] {
+                bound_edges(block, &flows[id], depth, |target, entry| {
+                    if depths[target] != Some(entry) {
+                        pending.push(target);
+                    }
+                });
+            }
+        }
+        let mut unknown = DenseBitSet::new_empty(module.blocks.len());
+        forget_reached(module, &flows, &mut depths, &mut unknown, pending);
+        depths
+    }
 }
 
 /// The entry depths the stack-operation walk has propagated into a block.

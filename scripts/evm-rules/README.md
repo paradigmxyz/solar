@@ -558,3 +558,5 @@ MIR rule directories contain modules grouped by root operation. Pass a directory
 to verify all its modules, or an individual `.isle` file for a focused check.
 Each result records the actual module path and line, and a theorem's name
 includes its module. See [the module layout](../../crates/codegen/isle/mir/README.md).
+
+The [translation validator](../../solar-tv/README.md) uses the same word semantics for MIR and EVM IR.

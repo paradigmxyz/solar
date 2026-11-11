@@ -419,6 +419,11 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "DIR"))]
     pub debugify_output: Option<PathBuf>,
 
+    /// Run solar-tv on changed MIR and EVM IR after each pass. Keep counterexamples and
+    /// inconclusive pairs in this directory.
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "DIR"))]
+    pub solar_tv: Option<PathBuf>,
+
     /// Validate MIR and EVM IR after each pass. Enabled by default in debug builds.
     /// Accepts `true` or `false`.
     #[cfg_attr(
@@ -570,6 +575,7 @@ impl UnstableOpts {
             pass_diff: _,
             debugify: _,
             debugify_output: _,
+            solar_tv: _,
             validate_ir: _,
             check_analyses: _,
             prove_analyses: _,

@@ -1,0 +1,30 @@
+[package]
+name = "solar-tv-replay"
+description = "Independent interpreter replay for translation validation"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "solar-tv-replay"
+path = "src/main.rs"
+test = false
+bench = false
+
+[lints]
+workspace = true
+
+[dependencies]
+alloy-primitives.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+solar-config.workspace = true
+solar-mir-interpreter.workspace = true
+solar-evmir-interpreter.workspace = true
+
+[dev-dependencies]
+snapbox.workspace = true

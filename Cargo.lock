@@ -4718,6 +4718,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-tv-replay"
+version = "0.3.0"
+dependencies = [
+ "alloy-primitives",
+ "serde",
+ "serde_json",
+ "snapbox",
+ "solar-config",
+ "solar-evmir-interpreter",
+ "solar-mir-interpreter",
+]
+
+[[package]]
 name = "spki"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

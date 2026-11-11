@@ -70,6 +70,7 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 use solar_evmir::{
+    gas::{GasTier, memory_cost},
     ir::{BlockId, Instruction, Module, Terminator, TerminatorKind},
     link::{DataBytes, DataId},
     op::{self, MAX_STACK_DEPTH, StackOp, WORD_BYTES, eval_opcode},
@@ -148,6 +149,8 @@ pub struct Log {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Halt {
+    /// The next instruction could not pay its gas charge.
+    OutOfGas,
     /// It reached `invalid`.
     Invalid,
     /// It reached an opcode the target does not define, such as `revert` before Byzantium.
@@ -163,6 +166,7 @@ pub enum Halt {
 impl fmt::Display for Halt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
+            Self::OutOfGas => f.write_str("out of gas"),
             Self::Invalid => f.write_str("`invalid`"),
             Self::UndefinedOpcode(opcode) => match op::mnemonic(opcode) {
                 Some(mnemonic) => write!(f, "`{mnemonic}`, which the target does not define"),
@@ -289,6 +293,8 @@ impl<'m> Machine<'m> {
             memory: Memory::default(),
             effects: Effects::default(),
             fuel,
+            window: None,
+            gas: None,
         };
         let outcome = run.execute();
         let effects = match outcome {
@@ -296,6 +302,71 @@ impl<'m> Machine<'m> {
             _ => Effects::default(),
         };
         Execution { outcome, effects }
+    }
+
+    pub(crate) fn replay(
+        &self,
+        input: crate::replay::Input,
+        fuel: u64,
+        layout: Layout,
+        selected: Option<BlockId>,
+    ) -> Result<crate::replay::Execution, String> {
+        let entry = selected.unwrap_or(BlockId::ENTRY);
+        let Some(body) = self.module.blocks.get(entry) else {
+            return Err("empty EVM window".into());
+        };
+        let mut memory = vec![0; input.memory_size];
+        memory[..input.memory.len()].copy_from_slice(&input.memory);
+        let mut host = crate::replay::Unknown;
+        let mut run = Run {
+            machine: self,
+            image: CodeImage::new(self.module, layout),
+            host: &mut host,
+            calldata: &[],
+            stack: input.stack.into_iter().rev().collect(),
+            code_sizes: DenseBitSet::new_empty(MAX_STACK_DEPTH),
+            memory: Memory(memory),
+            effects: Effects::default(),
+            fuel,
+            window: Some((input.calldata_size, input.returndata_size)),
+            gas: input.gas,
+        };
+        let execute = |run: &mut Run<'_, 'm>| -> Result<Option<usize>, Outcome> {
+            for inst in &body.instructions {
+                let target = run.instruction(inst)?;
+                if target.is_some() || (inst.opcode == op::JUMPI && selected.is_none()) {
+                    return Ok(target.map(|id| {
+                        if selected.is_some() {
+                            self.module.blocks[id].label as usize
+                        } else {
+                            id.index()
+                        }
+                    }));
+                }
+            }
+            match &body.terminator {
+                Some(term) => run.terminator(entry, term).map(|id| {
+                    Some(if selected.is_some() {
+                        self.module.blocks[id].label as usize
+                    } else {
+                        id.index()
+                    })
+                }),
+                None => Ok(None),
+            }
+        };
+        let result = execute(&mut run);
+        let exceptional = matches!(result, Err(Outcome::Halt(_)));
+        let outcome = crate::replay::outcome(result);
+        let memory_size = run.memory.0.len();
+        let memory = (0..256).map(|i| run.memory.0.get(i).copied().unwrap_or(0)).collect();
+        Ok(crate::replay::Execution {
+            outcome,
+            stack: run.stack.into_iter().rev().collect(),
+            memory,
+            memory_size,
+            gas: run.gas.map(|gas| if exceptional { U256::ZERO } else { gas }),
+        })
     }
 }
 
@@ -465,6 +536,10 @@ struct Run<'r, 'm> {
     memory: Memory,
     effects: Effects,
     fuel: u64,
+    /// Context sizes supplied to direct window replay.
+    window: Option<(U256, U256)>,
+    /// Gas charging is opt-in for windows, never confused with work fuel.
+    gas: Option<U256>,
 }
 
 impl<'m> Run<'_, 'm> {
@@ -506,10 +581,28 @@ impl<'m> Run<'_, 'm> {
     fn instruction(&mut self, inst: &Instruction) -> Result<Option<BlockId>, Outcome> {
         self.burn(1)?;
         if let Some(stack_op) = inst.as_stack_op() {
+            if self.gas.is_some() {
+                let lowering = stack_op
+                    .metrics(self.machine.evm_version)
+                    .ok_or_else(|| unsupported("unavailable stack operation"))?;
+                self.charge(U256::from(lowering.static_gas))?;
+            }
             self.stack_op(stack_op)?;
             return Ok(None);
         }
         if inst.is_encoded_push() {
+            if self.gas.is_some() {
+                let opcode = if inst.concrete_immediate() == Some(U256::ZERO)
+                    && self.machine.evm_version.has_push0()
+                {
+                    op::PUSH0
+                } else {
+                    op::PUSH1
+                };
+                self.charge(U256::from(
+                    op::definition(opcode).unwrap().gas.gas(self.machine.evm_version),
+                ))?;
+            }
             let value = self.pushed(inst);
             self.push(value?)?;
             return Ok(None);
@@ -589,6 +682,9 @@ impl<'m> Run<'_, 'm> {
 
     /// Runs the terminator of `block`, returning the block control reaches next.
     fn terminator(&mut self, block: BlockId, terminator: &Terminator) -> Result<BlockId, Outcome> {
+        if self.gas.is_some() && !matches!(terminator.kind, TerminatorKind::Op(_)) {
+            return Err(unsupported("gas replay requires explicit opcode transfers"));
+        }
         self.burn(1)?;
         // Lowering pushes a branch's target, or a table's words, above the stack before it jumps.
         let growth = terminator.kind.lowering_stack_growth(self.machine.module.next_block(block));
@@ -626,6 +722,43 @@ impl<'m> Run<'_, 'm> {
         };
         if !definition.is_available(self.machine.evm_version) {
             return Err(Outcome::Halt(Halt::UndefinedOpcode(opcode)));
+        }
+        if self.gas.is_some() {
+            if !matches!(
+                definition.gas,
+                GasTier::Zero
+                    | GasTier::Base
+                    | GasTier::VeryLow
+                    | GasTier::Low
+                    | GasTier::Mid
+                    | GasTier::High
+                    | GasTier::Jumpdest
+            ) {
+                return Err(unsupported("dynamic gas schedule outside replay fragment"));
+            }
+            let offset = self.stack.last().copied().unwrap_or_default();
+            let len = match opcode {
+                op::MLOAD | op::MSTORE => U256::from(32),
+                op::MSTORE8 => U256::ONE,
+                op::RETURN | op::REVERT => {
+                    self.stack.get(self.stack.len().saturating_sub(2)).copied().unwrap_or_default()
+                }
+                _ => U256::ZERO,
+            };
+            let before = self.memory.0.len() as u64 / 32;
+            let end = if len.is_zero() {
+                U256::ZERO
+            } else {
+                offset.checked_add(len).ok_or(Outcome::Limit(Limit::Memory))?
+            };
+            if end > U256::from(MEMORY_LIMIT) {
+                return Err(Outcome::Limit(Limit::Memory));
+            }
+            let after = before.max(end.to::<u64>().div_ceil(32));
+            let charge = u128::from(definition.gas.gas(self.machine.evm_version))
+                + memory_cost(after)
+                - memory_cost(before);
+            self.charge(U256::from(charge))?;
         }
         let Some((inputs, _)) = definition.stack_io else {
             return Err(unsupported("an extended stack opcode without its immediate"));
@@ -677,6 +810,21 @@ impl<'m> Run<'_, 'm> {
 
     /// Runs an opcode that is not pure on its operands, in pop order.
     fn effect(&mut self, opcode: u8, operands: &[U256]) -> Result<Effect, Outcome> {
+        if self.window.is_some()
+            && matches!(
+                opcode,
+                op::CALLDATALOAD
+                    | op::CALLDATACOPY
+                    | op::RETURNDATACOPY
+                    | op::SLOAD
+                    | op::SSTORE
+                    | op::TLOAD
+                    | op::TSTORE
+                    | op::LOG0..=op::LOG4
+            )
+        {
+            return Err(unsupported("window lacks calldata bytes or world state"));
+        }
         Ok(match (opcode, operands) {
             (op::KECCAK256, &[offset, len]) => {
                 let range = self.memory_range(offset, len)?;
@@ -687,7 +835,9 @@ impl<'m> Run<'_, 'm> {
                 copy_padded(self.calldata, offset, &mut word);
                 Effect::Push(U256::from_be_bytes(word))
             }
-            (op::CALLDATASIZE, &[]) => Effect::Push(U256::from(self.calldata.len())),
+            (op::CALLDATASIZE, &[]) => {
+                Effect::Push(self.window.map_or(U256::from(self.calldata.len()), |ctx| ctx.0))
+            }
             (op::CALLDATACOPY, &[dest, offset, len]) => {
                 let range = self.memory_range(dest, len)?;
                 copy_padded(self.calldata, offset, &mut self.memory.0[range]);
@@ -699,7 +849,10 @@ impl<'m> Run<'_, 'm> {
                 self.image.copy(offset, &mut self.memory.0[range])?;
                 Effect::Next
             }
-            (op::RETURNDATASIZE, &[]) => Effect::Push(U256::ZERO),
+            (op::RETURNDATASIZE, &[]) => Effect::Push(self.window.map_or(U256::ZERO, |ctx| ctx.1)),
+            (op::GAS, &[]) if self.window.is_some() && self.gas.is_some() => {
+                Effect::Push(self.gas.unwrap())
+            }
             (op::RETURNDATACOPY, &[_, offset, len]) => {
                 // The run makes no calls, so its return data is empty and any copy from it reads
                 // out of bounds, even an empty one at a nonzero offset.
@@ -780,6 +933,18 @@ impl<'m> Run<'_, 'm> {
         let range = self.memory.range(offset, len)?;
         self.burn(range.len().div_ceil(WORD_BYTES) as u64)?;
         Ok(range)
+    }
+
+    fn charge(&mut self, amount: U256) -> Result<(), Outcome> {
+        let Some(gas) = &mut self.gas else {
+            return Ok(());
+        };
+        if *gas < amount {
+            *gas = U256::ZERO;
+            return Err(Outcome::Halt(Halt::OutOfGas));
+        }
+        *gas -= amount;
+        Ok(())
     }
 
     /// Returns the block a jump to `target` reaches.
