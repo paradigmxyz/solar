@@ -1055,18 +1055,26 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 
 - ID: CODEGEN-023
 - Status: intentional
-- Difference: a `bytes` or `string` object that `abi.decode` allocates (including
-  external call returns and `catch Error(string)` reasons) or that
-  `abi.encodePacked`, `bytes.concat` or `string.concat` returns keeps whatever
-  the memory or the input held in the padding after its last byte, up to the
-  next word. `solc` writes zeros there. Only assembly can
-  read the padding: every Solidity use of the object, such as `bytes32(b)`,
-  `keccak256`, `bytes.concat`, `abi.encode`, a storage copy or an external
-  `return`, reads or copies only the length and masks the rest or writes its own
-  zeros.
+- Difference: the bytes between the end of a memory `bytes` or `string` object
+  and the next word boundary are not cleared when the object comes from
+  `abi.decode` of calldata, memory or returndata (including the value an
+  external call returns and a `catch Error(string)` reason), or from
+  `abi.encodePacked`, `bytes.concat` or `string.concat` with a result longer
+  than 32 bytes and not a multiple of 32. They hold whatever the input or the
+  free memory held. `solc` writes zeros there, except for a `catch Error(string)`
+  reason, which keeps the padding of the revert data. Only inline assembly that
+  reads the padding sees the difference: `return`, `revert` or `log` data that
+  covers the rounded length, `keccak256` over it, `call` or `staticcall` input
+  of that length, and `mcopy` of whole words.
 - Rationale: clearing the padding adds a store to every such `abi.decode` and
-  non-word-aligned `abi.encodePacked`, which grows the bytecode and costs gas
-  for a difference that Solidity cannot observe.
-- Coverage: `tests/ui/codegen/run-call/abi-decode/abi_decode_bytes_padding.sol`,
-  `tests/ui/codegen/run-call/abi-decode/abi_decode_bytes_dirty_memory.sol` and
-  `tests/ui/codegen/run-call/abi-encode/abi_encode_packed_padding.sol`.
+  non-word-aligned `abi.encodePacked`, which grows the bytecode and costs gas.
+  Every Solidity use of the object reads or copies only its length, masks the
+  rest, or writes its own zeros: external return, `revert` data, `abi.encode`,
+  `abi.encodePacked`, `abi.encodeCall`, events (data and indexed topic),
+  `keccak256`, `bytes.concat`, `string.concat`, conversion to `bytesN`, indexing,
+  storage copies, `push` and external calls that pass the object on. The padding
+  of an external function parameter, of `new bytes(n)` and of a packed result of
+  at most 32 bytes is still zero.
+- Coverage: `tests/ui/codegen/run-call/bytes-padding/` runs each of these
+  sources against each Solidity and assembly use over dirty padding, and
+  `tests/foundry/bytes-padding-logs/` covers events.

@@ -14,20 +14,21 @@ contract EncodePackedPadding {
 
     function padding(address implementation) external pure returns (bool) {
         _dirty();
+        bytes memory implementationBytes = new bytes(20);
+        for (uint256 i; i < 20; ++i) implementationBytes[i] = bytes20(implementation)[i];
         return _matches(
-            abi.encodePacked(HEAD, implementation, TAIL),
-            bytes.concat(HEAD, bytes20(implementation), TAIL)
+            abi.encodePacked(HEAD, implementation, TAIL), _cat(HEAD, implementationBytes, TAIL)
         );
     }
 
     function fromCalldata(bytes calldata data) external pure returns (bool) {
         _dirty();
-        return _matches(abi.encodePacked(uint8(1), data), bytes.concat(bytes1(0x01), data));
+        return _matches(abi.encodePacked(uint8(1), data), _cat(hex"01", data, ""));
     }
 
     function wordAligned(bytes calldata data) external pure returns (bool) {
         _dirty();
-        return _matches(abi.encodePacked(data, uint8(7)), bytes.concat(data, bytes1(0x07)));
+        return _matches(abi.encodePacked(data, uint8(7)), _cat(data, hex"07", ""));
     }
 
     function _dirty() private pure {
@@ -35,6 +36,15 @@ contract EncodePackedPadding {
             let m := mload(0x40)
             for { let i := 0 } lt(i, 0x400) { i := add(i, 0x20) } { mstore(add(m, i), not(0)) }
         }
+    }
+
+    // Copies the parts byte by byte, so the expected value does not use the packed encoder.
+    function _cat(bytes memory a, bytes memory b, bytes memory c) private pure returns (bytes memory r) {
+        r = new bytes(a.length + b.length + c.length);
+        uint256 k;
+        for (uint256 i; i < a.length; ++i) r[k++] = a[i];
+        for (uint256 i; i < b.length; ++i) r[k++] = b[i];
+        for (uint256 i; i < c.length; ++i) r[k++] = c[i];
     }
 
     function _matches(bytes memory b, bytes memory expected) private pure returns (bool) {
