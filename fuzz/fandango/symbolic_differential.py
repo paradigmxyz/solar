@@ -10,12 +10,13 @@ import json
 import math
 import os
 import pathlib
+import queue
 import re
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from collections.abc import Iterator
 from typing import Any
@@ -991,38 +992,31 @@ def _zero_tail(item: dict[str, Any]) -> bytes:
 
 @contextlib.contextmanager
 def _anvil(anvil: str, evm_version: str, timeout: float) -> Iterator[str]:
-    """Runs a private anvil on a free local port and yields its URL."""
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
+    """Runs a private anvil on a free local port and yields its URL.
+
+    Anvil picks the port itself and prints it, so the URL is always the
+    child's own node.
+    """
     process = subprocess.Popen(
         [
             anvil,
             "--port",
-            str(port),
+            "0",
             "--hardfork",
             evm_version.lower(),
             "--disable-code-size-limit",
-            "--silent",
         ],
         stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
     )
-    url = f"http://127.0.0.1:{port}"
     try:
-        deadline = time.monotonic() + timeout
-        while True:
-            if process.poll() is not None:
-                detail = process.stderr.read().strip() if process.stderr else ""
-                raise RuntimeError(f"anvil exited before it started: {detail}")
-            with contextlib.suppress(evm.InfraError):
-                evm.rpc(url, "eth_chainId", [], timeout, retries=0)
-                break
-            if time.monotonic() >= deadline:
-                raise RuntimeError("anvil did not start")
-            time.sleep(0.1)
+        url = _anvil_url(process, timeout)
+        # Keep reading anvil's output so a full pipe never blocks it.
+        threading.Thread(
+            target=lambda: [None for _ in process.stdout], daemon=True
+        ).start()
         yield url
     finally:
         process.terminate()
@@ -1031,6 +1025,35 @@ def _anvil(anvil: str, evm_version: str, timeout: float) -> Iterator[str]:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
+
+
+def _anvil_url(process: subprocess.Popen[str], timeout: float) -> str:
+    """Reads the address anvil prints once it listens."""
+    assert process.stdout is not None
+    lines: queue.Queue[str | None] = queue.Queue()
+
+    def read() -> None:
+        for line in process.stdout:
+            lines.put(line)
+            if "Listening on" in line:
+                return
+        lines.put(None)
+
+    threading.Thread(target=read, daemon=True).start()
+    output = []
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            line = lines.get(timeout=max(deadline - time.monotonic(), 0))
+        except queue.Empty:
+            raise RuntimeError("anvil did not start") from None
+        if line is None:
+            detail = "".join(output[-20:]).strip()
+            raise RuntimeError(f"anvil exited before it started: {detail}")
+        output.append(line)
+        match = re.search(r"Listening on (\S+:\d+)", line)
+        if match:
+            return f"http://{match.group(1)}"
 
 
 def _deploy(
@@ -1068,9 +1091,8 @@ def _create(
     }
     snapshot = _rpc(url, "evm_snapshot", [], timeout)
     try:
-        # The deployment runs in the next block. Pin that block's timestamp so
-        # both builds see the same block environment, and run the preflight
-        # call against the pending block, which uses it.
+        # Both builds deploy in a block mined on the same parent. Pin its
+        # timestamp, which anvil otherwise takes from the wall clock.
         latest = _rpc(url, "eth_getBlockByNumber", ["latest", False], timeout)
         _rpc(
             url,
@@ -1078,24 +1100,25 @@ def _create(
             [int(latest["timestamp"], 16) + 1],
             timeout,
         )
-        call = evm.rpc(url, "eth_call", [transaction, "pending"], timeout)
-        if "result" not in call:
-            # Anvil reports reverts and exceptional halts alike as errors; only
-            # the revert data is the contract's.
-            error = call.get("error")
-            message = error.get("message") if isinstance(error, dict) else error
+        # The mined transaction decides the outcome, so no simulation can see
+        # a different block or transaction environment.
+        tx_hash = _rpc(url, "eth_sendTransaction", [transaction], timeout)
+        receipt = evm.wait_for_receipt(url, tx_hash, timeout)
+        if not receipt:
+            raise RuntimeError("the deployment transaction was not mined")
+        if receipt.get("status") != "0x1":
+            # Only the revert data is the contract's; the error is anvil's.
+            trace = _rpc(
+                url,
+                "debug_traceTransaction",
+                [tx_hash, {"tracer": "callTracer"}],
+                timeout,
+            )
             return {
                 "success": False,
-                "data": evm.revert_data(error),
-                "error": str(message),
+                "data": evm.normalize_hex(trace.get("output")),
+                "error": str(trace.get("error", "")),
             }
-        receipt = evm.wait_for_receipt(
-            url, _rpc(url, "eth_sendTransaction", [transaction], timeout), timeout
-        )
-        if not receipt or receipt.get("status") != "0x1":
-            raise RuntimeError(
-                "a deployment that succeeded in eth_call failed as a transaction"
-            )
         address = receipt["contractAddress"]
         balance = _rpc(url, "eth_getBalance", [address, "latest"], timeout)
         nonce = _rpc(url, "eth_getTransactionCount", [address, "latest"], timeout)
