@@ -4698,7 +4698,9 @@ dependencies = [
 name = "solar-tv-replay"
 version = "0.3.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-primitives",
+ "evm2",
  "serde",
  "serde_json",
  "snapbox",
@@ -4708,6 +4710,7 @@ dependencies = [
  "solar-mir",
  "solar-mir-interpreter",
  "strum 0.28.0",
+ "tempfile",
 ]
 
 [[package]]

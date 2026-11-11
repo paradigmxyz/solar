@@ -33,6 +33,7 @@ class Program:
     selector: str | None = None
     scope: str | None = None
     following: str | None = None
+    world: dict | None = None
 
 
 def lines(text: str) -> list[str]:

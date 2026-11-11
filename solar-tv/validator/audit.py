@@ -87,29 +87,50 @@ def record(
         "defined inputs",
         "trusted parser and importer",
     ]
-    if layer == "mir":
-        assumptions.append("acyclic scalar MIR; no implicit backend frame setup")
+    if program and program.world:
+        fixture = program.world
+        assumptions.extend(
+            [
+                "compiled full entry; trusted compiler backend lowering",
+                f"explicit initial world sha256={fixture['fixture_sha256']}; omitted accounts absent and slots zero",
+                "only listed symbolic storage cells and entry stack words are quantified",
+                f"entry gas budget {fixture['gas']}; root value/gas price zero; fresh private memory",
+                f"model work limit {fixture['fuel']}; 64 KiB memory limit; unsupported paths prevent verification",
+                "nested bytecode and constructors execute; identity precompile modeled; other precompiles unsupported",
+                "scenario-entry proof; no arbitrary-world or whole-pass claim",
+                "persistent effects only"
+                if policy is None
+                else "exact effects, remaining gas and refund"
+                if policy == "exact"
+                else "same effects/refund and no less remaining gas unless original runs out of gas",
+            ]
+        )
     else:
+        if layer == "mir":
+            assumptions.append("acyclic scalar MIR; no implicit backend frame setup")
+        else:
+            assumptions.append(
+                "one opcode window; explicit valid label transfers; no PC/CODESIZE"
+            )
+            if program:
+                assumptions.append(f"entry stack height {program.interface[1]}")
+        if program and program.scope:
+            assumptions.append(
+                "region-local proof; no whole-pass or interprocedural claim"
+            )
+        if (program and program.memory) or (
+            result.pair and any(side.memory for side in result.pair)
+        ):
+            assumptions.append(
+                "constant accesses inside 256-byte memory prefix; representable aligned MSIZE"
+            )
         assumptions.append(
-            "one opcode window; explicit valid label transfers; no PC/CODESIZE"
+            "sufficient gas"
+            if policy is None
+            else "exact remaining gas and outcomes"
+            if policy == "exact"
+            else "resource refinement; original OOG unconstrained; gas-insensitive continuation"
         )
-        if program:
-            assumptions.append(f"entry stack height {program.interface[1]}")
-    if program and program.scope:
-        assumptions.append("region-local proof; no whole-pass or interprocedural claim")
-    if (program and program.memory) or (
-        result.pair and any(side.memory for side in result.pair)
-    ):
-        assumptions.append(
-            "constant accesses inside 256-byte memory prefix; representable aligned MSIZE"
-        )
-    assumptions.append(
-        "sufficient gas"
-        if policy is None
-        else "exact remaining gas and outcomes"
-        if policy == "exact"
-        else "resource refinement; original OOG unconstrained; gas-insensitive continuation"
-    )
     sources = []
     for i, path in enumerate((before, after)):
         sources.append(
@@ -133,7 +154,8 @@ def record(
         "layer": layer,
         "semantics": model or semantics(),
         "target": target,
-        "gas_policy": policy or "sufficient",
+        "gas_policy": policy
+        or ("fixture-effects" if program and program.world else "sufficient"),
         "assumptions": assumptions,
         "inputs": sources,
         "evidence": "kernel-proof"
@@ -141,6 +163,38 @@ def record(
         else "kernel-and-rust-replay"
         if result.status == "counterexample"
         else None,
+        **(
+            {
+                "world": {
+                    "fixture_sha256": program.world["fixture_sha256"],
+                    "fixture": {
+                        key: value
+                        for key, value in program.world.items()
+                        if key
+                        not in {
+                            "configuration",
+                            "image_sha256",
+                            "compiler",
+                            "path",
+                            "fixture_sha256",
+                        }
+                    },
+                    "backend_images": [
+                        side.world["image_sha256"]
+                        for side in result.pair
+                        if side.world is not None
+                    ]
+                    if result.pair
+                    else [],
+                    "opcode_config_sha256": hashlib.sha256(
+                        program.world["configuration"].encode()
+                    ).hexdigest(),
+                    "native_samples": 1 if result.status == "verified" else 0,
+                }
+            }
+            if program and program.world
+            else {}
+        ),
         "witness": result.witness,
         "diagnostic": result.stderr,
     }

@@ -17,6 +17,8 @@ use std::{
 };
 use strum::IntoEnumIterator;
 
+mod world;
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Request {
@@ -30,6 +32,8 @@ struct Request {
     evm_version: String,
     #[serde(default)]
     selector: Option<String>,
+    #[serde(default)]
+    world: Option<world::Input>,
 }
 
 fn main() {
@@ -102,6 +106,9 @@ fn payload(kind: &str, data: &[u8]) -> String {
 }
 
 fn replay(request: &Request) -> Result<[String; 2], String> {
+    if let Some(input) = &request.world {
+        return world::replay(request, input);
+    }
     let version = EvmVersion::from_str(&request.evm_version).map_err(|e| e.to_string())?;
     let run = |text: &str| -> Result<String, String> {
         let (memory, size) = initial_memory(request)?;

@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import audit, evmir, gas, memory, mir, native, operations, regions, report
+from . import audit, evmir, gas, memory, mir, native, operations, regions, report, world
 from .common import Inconclusive, Program, Unsupported
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,8 +42,9 @@ def load(
     function: str | None = None,
     window: str | None = None,
     stack_height: int | None = None,
+    world_path: Path | None = None,
 ) -> Program:
-    if gas_mode is not None and kind != "evmir":
+    if gas_mode is not None and kind != "evmir" and world_path is None:
         raise Unsupported("gas auditing requires scheduled EVM IR, not MIR")
     suffix = ".mir" if kind == "mir" else ".evmir"
     limit = 1024 * 1024 if function is not None or window is not None else 128 * 1024
@@ -63,6 +64,21 @@ def load(
     )
     if parsed.returncode:
         raise Unsupported(parsed.stderr.strip() or "compiler rejected input")
+    if world_path is not None:
+        if window is not None or stack_height is not None:
+            raise Unsupported(
+                "world mode requires a complete entry, not a block projection"
+            )
+        fixture = world.read(world_path, solar, gas_mode)
+        return world.translate(
+            parsed.stdout,
+            kind,
+            solar,
+            evm_version or "cancun",
+            fixture,
+            timeout,
+            function,
+        )
     projection = parsed.stdout
     following = None
     if function is not None:
@@ -161,6 +177,17 @@ def check(
     replay_executable: str,
     verbose: bool = False,
 ) -> audit.Result:
+    if a.world is not None or b.world is not None:
+        from .world_check import check as check_world
+
+        return check_world(
+            a,
+            b,
+            timeout,
+            replay_command=replay_command,
+            replay_executable=replay_executable,
+            verbose=verbose,
+        )
     if a.scope == "window" and b.scope == "window" and a.selector is not None:
         regions.compatible_windows(a.replay_ir, b.replay_ir, a.selector)
     if a.memory != b.memory:
@@ -463,6 +490,11 @@ def main() -> int:
     parser.add_argument(
         "--stack-height", type=int, help="fixed incoming EVM window height"
     )
+    parser.add_argument(
+        "--world",
+        type=Path,
+        help="explicit initial-world fixture for complete-entry stateful checks",
+    )
     args = parser.parse_args()
     version = args.evm_version or "cancun"
     replay = report.replay_command(
@@ -477,6 +509,7 @@ def main() -> int:
         function=args.function,
         window=args.window,
         stack_height=args.stack_height,
+        world=args.world,
     )
     programs: list[Program] = []
     model = audit.semantics()
@@ -501,6 +534,7 @@ def main() -> int:
             function=args.function,
             window=args.window,
             stack_height=args.stack_height,
+            world=args.world,
         )
         programs = [
             load(
@@ -513,6 +547,7 @@ def main() -> int:
                 function=args.function,
                 window=args.window,
                 stack_height=args.stack_height,
+                world_path=args.world,
             )
             for path in (args.before, args.after)
         ]

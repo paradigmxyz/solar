@@ -47,7 +47,7 @@ Exit codes are `0` for verified, `1` for a replayed counterexample and `2` for
 inconclusive, unsupported, timeout or tool failure. Structured reports distinguish
 these statuses. Use `--solar PATH` to
 select a compiler binary. [Operation coverage](OPERATIONS.md) tracks every schema
-entry and separates CLI support from the state/call foundations. Full operation
+entry and distinguishes window proofs from explicit-world entry proofs. Full operation
 coverage is still in progress.
 
 ## Audit records
@@ -269,14 +269,72 @@ and [execution semantics](https://github.com/NethermindEth/EVMYulLean/blob/047f6
 The admitted window operations support every compiler target from Homestead
 through Amsterdam, with Cancun as the CLI default. `--evm-version` selects
 availability and pricing, including EXP, PUSH0 and EXCHANGE differences.
-The CLI still rejects calls, storage, refunds and transaction intrinsic gas.
-[State/](SolarTV/State/) contains the separate storage and call-boundary models;
-they are not yet connected to a child instruction evaluator or CLI replay.
+Window checks reject calls, storage and refunds. The explicit-world mode below
+executes them with a fixed entry budget. Neither mode includes transaction
+validation or intrinsic gas.
 
 These are explicit opcode windows: execution starts after any entry JUMPDEST,
 and ends before the outgoing successor executes. A static transfer includes its
 label PUSH and JUMP/JUMPI. Layout-dependent structured jumps remain unsupported.
 The checker does not estimate EVM gas from MIR; `mir --gas=...` is inconclusive.
+
+## Storage, calls and creation
+
+Use `--world` to check a complete runtime entry against an explicit account
+fixture. Both IRs work; MIR must contain an actual `[entry]` dispatcher, rather
+than an isolated internal function.
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/storage/{before,after}.evmir \
+  --world solar-tv/examples/evmir/storage/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/storage/{before,broken}.mir \
+  --world solar-tv/examples/mir/storage/world.json
+solar-tv/solar-tv evmir solar-tv/examples/evmir/creation/{before,broken}.evmir \
+  --world solar-tv/examples/evmir/creation/world.json --report target/tv/create.json
+```
+
+The first pair removes an overwritten storage write. The second changes a stored
+value. The creation counterexample changes the deployed code. Reports name the
+changed account, storage slot, balance, nonce, code or output, and replay it in
+Lean and independently in `evm2`.
+
+A fixture declares `version: 1`, optional `address`, `caller`, `gas`, `static`,
+hex `calldata`, `warm_slots: [[address, slot], ...]`, and `accounts`. Each account
+has an `address` and optional `nonce`, `balance`, hex `code`, and `storage` object.
+Numbers accept decimal or `0x` strings. Defaults are root address 65536, caller
+131072, one million gas, zero value/gas price, empty input and fresh memory.
+The root account defaults to nonce one and gets its code from the IR. Omitted
+accounts are absent; omitted slots are zero. Storage keys or values such as
+`"$seed"` are universally quantified words, as are declared EVM entry stack words.
+Everything else in the fixture is concrete.
+
+[EVMIR/State/](SolarTV/EVMIR/State/) contains executable account, memory, call and
+constructor semantics. It implements persistent/transient storage, cold/warm
+accesses, refunds, logs, CALL/CALLCODE/DELEGATECALL/STATICCALL, CREATE/CREATE2,
+value transfers, constructor code deposit and journal rollback. Child frames
+execute their actual bytecode with private memory and return data. Identity
+precompile 4 is modeled; other precompiles, EIP-7702 delegation, SELFDESTRUCT and
+unmodeled opcodes are unsupported, including when encountered in a child.
+
+This is a **scenario-entry proof**, not arbitrary-world equivalence. Both inputs
+are compiled without optional optimization to runtime bytecode, so compiler
+backend lowering is an additional trusted boundary, especially for MIR. Native
+replay rebuilds the original IR independently; it does not accept the importer's
+bytecode recipe. Audits bind the fixture, opcode configuration and both runtime
+images, and record a native sample even for a positive proof. This does not
+prove backend lowering correct for every input. The root's code bytes are not
+themselves an output; CODECOPY, self-calls and code introspection still execute
+against the actual before/after image. Child deployed code remains observable.
+
+World mode supports Istanbul through Osaka. Amsterdam's two-resource state gas
+is not modeled. Limits are 32 initial accounts, 64 storage cells per account,
+64 KiB private memory per frame and 512 evaluator steps/depth by default
+(`fuel: 1..2048`). A limit or unsupported path prevents verification; it is never
+equated with an EVM exception. The default compares effects at the fixture's
+finite gas budget. `--gas=exact` also compares remaining gas and refunds;
+`--gas=refine` allows only original out-of-gas to be unconstrained, otherwise
+requiring the same effects/refund and at least as much remaining gas. Fixture
+checks are standalone; the compiler's pass hooks continue to check local windows.
 
 The real SWAP1/ADD peephole costs 17 gas before and 14 after, through its outgoing
 transfer. It verifies under `refine`, and fails `exact` with different remaining

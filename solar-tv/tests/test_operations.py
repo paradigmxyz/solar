@@ -301,6 +301,8 @@ class OperationTests(unittest.TestCase):
                 set(inventory[layer].values()), set(inventory["legend"])
             )
         for name in ("call", "callcode", "delegatecall", "staticcall"):
-            self.assertEqual(inventory["evmir"][name], "boundary_only")
-        for name in ("create", "create2", "selfdestruct"):
-            self.assertEqual(inventory["evmir"][name], "missing")
+            self.assertEqual(inventory["evmir"][name], "world_entry")
+            self.assertEqual(inventory["mir"][name], "compiled_entry")
+        for name in ("create", "create2"):
+            self.assertEqual(inventory["evmir"][name], "world_entry")
+        self.assertEqual(inventory["evmir"]["selfdestruct"], "missing")

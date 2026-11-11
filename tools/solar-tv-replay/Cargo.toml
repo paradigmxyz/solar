@@ -28,6 +28,9 @@ solar-evmir-interpreter.workspace = true
 solar-mir.workspace = true
 solar-evmir.workspace = true
 strum.workspace = true
+evm2.workspace = true
+alloy-consensus.workspace = true
+tempfile.workspace = true
 
 [dev-dependencies]
 snapbox.workspace = true
