@@ -577,7 +577,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             &Step::Op(opcode) => self.asm.emit_op(opcode),
             &Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
-            &Step::Call(callee, _) => {
+            &Step::Call(callee) => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
                 if cold {
