@@ -45,6 +45,11 @@ CONSTRUCTOR = "<constructor>"
 FORGE_GRACE_SECONDS = 60
 # CREATE and CREATE2.
 _CREATE_OPCODES = {0xF0, 0xF5}
+# Forge's default sender. Its CREATE at nonce 1 is Forge's test contract
+# address, where `forge equivalence` runs both runtimes, so the constructors
+# run at the address the runtimes later see as ADDRESS.
+DEPLOYER = "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38"
+DEPLOYER_NONCE = 1
 # CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2, SELFDESTRUCT: ways a
 # constructor can change another account, directly or through code it runs in
 # its own context.
@@ -1064,12 +1069,17 @@ def _deploy(
     evm_version: str,
     timeout: float,
 ) -> dict[str, dict[str, Any]]:
-    """Deploys both builds from the same account and nonce, so at one address."""
+    """Deploys both builds from the same account and nonce, so at one address.
+
+    That address is the one `forge equivalence` runs the runtimes at.
+    """
     with _anvil(anvil, evm_version, timeout) as url:
+        _rpc(url, "anvil_impersonateAccount", [DEPLOYER], timeout)
+        _rpc(url, "anvil_setNonce", [DEPLOYER, hex(DEPLOYER_NONCE)], timeout)
         # Covers any constructor value.
-        _rpc(url, "anvil_setBalance", [evm.ANVIL_SENDER, hex(value + 10**24)], timeout)
-        # One explicit gas price for the preflight call and the transaction of
-        # both builds, so GASPRICE reads the same everywhere.
+        _rpc(url, "anvil_setBalance", [DEPLOYER, hex(value + 10**24)], timeout)
+        # One explicit gas price for the transactions of both builds, so
+        # GASPRICE reads the same everywhere.
         gas_price = int(_rpc(url, "eth_gasPrice", [], timeout), 16)
         return {
             "solc": _create(url, solc_initcode, value, gas_price, timeout),
@@ -1082,7 +1092,7 @@ def _create(
 ) -> dict[str, Any]:
     """Runs one deployment and reports its outcome, then undoes it."""
     transaction = {
-        "from": evm.ANVIL_SENDER,
+        "from": DEPLOYER,
         "data": initcode,
         "value": hex(value),
         "gas": evm.TX_GAS,
@@ -1104,7 +1114,7 @@ def _create(
         # Pin the nonce and never resend: a retry after a lost response would
         # deploy at the next nonce, so at another address.
         transaction["nonce"] = _rpc(
-            url, "eth_getTransactionCount", [evm.ANVIL_SENDER, "latest"], timeout
+            url, "eth_getTransactionCount", [DEPLOYER, "latest"], timeout
         )
         sent = evm.rpc(url, "eth_sendTransaction", [transaction], timeout, retries=0)
         if "result" not in sent:

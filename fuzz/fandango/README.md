@@ -322,7 +322,8 @@ uv run --project tools/compiler-diff compiler-diff symbolic -- \
 
 Both compilers receive the same closed Standard JSON input and compiler
 settings. solsymdiff then deploys both builds' creation code on a private
-anvil, from the same account and nonce and so at the same address, with
+anvil, from the same account and nonce and so at the same address, the one
+`forge equivalence` later runs the runtimes at, with
 `--constructor-args 0x...` (default: the zero value of every constructor input)
 and `--constructor-value` (default 0). Both deployments run in a block with the
 same timestamp. The `<constructor>` check compares the two deployments'

@@ -621,7 +621,7 @@ class ConstructorTests(unittest.TestCase):
     def _side(self, **overrides: object) -> dict[str, Any]:
         side: dict[str, Any] = {
             "success": True,
-            "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+            "address": "0x7fa9385be102ac3eac297483dd6233d62b3e1496",
             "runtime": "0x00",
             "logs": [],
             "storage_root": "0xaa",
@@ -812,7 +812,7 @@ class RunTests(unittest.TestCase):
             deployed = {
                 label: {
                     "success": True,
-                    "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+                    "address": "0x7fa9385be102ac3eac297483dd6233d62b3e1496",
                     "runtime": runtime,
                     "logs": [],
                     "storage_root": "0xaa",
@@ -876,7 +876,7 @@ class RunTests(unittest.TestCase):
                 {
                     "args": "0x" + zero,
                     "value": "3",
-                    "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+                    "address": "0x7fa9385be102ac3eac297483dd6233d62b3e1496",
                 },
             )
             project = pathlib.Path(result["project"])
