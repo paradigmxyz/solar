@@ -29,6 +29,7 @@ class PairTests(unittest.TestCase):
                 ("mir", "switch", "cfg-simplify", "mir"),
                 ("mir", "phi", "cfg-simplify", "mir"),
                 ("mir", "casts", "integer-cleanup", "mir"),
+                ("mir", "checked", "check-elim", "mir"),
                 ("mir", "typed-branch", "cfg-simplify", "mir"),
                 ("evmir", "peephole", "peephole", "evm-ir"),
             ]:
@@ -60,6 +61,11 @@ class PairTests(unittest.TestCase):
         for layer, example, expected in [
             ("mir", "dce", "  arg0 = 0\n  before = 1\n  after  = 0"),
             ("mir", "phi", "  arg0 = 0\n  before = 11\n  after  = 21"),
+            (
+                "mir",
+                "checked",
+                f"  arg0 = {2**256 - 1}\n  before = revert Panic(17)\n  after  = 0",
+            ),
             ("mir", "casts", "  arg0 = 1\n  before = 1\n  after  = " + str(2**256 - 1)),
             (
                 "evmir",

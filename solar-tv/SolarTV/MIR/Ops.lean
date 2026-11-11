@@ -1,4 +1,5 @@
 import EvmRules.Word
+import SolarTV.Outcome
 
 /-! Pure typed MIR operations and ordered switch dispatch.
 A case stores an SSA value ID. Reading from an arbitrary total environment models
@@ -66,5 +67,27 @@ def compare {width : Nat} (kind : Comparison) (a b : BitVec width) : BitVec 1 :=
 
 /-- jumpi takes a normalized i1, so its only possible inputs are 0 and 1. -/
 abbrev branch (condition : BitVec 1) (yes no : α) := if condition = 1 then yes else no
+
+inductive CheckedOp where
+  | add | sub | mul
+
+/-- Lean's overflow predicates check the unbounded result against the declared
+unsigned or two's-complement range. A failure is the Panic(0x11) emitted by
+lower-arithmetic; successful results retain the declared width. -/
+def checked {width : Nat} (op : CheckedOp) (signed : Bool)
+    (a b : BitVec width) : Outcome (BitVec width) :=
+  let overflow := match op with
+    | .add => if signed then a.saddOverflow b else a.uaddOverflow b
+    | .sub => if signed then a.ssubOverflow b else a.usubOverflow b
+    | .mul => if signed then a.smulOverflow b else a.umulOverflow b
+  if overflow then .reverted (.panic 0x11)
+  else .returned (match op with
+    | .add => a + b
+    | .sub => a - b
+    | .mul => a * b)
+
+/-- Semantic checks fail synchronously before any later instruction runs. -/
+def guard (fails : Bool) (failure : RevertData) (next : Outcome α) : Outcome α :=
+  if fails then .reverted failure else next
 
 end SolarTV.MIR

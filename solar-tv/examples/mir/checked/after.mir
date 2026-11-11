@@ -1,0 +1,13 @@
+; === solar-tv/examples/mir/checked/before.mir (after check-elim) ===
+@module Checked
+fn @bump(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 100
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    v2 = checked_add uint256, arg0, 1
+    ret v2
+  bb1:                                            ; preds = bb0
+    v1 = add arg0, 1
+    ret v1
+}
