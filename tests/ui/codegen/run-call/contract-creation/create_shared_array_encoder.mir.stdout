@@ -25,12 +25,9 @@ fn @constructor(arg0: ptr<memory>, arg1: ptr<memory>, arg2: i256) [constructor, 
     v13 = ptradd arg0, 32
     v14 = mload v13
     v15 = trunc i256 v14 to i160
-    v16 = sload 3 !metadata(storage=slot(3))
-    v17 = and v16, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v18 = zext i160 v15 to i256
-    v19 = and v18, 0xffffffffffffffffffffffffffffffffffffffff
-    v20 = or v17, v19
-    sstore 3, v20 !metadata(storage=slot(3))
+    v16 = zext i160 v15 to i256
+    v17 = and v16, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 3, v17 !metadata(storage=slot(3))
     ret
 }
 

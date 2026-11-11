@@ -47,10 +47,7 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
     v13 = delegatecall v11, v12, v5, v6, v5, 32
     jumpi v13, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
@@ -60,6 +57,9 @@ fn @libCall(arg0: i256) -> i256 [selector=0x34ea0c3e, abi_params=[uint256], abi_
   bb3:                                            ; preds = bb1, bb4
     v15 = phi [bb1: v14], [bb4: 7]
     ret v15
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function libNoReturn(uint256 x) external returns (uint256 r) [selector 0x364676bf]
@@ -79,10 +79,7 @@ fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], 
     v10 = delegatecall v8, v9, v2, v3, v2, 0
     jumpi v10, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
@@ -91,4 +88,7 @@ fn @libNoReturn(arg0: i256) -> i256 [selector=0x364676bf, abi_params=[uint256], 
   bb3:                                            ; preds = bb1, bb4
     v11 = phi [bb1: 1], [bb4: 7]
     ret v11
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }

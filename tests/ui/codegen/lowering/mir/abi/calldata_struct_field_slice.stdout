@@ -125,7 +125,7 @@ fn @tailHash.1() {
     v40 = slt v38, v22
     jumpi v40, bb1, bb7
   bb7:                                            ; preds = bb2
-    v44 = heap_floor
+    v44 = heap_floor !metadata(alloc_ptr)
     mstore v44, v20
     v48 = add v44, 32
     calldatacopy v48, v22, v20

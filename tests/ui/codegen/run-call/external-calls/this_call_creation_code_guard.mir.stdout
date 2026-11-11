@@ -266,16 +266,16 @@ fn @constructor() [constructor] {
     v6 = call v1, v5, 0, 28, 4, 0, 0
     jumpi v6, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb4
     ret
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; getter for `uint256 public seen` [selector 0xd99aa8e2]

@@ -95,7 +95,6 @@
 //! loop trips alone cannot fund more setup. Size mode reserves a jump's
 //! bytes as a margin: small local savings can disrupt later outlining. Within the defining block,
 //! materialization waits until the first use, or the terminator if only successors need it.
-//! Call-chain overflow retries omit this word.
 //!
 //! `-O none` takes the first plan: it plans each function once, with preheader loop layouts and
 //! without the operand copy trials, the result swap or constant retention, so the code may use
@@ -126,9 +125,8 @@
 //! caller reloads the spilled words it still needs below the call's arguments and stores them
 //! back once the call returns.
 //!
-//! The non-recursive call graph must fit the 1024-word EVM stack. When its deepest chain does
-//! not, the callers on that chain plan again with every value live across a call spilled, and
-//! then with their return addresses in memory too, until it fits.
+//! Nothing bounds the stack at the EVM's 1024 words: a call chain that grows past it fails at run
+//! time, as in solc. The EVM IR verifier warns about code whose final depth provably exceeds it.
 //!
 //! A function whose body, module facts, and cost model equal those of a function planned before in
 //! the compilation takes that plan instead of planning again; see `cache`.
@@ -139,8 +137,8 @@
 
 use super::{
     BlockId, CallGraphInfo, CfgInfo, DenseBitSet, EvmCodegen, Function, FunctionId, FxHashMap,
-    FxHashSet, IndexVec, InstId, InstKind, Liveness, LoopAnalyzer, MAX_STACK_DEPTH, Module,
-    StackOp, Terminator, Value, ValueId, index_vec, select::rematerializable_nullary_value,
+    FxHashSet, IndexVec, InstId, InstKind, Liveness, LoopAnalyzer, Module, StackOp, Terminator,
+    Value, ValueId, index_vec, select::rematerializable_nullary_value,
 };
 use crate::{
     backend::evm::{
@@ -221,12 +219,11 @@ enum Step {
     Op(u8),
     /// Emits the remaining code of an instruction whose operands are prepared.
     Inst(InstId),
-    /// Calls an internal function whose arguments are prepared, with the physical height of the
-    /// stack below its arguments.
-    Call(FunctionId, usize),
-    /// Stores the extra results below the first result of a call to the callee's return area
-    /// and publishes it as the multi-return buffer.
-    Publish { callee: FunctionId, arity: usize, params: usize },
+    /// Calls an internal function whose arguments are prepared.
+    Call(FunctionId),
+    /// Stores the extra results below the first result of the call `inst` to the callee's return
+    /// area and publishes it as the multi-return buffer.
+    Publish { inst: InstId, callee: FunctionId, arity: usize, params: usize },
 }
 
 /// The code that reads a word a [`Step::Shared`] push leaves on the stack.
@@ -320,10 +317,6 @@ struct FunctionPlan {
     spilled: DenseBitSet<ValueId>,
     /// Whether the return address lives in a memory slot instead of on the stack.
     ret_spilled: bool,
-    /// Highest modeled stack height above the function's base.
-    peak: usize,
-    /// Internal calls and the physical height below each callee's arguments.
-    calls: Vec<(FunctionId, usize)>,
     cost: Cost,
     non_loop_gas: u32,
     /// The copy of the function this plan was made for, when it rebuilds values past crowded
@@ -399,24 +392,9 @@ struct Analysis {
     reads: DenseBitSet<ValueId>,
 }
 
-/// What a function moves to memory to shorten the stack it keeps below its calls, raised for
-/// the callers on a call chain deeper than the EVM stack.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum CallSpill {
-    None,
-    /// Every value live across an internal call.
-    Values,
-    /// Those values and the return address.
-    ValuesAndReturn,
-}
-
-/// Why an artifact could not be lowered.
-enum Decline {
-    /// The non-recursive call graph cannot fit the EVM stack.
-    StackLimit,
-    /// The function uses a shape this lowering does not implement.
-    Unsupported(FunctionId, &'static str),
-}
+/// Why an artifact could not be lowered: the function uses a shape this lowering does not
+/// implement.
+struct Decline(FunctionId, &'static str);
 
 /// Planning restarts that spill one value each before spills come in batches.
 const SINGLE_SPILL_RESTARTS: u32 = 64;
@@ -490,16 +468,11 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn report_decline(&self, module: &Module, decline: Decline) {
-        match decline {
-            Decline::StackLimit => self.report_stack_limit_error(),
-            Decline::Unsupported(func, reason) => {
-                let func = &module.functions[func];
-                self.gcx.dcx().emit_err(
-                    func.name_span,
-                    format!("codegen cannot lower `{}`: {reason}", func.name),
-                );
-            }
-        }
+        let Decline(func, reason) = decline;
+        let func = &module.functions[func];
+        self.gcx
+            .dcx()
+            .emit_err(func.name_span, format!("codegen cannot lower `{}`: {reason}", func.name));
     }
 
     /// Plans `bodies`: `entry` and the external entries, which terminate the message call,
@@ -525,16 +498,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                         .instructions()
                         .any(|inst| matches!(func.inst(inst).kind, InstKind::InternalFrameAddr(_)))
                     {
-                        return Err(Decline::Unsupported(
-                            func_id,
-                            "recursive function with a frame object",
-                        ));
+                        return Err(Decline(func_id, "recursive function with a frame object"));
                     }
                 } else if !Self::static_frame_offsets_are_local(func) {
-                    return Err(Decline::Unsupported(
-                        func_id,
-                        "frame address outside the local region",
-                    ));
+                    return Err(Decline(func_id, "frame address outside the local region"));
                 }
             }
         }
@@ -674,73 +641,16 @@ impl<'gcx> EvmCodegen<'gcx> {
         let parallel = self.gcx.sess.is_parallel_codegen()
             && bodies.iter().map(|&func_id| module.functions[func_id].num_insts()).sum::<usize>()
                 >= PARALLEL_PLAN_INSTS;
-        let mut analyses =
-            (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<Analysis>>>();
         let mut plans =
             (0..functions).map(|_| None).collect::<IndexVec<FunctionId, Option<FunctionPlan>>>();
         let cache = &self.gcx.codegen_state::<CodegenState>().plans;
         let planned = sync::par_try_map(parallel, bodies, |func_id| {
-            let mut analysis = None;
-            let plan = self.plan_cached(
-                cache,
-                module,
-                &info,
-                func_id,
-                &hazards[func_id],
-                &writers,
-                &mut analysis,
-                CallSpill::None,
-            )?;
-            Ok((func_id, analysis, plan))
+            let plan =
+                self.plan_cached(cache, module, &info, func_id, &hazards[func_id], &writers)?;
+            Ok((func_id, plan))
         })?;
-        for (func_id, analysis, plan) in planned {
-            analyses[func_id] = analysis;
+        for (func_id, plan) in planned {
             plans[func_id] = Some(plan);
-        }
-
-        // A call chain deeper than the EVM stack: its callers move words to memory, values
-        // live across calls first and then return addresses, until it fits.
-        let mut call_spills = index_vec![CallSpill::None; functions];
-        while let Some(chain) = Self::overflowing_chain(module, call_graph, &plans) {
-            let Some(level) = chain.iter().map(|&func_id| call_spills[func_id]).min() else {
-                return Err(Decline::StackLimit);
-            };
-            let next = match level {
-                CallSpill::None => CallSpill::Values,
-                CallSpill::Values => CallSpill::ValuesAndReturn,
-                CallSpill::ValuesAndReturn => return Err(Decline::StackLimit),
-            };
-            tracing::debug!(
-                module = %module.name,
-                callers = chain.len(),
-                ?next,
-                "call chain deeper than the EVM stack"
-            );
-            // Each replan owns its analysis, so analyses need not be shared between threads.
-            let mut respilled = Vec::new();
-            for &func_id in &chain {
-                if call_spills[func_id] == level {
-                    call_spills[func_id] = next;
-                    respilled.push((func_id, analyses[func_id].take()));
-                }
-            }
-            let replanned = sync::par_try_map(parallel, respilled, |(func_id, mut analysis)| {
-                let plan = self.plan_cached(
-                    cache,
-                    module,
-                    &info,
-                    func_id,
-                    &hazards[func_id],
-                    &writers,
-                    &mut analysis,
-                    next,
-                )?;
-                Ok((func_id, analysis, plan))
-            })?;
-            for (func_id, analysis, plan) in replanned {
-                analyses[func_id] = analysis;
-                plans[func_id] = Some(plan);
-            }
         }
         Ok((info, plans))
     }
@@ -788,8 +698,7 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     /// Plans a function, or takes the plan of an identical function planned before from `cache`.
-    /// The function's analysis is computed only when planning needs it, and left in `analysis`.
-    #[allow(clippy::too_many_arguments)]
+    /// The function's analysis is computed only when planning needs it.
     fn plan_cached(
         &self,
         cache: &PlanCache,
@@ -798,30 +707,25 @@ impl<'gcx> EvmCodegen<'gcx> {
         func_id: FunctionId,
         hazards: &FxHashSet<InstId>,
         writers: &DenseBitSet<FunctionId>,
-        analysis: &mut Option<Analysis>,
-        call_spill: CallSpill,
     ) -> Result<FunctionPlan, Decline> {
         let target = self.target(info, func_id);
-        let key = PlanKey::new(module, info, func_id, hazards, writers, &target, call_spill);
+        let key = PlanKey::new(module, info, func_id, hazards, writers, &target);
         if let Some(plan) = cache.get(&key) {
             return Ok(plan);
         }
         let func = &module.functions[func_id];
-        let analysis =
-            analysis.get_or_insert_with(|| self.analyze(func, info, func_id, hazards, writers));
-        let mut plan = self.plan_function_stackified(func, info, func_id, analysis, call_spill)?;
+        let analysis = self.analyze(func, info, func_id, hazards, writers);
+        let mut plan = self.plan_function_stackified(func, info, func_id, &analysis)?;
         // A first plan competes with one that computes cheap values again instead.
-        if call_spill == CallSpill::None
-            && let Some(rebuilt) = self.plan_rebuilt(
-                func,
-                info,
-                func_id,
-                analysis,
-                hazards,
-                writers,
-                plan.spill_words() != 0,
-            )
-            && self.prices_lower(info, func_id, &rebuilt, &plan)
+        if let Some(rebuilt) = self.plan_rebuilt(
+            func,
+            info,
+            func_id,
+            &analysis,
+            hazards,
+            writers,
+            plan.spill_words() != 0,
+        ) && self.prices_lower(info, func_id, &rebuilt, &plan)
         {
             plan = rebuilt;
         }
@@ -835,22 +739,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         info: &ModuleInfo,
         func_id: FunctionId,
         analysis: &Analysis,
-        call_spill: CallSpill,
     ) -> Result<FunctionPlan, Decline> {
         let target = self.target(info, func_id);
         let mut spilled = DenseBitSet::new_empty(func.num_values());
-        if call_spill >= CallSpill::Values {
-            // The stack keeps spilled words across a call that overwrites their slots anyway.
-            let across = live_after(func, &analysis.liveness, |inst| {
-                icall(&func.inst(inst).kind).is_some() && !analysis.saved.contains_key(&inst)
-            });
-            for value in across.iter() {
-                if !materialized_at_use(func, &analysis.reads, value) {
-                    spilled.insert(value);
-                }
-            }
-        }
-        let mut ret_spilled = call_spill == CallSpill::ValuesAndReturn;
+        let mut ret_spilled = false;
         let mut restarts = 0;
         // More live words than reach and the single spills can hold: spill in batches from the
         // start.
@@ -889,12 +781,8 @@ impl<'gcx> EvmCodegen<'gcx> {
                     restarts >= single_spills,
                     &hints,
                 )
-                .map_err(|reason| Decline::Unsupported(func_id, reason))?;
-                if round == 1
-                    && restarts == 0
-                    && call_spill == CallSpill::None
-                    && target.optimizes_stack_plans()
-                {
+                .map_err(|reason| Decline(func_id, reason))?;
+                if round == 1 && restarts == 0 && target.optimizes_stack_plans() {
                     constants = planner.constants_to_retain();
                 }
                 match planner.plan() {
@@ -914,11 +802,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                                 }
                             }
                             Some(Victim::Ret) if !ret_spilled => ret_spilled = true,
-                            _ => return Err(Decline::Unsupported(func_id, "stack too deep")),
+                            _ => return Err(Decline(func_id, "stack too deep")),
                         }
                     }
                     Err(Fail::Unsupported(reason)) => {
-                        return Err(Decline::Unsupported(func_id, reason));
+                        return Err(Decline(func_id, reason));
                     }
                 }
             };
@@ -1024,54 +912,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         Ok(best)
     }
 
-    /// The callers along the deepest non-recursive call chain, when it is deeper than the EVM
-    /// stack.
-    fn overflowing_chain(
-        module: &Module,
-        call_graph: &CallGraphInfo,
-        plans: &IndexVec<FunctionId, Option<FunctionPlan>>,
-    ) -> Option<Vec<FunctionId>> {
-        // height(f) = peak(f) max over calls (base + height(callee))
-        let mut memo = index_vec![None; module.functions.len()];
-        fn height(
-            func_id: FunctionId,
-            call_graph: &CallGraphInfo,
-            plans: &IndexVec<FunctionId, Option<FunctionPlan>>,
-            memo: &mut IndexVec<FunctionId, Option<(usize, Option<FunctionId>)>>,
-        ) -> usize {
-            if let Some((height, _)) = memo[func_id] {
-                return height;
-            }
-            let Some(plan) = &plans[func_id] else { return 0 };
-            // Recursive activations are unbounded by construction.
-            memo[func_id] = Some((plan.peak, None));
-            let mut result = (plan.peak, None);
-            for &(callee, base) in &plan.calls {
-                if call_graph.is_recursive(callee) {
-                    continue;
-                }
-                let through = base + height(callee, call_graph, plans, memo);
-                if through > result.0 {
-                    result = (through, Some(callee));
-                }
-            }
-            memo[func_id] = Some(result);
-            result.0
-        }
-        let root = module
-            .functions
-            .indices()
-            .filter(|&func_id| plans[func_id].is_some())
-            .find(|&func_id| height(func_id, call_graph, plans, &mut memo) > MAX_STACK_DEPTH)?;
-        let mut chain = Vec::new();
-        let mut func_id = root;
-        while let Some((_, Some(callee))) = memo[func_id] {
-            chain.push(func_id);
-            func_id = callee;
-        }
-        Some(chain)
-    }
-
     /// Plans the copy of `func` that computes cheap values again, when it has one; see [`rebuild`].
     /// `spills` tells whether the first plan spills.
     #[allow(clippy::too_many_arguments)]
@@ -1103,9 +943,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }),
         )?;
         let analysis = self.analyze(&rebuilt, info, func_id, hazards, writers);
-        let mut plan = self
-            .plan_function_stackified(&rebuilt, info, func_id, &analysis, CallSpill::None)
-            .ok()?;
+        let mut plan = self.plan_function_stackified(&rebuilt, info, func_id, &analysis).ok()?;
         plan.rebuilt = Some(Box::new(rebuilt));
         Some(plan)
     }
@@ -1253,40 +1091,6 @@ fn stack_pressure(func: &Function, reads: &DenseBitSet<ValueId>, liveness: &Live
         })
         .max()
         .unwrap_or(0)
-}
-
-/// The values live right after any instruction that `select` accepts.
-fn live_after(
-    func: &Function,
-    liveness: &Liveness,
-    select: impl Fn(InstId) -> bool,
-) -> DenseBitSet<ValueId> {
-    let mut result = DenseBitSet::new_empty(func.num_values());
-    let mut live = DenseBitSet::new_empty(func.num_values());
-    for (block, data) in func.blocks.iter_enumerated() {
-        let Some(first) = data.instructions.iter().position(|&inst| select(inst)) else {
-            continue;
-        };
-        live.clear();
-        live.union(&liveness.live_out(block));
-        if let Some(term) = &data.terminator {
-            term.visit_operands(|value| {
-                live.insert(value);
-            });
-        }
-        for (index, &inst) in data.instructions.iter().enumerate().skip(first).rev() {
-            if index == first || select(inst) {
-                result.union(&live);
-            }
-            if let Some(value) = func.inst_result_value(inst) {
-                live.remove(value);
-            }
-            func.inst(inst).kind.visit_operands(|value| {
-                live.insert(value);
-            });
-        }
-    }
-    result
 }
 
 /// The values live across each instruction that `select` accepts, without its results.
