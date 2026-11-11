@@ -26,7 +26,8 @@
 //! `pop`, and every instruction's inputs) is monotone in the entry depth, so the minimum is the
 //! worst case for it. The 1024-word stack limit is checked at the minimum only, so it reports
 //! only provable overflows; a block some path enters deeper is not checked at that depth, and
-//! exceeding the limit there is a runtime failure, as it is for solc.
+//! exceeding the limit there is a runtime failure, as it is for solc. A block's overflow is held
+//! back until the walk ends, because a later path can still lower the depth it was walked at.
 //!
 //! What makes recursion compile is that the minima are split by how many cycle-closing edges the
 //! walk that carried them has crossed, where the cycle-closing edges are those of one depth-first
@@ -58,6 +59,21 @@ use std::{collections::hash_map::Entry, fmt};
 
 /// Stack-operation diagnostics already reported, keyed by block and message.
 type ReportedErrors = FxHashMap<(BlockId, String), ErrorGuaranteed>;
+
+/// Why a stack operation stopped the walk of a block.
+enum StackFault {
+    /// A diagnostic was reported.
+    Reported(ErrorGuaranteed),
+    /// The stack passed the limit. The message is held back, because the entry depth the block was
+    /// walked at is not final until the walk ends.
+    Overflow(String),
+}
+
+impl From<ErrorGuaranteed> for StackFault {
+    fn from(guar: ErrorGuaranteed) -> Self {
+        Self::Reported(guar)
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum TargetRequirement {
@@ -443,74 +459,26 @@ impl<'a> Verifier<'a> {
             .collect::<Vec<_>>();
         let cycle_edges = cycle_edges(module, flows, roots.iter().map(|&(block_id, _)| block_id));
         let mut entry_depths = index_vec![EntryDepths::default(); module.blocks.len()];
+        // The overflow of the last walk of each block, by the bounds that walk stood for.
+        let mut overflows = index_vec![[None, None]; module.blocks.len()];
         let mut pending = Vec::with_capacity(roots.len());
         for (block_id, depth) in roots {
             entry_depths[block_id].merge(depth, Bounds::ENTRY);
             pending.push((block_id, depth, Bounds::ENTRY));
         }
-        while let Some((block_id, mut stack, bounds)) = pending.pop() {
-            let block = &module.blocks[block_id];
-            let term =
-                block.terminator.as_ref().expect("terminator must exist after shape validation");
-            let mut physical_targets = Vec::new();
-            let mut valid = true;
-            for (index, inst) in block.instructions.iter().enumerate() {
-                if inst.is_physical_stack_op() {
-                    if self
-                        .apply_physical_stack_op(&mut reported, block_id, inst, &mut stack)
-                        .is_err()
-                    {
-                        valid = false;
-                        break;
-                    }
-                } else {
-                    let effect = inst.stack_effect();
-                    if self
-                        .apply_effect(&mut reported, block_id, inst.mnemonic(), effect, &mut stack)
-                        .is_err()
-                    {
-                        valid = false;
-                        break;
-                    }
-                }
-                if inst.opcode == op::JUMPI
-                    && let Some(target) = branch_target(block, index)
-                {
-                    physical_targets.push((target, stack));
-                }
+        while let Some((block_id, stack, bounds)) = pending.pop() {
+            let (targets, overflow) =
+                self.walk_block(module, flows, &mut reported, block_id, stack);
+            // A later walk at a lower depth replaces the overflow, so only the lowest depth over
+            // every path reports one.
+            let slots = &mut overflows[block_id];
+            if bounds.ingress_min {
+                slots[0] = overflow.clone();
             }
-            if valid {
-                let lowering_growth = term.kind.lowering_stack_growth(module.next_block(block_id));
-                if lowering_growth != 0
-                    && self
-                        .ensure_stack_limit(
-                            &mut reported,
-                            block_id,
-                            &term.kind,
-                            stack + lowering_growth,
-                        )
-                        .is_err()
-                {
-                    valid = false;
-                } else {
-                    let effect = default_terminator_stack_effect(&term.kind)
-                        .expect("terminator stack effect must be known after shape validation");
-                    valid = self
-                        .apply_effect(&mut reported, block_id, &term.kind, effect, &mut stack)
-                        .is_ok();
-                }
+            if bounds.cycle_min {
+                slots[1] = overflow;
             }
-            if !valid {
-                continue;
-            }
-            term.kind.visit_targets(|target| physical_targets.push((target, stack)));
-            for &(continuation, effect) in &flows[block_id].returns {
-                if let Ok(returned) = self.apply_call_return(&mut reported, block_id, effect, stack)
-                {
-                    physical_targets.push((continuation, returned));
-                }
-            }
-            for (target, depth) in physical_targets {
+            for (target, depth) in targets {
                 let out = bounds.across(cycle_edges.contains(&(block_id, target)));
                 let raised = entry_depths[target].merge(depth, out);
                 if !raised.is_empty() {
@@ -518,6 +486,66 @@ impl<'a> Verifier<'a> {
                 }
             }
         }
+        for (block_id, slots) in overflows.iter_enumerated() {
+            for msg in slots.iter().flatten() {
+                self.error_in_block_once(&mut reported, block_id, msg);
+            }
+        }
+    }
+
+    /// Walks `block_id` entered at `stack`, returning the edges out of it with the depth each is
+    /// entered at, and the first stack limit overflow. A block that overflows or has a broken
+    /// stack operation has no edges.
+    fn walk_block(
+        &self,
+        module: &Module,
+        flows: &IndexVec<BlockId, LabelFlow>,
+        reported: &mut ReportedErrors,
+        block_id: BlockId,
+        mut stack: usize,
+    ) -> (Vec<(BlockId, usize)>, Option<String>) {
+        let block = &module.blocks[block_id];
+        let term = block.terminator.as_ref().expect("terminator must exist after shape validation");
+        let mut targets = Vec::new();
+        let mut overflow = None;
+        let mut walk = || -> Result<(), StackFault> {
+            for (index, inst) in block.instructions.iter().enumerate() {
+                if inst.is_physical_stack_op() {
+                    self.apply_physical_stack_op(reported, block_id, inst, &mut stack)?;
+                } else {
+                    let effect = inst.stack_effect();
+                    self.apply_effect(reported, block_id, inst.mnemonic(), effect, &mut stack)?;
+                }
+                if inst.opcode == op::JUMPI
+                    && let Some(target) = branch_target(block, index)
+                {
+                    targets.push((target, stack));
+                }
+            }
+            let lowering_growth = term.kind.lowering_stack_growth(module.next_block(block_id));
+            if lowering_growth != 0 {
+                self.ensure_stack_limit(&term.kind, stack + lowering_growth)?;
+            }
+            let effect = default_terminator_stack_effect(&term.kind)
+                .expect("terminator stack effect must be known after shape validation");
+            self.apply_effect(reported, block_id, &term.kind, effect, &mut stack)
+        };
+        match walk() {
+            Ok(()) => {}
+            Err(StackFault::Reported(_)) => return (Vec::new(), None),
+            Err(StackFault::Overflow(msg)) => return (Vec::new(), Some(msg)),
+        }
+        term.kind.visit_targets(|target| targets.push((target, stack)));
+        for &(continuation, effect) in &flows[block_id].returns {
+            match self.apply_call_return(reported, block_id, effect, stack) {
+                Ok(returned) => targets.push((continuation, returned)),
+                Err(StackFault::Overflow(msg)) => {
+                    overflow.get_or_insert(msg);
+                }
+                Err(StackFault::Reported(_)) => {}
+            }
+        }
+        (targets, overflow)
     }
 
     fn apply_effect(
@@ -527,20 +555,22 @@ impl<'a> Verifier<'a> {
         name: impl fmt::Display,
         effect: StackEffect,
         stack: &mut usize,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result<(), StackFault> {
         let inputs = usize::from(effect.inputs);
         if *stack < inputs {
-            return Err(self.error_in_block_once(
-                reported,
-                block_id,
-                format_args!(
-                    "`{name}` consumes {} stack words but only {} are available",
-                    effect.inputs, *stack
-                ),
-            ));
+            return Err(self
+                .error_in_block_once(
+                    reported,
+                    block_id,
+                    format_args!(
+                        "`{name}` consumes {} stack words but only {} are available",
+                        effect.inputs, *stack
+                    ),
+                )
+                .into());
         }
         *stack = *stack - inputs + usize::from(effect.outputs);
-        self.ensure_stack_limit(reported, block_id, name, *stack)
+        self.ensure_stack_limit(name, *stack)
     }
 
     /// Returns the stack depth a call returns at, `stack` being the depth at its entry.
@@ -550,19 +580,21 @@ impl<'a> Verifier<'a> {
         block_id: BlockId,
         effect: StackEffect,
         stack: usize,
-    ) -> Result<usize, ErrorGuaranteed> {
+    ) -> Result<usize, StackFault> {
         let (inputs, outputs) = (usize::from(effect.inputs), usize::from(effect.outputs));
         let Some(returned) = (stack + outputs).checked_sub(inputs) else {
-            return Err(self.error_in_block_once(
-                reported,
-                block_id,
-                format_args!(
-                    "`call return` drops {} stack words but only {stack} are available",
-                    inputs - outputs
-                ),
-            ));
+            return Err(self
+                .error_in_block_once(
+                    reported,
+                    block_id,
+                    format_args!(
+                        "`call return` drops {} stack words but only {stack} are available",
+                        inputs - outputs
+                    ),
+                )
+                .into());
         };
-        self.ensure_stack_limit(reported, block_id, "call return", returned)?;
+        self.ensure_stack_limit("call return", returned)?;
         Ok(returned)
     }
 
@@ -572,70 +604,73 @@ impl<'a> Verifier<'a> {
         block_id: BlockId,
         inst: &Instruction,
         stack: &mut usize,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) -> Result<(), StackFault> {
         let stack_op = inst.as_stack_op().expect("checked physical stack operation");
         let name = match stack_op {
             op::StackOp::Dup(n) => {
                 if *stack < usize::from(n) {
-                    return Err(self.error_in_block_once(
-                        reported,
-                        block_id,
-                        format_args!("`dup {n}` reaches depth {n} but the stack has {}", *stack),
-                    ));
+                    return Err(self
+                        .error_in_block_once(
+                            reported,
+                            block_id,
+                            format_args!(
+                                "`dup {n}` reaches depth {n} but the stack has {}",
+                                *stack
+                            ),
+                        )
+                        .into());
                 }
                 *stack += 1;
                 "dup"
             }
             op::StackOp::Swap(n) => {
                 if *stack < usize::from(n) + 1 {
-                    return Err(self.error_in_block_once(
-                        reported,
-                        block_id,
-                        format_args!("`swap {n}` reaches depth {n} but the stack has {}", *stack),
-                    ));
+                    return Err(self
+                        .error_in_block_once(
+                            reported,
+                            block_id,
+                            format_args!(
+                                "`swap {n}` reaches depth {n} but the stack has {}",
+                                *stack
+                            ),
+                        )
+                        .into());
                 }
                 "swap"
             }
             op::StackOp::Exchange(_, m) => {
                 if *stack < usize::from(m) + 1 {
-                    return Err(self.error_in_block_once(
-                        reported,
-                        block_id,
-                        format_args!("`exchange` reaches depth {m} but the stack has {}", *stack),
-                    ));
+                    return Err(self
+                        .error_in_block_once(
+                            reported,
+                            block_id,
+                            format_args!(
+                                "`exchange` reaches depth {m} but the stack has {}",
+                                *stack
+                            ),
+                        )
+                        .into());
                 }
                 "exchange"
             }
             op::StackOp::Pop => {
                 if *stack == 0 {
-                    return Err(self.error_in_block_once(
-                        reported,
-                        block_id,
-                        "`pop` on an empty stack",
-                    ));
+                    return Err(self
+                        .error_in_block_once(reported, block_id, "`pop` on an empty stack")
+                        .into());
                 }
                 *stack -= 1;
                 "pop"
             }
         };
-        self.ensure_stack_limit(reported, block_id, name, *stack)
+        self.ensure_stack_limit(name, *stack)
     }
 
-    fn ensure_stack_limit(
-        &self,
-        reported: &mut ReportedErrors,
-        block_id: BlockId,
-        name: impl fmt::Display,
-        depth: usize,
-    ) -> Result<(), ErrorGuaranteed> {
+    fn ensure_stack_limit(&self, name: impl fmt::Display, depth: usize) -> Result<(), StackFault> {
         if depth > MAX_STACK_DEPTH {
-            Err(self.error_in_block_once(
-                reported,
-                block_id,
-                format_args!(
-                    "`{name}` grows the stack to {depth} words, exceeding the limit of {MAX_STACK_DEPTH}"
-                ),
-            ))
+            Err(StackFault::Overflow(format!(
+                "`{name}` grows the stack to {depth} words, exceeding the limit of {MAX_STACK_DEPTH}"
+            )))
         } else {
             Ok(())
         }

@@ -1,0 +1,26 @@
+// `bb3` is entered from `bb1` at 1020 words and from `bb2` at 1015, and its `push`es reach 1025
+// only from the deeper path, which a runtime failure covers as in solc. The shallower path fits,
+// so the verifier accepts it whichever arrival the walk sees first. `merge_stack_depth_taken_last`
+// swaps the branch.
+@module module
+
+bb0 [stack=1016]:
+  jumpi bb2, bb1
+
+bb1:
+  push 0
+  push 0
+  push 0
+  push 0
+  jump bb3
+
+bb2:
+  jump bb3
+
+bb3:
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  stop

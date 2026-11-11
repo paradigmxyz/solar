@@ -1,0 +1,10 @@
+//@ compile-flags: -Osize -Zevm-ir-pipeline=compact-pushes
+@module StackLimit
+
+// The pass does not look at stack depth: the recipe for the repeated byte pattern is
+// emitted at 1023 words, and the verifier rejects the peak that follows.
+//~? ERROR: EVM IR verification failed: block 0: `push` grows the stack to 1025 words, exceeding the limit of 1024
+bb0 [stack=1023]:
+  push 0x3030303030303030303030303030303030303030303030303030303030303030
+  pop
+  stop
