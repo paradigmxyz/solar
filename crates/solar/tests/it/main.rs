@@ -31,3 +31,6 @@ mod source_maps;
 
 #[cfg(feature = "codegen")]
 mod debugify;
+
+#[cfg(all(feature = "cli", feature = "codegen"))]
+mod solar_tv;
