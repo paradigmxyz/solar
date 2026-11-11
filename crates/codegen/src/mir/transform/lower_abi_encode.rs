@@ -1901,8 +1901,26 @@ fn encode_word_array(
         _ => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
-    // Memory elements that need cleanup are copied one word at a time; full words and calldata
-    // elements copy as one block.
+    if let Some(cleanup) = cleanup
+        && location == PtrLocation::Calldata
+    {
+        // Like solc, one loop reads, validates, and writes each word.
+        // for index in 0..len:
+        //   word = calldataload data_source + index * 32
+        //   if invalid(word) { revert(0, 0) }
+        //   mstore data_dest + index * 32, word
+        builder.counted_loop(len, |builder, index| {
+            let offset = builder.mul(index, word);
+            let source = builder.add(data_source, offset);
+            let destination = builder.add(data_dest, offset);
+            let value = builder.load(source, PtrLocation::Calldata);
+            validate_calldata_word(builder, cleanup, value);
+            builder.store(destination, value);
+        });
+        return tail;
+    }
+    // Memory elements that need cleanup are copied one word at a time; full words copy as one
+    // block.
     if let Some(cleanup) = cleanup
         && location == PtrLocation::Memory
     {

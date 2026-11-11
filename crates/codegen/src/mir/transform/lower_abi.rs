@@ -562,19 +562,13 @@ impl LowerAbiCx {
                     else {
                         return value;
                     };
-                    // The encoder reads a calldata aggregate in place and validates its words, with
+                    // The encoder reads a calldata value in place and validates its words, with
                     // solc's checks for re-encoding calldata.
-                    if return_types.get(index) == Some(&MirType::Slice(PtrLocation::Calldata))
-                        && match &ty {
-                            AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. } => true,
-                            AbiParamType::DynamicArray(element) => {
-                                !element.is_scalar_word()
-                                    && !matches!(element.as_ref(), AbiParamType::Bytes)
-                            }
-                            _ => false,
-                        }
-                    {
-                        if matches!(ty, AbiParamType::DynamicArray(_)) {
+                    if return_types.get(index) == Some(&MirType::Slice(PtrLocation::Calldata)) {
+                        if let AbiParamType::DynamicArray(element) = &ty
+                            && !element.is_scalar_word()
+                            && !matches!(element.as_ref(), AbiParamType::Bytes)
+                        {
                             // Assembly can set a length whose head size wraps to a small one,
                             // where solc runs out of gas.
                             // if length > 0xffffffffffffffff { revert }
@@ -2515,8 +2509,7 @@ impl LowerAbiCx {
             let action = match &inst.kind {
                 InstKind::AbiEncode { args, .. }
                     if args.iter().any(|&arg| tainted.contains(arg))
-                        && Self::can_encode_calldata_slice(ty)
-                        && !Self::requires_calldata_element_validation(ty) =>
+                        && Self::can_encode_calldata_slice(ty) =>
                 {
                     false
                 }
@@ -2567,10 +2560,10 @@ impl LowerAbiCx {
             if !terminator.operands().iter().any(|value| tainted.contains(*value)) {
                 continue;
             }
+            // A returned slice encodes in place, and the encoder validates each word it reads.
             if matches!(
                 terminator,
-                Terminator::Return { .. }
-                    | Terminator::ReturnData { .. }
+                Terminator::ReturnData { .. }
                     | Terminator::TailCall { .. }
                     | Terminator::Revert { .. }
             ) {

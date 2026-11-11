@@ -1,0 +1,13 @@
+; === ROOT/tests/ui/codegen/run-call/calldata/calldata_forged_word_array_length_return.sol:CalldataForgedWordArrayLengthReturn ===
+@module CalldataForgedWordArrayLengthReturn
+; function forged(uint256 offset, uint256 length) external pure returns (uint256[] calldata p) [selector 0xdd29ebdb]
+fn @forged(arg0: i256, arg1: i256) -> slice<calldata> [selector=0xdd29ebdb, pure, abi_params=[uint256, uint256], abi_returns=[memory_array<word>], abi_return_params=[array<_, uint256>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = inttoptr i256 arg0 to ptr<calldata>
+    v3 = make_calldata_slice v2, v1
+    v4 = extract_value slice<calldata>, v3, 0
+    v5 = make_calldata_slice v4, arg1
+    ret v5
+}

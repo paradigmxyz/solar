@@ -1069,3 +1069,30 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   matching `solc`.
 - Coverage: `tests/ui/codegen/run-call/storage/storage_exclusive_slot_padding.sol` and
   `tests/ui/codegen/lowering/mir/storage-memory/owned_slot_stores.sol`.
+
+### CODEGEN-027: A returned calldata word array does not check an assembly-set length
+
+- ID: CODEGEN-027
+- Status: parity debt
+- Difference: after `p.length := n` in assembly, with `n` such that
+  `n * 32` wraps to zero, such as `2**251`, `solc` reverts when it returns the
+  calldata array `p` of full words, because it loops over every element and
+  runs out of gas. `solar` copies the wrapped size, so the call succeeds with
+  the offset and length words and no elements. Arrays of narrow words and of
+  composite elements revert as in `solc`. A length that ABI decoding or slicing
+  produced cannot reach this, because both check it.
+- Rationale: a length check on every returned full-word array costs code in
+  programs that cannot reach the case.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_word_array_length_return.sol`.
+
+### CODEGEN-028: `abi.encode` of a forged huge calldata array reverts with a panic
+
+- ID: CODEGEN-028
+- Status: parity debt
+- Difference: after `p.length := 2**250` in assembly on a calldata array of
+  two-word structs, `abi.encode(p)` reverts with `Panic(0x41)` in `solar`,
+  because the size of the result buffer is too large to allocate. `solc` runs
+  out of gas in the encoding loop and reverts with empty data.
+- Rationale: the allocation check reports the oversized buffer before any
+  element is encoded, and the case needs assembly-forged lengths.
+- Coverage: `tests/ui/codegen/run-call/calldata/abi_encode_forged_array_length.sol`.
