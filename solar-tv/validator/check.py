@@ -46,10 +46,31 @@ def definition(name: str, program: Program) -> str:
     return f"def {name} {args} : {program.result_type} :=\n  {program.body}\n"
 
 
+def build_model(timeout: int) -> subprocess.CompletedProcess:
+    # Multiple compiler workers can enter on a cold Lake cache. Only the build
+    # needs exclusion; independent pair proofs can run in parallel afterward.
+    if os.name == "nt":
+        import msvcrt
+
+        cache = ROOT / ".lake"
+        cache.mkdir(exist_ok=True)
+        with (cache / "solar-tv.lock").open("a+b") as lock:
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+            return run(["lake", "build", "SolarTV"], ROOT, timeout)
+
+    import fcntl
+
+    # Share the dependency's build lock with the existing EVM rule prover.
+    with (ROOT.parent / "scripts/evm-rules/lean/lakefile.toml").open("rb") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return run(["lake", "build", "SolarTV"], ROOT, timeout)
+
+
 def check(a: Program, b: Program, timeout: int) -> int:
     if a.interface != b.interface:
         raise Unsupported("input interfaces differ")
-    build = run(["lake", "build", "SolarTV"], ROOT, timeout)
+    build = build_model(timeout)
     if build.returncode:
         raise Unsupported(build.stderr or build.stdout)
     definitions = PRELUDE + definition("before", a) + definition("after", b)

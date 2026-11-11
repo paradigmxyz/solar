@@ -49,3 +49,44 @@ python3 -m unittest discover -s solar-tv/tests
 ```
 
 The tests regenerate the example outputs with real compiler passes.
+
+## Check passes during compilation
+
+From the repository root:
+
+```sh
+export SOLAR_TV="$PWD/solar-tv/solar-tv"
+target/debug/solar solar-tv/examples/dce/before.mir \
+  -Zmir-pipeline=dce -Zsolar-tv=target/tv
+target/debug/solar solar-tv/examples/peephole/before.evmir \
+  -Zevm-ir-pipeline=peephole -Zsolar-tv=target/tv
+```
+
+The host flag also applies to compilation from Solidity. Each pass manager
+compares its module text before and after each pass that runs. A changed pair
+goes to the checker, including edits a pass forgot to report. The supported
+fragments above apply to the whole snapshot.
+
+A verified pair produces a message on stderr. A counterexample stops the
+pipeline. An inconclusive result emits a warning and compilation continues.
+A checker launch or protocol failure is a compiler error. Each unsuccessful
+check gets a separate directory containing `before`, `after` (with the IR
+extension), and `result.txt` with the pass, module and checker response.
+Replay a saved MIR pair from the directory named by the diagnostic:
+
+```sh
+pair=target/tv/mir-XXXXXX  # use the directory from the diagnostic
+solar-tv/solar-tv mir "$pair/before.mir" "$pair/after.mir"
+```
+
+Set `SOLAR_TV` to the validator executable or put `solar-tv` on `PATH`.
+The checker reparses with the running compiler. Embedders can set `SOLAR` to
+the compiler executable. Only host options enable auditing for Standard JSON.
+
+The wrong-code integration test injects a pass that replaces a live return
+value and rechecks the saved pair with Lean:
+
+```sh
+SOLAR="$PWD/target/debug/solar" SOLAR_TV="$PWD/solar-tv/solar-tv" \
+  cargo nextest run -p solar-compiler --test it --run-ignored only -E 'test(solar_tv::)'
+```
