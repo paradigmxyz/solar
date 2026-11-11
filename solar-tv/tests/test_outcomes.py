@@ -110,8 +110,8 @@ class OutcomeTests(unittest.TestCase):
             params="arg0: i1",
         )
 
-    def test_unknown_revert_bytes_and_checked_division_are_inconclusive(self):
+    def test_unknown_revert_bytes_are_inconclusive(self):
         result = self.pair("revert 0, 32", "revert 0, 32", status=2)
         self.assertIn("unmodeled MIR terminator", result.stderr)
-        result = self.pair("v0 = checked_div uint256, 7, 0\nret v0", "ret 0", status=2)
-        self.assertIn("unmodeled MIR instruction", result.stderr)
+        result = self.pair("v0 = checked_div uint256, 7, 0\nret v0", "ret 0", status=1)
+        self.assertIn("before = revert Panic(18)", result.stdout)

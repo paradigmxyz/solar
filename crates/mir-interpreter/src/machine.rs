@@ -672,17 +672,31 @@ impl<'a> Run<'_, 'a, '_> {
             }
             Semantics::Opcode(name, operands) => {
                 let mut words = frame.read_all(&operands)?;
-                if self.semantic.is_some()
-                    && matches!(op::from_mnemonic(name), Some(op::SLT | op::SGT))
-                {
-                    for (value, word) in operands.iter().zip(&mut words) {
+                if self.semantic.is_some() {
+                    let opcode = op::from_mnemonic(name);
+                    for (index, (value, word)) in operands.iter().zip(&mut words).enumerate() {
+                        if !matches!(opcode, Some(op::SLT | op::SGT | op::SDIV | op::SMOD))
+                            && !(opcode == Some(op::SAR) && index == 1)
+                        {
+                            continue;
+                        }
                         let bits =
                             body.value_ty(*value).and_then(|ty| ty.integer_bits()).unwrap_or(256);
                         *word = sign_extend(*word, bits);
                     }
                 }
                 match self.opcode(mnemonic, name, &words)? {
-                    Some(word) => word,
+                    Some(word) => {
+                        if self.semantic.is_some() && name == "clz" {
+                            let bits = body
+                                .value_ty(operands[0])
+                                .and_then(|ty| ty.integer_bits())
+                                .unwrap_or(256);
+                            word - U256::from(256 - bits)
+                        } else {
+                            word
+                        }
+                    }
                     None => return ControlFlow::Continue(()),
                 }
             }
@@ -740,13 +754,12 @@ impl<'a> Run<'_, 'a, '_> {
                 sign_extend(frame.read(value)?, from) & (U256::MAX >> (256 - to))
             }
             Semantics::Checked(op, kind, a, b) if self.semantic.is_some() => {
-                if !matches!(op, CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul) {
-                    return ControlFlow::Break(Outcome::Unsupported(mnemonic));
+                match checked_arithmetic(op, kind, frame.read(a)?, frame.read(b)?) {
+                    Ok(result) => result,
+                    Err(code) => {
+                        return ControlFlow::Break(Outcome::Revert(panic_data(U256::from(code))));
+                    }
                 }
-                let Some(result) = checked_word(op, kind, frame.read(a)?, frame.read(b)?) else {
-                    return ControlFlow::Break(Outcome::Revert(panic_data(U256::from(0x11))));
-                };
-                result
             }
             // Sign extensions, checked arithmetic, and builtin calls are semantic operations.
             _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
@@ -1200,6 +1213,51 @@ fn checked_word(op: CheckedOp, kind: ArithmeticKind, a: U256, b: U256) -> Option
             }?
             .into_raw();
             (sign_extend(result & mask, bits) == result).then_some(result & mask)
+        }
+    }
+}
+
+fn checked_arithmetic(op: CheckedOp, kind: ArithmeticKind, a: U256, b: U256) -> Result<U256, u8> {
+    let bits = match kind {
+        ArithmeticKind::Unsigned(bits) | ArithmeticKind::Signed(bits) => u32::from(bits),
+    };
+    let mask = U256::MAX >> (256 - bits);
+    match op {
+        CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul => {
+            checked_word(op, kind, a, b).ok_or(0x11)
+        }
+        CheckedOp::Div | CheckedOp::WrappingDiv | CheckedOp::Rem => {
+            if b.is_zero() {
+                return Err(0x12);
+            }
+            let signed = matches!(kind, ArithmeticKind::Signed(_));
+            if op == CheckedOp::Div && signed && a == U256::ONE << (bits - 1) && b == mask {
+                return Err(0x11);
+            }
+            let opcode = match (signed, op) {
+                (true, CheckedOp::Rem) => op::SMOD,
+                (false, CheckedOp::Rem) => op::MOD,
+                (true, _) => op::SDIV,
+                (false, _) => op::DIV,
+            };
+            let operands =
+                if signed { [sign_extend(a, bits), sign_extend(b, bits)] } else { [a, b] };
+            Ok(op::eval_opcode(opcode, &operands).expect("division opcode") & mask)
+        }
+        CheckedOp::Pow => {
+            let mut result = U256::ONE;
+            let mut base = a;
+            let mut exponent = b;
+            while !exponent.is_zero() {
+                if exponent.bit(0) {
+                    result = checked_word(CheckedOp::Mul, kind, result, base).ok_or(0x11)?;
+                }
+                exponent >>= 1;
+                if !exponent.is_zero() {
+                    base = checked_word(CheckedOp::Mul, kind, base, base).ok_or(0x11)?;
+                }
+            }
+            Ok(result)
         }
     }
 }

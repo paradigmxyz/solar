@@ -23,7 +23,7 @@ class TypedMirTests(unittest.TestCase):
         return result
 
     def test_comparisons_at_width_boundaries(self):
-        for width in (1, 160, 256):
+        for width in (1, 8, 32, 64, 128, 160, 256):
             with self.subTest(width=width):
                 mask = 2**width - 1
                 sign = 2 ** (width - 1)
@@ -82,7 +82,7 @@ class TypedMirTests(unittest.TestCase):
                     )
 
     def test_narrow_arithmetic_wraps(self):
-        for width in (1, 160, 256):
+        for width in (1, 8, 32, 64, 128, 160, 256):
             with self.subTest(width=width):
                 mask = 2**width - 1
                 self.pair(
@@ -143,7 +143,12 @@ class TypedMirTests(unittest.TestCase):
             self.assertIn("input interfaces differ", result.stderr)
 
     def test_unmodeled_width_and_undefined_values_are_inconclusive(self):
-        result = self.pair("ret arg0", "ret arg0", params="arg0: i8", width=8, status=2)
-        self.assertIn("unmodeled MIR integer width i8", result.stderr)
+        result = self.pair(
+            "ret arg0", "ret arg0", params="arg0: i257", width=257, status=2
+        )
+        self.assertIn(
+            "integer width must be 1 or a multiple of 8 from 8 through 256",
+            result.stderr,
+        )
         result = self.pair("ret undef i256", "ret undef i256", status=2)
         self.assertIn("undefined MIR operands", result.stderr)

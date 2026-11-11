@@ -837,7 +837,7 @@ macro_rules! define_mir_ops {
             }
 
             /// Every operation's mnemonic with its `#[semantics(...)]` declaration as written.
-            pub(crate) const DECLARED_SEMANTICS: &[(&str, &str)] = &[
+            pub const DECLARED_SEMANTICS: &[(&str, &str)] = &[
                 $( ($mnemonic, stringify!($( $( $semantics )+ )?)), )+
             ];
 

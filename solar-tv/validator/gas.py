@@ -7,11 +7,27 @@ budgets to try; they cannot verify a rewrite or certify a counterexample.
 from . import memory
 from .common import Unsupported
 
-VERSIONS = {"cancun", "prague", "osaka"}
+VERSIONS = {
+    "homestead",
+    "tangerineWhistle",
+    "spuriousDragon",
+    "byzantium",
+    "constantinople",
+    "petersburg",
+    "istanbul",
+    "berlin",
+    "london",
+    "paris",
+    "shanghai",
+    "cancun",
+    "prague",
+    "osaka",
+    "amsterdam",
+}
 UNFOLD = (
     "EVM.Gas.execute, EVM.Gas.finish, EVM.Gas.cost, EVM.Gas.baseCost, "
     "EVM.Gas.pureCost, EVM.Gas.touched, EVM.Gas.expansionCost, EVM.Gas.halted, "
-    "EVM.Gas.exhausted, EVM.Gas.refines"
+    "EVM.Gas.exhausted, EVM.Gas.refines, Fork.atLeast, Fork.ordinal"
 )
 
 
@@ -19,7 +35,7 @@ def validate(mode: str | None, version: str) -> None:
     if mode is not None and mode not in {"exact", "refine"}:
         raise Unsupported("gas policy must be `exact` or `refine`")
     if mode is not None and version not in VERSIONS:
-        raise Unsupported("gas auditing supports Cancun, Prague and Osaka")
+        raise Unsupported("unknown gas-audit EVM version")
 
 
 def estimate(line: str) -> int:

@@ -137,3 +137,37 @@ class MemoryTests(unittest.TestCase):
     def test_revert_discards_private_memory(self):
         failing = "v0 = checked_sub uint256, 0, 1\nret 7"
         self.pair("mir", "mstore 0, 7\n" + failing, failing, status=0)
+
+    def test_zero_length_copy_ignores_both_maximal_offsets(self):
+        maximum = 2**256 - 1
+        self.pair("mir", f"mcopy {maximum}, {maximum}, 0\nret 7", "ret 7", status=0)
+        self.pair(
+            "evmir",
+            f"push 0\npush {maximum}\npush {maximum}\nmcopy\nstop",
+            "stop",
+            status=0,
+        )
+
+    def test_overlapping_copy_uses_a_source_snapshot(self):
+        # Copy the first two bytes into the next two bytes. Sequential copying
+        # would incorrectly turn 1,2,3 into 1,1,1 instead of 1,1,2.
+        self.pair(
+            "mir",
+            "mstore8 0, 1\nmstore8 1, 2\nmstore8 2, 3\nmcopy 1, 0, 2\nv0 = mload 0\nret v0",
+            "ret 0",
+        )
+        before = "push 1\npush 0\nmstore8\npush 2\npush 1\nmstore8\npush 3\npush 2\nmstore8\npush 2\npush 0\npush 1\nmcopy\npush 3\npush 0\nreturn"
+        result = self.pair("evmir", before, "push 0\npush 0\nreturn")
+        self.assertIn("before = success(data=[1, 1, 2])", result.stdout)
+
+    def test_hash_uses_keccak_padding_and_exact_bytes(self):
+        digest = 0x4E03657AEA45A94FC7D47BA826C8D667C0D1E6E33A64A036EC44F58FA12D6C45
+        result = self.pair(
+            "mir",
+            "mstore8 0, 97\nmstore8 1, 98\nmstore8 2, 99\nv0 = keccak256 0, 3\nret v0",
+            "ret 0",
+        )
+        self.assertIn(f"before = return={digest}", result.stdout)
+        before = "push 97\npush 0\nmstore8\npush 98\npush 1\nmstore8\npush 99\npush 2\nmstore8\npush 3\npush 0\nkeccak256\npush 0\nmstore\npush 32\npush 0\nreturn"
+        result = self.pair("evmir", before, "push 0\npush 0\nreturn")
+        self.assertIn("before = success(data=[78, 3, 101", result.stdout)

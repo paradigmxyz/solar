@@ -11,29 +11,32 @@ Native BitVec widths constrain every symbolic input and intermediate value.
 import re
 
 from . import memory as mem
+from . import operations as ops
 from .common import Program, Unsupported, lines, literal
 
 OPERAND = r"(?:i\d+ )?\w+"
-BINARY = (
-    rf"(v\d+) = (add|sub|mul|and|or|xor|eq|ne|lt|gt|slt|sgt) ({OPERAND}), ({OPERAND})"
-)
+BINARY = rf"(v\d+) = ({ops.names(ops.BINARY | {'ne'})}) ({OPERAND}), ({OPERAND})"
+UNARY = rf"(v\d+) = (not|clz) ({OPERAND})"
+TERNARY = rf"(v\d+) = (addmod|mulmod|select) ({OPERAND}), ({OPERAND}), ({OPERAND})"
 CAST = rf"(v\d+) = (trunc|zext|sext) i(\d+) ({OPERAND}) to i(\d+)"
 PHI = r"(v\d+) = phi (.+)"
 JUMP = r"jump (bb\d+)"
 BRANCH = rf"jumpi ({OPERAND}), (bb\d+), (bb\d+)"
 SWITCH = rf"switch ({OPERAND}), default (bb\d+), \[(.*)\]"
 RETURN = rf"ret ({OPERAND})"
-CHECKED = rf"(v\d+) = checked_(add|sub|mul) (u?int)(\d+), ({OPERAND}), ({OPERAND})"
+CHECKED = rf"(v\d+) = (checked_add|checked_sub|checked_mul|checked_div|wrapping_div|checked_rem|checked_pow) (u?int)(\d+), ({OPERAND}), ({OPERAND})"
 CHECK = rf"icall (panic|revert)_if(_zero)?<([^>]+)>, ({OPERAND})"
 REQUIRE = rf"icall require<empty_string>, ({OPERAND})"
 LOAD = rf"(v\d+) = mload ({OPERAND})"
 STORE = rf"(mstore|mstore8) ({OPERAND}), ({OPERAND})"
 MSIZE = r"(v\d+) = msize"
+COPY = rf"mcopy ({OPERAND}), ({OPERAND}), ({OPERAND})"
+HASH = rf"(v\d+) = keccak256 ({OPERAND}), ({OPERAND})"
 
 
 def width_of(text: str) -> int:
     width = int(text)
-    if width not in {1, 160, 256}:
+    if not 1 <= width <= 256:
         raise Unsupported(f"unmodeled MIR integer width i{width}")
     return width
 
@@ -68,7 +71,10 @@ def translate(text: str, *, memory: bool = False) -> Program:
             raise Unsupported("expected a block")
     if not blocks or next(iter(blocks)) != "bb0" or not all(blocks.values()):
         raise Unsupported("expected a nonempty entry block")
-    memory |= any(re.search(r"\b(mload|mstore|mstore8|msize)\b", line) for line in src)
+    memory |= any(
+        re.search(r"\b(mload|mstore|mstore8|msize|mcopy|keccak256)\b", line)
+        for line in src
+    )
 
     # The compiler validates SSA, dominance and phi predecessor sets before import.
     # Reject unsupported operations and undefined operands even in unreachable code.
@@ -80,6 +86,8 @@ def translate(text: str, *, memory: bool = False) -> Program:
                 re.fullmatch(pattern, line)
                 for pattern in (
                     BINARY,
+                    UNARY,
+                    TERNARY,
                     CAST,
                     PHI,
                     CHECKED,
@@ -88,6 +96,8 @@ def translate(text: str, *, memory: bool = False) -> Program:
                     LOAD,
                     STORE,
                     MSIZE,
+                    COPY,
+                    HASH,
                 )
             ):
                 raise Unsupported(f"unmodeled MIR instruction: {line}")
@@ -142,15 +152,32 @@ def translate(text: str, *, memory: bool = False) -> Program:
             elif size := re.fullmatch(MSIZE, line):
                 code.append(f"let {size[1]} := Memory.msize memory")
                 current[size[1]] = 256
+            elif copy := re.fullmatch(COPY, line):
+                count = mem.address(copy[3], 0)
+                destination = mem.address(copy[1], count)
+                source = mem.address(copy[2], count)
+                code.append(
+                    f"let memory := Memory.copy memory {destination} {source} {count}"
+                )
+            elif hash_ := re.fullmatch(HASH, line):
+                count = mem.address(hash_[3], 0)
+                offset = mem.address(hash_[2], count)
+                code.append(f"let {hash_[1]} := Memory.hash memory {offset} {count}")
+                code.append(f"let memory := Memory.expand memory {offset} {count}")
+                current[hash_[1]] = 256
             elif checked := re.fullmatch(CHECKED, line):
                 dest, op, kind, bits, a, b = checked.groups()
+                op = op.removeprefix("checked_")
                 width = width_of(bits)
                 a, _ = operand(a, current, width)
-                b, _ = operand(b, current, width)
+                b, _ = operand(b, current, 256 if op == "pow" else width)
                 signed = "true" if kind == "int" else "false"
-                code.append(
-                    f"Outcome.bind (MIR.checked .{op} {signed} {a} {b}) (fun {dest} =>"
+                expression = (
+                    f"MIR.checkedPower {signed} {a} ({b}).toNat"
+                    if op == "pow"
+                    else f"MIR.checked .{'wrappingDiv' if op == 'wrapping_div' else op} {signed} {a} {b}"
                 )
+                code.append(f"Outcome.bind ({expression}) (fun {dest} =>")
                 continuations += 1
                 current[dest] = width
             elif check := re.fullmatch(CHECK, line):
@@ -199,10 +226,41 @@ def translate(text: str, *, memory: bool = False) -> Program:
                 dest, op, a, b = inst.groups()
                 a, width = operand(a, current)
                 b, _ = operand(b, current, width)
-                comparison = op in {"eq", "ne", "lt", "gt", "slt", "sgt"}
-                operation = "compare" if comparison else "eval"
+                comparison = op in ops.COMPARISONS
+                operation = (
+                    "compare"
+                    if comparison
+                    else "shift"
+                    if op in ops.SHIFTS
+                    else "wordBinary"
+                    if op in ops.WORD_BINARY
+                    else "eval"
+                )
+                if op in ops.WORD_BINARY and width != 256:
+                    raise Unsupported("word operation requires i256 operands")
                 code.append(f"let {dest} := MIR.{operation} .{op} {a} {b}")
-                current[dest] = 1 if comparison else width
+                current[dest] = (
+                    1 if comparison else 256 if op in ops.WORD_BINARY else width
+                )
+            elif inst := re.fullmatch(UNARY, line):
+                dest, op, value = inst.groups()
+                value, width = operand(value, current)
+                code.append(f"let {dest} := MIR.unary .{op} {value}")
+                current[dest] = width
+            elif inst := re.fullmatch(TERNARY, line):
+                dest, op, a, b, c = inst.groups()
+                if op == "select":
+                    a, _ = operand(a, current, 1)
+                    b, width = operand(b, current)
+                    c, _ = operand(c, current, width)
+                    code.append(f"let {dest} := MIR.select {a} {b} {c}")
+                else:
+                    a, _ = operand(a, current, 256)
+                    b, _ = operand(b, current, 256)
+                    c, _ = operand(c, current, 256)
+                    width = 256
+                    code.append(f"let {dest} := MIR.ternary .{op} {a} {b} {c}")
+                current[dest] = width
 
         def edge(target: str) -> str:
             return f"(\n{enter(target, label, current, path)}\n)"
