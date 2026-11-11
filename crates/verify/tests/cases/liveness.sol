@@ -37,3 +37,33 @@ library LiveLoop {
     /// @custom:succeeds_if n > 0
     function bad_require(uint256 n) internal pure returns (uint256) { require(n > 1); return n; }
 }
+
+interface ILiveCallee {
+    function g() external;
+    /// @custom:succeeds-if true
+    function h() external;
+}
+
+/// Liveness across calls: a contracted internal callee may revert unless its own succeeds_if holds,
+/// and an external call may revert unless a try catches it or its interface says it returns.
+contract LiveCalls {
+    uint256 x;
+    ILiveCallee i;
+    /// @custom:ensures x == old(x)
+    function _c() internal view { if (x == 5) revert(); }
+    /// @custom:ensures x == old(x)
+    /// @custom:succeeds_if x != 5
+    function _d() internal view { if (x == 5) revert(); }
+    /// @custom:succeeds_if true
+    function bad_contracted() external view { _c(); }
+    /// @custom:succeeds_if x != 5
+    function ok_contracted() external view { _d(); }
+    /// @custom:succeeds_if true
+    function bad_contracted_outside() external view { _d(); }
+    /// @custom:succeeds_if true
+    function bad_external() external { i.g(); }
+    /// @custom:succeeds_if true
+    function ok_try() external { try i.g() {} catch {} }
+    /// @custom:succeeds_if true
+    function ok_iface_live() external { i.h(); }
+}

@@ -98,6 +98,9 @@ pub(crate) struct Vc<'p, 'a> {
     /// succeeds_if proof shows none is reachable. Loop havoc over-approximates the reachable
     /// states, so proving them unreachable is sound.
     pub(crate) revert_sites: Vec<String>,
+    /// The span of the call a try statement makes: a revert there runs a catch clause instead of
+    /// reverting us.
+    try_call: Option<Span>,
     /// While computing what entry points open under the reentrancy lock may write: their external
     /// calls run under the same lock, so they reach only those entry points again.
     lock_modset: std::cell::Cell<bool>,
@@ -200,6 +203,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             call_value: None,
             inv_entry: FxHashSet::default(),
             revert_sites: vec![],
+            try_call: None,
             lock_modset: std::cell::Cell::new(false),
             ranges: Default::default(),
             defs: Default::default(),
@@ -509,6 +513,20 @@ impl<'p, 'a> Vc<'p, 'a> {
                 );
             }
             Ok(())
+        })();
+        self.env = saved;
+        self.rets = rets;
+        r
+    }
+    /// An interface function's succeeds-if conditions at this call, as one term.
+    fn iface_succeeds(&mut self, f: &'p Func<'a>, args: &[Val]) -> R<String> {
+        let (saved, rets) = self.iface_env(f, args, &[]);
+        let r = (|| -> R<String> {
+            let mut ps = vec![];
+            for sp in &f.succeeds {
+                ps.push(self.eval_spec(sp.expr)?.t);
+            }
+            Ok(if ps.len() == 1 { ps.pop().unwrap() } else { format!("(and {})", ps.join(" ")) })
         })();
         self.env = saved;
         self.rets = rets;
@@ -1705,7 +1723,10 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let (g0, env0) = (self.guard.clone(), self.env.clone());
                 let mut states = vec![];
                 self.assume(&format!("(= {sel} 0)"));
-                let vals = self.eval_multi(t.expr)?;
+                let saved_try = self.try_call.replace(t.expr.span);
+                let vals = self.eval_multi(t.expr);
+                self.try_call = saved_try;
+                let vals = vals?;
                 if let Some(c) = t.clauses.first() {
                     for (p, val) in c.args.iter().zip(vals) {
                         if let Some(n) = p.name {
@@ -3666,6 +3687,19 @@ impl<'p, 'a> Vc<'p, 'a> {
                         if let Some(f) = iface {
                             self.iface_requires(f, &avals, e.span)?;
                         }
+                        // Any external call may revert (the callee reverts, runs out of gas, or
+                        // isn't a contract), unless a try catches it or the interface promises it
+                        // returns under its succeeds-if.
+                        if self.try_call != Some(e.span) {
+                            let live = match target.filter(|f| !f.succeeds.is_empty()) {
+                                Some(f) => Some(self.iface_succeeds(f, &avals)?),
+                                None => None,
+                            };
+                            match live {
+                                Some(p) => self.reverts_if(&format!("(not {p})")),
+                                None => self.reverts_if("true"),
+                            }
+                        }
                         let mut out = self.external_call(rets, st, e.span)?;
                         if st && target.is_some() {
                             let tv = Var { ty: bv.ty.clone(), t: bv.t.clone(), len: None };
@@ -4483,6 +4517,22 @@ impl<'p, 'a> Vc<'p, 'a> {
                         span,
                         Some(r),
                     );
+                }
+                // Its body is not executed here, so whether it reverts is known only through
+                // its succeeds-if: without one, the call may revert.
+                if f.succeeds.is_empty() {
+                    self.reverts_if("true");
+                } else {
+                    let mut ps = vec![];
+                    for sp in &f.succeeds {
+                        ps.push(self.eval_spec(sp.expr)?.t);
+                    }
+                    let p = if ps.len() == 1 {
+                        ps.pop().unwrap()
+                    } else {
+                        format!("(and {})", ps.join(" "))
+                    };
+                    self.reverts_if(&format!("(not {p})"));
                 }
                 // its runtime checks: the call reverts unless they hold, and then they are facts
                 for ck in &f.checks {

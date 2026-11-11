@@ -61,7 +61,7 @@ NatSpec tag names are lowercase letters and `-`.
 |---|---|---|
 | function | `@custom:requires e` | precondition: assumed in the body, checked at every internal call site |
 | function | `@custom:ensures e` | postcondition: checked on every normal return, assumed by callers |
-| function | `@custom:succeeds-if e` | from a state where `e` and the requires hold, the function returns normally |
+| function | `@custom:succeeds-if e` | from a state where `e` and the requires hold, the function returns normally. A call to a function with a contract may revert unless that function's own `succeeds-if` holds at the call; an external call may revert unless a `try` catches it or its interface function has a `succeeds-if` that holds (trusted) |
 | function | `@custom:trusted` | the body is not verified; callers use its contract (`--spec-check` tests it) |
 | function | `@custom:spec` | a single-`return` function usable in specs (pure and view ones are by default) |
 | function | `@custom:opaque` | a spec function seen as uninterpreted, except through `@custom:reveal` |

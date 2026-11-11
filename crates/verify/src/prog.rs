@@ -442,12 +442,13 @@ impl<'s, 'a> Builder<'s, 'a> {
                 _ => {}
             }
         }
-        if let Some(spec) = builtin_summary(cname, f) {
+        if let Some((spec, live)) = builtin_summary(cname, f) {
             // a library whose behavior is documented but whose 512-bit assembly is out of reach:
             // trusted at that documented contract (listed in the README's trusted assumptions)
             trusted = true;
             summary = true;
             ensures.extend(self.parse_spec(spec, item.span));
+            succeeds.extend(self.parse_spec(live, item.span));
         }
         let params = f
             .header
@@ -1050,7 +1051,7 @@ pub(crate) fn executable(text: &str) -> bool {
 /// only when the function carries no specs of its own and its parameters are named as upstream.
 /// OpenZeppelin `Math.mulDiv`: the exact quotient of the 512-bit product, rounded as asked; it
 /// reverts when `denominator` is zero or the result does not fit in `uint256`.
-fn builtin_summary(cname: &str, f: &ItemFunction<'_>) -> Option<&'static str> {
+fn builtin_summary(cname: &str, f: &ItemFunction<'_>) -> Option<(&'static str, &'static str)> {
     if cname != "Math"
         || f.header.name.map(|n| n.as_str() != "mulDiv").unwrap_or(true)
         || f.header.returns().len() != 1
@@ -1065,10 +1066,14 @@ fn builtin_summary(cname: &str, f: &ItemFunction<'_>) -> Option<&'static str> {
         .collect();
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     match names.as_slice() {
-        ["x", "y", "denominator"] => Some("denominator > 0 && result == x * y / denominator"),
-        ["x", "y", "denominator", "rounding"] => Some(
+        ["x", "y", "denominator"] => Some((
+            "denominator > 0 && result == x * y / denominator",
+            "denominator > 0 && x * y / denominator <= type(uint256).max",
+        )),
+        ["x", "y", "denominator", "rounding"] => Some((
             "denominator > 0 && result == ((rounding == Rounding.Ceil || rounding == Rounding.Expand) ? (x * y + denominator - 1) / denominator : x * y / denominator)",
-        ),
+            "denominator > 0 && (x * y + denominator - 1) / denominator <= type(uint256).max",
+        )),
         _ => None,
     }
 }
