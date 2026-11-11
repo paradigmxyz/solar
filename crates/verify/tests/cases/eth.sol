@@ -67,3 +67,23 @@ contract Clock {
     function ok_monotone() external view { assert(block.timestamp >= last); }
     function bad_future() external { last = block.timestamp + 1; }
 }
+
+interface ICode { function poke() external; function peek() external view returns (uint256); }
+/// Code read in a spec is the code the body read, until outside code runs.
+contract CodeEpoch {
+    /// @custom:ensures a.code.length > 0
+    function ok_codeKeptOverViewCall(ICode a) external view {
+        require(a.code.length > 0);
+        a.peek();
+    }
+    /// @custom:ensures old(a.code.length) > 0
+    function ok_oldCodeBeforeCall(ICode a) external {
+        require(a.code.length > 0);
+        a.poke();
+    }
+    /// @custom:ensures a.code.length > 0
+    function bad_codeChangesAcrossCall(ICode a) external {
+        require(a.code.length > 0);
+        a.poke();
+    }
+}

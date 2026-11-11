@@ -917,7 +917,12 @@ impl<'p, 'a> Vc<'p, 'a> {
         for sv in c.state.iter().filter(|s| !s.constant) {
             // transient storage is not known to be clear when a constructor runs (another
             // create in the same transaction may have used the address): keep it arbitrary
-            let v = if ctor && !sv.immutable && sv.name != "__balance" && !sv.transient {
+            let v = if ctor
+                && !sv.immutable
+                && sv.name != "__balance"
+                && sv.name != "__code_epoch"
+                && !sv.transient
+            {
                 self.zero_var(&sv.ty)
             } else {
                 self.fresh_var(&sv.name, &sv.ty)
@@ -2936,10 +2941,24 @@ impl<'p, 'a> Vc<'p, 'a> {
                 return Ok(Self::val(Ty::Uint(256), t));
             }
         }
-        if m == "balance" || m == "code" || m == "codehash" {
+        if (m == "code" || m == "codehash")
+            && let Some(ep) = self.env.get("__code_epoch").cloned()
+        {
+            // the code at an address is a function of the address and the code epoch
             let b = self.eval(base)?;
             let f = format!("sv_{m}");
-            self.declare_fun(&f, 1, "Int");
+            self.declare_fun(&f, 2, "Int");
+            let t = format!("({f} {} {})", b.t, ep.t);
+            if m == "code" {
+                return Ok(Self::val(Ty::Opaque, t));
+            }
+            if self.bound.is_empty() {
+                self.smt.send(&format!("(assert {})\n", Ty::Uint(256).range(&t).unwrap()));
+            }
+            return Ok(Self::val(Ty::Uint(256), t));
+        }
+        if m == "balance" || m == "code" || m == "codehash" {
+            let b = self.eval(base)?;
             let _ = b;
             let t = self.decl(m, &Ty::Uint(256));
             return Ok(Self::val(Ty::Uint(256), t));
@@ -3849,6 +3868,10 @@ impl<'p, 'a> Vc<'p, 'a> {
             return self.with_host(|s| s.external_call(rets, is_static, span));
         }
         self.call_value = None;
+        if !is_static && let Some(ep) = self.env.get("__code_epoch").cloned() {
+            let ne = self.fresh_var("__code_epoch", &ep.ty);
+            self.bind("__code_epoch", ep.ty.clone(), ne);
+        }
         let locked = !self.spec && !is_static && self.lock_held();
         // Entry points the callee can still reach under the lock: the invariants must hold before
         // the call, and afterwards everything those entry points may write is unknown (each of
