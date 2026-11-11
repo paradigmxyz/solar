@@ -115,6 +115,8 @@ impl<'a> Snapshot<'a> {
                 Ok(output) => {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     let stderr = String::from_utf8_lossy(&output.stderr);
+                    // The checker's own report, not a source file.
+                    #[allow(clippy::disallowed_methods)]
                     let parsed = fs::read(pair.path().join("result.json"))
                         .map_err(|error| error.to_string())
                         .and_then(|bytes| {
