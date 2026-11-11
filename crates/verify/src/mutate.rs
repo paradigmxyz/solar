@@ -22,9 +22,12 @@
 //! score. It stays a survivor, with a note, when the mutated function is in no bytecode (a revert
 //! at the top of its body changes nothing) or is internal or a modifier (its callers may pin the
 //! difference away, while its spec speaks for every input).
-use crate::{prog::custom_tags, walk};
+use crate::{
+    prog::custom_tags,
+    sources::{ImportOpts, Loader},
+    walk,
+};
 use solar_parse::{
-    Parser,
     ast::{
         self, BinOpKind, ContractKind, Expr, ExprKind, IndexKind, ItemKind, LitKind, Stmt,
         StmtKind, UnOpKind, Visibility, visit::Visit,
@@ -98,11 +101,12 @@ struct Opts {
     strict: bool,
     solc: Option<PathBuf>,
     no_tce: bool,
+    imports: ImportOpts,
 }
 
 const USAGE: &str = "usage: solar-verify mutate [--list] [--json] [--ops ROR,AOR,LCR,BOOL,CRP,SDL,GDL] \
 [--per-fn N] [--max-affected N] [--only Contract[.fn]] [--seed N] [--jobs N] [--timeout MS] \
-[--strict] [--solc PATH | --no-tce] FILE.sol";
+[--strict] [--solc PATH | --no-tce] [PREFIX=PATH...] [--base-path PATH] [--include-path PATH] FILE.sol";
 
 fn parse_opts(args: impl Iterator<Item = String>) -> Opts {
     let mut o = Opts {
@@ -119,6 +123,7 @@ fn parse_opts(args: impl Iterator<Item = String>) -> Opts {
         strict: false,
         solc: None,
         no_tce: false,
+        imports: ImportOpts::default(),
     };
     let mut files = vec![];
     let mut it = args;
@@ -129,6 +134,9 @@ fn parse_opts(args: impl Iterator<Item = String>) -> Opts {
         })
     };
     while let Some(a) = it.next() {
+        if o.imports.parse_arg(&a, &mut it) {
+            continue;
+        }
         match a.as_str() {
             "--list" => o.list = true,
             "--json" => o.json = true,
@@ -221,13 +229,13 @@ pub(crate) fn main(args: impl Iterator<Item = String>) -> ! {
     let mut funcs = vec![];
     let parsed = sess.enter_sequential(|| -> Result<(), ()> {
         let arena = ast::Arena::new();
-        let mut parser = Parser::from_file(&sess, &arena, &o.file).map_err(|_| ())?;
-        let unit = parser.parse_file().map_err(|e| {
-            e.emit();
+        let loader = Loader::new(&sess, &arena, &o.imports).map_err(|error| {
+            eprintln!("error: {error}");
         })?;
-        let unit: &ast::SourceUnit<'_> = arena.alloc(unit);
-        src = sess.source_map().load_file(&o.file).map_err(|_| ())?.src.to_string();
-        collect(&sess, unit, o.ops, &mut funcs);
+        // Only the file itself is mutated; what it imports is used as it is.
+        let loaded = loader.load(&o.file, None)?;
+        src = loaded.file.src.to_string();
+        collect(&sess, loaded.units.last().unwrap(), o.ops, &mut funcs);
         Ok(())
     });
     if parsed.is_err() {
@@ -244,6 +252,7 @@ pub(crate) fn main(args: impl Iterator<Item = String>) -> ! {
         if o.strict {
             cmd.arg("--strict");
         }
+        cmd.args(o.imports.args());
         let rows = json_rows(&cmd.arg(&o.file).output().expect("run solar-verify").stdout);
         Some(
             rows.into_iter()
@@ -294,7 +303,8 @@ pub(crate) fn main(args: impl Iterator<Item = String>) -> ! {
     };
     let tce_note = match &solc {
         Some(solc) if outcomes.iter().any(|x| x.result == "survived") => {
-            tce(solc, &src, &funcs, &plan, &mut outcomes)
+            let solc = Solc { path: solc, unit: &o.file, imports: &o.imports };
+            tce(&solc, &src, &funcs, &plan, &mut outcomes)
         }
         Some(_) => None,
         None if o.no_tce => None,
@@ -659,6 +669,9 @@ fn run(o: &Opts, exe: &Path, dir: &Path, base: &str, src: &str, plan: &[Mutant])
                         if o.strict {
                             cmd.arg("--strict");
                         }
+                        // The mutant is verified as if it stood where the file does, so its
+                        // imports resolve from there.
+                        cmd.args(o.imports.args()).arg("--mutant-of").arg(&o.file);
                         let res = cmd.arg(&file).output().expect("run solar-verify");
                         if res.status.code() == Some(2) {
                             out = Outcome { result: "stillborn", by: None, tce: None };
@@ -689,45 +702,87 @@ fn find_on_path(bin: &str) -> Option<PathBuf> {
     std::env::split_paths(&std::env::var_os("PATH")?).map(|d| d.join(bin)).find(|p| p.is_file())
 }
 
-/// Compiles `src` with solc and returns its combined JSON bytecode output.
-fn compile(solc: &Path, src: &str, via_ir: bool) -> Result<String, String> {
-    let mut cmd = Command::new(solc);
-    cmd.args(["--optimize", "--metadata-hash", "none", "--combined-json", "bin,bin-runtime"]);
-    if via_ir {
-        cmd.arg("--via-ir");
-    }
-    let mut child = cmd
-        .arg("-")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    let mut stdin = child.stdin.take().unwrap();
-    let src = src.to_string();
-    let writer = std::thread::spawn(move || stdin.write_all(src.as_bytes()));
-    let out = child.wait_with_output().map_err(|e| e.to_string())?;
-    let _ = writer.join();
-    if out.status.success() {
-        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-    } else {
-        let err = String::from_utf8_lossy(&out.stderr);
-        Err(err.lines().find(|l| l.contains("Error")).unwrap_or("solc failed").to_string())
+/// solc, compiling versions of the file at the file's path, so its imports resolve.
+struct Solc<'a> {
+    path: &'a Path,
+    /// The file's path, which names the source.
+    unit: &'a Path,
+    imports: &'a ImportOpts,
+}
+
+impl Solc<'_> {
+    /// The bytecode of every contract `src` compiles to, standing at the file's path.
+    fn compile(&self, src: &str, via_ir: bool) -> Result<String, String> {
+        let unit = self.unit.display().to_string();
+        let remappings = self.imports.remappings.clone();
+        let input = serde_json::json!({
+            "language": "Solidity",
+            "sources": { unit: { "content": src } },
+            "settings": {
+                "optimizer": { "enabled": true },
+                "metadata": { "bytecodeHash": "none" },
+                "viaIR": via_ir,
+                "remappings": remappings,
+                "outputSelection": {
+                    "*": { "*": ["evm.bytecode.object", "evm.deployedBytecode.object"] }
+                },
+            },
+        });
+        let mut cmd = Command::new(self.path);
+        cmd.arg("--standard-json");
+        if let Some(base) = &self.imports.base_path {
+            cmd.arg("--base-path").arg(base);
+        }
+        for path in &self.imports.include_paths {
+            cmd.arg("--include-path").arg(path);
+        }
+        // Imports may lie outside the base path: the file's directory and remapping targets.
+        let mut allowed: Vec<String> = self
+            .unit
+            .parent()
+            .map(|parent| parent.display().to_string())
+            .into_iter()
+            .filter(|parent| !parent.is_empty())
+            .collect();
+        allowed.extend(
+            self.imports.remappings.iter().filter_map(|r| Some(r.split_once('=')?.1.to_string())),
+        );
+        if !allowed.is_empty() {
+            cmd.arg("--allow-paths").arg(allowed.join(","));
+        }
+        let mut child = cmd
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        let mut stdin = child.stdin.take().unwrap();
+        let input = input.to_string();
+        let writer = std::thread::spawn(move || stdin.write_all(input.as_bytes()));
+        let out = child.wait_with_output().map_err(|e| e.to_string())?;
+        let _ = writer.join();
+        let output: serde_json::Value = serde_json::from_slice(&out.stdout)
+            .map_err(|_| String::from_utf8_lossy(&out.stderr).trim().to_string())?;
+        let errors = output["errors"].as_array().into_iter().flatten();
+        if let Some(error) = errors.into_iter().find(|e| e["severity"] == "error") {
+            return Err(error["message"].as_str().unwrap_or("solc failed").to_string());
+        }
+        Ok(output["contracts"].to_string())
     }
 }
 
 /// Trivial compiler equivalence for the survivors; returns a note when it cannot run.
 fn tce(
-    solc: &Path,
+    solc: &Solc<'_>,
     src: &str,
     funcs: &[Func],
     plan: &[Mutant],
     outcomes: &mut [Outcome],
 ) -> Option<String> {
     // stack too deep is the one error the other pipeline can fix
-    let (via_ir, base) = match compile(solc, src, false) {
+    let (via_ir, base) = match solc.compile(src, false) {
         Ok(b) => (false, b),
-        Err(e) if e.contains("Stack too deep") => match compile(solc, src, true) {
+        Err(e) if e.contains("Stack too deep") => match solc.compile(src, true) {
             Ok(b) => (true, b),
             Err(e) => return Some(format!("solc: {e}: survivors are not checked")),
         },
@@ -745,12 +800,12 @@ fn tce(
             [" if (msg.data.length == 0x5e471e15) revert(); ", " revert(); "]
                 .iter()
                 .find_map(|g| {
-                    compile(solc, &format!("{}{g}{}", &src[..at], &src[at..]), via_ir).ok()
+                    solc.compile(&format!("{}{g}{}", &src[..at], &src[at..]), via_ir).ok()
                 })
                 .is_some_and(|b| b != base)
         });
         let msrc = format!("{}{}{}", &src[..m.lo], m.rep, &src[m.hi..]);
-        out.tce = Some(match compile(solc, &msrc, via_ir) {
+        out.tce = Some(match solc.compile(&msrc, via_ir) {
             _ if !alive => "dead",
             Err(_) => "compile-error",
             Ok(b) if b != base => "different",

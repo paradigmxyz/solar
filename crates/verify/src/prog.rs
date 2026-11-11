@@ -101,6 +101,9 @@ pub(crate) struct Contract<'a> {
     pub base_ctors: Vec<(String, &'a ItemFunction<'a>)>,
     /// `is B(args)` arguments given anywhere in the hierarchy
     pub base_args: FxHashMap<String, &'a ast::CallArgs<'a>>,
+    /// Defined in a file the verified file imports: not verified itself, though the functions a
+    /// verified contract inherits from it are, as that contract's.
+    pub imported: bool,
 }
 
 pub(crate) struct Program<'a> {
@@ -458,10 +461,12 @@ impl<'s, 'a> Builder<'s, 'a> {
     }
 }
 
+/// The program of the verified file, the last of `units`, and of the files it imports, which come
+/// before it.
 pub(crate) fn build<'a>(
     sess: &Session,
     arena: &'a ast::Arena,
-    unit: &'a SourceUnit<'a>,
+    units: &[&'a SourceUnit<'a>],
 ) -> Program<'a> {
     let mut b = Builder {
         sess,
@@ -488,6 +493,7 @@ pub(crate) fn build<'a>(
     // inline assembly anywhere in a library (inlined into contracts that call it)
     let mut lib_asm = false;
     let mut order = vec![];
+    let mut imported = FxHashSet::default();
     let collect_names = |b: &mut Builder<'_, 'a>, it: &'a ast::Item<'a>| match &it.kind {
         ItemKind::Enum(e) => {
             b.enums.insert(e.name.as_str().to_string(), e.variants.len());
@@ -511,7 +517,12 @@ pub(crate) fn build<'a>(
         }
         _ => {}
     };
-    for it in unit.items.iter() {
+    let last = units.len().saturating_sub(1);
+    let items_of = units
+        .iter()
+        .enumerate()
+        .flat_map(|(index, unit)| unit.items.iter().map(move |item| (item, index != last)));
+    for (it, from_import) in items_of {
         collect_names(&mut b, it);
         if let ItemKind::Variable(v) = &it.kind
             && let Some(n) = v.name
@@ -535,6 +546,9 @@ pub(crate) fn build<'a>(
             let n = c.name.as_str().to_string();
             b.contract_names.push(n.clone());
             items.insert(n.clone(), (it, c));
+            if from_import {
+                imported.insert(n.clone());
+            }
             order.push(n);
             for sub in c.body.iter() {
                 collect_names(&mut b, sub);
@@ -598,6 +612,7 @@ pub(crate) fn build<'a>(
             overridden: vec![],
             lin: lin.clone(),
             base_ctors: vec![],
+            imported: imported.contains(name),
             base_args: FxHashMap::default(),
         };
         let mut has_asm = false;
