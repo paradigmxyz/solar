@@ -249,11 +249,18 @@ fn @fill() {
     v100 = zext i1 v78 to i256
     v101 = or v98, v100
     v80 = ne v101, 0
-    v114 = ne v75, v76
-    jumpi v114, bb30, bb31
+    v114 = lt v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v115 = eq v114, false
+    jumpi v115, bb30, bb31
   bb31:                                           ; preds = bb12
+    v116 = gt v8, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v116, bb32, bb33
+  bb33:                                           ; preds = bb31
+    v117 = ne v75, v76
+    jumpi v117, bb34, bb35
+  bb35:                                           ; preds = bb33
     jumpi v80, bb14, bb13
-  bb13:                                           ; preds = bb31
+  bb13:                                           ; preds = bb35
     mstore 64, v77 !metadata(memory=scratch)
     v86 = mload v75
     v88 = sub v10, 32
@@ -261,16 +268,23 @@ fn @fill() {
     v90 = mload v89
     mstore v75, v0
     v92 = add v75, 32
-    v115 = ne v86, 0
-    jumpi v115, bb32, bb33
-  bb33:                                           ; preds = bb13
-    v116 = ne v90, 0
-    jumpi v116, bb34, bb35
-  bb35:                                           ; preds = bb33
+    v118 = ne v86, 0
+    jumpi v118, bb36, bb37
+  bb37:                                           ; preds = bb13
+    v119 = ne v90, 0
+    jumpi v119, bb38, bb39
+  bb39:                                           ; preds = bb37
+    v120 = gt v8, 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    jumpi v120, bb40, bb41
+  bb41:                                           ; preds = bb39
+    v121 = lt v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v122 = eq v121, false
+    jumpi v122, bb42, bb43
+  bb43:                                           ; preds = bb41
     jump bb1
-  bb1:                                            ; preds = bb23, bb35
-    v16 = phi [bb35: 0], [bb23: v32]
-    v93 = phi [bb35: v92], [bb23: v94]
+  bb1:                                            ; preds = bb23, bb43
+    v16 = phi [bb43: 0], [bb23: v32]
+    v93 = phi [bb43: v92], [bb23: v94]
     v17 = mload v75
     v18 = lt v16, v17
     jumpi v18, bb2, bb3
@@ -358,23 +372,31 @@ fn @fill() {
     mstore 32, 17 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
-  bb34 [cold]:                                    ; preds = bb33
+  bb42 [cold]:                                    ; preds = bb41
     jump bb15
-  bb32 [cold]:                                    ; preds = bb13
+  bb40 [cold]:                                    ; preds = bb39
     jump bb15
-  bb14 [cold]:                                    ; preds = bb31
+  bb38 [cold]:                                    ; preds = bb37
+    jump bb15
+  bb36 [cold]:                                    ; preds = bb13
+    jump bb15
+  bb14 [cold]:                                    ; preds = bb35
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
+  bb34 [cold]:                                    ; preds = bb33
+    jump bb15
+  bb32 [cold]:                                    ; preds = bb31
+    jump bb15
   bb30 [cold]:                                    ; preds = bb12
     jump bb15
-  bb15 [cold]:                                    ; preds = bb16, bb18, bb20, bb22, bb24, bb26, bb28, bb30, bb32, bb34
-    v117 = phi [bb16: 0x103000000040000000400000026], [bb18: 0x103000000040000000900000015], [bb20: 0x202000000040000000900000012], [bb22: 0x102000000040000000900000036], [bb24: 0x103000000040000000a00000028], [bb26: 0x202000000040000000a00000027], [bb28: 0x102000000040000000a00000034], [bb30: 0x112000000040000000c0000004b], [bb32: 0x112000000040000000d00000056], [bb34: 0x112000000040000000d0000005a]
-    v118 = phi [bb16: v38], [bb18: v21], [bb20: v105], [bb22: v107], [bb24: v40], [bb26: v110], [bb28: v112], [bb30: v75], [bb32: v86], [bb34: v90]
-    v119 = phi [bb16: v17], [bb18: v17], [bb20: 0], [bb22: 0], [bb24: v17], [bb26: 0], [bb28: 0], [bb30: v76], [bb32: 0], [bb34: 0]
-    mstore 32, v117 !metadata(memory=scratch)
-    mstore 64, v118 !metadata(memory=scratch)
-    mstore 96, v119 !metadata(memory=scratch)
+  bb15 [cold]:                                    ; preds = bb16, bb18, bb20, bb22, bb24, bb26, bb28, bb30, bb32, bb34, bb36, bb38, bb40, bb42
+    v123 = phi [bb16: 0x103000000040000000400000026], [bb18: 0x103000000040000000900000015], [bb20: 0x202000000040000000900000012], [bb22: 0x102000000040000000900000036], [bb24: 0x103000000040000000a00000028], [bb26: 0x202000000040000000a00000027], [bb28: 0x102000000040000000a00000034], [bb30: 0x308000000040000000c00000000], [bb32: 0x408000000040000000c00000008], [bb34: 0x112000000040000000c0000004b], [bb36: 0x112000000040000000d00000056], [bb38: 0x112000000040000000d0000005a], [bb40: 0x408000000040000000d00000008], [bb42: 0x308000000040000000d00000000]
+    v124 = phi [bb16: v38], [bb18: v21], [bb20: v105], [bb22: v107], [bb24: v40], [bb26: v110], [bb28: v112], [bb30: v0], [bb32: v8], [bb34: v75], [bb36: v86], [bb38: v90], [bb40: v8], [bb42: v0]
+    v125 = phi [bb16: v17], [bb18: v17], [bb20: 0], [bb22: 0], [bb24: v17], [bb26: 0], [bb28: 0], [bb30: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff], [bb32: 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff], [bb34: v76], [bb36: 0], [bb38: 0], [bb40: 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff], [bb42: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff]
+    mstore 32, v123 !metadata(memory=scratch)
+    mstore 64, v124 !metadata(memory=scratch)
+    mstore 96, v125 !metadata(memory=scratch)
     mstore 0, 0xed572b27 !metadata(memory=scratch)
     revert 28, 100
   bb11 [cold]:                                    ; preds = bb0
