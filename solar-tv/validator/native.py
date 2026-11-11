@@ -20,7 +20,11 @@ def replay(
         )
     request = {
         "version": 1,
-        "kind": "evmir" if a.interface[0] == "evm-window" else "mir",
+        "kind": a.interface[1]
+        if a.world
+        else "evmir"
+        if a.interface[0] == "evm-window"
+        else "mir",
         "before": a.replay_ir or a.canonical_ir,
         "after": b.replay_ir or b.canonical_ir,
         "selector": a.selector,
@@ -31,6 +35,10 @@ def replay(
         "gas": a.gas is not None,
         "evm_version": a.evm_version or "cancun",
     }
+    if a.world:
+        from .world import replay_input
+
+        request["world"] = replay_input(a.world)
     try:
         result = subprocess.run(
             [binary],

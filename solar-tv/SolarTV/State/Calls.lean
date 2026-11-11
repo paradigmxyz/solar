@@ -5,10 +5,9 @@ CALL changes the storage owner and transfers value; CALLCODE changes only code;
 DELEGATECALL preserves the original caller/value and storage owner; STATICCALL
 forces static permission and zero value. All four keep transaction origin.
 
-Child execution is deliberately separate from its boundary. In particular, a
-successful arbitrary child is not a semantics for CALL. The CLI cannot verify
-external calls until an instruction evaluator and independent replay produce
-these child results. The gas forwarding helper starts after base/memory/value
+Child execution is separate from its boundary. A successful arbitrary child is
+not a semantics for CALL; EVMIR/State/Interpreter executes the real child in the
+CLI's explicit-world mode. The gas forwarding helper starts after base/memory/value
 charges; it does not stand in for the full CALL price or precompile pricing.
 
 Reference: EVMYulLean 047f630, EVM/Semantics.lean:138-218, 364-418 and 719-815.
@@ -59,7 +58,7 @@ inductive Preparation where
 def prepare (world : World.State) (parent : World.Environment) (message : Message)
     (fork : Fork := .cancun) : Preparation :=
   if message.kind == .staticcall && !fork.atLeast .byzantium then .exception .unavailable
-  else if parent.isStatic && hasValue message then .exception .staticViolation
+  else if parent.isStatic && message.kind == .call && message.value != 0 then .exception .staticViolation
   else
     let checkpoint := World.warmAccount world message.destination
     if parent.depth ≥ 1024 then .rejected checkpoint

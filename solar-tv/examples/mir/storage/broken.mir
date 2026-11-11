@@ -1,0 +1,7 @@
+@module Storage
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    sstore 0, 8
+    stop
+}
