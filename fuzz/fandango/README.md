@@ -324,9 +324,13 @@ Both compilers receive the same closed Standard JSON input and compiler
 settings. solsymdiff then deploys both builds' creation code on a private
 anvil, from the same account and nonce and so at the same address, with
 `--constructor-args 0x...` (default: the zero value of every constructor input)
-and `--constructor-value` (default 0). The `<constructor>` check compares the two
-deployments' success, revert data, logs, storage, and balance; a difference is
-a mismatch in `constructor`, and `comparison` says which. When both deployments
+and `--constructor-value` (default 0). Both deployments run in a block with the
+same timestamp. The `<constructor>` check compares the two deployments'
+success, revert data, logs with their emitters, and the deployed contract's
+storage, balance, and nonce; a difference is a mismatch in `constructor`, and
+`comparison` says which. Contracts the constructor creates and accounts it
+calls or pays are not compared; a constructor that can do so lists that under
+`limitations`. When both deployments
 succeed, their deployed runtimes, with immutables filled in, are what the
 remaining checks compare. `--runtime-only` compares the runtimes as compiled
 instead; contracts with immutables require constructor execution.

@@ -626,6 +626,7 @@ class ConstructorTests(unittest.TestCase):
             "logs": [],
             "storage_root": "0xaa",
             "balance": "0",
+            "nonce": 1,
         }
         side.update(overrides)
         return side
@@ -644,6 +645,7 @@ class ConstructorTests(unittest.TestCase):
             (self._side(logs=[{"topics": [], "data": "0x"}]), "logs"),
             (self._side(storage_root="0xbb"), "storage"),
             (self._side(balance="1"), "balance"),
+            (self._side(nonce=2), "nonce"),
         ]
         for solar, comparison in cases:
             with self.subTest(comparison=comparison):
@@ -815,6 +817,7 @@ class RunTests(unittest.TestCase):
                     "logs": [],
                     "storage_root": "0xaa",
                     "balance": "0",
+                    "nonce": 1,
                 }
                 for label, runtime in (("solc", "0x6011"), ("solar", "0x6022"))
             }

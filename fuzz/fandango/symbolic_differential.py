@@ -44,6 +44,9 @@ CONSTRUCTOR = "<constructor>"
 FORGE_GRACE_SECONDS = 60
 # CREATE and CREATE2.
 _CREATE_OPCODES = {0xF0, 0xF5}
+# CREATE, CALL, CALLCODE, CREATE2, SELFDESTRUCT: ways a constructor can change
+# another account.
+_OUTSIDE_EFFECT_OPCODES = {0xF0, 0xF1, 0xF2, 0xF5, 0xFF}
 
 
 class AbiDisagreement(ValueError):
@@ -370,6 +373,15 @@ def run(
             "created contracts are compared byte for byte, so a check that "
             "reaches CREATE or CREATE2 is incomplete when the builds create "
             "different code"
+        )
+    if not runtime_only and any(
+        _runtime_opcodes(artifact["creation"]) & _OUTSIDE_EFFECT_OPCODES
+        for artifact in (solc_artifact, solar_artifact)
+    ):
+        limitations.append(
+            "the constructor check compares only the deployed contract, so "
+            "contracts the constructor creates and accounts it calls or pays "
+            "are not compared"
         )
     bounds = {
         "timeout_seconds": args.timeout,
@@ -1049,7 +1061,17 @@ def _create(url: str, initcode: str, value: int, timeout: float) -> dict[str, An
     }
     snapshot = _rpc(url, "evm_snapshot", [], timeout)
     try:
-        call = evm.rpc(url, "eth_call", [transaction, "latest"], timeout)
+        # The deployment runs in the next block. Pin that block's timestamp so
+        # both builds see the same block environment, and run the preflight
+        # call against the pending block, which uses it.
+        latest = _rpc(url, "eth_getBlockByNumber", ["latest", False], timeout)
+        _rpc(
+            url,
+            "evm_setNextBlockTimestamp",
+            [int(latest["timestamp"], 16) + 1],
+            timeout,
+        )
+        call = evm.rpc(url, "eth_call", [transaction, "pending"], timeout)
         if "result" not in call:
             # Anvil reports reverts and exceptional halts alike as errors; only
             # the revert data is the contract's.
@@ -1069,6 +1091,7 @@ def _create(url: str, initcode: str, value: int, timeout: float) -> dict[str, An
             )
         address = receipt["contractAddress"]
         balance = _rpc(url, "eth_getBalance", [address, "latest"], timeout)
+        nonce = _rpc(url, "eth_getTransactionCount", [address, "latest"], timeout)
         return {
             "success": True,
             "address": address,
@@ -1078,6 +1101,7 @@ def _create(url: str, initcode: str, value: int, timeout: float) -> dict[str, An
             "logs": [_constructor_log(log) for log in receipt.get("logs", [])],
             "storage_root": evm.storage_root(url, address, timeout),
             "balance": str(int(balance, 16)),
+            "nonce": int(nonce, 16),
         }
     finally:
         _rpc(url, "evm_revert", [snapshot], timeout)
@@ -1102,7 +1126,7 @@ def _rpc(url: str, method: str, params: list[Any], timeout: float) -> Any:
 def _compare_constructors(
     deployed: dict[str, dict[str, Any]], constructor: dict[str, Any]
 ) -> dict[str, Any]:
-    """Compares the two deployments' success, revert data, logs, storage, and balance."""
+    """Compares the two deployments' success, revert data, logs, storage, balance, and nonce."""
     solc, solar = deployed["solc"], deployed["solar"]
     if solc["success"] != solar["success"]:
         comparison = "success"
@@ -1124,6 +1148,7 @@ def _compare_constructors(
                     ("logs", "logs"),
                     ("storage_root", "storage"),
                     ("balance", "balance"),
+                    ("nonce", "nonce"),
                 )
                 if solc[key] != solar[key]
             ),
