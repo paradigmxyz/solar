@@ -1,5 +1,6 @@
 import SolarTV.MIR.Transforms.DCE
 import SolarTV.MIR.Transforms.TrimSwitchDefaults
+import SolarTV.MIR.Transforms.RenamePhiPredecessors
 import SolarTV.EVMIR.Transforms.EqIszeroJumpi
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
@@ -15,3 +16,7 @@ import SolarTV.EVMIR.Transforms.EqIszeroJumpi
 /-- info: 'SolarTV.MIR.erase_unused' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.erase_unused
+
+/-- info: 'SolarTV.MIR.rename_phi_predecessors' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.rename_phi_predecessors

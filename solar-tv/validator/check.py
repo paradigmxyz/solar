@@ -15,7 +15,7 @@ from .common import Program, Unsupported
 ROOT = Path(__file__).resolve().parents[1]
 PRELUDE = "import SolarTV\nopen SolarTV EvmRules\nset_option autoImplicit false\nset_option linter.unusedSimpArgs false\n"
 UNFOLD = (
-    "before, after, MIR.eval, MIR.choose, EVM.run, EVM.step, Evm.eq, Evm.iszero, "
+    "before, after, MIR.eval, MIR.choose, MIR.phi, EVM.run, EVM.step, Evm.eq, Evm.iszero, "
     "Evm.sub, Evm.add, Evm.mul, Evm.and, Evm.or, Evm.xor"
 )
 
@@ -43,7 +43,8 @@ def load(kind: str, path: Path, solar: str, timeout: int) -> Program:
 
 def definition(name: str, program: Program) -> str:
     args = " ".join(f"({arg} : Word)" for arg in program.inputs)
-    return f"def {name} {args} : {program.result_type} :=\n  {program.body}\n"
+    body = "\n".join("  " + line for line in program.body.splitlines())
+    return f"def {name} {args} : {program.result_type} :=\n{body}\n"
 
 
 def build_model(timeout: int) -> subprocess.CompletedProcess:
