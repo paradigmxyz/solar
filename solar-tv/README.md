@@ -3,12 +3,14 @@
 Check a MIR function or EVM IR block window before and after a compiler pass.
 The CLI uses the compiler to parse and validate both files, translates its
 canonical output to Lean, and asks Lean to prove refinement for MIR or equal
-observations for the EVM IR fragment, for every input. A counterexample is checked again at concrete input values.
+observations for the EVM IR fragment, for every input. A counterexample is replayed
+in Lean and independently through the Rust MIR or EVM IR interpreter. Disagreement
+is inconclusive, not a reported compiler bug.
 
 From the repository root, with Python 3.10+ and the pinned Lean toolchain:
 
 ```sh
-cargo build -p solar-compiler
+cargo build -p solar-compiler -p solar-tv-replay
 solar-tv/solar-tv mir solar-tv/examples/mir/dce/{before,after}.mir
 solar-tv/solar-tv evmir solar-tv/examples/evmir/peephole/{before,after}.evmir
 ```
@@ -42,8 +44,36 @@ Use `--verbose` for the full diff and compiler or prover diagnostics. Unsupporte
 IR and checker limits remain inconclusive; they are not counterexamples.
 
 Exit codes are `0` for verified, `1` for a replayed counterexample and `2` for
-inconclusive (including unsupported IR and timeouts). Use `--solar PATH` to
+inconclusive, unsupported, timeout or tool failure. Structured reports distinguish
+these statuses. Use `--solar PATH` to
 select a compiler binary.
+
+## Audit records
+
+Every result shows the Lean semantics fingerprint, pinned toolchain, target,
+gas policy and assumptions on stderr. Keep a JSON record with `--report`:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/dce/{before,after}.mir \
+  --report target/tv/audits/manual.json
+solar-tv/solar-tv summarize target/tv
+```
+
+Records bind the canonical input hashes and identify the evidence: a kernel
+proof for verification, or a kernel-checked witness with matching Rust observations
+for a counterexample. The summary counts `verified`, `counterexample`, `unsupported`,
+`timeout`, `inconclusive` and `error` separately. It reads only `audits/*.json`,
+so retained failure pairs do not get counted twice. Use a fresh directory when
+comparing runs. Corrupt records cause an error instead of silently disappearing.
+
+The Rust helper reparses the original IR and runs the existing interpreters with
+the witness's arguments, stack, context sizes, memory and gas. It does not execute
+the Python importer's operation recipe. `--replay PATH` or `SOLAR_TV_REPLAY` selects
+the helper; by default it is beside the selected compiler. Replay has a 16 MiB
+memory limit, ten million units of work and a MIR call-depth limit of 1,024.
+A missing helper, unsupported replay state or model disagreement cannot produce
+a counterexample result. Positive proofs still trust the importer; concrete replay
+does not establish a correspondence theorem for all inputs.
 
 | Layer | Supported fragment | Observation |
 | --- | --- | --- |
@@ -285,10 +315,12 @@ goes to the checker, including edits a pass forgot to report. The supported
 fragments above apply to the whole snapshot.
 
 A verified pair produces a message on stderr. A counterexample stops the
-pipeline. An inconclusive result emits a warning and compilation continues.
+pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.
 A checker launch or protocol failure is a compiler error. Each unsuccessful
 check gets a separate directory containing `before`, `after` (with the IR
-extension), and `result.txt` with the pass, module and checker response.
+extension), `result.txt` with the pass, module and checker response, and `result.json`.
+Each changed check also writes one atomic record under `audits/`, including successful
+checks whose IR snapshots are discarded. Concurrent checks use separate record files.
 The diagnostic includes the witness or inconclusive reason and replay command.
 Replay a saved MIR pair from the directory named by the diagnostic:
 
