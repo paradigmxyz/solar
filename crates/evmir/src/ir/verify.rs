@@ -29,17 +29,17 @@
 //! exceeding the limit there is a runtime failure, as it is for solc. A block's overflow is held
 //! back until the walk ends, because a later path can still lower the depth it was walked at.
 //!
-//! What makes recursion compile is that the minima are split by how many cycle-closing edges the
-//! walk that carried them has crossed, where the cycle-closing edges are those of one depth-first
-//! walk from the entry, so removing them leaves a DAG. A block keeps an ingress bound, over walks
-//! that cross none of them, and a post-cycle bound, over walks that cross exactly one. Crossing a
-//! cycle-closing edge promotes the ingress bound to the target's post-cycle bound and drops the
-//! post-cycle bound. So every new ingress bound is still propagated through one complete
-//! traversal of the cycle and checked there, and only a second traversal is cut. Both halves are
-//! least fixed points over the same DAG, the second seeded from the first, so the walk terminates
-//! structurally rather than by a depth or iteration bound, and its result does not depend on the
-//! order the worklist happens to run in. How many rounds a cycle runs is a runtime property, so
-//! cutting the second traversal is the only sound choice available statically.
+//! What lets a cycle that drops words every round compile is that the minima are split by how many
+//! cycle-closing edges the walk that carried them has crossed, where the cycle-closing edges are
+//! those of one depth-first walk from the entry, so removing them leaves a DAG. A block keeps an
+//! ingress bound, over walks that cross none of them, and a post-cycle bound, over walks that cross
+//! exactly one. Crossing a cycle-closing edge promotes the ingress bound to the target's post-cycle
+//! bound and drops the post-cycle bound. So every new ingress bound is still propagated through one
+//! complete traversal of the cycle and checked there, and only a second traversal is cut. Both
+//! halves are least fixed points over the same DAG, the second seeded from the first, so the walk
+//! terminates structurally rather than by a depth or iteration bound, and its result does not
+//! depend on the order the worklist happens to run in. How many rounds a cycle runs is a runtime
+//! property, so cutting the second traversal is the only sound choice available statically.
 //!
 //! Because one block is walked once per minimum it receives, and a block with a broken stack
 //! operation is normally broken at every one of them, stack-operation diagnostics are reported
@@ -819,7 +819,7 @@ impl<'a> Verifier<'a> {
 
         // The blocks entered without a modeled edge, and everything they reach.
         let mut pending = Vec::new();
-        pending.extend(unmodeled_pushes(module, &flows).into_iter().map(|(_, _, label)| label));
+        pending.extend(unmodeled_pushes(module, &flows));
         pending.extend(module.blocks.iter_enumerated().filter_map(|(block_id, block)| {
             (block_id != BlockId::ENTRY && block.metadata.entry_depth.is_some()).then_some(block_id)
         }));
@@ -1086,14 +1086,10 @@ fn jumps_dynamically(block: &Block) -> bool {
         )
 }
 
-/// Returns the pushes of a block's address, with the block and index of each, other than to
-/// branch to it or to return through it as a call's continuation. Such an address may be copied,
-/// stored, or carried to a dynamic jump, so its block can be entered at a depth, and in a state,
-/// the direct edges do not model.
-fn unmodeled_pushes(
-    module: &Module,
-    flows: &IndexVec<BlockId, LabelFlow>,
-) -> Vec<(BlockId, usize, BlockId)> {
+/// Returns the blocks whose address is pushed other than to branch to it or to return through it
+/// as a call's continuation. Such an address may be copied, stored, or carried to a dynamic jump,
+/// so its block can be entered at a depth, and in a state, the direct edges do not model.
+fn unmodeled_pushes(module: &Module, flows: &IndexVec<BlockId, LabelFlow>) -> Vec<BlockId> {
     let mut pushes = Vec::new();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for (at, inst) in block.instructions.iter().enumerate() {
@@ -1104,7 +1100,7 @@ fn unmodeled_pushes(
                     .is_some_and(|next| matches!(next.as_evm_opcode(), Some(op::JUMP | op::JUMPI)))
                 && !flows[block_id].accounted.contains(&at)
             {
-                pushes.push((block_id, at, target));
+                pushes.push(target);
             }
         }
     }
