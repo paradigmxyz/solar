@@ -659,6 +659,22 @@ class ConstructorTests(unittest.TestCase):
         )
         self.assertEqual(outcome["comparison"], "revert data")
 
+    def test_constructor_logs_keep_their_emitter(self) -> None:
+        raw = {"address": "0xAB", "topics": ["0x01"], "data": "0x02"}
+        log = symbolic._constructor_log(raw)
+        self.assertEqual(log, {"address": "0xab", "topics": ["0x01"], "data": "0x02"})
+        outcome = symbolic._compare_constructors(
+            {
+                "solc": self._side(logs=[log]),
+                "solar": self._side(
+                    logs=[symbolic._constructor_log({**raw, "address": "0xcd"})]
+                ),
+            },
+            self.constructor,
+        )
+        self.assertEqual(outcome["status"], "mismatch")
+        self.assertEqual(outcome["comparison"], "logs")
+
     def test_identical_reverts_compare_nothing(self) -> None:
         failed = {"success": False, "data": "0x01", "error": "execution reverted"}
         outcome = symbolic._compare_constructors(

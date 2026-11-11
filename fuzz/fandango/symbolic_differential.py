@@ -1075,12 +1075,21 @@ def _create(url: str, initcode: str, value: int, timeout: float) -> dict[str, An
             "runtime": evm.normalize_hex(
                 _rpc(url, "eth_getCode", [address, "latest"], timeout)
             ),
-            "logs": [evm.normalize_log(log) for log in receipt.get("logs", [])],
+            "logs": [_constructor_log(log) for log in receipt.get("logs", [])],
             "storage_root": evm.storage_root(url, address, timeout),
             "balance": str(int(balance, 16)),
         }
     finally:
         _rpc(url, "evm_revert", [snapshot], timeout)
+
+
+def _constructor_log(log: dict[str, Any]) -> dict[str, Any]:
+    """Normalizes a constructor log, keeping its emitter.
+
+    Both builds deploy at the same address, so the emitting contract is
+    comparable and is part of the log.
+    """
+    return {"address": evm.normalize_hex(log.get("address")), **evm.normalize_log(log)}
 
 
 def _rpc(url: str, method: str, params: list[Any], timeout: float) -> Any:
