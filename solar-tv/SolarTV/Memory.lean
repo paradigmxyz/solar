@@ -1,5 +1,6 @@
 import SolarTV.Outcome
 import EvmRules.Word
+import SolarTV.Keccak
 
 /-! Byte-addressed memory shared by the MIR and EVM IR importers.
 The current projection retains the first 256 bytes and the complete active-word
@@ -72,6 +73,17 @@ def store (memory : State) (offset : Nat) (value : Word) : State :=
 
 def storeByte (memory : State) (offset : Nat) (value : Word) : State :=
   expand { memory with bytes := memory.bytes.set offset (value.setWidth 8) } offset 1
+
+/-- Snapshot the source before writing, including overlapping MCOPY ranges. -/
+def copy (memory : State) (destination source count : Nat) : State :=
+  if count = 0 then memory else
+  let bytes := memory.bytes.mapIdx (fun i old =>
+    if destination ≤ i ∧ i < destination + count then
+      memory.bytes[source + i - destination]?.getD 0 else old)
+  expand (expand {memory with bytes} source count) destination count
+
+def hash (memory : State) (offset count : Nat) : Word :=
+  Keccak.hash (read memory offset count)
 
 /-- Only witness discovery uses this projection. Concrete witnesses are replayed
 against equality of the actual modeled executions in Lean's kernel. -/

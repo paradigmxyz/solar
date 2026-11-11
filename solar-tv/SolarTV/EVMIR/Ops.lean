@@ -1,4 +1,5 @@
 import EvmRules.Word
+import SolarTV.Word
 
 /-! Scheduled EVM IR word operations, bounded stacks and terminal outcomes.
 Stack top is the head. The pure `step` gives operand semantics; `execute` adds
@@ -12,8 +13,11 @@ open EvmRules
 
 inductive Op where
   | eq | sub | add | mul | and | or | xor | iszero | not
+  | div | sdiv | mod | smod | exp | addmod | mulmod | signextend
+  | lt | gt | slt | sgt | byte | shl | shr | sar | clz
   | calldatasize | returndatasize | push (value : Word)
-  | pop | dup (index : Fin 16) | swap (index : Fin 16)
+  | pop | dup (index : Fin 256) | swap (index : Fin 256)
+  | exchange (first second : Fin 32)
 
 structure Context where
   calldataSize : Word
@@ -28,6 +32,27 @@ def step (ctx : Context) : Op → Stack → Option Stack
   | .or, a :: b :: rest => some (Evm.or a b :: rest)
   | .xor, a :: b :: rest => some (Evm.xor a b :: rest)
   | .not, a :: rest => some (Evm.not a :: rest)
+  | .div, a :: b :: rest => some (Evm.div a b :: rest)
+  | .sdiv, a :: b :: rest => some (Evm.sdiv a b :: rest)
+  | .mod, a :: b :: rest => some (Evm.mod a b :: rest)
+  | .smod, a :: b :: rest => some (Evm.smod a b :: rest)
+  | .exp, a :: b :: rest => some (Word.power a b.toNat :: rest)
+  | .addmod, a :: b :: n :: rest => some (Evm.addmod a b n :: rest)
+  | .mulmod, a :: b :: n :: rest => some (Evm.mulmod a b n :: rest)
+  | .signextend, a :: b :: rest => some (Evm.signextend a b :: rest)
+  | .byte, a :: b :: rest => some (Evm.byte a b :: rest)
+  | .shl, a :: b :: rest => some (Evm.shl a b :: rest)
+  | .shr, a :: b :: rest => some (Evm.shr a b :: rest)
+  | .sar, a :: b :: rest => some (Evm.sar a b :: rest)
+  | .lt, a :: b :: rest => some (Evm.lt a b :: rest)
+  | .gt, a :: b :: rest => some (Evm.gt a b :: rest)
+  | .slt, a :: b :: rest => some (Evm.slt a b :: rest)
+  | .sgt, a :: b :: rest => some (Evm.sgt a b :: rest)
+  | .clz, a :: rest => some (Evm.clz a :: rest)
+  | .exchange first second, stack => do
+    let a ← stack[first.val]?
+    let b ← stack[second.val]?
+    pure ((stack.set first.val b).set second.val a)
   | .pop, _ :: rest => some rest
   | .dup index, stack => (stack[index.val]?).map (fun value => value :: stack)
   | .swap index, a :: rest => (rest[index.val]?).map (fun value => value :: rest.set index.val a)

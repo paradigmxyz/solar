@@ -9,6 +9,7 @@ import re
 
 from . import gas as pricing
 from . import memory as mem
+from . import operations as vocabulary
 from .common import Program, Unsupported, lines, literal
 
 
@@ -54,7 +55,10 @@ def translate(
     terminal = body.pop()
     estimate = 0
     words = 0
-    memory |= any(line in {"mload", "mstore", "mstore8", "msize"} for line in body)
+    memory |= any(
+        line in {"mload", "mstore", "mstore8", "msize", "mcopy", "keccak256"}
+        for line in body
+    )
     output = terminal in {"return", "revert"}
     structured = re.fullmatch(r"jump (bb\d+)|jumpi (bb\d+), (bb\d+)", terminal)
     if structured:
@@ -119,42 +123,61 @@ def translate(
             ops.append(".gas")
             constants.insert(0, None)
             continue
-        if line in {
+        if line in vocabulary.UNARY | vocabulary.BINARY | vocabulary.TERNARY | {
             "calldatasize",
             "returndatasize",
-            "eq",
-            "sub",
-            "add",
-            "mul",
-            "and",
-            "or",
-            "xor",
-            "iszero",
-            "not",
             "pop",
         }:
             operation = f".{line}"
             if line in {"calldatasize", "returndatasize"}:
                 constants.insert(0, None)
-            elif line in {"iszero", "not", "pop"}:
+            elif line in vocabulary.UNARY | {"pop"}:
                 constants = constants[1:]
                 if line != "pop":
                     constants.insert(0, None)
             else:
-                constants = [None, *constants[2:]]
+                constants = [None, *constants[3 if line in vocabulary.TERNARY else 2 :]]
         elif stack_op := re.fullmatch(r"(dup|swap) (\d+)", line):
             depth = int(stack_op[2])
-            if not 1 <= depth <= 16:
-                raise Unsupported("only DUP1..16 and SWAP1..16 are modeled")
+            if not 1 <= depth <= 235:
+                raise Unsupported("stack depth is outside the schema's range")
             operation = f".{stack_op[1]} {depth - 1}"
             if stack_op[1] == "dup":
                 constants.insert(0, constants[depth - 1])
             else:
                 constants[0], constants[depth] = constants[depth], constants[0]
+        elif exchange := re.fullmatch(r"exchange (\d+), (\d+)", line):
+            first, second = map(int, exchange.groups())
+            if not 1 <= first < second or first + second > 30:
+                raise Unsupported("invalid exchange operands")
+            operation = f".exchange {first} {second}"
+            constants[first], constants[second] = constants[second], constants[first]
         elif line.startswith("push "):
             value = literal(line[5:])
             operation = f".push {value}"
             constants.insert(0, int(value.split("#", 1)[0]))
+        elif line == "mcopy":
+            if len(constants) < 3:
+                raise Unsupported("missing MCOPY operands")
+            destination, source, count = constants[:3]
+            words = max(
+                words,
+                mem.active_words(destination, count),
+                mem.active_words(source, count),
+            )
+            constants = constants[3:]
+            operation = ".copy"
+            ops.append(f".instruction ({operation})" if gas is not None else operation)
+            continue
+        elif line == "keccak256":
+            if len(constants) < 2:
+                raise Unsupported("missing KECCAK256 operands")
+            offset, count = constants[:2]
+            words = max(words, mem.active_words(offset, count))
+            constants = [None, *constants[2:]]
+            operation = ".hash"
+            ops.append(f".instruction ({operation})" if gas is not None else operation)
+            continue
         elif line in {"mload", "mstore", "mstore8", "msize"}:
             if line == "msize":
                 constants.insert(0, None)
@@ -224,7 +247,7 @@ def translate(
         + ", ".join(stack)
         + "]"
         + (f" ({mem.INITIAL})" if memory else "")
-        + (" gas.toNat" if gas is not None else ""),
+        + (f" gas.toNat .{evm_version}" if gas is not None else ""),
         (*((256,) * (2 + height)), *mem.WIDTHS, *((256,) if gas is not None else ()))
         if memory
         else (),

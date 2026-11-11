@@ -12,7 +12,7 @@ open EvmRules
 
 inductive Op where
   | stack (op : EVM.Op)
-  | load | store | storeByte | size
+  | load | store | storeByte | size | copy | hash
 
 inductive Terminal where
   | control (terminal : EVM.Terminal)
@@ -34,6 +34,11 @@ def step (ctx : Context) (op : Op) (stack : Stack) (memory : SolarTV.Memory.Stat
       (SolarTV.Memory.load memory offset.toNat :: rest, SolarTV.Memory.expand memory offset.toNat 32)
     | .store, offset :: value :: rest => .ok (rest, SolarTV.Memory.store memory offset.toNat value)
     | .storeByte, offset :: value :: rest => .ok (rest, SolarTV.Memory.storeByte memory offset.toNat value)
+    | .copy, destination :: source :: count :: rest => .ok
+      (rest, SolarTV.Memory.copy memory destination.toNat source.toNat count.toNat)
+    | .hash, offset :: count :: rest => .ok
+      (SolarTV.Memory.hash memory offset.toNat count.toNat :: rest,
+        SolarTV.Memory.expand memory offset.toNat count.toNat)
     | .size, stack =>
       if stack.length + 1 > 1024 then .error .overflow
       else .ok (SolarTV.Memory.msize memory :: stack, memory)

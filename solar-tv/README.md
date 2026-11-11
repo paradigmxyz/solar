@@ -46,7 +46,9 @@ IR and checker limits remain inconclusive; they are not counterexamples.
 Exit codes are `0` for verified, `1` for a replayed counterexample and `2` for
 inconclusive, unsupported, timeout or tool failure. Structured reports distinguish
 these statuses. Use `--solar PATH` to
-select a compiler binary.
+select a compiler binary. [Operation coverage](OPERATIONS.md) tracks every schema
+entry and separates CLI support from the state/call foundations. Full operation
+coverage is still in progress.
 
 ## Audit records
 
@@ -77,7 +79,7 @@ does not establish a correspondence theorem for all inputs.
 
 | Layer | Supported fragment | Observation |
 | --- | --- | --- |
-| MIR | One integer function using i1, i160 and i256, arithmetic, casts, checks, phis and branches in an acyclic CFG; constant-address memory operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
+| MIR | One integer function using i1 and integer widths through i256, word and checked arithmetic, casts, select, phis and branches in an acyclic CFG; constant-address memory and Keccak operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
 | EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 
 The importer and the mapping from compiler operations to Lean are trusted.
@@ -138,8 +140,7 @@ solar-tv/solar-tv mir solar-tv/examples/mir/typed-branch/{before,broken}.mir
 The broken cast sign-extends a boolean where the original zero-extends it.
 For input `1`, it returns the maximum word instead of `1`. The broken branch
 selects the opposite phi value. Counterexamples retain each input's declared
-width and are checked again at concrete values. Undefined values and other
-integer widths remain inconclusive.
+width and are checked again at concrete values. Undefined values and widths above 256 remain inconclusive.
 
 ## Outcomes and refinement
 
@@ -150,13 +151,13 @@ candidate must preserve the returned bits, the revert payload or the exceptional
 halt. A failing overflow check is a defined `Panic(0x11)` revert. Replacing it
 with a successful return fails refinement.
 
-Checked addition, subtraction and multiplication support signed and unsigned
-i160 and i256 values. Execution stops at the first failure, including when a
+Checked arithmetic supports signed and unsigned integer layouts, including
+division, wrapping division, remainder and exponentiation. Execution stops at the first failure, including when a
 checked result is unused. Semantic panic checks retain the complete panic code.
 Empty reverts and `invalid` have distinct outcomes. Unsupported operations,
 MIR memory-backed revert data, undefined values and checker limits produce
-an inconclusive result. Checked division, remainder and exponentiation remain
-outside the modeled fragment.
+an inconclusive result. Division and remainder by zero produce `Panic(0x12)`;
+signed minimum divided by -1 produces `Panic(0x11)` except for wrapping division.
 
 The `check-elim` example removes the addition check dominated by `arg0 < 100`
 and retains the unguarded check. Its broken version removes that check too.
@@ -178,8 +179,9 @@ on, with `stack0` at the top. Proofs cover all word values at that declared heig
 The model checks underflow and the 1,024-word limit after every instruction,
 including the label PUSH of a static transfer.
 
-The supported operations are literal PUSH, DUP1..16, SWAP1..16, POP, ADD, MUL,
-SUB, AND, OR, XOR, EQ, NOT, ISZERO, CALLDATASIZE and RETURNDATASIZE. Static
+The supported operations include all 26 pure word opcodes, literal PUSH, POP,
+DUP/SWAP through depth 235 where the target permits them, EXCHANGE,
+CALLDATASIZE and RETURNDATASIZE. Static
 PUSH/JUMP and PUSH/JUMPI expose an edge and the remaining stack. Successor
 blocks must be stop sentinels. STOP and an empty RETURN both produce successful
 empty output. REVERT with empty output and execution exceptions are separate
@@ -203,7 +205,9 @@ solar-tv/solar-tv evmir solar-tv/examples/evmir/failure/{before,broken}.evmir
 
 ## Memory
 
-`MLOAD`, `MSTORE`, `MSTORE8` and `MSIZE` are modeled in both layers. Bytes use
+`MLOAD`, `MSTORE`, `MSTORE8`, `MSIZE`, overlapping `MCOPY` and `KECCAK256` are
+modeled in both layers. Keccak uses an executable permutation with the EVM
+padding, not an uninterpreted function. Bytes use
 big-endian word order; `MSTORE8` keeps the low byte. Reads and writes expand
 memory to the next 32-byte boundary. A zero-length output does not read or
 expand memory, even at the maximum word offset. These rules follow
@@ -262,10 +266,12 @@ remaining gas. Successful returns and reverts retain what is left.
 
 The prices and debit order follow [EVMYulLean's gas schedule](https://github.com/NethermindEth/EVMYulLean/blob/047f63070309f436b66c61e276ab3b6d1169265a/EvmYul/EVM/Gas.lean#L18)
 and [execution semantics](https://github.com/NethermindEth/EVMYulLean/blob/047f63070309f436b66c61e276ab3b6d1169265a/EvmYul/EVM/Semantics.lean#L442).
-The current subset supports Cancun, Prague and Osaka, with Cancun as the CLI
-default. `--evm-version` selects the parser target and checked schedule; other
-versions are inconclusive. Calls, storage, refunds and transaction intrinsic
-gas remain unsupported.
+The admitted window operations support every compiler target from Homestead
+through Amsterdam, with Cancun as the CLI default. `--evm-version` selects
+availability and pricing, including EXP, PUSH0 and EXCHANGE differences.
+The CLI still rejects calls, storage, refunds and transaction intrinsic gas.
+[State/](SolarTV/State/) contains the separate storage and call-boundary models;
+they are not yet connected to a child instruction evaluator or CLI replay.
 
 These are explicit opcode windows: execution starts after any entry JUMPDEST,
 and ends before the outgoing successor executes. A static transfer includes its

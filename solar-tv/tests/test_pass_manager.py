@@ -148,10 +148,9 @@ class PassManagerTests(unittest.TestCase):
         source = ROOT / "examples/evmir/gas/before.evmir"
         result = self.compile(source, "peephole", gas="refine", version="paris")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("[gas=refine, evm=paris]: unsupported", result.stderr)
-        self.assertIn("supports Cancun, Prague and Osaka", result.stderr)
+        self.assertIn("[gas=refine, evm=paris]: verified", result.stderr)
 
-    def test_summary_retains_verified_and_unsupported_context(self):
+    def test_summary_retains_verified_fork_context(self):
         source = ROOT / "examples/evmir/gas/before.evmir"
         for version in ("cancun", "paris"):
             result = self.compile(source, "peephole", gas="refine", version=version)
@@ -161,7 +160,7 @@ class PassManagerTests(unittest.TestCase):
             for path in (self.out / "audits").glob("*.json")
         ]
         self.assertEqual(
-            sorted(record["status"] for record in records), ["unsupported", "verified"]
+            sorted(record["status"] for record in records), ["verified", "verified"]
         )
         self.assertEqual(
             sorted(record["target"] for record in records), ["cancun", "paris"]
@@ -175,8 +174,8 @@ class PassManagerTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         totals = json.loads(result.stdout)
-        self.assertEqual(totals["verified"], 1)
-        self.assertEqual(totals["unsupported"], 1)
+        self.assertEqual(totals["verified"], 2)
+        self.assertEqual(totals["unsupported"], 0)
         self.assertEqual(totals["counterexample"], 0)
         self.assertEqual(totals["timeout"], 0)
 

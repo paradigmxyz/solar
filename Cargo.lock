@@ -4703,8 +4703,11 @@ dependencies = [
  "serde_json",
  "snapbox",
  "solar-config",
+ "solar-evmir",
  "solar-evmir-interpreter",
+ "solar-mir",
  "solar-mir-interpreter",
+ "strum 0.28.0",
 ]
 
 [[package]]

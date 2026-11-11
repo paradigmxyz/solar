@@ -15,6 +15,7 @@ use std::{
     io::{self, Read},
     str::FromStr,
 };
+use strum::IntoEnumIterator;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -32,6 +33,10 @@ struct Request {
 }
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--catalog") {
+        println!("{}", catalog());
+        return;
+    }
     let output = match read().and_then(|request| replay(&request)) {
         Ok(observations) => json!({"version": 1, "status": "ok", "observations": observations}),
         Err(reason) => json!({"version": 1, "status": "unsupported", "reason": reason}),
@@ -183,4 +188,41 @@ fn replay(request: &Request) -> Result<[String; 2], String> {
         }
     };
     Ok([run(&request.before)?, run(&request.after)?])
+}
+
+/// Reflects both IR schemas without maintaining a second instruction registry.
+fn catalog() -> serde_json::Value {
+    let versions = EvmVersion::iter().collect::<Vec<_>>();
+    let mir = solar_mir::InstKind::DECLARED_SEMANTICS
+        .iter()
+        .map(|(name, semantics)| json!({"name": name, "semantics": semantics}))
+        .collect::<Vec<_>>();
+    let evmir = (0..=u8::MAX)
+        .filter_map(solar_evmir::op::definition)
+        .map(|definition| {
+            let forks = versions
+                .iter()
+                .map(|&version| {
+                    (
+                        version.to_string(),
+                        json!({
+                            "available": definition.is_available(version),
+                            "base_gas": definition.gas.gas(version),
+                            "dynamic_gas": definition.gas.dynamic_gas(version),
+                        }),
+                    )
+                })
+                .collect::<serde_json::Map<_, _>>();
+            json!({
+                "name": definition.mnemonic,
+                "opcode": definition.opcode,
+                "stack": definition.stack_io,
+                "pure": definition.traits.contains(solar_evmir::op::OpcodeTraits::PURE),
+                "gas": format!("{:?}", definition.gas),
+                "availability": format!("{:?}", definition.availability),
+                "forks": forks,
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({"version": 1, "mir": mir, "evmir": evmir})
 }
