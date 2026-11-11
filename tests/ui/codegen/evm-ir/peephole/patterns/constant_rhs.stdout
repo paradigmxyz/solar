@@ -164,10 +164,11 @@
     stop
   bb25:
     calldatasize
-    push 31
-    dup 1
-    gt
-    iszero
+-   push 31
+-   dup 1
+-   gt
+-   iszero
++   push 1
     push 0
     mstore
     pop

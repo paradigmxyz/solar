@@ -669,14 +669,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 abi_type = self.abi_type_for_value(value, abi_type);
                 self.check_calldata_array_size(value, parameter_ty, &abi_type);
                 self.validate_calldata_static_argument(value, parameter_ty);
-                // The dispatcher validates the elements of an argument that only ABI decoding
-                // passes when an encoding takes it.
-                if Self::is_calldata_word_array(&abi_type)
-                    && self.needs_calldata_aggregate_validation(value, parameter_ty)
-                    && !self.is_decoded_external_argument(value)
-                {
-                    self.validate_calldata_word_array(value, parameter_ty);
-                }
                 if matches!(abi_type, AbiType::Word(_)) {
                     value = self.lower_word_value(parameter_ty, argument, value);
                 }

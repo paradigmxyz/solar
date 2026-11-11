@@ -1,0 +1,68 @@
+// `bb1` is entered at 1009 words from `bb0` and at 989 over the cycle edge from `bb2`, which
+// the depth-first walk classifies as cycle-closing. Its sixteen `push`es overflow only from the
+// first, and the lowest entry depth fits, as it would if `bb1` did not close the cycle.
+@module module
+
+bb0 [stack=1010]:
+  jumpi bb2, bb1
+
+bb1:
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  jumpi bb2, bb3
+
+bb2:
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  pop
+  jump bb1
+
+bb3:
+  stop

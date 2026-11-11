@@ -52,9 +52,11 @@
   
   bb0:
     push 1
-    push 10
-    dup 2
-    sub
+-   push 10
+-   dup 2
+-   sub
++   push 8
++   not
     stop
   bb1 [stack=15]:
     push_library L_0
@@ -75,9 +77,11 @@
     stop
   bb4:
     push 1
-    push 32
-    dup 2
-    iszero
-    sub
+-   push 32
+-   dup 2
+-   iszero
+-   sub
++   push 31
++   not
     stop
   
