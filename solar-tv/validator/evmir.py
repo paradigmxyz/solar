@@ -7,10 +7,11 @@ blocks are unchanged stop sentinels, never interpreted as arbitrary code.
 
 import re
 
+from . import memory as mem
 from .common import Program, Unsupported, lines, literal
 
 
-def translate(text: str) -> Program:
+def translate(text: str, *, memory: bool = False) -> Program:
     blocks: dict[str, list[str]] = {}
     heights = {}
     for line in lines(text):
@@ -39,6 +40,8 @@ def translate(text: str) -> Program:
 
     body = list(blocks["bb0"])
     terminal = body.pop()
+    memory |= any(line in {"mload", "mstore", "mstore8", "msize"} for line in body)
+    output = terminal in {"return", "revert"}
     if terminal == "stop" and body and body[-1] == "jumpi":
         body.pop()
         target = body.pop() if body else ""
@@ -55,22 +58,26 @@ def translate(text: str) -> Program:
     elif terminal in {"return", "revert"}:
         # The top word is offset, the second is size. These exact forms prove
         # size zero without introducing assumptions about symbolic memory.
-        if (
+        empty = not (
             len(body) < 2
             or body[-2] != "push 0"
             or not (
                 re.fullmatch(r"push (?:0x[0-9a-fA-F]+|[0-9]+)", body[-1])
                 or body[-1] in {"dup 1", "calldatasize", "returndatasize"}
             )
-        ):
-            raise Unsupported("only statically empty EVM return/revert data is modeled")
-        terminal = ".returnEmpty" if terminal == "return" else ".revertEmpty"
+        )
+        memory |= not empty
+        if memory:
+            terminal = f"(.output {'true' if terminal == 'revert' else 'false'})"
+        else:
+            terminal = ".returnEmpty" if terminal == "return" else ".revertEmpty"
     elif terminal in {"stop", "invalid"}:
         terminal = f".{terminal}"
     else:
         raise Unsupported("unmodeled EVM terminal or dynamic transfer")
 
     ops = []
+    constants: list[int | None] = [None] * heights["bb0"]
     for line in body:
         if line in {
             "calldatasize",
@@ -86,28 +93,69 @@ def translate(text: str) -> Program:
             "not",
             "pop",
         }:
-            ops.append(f".{line}")
+            operation = f".{line}"
+            if line in {"calldatasize", "returndatasize"}:
+                constants.insert(0, None)
+            elif line in {"iszero", "not", "pop"}:
+                constants = constants[1:]
+                if line != "pop":
+                    constants.insert(0, None)
+            else:
+                constants = [None, *constants[2:]]
         elif stack_op := re.fullmatch(r"(dup|swap) (\d+)", line):
             depth = int(stack_op[2])
             if not 1 <= depth <= 16:
                 raise Unsupported("only DUP1..16 and SWAP1..16 are modeled")
-            ops.append(f".{stack_op[1]} {depth - 1}")
+            operation = f".{stack_op[1]} {depth - 1}"
+            if stack_op[1] == "dup":
+                constants.insert(0, constants[depth - 1])
+            else:
+                constants[0], constants[depth] = constants[depth], constants[0]
         elif line.startswith("push "):
-            ops.append(f".push {literal(line[5:])}")
+            value = literal(line[5:])
+            operation = f".push {value}"
+            constants.insert(0, int(value.split("#", 1)[0]))
+        elif line in {"mload", "mstore", "mstore8", "msize"}:
+            if line == "msize":
+                constants.insert(0, None)
+                ops.append(".size")
+            else:
+                mem.check_range(constants[0], 1 if line == "mstore8" else 32)
+                if line == "mload":
+                    constants[0] = None
+                    ops.append(".load")
+                else:
+                    constants = constants[2:]
+                    ops.append(".storeByte" if line == "mstore8" else ".store")
+            continue
         else:
             raise Unsupported(f"unmodeled EVM IR instruction: {line}")
+        ops.append(f".stack ({operation})" if memory else operation)
+
+    if memory and output:
+        mem.check_range(constants[0], constants[1])
+    if memory and not output:
+        terminal = f"(.control {terminal})"
 
     height = heights["bb0"]
     stack = [f"stack{i}" for i in range(height)]
+    inputs = ["calldatasize", "returndatasize", *stack]
+    if memory:
+        inputs.extend(mem.INPUTS)
+    function = "EVM.Memory.execute" if memory else "EVM.execute"
     return Program(
-        ("evm-window", str(height), *blocks.keys()),
-        ["calldatasize", "returndatasize", *stack],
-        "EVM.Execution",
-        "EVM.execute ⟨calldatasize, returndatasize⟩ ["
+        ("evm-window", str(height), *blocks.keys(), *(("memory",) if memory else ())),
+        inputs,
+        "EVM.Memory.Execution" if memory else "EVM.Execution",
+        function
+        + " ⟨calldatasize, returndatasize⟩ ["
         + ", ".join(ops)
         + "] "
         + terminal
         + " ["
         + ", ".join(stack)
-        + "]",
+        + "]"
+        + (f" ({mem.INITIAL})" if memory else ""),
+        (*((256,) * (2 + height)), *mem.WIDTHS) if memory else (),
+        memory=memory,
     )

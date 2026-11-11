@@ -90,11 +90,13 @@ class EvmStackTests(unittest.TestCase):
                 result = self.pair(body, "stop", height=height, status=2)
                 self.assertIn(diagnostic, result.stderr)
 
-    def test_nonempty_or_symbolic_return_data_is_inconclusive(self):
-        result = self.pair("push 1\npush 0\nreturn", "stop", status=2)
-        self.assertIn("only statically empty", result.stderr)
+    def test_nonempty_return_data_is_observable(self):
+        result = self.pair("push 1\npush 0\nreturn", "stop", status=1)
+        self.assertIn("success(data=[0])", result.stdout)
+
+    def test_symbolic_return_data_is_inconclusive(self):
         result = self.pair("return", "stop", height=2, status=2)
-        self.assertIn("only statically empty", result.stderr)
+        self.assertIn("must be constant", result.stderr)
 
     def test_different_entry_heights_are_inconclusive(self):
         with tempfile.TemporaryDirectory() as tmp:
