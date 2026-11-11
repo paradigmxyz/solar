@@ -1066,4 +1066,5 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Rationale: the padding belongs to no other value, so the whole-word store
   needs no `SLOAD` and no mask constant, and is smaller and cheaper than
   matching `solc`.
-- Coverage: `tests/ui/codegen/run-call/storage/storage_exclusive_slot_padding.sol`.
+- Coverage: `tests/ui/codegen/run-call/storage/storage_exclusive_slot_padding.sol` and
+  `tests/ui/codegen/lowering/mir/storage-memory/owned_slot_stores.sol`.
