@@ -38,10 +38,7 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
     v6 = staticcall v1, v5, 28, 4, 0, 32
     jumpi v6, bb7, bb8
   bb8 [cold_hint]:                                ; preds = bb4
-    jumpi true, bb13, bb14
-  bb14 [cold_hint]:                               ; preds = bb8
-    icall revert_if<empty>, true
-    invalid
+    jump bb13
   bb13 [cold_hint]:                               ; preds = bb8
     jump bb9
   bb7:                                            ; preds = bb4
@@ -70,4 +67,7 @@ fn @recoverUnderGasPressure() -> i256 [selector=0x8ea61220, view, abi_params=[],
   bb3:                                            ; preds = bb6
     v16 = checked_add uint256, v1, 11
     jump bb1
+  bb14 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }

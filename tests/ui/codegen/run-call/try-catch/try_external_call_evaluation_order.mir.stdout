@@ -23,12 +23,9 @@ fn @constructor() [constructor] {
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = sload 1 !metadata(storage=slot(1))
-    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v6 = zext i160 v2 to i256
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = or v5, v7
-    sstore 1, v8 !metadata(storage=slot(1))
+    v4 = zext i160 v2 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 1, v5 !metadata(storage=slot(1))
     ret
 }
 
@@ -89,10 +86,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     v6 = call v2, v5, v3, 28, 36, 0, 32
     jumpi v6, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     v11 = sload 0 !metadata(storage=slot(0))
     ret v11
@@ -105,4 +99,7 @@ fn @f() -> i256 [selector=0x26121ff0, abi_params=[], abi_returns=[word], abi_ret
     ret v10
   bb3:
     ret 0
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }

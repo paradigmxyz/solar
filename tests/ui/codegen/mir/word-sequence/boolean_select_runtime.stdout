@@ -1,0 +1,345 @@
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/boolean_select_runtime.mir (before word-sequence) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/boolean_select_runtime.mir (after word-sequence) ===
+  @module BooleanSelectRuntime
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb10, [0xa1a4d18d => bb1, 0x591dfda0 => bb2, 0x36747766 => bb3, 0xa4683fb7 => bb4, 0x93616a85 => bb5, 0x3da68cc6 => bb6, 0x5c99a449 => bb7, 0x9220832 => bb8, 0x690387c5 => bb9]
+    bb9:                                            ; preds = bb0
+      tail_call @c_y_xorxy
+    bb8:                                            ; preds = bb0
+      tail_call @c_xorxy_y
+    bb7:                                            ; preds = bb0
+      tail_call @c_orxy_y
+    bb6:                                            ; preds = bb0
+      tail_call @c_0_1
+    bb5:                                            ; preds = bb0
+      tail_call @c_1_0
+    bb4:                                            ; preds = bb0
+      tail_call @c_1_x
+    bb3:                                            ; preds = bb0
+      tail_call @c_0_x
+    bb2:                                            ; preds = bb0
+      tail_call @c_x_1
+    bb1:                                            ; preds = bb0
+      tail_call @c_x_0
+    bb10 [cold]:                                    ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @c_x_0() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+-     v6 = select v3, v4, false
++     v6 = and v3, v4
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_x_1() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+-     v6 = select v3, v4, true
++     v8 = eq v3, false
++     v6 = or v8, v4
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_0_x() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+-     v6 = select v3, false, v4
++     v8 = eq v3, false
++     v6 = and v8, v4
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_1_x() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+-     v6 = select v3, true, v4
++     v8 = eq v3, false
++     v9 = xor v8, true
++     v6 = or v4, v9
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_1_0() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+-     v6 = select v3, true, false
++     v6 = and v3, true
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_0_1() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+-     v6 = select v3, false, true
++     v8 = eq v3, false
++     v6 = or v8, false
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_orxy_y() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+-     v6 = or v4, v5
+-     v7 = select v3, v6, v5
++     v9 = and v3, v4
++     v7 = or v5, v9
+      v8 = zext i1 v7 to i256
+      mstore 128, v8
+      returndata 128, 32
+  }
+  
+  fn @c_xorxy_y() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+-     v6 = xor v4, v5
+-     v7 = select v3, v6, v5
++     v9 = and v3, v4
++     v7 = xor v5, v9
+      v8 = zext i1 v7 to i256
+      mstore 128, v8
+      returndata 128, 32
+  }
+  
+  fn @c_y_xorxy() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+-     v6 = xor v4, v5
+-     v7 = select v3, v5, v6
++     v9 = eq v3, false
++     v10 = and v9, v4
++     v7 = xor v5, v10
+      v8 = zext i1 v7 to i256
+      mstore 128, v8
+      returndata 128, 32
+  }
+  
+- ; === ROOT/tests/ui/codegen/mir/word-sequence/boolean_select_runtime.mir (before lower-evm-shaped) ===
++ ; === ROOT/tests/ui/codegen/mir/word-sequence/boolean_select_runtime.mir (after lower-evm-shaped) ===
+  @module BooleanSelectRuntime
++ @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb10, [0xa1a4d18d => bb1, 0x591dfda0 => bb2, 0x36747766 => bb3, 0xa4683fb7 => bb4, 0x93616a85 => bb5, 0x3da68cc6 => bb6, 0x5c99a449 => bb7, 0x9220832 => bb8, 0x690387c5 => bb9]
+    bb9:                                            ; preds = bb0
+      tail_call @c_y_xorxy
+    bb8:                                            ; preds = bb0
+      tail_call @c_xorxy_y
+    bb7:                                            ; preds = bb0
+      tail_call @c_orxy_y
+    bb6:                                            ; preds = bb0
+      tail_call @c_0_1
+    bb5:                                            ; preds = bb0
+      tail_call @c_1_0
+    bb4:                                            ; preds = bb0
+      tail_call @c_1_x
+    bb3:                                            ; preds = bb0
+      tail_call @c_0_x
+    bb2:                                            ; preds = bb0
+      tail_call @c_x_1
+    bb1:                                            ; preds = bb0
+      tail_call @c_x_0
+    bb10 [cold]:                                    ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @c_x_0() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+      v6 = and v3, v4
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_x_1() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+      v8 = eq v3, false
+      v6 = or v8, v4
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_0_x() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+      v8 = eq v3, false
+      v6 = and v8, v4
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_1_x() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+      v8 = eq v3, false
+      v9 = xor v8, true
+      v6 = or v4, v9
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_1_0() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+      v6 = and v3, true
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_0_1() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+      v8 = eq v3, false
+      v6 = or v8, false
+      v7 = zext i1 v6 to i256
+      mstore 128, v7
+      returndata 128, 32
+  }
+  
+  fn @c_orxy_y() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+      v9 = and v3, v4
+      v7 = or v5, v9
+      v8 = zext i1 v7 to i256
+      mstore 128, v8
+      returndata 128, 32
+  }
+  
+  fn @c_xorxy_y() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+      v9 = and v3, v4
+      v7 = xor v5, v9
+      v8 = zext i1 v7 to i256
+      mstore 128, v8
+      returndata 128, 32
+  }
+  
+  fn @c_y_xorxy() {
+    bb0:
+      v0 = calldataload 4
+      v1 = calldataload 36
+      v2 = calldataload 68
+      v3 = ne v0, 0
+      v4 = ne v1, 0
+      v5 = ne v2, 0
+      v9 = eq v3, false
+      v10 = and v9, v4
+      v7 = xor v5, v10
+      v8 = zext i1 v7 to i256
+      mstore 128, v8
+      returndata 128, 32
+  }
+  

@@ -31,12 +31,9 @@ fn @constructor() [constructor] {
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v6 = zext i160 v2 to i256
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = or v5, v7
-    sstore 0, v8 !metadata(storage=slot(0))
+    v4 = zext i160 v2 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 
@@ -52,10 +49,7 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v4 = staticcall v2, v3, 28, 36, 0, 32
     jumpi v4, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
@@ -67,6 +61,9 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
   bb3:                                            ; preds = bb1, bb4
     v8 = phi [bb1: v7], [bb4: 9]
     ret v8
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function failure() external view returns (uint256 result) [selector 0x76ffb887]
@@ -81,10 +78,7 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v4 = staticcall v2, v3, 28, 36, 0, 32
     jumpi v4, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
@@ -96,6 +90,9 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
   bb3:                                            ; preds = bb1, bb4
     v8 = phi [bb1: v7], [bb4: 9]
     ret v8
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function ignored() external view returns (uint256) [selector 0x0c77db80]
@@ -110,10 +107,7 @@ fn @ignored() -> i256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     v4 = staticcall v2, v3, 28, 36, 0, 32
     jumpi v4, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     ret 9
   bb1:                                            ; preds = bb0
@@ -124,4 +118,7 @@ fn @ignored() -> i256 [selector=0x0c77db80, view, abi_params=[], abi_returns=[wo
     ret 13
   bb3:
     ret 0
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
