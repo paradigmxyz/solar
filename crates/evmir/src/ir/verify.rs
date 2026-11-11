@@ -4,7 +4,7 @@
 //! terminators, and that every instruction and terminator has a known stack effect. The
 //! stack-operation check is global: it walks the direct control-flow edges from the entry block,
 //! and from any block that declares an entry depth, and models the physical stack height so that
-//! per-block imbalances, operand underflows, and depth violations are caught before assembly.
+//! per-block imbalances and operand underflows are caught before assembly.
 //!
 //! EVM IR is one flat CFG of blocks with no function boundaries: an internal call is a block
 //! that pushes a return address and jumps to the callee's first block, and a return is a dynamic
@@ -24,10 +24,11 @@
 //!
 //! The walk propagates the lowest entry depth per block. Operand availability (`dup`, `swap`,
 //! `pop`, and every instruction's inputs) is monotone in the entry depth, so the minimum is the
-//! worst case for it. The 1024-word stack limit is checked at the minimum only, so it reports
-//! an overflow only where every path the walk models passes the limit; a block some path enters
-//! deeper is not checked at that depth, and exceeding the limit there is a runtime failure, as it
-//! is for solc. A block's overflow is held back until the walk ends and reported only from its
+//! worst case for it. The 1024-word stack limit is checked at the minimum only, so it flags an
+//! overflow only where every path the walk models passes the limit; a block some path enters
+//! deeper is not checked at that depth. An overflow is a runtime failure, as it is for solc, so
+//! it is a warning, not an error, and [`Verifier::verify_after_legalization`] reports the first
+//! one in a module. A block's overflow is held back until the walk ends and taken only from its
 //! lowest entry depth, because a later path can still lower the depth it was walked at.
 //!
 //! What lets a cycle that drops words every round compile is that the minima are split by how many
@@ -56,19 +57,31 @@ use solar_data_structures::{
     index::index_vec,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
+use solar_interface::{
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    error_code,
+};
 use std::{collections::hash_map::Entry, fmt};
 
 /// Stack-operation diagnostics already reported, keyed by block and message.
 type ReportedErrors = FxHashMap<(BlockId, String), ErrorGuaranteed>;
 
+/// The first operation that took the stack past the limit.
+#[derive(Clone)]
+struct StackOverflow {
+    /// The operation.
+    name: String,
+    /// The depth it grew the stack to.
+    depth: usize,
+}
+
 /// Why a stack operation stopped the walk of a block.
 enum StackFault {
     /// A diagnostic was reported.
     Reported,
-    /// The stack passed the limit. The message is held back, because the entry depth the block was
-    /// walked at is not final until the walk ends.
-    Overflow(String),
+    /// The stack passed the limit. The overflow is held back, because the entry depth the block
+    /// was walked at is not final until the walk ends.
+    Overflow(StackOverflow),
 }
 
 impl From<ErrorGuaranteed> for StackFault {
@@ -136,10 +149,24 @@ impl<'a> Verifier<'a> {
     ///
     /// This is the only stack-operation check that reports in release builds, so it runs for
     /// every EVM version: which module the check sees must not depend on whether legalization
-    /// had a revert to rewrite.
+    /// had a revert to rewrite. It is also the only check that warns when the stack passes the
+    /// 1024-word limit, once per module for the first block that does.
     pub fn verify_after_legalization(&self, module: &Module) {
-        self.verify_module(module);
+        let overflow = self.verify_module_overflow(module);
         self.verify_target_support(module);
+        if let Some((block, overflow)) = overflow {
+            self.dcx
+                .warn(format!(
+                    "`{}` in block {} grows the EVM stack to {} words",
+                    overflow.name,
+                    block.index(),
+                    overflow.depth
+                ))
+                // solc assigns codes from 1000 to 9999, so a code below 1000 cannot collide.
+                .code(error_code!(68))
+                .note("the code overflows the EVM's 1024-word stack at runtime")
+                .emit();
+        }
     }
 
     #[track_caller]
@@ -176,9 +203,16 @@ impl<'a> Verifier<'a> {
         }
     }
 
+    /// Checks the module's shape and stack operations. A stack past the limit is not reported.
     pub fn verify_module(&self, module: &Module) {
+        let _overflow = self.verify_module_overflow(module);
+    }
+
+    fn verify_module_overflow(&self, module: &Module) -> Option<(BlockId, StackOverflow)> {
         if self.verify_module_shape(module) {
-            self.verify_stack_ops(module, &label_flows(module));
+            self.verify_stack_ops(module, &label_flows(module))
+        } else {
+            None
         }
     }
 
@@ -447,7 +481,14 @@ impl<'a> Verifier<'a> {
     ///
     /// See the module documentation for the bounds the walk propagates and where it stops at a
     /// cycle-closing edge.
-    fn verify_stack_ops(&self, module: &Module, flows: &IndexVec<BlockId, LabelFlow>) {
+    ///
+    /// Returns the overflow in the first block, by index, whose lowest entry depth passes the stack
+    /// limit. It is not an error: see [`Verifier::verify_after_legalization`].
+    fn verify_stack_ops(
+        &self,
+        module: &Module,
+        flows: &IndexVec<BlockId, LabelFlow>,
+    ) -> Option<(BlockId, StackOverflow)> {
         let mut reported = ReportedErrors::default();
         // The entry block starts with an empty stack unless it declares a depth, and any other
         // block that declares one is also entered at it.
@@ -496,7 +537,7 @@ impl<'a> Verifier<'a> {
             }
         }
         // Only the lowest entry depth over every walk of a block can report an overflow.
-        for (block_id, slots) in overflows.iter_enumerated() {
+        overflows.into_iter_enumerated().find_map(|(block_id, mut slots)| {
             let depths = entry_depths[block_id];
             let lowest = if depths
                 .cycle_min
@@ -506,10 +547,8 @@ impl<'a> Verifier<'a> {
             } else {
                 0
             };
-            if let Some(msg) = &slots[lowest] {
-                self.error_in_block_once(&mut reported, block_id, msg);
-            }
-        }
+            slots[lowest].take().map(|overflow| (block_id, overflow))
+        })
     }
 
     /// Walks `block_id` entered at `stack`, returning the edges out of it with the depth each is
@@ -522,7 +561,7 @@ impl<'a> Verifier<'a> {
         reported: &mut ReportedErrors,
         block_id: BlockId,
         mut stack: usize,
-    ) -> (Vec<(BlockId, usize)>, Option<String>) {
+    ) -> (Vec<(BlockId, usize)>, Option<StackOverflow>) {
         let block = &module.blocks[block_id];
         let term = block.terminator.as_ref().expect("terminator must exist after shape validation");
         let mut targets = Vec::new();
@@ -552,14 +591,14 @@ impl<'a> Verifier<'a> {
         match walk() {
             Ok(()) => {}
             Err(StackFault::Reported) => return (Vec::new(), None),
-            Err(StackFault::Overflow(msg)) => return (Vec::new(), Some(msg)),
+            Err(StackFault::Overflow(overflow)) => return (Vec::new(), Some(overflow)),
         }
         term.kind.visit_targets(|target| targets.push((target, stack)));
         for &(continuation, effect) in &flows[block_id].returns {
             match self.apply_call_return(reported, block_id, effect, stack) {
                 Ok(returned) => targets.push((continuation, returned)),
-                Err(StackFault::Overflow(msg)) => {
-                    overflow.get_or_insert(msg);
+                Err(StackFault::Overflow(found)) => {
+                    overflow.get_or_insert(found);
                 }
                 Err(StackFault::Reported) => {}
             }
@@ -687,9 +726,7 @@ impl<'a> Verifier<'a> {
 
     fn ensure_stack_limit(&self, name: impl fmt::Display, depth: usize) -> Result<(), StackFault> {
         if depth > MAX_STACK_DEPTH {
-            Err(StackFault::Overflow(format!(
-                "`{name}` grows the stack to {depth} words, exceeding the limit of {MAX_STACK_DEPTH}"
-            )))
+            Err(StackFault::Overflow(StackOverflow { name: name.to_string(), depth }))
         } else {
             Ok(())
         }

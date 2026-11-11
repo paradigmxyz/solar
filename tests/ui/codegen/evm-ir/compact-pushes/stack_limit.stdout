@@ -12,3 +12,4 @@
     pop
     stop
   
+{"contracts":{"ROOT/tests/ui/codegen/evm-ir/compact-pushes/stack_limit.evmir:StackLimit":{"bin-runtime":"60ff5f190460300250"}},"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
