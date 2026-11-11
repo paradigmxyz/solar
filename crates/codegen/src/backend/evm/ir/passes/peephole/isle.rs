@@ -290,7 +290,8 @@ impl<'a> PeepContext<'a> {
     ///
     /// A `DUP` pushes a constant when a push at most `MAX_STACK_WINDOW` instructions before it
     /// pushed the word it copies. The search follows that word's stack position backwards, through
-    /// the stack operations and the stack effect of every other instruction.
+    /// the stack operations and the stack effect of every other instruction, and stops at a
+    /// `JUMPDEST`.
     fn constant_operand(&self, index: Inst) -> Option<(U256, Cost)> {
         let inst = &self.instructions[index];
         if let Some(value) = inst.concrete_immediate() {
@@ -316,6 +317,10 @@ impl<'a> PeepContext<'a> {
                     StackOp::Swap(_) | StackOp::Exchange(..) => {}
                 }
                 continue;
+            }
+            // A jump may land on a `JUMPDEST` and skip the pushes before it.
+            if inst.as_evm_opcode() == Some(JUMPDEST) {
+                return None;
             }
             let effect = inst.stack_effect();
             let outputs = usize::from(effect.outputs);

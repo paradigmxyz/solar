@@ -122,3 +122,15 @@ bb6:
   push 0
   mstore
   stop
+
+// A jump may land on an inline `JUMPDEST` and skip the push before it, so the copy is not constant.
+bb7:
+  push 5
+  jumpdest
+  dup 1
+  iszero
+  swap 1
+  pop
+  push 0
+  mstore
+  stop
