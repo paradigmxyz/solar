@@ -115,7 +115,9 @@ jobs:
       - name: Install Lean
         run: bash .github/scripts/install_lean.sh
       - name: Build compiler
-        run: cargo build --locked -p solar-compiler
+        run: cargo build --locked -p solar-compiler -p solar-tv-replay
+      - name: Test independent replay
+        run: cargo nextest run --locked -p solar-tv-replay -p solar-mir-interpreter -p solar-evmir-interpreter -p solar-evmir
       - name: Build semantics and proofs
         working-directory: solar-tv
         run: lake build

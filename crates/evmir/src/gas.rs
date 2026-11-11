@@ -229,3 +229,23 @@ impl GasTier {
 pub const fn since(evm_version: EvmVersion, fork: EvmVersion) -> bool {
     evm_version as u8 >= fork as u8
 }
+
+/// Total memory charge at a word count, without word-arithmetic wrapping.
+/// The quadratic term is Appendix G's `floor(words² / 512)`.
+pub const fn memory_cost(words: u64) -> u128 {
+    let words = words as u128;
+    GasTier::MEMORY_WORD_GAS as u128 * words + words * words / 512
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_quadratic_boundary() {
+        assert_eq!(memory_cost(0), 0);
+        assert_eq!(memory_cost(22), 66);
+        assert_eq!(memory_cost(23), 70);
+        assert!(memory_cost(u64::MAX) > u128::from(u64::MAX));
+    }
+}

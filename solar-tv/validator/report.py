@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .common import Program
+from .common import Program, ReplayTimeout
 
 
 def region(program: Program) -> str:
@@ -113,6 +113,7 @@ def replay_command(
     *,
     gas: str | None = None,
     evm_version: str | None = None,
+    replay: str | None = None,
 ) -> str:
     checker = Path(__file__).resolve().parents[1] / "solar-tv"
     argv = [
@@ -129,6 +130,8 @@ def replay_command(
         argv.extend(["--gas", gas])
     if evm_version is not None:
         argv.extend(["--evm-version", evm_version])
+    if replay is not None:
+        argv.extend(["--replay", replay])
     if sys.platform == "win32":
         argv = [sys.executable, *argv]
         return "& " + " ".join("'" + arg.replace("'", "''") + "'" for arg in argv)
@@ -144,6 +147,7 @@ def counterexample(
     replay: str,
     *,
     verbose: bool,
+    native_checked: bool = False,
 ) -> str:
     lines = ["counterexample", f"  {region(program)}"]
     lines.extend(
@@ -155,10 +159,18 @@ def counterexample(
             f"  before = {before}",
             f"  after  = {after}",
             "",
-            "Difference",
-            f"  {difference(before, after)}",
         ]
     )
+    if native_checked:
+        lines.extend(
+            [
+                "Replay checks",
+                "  Lean kernel: confirmed",
+                "  Rust interpreter: matched",
+                "",
+            ]
+        )
+    lines.extend(["Difference", f"  {difference(before, after)}"])
     changes = ir_diff(program.canonical_ir, candidate.canonical_ir, verbose=verbose)
     if changes:
         lines.extend(["", "Changed IR", changes])
@@ -171,9 +183,13 @@ def inconclusive(error: Exception, replay: str, *, verbose: bool) -> str:
     if isinstance(error, subprocess.TimeoutExpired):
         command = error.cmd if isinstance(error.cmd, list) else [error.cmd]
         stage = (
-            "compiler validation"
-            if "-Zvalidate-ir=true" in command
-            else "Lean validation"
+            "Rust interpreter replay"
+            if isinstance(error, ReplayTimeout)
+            else (
+                "compiler validation"
+                if "-Zvalidate-ir=true" in command
+                else "Lean validation"
+            )
         )
         reason = f"{stage} timed out after {error.timeout} seconds"
         hint = "Increase --timeout to allow more time"

@@ -1,10 +1,19 @@
 """Strict import of the fragment printed by the compiler's IR parsers."""
 
 import re
+import subprocess
 from dataclasses import dataclass
 
 
 class Unsupported(ValueError):
+    pass
+
+
+class Inconclusive(Unsupported):
+    pass
+
+
+class ReplayTimeout(subprocess.TimeoutExpired):
     pass
 
 

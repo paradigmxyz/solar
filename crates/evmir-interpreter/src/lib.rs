@@ -16,6 +16,8 @@ use solar_interface::{ColorChoice, Session, source_map::FileName};
 mod machine;
 pub use machine::{Halt, Host, Log};
 
+pub mod replay;
+
 /// How a run ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Outcome {

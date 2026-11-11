@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +18,9 @@ class PassManagerTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.out = Path(self.tmp.name) / "pairs"
+
+    def pairs(self):
+        return [path for path in self.out.iterdir() if path.name != "audits"]
 
     def compile(
         self,
@@ -69,7 +73,7 @@ class PassManagerTests(unittest.TestCase):
                 self.assertEqual(plain.returncode, 0, plain.stderr)
                 self.assertEqual(result.stdout, plain.stdout)
                 self.assertEqual(result.stderr.count(": verified"), 1, result.stderr)
-                self.assertEqual(list(self.out.iterdir()), [])
+                self.assertEqual(self.pairs(), [])
 
     def test_inconclusive_pair_is_retained(self):
         source = Path(self.tmp.name) / "store.mir"
@@ -77,10 +81,10 @@ class PassManagerTests(unittest.TestCase):
         source.write_text(text.replace("ret v1", "sstore 0, v1\n    ret v1"))
         result = self.compile(source, "dce")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("inconclusive", result.stderr)
+        self.assertIn("unsupported", result.stderr)
         self.assertIn("unmodeled MIR instruction", result.stderr)
         self.assertIn("Replay", result.stderr)
-        (pair,) = self.out.iterdir()
+        (pair,) = self.pairs()
         self.assertNotEqual(
             (pair / "before.mir").read_text(), (pair / "after.mir").read_text()
         )
@@ -124,11 +128,11 @@ class PassManagerTests(unittest.TestCase):
         self.assertEqual(refined.returncode, 0, refined.stderr)
         self.assertEqual(refined.stdout, plain.stdout)
         self.assertIn("[gas=refine, evm=cancun]: verified", refined.stderr)
-        self.assertEqual(list(self.out.iterdir()), [])
+        self.assertEqual(self.pairs(), [])
         exact = self.compile(source, "peephole", gas="exact", version="cancun")
         self.assertEqual(exact.returncode, 1, exact.stderr)
         self.assertIn("Remaining gas changed", exact.stderr)
-        (pair,) = self.out.iterdir()
+        (pair,) = self.pairs()
         self.assertIn(
             "--gas exact --evm-version cancun", (pair / "result.txt").read_text()
         )
@@ -144,5 +148,63 @@ class PassManagerTests(unittest.TestCase):
         source = ROOT / "examples/evmir/gas/before.evmir"
         result = self.compile(source, "peephole", gas="refine", version="paris")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("[gas=refine, evm=paris]: inconclusive", result.stderr)
+        self.assertIn("[gas=refine, evm=paris]: unsupported", result.stderr)
         self.assertIn("supports Cancun, Prague and Osaka", result.stderr)
+
+    def test_summary_retains_verified_and_unsupported_context(self):
+        source = ROOT / "examples/evmir/gas/before.evmir"
+        for version in ("cancun", "paris"):
+            result = self.compile(source, "peephole", gas="refine", version=version)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        records = [
+            json.loads(path.read_text())
+            for path in (self.out / "audits").glob("*.json")
+        ]
+        self.assertEqual(
+            sorted(record["status"] for record in records), ["unsupported", "verified"]
+        )
+        self.assertEqual(
+            sorted(record["target"] for record in records), ["cancun", "paris"]
+        )
+        result = subprocess.run(
+            [CHECKER, "summarize", self.out],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        totals = json.loads(result.stdout)
+        self.assertEqual(totals["verified"], 1)
+        self.assertEqual(totals["unsupported"], 1)
+        self.assertEqual(totals["counterexample"], 0)
+        self.assertEqual(totals["timeout"], 0)
+
+    @unittest.skipIf(sys.platform == "win32", "POSIX executable fixture")
+    def test_malformed_checker_report_is_counted_as_error(self):
+        checker = Path(self.tmp.name) / "checker"
+        checker.write_text(
+            f"#!{sys.executable}\nimport sys\nfrom pathlib import Path\nPath(sys.argv[sys.argv.index('--report') + 1]).write_text('[]')\nprint('verified')\n"
+        )
+        checker.chmod(0o755)
+        result = subprocess.run(
+            [
+                SOLAR,
+                ROOT / "examples/mir/dce/before.mir",
+                "-Zmir-pipeline=dce",
+                f"-Zsolar-tv={self.out}",
+            ],
+            env={**os.environ, "SOLAR_TV": str(checker)},
+            text=True,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("checker failed", result.stderr)
+        (record,) = (self.out / "audits").glob("*.json")
+        data = json.loads(record.read_text())
+        self.assertEqual(data["status"], "error")
+        self.assertEqual(
+            json.loads((Path(data["pair"]) / "result.json").read_text()), data
+        )
