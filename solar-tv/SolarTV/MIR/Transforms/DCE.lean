@@ -1,5 +1,7 @@
 import SolarTV.MIR.Ops
 
+/-! MIR dead-code elimination: removing an unused pure SSA definition. -/
+
 namespace SolarTV.MIR
 
 abbrev Env := Nat → EvmRules.Word

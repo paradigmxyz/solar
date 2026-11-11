@@ -1,5 +1,7 @@
 import SolarTV.MIR.Ops
 
+/-! MIR cfg-simplify: trim trailing switch cases that jump to the default target. -/
+
 namespace SolarTV.MIR
 
 /-- One past the last non-default destination, or zero if there is none.

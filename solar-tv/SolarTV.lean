@@ -1,6 +1,6 @@
-import SolarTV.Transforms.Switch
-import SolarTV.Transforms.Branch
-import SolarTV.Transforms.DCE
+import SolarTV.MIR.Transforms.DCE
+import SolarTV.MIR.Transforms.TrimSwitchDefaults
+import SolarTV.EVMIR.Transforms.EqIszeroJumpi
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
