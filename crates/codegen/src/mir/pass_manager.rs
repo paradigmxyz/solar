@@ -188,6 +188,15 @@ pub(crate) fn run_passes_inner(
                         .map(|objective| pass.runs_on(objective)),
                     module.functions.len(),
                 );
+                // Translation validation compares each function the pass changes with its
+                // version before it.
+                let validated = gcx
+                    .sess
+                    .opts
+                    .unstable
+                    .validate_passes
+                    .as_ref()
+                    .map(|dir| (dir, module.clone()));
                 // A pass that edits the module, reported or not, outdates the check, unless the
                 // pass itself advanced the phase after its last edit.
                 let lowered_checked = module.take_lowered_check();
@@ -197,6 +206,21 @@ pub(crate) fn run_passes_inner(
                     lowered_checked && !pass_changed && !analyses.unreported_edit,
                 );
                 analyses.finish_pass(pass_changed);
+                if pass_changed
+                    && let Some((dir, before)) = validated
+                    && let Err(error) = crate::mir::transform::validate_passes::write_queries(
+                        pass_name, &before, module, dir,
+                    )
+                {
+                    let error = gcx
+                        .dcx()
+                        .err(format!(
+                            "cannot write the pass validation queries to `{}`: {error}",
+                            dir.display()
+                        ))
+                        .emit();
+                    return (changed | pass_changed, Some(error));
+                }
                 if pass_changed || analyses.unreported_edit {
                     // Passes rename the storage alias bases they replace, but not the ones they
                     // delete with their last other use.

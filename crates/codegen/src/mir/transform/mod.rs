@@ -63,4 +63,5 @@ pub(crate) mod storage_dse;
 pub(crate) mod storage_promotion;
 mod utils;
 
+pub(crate) mod validate_passes;
 pub(crate) mod word_sequence;

@@ -27,6 +27,14 @@
 //! `solar_smt::certify::lean` for what it trusts), recorded as `checked-lean`. `lean <query>.lean`
 //! checks it again.
 //!
+//! With `--validate-passes`, it compiles with `-Zvalidate-passes` instead, which writes one query
+//! per function a MIR pass changed, asking whether the function before and after the pass differ
+//! for some input (see the docs of `validate_passes.rs`), and a `.skip` file with the reason for
+//! each function the encoding does not cover. The same solvers and certificates apply, and the
+//! summary counts each pass's functions as proved (`unsat`: the pass preserved the function),
+//! counterexample (`sat`, or `sat-opaque` when the model goes through an uninterpreted call,
+//! hash or world function), unknown and skipped.
+//!
 //! A source's `//@ compile-flags:` lines pass on its `--evm-version` and `-Zmir-pipeline` flags,
 //! so MIR text with hand-written `assume` records runs too.
 //!
@@ -128,6 +136,10 @@ struct Args {
     /// Keep queries and write `results.jsonl` here.
     #[arg(long)]
     out: Option<PathBuf>,
+    /// Validate the MIR passes instead: prove that each pass preserved every function it
+    /// changed.
+    #[arg(long)]
+    validate_passes: bool,
 }
 
 fn main() -> ExitCode {
@@ -158,17 +170,24 @@ fn main() -> ExitCode {
             jobs.push((file.clone(), level.clone(), out.join(format!("{digest}-{level}"))));
         }
     }
+    let flag = if args.validate_passes { "-Zvalidate-passes" } else { "-Zprove-analyses" };
     let counts: Vec<usize> =
-        jobs.par_iter().map(|(file, level, dir)| compile(&solar, file, level, dir)).collect();
+        jobs.par_iter().map(|(file, level, dir)| compile(&solar, flag, file, level, dir)).collect();
     let origin: HashMap<PathBuf, String> =
         jobs.iter().map(|(file, _, dir)| (dir.clone(), file.display().to_string())).collect();
 
     let mut groups: BTreeMap<(PathBuf, String), Vec<PathBuf>> = BTreeMap::new();
+    let mut skipped = Vec::new();
     for (_, _, dir) in &jobs {
         let Ok(entries) = fs::read_dir(dir) else { continue };
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
+            if name.ends_with(".skip") {
+                let source = origin.get(dir).cloned().unwrap_or_default();
+                skipped.push(record(&path, &source, "skipped", "none"));
+                continue;
+            }
             if !is_query(&name) {
                 continue;
             }
@@ -188,7 +207,7 @@ fn main() -> ExitCode {
 
     let results_path = out.join("results.jsonl");
     let results = Mutex::new(BufWriter::new(fs::File::create(&results_path).unwrap()));
-    let records: Vec<Record> = groups
+    let mut records: Vec<Record> = groups
         .par_iter()
         .flat_map_iter(|((dir, _), queries)| {
             let source = origin.get(dir).cloned().unwrap_or_default();
@@ -201,7 +220,19 @@ fn main() -> ExitCode {
             records
         })
         .collect();
-    summarize(&records);
+    {
+        let mut results = results.lock().unwrap();
+        for record in &skipped {
+            writeln!(results, "{}", Value::Object(record.clone())).unwrap();
+        }
+        results.flush().unwrap();
+    }
+    records.extend(skipped);
+    if args.validate_passes {
+        summarize_passes(&records);
+    } else {
+        summarize(&records);
+    }
     eprintln!("results: {}", results_path.display());
     ExitCode::SUCCESS
 }
@@ -232,8 +263,9 @@ fn sources(paths: &[PathBuf]) -> Vec<PathBuf> {
     out
 }
 
-/// Compiles `source` at `level`, writing its queries to `out`, and returns how many it wrote.
-fn compile(solar: &Path, source: &Path, level: &str, out: &Path) -> usize {
+/// Compiles `source` at `level` with `flag`, writing its queries to `out`, and returns how many it
+/// wrote.
+fn compile(solar: &Path, flag: &str, source: &Path, level: &str, out: &Path) -> usize {
     let text =
         fs::read(source).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
     let flags = passed_flags(&text);
@@ -249,7 +281,7 @@ fn compile(solar: &Path, source: &Path, level: &str, out: &Path) -> usize {
     let mut command = Command::new(solar);
     command
         .args(["-O", level])
-        .arg(format!("-Zprove-analyses={}", out.display()))
+        .arg(format!("{flag}={}", out.display()))
         .arg("--emit=bin-runtime")
         .args(flags)
         .arg(source)
@@ -621,6 +653,59 @@ fn summarize(records: &[Record]) {
             field(record, "source"),
             field(record, "query"),
             field(record, "function"),
+            field(record, "claim"),
+            field(record, "counterexample"),
+        );
+    }
+}
+
+/// Prints each pass's functions by verdict, why the skipped ones were, and every counterexample.
+fn summarize_passes(records: &[Record]) {
+    let field = |record: &Record, key: &str| {
+        record.get(key).and_then(Value::as_str).unwrap_or_default().to_string()
+    };
+    let columns = ["proved", "counterexample", "opaque", "unknown", "skipped", "certified"];
+    let mut table: BTreeMap<String, [usize; 6]> = BTreeMap::new();
+    let mut reasons: BTreeMap<String, usize> = BTreeMap::new();
+    for record in records {
+        let row = table.entry(field(record, "pass")).or_default();
+        let column = match field(record, "result").as_str() {
+            "unsat" => 0,
+            "sat" => 1,
+            "sat-opaque" => 2,
+            "skipped" => {
+                *reasons.entry(field(record, "skipped")).or_default() += 1;
+                4
+            }
+            _ => 3,
+        };
+        row[column] += 1;
+        if field(record, "certificate").starts_with("checked") {
+            row[5] += 1;
+        }
+    }
+    println!("{:28} {}", "pass", columns.map(|c| format!("{c:>14}")).join(""));
+    let mut total = [0; 6];
+    for (pass, row) in &table {
+        println!("{pass:28} {}", row.map(|n| format!("{n:>14}")).join(""));
+        for (sum, n) in total.iter_mut().zip(row) {
+            *sum += n;
+        }
+    }
+    println!("{:28} {}", "total", total.map(|n| format!("{n:>14}")).join(""));
+    let mut reasons: Vec<_> = reasons.into_iter().collect();
+    reasons.sort_by_key(|&(_, count)| std::cmp::Reverse(count));
+    for (reason, count) in reasons {
+        println!("skipped {count:6}: {reason}");
+    }
+    for record in records.iter().filter(|record| field(record, "result") == "sat") {
+        println!(
+            "COUNTEREXAMPLE {}
+  {}
+  {}
+  {}",
+            field(record, "source"),
+            field(record, "query"),
             field(record, "claim"),
             field(record, "counterexample"),
         );

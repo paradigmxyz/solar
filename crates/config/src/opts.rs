@@ -501,6 +501,12 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
     pub prove_analyses: Option<std::path::PathBuf>,
 
+    /// Write an SMT-LIB query to this directory for every function a MIR pass changes, asking
+    /// whether some input makes it differ from its version before the pass: Z3 answering `unsat`
+    /// proves the pass preserved it. `-` writes them to stdout. See `tools/prove-analyses`.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub validate_passes: Option<std::path::PathBuf>,
+
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
@@ -573,6 +579,7 @@ impl UnstableOpts {
             validate_ir: _,
             check_analyses: _,
             prove_analyses: _,
+            validate_passes: _,
             time_passes: _,
             forget_gcx: _,
             help: _,

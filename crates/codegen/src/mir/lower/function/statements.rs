@@ -261,6 +261,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 }
                             })
                             .collect::<Option<Vec<_>>>()?;
+                        self.record_spec_ensures(&values);
                         self.builder.ret(values);
                     }
                 }

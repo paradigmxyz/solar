@@ -9,6 +9,11 @@
 //! prove its own record true, and the pass that records one leaves its operands out of its own
 //! rewrite, so they keep the values the program computes. Later passes treat the record as an
 //! ordinary use. `lower-assumes` turns every record into a run-time test before the backend.
+//!
+//! Source specifications travel the same way: with recording on, a function's
+//! `@custom:requires` clauses become `spec_requires` records at its entry and its `@custom:ensures`
+//! clauses `spec_ensures` records at each return, so passes keep them next to the code they are
+//! about and `-Zprove-analyses` proves the source's claims on the optimized program.
 
 /// The relation an `assume` claims between its operands, compared as unsigned words.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -46,6 +51,14 @@ pub enum FactSource {
     LoadPre,
     /// A loop bound induction variable simplification proved on entry instead of clamping it.
     IndvarSimplify,
+    /// A source `@custom:requires` clause, recorded at function entry. A premise the caller
+    /// promises, not a fact anything proved: no pass relies on it, `lower-assumes` neither tests
+    /// nor proves it, and no query assumes it.
+    SpecRequires,
+    /// A source `@custom:ensures` clause at a return, as `ne cond, 0` where `cond` is the clause
+    /// implied by the function's `@custom:requires` clauses. An obligation of the source, tested
+    /// and proved like the facts passes record.
+    SpecEnsures,
 }
 
 impl FactSource {
@@ -57,6 +70,8 @@ impl FactSource {
             Self::Cse => "cse",
             Self::LoadPre => "load_pre",
             Self::IndvarSimplify => "indvar_simplify",
+            Self::SpecRequires => "spec_requires",
+            Self::SpecEnsures => "spec_ensures",
         }
     }
 }

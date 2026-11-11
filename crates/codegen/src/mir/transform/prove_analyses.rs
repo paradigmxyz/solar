@@ -158,7 +158,7 @@ pub(super) fn write_queries(
 }
 
 /// A file-name-safe form of a module name.
-fn sanitize(name: &str) -> String {
+pub(super) fn sanitize(name: &str) -> String {
     name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect()
 }
 
@@ -1102,7 +1102,7 @@ struct Encoded {
 }
 
 /// The big-endian word at `ptr` in byte-addressed `memory`.
-fn load_word(memory: &str, ptr: &str) -> String {
+pub(super) fn load_word(memory: &str, ptr: &str) -> String {
     let bytes: Vec<_> = (0..32u64)
         .map(|offset| format!("(select {memory} (bvadd {ptr} {}))", word(U256::from(offset))))
         .collect();
@@ -1110,7 +1110,7 @@ fn load_word(memory: &str, ptr: &str) -> String {
 }
 
 /// `memory` with the big-endian word `value` written at `ptr`.
-fn store_word(memory: &str, ptr: &str, value: &str) -> String {
+pub(super) fn store_word(memory: &str, ptr: &str, value: &str) -> String {
     let mut out = memory.to_owned();
     for offset in 0..32u64 {
         let high = 255 - 8 * offset;
@@ -1270,7 +1270,7 @@ fn write_byte_body() -> String {
     format!("(ite (bvuge (bvsub p a) {size}) w {})", load_word("m", "a"))
 }
 
-fn word(value: U256) -> String {
+pub(super) fn word(value: U256) -> String {
     op::word::smt_word(value)
 }
 
