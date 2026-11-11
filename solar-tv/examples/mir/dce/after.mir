@@ -1,4 +1,4 @@
-; === solar-tv/examples/dce/before.mir (after dce) ===
+; === solar-tv/examples/mir/dce/before.mir (after dce) ===
 @module Dce
 fn @with_dead_code(arg0: i256) -> i256 {
   bb0:

@@ -1,4 +1,4 @@
-; === solar-tv/examples/switch/before.mir (after cfg-simplify) ===
+; === solar-tv/examples/mir/switch/before.mir (after cfg-simplify) ===
 @module Switch
 fn @pick(arg0: i256) -> i256 {
   bb0:

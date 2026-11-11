@@ -1,4 +1,4 @@
-; === solar-tv/examples/peephole/before.evmir (after peephole) ===
+; === solar-tv/examples/evmir/peephole/before.evmir (after peephole) ===
 @module Branch
 bb0:
   calldatasize
