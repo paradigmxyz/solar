@@ -9,8 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import evmir, gas, memory, mir, report
-from .common import Program, Unsupported
+from . import audit, evmir, gas, memory, mir, native, report
+from .common import Inconclusive, Program, Unsupported
 
 ROOT = Path(__file__).resolve().parents[1]
 PRELUDE = "import SolarTV\nopen SolarTV EvmRules\nset_option autoImplicit false\nset_option linter.unusedSimpArgs false\nset_option linter.unusedVariables false\nset_option maxRecDepth 4096\n"
@@ -64,6 +64,7 @@ def load(
         )
     )
     program.canonical_ir = parsed.stdout
+    program.evm_version = evm_version or "cancun"
     return program
 
 
@@ -99,8 +100,14 @@ def build_model(timeout: int) -> subprocess.CompletedProcess:
 
 
 def check(
-    a: Program, b: Program, timeout: int, *, replay_command: str, verbose: bool = False
-) -> int:
+    a: Program,
+    b: Program,
+    timeout: int,
+    *,
+    replay_command: str,
+    replay_executable: str,
+    verbose: bool = False,
+) -> audit.Result:
     if a.memory != b.memory:
         translate = evmir.translate if a.interface[0] == "evm-window" else mir.translate
         for program in (a, b):
@@ -212,8 +219,7 @@ def check(
                 - {"propext", "Quot.sound", "Classical.choice"}
             ):
                 raise Unsupported("unexpected proof axioms\n" + log)
-            print("verified")
-            return 0
+            return audit.Result("verified", "verified\n", program=a, pair=(a, b))
         log = result.stdout + result.stderr
         # Lean may simplify a universally false goal before bit-blasting it.
         # Try zero for unconstrained words. Report a mismatch only if the
@@ -274,7 +280,7 @@ def check(
             if replay.returncode == 0:
                 break
         else:
-            raise Unsupported(
+            raise Inconclusive(
                 "Lean could neither prove equivalence nor replay a counterexample\n"
                 + proof_log
                 + "\nWitness query diagnostics\n"
@@ -284,7 +290,16 @@ def check(
                 + replay.stderr
             )
         outputs = [line for line in replay.stdout.splitlines() if line.strip()]
-        print(
+        observed = native.replay(
+            a, b, vals, executable=replay_executable, timeout=timeout
+        )
+        if observed["observations"] != outputs[-2:]:
+            raise Inconclusive(
+                "Lean and Rust interpreter replay disagree\n"
+                + f"Lean: {outputs[-2:]}\nRust: {observed['observations']}"
+            )
+        return audit.Result(
+            "counterexample",
             report.counterexample(
                 a,
                 b,
@@ -293,13 +308,23 @@ def check(
                 outputs[-1],
                 replay_command,
                 verbose=verbose,
+                native_checked=True,
             ),
-            end="",
+            program=a,
+            pair=(a, b),
+            witness={
+                "inputs": {
+                    name: str(value) for name, value in zip(a.inputs, vals, strict=True)
+                },
+                "lean": outputs[-2:],
+                "rust": observed["observations"],
+            },
         )
-        return 1
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "summarize":
+        return audit.summarize(sys.argv[2:])
     parser = argparse.ArgumentParser(
         description="Validate a pair of MIR or EVM IR programs with Lean."
     )
@@ -332,8 +357,14 @@ def main() -> int:
         "--evm-version",
         help="target version for parsing and gas auditing (gas default: Cancun)",
     )
+    parser.add_argument(
+        "--replay", help="Rust interpreter helper (default: next to --solar)"
+    )
+    parser.add_argument(
+        "--report", type=Path, help="write a versioned JSON audit record"
+    )
     args = parser.parse_args()
-    version = args.evm_version or ("cancun" if args.gas is not None else None)
+    version = args.evm_version or "cancun"
     replay = report.replay_command(
         args.ir,
         args.before,
@@ -342,7 +373,10 @@ def main() -> int:
         args.timeout,
         gas=args.gas,
         evm_version=version,
+        replay=args.replay,
     )
+    programs: list[Program] = []
+    model = audit.semantics()
     try:
         gas.validate(args.gas, version or "cancun")
         solar = shutil.which(args.solar)
@@ -351,6 +385,7 @@ def main() -> int:
                 "supply a built compiler with --solar and a positive timeout"
             )
         solar = str(Path(solar).resolve())
+        rust_replay = args.replay or native.default(solar)
         replay = report.replay_command(
             args.ir,
             args.before,
@@ -359,6 +394,7 @@ def main() -> int:
             args.timeout,
             gas=args.gas,
             evm_version=version,
+            replay=rust_replay,
         )
         programs = [
             load(
@@ -371,17 +407,56 @@ def main() -> int:
             )
             for path in (args.before, args.after)
         ]
-        return check(
+        result = check(
             programs[0],
             programs[1],
             args.timeout,
             replay_command=replay,
+            replay_executable=rust_replay,
             verbose=args.verbose,
         )
     except (Unsupported, OSError, subprocess.TimeoutExpired) as error:
-        print(
-            report.inconclusive(error, replay, verbose=args.verbose),
-            file=sys.stderr,
-            end="",
+        status = (
+            "timeout"
+            if isinstance(error, subprocess.TimeoutExpired)
+            else "inconclusive"
+            if isinstance(error, Inconclusive)
+            else "unsupported"
+            if isinstance(error, Unsupported)
+            else "error"
         )
+        result = audit.Result(
+            status,
+            stderr=report.inconclusive(error, replay, verbose=args.verbose),
+            program=programs[0] if len(programs) == 2 else None,
+            pair=(programs[0], programs[1]) if len(programs) == 2 else None,
+        )
+    try:
+        if audit.semantics() != model:
+            result = audit.Result(
+                "inconclusive",
+                stderr=report.inconclusive(
+                    Inconclusive("semantics changed during this check"),
+                    replay,
+                    verbose=args.verbose,
+                ),
+                program=result.program,
+                pair=result.pair,
+            )
+        record = audit.record(
+            result,
+            layer=args.ir,
+            target=version,
+            policy=args.gas,
+            before=args.before,
+            after=args.after,
+            model=model,
+        )
+        if args.report:
+            audit.write(args.report, record)
+    except OSError as error:
+        print(f"cannot write audit report: {error}", file=sys.stderr)
         return 2
+    print(result.stdout, end="")
+    print(result.stderr + audit.context(record), file=sys.stderr, end="")
+    return result.exit_code

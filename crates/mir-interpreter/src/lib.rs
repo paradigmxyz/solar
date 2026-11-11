@@ -16,6 +16,8 @@ use solar_mir::{MirPhase, Module};
 mod machine;
 pub use machine::{Host, Log};
 
+pub mod replay;
+
 /// How a run ended.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Outcome {

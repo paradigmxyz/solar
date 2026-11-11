@@ -131,7 +131,10 @@ class GasTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 1, result.stderr)
         argv = shlex.split(result.stdout.rsplit("\nReplay\n  ", 1)[1].strip())
-        self.assertEqual(argv[-4:], ["--gas", "refine", "--evm-version", "prague"])
+        start = argv.index("--gas")
+        self.assertEqual(
+            argv[start : start + 4], ["--gas", "refine", "--evm-version", "prague"]
+        )
         replay = subprocess.run(
             argv, capture_output=True, text=True, timeout=120, check=False
         )

@@ -6,7 +6,14 @@
 
 use solar_interface::Result;
 use solar_sema::Gcx;
-use std::{env, fmt::Display, fs, io, path::Path, process::Command};
+use std::{
+    env,
+    fmt::Display,
+    fs,
+    io::{self, Write},
+    path::Path,
+    process::Command,
+};
 
 pub(crate) struct Snapshot<'a> {
     directory: &'a Path,
@@ -67,33 +74,63 @@ impl<'a> Snapshot<'a> {
                 let mut command =
                     Command::new(env::var_os("SOLAR_TV").unwrap_or_else(|| "solar-tv".into()));
                 command.arg(layer).arg(before_path).arg(after_path).arg("--solar").arg(solar);
-                if gas_policy.is_some() {
-                    command.arg("--evm-version").arg(gcx.sess.opts.evm_version.to_string());
-                } else {
+                command.arg("--report").arg(pair.path().join("result.json"));
+                command.arg("--evm-version").arg(gcx.sess.opts.evm_version.to_string());
+                if gas_policy.is_none() {
                     // MIR has no physical stack schedule, so keep its gas-independent audit.
                     command.env_remove("SOLAR_TV_GAS");
                 }
                 command.output()
             });
+        let mut record = None;
         let (outcome, details, diagnostic) = match output {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
-                if output.status.success() && stdout.trim() == "verified" {
-                    eprintln!("{context}: verified");
-                    return Ok(());
-                }
-                let outcome = match output.status.code() {
-                    Some(1) if stdout.lines().next() == Some("counterexample") => "counterexample",
-                    Some(2) => "inconclusive",
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let parsed = fs::read(pair.path().join("result.json"))
+                    .map_err(|error| error.to_string())
+                    .and_then(|bytes| {
+                        serde_json::from_slice::<serde_json::Value>(&bytes)
+                            .map_err(|error| error.to_string())
+                    })
+                    .and_then(|value| {
+                        if value.is_object() {
+                            Ok(value)
+                        } else {
+                            Err("audit report must be an object".into())
+                        }
+                    });
+                let outcome = match (&parsed, output.status.code()) {
+                    (Ok(value), code) if value["version"] == 1 => {
+                        match (value["status"].as_str(), code) {
+                            (Some("verified"), Some(0)) if stdout.trim() == "verified" => {
+                                "verified"
+                            }
+                            (Some("counterexample"), Some(1))
+                                if stdout.lines().next() == Some("counterexample") =>
+                            {
+                                "counterexample"
+                            }
+                            (Some("unsupported"), Some(2)) => "unsupported",
+                            (Some("timeout"), Some(2)) => "timeout",
+                            (Some("inconclusive"), Some(2)) => "inconclusive",
+                            _ => "checker failed",
+                        }
+                    }
                     _ => "checker failed",
                 };
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                let details = format!("status: {}\n{stdout}{stderr}", output.status);
+                let mut details = format!("status: {}\n{stdout}{stderr}", output.status);
+                match parsed {
+                    Ok(value) => record = Some(value),
+                    Err(error) => {
+                        details.push_str(&format!("\nmissing or invalid audit report: {error}\n"))
+                    }
+                }
                 let diagnostic = match outcome {
                     "counterexample" => {
                         stdout.strip_prefix("counterexample\n").unwrap_or(&stdout).trim().to_owned()
                     }
-                    "inconclusive" => {
+                    "unsupported" | "timeout" | "inconclusive" => {
                         stderr.strip_prefix("inconclusive: ").unwrap_or(&stderr).trim().to_owned()
                     }
                     _ => details.clone(),
@@ -105,15 +142,42 @@ impl<'a> Snapshot<'a> {
                 ("checker failed", details.clone(), details)
             }
         };
+        let mut record = record.unwrap_or_else(|| serde_json::json!({"version": 1}));
+        record["context"] = serde_json::Value::String(context.clone());
+        record["status"] = serde_json::Value::String(
+            if outcome == "checker failed" { "error" } else { outcome }.into(),
+        );
+        if outcome == "verified" {
+            archive_record(self.directory, &record).map_err(io_error)?;
+            eprintln!("{context}: verified");
+            return Ok(());
+        }
         let path = pair.keep();
         let message = format!("{context}: {outcome}");
         fs::write(path.join("result.txt"), format!("{message}\n{details}\n")).map_err(io_error)?;
+        record["pair"] = serde_json::Value::String(path.display().to_string());
+        let json =
+            serde_json::to_vec_pretty(&record).map_err(io::Error::other).map_err(io_error)?;
+        fs::write(path.join("result.json"), json).map_err(io_error)?;
+        archive_record(self.directory, &record).map_err(io_error)?;
         let saved = format!("pair and checker output saved in `{}`", path.display());
-        if outcome == "inconclusive" {
+        if matches!(outcome, "unsupported" | "timeout" | "inconclusive") {
             gcx.dcx().warn(message).note(diagnostic).note(saved).emit();
             Ok(())
         } else {
             Err(gcx.dcx().err(message).note(diagnostic).note(saved).emit())
         }
     }
+}
+
+fn archive_record(directory: &Path, record: &serde_json::Value) -> io::Result<()> {
+    let directory = directory.join("audits");
+    fs::create_dir_all(&directory)?;
+    let mut file =
+        tempfile::Builder::new().prefix("check-").suffix(".tmp").tempfile_in(directory)?;
+    serde_json::to_writer_pretty(&mut file, record).map_err(io::Error::other)?;
+    file.write_all(b"\n")?;
+    let path = file.path().with_extension("json");
+    file.persist_noclobber(path).map_err(|error| error.error)?;
+    Ok(())
 }

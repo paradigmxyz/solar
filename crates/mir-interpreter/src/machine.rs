@@ -7,6 +7,8 @@
 //! and logged. It is a testing oracle, not part of code generation: the UI test runner checks it
 //! against an EVM running the compiled bytecode. The unit tests below also run single functions
 //! on concrete arguments and memory.
+//! [`crate::replay`] also runs scalar semantic MIR directly, without implicit backend setup.
+//! It supports checked arithmetic and casts before lowering, with target opcode availability.
 //!
 //! # Model
 //!
@@ -56,7 +58,7 @@
 //! runs, so a value used before its definition or a phi missing an edge also ends a run as
 //! unsupported.
 
-use alloy_primitives::{U256, keccak256};
+use alloy_primitives::{I256, U256, keccak256};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::{
@@ -65,8 +67,9 @@ use solar_data_structures::{
 };
 use solar_evmir::op;
 use solar_mir::{
-    AllocationPlacement, ArgIdx, BlockId, Callee, DataRef, Function, FunctionId, InstId, InstKind,
-    Module, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AllocationPlacement, ArgIdx, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef,
+    Function, FunctionId, InstId, InstKind, Module, RequireKind, RevertKind, RevertReason,
+    Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
@@ -309,6 +312,26 @@ impl Memory {
         }
         Ok(())
     }
+
+    pub(crate) fn from_prefix(prefix: &[u8], size: u64) -> Result<Self, String> {
+        if size > MEMORY_LIMIT || !size.is_multiple_of(32) || prefix.len() as u64 > size {
+            return Err("invalid or oversized replay memory".into());
+        }
+        let mut memory = Self::zeroed();
+        memory.size = size / 32;
+        for (index, &byte) in prefix.iter().enumerate() {
+            memory.set_byte(index as u64, byte);
+        }
+        Ok(memory)
+    }
+
+    pub(crate) fn prefix(&self, count: u64) -> Vec<u8> {
+        (0..count).map(|i| self.byte(i)).collect()
+    }
+
+    pub(crate) fn size_bytes(&self) -> u64 {
+        self.size * 32
+    }
 }
 
 /// Runs functions of one lowered module.
@@ -343,6 +366,7 @@ impl<'a> Machine<'a> {
             world: host.map(|host| World { host, effects: Effects::default() }),
             transaction: None,
             frames_end: U256::ZERO,
+            semantic: None,
         };
         let ControlFlow::Break(outcome) = run.execute(function, args);
         let effects = run.world.map(|world| world.effects).unwrap_or_default();
@@ -379,6 +403,7 @@ impl<'a> Machine<'a> {
             world: Some(World { host, effects: Effects::default() }),
             transaction: Some(Transaction { calldata, evm_version }),
             frames_end: U256::ZERO,
+            semantic: None,
         };
         let ControlFlow::Break(outcome) = run.execute(entry, &[]);
         let outcome = match outcome {
@@ -395,12 +420,36 @@ impl<'a> Machine<'a> {
     fn body(&self, id: FunctionId) -> Option<&'a Function> {
         self.module.functions.get(id)
     }
+
     fn function_id(&self, body: &Function) -> FunctionId {
         self.module
             .functions
             .iter_enumerated()
             .find_map(|(id, function)| std::ptr::eq(function, body).then_some(id))
             .expect("body belongs to module")
+    }
+
+    pub(crate) fn replay(
+        &self,
+        function: FunctionId,
+        args: &[U256],
+        memory: Memory,
+        limits: Limits,
+        evm_version: EvmVersion,
+    ) -> (Outcome, Memory) {
+        let mut run = Run {
+            machine: self,
+            memory,
+            limits,
+            fuel: 0,
+            frames: Vec::new(),
+            world: None,
+            transaction: None,
+            frames_end: U256::ZERO,
+            semantic: Some(evm_version),
+        };
+        let ControlFlow::Break(outcome) = run.execute(function, args);
+        (outcome, run.memory)
     }
 }
 
@@ -496,6 +545,8 @@ struct Run<'m, 'a, 't> {
     /// The end of the frames and spill slots of the runtime entries the run entered, which the
     /// backend writes without MIR showing it.
     frames_end: U256,
+    /// Direct semantic function execution, without an implied backend stack layout.
+    semantic: Option<EvmVersion>,
 }
 
 impl<'a> Run<'_, 'a, '_> {
@@ -576,20 +627,20 @@ impl<'a> Run<'_, 'a, '_> {
         ControlFlow::Continue(())
     }
 
-    /// Returns whether the transaction's EVM version lacks `opcode`, which then halts as an
+    /// Returns whether the execution's EVM version lacks `opcode`, which then halts as an
     /// undefined opcode, as `REVERT` does before Byzantium.
     fn lacks(&self, opcode: u8) -> bool {
-        self.transaction.as_ref().is_some_and(|transaction| {
-            op::definition(opcode).is_some_and(|def| !def.is_available(transaction.evm_version))
-        })
+        self.transaction.as_ref().map(|tx| tx.evm_version).or(self.semantic).is_some_and(
+            |version| op::definition(opcode).is_some_and(|def| !def.is_available(version)),
+        )
     }
 
     fn instruction(&mut self, body: &'a Function, inst: InstId) -> ControlFlow<Outcome> {
         self.burn(1)?;
         let instruction = body.inst(inst);
         let mnemonic = instruction.kind.op_def().mnemonic;
-        // Only lowered operations run; the arms below decide the rest.
-        if instruction.unlowered_reason(body).is_some() {
+        // Transactions run lowered operations; direct replay can use scalar semantic operations.
+        if self.semantic.is_none() && instruction.unlowered_reason(body).is_some() {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         }
         let Some(semantics) = instruction.kind.semantics() else {
@@ -620,8 +671,17 @@ impl<'a> Run<'_, 'a, '_> {
                 frame.read(if condition.is_zero() { if_false } else { if_true })?
             }
             Semantics::Opcode(name, operands) => {
-                let operands = frame.read_all(&operands)?;
-                match self.opcode(mnemonic, name, &operands)? {
+                let mut words = frame.read_all(&operands)?;
+                if self.semantic.is_some()
+                    && matches!(op::from_mnemonic(name), Some(op::SLT | op::SGT))
+                {
+                    for (value, word) in operands.iter().zip(&mut words) {
+                        let bits =
+                            body.value_ty(*value).and_then(|ty| ty.integer_bits()).unwrap_or(256);
+                        *word = sign_extend(*word, bits);
+                    }
+                }
+                match self.opcode(mnemonic, name, &words)? {
                     Some(word) => word,
                     None => return ControlFlow::Continue(()),
                 }
@@ -633,6 +693,31 @@ impl<'a> Run<'_, 'a, '_> {
                 };
                 self.call(callee, args, instruction.result())?;
                 self.frame().caller_inst = Some(inst);
+                return ControlFlow::Continue(());
+            }
+            Semantics::Call(Callee::Builtin(builtin), args) if self.semantic.is_some() => {
+                let words = frame.read_all(args)?;
+                let &[condition] = words.as_slice() else {
+                    return ControlFlow::Break(Outcome::Unsupported(mnemonic));
+                };
+                let failure = match builtin {
+                    Builtin::Check { is_zero, failure } if condition.is_zero() == *is_zero => {
+                        Some(*failure)
+                    }
+                    Builtin::Check { .. } => None,
+                    Builtin::Require(RequireKind::EmptyString) if condition.is_zero() => {
+                        Some(RevertKind::Reason(RevertReason::Empty))
+                    }
+                    Builtin::Require(RequireKind::EmptyString) => None,
+                    _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
+                };
+                if let Some(failure) = failure {
+                    return ControlFlow::Break(Outcome::Revert(match failure {
+                        RevertKind::Panic(code) => panic_data(U256::from(code as u8)),
+                        RevertKind::Reason(RevertReason::Empty) => Vec::new(),
+                        _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
+                    }));
+                }
                 return ControlFlow::Continue(());
             }
             Semantics::Call(..) => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
@@ -649,11 +734,33 @@ impl<'a> Run<'_, 'a, '_> {
                 frame.read(value)? & (U256::MAX >> (256 - bits))
             }
             Semantics::NotEqual(a, b) => U256::from(frame.read(a)? != frame.read(b)?),
+            Semantics::SignExtend(value, from @ 1..=256, to @ 1..=256)
+                if self.semantic.is_some() && from <= to =>
+            {
+                sign_extend(frame.read(value)?, from) & (U256::MAX >> (256 - to))
+            }
+            Semantics::Checked(op, kind, a, b) if self.semantic.is_some() => {
+                if !matches!(op, CheckedOp::Add | CheckedOp::Sub | CheckedOp::Mul) {
+                    return ControlFlow::Break(Outcome::Unsupported(mnemonic));
+                }
+                let Some(result) = checked_word(op, kind, frame.read(a)?, frame.read(b)?) else {
+                    return ControlFlow::Break(Outcome::Revert(panic_data(U256::from(0x11))));
+                };
+                result
+            }
             // Sign extensions, checked arithmetic, and builtin calls are semantic operations.
             _ => return ControlFlow::Break(Outcome::Unsupported(mnemonic)),
         };
         let Some(value) = instruction.result() else {
             return ControlFlow::Break(Outcome::Unsupported("result without a value"));
+        };
+        let result = if self.semantic.is_some() {
+            let Some(bits @ 1..=256) = body.value_ty(value).and_then(|ty| ty.integer_bits()) else {
+                return ControlFlow::Break(Outcome::Unsupported("non-integer replay result"));
+            };
+            result & (U256::MAX >> (256 - bits))
+        } else {
+            result
         };
         self.frame().values[value] = Some(result);
         ControlFlow::Continue(())
@@ -1057,6 +1164,46 @@ fn limit<T>(result: Result<T, Limit>) -> ControlFlow<Outcome, T> {
     }
 }
 
+fn sign_extend(value: U256, bits: u32) -> U256 {
+    if bits < 256 && value.bit((bits - 1) as usize) { value | (U256::MAX << bits) } else { value }
+}
+
+fn panic_data(code: U256) -> Vec<u8> {
+    let mut bytes = vec![0x4e, 0x48, 0x7b, 0x71];
+    bytes.extend(code.to_be_bytes::<32>());
+    bytes
+}
+
+fn checked_word(op: CheckedOp, kind: ArithmeticKind, a: U256, b: U256) -> Option<U256> {
+    let bits = match kind {
+        ArithmeticKind::Unsigned(bits) | ArithmeticKind::Signed(bits) => u32::from(bits),
+    };
+    let mask = U256::MAX >> (256 - bits);
+    match kind {
+        ArithmeticKind::Unsigned(_) => {
+            let result = match op {
+                CheckedOp::Add => a.checked_add(b),
+                CheckedOp::Sub => a.checked_sub(b),
+                CheckedOp::Mul => a.checked_mul(b),
+                _ => None,
+            }?;
+            (result & mask == result).then_some(result)
+        }
+        ArithmeticKind::Signed(_) => {
+            let a = I256::from_raw(sign_extend(a, bits));
+            let b = I256::from_raw(sign_extend(b, bits));
+            let result = match op {
+                CheckedOp::Add => a.checked_add(b),
+                CheckedOp::Sub => a.checked_sub(b),
+                CheckedOp::Mul => a.checked_mul(b),
+                _ => None,
+            }?
+            .into_raw();
+            (sign_extend(result & mask, bits) == result).then_some(result & mask)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1456,5 +1603,24 @@ fn @world(arg0: i256) -> i256 {
             let outcome = machine.run(id, &args, Memory::zeroed(), None, LIMITS).outcome;
             assert_eq!(outcome, Outcome::Unsupported("sload"));
         });
+    }
+
+    #[test]
+    fn checked_replay_word_boundaries() {
+        for bits in [160, 256] {
+            let unsigned = ArithmeticKind::Unsigned(bits);
+            let signed = ArithmeticKind::Signed(bits);
+            let mask = U256::MAX >> (256 - u32::from(bits));
+            let minimum = U256::ONE << (bits - 1);
+            let maximum = minimum - U256::ONE;
+            assert_eq!(checked_word(CheckedOp::Add, unsigned, mask, U256::ONE), None);
+            assert_eq!(checked_word(CheckedOp::Sub, unsigned, U256::ZERO, U256::ONE), None);
+            assert_eq!(checked_word(CheckedOp::Mul, unsigned, mask, U256::from(2)), None);
+            assert_eq!(checked_word(CheckedOp::Add, signed, maximum, U256::ONE), None);
+            assert_eq!(checked_word(CheckedOp::Sub, signed, minimum, U256::ONE), None);
+            assert_eq!(checked_word(CheckedOp::Mul, signed, minimum, mask), None);
+            assert_eq!(checked_word(CheckedOp::Add, signed, mask, U256::ONE), Some(U256::ZERO));
+            assert_eq!(checked_word(CheckedOp::Mul, signed, minimum, U256::ONE), Some(minimum));
+        }
     }
 }

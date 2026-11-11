@@ -13,7 +13,11 @@ use solar::{
     },
     sema::{Compiler, Gcx},
 };
-use std::{fs, process::Command};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 #[test]
 #[ignore = "requires the solar-tv Lean toolchain and SOLAR / SOLAR_TV executables"]
@@ -35,8 +39,8 @@ fn counterexample_stops_pipeline_and_replays() {
         let _ = run_passes(compiler.gcx(), &mut module, &[&WrongReturn, &Unreachable], None);
         assert_eq!(compiler.dcx().err_count(), 1);
     });
-    let mut pairs = fs::read_dir(audit.path()).unwrap();
-    let pair = pairs.next().unwrap().unwrap().path();
+    let mut pairs = pairs(audit.path());
+    let pair = pairs.next().unwrap();
     assert!(pairs.next().is_none());
     let report = RealFileLoader.load_file(&pair.join("result.txt")).unwrap();
     assert_data_eq!(
@@ -58,6 +62,13 @@ fn counterexample_stops_pipeline_and_replays() {
             .replace(&pair.canonicalize().unwrap().display().to_string(), "PAIR")
             .replace(&pair.display().to_string(), "PAIR")
             .replace(&std::env::var("SOLAR_TV").unwrap(), "CHECKER")
+            .replace(
+                &Path::new(env!("CARGO_BIN_EXE_solar"))
+                    .with_file_name(format!("solar-tv-replay{}", std::env::consts::EXE_SUFFIX))
+                    .display()
+                    .to_string(),
+                "REPLAY"
+            )
             .replace(env!("CARGO_BIN_EXE_solar"), "SOLAR"),
         str![[r#"
 counterexample
@@ -65,6 +76,10 @@ counterexample
   arg0 = 0
   before = 1
   after  = 0
+
+Replay checks
+  Lean kernel: confirmed
+  Rust interpreter: matched
 
 Difference
   Returned value changed
@@ -80,7 +95,7 @@ Changed IR
  }
 
 Replay
-  CHECKER mir PAIR/before.mir PAIR/after.mir --solar SOLAR --timeout 60
+  CHECKER mir PAIR/before.mir PAIR/after.mir --solar SOLAR --timeout 60 --evm-version cancun --replay REPLAY
 
 "#]]
     );
@@ -142,12 +157,19 @@ fn checker_launch_failure_keeps_both_ir_inputs() {
         assert!(!output.status.success());
         // A diff from the second pipeline entry would reach stdout if execution continued.
         assert_data_eq!(String::from_utf8(output.stdout).unwrap(), str![""]);
-        let mut pairs = fs::read_dir(audit.path()).unwrap();
-        let path = pairs.next().unwrap().unwrap().path();
+        let mut pairs = pairs(audit.path());
+        let path = pairs.next().unwrap();
         assert!(pairs.next().is_none());
         let read = |file| RealFileLoader.load_file(&path.join(file)).unwrap();
         assert_ne!(read(format!("before.{layer}")), read(format!("after.{layer}")));
         let report = read("result.txt".into());
         assert!(report.lines().next().unwrap().ends_with("checker failed"));
     }
+}
+
+fn pairs(directory: &Path) -> impl Iterator<Item = PathBuf> {
+    fs::read_dir(directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.file_name().unwrap() != "audits")
 }
