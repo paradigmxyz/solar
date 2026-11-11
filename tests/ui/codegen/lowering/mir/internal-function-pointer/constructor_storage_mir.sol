@@ -3,11 +3,10 @@
 
 // ported-from: test/libsolidity/semanticTests/constructor/store_internal_unused_function_in_constructor.sol
 
-// The 8-byte function pointer packs into slot 0: the constructor
-// read-modify-writes its bytes and readers mask them back out.
+// The 8-byte function pointer owns slot 0: the constructor writes the whole word
+// and readers mask it back out.
 // CHECK-LABEL: fn @constructor(
-// CHECK: or {{v[0-9]+}}, [[ONLY_STORED:[0-9]+]]
-// CHECK: sstore 0, {{v[0-9]+}}
+// CHECK: sstore 0, [[ONLY_STORED:[0-9]+]]
 contract ConstructorStoredFunctionPointer {
     function() internal returns (uint256) storedOnly;
 

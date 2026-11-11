@@ -7,10 +7,7 @@ fn @constructor() [constructor] {
     v1 = caller
     v2 = zext i160 v1 to i256
     v3 = mapping_slot v2, v0
-    v4 = sload v3 !metadata(storage=symbolic(v3))
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v6 = or v5, 1
-    sstore v3, v6 !metadata(storage=symbolic(v3))
+    sstore v3, 1 !metadata(storage=symbolic(v3))
     sstore 2, 1 !metadata(storage=slot(2))
     ret
 }

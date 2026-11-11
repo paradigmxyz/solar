@@ -29,6 +29,8 @@ pub(super) struct StorageLocation {
     pub(super) offset: u8,
     pub(super) size: TypeSize,
     pub(super) encoding: StorageEncoding,
+    /// No other value shares the slot, so a store may write the whole word.
+    exclusive: bool,
     transient: bool,
 }
 
@@ -41,12 +43,18 @@ impl StorageLocation {
             offset: 0,
             size: Self::WORD,
             encoding: StorageEncoding::Unsigned,
+            exclusive: false,
             transient: false,
         }
     }
 
     pub(super) const fn packed_word(size: TypeSize, encoding: StorageEncoding) -> Self {
-        Self { slot: U256::ZERO, offset: 0, size, encoding, transient: false }
+        Self { slot: U256::ZERO, offset: 0, size, encoding, exclusive: false, transient: false }
+    }
+
+    /// A value that owns its slot, such as a mapping value or an array element of 17 to 31 bytes.
+    pub(super) const fn exclusive_word(size: TypeSize, encoding: StorageEncoding) -> Self {
+        Self { exclusive: true, ..Self::packed_word(size, encoding) }
     }
 
     const fn packed(self) -> bool {
@@ -55,6 +63,11 @@ impl StorageLocation {
 
     const fn word_bytes() -> u8 {
         Self::WORD.bytes()
+    }
+
+    /// Marks a packed value as exclusive when no other packed value shares its slot.
+    fn mark_exclusive(&mut self, sharers: &FxHashMap<(U256, bool), usize>) {
+        self.exclusive = self.packed() && sharers[&(self.slot, self.transient)] == 1;
     }
 
     fn mask(self) -> U256 {
@@ -74,6 +87,22 @@ impl StorageLocation {
             builder.tstore(slot, value);
         } else {
             builder.sstore(slot, value);
+        }
+    }
+
+    /// The value as the low bits of a word, with zero padding above them.
+    pub(super) fn field_word(self, builder: &mut FunctionBuilder<'_>, value: ValueId) -> ValueId {
+        match self.encoding {
+            StorageEncoding::FixedBytes => {
+                // field = value >> align_shift
+                let shift = builder.imm(u64::from(Self::word_bytes() - self.size.bytes()) * 8);
+                builder.shr(value, shift)
+            }
+            StorageEncoding::Unsigned | StorageEncoding::Signed => {
+                // field = value & field_mask
+                let field_mask = builder.imm(self.mask());
+                builder.and(value, field_mask)
+            }
         }
     }
 
@@ -105,6 +134,17 @@ impl StorageLocation {
             }
         }
     }
+}
+
+/// Counts the packed values in each slot.
+fn packed_sharers<'a>(
+    locations: impl Iterator<Item = &'a StorageLocation>,
+) -> FxHashMap<(U256, bool), usize> {
+    let mut sharers = FxHashMap::default();
+    for location in locations.filter(|location| location.packed()) {
+        *sharers.entry((location.slot, location.transient)).or_default() += 1;
+    }
+    sharers
 }
 
 /// Storage locations for all state variables visible to the selected contract.
@@ -197,6 +237,12 @@ impl<'gcx> StorageLayout<'gcx> {
     ) {
         if !location.packed() {
             location.store(builder, slot, value);
+            return;
+        }
+        if location.exclusive {
+            // store(slot, field)
+            let field = location.field_word(builder, value);
+            location.store(builder, slot, field);
             return;
         }
         let shift = (location.offset != 0).then(|| builder.imm(u64::from(location.offset) * 8));
@@ -296,6 +342,7 @@ impl StorageCursor {
                 offset: self.offset,
                 size,
                 encoding,
+                exclusive: false,
                 transient: self.transient,
             };
             self.offset += bytes;
@@ -311,6 +358,7 @@ impl StorageCursor {
             offset: 0,
             size: StorageLocation::WORD,
             encoding: StorageEncoding::Unsigned,
+            exclusive: false,
             transient: self.transient,
         };
         self.slot = self.slot.checked_add(slots)?;
@@ -358,6 +406,10 @@ impl<'gcx> StorageBuilder<'gcx> {
                 }
             }
         }
+        let sharers = packed_sharers(self.locations.values());
+        for location in self.locations.values_mut() {
+            location.mark_exclusive(&sharers);
+        }
         StorageLayout { builder: self }
     }
 
@@ -387,7 +439,14 @@ impl<'gcx> StorageBuilder<'gcx> {
                 let slots = self.storage_slots(ty, Span::DUMMY);
                 cursor.take(encoding, slots)
             })
-            .collect::<Option<Box<_>>>();
+            .collect::<Option<Box<[StorageLocation]>>>();
+        let locations = locations.map(|mut locations| {
+            let sharers = packed_sharers(locations.iter());
+            for location in &mut locations {
+                location.mark_exclusive(&sharers);
+            }
+            locations
+        });
         if locations.is_none() {
             self.unsupported_size(Span::DUMMY, "storage struct");
         }
