@@ -1,0 +1,103 @@
+"""End-to-end checks using the pass outputs of the compiler under test."""
+
+import os
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SOLAR = os.environ.get("SOLAR", str(ROOT.parent / "target/debug/solar"))
+CLI = str(ROOT / "solar-tv")
+
+
+def check(layer, before, after):
+    return subprocess.run(
+        [CLI, layer, before, after, "--solar", SOLAR],
+        text=True,
+        check=False,
+        capture_output=True,
+        timeout=120,
+    )
+
+
+class PairTests(unittest.TestCase):
+    def test_pass_outputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for layer, example, transform, flag in [
+                ("mir", "dce", "dce", "mir"),
+                ("mir", "switch", "cfg-simplify", "mir"),
+                ("evmir", "peephole", "peephole", "evm-ir"),
+            ]:
+                with self.subTest(example=example):
+                    folder = ROOT / "examples" / example
+                    before = folder / f"before.{layer}"
+                    after = Path(tmp) / f"after.{layer}"
+                    output = subprocess.check_output(
+                        [
+                            SOLAR,
+                            before,
+                            f"-Z{flag}-pipeline={transform}",
+                            "-Zvalidate-ir=true",
+                        ],
+                        text=True,
+                    )
+                    # The first line includes the path of the source file.
+                    self.assertEqual(
+                        output.splitlines()[1:],
+                        (folder / after.name).read_text().splitlines()[1:],
+                    )
+                    after.write_text(output)
+                    result = check(layer, before, after)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, "verified\n")
+
+    def test_bad_pairs(self):
+        for layer, example, expected in [
+            ("mir", "dce", "  arg0 = 0\n  before = 1\n  after  = 0"),
+            (
+                "evmir",
+                "peephole",
+                "  before = fallthrough, stack=[]\n  after  = bb1, stack=[]",
+            ),
+        ]:
+            folder = ROOT / "examples" / example
+            result = check(
+                layer, folder / f"before.{layer}", folder / f"broken.{layer}"
+            )
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn(expected, result.stdout)
+
+    def test_effect_is_unsupported(self):
+        before = ROOT / "examples/dce/before.mir"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "write.mir"
+            path.write_text(
+                before.read_text().replace("ret v1", "mstore 0, v1\n    ret v1")
+            )
+            result = check("mir", path, before)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("unmodeled MIR instruction", result.stderr)
+
+    def test_counterexample_away_from_zero(self):
+        before = ROOT / "examples/switch/before.mir"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bad.mir"
+            path.write_text(before.read_text().replace("arg0 => bb1, ", ""))
+            result = check("mir", before, path)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("arg0 = 5\n  before = 1\n  after  = 2", result.stdout)
+
+    def test_live_stack_is_observable(self):
+        folder = ROOT / "examples/peephole"
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = []
+            for name, value in [("before", 1), ("after", 2)]:
+                path = Path(tmp) / f"{name}.evmir"
+                text = (folder / path.name).read_text()
+                path.write_text(text.replace("bb0:\n", f"bb0:\n  push {value}\n"))
+                paths.append(path)
+            result = check("evmir", *paths)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("stack=[1]", result.stdout)
+            self.assertIn("stack=[2]", result.stdout)
