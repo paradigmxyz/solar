@@ -45,7 +45,9 @@ PY
 
 bank_contract=(--source "$fixtures/Bank.sol" --contract Bank)
 bank=("${bank_contract[@]}" --all-functions)
-vault=(--source "$fixtures/Vault.sol" --contract Vault --all-functions)
+# Arbitrary storage makes `add(uint256)` need slightly more than the default
+# 1024 symbolic paths on current Foundry nightlies.
+vault=(--source "$fixtures/Vault.sol" --contract Vault --all-functions --max-paths 2048)
 
 check bank bounded_agreement "" "$solar" "[]" "${bank[@]}" --constructor-args "$fee5"
 check vault-arbitrary-storage bounded_agreement "" "$solar" "[]" "${vault[@]}" \
