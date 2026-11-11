@@ -1078,19 +1078,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   later scalar checks, which complicates the prologue.
 - Coverage: `tests/ui/codegen/run-call/abi-decode/abi_argument_check_order.sol`.
 
-### CODEGEN-018: Dirty storage padding of packed arrays survives a copy
-
-- ID: CODEGEN-018
-- Status: intentional
-- Difference: after assembly writes dirty bits into the unused high bits of the
-  slot of a storage array whose elements share a slot, such as `uint80`,
-  copying an array over it from memory keeps those bits in `solar`. `solc`
-  clears them. Solidity never reads the padding.
-- Rationale: only assembly or raw storage writes make the padding dirty, and
-  clearing it needs a masked write or an extra partial-slot cleanup for each
-  copy of such an array.
-- Coverage: `tests/ui/codegen/run-call/storage-arrays/storage_array_dirty_slot_padding.sol`.
-
 ### CODEGEN-019: Implicit memory defaults of absurdly large fields panic
 
 - ID: CODEGEN-019
