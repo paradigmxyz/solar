@@ -221,15 +221,22 @@ fn run(mut command: Command, timeout: Duration) -> Option<String> {
 }
 
 /// `query` as a script Ethos can take as a reference: its logic, declarations, assertions and
-/// `check-sat`, with every `define-fun` inlined at its uses.
+/// first `check-sat`, with every `define-fun` inlined at its uses. Commands after that
+/// `check-sat` do not bear on its answer and go. A query with a command that could change which
+/// assertions the answer is about, such as `push`, `pop` or `reset`, or with one this function
+/// does not know, is refused.
 pub fn reference_script(query: &str) -> Result<String, String> {
     let mut definitions: HashMap<String, (Vec<String>, Sexp)> = HashMap::new();
     let mut script = String::new();
     for command in sexp::parse(query) {
         let command = command.map_err(|error| format!("query: {error}"))?;
         match command.head() {
-            Some("set-logic" | "declare-const" | "declare-fun" | "declare-sort" | "check-sat") => {
+            Some("set-logic" | "declare-const" | "declare-fun" | "declare-sort") => {
                 script.push_str(&format!("{command}\n"));
+            }
+            Some("check-sat") => {
+                script.push_str(&format!("{command}\n"));
+                break;
             }
             Some("assert") => {
                 let items = command.as_list().unwrap_or_default();
@@ -248,13 +255,18 @@ pub fn reference_script(query: &str) -> Result<String, String> {
                     .collect::<Option<Vec<_>>>()
                     .ok_or_else(|| format!("malformed parameters in {command}"))?;
                 // Earlier definitions are inlined now, so each body is closed over the
-                // declarations and its own parameters.
-                let body = inline(body, &definitions, &HashMap::new());
+                // declarations and its own parameters, which shadow definitions of their names.
+                let mut visible = definitions.clone();
+                for parameter in &parameters {
+                    visible.remove(parameter);
+                }
+                let body = inline(body, &visible, &HashMap::new());
                 definitions.insert(name.clone(), (parameters, body));
             }
             // Responses and options: a proof of `unsat` has no model to print, and Z3's options
             // mean nothing to cvc5.
-            _ => {}
+            Some("set-option" | "set-info" | "get-value" | "get-model" | "get-info" | "echo") => {}
+            _ => return Err(format!("cannot certify a query with {command}")),
         }
     }
     Ok(script)
@@ -398,6 +410,44 @@ mod tests {
 (declare-const y (_ BitVec N))
 (assert (exists ((y!N (_ BitVec N))) (bvult y y!N)))
 (assert (= (let ((y!N (bvadd y y))) y!N) y))
+(check-sat)
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn refuses_scoped_queries() {
+        let query = "(set-logic `F_BV)
+(declare-const x (_ BitVec 8))
+(push 1)
+(assert (= x #x00))
+(pop 1)
+(assert (= x #x01))
+(check-sat)
+";
+        assert_eq!(reference_script(query), Err("cannot certify a query with (push 1)".into()));
+        // Only the first `check-sat` counts.
+        let query = "(declare-const x (_ BitVec 8))\n(check-sat)\n(assert false)\n(check-sat)\n";
+        assert_eq!(
+            reference_script(query).unwrap(),
+            "(declare-const x (_ BitVec 8))\n(check-sat)\n"
+        );
+    }
+
+    #[test]
+    fn parameters_shadow_definitions() {
+        let query = "(set-logic `F_BV)
+(define-fun v () (_ BitVec 8) #x07)
+(define-fun id ((v (_ BitVec 8))) (_ BitVec 8) v)
+(assert (= (id #x01) v))
+(check-sat)
+";
+        snapbox::assert_data_eq!(
+            reference_script(query).unwrap(),
+            snapbox::str![[r#"
+(set-logic `F_BV)
+(assert (= #x01 #x07))
 (check-sat)
 
 "#]]
