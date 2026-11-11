@@ -1,0 +1,113 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/fold_dup_sources.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/peephole/patterns/fold_dup_sources.evmir (after peephole) ===
+  @module FoldDupSources
+  bb0:
+    push 5
+    push 7
+    swap 1
+-   dup 2
+-   iszero
++   push 0
+    swap 2
+    pop
+    pop
+    push 0
+    mstore
+    stop
+  bb1:
+    push 5
+    push 6
+    push 7
+    exchange 1, 2
+-   dup 3
+-   iszero
++   push 0
+    swap 3
+    pop
+    pop
+    pop
+    push 0
+    mstore
+    stop
+  bb2:
+    push 5
+    calldatasize
+    pop
+-   dup 1
+-   iszero
++   push 0
+    swap 1
+    pop
+    push 0
+    mstore
+    stop
+  bb3:
+    push 5
+    push 0
+    push 0
+    mstore
+-   dup 1
+-   iszero
++   push 0
+    swap 1
+    pop
+    push 0
+    mstore
+    stop
+  bb4:
+    calldatasize
+    dup 1
+    iszero
+    swap 1
+    pop
+    push 0
+    mstore
+    stop
+  bb5:
+    push 5
+    calldatasize
+    swap 1
+    pop
+    dup 1
+    iszero
+    swap 1
+    pop
+    push 0
+    mstore
+    stop
+  bb6:
+    push 5
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    calldatasize
+    pop
+    dup 1
+    iszero
+    swap 1
+    pop
+    push 0
+    mstore
+    stop
+  
