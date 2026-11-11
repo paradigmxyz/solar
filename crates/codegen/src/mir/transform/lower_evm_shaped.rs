@@ -26,7 +26,9 @@
 
 use crate::mir::{
     Function, Immediate, InstId, InstKind, MirPhase, MirType, Module, Value, ValueId,
-    analysis::Liveness, pass::MirPass, transform::cfg_simplify::end_nonreturning_calls,
+    analysis::Liveness,
+    pass::MirPass,
+    transform::{cfg_simplify::end_nonreturning_calls, lower_assumes::should_check_analyses},
     utils::split_edge,
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -54,7 +56,7 @@ impl MirPass for LowerEvmShaped {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        end_nonreturning_calls(module, true);
+        end_nonreturning_calls(module, true, should_check_analyses(gcx.sess));
         let mut replacements = FxHashMap::default();
         let mut casts = DenseBitSet::new_empty(0);
         let mut instructions = Vec::new();

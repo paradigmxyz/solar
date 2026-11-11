@@ -1,0 +1,44 @@
+//@ revisions: off on
+//@[off] compile-flags: -Zmir-pipeline=noreturn-calls
+//@[off] filecheck: --check-prefixes=CHECK,OFF
+//@[on] compile-flags: -Zmir-pipeline=noreturn-calls -Zcheck-analyses=true
+//@[on] filecheck: --check-prefixes=CHECK,ON
+@module NoreturnCallsCheckAnalyses
+
+fn @fail() {
+  bb0:
+    revert 0, 0
+}
+
+// With `-Zcheck-analyses`, a block ended after a call that cannot return records, before its
+// `invalid`, that execution never gets there: `0 == 1`, which `lower-assumes` turns into an
+// `AnalysisFactViolated` revert naming the pass. Without the flag the block ends in `invalid`
+// alone.
+// CHECK-LABEL: @guarded
+// CHECK:          icall @fail
+// CHECK-NEXT: -   jump bb2
+// ON:         +   assume eq noreturn_calls, 0, 1
+// OFF-NOT:    assume
+// CHECK:      +   invalid
+fn @guarded(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, arg1
+    jumpi v0, bb2, bb1
+  bb1:
+    icall @fail
+    jump bb2
+  bb2:
+    ret arg0
+}
+
+// A check whose condition always fails ends its block the same way.
+// CHECK-LABEL: @failing_check
+// CHECK:          icall panic_if_zero<0x1>, false
+// ON:         +   assume eq noreturn_calls, 0, 1
+// OFF-NOT:    assume
+// CHECK:      +   invalid
+fn @failing_check(arg0: i256) -> i256 {
+  bb0:
+    icall panic_if_zero<0x1>, false
+    ret arg0
+}

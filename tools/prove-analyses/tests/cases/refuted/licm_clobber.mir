@@ -1,0 +1,24 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// counterexample: opaque
+// A read hoisted out of a loop that writes the slot it reads: the re-read at the loop's exit
+// differs from the hoisted value once an iteration has stored.
+@module LicmClobber
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = sload 1
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v7]
+    v4 = sload 1
+    assume eq licm, v1, v4
+    v5 = lt v3, v0
+    jumpi v5, bb2, bb3
+  bb2:
+    sstore 1, v3
+    v7 = add v3, 1
+    jump bb1
+  bb3:
+    stop
+}

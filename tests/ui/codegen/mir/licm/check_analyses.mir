@@ -1,0 +1,80 @@
+//@ revisions: off on
+//@[off] compile-flags: -Zmir-pipeline=licm
+//@[off] filecheck: --check-prefixes=CHECK,OFF
+//@[on] compile-flags: -Zmir-pipeline=licm -Zcheck-analyses=true
+//@[on] filecheck: --check-prefixes=CHECK,ON
+@module LicmCheckAnalyses
+
+// With `-Zcheck-analyses`, every read hoisted out of a loop is read again at the end of each block
+// the loop can exit from, and recorded equal to the hoisted value: the loop writes nothing it reads.
+// Without the flag the pass adds nothing.
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_mload{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = mload 0
+// CHECK: bb1:
+// ON: + [[REREAD:v[0-9]+]] = mload 0
+// ON-NEXT: + assume eq licm, [[LOAD]], [[REREAD]]
+// OFF-NOT: assume
+// CHECK: - [[LOAD]] = mload 0
+fn @hoist_mload() -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 64], [bb2: v9]
+    v2 = lt v1, 100
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = mload 0
+    sstore v1, v3
+    mstore v1, 7
+    v9 = add v1, 1
+    jump bb1
+  bb3:
+    ret v10
+}
+
+// A storage read moves out of a loop that writes only other slots, and each exiting block reads
+// the slot again.
+// CHECK-LABEL: {{^[ +].*}}fn @hoist_sload{{[( ]}}
+// CHECK: + [[LOAD:v[0-9]+]] = sload 1
+// ON: + [[REREAD:v[0-9]+]] = sload 1
+// ON-NEXT: + assume eq licm, [[LOAD]], [[REREAD]]
+// OFF-NOT: assume
+fn @hoist_sload(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v9]
+    v3 = sload 1
+    v2 = lt v1, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v4 = add v10, v3
+    sstore 2, v4
+    v9 = add v1, 1
+    jump bb1
+  bb3:
+    ret v10
+}
+
+// A read the loop may write stays, and nothing is recorded.
+// CHECK-LABEL: {{^[ +].*}}fn @keep_sload{{[( ]}}
+// CHECK-NOT: assume
+fn @keep_sload(arg0: i256) -> i256 {
+  bb0:
+    jump bb1
+  bb1:
+    v10 = phi [bb0: 0], [bb2: v4]
+    v1 = phi [bb0: 0], [bb2: v9]
+    v3 = sload 1
+    v2 = lt v1, arg0
+    jumpi v2, bb2, bb3
+  bb2:
+    v4 = add v10, v3
+    sstore 1, v4
+    v9 = add v1, 1
+    jump bb1
+  bb3:
+    ret v10
+}

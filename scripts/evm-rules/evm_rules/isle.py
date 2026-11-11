@@ -15,6 +15,16 @@ from .expr import MASK, Cond, Expr, Unsupported
 ROOT = Path(__file__).resolve().parents[3]
 ISLE = ROOT / "crates/codegen/isle"
 
+# Constructors that note the width a rule relied on, which the e-graph records with
+# `-Zcheck-analyses`, and return their last operand: the rule's result is that operand.
+RELIED = (
+    "relied_ult",
+    "relied_ule",
+    "relied_below_bits",
+    "relied_ult_op",
+    "relied_ule_op",
+)
+
 
 def forms(source):
     """S-expression reader with source lines, comments and balanced-delimiter checks."""
@@ -353,6 +363,9 @@ class Context:
         if name.startswith("Op."):
             return self.operation(name, [self.constructor(a) for a in args])
         values = [self.constructor(a) for a in args]
+        if name in RELIED and len(values) == 3:
+            # Notes a width for `-Zcheck-analyses` and returns its last operand unchanged.
+            return values[2]
         if name == "integer_imm" and len(values) == 2:
             if self.integer_width is None or values[0] != self.integer_width:
                 raise Unsupported(

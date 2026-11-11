@@ -56,6 +56,15 @@
 //! pointer, whichever way the backend places it; its result lies above the reserved words and
 //! apart from every other deferred allocation, an axiom of the backend's placement.
 //!
+//! Allocation lowering's records that a free memory pointer read returns the heap floor rest on
+//! the function starting with the floor in the pointer's slot, which the entry's initialization
+//! and every caller's own freshness give and the query cannot follow. A function with such a
+//! record therefore takes on trust (axiom `fresh-entry`) that its entry memory holds one heap floor
+//! in the slot, the value of every `heap_floor`, so the query proves what is the function's own:
+//! that nothing it ran before the read wrote the slot. Its records that dropped zero fills read
+//! zeros stay unproved: they rest on the memory above the pointer being zero on entry, which the
+//! query leaves free.
+//!
 //! Each query comes in up to two tiers. The exact tier is written as `NAME.smt2`. When the
 //! query multiplies, divides or takes a remainder by a value that is not a constant, the
 //! abstract tier `NAME.abstract.smt2` replaces those operations by uninterpreted functions
@@ -71,8 +80,8 @@ use super::lower_assumes::Fact;
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
-        AssumePredicate, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, PtrLocation,
-        ResultKind, Semantics, Terminator, Value, ValueId,
+        AssumePredicate, BlockId, EffectKind, FactSource, Function, FunctionId, InstId, InstKind,
+        PtrLocation, ResultKind, Semantics, Terminator, Value, ValueId,
         analysis::{CfgInfo, integers::integer_mask},
         memory::EvmMemoryLayout,
     },
@@ -96,6 +105,12 @@ pub(super) fn write_queries(
     facts: &[Fact],
     dir: &Path,
 ) -> std::io::Result<()> {
+    // That a block is never reached is a fact about control, which needs a callee's summary the
+    // queries do not follow; it is tested at run time only. Taken as an assumption, it would prove
+    // every later fact of its block vacuously.
+    let facts: Vec<_> =
+        facts.iter().copied().filter(|fact| fact.source != FactSource::NoreturnCalls).collect();
+    let facts = facts.as_slice();
     if facts.is_empty() || func.blocks.is_empty() {
         return Ok(());
     }
@@ -177,6 +192,9 @@ struct Prover<'a> {
     names: FxHashMap<InstId, u32>,
     /// The memory words a query may track as symbols beside the byte array.
     split: FxHashSet<(Option<ValueId>, U256)>,
+    /// Whether allocation lowering recorded a read of the heap floor, so the function starts with
+    /// the floor in the free memory pointer's slot.
+    fresh_entry: bool,
 }
 
 impl<'a> Prover<'a> {
@@ -194,6 +212,10 @@ impl<'a> Prover<'a> {
             definitions: func.inst_block_table(),
             names,
             split: split_words(func),
+            fresh_entry: facts.iter().any(|fact| {
+                fact.source == FactSource::LowerAlloc
+                    && matches!(func.value_inst_kind(fact.lhs), Some(InstKind::HeapFloor))
+            }),
         }
     }
 
@@ -218,6 +240,9 @@ impl<'a> Prover<'a> {
 
     fn query(&self, goal: &Goal) -> Encoded {
         let mut query = Query::new(self.func, &self.names, &self.definitions, &self.split);
+        if self.fresh_entry {
+            query.assume_fresh_entry();
+        }
         let fact = &self.facts[goal.fact];
         self.encode_context(&mut query, fact.block, None, Some(goal.fact), 0);
         let claim = self.claim(&mut query, fact, None);
@@ -539,6 +564,8 @@ struct Query<'a> {
     allocations: Vec<(InstId, String, U256)>,
     /// The states each nested context entered from, to restore when it ends.
     saved_states: Vec<Saved>,
+    /// With the `fresh-entry` axiom, the heap floor every `heap_floor` returns.
+    entry_floor: Option<String>,
     /// Prepended to the names of values defined outside `shared`, for an earlier pass.
     prefix: String,
     shared: Option<DenseBitSet<BlockId>>,
@@ -576,9 +603,22 @@ impl<'a> Query<'a> {
             memory_functions: FxIndexSet::default(),
             allocations: Vec::new(),
             saved_states: Vec::new(),
+            entry_floor: None,
         }
         // Memory on entry is the caller's, which the query does not follow.
         .with_opaque("mem0")
+    }
+
+    /// Takes on trust that the function starts with the heap floor in the free memory pointer's
+    /// slot: see the module docs.
+    fn assume_fresh_entry(&mut self) {
+        let floor = self.fresh("heap_floor");
+        let (lo, hi) = (U256::from(EvmMemoryLayout::HEAP_START), integer_mask(66));
+        self.assert(within(&floor, lo, hi));
+        let (read, _) = self.read_bytes(&word(U256::from(EvmMemoryLayout::FMP_SLOT)));
+        self.assert(format!("(= {read} {floor})"));
+        self.axioms.insert("fresh-entry");
+        self.entry_floor = Some(floor);
     }
 
     fn with_opaque(mut self, symbol: &str) -> Self {
@@ -879,6 +919,9 @@ impl<'a> Query<'a> {
             let (lo, hi) = (U256::from(EvmMemoryLayout::HEAP_START), integer_mask(66));
             self.assert(within(&symbol, lo, hi));
             self.axioms.insert("heap-floor");
+            if let Some(floor) = &self.entry_floor {
+                self.assert(format!("(= {symbol} {floor})"));
+            }
             return;
         }
         // A deferred allocation lies above the reserved words like the heap, and apart from every

@@ -202,8 +202,10 @@
 //! With `-Zcheck-analyses`, each decision records the fact it relied on as an `assume` for
 //! `lower-assumes` to test, added after the rewrite: the condition of a folded branch or dropped
 //! check, that the failure test lowering would emit for a checked operation made unchecked is
-//! false, an equality it propagates, and that a mask integer cleanup removes leaves its operand
-//! unchanged, keeping the mask as the evidence.
+//! false, an equality it propagates, that each operand a reduced branch condition drops equals
+//! the neutral value it was decided to be, that a mask integer cleanup removes leaves its operand
+//! unchanged, keeping the mask as the evidence, and that both words of a fused test are at most
+//! one.
 
 use super::{
     call_cleanup,
@@ -945,7 +947,16 @@ struct Midpoint {
 
 /// Branches to fold to one target, passing checks to remove, and branch conditions to reduce to
 /// one operand, as a dominator walk decides them.
-type Folds = (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>, Vec<(BlockId, ValueId)>);
+type Folds = (Vec<(BlockId, BlockId)>, DenseBitSet<InstId>, Vec<Reduction>);
+
+/// A branch condition reduced to one of its operands.
+struct Reduction {
+    block: BlockId,
+    /// The operand the branch reads instead.
+    reduced: ValueId,
+    /// The operands dropped on the way, each with the neutral value it was decided to equal.
+    decided: SmallVec<[(ValueId, bool); 1]>,
+}
 
 /// Operands of one instruction and the constants they equal.
 type Replacements = SmallVec<[(ValueId, ValueId); 2]>;
@@ -1141,6 +1152,21 @@ impl<'a> CheckEliminator<'a> {
         if self.record {
             let decisions = decided_facts(func, &unfailing, &folds, &checks);
             self.pending.extend(decisions);
+            // d == neutral for each operand a reduction dropped
+            for reduction in &reductions {
+                for &(dropped, neutral) in &reduction.decided {
+                    let ty = func.value_ty(dropped);
+                    let value = Immediate::for_type(ty, U256::from(neutral));
+                    let neutral = func.alloc_value(Value::Immediate(value));
+                    let fact = PendingFact::Relation(
+                        reduction.block,
+                        AssumePredicate::Eq,
+                        dropped,
+                        neutral,
+                    );
+                    self.pending.push(fact);
+                }
+            }
         }
         // checked_op a, b that cannot fail -> op a, b
         for (id, kind) in &unfailing {
@@ -1159,7 +1185,7 @@ impl<'a> CheckEliminator<'a> {
             }
         }
         // jumpi (or c, 0) | (and c, 1), then, else -> jumpi c, then, else
-        for &(block, reduced) in &reductions {
+        for &Reduction { block, reduced, .. } in &reductions {
             if let Some(Terminator::Branch { condition, .. }) = &mut func.blocks[block].terminator {
                 *condition = reduced;
             }
@@ -1375,11 +1401,15 @@ impl<'a> CheckEliminator<'a> {
                             }
                             None if selected.is_none() => {
                                 let mut reduced = *condition;
-                                while let Some(operand) = self.reduced_condition(func, reduced) {
+                                let mut decided = SmallVec::new();
+                                while let Some((operand, dropped, neutral)) =
+                                    self.reduced_condition(func, reduced)
+                                {
                                     reduced = operand;
+                                    decided.push((dropped, neutral));
                                 }
                                 if reduced != *condition {
-                                    reductions.push((block, reduced));
+                                    reductions.push(Reduction { block, reduced, decided });
                                 }
                             }
                             _ => {}
@@ -1399,17 +1429,21 @@ impl<'a> CheckEliminator<'a> {
 
     /// The operand an `or` or `and` condition reduces to when the other one is decided as the
     /// neutral value of the operation: false for `or`, true for `and`, whose `i1` operands are
-    /// then exactly zero and one.
-    fn reduced_condition(&mut self, func: &Function, condition: ValueId) -> Option<ValueId> {
+    /// then exactly zero and one. Also returns the decided operand and that neutral value.
+    fn reduced_condition(
+        &mut self,
+        func: &Function,
+        condition: ValueId,
+    ) -> Option<(ValueId, ValueId, bool)> {
         let (a, b, neutral) = match *func.value_inst_kind(condition)? {
             InstKind::Or(a, b) => (a, b, false),
             InstKind::And(a, b) => (a, b, true),
             _ => return None,
         };
         if self.eval_truth(func, a, MAX_DEPTH) == Some(neutral) {
-            Some(b)
+            Some((b, a, neutral))
         } else if self.eval_truth(func, b, MAX_DEPTH) == Some(neutral) {
-            Some(a)
+            Some((a, b, neutral))
         } else {
             None
         }
@@ -1833,6 +1867,21 @@ impl<'a> CheckEliminator<'a> {
     /// at the boundary covers.
     fn fuse_tests(&mut self, func: &mut Function) -> bool {
         let tests = std::mem::take(&mut self.fused_tests);
+        if self.record && !tests.is_empty() {
+            // a <= 1 and b <= 1, so that one nonzero test of a & b or a ^ b covers both
+            let blocks = func.inst_block_table();
+            for &(id, a, b) in &tests {
+                let Some(block) = blocks[id] else { continue };
+                for operand in [a, b] {
+                    let one = func.alloc_value(Value::Immediate(Immediate::for_type(
+                        func.value_ty(operand),
+                        U256::ONE,
+                    )));
+                    let fact = PendingFact::Relation(block, AssumePredicate::Ule, operand, one);
+                    self.pending.push(fact);
+                }
+            }
+        }
         let mut widened = FxHashMap::<ValueId, Vec<InstId>>::default();
         for inst in func.instructions() {
             if let InstKind::Zext(test) = func.inst(inst).kind

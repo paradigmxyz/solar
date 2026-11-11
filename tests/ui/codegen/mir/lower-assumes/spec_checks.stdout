@@ -30,27 +30,37 @@ fn @half() {
     v19 = calldataload 4
     v15 = and v19, 255
     v16 = shr v19, 1
-    v5 = lt v16, v19
     mstore 0, v16
+    v5 = lt v16, v19
     v20 = zext i1 v5 to i256
     v21 = eq v20, 0
     jumpi v21, bb4, bb5
   bb5:                                            ; preds = bb2
-    v22 = ne v15, v19
+    v22 = gt v16, 255
     jumpi v22, bb6, bb7
   bb7:                                            ; preds = bb5
+    v23 = gt v19, 255
+    jumpi v23, bb8, bb9
+  bb9:                                            ; preds = bb7
+    v24 = ne v15, v19
+    jumpi v24, bb10, bb11
+  bb11:                                           ; preds = bb9
     returndata 0, 32
+  bb10 [cold]:                                    ; preds = bb9
+    jump bb3
+  bb8 [cold]:                                     ; preds = bb7
+    jump bb3
   bb6 [cold]:                                     ; preds = bb5
     jump bb3
   bb4 [cold]:                                     ; preds = bb2
     jump bb3
-  bb3 [cold]:                                     ; preds = bb4, bb6
-    v23 = phi [bb4: 0x207000000000000000200000005], [bb6: 0x10200000000000000020000000f]
-    v24 = phi [bb4: v20], [bb6: v15]
-    v25 = phi [bb4: 0], [bb6: v19]
-    mstore 32, v23 !metadata(memory=scratch)
-    mstore 64, v24 !metadata(memory=scratch)
-    mstore 96, v25 !metadata(memory=scratch)
+  bb3 [cold]:                                     ; preds = bb4, bb6, bb8, bb10
+    v25 = phi [bb4: 0x207000000000000000200000005], [bb6: 0x408000000000000000200000010], [bb8: 0x408000000000000000200000013], [bb10: 0x10200000000000000020000000f]
+    v26 = phi [bb4: v20], [bb6: v16], [bb8: v19], [bb10: v15]
+    v27 = phi [bb4: 0], [bb6: 255], [bb8: 255], [bb10: v19]
+    mstore 32, v25 !metadata(memory=scratch)
+    mstore 64, v26 !metadata(memory=scratch)
+    mstore 96, v27 !metadata(memory=scratch)
     mstore 0, 0xed572b27 !metadata(memory=scratch)
     revert 28, 100
   bb1 [cold]:                                     ; preds = bb0

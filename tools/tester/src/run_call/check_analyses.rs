@@ -197,6 +197,13 @@ fn describe_violation(data: &[u8]) -> Option<String> {
         3 => "cse",
         4 => "load-pre",
         5 => "indvar-simplify",
+        8 => "egraph",
+        9 => "const-fold",
+        16 => "licm",
+        17 => "storage-promotion",
+        18 => "lower-alloc",
+        19 => "noreturn-calls",
+        20 => "readonly-eval",
         _ => "an unknown pass",
     };
     let predicate = match byte(104) {

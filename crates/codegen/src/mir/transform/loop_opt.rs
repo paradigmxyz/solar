@@ -20,6 +20,17 @@
 //! size) stay in loops that call or create, and nothing moves out of a loop that reads the
 //! remaining gas. Frame loads and the free memory pointer never move.
 //!
+//! With `-Zcheck-analyses`, each read the pass hoists, of memory, storage, transient storage, an
+//! immutable or the environment, is read again at the end of every block the loop can exit from,
+//! and the pass records the two equal, `assume eq licm, hoisted, reread`: the loop writes nothing
+//! the read reads, so the value the preheader read still holds wherever the loop may leave. The
+//! check runs on every iteration that reaches an exiting block, so a write anywhere in the loop
+//! that is followed by another test of the exit condition is caught. The re-read reads what the
+//! hoisted read already read, so it expands no memory; a later run of the pass never hoists a read
+//! only records read, nor does CSE forward one without keeping it as its own evidence. Slot hashes
+//! are pure, and their reliance on private scratch words has no value to compare, so they are not
+//! recorded.
+//!
 //! Profitability. An instruction is a hoisting root when its estimated per-iteration saving
 //! reaches the pass threshold, or when it is the invariant base of an affine address the loop
 //! reads or writes. In gas mode, pure word arithmetic that executes on every iteration is a
@@ -62,15 +73,18 @@
 use super::utils::terminator_debug_context;
 use crate::{
     mir::{
-        BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
-        Instruction, MirType, Module, OpTraits, PtrLocation, StorageAlias, Terminator, Value,
-        ValueId,
+        AssumePredicate, BlockId, EffectKind, FactSource, Function, FunctionBuilder, Immediate,
+        ImmutableId, InstId, InstKind, Instruction, MirType, Module, OpTraits, PtrLocation,
+        StorageAlias, Terminator, Value, ValueId,
         analysis::{
             AddressSpace, AffineExpr, AliasAnalysis, AliasResult, CfgInfo, DominatorTree, Location,
             LocationSize, Loop, LoopAnalyzer, MemoryAddress, MemoryLocation, ModRef,
             ScalarEvolution,
         },
         pass::{MirPass, run_selected_function_pass_with_alias_and_cfg},
+        transform::lower_assumes::{
+            NonRecordReads, is_forwardable_read, record_fact, should_check_analyses,
+        },
         utils as mir_utils,
     },
     target::Target,
@@ -99,6 +113,7 @@ impl MirPass for Licm {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let record = should_check_analyses(gcx.sess);
         let mut selected = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
             if func.blocks.is_empty() {
@@ -120,6 +135,8 @@ impl MirPass for Licm {
                     alias: Rc::clone(analyses.alias()),
                     hoisted: 0,
                     annotated_aliases: false,
+                    record,
+                    record_reads: None,
                 };
                 let changed = optimizer.optimize(func, Rc::clone(analyses.cfg())) != 0;
                 if optimizer.annotated_aliases {
@@ -206,6 +223,11 @@ pub(super) struct LoopOptimizer {
     hoisted: usize,
     /// Whether storage-alias annotation changed metadata, which is not reported as a change.
     annotated_aliases: bool,
+    /// Whether to record the reads hoisted for `-Zcheck-analyses`.
+    record: bool,
+    /// With `record`, the values something other than a record reads: a read only records read
+    /// is the evidence of an earlier fact and stays where it is.
+    record_reads: Option<NonRecordReads>,
 }
 
 impl LoopOptimizer {
@@ -214,6 +236,7 @@ impl LoopOptimizer {
     fn optimize(&mut self, func: &mut Function, cfg: Rc<CfgInfo>) -> usize {
         self.annotated_aliases |=
             func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
+        self.record_reads = self.record.then(|| NonRecordReads::new(func));
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze_with_cfg(func, Rc::clone(&cfg));
@@ -477,6 +500,7 @@ impl LoopOptimizer {
         let ordered = self.topological_sort_instructions(func, selected, visiting);
 
         let hoisted_loc = terminator_debug_context(func, preheader, DebugLocKind::Dropped);
+        let mut hoisted_reads = Vec::new();
         for inst_id in ordered {
             // An enclosing loop's earlier hoist may have already moved the
             // instruction out of these blocks; pushing it again would schedule
@@ -486,8 +510,12 @@ impl LoopOptimizer {
                 func.inst_mut(inst_id).metadata.preserve_debug_loc(&hoisted_loc);
                 func.blocks[preheader].instructions.push(inst_id);
                 self.hoisted += 1;
+                if self.record && is_recorded_read(func, inst_id) {
+                    hoisted_reads.push(inst_id);
+                }
             }
         }
+        record_hoisted_reads(func, &hoisted_reads, ctx.exiting);
     }
 
     fn collect_hoist_closure(
@@ -528,6 +556,15 @@ impl LoopOptimizer {
 
     fn can_hoist_safely(&self, func: &Function, inst_id: InstId, ctx: LoopOptContext<'_>) -> bool {
         let inst = func.inst(inst_id);
+
+        // A read only records read is an earlier fact's evidence, read where the fact was relied
+        // on.
+        if let Some(reads) = &self.record_reads
+            && let Some(result) = func.inst_result_value(inst_id)
+            && reads.only_records(result)
+        {
+            return false;
+        }
 
         if matches!(inst.kind, InstKind::StorageArrayDataSlot(_) | InstKind::MappingSlot(..)) {
             return self.slot_hash_scratch_is_private(func, inst_id)
@@ -1385,4 +1422,34 @@ fn reassociate_invariant_offsets(
         }
     }
     rewritten
+}
+
+/// Whether the hoisted `inst` reads state a loop could change, with an integer result a record can
+/// compare.
+fn is_recorded_read(func: &Function, inst: InstId) -> bool {
+    let instruction = func.inst(inst);
+    let kind = &instruction.kind;
+    (is_forwardable_read(kind)
+        || kind.reads_account_state()
+        || matches!(kind, InstKind::ReturnDataSize | InstKind::LoadImmutable(_)))
+        && instruction.result_ty.and_then(MirType::integer_bits).is_some()
+}
+
+/// Records, for every read hoisted out of a loop, that the same read at the end of each block the
+/// loop can exit from returns the hoisted value: nothing in the loop writes what it reads.
+fn record_hoisted_reads(func: &mut Function, reads: &[InstId], exiting: &[BlockId]) {
+    for &block in exiting {
+        for &read in reads {
+            let hoisted = func.inst_result_value(read).expect("a recorded read has a result");
+            // reread = the hoisted read
+            let original = func.inst(read);
+            let mut instruction = Instruction::new(original.kind.clone(), original.result_ty);
+            instruction.metadata = original.metadata.clone();
+            let instruction = instruction.with_debug_loc_dropped();
+            let (inst, reread) = func.alloc_value_inst(instruction);
+            func.blocks[block].instructions.push(inst);
+            // assume eq licm, hoisted, reread
+            record_fact(func, block, FactSource::Licm, AssumePredicate::Eq, hoisted, reread);
+        }
+    }
 }

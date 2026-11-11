@@ -29,6 +29,8 @@ PASSES = {
     3: "cse",
     4: "load-pre",
     5: "indvar-simplify",
+    8: "egraph",
+    9: "const-fold",
 }
 # The predicate of a fact a pass relied on, `lhs op rhs`.
 PREDICATES = {1: "==", 2: "!=", 3: "<", 4: "<="}

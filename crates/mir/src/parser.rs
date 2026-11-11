@@ -1916,6 +1916,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     sym::indvar_simplify => super::FactSource::IndvarSimplify,
                     sym::spec_requires => super::FactSource::SpecRequires,
                     sym::spec_ensures => super::FactSource::SpecEnsures,
+                    sym::egraph => super::FactSource::Egraph,
+                    sym::const_fold => super::FactSource::ConstFold,
+                    sym::licm => super::FactSource::Licm,
+                    sym::storage_promotion => super::FactSource::StoragePromotion,
+                    sym::lower_alloc => super::FactSource::LowerAlloc,
+                    sym::noreturn_calls => super::FactSource::NoreturnCalls,
+                    sym::readonly_eval => super::FactSource::ReadonlyEval,
                     _ => return Err(self.parser.error("expected the pass that recorded the fact")),
                 };
                 self.parser.expect(TokenKind::Comma)?;

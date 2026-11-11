@@ -99,7 +99,7 @@ pub fn run_function(
             id,
             args,
             memory,
-            Limits { fuel: options.fuel, depth: options.depth },
+            Limits { fuel: options.fuel, depth: options.depth, check_widths: false },
             options.evm_version,
         );
         let outcome = match outcome {

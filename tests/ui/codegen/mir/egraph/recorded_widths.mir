@@ -1,0 +1,111 @@
+//@ revisions: checked unchecked
+//@[checked] compile-flags: -Ogas -Zcheck-analyses=true -Zmir-pipeline=egraph
+//@[unchecked] compile-flags: -Ogas -Zmir-pipeline=egraph
+//@[checked] filecheck: --check-prefix=CHECKED
+//@[unchecked] filecheck: --check-prefix=UNCHECKED
+
+// A rule that reads a width from a value's definition records it with
+// `-Zcheck-analyses`, as `assume ult` or `assume ule` of the value against the bound
+// the rule relied on, where the rewritten instruction's block ends. Without the flag
+// the rewrites are the same and nothing is recorded.
+// UNCHECKED-NOT: assume
+@module RecordedWidths
+
+// a / 300 => 0, since a < 300.
+// CHECKED-LABEL: fn @divide(
+// CHECKED: [[A:v[0-9]+]] = and arg0, 255
+// CHECKED: assume ult egraph, [[A]], 300
+// CHECKED: ret 0
+fn @divide(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = div v0, 300
+    ret v1
+}
+
+// a % 256 => a, since a < 256.
+// CHECKED-LABEL: fn @remainder(
+// CHECKED: [[A:v[0-9]+]] = shr arg0, 248
+// CHECKED: assume ult egraph, [[A]], 256
+// CHECKED: ret [[A]]
+fn @remainder(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 248
+    v1 = mod v0, 256
+    ret v1
+}
+
+// a & 0xffff => a, since a <= 0xffff.
+// CHECKED-LABEL: fn @mask(
+// CHECKED: [[A:v[0-9]+]] = shr arg0, 248
+// CHECKED: assume ule egraph, [[A]], 0xffff
+// CHECKED: ret [[A]]
+fn @mask(arg0: i256) -> i256 {
+  bb0:
+    v0 = shr arg0, 248
+    v1 = and v0, 0xffff
+    ret v1
+}
+
+// a < 256 => true.
+// CHECKED-LABEL: fn @compare(
+// CHECKED: assume ult egraph, {{v[0-9]+}}, 256
+// CHECKED: ret true
+fn @compare(arg0: i256) -> i1 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = lt v0, 256
+    ret v1
+}
+
+// a >> 8 => 0, since a < 2 ** 8.
+// CHECKED-LABEL: fn @shifted_out(
+// CHECKED: assume ult egraph, {{v[0-9]+}}, 256
+// CHECKED: ret 0
+fn @shifted_out(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = shr v0, 8
+    ret v1
+}
+
+// signextend(0, a) => a, since a < 2 ** 7 leaves the sign bit clear.
+// CHECKED-LABEL: fn @sign_clear(
+// CHECKED: [[A:v[0-9]+]] = and arg0, 127
+// CHECKED: assume ult egraph, [[A]], 128
+// CHECKED: ret [[A]]
+fn @sign_clear(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 127
+    v1 = signextend 0, v0
+    ret v1
+}
+
+// (a << 8) == (b << 8) => a == b, an alternative that relies on both widths.
+// CHECKED-LABEL: fn @narrow(
+// CHECKED: [[A:v[0-9]+]] = and arg0, 255
+// CHECKED: [[B:v[0-9]+]] = and arg1, 255
+// CHECKED: = eq [[A]], [[B]]
+// CHECKED-DAG: assume ule egraph, [[A]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+// CHECKED-DAG: assume ule egraph, [[B]], 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+fn @narrow(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v0 = and arg0, 255
+    v1 = and arg1, 255
+    v2 = shl v0, 8
+    v3 = shl v1, 8
+    v4 = eq v2, v3
+    ret v4
+}
+
+// A narrow type bounds its value too: the fact is about the widened word.
+// CHECKED-LABEL: fn @narrow_type(
+// CHECKED: [[A:v[0-9]+]] = zext i8 arg0 to i256
+// CHECKED: assume ult egraph, [[A]], 300
+// CHECKED: ret true
+fn @narrow_type(arg0: i8) -> i1 {
+  bb0:
+    v0 = zext i8 arg0 to i256
+    v1 = lt v0, 300
+    ret v1
+}

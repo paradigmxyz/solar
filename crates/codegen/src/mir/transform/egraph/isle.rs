@@ -13,14 +13,15 @@ use super::{OperandViews, canonical, same_value};
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
-        ArgIdx, BlockId, Function, Immediate, InstKind, MirType, Op, ResultKind, Value as MirValue,
-        ValueId,
+        ArgIdx, AssumePredicate, BlockId, Function, Immediate, InstKind, MirType, Op, ResultKind,
+        Value as MirValue, ValueId,
         transform::commute::{Reading, Spellings, commutative_definition, swappable},
         utils::eval::eval_opcode,
     },
     target::Target,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::EvmVersion;
 use solar_data_structures::index::IndexVec;
 
@@ -66,7 +67,25 @@ pub(super) struct RuleContext<'a> {
     /// The commuted spelling of the root being matched.
     reading: Reading,
     integer_ty: MirType,
+    /// Whether rules collect the widths they rely on, for `-Zcheck-analyses`.
+    record: bool,
+    /// The widths the `simplify` rule that applied relied on.
+    relied: Relied,
+    /// The widths each alternative a `rewrite` rule built relied on.
+    relied_ops: SmallVec<[(Op, WidthFact); 2]>,
 }
+
+/// A width a rule relied on: `predicate(value, bound)` as unsigned words, which the definition of
+/// `value` proves ([`max_bits`]). With `-Zcheck-analyses` the pass records it as an `assume`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(in crate::mir::transform) struct WidthFact {
+    pub(in crate::mir::transform) value: ValueId,
+    pub(in crate::mir::transform) predicate: AssumePredicate,
+    pub(in crate::mir::transform) bound: U256,
+}
+
+/// The widths one rewrite relied on.
+pub(in crate::mir::transform) type Relied = SmallVec<[WidthFact; 1]>;
 
 impl<'a> RuleContext<'a> {
     /// Creates a context over `func`.
@@ -80,6 +99,46 @@ impl<'a> RuleContext<'a> {
             views: [None; 2],
             reading: Reading::default(),
             integer_ty: MirType::I256,
+            record: false,
+            relied: Relied::new(),
+            relied_ops: SmallVec::new(),
+        }
+    }
+
+    /// Collects the widths the rules that apply rely on, for [`Self::take_relied`] and
+    /// [`Self::relied_by`].
+    pub(super) fn with_recording(mut self, record: bool) -> Self {
+        self.record = record;
+        self
+    }
+
+    /// The widths the `simplify` rule that applied relied on.
+    pub(super) fn take_relied(&mut self) -> Relied {
+        std::mem::take(&mut self.relied)
+    }
+
+    /// The widths the `rewrite` rules that built `alternative` relied on.
+    pub(super) fn relied_by(&self, alternative: &Op) -> impl Iterator<Item = WidthFact> + '_ {
+        let alternative = *alternative;
+        self.relied_ops.iter().filter(move |(op, _)| *op == alternative).map(|&(_, fact)| fact)
+    }
+
+    /// The widths each alternative the `rewrite` rules built relied on.
+    pub(super) fn take_relied_ops(&mut self) -> SmallVec<[(Op, WidthFact); 2]> {
+        std::mem::take(&mut self.relied_ops)
+    }
+
+    /// Notes that the rule being applied relies on `predicate(value, bound)`.
+    fn rely(&mut self, value: ValueId, predicate: AssumePredicate, bound: U256) {
+        if self.record {
+            self.relied.push(WidthFact { value, predicate, bound });
+        }
+    }
+
+    /// Notes that the alternative `op` relies on `predicate(value, bound)`.
+    fn rely_op(&mut self, op: Op, value: ValueId, predicate: AssumePredicate, bound: U256) {
+        if self.record {
+            self.relied_ops.push((op, WidthFact { value, predicate, bound }));
         }
     }
 
@@ -141,6 +200,8 @@ impl<'a> RuleContext<'a> {
     pub(super) fn simplify(&mut self, op: &Op) -> Option<ValueId> {
         self.integer_ty = self.operation_type(op).unwrap_or(MirType::I256);
         self.reading.read_commutative = false;
+        // Only the rule that applies builds its right-hand side, which notes what it relied on.
+        self.relied.clear();
         let simplified = generated::constructor_simplify(self, op);
         if simplified.is_some() || !self.reading.read_commutative && !swappable(self.func, op) {
             return simplified;
@@ -652,5 +713,33 @@ impl generated::Context for RuleContext<'_> {
 
     fn has_known_sign_bit(&mut self, value: Value) -> bool {
         has_known_sign_bit(self.func, value)
+    }
+
+    fn relied_ult(&mut self, value: Value, bound: U256, result: Value) -> Value {
+        self.rely(value, AssumePredicate::Ult, bound);
+        result
+    }
+
+    fn relied_ule(&mut self, value: Value, bound: U256, result: Value) -> Value {
+        self.rely(value, AssumePredicate::Ule, bound);
+        result
+    }
+
+    fn relied_below_bits(&mut self, value: Value, bits: U256, result: Value) -> Value {
+        // Every word is below `2^256`, so a wider bound needs no fact.
+        if bits < U256::from(256) {
+            self.rely(value, AssumePredicate::Ult, U256::ONE << bits.to::<usize>());
+        }
+        result
+    }
+
+    fn relied_ult_op(&mut self, value: Value, bound: U256, result: &Op) -> Op {
+        self.rely_op(*result, value, AssumePredicate::Ult, bound);
+        *result
+    }
+
+    fn relied_ule_op(&mut self, value: Value, bound: U256, result: &Op) -> Op {
+        self.rely_op(*result, value, AssumePredicate::Ule, bound);
+        *result
     }
 }

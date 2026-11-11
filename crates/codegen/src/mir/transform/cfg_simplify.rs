@@ -31,6 +31,10 @@
 //! helper that only fails, like `return new uint256[](0)[0];`, cannot return. The pass runs
 //! first in the semantic pipeline, again once CSE has forwarded the loads such checks read, and
 //! `lower-evm-shaped` repeats it with tail calls.
+//! With `-Zcheck-analyses`, the block keeps a record before its `invalid` that execution
+//! never gets there, `assume eq noreturn_calls, 0, 1`, which `lower-assumes` turns into an
+//! `AnalysisFactViolated` revert naming this pass: a callee that returns after all, or a check
+//! that passes, then fails the check build loudly instead of running into `invalid`.
 //! Returnability follows explicit returns and tail-call chains conservatively: an unreachable
 //! return keeps a body returning until CFG cleanup removes it, and a caller worklist propagates
 //! the bodies that every path now leaves through such a call.
@@ -43,10 +47,11 @@
 
 use super::utils::{redirect_edge, redirect_successor_predecessors};
 use crate::mir::{
-    BlockId, Builtin, Callee, Function, FunctionId, Immediate, InstKind, InstructionMetadata,
-    MirType, Module, Terminator, Value, ValueId,
+    BlockId, Builtin, Callee, FactSource, Function, FunctionId, Immediate, InstKind,
+    InstructionMetadata, MirType, Module, Terminator, Value, ValueId,
     analysis::{CallGraphInfo, CfgInfo, direct_callees},
     pass::{MirPass, run_function_pass},
+    transform::lower_assumes::{record_unreachable, should_check_analyses},
     utils::{eval, invalidate_unreachable_block, replace_terminator, retain_blocks},
 };
 use alloy_primitives::U256;
@@ -171,11 +176,11 @@ impl MirPass for NoreturnCalls {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         _analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        end_nonreturning_calls(module, false)
+        end_nonreturning_calls(module, false, should_check_analyses(gcx.sess))
     }
 }
 
@@ -882,11 +887,12 @@ fn retain_functions(module: &mut Module, keep: &DenseBitSet<FunctionId>) -> usiz
 /// Ends each block at its first call to a bodied callee proven unable to return, including a
 /// call with results, or at its first check that always fails. With `tail_calls`, a call to a
 /// non-recursive callee that is no external entry becomes a [`Terminator::TailCall`]; any other
-/// call or check stays, followed by an unreachable `invalid`. Returns whether any block changed.
-pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool) -> bool {
+/// call or check stays, followed by an unreachable `invalid`, and with `record` by the record that
+/// execution never reaches it. Returns whether any block changed.
+pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool, record: bool) -> bool {
     let mut changed = false;
     for func in &mut module.functions {
-        changed |= end_failing_checks(func);
+        changed |= end_failing_checks(func, record);
     }
     // Skip call-graph analysis when no internal calls remain.
     let has_candidate = module.functions.iter().any(|func| {
@@ -964,7 +970,7 @@ pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool) -> b
                 func.blocks[block_id].terminator_metadata = metadata;
                 function_changed = true;
             } else {
-                function_changed |= end_block_after(func, block_id, position);
+                function_changed |= end_block_after(func, block_id, position, record);
             }
         }
         if function_changed {
@@ -992,7 +998,7 @@ pub(super) fn end_nonreturning_calls(module: &mut Module, tail_calls: bool) -> b
 
 /// Ends each block at its first check or `require` whose condition always fails, with `invalid`
 /// after it, so a body that only fails, such as `return new uint256[](0)[0];`, cannot return.
-fn end_failing_checks(func: &mut Function) -> bool {
+fn end_failing_checks(func: &mut Function, record: bool) -> bool {
     let mut changed = false;
     for block in func.blocks.indices() {
         let insts = &func.blocks[block].instructions;
@@ -1001,7 +1007,7 @@ fn end_failing_checks(func: &mut Function) -> bool {
         else {
             continue;
         };
-        changed |= end_block_after(func, block, position);
+        changed |= end_block_after(func, block, position, record);
     }
     if changed {
         let _ = remove_unreachable_blocks(func);
@@ -1009,11 +1015,17 @@ fn end_failing_checks(func: &mut Function) -> bool {
     changed
 }
 
-/// Ends `block` with `invalid` right after the instruction at `position`. Returns whether the
-/// block changed.
-fn end_block_after(func: &mut Function, block: BlockId, position: usize) -> bool {
-    if position + 1 == func.blocks[block].instructions.len()
-        && matches!(func.blocks[block].terminator, Some(Terminator::Invalid))
+/// Ends `block` with `invalid` right after the instruction at `position`, and with `record` records
+/// that execution never gets past it. Returns whether the block changed.
+fn end_block_after(func: &mut Function, block: BlockId, position: usize, record: bool) -> bool {
+    // Only the record of an earlier run may follow an ended block's call or check.
+    if matches!(func.blocks[block].terminator, Some(Terminator::Invalid))
+        && func.blocks[block].instructions[position + 1..].iter().all(|&inst| {
+            matches!(
+                func.inst(inst).kind,
+                InstKind::Assume { source: FactSource::NoreturnCalls, .. }
+            )
+        })
     {
         return false;
     }
@@ -1027,6 +1039,10 @@ fn end_block_after(func: &mut Function, block: BlockId, position: usize) -> bool
     // call or check
     // invalid !metadata(first replaced instruction)
     func.blocks[block].instructions.truncate(position + 1);
+    if record {
+        // assume eq noreturn_calls, 0, 1
+        record_unreachable(func, block, FactSource::NoreturnCalls);
+    }
     replace_terminator(func, block, Terminator::Invalid);
     if let Some(replaced) = replaced {
         func.blocks[block].terminator_metadata.preserve_debug_loc(&replaced);
