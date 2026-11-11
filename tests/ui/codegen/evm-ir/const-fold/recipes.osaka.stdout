@@ -38,4 +38,13 @@
     push 32
     mstore
     stop
+  bb3 [loop]:
+    calldatasize
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    and
+    and
+    push 0
+    mstore
+    stop
   

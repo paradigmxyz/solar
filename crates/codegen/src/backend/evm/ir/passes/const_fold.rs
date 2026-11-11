@@ -34,8 +34,8 @@
 //!
 //! The materialization takes the source context of the folded operation and the agreed function
 //! events of the range. Removed operands' locations drop, and their function events move to the
-//! instruction before the range. A rewrite never invents a location or decides anything by debug
-//! information.
+//! instruction before the range, if the block has one. A rewrite never invents a location or
+//! decides anything by debug information.
 //!
 //! The pass does not move instructions, track a word through a `SWAP`, or fold a taken
 //! `JUMPI`. Algebra over unknown words stays with the peephole rules.
@@ -180,7 +180,8 @@ impl Folder {
         let inst = &out[end - 1];
         if inst.is_encoded_push() {
             let cost = match inst.concrete_immediate() {
-                Some(value) => self.target.push(value),
+                // A literal costs what it is; compact pushes decides whether a recipe repays.
+                Some(value) => self.target.literal_push(value),
                 None => self.target.opcode(inst.opcode),
             };
             let producer = Producer { start: end - 1, end, peak: 1, cost };
@@ -371,6 +372,8 @@ impl Folder {
             Edit::Delete => {
                 // The removed instructions take their origins with them; only their function
                 // events move.
+                // NOTE: A range at the start of a block has no instruction before it, so its
+                // function events drop.
                 let (kept, removed) = out.split_at_mut(start);
                 if let Some(survivor) = kept.last_mut() {
                     for inst in removed.iter() {

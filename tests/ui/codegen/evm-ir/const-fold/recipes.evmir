@@ -47,3 +47,15 @@ bb2:
   push 32
   mstore
   stop
+
+// A literal mask is priced as the literal: folding two of them into a recipe would trade gas for
+// bytes, which compact pushes decides, so the pass leaves them.
+bb3 [loop]:
+  calldatasize
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  and
+  and
+  push 0
+  mstore
+  stop
