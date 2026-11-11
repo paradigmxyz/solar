@@ -14,6 +14,7 @@ class Program:
     inputs: list[str]
     result_type: str
     body: str
+    input_widths: tuple[int, ...] = ()
 
 
 def lines(text: str) -> list[str]:
@@ -29,10 +30,10 @@ def lines(text: str) -> list[str]:
     return result
 
 
-def literal(token: str) -> str:
+def literal(token: str, width: int = 256) -> str:
     if not re.fullmatch(r"(?:0x[0-9a-fA-F]{1,64}|[0-9]{1,78})", token):
         raise Unsupported(f"unsupported word operand {token!r}")
     value = int(token, 16 if token.startswith("0x") else 10)
-    if value >= 2**256:
+    if value >= 2**width:
         raise Unsupported("word literal out of range")
-    return f"{value}#256"
+    return f"{value}#{width}"

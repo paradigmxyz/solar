@@ -30,7 +30,7 @@ select a compiler binary.
 
 | Layer | Supported fragment | Observation |
 | --- | --- | --- |
-| MIR | One i256 function with pure add, sub, mul, and, or, xor, predecessor-selected phis, jumps and ordered switches in an acyclic CFG. | Returned word for all defined arguments. |
+| MIR | One integer function using i1, i160 and i256, pure arithmetic and bitwise operations, casts, comparisons, phis, jumps, conditional branches and ordered switches in an acyclic CFG. | Returned bit pattern for all well-typed arguments. |
 | EVM IR | An empty-entry-stack window with size inputs, literal pushes, EQ, SUB and ISZERO ending in a conditional jump to a valid label. Both exits stop. | Taken edge and remaining stack for all word-sized calldata and returndata sizes, given sufficient gas. |
 
 The importer and the mapping from compiler operations to Lean are trusted.
@@ -40,7 +40,7 @@ this first fragment.
 
 | Layer | Operation semantics | Transform proofs |
 | --- | --- | --- |
-| MIR | [MIR/Ops.lean](SolarTV/MIR/Ops.lean) | [Dead-code elimination](SolarTV/MIR/Transforms/DCE.lean), [trim trailing default switch cases](SolarTV/MIR/Transforms/TrimSwitchDefaults.lean), [rename phi predecessors](SolarTV/MIR/Transforms/RenamePhiPredecessors.lean) |
+| MIR | [MIR/Ops.lean](SolarTV/MIR/Ops.lean) | [Dead-code elimination](SolarTV/MIR/Transforms/DCE.lean), [trim trailing default switch cases](SolarTV/MIR/Transforms/TrimSwitchDefaults.lean), [rename phi predecessors](SolarTV/MIR/Transforms/RenamePhiPredecessors.lean), [cast cleanup](SolarTV/MIR/Transforms/Casts.lean) |
 | EVM IR | [EVMIR/Ops.lean](SolarTV/EVMIR/Ops.lean) | [EQ/ISZERO branch peephole](SolarTV/EVMIR/Transforms/EqIszeroJumpi.lean) |
 
 ```sh
@@ -67,6 +67,25 @@ and selected by predecessor, independently of their order in the instruction.
 Cycles are inconclusive. The importer limits path expansion to 512 block visits
 and path depth to 128 blocks. For supported acyclic pairs, the proof covers every
 input.
+
+The typed examples check a guarded boolean cleanup and a conditional branch
+with i160 phi values. Inputs and intermediate values use native Lean bit vectors
+at their declared width. Arithmetic wraps at that width, and signed comparisons
+use its sign bit. `trunc` keeps low bits, `zext` fills with zero, and `sext`
+replicates the source sign bit. A truncation to i1 can differ from a nonzero test.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/casts/{before,after}.mir
+solar-tv/solar-tv mir solar-tv/examples/mir/typed-branch/{before,after}.mir
+solar-tv/solar-tv mir solar-tv/examples/mir/casts/{before,broken}.mir
+solar-tv/solar-tv mir solar-tv/examples/mir/typed-branch/{before,broken}.mir
+```
+
+The broken cast sign-extends a boolean where the original zero-extends it.
+For input `1`, it returns the maximum word instead of `1`. The broken branch
+selects the opposite phi value. Counterexamples retain each input's declared
+width and are checked again at concrete values. Undefined values and other
+integer widths remain inconclusive.
 
 ## Check passes during compilation
 
