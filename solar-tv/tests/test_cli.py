@@ -28,6 +28,8 @@ class PairTests(unittest.TestCase):
                 ("mir", "dce", "dce", "mir"),
                 ("mir", "switch", "cfg-simplify", "mir"),
                 ("mir", "phi", "cfg-simplify", "mir"),
+                ("mir", "casts", "integer-cleanup", "mir"),
+                ("mir", "typed-branch", "cfg-simplify", "mir"),
                 ("evmir", "peephole", "peephole", "evm-ir"),
             ]:
                 with self.subTest(example=example):
@@ -38,6 +40,7 @@ class PairTests(unittest.TestCase):
                         [
                             SOLAR,
                             before,
+                            "-Ogas",
                             f"-Z{flag}-pipeline={transform}",
                             "-Zvalidate-ir=true",
                         ],
@@ -57,6 +60,7 @@ class PairTests(unittest.TestCase):
         for layer, example, expected in [
             ("mir", "dce", "  arg0 = 0\n  before = 1\n  after  = 0"),
             ("mir", "phi", "  arg0 = 0\n  before = 11\n  after  = 21"),
+            ("mir", "casts", "  arg0 = 1\n  before = 1\n  after  = " + str(2**256 - 1)),
             (
                 "evmir",
                 "peephole",

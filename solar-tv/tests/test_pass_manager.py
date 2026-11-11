@@ -20,7 +20,7 @@ class PassManagerTests(unittest.TestCase):
 
     def compile(self, source, pipeline, *, enabled=True):
         ir = "mir" if source.suffix == ".mir" else "evm-ir"
-        args = [SOLAR, source, f"-Z{ir}-pipeline={pipeline}"]
+        args = [SOLAR, source, "-Ogas", f"-Z{ir}-pipeline={pipeline}"]
         if enabled:
             args.append(f"-Zsolar-tv={self.out}")
         return subprocess.run(
@@ -37,6 +37,8 @@ class PassManagerTests(unittest.TestCase):
             ("dce", "mir", "dce"),
             ("switch", "mir", "cfg-simplify"),
             ("phi", "mir", "cfg-simplify"),
+            ("casts", "mir", "integer-cleanup"),
+            ("typed-branch", "mir", "cfg-simplify"),
             ("peephole", "evmir", "peephole"),
         ]:
             with self.subTest(example=example):
