@@ -22,6 +22,9 @@ JUMP = r"jump (bb\d+)"
 BRANCH = rf"jumpi ({OPERAND}), (bb\d+), (bb\d+)"
 SWITCH = rf"switch ({OPERAND}), default (bb\d+), \[(.*)\]"
 RETURN = rf"ret ({OPERAND})"
+CHECKED = rf"(v\d+) = checked_(add|sub|mul) (u?int)(\d+), ({OPERAND}), ({OPERAND})"
+CHECK = rf"icall (panic|revert)_if(_zero)?<([^>]+)>, ({OPERAND})"
+REQUIRE = rf"icall require<empty_string>, ({OPERAND})"
 
 
 def width_of(text: str) -> int:
@@ -34,7 +37,9 @@ def width_of(text: str) -> int:
 def translate(text: str) -> Program:
     src = lines(text)
     phase = src.pop(0) if src and src[0] == "@phase lowered" else "@phase semantic"
-    header = re.fullmatch(r"fn @(\w+)\((.*?)\) -> i(\d+) \{", src[0] if src else "")
+    header = re.fullmatch(
+        r"fn @(\w+)\((.*?)\) -> i(\d+)(?: \[cold\])? \{", src[0] if src else ""
+    )
     if not header or src[-1] != "}":
         raise Unsupported("expected one integer-returning MIR function")
     params = header[2].split(", ") if header[2] else []
@@ -48,8 +53,8 @@ def translate(text: str) -> Program:
     result_width = width_of(header[3])
     blocks: dict[str, list[str]] = {}
     for line in src[1:-1]:
-        if re.fullmatch(r"bb\d+:", line):
-            block = line[:-1]
+        if match := re.fullmatch(r"(bb\d+)(?: \[cold\])?:", line):
+            block = match[1]
             if block in blocks:
                 raise Unsupported("duplicate block")
             blocks[block] = []
@@ -66,11 +71,14 @@ def translate(text: str) -> Program:
         if any(re.search(r"\bundef\b", line) for line in body):
             raise Unsupported("undefined MIR operands")
         for line in body[:-1]:
-            if not any(re.fullmatch(pattern, line) for pattern in (BINARY, CAST, PHI)):
+            if not any(
+                re.fullmatch(pattern, line)
+                for pattern in (BINARY, CAST, PHI, CHECKED, CHECK, REQUIRE)
+            ):
                 raise Unsupported(f"unmodeled MIR instruction: {line}")
         if not any(
             re.fullmatch(pattern, body[-1])
-            for pattern in (RETURN, JUMP, BRANCH, SWITCH)
+            for pattern in (RETURN, JUMP, BRANCH, SWITCH, r"revert 0, 0", r"invalid")
         ):
             raise Unsupported(f"unmodeled MIR terminator: {body[-1]}")
 
@@ -103,8 +111,36 @@ def translate(text: str) -> Program:
         path = (*path, label)
         code = []
         current = dict(values)
+        continuations = 0
         for line in blocks[label][:-1]:
-            if phi := re.fullmatch(PHI, line):
+            if checked := re.fullmatch(CHECKED, line):
+                dest, op, kind, bits, a, b = checked.groups()
+                width = width_of(bits)
+                a, _ = operand(a, current, width)
+                b, _ = operand(b, current, width)
+                signed = "true" if kind == "int" else "false"
+                code.append(
+                    f"Outcome.bind (MIR.checked .{op} {signed} {a} {b}) (fun {dest} =>"
+                )
+                continuations += 1
+                current[dest] = width
+            elif check := re.fullmatch(CHECK, line):
+                kind, is_zero, reason, value = check.groups()
+                value, _ = operand(value, current)
+                if kind == "panic":
+                    failure = f"(.panic {literal(reason)})"
+                elif reason == "empty":
+                    failure = ".empty"
+                else:
+                    raise Unsupported("unmodeled revert payload")
+                test = "==" if is_zero else "!="
+                code.append(f"MIR.guard ({value} {test} 0) {failure} (\n")
+                continuations += 1
+            elif require := re.fullmatch(REQUIRE, line):
+                value, _ = operand(require[1], current)
+                code.append(f"MIR.guard ({value} == 0) .empty (\n")
+                continuations += 1
+            elif phi := re.fullmatch(PHI, line):
                 incoming = []
                 for arm in phi[2].split(", "):
                     match = re.fullmatch(rf"\[(bb\d+): ({OPERAND})\]", arm)
@@ -157,16 +193,22 @@ def translate(text: str) -> Program:
                     raise Unsupported("malformed switch case")
                 value, _ = operand(case[1], current, width)
                 result = f"(MIR.choose {key} {value} {edge(case[2])} {result})"
+        elif term == "revert 0, 0":
+            result = "Outcome.reverted .empty"
+        elif term == "invalid":
+            result = "Outcome.invalid"
         else:
-            result, _ = operand(term.removeprefix("ret "), current, result_width)
+            value, _ = operand(term.removeprefix("ret "), current, result_width)
+            result = f"Outcome.returned {value}"
         code.append(result)
+        code.extend(")" for _ in range(continuations))
         return "\n".join(code)
 
     body = enter("bb0", "entry", dict(zip(inputs, input_widths, strict=True)), ())
     return Program(
         (header[1], phase, *params, f"i{result_width}"),
         inputs,
-        f"BitVec {result_width}",
+        f"Outcome (BitVec {result_width})",
         body,
         tuple(input_widths),
     )
