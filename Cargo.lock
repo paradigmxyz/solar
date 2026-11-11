@@ -4369,7 +4369,6 @@ dependencies = [
  "bitflags 2.13.2",
  "bs58",
  "clap",
- "indexmap 2.14.2",
  "libc",
  "mimalloc",
  "rayon",
@@ -4411,6 +4410,7 @@ dependencies = [
  "solar-evmir",
  "solar-interface",
  "solar-mir",
+ "solar-parse",
  "solar-sema",
  "tempfile",
  "tracing",
@@ -4689,6 +4689,10 @@ dependencies = [
 [[package]]
 name = "solar-smt"
 version = "0.3.0"
+dependencies = [
+ "snapbox",
+ "tempfile",
+]
 
 [[package]]
 name = "solar-tester"
