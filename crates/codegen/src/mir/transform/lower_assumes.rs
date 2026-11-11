@@ -11,9 +11,10 @@
 //! as `assume <predicate> <source>, lhs, rhs` (see `solar_mir`'s `assume` module):
 //!
 //! - SCCP, every constant it substitutes for a value;
-//! - check elimination, every branch it folds, check it drops, equality it propagates and mask
-//!   integer cleanup removes, and for every checked operation it makes unchecked other than `pow`,
-//!   that the failure test lowering would emit is false;
+//! - check elimination, every branch it folds, check it drops, equality it propagates, operand a
+//!   reduced branch condition drops, mask integer cleanup removes and pair of words it fuses into
+//!   one test, and for every checked operation it makes unchecked other than `pow`, that the
+//!   failure test lowering would emit is false;
 //! - CSE and load PRE, every memory, storage or transient read they forward, which they keep as the
 //!   evidence;
 //! - induction variable simplification, the bound on entry that lets it skip clamping a loop's exit

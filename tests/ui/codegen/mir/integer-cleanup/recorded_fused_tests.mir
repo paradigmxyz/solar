@@ -1,0 +1,29 @@
+//@ compile-flags: -Ogas -Zcheck-analyses=true -Zmir-pipeline=integer-cleanup
+//@ filecheck:
+
+// Fusing two nonzero tests into one test of the `and` of their words relies on
+// both words being at most one, which the pass records for each.
+@module RecordedFusedTests
+
+// CHECK-LABEL: fn @bounded_and(
+// CHECK: [[AND:v[0-9]+]] = and arg0, arg1
+// CHECK: = ne [[AND]], 0
+// CHECK-DAG: assume ule check_elim, arg0, 1
+// CHECK-DAG: assume ule check_elim, arg1, 1
+fn @bounded_and(arg0: i256, arg1: i256) {
+  bb0:
+    v0 = lt arg0, 2
+    jumpi v0, bb1, bb4
+  bb1:
+    v1 = lt arg1, 2
+    jumpi v1, bb2, bb4
+  bb2:
+    v2 = ne arg0, 0
+    v3 = ne arg1, 0
+    v4 = and v2, v3
+    v5 = zext i1 v4 to i256
+    mstore 128, v5
+    returndata 128, 32
+  bb4:
+    revert 0, 0
+}

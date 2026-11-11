@@ -1,0 +1,44 @@
+//@ compile-flags: -Zcheck-analyses=true -Zmir-pipeline=check-elim
+//@ filecheck:
+
+// A branch condition that drops an operand it decided records that the operand
+// equals the neutral value of the operation, which the run-time check tests.
+@module RecordedReductions
+
+// a < 10 decides a > 20 false, so the branch reads the other operand of the `or`.
+// CHECK-LABEL: fn @or_dropped(
+// CHECK: [[D:v[0-9]+]] = gt arg0, 20
+// CHECK: assume eq check_elim, [[D]], false
+// CHECK-NEXT: jumpi arg1, bb2, bb3
+fn @or_dropped(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = lt arg0, 10
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = gt arg0, 20
+    v2 = or arg1, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}
+
+// a < 10 decides a < 20 true, so the branch reads the other operand of the `and`.
+// CHECK-LABEL: fn @and_dropped(
+// CHECK: [[D:v[0-9]+]] = lt arg0, 20
+// CHECK: assume eq check_elim, [[D]], true
+// CHECK-NEXT: jumpi arg1, bb2, bb3
+fn @and_dropped(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = lt arg0, 10
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = lt arg0, 20
+    v2 = and v1, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}
