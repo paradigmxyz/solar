@@ -22,6 +22,7 @@ const TIMEOUT: &str = "5000";
 struct Run {
     stdout: String,
     stderr: String,
+    code: Option<i32>,
 }
 
 fn run_verifier(args: &[&str]) -> Run {
@@ -33,6 +34,7 @@ fn run_verifier(args: &[&str]) -> Run {
     Run {
         stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
         stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+        code: out.status.code(),
     }
 }
 
@@ -159,6 +161,15 @@ fn spec_errors() {
     assert_data_eq!(tidy(&run.stderr), file!["snapshots/spec_errors.stderr"]);
 }
 
+/// Ghost code that is not erasable: one error per broken non-interference rule, and nothing is
+/// verified.
+#[test]
+fn ghost_errors() {
+    let run = run_verifier(&["--dry-run", "tests/snapshots/ghost_errors.sol"]);
+    assert_data_eq!(tidy(&run.stdout), file!["snapshots/ghost_errors.stdout"]);
+    assert_data_eq!(tidy(&run.stderr), file!["snapshots/ghost_errors.stderr"]);
+}
+
 #[test]
 fn smt_obligations() {
     let out = std::env::temp_dir()
@@ -210,6 +221,58 @@ fn mutate_counter() {
     assert_data_eq!(tidy(&run.stdout), file!["snapshots/counter.mutate.stdout"]);
 }
 
+/// `--spec-check`: every tested target named `ok_*` holds and every `bad_*` is violated, with
+/// a counterexample; a `Math.mulDiv` that rounds up violates the built-in summary, and
+/// OpenZeppelin's satisfies it.
+#[test]
+fn spec_check() {
+    if z3_missing() {
+        return;
+    }
+    let run = run_verifier(&["--spec-check", "tests/cases/speccheck.sol"]);
+    let ctx = format!("--- stdout ---\n{}\n--- stderr ---\n{}", run.stdout, run.stderr);
+    assert_eq!(run.code, Some(1), "{ctx}");
+    let verdicts: BTreeMap<String, bool> = run
+        .stdout
+        .lines()
+        .filter_map(|l| {
+            let held = l.starts_with('✔');
+            if !held && !l.starts_with('✘') {
+                return None;
+            }
+            let name = l.split_whitespace().nth(1)?.rsplit('.').next()?.to_string();
+            Some((name, held))
+        })
+        .collect();
+    let want = [
+        ("bad_inc", false),
+        ("ok_max", true),
+        ("ok_burnLocal", true),
+        ("bad_withdraw", false),
+        ("ok_vacuous", true),
+        ("mulDiv", false),
+        ("bad_quote", false),
+        ("ok_half", true),
+    ];
+    for (name, held) in want {
+        assert_eq!(verdicts.get(name), Some(&held), "{name}\n{ctx}");
+    }
+    assert_eq!(verdicts.len(), want.len(), "{ctx}");
+    for cex in [
+        "counterexample: x = 7; returned result = 7",
+        "call reverts where @custom:succeeds-if says it returns",
+        "failing spec: result <= amount",
+        "Vault.ok_vacuous (@custom:trusted): no sample satisfied the requires",
+    ] {
+        assert!(run.stderr.contains(cex), "missing `{cex}`\n{ctx}");
+    }
+    assert!(run.stdout.contains("spec-check results:: 4 held, 4 violated, 0 not tested"), "{ctx}");
+
+    let run = run_verifier(&["--spec-check", "tests/cases/speccheck_oz.sol"]);
+    assert_eq!(run.code, Some(0), "{}\n{}", run.stdout, run.stderr);
+    assert!(run.stdout.contains("spec-check results:: 2 held, 0 violated"), "{}", run.stdout);
+}
+
 #[test]
 fn examples() {
     if z3_missing() {
@@ -240,6 +303,11 @@ fn asm() {
 }
 
 #[test]
+fn broadcast() {
+    check("tests/cases/broadcast.sol")
+}
+
+#[test]
 fn control() {
     check("tests/cases/control.sol")
 }
@@ -257,6 +325,11 @@ fn features() {
 #[test]
 fn fixedarrays() {
     check("tests/cases/fixedarrays.sol")
+}
+
+#[test]
+fn ghost() {
+    check("tests/cases/ghost.sol")
 }
 
 #[test]

@@ -1,5 +1,7 @@
 //! solar-verify: Verus-style deductive verification for Solidity, built on Solar.
+mod broadcast;
 mod bvlower;
+mod ghost;
 mod interval;
 mod mutate;
 mod operator;
@@ -7,6 +9,7 @@ mod prog;
 mod sexp;
 mod smt;
 mod spec;
+mod speccheck;
 mod ty;
 mod vc;
 mod walk;
@@ -33,6 +36,9 @@ struct Cli {
     jobs: usize,
     instrument: Option<PathBuf>,
     dry_run: bool,
+    spec_check: bool,
+    spec_check_runs: usize,
+    seed: u64,
 }
 
 fn parse_cli() -> Cli {
@@ -46,6 +52,9 @@ fn parse_cli() -> Cli {
         instrument: None,
         jobs: 1,
         dry_run: false,
+        spec_check: false,
+        spec_check_runs: 256,
+        seed: 0,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -56,6 +65,11 @@ fn parse_cli() -> Cli {
             "--only" => c.only = it.next(),
             "--json" => c.json = true,
             "--dry-run" => c.dry_run = true,
+            "--spec-check" => c.spec_check = true,
+            "--spec-check-runs" => {
+                c.spec_check_runs = it.next().and_then(|x| x.parse().ok()).unwrap_or(256)
+            }
+            "--seed" => c.seed = it.next().and_then(|x| x.parse().ok()).unwrap_or(0),
             "--instrument" => c.instrument = it.next().map(PathBuf::from),
             "--jobs" | "-j" => c.jobs = it.next().and_then(|x| x.parse().ok()).unwrap_or(1),
             "-h" | "--help" => {
@@ -64,6 +78,9 @@ fn parse_cli() -> Cli {
                      --dry-run  generate every obligation without running a solver (see --dump-smt)\n\
                      --instrument OUT.sol  write FILE with every @custom:check claim as a require\n\
                      \x20          (deploy that: the verification assumed the checks hold)\n\
+                     --spec-check  test the trusted contracts (@custom:trusted bodies, interface\n\
+                     \x20          specs, the Math.mulDiv summary) against their code in the file\n\
+                     --spec-check-runs N  samples per tested function (default 256); --seed N\n\
                      --strict   arithmetic overflow, division by zero, out-of-bounds and pop-on-empty are\n\
                      \x20          verification errors instead of (sound) reverting paths\n\n\
                      solar-verify mutate --help: spec mutation testing"
@@ -91,6 +108,16 @@ fn report(sess: &Session, kind: &str, sp: Span, notes: &[String]) {
         diag = diag.note(n.clone());
     }
     diag.emit();
+}
+
+/// Reports the ghost code of `program` that is not erasable; returns how many violations there are.
+fn report_ghost(sess: &Session, program: &prog::Program<'_>) -> usize {
+    for v in &program.ghost_errors {
+        let mut notes: Vec<String> = v.func.iter().map(|f| format!("in {f}")).collect();
+        notes.push(format!("non-interference: {}", v.rule.note()));
+        report(sess, &format!("ghost code is not erasable: {}", v.msg), v.span, &notes);
+    }
+    program.ghost_errors.len()
 }
 
 /// The verdict mark, coloured when stdout is a terminal.
@@ -132,6 +159,11 @@ fn run_parallel(cli: &Cli) -> ! {
             for (sp, msg) in &program.errors {
                 report(&sess, msg, *sp, &[]);
                 fe_errors += 1;
+            }
+            if !program.ghost_errors.is_empty() {
+                // Not erasable: nothing about this file is verified.
+                fe_errors += report_ghost(&sess, &program);
+                continue;
             }
             for c in program.contracts.iter().filter(|c| !c.kind.is_interface()) {
                 for f in &c.funcs {
@@ -227,6 +259,9 @@ fn main() {
         mutate::main(args.skip(1));
     }
     let cli = parse_cli();
+    if cli.spec_check {
+        spec_check(&cli);
+    }
     if cli.jobs > 1 && cli.only.is_none() && cli.dump_smt.is_none() && cli.instrument.is_none() {
         run_parallel(&cli);
     }
@@ -255,6 +290,21 @@ fn main() {
                     total_err += 1;
                 }
             }
+            if !program.ghost_errors.is_empty() {
+                // Ghost code that is not erasable: the proof would not be about the deployed
+                // program, so nothing in this file is verified.
+                total_err += report_ghost(&sess, &program);
+                continue;
+            }
+            let opts = vc::Opts { strict: cli.strict };
+            let mut mk = || {
+                if cli.dry_run {
+                    smt::Smt::dry(false)
+                } else {
+                    smt::Smt::new(cli.timeout, false).expect("could not start z3 (set SOLAR_VERIFY_Z3)")
+                }
+            };
+            let proved = broadcast::prove_all(&program, &opts, cli.dry_run, &mut mk);
             for c in &program.contracts {
                 if c.kind.is_interface() {
                     continue;
@@ -273,7 +323,8 @@ fn main() {
                     } else {
                         smt::Smt::new(cli.timeout, cli.dump_smt.is_some()).expect("could not start z3 (set SOLAR_VERIFY_Z3)")
                     };
-                    let mut v = vc::Vc::new(&program, c, smt, &vc::Opts { strict: cli.strict });
+                    let mut v = vc::Vc::new(&program, c, smt, &opts);
+                    v.proved = proved.clone();
                     if v.inlined_only(f) {
                         continue;
                     }
@@ -383,6 +434,45 @@ fn main() {
     }
     println!("verification results:: {total_ok} verified, {total_err} errors");
     std::process::exit(if total_err == 0 { 0 } else { 1 });
+}
+
+/// --spec-check: test the trusted contracts of each file against their code (see `speccheck`).
+fn spec_check(cli: &Cli) -> ! {
+    let sess = session();
+    let o = speccheck::Opts {
+        runs: cli.spec_check_runs,
+        seed: cli.seed,
+        timeout: cli.timeout,
+        only: cli.only.clone(),
+    };
+    let mut t = speccheck::Totals::default();
+    let ok = sess.enter_sequential(|| -> Result<(), ()> {
+        let arena = ast::Arena::new();
+        for file in &cli.files {
+            let mut parser = Parser::from_file(&sess, &arena, file).map_err(|_| ())?;
+            let unit = parser.parse_file().map_err(|e| {
+                e.emit();
+            })?;
+            let unit: &ast::SourceUnit<'_> = arena.alloc(unit);
+            let program = prog::build(&sess, &arena, unit);
+            for (sp, msg) in &program.errors {
+                report(&sess, msg, *sp, &[]);
+            }
+            let r = speccheck::run(&sess, unit, &program, file, &o);
+            t.held += r.held;
+            t.violated += r.violated;
+            t.untested += r.untested;
+        }
+        Ok(())
+    });
+    if ok.is_err() {
+        std::process::exit(2);
+    }
+    println!(
+        "spec-check results:: {} held, {} violated, {} not tested",
+        t.held, t.violated, t.untested
+    );
+    std::process::exit(if t.violated == 0 { 0 } else { 1 });
 }
 
 /// Write the file with each \x60@custom:check P\x60 as \x60require(P, "...")\x60: at the start of

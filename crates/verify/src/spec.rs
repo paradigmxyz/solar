@@ -73,7 +73,7 @@ fn rewrite_quants(s: &str, quants: &mut Vec<QInfo>) -> Result<String, String> {
     Ok(out)
 }
 
-fn split_top<'s>(s: &'s str, sep: &str) -> Vec<&'s str> {
+pub(crate) fn split_top<'s>(s: &'s str, sep: &str) -> Vec<&'s str> {
     let b = s.as_bytes();
     let mut parts = vec![];
     let mut depth = 0i32;

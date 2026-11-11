@@ -46,6 +46,18 @@ pub(crate) struct Func<'a> {
     /// `@custom:` statement specs in the body that no statement carries (a doc comment with no
     /// statement after it in its block): never silently dropped, verifying the function fails.
     pub orphans: Vec<(Span, String)>,
+    /// Reached by `@custom:use` (a lemma, or a function a lemma runs): its ensures are assumed
+    /// where it is used, so it must also return normally wherever its requires hold.
+    pub ghost_fn: bool,
+    /// `@custom:broadcast`: a lemma whose requires ==> ensures, over all its parameters, is an
+    /// axiom wherever `@custom:broadcast-use` names it (see `crate::broadcast`).
+    pub broadcast: bool,
+    /// `@custom:trigger e1, e2` on a broadcast lemma: one multi-pattern per tag.
+    pub triggers: Vec<Vec<Spec<'a>>>,
+    /// `@custom:broadcast-use L|G` on the function: lemmas and groups its VCs assume.
+    pub broadcast_use: Vec<(String, Span)>,
+    /// Trusted at a built-in summary (`Math.mulDiv`) rather than at specs of its own.
+    pub summary: bool,
 }
 
 impl Func<'_> {
@@ -75,6 +87,9 @@ pub(crate) struct StateVar<'a> {
     pub constant: bool,
     pub immutable: bool,
     pub ghost: bool,
+    /// The `@custom:ghost T name` tag that declared it: a user ghost variable, graded ghost by the
+    /// non-interference check (the model's own ghosts, such as `__balance`, stand for real state).
+    pub ghost_decl: Option<Span>,
     /// EIP-1153 transient storage (`transient` variables, and the ghost `__traw` behind
     /// tload/tstore): cleared at the end of every transaction.
     pub transient: bool,
@@ -97,10 +112,21 @@ pub(crate) struct Contract<'a> {
     pub overridden: Vec<Func<'a>>,
     /// linearization, bases first
     pub lin: Vec<String>,
+    /// `@custom:group G L1 L2 ...`: named sets of broadcast lemmas and groups.
+    pub groups: Vec<Group>,
+    /// `@custom:broadcast-use L|G` on the contract: assumed by every function's VCs.
+    pub broadcast_use: Vec<(String, Span)>,
     /// constructors of base contracts, in linearization order (bases first)
     pub base_ctors: Vec<(String, &'a ItemFunction<'a>)>,
     /// `is B(args)` arguments given anywhere in the hierarchy
     pub base_args: FxHashMap<String, &'a ast::CallArgs<'a>>,
+}
+
+/// `@custom:group G L1 L2 ...` on a contract.
+pub(crate) struct Group {
+    pub name: String,
+    pub members: Vec<String>,
+    pub span: Span,
 }
 
 pub(crate) struct Program<'a> {
@@ -115,6 +141,8 @@ pub(crate) struct Program<'a> {
     pub enum_variants: FxHashMap<String, usize>,
     pub structs: Vec<(String, Vec<(String, Ty)>)>,
     pub udvts: FxHashMap<String, Ty>,
+    /// User-defined value types over a `bytesN` (left-aligned in their ABI word).
+    pub udvt_bytes: FxHashSet<String>,
     /// spans of variable-declaration statements that carry specs (--instrument keeps their scope)
     pub decl_stmts: FxHashSet<Span>,
     /// `@custom:invariant` on a struct declaration, over its field names
@@ -122,6 +150,8 @@ pub(crate) struct Program<'a> {
     /// constants with a literal integer value (to size fixed arrays)
     pub const_sizes: FxHashMap<String, u64>,
     pub errors: Vec<(Span, String)>,
+    /// Ghost code that is not erasable (see `crate::ghost`): a program with any is not verified.
+    pub ghost_errors: Vec<crate::ghost::Violation>,
 }
 
 impl<'a> Program<'a> {
@@ -341,6 +371,13 @@ impl<'s, 'a> Builder<'s, 'a> {
         let tags = custom_tags(&s.docs);
         let mut v = vec![];
         for (tag, content, span) in tags {
+            if tag == "broadcast-use" {
+                // Names, one spec each, resolved by the verifier.
+                for (n, _) in self.names(&content, span) {
+                    v.extend(self.parse_spec(&n, span).map(|sp| (tag.clone(), sp)));
+                }
+                continue;
+            }
             if ["invariant", "decreases", "assert", "ghost", "assume", "check", "use", "reveal"]
                 .contains(&tag.as_str())
             {
@@ -370,8 +407,25 @@ impl<'s, 'a> Builder<'s, 'a> {
         let mut is_spec = false;
         let mut checks = vec![];
         let mut opaque = false;
+        let mut broadcast = false;
+        let mut triggers = vec![];
+        let mut broadcast_use = vec![];
+        let mut summary = false;
         for (tag, content, span) in custom_tags(&item.docs) {
             match tag.as_str() {
+                "broadcast" => broadcast = true,
+                "trigger" => {
+                    let terms: Vec<Spec<'a>> = crate::spec::split_top(&content, ",")
+                        .into_iter()
+                        .filter_map(|t| self.parse_spec(t.trim(), span))
+                        .collect();
+                    if terms.is_empty() {
+                        self.errors.push((span, "@custom:trigger needs a term".into()));
+                    } else {
+                        triggers.push(terms);
+                    }
+                }
+                "broadcast-use" => broadcast_use.extend(self.names(&content, span)),
                 "requires" => requires.extend(self.parse_spec(&content, span)),
                 "ensures" => ensures.extend(self.parse_spec(&content, span)),
                 "succeeds_if" | "succeeds-if" => succeeds.extend(self.parse_spec(&content, span)),
@@ -392,6 +446,7 @@ impl<'s, 'a> Builder<'s, 'a> {
             // a library whose behavior is documented but whose 512-bit assembly is out of reach:
             // trusted at that documented contract (listed in the README's trusted assumptions)
             trusted = true;
+            summary = true;
             ensures.extend(self.parse_spec(spec, item.span));
         }
         let params = f
@@ -454,7 +509,37 @@ impl<'s, 'a> Builder<'s, 'a> {
             trusted,
             synthetic: false,
             orphans,
+            ghost_fn: false,
+            broadcast,
+            triggers,
+            broadcast_use,
+            summary,
         }
+    }
+
+    /// The lemma and group names of a `@custom:broadcast-use` or `@custom:group` tag: `L` or
+    /// `C.L`, separated by spaces or commas.
+    fn names(&mut self, content: &str, span: Span) -> Vec<(String, Span)> {
+        let mut out = vec![];
+        for n in content.split(|c: char| c.is_whitespace() || c == ',').filter(|n| !n.is_empty()) {
+            let ident = |p: &str| {
+                p.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_' || c == '$')
+                    && p.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+            };
+            let parts: Vec<&str> = n.split('.').collect();
+            if parts.len() > 2 || !parts.iter().all(|p| ident(p)) {
+                self.errors.push((
+                    span,
+                    format!("`{n}` is not a lemma or group name (`L` or `Contract.L`)"),
+                ));
+                continue;
+            }
+            out.push((n.to_string(), span));
+        }
+        if out.is_empty() {
+            self.errors.push((span, "a lemma or group name is missing".into()));
+        }
+        out
     }
 }
 
@@ -561,7 +646,11 @@ pub(crate) fn build<'a>(
         }
     }
     let mut udvts = FxHashMap::default();
+    let mut udvt_bytes = FxHashSet::default();
     for (n, t) in b.udvts.clone() {
+        if matches!(t.kind, TypeKind::Elementary(ElementaryType::FixedBytes(_))) {
+            udvt_bytes.insert(n.clone());
+        }
         udvts.insert(n, b.ty(t));
     }
     let mut contracts = vec![];
@@ -595,6 +684,8 @@ pub(crate) fn build<'a>(
             lock_stable: vec![],
             lock: None,
             lock_expr: None,
+            groups: vec![],
+            broadcast_use: vec![],
             overridden: vec![],
             lin: lin.clone(),
             base_ctors: vec![],
@@ -617,6 +708,19 @@ pub(crate) fn build<'a>(
             for (tag, content, span) in custom_tags(&item.docs) {
                 match tag.as_str() {
                     "invariant" => con.invariants.extend(b.parse_spec(&content, span)),
+                    "broadcast-use" => con.broadcast_use.extend(b.names(&content, span)),
+                    "group" => {
+                        let mut names = b.names(&content, span).into_iter().map(|(n, _)| n);
+                        match names.next() {
+                            Some(name) if !name.contains('.') => {
+                                con.groups.push(Group { name, members: names.collect(), span })
+                            }
+                            _ => b.errors.push((
+                                span,
+                                "@custom:group needs a name, then its lemmas and groups".into(),
+                            )),
+                        }
+                    }
                     "lock-stable" | "lock_stable" => {
                         con.lock_stable.extend(b.parse_spec(&content, span))
                     }
@@ -640,6 +744,7 @@ pub(crate) fn build<'a>(
                                 constant: false,
                                 immutable: false,
                                 ghost: true,
+                                ghost_decl: Some(span),
                                 transient: false,
                             }),
                             None => {
@@ -666,6 +771,7 @@ pub(crate) fn build<'a>(
                             constant: v.mutability == Some(ast::VarMut::Constant),
                             immutable: v.mutability == Some(ast::VarMut::Immutable),
                             ghost: false,
+                            ghost_decl: None,
                             transient: v.data_location == Some(ast::DataLocation::Transient),
                         });
                     }
@@ -719,6 +825,7 @@ pub(crate) fn build<'a>(
                     constant: true,
                     immutable: false,
                     ghost: false,
+                    ghost_decl: None,
                     transient: false,
                 });
             }
@@ -735,6 +842,7 @@ pub(crate) fn build<'a>(
                 constant: false,
                 immutable: false,
                 ghost: true,
+                ghost_decl: None,
                 transient: true,
             });
             // raw storage slots that inline assembly reaches with sload/sstore (assumed disjoint
@@ -746,6 +854,7 @@ pub(crate) fn build<'a>(
                 constant: false,
                 immutable: false,
                 ghost: true,
+                ghost_decl: None,
                 transient: false,
             });
         }
@@ -766,6 +875,7 @@ pub(crate) fn build<'a>(
                 constant: false,
                 immutable: false,
                 ghost: true,
+                ghost_decl: None,
                 transient: false,
             });
         }
@@ -778,6 +888,20 @@ pub(crate) fn build<'a>(
                 constant: false,
                 immutable: false,
                 ghost: true,
+                ghost_decl: None,
+                transient: false,
+            });
+            // which code each address holds: a value of this epoch, which every external call and
+            // contract creation moves on (code changes only through outside code), so code read
+            // twice between calls (in the body and in a spec) is the same code
+            con.state.push(StateVar {
+                name: "__code_epoch".into(),
+                ty: Ty::Uint(256),
+                init: None,
+                constant: false,
+                immutable: false,
+                ghost: true,
+                ghost_decl: None,
                 transient: false,
             });
             if con.kind == ContractKind::Contract
@@ -806,6 +930,11 @@ pub(crate) fn build<'a>(
                     trusted: false,
                     synthetic: true,
                     orphans: vec![],
+                    ghost_fn: false,
+                    broadcast: false,
+                    triggers: vec![],
+                    broadcast_use: vec![],
+                    summary: false,
                 });
             }
         }
@@ -869,7 +998,7 @@ pub(crate) fn build<'a>(
         }
         contracts.push(con);
     }
-    Program {
+    let mut program = Program {
         contracts,
         quants: b.quants,
         stmt_specs: b.stmt_specs,
@@ -878,11 +1007,21 @@ pub(crate) fn build<'a>(
         enum_variants: b.enum_variants,
         structs,
         udvts,
+        udvt_bytes,
         struct_invs,
         decl_stmts: b.decl_stmts.clone(),
         const_sizes: b.const_sizes.clone(),
         errors: b.errors,
+        ghost_errors: vec![],
+    };
+    let (ghost_errors, lemmas) = crate::ghost::check(&program);
+    for c in &mut program.contracts {
+        for f in c.funcs.iter_mut().chain(&mut c.overridden) {
+            f.ghost_fn = lemmas.contains(&(f.contract.clone(), f.name.clone(), f.params.len()));
+        }
     }
+    program.ghost_errors = ghost_errors;
+    program
 }
 
 /// The value of a fixed array's size expression: an integer literal, or a constant naming one.

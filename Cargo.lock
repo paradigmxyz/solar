@@ -4698,10 +4698,14 @@ dependencies = [
 name = "solar-verify"
 version = "0.3.0"
 dependencies = [
+ "alloy-consensus",
+ "alloy-primitives",
+ "evm2",
  "num-bigint 0.5.1",
  "num-traits",
  "serde_json",
  "snapbox",
+ "solar-cli",
  "solar-parse",
 ]
 
