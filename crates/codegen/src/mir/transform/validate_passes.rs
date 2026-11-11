@@ -57,12 +57,12 @@
 //! - transaction inputs (calldata, the caller, the block) are functions of their operands;
 //! - the world, a word, stands for everything outside the function: a query relates finitely many
 //!   worlds, which an interpretation keeps apart in 2^256 values. Every external call, creation,
-//!   log and internal call is an event that maps the world, the operands and the current memory,
-//!   storage and transient storage to a new world, and its result and the memory, storage and
-//!   transient storage after it are functions of that new world. So two versions agree after a call
-//!   only when they made the same calls in the same order with the same inputs. An internal call
-//!   may also end the execution (the callee reverts or stops), which is a function of its new world
-//!   too;
+//!   log and internal call the encoding does not run (see below) is an event that maps the world,
+//!   the operands and the current memory, storage and transient storage to a new world, and its
+//!   result and the memory, storage and transient storage after it are functions of that new world.
+//!   So two versions agree after a call only when they made the same calls in the same order with
+//!   the same inputs. An internal call may also end the execution (the callee reverts or stops),
+//!   which is a function of its new world too;
 //! - environment reads (`balance`, `returndatasize`, `gas`, `msize`, ...) are functions of the
 //!   world and their operands, and copies into memory (`calldatacopy`, `mcopy`, `codecopy`, ...)
 //!   functions of the world, memory and operands that give the new memory;
@@ -70,6 +70,18 @@
 //!   length a function of memory, offset and length;
 //! - `exp` is exact for constant operands, a power-of-two base and small constant exponents, and
 //!   `clz` and any other `exp` are uninterpreted.
+//!
+//! An internal call or tail call runs its callee's body in place instead, when the encoding covers
+//! the callee: from the caller's memory, storage, transient storage and world, with the call's
+//! operands as its arguments and the caller's guard as its entry's. The callee's returns go on in
+//! the caller, with their states and returned values merged over their guards, and every other
+//! end of the callee is an outcome of the caller with the state it ends with: a callee that stops
+//! commits the storage the caller wrote before the call, and one that reverts discards it. So a
+//! rewrite that relies on what a callee does, such as removing a store before a call to a function
+//! that never reads storage and always returns, is proved, and one that a path through the callee
+//! observes gets a counterexample through that path. Callees nest at most four deep, without
+//! recursion, and have at most 256 instructions and no deferred allocation; any other callee, and
+//! one the encoding does not model, stays an event.
 //!
 //! A version ends in one of its outcomes, and the query asserts that the two end in outcomes
 //! that differ: in kind (return, return data, revert, revert with return data,
@@ -97,11 +109,11 @@
 //! - Functions whose signature or ABI role a pass changes (`lower-abi` turns an external function
 //!   into its wrapper) are skipped.
 //! - Passes that change functions together (inlining, specialization, argument and return cleanups
-//!   across calls, function merging) are skipped: validating one function alone treats its callees
-//!   as unknown and cannot see that a rewrite is justified by a callee's body.
-//! - A pass that relies on a callee's summary (CSE or dead store elimination across a call to a
-//!   function that writes no memory) gets a counterexample through the call's uninterpreted
-//!   functions.
+//!   across calls, function merging) are skipped: a query relates two versions of one function, and
+//!   these passes change callers and callees, often their signatures, together.
+//! - A pass that relies on the summary of a callee the encoding does not run (CSE or dead store
+//!   elimination across a call to a function with a loop that writes no memory) gets a
+//!   counterexample through the call's uninterpreted functions.
 //! - A call's input memory is all of memory, so a pass that removes a store to memory a call never
 //!   reads gets a counterexample (marked opaque, like every counterexample through an uninterpreted
 //!   function: the model may not be realizable).
@@ -140,6 +152,12 @@ use std::{
 };
 
 pub(crate) use super::prove_analyses::{sanitize, word};
+
+/// How deep inlined calls nest: see [`Encoder::inline`].
+const INLINE_DEPTH: usize = 4;
+
+/// The most instructions a callee may have to be inlined: see [`Encoder::inline`].
+const INLINE_SIZE: usize = 256;
 
 /// Passes whose rewrites depend on other functions, which a query of one function cannot follow.
 const INTERPROCEDURAL: &[&str] = &[
@@ -255,7 +273,7 @@ pub(crate) struct Query {
     pub(crate) axioms: Vec<String>,
 }
 
-/// One version of a function, with its module's functions for naming callees.
+/// One version of a function, with its module's functions for naming and running callees.
 type Version<'a> = (&'a Function, &'a IndexVec<FunctionId, Function>);
 
 /// Encodes whether some input makes `before` and `after` differ, or the reason it cannot. An
@@ -276,7 +294,7 @@ fn encode(
     {
         return Err("signature changed".into());
     }
-    let mut encoder = Encoder::default();
+    let mut encoder = Encoder { inline_calls: true, ..Default::default() };
     let start = State {
         memory: encoder.declare("mem0", MEMORY),
         storage: encoder.declare("sto0", STORAGE),
@@ -305,8 +323,8 @@ fn encode(
             );
         }
     }
-    let old = encoder.run(before, &start)?;
-    let new = encoder.run(after, &start)?;
+    let old = encoder.run(before, &start, "true", None)?;
+    let new = encoder.run(after, &start, "true", None)?;
     let mut differences = Vec::new();
     for a in &old {
         for b in &new {
@@ -366,7 +384,7 @@ pub(crate) struct Outcome {
     pub(crate) state: State,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Encoder {
     /// Declared constants with their sorts.
     constants: FxIndexMap<String, &'static str>,
@@ -403,6 +421,11 @@ pub(crate) struct Encoder {
     merges: FxHashMap<String, Vec<(String, String)>>,
     /// The words [`Self::load`] read through merges, by memory and address.
     merged_loads: FxHashMap<(String, String), String>,
+    /// Whether internal calls run their callees' bodies when the encoding covers them: see
+    /// [`Self::inline`].
+    pub(crate) inline_calls: bool,
+    /// The callees whose bodies are running, innermost last.
+    inlining: Vec<FunctionId>,
 }
 
 impl Encoder {
@@ -687,8 +710,15 @@ impl Encoder {
         pointer
     }
 
-    /// Runs one version from `start` and returns its outcomes.
-    fn run(&mut self, (func, funcs): Version<'_>, start: &State) -> Result<Vec<Outcome>, String> {
+    /// Runs one version from `start` when `entry` holds and returns its outcomes, with `args` as
+    /// its arguments, or free ones when none are given.
+    fn run(
+        &mut self,
+        (func, funcs): Version<'_>,
+        start: &State,
+        entry: &str,
+        args: Option<&[String]>,
+    ) -> Result<Vec<Outcome>, String> {
         let cfg = CfgInfo::new(func);
         let rpo = cfg.rpo();
         let order: FxHashMap<BlockId, usize> =
@@ -705,10 +735,61 @@ impl Encoder {
             ends: FxHashMap::default(),
             outcomes: Vec::new(),
         };
+        if let Some(args) = args {
+            for (arg, uses) in func.arg_uses().into_iter_enumerated() {
+                let term = args.get(arg.index()).ok_or("an argument without an operand")?;
+                for value in uses {
+                    run.values.insert(value, term.clone());
+                }
+            }
+        }
         for &block in rpo {
-            self.block(&mut run, &cfg, block, start)?;
+            self.block(&mut run, &cfg, block, start, entry)?;
         }
         Ok(run.outcomes)
+    }
+
+    /// The outcomes of running the body of `callee` with `args` from `state` when `guard`
+    /// holds, each return with `results` values when given. The callee's code decides what the
+    /// call observes, writes and how it ends, so a rewrite that relies on what the callee does
+    /// (it reads no storage, or always returns) is proved rather than refuted through an
+    /// uninterpreted event. A callee that recurses, nests deeper than [`INLINE_DEPTH`], has more
+    /// than [`INLINE_SIZE`] instructions, or that the encoding does not cover gives `None` and
+    /// leaves the encoder as it was, and the call stays an event of the world.
+    fn inline(
+        &mut self,
+        funcs: &IndexVec<FunctionId, Function>,
+        callee: FunctionId,
+        args: &[String],
+        (state, guard): (&State, &str),
+        results: Option<usize>,
+    ) -> Option<Vec<Outcome>> {
+        let body = &funcs[callee];
+        let size: usize = body.blocks.iter().map(|block| block.instructions.len()).sum();
+        if !self.inline_calls
+            || self.inlining.len() >= INLINE_DEPTH
+            || self.inlining.contains(&callee)
+            || body.blocks.is_empty()
+            || size > INLINE_SIZE
+            || body.params.len() != args.len()
+        {
+            return None;
+        }
+        let saved = self.clone();
+        self.inlining.push(callee);
+        let outcomes = self.run((body, funcs), state, guard, Some(args));
+        self.inlining.pop();
+        let arity = |outcome: &Outcome| match &outcome.kind {
+            Kind::Return(values) => results.is_none_or(|results| values.len() == results),
+            _ => true,
+        };
+        match outcomes {
+            Ok(outcomes) if outcomes.iter().all(arity) => Some(outcomes),
+            _ => {
+                *self = saved;
+                None
+            }
+        }
     }
 
     fn block(
@@ -717,6 +798,7 @@ impl Encoder {
         cfg: &CfgInfo,
         block: BlockId,
         start: &State,
+        entry: &str,
     ) -> Result<(), String> {
         let func = run.func;
         // The edges into the block, each with the condition that it is the one taken.
@@ -732,7 +814,7 @@ impl Encoder {
             incoming.push((pred, taken));
         }
         let (mut guard, mut state) = if block == BlockId::ENTRY {
-            ("true".to_owned(), start.clone())
+            (entry.to_owned(), start.clone())
         } else {
             let taken: Vec<_> = incoming.iter().map(|(_, taken)| taken.as_str()).collect();
             let guard = match taken[..] {
@@ -799,6 +881,13 @@ impl Encoder {
             Some(Terminator::Invalid) | None => Kind::Invalid,
             Some(Terminator::TailCall { function, args }) => {
                 let args = args.iter().map(|&arg| run.term(arg)).collect::<Result<Vec<_>, _>>()?;
+                // The callee's outcomes, its returns too, are the function's.
+                if let Some(outcomes) =
+                    self.inline(run.funcs, *function, &args, (&state, &guard), None)
+                {
+                    run.outcomes.extend(outcomes);
+                    return Ok(());
+                }
                 let callee = format!("icall_{}", sanitize(&run.funcs[*function].name.to_string()));
                 self.event(&callee, args, &mut state);
                 Kind::Ended
@@ -956,8 +1045,15 @@ impl Encoder {
                 self.keccak(&state.memory, offset, size)
             }
             InstKind::ICall { function: Callee::Function(callee), .. } => {
+                let args = operands(run)?;
+                let results = Some(usize::from(result.is_some()));
+                if let Some(outcomes) =
+                    self.inline(run.funcs, callee, &args, (state, guard), results)
+                {
+                    return self.returned(run, outcomes, result, state, guard);
+                }
                 let name = format!("icall_{}", sanitize(&run.funcs[callee].name.to_string()));
-                let world = self.event(&name, operands(run)?, state);
+                let world = self.event(&name, args, state);
                 // The callee may end the execution, as one more outcome.
                 let ended = self.apply("ended", &[(world.clone(), WORLD)], BOOL);
                 let outcome = self.define(BOOL, and(guard, &ended));
@@ -1004,6 +1100,57 @@ impl Encoder {
                 return Ok(());
             }
             self.bound(&term, func, value);
+            run.values.insert(value, term);
+        }
+        Ok(())
+    }
+
+    /// Goes on after an inlined call that ended in `outcomes`: the ones other than a return end
+    /// the execution, and the caller continues from the returns, with their merged state and
+    /// value.
+    fn returned(
+        &mut self,
+        run: &mut Run<'_>,
+        outcomes: Vec<Outcome>,
+        result: Option<ValueId>,
+        state: &mut State,
+        guard: &mut String,
+    ) -> Result<(), String> {
+        let mut returns = Vec::new();
+        for outcome in outcomes {
+            match outcome.kind {
+                Kind::Return(values) => returns.push((outcome.guard, values, outcome.state)),
+                _ => run.outcomes.push(outcome),
+            }
+        }
+        let guards: Vec<_> = returns.iter().map(|(guard, ..)| guard.as_str()).collect();
+        *guard = match guards[..] {
+            [] => "false".into(),
+            [single] => single.to_owned(),
+            _ => self.define(BOOL, any(&guards)),
+        };
+        // A callee that never returns leaves the caller's code after the call unreachable.
+        if returns.is_empty() {
+            if let Some(value) = result {
+                run.values.insert(value, word(U256::ZERO));
+            }
+            return Ok(());
+        }
+        let merge = |encoder: &mut Self, sort: &'static str, field: fn(&State) -> &String| {
+            let options =
+                returns.iter().map(|(guard, _, state)| (guard.clone(), field(state).clone()));
+            encoder.ite(sort, options.collect())
+        };
+        *state = State {
+            memory: merge(self, MEMORY, |state| &state.memory),
+            storage: merge(self, STORAGE, |state| &state.storage),
+            transient: merge(self, STORAGE, |state| &state.transient),
+            world: merge(self, WORLD, |state| &state.world),
+        };
+        if let Some(value) = result {
+            let options =
+                returns.iter().map(|(guard, values, _)| (guard.clone(), values[0].clone()));
+            let term = self.ite(WORD, options.collect());
             run.values.insert(value, term);
         }
         Ok(())
@@ -1072,6 +1219,11 @@ impl Encoder {
         let Some(bytes) = run.func.value_u256(size) else {
             return Err("deferred allocation of a runtime size".into());
         };
+        // NOTE: the backend may place the allocations of callees that are not live together at one
+        // address, which the axioms below would keep apart, so a callee that has one stays a call.
+        if !self.inlining.is_empty() {
+            return Err("deferred allocation in an inlined callee".into());
+        }
         let symbol = format!("alloc{}", inst.index());
         if !self.constants.contains_key(&symbol) {
             self.declare(&symbol, WORD);
@@ -1475,6 +1627,7 @@ impl Encoder {
 }
 
 /// A write that defines a memory term.
+#[derive(Clone)]
 struct MemoryWrite {
     previous: String,
     address: String,
@@ -1500,7 +1653,10 @@ impl Run<'_> {
             return Ok(word(constant));
         }
         match *self.func.value(value) {
-            Value::Arg(arg) => Ok(arg_name(arg)),
+            // An inlined callee's arguments are its call's operands.
+            Value::Arg(arg) => {
+                Ok(self.values.get(&value).cloned().unwrap_or_else(|| arg_name(arg)))
+            }
             Value::Inst(_) => self
                 .values
                 .get(&value)
