@@ -422,21 +422,23 @@ impl<'a> Prover<'a> {
                     is_zero
                 });
             }
+            // One of the cases that target the block matched, or none matched and the default
+            // targets it.
             Some(Terminator::Switch { value, default, cases }) => {
                 let scrutinee = query.term(*value);
-                let matched: Vec<_> = cases
+                let mut taken: Vec<_> = cases
                     .iter()
                     .filter(|&&(_, case_target)| case_target == target)
                     .map(|&(case, _)| format!("(= {scrutinee} {})", query.term(case)))
                     .collect();
-                if !matched.is_empty() {
-                    query.assert(format!("(or false {})", matched.join(" ")));
-                } else if *default == target {
-                    for &(case, _) in cases {
-                        let case = query.term(case);
-                        query.assert(format!("(not (= {scrutinee} {case}))"));
-                    }
+                if *default == target {
+                    let unmatched: Vec<_> = cases
+                        .iter()
+                        .map(|&(case, _)| format!("(not (= {scrutinee} {}))", query.term(case)))
+                        .collect();
+                    taken.push(format!("(and true {})", unmatched.join(" ")));
                 }
+                query.assert(format!("(or false {})", taken.join(" ")));
             }
             _ => {}
         }

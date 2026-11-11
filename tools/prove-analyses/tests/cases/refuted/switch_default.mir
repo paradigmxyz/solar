@@ -1,0 +1,16 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A false fact behind a switch whose default and a case share a target: the
+// default reaches the block with any word other than the cases.
+@module SwitchDefault
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    switch v0, default bb1, [0 => bb1, 1 => bb2]
+  bb1:
+    assume eq sccp, v0, 0
+    mstore 0, v0
+    returndata 0, 32
+  bb2:
+    revert 0, 0
+}
