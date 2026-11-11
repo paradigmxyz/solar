@@ -13,6 +13,7 @@ import SolarTV.EVMIR.GasSafety
 import SolarTV.EVMIR.Transforms.GasSwapAdd
 import SolarTV.Agreement.Encoder
 import SolarTV.Composition
+import SolarTV.MIR.Validation.AddZero
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -113,3 +114,12 @@ info: 'SolarTV.EVM.Program.stepOp_project' depends on axioms: [propext, Classica
 -/
 #guard_msgs in
 #print axioms SolarTV.EVM.Program.stepOp_project
+-- One pass validation query lifted to a stage.
+/--
+info: 'SolarTV.MIR.Validation.AddZero.stage' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ SolarTV.Agreement.word_shl._native.bv_decide.ax_1_15]
+-/
+#guard_msgs in
+#print axioms SolarTV.MIR.Validation.AddZero.stage
