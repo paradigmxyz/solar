@@ -1,0 +1,20 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/entry_stack_depth.evmir (before tail-merge) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/tail-merge/entry_stack_depth.evmir (after tail-merge) ===
+  @module TailMergeEntryDepth
+  bb0 [stack=1]:
+    not
+    not
+    not
+    not
+    pop
+    stop
+  bb1 [stack=1]:
+-   not
+-   not
+-   not
+-   not
+-   pop
+-   stop
++   jump bb0
+  
+{"contracts":{"ROOT/tests/ui/codegen/evm-ir/tail-merge/entry_stack_depth.evmir:TailMergeEntryDepth":{"bin":"60098060095f395ff35b1919191950005f56"}},"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}
