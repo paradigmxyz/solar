@@ -38,10 +38,10 @@ The EVM window compares symbolic exits before executing either successor.
 Gas costs, physical PCs, memory effects and general control flow are outside
 this first fragment.
 
-Operation semantics live in [MIR](SolarTV/MIR/Ops.lean) and
-[EVM IR](SolarTV/EVMIR/Ops.lean). [Transform proofs](SolarTV/Transforms)
-cover pure DCE, trimming switch cases and the branch peephole. Both layers
-reuse the word definitions in the repository's existing EVM rule checker.
+| Layer | Operation semantics | Transform proofs |
+| --- | --- | --- |
+| MIR | [MIR/Ops.lean](SolarTV/MIR/Ops.lean) | [Dead-code elimination](SolarTV/MIR/Transforms/DCE.lean), [trim trailing default switch cases](SolarTV/MIR/Transforms/TrimSwitchDefaults.lean) |
+| EVM IR | [EVMIR/Ops.lean](SolarTV/EVMIR/Ops.lean) | [EQ/ISZERO branch peephole](SolarTV/EVMIR/Transforms/EqIszeroJumpi.lean) |
 
 ```sh
 (cd solar-tv && lake build)
