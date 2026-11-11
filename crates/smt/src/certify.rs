@@ -298,10 +298,15 @@ fn inline(
                     } else {
                         value.clone()
                     };
+                    // A binder must not capture a variable of an argument substituted under it,
+                    // or a free symbol of a definition's body inlined under it, so it takes a
+                    // fresh name when one could.
+                    let captures = substitution.values().any(|value| mentions(value, name))
+                        || definitions.values().any(|(parameters, body)| {
+                            !parameters.contains(name) && mentions(body, name)
+                        });
                     definitions.remove(name);
-                    // A binder of a definition's body must not capture a variable of an
-                    // argument substituted under it, so it takes a fresh name when one could.
-                    let name = if substitution.values().any(|value| mentions(value, name)) {
+                    let name = if captures {
                         let fresh = format!("{name}!{}", FRESH.fetch_add(1, Ordering::Relaxed));
                         inner.insert(name.clone(), Sexp::Atom(fresh.clone()));
                         fresh
@@ -393,6 +398,27 @@ mod tests {
 (declare-const y (_ BitVec N))
 (assert (exists ((y!N (_ BitVec N))) (bvult y y!N)))
 (assert (= (let ((y!N (bvadd y y))) y!N) y))
+(check-sat)
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn inlining_keeps_free_symbols() {
+        // The body's free ` y` is the declared constant, not the ` let`'s ` y` at the use.
+        let query = "(set-logic `F_BV)
+(declare-const y (_ BitVec 8))
+(define-fun above ((v (_ BitVec 8))) Bool (bvult y v))
+(assert (let ((y #x00)) (above y)))
+(check-sat)
+";
+        snapbox::assert_data_eq!(
+            reference_script(query).unwrap().replace(char::is_numeric, "N"),
+            snapbox::str![[r#"
+(set-logic `F_BV)
+(declare-const y (_ BitVec N))
+(assert (let ((y!N #xNN)) (bvult y y!N)))
 (check-sat)
 
 "#]]
