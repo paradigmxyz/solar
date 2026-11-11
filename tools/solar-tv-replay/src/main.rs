@@ -27,6 +27,8 @@ struct Request {
     memory: bool,
     gas: bool,
     evm_version: String,
+    #[serde(default)]
+    selector: Option<String>,
 }
 
 fn main() {
@@ -39,12 +41,13 @@ fn main() {
 
 fn read() -> Result<Request, String> {
     let mut bytes = Vec::new();
-    io::stdin().lock().take(1_048_577).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-    if bytes.len() > 1_048_576 {
-        return Err("replay request exceeds 1 MiB".into());
+    io::stdin().lock().take(8_388_609).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+    if bytes.len() > 8_388_608 {
+        return Err("replay request exceeds 8 MiB".into());
     }
     let request: Request = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-    if request.version != 1 || request.before.len() > 131_072 || request.after.len() > 131_072 {
+    let limit = if request.selector.is_some() { 1_048_576 } else { 131_072 };
+    if request.version != 1 || request.before.len() > limit || request.after.len() > limit {
         return Err("unsupported replay version or oversized IR".into());
     }
     Ok(request)
@@ -102,8 +105,9 @@ fn replay(request: &Request) -> Result<[String; 2], String> {
                 if request.gas {
                     return Err("MIR replay cannot assign EVM gas costs".into());
                 }
-                let execution = mir::run(
+                let execution = mir::run_function(
                     text,
+                    request.selector.as_deref(),
                     &words(request, "arg")?,
                     &memory,
                     size,
@@ -141,8 +145,9 @@ fn replay(request: &Request) -> Result<[String; 2], String> {
                     returndata_size: word(request, "returndatasize")?,
                     gas: if request.gas { Some(word(request, "gas")?) } else { None },
                 };
-                let execution = evm::run(
+                let execution = evm::run_window(
                     text,
+                    request.selector.as_deref(),
                     input,
                     EvmOptions { evm_version: version, ..Default::default() },
                 )?;

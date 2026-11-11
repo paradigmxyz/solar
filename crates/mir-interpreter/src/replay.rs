@@ -46,6 +46,18 @@ pub fn run(
     size: u64,
     options: Options,
 ) -> Result<Execution, String> {
+    run_function(text, None, args, prefix, size, options)
+}
+
+/// Runs a named body in a full module, preserving its parser and replay context.
+pub fn run_function(
+    text: &str,
+    name: Option<&str>,
+    args: &[U256],
+    prefix: &[u8],
+    size: u64,
+    options: Options,
+) -> Result<Execution, String> {
     let memory = Memory::from_prefix(prefix, size)?;
     let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
     sess.enter_sequential(|| {
@@ -59,12 +71,19 @@ pub fn run(
         if sess.dcx.has_errors().is_err() {
             return Err("invalid MIR replay".into());
         }
-        if module.functions.len() != 1 || module.backend_memory.is_some() {
+        if (name.is_none() && module.functions.len() != 1) || module.backend_memory.is_some() {
             return Err(
                 "function replay requires one function without backend memory records".into()
             );
         }
-        let (id, function) = module.functions.iter_enumerated().next().unwrap();
+        let mut selected = module
+            .functions
+            .iter_enumerated()
+            .filter(|(_, function)| name.is_none_or(|name| function.name.to_string() == name));
+        let (id, function) = selected.next().ok_or("missing replay function")?;
+        if selected.next().is_some() {
+            return Err("ambiguous replay function".into());
+        }
         if function.params.len() != args.len() {
             return Err("mismatched replay arguments".into());
         }

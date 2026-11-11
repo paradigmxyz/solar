@@ -57,4 +57,19 @@ theorem empty_return_discards_stack (offset : Word) (rest : Stack)
   simp [finish]
   omega
 
+theorem untaken_branch_executes_stop (destination : Word) (rest : Stack)
+    (legal : rest.length ≤ 1022) :
+    finish (.branchStop destination) (0 :: rest) = .success := by
+  have h1 : ¬ (rest.length + 1 > 1024) := by omega
+  have h2 : ¬ (rest.length + 1 + 1 > 1024) := by omega
+  simp [finish, h1, h2]
+
+theorem taken_branch_leaves_the_block (destination condition : Word) (rest : Stack)
+    (nonzero : condition ≠ 0) (legal : rest.length ≤ 1022) :
+    finish (.branchStop destination) (condition :: rest) = .edge destination rest := by
+  have h1 : ¬ (rest.length + 1 > 1024) := by omega
+  have h2 : ¬ (rest.length + 1 + 1 > 1024) := by omega
+  simp [finish, h1, h2]
+  exact nonzero
+
 end SolarTV.EVM

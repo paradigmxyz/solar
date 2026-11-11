@@ -20,8 +20,9 @@ def replay(
     request = {
         "version": 1,
         "kind": "evmir" if a.interface[0] == "evm-window" else "mir",
-        "before": a.canonical_ir,
-        "after": b.canonical_ir,
+        "before": a.replay_ir or a.canonical_ir,
+        "after": b.replay_ir or b.canonical_ir,
+        "selector": a.selector,
         "inputs": {
             name: str(value) for name, value in zip(a.inputs, values, strict=True)
         },

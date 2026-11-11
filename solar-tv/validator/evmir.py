@@ -18,6 +18,9 @@ def translate(
     memory: bool = False,
     gas: str | None = None,
     evm_version: str = "cancun",
+    entry: str = "bb0",
+    following: str | None = None,
+    scoped: bool = False,
 ) -> Program:
     memory |= gas is not None
     blocks: dict[str, list[str]] = {}
@@ -41,29 +44,46 @@ def translate(
             blocks[label].append(line)
         else:
             raise Unsupported("expected an EVM block")
-    if not blocks or next(iter(blocks)) != "bb0" or not blocks["bb0"]:
+    if not blocks or next(iter(blocks)) != entry or not blocks[entry]:
         raise Unsupported("expected a nonempty EVM entry block")
-    if any(body != ["stop"] for label, body in blocks.items() if label != "bb0"):
+    if any(body != ["stop"] for label, body in blocks.items() if label != entry):
         raise Unsupported("EVM successor blocks must be stop sentinels")
 
-    body = list(blocks["bb0"])
+    body = list(blocks[entry])
+    boundaries = set(re.findall(r"\bbb\d+\b", " ".join(body))) if scoped else set()
     terminal = body.pop()
     estimate = 0
     words = 0
     memory |= any(line in {"mload", "mstore", "mstore8", "msize"} for line in body)
     output = terminal in {"return", "revert"}
-    if terminal == "stop" and body and body[-1] == "jumpi":
+    structured = re.fullmatch(r"jump (bb\d+)|jumpi (bb\d+), (bb\d+)", terminal)
+    if structured:
+        if not scoped:
+            raise Unsupported("structured transfers require a scoped window")
+        if gas is not None:
+            raise Unsupported("gas replay requires explicit opcode transfers")
+        targets = [target for target in structured.groups() if target]
+        if any(target == entry or target not in blocks for target in targets):
+            raise Unsupported("unmodeled window successor")
+        terminal = (
+            f"(.jump {targets[0][2:]})"
+            if len(targets) == 1
+            else f"(.branch {targets[0][2:]} {targets[1][2:]})"
+        )
+    elif terminal == "stop" and body and body[-1] == "jumpi":
         body.pop()
         target = body.pop() if body else ""
         jump = re.fullmatch(r"push (bb\d+)", target)
-        if not jump or jump[1] == "bb0" or jump[1] not in blocks:
+        if not jump or jump[1] == entry or jump[1] not in blocks:
             raise Unsupported("expected a valid static JUMPI destination")
-        terminal = f"(.branch {jump[1][2:]} 0)"
+        terminal = (
+            f"(.branchStop {jump[1][2:]})" if scoped else f"(.branch {jump[1][2:]} 0)"
+        )
         estimate += 13
     elif terminal == "jump":
         target = body.pop() if body else ""
         jump = re.fullmatch(r"push (bb\d+)", target)
-        if not jump or jump[1] == "bb0" or jump[1] not in blocks:
+        if not jump or jump[1] == entry or jump[1] not in blocks:
             raise Unsupported("expected a valid static JUMP destination")
         terminal = f"(.jump {jump[1][2:]})"
         estimate += 11
@@ -89,7 +109,7 @@ def translate(
         raise Unsupported("unmodeled EVM terminal or dynamic transfer")
 
     ops = []
-    constants: list[int | None] = [None] * heights["bb0"]
+    constants: list[int | None] = [None] * heights[entry]
     for line in body:
         if gas is not None:
             estimate += pricing.estimate(line)
@@ -157,12 +177,16 @@ def translate(
         operation = f".stack ({operation})" if memory else operation
         ops.append(f".instruction ({operation})" if gas is not None else operation)
 
+    if structured and structured[1] == following and len(constants) >= 1024:
+        raise Unsupported(
+            "full-stack layout fallthrough needs distinct transfer semantics"
+        )
     if memory and output:
         words = max(words, mem.active_words(constants[0], constants[1]))
     if memory and not output:
         terminal = f"(.control {terminal})"
 
-    height = heights["bb0"]
+    height = heights[entry]
     stack = [f"stack{i}" for i in range(height)]
     inputs = ["calldatasize", "returndatasize", *stack]
     if memory:
@@ -181,6 +205,7 @@ def translate(
             "evm-window",
             str(height),
             *blocks.keys(),
+            *(f"boundary:{label}" for label in sorted(boundaries)),
             *(("memory",) if memory else ()),
             *((gas, evm_version) if gas is not None else ()),
         ),

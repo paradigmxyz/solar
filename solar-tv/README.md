@@ -309,10 +309,48 @@ SOLAR_TV_GAS=refine target/debug/solar solar-tv/examples/evmir/gas/before.evmir 
 compiler forwards its actual EVM target version. MIR boundaries keep their
 gas-independent checks; the environment never assigns gas prices to MIR.
 
-The host flag also applies to compilation from Solidity. Each pass manager
-compares its module text before and after each pass that runs. A changed pair
-goes to the checker, including edits a pass forgot to report. The supported
-fragments above apply to the whole snapshot.
+The host flag also applies to compilation from Solidity:
+
+```sh
+target/debug/solar solar-tv/examples/solidity/functions.sol -Ogas --emit=bin \
+  -Zsolar-tv=target/tv
+solar-tv/solar-tv summarize target/tv
+```
+
+Each pass manager compares its module before and after a pass, including edits a
+pass forgot to report. MIR checks each changed function separately. EVM IR checks
+complete changed blocks with proven fixed incoming stack heights. Unrelated
+dispatchers, helpers and successor bodies do not have to fit the modeled fragment.
+The compiler still parses and validates the full module, and Rust counterexample
+replay executes the selected region in that original context.
+
+Reports identify the function or stable block label and incoming height. Both
+module and region hashes are retained. A verified region is a local proof, not a
+claim that the entire pass or contract was verified (`whole_pass: false`). ABI and
+function interface changes, new/deleted functions, shared declaration changes,
+unknown stack heights and changed window boundaries remain unsupported. In
+particular, replacing a revert block with a jump to shared revert code needs a
+larger region; it is not reported as a wrong-code counterexample.
+If a neighboring block also changes, stack-position correspondence is unknown,
+so that window is unsupported too. This avoids blaming a valid stack reshuffle
+that spans several blocks.
+
+You can select a region when replaying full snapshots:
+
+```sh
+solar-tv/solar-tv mir before.mir after.mir --function helper
+solar-tv/solar-tv evmir before.evmir after.evmir --window bb7 --stack-height 3
+```
+
+The standalone window proof assumes the specified incoming height. The pass hook
+derives it from the original and edited CFGs; a maximum bound is insufficient.
+Successor labels denote the same boundaries on both sides. No instructions are
+cut out of a block. Layout changes and shared-tail transformations remain
+unsupported; structured transfers are also unsupported under gas policies.
+Full context is limited to 1 MiB per file, and each selected region keeps the
+128 KiB and 512-line limits. Unrelated EVM bodies are not copied into the proof.
+For a complete physical `JUMPI; STOP` block, the untaken path executes `STOP`;
+it is not an invented edge to the next block.
 
 A verified pair produces a message on stderr. A counterexample stops the
 pipeline. Unsupported, timed-out and inconclusive checks warn and compilation continues.
