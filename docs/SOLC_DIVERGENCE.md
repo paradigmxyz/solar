@@ -1139,7 +1139,6 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   moving the check to each use cost about a thousand lines of compiler code.
 - Coverage: `tests/ui/codegen/run-call/storage/storage_dirty_enum_load.sol`.
 
-
 ### CODEGEN-025: Writing a value that owns its storage slot clears the dirty padding
 
 - ID: CODEGEN-025
