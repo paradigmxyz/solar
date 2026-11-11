@@ -22,6 +22,8 @@ structure Account where
   code : List Byte := []
   storage : Slots := []
   transient : Slots := []
+  created : Bool := false
+  destroyed : Bool := false
   deriving DecidableEq
 
 structure Journal where

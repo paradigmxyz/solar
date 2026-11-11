@@ -96,7 +96,7 @@ def record(
                 "only listed symbolic storage cells and entry stack words are quantified",
                 f"entry gas budget {fixture['gas']}; root value/gas price zero; fresh private memory",
                 f"model work limit {fixture['fuel']}; 64 KiB memory limit; unsupported paths prevent verification",
-                "nested bytecode and constructors execute; identity precompile modeled; other precompiles unsupported",
+                "nested bytecode, constructors and active precompiles execute; fork-specific deferred SELFDESTRUCT",
                 "scenario-entry proof; no arbitrary-world or whole-pass claim",
                 "persistent effects only"
                 if policy is None

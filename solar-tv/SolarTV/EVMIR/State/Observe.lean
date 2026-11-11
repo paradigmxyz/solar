@@ -47,7 +47,9 @@ def observe (cfg : Config) (policy : Policy) (result : Result) : Observation :=
   let accounts := result.world.accounts.map (fun a => {a with
     code := if a.address == cfg.root then [] else a.code
     storage := normalizedSlots a.storage
-    transient := []})
+    transient := []
+    created := false
+    destroyed := false})
   ⟨result.stop, result.data, if policy = .effects then 0 else result.gas,
     if policy = .effects then 0 else result.world.refund,
     ordered (fun a b => a.address.ule b.address) accounts, result.world.logs⟩

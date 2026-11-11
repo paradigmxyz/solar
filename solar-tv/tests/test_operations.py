@@ -305,4 +305,10 @@ class OperationTests(unittest.TestCase):
             self.assertEqual(inventory["mir"][name], "compiled_entry")
         for name in ("create", "create2"):
             self.assertEqual(inventory["evmir"][name], "world_entry")
-        self.assertEqual(inventory["evmir"]["selfdestruct"], "missing")
+        self.assertEqual(inventory["evmir"]["selfdestruct"], "world_entry")
+        active = {
+            str(address)
+            for addresses in catalog["precompiles"].values()
+            for address in addresses
+        }
+        self.assertEqual(set(inventory["precompiles"]), active)

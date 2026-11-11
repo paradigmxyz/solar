@@ -9,9 +9,9 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
 | Some forms checked | 6 | 6 |
-| Explicit-world entry execution | 0 | 32 |
+| Explicit-world entry execution | 0 | 33 |
 | Compiled entry through trusted backend | 7 | 0 |
-| Missing | 62 | 13 |
+| Missing | 62 | 12 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
 variants account for many EVM entries. Checking a word operation does not cover
@@ -61,8 +61,20 @@ exceptional children restore the journal and burn their gas.
 execution with `--world`. The Lean evaluator executes nested call frames and
 CREATE/CREATE2 constructors, real address derivation, nonce/collision rules,
 code-deposit costs, deployment restrictions, storage and journal rollback.
-Identity precompile 4 is implemented; other precompiles are unsupported.
 Independent `evm2` replay rebuilds both original IR inputs through the compiler.
+
+All 18 precompiles active during Istanbul–Osaka execute in pure Lean. This
+includes SHA-256, RIPEMD-160, identity, BLAKE2F, ModExp, ECRECOVER, P256VERIFY,
+BN254 operations, BLS12-381 ADD/MSM/pairing/maps and KZG point evaluation. KZG
+uses Ethereum's public ceremony setup; field maps use the EIP-2537 isogeny
+constants. No crypto result is imported through FFI or an uninterpreted oracle.
+Fork activation, gas, canonical encodings, subgroup rules and malformed inputs
+are checked against the native engine. Expensive model computations can still
+exceed the prover's work/time limits and remain inconclusive.
+
+SELFDESTRUCT models the London refund removal and Cancun EIP-6780 distinction
+between existing and newly created accounts. Deletion is deferred, balance
+changes are immediate, and nested reverts restore the complete journal.
 
 The world fixture is an explicit assumption. Only declared symbolic slots and
 entry stack words are universally quantified. MIR is compiled through the backend
@@ -75,8 +87,7 @@ for admitted forks, limits, observables and gas policies.
 
 1. Generalize fixed-world entry proofs to arbitrary symbolic accounts and aliases,
    with direct MIR state semantics rather than trusting backend lowering.
-2. Complete precompiles, EIP-7702 delegation and SELFDESTRUCT, including their
-   fork-specific effects and gas rules.
+2. Add EIP-7702 delegation, including its account accesses and gas rules.
 3. Complete calldata/returndata/program-data access, physical code layout and
    environment/account/block operations.
 4. Add MIR aggregates, slices, frames, allocation, storage layouts and ABI helpers
