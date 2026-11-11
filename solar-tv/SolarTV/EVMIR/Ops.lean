@@ -58,6 +58,7 @@ inductive Execution where
 inductive Terminal where
   | jump (destination : Word)
   | branch (destination fallthrough : Word)
+  | branchStop (destination : Word)
   | stop | returnEmpty | revertEmpty | invalid
 
 /-- Internal DUP/SWAP indices are zero-based; the importer accepts DUP1..16/SWAP1..16. -/
@@ -87,6 +88,11 @@ def finish (terminal : Terminal) (stack : Stack) : Execution :=
       if stack.length + 1 > 1024 then .failed .overflow
       else match stack with
         | condition :: rest => .edge (if condition = 0 then fallthrough else destination) rest
+        | _ => .failed .underflow
+    | .branchStop destination =>
+      if stack.length + 1 > 1024 then .failed .overflow
+      else match stack with
+        | condition :: rest => if condition = 0 then .success else .edge destination rest
         | _ => .failed .underflow
 
 /-- Execute one block window, preserving the first exception. Stack values are

@@ -36,7 +36,7 @@ fn counterexample_stops_pipeline_and_replays() {
             )
             .unwrap();
         let mut module = Module::parse(compiler.sess(), &file).unwrap();
-        let _ = run_passes(compiler.gcx(), &mut module, &[&WrongReturn, &Unreachable], None);
+        let _ = run_passes(compiler.gcx(), &mut module, &[&WrongReturn(None), &Unreachable], None);
         assert_eq!(compiler.dcx().err_count(), 1);
     });
     let mut pairs = pairs(audit.path());
@@ -45,7 +45,9 @@ fn counterexample_stops_pipeline_and_replays() {
     let report = RealFileLoader.load_file(&pair.join("result.txt")).unwrap();
     assert_data_eq!(
         report.lines().next().unwrap(),
-        str!["solar-tv: mir pass `wrong-return` on `Dce`: counterexample"]
+        str![
+            "solar-tv: mir pass `wrong-return` on `Dce` function `with_dead_code`: counterexample"
+        ]
     );
     let replay = Command::new(std::env::var_os("SOLAR_TV").unwrap())
         .arg("mir")
@@ -101,7 +103,7 @@ Replay
     );
 }
 
-struct WrongReturn;
+struct WrongReturn(Option<String>);
 
 impl MirPass for WrongReturn {
     fn name(&self) -> &'static str {
@@ -112,10 +114,14 @@ impl MirPass for WrongReturn {
     }
 
     fn run_pass(&self, _: Gcx<'_>, module: &mut Module, _: &mut ModuleAnalyses) -> bool {
-        let f = module.functions.iter_mut().next().unwrap();
+        let f = module
+            .functions
+            .iter_mut()
+            .find(|f| self.0.as_ref().is_none_or(|name| f.name.to_string() == *name))
+            .unwrap();
         let arg = f.params.indices().next().unwrap();
         let input = f.alloc_arg(arg);
-        let inst = f.instructions().next().unwrap();
+        let inst = f.instructions().last().unwrap();
         let sum = f.inst_result_value(inst).unwrap();
         // ret (arg0 + 1) => ret arg0
         f.replace_uses(&[(sum, input)].into_iter().collect());
@@ -172,4 +178,43 @@ fn pairs(directory: &Path) -> impl Iterator<Item = PathBuf> {
         .unwrap()
         .map(|entry| entry.unwrap().path())
         .filter(|path| path.file_name().unwrap() != "audits")
+}
+
+#[test]
+#[ignore = "requires the solar-tv Lean toolchain and SOLAR / SOLAR_TV executables"]
+fn solidity_function_counterexample_stops_pipeline() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../solar-tv/examples/solidity");
+    let built = Command::new(env!("CARGO_BIN_EXE_solar"))
+        .arg(root.join("functions.sol"))
+        .args(["-Ogas", "-Zmir-pipeline=none", "--allow=2264"])
+        .output()
+        .unwrap();
+    assert!(built.status.success());
+    let audit = tempfile::tempdir().unwrap();
+    let mut opts = CompileOpts::default();
+    opts.unstable.solar_tv = Some(audit.path().to_owned());
+    let session = Session::builder().opts(opts).with_buffer_emitter(ColorChoice::Never).build();
+    Compiler::new(session).enter(|compiler| {
+        let text = String::from_utf8(built.stdout).unwrap();
+        let file = compiler
+            .sess()
+            .source_map()
+            .new_source_file(FileName::Custom("source.mir".into()), &text)
+            .unwrap();
+        let mut module = Module::parse(compiler.sess(), &file).unwrap();
+        let _ = run_passes(
+            compiler.gcx(),
+            &mut module,
+            &[&WrongReturn(Some("helper".to_owned())), &Unreachable],
+            None,
+        );
+        assert_eq!(compiler.dcx().err_count(), 1);
+    });
+    let pair = pairs(audit.path()).next().unwrap();
+    let report: serde_json::Value =
+        serde_json::from_slice(&fs::read(pair.join("result.json")).unwrap()).unwrap();
+    assert_data_eq!(report["status"].as_str().unwrap(), str!["counterexample"]);
+    assert_data_eq!(report["region"]["name"].as_str().unwrap(), str!["helper"]);
+    assert_data_eq!(report["evidence"].as_str().unwrap(), str!["kernel-and-rust-replay"]);
+    assert_eq!(report["whole_pass"], false);
 }

@@ -309,8 +309,10 @@ impl<'m> Machine<'m> {
         input: crate::replay::Input,
         fuel: u64,
         layout: Layout,
+        selected: Option<BlockId>,
     ) -> Result<crate::replay::Execution, String> {
-        let Some(body) = self.module.blocks.first() else {
+        let entry = selected.unwrap_or(BlockId::ENTRY);
+        let Some(body) = self.module.blocks.get(entry) else {
             return Err("empty EVM window".into());
         };
         let mut memory = vec![0; input.memory_size];
@@ -332,12 +334,24 @@ impl<'m> Machine<'m> {
         let execute = |run: &mut Run<'_, 'm>| -> Result<Option<usize>, Outcome> {
             for inst in &body.instructions {
                 let target = run.instruction(inst)?;
-                if target.is_some() || inst.opcode == op::JUMPI {
-                    return Ok(target.map(|id| id.index()));
+                if target.is_some() || (inst.opcode == op::JUMPI && selected.is_none()) {
+                    return Ok(target.map(|id| {
+                        if selected.is_some() {
+                            self.module.blocks[id].label as usize
+                        } else {
+                            id.index()
+                        }
+                    }));
                 }
             }
             match &body.terminator {
-                Some(term) => run.terminator(BlockId::ENTRY, term).map(|id| Some(id.index())),
+                Some(term) => run.terminator(entry, term).map(|id| {
+                    Some(if selected.is_some() {
+                        self.module.blocks[id].label as usize
+                    } else {
+                        id.index()
+                    })
+                }),
                 None => Ok(None),
             }
         };

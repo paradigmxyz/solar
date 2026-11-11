@@ -61,6 +61,16 @@ pub struct Execution {
 
 /// Replays the first block without entering its successors.
 pub fn run(text: &str, input: Input, options: Options) -> Result<Execution, String> {
+    run_window(text, None, input, options)
+}
+
+/// Replays a complete block in its original module, identified by stable textual label.
+pub fn run_window(
+    text: &str,
+    label: Option<&str>,
+    input: Input,
+    options: Options,
+) -> Result<Execution, String> {
     if input.stack.len() > 1024
         || input.memory_size > (1 << 24)
         || !input.memory_size.is_multiple_of(32)
@@ -76,7 +86,34 @@ pub fn run(text: &str, input: Input, options: Options) -> Result<Execution, Stri
             .map_err(|e| e.to_string())?;
         let module =
             Module::parse(&sess, &file).map_err(|_| "cannot parse EVM IR replay".to_owned())?;
-        Machine::new(&module, options.evm_version).replay(input, options.fuel, Layout::COMPACT)
+        let selected = if let Some(label) = label {
+            let label = label
+                .strip_prefix("bb")
+                .ok_or("invalid replay label")?
+                .parse::<u32>()
+                .map_err(|e| e.to_string())?;
+            let (id, _) = module
+                .blocks
+                .iter_enumerated()
+                .find(|(_, block)| block.label == label)
+                .ok_or("missing replay block")?;
+            let heights = solar_evmir::ir::verify::Verifier::stack_entry_exact_depths(
+                &module,
+                options.evm_version,
+            );
+            if heights[id] != Some(input.stack.len()) {
+                return Err("unproved replay entry height".into());
+            }
+            Some(id)
+        } else {
+            None
+        };
+        Machine::new(&module, options.evm_version).replay(
+            input,
+            options.fuel,
+            Layout::COMPACT,
+            selected,
+        )
     })
 }
 

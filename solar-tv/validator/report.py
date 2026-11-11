@@ -13,7 +13,7 @@ from .common import Program, ReplayTimeout
 
 def region(program: Program) -> str:
     if program.interface[0] == "evm-window":
-        region = f"EVM IR window bb0, entry stack height {program.interface[1]}"
+        region = f"EVM IR window {program.selector or 'bb0'}, entry stack height {program.interface[1]}"
         if program.gas is not None:
             region += f" (gas={program.gas}, evm={program.evm_version})"
         return region
@@ -114,6 +114,9 @@ def replay_command(
     gas: str | None = None,
     evm_version: str | None = None,
     replay: str | None = None,
+    function: str | None = None,
+    window: str | None = None,
+    stack_height: int | None = None,
 ) -> str:
     checker = Path(__file__).resolve().parents[1] / "solar-tv"
     argv = [
@@ -132,6 +135,12 @@ def replay_command(
         argv.extend(["--evm-version", evm_version])
     if replay is not None:
         argv.extend(["--replay", replay])
+    if function is not None:
+        argv.extend(["--function", function])
+    if window is not None:
+        argv.extend(["--window", window])
+        if stack_height is not None:
+            argv.extend(["--stack-height", str(stack_height)])
     if sys.platform == "win32":
         argv = [sys.executable, *argv]
         return "& " + " ".join("'" + arg.replace("'", "''") + "'" for arg in argv)

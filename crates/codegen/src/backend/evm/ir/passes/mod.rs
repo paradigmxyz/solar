@@ -262,7 +262,7 @@ fn run_passes(
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
             let target_support_before = (!cached && should_validate_ir(gcx.sess))
                 .then(|| super::verifier(gcx).target_support_snapshot(module));
-            let tv = crate::solar_tv::Snapshot::capture(gcx, cached, module.to_text());
+            let tv = crate::solar_tv::EvmSnapshot::capture(gcx, cached, module);
             let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let pass_changed = !cached
                 && tracing::trace_span!("evm_ir_pass", pass = pass_name)
@@ -281,7 +281,7 @@ fn run_passes(
                 return changed;
             }
             if let Some(tv) = tv
-                && tv.check(gcx, "evmir", pass_name, module.name(), module.to_text()).is_err()
+                && tv.check(gcx, pass_name, module).is_err()
             {
                 return changed;
             }

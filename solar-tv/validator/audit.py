@@ -95,6 +95,8 @@ def record(
         )
         if program:
             assumptions.append(f"entry stack height {program.interface[1]}")
+    if program and program.scope:
+        assumptions.append("region-local proof; no whole-pass or interprocedural claim")
     if (program and program.memory) or (
         result.pair and any(side.memory for side in result.pair)
     ):
@@ -115,6 +117,11 @@ def record(
                 "path": str(path.resolve()),
                 "canonical_sha256": hashlib.sha256(
                     result.pair[i].canonical_ir.encode()
+                ).hexdigest()
+                if result.pair
+                else None,
+                "module_sha256": hashlib.sha256(
+                    (result.pair[i].replay_ir or result.pair[i].canonical_ir).encode()
                 ).hexdigest()
                 if result.pair
                 else None,

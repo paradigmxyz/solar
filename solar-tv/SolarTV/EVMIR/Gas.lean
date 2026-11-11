@@ -66,7 +66,7 @@ def cost (op : Memory.Op) (stack : Stack) (memory : SolarTV.Memory.State) : Nat 
 def finish (terminal : Memory.Terminal) (stack : Stack) (memory : SolarTV.Memory.State)
     (gas : Nat) : Result :=
   match terminal with
-  | .control (.jump _) | .control (.branch _ _) =>
+  | .control (.jump _) | .control (.branch _ _) | .control (.branchStop _) =>
     -- The label PUSH costs 3 and can fail before the transfer executes.
     if gas < 3 then exhausted
     else if stack.length + 1 > 1024 then halted (.failed .overflow) (gas - 3)
