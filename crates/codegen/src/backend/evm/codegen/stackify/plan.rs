@@ -347,19 +347,17 @@ impl<'a> Planner<'a> {
             }
         }
         // A read of the multi-return buffer that no call binds may observe the results of a
-        // call whose protocol is not adjacent to it, so such calls publish their results.
+        // call whose protocol is not adjacent to it, so such calls publish their results. A
+        // recursive callee publishes to the return area of its fixed frame too: its activations
+        // return on the stack and never use that area, and the frame's spills and locals lie
+        // above it.
         let mut publish = DenseBitSet::new_empty(func.num_insts());
-        if func.instructions().any(|inst| {
-            !skipped.contains(inst)
-                && matches!(func.inst(inst).kind, InstKind::Load(addr, PtrLocation::Memory)
-                    if func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
-        }) {
+        if func.instructions().any(|inst| unbound_buffer_read(func, &skipped, inst)) {
+            let blocks = func.inst_block_table();
             for (&inst, extras) in &projections {
-                if extras.iter().all(Option::is_none) {
-                    let (callee, _) = icall(&func.inst(inst).kind).unwrap();
-                    if info.components[callee].is_some() {
-                        return Err("recursive multi-word call through memory");
-                    }
+                if extras.iter().all(Option::is_none)
+                    && reaches_unbound_buffer_read(func, cfg, &skipped, &blocks, inst)
+                {
                     publish.insert(inst);
                 }
             }
@@ -2177,7 +2175,12 @@ impl<'a> Planner<'a> {
             if self.publish.contains(inst) {
                 // [result(m-1), ..., result1, result0] -> [result0], storing result1.. to the
                 // callee's return area
-                sim.steps.push(Step::Publish { callee, arity, params: self.info.params[callee] });
+                sim.steps.push(Step::Publish {
+                    inst,
+                    callee,
+                    arity,
+                    params: self.info.params[callee],
+                });
                 let top = sim.stack.pop().unwrap();
                 sim.stack.truncate(sim.stack.len() + 1 - arity);
                 sim.stack.push(top);
@@ -3471,6 +3474,63 @@ pub(super) fn call_projection(
         }
     }
     Some(Projection { elided, extras, tracked })
+}
+
+/// Whether `inst` reads the multi-return buffer pointer outside the protocol of any call.
+fn unbound_buffer_read(func: &Function, skipped: &DenseBitSet<InstId>, inst: InstId) -> bool {
+    !skipped.contains(inst)
+        && matches!(func.inst(inst).kind, InstKind::Load(addr, PtrLocation::Memory)
+            if func.value_u64(addr) == Some(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT))
+}
+
+/// Whether a read of the multi-return buffer pointer that no call binds is reachable from
+/// `call` along a path that does not first overwrite the whole word. Only such reads can observe
+/// the call's results, so a call that reaches none, such as one on another branch than an ABI
+/// decoder reading the scratch word at the same address, need not publish them.
+fn reaches_unbound_buffer_read(
+    func: &Function,
+    cfg: &CfgInfo,
+    skipped: &DenseBitSet<InstId>,
+    blocks: &IndexVec<InstId, Option<BlockId>>,
+    call: InstId,
+) -> bool {
+    let slot = EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT;
+    // Scans `insts`: Some(true) at a read, Some(false) at a full overwrite of the word, None
+    // when control leaves the block with the word unchanged.
+    let scan = |insts: &[InstId]| {
+        insts.iter().find_map(|&inst| {
+            if unbound_buffer_read(func, skipped, inst) {
+                return Some(true);
+            }
+            match func.inst(inst).kind {
+                InstKind::Store(addr, _, PtrLocation::Memory)
+                    if func.value_u64(addr) == Some(slot) =>
+                {
+                    Some(false)
+                }
+                _ => None,
+            }
+        })
+    };
+    let block = blocks[call].expect("a projected call is in a block");
+    let insts = &func.blocks[block].instructions;
+    let position = insts.iter().position(|&inst| inst == call).unwrap();
+    if let Some(found) = scan(&insts[position + 1..]) {
+        return found;
+    }
+    let mut visited = DenseBitSet::new_empty(func.blocks.len());
+    let mut worklist = cfg.successors(block).to_vec();
+    while let Some(block) = worklist.pop() {
+        if !visited.insert(block) {
+            continue;
+        }
+        match scan(&func.blocks[block].instructions) {
+            Some(true) => return true,
+            Some(false) => {}
+            None => worklist.extend_from_slice(cfg.successors(block)),
+        }
+    }
+    false
 }
 
 /// Values computed by stable single-opcode arithmetic, calldata loads, and casts from words
