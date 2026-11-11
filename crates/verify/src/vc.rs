@@ -1629,7 +1629,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         walk::all_stmts(body, &mut |s| {
             walk::stmt_exprs(s, &mut |e| visit(e, &mut out, &mut all_state));
             if let StmtKind::Assembly(a) = &s.kind {
-                yul::asm_effects(&a.block, &mut out, &mut all_state);
+                yul::asm_effects(&a.block, &mut out, &mut all_state, self.lock_modset.get());
             }
             if let Some(specs) = self.prog.stmt_specs.get(&s.span) {
                 for (tag, sp) in specs {
@@ -1875,6 +1875,71 @@ impl<'p, 'a> Vc<'p, 'a> {
         found
     }
 
+    /// What a call to `f` may write when this contract's reentrancy lock is held at the call and
+    /// `f` never touches the lock: its own writes, with its external calls reaching only the entry
+    /// points that stay callable under the lock, and so whatever those may write. None when the
+    /// lock isn't known to be held, `f` reaches the lock, or some write set is unknown.
+    fn modset_under_lock(
+        &mut self,
+        f: &'p Func<'a>,
+    ) -> Option<(BTreeSet<String>, Option<BTreeSet<String>>)> {
+        if self.spec || self.c.lock.is_none() || !self.lock_held() {
+            return None;
+        }
+        let names: FxHashSet<String> = match &self.c.lock_expr {
+            Some(_) => self.lock_names(),
+            None => self.c.lock.iter().map(|(g, _)| g.clone()).collect(),
+        };
+        if self.reaches_names(self.fn_stmts(f), &names, &mut FxHashSet::default()) {
+            return None;
+        }
+        // whether f can call out at all: its plain write set is unknown only through such calls
+        let calls_out = self.modset(f, &mut FxHashSet::default()).is_none();
+        self.lock_modset.set(true);
+        let own = self.modset(f, &mut FxHashSet::default());
+        let mut out = own.clone();
+        if calls_out && out.is_some() {
+            let open: Vec<&'p Func<'a>> =
+                self.c.funcs.iter().filter(|g| self.lock_open(g)).collect();
+            let mut seen = FxHashSet::default();
+            for g in open {
+                match (self.modset(g, &mut seen), out.as_mut()) {
+                    (Some(m), Some(o)) => o.extend(m),
+                    _ => out = None,
+                }
+            }
+        }
+        self.lock_modset.set(false);
+        let (own, out) = (own?, out?);
+        // the lock's own state is never written under it: f doesn't reach it, and the open entry
+        // points don't either
+        let mut out: BTreeSet<String> = out.into_iter().filter(|n| !names.contains(n)).collect();
+        // outside code changes these whether or not the lock is held: it can force ETH on us
+        // (selfdestruct), and deploy or destroy code anywhere
+        if calls_out {
+            out.extend(["__balance".to_string(), "__code_epoch".to_string()]);
+        }
+        // invariants f's own writes can't touch hold afterwards when f calls out: f's proof
+        // checks them before each of its calls, the open entry points keep them, and nothing after
+        // the last call writes what they read
+        // without a call out, the open entry points never run, so nothing new holds afterwards
+        let keep = if calls_out { Some(own) } else { None };
+        Some((out, keep))
+    }
+
+    /// The state variables a spec expression reads.
+    fn spec_state_names(&self, e: &'a Expr<'a>) -> FxHashSet<String> {
+        let mut out = FxHashSet::default();
+        walk::sub_exprs(e, &mut |x| {
+            if let ExprKind::Ident(i) = &x.kind
+                && self.c.state.iter().any(|s| s.name == i.as_str())
+            {
+                out.insert(i.as_str().to_string());
+            }
+        });
+        out
+    }
+
     /// State variables a function may write; None = anything (external calls).
     fn modset(&self, f: &'p Func<'a>, seen: &mut FxHashSet<String>) -> Option<BTreeSet<String>> {
         let raw = self.modset_raw(f, seen)?;
@@ -1922,7 +1987,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     walk::sub_exprs(g.expr, &mut |x| self.effects(x, &mut out, &mut all, seen));
                 }
                 if let StmtKind::Assembly(a) = &s.kind {
-                    yul::asm_effects(&a.block, &mut out, &mut all);
+                    yul::asm_effects(&a.block, &mut out, &mut all, self.lock_modset.get());
                 }
             });
         }
@@ -4259,8 +4324,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                     self.runtime_check(ck)?;
                 }
                 self.old = Some(self.env.clone());
-                if let Some(ms) =
-                    self.modset(f, &mut FxHashSet::default()).map(Some).unwrap_or_else(|| {
+                let under_lock = if library { None } else { self.modset_under_lock(f) };
+                let keep_invs = under_lock.as_ref().and_then(|(_, own)| own.clone());
+                if let Some(ms) = under_lock
+                    .map(|(ms, _)| Some(ms))
+                    .unwrap_or_else(|| self.modset(f, &mut FxHashSet::default()))
+                    .map(Some)
+                    .unwrap_or_else(|| {
                         Some(
                             c.state
                                 .iter()
@@ -4278,6 +4348,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                             // raw/transient storage a library writes with sstore/tstore
                             let v = self.fresh_var(&n, &hv.ty);
                             self.env.insert(format!("@host.{n}"), v);
+                        }
+                    }
+                }
+                if let Some(own) = keep_invs {
+                    let c = self.c;
+                    for inv in &c.invariants {
+                        if self.spec_state_names(inv.expr).iter().all(|n| !own.contains(n)) {
+                            let v = self.eval_spec(inv.expr)?;
+                            self.assume(&v.t);
                         }
                     }
                 }
