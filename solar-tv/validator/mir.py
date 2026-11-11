@@ -1,4 +1,11 @@
-"""Translate pure i256 SSA and ordered switches to SolarTV.MIR operations."""
+"""Translate acyclic pure i256 SSA, including edge-selected phis, to Lean.
+
+Expand each path with its own SSA environment. A phi reads the predecessor's
+incoming value before any of the block's phi results are bound. Inactive
+incoming values can be unavailable on this path and are represented as zero;
+the concrete predecessor makes them unreachable in the Lean selector. Reject
+cycles and excessive path expansion instead of making a bounded proof claim.
+"""
 
 import re
 
@@ -28,49 +35,87 @@ def translate(text: str) -> Program:
             raise Unsupported("expected a block")
     if not blocks or next(iter(blocks)) != "bb0" or not all(blocks.values()):
         raise Unsupported("expected a nonempty entry block")
-    values = set(inputs)
 
-    def word(token: str) -> str:
+    # The compiler validates SSA, dominance and phi predecessor sets before import.
+    # Still reject unsupported operations even in an unreachable block.
+    for body in blocks.values():
+        for line in body[:-1]:
+            if not re.fullmatch(
+                r"v\d+ = (?:(?:add|sub|mul|and|or|xor) \w+, \w+|phi .+)", line
+            ):
+                raise Unsupported(f"unmodeled MIR instruction: {line}")
+        if not re.fullmatch(
+            r"(?:ret \w+|jump bb\d+|switch \w+, default bb\d+, \[.*\])", body[-1]
+        ):
+            raise Unsupported(f"unmodeled MIR terminator: {body[-1]}")
+
+    expansions = 0
+
+    def word(token: str, values: set[str]) -> str:
         return token if token in values else literal(token)
 
-    code = []
-    for line in blocks["bb0"][:-1]:
-        inst = re.fullmatch(r"(v\d+) = (add|sub|mul|and|or|xor) (\w+), (\w+)", line)
-        if not inst:
-            raise Unsupported(f"unmodeled MIR instruction: {line}")
-        dest, op, a, b = inst.groups()
-        code.append(f"let {dest} := MIR.eval .{op} {word(a)} {word(b)}")
-        values.add(dest)
+    def enter(label: str, predecessor: str, values: set[str], path: tuple) -> str:
+        nonlocal expansions
+        expansions += 1
+        if label in path:
+            raise Unsupported("cyclic MIR control flow")
+        if len(path) >= 128 or expansions > 512:
+            raise Unsupported("MIR path expansion limit")
+        if label not in blocks:
+            raise Unsupported(f"unknown block {label}")
+        path = (*path, label)
+        code = []
+        current = set(values)
+        for line in blocks[label][:-1]:
+            if phi := re.fullmatch(r"(v\d+) = phi (.+)", line):
+                incoming = []
+                selected = 0
+                for arm in phi[2].split(", "):
+                    match = re.fullmatch(r"\[(bb\d+): (\w+)\]", arm)
+                    if not match:
+                        raise Unsupported("malformed phi incoming value")
+                    pred, value = match.groups()
+                    active = pred == predecessor
+                    selected += active
+                    value = word(value, values) if active else "0#256"
+                    incoming.append(f"({pred[2:]}, {value})")
+                if selected != 1:
+                    raise Unsupported("phi must select exactly one incoming value")
+                code.append(
+                    f"let {phi[1]} := (MIR.phi {predecessor[2:]} "
+                    f"[{', '.join(incoming)}]).getD 0#256"
+                )
+                current.add(phi[1])
+            elif inst := re.fullmatch(
+                r"(v\d+) = (add|sub|mul|and|or|xor) (\w+), (\w+)", line
+            ):
+                dest, op, a, b = inst.groups()
+                code.append(
+                    f"let {dest} := MIR.eval .{op} {word(a, current)} {word(b, current)}"
+                )
+                current.add(dest)
 
-    def returned(line: str) -> str:
-        ret = re.fullmatch(r"ret (\w+)", line)
-        if not ret:
-            raise Unsupported(f"expected scalar return, got {line}")
-        return word(ret[1])
+        def edge(target: str) -> str:
+            return f"(\n{enter(target, label, current, path)}\n)"
 
-    exits = {}
-    for label, body in list(blocks.items())[1:]:
-        if len(body) != 1:
-            raise Unsupported("successor must return directly")
-        exits[label] = returned(body[0])
+        term = blocks[label][-1]
+        if jump := re.fullmatch(r"jump (bb\d+)", term):
+            result = edge(jump[1])
+        elif switch := re.fullmatch(r"switch (\w+), default (bb\d+), \[(.*)\]", term):
+            result = edge(switch[2])
+            key = word(switch[1], current)
+            for arm in reversed(switch[3].split(", ") if switch[3] else []):
+                case = re.fullmatch(r"(\w+) => (bb\d+)", arm)
+                if not case:
+                    raise Unsupported("malformed switch case")
+                result = (
+                    f"(MIR.choose {key} {word(case[1], current)} "
+                    f"{edge(case[2])} {result})"
+                )
+        else:
+            result = word(term.removeprefix("ret "), current)
+        code.append(result)
+        return "\n".join(code)
 
-    def edge(label: str) -> str:
-        if label not in exits:
-            raise Unsupported(f"unsupported control flow to {label}")
-        return exits[label]
-
-    term = blocks["bb0"][-1]
-    if jump := re.fullmatch(r"jump (bb\d+)", term):
-        result = edge(jump[1])
-    elif switch := re.fullmatch(r"switch (\w+), default (bb\d+), \[(.*)\]", term):
-        result = edge(switch[2])
-        key = word(switch[1])
-        for arm in reversed(switch[3].split(", ") if switch[3] else []):
-            case = re.fullmatch(r"(\w+) => (bb\d+)", arm)
-            if not case:
-                raise Unsupported("malformed switch case")
-            result = f"(MIR.choose {key} {word(case[1])} {edge(case[2])} {result})"
-    else:
-        result = returned(term)
-    code.append(result)
-    return Program((header[1], phase, *params), inputs, "Word", "\n  ".join(code))
+    body = enter("bb0", "entry", set(inputs), ())
+    return Program((header[1], phase, *params), inputs, "Word", body)
