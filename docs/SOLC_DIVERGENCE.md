@@ -1059,8 +1059,9 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   slot that holds one value narrower than a word, assigning to that value
   keeps the bits in `solc`, because `solc` updates the field in place.
   `solar` writes the whole word and clears them. This covers a state variable
-  or struct field alone in its slot, a mapping value, and an element of an
-  array whose elements fill more than half a slot, such as an `address[]`.
+  or struct field alone in its slot, a mapping value, the only element of a
+  one-element array such as `uint8[1]`, and an element of an array whose
+  elements fill more than half a slot, such as an `address[]`.
   Loads mask the value either way. A value that shares its slot keeps its
   neighbors in both compilers.
 - Rationale: the padding belongs to no other value, so the whole-word store
