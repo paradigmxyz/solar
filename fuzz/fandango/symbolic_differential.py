@@ -1005,6 +1005,8 @@ def _anvil(anvil: str, evm_version: str, timeout: float) -> Iterator[str]:
     process = subprocess.Popen(
         [
             anvil,
+            "--host",
+            "127.0.0.1",
             "--port",
             "0",
             "--hardfork",
