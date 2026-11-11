@@ -966,18 +966,6 @@ impl Module {
             )
         })
     }
-
-    /// Displays one function with its module's names and entry-role attributes.
-    pub fn function_text(&self, id: FunctionId) -> impl fmt::Display + '_ {
-        super::display::display_function_text(
-            &self.functions[id],
-            Some(self),
-            self.constructor == Some(id),
-            self.dispatch_entry == Some(id),
-            self.receive() == Some(id),
-            self.fallback() == Some(id),
-        )
-    }
 }
 
 impl fmt::Display for Module {

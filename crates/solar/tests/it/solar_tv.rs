@@ -214,7 +214,8 @@ fn solidity_function_counterexample_stops_pipeline() {
     });
     let pair = pairs(audit.path()).next().unwrap();
     let report: serde_json::Value =
-        serde_json::from_slice(&fs::read(pair.join("result.json")).unwrap()).unwrap();
+        serde_json::from_str(&RealFileLoader.load_file(&pair.join("result.json")).unwrap())
+            .unwrap();
     assert_data_eq!(report["status"].as_str().unwrap(), str!["counterexample"]);
     assert_data_eq!(report["region"]["name"].as_str().unwrap(), str!["helper"]);
     assert_data_eq!(report["evidence"].as_str().unwrap(), str!["kernel-and-rust-replay"]);
