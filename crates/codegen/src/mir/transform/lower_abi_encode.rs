@@ -1150,14 +1150,14 @@ fn encode_static_impl(
     source: AbiValueSource,
     copy_target: Option<&Target>,
 ) {
-    // A `copy_target` means the destination cannot overlap the source, so a slice or a struct
-    // may copy as one block.
-    if copy_target.is_some()
-        && let Some(location @ (PtrLocation::Calldata | PtrLocation::Memory)) =
-            builder.func().value_slice_location(value)
+    // Calldata never overlaps the destination. A `copy_target` means a memory source cannot
+    // either, so a slice or a struct may copy as one block.
+    if let Some(location) = builder.func().value_slice_location(value)
+        && (location == PtrLocation::Calldata
+            || (location == PtrLocation::Memory && copy_target.is_some()))
     {
         let source = builder.slice_ptr(value);
-        encode_static_slice(builder, ty, source, head_addr, location, false);
+        encode_static_slice(builder, ty, source, head_addr, location, true);
         return;
     }
     match ty {

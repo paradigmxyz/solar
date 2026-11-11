@@ -108,10 +108,10 @@
 
 use crate::mir::{
     AbiEncodeMode, AbiLayout, AbiParamLayout, AbiParamLayoutRef, AbiParamLocation, AbiParamType,
-    AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, CalldataTail, Callee,
-    EffectKind, FrameMode, FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, InstId,
-    InstKind, Instruction, InstructionMetadata, MangledSymbol, MemoryObjectLayout, MirPhase,
-    MirType, Module, PtrLocation, RevertReason, Terminator, Value, ValueId, ValueLayout,
+    AbiType, AbiWordValidator, AllocationSemantics, ArgIdx, BlockId, Callee, EffectKind, FrameMode,
+    FrameSlotKind, Function, FunctionBuilder, FunctionId, Immediate, InstId, InstKind, Instruction,
+    InstructionMetadata, MangledSymbol, MemoryObjectLayout, MirPhase, MirType, Module, PtrLocation,
+    RevertReason, Terminator, Value, ValueId, ValueLayout,
     analysis::{AliasAnalysis, HotnessAnalysis, LocationSize, MemoryBase, integers::integer_mask},
     memory::EvmMemoryLayout,
     pass::{MirPass, ModuleAnalyses},
@@ -562,11 +562,11 @@ impl LowerAbiCx {
                     else {
                         return value;
                     };
+                    // The encoder reads a calldata aggregate in place and validates its words, with
+                    // solc's checks for re-encoding calldata.
                     if return_types.get(index) == Some(&MirType::Slice(PtrLocation::Calldata))
                         && match &ty {
                             AbiParamType::Tuple(_) | AbiParamType::FixedArray { .. } => true,
-                            // Returns copy arrays of composite elements to memory and
-                            // canonicalize them there, with the ABI decoder's revert messages.
                             AbiParamType::DynamicArray(element) => {
                                 !element.is_scalar_word()
                                     && !matches!(element.as_ref(), AbiParamType::Bytes)
@@ -574,7 +574,7 @@ impl LowerAbiCx {
                             _ => false,
                         }
                     {
-                        return materialize_calldata_return(&mut builder, &ty, value);
+                        return value;
                     }
                     // The encoder cleans each word it reads from a memory aggregate, so a
                     // cleaned copy would only clean every word twice.
@@ -3987,129 +3987,4 @@ fn encode_static_bytes_return(
 fn returns_in_scratch(layout: &AbiLayout) -> bool {
     layout.head_size() <= EvmMemoryLayout::HEAP_START
         && layout.types.iter().all(|ty| matches!(ty, AbiType::Word(_) | AbiType::Function))
-}
-
-fn materialize_calldata_return(
-    builder: &mut FunctionBuilder<'_>,
-    ty: &AbiParamType,
-    base: ValueId,
-) -> ValueId {
-    if matches!(ty, AbiParamType::DynamicArray(_)) {
-        // len = extract_value returned_slice, 1
-        // data = extract_value returned_slice, 0
-        // object = copy_calldata_value(data, len)
-        let len = builder.slice_len(base);
-        let data = builder.slice_ptr(base);
-        return copy_calldata_value(builder, ty, data, Some(len));
-    }
-    // base = extract_value returned_slice, 0
-    // object = copy_calldata_value(base)
-    let base = builder.slice_ptr(base);
-    copy_calldata_value(builder, ty, base, None)
-}
-
-/// Copies a calldata value to memory with the checks solc applies when it re-encodes calldata
-/// rather than those of the ABI decoder: nested offsets go through
-/// [`FunctionBuilder::check_calldata_tail_offset`], which accepts negative offsets that wrap, an
-/// inner length above `2**64 - 1` reverts before anything is allocated, and narrow words are
-/// validated. `position` is the value's head, or the data address of a dynamically sized value
-/// whose `length` the caller resolved.
-fn copy_calldata_value(
-    builder: &mut FunctionBuilder<'_>,
-    ty: &AbiParamType,
-    position: ValueId,
-    length: Option<ValueId>,
-) -> ValueId {
-    match ty {
-        AbiParamType::Bytes => {
-            // object = bytes(length)
-            // copy(position, object.data, length)
-            let length = length.expect("bytes have a length");
-            let object =
-                builder.alloc_bytes_object(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-            let source = builder.make_slice(position, length, PtrLocation::Calldata);
-            builder.memory_copy_from_slice(object, source);
-            object
-        }
-        AbiParamType::DynamicArray(element) => {
-            // object = word_array(length)
-            let length = length.expect("dynamic arrays have a length");
-            let (object, layout) = builder
-                .alloc_dynamic_word_array(length, AllocationSemantics::SOLIDITY_UNINITIALIZED);
-            if LowerAbiCx::is_full_word_scalar(element) {
-                // copy(position, object.data, length * 32)
-                let word = builder.imm(EvmMemoryLayout::WORD_SIZE);
-                let size = builder.mul(length, word);
-                let source = builder.make_slice(position, size, PtrLocation::Calldata);
-                builder.memory_copy_from_slice(object, source);
-                return object;
-            }
-            // for i in 0..length { object[i] = copy_calldata_member(position + i * head_size) }
-            LowerAbiCx::decode_word_array_elements(
-                builder,
-                element,
-                object,
-                layout,
-                length,
-                position,
-                |builder, element, head, current| {
-                    let value = copy_calldata_member(builder, element, position, head);
-                    *current = builder.current_block();
-                    value
-                },
-            );
-            object
-        }
-        AbiParamType::FixedArray { .. } | AbiParamType::Tuple(_) if ty.is_dynamic() => {
-            // for each member { object.member = copy_calldata_member(position + member_offset) }
-            LowerAbiCx::decode_aggregate(builder, ty, position, |builder, member, head, current| {
-                let value = copy_calldata_member(builder, member, position, head);
-                *current = builder.current_block();
-                value
-            })
-        }
-        _ => {
-            // value = decode_static(position)
-            let mut current = builder.current_block();
-            let value = LowerAbiCx::decode_static_argument(
-                builder,
-                ty,
-                position,
-                &mut current,
-                PtrLocation::Calldata,
-            );
-            builder.switch_to_block(current);
-            value
-        }
-    }
-}
-
-/// Copies the member of an aggregate starting at `base` whose head is at `head`.
-///
-/// A dynamically encoded member is resolved with the ABI encoder's `calldata_access` checks.
-fn copy_calldata_member(
-    builder: &mut FunctionBuilder<'_>,
-    ty: &AbiParamType,
-    base: ValueId,
-    head: ValueId,
-) -> ValueId {
-    if !ty.is_dynamic() {
-        return copy_calldata_value(builder, ty, head, None);
-    }
-    // offset = calldataload(head)
-    // check_calldata_tail_offset(base, offset)
-    // position = base + offset
-    let tail = CalldataTail::Decode;
-    let offset = builder.load(head, PtrLocation::Calldata);
-    let end = builder.calldatasize();
-    builder.check_calldata_tail_offset(tail, base, offset, end, ty.data_head_size(), false);
-    let position = builder.add(base, offset);
-    let Some(stride) = ty.calldata_stride() else {
-        return copy_calldata_value(builder, ty, position, None);
-    };
-    // length = calldataload(position)
-    // data = calldata_tail_data(position + 32, length, stride)
-    let length = builder.load(position, PtrLocation::Calldata);
-    let data = builder.calldata_tail_data(tail, position, 32, length, end, stride);
-    copy_calldata_value(builder, ty, data, Some(length))
 }
