@@ -39,7 +39,9 @@ def width_of(text: str) -> int:
 
 
 def translate(text: str, *, memory: bool = False) -> Program:
-    src = lines(text)
+    # Recorded facts (assume) are analysis claims for -Zcheck-analyses, not execution;
+    # the SMT encoder of -Zvalidate-passes skips them too.
+    src = [line for line in lines(text) if not line.startswith("assume ")]
     phase = src.pop(0) if src and src[0] == "@phase lowered" else "@phase semantic"
     header = re.fullmatch(
         r"fn @(\w+)\((.*?)\) -> i(\d+)(?: \[cold\])? \{", src[0] if src else ""
