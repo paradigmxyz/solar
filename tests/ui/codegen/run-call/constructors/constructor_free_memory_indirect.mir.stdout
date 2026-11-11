@@ -5,12 +5,9 @@ fn @constructor() [constructor] {
   bb0:
     v0 = icall @freeMemoryStarted
     v1 = ne v0, 0
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v4 = zext i1 v1 to i256
-    v5 = and v4, 255
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v2 = zext i1 v1 to i256
+    v3 = and v2, 255
+    sstore 0, v3 !metadata(storage=slot(0))
     ret
 }
 
@@ -41,12 +38,9 @@ fn @constructor() [constructor] {
   bb0:
     v0 = icall @freeMemoryStarted
     v1 = ne v0, 0
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v4 = zext i1 v1 to i256
-    v5 = and v4, 255
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v2 = zext i1 v1 to i256
+    v3 = and v2, 255
+    sstore 0, v3 !metadata(storage=slot(0))
     jump bb1
   bb1:                                            ; preds = bb0
     sstore 1, 1 !metadata(storage=slot(1))
@@ -87,12 +81,9 @@ fn @constructor() [constructor] {
   bb0:
     v0 = icall @freeMemoryStarted
     v1 = ne v0, 0
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v4 = zext i1 v1 to i256
-    v5 = and v4, 255
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v2 = zext i1 v1 to i256
+    v3 = and v2, 255
+    sstore 0, v3 !metadata(storage=slot(0))
     jump bb2
   bb2:                                            ; preds = bb0
     jump bb1
@@ -143,12 +134,9 @@ fn @record() {
   bb0:
     v0 = icall @freeMemoryStarted
     v1 = ne v0, 0
-    v2 = sload 0 !metadata(storage=slot(0))
-    v3 = and v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v4 = zext i1 v1 to i256
-    v5 = and v4, 255
-    v6 = or v3, v5
-    sstore 0, v6 !metadata(storage=slot(0))
+    v2 = zext i1 v1 to i256
+    v3 = and v2, 255
+    sstore 0, v3 !metadata(storage=slot(0))
     ret
 }
 

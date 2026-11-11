@@ -4,9 +4,8 @@
 //! byte-identical in several modules. Planning one is a pure function of what [`PlanKey`] holds:
 //! the body with its value, instruction and block numbering and the hotness of its blocks, the
 //! facts of [`ModuleInfo`] that the planner reads for the function and for each function it calls,
-//! the writes that may reach the spill area, the cost model and the call-spill level. Equal keys
-//! give equal plans, so a plan is stored once per key on the global context and later modules take
-//! a copy.
+//! the writes that may reach the spill area and the cost model. Equal keys give equal plans, so a
+//! plan is stored once per key on the global context and later modules take a copy.
 //!
 //! Callee identities are numbered per module, so the key names each callee by the order of its
 //! first appearance in the body and the stored plan does the same; a hit maps those numbers to
@@ -15,7 +14,7 @@
 //! kept. Debug metadata and names are left out: the planner does not read them, and emission
 //! reads them from the module being emitted.
 
-use super::{BlockPlan, CallSpill, Edge, Exit, FunctionPlan, ModuleInfo, Step};
+use super::{BlockPlan, Edge, Exit, FunctionPlan, ModuleInfo, Step};
 use crate::{
     mir::{Callee, Function, FunctionId, InstId, InstKind, Module, Terminator, Value, ValueId},
     target::Target,
@@ -96,7 +95,6 @@ impl PlanKey {
         hazards: &FxHashSet<InstId>,
         writers: &DenseBitSet<FunctionId>,
         target: &Target,
-        call_spill: CallSpill,
     ) -> Self {
         let func = &module.functions[func_id];
         let mut key = Self {
@@ -105,7 +103,7 @@ impl PlanKey {
             numbers: FxHashMap::default(),
         };
 
-        (target, call_spill).hash(&mut key);
+        target.hash(&mut key);
 
         // The function's own facts.
         let component = info.components[func_id];
@@ -285,12 +283,6 @@ impl FunctionPlan {
             blocks,
             spilled: self.spilled.clone(),
             ret_spilled: self.ret_spilled,
-            peak: self.peak,
-            calls: self
-                .calls
-                .iter()
-                .map(|&(callee, base)| Some((map(callee)?, base)))
-                .collect::<Option<_>>()?,
             cost: self.cost,
             non_loop_gas: self.non_loop_gas,
             rebuilt: None,
@@ -343,9 +335,9 @@ fn remap_steps(
         .iter()
         .map(|step| {
             Some(match step {
-                Step::Call(callee, height) => Step::Call(map(*callee)?, *height),
-                &Step::Publish { callee, arity, params } => {
-                    Step::Publish { callee: map(callee)?, arity, params }
+                Step::Call(callee) => Step::Call(map(*callee)?),
+                &Step::Publish { inst, callee, arity, params } => {
+                    Step::Publish { inst, callee: map(callee)?, arity, params }
                 }
                 step => step.clone(),
             })

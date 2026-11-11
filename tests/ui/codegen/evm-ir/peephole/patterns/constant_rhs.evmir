@@ -277,9 +277,11 @@ bb24:
   pop
   stop
 
+// The comparison reads only constants, so constant folding evaluates it before inversion applies.
 // CHECK-LABEL: {{^[ +].*}}bb25:
-// CHECK: {{^[ +].*}}gt
-// CHECK-NEXT: {{^[ +].*}}iszero
+// CHECK: -   gt
+// CHECK-NEXT: -   iszero
+// CHECK-NEXT: +   push 1
 bb25:
   calldatasize
   push 31

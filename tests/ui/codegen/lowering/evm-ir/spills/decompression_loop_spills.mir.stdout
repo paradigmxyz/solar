@@ -10,10 +10,7 @@ fn @fallback() [fallback, payable] {
   bb2:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb2
-    v6 = sload 0 !metadata(storage=slot(0))
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v8 = or v7, 1
-    sstore 0, v8 !metadata(storage=slot(0))
+    sstore 0, 1 !metadata(storage=slot(0))
     icall @_decompress
     ret
   bb1:                                            ; preds = bb0
