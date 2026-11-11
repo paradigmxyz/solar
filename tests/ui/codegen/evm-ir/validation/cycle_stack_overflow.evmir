@@ -1,6 +1,10 @@
-// One pass through the cycle already overflows, which stays an error: only the growth carried
-// around the cycle edge is left unchecked.
-//~? ERROR: EVM IR verification failed: block 1: `push` grows the stack to 1025 words, exceeding the limit of 1024
+//@ revisions: warn allow
+//@ compile-flags: --emit=bin-runtime
+//@[allow] compile-flags: --allow=0068
+// One pass through the cycle already overflows, which is only a warning, and the code is still
+// emitted: only the growth carried around the cycle edge is left unchecked. `--allow=0068` silences
+// it.
+//~[warn]? WARN: `push` in block 1 grows the EVM stack to 1025 words
 @module module
 
 bb0 [stack=1020]:

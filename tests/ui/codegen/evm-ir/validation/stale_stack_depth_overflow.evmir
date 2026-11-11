@@ -1,0 +1,38 @@
+// `bb3` is entered at 1005 words by the branch and at 1000 by the jump, and its twenty `push`es
+// overflow only from the first. The walk queues both arrivals before it walks either, and the
+// stale deeper one must not report, so the block is accepted.
+@module module
+
+bb0 [stack=1005]:
+  push 1
+  push bb3
+  jumpi
+  pop
+  pop
+  pop
+  pop
+  pop
+  jump bb3
+
+bb3:
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  push 0
+  stop

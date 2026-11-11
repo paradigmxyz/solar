@@ -3,8 +3,8 @@
 //@ run-call-fail: run 1020
 
 // Every activation leaves one word on the stack, so the call overflows it just above 1019 nested
-// activations. The continuation after the recursive call has no known entry depth, and compiling
-// it must not move that boundary.
+// activations. Compacting the push in the continuation after the recursive call must not move
+// that boundary.
 contract DeepRecursion {
     function run(uint256 n) external pure returns (uint256) {
         return depth(n);
