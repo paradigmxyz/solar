@@ -28,7 +28,7 @@ fn counterexample_stops_pipeline_and_replays() {
             .source_map()
             .new_source_file(
                 FileName::Custom("original.mir".into()),
-                include_str!("../../../../solar-tv/examples/dce/after.mir"),
+                include_str!("../../../../solar-tv/examples/mir/dce/after.mir"),
             )
             .unwrap();
         let mut module = Module::parse(compiler.sess(), &file).unwrap();
@@ -110,7 +110,7 @@ fn checker_launch_failure_keeps_both_ir_inputs() {
     ] {
         let audit = tempfile::tempdir().unwrap();
         let output = Command::new(env!("CARGO_BIN_EXE_solar"))
-            .arg(root.join(input))
+            .arg(root.join(layer).join(input))
             .arg(format!("-Z{flag}-pipeline={pass},none"))
             .arg("-Zpass-diff")
             .arg(format!("-Zsolar-tv={}", audit.path().display()))
