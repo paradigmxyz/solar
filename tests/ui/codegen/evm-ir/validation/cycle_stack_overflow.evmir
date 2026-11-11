@@ -1,7 +1,7 @@
 //@ revisions: warn allow
 //@ compile-flags: --emit=bin-runtime
 //@[allow] compile-flags: --allow=0068
-// One pass through the cycle already overflows, which stays a warning, and the code is still
+// One pass through the cycle already overflows, which is only a warning, and the code is still
 // emitted: only the growth carried around the cycle edge is left unchecked. `--allow=0068` silences
 // it.
 //~[warn]? WARN: `push` in block 1 grows the EVM stack to 1025 words

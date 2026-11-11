@@ -75,21 +75,6 @@ struct StackOverflow {
     depth: usize,
 }
 
-/// Why a stack operation stopped the walk of a block.
-enum StackFault {
-    /// A diagnostic was reported.
-    Reported,
-    /// The stack passed the limit. The overflow is held back, because the entry depth the block
-    /// was walked at is not final until the walk ends.
-    Overflow(StackOverflow),
-}
-
-impl From<ErrorGuaranteed> for StackFault {
-    fn from(_: ErrorGuaranteed) -> Self {
-        Self::Reported
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum TargetRequirement {
     StackOp(op::StackOp),
@@ -566,7 +551,7 @@ impl<'a> Verifier<'a> {
         let term = block.terminator.as_ref().expect("terminator must exist after shape validation");
         let mut targets = Vec::new();
         let mut overflow = None;
-        let mut walk = || -> Result<(), StackFault> {
+        let mut walk = || -> Result<(), ErrorGuaranteed> {
             for (index, inst) in block.instructions.iter().enumerate() {
                 if inst.is_physical_stack_op() {
                     self.apply_physical_stack_op(reported, block_id, inst, &mut stack)?;
@@ -574,6 +559,7 @@ impl<'a> Verifier<'a> {
                     let effect = inst.stack_effect();
                     self.apply_effect(reported, block_id, inst.mnemonic(), effect, &mut stack)?;
                 }
+                note_overflow(&mut overflow, inst.mnemonic(), stack);
                 if inst.opcode == op::JUMPI
                     && let Some(target) = branch_target(block, index)
                 {
@@ -581,26 +567,21 @@ impl<'a> Verifier<'a> {
                 }
             }
             let lowering_growth = term.kind.lowering_stack_growth(module.next_block(block_id));
-            if lowering_growth != 0 {
-                self.ensure_stack_limit(&term.kind, stack + lowering_growth)?;
-            }
+            note_overflow(&mut overflow, &term.kind, stack + lowering_growth);
             let effect = default_terminator_stack_effect(&term.kind)
                 .expect("terminator stack effect must be known after shape validation");
-            self.apply_effect(reported, block_id, &term.kind, effect, &mut stack)
+            self.apply_effect(reported, block_id, &term.kind, effect, &mut stack)?;
+            note_overflow(&mut overflow, &term.kind, stack);
+            Ok(())
         };
-        match walk() {
-            Ok(()) => {}
-            Err(StackFault::Reported) => return (Vec::new(), None),
-            Err(StackFault::Overflow(overflow)) => return (Vec::new(), Some(overflow)),
+        if walk().is_err() {
+            return (Vec::new(), overflow);
         }
         term.kind.visit_targets(|target| targets.push((target, stack)));
         for &(continuation, effect) in &flows[block_id].returns {
-            match self.apply_call_return(reported, block_id, effect, stack) {
-                Ok(returned) => targets.push((continuation, returned)),
-                Err(StackFault::Overflow(found)) => {
-                    overflow.get_or_insert(found);
-                }
-                Err(StackFault::Reported) => {}
+            if let Ok(returned) = self.apply_call_return(reported, block_id, effect, stack) {
+                note_overflow(&mut overflow, "call return", returned);
+                targets.push((continuation, returned));
             }
         }
         (targets, overflow)
@@ -613,22 +594,20 @@ impl<'a> Verifier<'a> {
         name: impl fmt::Display,
         effect: StackEffect,
         stack: &mut usize,
-    ) -> Result<(), StackFault> {
+    ) -> Result<(), ErrorGuaranteed> {
         let inputs = usize::from(effect.inputs);
         if *stack < inputs {
-            return Err(self
-                .error_in_block_once(
-                    reported,
-                    block_id,
-                    format_args!(
-                        "`{name}` consumes {} stack words but only {} are available",
-                        effect.inputs, *stack
-                    ),
-                )
-                .into());
+            return Err(self.error_in_block_once(
+                reported,
+                block_id,
+                format_args!(
+                    "`{name}` consumes {} stack words but only {} are available",
+                    effect.inputs, *stack
+                ),
+            ));
         }
         *stack = *stack - inputs + usize::from(effect.outputs);
-        self.ensure_stack_limit(name, *stack)
+        Ok(())
     }
 
     /// Returns the stack depth a call returns at, `stack` being the depth at its entry.
@@ -638,21 +617,18 @@ impl<'a> Verifier<'a> {
         block_id: BlockId,
         effect: StackEffect,
         stack: usize,
-    ) -> Result<usize, StackFault> {
+    ) -> Result<usize, ErrorGuaranteed> {
         let (inputs, outputs) = (usize::from(effect.inputs), usize::from(effect.outputs));
         let Some(returned) = (stack + outputs).checked_sub(inputs) else {
-            return Err(self
-                .error_in_block_once(
-                    reported,
-                    block_id,
-                    format_args!(
-                        "`call return` drops {} stack words but only {stack} are available",
-                        inputs - outputs
-                    ),
-                )
-                .into());
+            return Err(self.error_in_block_once(
+                reported,
+                block_id,
+                format_args!(
+                    "`call return` drops {} stack words but only {stack} are available",
+                    inputs - outputs
+                ),
+            ));
         };
-        self.ensure_stack_limit("call return", returned)?;
         Ok(returned)
     }
 
@@ -662,74 +638,49 @@ impl<'a> Verifier<'a> {
         block_id: BlockId,
         inst: &Instruction,
         stack: &mut usize,
-    ) -> Result<(), StackFault> {
+    ) -> Result<(), ErrorGuaranteed> {
         let stack_op = inst.as_stack_op().expect("checked physical stack operation");
-        let name = match stack_op {
+        match stack_op {
             op::StackOp::Dup(n) => {
                 if *stack < usize::from(n) {
-                    return Err(self
-                        .error_in_block_once(
-                            reported,
-                            block_id,
-                            format_args!(
-                                "`dup {n}` reaches depth {n} but the stack has {}",
-                                *stack
-                            ),
-                        )
-                        .into());
+                    return Err(self.error_in_block_once(
+                        reported,
+                        block_id,
+                        format_args!("`dup {n}` reaches depth {n} but the stack has {}", *stack),
+                    ));
                 }
                 *stack += 1;
-                "dup"
             }
             op::StackOp::Swap(n) => {
                 if *stack < usize::from(n) + 1 {
-                    return Err(self
-                        .error_in_block_once(
-                            reported,
-                            block_id,
-                            format_args!(
-                                "`swap {n}` reaches depth {n} but the stack has {}",
-                                *stack
-                            ),
-                        )
-                        .into());
+                    return Err(self.error_in_block_once(
+                        reported,
+                        block_id,
+                        format_args!("`swap {n}` reaches depth {n} but the stack has {}", *stack),
+                    ));
                 }
-                "swap"
             }
             op::StackOp::Exchange(_, m) => {
                 if *stack < usize::from(m) + 1 {
-                    return Err(self
-                        .error_in_block_once(
-                            reported,
-                            block_id,
-                            format_args!(
-                                "`exchange` reaches depth {m} but the stack has {}",
-                                *stack
-                            ),
-                        )
-                        .into());
+                    return Err(self.error_in_block_once(
+                        reported,
+                        block_id,
+                        format_args!("`exchange` reaches depth {m} but the stack has {}", *stack),
+                    ));
                 }
-                "exchange"
             }
             op::StackOp::Pop => {
                 if *stack == 0 {
-                    return Err(self
-                        .error_in_block_once(reported, block_id, "`pop` on an empty stack")
-                        .into());
+                    return Err(self.error_in_block_once(
+                        reported,
+                        block_id,
+                        "`pop` on an empty stack",
+                    ));
                 }
                 *stack -= 1;
-                "pop"
             }
-        };
-        self.ensure_stack_limit(name, *stack)
-    }
-
-    fn ensure_stack_limit(&self, name: impl fmt::Display, depth: usize) -> Result<(), StackFault> {
-        if depth > MAX_STACK_DEPTH {
-            Err(StackFault::Overflow(StackOverflow { name: name.to_string(), depth }))
-        } else {
-            Ok(())
         }
+        Ok(())
     }
 
     fn verify_target_support(&self, module: &Module) {
@@ -1186,6 +1137,14 @@ fn successors_after(flow: &LabelFlow, block: &Block, start: usize, out: &mut Vec
         term.kind.visit_targets(|target| out.push(target));
     }
     out.extend(flow.returns.iter().map(|&(continuation, _)| continuation));
+}
+
+/// Records `name` as the first operation that took the stack to `depth` words, if that is past
+/// the limit.
+fn note_overflow(overflow: &mut Option<StackOverflow>, name: impl fmt::Display, depth: usize) {
+    if depth > MAX_STACK_DEPTH && overflow.is_none() {
+        *overflow = Some(StackOverflow { name: name.to_string(), depth });
+    }
 }
 
 /// Returns the edges that close a cycle in a depth-first walk from the entry block.
