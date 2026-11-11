@@ -19,7 +19,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Iterator
-from typing import Any
+from typing import IO, Any
 
 sys.path.insert(
     0, str(pathlib.Path(__file__).resolve().parents[2] / "tools/compiler-diff")
@@ -1011,12 +1011,12 @@ def _anvil(anvil: str, evm_version: str, timeout: float) -> Iterator[str]:
         stderr=subprocess.STDOUT,
         text=True,
     )
+    stdout = process.stdout
+    assert stdout is not None
     try:
-        url = _anvil_url(process, timeout)
+        url = _anvil_url(process, stdout, timeout)
         # Keep reading anvil's output so a full pipe never blocks it.
-        threading.Thread(
-            target=lambda: [None for _ in process.stdout], daemon=True
-        ).start()
+        threading.Thread(target=lambda: [None for _ in stdout], daemon=True).start()
         yield url
     finally:
         process.terminate()
@@ -1027,13 +1027,12 @@ def _anvil(anvil: str, evm_version: str, timeout: float) -> Iterator[str]:
             process.wait()
 
 
-def _anvil_url(process: subprocess.Popen[str], timeout: float) -> str:
+def _anvil_url(process: subprocess.Popen[str], stdout: IO[str], timeout: float) -> str:
     """Reads the address anvil prints once it listens."""
-    assert process.stdout is not None
     lines: queue.Queue[str | None] = queue.Queue()
 
     def read() -> None:
-        for line in process.stdout:
+        for line in stdout:
             lines.put(line)
             if "Listening on" in line:
                 return
