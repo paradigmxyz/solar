@@ -47,18 +47,22 @@ select a compiler binary.
 
 | Layer | Supported fragment | Observation |
 | --- | --- | --- |
-| MIR | One integer function using i1, i160 and i256, pure arithmetic and bitwise operations, casts, comparisons, checked add/sub/mul, semantic panic and empty-revert checks, phis and branches in an acyclic CFG. | Returned bit pattern, exact modeled revert payload, or exceptional halt for all well-typed arguments. |
-| EVM IR | A block window with symbolic live-in words, pure word/stack operations, static transfers and terminal halts. | Outgoing edge and live stack, empty successful/reverted output, or execution exception, given sufficient gas. |
+| MIR | One integer function using i1, i160 and i256, arithmetic, casts, checks, phis and branches in an acyclic CFG; constant-address memory operations. | Returned bits and live memory, exact modeled revert payload, or exceptional halt. |
+| EVM IR | A block window with symbolic live-ins, word/stack operations, constant-address memory, static transfers and terminal halts. | Outgoing edge, live stack and memory; successful/reverted byte payloads; or execution exception, given sufficient gas. |
 
 The importer and the mapping from compiler operations to Lean are trusted.
 EVM windows compare live stack values at outgoing edges before executing either
 successor. Terminal halts discard the remaining stack. Gas costs, physical PCs,
-memory effects and general control flow remain outside this fragment.
+dynamic memory addresses and general EVM control flow remain outside this fragment.
 
 | Layer | Operation semantics | Transform proofs |
 | --- | --- | --- |
 | MIR | [MIR/Ops.lean](SolarTV/MIR/Ops.lean) | [Dead-code elimination](SolarTV/MIR/Transforms/DCE.lean), [trim trailing default switch cases](SolarTV/MIR/Transforms/TrimSwitchDefaults.lean), [rename phi predecessors](SolarTV/MIR/Transforms/RenamePhiPredecessors.lean), [cast cleanup](SolarTV/MIR/Transforms/Casts.lean), [overflow-check elimination](SolarTV/MIR/Transforms/CheckElim.lean) |
 | EVM IR | [EVMIR/Ops.lean](SolarTV/EVMIR/Ops.lean) | [EQ/ISZERO branch peephole](SolarTV/EVMIR/Transforms/EqIszeroJumpi.lean), [commutative swap](SolarTV/EVMIR/Transforms/StackPeephole.lean), [stack safety](SolarTV/EVMIR/StackSafety.lean) |
+
+Both layers share [Memory.lean](SolarTV/Memory.lean). EVM memory instructions and
+output are defined in [EVMIR/Memory.lean](SolarTV/EVMIR/Memory.lean); the MIR
+dead-store proof lives in [MIR/Transforms/DeadStore.lean](SolarTV/MIR/Transforms/DeadStore.lean).
 
 ```sh
 (cd solar-tv && lake build)
@@ -117,7 +121,7 @@ Checked addition, subtraction and multiplication support signed and unsigned
 i160 and i256 values. Execution stops at the first failure, including when a
 checked result is unused. Semantic panic checks retain the complete panic code.
 Empty reverts and `invalid` have distinct outcomes. Unsupported operations,
-unknown memory-backed revert data, undefined values and checker limits produce
+MIR memory-backed revert data, undefined values and checker limits produce
 an inconclusive result. Checked division, remainder and exponentiation remain
 outside the modeled fragment.
 
@@ -146,8 +150,8 @@ SUB, AND, OR, XOR, EQ, NOT, ISZERO, CALLDATASIZE and RETURNDATASIZE. Static
 PUSH/JUMP and PUSH/JUMPI expose an edge and the remaining stack. Successor
 blocks must be stop sentinels. STOP and an empty RETURN both produce successful
 empty output. REVERT with empty output and execution exceptions are separate
-outcomes. RETURN/REVERT require an explicit zero-size suffix; other memory-backed
-output is inconclusive. The compiler also rejects structurally invalid stack
+outcomes. RETURN/REVERT support constant offsets and lengths in the memory
+fragment below. The compiler also rejects structurally invalid stack
 snapshots before they reach the checker.
 
 The stack order, limit checks and halt behavior follow EVMYulLean at `047f630`.
@@ -163,6 +167,46 @@ solar-tv/solar-tv evmir solar-tv/examples/evmir/symbolic-stack/{before,after}.ev
 solar-tv/solar-tv evmir solar-tv/examples/evmir/symbolic-stack/{before,broken}.evmir
 solar-tv/solar-tv evmir solar-tv/examples/evmir/failure/{before,broken}.evmir
 ```
+
+## Memory
+
+`MLOAD`, `MSTORE`, `MSTORE8` and `MSIZE` are modeled in both layers. Bytes use
+big-endian word order; `MSTORE8` keeps the low byte. Reads and writes expand
+memory to the next 32-byte boundary. A zero-length output does not read or
+expand memory, even at the maximum word offset. These rules follow
+[EVMYulLean's memory operations](https://github.com/NethermindEth/EVMYulLean/blob/047f63070309f436b66c61e276ab3b6d1169265a/EvmYul/MachineStateOps.lean#L24).
+
+The current projection retains the first **256 bytes** and the active memory
+size. `memory0` through `memory7` are arbitrary incoming words; `memoryWords`
+is the incoming count of active words. Bytes beyond that count start at zero.
+The count is a 251-bit value, covering word-aligned sizes representable by
+`MSIZE`. Memory outside the prefix is unchanged by every admitted operation.
+All nonempty accesses must have constant offsets and lengths inside the prefix.
+Dynamic addresses and larger ranges are inconclusive, not assumed in bounds.
+
+A MIR function's successful return retains its live memory for its caller.
+An EVM outgoing edge retains the live stack, memory bytes and active size.
+EVM terminal halts discard private memory and compare the returned or reverted
+bytes instead. MIR raw memory-backed revert payloads remain unsupported.
+The model does not yet price expansion or check out-of-gas behavior.
+
+The MIR example runs `memory-dse`: a later word store overwrites the earlier
+store and subsumes its expansion. The broken version moves the surviving store,
+changing `MSIZE` from 32 to 64 at the zero input. The EVM peephole example removes
+an addition of zero before a store. Its broken version shifts the store by one
+byte and corrupts the returned payload.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/memory/{before,after}.mir
+solar-tv/solar-tv mir solar-tv/examples/mir/memory/{before,broken}.mir
+solar-tv/solar-tv evmir solar-tv/examples/evmir/memory/{before,after}.evmir
+solar-tv/solar-tv evmir solar-tv/examples/evmir/memory/{before,broken}.evmir
+```
+
+Verification still requires a kernel-checked universal proof. The solver and
+a few concrete memory patterns only propose counterexamples; each mismatch is
+replayed in the kernel before it is reported. Failure to prove or find a
+counterexample remains inconclusive.
 
 ## Check passes during compilation
 

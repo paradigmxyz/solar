@@ -10,6 +10,7 @@ Native BitVec widths constrain every symbolic input and intermediate value.
 
 import re
 
+from . import memory as mem
 from .common import Program, Unsupported, lines, literal
 
 OPERAND = r"(?:i\d+ )?\w+"
@@ -25,6 +26,9 @@ RETURN = rf"ret ({OPERAND})"
 CHECKED = rf"(v\d+) = checked_(add|sub|mul) (u?int)(\d+), ({OPERAND}), ({OPERAND})"
 CHECK = rf"icall (panic|revert)_if(_zero)?<([^>]+)>, ({OPERAND})"
 REQUIRE = rf"icall require<empty_string>, ({OPERAND})"
+LOAD = rf"(v\d+) = mload ({OPERAND})"
+STORE = rf"(mstore|mstore8) ({OPERAND}), ({OPERAND})"
+MSIZE = r"(v\d+) = msize"
 
 
 def width_of(text: str) -> int:
@@ -34,7 +38,7 @@ def width_of(text: str) -> int:
     return width
 
 
-def translate(text: str) -> Program:
+def translate(text: str, *, memory: bool = False) -> Program:
     src = lines(text)
     phase = src.pop(0) if src and src[0] == "@phase lowered" else "@phase semantic"
     header = re.fullmatch(
@@ -64,6 +68,7 @@ def translate(text: str) -> Program:
             raise Unsupported("expected a block")
     if not blocks or next(iter(blocks)) != "bb0" or not all(blocks.values()):
         raise Unsupported("expected a nonempty entry block")
+    memory |= any(re.search(r"\b(mload|mstore|mstore8|msize)\b", line) for line in src)
 
     # The compiler validates SSA, dominance and phi predecessor sets before import.
     # Reject unsupported operations and undefined operands even in unreachable code.
@@ -73,7 +78,17 @@ def translate(text: str) -> Program:
         for line in body[:-1]:
             if not any(
                 re.fullmatch(pattern, line)
-                for pattern in (BINARY, CAST, PHI, CHECKED, CHECK, REQUIRE)
+                for pattern in (
+                    BINARY,
+                    CAST,
+                    PHI,
+                    CHECKED,
+                    CHECK,
+                    REQUIRE,
+                    LOAD,
+                    STORE,
+                    MSIZE,
+                )
             ):
                 raise Unsupported(f"unmodeled MIR instruction: {line}")
         if not any(
@@ -113,7 +128,21 @@ def translate(text: str) -> Program:
         current = dict(values)
         continuations = 0
         for line in blocks[label][:-1]:
-            if checked := re.fullmatch(CHECKED, line):
+            if load := re.fullmatch(LOAD, line):
+                offset = mem.address(load[2], 32)
+                code.append(f"let {load[1]} := Memory.load memory {offset}")
+                code.append(f"let memory := Memory.expand memory {offset} 32")
+                current[load[1]] = 256
+            elif store := re.fullmatch(STORE, line):
+                size = 32 if store[1] == "mstore" else 1
+                offset = mem.address(store[2], size)
+                value, _ = operand(store[3], current, 256)
+                op = "store" if size == 32 else "storeByte"
+                code.append(f"let memory := Memory.{op} memory {offset} {value}")
+            elif size := re.fullmatch(MSIZE, line):
+                code.append(f"let {size[1]} := Memory.msize memory")
+                current[size[1]] = 256
+            elif checked := re.fullmatch(CHECKED, line):
                 dest, op, kind, bits, a, b = checked.groups()
                 width = width_of(bits)
                 a, _ = operand(a, current, width)
@@ -199,16 +228,33 @@ def translate(text: str) -> Program:
             result = "Outcome.invalid"
         else:
             value, _ = operand(term.removeprefix("ret "), current, result_width)
-            result = f"Outcome.returned {value}"
+            result = (
+                f"Outcome.returned ⟨{value}, memory⟩"
+                if memory
+                else f"Outcome.returned {value}"
+            )
         code.append(result)
         code.extend(")" for _ in range(continuations))
         return "\n".join(code)
 
     body = enter("bb0", "entry", dict(zip(inputs, input_widths, strict=True)), ())
+    if memory:
+        body = f"let memory := {mem.INITIAL}\n" + body
+        inputs.extend(mem.INPUTS)
+        input_widths.extend(mem.WIDTHS)
     return Program(
-        (header[1], phase, *params, f"i{result_width}"),
+        (
+            header[1],
+            phase,
+            *params,
+            f"i{result_width}",
+            *(("memory",) if memory else ()),
+        ),
         inputs,
-        f"Outcome (BitVec {result_width})",
+        f"Outcome (Memory.Returned {result_width})"
+        if memory
+        else f"Outcome (BitVec {result_width})",
         body,
         tuple(input_widths),
+        memory=memory,
     )

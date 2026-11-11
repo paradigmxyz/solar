@@ -12,26 +12,12 @@ from .common import Program
 
 
 def region(program: Program) -> str:
-    if program.result_type == "EVM.Execution":
+    if program.interface[0] == "evm-window":
         return f"EVM IR window bb0, entry stack height {program.interface[1]}"
     return f"MIR function @{program.interface[0]}"
 
 
 def difference(before: str, after: str) -> str:
-    edge = re.compile(r"(fallthrough|bb\d+), stack=(\[.*\])")
-    left, right = edge.fullmatch(before), edge.fullmatch(after)
-    if left and right:
-        if left[1] != right[1]:
-            return "Outgoing edge changed"
-        a, b = json.loads(left[2]), json.loads(right[2])
-        if len(a) != len(b):
-            return f"Outgoing stack height changed from {len(a)} to {len(b)}"
-        index = next(
-            (i for i, (x, y) in enumerate(zip(a, b, strict=True)) if x != y), None
-        )
-        if index is None:
-            return "Execution outcomes differ"
-        return f"Outgoing stack word {index} changed (word 0 is the top)"
     if before.startswith("revert") and after.startswith("revert"):
         return "Revert payload changed"
     if before.startswith("revert"):
@@ -44,6 +30,38 @@ def difference(before: str, after: str) -> str:
         or "invalid" in {before, after}
     ):
         return "Exceptional halt behavior changed"
+    size = re.compile(r"\bmsize=(\d+)")
+    left_size, right_size = size.search(before), size.search(after)
+    if left_size and right_size and left_size[1] != right_size[1]:
+        return (
+            f"Active memory size changed from {left_size[1]} to {right_size[1]} bytes"
+        )
+    returned = re.compile(r"return=(\d+),")
+    left_value, right_value = returned.match(before), returned.match(after)
+    if left_value and right_value and left_value[1] != right_value[1]:
+        return "Returned value changed"
+    contents = re.compile(r"memory=(\[.*\])")
+    left_memory, right_memory = contents.search(before), contents.search(after)
+    if left_memory and right_memory and left_memory[1] != right_memory[1]:
+        a, b = json.loads(left_memory[1]), json.loads(right_memory[1])
+        index = next(i for i, (x, y) in enumerate(zip(a, b, strict=True)) if x != y)
+        return f"Memory contents changed in word at byte offset {index * 32}"
+    if before.startswith("success(data=") or after.startswith("success(data="):
+        return "Returned byte payload changed"
+    edge = re.compile(r"(fallthrough|bb\d+), stack=(\[[^]]*\])")
+    left, right = edge.match(before), edge.match(after)
+    if left and right:
+        if left[1] != right[1]:
+            return "Outgoing edge changed"
+        a, b = json.loads(left[2]), json.loads(right[2])
+        if len(a) != len(b):
+            return f"Outgoing stack height changed from {len(a)} to {len(b)}"
+        index = next(
+            (i for i, (x, y) in enumerate(zip(a, b, strict=True)) if x != y), None
+        )
+        if index is None:
+            return "Execution outcomes differ"
+        return f"Outgoing stack word {index} changed (word 0 is the top)"
     if left or right or before.startswith("success") or after.startswith("success"):
         return "Execution outcome changed"
     return "Returned value changed"

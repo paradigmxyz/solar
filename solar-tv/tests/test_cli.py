@@ -33,6 +33,8 @@ class PairTests(unittest.TestCase):
                 ("mir", "typed-branch", "cfg-simplify", "mir"),
                 ("evmir", "peephole", "peephole", "evm-ir"),
                 ("evmir", "symbolic-stack", "peephole", "evm-ir"),
+                ("mir", "memory", "memory-dse", "mir"),
+                ("evmir", "memory", "peephole", "evm-ir"),
             ]:
                 with self.subTest(example=example):
                     folder = ROOT / "examples" / layer / example
@@ -86,7 +88,7 @@ class PairTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "write.mir"
             path.write_text(
-                before.read_text().replace("ret v1", "mstore 0, v1\n    ret v1")
+                before.read_text().replace("ret v1", "sstore 0, v1\n    ret v1")
             )
             result = check("mir", path, before)
             self.assertEqual(result.returncode, 2)
