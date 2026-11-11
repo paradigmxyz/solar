@@ -179,6 +179,8 @@ struct Func {
     /// Names it calls or uses as modifiers.
     callees: FxHashSet<String>,
     is_modifier: bool,
+    /// `@custom:trusted`: its body is not verified, so mutating it measures nothing.
+    trusted: bool,
     /// Where its body can be mutated, in source order.
     sites: Vec<Site>,
 }
@@ -270,7 +272,7 @@ pub(crate) fn main(args: impl Iterator<Item = String>) -> ! {
             println!("JSON {}", serde_json::Value::Array(rows));
         }
         println!(
-            "{} mutants in {} functions; {uncovered} mutation sites in code no spec reaches",
+            "{} mutants in {} functions; {uncovered} mutation sites in trusted code or code no spec reaches",
             plan.len(),
             plan.iter().map(|m| m.func).collect::<FxHashSet<_>>().len()
         );
@@ -341,8 +343,9 @@ fn collect<'a>(sess: &Session, unit: &'a ast::SourceUnit<'a>, ops: u8, funcs: &m
                     });
                 });
             }
-            let own_specs =
-                custom_tags(&sub.docs).iter().any(|(t, ..)| t == "requires" || t == "ensures");
+            let tags = custom_tags(&sub.docs);
+            let own_specs = tags.iter().any(|(t, ..)| t == "requires" || t == "ensures");
+            let trusted = tags.iter().any(|(t, ..)| t == "trusted" || t == "external_body");
             funcs.push(Func {
                 name: format!("{}.{name}", c.name.as_str()),
                 internal: is_modifier
@@ -354,6 +357,7 @@ fn collect<'a>(sess: &Session, unit: &'a ast::SourceUnit<'a>, ops: u8, funcs: &m
                 has_spec: own_specs || asserts || (contract_invs && !is_modifier),
                 callees,
                 is_modifier,
+                trusted,
                 sites: {
                     let mut v = Sites { sess, ops, bare: FxHashSet::default(), out: vec![] };
                     for st in body.stmts.iter() {
@@ -525,7 +529,8 @@ impl Rng {
     }
 }
 
-/// Chooses the mutants to run, and counts the sites in functions no spec reaches.
+/// Chooses the mutants to run, and counts the sites it skips: in trusted functions and in those
+/// no spec reaches.
 fn draw(
     o: &Opts,
     funcs: &[Func],
@@ -581,7 +586,7 @@ fn draw(
             continue;
         }
         let aff = affected(fi);
-        if aff.is_empty() {
+        if aff.is_empty() || f.trusted {
             uncovered += f.sites.len();
             continue;
         }

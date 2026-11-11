@@ -152,7 +152,8 @@ mutated code. Only a failure with a counterexample kills a mutant.
 
 The operators replace relational (ROR), arithmetic (AOR) and logical (LCR) operators, booleans
 (BOOL) and decimal constants (CRP), and delete expression statements (SDL) and `if` guards that
-only revert (GDL). Inline assembly is not mutated.
+only revert (GDL). Inline assembly and the bodies of `@custom:trusted` functions, which are not
+verified, are not mutated.
 
 ```text
 $ solar-verify mutate --per-fn 3 examples/Counter.sol
