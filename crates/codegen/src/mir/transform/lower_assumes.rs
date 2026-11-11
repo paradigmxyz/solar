@@ -20,7 +20,17 @@
 //! - induction variable simplification, the bound on entry that lets it skip clamping a loop's exit
 //!   bound;
 //! - the e-graph and late constant folding, the width a rule read from a value's definition to drop
-//!   a mask or an extension, fold a comparison, division or shift, or narrow a comparison.
+//!   a mask or an extension, fold a comparison, division or shift, or narrow a comparison;
+//! - loop-invariant code motion, every read it hoists, equal to the same read at the end of each
+//!   block the loop can exit from;
+//! - storage promotion, each promoted slot unchanged in storage where the loop can exit, and the
+//!   slot words of the accesses it rewrote or found apart from the promoted ones;
+//! - allocation lowering, a free memory pointer it takes as the heap floor equal to the slot, and a
+//!   sample of the words of each zero fill it drops equal to zero;
+//! - `noreturn-calls`, that execution does not continue past a call or check it ends its block at,
+//!   as `0 == 1`, which fails wherever it runs;
+//! - `readonly-eval`, the result of each call it evaluated, kept as the evidence, equal to the
+//!   constant it folded it to.
 //!
 //! No pass reads an `assume`, so a wrong fact cannot prove its own record, and the recording pass
 //! leaves the record's operands out of its own rewrite, so they keep the values the program
@@ -46,21 +56,22 @@
 //! panic uses, so the checks move no memory the program can observe. The fact word packs the
 //! predicate (1: `eq`, 2: `ne`, 3: `ult`, 4: `ule`) in bits 104 and up, the pass that relied on
 //! it (1: `sccp`, 2: `check-elim`, 3: `cse`, 4: `load-pre`, 5: `indvar-simplify`, 7: a source
-//! `@custom:ensures` clause, 8: `egraph`, 9: `const-fold`) in bits 96 to 103, then the function's
-//! index in its module, the block and the left operand, as MIR text numbers them (an argument with
-//! bit 31 set), in 32-bit fields, so `-Zcheck-analyses=true -Zdump=mir` shows the claim next to the
-//! code it was made about.
+//! `@custom:ensures` clause, 8: `egraph`, 9: `const-fold`, 16: `licm`, 17: `storage-promotion`,
+//! 18: `lower-alloc`, 19: `noreturn-calls`, 20: `readonly-eval`) in bits 96 to 103, then the
+//! function's index in its module, the block and the left operand, as MIR text numbers them (an
+//! argument with bit 31 set), in 32-bit fields, so `-Zcheck-analyses=true -Zdump=mir` shows the
+//! claim next to the code it was made about.
 //!
 //! The checks change the program's gas and size, never its other behavior: a fact that holds
 //! passes its test. Facts are tested where their block ends rather than where they were used, so
 //! a block that ends early, in a call that reverts, skips its tests. Facts behind dead store
-//! elimination and storage promotion are not recorded, nor is an analysis result only cost
-//! decisions read. Check elimination never makes a checked `pow` unchecked: lowering expands one
-//! with a constant base to a test of the exponent against its largest power that fits, and the
-//! rewrite that folds that test records what it relied on, the e-graph the exponent's width or
-//! check elimination the branch. A record keeps the values it is about alive, so a checked build
-//! can optimize slightly differently from an unchecked one; a record costs nothing in the cost
-//! model, which keeps that difference small.
+//! elimination, which `-Zvalidate-passes` checks by translation validation instead, are not
+//! recorded, nor is an analysis result only cost decisions read. Check elimination never makes a
+//! checked `pow` unchecked: lowering expands one with a constant base to a test of the exponent
+//! against its largest power that fits, and the rewrite that folds that test records what it
+//! relied on, the e-graph the exponent's width or check elimination the branch. A record keeps the
+//! values it is about alive, so a checked build can optimize slightly differently from an
+//! unchecked one; a record costs nothing in the cost model, which keeps that difference small.
 //!
 //! Source specifications are records too (see the function lowering's `spec` module): a
 //! `@custom:ensures` clause is a `spec_ensures` record at each return, tested and proved like any
@@ -72,8 +83,8 @@
 
 use crate::mir::{
     AssumePredicate, BlockId, EffectKind, FactSource, Function, FunctionBuilder, FunctionId,
-    InstId, InstKind, Instruction, InstructionMetadata, MirPhase, MirType, Module, Terminator,
-    Value, ValueId,
+    Immediate, InstId, InstKind, Instruction, InstructionMetadata, MirPhase, MirType, Module,
+    Terminator, Value, ValueId,
     pass::{MirPass, ModuleAnalyses},
     transform::utils::redirect_successor_predecessors,
     utils::rebuild_predecessors,
@@ -180,6 +191,15 @@ pub(crate) fn record_spec(
     record_fact(func, block, source, AssumePredicate::Ne, condition, zero);
 }
 
+/// Records that execution never reaches the end of `block`, which `source` relied on when it ended
+/// the block with `invalid`: `0 == 1`, a fact false wherever it is tested.
+pub(super) fn record_unreachable(func: &mut Function, block: BlockId, source: FactSource) {
+    let zero = func.alloc_value(Value::Immediate(Immediate::I256(U256::ZERO)));
+    let one = func.alloc_value(Value::Immediate(Immediate::I256(U256::ONE)));
+    // assume eq source, 0, 1
+    record_fact(func, block, source, AssumePredicate::Eq, zero, one);
+}
+
 /// Whether `module` holds a recorded fact, which only [`LowerAssumes`] lowers.
 pub(crate) fn has_records(module: &Module) -> bool {
     module.functions.iter().any(|func| {
@@ -254,6 +274,7 @@ pub(super) fn record_forwarded(
 }
 
 /// A recorded fact: `predicate(lhs, rhs)` held where `block` ends when `source` relied on it.
+#[derive(Clone, Copy)]
 pub(super) struct Fact {
     pub(super) block: BlockId,
     pub(super) source: FactSource,
@@ -306,6 +327,11 @@ const fn source_id(source: FactSource) -> u8 {
         FactSource::SpecEnsures => 7,
         FactSource::Egraph => 8,
         FactSource::ConstFold => 9,
+        FactSource::Licm => 16,
+        FactSource::StoragePromotion => 17,
+        FactSource::LowerAlloc => 18,
+        FactSource::NoreturnCalls => 19,
+        FactSource::ReadonlyEval => 20,
     }
 }
 

@@ -71,8 +71,8 @@ use super::lower_assumes::Fact;
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
-        AssumePredicate, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, PtrLocation,
-        ResultKind, Semantics, Terminator, Value, ValueId,
+        AssumePredicate, BlockId, EffectKind, FactSource, Function, FunctionId, InstId, InstKind,
+        PtrLocation, ResultKind, Semantics, Terminator, Value, ValueId,
         analysis::{CfgInfo, integers::integer_mask},
         memory::EvmMemoryLayout,
     },
@@ -96,6 +96,12 @@ pub(super) fn write_queries(
     facts: &[Fact],
     dir: &Path,
 ) -> std::io::Result<()> {
+    // That a block is never reached is a fact about control, which needs a callee's summary the
+    // queries do not follow; it is tested at run time only. Taken as an assumption, it would prove
+    // every later fact of its block vacuously.
+    let facts: Vec<_> =
+        facts.iter().copied().filter(|fact| fact.source != FactSource::NoreturnCalls).collect();
+    let facts = facts.as_slice();
     if facts.is_empty() || func.blocks.is_empty() {
         return Ok(());
     }
