@@ -53,12 +53,34 @@ fn counterexample_stops_pipeline_and_replays() {
         .unwrap();
     assert_eq!(replay.status.code(), Some(1));
     assert_data_eq!(
-        String::from_utf8(replay.stdout).unwrap(),
+        String::from_utf8(replay.stdout)
+            .unwrap()
+            .replace(&pair.canonicalize().unwrap().display().to_string(), "PAIR")
+            .replace(&pair.display().to_string(), "PAIR")
+            .replace(&std::env::var("SOLAR_TV").unwrap(), "CHECKER")
+            .replace(env!("CARGO_BIN_EXE_solar"), "SOLAR"),
         str![[r#"
 counterexample
+  MIR function @with_dead_code
   arg0 = 0
   before = 1
   after  = 0
+
+Difference
+  Returned value changed
+
+Changed IR
+--- before
++++ after
+@@ -3,4 +3,4 @@
+   bb0:
+     v0 = add arg0, 1
+-    ret v0
++    ret arg0
+ }
+
+Replay
+  CHECKER mir PAIR/before.mir PAIR/after.mir --solar SOLAR --timeout 60
 
 "#]]
     );

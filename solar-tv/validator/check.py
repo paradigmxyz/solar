@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import evmir, mir
+from . import evmir, mir, report
 from .common import Program, Unsupported
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,7 +40,9 @@ def load(kind: str, path: Path, solar: str, timeout: int) -> Program:
     )
     if parsed.returncode:
         raise Unsupported(parsed.stderr.strip() or "compiler rejected input")
-    return (mir.translate if kind == "mir" else evmir.translate)(parsed.stdout)
+    program = (mir.translate if kind == "mir" else evmir.translate)(parsed.stdout)
+    program.canonical_ir = parsed.stdout
+    return program
 
 
 def definition(name: str, program: Program) -> str:
@@ -74,7 +76,9 @@ def build_model(timeout: int) -> subprocess.CompletedProcess:
         return run(["lake", "build", "SolarTV"], ROOT, timeout)
 
 
-def check(a: Program, b: Program, timeout: int) -> int:
+def check(
+    a: Program, b: Program, timeout: int, *, replay_command: str, verbose: bool = False
+) -> int:
     if a.interface != b.interface:
         raise Unsupported("input interfaces differ")
     build = build_model(timeout)
@@ -209,10 +213,18 @@ def check(a: Program, b: Program, timeout: int) -> int:
                 + replay.stderr
             )
         outputs = [line for line in replay.stdout.splitlines() if line.strip()]
-        print("counterexample")
-        for arg, value in zip(a.inputs, vals, strict=True):
-            print(f"  {arg} = {value}")
-        print(f"  before = {outputs[-2]}\n  after  = {outputs[-1]}")
+        print(
+            report.counterexample(
+                a,
+                b,
+                vals,
+                outputs[-2],
+                outputs[-1],
+                replay_command,
+                verbose=verbose,
+            ),
+            end="",
+        )
         return 1
 
 
@@ -234,18 +246,40 @@ def main() -> int:
         default=60,
         help="seconds per compiler or Lean invocation",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="show full IR diffs and prover diagnostics",
+    )
     args = parser.parse_args()
+    replay = report.replay_command(
+        args.ir, args.before, args.after, args.solar, args.timeout
+    )
     try:
         solar = shutil.which(args.solar)
         if not solar or args.timeout <= 0:
             raise Unsupported(
                 "supply a built compiler with --solar and a positive timeout"
             )
+        solar = str(Path(solar).resolve())
+        replay = report.replay_command(
+            args.ir, args.before, args.after, solar, args.timeout
+        )
         programs = [
-            load(args.ir, path, str(Path(solar).resolve()), args.timeout)
+            load(args.ir, path, solar, args.timeout)
             for path in (args.before, args.after)
         ]
-        return check(programs[0], programs[1], args.timeout)
+        return check(
+            programs[0],
+            programs[1],
+            args.timeout,
+            replay_command=replay,
+            verbose=args.verbose,
+        )
     except (Unsupported, OSError, subprocess.TimeoutExpired) as error:
-        print(f"inconclusive: {error}", file=sys.stderr)
+        print(
+            report.inconclusive(error, replay, verbose=args.verbose),
+            file=sys.stderr,
+            end="",
+        )
         return 2

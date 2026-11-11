@@ -96,7 +96,8 @@ class TypedMirTests(unittest.TestCase):
             "ret arg0", "ret false", params="arg0: i1", width=1, status=1
         )
         self.assertEqual(
-            result.stdout, "counterexample\n  arg0 = 1\n  before = 1\n  after  = 0\n"
+            result.stdout.split("\n\n", 1)[0] + "\n",
+            "counterexample\n  MIR function @f\n  arg0 = 1\n  before = 1\n  after  = 0\n",
         )
 
     def test_truncation_is_not_a_nonzero_test(self):

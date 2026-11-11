@@ -64,7 +64,7 @@ impl<'a> Snapshot<'a> {
                     .arg(solar)
                     .output()
             });
-        let (outcome, details) = match output {
+        let (outcome, details, diagnostic) = match output {
             Ok(output) => {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 if output.status.success() && stdout.trim() == "verified" {
@@ -76,26 +76,33 @@ impl<'a> Snapshot<'a> {
                     Some(2) => "inconclusive",
                     _ => "checker failed",
                 };
-                (
-                    outcome,
-                    format!(
-                        "status: {}\n{stdout}{}",
-                        output.status,
-                        String::from_utf8_lossy(&output.stderr)
-                    ),
-                )
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let details = format!("status: {}\n{stdout}{stderr}", output.status);
+                let diagnostic = match outcome {
+                    "counterexample" => {
+                        stdout.strip_prefix("counterexample\n").unwrap_or(&stdout).trim().to_owned()
+                    }
+                    "inconclusive" => {
+                        stderr.strip_prefix("inconclusive: ").unwrap_or(&stderr).trim().to_owned()
+                    }
+                    _ => details.clone(),
+                };
+                (outcome, details, diagnostic)
             }
-            Err(error) => ("checker failed", format!("could not run solar-tv: {error}")),
+            Err(error) => {
+                let details = format!("could not run solar-tv: {error}");
+                ("checker failed", details.clone(), details)
+            }
         };
         let path = pair.keep();
         let message = format!("{context}: {outcome}");
         fs::write(path.join("result.txt"), format!("{message}\n{details}\n")).map_err(io_error)?;
         let saved = format!("pair and checker output saved in `{}`", path.display());
         if outcome == "inconclusive" {
-            gcx.dcx().warn(message).note(saved).emit();
+            gcx.dcx().warn(message).note(diagnostic).note(saved).emit();
             Ok(())
         } else {
-            Err(gcx.dcx().err(message).note(details.trim().to_owned()).note(saved).emit())
+            Err(gcx.dcx().err(message).note(diagnostic).note(saved).emit())
         }
     }
 }

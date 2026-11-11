@@ -62,6 +62,8 @@ class PassManagerTests(unittest.TestCase):
         result = self.compile(source, "dce")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("inconclusive", result.stderr)
+        self.assertIn("unmodeled MIR instruction", result.stderr)
+        self.assertIn("Replay", result.stderr)
         (pair,) = self.out.iterdir()
         self.assertNotEqual(
             (pair / "before.mir").read_text(), (pair / "after.mir").read_text()

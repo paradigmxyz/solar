@@ -59,7 +59,8 @@ class OutcomeTests(unittest.TestCase):
     def test_dropping_an_unused_check_fails_refinement(self):
         result = self.pair("v0 = checked_sub uint256, 0, 1\nret 7", "ret 7", status=1)
         self.assertEqual(
-            result.stdout, "counterexample\n  before = revert Panic(17)\n  after  = 7\n"
+            result.stdout.split("\n\n", 1)[0] + "\n",
+            "counterexample\n  MIR function @f\n  before = revert Panic(17)\n  after  = 7\n",
         )
 
     def test_first_failure_wins(self):
