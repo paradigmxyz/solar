@@ -30,7 +30,7 @@ select a compiler binary.
 
 | Layer | Supported fragment | Observation |
 | --- | --- | --- |
-| MIR | One i256 function with pure add, sub, mul, and, or, xor in its entry block. It can return, jump or switch to blocks that return a word. | Returned word for all defined arguments. |
+| MIR | One i256 function with pure add, sub, mul, and, or, xor, predecessor-selected phis, jumps and ordered switches in an acyclic CFG. | Returned word for all defined arguments. |
 | EVM IR | An empty-entry-stack window with size inputs, literal pushes, EQ, SUB and ISZERO ending in a conditional jump to a valid label. Both exits stop. | Taken edge and remaining stack for all word-sized calldata and returndata sizes, given sufficient gas. |
 
 The importer and the mapping from compiler operations to Lean are trusted.
@@ -40,7 +40,7 @@ this first fragment.
 
 | Layer | Operation semantics | Transform proofs |
 | --- | --- | --- |
-| MIR | [MIR/Ops.lean](SolarTV/MIR/Ops.lean) | [Dead-code elimination](SolarTV/MIR/Transforms/DCE.lean), [trim trailing default switch cases](SolarTV/MIR/Transforms/TrimSwitchDefaults.lean) |
+| MIR | [MIR/Ops.lean](SolarTV/MIR/Ops.lean) | [Dead-code elimination](SolarTV/MIR/Transforms/DCE.lean), [trim trailing default switch cases](SolarTV/MIR/Transforms/TrimSwitchDefaults.lean), [rename phi predecessors](SolarTV/MIR/Transforms/RenamePhiPredecessors.lean) |
 | EVM IR | [EVMIR/Ops.lean](SolarTV/EVMIR/Ops.lean) | [EQ/ISZERO branch peephole](SolarTV/EVMIR/Transforms/EqIszeroJumpi.lean) |
 
 ```sh
@@ -48,7 +48,25 @@ this first fragment.
 python3 -m unittest discover -s solar-tv/tests
 ```
 
-The tests regenerate the example outputs with real compiler passes.
+The tests regenerate the example outputs with real compiler passes. The `solar-tv`
+CI job builds the Lean proofs, runs these tests for both IRs, and checks that an
+injected wrong-code pass stops compilation and produces a replayable pair.
+
+The phi example removes an empty forwarder with `cfg-simplify` and updates the
+join's incoming predecessor. Its broken version gives the zero edge the other
+predecessor's phi value. Run both checks with the following commands.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/phi/{before,after}.mir
+solar-tv/solar-tv mir solar-tv/examples/mir/phi/{before,broken}.mir
+```
+
+The correct pair verifies. The broken pair returns `21` for input `0`, where the
+original returns `11`. Phi inputs are read from the incoming SSA environment
+and selected by predecessor, independently of their order in the instruction.
+Cycles are inconclusive. The importer limits path expansion to 512 block visits
+and path depth to 128 blocks. For supported acyclic pairs, the proof covers every
+input.
 
 ## Check passes during compilation
 

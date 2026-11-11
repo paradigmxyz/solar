@@ -36,6 +36,7 @@ class PassManagerTests(unittest.TestCase):
         for example, ext, pass_name in [
             ("dce", "mir", "dce"),
             ("switch", "mir", "cfg-simplify"),
+            ("phi", "mir", "cfg-simplify"),
             ("peephole", "evmir", "peephole"),
         ]:
             with self.subTest(example=example):

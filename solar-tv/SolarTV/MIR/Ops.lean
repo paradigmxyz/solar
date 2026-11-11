@@ -30,4 +30,11 @@ def dispatch (read : Nat → EvmRules.Word) (key : EvmRules.Word) (fallback : Na
   | [] => fallback
   | (id, dst) :: rest => choose key (read id) dst (dispatch read key fallback rest)
 
+/-- Phi operands are read in the incoming environment and selected by predecessor.
+An absent predecessor is undefined; the importer requires exactly one match. -/
+def phi (predecessor : Nat) : List (Nat × EvmRules.Word) → Option EvmRules.Word
+  | [] => none
+  | (block, value) :: rest =>
+    if predecessor = block then some value else phi predecessor rest
+
 end SolarTV.MIR

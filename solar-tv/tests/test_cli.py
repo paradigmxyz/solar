@@ -27,6 +27,7 @@ class PairTests(unittest.TestCase):
             for layer, example, transform, flag in [
                 ("mir", "dce", "dce", "mir"),
                 ("mir", "switch", "cfg-simplify", "mir"),
+                ("mir", "phi", "cfg-simplify", "mir"),
                 ("evmir", "peephole", "peephole", "evm-ir"),
             ]:
                 with self.subTest(example=example):
@@ -55,6 +56,7 @@ class PairTests(unittest.TestCase):
     def test_bad_pairs(self):
         for layer, example, expected in [
             ("mir", "dce", "  arg0 = 0\n  before = 1\n  after  = 0"),
+            ("mir", "phi", "  arg0 = 0\n  before = 11\n  after  = 21"),
             (
                 "evmir",
                 "peephole",
@@ -101,3 +103,52 @@ class PairTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stderr)
             self.assertIn("stack=[1]", result.stdout)
             self.assertIn("stack=[2]", result.stdout)
+
+    def test_phi_incoming_order_is_irrelevant(self):
+        before = ROOT / "examples/mir/phi/before.mir"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "reordered.mir"
+            path.write_text(
+                before.read_text()
+                .replace("[bb1: 1], [bb2: v0]", "[bb2: v0], [bb1: 1]")
+                .replace("[bb1: 10], [bb2: 20]", "[bb2: 20], [bb1: 10]")
+            )
+            result = check("mir", before, path)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "verified\n")
+
+    def test_loop_with_phis_is_inconclusive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "loop.mir"
+            path.write_text(
+                "@module Loop\nfn @loop(arg0: i256) -> i256 {\n"
+                "bb0:\n  jump bb1\n"
+                "bb1:\n  v0 = phi [bb0: arg0], [bb1: v1]\n"
+                "  v1 = sub v0, 1\n"
+                "  switch v0, default bb1, [0 => bb2]\n"
+                "bb2:\n  ret v0\n}\n"
+            )
+            result = check("mir", path, path)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("cyclic MIR control flow", result.stderr)
+
+    def test_path_expansion_is_bounded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "diamonds.mir"
+            blocks = []
+            for i in range(12):
+                entry = 3 * i
+                blocks.append(
+                    f"bb{entry}:\n"
+                    f"  switch arg0, default bb{entry + 1}, [0 => bb{entry + 2}]\n"
+                    f"bb{entry + 1}:\n  jump bb{entry + 3}\n"
+                    f"bb{entry + 2}:\n  jump bb{entry + 3}\n"
+                )
+            path.write_text(
+                "@module Diamonds\nfn @f(arg0: i256) -> i256 {\n"
+                + "".join(blocks)
+                + "bb36:\n  ret arg0\n}\n"
+            )
+            result = check("mir", path, path)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("MIR path expansion limit", result.stderr)
