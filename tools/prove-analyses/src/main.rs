@@ -808,6 +808,7 @@ fn passed_flags(text: &str) -> Vec<String> {
         if !(token.starts_with("--evm-version")
             || token.starts_with("-Zmir-pipeline")
             || token.starts_with("-Zvalidate-backend-fault")
+            || token.starts_with("-Zvalidate-passes-fault")
             || token.starts_with("-Zevm-ir-pipeline"))
         {
             continue;

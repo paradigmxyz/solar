@@ -106,8 +106,11 @@
 //!   backend places by its instruction's identity, any other as a bump of the free-memory pointer
 //!   with its overflow panic and zeroing, which `lower-alloc` may elide on knowledge of the whole
 //!   module the query lacks.
-//! - Functions whose signature or ABI role a pass changes (`lower-abi` turns an external function
-//!   into its wrapper) are skipped.
+//! - Functions whose signature or ABI role a pass changes are skipped, except the two passes that
+//!   change how calls reach the code: `lower-abi`, whose wrappers are queried against the ABI's
+//!   decoding and encoding of the external functions they replace, and `lower-dispatch`, whose
+//!   dispatcher is queried against the ABI's routing (see `entries.rs`). There a body may be cut
+//!   where the encoding stops covering it ([`Encoder::cut`]).
 //! - Passes that change functions together (inlining, specialization, argument and return cleanups
 //!   across calls, function merging) are skipped: a query relates two versions of one function, and
 //!   these passes change callers and callees, often their signatures, together.
@@ -153,6 +156,8 @@ use std::{
 
 pub(crate) use super::prove_analyses::{sanitize, word};
 
+mod entries;
+
 /// How deep inlined calls nest: see [`Encoder::inline`].
 const INLINE_DEPTH: usize = 4;
 
@@ -177,13 +182,22 @@ const INTERPROCEDURAL: &[&str] = &[
 ];
 
 /// Writes a query to `dir`, or stdout when `dir` is `-`, for every function of `after` whose
-/// text differs from its version in `before`, the module before `pass` ran.
+/// text differs from its version in `before`, the module before `pass` ran, and for the
+/// dispatcher `lower-dispatch` creates. `fault` is `-Zvalidate-passes-fault`: see
+/// [`entries::inject`].
 pub(crate) fn write_queries(
     pass: &str,
     before: &Module,
     after: &Module,
     dir: &Path,
+    fault: Option<&str>,
 ) -> std::io::Result<()> {
+    let faulty = fault.map(|fault| {
+        let mut copy = after.clone();
+        entries::inject(fault, pass, before, &mut copy);
+        copy
+    });
+    let after = faulty.as_ref().unwrap_or(after);
     let module = after.name.as_str();
     let to_stdout = dir == Path::new("-");
     if !to_stdout {
@@ -192,6 +206,37 @@ pub(crate) fn write_queries(
     let by_name: FxHashMap<String, FunctionId> =
         before.functions.iter_enumerated().map(|(id, func)| (func.name.to_string(), id)).collect();
     let mut stdout = String::new();
+    let mut emit = |file: &str, header: &str, query: Result<Query, String>| {
+        for (file, text) in query_files(file, header, query) {
+            if to_stdout {
+                stdout.push_str(&format!("; query: {file}\n{text}"));
+            } else {
+                std::fs::write(dir.join(file), text)?;
+            }
+        }
+        std::io::Result::Ok(())
+    };
+    // The dispatcher is new, so no function of `before` has its name.
+    if pass == "lower-dispatch"
+        && before.dispatch_entry().is_none()
+        && let Some(entry) = after.dispatch_entry()
+    {
+        let text = after.function_text(entry).to_string();
+        let mut hasher = DefaultHasher::new();
+        (pass, &text).hash(&mut hasher);
+        let file = format!(
+            "{}-{}-f{}-{:012x}",
+            sanitize(module),
+            sanitize(pass),
+            entry.index(),
+            hasher.finish() & 0xffff_ffff_ffff
+        );
+        let header = format!(
+            "; module: {module}\n; function: #{} entry\n; pass: {pass}\n; claim: {pass} routes every call as the ABI defines\n",
+            entry.index(),
+        );
+        emit(&file, &header, entries::encode_dispatch(before, after, entry))?;
+    }
     for (id, func) in after.functions.iter_enumerated() {
         let name = func.name.to_string();
         let Some(&old_id) = by_name.get(&name) else { continue };
@@ -199,6 +244,9 @@ pub(crate) fn write_queries(
         let old_text = before.function_text(old_id).to_string();
         let new_text = after.function_text(id).to_string();
         if old_text == new_text || func.blocks.is_empty() {
+            continue;
+        }
+        if pass == "lower-dispatch" && entries::covered_by_dispatch(old, after, id) {
             continue;
         }
         let mut hasher = DefaultHasher::new();
@@ -215,19 +263,22 @@ pub(crate) fn write_queries(
             id.index(),
             id.index(),
         );
-        let query = encode(
-            pass,
-            after.dispatch_entry() == Some(id) || after.constructor() == Some(id),
-            (old, &before.functions),
-            (func, &after.functions),
-        );
-        for (file, text) in query_files(&file, &header, query) {
-            if to_stdout {
-                stdout.push_str(&format!("; query: {file}\n{text}"));
-            } else {
-                std::fs::write(dir.join(file), text)?;
-            }
-        }
+        let wrapped = pass == "lower-abi"
+            && old.selector.is_some()
+            && !old.attributes.is_abi_wrapper
+            && func.attributes.is_abi_wrapper
+            && func.params.is_empty();
+        let query = if wrapped {
+            entries::encode_abi(before, old_id, after, id)
+        } else {
+            encode(
+                pass,
+                after.dispatch_entry() == Some(id) || after.constructor() == Some(id),
+                (old, &before.functions),
+                (func, &after.functions),
+            )
+        };
+        emit(&file, &header, query)?;
     }
     if to_stdout {
         std::io::stdout().lock().write_all(stdout.as_bytes())?;
@@ -426,6 +477,11 @@ pub(crate) struct Encoder {
     pub(crate) inline_calls: bool,
     /// The callees whose bodies are running, innermost last.
     inlining: Vec<FunctionId>,
+    /// The inlining depth at which a body may be cut: see [`Self::cut`].
+    pub(crate) cut_depth: Option<usize>,
+    /// Callees of the version after a pass that are a callee of the version before it under
+    /// another name, with the same body: the events of calls to them are named by the latter.
+    pub(crate) aliases: FxHashMap<String, String>,
 }
 
 impl Encoder {
@@ -723,9 +779,16 @@ impl Encoder {
         let rpo = cfg.rpo();
         let order: FxHashMap<BlockId, usize> =
             rpo.iter().enumerate().map(|(index, &block)| (block, index)).collect();
+        // The targets of back edges, where a body that may be cut is cut.
+        let mut headers = FxHashSet::default();
         for &block in rpo {
-            if cfg.successors(block).iter().any(|succ| order[succ] <= order[&block]) {
-                return Err("loop".into());
+            for succ in cfg.successors(block) {
+                if order[succ] <= order[&block] {
+                    if !self.cuts() {
+                        return Err("loop".into());
+                    }
+                    headers.insert(*succ);
+                }
             }
         }
         let mut run = Run {
@@ -744,7 +807,7 @@ impl Encoder {
             }
         }
         for &block in rpo {
-            self.block(&mut run, &cfg, block, start, entry)?;
+            self.block(&mut run, &cfg, block, (start, entry), &headers)?;
         }
         Ok(run.outcomes)
     }
@@ -766,11 +829,12 @@ impl Encoder {
     ) -> Option<Vec<Outcome>> {
         let body = &funcs[callee];
         let size: usize = body.blocks.iter().map(|block| block.instructions.len()).sum();
+        let cut = self.cut_depth == Some(self.inlining.len() + 1);
         if !self.inline_calls
             || self.inlining.len() >= INLINE_DEPTH
             || self.inlining.contains(&callee)
             || body.blocks.is_empty()
-            || size > INLINE_SIZE
+            || (size > INLINE_SIZE && !cut)
             || body.params.len() != args.len()
         {
             return None;
@@ -792,15 +856,58 @@ impl Encoder {
         }
     }
 
+    /// The event of a call to the function named `name` that the encoding does not run.
+    pub(crate) fn callee_event(&self, name: &str) -> String {
+        let name = self.aliases.get(name).map_or(name, String::as_str);
+        format!("icall_{}", sanitize(name))
+    }
+
+    /// Whether the body running now may be cut: see [`Self::cut`].
+    fn cuts(&self) -> bool {
+        self.cut_depth == Some(self.inlining.len())
+    }
+
+    /// Ends the execution of the body running in `run` before instruction `index` of `block`,
+    /// at a loop header or an operation the encoding does not model: the rest of the execution is
+    /// an event of the world, named by the function and the point, that reads every value the run
+    /// has computed, the function's arguments and the state. Two runs of one body that reach the
+    /// same point with the same values and state then end alike, which is what the rest of the
+    /// execution does too, since it is a function of them; any other two differ. Only a body that
+    /// nothing follows may be cut, so that the rest of the execution is the rest of the body: an
+    /// external entry that the dispatcher tail-calls.
+    fn cut(
+        &mut self,
+        run: &mut Run<'_>,
+        (block, index): (BlockId, usize),
+        mut state: State,
+        guard: String,
+    ) {
+        let func = run.func;
+        let mut operands: Vec<_> = run.values.iter().collect();
+        operands.sort_by_key(|&(value, _)| *value);
+        let mut operands: Vec<_> = operands.into_iter().map(|(_, term)| term.clone()).collect();
+        for (arg, uses) in func.arg_uses().into_iter_enumerated() {
+            let term = uses.first().and_then(|value| run.values.get(value));
+            if term.is_none() {
+                operands.push(arg_name(arg));
+            }
+        }
+        let name = format!("cut_{}_bb{}_{index}", sanitize(&func.name.to_string()), block.index());
+        self.event(&name, operands, &mut state);
+        run.outcomes.push(Outcome { guard, kind: Kind::Ended, state: state.clone() });
+        run.ends.insert(block, ("false".into(), state));
+    }
+
     fn block(
         &mut self,
         run: &mut Run<'_>,
         cfg: &CfgInfo,
         block: BlockId,
-        start: &State,
-        entry: &str,
+        (start, entry): (&State, &str),
+        headers: &FxHashSet<BlockId>,
     ) -> Result<(), String> {
         let func = run.func;
+        let cuts = self.cuts();
         // The edges into the block, each with the condition that it is the one taken.
         let mut incoming = Vec::new();
         for &pred in cfg.predecessors(block) {
@@ -808,6 +915,10 @@ impl Encoder {
                 continue;
             }
             let Some((guard, _)) = run.ends.get(&pred) else { continue };
+            // A block that was cut reaches nothing.
+            if cuts && guard == "false" {
+                continue;
+            }
             let guard = guard.clone();
             let condition = self.edge(run, pred, block)?;
             let taken = self.define(BOOL, and(&guard, &condition));
@@ -840,7 +951,16 @@ impl Encoder {
             };
             (guard, state)
         };
-        for &inst in &func.blocks[block].instructions {
+        if cuts && guard == "false" {
+            run.ends.insert(block, (guard, state));
+            return Ok(());
+        }
+        for (index, &inst) in func.blocks[block].instructions.iter().enumerate() {
+            if cuts && headers.contains(&block) && !matches!(func.inst(inst).kind, InstKind::Phi(_))
+            {
+                self.cut(run, (block, index), state, guard);
+                return Ok(());
+            }
             if let InstKind::Phi(arms) = &func.inst(inst).kind {
                 let mut options = Vec::new();
                 for (pred, taken) in &incoming {
@@ -854,7 +974,22 @@ impl Encoder {
                 run.values.insert(value, term);
                 continue;
             }
+            if cuts {
+                let saved = (state.clone(), guard.clone(), run.outcomes.len());
+                if self.inst(run, inst, &mut state, &mut guard).is_err() {
+                    let (state, guard, outcomes) = saved;
+                    run.outcomes.truncate(outcomes);
+                    self.cut(run, (block, index), state, guard);
+                    return Ok(());
+                }
+                continue;
+            }
             self.inst(run, inst, &mut state, &mut guard)?;
+        }
+        if cuts && headers.contains(&block) {
+            let index = func.blocks[block].instructions.len();
+            self.cut(run, (block, index), state, guard);
+            return Ok(());
         }
         let kind = match &func.blocks[block].terminator {
             Some(Terminator::Jump(_) | Terminator::Branch { .. } | Terminator::Switch { .. }) => {
@@ -888,7 +1023,7 @@ impl Encoder {
                     run.outcomes.extend(outcomes);
                     return Ok(());
                 }
-                let callee = format!("icall_{}", sanitize(&run.funcs[*function].name.to_string()));
+                let callee = self.callee_event(&run.funcs[*function].name.to_string());
                 self.event(&callee, args, &mut state);
                 Kind::Ended
             }
@@ -1052,7 +1187,7 @@ impl Encoder {
                 {
                     return self.returned(run, outcomes, result, state, guard);
                 }
-                let name = format!("icall_{}", sanitize(&run.funcs[callee].name.to_string()));
+                let name = self.callee_event(&run.funcs[callee].name.to_string());
                 let world = self.event(&name, args, state);
                 // The callee may end the execution, as one more outcome.
                 let ended = self.apply("ended", &[(world.clone(), WORLD)], BOOL);

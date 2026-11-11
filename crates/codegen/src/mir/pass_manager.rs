@@ -210,7 +210,11 @@ pub(crate) fn run_passes_inner(
                 if pass_changed
                     && let Some((dir, before)) = validated
                     && let Err(error) = crate::mir::transform::validate_passes::write_queries(
-                        pass_name, &before, module, dir,
+                        pass_name,
+                        &before,
+                        module,
+                        dir,
+                        gcx.sess.opts.unstable.validate_passes_fault.as_deref(),
                     )
                 {
                     let error = gcx

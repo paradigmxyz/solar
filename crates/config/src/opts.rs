@@ -512,6 +512,13 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
     pub validate_passes: Option<std::path::PathBuf>,
 
+    /// Testing only: corrupt the module after a pass as `-Zvalidate-passes` reads it, so that its
+    /// query must find a difference. `selector` swaps the targets of the first two cases of the
+    /// selector switch `lower-dispatch` creates, and `decode` moves the first constant calldata
+    /// read of the first wrapper `lower-abi` creates one word on. The compiled code is unchanged.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "FAULT", hide = true))]
+    pub validate_passes_fault: Option<String>,
+
     /// Write an SMT-LIB query to this directory for every block of every function stack
     /// scheduling lowers, asking whether its scheduled EVM IR can differ from the MIR block when
     /// the stack and memory hold the block's values where the schedule says: Z3 answering `unsat`
@@ -605,6 +612,7 @@ impl UnstableOpts {
             check_analyses: _,
             prove_analyses: _,
             validate_passes: _,
+            validate_passes_fault: _,
             validate_backend: _,
             validate_backend_fault: _,
             validate_evm_ir_passes: _,
