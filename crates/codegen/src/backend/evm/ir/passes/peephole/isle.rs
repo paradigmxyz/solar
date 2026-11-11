@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     backend::evm::{
-        ir::{Instruction, StackEffect, immediate_materialization_cost},
+        ir::{ImmediateMaterialization, Instruction, StackEffect, immediate_materialization_cost},
         op,
         op::*,
     },
@@ -25,7 +25,7 @@ use solar_config::EvmVersion;
 /// How far back a rule may simulate the block's stack.
 const MAX_STACK_WINDOW: usize = 24;
 
-/// Inverts a comparison against a protected constant.
+/// Inverts a comparison against a protected constant without increasing stack usage.
 pub(crate) fn invert_comparison(
     instructions: &[Instruction],
     evm_version: EvmVersion,
@@ -53,7 +53,10 @@ pub(crate) fn invert_comparison(
             } else {
                 ordered.checked_sub(U256::ONE)
             };
+            // A shorter encoding may need an extra temporary stack word.
             if let Some(bound) = bound.map(|bound| bound ^ bias)
+                && ImmediateMaterialization::new(evm_version, bound).stack_peak()
+                    <= ImmediateMaterialization::new(evm_version, value).stack_peak()
                 && op::push_len(evm_version, bound)
                     <= immediate_materialization_cost(evm_version, value).0 + 1
             {

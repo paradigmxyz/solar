@@ -490,11 +490,12 @@ bb39:
   mstore
   stop
 
-// Adjusting a wide bound inverts the comparison.
+// Adjusting the bound must not increase its materialization's stack peak.
+// The intervening POP may be the first instruction that frees a stack slot.
 // CHECK-LABEL: {{^[ +].*}}bb40:
-// CHECK: {{^[ +].*}}push 0x10000000000
-// CHECK: {{^[ +].*}}gt
-// CHECK-NOT: iszero
+// CHECK: {{^[ +].*}}push 0x10000000001
+// CHECK: {{^[ +].*}}lt
+// CHECK-NEXT: {{^[ +].*}}iszero
 bb40:
   calldatasize
   push 0x10000000001
