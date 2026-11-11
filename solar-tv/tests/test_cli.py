@@ -32,6 +32,7 @@ class PairTests(unittest.TestCase):
                 ("mir", "checked", "check-elim", "mir"),
                 ("mir", "typed-branch", "cfg-simplify", "mir"),
                 ("evmir", "peephole", "peephole", "evm-ir"),
+                ("evmir", "symbolic-stack", "peephole", "evm-ir"),
             ]:
                 with self.subTest(example=example):
                     folder = ROOT / "examples" / layer / example
