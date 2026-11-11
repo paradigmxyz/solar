@@ -18,6 +18,9 @@
 //! What a certificate still trusts: Ethos, the CPC signature it includes (the path of `Cpc.eo`
 //! in cvc5's `proofs/eo/cpc`), and the reference script standing for the
 //! query, that is, the inlining in [`reference_script`].
+//!
+//! [`lean`] certifies the same reference script in Lean 4 instead, for queries cvc5 proves too
+//! slowly or not at all.
 
 use crate::{Sexp, sexp};
 use std::{
@@ -29,6 +32,8 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+
+pub mod lean;
 
 /// cvc5 and Ethos, ready to certify verdicts.
 #[derive(Clone, Debug)]
@@ -46,6 +51,8 @@ pub struct Certifier {
 pub enum Certificate {
     /// Ethos checked the proof against the query.
     Checked,
+    /// Lean checked a `bv_decide` proof of the query's translation (see [`lean`]).
+    CheckedLean,
     /// cvc5 gave no proof: its answer, such as `sat`, `unknown` or `timeout`.
     NoProof(&'static str),
     /// The query or the proof is not one Ethos accepts, and why.
@@ -57,6 +64,7 @@ impl Certificate {
     pub fn describe(&self) -> String {
         match self {
             Self::Checked => "checked".into(),
+            Self::CheckedLean => "checked-lean".into(),
             Self::NoProof(answer) => format!("no-proof {answer}"),
             Self::Rejected(reason) => format!("rejected {reason}"),
         }
@@ -109,7 +117,7 @@ impl Certifier {
             .args(["--lang=smt2", "--dump-proofs", "--proof-format-mode=cpc"])
             .arg(format!("--tlimit={}", timeout.as_millis()))
             .arg(&reference_path);
-        let Some(output) = run(command, timeout) else {
+        let Some((_, output)) = run(command, timeout) else {
             return Certificate::NoProof("timeout");
         };
         let proof = match proof_of(&output) {
@@ -133,7 +141,7 @@ impl Certifier {
 
         let mut command = Command::new(&self.ethos);
         command.arg(&proof_path);
-        let Some(output) = run(command, timeout) else {
+        let Some((_, output)) = run(command, timeout) else {
             return Certificate::Rejected("ethos timed out".into());
         };
         match output.lines().map(str::trim).rfind(|line| !line.is_empty()) {
@@ -186,9 +194,10 @@ fn proof_of(output: &str) -> Result<Vec<Sexp>, Certificate> {
     Ok(proof)
 }
 
-/// Runs `command` and returns what it printed, stdout then stderr, or `None` when it does not
-/// start or runs past `timeout`, which a solver's own time limit does not always keep.
-fn run(mut command: Command, timeout: Duration) -> Option<String> {
+/// Runs `command` and returns whether it succeeded and what it printed, stdout then stderr, or
+/// `None` when it does not start or runs past `timeout`, which a solver's own time limit does not
+/// always keep.
+fn run(mut command: Command, timeout: Duration) -> Option<(bool, String)> {
     command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = command.spawn().ok()?;
     let read = |pipe: Option<Box<dyn Read + Send>>| {
@@ -203,9 +212,9 @@ fn run(mut command: Command, timeout: Duration) -> Option<String> {
     let stdout = read(child.stdout.take().map(|pipe| Box::new(pipe) as _));
     let stderr = read(child.stderr.take().map(|pipe| Box::new(pipe) as _));
     let deadline = Instant::now() + timeout + Duration::from_secs(2);
-    loop {
+    let status = loop {
         match child.try_wait() {
-            Ok(Some(_)) => break,
+            Ok(Some(status)) => break status,
             Ok(None) if Instant::now() < deadline => thread::sleep(Duration::from_millis(5)),
             _ => {
                 let _ = child.kill();
@@ -213,10 +222,10 @@ fn run(mut command: Command, timeout: Duration) -> Option<String> {
                 return None;
             }
         }
-    }
+    };
     let mut output = stdout.join().unwrap_or_default();
     output.push_str(&stderr.join().unwrap_or_default());
-    Some(output)
+    Some((status.success(), output))
 }
 
 /// `query` as a script Ethos can take as a reference: its logic, declarations, assertions and

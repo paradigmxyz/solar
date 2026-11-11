@@ -18,7 +18,14 @@
 //! With `--certify`, every `unsat` verdict also gets a proof certificate: cvc5 proves the query
 //! again with a CPC proof, which Ethos checks against it (see `solar_smt::certify`). The
 //! certificate, `<query>.cpc` beside `<query>.ref.smt2`, moves trust from Z3 and Bitwuzla to
-//! Ethos and CPC's rules, and `ethos <query>.cpc` checks it again without a solver.
+//! Ethos and CPC's rules, and `ethos <query>.cpc` checks it again without a solver. Certificates
+//! have their own wall-clock limit, `--certify-timeout`, since cvc5 often answers `unsat` in
+//! seconds and then needs minutes to print the proof.
+//!
+//! With `--certify-lean`, a verdict cvc5 and Ethos do not certify gets a Lean 4 certificate
+//! instead: the query as a theorem, `<query>.lean`, that Lean proves with `bv_decide` (see
+//! `solar_smt::certify::lean` for what it trusts), recorded as `checked-lean`. `lean <query>.lean`
+//! checks it again.
 //!
 //! A source's `//@ compile-flags:` lines pass on its `--evm-version` and `-Zmir-pipeline` flags,
 //! so MIR text with hand-written `assume` records runs too.
@@ -36,7 +43,7 @@ use regex::Regex;
 use ruint::aliases::U256;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use solar_smt::{Certificate, Certifier, sexp};
+use solar_smt::{Certificate, Certifier, certify::lean::Lean, sexp};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
@@ -88,10 +95,15 @@ struct Args {
     /// Parallel compiles and solver processes.
     #[arg(long, short)]
     jobs: Option<usize>,
-    /// Certify each `unsat` verdict with a cvc5 proof that Ethos checks, for `--timeout` seconds
-    /// each.
+    /// Certify each `unsat` verdict with a cvc5 proof that Ethos checks, for
+    /// `--certify-timeout` seconds each.
     #[arg(long)]
     certify: bool,
+    /// Wall-clock limit for each certificate step (cvc5 proving and printing its proof, then
+    /// Ethos checking it), in seconds. Proofs take longer than verdicts: cvc5 can answer `unsat`
+    /// quickly and then spend minutes printing the proof.
+    #[arg(long, default_value_t = 300)]
+    certify_timeout: u64,
     /// The cvc5 binary for `--certify`: `SOLAR_PROVE_ANALYSES_CVC5`, or `cvc5` on `PATH`.
     #[arg(long)]
     cvc5: Option<PathBuf>,
@@ -102,6 +114,17 @@ struct Args {
     /// `SOLAR_PROVE_ANALYSES_CPC_SIGNATURE`.
     #[arg(long)]
     cpc_signature: Option<PathBuf>,
+    /// Certify the verdicts `--certify` does not, or every verdict without it, with a Lean 4
+    /// theorem that `bv_decide` proves, for `--certify-timeout` seconds each.
+    #[arg(long)]
+    certify_lean: bool,
+    /// The Lean binary for `--certify-lean`: `SOLAR_PROVE_ANALYSES_LEAN`, or `lean` on `PATH`.
+    #[arg(long)]
+    lean: Option<PathBuf>,
+    /// The directory Lean runs in for `--certify-lean`, such as a project whose `lean-toolchain`
+    /// picks elan's toolchain: `SOLAR_PROVE_ANALYSES_LEAN_PROJECT`.
+    #[arg(long)]
+    lean_project: Option<PathBuf>,
     /// Keep queries and write `results.jsonl` here.
     #[arg(long)]
     out: Option<PathBuf>,
@@ -287,9 +310,11 @@ struct Solver {
     z3: PathBuf,
     bitwuzla: Option<PathBuf>,
     certifier: Option<Certifier>,
+    lean: Option<Lean>,
     batch_limit: u64,
     limit: u64,
     timeout: Duration,
+    certify_timeout: Duration,
     memory: u64,
 }
 
@@ -300,12 +325,12 @@ impl Solver {
             .arg("--version")
             .output()
             .map_err(|e| format!("cannot run {}: {e}; pass --z3", z3.display()))?;
+        let binary = |given: &Option<PathBuf>, var: &str, default: &str| {
+            given.clone().unwrap_or_else(|| {
+                std::env::var_os(var).map_or_else(|| default.into(), PathBuf::from)
+            })
+        };
         let certifier = if args.certify {
-            let binary = |given: &Option<PathBuf>, var: &str, default: &str| {
-                given.clone().unwrap_or_else(|| {
-                    std::env::var_os(var).map_or_else(|| default.into(), PathBuf::from)
-                })
-            };
             Some(Certifier::new(
                 binary(&args.cvc5, "SOLAR_PROVE_ANALYSES_CVC5", "cvc5"),
                 binary(&args.ethos, "SOLAR_PROVE_ANALYSES_ETHOS", "ethos"),
@@ -314,13 +339,23 @@ impl Solver {
         } else {
             None
         };
+        let lean = if args.certify_lean {
+            let project = args.lean_project.clone().or_else(|| {
+                std::env::var_os("SOLAR_PROVE_ANALYSES_LEAN_PROJECT").map(PathBuf::from)
+            });
+            Some(Lean::new(binary(&args.lean, "SOLAR_PROVE_ANALYSES_LEAN", "lean"), project)?)
+        } else {
+            None
+        };
         Ok(Self {
             z3,
             bitwuzla: args.bitwuzla.clone(),
             certifier,
+            lean,
             batch_limit: args.rlimit_batch,
             limit: args.rlimit,
             timeout: Duration::from_secs(args.timeout),
+            certify_timeout: Duration::from_secs(args.certify_timeout),
             memory: args.memory,
         })
     }
@@ -338,12 +373,15 @@ impl Solver {
                 } else {
                     self.alone(query, source)
                 };
-                if let Some(certifier) = &self.certifier
+                if (self.certifier.is_some() || self.lean.is_some())
                     && record.get("result").and_then(Value::as_str) == Some("unsat")
                 {
-                    let (certificate, tier) = self.certify(certifier, query);
+                    let (certificate, tier, lean) = self.certify(query);
                     record.insert("certificate".into(), json!(certificate.describe()));
                     record.insert("certified_tier".into(), json!(tier));
+                    if let Some(lean) = lean {
+                        record.insert("lean_certificate".into(), json!(lean.describe()));
+                    }
                 }
                 record
             })
@@ -351,18 +389,37 @@ impl Solver {
     }
 
     /// A certificate for a proved query: of the exact query, or else of its abstract tier, which
-    /// implies it.
-    fn certify(&self, certifier: &Certifier, query: &Path) -> (Certificate, &'static str) {
-        let text = fs::read_to_string(query).unwrap_or_default();
-        let exact = certifier.certify(&text, &query.with_extension(""), self.timeout);
+    /// implies it; from cvc5 and Ethos, or else from Lean. Without a certificate, the first
+    /// failure, and Lean's when it was tried.
+    fn certify(&self, query: &Path) -> (Certificate, &'static str, Option<Certificate>) {
+        let mut tiers = vec![("exact", query.to_path_buf())];
         let tier = abstract_of(query);
-        if exact == Certificate::Checked || !tier.exists() {
-            return (exact, "exact");
+        if tier.exists() {
+            tiers.push(("abstract", tier));
         }
-        let text = fs::read_to_string(&tier).unwrap_or_default();
-        match certifier.certify(&text, &tier.with_extension(""), self.timeout) {
-            Certificate::Checked => (Certificate::Checked, "abstract"),
-            _ => (exact, "exact"),
+        let mut failure = None;
+        if let Some(certifier) = &self.certifier {
+            for (name, path) in &tiers {
+                let text = fs::read_to_string(path).unwrap_or_default();
+                match certifier.certify(&text, &path.with_extension(""), self.certify_timeout) {
+                    Certificate::Checked => return (Certificate::Checked, name, None),
+                    certificate => failure = failure.or(Some(certificate)),
+                }
+            }
+        }
+        let mut lean_failure = None;
+        if let Some(lean) = &self.lean {
+            for (name, path) in &tiers {
+                let text = fs::read_to_string(path).unwrap_or_default();
+                match lean.certify(&text, &path.with_extension(""), self.certify_timeout) {
+                    Certificate::CheckedLean => return (Certificate::CheckedLean, name, None),
+                    certificate => lean_failure = lean_failure.or(Some(certificate)),
+                }
+            }
+        }
+        match failure {
+            Some(failure) => (failure, "exact", lean_failure),
+            None => (lean_failure.unwrap_or(Certificate::NoProof("unknown")), "exact", None),
         }
     }
 
