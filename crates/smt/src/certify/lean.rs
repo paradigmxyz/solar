@@ -158,35 +158,10 @@ pub fn theorem(reference: &str, timeout: Duration) -> Result<String, String> {
     let mut assertions = Vec::new();
     for command in sexp::parse(reference) {
         let command = command.map_err(|error| format!("query: {error}"))?;
-        let items = command.as_list().unwrap_or_default();
-        match (command.head(), items) {
-            (Some("declare-const"), [_, Sexp::Atom(name), sort]) => {
-                let sort = Sort::parse(sort)?;
-                binders.push(format!("({} : {})", ident(name)?, sort.lean()));
-                translator.symbols.insert(name.clone(), (Vec::new(), sort));
-            }
-            (Some("declare-fun"), [_, Sexp::Atom(name), Sexp::List(arguments), result]) => {
-                if arguments.is_empty() {
-                    let sort = Sort::parse(result)?;
-                    binders.push(format!("({} : {})", ident(name)?, sort.lean()));
-                    translator.symbols.insert(name.clone(), (Vec::new(), sort));
-                    continue;
-                }
-                let arguments = arguments.iter().map(Sort::parse).collect::<Result<Vec<_>, _>>()?;
-                let result = Sort::parse(result)?;
-                if arguments.iter().chain([&result]).any(|sort| matches!(sort, Sort::Array(..)))
-                    || arguments.contains(&Sort::Bool)
-                {
-                    return Err(format!("function sort in {command}"));
-                }
-                let mut ty: Vec<String> = arguments.iter().map(Sort::lean).collect();
-                ty.push(result.lean());
-                binders.push(format!("({} : {})", ident(name)?, ty.join(" → ")));
-                translator.symbols.insert(name.clone(), (arguments, result));
-            }
+        match (command.head(), command.as_list().unwrap_or_default()) {
             (Some("assert"), [_, term]) => assertions.push(term.clone()),
             (Some("set-logic" | "set-info" | "set-option" | "check-sat" | "exit"), _) => {}
-            _ => return Err(format!("unsupported command {command}")),
+            _ => binders.push(translator.declare(&command)?),
         }
     }
 
@@ -859,6 +834,41 @@ impl Translator {
         text.push(')');
         Ok((text, sort))
     }
+
+    /// Records the symbol a `declare-const` or `declare-fun` command declares, and returns its
+    /// Lean binder.
+    fn declare(&mut self, command: &Sexp) -> Result<String, String> {
+        let items = command.as_list().unwrap_or_default();
+        match (command.head(), items) {
+            (Some("declare-const"), [_, Sexp::Atom(name), sort]) => {
+                let sort = Sort::parse(sort)?;
+                let binder = format!("({} : {})", ident(name)?, sort.lean());
+                self.symbols.insert(name.clone(), (Vec::new(), sort));
+                Ok(binder)
+            }
+            (Some("declare-fun"), [_, Sexp::Atom(name), Sexp::List(arguments), result]) => {
+                if arguments.is_empty() {
+                    let sort = Sort::parse(result)?;
+                    let binder = format!("({} : {})", ident(name)?, sort.lean());
+                    self.symbols.insert(name.clone(), (Vec::new(), sort));
+                    return Ok(binder);
+                }
+                let arguments = arguments.iter().map(Sort::parse).collect::<Result<Vec<_>, _>>()?;
+                let result = Sort::parse(result)?;
+                if arguments.iter().chain([&result]).any(|sort| matches!(sort, Sort::Array(..)))
+                    || arguments.contains(&Sort::Bool)
+                {
+                    return Err(format!("function sort in {command}"));
+                }
+                let mut ty: Vec<String> = arguments.iter().map(Sort::lean).collect();
+                ty.push(result.lean());
+                let binder = format!("({} : {})", ident(name)?, ty.join(" → "));
+                self.symbols.insert(name.clone(), (arguments, result));
+                Ok(binder)
+            }
+            _ => Err(format!("unsupported command {command}")),
+        }
+    }
 }
 
 /// Whether the Lean bit-vectors `a` and `b` are syntactically one base plus different
@@ -906,12 +916,31 @@ fn mentions(term: &Sexp, name: &str) -> bool {
 /// An SMT-LIB symbol as a Lean identifier: `x` becomes `«$x»`, quoted so that keywords and symbol
 /// characters stay names, and with a `$` no name of the theorem's own (`h0`, `store`) or of
 /// Lean's (`True`, `BitVec`) starts with, so a symbol never shadows one.
-fn ident(name: &str) -> Result<String, String> {
+pub fn ident(name: &str) -> Result<String, String> {
     let name = name.strip_prefix('|').and_then(|name| name.strip_suffix('|')).unwrap_or(name);
     if name.is_empty() || name.contains(['«', '»']) {
         return Err(format!("symbol {name} has no Lean name"));
     }
     Ok(format!("«${name}»"))
+}
+
+/// The SMT-LIB term `term` in Lean, with the symbols it names declared by the `declare-const` and
+/// `declare-fun` commands of `declarations`: a `BitVec` term, or a proposition for a `Bool` one.
+/// Each symbol becomes its [`ident`], which the caller binds. This is the translation [`theorem`]
+/// gives each assertion, for stating facts about single terms, such as that the term an encoder
+/// gives an opcode equals the opcode's Lean definition.
+pub fn word_term(declarations: &str, term: &str) -> Result<String, String> {
+    let mut translator = Translator::default();
+    for command in sexp::parse(declarations) {
+        let command = command.map_err(|error| format!("declarations: {error}"))?;
+        translator.declare(&command)?;
+    }
+    let mut terms = sexp::parse(term);
+    let (Some(parsed), None) = (terms.next(), terms.next()) else {
+        return Err(format!("expected one term, found {term}"));
+    };
+    let parsed = parsed.map_err(|error| format!("term: {error}"))?;
+    Ok(translator.term(&parsed, &HashMap::new())?.0)
 }
 
 #[cfg(test)]
@@ -1045,5 +1074,17 @@ theorem query («$x» : BitVec 8) («$m» : (BitVec 8 → BitVec 8)) («$n» : (
             lean.certify(&sat, &dir.path().join("sat"), timeout),
             Certificate::Rejected(_)
         ));
+    }
+    #[test]
+    fn single_terms() {
+        let declarations = "(declare-const a (_ BitVec 256))
+(declare-fun f ((_ BitVec 256)) (_ BitVec 256))";
+        assert_eq!(
+            word_term(declarations, "(ite (bvult a (f a)) #x01 (_ bv0 8))").unwrap(),
+            "(if («$a» < («$f» «$a»)) then (0x01#8) else (0#8))"
+        );
+        assert_eq!(word_term(declarations, "(bvadd a b)").unwrap_err(), "unknown symbol b");
+        assert!(word_term(declarations, "a a").is_err());
+        assert!(word_term("(assert true)", "a").is_err());
     }
 }
