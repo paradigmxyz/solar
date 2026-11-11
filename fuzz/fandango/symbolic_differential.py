@@ -1101,7 +1101,15 @@ def _create(
         )
         # The mined transaction decides the outcome, so no simulation can see
         # a different block or transaction environment.
-        tx_hash = _rpc(url, "eth_sendTransaction", [transaction], timeout)
+        # Pin the nonce and never resend: a retry after a lost response would
+        # deploy at the next nonce, so at another address.
+        transaction["nonce"] = _rpc(
+            url, "eth_getTransactionCount", [evm.ANVIL_SENDER, "latest"], timeout
+        )
+        sent = evm.rpc(url, "eth_sendTransaction", [transaction], timeout, retries=0)
+        if "result" not in sent:
+            raise RuntimeError(f"anvil eth_sendTransaction failed: {sent.get('error')}")
+        tx_hash = sent["result"]
         receipt = evm.wait_for_receipt(url, tx_hash, timeout)
         if not receipt:
             raise RuntimeError("the deployment transaction was not mined")
