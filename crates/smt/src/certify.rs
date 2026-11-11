@@ -388,11 +388,12 @@ impl Names {
     }
 
     /// A name based on `base`, a canonical symbol, that neither the query nor an earlier fresh
-    /// name uses. It keeps `base`'s bars, which a symbol that needs them cannot do without.
+    /// name uses. It keeps `base`'s bars only where the new name still needs them, so it is
+    /// compared in its canonical spelling.
     fn fresh(&mut self, base: &str) -> String {
         loop {
             let name = match base.strip_prefix('|').and_then(|inner| inner.strip_suffix('|')) {
-                Some(inner) => format!("|{inner}!{}|", self.next),
+                Some(inner) => canonical_atom(&format!("|{inner}!{}|", self.next)),
                 None => format!("{base}!{}", self.next),
             };
             self.next += 1;
@@ -591,6 +592,16 @@ mod tests {
 ";
         let script = reference_script(query).unwrap();
         assert!(script.contains("(exists ((|a b!"), "{script}");
+        // `|let!0|` is the symbol `let!0`, which the query uses, so the binder takes `let!1`.
+        let query = "(set-logic BV)
+(declare-const |let| (_ BitVec 8))
+(declare-const let!0 (_ BitVec 8))
+(define-fun big ((v (_ BitVec 8))) Bool (exists ((|let| (_ BitVec 8))) (bvult v |let|)))
+(assert (and (big |let|) (= let!0 let!0)))
+(check-sat)
+";
+        let script = reference_script(query).unwrap();
+        assert!(script.contains("(exists ((let!1 (_ BitVec 8))) (bvult |let| let!1))"), "{script}");
     }
 
     #[test]
