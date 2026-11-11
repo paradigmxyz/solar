@@ -1915,7 +1915,8 @@ impl LowerAbiCx {
     /// Validates the `len` scalar words at `data`, whose range the caller has checked.
     ///
     /// Folds the words of a zero-bits validator with OR and checks once after the loop, which
-    /// reverts the same way; other validators check each element.
+    /// reverts the same way; other validators check each element. A word with no validator, such as
+    /// a `uint256`, has nothing to check and gets no loop.
     fn validate_scalar_array(
         builder: &mut FunctionBuilder<'_>,
         data: ValueId,
@@ -1924,6 +1925,9 @@ impl LowerAbiCx {
         current: &mut BlockId,
         options: DecodeOptions<'_>,
     ) {
+        if element.word_validator().is_none() {
+            return;
+        }
         let word = builder.imm(32);
         builder.switch_to_block(*current);
         if let Some(validator) = element.word_validator().and_then(AbiWordValidator::zero_bits) {
