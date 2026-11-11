@@ -4411,6 +4411,7 @@ dependencies = [
  "solar-evmir",
  "solar-interface",
  "solar-mir",
+ "solar-parse",
  "solar-sema",
  "tempfile",
  "tracing",
@@ -4640,6 +4641,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-prove-analyses"
+version = "0.3.0"
+dependencies = [
+ "clap",
+ "rayon",
+ "regex",
+ "ruint",
+ "serde_json",
+ "sha2 0.11.1",
+ "solar-smt",
+ "tempfile",
+]
+
+[[package]]
 name = "solar-sema"
 version = "0.3.0"
 dependencies = [
@@ -4673,6 +4688,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-smt"
+version = "0.3.0"
+dependencies = [
+ "snapbox",
+ "tempfile",
+]
+
+[[package]]
 name = "solar-tester"
 version = "0.3.0"
 dependencies = [
@@ -4684,6 +4707,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "snapbox",
  "solar-config",
  "solar-evmir",
  "solar-evmir-interpreter",

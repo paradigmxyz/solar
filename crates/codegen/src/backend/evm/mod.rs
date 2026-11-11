@@ -26,6 +26,10 @@ pub mod ir;
 
 mod layout;
 
+mod schedule_map;
+
+mod validate_backend;
+
 pub use solar_evmir::op;
 
 /// What code generation keeps for a whole compilation, on its [`Gcx`](solar_sema::Gcx): the

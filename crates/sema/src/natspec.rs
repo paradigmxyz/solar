@@ -1102,7 +1102,7 @@ fn optimize_objective(
 
 /// Reads a tag's arguments without block-comment decoration, including adjacent line-comment
 /// continuations. An explicit next tag ends the arguments, even when it is `@notice`.
-pub(crate) fn solar_tag_content(docs: &[ast::DocComment<'_>], span: Span) -> String {
+pub fn solar_tag_content(docs: &[ast::DocComment<'_>], span: Span) -> String {
     let mut content = String::new();
     let mut found = false;
     for doc in docs {

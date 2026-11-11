@@ -1,0 +1,57 @@
+; === ROOT/tests/ui/codegen/lowering/mir/expressions/spec_records.sol:SpecRecords ===
+@module SpecRecords
+; function next(uint256 x) external pure returns (uint256 r) [selector 0xedd004e5]
+fn @next(arg0: i256) -> i256 [selector=0xedd004e5, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg0, 100
+    assume ne spec_requires, v0, false
+    v1 = checked_add uint256, arg0, 1
+    v2 = lt arg0, v1
+    v3 = eq v0, false
+    v4 = or v3, v2
+    assume ne spec_ensures, v4, false
+    ret v1
+}
+
+; function max(uint256 a, uint256 b) external pure returns (uint256 r) [selector 0x6d5433e6]
+fn @max(arg0: i256, arg1: i256) -> i256 [selector=0x6d5433e6, pure, abi_params=[uint256, uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg1, arg0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v6 = lt arg1, arg0
+    v7 = eq v6, false
+    v8 = lt arg1, arg1
+    v9 = eq v8, false
+    v10 = and v7, v9
+    assume ne spec_ensures, v10, false
+    ret arg1
+  bb1:                                            ; preds = bb0
+    v1 = lt arg0, arg0
+    v2 = eq v1, false
+    v3 = lt arg0, arg1
+    v4 = eq v3, false
+    v5 = and v2, v4
+    assume ne spec_ensures, v5, false
+    ret arg0
+}
+
+; function negative(int8 x) external pure returns (bool neg) [selector 0x73d32478]
+fn @negative(arg0: i8) -> i1 [selector=0x73d32478, pure, abi_params=[int8], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    v0 = slt arg0, i8 0
+    v1 = zext i8 arg0 to i256
+    v2 = signextend 0, v1
+    v3 = slt v2, 0
+    v4 = eq v0, v3
+    assume ne spec_ensures, v4, false
+    ret v0
+}
+
+; function skipped(uint256 x) external pure returns (uint256 r) [selector 0xaafc1291]
+fn @skipped(arg0: i256) -> i256 [selector=0xaafc1291, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    ret arg0
+}

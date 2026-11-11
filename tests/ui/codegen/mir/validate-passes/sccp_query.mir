@@ -1,0 +1,31 @@
+//@ compile-flags: -Zmir-pipeline=sccp -Zcheck-analyses=false -Zvalidate-passes=- --emit=bin-runtime
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// SCCP folds the branch on a constant. The query asks whether some input makes the function
+// before the pass end differently from the function after it: the revert on the branch SCCP
+// proved untaken against the return, and the two returns against each other. The shared
+// computation is one symbol, so the returns cannot differ and only the untaken edge's guard is
+// left, which is false: Z3 answers unsat.
+@module ValidateSccp
+@phase lowered
+// CHECK-LABEL: ; query: ValidateSccp-sccp-f0-{{[0-9a-f]+}}.smt2
+// CHECK: ; claim: sccp preserves #0 entry
+// CHECK: (set-logic QF_AUFBV)
+// CHECK: (declare-fun input_calldataload_1 ((_ BitVec 256)) (_ BitVec 256))
+// CHECK: (assert (= [[V0:t[0-9]+]] (input_calldataload_1 #x{{0+}})))
+// CHECK: (assert (= [[UNTAKEN:g[0-9]+]] (= #x{{0+}}1 #x{{0+}})))
+// CHECK: (assert (= {{t[0-9]+}} (bvadd [[V0]] #x{{0+}}1)))
+// CHECK: (assert [[UNTAKEN]])
+// CHECK-NEXT: (check-sat)
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = lt 5, 10
+    jumpi v1, bb1, bb2
+  bb1:
+    v2 = add v0, 1
+    mstore 0, v2
+    returndata 0, 32
+  bb2:
+    revert 0, 0
+}

@@ -586,6 +586,20 @@ impl<'gcx> Assembler<'gcx> {
         (block, self.program.blocks[block].instructions.len())
     }
 
+    /// Returns the block and index the next emitted instruction will take, without starting a
+    /// block: a block not started yet takes the next block's ID.
+    pub(crate) fn insertion_point(&self) -> (ir::BlockId, usize) {
+        match self.current_block {
+            Some(block) => (block, self.program.blocks[block].instructions.len()),
+            None => (ir::BlockId::from_usize(self.program.blocks.len()), 0),
+        }
+    }
+
+    /// Returns the block a defined label starts.
+    pub(crate) fn label_block(&self, label: Label) -> Option<ir::BlockId> {
+        self.label_blocks.get(&label).copied()
+    }
+
     /// Deferred constants still referenced after instruction deletion.
     pub(crate) fn referenced_deferred_constants(&self) -> impl Iterator<Item = DeferredConst> + '_ {
         self.deferred_relocations.iter().map(|&(_, _, constant)| constant)

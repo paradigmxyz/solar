@@ -19,6 +19,19 @@ ANVIL_SENDER = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 # Explicit gas limit so a reverting transaction is mined with status 0x0 instead
 # of being rejected during gas estimation. Safely below anvil's block limit.
 TX_GAS = "0x1000000"
+# `AnalysisFactViolated(uint256,uint256,uint256)`, which code compiled with
+# `-Zcheck-analyses` reverts with when a fact an analysis claimed is false.
+ANALYSIS_FACT_VIOLATED = "0xed572b27"
+# The pass that relied on a fact.
+PASSES = {
+    1: "sccp",
+    2: "check-elim",
+    3: "cse",
+    4: "load-pre",
+    5: "indvar-simplify",
+}
+# The predicate of a fact a pass relied on, `lhs op rhs`.
+PREDICATES = {1: "==", 2: "!=", 3: "<", 4: "<="}
 
 
 class InfraError(RuntimeError):
@@ -46,10 +59,14 @@ def compile_solc(solc: str, source: pathlib.Path, contract: str, timeout: float)
 
 
 def compile_solar(
-    solar: str, source: pathlib.Path, contract: str, timeout: float
+    solar: str,
+    source: pathlib.Path,
+    contract: str,
+    timeout: float,
+    flags: list[str] | None = None,
 ) -> str:
     result = subprocess.run(
-        [solar, "--emit=bin-runtime", "--pretty-json", str(source)],
+        [solar, "--emit=bin-runtime", "--pretty-json", *(flags or []), str(source)],
         check=True,
         text=True,
         capture_output=True,
@@ -212,3 +229,37 @@ def normalize_hex(value: Any) -> str:
     if isinstance(value, str) and value.startswith("0x"):
         return value.lower()
     return "0x"
+
+
+def analysis_fact(data: Any) -> dict[str, Any] | None:
+    """Decodes `AnalysisFactViolated(fact, lhs, rhs)` revert data.
+
+    The fact word packs the predicate in bits 104 and up, the pass that relied
+    on the fact in bits 96 to 103, then the function's index in its module, the
+    block and the left operand, as MIR text numbers them (an argument with bit
+    31 set), in 32-bit fields.
+    """
+    if not isinstance(data, str):
+        return None
+    data = data.lower()
+    if not data.startswith(ANALYSIS_FACT_VIOLATED) or len(data) != 2 + 8 + 3 * 64:
+        return None
+    fact, lhs, rhs = (
+        int(data[10 + 64 * index : 10 + 64 * (index + 1)], 16) for index in range(3)
+    )
+    raw = fact & 0xFFFFFFFF
+    if raw == 0xFFFFFFFF:
+        operand = "?"
+    elif raw & (1 << 31):
+        operand = f"arg{raw & 0x7FFFFFFF}"
+    else:
+        operand = f"v{raw}"
+    predicate = PREDICATES.get((fact >> 104) & 0xFF, "?")
+    return {
+        "pass": PASSES.get((fact >> 96) & 0xFF, "unknown"),
+        "function": (fact >> 64) & 0xFFFFFFFF,
+        "block": (fact >> 32) & 0xFFFFFFFF,
+        "value": operand,
+        "claim": f"{operand} {predicate} {hex(rhs)}",
+        "observed": hex(lhs),
+    }

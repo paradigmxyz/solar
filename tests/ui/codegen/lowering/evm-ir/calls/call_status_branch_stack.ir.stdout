@@ -111,9 +111,7 @@ bb11 [entry]:                                     ; function first(uint256 x) ex
 bb35 [ret=0, inputs=1, outputs=7]:
   push_immutable 0, 20
   push 128
-  dup 1
-  dup 2
-  add
+  push 256
   push 64
   mstore
   push 0x9507d39a

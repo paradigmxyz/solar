@@ -455,27 +455,24 @@ bb8 [entry]:                                      ; function go(uint256 base, ui
   or
   push bb4
   jumpi
+  dup 3
   push 32
-  dup 4
   add
+  dup 1
   push 32
-  dup 2
-  lt
+  gt
   push bb14
   jumpi
   push 256
-  swap 1
-  dup 2
   add
   dup 1
   push 64
   mstore
-  swap 6
-  dup 2
+  swap 5
+  push 256
   mstore
-  push 32
-  dup 2
-  add
+  push 256
+  push 288
   swap 4
   dup 4
   dup 6

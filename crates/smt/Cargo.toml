@@ -1,0 +1,23 @@
+[package]
+name = "solar-smt"
+description = "SMT-LIB parsing for the compiler's provers"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/smt"
+publish = false
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+snapbox.workspace = true
+tempfile.workspace = true

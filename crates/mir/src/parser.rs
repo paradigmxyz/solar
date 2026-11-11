@@ -1900,6 +1900,30 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Some(arithmetic.ty().mir_type()),
                 )
             }
+            sym::assume => {
+                let predicate = match self.parser.parse_ident()? {
+                    kw::Eq => super::AssumePredicate::Eq,
+                    sym::ne => super::AssumePredicate::Ne,
+                    sym::ult => super::AssumePredicate::Ult,
+                    sym::ule => super::AssumePredicate::Ule,
+                    _ => return Err(self.parser.error("expected `eq`, `ne`, `ult` or `ule`")),
+                };
+                let source = match self.parser.parse_ident()? {
+                    sym::sccp => super::FactSource::Sccp,
+                    sym::check_elim => super::FactSource::CheckElim,
+                    sym::cse => super::FactSource::Cse,
+                    sym::load_pre => super::FactSource::LoadPre,
+                    sym::indvar_simplify => super::FactSource::IndvarSimplify,
+                    sym::spec_requires => super::FactSource::SpecRequires,
+                    sym::spec_ensures => super::FactSource::SpecEnsures,
+                    _ => return Err(self.parser.error("expected the pass that recorded the fact")),
+                };
+                self.parser.expect(TokenKind::Comma)?;
+                let lhs = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let rhs = self.parse_value(builder)?;
+                (InstKind::Assume { predicate, source, lhs, rhs }, None)
+            }
             sym::abi_encode_packed | sym::keccak256_packed => {
                 self.parser.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
                 let mut parts = Vec::new();

@@ -199,18 +199,26 @@
 //! earlier immutable pass. Constructor-reachable functions retain their full-word semantics.
 //! Run late check elimination after the post-memory CSE. Only functions with removed checks receive
 //! CFG cleanup, avoiding unrelated late block merges in other functions.
+//! With `-Zcheck-analyses`, each decision records the fact it relied on as an `assume` for
+//! `lower-assumes` to test, added after the rewrite: the condition of a folded branch or dropped
+//! check, that the failure test lowering would emit for a checked operation made unchecked is
+//! false, an equality it propagates, and that a mask integer cleanup removes leaves its operand
+//! unchanged, keeping the mask as the evidence.
 
 use super::{
     call_cleanup,
     cfg_simplify::simplify_function,
     egraph::{max_bits_with_args, use_counts},
+    lower_arithmetic::failure_condition,
+    lower_assumes::{record_fact, should_check_analyses},
 };
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
-        ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
-        FunctionId, Immediate, ImmutableEncoding, ImmutableId, InstId, InstKind, Instruction,
-        MirType, Module, Terminator, TypeSize, Value, ValueId, ValueLayout,
+        ArithmeticKind, AssumePredicate, BlockId, Builtin, Callee, CheckedOp, EffectKind,
+        FactSource, Function, FunctionBuilder, FunctionId, Immediate, ImmutableEncoding,
+        ImmutableId, InstId, InstKind, Instruction, InstructionMetadata, MirType, Module,
+        Terminator, TypeSize, Value, ValueId, ValueLayout,
         analysis::{
             CfgInfo,
             integers::{integer_bits, integer_mask, integer_max},
@@ -231,6 +239,7 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::ops::Deref;
 
 /// Function pass for range-based overflow-check elimination.
@@ -250,6 +259,7 @@ impl MirPass for CheckElim {
         run_function_pass(module, analyses, |func, analyses| {
             let eliminator = CheckEliminator {
                 propagate_equalities: Some(analyses.runtime_target(gcx)),
+                record: should_check_analyses(gcx.sess),
                 ..Default::default()
             };
             let cfg = CfgInfo::new(func);
@@ -302,11 +312,13 @@ impl MirPass for IntegerCleanup {
             }
             let cfg = CfgInfo::new(func);
             let removed = invalidate_unreachable_blocks(func, cfg.reachable());
+            let record = should_check_analyses(gcx.sess);
             let mut eliminator = CheckEliminator {
                 collect_masks: true,
                 shifted_high_masks,
                 propagate_equalities: Some(target),
                 immutable_ranges,
+                record,
                 ..Default::default()
             };
             let facts = index_vec![Facts::default(); func.blocks.len()];
@@ -314,18 +326,34 @@ impl MirPass for IntegerCleanup {
             let propagated = eliminator.apply_equalities(func) != 0;
             let fused = eliminator.fuse_tests(func);
             if eliminator.redundant_masks.is_empty() {
+                eliminator.add_pending(func);
                 return removed != 0 || propagated || fused;
             }
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::new_empty(func.num_insts());
             for &(id, value) in &eliminator.redundant_masks {
                 replacements.insert(func.inst_result_value(id).unwrap(), value);
-                dead.insert(id);
+                // A recorded mask keeps its instruction as the evidence its `assume` tests.
+                if !record {
+                    dead.insert(id);
+                }
             }
             func.replace_uses_canonicalized(&replacements);
             for block in &mut func.blocks {
                 block.instructions.retain(|&id| !dead.contains(id));
             }
+            if record {
+                // (and v, mask) == v
+                let blocks = func.inst_block_table();
+                for &(id, value) in &eliminator.redundant_masks {
+                    let masked = func.inst_result_value(id).unwrap();
+                    if let Some(block) = blocks[id] {
+                        let fact = PendingFact::Relation(block, AssumePredicate::Eq, masked, value);
+                        eliminator.pending.push(fact);
+                    }
+                }
+            }
+            eliminator.add_pending(func);
             true
         };
         // Only the immutable bound case has ever requested the CFG snapshot, which decides what
@@ -420,8 +448,11 @@ impl MirPass for ImmutableCheckElim {
             }
         }
         run_selected_function_pass(module, analyses, &loading, |func, analyses| {
-            let eliminator =
-                CheckEliminator { immutable_ranges: Some(&bounds), ..Default::default() };
+            let eliminator = CheckEliminator {
+                immutable_ranges: Some(&bounds),
+                record: should_check_analyses(gcx.sess),
+                ..Default::default()
+            };
             eliminator.run(func, analyses.cfg(), None) != 0
         }) || narrowed
     }
@@ -997,6 +1028,18 @@ struct CheckEliminator<'a> {
     failed_bounds: FxHashSet<usize>,
     /// Midpoints feeding branches, by the instruction defining them.
     midpoints: FxIndexMap<InstId, Midpoint>,
+    /// Whether every decision records the fact it relied on for `lower-assumes`.
+    record: bool,
+    /// The facts recorded decisions relied on, added as `assume`s once the rewrite is done.
+    pending: Vec<PendingFact>,
+}
+
+/// A fact a decision relied on, recorded at the end of a block once the rewrite is done.
+enum PendingFact {
+    /// `predicate(lhs, rhs)`.
+    Relation(BlockId, AssumePredicate, ValueId, ValueId),
+    /// The checked operation cannot fail on the operands.
+    Unfailing(BlockId, CheckedOp, ArithmeticKind, ValueId, ValueId),
 }
 
 impl<'a> CheckEliminator<'a> {
@@ -1095,6 +1138,10 @@ impl<'a> CheckEliminator<'a> {
         {
             return removed;
         }
+        if self.record {
+            let decisions = decided_facts(func, &unfailing, &folds, &checks);
+            self.pending.extend(decisions);
+        }
         // checked_op a, b that cannot fail -> op a, b
         for (id, kind) in &unfailing {
             func.replace_inst_kind(*id, kind.clone());
@@ -1117,7 +1164,36 @@ impl<'a> CheckEliminator<'a> {
                 *condition = reduced;
             }
         }
+        self.add_pending(func);
         removed + folds.len() + checks.count() + unfailing.len() + reductions.len() + propagated
+    }
+
+    /// Adds the pending records as `assume`s, after the rewrite that relied on them.
+    fn add_pending(&mut self, func: &mut Function) {
+        let source = FactSource::CheckElim;
+        for fact in std::mem::take(&mut self.pending) {
+            match fact {
+                // assume predicate check_elim, lhs, rhs
+                PendingFact::Relation(block, predicate, lhs, rhs) => {
+                    record_fact(func, block, source, predicate, lhs, rhs);
+                }
+                // c = the failure test lowering would emit
+                // assume eq check_elim, c, false
+                PendingFact::Unfailing(block, op, arithmetic, lhs, rhs) => {
+                    let mut dropped = InstructionMetadata::EMPTY;
+                    dropped.drop_debug_loc(DebugLocKind::Dropped);
+                    let mut builder = FunctionBuilder::new_semantic(func);
+                    builder.set_debug_context(&dropped);
+                    builder.switch_to_block(block);
+                    let Some(fails) = failure_condition(&mut builder, op, arithmetic, lhs, rhs)
+                    else {
+                        continue;
+                    };
+                    let never = builder.imm_bool(false);
+                    record_fact(func, block, source, AssumePredicate::Eq, fails, never);
+                }
+            }
+        }
     }
 
     /// Walks the dominator tree, recording edge and check facts. Returns branch folds, proven
@@ -1991,6 +2067,17 @@ impl<'a> CheckEliminator<'a> {
     /// instructions changed.
     fn apply_equalities(&mut self, func: &mut Function) -> usize {
         let uses = std::mem::take(&mut self.equality_uses);
+        if self.record {
+            // operand == constant
+            let blocks = func.inst_block_table();
+            for (id, replaced) in &uses {
+                let Some(block) = blocks[*id] else { continue };
+                for &(from, constant) in replaced {
+                    let fact = PendingFact::Relation(block, AssumePredicate::Eq, from, constant);
+                    self.pending.push(fact);
+                }
+            }
+        }
         for (id, replaced) in &uses {
             // operand -> constant it equals
             func.rewrite_inst_operands(*id, |operand| {
@@ -3697,6 +3784,75 @@ fn difference_operands(func: &Function, value: ValueId) -> Option<(ValueId, Valu
         } => Some((lhs, rhs, true)),
         _ => None,
     }
+}
+
+/// The fact each decision of a walk relied on, read before the rewrite, at the end of a block: a
+/// checked operation made unchecked cannot fail, the branch condition a fold decides, and the
+/// condition a removed check proves passing. The rewrite leaves these
+/// facts' operands alone, so their records keep the values the program computes.
+fn decided_facts(
+    func: &mut Function,
+    unfailing: &[(InstId, InstKind)],
+    folds: &[(BlockId, BlockId)],
+    checks: &DenseBitSet<InstId>,
+) -> Vec<PendingFact> {
+    let mut facts = Vec::new();
+    // The removed checks, collected while their instructions are borrowed.
+    let mut passing = Vec::new();
+    for (block, body) in func.blocks.iter_enumerated() {
+        for &id in &body.instructions {
+            if !checks.contains(id) {
+                continue;
+            }
+            let InstKind::ICall { function: Callee::Builtin(builtin), args } = &func.inst(id).kind
+            else {
+                continue;
+            };
+            // A check fails on a nonzero condition, or a zero one with `is_zero`; a require
+            // passes on a nonzero one.
+            let predicate = match builtin {
+                Builtin::Check { is_zero: false, .. } => AssumePredicate::Eq,
+                Builtin::Check { is_zero: true, .. } | Builtin::Require(_) => AssumePredicate::Ne,
+                _ => continue,
+            };
+            if let Some(&condition) = args.first() {
+                passing.push((block, predicate, condition));
+            }
+        }
+    }
+    let blocks = func.inst_block_table();
+    for &(id, _) in unfailing {
+        let Some(block) = blocks[id] else { continue };
+        if let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } = func.inst(id).kind {
+            facts.push(PendingFact::Unfailing(block, op, arithmetic, lhs, rhs));
+        }
+    }
+    for &(block, keep) in folds {
+        let Some(Terminator::Branch { condition, then_block, else_block }) =
+            func.blocks[block].terminator
+        else {
+            continue;
+        };
+        if then_block == else_block {
+            continue;
+        }
+        // c != 0 when the fold keeps the taken edge, c == 0 otherwise
+        let predicate = if keep == then_block { AssumePredicate::Ne } else { AssumePredicate::Eq };
+        let zero = zero_like(func, condition);
+        facts.push(PendingFact::Relation(block, predicate, condition, zero));
+    }
+    // condition == 0 or condition != 0
+    for (block, predicate, condition) in passing {
+        let zero = zero_like(func, condition);
+        facts.push(PendingFact::Relation(block, predicate, condition, zero));
+    }
+    facts
+}
+
+/// A zero of `value`'s type.
+fn zero_like(func: &mut Function, value: ValueId) -> ValueId {
+    let ty = func.value_ty(value);
+    func.alloc_value(Value::Immediate(Immediate::for_type(ty, U256::ZERO)))
 }
 
 #[cfg(test)]
