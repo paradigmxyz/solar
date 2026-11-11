@@ -58,31 +58,28 @@ fn @direct(arg0: i1) -> i256 [selector=0xa8f96c85, pure, abi_params=[bool], abi_
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    v9 = icall returndata_bytes<>
-    v10 = ptradd v9, 32
-    v11 = mload v9
-    v12 = make_memory_slice v10, v11
-    v13 = extract_value slice<memory>, v12, 0
-    v14 = extract_value slice<memory>, v12, 1
-    v15 = extract_value slice<memory>, v12, 0
-    v16 = mload v15
-    v17 = shr v16, 224
-    v18 = eq v17, 0x8c379a0
-    jumpi v18, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    jump bb6
-  bb4 [cold_hint]:                                ; preds = bb2
-    v19 = ptrtoint ptr<memory> v13 to i256
-    v20 = icall @try_decode_error_message, v19, v14
-    jump bb6
-  bb6 [cold_hint]:                                ; preds = bb4, bb5
-    v21 = phi [bb4: v20], [bb5: false]
-    jumpi v21, bb7, bb8
-  bb8 [cold_hint]:                                ; preds = bb6
-    revert v13, v14
-  bb7 [cold_hint]:                                ; preds = bb6
-    v22 = mload v9
-    v23 = ptradd v9, 36
+    v9 = returndatasize
+    v10 = lt v9, 32
+    v11 = select v10, v9, 32
+    returndatacopy 0, 0, v11 !metadata(memory=scratch)
+    v12 = mload 0 !metadata(memory=scratch)
+    v13 = shr v12, 224
+    v14 = eq v13, 0x8c379a0
+    jumpi v14, bb6, bb5
+  bb6 [cold_hint]:                                ; preds = bb2
+    v15 = icall returndata_bytes<>
+    v16 = ptradd v15, 32
+    v17 = mload v15
+    v18 = make_memory_slice v16, v17
+    v19 = extract_value slice<memory>, v18, 0
+    v20 = ptrtoint ptr<memory> v19 to i256
+    v21 = icall @try_decode_error_message, v20, v9
+    jumpi v21, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2, bb6
+    revert_returndata
+  bb4 [cold_hint]:                                ; preds = bb6
+    v22 = mload v15
+    v23 = ptradd v15, 36
     v24 = sub v22, 4
     v25 = make_memory_slice v23, v24
     v26 = abi_decode [bytes], v25
@@ -108,31 +105,28 @@ fn @attached(arg0: i1) -> i256 [selector=0x42425916, abi_params=[bool], abi_retu
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    v9 = icall returndata_bytes<>
-    v10 = ptradd v9, 32
-    v11 = mload v9
-    v12 = make_memory_slice v10, v11
-    v13 = extract_value slice<memory>, v12, 0
-    v14 = extract_value slice<memory>, v12, 1
-    v15 = extract_value slice<memory>, v12, 0
-    v16 = mload v15
-    v17 = shr v16, 224
-    v18 = eq v17, 0x8c379a0
-    jumpi v18, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    jump bb6
-  bb4 [cold_hint]:                                ; preds = bb2
-    v19 = ptrtoint ptr<memory> v13 to i256
-    v20 = icall @try_decode_error_message, v19, v14
-    jump bb6
-  bb6 [cold_hint]:                                ; preds = bb4, bb5
-    v21 = phi [bb4: v20], [bb5: false]
-    jumpi v21, bb7, bb8
-  bb8 [cold_hint]:                                ; preds = bb6
-    revert v13, v14
-  bb7 [cold_hint]:                                ; preds = bb6
-    v22 = mload v9
-    v23 = ptradd v9, 36
+    v9 = returndatasize
+    v10 = lt v9, 32
+    v11 = select v10, v9, 32
+    returndatacopy 0, 0, v11 !metadata(memory=scratch)
+    v12 = mload 0 !metadata(memory=scratch)
+    v13 = shr v12, 224
+    v14 = eq v13, 0x8c379a0
+    jumpi v14, bb6, bb5
+  bb6 [cold_hint]:                                ; preds = bb2
+    v15 = icall returndata_bytes<>
+    v16 = ptradd v15, 32
+    v17 = mload v15
+    v18 = make_memory_slice v16, v17
+    v19 = extract_value slice<memory>, v18, 0
+    v20 = ptrtoint ptr<memory> v19 to i256
+    v21 = icall @try_decode_error_message, v20, v9
+    jumpi v21, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2, bb6
+    revert_returndata
+  bb4 [cold_hint]:                                ; preds = bb6
+    v22 = mload v15
+    v23 = ptradd v15, 36
     v24 = sub v22, 4
     v25 = make_memory_slice v23, v24
     v26 = abi_decode [bytes], v25
@@ -158,31 +152,28 @@ fn @attachedValue(arg0: i256, arg1: i1) -> i256 [selector=0xcece4c7f, pure, abi_
     v5 = delegatecall v0, 0x1111111111111111111111111111111111111111, v3, v4, 0, 32
     jumpi v5, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    v9 = icall returndata_bytes<>
-    v10 = ptradd v9, 32
-    v11 = mload v9
-    v12 = make_memory_slice v10, v11
-    v13 = extract_value slice<memory>, v12, 0
-    v14 = extract_value slice<memory>, v12, 1
-    v15 = extract_value slice<memory>, v12, 0
-    v16 = mload v15
-    v17 = shr v16, 224
-    v18 = eq v17, 0x8c379a0
-    jumpi v18, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    jump bb6
-  bb4 [cold_hint]:                                ; preds = bb2
-    v19 = ptrtoint ptr<memory> v13 to i256
-    v20 = icall @try_decode_error_message, v19, v14
-    jump bb6
-  bb6 [cold_hint]:                                ; preds = bb4, bb5
-    v21 = phi [bb4: v20], [bb5: false]
-    jumpi v21, bb7, bb8
-  bb8 [cold_hint]:                                ; preds = bb6
-    revert v13, v14
-  bb7 [cold_hint]:                                ; preds = bb6
-    v22 = mload v9
-    v23 = ptradd v9, 36
+    v9 = returndatasize
+    v10 = lt v9, 32
+    v11 = select v10, v9, 32
+    returndatacopy 0, 0, v11 !metadata(memory=scratch)
+    v12 = mload 0 !metadata(memory=scratch)
+    v13 = shr v12, 224
+    v14 = eq v13, 0x8c379a0
+    jumpi v14, bb6, bb5
+  bb6 [cold_hint]:                                ; preds = bb2
+    v15 = icall returndata_bytes<>
+    v16 = ptradd v15, 32
+    v17 = mload v15
+    v18 = make_memory_slice v16, v17
+    v19 = extract_value slice<memory>, v18, 0
+    v20 = ptrtoint ptr<memory> v19 to i256
+    v21 = icall @try_decode_error_message, v20, v9
+    jumpi v21, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2, bb6
+    revert_returndata
+  bb4 [cold_hint]:                                ; preds = bb6
+    v22 = mload v15
+    v23 = ptradd v15, 36
     v24 = sub v22, 4
     v25 = make_memory_slice v23, v24
     v26 = abi_decode [bytes], v25
@@ -208,10 +199,7 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[], abi_r
     v3 = delegatecall v0, 0x1111111111111111111111111111111111111111, 28, 4, 0, 0
     jumpi v3, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     icall require<short_string>, false, 6, 0x6361756768740000000000000000000000000000000000000000000000000000
     invalid
@@ -219,6 +207,9 @@ fn @emptyCode() [selector=0xddb3636e, pure, abi_params=[], abi_returns=[], abi_r
     jump bb3
   bb3:                                            ; preds = bb1
     ret
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 fn @try_decode_error_message(arg0: i256, arg1: i256) -> i1 {
