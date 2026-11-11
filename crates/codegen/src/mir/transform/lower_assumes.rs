@@ -13,12 +13,14 @@
 //! - SCCP, every constant it substitutes for a value;
 //! - check elimination, every branch it folds, check it drops, equality it propagates, operand a
 //!   reduced branch condition drops, mask integer cleanup removes and pair of words it fuses into
-//!   one test, and for every checked operation it makes unchecked other than `pow`, that the
-//!   failure test lowering would emit is false;
+//!   one test, and for every checked operation it makes unchecked, that the failure test lowering
+//!   would emit is false;
 //! - CSE and load PRE, every memory, storage or transient read they forward, which they keep as the
 //!   evidence;
 //! - induction variable simplification, the bound on entry that lets it skip clamping a loop's exit
-//!   bound.
+//!   bound;
+//! - the e-graph and late constant folding, the width a rule read from a value's definition to drop
+//!   a mask or an extension, fold a comparison, division or shift, or narrow a comparison.
 //!
 //! No pass reads an `assume`, so a wrong fact cannot prove its own record, and the recording pass
 //! leaves the record's operands out of its own rewrite, so they keep the values the program
@@ -44,18 +46,21 @@
 //! panic uses, so the checks move no memory the program can observe. The fact word packs the
 //! predicate (1: `eq`, 2: `ne`, 3: `ult`, 4: `ule`) in bits 104 and up, the pass that relied on
 //! it (1: `sccp`, 2: `check-elim`, 3: `cse`, 4: `load-pre`, 5: `indvar-simplify`, 7: a source
-//! `@custom:ensures` clause) in bits 96 to 103, then the function's index in its module, the block
-//! and the left operand, as MIR text
-//! numbers them (an argument with bit 31 set), in 32-bit fields, so
-//! `-Zcheck-analyses=true -Zdump=mir` shows the claim next to the code it was made about.
+//! `@custom:ensures` clause, 8: `egraph`, 9: `const-fold`) in bits 96 to 103, then the function's
+//! index in its module, the block and the left operand, as MIR text numbers them (an argument with
+//! bit 31 set), in 32-bit fields, so `-Zcheck-analyses=true -Zdump=mir` shows the claim next to the
+//! code it was made about.
 //!
 //! The checks change the program's gas and size, never its other behavior: a fact that holds
 //! passes its test. Facts are tested where their block ends rather than where they were used, so
 //! a block that ends early, in a call that reverts, skips its tests. Facts behind dead store
-//! elimination, storage promotion and a `pow` that cannot overflow are not recorded, nor is an
-//! analysis result only cost decisions read. A record keeps the values it is about alive, so a
-//! checked build can optimize slightly differently from an unchecked one; a record costs nothing
-//! in the cost model, which keeps that difference small.
+//! elimination and storage promotion are not recorded, nor is an analysis result only cost
+//! decisions read. Check elimination never makes a checked `pow` unchecked: lowering expands one
+//! with a constant base to a test of the exponent against its largest power that fits, and the
+//! rewrite that folds that test records what it relied on, the e-graph the exponent's width or
+//! check elimination the branch. A record keeps the values it is about alive, so a checked build
+//! can optimize slightly differently from an unchecked one; a record costs nothing in the cost
+//! model, which keeps that difference small.
 //!
 //! Source specifications are records too (see the function lowering's `spec` module): a
 //! `@custom:ensures` clause is a `spec_ensures` record at each return, tested and proved like any
@@ -299,6 +304,8 @@ const fn source_id(source: FactSource) -> u8 {
         FactSource::IndvarSimplify => 5,
         FactSource::SpecRequires => 6,
         FactSource::SpecEnsures => 7,
+        FactSource::Egraph => 8,
+        FactSource::ConstFold => 9,
     }
 }
 

@@ -197,6 +197,8 @@ fn describe_violation(data: &[u8]) -> Option<String> {
         3 => "cse",
         4 => "load-pre",
         5 => "indvar-simplify",
+        8 => "egraph",
+        9 => "const-fold",
         _ => "an unknown pass",
     };
     let predicate = match byte(104) {

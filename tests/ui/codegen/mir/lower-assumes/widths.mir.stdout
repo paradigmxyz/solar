@@ -1,0 +1,73 @@
+; === ROOT/tests/ui/codegen/mir/lower-assumes/widths.sol:Widths ===
+@module Widths
+; function divided(uint8 a) external pure returns (uint256) [selector 0x031dc3fb]
+fn @divided(arg0: i8) -> i256 [selector=0x031dc3fb, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = zext i8 arg0 to i256
+    v1 = checked_div uint256, v0, 300
+    ret v1
+}
+
+; function masked(uint8 a) external pure returns (uint256) [selector 0x3ae6d342]
+fn @masked(arg0: i8) -> i256 [selector=0x3ae6d342, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = zext i8 arg0 to i256
+    v1 = and v0, 0xffff
+    ret v1
+}
+
+; function power(uint8 e) external pure returns (uint256) [selector 0xe1679c0c]
+fn @power(arg0: i8) -> i256 [selector=0xe1679c0c, pure, abi_params=[uint8], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = zext i8 arg0 to i256
+    v1 = checked_pow uint256, 2, v0
+    ret v1
+}
+
+; function bounded_power(uint256 e) external pure returns (uint256) [selector 0x18068f44]
+fn @bounded_power(arg0: i256) -> i256 [selector=0x18068f44, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = lt arg0, 100
+    v1 = eq v0, false
+    icall revert_if<empty>, v1
+    v2 = checked_pow uint256, 3, arg0
+    ret v2
+}
+
+; function product(uint256 n) external pure returns (uint256 p) [selector 0x780bd3f1]
+fn @product(arg0: i256) -> i256 [selector=0x780bd3f1, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    jump bb1
+  bb1:                                            ; preds = bb0, bb3
+    v0 = phi [bb0: arg0], [bb3: v0]
+    v1 = phi [bb0: 1], [bb3: v5]
+    v2 = phi [bb0: 2], [bb3: v6]
+    v3 = lt v0, v2
+    v4 = eq v3, false
+    jumpi v4, bb4, bb5
+  bb5:                                            ; preds = bb1
+    jump bb2
+  bb2:                                            ; preds = bb5
+    ret v1
+  bb4:                                            ; preds = bb1
+    v5 = checked_mul uint256, v1, v2
+    jump bb6
+  bb6:                                            ; preds = bb4
+    jump bb3
+  bb3:                                            ; preds = bb6
+    v6 = checked_add uint256, v2, 1
+    jump bb1
+}
+
+; function both(bool a, bool b) external pure returns (bool) [selector 0x599b0e88]
+fn @both(arg0: i1, arg1: i1) -> i1 [selector=0x599b0e88, pure, abi_params=[bool, bool], abi_returns=[word<bool>], abi_return_params=[bool]] {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb1:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb1, bb2
+    v0 = phi [bb1: arg1], [bb2: false]
+    ret v0
+}

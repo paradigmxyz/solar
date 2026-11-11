@@ -1,0 +1,12 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A false width: a byte mask leaves values up to 255, not only ones below 10.
+@module FalseWidth
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = and v0, 0xff
+    assume ult egraph, v1, 10
+    mstore 0, 0
+    returndata 0, 32
+}

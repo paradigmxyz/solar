@@ -12,7 +12,7 @@
       (if-let true (single_use shifted))
       (if-let true (u256_lt shift (integer_width)))
       (if-let true (mask_covers (u256_shr shift (u256_max)) x))
-      (Op.Add x (imm (u256 0))))
+      (relied_ule_op x (u256_shr shift (u256_max)) (Op.Add x (imm (u256 0)))))
 
 ;; A mask may be omitted when every cleared bit is shifted out of the word.
 ;; (x & mask) << shift => x << shift.

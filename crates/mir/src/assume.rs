@@ -4,10 +4,11 @@
 //! that fact where it acted, as `assume <predicate> <source>, lhs, rhs`: SCCP replacing a value
 //! with the constant it proved, check elimination folding a branch, dropping a check or an
 //! overflow test, or substituting a value it proved equal, CSE and load PRE forwarding a read
-//! from a value an alias analysis proved it equals, or induction variable simplification
-//! relying on a loop bound it proved on entry. No pass reads an `assume`, so a wrong fact cannot
-//! prove its own record true, and the pass that records one leaves its operands out of its own
-//! rewrite, so they keep the values the program computes. Later passes treat the record as an
+//! from a value an alias analysis proved it equals, induction variable simplification
+//! relying on a loop bound it proved on entry, or a rule of the e-graph or late constant folding
+//! relying on a width a value's definition bounds. No pass reads an `assume`, so a wrong fact
+//! cannot prove its own record true, and the pass that records one leaves its operands out of its
+//! own rewrite, so they keep the values the program computes. Later passes treat the record as an
 //! ordinary use. `lower-assumes` turns every record into a run-time test before the backend.
 //!
 //! Source specifications travel the same way: with recording on, a function's
@@ -59,6 +60,10 @@ pub enum FactSource {
     /// implied by the function's `@custom:requires` clauses. An obligation of the source, tested
     /// and proved like the facts passes record.
     SpecEnsures,
+    /// A width an e-graph rule relied on, which the value's definition bounds.
+    Egraph,
+    /// A width a rule late constant folding reuses from the e-graph relied on.
+    ConstFold,
 }
 
 impl FactSource {
@@ -72,6 +77,8 @@ impl FactSource {
             Self::IndvarSimplify => "indvar_simplify",
             Self::SpecRequires => "spec_requires",
             Self::SpecEnsures => "spec_ensures",
+            Self::Egraph => "egraph",
+            Self::ConstFold => "const_fold",
         }
     }
 }
