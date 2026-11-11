@@ -574,6 +574,15 @@ impl LowerAbiCx {
                             _ => false,
                         }
                     {
+                        if matches!(ty, AbiParamType::DynamicArray(_)) {
+                            // Assembly can set a length whose head size wraps to a small one,
+                            // where solc runs out of gas.
+                            // if length > 0xffffffffffffffff { revert }
+                            let length = builder.slice_len(value);
+                            let max_length = builder.imm(u64::MAX);
+                            let too_long = builder.gt(length, max_length);
+                            builder.revert_if(too_long, RevertReason::Empty);
+                        }
                         return value;
                     }
                     // The encoder cleans each word it reads from a memory aggregate, so a

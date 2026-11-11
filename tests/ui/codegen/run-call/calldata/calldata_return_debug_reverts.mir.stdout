@@ -80,6 +80,18 @@ fn @emitNarrow(arg0: slice<calldata>) [selector=0xd295ec69, abi_params=[tuple<ui
     ret
 }
 
+; function forgedItems(uint256 offset, uint256 length) external pure returns (Pair[] calldata p) [selector 0xb7b0e273]
+fn @forgedItems(arg0: i256, arg1: i256) -> slice<calldata> [selector=0xb7b0e273, pure, abi_params=[uint256, uint256], abi_returns=[memory_array<tuple<word, word>>], abi_return_params=[array<_, tuple<uint256, uint256>>]] {
+  bb0:
+    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v1 = extract_value slice<calldata>, v0, 1
+    v2 = inttoptr i256 arg0 to ptr<calldata>
+    v3 = make_calldata_slice v2, v1
+    v4 = extract_value slice<calldata>, v3, 0
+    v5 = make_calldata_slice v4, arg1
+    ret v5
+}
+
 ; function wrapWords(uint256 p) external pure returns (uint256[2] calldata a) [selector 0x1260966b]
 fn @wrapWords(arg0: i256) -> slice<calldata> [selector=0x1260966b, pure, abi_params=[uint256], abi_returns=[array<2, word>], abi_return_params=[array<2, uint256>]] {
   bb0:

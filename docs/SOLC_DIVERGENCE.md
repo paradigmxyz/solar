@@ -1050,19 +1050,3 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
-
-### CODEGEN-024: Returned calldata arrays do not check an assembly-set length
-
-- ID: CODEGEN-024
-- Status: parity debt
-- Difference: after `p.length := n` in assembly, with `n` large enough that
-  `n * element head size` wraps to a small number, such as `2**250` for an
-  array of two-word structs, `solc` reverts when it encodes `p` for a `return`,
-  because it loops over every element and runs out of gas. `solar` encodes the
-  array in the return buffer with its wrapped size, and the call succeeds with
-  the length word and no element data. A length set by ABI decoding or slicing
-  cannot reach this, because both check it.
-- Rationale: a length check at every encode site costs code size in programs
-  that cannot reach the case, and `abi.encode` and events already revert when
-  they allocate the oversized buffer.
-- Coverage: none.
