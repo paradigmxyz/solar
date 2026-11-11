@@ -111,26 +111,20 @@ fn @run() -> i16 [selector=0xc0406226, abi_params=[], abi_returns=[word<uint16>]
     v2 = tload 0
     v3 = trunc i256 v2 to i16
     v4 = checked_add uint16, v3, i16 10
-    v5 = tload 0
-    v6 = and v5, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
-    v7 = zext i16 v4 to i256
-    v8 = and v7, 0xffff
-    v9 = or v6, v8
-    tstore 0, v9
-    v10 = tload 0
-    v11 = trunc i256 v10 to i16
-    v12 = checked_mul uint16, v11, i16 10
-    v13 = tload 0
-    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
-    v15 = zext i16 v12 to i256
-    v16 = and v15, 0xffff
-    v17 = or v14, v16
-    tstore 0, v17
-    v18 = tload 0
-    v19 = trunc i256 v18 to i16
+    v5 = zext i16 v4 to i256
+    v6 = and v5, 0xffff
+    tstore 0, v6
+    v7 = tload 0
+    v8 = trunc i256 v7 to i16
+    v9 = checked_mul uint16, v8, i16 10
+    v10 = zext i16 v9 to i256
+    v11 = and v10, 0xffff
+    tstore 0, v11
+    v12 = tload 0
+    v13 = trunc i256 v12 to i16
     jump bb2
   bb2:                                            ; preds = bb0
     jump bb1
   bb1:                                            ; preds = bb2
-    ret v19
+    ret v13
 }

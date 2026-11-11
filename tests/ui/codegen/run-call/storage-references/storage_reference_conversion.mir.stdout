@@ -710,13 +710,10 @@ fn @revertMessage() [selector=0x9d667c99, abi_params=[], abi_returns=[], abi_ret
 ; function fixedBytesValue() external returns (bytes4) [selector 0x2875668d]
 fn @fixedBytesValue() -> i256 [selector=0x2875668d, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
+    sstore 10, 0x11223344 !metadata(storage=slot(10))
     v0 = sload 10 !metadata(storage=slot(10))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
-    v2 = or v1, 0x11223344
-    sstore 10, v2 !metadata(storage=slot(10))
-    v3 = sload 10 !metadata(storage=slot(10))
-    v4 = shl v3, 224
-    ret v4
+    v1 = shl v0, 224
+    ret v1
 }
 
 fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
