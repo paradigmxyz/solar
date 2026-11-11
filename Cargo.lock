@@ -4413,6 +4413,7 @@ dependencies = [
  "solar-mir",
  "solar-parse",
  "solar-sema",
+ "solar-smt",
  "tempfile",
  "tracing",
 ]

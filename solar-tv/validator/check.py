@@ -18,7 +18,9 @@ UNFOLD = (
     "before, after, MIR.eval, MIR.choose, MIR.phi, MIR.cast, MIR.compare, MIR.branch, MIR.guard, "
     "Outcome.bind_return, "
     "EVM.execute, EVM.finish, EVM.stepChecked, EVM.step, Evm.eq, Evm.iszero, Evm.not, "
-    "Evm.sub, Evm.add, Evm.mul, Evm.and, Evm.or, Evm.xor"
+    "Evm.sub, Evm.add, Evm.mul, Evm.and, Evm.or, Evm.xor, Evm.div, Evm.sdiv, Evm.mod, "
+    "Evm.smod, Evm.addmod, Evm.mulmod, Evm.exp, Evm.signextend, Evm.lt, Evm.gt, Evm.slt, "
+    "Evm.sgt, Evm.byte, Evm.shl, Evm.shr, Evm.sar"
 )
 
 

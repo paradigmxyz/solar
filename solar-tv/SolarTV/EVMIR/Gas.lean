@@ -43,10 +43,22 @@ def expansionCost (before after : SolarTV.Memory.State) : Nat :=
   memoryCost after.words.toNat - memoryCost before.words.toNat
 
 def pureCost : EVM.Op → Nat
-  | .mul => 5
+  | .mul | .div | .sdiv | .mod | .smod | .signextend => 5
+  | .addmod | .mulmod => 8
+  | .exp => 10
   | .pop | .calldatasize | .returndatasize => 2
   | .push value => if value = 0 then 2 else 3
-  | .eq | .sub | .add | .and | .or | .xor | .iszero | .not | .dup _ | .swap _ => 3
+  | .eq | .sub | .add | .and | .or | .xor | .iszero | .not | .dup _ | .swap _
+  | .lt | .gt | .slt | .sgt | .byte | .shl | .shr | .sar => 3
+
+/-- The bytes of a word's minimal big-endian encoding, which EXP charges for. -/
+def byteLength (value : Word) : Nat :=
+  if value = 0 then 0 else Nat.log2 value.toNat / 8 + 1
+
+/-- EXP's dynamic charge: 50 gas per byte of the exponent, its second operand. -/
+def exponentCost : Memory.Op → Stack → Nat
+  | .stack .exp, _ :: exponent :: _ => 50 * byteLength exponent
+  | _, _ => 0
 
 def baseCost : Memory.Op → Nat
   | .stack op => pureCost op
@@ -61,7 +73,7 @@ def touched (op : Memory.Op) (stack : Stack) (memory : SolarTV.Memory.State) :
   | _, _ => memory
 
 def cost (op : Memory.Op) (stack : Stack) (memory : SolarTV.Memory.State) : Nat :=
-  baseCost op + expansionCost memory (touched op stack memory)
+  baseCost op + exponentCost op stack + expansionCost memory (touched op stack memory)
 
 def finish (terminal : Memory.Terminal) (stack : Stack) (memory : SolarTV.Memory.State)
     (gas : Nat) : Result :=

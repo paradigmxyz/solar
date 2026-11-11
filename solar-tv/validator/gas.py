@@ -10,7 +10,8 @@ from .common import Unsupported
 VERSIONS = {"cancun", "prague", "osaka"}
 UNFOLD = (
     "EVM.Gas.execute, EVM.Gas.finish, EVM.Gas.cost, EVM.Gas.baseCost, "
-    "EVM.Gas.pureCost, EVM.Gas.touched, EVM.Gas.expansionCost, EVM.Gas.halted, "
+    "EVM.Gas.pureCost, EVM.Gas.exponentCost, EVM.Gas.byteLength, EVM.Gas.touched, "
+    "EVM.Gas.expansionCost, EVM.Gas.halted, "
     "EVM.Gas.exhausted, EVM.Gas.refines"
 )
 
@@ -25,8 +26,13 @@ def validate(mode: str | None, version: str) -> None:
 def estimate(line: str) -> int:
     if line in {"gas", "msize", "pop", "calldatasize", "returndatasize"}:
         return 2
-    if line == "mul":
+    if line in {"mul", "div", "sdiv", "mod", "smod", "signextend"}:
         return 5
+    if line in {"addmod", "mulmod"}:
+        return 8
+    if line == "exp":
+        # The exponent's bytes add 50 gas each; the estimate takes the minimum.
+        return 10
     if line in {"push 0", "push 0x0"}:
         return 2
     return 3

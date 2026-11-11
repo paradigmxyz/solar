@@ -16,7 +16,7 @@ theorem swap_add_refines (ctx : Context) (a b destination : Word)
         (.control (.jump destination)) [a, b] memory gas)
       (execute ctx [.instruction (.stack .add)]
         (.control (.jump destination)) [a, b] memory gas) := by
-  simp [refines, execute, finish, cost, baseCost, pureCost, touched, expansionCost,
+  simp [refines, execute, finish, cost, baseCost, pureCost, exponentCost, touched, expansionCost,
     halted, exhausted, Memory.step, Memory.finish, EVM.stepChecked, EVM.step,
     EVM.finish, Except.map, Evm.add, BitVec.add_comm]
   repeat' (first | omega | (split <;> simp_all))

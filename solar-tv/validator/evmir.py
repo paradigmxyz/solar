@@ -11,6 +11,24 @@ from . import gas as pricing
 from . import memory as mem
 from .common import Program, Unsupported, lines, literal
 
+# Two-operand word operations beyond the arithmetic and bitwise core.
+BINARY = {
+    "div",
+    "sdiv",
+    "mod",
+    "smod",
+    "exp",
+    "signextend",
+    "lt",
+    "gt",
+    "slt",
+    "sgt",
+    "byte",
+    "shl",
+    "shr",
+    "sar",
+}
+
 
 def translate(
     text: str,
@@ -122,6 +140,12 @@ def translate(
                     constants.insert(0, None)
             else:
                 constants = [None, *constants[2:]]
+        elif line in BINARY:
+            operation = f".{line}"
+            constants = [None, *constants[2:]]
+        elif line in {"addmod", "mulmod"}:
+            operation = f".{line}"
+            constants = [None, *constants[3:]]
         elif stack_op := re.fullmatch(r"(dup|swap) (\d+)", line):
             depth = int(stack_op[2])
             if not 1 <= depth <= 16:
