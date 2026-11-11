@@ -174,6 +174,12 @@ pub(super) fn is_terminal_boundary(kind: &TerminatorKind) -> bool {
         || matches!(kind, TerminatorKind::Op(opcode) if op::is_terminal(*opcode))
 }
 
+/// Returns whether `inst` is `PC`. Equal opcodes at different positions return different values,
+/// so code containing it cannot be shared.
+pub(super) fn is_pc(inst: &Instruction) -> bool {
+    inst.as_evm_opcode() == Some(op::PC)
+}
+
 /// Counts the pushed labels and terminator edges targeting each block, plus the program entry.
 pub(super) fn count_block_references(module: &Module, references: &mut IndexVec<BlockId, usize>) {
     references.clear();

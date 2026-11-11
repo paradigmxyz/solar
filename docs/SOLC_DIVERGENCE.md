@@ -1138,3 +1138,23 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Rationale: only assembly or a broken storage layout writes such a value, and
   moving the check to each use cost about a thousand lines of compiler code.
 - Coverage: `tests/ui/codegen/run-call/storage/storage_dirty_enum_load.sol`.
+
+
+### CODEGEN-025: Writing a value that owns its storage slot clears the dirty padding
+
+- ID: CODEGEN-025
+- Status: intentional
+- Difference: after assembly writes dirty bits into the unused high bits of a
+  slot that holds one value narrower than a word, assigning to that value
+  keeps the bits in `solc`, because `solc` updates the field in place.
+  `solar` writes the whole word and clears them. This covers a state variable
+  or struct field alone in its slot, a mapping value, the only element of a
+  one-element array such as `uint8[1]`, and an element of an array whose
+  elements fill more than half a slot, such as an `address[]`.
+  Loads mask the value either way. A value that shares its slot keeps its
+  neighbors in both compilers.
+- Rationale: the padding belongs to no other value, so the whole-word store
+  needs no `SLOAD` and no mask constant, and is smaller and cheaper than
+  matching `solc`.
+- Coverage: `tests/ui/codegen/run-call/storage/storage_exclusive_slot_padding.sol` and
+  `tests/ui/codegen/lowering/mir/storage-memory/owned_slot_stores.sol`.

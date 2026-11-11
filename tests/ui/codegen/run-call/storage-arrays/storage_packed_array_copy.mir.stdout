@@ -17,17 +17,11 @@ fn @constructor() [constructor] {
     v21 = lt 8, 10
     v22 = eq v21, false
     icall panic_if<0x32>, v22
-    v23 = sload 11 !metadata(storage=slot(11))
-    v24 = and v23, 0xffffffffffffffffffffffffffffff0000000000000000000000000000000000
-    v25 = or v24, 0x2000000000000000000
-    sstore 11, v25 !metadata(storage=slot(11))
-    v26 = lt 9, 10
-    v27 = eq v26, false
-    icall panic_if<0x32>, v27
-    v28 = sload 12 !metadata(storage=slot(12))
-    v29 = and v28, 0xffffffffffffffffffffffffffffff0000000000000000000000000000000000
-    v30 = or v29, 0x2000000000000000000
-    sstore 12, v30 !metadata(storage=slot(12))
+    sstore 11, 0x2000000000000000000 !metadata(storage=slot(11))
+    v23 = lt 9, 10
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    sstore 12, 0x2000000000000000000 !metadata(storage=slot(12))
     ret
   bb4:                                            ; preds = bb1
     v2 = trunc i256 v0 to i64
@@ -71,113 +65,90 @@ fn @test() -> struct0 [selector=0xf8a8fd6d, abi_params=[], abi_returns=[word, wo
     v19 = ptrtoint ptr<memory> v0 to i256
     jump bb7
   bb7:                                            ; preds = bb3, bb12
-    v20 = phi [bb3: 0], [bb12: v46]
+    v20 = phi [bb3: 0], [bb12: v28]
     v21 = lt v20, 10
     jumpi v21, bb8, bb9
   bb9:                                            ; preds = bb7
     jump bb13
   bb13:                                           ; preds = bb9, bb15
-    v47 = phi [bb9: 0], [bb15: v64]
-    v48 = phi [bb9: 0], [bb15: v48]
-    v49 = phi [bb9: 0], [bb15: v65]
-    v50 = lt v49, 9
-    jumpi v50, bb16, bb17
+    v29 = phi [bb9: 0], [bb15: v46]
+    v30 = phi [bb9: 0], [bb15: v30]
+    v31 = phi [bb9: 0], [bb15: v47]
+    v32 = lt v31, 9
+    jumpi v32, bb16, bb17
   bb17:                                           ; preds = bb13
     jump bb14
   bb14:                                           ; preds = bb17
     jump bb19
   bb19:                                           ; preds = bb14, bb21
-    v66 = phi [bb14: v47], [bb21: v66]
-    v67 = phi [bb14: v48], [bb21: v85]
-    v68 = phi [bb14: v49], [bb21: v68]
-    v69 = phi [bb14: 0], [bb21: v86]
-    v70 = lt v69, 10
-    jumpi v70, bb22, bb23
+    v48 = phi [bb14: v29], [bb21: v48]
+    v49 = phi [bb14: v30], [bb21: v62]
+    v50 = phi [bb14: v31], [bb21: v50]
+    v51 = phi [bb14: 0], [bb21: v63]
+    v52 = lt v51, 10
+    jumpi v52, bb22, bb23
   bb23:                                           ; preds = bb19
     jump bb20
   bb20:                                           ; preds = bb23
-    v87 = insert_value struct0, undef struct0, 0, v66
-    v88 = insert_value struct0, v87, 1, v67
-    ret v88
+    v64 = insert_value struct0, undef struct0, 0, v48
+    v65 = insert_value struct0, v64, 1, v49
+    ret v65
   bb22:                                           ; preds = bb19
-    v71 = lt v69, 10
-    v72 = eq v71, false
-    icall panic_if<0x32>, v72
-    v73 = div v69, 1
-    v74 = add v73, 3
-    v75 = mod v69, 1
-    v76 = mul v75, 17
-    v77 = sload v74 !metadata(storage=offset(v73, 3))
-    v78 = mul v76, 8
-    v79 = shr v77, v78
-    v80 = shl v79, 120
-    v81 = and v80, 0xffffffffffffffff000000000000000000000000000000000000000000000000
-    v82 = shr v81, 192
-    v83 = trunc i256 v82 to i64
-    v84 = zext i64 v83 to i256
-    v85 = checked_add uint256, v67, v84
+    v53 = lt v51, 10
+    v54 = eq v53, false
+    icall panic_if<0x32>, v54
+    v55 = add v51, 3
+    v56 = sload v55 !metadata(storage=offset(v51, 3))
+    v57 = shl v56, 120
+    v58 = and v57, 0xffffffffffffffff000000000000000000000000000000000000000000000000
+    v59 = shr v58, 192
+    v60 = trunc i256 v59 to i64
+    v61 = zext i64 v60 to i256
+    v62 = checked_add uint256, v49, v61
     jump bb24
   bb24:                                           ; preds = bb22
     jump bb21
   bb21:                                           ; preds = bb24
-    v86 = checked_add uint256, v69, 1
+    v63 = checked_add uint256, v51, 1
     jump bb19
   bb16:                                           ; preds = bb13
-    v51 = lt v49, 9
-    v52 = eq v51, false
-    icall panic_if<0x32>, v52
-    v53 = div v49, 4
-    v54 = add v53, 0
-    v55 = mod v49, 4
-    v56 = mul v55, 8
-    v57 = sload v54 !metadata(storage=symbolic(v53))
-    v58 = mul v56, 8
-    v59 = shr v57, v58
-    v60 = shl v59, 192
-    v61 = shr v60, 192
-    v62 = trunc i256 v61 to i64
-    v63 = zext i64 v62 to i256
-    v64 = checked_add uint256, v47, v63
+    v33 = lt v31, 9
+    v34 = eq v33, false
+    icall panic_if<0x32>, v34
+    v35 = div v31, 4
+    v36 = add v35, 0
+    v37 = mod v31, 4
+    v38 = mul v37, 8
+    v39 = sload v36 !metadata(storage=symbolic(v35))
+    v40 = mul v38, 8
+    v41 = shr v39, v40
+    v42 = shl v41, 192
+    v43 = shr v42, 192
+    v44 = trunc i256 v43 to i64
+    v45 = zext i64 v44 to i256
+    v46 = checked_add uint256, v29, v45
     jump bb18
   bb18:                                           ; preds = bb16
     jump bb15
   bb15:                                           ; preds = bb18
-    v65 = checked_add uint256, v49, 1
+    v47 = checked_add uint256, v31, 1
     jump bb13
   bb8:                                            ; preds = bb7
-    v22 = div v20, 1
-    v23 = add v22, 3
-    v24 = mod v20, 1
-    v25 = mul v24, 17
-    v26 = lt v20, 9
-    jumpi v26, bb10, bb11
+    v22 = add v20, 3
+    v23 = lt v20, 9
+    jumpi v23, bb10, bb11
   bb11:                                           ; preds = bb8
-    v39 = mul v25, 8
-    v40 = shl 0xffffffffffffffffffffffffffffffffff, v39
-    v41 = sload v23 !metadata(storage=offset(v22, 3))
-    v42 = not v40
-    v43 = and v41, v42
-    v44 = shl 0, v39
-    v45 = or v43, v44
-    sstore v23, v45 !metadata(storage=offset(v22, 3))
+    sstore v22, 0 !metadata(storage=offset(v20, 3))
     jump bb12
   bb10:                                           ; preds = bb8
-    v27 = shl v20, 5
-    v28 = ptradd v0, v27
-    v29 = mload v28
-    v30 = mul v25, 8
-    v31 = shl 0xffffffffffffffffffffffffffffffffff, v30
-    v32 = sload v23 !metadata(storage=offset(v22, 3))
-    v33 = not v31
-    v34 = and v32, v33
-    v35 = shr v29, 120
-    v36 = and v35, 0xffffffffffffffffffffffffffffffffff
-    v37 = shl v36, v30
-    v38 = or v34, v37
-    sstore v23, v38 !metadata(storage=offset(v22, 3))
+    v24 = shl v20, 5
+    v25 = ptradd v0, v24
+    v26 = mload v25
+    v27 = shr v26, 120
+    sstore v22, v27 !metadata(storage=offset(v20, 3))
     jump bb12
   bb12:                                           ; preds = bb10, bb11
-    v46 = add v20, 1
+    v28 = add v20, 1
     jump bb7
   bb2:                                            ; preds = bb1
     v3 = add v1, 0

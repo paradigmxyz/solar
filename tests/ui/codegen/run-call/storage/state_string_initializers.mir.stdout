@@ -13,10 +13,7 @@ fn @constructor() [constructor] {
     v3 = ptradd v2, 32
     mstore v3, 0x4e45524332300000000000000000000000000000000000000000000000000000
     icall @store_storage_bytes, 1, v2
-    v4 = sload 2 !metadata(storage=slot(2))
-    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v6 = or v5, 18
-    sstore 2, v6 !metadata(storage=slot(2))
+    sstore 2, 18 !metadata(storage=slot(2))
     ret
 }
 

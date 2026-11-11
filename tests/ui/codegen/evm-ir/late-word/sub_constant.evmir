@@ -9,9 +9,8 @@
 // Computes `x - c` for `c` of 1, 32, 0, 2**256 - 1, and 2**255, with `x` on top of the stack.
 // `PUSH c; SWAP1; SUB` becomes `materialize(-c); ADD` where that is cheaper: `x - 1` on osaka
 // and size but not on paris, which has no `PUSH0`, and `x - 0` and `x - 2**256 + 1` on all three.
-// `x - 32` ties and stays. `x - 2**255` stays: `PUSH1 128; PUSH1 248; SHL; ADD` costs three more
-// gas than the literal `PUSH32; SWAP1; SUB` and needs a second stack word, which the size
-// revision refuses too.
+// `x - 32` ties and stays. `x - 2**255` stays for gas: `PUSH1 128; PUSH1 248; SHL; ADD` costs
+// three more gas than the literal `PUSH32; SWAP1; SUB`, but is smaller, so size takes it.
 @module sub_constant
 bb0:
   push 4
