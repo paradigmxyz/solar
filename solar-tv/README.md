@@ -378,3 +378,35 @@ value and rechecks the saved pair with Lean:
 SOLAR="$PWD/target/debug/solar" SOLAR_TV="$PWD/solar-tv/solar-tv" \
   cargo nextest run -p solar-compiler --test it --run-ignored only -E 'test(solar_tv::)'
 ```
+## Agreement with the pass validation encoder
+
+[Agreement/Encoder.lean](SolarTV/Agreement/Encoder.lean) proves that the SMT terms
+`-Zvalidate-passes` builds are the Lean semantics. The `lean_agreement` test in
+`crates/codegen/src/mir/transform/validate_passes.rs` generates it: it asks the real
+encoder for the term of each operation on symbolic operands and translates the term
+with the certifier's `word_term`, so a change to either shows up as a snapshot diff
+and must still prove. Regenerate it with
+`SNAPSHOTS=overwrite cargo nextest run -p solar-codegen lean_agreement`.
+
+- `word_X` and `step_X`: every pure opcode the encoder models exactly (ADD, MUL, SUB,
+  DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND,
+  OR, XOR, NOT, BYTE, SHL, SHR and SAR) equals its `EvmRules.Evm` definition and the
+  word `EVM.step` pushes.
+- `exp_base_X` and `exp_power_X`: the shapes of EXP the encoder computes exactly, a
+  base of 0, 1, 2, 16 or 256 and an exponent of 0, 1, 2 or 8.
+- `abstract_X`: the laws of the abstract tier hold of the exact MUL, DIV, MOD, ADDMOD
+  and MULMOD, so the abstraction only adds models.
+- `mir_X_iN`: each MIR operation on i1, i160 and i256 operands, which the encoder
+  keeps as zero-extended words masked to their width, gives the zero-extended result
+  of its [MIR/Ops.lean](SolarTV/MIR/Ops.lean) definition, including casts, `ne` and
+  `select`. Signed operations appear at i256 only, since the encoder rejects them on
+  narrow integers.
+
+[Agreement/Tactic.lean](SolarTV/Agreement/Tactic.lean) holds the tactics. Division,
+remainder, products and powers go through rewriting and `BitVec.toNat`; the rest is
+bit-blasted. CLZ, EXP outside these shapes, memory, storage, calls and environment
+reads are uninterpreted in the encoder and have no agreement theorem.
+
+EVM IR windows also accept DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT,
+GT, SLT, SGT, BYTE, SHL, SHR and SAR, with their Cancun prices in
+[EVMIR/Gas.lean](SolarTV/EVMIR/Gas.lean), EXP's 50 gas per exponent byte included.

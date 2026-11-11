@@ -14,6 +14,8 @@ inductive Op where
   | eq | sub | add | mul | and | or | xor | iszero | not
   | calldatasize | returndatasize | push (value : Word)
   | pop | dup (index : Fin 16) | swap (index : Fin 16)
+  | div | sdiv | mod | smod | addmod | mulmod | exp | signextend
+  | lt | gt | slt | sgt | byte | shl | shr | sar
 
 structure Context where
   calldataSize : Word
@@ -37,6 +39,22 @@ def step (ctx : Context) : Op → Stack → Option Stack
   | .calldatasize, rest => some (ctx.calldataSize :: rest)
   | .returndatasize, rest => some (ctx.returndataSize :: rest)
   | .push value, rest => some (value :: rest)
+  | .div, a :: b :: rest => some (Evm.div a b :: rest)
+  | .sdiv, a :: b :: rest => some (Evm.sdiv a b :: rest)
+  | .mod, a :: b :: rest => some (Evm.mod a b :: rest)
+  | .smod, a :: b :: rest => some (Evm.smod a b :: rest)
+  | .addmod, a :: b :: n :: rest => some (Evm.addmod a b n :: rest)
+  | .mulmod, a :: b :: n :: rest => some (Evm.mulmod a b n :: rest)
+  | .exp, a :: b :: rest => some (Evm.exp a b :: rest)
+  | .signextend, a :: b :: rest => some (Evm.signextend a b :: rest)
+  | .lt, a :: b :: rest => some (Evm.lt a b :: rest)
+  | .gt, a :: b :: rest => some (Evm.gt a b :: rest)
+  | .slt, a :: b :: rest => some (Evm.slt a b :: rest)
+  | .sgt, a :: b :: rest => some (Evm.sgt a b :: rest)
+  | .byte, a :: b :: rest => some (Evm.byte a b :: rest)
+  | .shl, a :: b :: rest => some (Evm.shl a b :: rest)
+  | .shr, a :: b :: rest => some (Evm.shr a b :: rest)
+  | .sar, a :: b :: rest => some (Evm.sar a b :: rest)
   | _, _ => none
 
 /-! The bounded machine follows EVMYulLean 047f630, Data/Stack.lean and

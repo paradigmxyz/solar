@@ -11,6 +11,7 @@ import SolarTV.MIR.Transforms.DeadStore
 import SolarTV.MemorySafety
 import SolarTV.EVMIR.GasSafety
 import SolarTV.EVMIR.Transforms.GasSwapAdd
+import SolarTV.Agreement.Encoder
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -57,3 +58,31 @@ import SolarTV.EVMIR.Transforms.GasSwapAdd
 /-- info: 'SolarTV.EVM.Gas.swap_add_refines' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.Gas.swap_add_refines
+-- The agreement theorems that the pass validation encoder's terms are the Lean semantics.
+-- A bit-blasted proof also depends on its own axiom for bv_decide's natively evaluated
+-- LRAT check.
+/-- info: 'SolarTV.Agreement.step_sdiv' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Agreement.step_sdiv
+
+/-- info: 'SolarTV.Agreement.abstract_mulmod' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Agreement.abstract_mulmod
+
+/--
+info: 'SolarTV.Agreement.word_signextend' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ SolarTV.Agreement.word_signextend._native.bv_decide.ax_1_15]
+-/
+#guard_msgs in
+#print axioms SolarTV.Agreement.word_signextend
+
+/--
+info: 'SolarTV.Agreement.mir_add_i160' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ SolarTV.Agreement.mask_160._native.bv_decide.ax_1_5]
+-/
+#guard_msgs in
+#print axioms SolarTV.Agreement.mir_add_i160

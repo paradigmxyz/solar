@@ -37,6 +37,7 @@ tempfile.workspace = true
 
 [dev-dependencies]
 snapbox.workspace = true
+solar-smt.workspace = true
 
 [build-dependencies]
 cranelift-isle.workspace = true
