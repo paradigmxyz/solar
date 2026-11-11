@@ -15,7 +15,8 @@ from .common import Program, Unsupported
 ROOT = Path(__file__).resolve().parents[1]
 PRELUDE = "import SolarTV\nopen SolarTV EvmRules\nset_option autoImplicit false\nset_option linter.unusedSimpArgs false\n"
 UNFOLD = (
-    "before, after, MIR.eval, MIR.choose, MIR.phi, EVM.run, EVM.step, Evm.eq, Evm.iszero, "
+    "before, after, MIR.eval, MIR.choose, MIR.phi, MIR.cast, MIR.compare, MIR.branch, "
+    "EVM.run, EVM.step, Evm.eq, Evm.iszero, "
     "Evm.sub, Evm.add, Evm.mul, Evm.and, Evm.or, Evm.xor"
 )
 
@@ -42,7 +43,11 @@ def load(kind: str, path: Path, solar: str, timeout: int) -> Program:
 
 
 def definition(name: str, program: Program) -> str:
-    args = " ".join(f"({arg} : Word)" for arg in program.inputs)
+    widths = program.input_widths or (256,) * len(program.inputs)
+    args = " ".join(
+        f"({arg} : BitVec {width})"
+        for arg, width in zip(program.inputs, widths, strict=True)
+    )
     body = "\n".join("  " + line for line in program.body.splitlines())
     return f"def {name} {args} : {program.result_type} :=\n{body}\n"
 
@@ -76,10 +81,19 @@ def check(a: Program, b: Program, timeout: int) -> int:
         raise Unsupported(build.stderr or build.stdout)
     definitions = PRELUDE + definition("before", a) + definition("after", b)
     args = " ".join(a.inputs)
-    binders = f"({args} : Word)" if args else ""
+    widths = a.input_widths or (256,) * len(a.inputs)
+    binders = " ".join(
+        f"({arg} : BitVec {width})" for arg, width in zip(a.inputs, widths, strict=True)
+    )
     statement = f"theorem pair_correct {binders} : before {args} = after {args} := by\n"
-    # simp alone can discharge DCE even when the dead expression contains MUL.
-    proof = f"  simp [{UNFOLD}] <;> bv_decide\n"
+    # Simplify dead definitions first. Splitting branches and reasoning about
+    # unsigned bounds with omega produces kernel proofs for guarded cleanups.
+    # bv_decide can find witnesses; its native proof axioms remain rejected below.
+    proof = (
+        f"  simp [{UNFOLD}]\n"
+        "  repeat (first | intro _ | split)\n"
+        "  all_goals simp_all [BitVec.toNat_eq, BitVec.ult_iff_toNat_lt] <;> omega\n"
+    )
     with tempfile.TemporaryDirectory() as directory:
         file = Path(directory) / "Pair.lean"
 
@@ -88,6 +102,14 @@ def check(a: Program, b: Program, timeout: int) -> int:
             return run(["lake", "env", "lean", file], ROOT, timeout)
 
         result = lean(statement + proof + "#print axioms pair_correct\n")
+        if result.returncode:
+            # Run the solver in a fresh obligation so failed kernel tactics
+            # cannot hide its assignment or leave branch-local hypotheses.
+            result = lean(
+                statement
+                + f"  simp [{UNFOLD}] <;> bv_decide\n"
+                + "#print axioms pair_correct\n"
+            )
         if result.returncode == 0:
             # Reject any proof that introduces an axiom outside Lean's standard
             # foundations, including sorryAx or an unchecked native computation.
@@ -107,13 +129,25 @@ def check(a: Program, b: Program, timeout: int) -> int:
         # Lean may simplify a universally false goal before bit-blasting it.
         # Try zero for unconstrained words. Report a mismatch only if the
         # kernel checks the negated equality at that concrete assignment.
-        model = dict(re.findall(r"^(\w+) = (\d+)#256$", log, re.MULTILINE))
-        vals = [int(model.get(arg, "0")) for arg in a.inputs]
-        inputs = " ".join(f"{value}#256" for value in vals)
+        model = {
+            name: (int(value), int(width))
+            for name, value, width in re.findall(
+                r"^(\w+) = (\d+)#(\d+)$", log, re.MULTILINE
+            )
+        }
+        vals = []
+        for arg, width in zip(a.inputs, widths, strict=True):
+            value, actual_width = model.get(arg, (0, width))
+            if actual_width != width or value >= 2**width:
+                raise Unsupported("invalid counterexample input width")
+            vals.append(value)
+        inputs = " ".join(
+            f"{value}#{width}" for value, width in zip(vals, widths, strict=True)
+        )
         lhs, rhs = f"before {inputs}", f"after {inputs}"
 
         def display(term: str) -> str:
-            if a.result_type == "Word":
+            if a.result_type == "Word" or a.result_type.startswith("BitVec "):
                 return f"#eval IO.println (({term}).toNat)"
             return f"#eval IO.println (EVM.describe ({term}))"
 

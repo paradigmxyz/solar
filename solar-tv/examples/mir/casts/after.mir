@@ -1,0 +1,12 @@
+; === solar-tv/examples/mir/casts/before.mir (after integer-cleanup) ===
+@module Casts
+fn @checked(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 2
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    ret arg0
+  bb1:                                            ; preds = bb0
+    v1 = ne arg0, 0
+    ret arg0
+}
