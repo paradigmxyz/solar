@@ -5,11 +5,13 @@
 //! reverts with `AnalysisFactViolated(uint256,uint256,uint256)`. The test runner executes a
 //! call as usual, then compiles the test again with the same command and
 //! `-Zcheck-analyses=true`, once per command, deploys the checked contract the same way and runs
-//! the same call. A check that fires is an analysis claiming something false about this
-//! execution, and fails the test with the fact decoded. Otherwise the checks change gas and size
-//! only, so both runs must succeed or fail alike and return the same data. A call is skipped when
-//! only its checked build runs out of gas under an explicit gas limit, exceeds the contract or
-//! initcode size limit, or overflows the stack or call depth.
+//! the same call, whether or not the first run ended as the test expects: a fact a wrong result
+//! violates often says why, and the test reports both failures. A check that fires is an
+//! analysis claiming something false about this execution, and fails the test with the fact
+//! decoded. Otherwise the checks change gas and size only, so both runs must succeed or fail
+//! alike and return the same data. A call is skipped when only its checked build runs out of gas
+//! under an explicit gas limit, exceeds the contract or initcode size limit, or overflows the
+//! stack or call depth.
 //!
 //! The checks are on by default in debug builds of the compiler, so every ordinary compilation
 //! passes `-Zcheck-analyses=false`: snapshots do not depend on the compiler's build profile.
