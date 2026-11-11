@@ -132,8 +132,15 @@ pub(super) fn write_queries(
             query.axioms.join(" "),
         );
         let mut files = vec![(name.clone(), header.clone() + &query.exact)];
+        let abstract_name = name.replace(".smt2", ".abstract.smt2");
         if let Some(abstracted) = &query.abstracted {
-            files.push((name.replace(".smt2", ".abstract.smt2"), header + abstracted));
+            files.push((abstract_name, header + abstracted));
+        } else if !to_stdout {
+            // An abstract tier an earlier compile wrote would stand for this query.
+            match std::fs::remove_file(dir.join(&abstract_name)) {
+                Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(error),
+                _ => {}
+            }
         }
         for (name, text) in files {
             if to_stdout {

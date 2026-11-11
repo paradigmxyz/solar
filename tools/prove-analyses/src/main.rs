@@ -40,7 +40,7 @@ use solar_smt::{Certificate, Certifier, sexp};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
-    io::{BufWriter, Read, Write},
+    io::{self, BufWriter, Read, Write},
     path::{Path, PathBuf},
     process::{Command, ExitCode, Stdio},
     sync::{LazyLock, Mutex},
@@ -216,6 +216,14 @@ fn compile(solar: &Path, source: &Path, level: &str, out: &Path) -> usize {
         .captures_iter(&text)
         .flat_map(|c| c[1].split_whitespace().map(str::to_owned).collect::<Vec<_>>())
         .filter(|flag| flag.starts_with("--evm-version") || flag.starts_with("-Zmir-pipeline"));
+    // Queries an earlier run left behind, an abstract tier above all, would be solved as this
+    // compile's.
+    match fs::remove_dir_all(out) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => {
+            panic!("clearing {}: {error}", out.display())
+        }
+        _ => {}
+    }
     fs::create_dir_all(out).unwrap();
     let mut command = Command::new(solar);
     command

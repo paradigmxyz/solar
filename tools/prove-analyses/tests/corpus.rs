@@ -25,29 +25,10 @@ use std::{
 
 #[test]
 fn corpus() {
-    let z3 = env::var_os("SOLAR_PROVE_ANALYSES_Z3").map_or_else(|| "z3".into(), PathBuf::from);
-    if Command::new(&z3).arg("--version").output().is_err() {
-        assert!(
-            env::var_os("SOLAR_PROVE_ANALYSES_REQUIRE_Z3").is_none(),
-            "z3 not found at {}",
-            z3.display()
-        );
-        eprintln!("skipping: z3 not found; set SOLAR_PROVE_ANALYSES_Z3 to run the prover corpus");
-        return;
-    }
+    let Some(z3) = z3() else { return };
     let cases = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/cases");
     let out = tempfile::tempdir().unwrap();
-    let status = Command::new(env!("CARGO_BIN_EXE_solar-prove-analyses"))
-        .arg("--solar")
-        .arg(solar())
-        .arg("--z3")
-        .arg(&z3)
-        .args(["--levels", "gas,size", "--out"])
-        .arg(out.path())
-        .arg(&cases)
-        .status()
-        .unwrap();
-    assert!(status.success());
+    prove(&z3, out.path(), &cases);
 
     let results = std::fs::read_to_string(out.path().join("results.jsonl")).unwrap();
     let mut verdicts: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -90,6 +71,78 @@ fn corpus() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// A run into an `--out` directory an earlier run used solves this run's queries alone: an
+/// abstract tier left there that proves anything does not prove a false fact.
+#[test]
+fn stale_out() {
+    let Some(z3) = z3() else { return };
+    let case = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/cases/refuted/false_range.mir");
+    let out = tempfile::tempdir().unwrap();
+    prove(&z3, out.path(), &case);
+    let mut planted = 0;
+    for dir in std::fs::read_dir(out.path()).unwrap() {
+        let dir = dir.unwrap().path();
+        if !dir.is_dir() {
+            continue;
+        }
+        for query in std::fs::read_dir(&dir).unwrap() {
+            let query = query.unwrap().path();
+            let name = query.file_name().unwrap().to_string_lossy().into_owned();
+            if let Some(stem) = name.strip_suffix(".smt2")
+                && !stem.contains('.')
+            {
+                let stale = dir.join(format!("{stem}.abstract.smt2"));
+                std::fs::write(
+                    stale,
+                    "(set-logic QF_AUFBV)
+(assert false)
+(check-sat)
+",
+                )
+                .unwrap();
+                planted += 1;
+            }
+        }
+    }
+    assert!(planted > 0);
+    prove(&z3, out.path(), &case);
+    let results = std::fs::read_to_string(out.path().join("results.jsonl")).unwrap();
+    assert!(results.lines().any(|line| {
+        let record: Value = serde_json::from_str(line).unwrap();
+        record["result"] == "sat"
+    }));
+}
+
+/// Z3, or `None` when it is missing and the test should be skipped.
+fn z3() -> Option<PathBuf> {
+    let z3 = env::var_os("SOLAR_PROVE_ANALYSES_Z3").map_or_else(|| "z3".into(), PathBuf::from);
+    if Command::new(&z3).arg("--version").output().is_err() {
+        assert!(
+            env::var_os("SOLAR_PROVE_ANALYSES_REQUIRE_Z3").is_none(),
+            "z3 not found at {}",
+            z3.display()
+        );
+        eprintln!("skipping: z3 not found; set SOLAR_PROVE_ANALYSES_Z3 to run the prover corpus");
+        return None;
+    }
+    Some(z3)
+}
+
+/// Runs the prover over `path`, writing its queries and `results.jsonl` to `out`.
+fn prove(z3: &Path, out: &Path, path: &Path) {
+    let status = Command::new(env!("CARGO_BIN_EXE_solar-prove-analyses"))
+        .arg("--solar")
+        .arg(solar())
+        .arg("--z3")
+        .arg(z3)
+        .args(["--levels", "gas,size", "--out"])
+        .arg(out)
+        .arg(path)
+        .status()
+        .unwrap();
+    assert!(status.success());
 }
 
 /// The compiler: `SOLAR_BIN`, or a debug build of the workspace's.
