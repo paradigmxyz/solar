@@ -1,5 +1,7 @@
 import SolarTV.EVMIR.Ops
 
+/-! EVM IR peephole: replace EQ followed by ISZERO with SUB before a conditional jump. -/
+
 namespace SolarTV.EVM
 open EvmRules
 
