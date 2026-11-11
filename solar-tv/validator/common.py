@@ -15,6 +15,7 @@ class Program:
     result_type: str
     body: str
     input_widths: tuple[int, ...] = ()
+    canonical_ir: str = ""
 
 
 def lines(text: str) -> list[str]:
