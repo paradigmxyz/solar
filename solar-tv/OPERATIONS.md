@@ -9,9 +9,9 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
 | Some forms checked | 6 | 6 |
-| State model and boundary proofs, not imported | 0 | 4 |
-| Message boundaries only, no child execution | 4 | 4 |
-| Missing | 65 | 37 |
+| Explicit-world entry execution | 0 | 32 |
+| Compiled entry through trusted backend | 7 | 0 |
+| Missing | 62 | 13 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
 variants account for many EVM entries. Checking a word operation does not cover
@@ -57,22 +57,32 @@ CALLCODE changes code; DELEGATECALL inherits caller/value/owner; STATICCALL
 forces static mode. Reverted children restore the journal and retain return data;
 exceptional children restore the journal and burn their gas.
 
-These are foundations for the full evaluator. **The CLI still rejects stateful
-operations and external calls.** A child result parameter is a boundary to be
-connected to real child execution, not permission to assume what a callee does.
+[EVMIR/State/](SolarTV/EVMIR/State/) connects those definitions to complete-entry
+execution with `--world`. The Lean evaluator executes nested call frames and
+CREATE/CREATE2 constructors, real address derivation, nonce/collision rules,
+code-deposit costs, deployment restrictions, storage and journal rollback.
+Identity precompile 4 is implemented; other precompiles are unsupported.
+Independent `evm2` replay rebuilds both original IR inputs through the compiler.
+
+The world fixture is an explicit assumption. Only declared symbolic slots and
+entry stack words are universally quantified. MIR is compiled through the backend
+in this mode, which is an additional trusted boundary rather than direct MIR
+semantics. Audits retain this distinction, the fixture/configuration hashes and
+runtime image hashes. See the [world mode](README.md#storage-calls-and-creation)
+for admitted forks, limits, observables and gas policies.
 
 ## Remaining work
 
-1. Connect world state to both importers and independent replay, including
-   arbitrary symbolic addresses and aliases, logs, static permissions and rollback.
-2. Execute nested calls and precompiles; model CREATE/CREATE2 and SELFDESTRUCT,
-   including constructor execution, nonce/collision rules and fork restrictions.
+1. Generalize fixed-world entry proofs to arbitrary symbolic accounts and aliases,
+   with direct MIR state semantics rather than trusting backend lowering.
+2. Complete precompiles, EIP-7702 delegation and SELFDESTRUCT, including their
+   fork-specific effects and gas rules.
 3. Complete calldata/returndata/program-data access, physical code layout and
    environment/account/block operations.
 4. Add MIR aggregates, slices, frames, allocation, storage layouts and ABI helpers
    against independent semantics, rather than assuming their lowering is correct.
-5. Complete dynamic gas, call stipends, access-list rollback, refunds and exceptional
-   outcomes for all admitted operations and forks.
+5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
+   Amsterdam's two-resource state gas. Expand differential boundary coverage.
 
 Unsupported semantics remain explicit. A local proof does not establish
 whole-contract equivalence or an all-input correspondence theorem for the Rust

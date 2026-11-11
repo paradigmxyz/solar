@@ -12,6 +12,8 @@ from .common import Program, ReplayTimeout
 
 
 def region(program: Program) -> str:
+    if program.world is not None:
+        return f"{program.interface[1].upper()} world entry (fixture {program.world['fixture_sha256'][:12]})"
     if program.interface[0] == "evm-window":
         region = f"EVM IR window {program.selector or 'bb0'}, entry stack height {program.interface[1]}"
         if program.gas is not None:
@@ -21,6 +23,46 @@ def region(program: Program) -> str:
 
 
 def difference(before: str, after: str) -> str:
+    if before.startswith('["') and after.startswith('["'):
+        try:
+            a, b = json.loads(before), json.loads(after)
+            if len(a) == len(b) == 6 and a[0] in {
+                "success",
+                "revert",
+                "exception",
+                "out-of-gas",
+            }:
+                if a[0] != b[0]:
+                    return f"Execution changed from {a[0]} to {b[0]}"
+                if a[1] != b[1]:
+                    return "Returned or reverted byte payload changed"
+                left, right = (
+                    {entry[0]: entry for entry in a[4]},
+                    {entry[0]: entry for entry in b[4]},
+                )
+                for address in sorted(left.keys() | right.keys(), key=int):
+                    if address not in left or address not in right:
+                        return f"Account creation or existence changed at 0x{int(address):040x}"
+                    old, new = left[address], right[address]
+                    for index, name in (
+                        (1, "Nonce"),
+                        (2, "Balance"),
+                        (3, "Deployed code"),
+                    ):
+                        if old[index] != new[index]:
+                            return f"{name} changed at account 0x{int(address):040x}"
+                    slots_a, slots_b = dict(old[4]), dict(new[4])
+                    for slot in sorted(slots_a.keys() | slots_b.keys(), key=int):
+                        if slots_a.get(slot, "0") != slots_b.get(slot, "0"):
+                            return f"Storage slot {slot} changed at account 0x{int(address):040x}"
+                if a[5] != b[5]:
+                    return "Emitted logs changed"
+                if a[2] != b[2]:
+                    return f"Remaining gas changed from {a[2]} to {b[2]}"
+                if a[3] != b[3]:
+                    return f"Gas refund changed from {a[3]} to {b[3]}"
+        except (ValueError, TypeError, KeyError) as _:
+            pass
     if before.startswith("out-of-gas") or after.startswith("out-of-gas"):
         return "Out-of-gas behavior changed"
     remaining = re.compile(r", gas=(\d+)$")
@@ -117,6 +159,7 @@ def replay_command(
     function: str | None = None,
     window: str | None = None,
     stack_height: int | None = None,
+    world: Path | None = None,
 ) -> str:
     checker = Path(__file__).resolve().parents[1] / "solar-tv"
     argv = [
@@ -129,6 +172,8 @@ def replay_command(
         "--timeout",
         str(timeout),
     ]
+    if world is not None:
+        argv.extend(["--world", str(world.resolve())])
     if gas is not None:
         argv.extend(["--gas", gas])
     if evm_version is not None:
