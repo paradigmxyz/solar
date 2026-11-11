@@ -445,3 +445,17 @@ each MIR pass's output, the scheduled EVM IR and each EVM IR pass's output) into
 from the MIR to the final EVM IR (`mir_to_evmir`, or `mir_to_evmir_certified` from
 certificates), and `mir_to_bytecode` appends `AssemblyStage`, the stage to bytecode that
 solidity-lean's bytecode semantics states.
+## Lifting a pass validation query
+
+[MIR/Validation/AddZero.lean](SolarTV/MIR/Validation/AddZero.lean) lifts one real query to
+a stage. [lift_egraph.mir](../tests/ui/codegen/mir/validate-passes/lift_egraph.mir) runs
+`egraph` on a dispatcher that adds zero to a calldata word before shifting by it and
+storing the result, and pins the query `-Zvalidate-passes` writes. `Query` states it as
+the certifier translates it, and `query_unsat` proves it by hand: the certifier's
+`bv_decide` proof does not handle its top-level array disequality. `certified_of_query`
+uses the query only as a hypothesis: it runs both functions, rewrites their words with
+the agreement theorems `step_add` and `step_shl`, and instantiates the query's
+uninterpreted calldata read, memory, storage and transient storage with the call and the
+initial state. `stage` is the resulting stage of the lowered MIR semantics. It is one
+instance: no theorem yet says that every query `-Zvalidate-passes` finds `unsat` gives a
+certificate, which would need the encoder itself in Lean.
