@@ -9,13 +9,14 @@
 //! otherwise incompatible entries separate. Debug metadata never participates
 //! in equivalence or profitability. Path-specific function activations stay on the original
 //! blocks or replacement jumps where representable; shared entries drop ambiguous events.
+//! A suffix never contains `PC`, whose value depends on the position of its block.
 //! A terminal suffix covering the representative's whole body reuses its block and label when
 //! there are no nested shared tails. Nested tails keep their placement
 //! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
 //! Gas mode indexes non-loop tails first, so loop paths can reuse them regardless of block order,
 //! and loop-only paths do not create sharing groups.
 //! The shared tail merges the origins of its sites. Each replacement jump copies the location of
-//! the first instruction it replaces, as LLVM's `ReplaceTailWithBranchTo` does.
+//! the first instruction or terminator it replaces that has one.
 //! In gas mode, hot sharing must repay its transfer over the optimizer run count.
 //! Size mode prices the jump that a shared suffix removes with at least a `PUSH1` label unless it
 //! targets the entry block, the only block that can start at offset 0.
@@ -54,7 +55,7 @@ use super::{
     block_layout::terminator_kind,
     cfg_simplify::is_direct_jump_label,
     utils::{
-        FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point,
+        FreshLabels, MachineInstKey, instruction_size_lower_bound, is_pc, is_split_point,
         is_terminal_boundary,
     },
 };
@@ -235,16 +236,14 @@ impl RunState {
         let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
         let mut node = self.tail_root(terminator);
         let len = block.instructions.len();
-        let limit = if keep_branches {
-            block
-                .instructions
-                .iter()
-                .rev()
-                .position(|inst| inst.as_evm_opcode() == Some(op::JUMPI))
-                .unwrap_or(len)
-        } else {
-            len
-        };
+        let limit = block
+            .instructions
+            .iter()
+            .rev()
+            .position(|inst| {
+                is_pc(inst) || keep_branches && inst.as_evm_opcode() == Some(op::JUMPI)
+            })
+            .unwrap_or(len);
         // The representative is truncated at the shared tail too, so it only represents tails
         // whose start is a legal split point in its own instruction list.
         if is_split_point(&block.instructions, len) {
@@ -395,6 +394,7 @@ impl RunState {
                     && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
                 {
                     tail.label = module.blocks[representative_id].label;
+                    tail.metadata.entry_depth = metadata.entry_depth;
                     // Every path that shared the body now enters through this label.
                     tail.label_metadata =
                         std::mem::take(&mut module.blocks[representative_id].label_metadata);
@@ -517,21 +517,29 @@ fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
 
 /// The debug information of the jump that replaces the last `len` instructions of `block`.
 ///
-/// Copies `TargetInstrInfo::ReplaceTailWithBranchTo`, which saves "the debug loc before erasing the
-/// instruction", `Tail->getDebugLoc()` of the first instruction it removes, and gives the new
-/// branch that location as is (llvm/lib/CodeGen/TargetInstrInfo.cpp#L175-L189 at llvm-project
-/// e98b16a2710b). A suffix has at least one instruction. Function events keep their own rule: a
-/// jump takes the one invoke all removed operations agree on.
+/// The jump takes the location of the first removed instruction or terminator that has one, with
+/// all its origins and its modifier depth, and the first removed instruction's as is when none
+/// has. A suffix has at least one instruction. Function events keep their own rule: a jump takes
+/// the one invoke all removed operations agree on.
+///
+/// NOTE: `TargetInstrInfo::ReplaceTailWithBranchTo` gives the branch the location of the first
+/// instruction it removes, even without one (`Tail->getDebugLoc()`,
+/// llvm/lib/CodeGen/TargetInstrInfo.cpp#L175-L189 at llvm-project e98b16a2710b), which is rare in
+/// LLVM. Our scheduler leaves stack operations unlocated, and this jump is the only instruction
+/// left on its site's path, so it takes the first located one, as `outline::call_site_location`
+/// does.
 fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
     let suffix = &block.instructions[block.instructions.len() - len..];
-    let mut metadata = Metadata::default();
-    // The first removed instruction, as is: all its origins, its modifier depth, and no origin if
-    // it has none.
-    metadata.preserve_debug_loc(&suffix[0].metadata);
     let all = suffix
         .iter()
         .map(|inst| &inst.metadata)
         .chain(block.terminator.iter().map(|term| &term.metadata));
+    let mut metadata = Metadata::default();
+    metadata.preserve_debug_loc(
+        all.clone()
+            .find(|metadata| metadata.source_span().is_some())
+            .unwrap_or(&suffix[0].metadata),
+    );
     let mut functions = all.filter_map(Metadata::function_invoke);
     if let Some(function) = functions.next()
         && functions.all(|other| other == function)

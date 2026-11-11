@@ -100,10 +100,7 @@ fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], a
     v3 = staticcall v1, v2, 28, 4, 0, 0
     jumpi v3, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb7, bb8
-  bb8 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb7
   bb7 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
@@ -129,6 +126,9 @@ fn @signedTry(arg0: i1) -> i256 [selector=0x3ac87366, view, abi_params=[bool], a
   bb3:                                            ; preds = bb6, bb7
     v15 = phi [bb6: v14], [bb7: 0]
     ret v15
+  bb8 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function signedCallTuple(bool choose) external view returns (int256 raw) [selector 0xf2329614]

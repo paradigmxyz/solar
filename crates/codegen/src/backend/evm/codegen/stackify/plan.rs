@@ -1,8 +1,8 @@
 //! Per-function planning: block layouts, operand preparation, shuffles, and spills.
 
 use super::{
-    Analysis, BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands, Slot, Step,
-    Victim, Want, argument_values, icall, materialized_at_use,
+    Analysis, BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands, Reader,
+    Slot, Step, Victim, Want, argument_values, icall, materialized_at_use,
     shuffle::{self, Move},
 };
 use crate::{
@@ -734,6 +734,90 @@ impl<'a> Planner<'a> {
             .collect()
     }
 
+    /// The origins of the push of the retained constant `value`, which the planner emits once in
+    /// `block`, before the instruction `before` or else before the terminator.
+    ///
+    /// The push serves the readers in the blocks it is held through. When all of them are in
+    /// `block`, they run whenever the push does, and the push takes their combined origin.
+    /// Otherwise it runs on paths where some reader never does, and it takes the origin of the code
+    /// it precedes.
+    fn retained_origins(
+        &self,
+        block: BlockId,
+        value: ValueId,
+        before: Option<InstId>,
+    ) -> Box<[Reader]> {
+        let func = self.func;
+        let region = &held_blocks(func, self.cfg, &[(block, value)])[&value];
+        let mut readers = Vec::new();
+        let mut local = true;
+        for held in region.iter() {
+            let tail_call = self.tail_calls.get(&held).copied();
+            let before_len = readers.len();
+            readers.extend(
+                self.planned_insts(held)
+                    .into_iter()
+                    // An allocation reads its constant size at compile time, not from the stack.
+                    .filter(|step| {
+                        step.operands.contains(&value)
+                            && !matches!(func.inst(step.inst).kind, InstKind::Alloc { .. })
+                    })
+                    .map(|step| Reader::Inst(step.inst)),
+            );
+            // Mirrors `block_uses`, but for the operands the code reads from the stack.
+            let reads = match &func.blocks[held].terminator {
+                Some(Terminator::Branch { condition, .. }) => {
+                    self.conditions.get(&held).map_or(*condition, |&(condition, _)| condition)
+                        == value
+                }
+                Some(Terminator::Return { .. }) if let Some(call) = tail_call => {
+                    if icall(&func.inst(call).kind).unwrap().1.contains(&value) {
+                        readers.push(Reader::Inst(call));
+                    }
+                    false
+                }
+                // A switch pushes its case literals itself and reads only its scrutinee.
+                Some(Terminator::Switch { value: scrutinee, .. }) => *scrutinee == value,
+                Some(term) => term.operands().contains(&value),
+                None => false,
+            };
+            if reads {
+                readers.push(Reader::Terminator(held));
+            }
+            local &= held == block || readers.len() == before_len;
+        }
+        // An edge from a block in the region reads the value, into a phi anywhere. The phi copy
+        // runs on one edge only.
+        for phi_block in func.blocks.iter() {
+            for &inst in &phi_block.instructions {
+                if let InstKind::Phi(incoming) = &func.inst(inst).kind
+                    && incoming
+                        .iter()
+                        .any(|&(pred, operand)| operand == value && region.contains(pred))
+                {
+                    readers.push(Reader::Inst(inst));
+                    local = false;
+                }
+            }
+        }
+        if !local || readers.is_empty() {
+            readers.clear();
+            readers.push(before.map_or(Reader::Terminator(block), Reader::Inst));
+        }
+        readers.into_boxed_slice()
+    }
+
+    /// Pushes the retained constant `value` in `block`, before the instruction `before` or else
+    /// before the terminator, under the origins of [`Self::retained_origins`].
+    fn push_retained(&self, sim: &mut Sim, block: BlockId, value: ValueId, before: Option<InstId>) {
+        self.fresh(sim, value);
+        if matches!(sim.steps.last(), Some(Step::Materialize(_))) {
+            sim.steps.pop();
+            let origins = self.retained_origins(block, value, before);
+            sim.steps.push(Step::Shared { value, origins });
+        }
+    }
+
     /// Plans a block's instructions in their MIR order.
     fn plan_body(&mut self, sim: &mut Sim, block: BlockId) -> Result<(), Fail> {
         let func = self.func;
@@ -756,9 +840,8 @@ impl<'a> Planner<'a> {
                 if !step.operands.contains(&value) {
                     return true;
                 }
-                sim.steps.push(Step::Begin(None));
                 // push constant
-                self.fresh(sim, value);
+                self.push_retained(sim, block, value, Some(inst));
                 false
             });
             if let Some((early_inst, then_block, else_block)) = early
@@ -808,9 +891,8 @@ impl<'a> Planner<'a> {
             }
         }
         for value in constants {
-            sim.steps.push(Step::Begin(None));
             // push constant
-            self.fresh(sim, value);
+            self.push_retained(sim, block, value, None);
         }
         Ok(())
     }
@@ -2048,7 +2130,7 @@ impl<'a> Planner<'a> {
         let inst = planned.inst;
         let operands = &planned.operands;
         let kind = &func.inst(inst).kind;
-        sim.steps.push(Step::Begin(Some(inst)));
+        sim.steps.push(Step::Begin(inst));
         let result = func.inst_result_value(inst);
         // Whether each operand has no use after this instruction.
         let mut dies = SmallVec::<[bool; 8]>::new();

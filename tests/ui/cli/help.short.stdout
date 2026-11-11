@@ -41,6 +41,7 @@ Input options:
       --base-path <BASE_PATH>        Use the given path as the root of the source tree
   -I, --include-path <INCLUDE_PATH>  Directory to search for files
       --allow-paths <ALLOW_PATHS>    Allow a given path for imports
+      --no-import-callback           Disable the import callback, so that imports only resolve to the given sources
 
 Display options:
       --color <COLOR>                Coloring [default: auto] [possible values: auto, always, never]

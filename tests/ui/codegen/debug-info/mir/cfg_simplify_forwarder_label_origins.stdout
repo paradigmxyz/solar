@@ -1,0 +1,60 @@
+- ; === ROOT/tests/ui/codegen/debug-info/mir/cfg_simplify_forwarder_label_origins.mir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/debug-info/mir/cfg_simplify_forwarder_label_origins.mir (after cfg-simplify) ===
+  @module ForwarderLabels
+  fn @forwarder(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+      jumpi arg0, bb1, bb2
+-   bb2 !metadata(span=50..60):                     ; preds = bb0
+-     jump bb3
+    bb1:                                            ; preds = bb0
+      v0 = add arg1, 2
+-     jump bb3
+-   bb3 !metadata(span=30..40):                     ; preds = bb1, bb2
++     jump bb2
++   bb2 !metadata(spans=[30..40, 50..60]):          ; preds = bb1, bb0
+      v1 = add arg1, 1
+      ret v1
+  }
+  
+  fn @dead_arm_forwarder(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+-     jumpi true, bb1, bb2
++     jumpi arg0, bb1, bb2
+    bb2:                                            ; preds = bb0
+-     v0 = add arg1, 3
+-     jumpi arg0, bb4, bb3
+-   bb3:                                            ; preds = bb2
+-     v1 = add arg1, 4
+-     jump bb4
+-   bb4 !metadata(span=50..60):                     ; preds = bb2, bb3
+-     jump bb5
+-   bb1:                                            ; preds = bb0
+-     jumpi arg0, bb5, bb6
+-   bb6:                                            ; preds = bb1
+      ret 0
+-   bb5 !metadata(span=30..40):                     ; preds = bb1, bb4
++   bb1 !metadata(span=30..40):                     ; preds = bb0
+      v2 = add arg1, 1
+      ret v2
+  }
+  
+  fn @dead_target_predecessor(arg0: i1, arg1: i256) -> i256 {
+    bb0:
+-     jumpi true, bb1, bb3
+-   bb3:                                            ; preds = bb0
+-     v0 = add arg1, 3
+-     jump bb4
+-   bb1:                                            ; preds = bb0
+-     jumpi arg0, bb2, bb5
+-   bb5:                                            ; preds = bb1
++     jumpi arg0, bb1, bb2
++   bb2:                                            ; preds = bb0
+      ret 0
+-   bb2 !metadata(span=50..60):                     ; preds = bb1
+-     jump bb4
+-   bb4 !metadata(span=30..40):                     ; preds = bb2, bb3
++   bb1 !metadata(span=50..60):                     ; preds = bb0
+      v1 = add arg1, 1
+      ret v1
+  }
+  

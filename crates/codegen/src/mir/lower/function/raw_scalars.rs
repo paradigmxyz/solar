@@ -69,7 +69,7 @@ struct PointerCall<'gcx> {
 }
 
 impl<'gcx> Exposure<'gcx> {
-    fn callees(&mut self, callee: &hir::Expr<'_>) -> SmallVec<[hir::FunctionId; 1]> {
+    fn callees(&mut self, callee: &'gcx hir::Expr<'gcx>) -> SmallVec<[hir::FunctionId; 1]> {
         if let Some(id) = self.gcx.resolved_function(callee) {
             return smallvec::smallvec![self.gcx.resolve_call_target(self.contract, callee, id)];
         }
@@ -98,7 +98,7 @@ impl<'gcx> Exposure<'gcx> {
             .clone()
     }
 
-    fn sources(&mut self, expr: &hir::Expr<'_>, out: &mut SmallVec<[VariableId; 4]>) {
+    fn sources(&mut self, expr: &'gcx hir::Expr<'gcx>, out: &mut SmallVec<[VariableId; 4]>) {
         if let Some(id) = self.gcx.user_operator(expr.id) {
             out.extend_from_slice(self.gcx.hir.function(id).returns);
             return;
@@ -169,7 +169,7 @@ impl<'gcx> Exposure<'gcx> {
         }
     }
 
-    fn connect(&mut self, destinations: &[VariableId], expr: &hir::Expr<'_>) {
+    fn connect(&mut self, destinations: &[VariableId], expr: &'gcx hir::Expr<'gcx>) {
         let mut sources = SmallVec::new();
         self.result_calls.clear();
         self.sources(expr, &mut sources);
@@ -189,7 +189,7 @@ impl<'gcx> Exposure<'gcx> {
     }
 
     /// Returns the internal function whose pointer an expression takes.
-    fn function_reference(&self, expr: &hir::Expr<'_>) -> Option<hir::FunctionId> {
+    fn function_reference(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<hir::FunctionId> {
         if !matches!(expr.kind, ExprKind::Ident(_) | ExprKind::Member(..)) {
             return None;
         }
@@ -205,7 +205,7 @@ impl<'gcx> Exposure<'gcx> {
     /// functions whose pointers it takes.
     fn pointer_sources(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         bindings: &mut SmallVec<[VariableId; 4]>,
         functions: &mut SmallVec<[hir::FunctionId; 1]>,
     ) {
@@ -272,7 +272,7 @@ impl<'gcx> Exposure<'gcx> {
         &mut self,
         declared: hir::FunctionId,
         target: hir::FunctionId,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) {
         let names = self.gcx.callable_param_names(CallableParamSource::Function {
             id: declared,
@@ -299,7 +299,7 @@ impl<'gcx> Exposure<'gcx> {
     }
 
     /// Records the internal function pointers an expression may carry into bindings.
-    fn connect_pointers(&mut self, destinations: &[VariableId], expr: &hir::Expr<'_>) {
+    fn connect_pointers(&mut self, destinations: &[VariableId], expr: &'gcx hir::Expr<'gcx>) {
         let destinations = destinations
             .iter()
             .copied()
@@ -324,7 +324,11 @@ impl<'gcx> Exposure<'gcx> {
     }
 
     /// Records the references whose objects an assignment target stores into.
-    fn store_roots(&mut self, target: &hir::Expr<'_>, roots: &mut SmallVec<[VariableId; 4]>) {
+    fn store_roots(
+        &mut self,
+        target: &'gcx hir::Expr<'gcx>,
+        roots: &mut SmallVec<[VariableId; 4]>,
+    ) {
         match target.kind {
             ExprKind::Tuple(items) => {
                 for item in items.iter().flatten() {
@@ -342,9 +346,9 @@ impl<'gcx> Exposure<'gcx> {
     /// Records an internal function pointer call with the pointers it reads.
     fn record_pointer_call(
         &mut self,
-        call: &hir::Expr<'_>,
-        callee: &hir::Expr<'_>,
-        args: hir::CallArgs<'_>,
+        call: &'gcx hir::Expr<'gcx>,
+        callee: &'gcx hir::Expr<'gcx>,
+        args: hir::CallArgs<'gcx>,
     ) {
         if !is_pointer_callee(self.gcx, callee) {
             return;

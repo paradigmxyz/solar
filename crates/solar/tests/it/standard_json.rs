@@ -372,3 +372,30 @@ fn compact_output_keeps_contract_order() {
         )
     );
 }
+
+/// `no_import_callback` disables the read callback a library caller passes, like solc's
+/// `--no-import-callback`.
+#[test]
+fn no_import_callback_ignores_callback() {
+    struct Callback;
+
+    impl StandardJsonReadCallback for Callback {
+        fn read(&self, _kind: &str, _data: &str) -> ReadCallbackResult {
+            ReadCallbackResult::Success("contract X {}".to_string())
+        }
+    }
+
+    let input = json!({
+        "language": "Solidity",
+        "sources": {"A.sol": {"content": "import \"X.sol\"; contract A {}"}},
+        "settings": {"outputSelection": {}}
+    });
+    let opts = CompileOpts { no_import_callback: true, ..Default::default() };
+    let mut output = Vec::new();
+    compile_standard_json(&input.to_string(), opts, Some(Arc::new(Callback)), &mut output).unwrap();
+    let output = serde_json::from_slice::<Value>(&output).unwrap();
+    assert_eq!(
+        output["errors"][0]["message"],
+        "couldn't read X.sol: File import callback not supported"
+    );
+}

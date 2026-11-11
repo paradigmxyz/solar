@@ -230,14 +230,15 @@ Difference: `solar` accepts `--include-path` without `--base-path`, using the
 current directory as the base path, and does not report an ambiguous import
 when several roots lead to the same path, as with a repeated include path.
 Different paths to one file, such as an include path and a symbolic link to it,
-are still ambiguous, as in `solc`. In Standard JSON mode, which does not access
-the file system, it does not check the base path. It does not restrict imports
-to allowed paths, so `--allow-paths` has no effect.
+are still ambiguous, as in `solc`. In Standard JSON mode, it does not check the
+base path. `--allow-paths` applies only to the Standard JSON command line, which
+reads imports from disk like `solc`; other modes ignore it.
 
-Rationale: these inputs have a single sensible meaning, and Standard JSON reads
-imports only through the read callback.
+Rationale: these inputs have a single sensible meaning.
 
-Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`.
+Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`,
+`tests/ui/standard-json/monorepo.jsonc` and
+`tests/ui/standard-json/monorepo-symlink.jsonc`.
 
 ## Parsing
 

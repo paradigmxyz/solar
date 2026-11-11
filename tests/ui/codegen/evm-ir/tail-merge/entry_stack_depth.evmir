@@ -1,0 +1,19 @@
+//@compile-flags: -Zvalidate-ir=true -Zevm-ir-pipeline=tail-merge --emit bin
+@module TailMergeEntryDepth
+@optimize size
+
+bb0 [stack=1]:
+  not
+  not
+  not
+  not
+  pop
+  stop
+
+bb1 [stack=1]:
+  not
+  not
+  not
+  not
+  pop
+  stop

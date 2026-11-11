@@ -204,8 +204,8 @@ extent before entering its loop; the loop bound then proves that element offsets
 need no further overflow checks. Both bytes results and
 scratch hashes share the encoder. Solidity `addmod` and `mulmod` retain their
 zero-modulus panic until conversion; their Yul counterparts keep native zero
-semantics. Runtime `erc7201` retains the namespace object, while a literal
-namespace folds directly to its constant slot. Storage bytes loads retain
+semantics. Runtime `erc7201` retains the namespace object and hashes the inner digest in
+scratch memory, while a literal namespace folds directly to its constant slot. Storage bytes loads retain
 header validation, allocation and copying as one operation. Header reads keep
 `sload` visible to storage and loop passes; a separate validation operation
 retains its encoding check when the word is unused. Hashed storage-data clearing
@@ -809,10 +809,13 @@ blocks keeps it only if every one had it.
 A block header may end in `!metadata(span=10..20)`, written `bb3 [cold] !metadata(span=10..20):`.
 It is the origin of the block's label, the source location of the `JUMPDEST` that marks the block,
 as solc gives a tag the location active where the tag is placed. Lowering sets it when it places a
-block: the function definition for the entry block, and the enclosing statement for the else and end
-blocks of an `if` and the header and exit of a loop. Text prints it under the same rule as an
+block: the function definition for the entry block, the declaration of a fallback or receive function
+for its route, and the enclosing statement for the else and end blocks of an `if` and the header and
+exit of a loop. Text prints it under the same rule as an
 instruction's span, so lowered MIR dumps do not show it. A pass that keeps a block keeps its label,
-and one that merges the block into its predecessor drops it. A block a pass creates, such as a
+one that merges the block into its predecessor drops it, and one that bypasses an empty block
+(`jump-threading`, `cfg-simplify`) or replaces a duplicate function body merges that block's label
+into its target, as it does for instruction spans. A block a pass creates, such as a
 preheader, an edge block or the second half of a split, starts without a label. A cloned block, as
 inlining and the loop passes make, keeps the label of the block it copies, as LLVM's
 `CloneBasicBlock` keeps the debug locations of the code it clones.
