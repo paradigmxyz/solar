@@ -312,9 +312,25 @@ Everything else in the fixture is concrete.
 constructor semantics. It implements persistent/transient storage, cold/warm
 accesses, refunds, logs, CALL/CALLCODE/DELEGATECALL/STATICCALL, CREATE/CREATE2,
 value transfers, constructor code deposit and journal rollback. Child frames
-execute their actual bytecode with private memory and return data. Identity
-precompile 4 is modeled; other precompiles, EIP-7702 delegation, SELFDESTRUCT and
-unmodeled opcodes are unsupported, including when encountered in a child.
+execute their actual bytecode with private memory and return data. All 18
+precompiles active across the supported forks have executable Lean models,
+including signature recovery, hashes, ModExp, BN254, BLS12-381 and KZG point
+evaluation. [Precompiles/](SolarTV/EVMIR/Precompiles/) separates encodings, field
+and curve arithmetic, gas schedules and execution. Tests compare their results
+and gas directly with `evm2`; entry proofs still require the Lean kernel.
+
+SELFDESTRUCT transfers funds immediately and defers deletion until transaction
+end. From Cancun, existing accounts keep code and storage; accounts created
+within the transaction retain deletion. Refunds, access warmth and parent
+rollback follow the selected fork. EIP-7702 delegation and unmodeled opcodes
+remain unsupported.
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/sha256/{before,after}.evmir \
+  --world solar-tv/examples/evmir/sha256/world.json
+solar-tv/solar-tv evmir solar-tv/examples/evmir/selfdestruct/{before,broken}.evmir \
+  --world solar-tv/examples/evmir/selfdestruct/world.json --evm-version=shanghai
+```
 
 This is a **scenario-entry proof**, not arbitrary-world equivalence. Both inputs
 are compiled without optional optimization to runtime bytecode, so compiler
@@ -329,7 +345,9 @@ against the actual before/after image. Child deployed code remains observable.
 World mode supports Istanbul through Osaka. Amsterdam's two-resource state gas
 is not modeled. Limits are 32 initial accounts, 64 storage cells per account,
 64 KiB private memory per frame and 512 evaluator steps/depth by default
-(`fuel: 1..2048`). A limit or unsupported path prevents verification; it is never
+(`fuel: 1..2048`). BLAKE2F has a separate 4,096-round model work limit;
+ModExp permits at most 64 KiB per operand (Osaka's protocol limit is 1,024 bytes).
+A model limit or unsupported path prevents verification; it is never
 equated with an EVM exception. The default compares effects at the fixture's
 finite gas budget. `--gas=exact` also compares remaining gas and refunds;
 `--gas=refine` allows only original out-of-gas to be unconstrained, otherwise

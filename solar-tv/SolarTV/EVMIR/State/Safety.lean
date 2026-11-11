@@ -37,4 +37,16 @@ example (code : List Byte) (size : code.length > 24576) :
 example : validJump [0x60, 0x5b, 0x00] 1 = false := by decide
 example : validJump [0x60, 0x01, 0x5b] 2 = true := by decide
 
+private def destructionFixture (created : Bool) : Journal :=
+  {accounts := [{address := 1, nonce := 1, balance := 100, code := [0], storage := [(0,7)], created}]
+   original := []
+   warmAddresses := [1]
+   warmSlots := []}
+
+example : (finalize (destroy .shanghai (destructionFixture false) 1 1)).accounts = [] := by decide +kernel
+example : (account (destroy .cancun (destructionFixture false) 1 1) 1).balance = 100 := by decide +kernel
+example : (finalize (destroy .cancun (destructionFixture true) 1 1)).accounts = [] := by decide +kernel
+example : (account (destroy .shanghai (destructionFixture false) 1 1) 1).code = [0] := by decide +kernel
+example : (destroy .berlin (destroy .berlin (destructionFixture false) 1 1) 1 1).refund = 24000 := by decide +kernel
+
 end SolarTV.EVM.State

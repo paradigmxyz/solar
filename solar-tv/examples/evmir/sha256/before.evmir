@@ -1,0 +1,14 @@
+@module Hash
+bb0:
+  push 32
+  push 0
+  push 0
+  push 0
+  push 0
+  push 2
+  push 10000
+  call
+  pop
+  push 32
+  push 0
+  return

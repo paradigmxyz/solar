@@ -271,6 +271,14 @@
     "staticcall": "world_entry",
     "revert": "checked_fragment",
     "invalid": "checked_fragment",
-    "selfdestruct": "missing"
+    "selfdestruct": "world_entry"
+  },
+  "precompiles": {
+    "1": "ecrecover", "2": "sha256", "3": "ripemd160", "4": "identity",
+    "5": "modexp", "6": "bn254-add", "7": "bn254-mul", "8": "bn254-pairing",
+    "9": "blake2f", "10": "kzg-point-evaluation", "11": "bls12-g1add",
+    "12": "bls12-g1msm", "13": "bls12-g2add", "14": "bls12-g2msm",
+    "15": "bls12-pairing", "16": "bls12-map-fp-to-g1", "17": "bls12-map-fp2-to-g2",
+    "256": "p256verify"
   }
 }
