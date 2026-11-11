@@ -202,9 +202,10 @@ fn run_passes_with(
         if enabled {
             let origins =
                 crate::debugify::enabled(gcx).then(|| crate::debugify::Origins::mir(module));
-            let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let key = pass.cache_key();
             let cached = key.is_some_and(|key| unchanged.contains(&key));
+            let tv = crate::solar_tv::Snapshot::capture(gcx, cached, module.to_text());
+            let timer = PassTimer::new(gcx.sess.opts.unstable.time_passes);
             let pass_changed = if cached {
                 false
             } else {
@@ -267,6 +268,11 @@ fn run_passes_with(
             changed |= pass_changed;
             if analyses.error.is_some() {
                 return (changed, analyses.error);
+            }
+            if let Some(tv) = tv
+                && let Err(error) = tv.check(gcx, "mir", pass_name, module.name, module.to_text())
+            {
+                return (changed, Some(error));
             }
             if let Some(origins) = origins
                 && let Err(error) = origins.check(

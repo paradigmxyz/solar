@@ -60,6 +60,9 @@ Options:
       -Zdebugify-output=<DIR>
           Write per-pass debug-info audits as JSON lines into this directory. Enables auditing without stderr output; an explicit `-Zdebugify` mode still controls diagnostics
 
+      -Zsolar-tv=<DIR>
+          Run solar-tv on changed MIR and EVM IR after each pass. Keep counterexamples and inconclusive pairs in this directory
+
       -Zvalidate-ir=<BOOL>
           Validate MIR and EVM IR after each pass. Enabled by default in debug builds. Accepts `true` or `false`
 
