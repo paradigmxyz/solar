@@ -471,15 +471,18 @@ impl<'a> Prover<'a> {
             query.opaque.insert(fresh.clone());
             query.depend(&phi_term, [fresh.clone()]);
             query.guarantee(&fresh, value);
-            // The facts its predecessor recorded about it, whose other operand the query has.
+            // The facts its predecessor recorded about it, whose other operand the query has,
+            // hold only on the executions that select it: the other operand may be shared with
+            // the other incoming values.
+            let mut option = format!("(= {phi_term} {fresh})");
             for fact in self.facts.iter().filter(|fact| fact.block == predecessor) {
                 let other = if fact.lhs == value { fact.rhs } else { fact.lhs };
                 if (fact.lhs == value || fact.rhs == value) && query.has(other) {
                     let claim = self.claim(query, fact, Some((value, &fresh)));
-                    query.assert(claim);
+                    write!(option, " {claim}").unwrap();
                 }
             }
-            options.push(format!("(= {phi_term} {fresh})"));
+            options.push(format!("(and true {option})"));
         }
         if !options.is_empty() {
             query.assert(format!("(or false {})", options.join(" ")));
