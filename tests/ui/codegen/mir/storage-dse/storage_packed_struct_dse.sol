@@ -1,6 +1,8 @@
 //@ codegen-matrix: standard
-//@ run-call: PackedStructDse::preservesRawNeighbors => true
+//@ run-call: PackedStructDse::clearsLonePadding => true
 
+// The field owns its slot, so the store keeps no neighbors. See CODEGEN-025 in
+// docs/SOLC_DIVERGENCE.md.
 contract PackedStructDse {
     struct Box {
         uint8 value;
@@ -8,7 +10,7 @@ contract PackedStructDse {
 
     Box internal box;
 
-    function preservesRawNeighbors() public returns (bool) {
+    function clearsLonePadding() public returns (bool) {
         assembly {
             sstore(box.slot, not(0))
         }
@@ -18,6 +20,6 @@ contract PackedStructDse {
         assembly {
             raw := sload(box.slot)
         }
-        return uint8(raw) == 1 && raw >> 8 == type(uint248).max;
+        return raw == 1;
     }
 }

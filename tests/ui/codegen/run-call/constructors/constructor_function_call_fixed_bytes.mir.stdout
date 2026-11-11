@@ -18,11 +18,7 @@ fn @getName() -> i256 [selector=0x17d7de7c, view, abi_params=[], abi_returns=[wo
 ; function setName(bytes3 name_) private
 fn @setName(arg0: i256) {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000
-    v2 = shr arg0, 232
-    v3 = and v2, 0xffffff
-    v4 = or v1, v3
-    sstore 0, v4 !metadata(storage=slot(0))
+    v0 = shr arg0, 232
+    sstore 0, v0 !metadata(storage=slot(0))
     ret
 }
