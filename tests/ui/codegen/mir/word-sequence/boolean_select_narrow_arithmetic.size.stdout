@@ -3,7 +3,10 @@
   @module BooleanSelectNarrowArithmetic
   fn @all_ones_left(arg0: i1, arg1: i1) -> i1 {
     bb0:
-      v0 = select arg0, true, arg1
+-     v0 = select arg0, true, arg1
++     v1 = eq arg0, false
++     v2 = xor v1, true
++     v0 = or v2, arg1
       ret v0
   }
   
@@ -25,13 +28,15 @@
   
   fn @zero_right(arg0: i1, arg1: i1) -> i1 {
     bb0:
-      v0 = select arg0, arg1, false
+-     v0 = select arg0, arg1, false
++     v0 = and arg0, arg1
       ret v0
   }
   
   fn @constants(arg0: i1) -> i1 {
     bb0:
-      v0 = select arg0, true, false
+-     v0 = select arg0, true, false
++     v0 = and arg0, true
       ret v0
   }
   
@@ -41,7 +46,9 @@
 + @phase lowered
   fn @all_ones_left(arg0: i1, arg1: i1) -> i1 {
     bb0:
-      v0 = select arg0, true, arg1
+      v1 = eq arg0, false
+      v2 = xor v1, true
+      v0 = or v2, arg1
       ret v0
   }
   
@@ -61,13 +68,13 @@
   
   fn @zero_right(arg0: i1, arg1: i1) -> i1 {
     bb0:
-      v0 = select arg0, arg1, false
+      v0 = and arg0, arg1
       ret v0
   }
   
   fn @constants(arg0: i1) -> i1 {
     bb0:
-      v0 = select arg0, true, false
+      v0 = and arg0, true
       ret v0
   }
   

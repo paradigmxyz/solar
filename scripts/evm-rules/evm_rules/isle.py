@@ -338,11 +338,6 @@ class Context:
                 "bool_value: the Rust extractor establishes a canonical 0/1 word"
             )
             return value
-        if name == "word_value" and not args:
-            self.contracts.add(
-                "word_value: the Rust extractor matches only integers wider than `i1`"
-            )
-            return self.fresh()
         raise Unsupported(f"unmodeled extractor: {name}")
 
     def constructor(self, node):

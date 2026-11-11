@@ -191,12 +191,16 @@ impl generated::Context for Context<'_> {
     }
 
     fn sequence(&mut self, root: &Op) -> Recipe {
-        Recipe {
+        let mut recipe = Recipe {
             root: *root,
             scalar_ty: self.scalar_ty,
             temporaries: self.temporaries.clone(),
             enabling: false,
+        };
+        if self.scalar_ty == MirType::I1 {
+            recipe.legalize_booleans(self.func.num_values());
         }
+        recipe
     }
 
     fn enabling_sequence(&mut self, root: &Op) -> Recipe {
@@ -230,10 +234,6 @@ impl generated::Context for Context<'_> {
     }
     fn bool_value(&mut self, value: Value) -> Option<()> {
         super::super::egraph::is_bool_value(self.func, value).then_some(())
-    }
-    fn word_value(&mut self, value: Value) -> Option<()> {
-        matches!(self.func.value_ty(value), Some(MirType::Int(bits)) if bits.get() > 1)
-            .then_some(())
     }
 
     fn optimize_for_size(&mut self) -> bool {

@@ -209,6 +209,32 @@ fn root_cost(
 }
 
 impl Recipe {
+    /// Spells the arithmetic of a boolean recipe as the bitwise operations it equals modulo 2,
+    /// which `lowered` MIR accepts at `i1`: `add` and `sub` are `xor`, `mul` is `and`, and `not` is
+    /// `xor` with one. `first_temporary` is the first ID past the function's values.
+    fn legalize_booleans(&mut self, first_temporary: usize) {
+        let one = ValueId::new(first_temporary + self.temporaries.len());
+        let mut uses_one = false;
+        let mut bitwise = |op: Op| match op {
+            Op::Add { a, b } | Op::Sub { a, b } => Op::Xor { a, b },
+            Op::Mul { a, b } => Op::And { a, b },
+            Op::Not { a } => {
+                uses_one = true;
+                Op::Xor { a, b: one }
+            }
+            op => op,
+        };
+        self.root = bitwise(self.root);
+        for temporary in self.temporaries.values_mut() {
+            if let Temporary::Operation(op) = temporary {
+                *op = bitwise(*op);
+            }
+        }
+        if uses_one {
+            self.temporaries.insert(one, Temporary::Constant(U256::ONE));
+        }
+    }
+
     /// Visits only reachable temporary definitions, in dependency order.
     fn collect(
         &self,
