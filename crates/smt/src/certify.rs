@@ -26,6 +26,7 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    sync::atomic::{AtomicUsize, Ordering},
     thread,
     time::{Duration, Instant},
 };
@@ -260,7 +261,8 @@ pub fn reference_script(query: &str) -> Result<String, String> {
 }
 
 /// `term` with each application of a definition replaced by its body, and each variable
-/// `substitution` names replaced by its value. Binders shadow both.
+/// `substitution` names replaced by its value. Binders shadow both, and a binder that could
+/// capture a variable of a substituted value is renamed.
 fn inline(
     term: &Sexp,
     definitions: &HashMap<String, (Vec<String>, Sexp)>,
@@ -296,9 +298,18 @@ fn inline(
                     } else {
                         value.clone()
                     };
-                    inner.remove(name);
                     definitions.remove(name);
-                    bound.push(Sexp::List(vec![Sexp::Atom(name.clone()), value]));
+                    // A binder of a definition's body must not capture a variable of an
+                    // argument substituted under it, so it takes a fresh name when one could.
+                    let name = if substitution.values().any(|value| mentions(value, name)) {
+                        let fresh = format!("{name}!{}", FRESH.fetch_add(1, Ordering::Relaxed));
+                        inner.insert(name.clone(), Sexp::Atom(fresh.clone()));
+                        fresh
+                    } else {
+                        inner.remove(name);
+                        name.clone()
+                    };
+                    bound.push(Sexp::List(vec![Sexp::Atom(name), value]));
                 }
                 let body = inline(body, &definitions, &inner);
                 Sexp::List(vec![Sexp::Atom(binder.clone()), Sexp::List(bound), body])
@@ -320,6 +331,17 @@ fn inline(
                 items.iter().map(|item| inline(item, definitions, substitution)).collect(),
             ),
         },
+    }
+}
+
+/// Numbers the fresh names [`inline`] gives binders.
+static FRESH: AtomicUsize = AtomicUsize::new(0);
+
+/// Whether `symbol` occurs anywhere in `term`.
+fn mentions(term: &Sexp, symbol: &str) -> bool {
+    match term {
+        Sexp::Atom(atom) => atom == symbol,
+        Sexp::List(items) => items.iter().any(|item| mentions(item, symbol)),
     }
 }
 
@@ -347,6 +369,30 @@ mod tests {
 (declare-const x (_ BitVec 8))
 (assert (= (bvadd x x) (bvadd #x02 #x02)))
 (assert (let ((v x)) (= (bvadd v v) v)))
+(check-sat)
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn inlining_avoids_capture() {
+        // `(exists ((y ...)) ...)` in the body must not capture the argument's free ` y`.
+        let query = "(set-logic BV)
+(declare-const y (_ BitVec 8))
+(define-fun bigger ((v (_ BitVec 8))) Bool (exists ((y (_ BitVec 8))) (bvult v y)))
+(define-fun twice ((v (_ BitVec 8))) (_ BitVec 8) (let ((y (bvadd v v))) y))
+(assert (bigger y))
+(assert (= (twice y) y))
+(check-sat)
+";
+        snapbox::assert_data_eq!(
+            reference_script(query).unwrap().replace(char::is_numeric, "N"),
+            snapbox::str![[r#"
+(set-logic BV)
+(declare-const y (_ BitVec N))
+(assert (exists ((y!N (_ BitVec N))) (bvult y y!N)))
+(assert (= (let ((y!N (bvadd y y))) y!N) y))
 (check-sat)
 
 "#]]
