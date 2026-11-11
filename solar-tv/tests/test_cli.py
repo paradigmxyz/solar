@@ -30,7 +30,7 @@ class PairTests(unittest.TestCase):
                 ("evmir", "peephole", "peephole", "evm-ir"),
             ]:
                 with self.subTest(example=example):
-                    folder = ROOT / "examples" / example
+                    folder = ROOT / "examples" / layer / example
                     before = folder / f"before.{layer}"
                     after = Path(tmp) / f"after.{layer}"
                     output = subprocess.check_output(
@@ -61,7 +61,7 @@ class PairTests(unittest.TestCase):
                 "  before = fallthrough, stack=[]\n  after  = bb1, stack=[]",
             ),
         ]:
-            folder = ROOT / "examples" / example
+            folder = ROOT / "examples" / layer / example
             result = check(
                 layer, folder / f"before.{layer}", folder / f"broken.{layer}"
             )
@@ -69,7 +69,7 @@ class PairTests(unittest.TestCase):
             self.assertIn(expected, result.stdout)
 
     def test_effect_is_unsupported(self):
-        before = ROOT / "examples/dce/before.mir"
+        before = ROOT / "examples/mir/dce/before.mir"
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "write.mir"
             path.write_text(
@@ -80,7 +80,7 @@ class PairTests(unittest.TestCase):
             self.assertIn("unmodeled MIR instruction", result.stderr)
 
     def test_counterexample_away_from_zero(self):
-        before = ROOT / "examples/switch/before.mir"
+        before = ROOT / "examples/mir/switch/before.mir"
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "bad.mir"
             path.write_text(before.read_text().replace("arg0 => bb1, ", ""))
@@ -89,7 +89,7 @@ class PairTests(unittest.TestCase):
             self.assertIn("arg0 = 5\n  before = 1\n  after  = 2", result.stdout)
 
     def test_live_stack_is_observable(self):
-        folder = ROOT / "examples/peephole"
+        folder = ROOT / "examples/evmir/peephole"
         with tempfile.TemporaryDirectory() as tmp:
             paths = []
             for name, value in [("before", 1), ("after", 2)]:

@@ -9,15 +9,15 @@ From the repository root, with Python 3.10+ and the pinned Lean toolchain:
 
 ```sh
 cargo build -p solar-compiler
-solar-tv/solar-tv mir solar-tv/examples/dce/{before,after}.mir
-solar-tv/solar-tv evmir solar-tv/examples/peephole/{before,after}.evmir
+solar-tv/solar-tv mir solar-tv/examples/mir/dce/{before,after}.mir
+solar-tv/solar-tv evmir solar-tv/examples/evmir/peephole/{before,after}.evmir
 ```
 
 The DCE example deletes an unused multiplication and subtraction. Replacing
 the live return with the input breaks it:
 
 ```console
-$ solar-tv/solar-tv mir solar-tv/examples/dce/{before,broken}.mir
+$ solar-tv/solar-tv mir solar-tv/examples/mir/dce/{before,broken}.mir
 counterexample
   arg0 = 0
   before = 1
@@ -56,9 +56,9 @@ From the repository root:
 
 ```sh
 export SOLAR_TV="$PWD/solar-tv/solar-tv"
-target/debug/solar solar-tv/examples/dce/before.mir \
+target/debug/solar solar-tv/examples/mir/dce/before.mir \
   -Zmir-pipeline=dce -Zsolar-tv=target/tv
-target/debug/solar solar-tv/examples/peephole/before.evmir \
+target/debug/solar solar-tv/examples/evmir/peephole/before.evmir \
   -Zevm-ir-pipeline=peephole -Zsolar-tv=target/tv
 ```
 
