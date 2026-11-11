@@ -19,7 +19,6 @@ use crate::{
     target::{Cost, Target},
 };
 use alloy_primitives::U256;
-use smallvec::SmallVec;
 use solar_config::EvmVersion;
 
 /// How far back a rule may simulate the block's stack.
@@ -110,13 +109,6 @@ mod generated {
     use crate::isle_log as log;
 
     include!(concat!(env!("OUT_DIR"), "/peephole.isle.rs"));
-}
-
-/// One word of the simulated stack: only a known zero is distinguished.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum KnownStackWord {
-    Other,
-    Zero,
 }
 
 /// Returns the stack effect of an instruction that only pushes, permutes, or computes a pure word,
@@ -294,6 +286,56 @@ impl<'a> PeepContext<'a> {
         Some(std::array::from_fn(|index| start + index))
     }
 
+    fn is_constant_source(&self, index: Inst) -> bool {
+        let inst = &self.instructions[index];
+        inst.concrete_immediate().is_some() || matches!(inst.as_stack_op(), Some(StackOp::Dup(_)))
+    }
+
+    /// Returns the constant that the push or `DUP` at `index` pushes, and its cost.
+    ///
+    /// A `DUP` pushes a constant when a push within `MAX_STACK_WINDOW` instructions pushed the
+    /// word it copies. The search follows the word's position from the top backwards through each
+    /// instruction's stack effect, and stops at a `JUMPDEST`.
+    fn constant_operand(&self, index: Inst) -> Option<(U256, Cost)> {
+        let inst = &self.instructions[index];
+        if let Some(value) = inst.concrete_immediate() {
+            return Some((value, self.target.push(value)));
+        }
+        let StackOp::Dup(depth) = inst.as_stack_op()? else { return None };
+        let mut word = usize::from(depth);
+        for inst in self.instructions[index.saturating_sub(MAX_STACK_WINDOW)..index].iter().rev() {
+            if let Some(stack_op) = inst.as_stack_op() {
+                match stack_op {
+                    StackOp::Dup(depth) if word == 1 => word = usize::from(depth),
+                    StackOp::Dup(_) => word -= 1,
+                    StackOp::Swap(depth) if word == 1 => word = usize::from(depth) + 1,
+                    StackOp::Swap(depth) if word == usize::from(depth) + 1 => word = 1,
+                    StackOp::Exchange(n, m) if word == usize::from(n) + 1 => {
+                        word = usize::from(m) + 1
+                    }
+                    StackOp::Exchange(n, m) if word == usize::from(m) + 1 => {
+                        word = usize::from(n) + 1
+                    }
+                    StackOp::Pop => word += 1,
+                    StackOp::Swap(_) | StackOp::Exchange(..) => {}
+                }
+                continue;
+            }
+            // A jump may land on a `JUMPDEST` and skip the pushes before it.
+            if inst.as_evm_opcode() == Some(JUMPDEST) {
+                return None;
+            }
+            let effect = inst.stack_effect();
+            let outputs = usize::from(effect.outputs);
+            if word <= outputs {
+                let value = inst.concrete_immediate()?;
+                return Some((value, self.target.dup()));
+            }
+            word = word - outputs + usize::from(effect.inputs);
+        }
+        None
+    }
+
     /// Returns whether `PUSH0; NOT; NOT` dominates the removed instructions of a low-mask rewrite.
     fn mask_profitable(&self, before: Cost) -> bool {
         let target = self.target;
@@ -417,86 +459,50 @@ impl generated::Context for PeepContext<'_> {
         u8::try_from(pops + 1).ok()
     }
 
-    /// A `DUPn` whose duplicated word this block just pushed as a literal zero.
-    ///
-    /// The simulation follows only pushes and stack operations, starting after the last other
-    /// operation, and keeps only "is this word a known zero".
-    fn duplicates_known_zero(&mut self, _: Window) -> Option<()> {
-        if !self.target.evm_version().has_push0() {
+    /// A `DUPn` of a known constant that its materialization replaces for less.
+    fn duplicates_known_constant(&mut self, _: Window) -> Option<U256> {
+        let target = self.target;
+        // Only `PUSH0` can beat a `DUP`; skip the search without it.
+        if !target.evm_version().has_push0() {
             return None;
         }
-        let instructions = self.instructions;
-        let StackOp::Dup(depth) = instructions.last()?.as_stack_op()? else { return None };
-        let end = instructions.len() - 1;
-        let floor = end.saturating_sub(MAX_STACK_WINDOW);
-        let start = instructions[floor..end]
-            .iter()
-            .rposition(|inst| !(inst.is_encoded_push() || inst.as_stack_op().is_some()))
-            .map_or(floor, |index| floor + index + 1);
-        if !instructions[start..end]
-            .iter()
-            .any(|inst| inst.concrete_immediate() == Some(U256::ZERO))
-        {
-            return None;
-        }
-        let mut stack = SmallVec::<[KnownStackWord; MAX_STACK_WINDOW + 16]>::from_elem(
-            KnownStackWord::Other,
-            usize::from(depth),
-        );
-        for inst in &instructions[start..end] {
-            if inst.is_encoded_push() {
-                stack.push(if inst.concrete_immediate() == Some(U256::ZERO) {
-                    KnownStackWord::Zero
-                } else {
-                    KnownStackWord::Other
-                });
-                continue;
-            }
-            let op = inst.as_stack_op()?;
-            for _ in stack.len()..op.required_depth() {
-                stack.insert(0, KnownStackWord::Other);
-            }
-            let top = stack.len() - 1;
-            match op {
-                StackOp::Dup(depth) => stack.push(stack[top - usize::from(depth - 1)]),
-                StackOp::Swap(depth) => stack.swap(top, top - usize::from(depth)),
-                StackOp::Exchange(n, m) => stack.swap(top - usize::from(n), top - usize::from(m)),
-                StackOp::Pop => {
-                    stack.pop();
-                }
-            }
-        }
-        let depth = usize::from(depth);
-        (stack.len() >= depth && stack[stack.len() - depth] == KnownStackWord::Zero).then_some(())
+        let (value, dup) = self.constant_operand(self.instructions.len() - 1)?;
+        target.dominates(target.push(value), dup).then_some(value)
     }
 
-    /// Two adjacent constants and the operation over them, when materializing the
-    /// evaluated result is no worse in both bytes and gas and better in one.
+    /// Two adjacent constants, each a push or a `DUP` of a known constant, and the operation over
+    /// them, when materializing the evaluated result is a Pareto improvement.
     fn fold_constants(&mut self, _: Window) -> Option<U256> {
-        let [.., lhs, rhs, instruction] = self.instructions else { return None };
-        let lhs_value = lhs.concrete_immediate()?;
-        let rhs_value = rhs.concrete_immediate()?;
-        let opcode = instruction.as_evm_opcode()?;
+        let [lhs, rhs, instruction] = self.tail()?;
+        let opcode =
+            self.instructions[instruction].as_evm_opcode().filter(|&op| op::is_pure(op))?;
+        // Walk only for a `DUP`, and only once both operands can be constants.
+        if ![lhs, rhs].into_iter().all(|index| self.is_constant_source(index)) {
+            return None;
+        }
+        let (lhs_value, lhs_cost) = self.constant_operand(lhs)?;
+        let (rhs_value, rhs_cost) = self.constant_operand(rhs)?;
         let result = eval::eval_opcode(opcode, &[rhs_value, lhs_value])?;
         let target = self.target;
         // PUSH lhs; PUSH rhs; opcode => materialize evaluated word
         // Price the operation too: compact wide constants may need several
         // instructions yet cost less than the operation they replace.
-        let input = target.push(lhs_value)
-            + target.push(rhs_value)
+        let input = lhs_cost
+            + rhs_cost
             + target.opcode_with_immediates(opcode, &[Some(rhs_value), Some(lhs_value)]);
         target.dominates(target.push(result), input).then_some(result)
     }
 
-    /// Folds a literal unary expression only when its materialization is Pareto better.
+    /// Folds a unary expression of a constant only when its materialization is Pareto better.
     fn fold_unary_constant(&mut self, _: Window) -> Option<U256> {
         let [value, instruction] = self.unprotected_tail()?;
-        let value = self.instructions[value].concrete_immediate()?;
-        let opcode = self.instructions[instruction].as_evm_opcode()?;
+        let opcode =
+            self.instructions[instruction].as_evm_opcode().filter(|&op| op::is_pure(op))?;
+        let (value, cost) = self.constant_operand(value)?;
         let result = eval::eval_opcode(opcode, &[value])?;
         let target = self.target;
         // PUSH value; unary_opcode => materialize evaluated word
-        let input = target.push(value) + target.opcode_with_immediates(opcode, &[Some(value)]);
+        let input = cost + target.opcode_with_immediates(opcode, &[Some(value)]);
         target.dominates(target.push(result), input).then_some(result)
     }
 

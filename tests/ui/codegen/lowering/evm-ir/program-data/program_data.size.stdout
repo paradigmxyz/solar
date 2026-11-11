@@ -248,18 +248,16 @@ bb12 [cold]:
   push 0
   revert
 bb13 [entry]:                                     ; function data() external pure returns (bytes memory) [selector 0x73d4a13a]
-  push 32
   push 160
-  dup 1
   dup 1
   push 64
   mstore
-  swap 2
-  add
   push 257
   dup 1
-  dup 4
+  dup 3
   mstore
+  push 192
+  swap 1
   push_data literal_0
   dup 3
   codecopy
@@ -278,18 +276,15 @@ bb13 [entry]:                                     ; function data() external pur
   swap 1
   return
 bb14 [entry]:                                     ; function subslice() external pure returns (bytes memory) [selector 0xb9ad073e]
-  push 32
   push 160
-  dup 1
   dup 1
   push 64
   mstore
-  swap 2
-  add
   push 161
-  dup 1
-  dup 4
+  dup 2
   mstore
+  push 192
+  push 161
   push_data literal_0+64
   dup 3
   codecopy
@@ -385,9 +380,7 @@ bb28 [ret=0, inputs=1, outputs=1]:                ; function splatData() public 
   dup 1
   dup 2
   mstore
-  push 32
-  dup 2
-  add
+  push 192
   push 0
   not
   push 128
@@ -400,21 +393,15 @@ bb28 [ret=0, inputs=1, outputs=1]:                ; function splatData() public 
   dup 1
   dup 3
   mstore
-  push 64
-  dup 4
-  add
+  push 224
   mstore
   push 64
   dup 2
-  push 96
-  dup 5
-  add
+  push 256
   mcopy
   push 32
   dup 2
-  dup 4
-  dup 5
-  add
+  push 320
   mcopy
   pop
   swap 1

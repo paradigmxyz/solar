@@ -1,8 +1,5 @@
 ; === ROOT/tests/ui/codegen/lowering/evm-ir/spills/return_spill_loop.sol:ReturnCopy (runtime) ===
 @module ReturnCopy_runtime
-@data
-  literal_0: hex"2233"
-
 bb0:                                              ; runtime dispatch entry
   callvalue
   push bb6
@@ -36,13 +33,10 @@ bb6 [cold]:
   push 0
   push 0
   revert
-bb15 [cold]:
-  push 65
-  jump bb49
 bb14 [cold]:
   push 50
-  jump bb49
-bb49 [cold]:
+  jump bb53
+bb53 [cold]:
   push 32
   mstore
   push 0x4e487b71
@@ -58,18 +52,7 @@ bb7 [entry]:                                      ; function probe(uint256 seed)
   push bb6
   jumpi
   push 160
-  push 64
-  dup 2
-  add
-  dup 1
-  push 64
-  shr
-  dup 3
-  dup 3
-  lt
-  or
-  push bb15
-  jumpi
+  push 224
   push 64
   mstore
   push 3
@@ -79,16 +62,14 @@ bb7 [entry]:                                      ; function probe(uint256 seed)
   push 4
   calldataload
   and
-  push 32
-  dup 3
-  add
+  push 192
   mstore8
-  push 2
-  push_data literal_0
-  push 33
-  dup 4
-  add
-  codecopy
+  push 34
+  push 193
+  mstore8
+  push 51
+  push 194
+  mstore8
   push 34
   swap 1
   push bb10
@@ -194,9 +175,7 @@ bb10 [continuation]:
   return
 bb17 [entry]:                                     ; function doubleProbe() external pure returns (uint256) [selector 0xf770a1a3]
   push 160
-  push 64
-  dup 2
-  add
+  push 224
   push 64
   mstore
   push 3
@@ -205,9 +184,7 @@ bb17 [entry]:                                     ; function doubleProbe() exter
   push 0x222233
   push 232
   shl
-  push 32
-  dup 3
-  add
+  push 192
   mstore
   push 34
   swap 1
@@ -286,7 +263,7 @@ bb46 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_type (synthe
   swap 1
   swap 2
   or
-  push bb15
+  push bb50
   jumpi
   push 64
   mstore
@@ -311,7 +288,7 @@ bb46 [ret=0, inputs=1, outputs=1]:                ; decode_calldata_type (synthe
   swap 1
   jump
 bb24 [continuation]:
-  push bb50
+  push bb54
   jump bb39
 bb30 [entry]:                                     ; function twice(bytes memory input, uint256 marker) public pure returns (bytes memory) [selector 0x5a2aaa96]
   push 68
@@ -374,7 +351,10 @@ bb45:
   pop
   pop
   jump bb44
-bb48 [continuation]:
+bb50 [cold]:
+  push 65
+  jump bb53
+bb52 [continuation]:
   push 64
   mload
   push 32
@@ -416,7 +396,7 @@ bb48 [continuation]:
   sub
   swap 1
   return
-bb50 [continuation]:
+bb54 [continuation]:
   push 64
   mload
   push 160
@@ -434,7 +414,7 @@ bb50 [continuation]:
   push 32
   dup 2
   lt
-  push bb48
+  push bb52
   jumpi
   dup 1
   mload
