@@ -31,6 +31,7 @@ mod tail_merge;
 mod terminal_dedup;
 mod terminal_layout;
 pub(super) mod utils;
+mod validate;
 
 pub(in crate::backend) use legalize_revert::legalize_revert;
 pub(in crate::backend::evm) use stack_reschedule::SharedSchedules;
@@ -263,6 +264,12 @@ fn run_passes(
             debug_assert!(unchanged.iter().filter(|entry| **entry == cache_key).count() <= 1);
             let target_support_before = (!cached && should_validate_ir(gcx.sess))
                 .then(|| super::verifier(gcx).target_support_snapshot(module));
+            // Translation validation compares the program the pass changes with its version
+            // before it.
+            let validated = (!cached)
+                .then_some(gcx.sess.opts.unstable.validate_evm_ir_passes.as_ref())
+                .flatten()
+                .map(|dir| (dir, module.clone()));
             let pass_changed = !cached
                 && tracing::trace_span!("evm_ir_pass", pass = pass_name)
                     .in_scope(|| pass.run_pass(gcx, module));
@@ -277,6 +284,24 @@ fn run_passes(
                 module.drop_invalid_lent_invokes();
             }
             if gcx.dcx().err_count() != errors_before {
+                return changed;
+            }
+            if pass_changed
+                && let Some((dir, before)) = validated
+                && let Err(error) = validate::write_queries(
+                    pass_name,
+                    &before,
+                    module,
+                    dir,
+                    gcx.sess.opts.evm_version,
+                )
+            {
+                gcx.dcx()
+                    .err(format!(
+                        "cannot write the pass validation queries to `{}`: {error}",
+                        dir.display()
+                    ))
+                    .emit();
                 return changed;
             }
             if pass_changed && let Some(target_support_before) = target_support_before {

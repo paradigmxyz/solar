@@ -158,7 +158,7 @@ pub(super) fn write_queries(
 }
 
 /// A file-name-safe form of a module name.
-pub(super) fn sanitize(name: &str) -> String {
+pub(crate) fn sanitize(name: &str) -> String {
     name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect()
 }
 
@@ -1270,7 +1270,7 @@ fn write_byte_body() -> String {
     format!("(ite (bvuge (bvsub p a) {size}) w {})", load_word("m", "a"))
 }
 
-pub(super) fn word(value: U256) -> String {
+pub(crate) fn word(value: U256) -> String {
     op::word::smt_word(value)
 }
 

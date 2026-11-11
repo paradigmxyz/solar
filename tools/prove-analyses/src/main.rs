@@ -35,8 +35,21 @@
 //! counterexample (`sat`, or `sat-opaque` when the model goes through an uninterpreted call,
 //! hash or world function), unknown and skipped.
 //!
-//! A source's `//@ compile-flags:` lines pass on its `--evm-version` and `-Zmir-pipeline` flags,
-//! so MIR text with hand-written `assume` records runs too.
+//! With `--validate-backend`, it compiles with `-Zvalidate-backend`, which writes one query per MIR
+//! block of the runtime, asking whether the EVM IR stack scheduling emitted for the block can end
+//! differently from the block when the stack and memory hold its values where the schedule says
+//! (see the docs of `validate_backend.rs`). The summary counts blocks under the pass
+//! `stack-schedule` as for `--validate-passes`, and then functions: proved when every block is,
+//! partial when the rest are skipped.
+//!
+//! //! With `--validate-evm-ir-passes`, it compiles with `-Zvalidate-evm-ir-passes`, which writes
+//! one query per code region an EVM IR pass changed (see the docs of
+//! `backend/evm/ir/passes/validate.rs`), reported the same way under the pass names
+//! `evm-ir/<pass>`.
+//!
+//! A source's `//@ compile-flags:` lines pass on its `--evm-version`, `-Zmir-pipeline` and
+//! `-Zevm-ir-pipeline` flags, so MIR text with hand-written `assume` records runs too, and EVM IR
+//! text through the passes its test names.
 //!
 //! ```sh
 //! cargo build --release && cargo run --release -p solar-prove-analyses -- tests/ui/codegen
@@ -66,7 +79,7 @@ use std::{
 type Record = Map<String, Value>;
 
 static COMPILE_FLAGS: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^//@ compile-flags:(.*)$").unwrap());
+    LazyLock::new(|| Regex::new(r"(?m)^//@ ?(?:\[([^\]]*)\] )?compile-flags:(.*)$").unwrap());
 static HEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"0x[0-9a-f]+").unwrap());
 
 /// Proves the compiler's analysis facts for all inputs with Z3.
@@ -140,6 +153,14 @@ struct Args {
     /// changed.
     #[arg(long)]
     validate_passes: bool,
+    /// Validate stack scheduling instead: prove that the EVM IR scheduled for each MIR block does
+    /// what the block does.
+    #[arg(long, conflicts_with = "validate_passes")]
+    validate_backend: bool,
+    /// Validate the EVM IR passes instead: prove that each pass preserved every code region it
+    /// changed.
+    #[arg(long, conflicts_with = "validate_passes")]
+    validate_evm_ir_passes: bool,
 }
 
 fn main() -> ExitCode {
@@ -170,7 +191,15 @@ fn main() -> ExitCode {
             jobs.push((file.clone(), level.clone(), out.join(format!("{digest}-{level}"))));
         }
     }
-    let flag = if args.validate_passes { "-Zvalidate-passes" } else { "-Zprove-analyses" };
+    let flag = if args.validate_passes {
+        "-Zvalidate-passes"
+    } else if args.validate_backend {
+        "-Zvalidate-backend"
+    } else if args.validate_evm_ir_passes {
+        "-Zvalidate-evm-ir-passes"
+    } else {
+        "-Zprove-analyses"
+    };
     let counts: Vec<usize> =
         jobs.par_iter().map(|(file, level, dir)| compile(&solar, flag, file, level, dir)).collect();
     let origin: HashMap<PathBuf, String> =
@@ -228,8 +257,11 @@ fn main() -> ExitCode {
         results.flush().unwrap();
     }
     records.extend(skipped);
-    if args.validate_passes {
+    if args.validate_passes || args.validate_evm_ir_passes {
         summarize_passes(&records);
+    } else if args.validate_backend {
+        summarize_passes(&records);
+        summarize_functions(&records);
     } else {
         summarize(&records);
     }
@@ -246,7 +278,10 @@ fn sources(paths: &[PathBuf]) -> Vec<PathBuf> {
         for path in entries {
             if path.is_dir() {
                 walk(&path, out);
-            } else if path.extension().is_some_and(|ext| ext == "sol" || ext == "mir") {
+            } else if path
+                .extension()
+                .is_some_and(|ext| ext == "sol" || ext == "mir" || ext == "evmir")
+            {
                 out.push(path);
             }
         }
@@ -712,22 +747,69 @@ fn summarize_passes(records: &[Record]) {
     }
 }
 
+/// Counts each function as proved when every one of its block queries is, as a counterexample when
+/// one of them is, as unknown when one is undecided, and as skipped when every block is.
+fn summarize_functions(records: &[Record]) {
+    let field = |record: &Record, key: &str| {
+        record.get(key).and_then(Value::as_str).unwrap_or_default().to_string()
+    };
+    // Every block's verdict, by compile directory and function.
+    let mut functions: BTreeMap<(String, String), Vec<String>> = BTreeMap::new();
+    for record in records {
+        let query = field(record, "query");
+        let dir = Path::new(&query).parent().map(|dir| dir.display().to_string());
+        let key = (
+            dir.unwrap_or_default(),
+            format!("{} {}", field(record, "module"), field(record, "function")),
+        );
+        functions.entry(key).or_default().push(field(record, "result"));
+    }
+    let columns = ["proved", "counterexample", "opaque", "unknown", "skipped", "partial"];
+    let mut counts = [0; 6];
+    for verdicts in functions.values() {
+        let has = |verdict: &str| verdicts.iter().any(|v| v == verdict);
+        let column = if has("sat") {
+            1
+        } else if has("sat-opaque") {
+            2
+        } else if verdicts.iter().all(|v| v == "unsat") {
+            0
+        } else if verdicts.iter().all(|v| v == "skipped") {
+            4
+        } else if verdicts.iter().all(|v| v == "unsat" || v == "skipped") {
+            5
+        } else {
+            3
+        };
+        counts[column] += 1;
+    }
+    println!("{:28} {}", "functions", columns.map(|c| format!("{c:>14}")).join(""));
+    println!("{:28} {}", "total", counts.map(|n| format!("{n:>14}")).join(""));
+}
+
 /// The Z3 binary when `--z3` is not given.
 fn z3_binary() -> PathBuf {
     std::env::var_os("SOLAR_PROVE_ANALYSES_Z3").map_or_else(|| "z3".into(), PathBuf::from)
 }
 
-/// The `--evm-version` and `-Zmir-pipeline` flags of a source's `//@ compile-flags:` lines, with
-/// the value that follows a flag written without `=`.
+/// The `--evm-version`, `-Zmir-pipeline` and `-Zvalidate-backend-fault` flags of a source's
+/// `//@ compile-flags:` lines, with the value that follows a flag written without `=`.
 fn passed_flags(text: &str) -> Vec<String> {
+    // The flags of every revision, or with revisions, of the first one.
+    let revision = COMPILE_FLAGS.captures_iter(text).find_map(|c| c.get(1)).map(|m| m.as_str());
     let tokens: Vec<&str> = COMPILE_FLAGS
         .captures_iter(text)
-        .flat_map(|c| c.get(1).map_or("", |m| m.as_str()).split_whitespace().collect::<Vec<_>>())
+        .filter(|c| c.get(1).is_none_or(|m| Some(m.as_str()) == revision))
+        .flat_map(|c| c.get(2).map_or("", |m| m.as_str()).split_whitespace().collect::<Vec<_>>())
         .collect();
     let mut flags = Vec::new();
     let mut tokens = tokens.into_iter();
     while let Some(token) = tokens.next() {
-        if !(token.starts_with("--evm-version") || token.starts_with("-Zmir-pipeline")) {
+        if !(token.starts_with("--evm-version")
+            || token.starts_with("-Zmir-pipeline")
+            || token.starts_with("-Zvalidate-backend-fault")
+            || token.starts_with("-Zevm-ir-pipeline"))
+        {
             continue;
         }
         flags.push(token.to_owned());

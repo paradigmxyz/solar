@@ -7,7 +7,10 @@ use super::{
     immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
 };
 use crate::{
-    backend::assembler::{DeferredAllocResolution, ScheduledProgram},
+    backend::{
+        assembler::{DeferredAllocResolution, ScheduledProgram},
+        evm::{schedule_map::ScheduleMap, validate_backend},
+    },
     debugify::Origins,
     link::{CodeKind, LibraryTable},
     mir::{
@@ -92,7 +95,13 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // First schedule the runtime code and run its EVM IR pipeline. Only final
         // assembly waits for the bytecode of contracts it embeds.
+        let validate_dir = self.gcx.sess.opts.unstable.validate_backend.clone();
+        self.schedule_map = validate_dir.is_some().then(ScheduleMap::default);
         self.schedule_runtime_code(&lowered, &call_graph);
+        let mut schedule_map = self.schedule_map.take();
+        if let Some(map) = &mut schedule_map {
+            map.resolve(&self.asm);
+        }
         let backend_memory = self.capture_mir.then(|| BackendMemory {
             stack_returns: self.stack_return_sites.clone(),
             allocations: self
@@ -132,10 +141,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm
             .program
             .set_debug_info_visible(self.display_debug_info || !crate::debugify::enabled(self.gcx));
-        let ScheduledProgram { evm_ir: scheduled_evm_ir, origins } =
-            self.asm.optimize_capturing(self.capture_scheduled_evm_ir);
+        let ScheduledProgram { evm_ir: mut scheduled_evm_ir, origins } =
+            self.asm.optimize_capturing(self.capture_scheduled_evm_ir || schedule_map.is_some());
         if self.gcx.dcx().has_errors().is_err() {
             return false;
+        }
+        if let (Some(dir), Some(map), Some(program)) =
+            (&validate_dir, &schedule_map, &scheduled_evm_ir)
+            && let Err(error) = validate_backend::write_queries(self.gcx, module, map, program, dir)
+        {
+            self.gcx.dcx().err(format!("cannot write backend validation queries: {error}")).emit();
+        }
+        if !self.capture_scheduled_evm_ir {
+            scheduled_evm_ir = None;
         }
         let audit = mir_origins.zip(origins);
         self.pending_runtime =

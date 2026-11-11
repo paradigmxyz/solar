@@ -155,6 +155,150 @@ fn validate() {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
+/// Runs the stack scheduling validator over `tests/validate-backend`: every block of a source in
+/// `proved/` must be proved, and a source in `refuted/`, compiled with a fault planted in what the
+/// validator reads, must have a counterexample.
+#[test]
+fn validate_backend() {
+    let Some(z3) = z3() else { return };
+    let cases = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/validate-backend");
+    let out = tempfile::tempdir().unwrap();
+    run(&z3, out.path(), &cases, &["--validate-backend"]);
+    let results = std::fs::read_to_string(out.path().join("results.jsonl")).unwrap();
+    let mut verdicts: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for line in results.lines() {
+        let record: Value = serde_json::from_str(line).unwrap();
+        let field = |key: &str| record[key].as_str().unwrap_or_default().to_string();
+        let source = field("source");
+        let source = Path::new(&source).strip_prefix(&cases).unwrap().display().to_string();
+        verdicts.entry(source).or_default().push(format!(
+            "{}: {}",
+            field("result"),
+            field("claim")
+        ));
+    }
+    let mut failures = Vec::new();
+    for kind in ["proved", "refuted"] {
+        for entry in std::fs::read_dir(cases.join(kind)).unwrap() {
+            let name = format!("{kind}/{}", entry.unwrap().file_name().to_string_lossy());
+            let verdicts = verdicts.get(&name).map(Vec::as_slice).unwrap_or_default();
+            let ok = if kind == "proved" {
+                !verdicts.is_empty() && verdicts.iter().all(|v| v.starts_with("unsat:"))
+            } else {
+                verdicts.iter().any(|v| v.starts_with("sat:"))
+            };
+            if !ok {
+                failures.push(format!("{name}: {verdicts:?}"));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Recording the schedule map and writing backend queries changes no bytecode: a few codegen
+/// sources compile to the same deployment and runtime code with and without
+/// `-Zvalidate-backend`, at `-Ogas` and `-Osize`.
+#[test]
+fn validate_backend_is_bytecode_neutral() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let sources = [
+        "tools/prove-analyses/tests/validate-backend/proved/calls.sol",
+        "tests/ui/codegen/run-call/memory/byte_copy_loops.sol",
+        "tests/ui/codegen/run-call/storage-arrays/array_copy_memory_storage.sol",
+        "tests/ui/codegen/lowering/evm-ir/spills/decompression_loop_spills.sol",
+        "tests/ui/codegen/lowering/evm-ir/stack-too-deep/deep_nesting.sol",
+    ];
+    let solar = solar();
+    let out = tempfile::tempdir().unwrap();
+    for source in sources {
+        let source = root.join(source);
+        for level in ["gas", "size"] {
+            let compile = |flags: &[String]| {
+                let output = Command::new(&solar)
+                    .args(["-O", level, "--emit=bin,bin-runtime"])
+                    .args(flags)
+                    .arg(&source)
+                    .output()
+                    .unwrap();
+                assert!(
+                    output.status.success(),
+                    "{}: {}",
+                    source.display(),
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                output.stdout
+            };
+            let plain = compile(&[]);
+            let validated = compile(&[format!("-Zvalidate-backend={}", out.path().display())]);
+            assert_eq!(plain, validated, "{} at -O{level}", source.display());
+        }
+    }
+}
+
+/// Runs the EVM IR pass validator over `tests/validate-evm-ir`: every code region a pass
+/// changed in each source must be proved preserved.
+#[test]
+fn validate_evm_ir() {
+    let Some(z3) = z3() else { return };
+    let cases = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/validate-evm-ir");
+    let out = tempfile::tempdir().unwrap();
+    run(&z3, out.path(), &cases, &["--validate-evm-ir-passes"]);
+    let results = std::fs::read_to_string(out.path().join("results.jsonl")).unwrap();
+    let mut verdicts: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for line in results.lines() {
+        let record: Value = serde_json::from_str(line).unwrap();
+        let field = |key: &str| record[key].as_str().unwrap_or_default().to_string();
+        let source = field("source");
+        let source = Path::new(&source).strip_prefix(&cases).unwrap().display().to_string();
+        verdicts.entry(source).or_default().push(format!(
+            "{}: {}",
+            field("result"),
+            field("claim")
+        ));
+    }
+    let mut failures = Vec::new();
+    for entry in std::fs::read_dir(&cases).unwrap() {
+        let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+        let verdicts = verdicts.get(&name).map(Vec::as_slice).unwrap_or_default();
+        if verdicts.is_empty() || !verdicts.iter().all(|v| v.starts_with("unsat:")) {
+            failures.push(format!("{name}: {verdicts:?}"));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Validating the EVM IR passes only reads the program: the compiler emits the same bytecode
+/// with and without `-Zvalidate-evm-ir-passes`.
+#[test]
+fn evm_ir_validation_keeps_bytecode() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let sources = [
+        "tools/prove-analyses/tests/validate-evm-ir/calls.sol",
+        "tests/ui/codegen/evm-ir/copy-joins/loop_joins.sol",
+        "tests/ui/codegen/evm-ir/peephole/constant_swaps_runtime.sol",
+        "tests/ui/codegen/evm-ir/returndata-zero/returndata_zero.sol",
+    ];
+    let solar = solar();
+    let out = tempfile::tempdir().unwrap();
+    for source in sources {
+        for level in ["gas", "size"] {
+            let compile = |flags: &[String]| {
+                let output = Command::new(&solar)
+                    .args(["-O", level, "--emit=bin,bin-runtime"])
+                    .args(flags)
+                    .arg(root.join(source))
+                    .output()
+                    .unwrap();
+                assert!(output.status.success(), "{source} at -O{level} failed");
+                output.stdout
+            };
+            let flag = format!("-Zvalidate-evm-ir-passes={}", out.path().display());
+            assert_eq!(compile(&[]), compile(&[flag]), "{source} at -O{level}");
+        }
+    }
+    assert!(std::fs::read_dir(out.path()).unwrap().next().is_some(), "no queries written");
+}
+
 /// Z3, or `None` when it is missing and the test should be skipped.
 fn z3() -> Option<PathBuf> {
     let z3 = env::var_os("SOLAR_PROVE_ANALYSES_Z3").map_or_else(|| "z3".into(), PathBuf::from);

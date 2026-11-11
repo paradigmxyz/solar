@@ -81,7 +81,9 @@
 //!   compared, so a pass that corrupts an object a function allocates and returns is missed;
 //! - external return data, and stop as returning no bytes: the returned bytes, storage, transient
 //!   storage and world;
-//! - a revert: the revert data alone, since the rest rolls back.
+//! - a revert: the revert data alone, since the rest rolls back;
+//! - a continuation, which EVM IR regions end in (see `backend/evm/ir/passes/validate.rs`): the
+//!   target address, the stack, all of memory, storage, transient storage and the world.
 //!
 //! # Limits
 //!
@@ -114,7 +116,7 @@
 //!
 //! [`Semantics`]: crate::mir::Semantics
 
-use super::prove_analyses::{load_word, sanitize, store_word, word};
+use super::prove_analyses::{load_word, store_word};
 use crate::{
     backend::evm::{op, select::InstKindOpcode},
     mir::{
@@ -136,6 +138,8 @@ use std::{
     io::Write as _,
     path::Path,
 };
+
+pub(crate) use super::prove_analyses::{sanitize, word};
 
 /// Passes whose rewrites depend on other functions, which a query of one function cannot follow.
 const INTERPROCEDURAL: &[&str] = &[
@@ -193,27 +197,18 @@ pub(crate) fn write_queries(
             id.index(),
             id.index(),
         );
-        let (file, text) = match encode(
+        let query = encode(
             pass,
             after.dispatch_entry() == Some(id) || after.constructor() == Some(id),
             (old, &before.functions),
             (func, &after.functions),
-        ) {
-            Ok(query) => (
-                format!("{file}.smt2"),
-                format!(
-                    "{header}; opaque: {}\n; axioms: {}\n{}",
-                    query.opaque.join(" "),
-                    query.axioms.join(" "),
-                    query.text
-                ),
-            ),
-            Err(reason) => (format!("{file}.skip"), format!("{header}; skipped: {reason}\n")),
-        };
-        if to_stdout {
-            stdout.push_str(&format!("; query: {file}\n{text}"));
-        } else {
-            std::fs::write(dir.join(file), text)?;
+        );
+        for (file, text) in query_files(&file, &header, query) {
+            if to_stdout {
+                stdout.push_str(&format!("; query: {file}\n{text}"));
+            } else {
+                std::fs::write(dir.join(file), text)?;
+            }
         }
     }
     if to_stdout {
@@ -222,14 +217,42 @@ pub(crate) fn write_queries(
     Ok(())
 }
 
+/// The files of a query named `name`, without an extension, under `header`: the query and its
+/// abstract tier, or a `.skip` file with the reason it could not be encoded.
+pub(crate) fn query_files(
+    name: &str,
+    header: &str,
+    query: Result<Query, String>,
+) -> Vec<(String, String)> {
+    match query {
+        Ok(query) => {
+            let header = format!(
+                "{header}; opaque: {}\n; axioms: {}\n",
+                query.opaque.join(" "),
+                query.axioms.join(" ")
+            );
+            let mut files = vec![(format!("{name}.smt2"), format!("{header}{}", query.text))];
+            if let Some(abstracted) = query.abstracted {
+                files.push((format!("{name}.abstract.smt2"), format!("{header}{abstracted}")));
+            }
+            files
+        }
+        Err(reason) => vec![(format!("{name}.skip"), format!("{header}; skipped: {reason}\n"))],
+    }
+}
+
 /// A finished query and what its counterexamples rest on.
-struct Query {
-    text: String,
+pub(crate) struct Query {
+    pub(crate) text: String,
+    /// The query with multiplications, divisions and remainders by unknown values replaced by
+    /// uninterpreted functions with the laws they obey, when it has any: it over-approximates
+    /// `text`, so `unsat` proves the claim too, often far faster.
+    pub(crate) abstracted: Option<String>,
     /// The uninterpreted functions the query applies: a counterexample through them may not be
     /// realizable.
-    opaque: Vec<String>,
+    pub(crate) opaque: Vec<String>,
     /// The facts the query takes on trust.
-    axioms: Vec<String>,
+    pub(crate) axioms: Vec<String>,
 }
 
 /// One version of a function, with its module's functions for naming callees.
@@ -297,23 +320,23 @@ fn encode(
     Ok(encoder.finish())
 }
 
-const WORD: &str = "(_ BitVec 256)";
-const BOOL: &str = "Bool";
-const MEMORY: &str = "(Array (_ BitVec 256) (_ BitVec 8))";
-const STORAGE: &str = "(Array (_ BitVec 256) (_ BitVec 256))";
-const WORLD: &str = "World";
+pub(crate) const WORD: &str = "(_ BitVec 256)";
+pub(crate) const BOOL: &str = "Bool";
+pub(crate) const MEMORY: &str = "(Array (_ BitVec 256) (_ BitVec 8))";
+pub(crate) const STORAGE: &str = "(Array (_ BitVec 256) (_ BitVec 256))";
+pub(crate) const WORLD: &str = "World";
 
 /// Memory, storage, transient storage and the world at a point of an execution.
 #[derive(Clone, PartialEq, Eq)]
-struct State {
-    memory: String,
-    storage: String,
-    transient: String,
-    world: String,
+pub(crate) struct State {
+    pub(crate) memory: String,
+    pub(crate) storage: String,
+    pub(crate) transient: String,
+    pub(crate) world: String,
 }
 
 /// How an execution ends.
-enum Kind {
+pub(crate) enum Kind {
     Return(Vec<String>),
     ReturnData {
         offset: String,
@@ -328,25 +351,31 @@ enum Kind {
     Invalid,
     /// An internal call or tail call ended the execution in its callee.
     Ended,
+    /// Control goes on at `target`, a block's address, with `stack`, bottom first: an exit of an
+    /// EVM IR region to code that another query covers.
+    Continue {
+        target: String,
+        stack: Vec<String>,
+    },
 }
 
 /// An outcome of a version: when it happens, how it ends, and the state it ends with.
-struct Outcome {
-    guard: String,
-    kind: Kind,
-    state: State,
+pub(crate) struct Outcome {
+    pub(crate) guard: String,
+    pub(crate) kind: Kind,
+    pub(crate) state: State,
 }
 
 #[derive(Default)]
-struct Encoder {
+pub(crate) struct Encoder {
     /// Declared constants with their sorts.
     constants: FxIndexMap<String, &'static str>,
     /// Uninterpreted functions: name to parameter and result sorts.
     functions: FxIndexMap<String, (Vec<&'static str>, &'static str)>,
     /// Hash-consed definitions: a defining term to the symbol that names it.
     definitions: FxHashMap<String, String>,
-    assertions: String,
-    axioms: FxIndexSet<&'static str>,
+    pub(crate) assertions: String,
+    pub(crate) axioms: FxIndexSet<&'static str>,
     /// The terms that are applications of uninterpreted functions.
     uninterpreted: FxHashSet<String>,
     /// The deferred allocations declared so far, with their sizes.
@@ -356,23 +385,39 @@ struct Encoder {
     /// Terms that are a root term plus a constant: see [`Self::split`].
     offsets: FxHashMap<String, (String, U256)>,
     /// Whether memory starts zeroed, in an entry.
-    zeroed: bool,
+    pub(crate) zeroed: bool,
     /// The bounds the query asserts on some terms, which [`Self::load`] reads addresses by.
     bounds: FxHashMap<String, (U256, U256)>,
     /// The bounds of values that are masked, typed arguments or typed uninterpreted results.
-    values: FxHashMap<String, (U256, U256)>,
+    pub(crate) values: FxHashMap<String, (U256, U256)>,
     /// Terms that are a root term plus a bounded value: see [`Self::span`].
     spans: FxHashMap<String, (String, U256, U256)>,
+    /// Exact definitions the abstract tier replaces, with their replacements.
+    abstractions: Vec<(String, String)>,
+    /// The uninterpreted functions the abstract tier declares, with their arities.
+    abstract_functions: FxIndexMap<&'static str, usize>,
+    /// Whether [`Self::load`] reads through memories merged by [`Self::ite`], as a merge of
+    /// the words each one holds.
+    pub(crate) read_merges: bool,
+    /// The memories defined as merges, with their options.
+    merges: FxHashMap<String, Vec<(String, String)>>,
+    /// The words [`Self::load`] read through merges, by memory and address.
+    merged_loads: FxHashMap<(String, String), String>,
 }
 
 impl Encoder {
-    fn declare(&mut self, name: &str, sort: &'static str) -> String {
+    pub(crate) fn declare(&mut self, name: &str, sort: &'static str) -> String {
         self.constants.insert(name.to_owned(), sort);
         name.to_owned()
     }
 
+    /// Asserts the Boolean term `term`.
+    pub(crate) fn assert(&mut self, term: &str) {
+        let _ = writeln!(self.assertions, "(assert {term})");
+    }
+
     /// The symbol defined as `definition`, shared by every term with the same definition.
-    fn define(&mut self, sort: &'static str, definition: String) -> String {
+    pub(crate) fn define(&mut self, sort: &'static str, definition: String) -> String {
         if !definition.starts_with('(') {
             return definition;
         }
@@ -422,7 +467,7 @@ impl Encoder {
     }
 
     /// An application of the uninterpreted function `name`, declared on first use.
-    fn apply(
+    pub(crate) fn apply(
         &mut self,
         name: &str,
         arguments: &[(String, &'static str)],
@@ -516,7 +561,7 @@ impl Encoder {
     /// The 32-byte word at `address` in `memory`, read through the writes it is built from that
     /// miss it: a write at the same address gives its value, and one at a constant distance from
     /// it of at least its size below and a word above is skipped.
-    fn load(&mut self, memory: &str, address: &str) -> String {
+    pub(crate) fn load(&mut self, memory: &str, address: &str) -> String {
         let (root, offset) = self.split(address);
         let mut memory = memory.to_owned();
         while let Some(write) = self.writes.get(&memory) {
@@ -553,11 +598,24 @@ impl Encoder {
         if self.zeroed && memory == "mem0" {
             return word(U256::ZERO);
         }
+        if let Some(options) = self.merges.get(&memory).cloned() {
+            let key = (memory, address.to_owned());
+            if let Some(loaded) = self.merged_loads.get(&key) {
+                return loaded.clone();
+            }
+            let options: Vec<_> = options
+                .into_iter()
+                .map(|(guard, memory)| (guard, self.load(&memory, address)))
+                .collect();
+            let loaded = self.ite(WORD, options);
+            self.merged_loads.insert(key, loaded.clone());
+            return loaded;
+        }
         self.define(WORD, load_word(&memory, address))
     }
 
     /// `memory` with the low `size` bytes of `value`, 32 or 1, written big-endian at `address`.
-    fn store(&mut self, memory: &str, address: &str, value: &str, size: u64) -> String {
+    pub(crate) fn store(&mut self, memory: &str, address: &str, value: &str, size: u64) -> String {
         let definition = if size == 32 {
             store_word(memory, address, value)
         } else {
@@ -588,7 +646,7 @@ impl Encoder {
     /// An access of `size` bytes at `address` when `guard` holds ends below 2^64: an execution
     /// that touches memory past it runs out of gas first, and the validator compares executions
     /// that end.
-    fn access(&mut self, guard: &str, address: &str, size: u64) {
+    pub(crate) fn access(&mut self, guard: &str, address: &str, size: u64) {
         if parse_word(address).is_some_and(|address| address <= U256::from(u64::MAX - size)) {
             return;
         }
@@ -599,7 +657,7 @@ impl Encoder {
     }
 
     /// Records that `memory` is `previous` with writes at `address` and above alone.
-    fn region(&mut self, memory: &str, previous: String, address: &str) {
+    pub(crate) fn region(&mut self, memory: &str, previous: String, address: &str) {
         let write =
             MemoryWrite { previous, address: address.to_owned(), size: None, value: String::new() };
         self.writes.entry(memory.to_owned()).or_insert(write);
@@ -616,7 +674,7 @@ impl Encoder {
 
     /// The free-memory pointer on entry, which lies above the reserved words like the heap: the
     /// memory model's invariant every entry establishes and every function keeps.
-    fn entry_fmp(&mut self) -> String {
+    pub(crate) fn entry_fmp(&mut self) -> String {
         let pointer = self.load("mem0", &fmp_slot());
         if self.axioms.insert("free-memory-pointer") {
             let (lo, hi) = (word(U256::from(EvmMemoryLayout::HEAP_START)), word(integer_mask(66)));
@@ -751,7 +809,12 @@ impl Encoder {
     }
 
     /// The condition that `pred`'s terminator branches to `target`.
-    fn edge(&mut self, run: &Run<'_>, pred: BlockId, target: BlockId) -> Result<String, String> {
+    pub(crate) fn edge(
+        &mut self,
+        run: &Run<'_>,
+        pred: BlockId,
+        target: BlockId,
+    ) -> Result<String, String> {
         let zero = word(U256::ZERO);
         Ok(match &run.func.blocks[pred].terminator {
             Some(Terminator::Branch { condition, then_block, else_block })
@@ -785,7 +848,7 @@ impl Encoder {
     }
 
     /// `(ite c1 v1 (ite c2 v2 ... vn))` over the options, the last one the default.
-    fn ite(&mut self, sort: &'static str, options: Vec<(String, String)>) -> String {
+    pub(crate) fn ite(&mut self, sort: &'static str, options: Vec<(String, String)>) -> String {
         let Some((_, last)) = options.last() else { return "false".into() };
         if options.iter().all(|(_, value)| value == last) {
             return last.clone();
@@ -794,12 +857,16 @@ impl Encoder {
         for (condition, value) in options.iter().rev().skip(1) {
             term = format!("(ite {condition} {value} {term})");
         }
-        self.define(sort, term)
+        let term = self.define(sort, term);
+        if sort == MEMORY && self.read_merges {
+            self.merges.entry(term.clone()).or_insert(options);
+        }
+        term
     }
 
     /// An event of the world: `name` applied to it, `operands` and the state, after which the
     /// state is a function of the new world.
-    fn event(&mut self, name: &str, operands: Vec<String>, state: &mut State) -> String {
+    pub(crate) fn event(&mut self, name: &str, operands: Vec<String>, state: &mut State) -> String {
         let mut arguments = vec![(state.world.clone(), WORLD)];
         arguments.extend(operands.into_iter().map(|operand| (operand, WORD)));
         arguments.push((state.memory.clone(), MEMORY));
@@ -814,7 +881,7 @@ impl Encoder {
         world
     }
 
-    fn inst(
+    pub(crate) fn inst(
         &mut self,
         run: &mut Run<'_>,
         inst: InstId,
@@ -885,27 +952,8 @@ impl Encoder {
                 floor
             }
             InstKind::Keccak256(offset, size) => {
-                let offset = run.term(offset)?;
-                match func.value_u256(size) {
-                    Some(size)
-                        if size % U256::from(32) == U256::ZERO && size <= U256::from(256) =>
-                    {
-                        let words: Vec<_> = (0..size.to::<u64>() / 32)
-                            .map(|index| {
-                                let address =
-                                    format!("(bvadd {offset} {})", word(U256::from(index * 32)));
-                                (self.load(&state.memory, &address), WORD)
-                            })
-                            .collect();
-                        self.apply("keccak", &words, WORD)
-                    }
-                    _ => {
-                        let size = run.term(size)?;
-                        let arguments =
-                            [(state.memory.clone(), MEMORY), (offset, WORD), (size, WORD)];
-                        self.apply("keccak_memory", &arguments, WORD)
-                    }
-                }
+                let (offset, size) = (run.term(offset)?, run.term(size)?);
+                self.keccak(&state.memory, offset, size)
             }
             InstKind::ICall { function: Callee::Function(callee), .. } => {
                 let name = format!("icall_{}", sanitize(&run.funcs[callee].name.to_string()));
@@ -959,6 +1007,26 @@ impl Encoder {
             run.values.insert(value, term);
         }
         Ok(())
+    }
+
+    /// The hash of `size` bytes of `memory` at `offset`: a function of the words for a constant
+    /// size of up to eight words, and otherwise of memory, offset and size.
+    pub(crate) fn keccak(&mut self, memory: &str, offset: String, size: String) -> String {
+        match parse_word(&size) {
+            Some(bytes) if bytes % U256::from(32) == U256::ZERO && bytes <= U256::from(256) => {
+                let words: Vec<_> = (0..bytes.to::<u64>() / 32)
+                    .map(|index| {
+                        let address = format!("(bvadd {offset} {})", word(U256::from(index * 32)));
+                        (self.load(memory, &address), WORD)
+                    })
+                    .collect();
+                self.apply("keccak", &words, WORD)
+            }
+            _ => {
+                let arguments = [(memory.to_owned(), MEMORY), (offset, WORD), (size, WORD)];
+                self.apply("keccak_memory", &arguments, WORD)
+            }
+        }
     }
 
     /// Zeroes `size` bytes of memory at `offset`: word by word for a constant size of up to eight
@@ -1114,49 +1182,11 @@ impl Encoder {
                         None => term,
                     });
                 }
-                let words = |operands: &[String]| -> Vec<(String, &'static str)> {
-                    operands.iter().map(|operand| (operand.clone(), WORD)).collect()
+                let destination = match copy_destination(kind) {
+                    Some(destination) => Some(run.term(destination)?),
+                    None => None,
                 };
-                if opcode.is_some_and(op::is_tx_input) {
-                    return Ok(self.apply(&format!("input_{mnemonic}"), &words(&operands), WORD));
-                }
-                match kind.effect_kind() {
-                    EffectKind::EnvironmentRead | EffectKind::MemoryRead | EffectKind::Pure => {
-                        let mut arguments = vec![(state.world.clone(), WORLD)];
-                        arguments.extend(words(&operands));
-                        self.apply(&format!("env_{mnemonic}"), &arguments, WORD)
-                    }
-                    EffectKind::MemoryWrite => {
-                        let mut arguments =
-                            vec![(state.world.clone(), WORLD), (state.memory.clone(), MEMORY)];
-                        arguments.extend(words(&operands));
-                        let memory = state.memory.clone();
-                        state.memory = self.apply(&format!("copy_{mnemonic}"), &arguments, MEMORY);
-                        let destination = match *kind {
-                            InstKind::Copy(destination, ..)
-                            | InstKind::CodeCopy(destination, ..)
-                            | InstKind::ExtCodeCopy(_, destination, ..) => Some(destination),
-                            _ => None,
-                        };
-                        if let Some(destination) = destination {
-                            let destination = run.term(destination)?;
-                            self.region(&state.memory, memory, &destination);
-                        }
-                        String::new()
-                    }
-                    EffectKind::Log => {
-                        let mut arguments = vec![(state.world.clone(), WORLD)];
-                        arguments.extend(words(&operands));
-                        arguments.push((state.memory.clone(), MEMORY));
-                        state.world = self.apply(&format!("ev_{mnemonic}"), &arguments, WORLD);
-                        String::new()
-                    }
-                    EffectKind::ExternalCall | EffectKind::Create => {
-                        let world = self.event(&format!("ev_{mnemonic}"), operands, state);
-                        self.apply("result", &[(world, WORLD)], WORD)
-                    }
-                    other => return Err(format!("`{mnemonic}` with effect {other:?}")),
-                }
+                self.effect(mnemonic, opcode, kind.effect_kind(), operands, destination, state)?
             }
             Semantics::Word(operand) => run.term(operand)?,
             Semantics::LowBits(operand, 256) => run.term(operand)?,
@@ -1186,9 +1216,70 @@ impl Encoder {
         })
     }
 
+    /// An opcode that is not pure, by its effect: a transaction input is a function of its
+    /// operands, a read a function of the world and its operands, a write to memory, a log, a call
+    /// or a creation an update of the state. `destination` is where a copy writes. Returns the
+    /// result, or an empty string for an operation without one.
+    pub(crate) fn effect(
+        &mut self,
+        mnemonic: &str,
+        opcode: Option<u8>,
+        effect: EffectKind,
+        operands: Vec<String>,
+        destination: Option<String>,
+        state: &mut State,
+    ) -> Result<String, String> {
+        let words = |operands: &[String]| -> Vec<(String, &'static str)> {
+            operands.iter().map(|operand| (operand.clone(), WORD)).collect()
+        };
+        if opcode.is_some_and(op::is_tx_input) {
+            return Ok(self.apply(&format!("input_{mnemonic}"), &words(&operands), WORD));
+        }
+        Ok(match effect {
+            EffectKind::EnvironmentRead | EffectKind::MemoryRead | EffectKind::Pure => {
+                let mut arguments = vec![(state.world.clone(), WORLD)];
+                arguments.extend(words(&operands));
+                self.apply(&format!("env_{mnemonic}"), &arguments, WORD)
+            }
+            EffectKind::MemoryWrite => {
+                let mut arguments =
+                    vec![(state.world.clone(), WORLD), (state.memory.clone(), MEMORY)];
+                arguments.extend(words(&operands));
+                let memory = state.memory.clone();
+                state.memory = self.apply(&format!("copy_{mnemonic}"), &arguments, MEMORY);
+                if let Some(destination) = destination {
+                    self.region(&state.memory, memory, &destination);
+                }
+                String::new()
+            }
+            EffectKind::Log => {
+                let mut arguments = vec![(state.world.clone(), WORLD)];
+                arguments.extend(words(&operands));
+                arguments.push((state.memory.clone(), MEMORY));
+                state.world = self.apply(&format!("ev_{mnemonic}"), &arguments, WORLD);
+                String::new()
+            }
+            EffectKind::ExternalCall | EffectKind::Create => {
+                let world = self.event(&format!("ev_{mnemonic}"), operands, state);
+                self.apply("result", &[(world, WORLD)], WORD)
+            }
+            other => return Err(format!("`{mnemonic}` with effect {other:?}")),
+        })
+    }
+
     /// A pure opcode: exact by `smt_opcode`, and `exp` and `clz`, which it leaves out, exact
     /// where cheap and otherwise uninterpreted.
-    fn pure(&mut self, opcode: u8, mnemonic: &str, operands: &[String]) -> String {
+    pub(crate) fn pure(&mut self, opcode: u8, mnemonic: &str, operands: &[String]) -> String {
+        // The operands of a commutative opcode in one order, so that both orders are one term.
+        let mut sorted;
+        let operands =
+            if op::is_commutative(opcode) && operands.len() == 2 && operands[1] < operands[0] {
+                sorted = operands.to_vec();
+                sorted.swap(0, 1);
+                &sorted[..]
+            } else {
+                operands
+            };
         let constants: Option<Vec<U256>> = operands.iter().map(|o| parse_word(o)).collect();
         if let Some(constants) = &constants
             && let Some(value) = op::word::eval_opcode(opcode, constants)
@@ -1197,7 +1288,14 @@ impl Encoder {
         }
         let refs: Vec<_> = operands.iter().map(String::as_str).collect();
         if let Some(exact) = op::word::smt_opcode(opcode, &refs) {
-            return self.define(WORD, exact);
+            let symbol = self.define(WORD, exact.clone());
+            if let Some((abstracted, function)) =
+                op::word::smt_opcode_abstract(opcode, &refs, &symbol)
+            {
+                self.abstractions.push((format!("(= {symbol} {exact})"), abstracted));
+                self.abstract_functions.insert(function, refs.len());
+            }
+            return symbol;
         }
         if opcode == op::EXP
             && let [base, exponent] = operands
@@ -1210,7 +1308,7 @@ impl Encoder {
     }
 
     /// Whether outcomes `a` and `b` differ in an observable, as a Boolean term.
-    fn differ(&mut self, a: &Outcome, b: &Outcome) -> String {
+    pub(crate) fn differ(&mut self, a: &Outcome, b: &Outcome) -> String {
         let (x, y) = (&a.state, &b.state);
         let mut parts = Vec::new();
         fn neq(left: &String, right: &String, parts: &mut Vec<String>) {
@@ -1268,13 +1366,25 @@ impl Encoder {
                 committed(&mut parts);
             }
             (Kind::Invalid, Kind::Invalid) => {}
+            (
+                Kind::Continue { target: left, stack: left_stack },
+                Kind::Continue { target: right, stack: right_stack },
+            ) if left_stack.len() == right_stack.len() => {
+                neq(left, right, &mut parts);
+                for (left, right) in left_stack.iter().zip(right_stack) {
+                    neq(left, right, &mut parts);
+                }
+                // The code that runs next may read any of memory.
+                neq(&x.memory, &y.memory, &mut parts);
+                committed(&mut parts);
+            }
             _ => return "true".into(),
         }
         any(&parts)
     }
 
     /// Whether two byte ranges of memory differ: in size, or at some index below it.
-    fn data(
+    pub(crate) fn data(
         &mut self,
         (left_offset, left_size, x): (&String, &String, &State),
         (right_offset, right_size, y): (&String, &String, &State),
@@ -1289,8 +1399,36 @@ impl Encoder {
         ))
     }
 
-    fn finish(self) -> Query {
+    pub(crate) fn finish(self) -> Query {
+        let abstracted = (!self.abstractions.is_empty()).then(|| {
+            let mut assertions = self.assertions.clone();
+            for (exact, abstracted) in &self.abstractions {
+                assertions = assertions.replace(exact.as_str(), abstracted);
+            }
+            let mut functions = String::new();
+            for (name, &arity) in &self.abstract_functions {
+                let operands = vec![WORD; arity].join(" ");
+                let _ = writeln!(functions, "(declare-fun {name} ({operands}) {WORD})");
+            }
+            self.render(&functions, &assertions)
+        });
+        Query {
+            text: self.render("", &self.assertions),
+            abstracted,
+            opaque: self
+                .functions
+                .keys()
+                .filter(|name| !name.starts_with("input_"))
+                .cloned()
+                .collect(),
+            axioms: self.axioms.iter().map(|&axiom| axiom.to_owned()).collect(),
+        }
+    }
+
+    /// The query with `functions` declared and `assertions` asserted.
+    fn render(&self, functions: &str, assertions: &str) -> String {
         let mut out = String::from("(set-logic QF_AUFBV)\n");
+        out.push_str(functions);
         // A world is a word: a query relates finitely many worlds, which an interpretation can
         // keep apart in 2^256 values, so the encoding stays in QF_AUFBV and stays sound.
         let render = |sort: &'static str| if sort == WORLD { WORD } else { sort };
@@ -1302,7 +1440,7 @@ impl Encoder {
         for (name, &sort) in &self.constants {
             let _ = writeln!(out, "(declare-const {name} {})", render(sort));
         }
-        out.push_str(&self.assertions);
+        out.push_str(assertions);
         let mut inputs: Vec<_> = self
             .constants
             .iter()
@@ -1313,16 +1451,7 @@ impl Encoder {
             inputs.push("true");
         }
         let _ = writeln!(out, "(check-sat)\n(get-value ({}))", inputs.join(" "));
-        Query {
-            text: out,
-            opaque: self
-                .functions
-                .keys()
-                .filter(|name| !name.starts_with("input_"))
-                .cloned()
-                .collect(),
-            axioms: self.axioms.iter().map(|&axiom| axiom.to_owned()).collect(),
-        }
+        out
     }
 }
 
@@ -1337,17 +1466,17 @@ struct MemoryWrite {
 }
 
 /// One version's execution under construction.
-struct Run<'a> {
-    func: &'a Function,
-    funcs: &'a IndexVec<FunctionId, Function>,
-    values: FxHashMap<ValueId, String>,
+pub(crate) struct Run<'a> {
+    pub(crate) func: &'a Function,
+    pub(crate) funcs: &'a IndexVec<FunctionId, Function>,
+    pub(crate) values: FxHashMap<ValueId, String>,
     /// Each finished block's guard at its end and its state there.
-    ends: FxHashMap<BlockId, (String, State)>,
-    outcomes: Vec<Outcome>,
+    pub(crate) ends: FxHashMap<BlockId, (String, State)>,
+    pub(crate) outcomes: Vec<Outcome>,
 }
 
 impl Run<'_> {
-    fn term(&self, value: ValueId) -> Result<String, String> {
+    pub(crate) fn term(&self, value: ValueId) -> Result<String, String> {
         if let Some(constant) = self.func.value_u256(value) {
             return Ok(word(constant));
         }
@@ -1364,8 +1493,18 @@ impl Run<'_> {
     }
 }
 
+/// The memory operand a copy writes to.
+pub(crate) fn copy_destination(kind: &InstKind) -> Option<ValueId> {
+    match *kind {
+        InstKind::Copy(destination, ..)
+        | InstKind::CodeCopy(destination, ..)
+        | InstKind::ExtCodeCopy(_, destination, ..) => Some(destination),
+        _ => None,
+    }
+}
+
 /// The disjunction of Boolean terms, written for solvers that want two operands or more.
-fn any(terms: &[impl AsRef<str>]) -> String {
+pub(crate) fn any(terms: &[impl AsRef<str>]) -> String {
     match terms {
         [] => "false".into(),
         [term] => term.as_ref().to_owned(),
@@ -1374,7 +1513,7 @@ fn any(terms: &[impl AsRef<str>]) -> String {
 }
 
 /// The conjunction of Boolean terms.
-fn all(terms: &[impl AsRef<str>]) -> String {
+pub(crate) fn all(terms: &[impl AsRef<str>]) -> String {
     let terms: Vec<_> = terms.iter().map(AsRef::as_ref).filter(|&term| term != "true").collect();
     match &terms[..] {
         [] => "true".into(),
@@ -1389,7 +1528,7 @@ fn implies(a: &str, b: &str) -> String {
 }
 
 /// The conjunction of two Boolean terms.
-fn and(a: &str, b: &str) -> String {
+pub(crate) fn and(a: &str, b: &str) -> String {
     match (a, b) {
         ("true", other) | (other, "true") => other.to_owned(),
         _ => format!("(and {a} {b})"),
@@ -1403,16 +1542,16 @@ fn heap_bounds() -> (U256, U256) {
 }
 
 /// The address of the free-memory pointer.
-fn fmp_slot() -> String {
+pub(crate) fn fmp_slot() -> String {
     word(U256::from(EvmMemoryLayout::FMP_SLOT))
 }
 
-fn arg_name(arg: ArgIdx) -> String {
+pub(crate) fn arg_name(arg: ArgIdx) -> String {
     format!("arg{}", arg.index())
 }
 
 /// The word a term written by [`word`] holds.
-fn parse_word(term: &str) -> Option<U256> {
+pub(crate) fn parse_word(term: &str) -> Option<U256> {
     let hex = term.strip_prefix("#x")?;
     U256::from_str_radix(hex, 16).ok()
 }

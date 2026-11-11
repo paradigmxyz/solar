@@ -1,8 +1,8 @@
 //! Per-function planning: block layouts, operand preparation, shuffles, and spills.
 
 use super::{
-    Analysis, BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands, Reader,
-    Slot, Step, Victim, Want, argument_values, icall, materialized_at_use,
+    Analysis, BlockPlan, Edge, Exit, Fail, FunctionPlan, Layout, ModuleInfo, Operands,
+    PlannedLayouts, Reader, Slot, Step, Victim, Want, argument_values, icall, materialized_at_use,
     shuffle::{self, Move},
 };
 use crate::{
@@ -576,6 +576,15 @@ impl<'a> Planner<'a> {
             }));
             self.blocks[block] = Some(BlockPlan { steps: sim.steps, terminator_start, exit });
         }
+        let layouts = self.info.records_layouts.then(|| {
+            let mut entries = self.layouts.clone();
+            entries[BlockId::ENTRY].get_or_insert_with(|| self.entry_layout());
+            PlannedLayouts {
+                entries,
+                floating: self.floating.clone(),
+                clobbers: self.saved.keys().copied().collect(),
+            }
+        });
         let plan = FunctionPlan {
             blocks: self.blocks,
             spilled: self.spilled.clone(),
@@ -585,6 +594,7 @@ impl<'a> Planner<'a> {
             cost: self.cost,
             non_loop_gas: self.non_loop_gas,
             rebuilt: None,
+            layouts,
         };
         Ok(Planned { plan, natural: self.natural, first_use: self.first_use })
     }

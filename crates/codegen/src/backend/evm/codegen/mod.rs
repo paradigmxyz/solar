@@ -17,6 +17,7 @@ use super::{
     DebugFunction, DebugFunctionExit, DebugInfo, ir,
     layout::{RelayoutAddress, preserves_push_width},
     op::{self, WORD_BYTES},
+    schedule_map::ScheduleMap,
 };
 use crate::{
     backend::assembler::{
@@ -182,6 +183,9 @@ pub struct EvmCodegen<'gcx> {
     /// The objective of the module being generated, which the layout of its immutables follows
     /// in every function.
     module_optimization: OptimizationMode,
+    /// Where scheduling put the values of the runtime's functions, recorded only for
+    /// `-Zvalidate-backend`.
+    schedule_map: Option<ScheduleMap>,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -239,6 +243,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             entry_frame_ends: FxHashMap::default(),
             optimization: gcx.sess.opts.optimization,
             module_optimization: gcx.sess.opts.optimization,
+            schedule_map: None,
         }
     }
 

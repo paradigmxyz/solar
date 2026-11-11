@@ -95,6 +95,12 @@ Options:
       -Zvalidate-passes <DIR>
           Write an SMT-LIB query to this directory for every function a MIR pass changes, asking whether some input makes it differ from its version before the pass: Z3 answering `unsat` proves the pass preserved it. `-` writes them to stdout. See `tools/prove-analyses`
 
+      -Zvalidate-backend <DIR>
+          Write an SMT-LIB query to this directory for every block of every function stack scheduling lowers, asking whether its scheduled EVM IR can differ from the MIR block when the stack and memory hold the block's values where the schedule says: Z3 answering `unsat` proves the block lowered faithfully. `-` writes them to stdout. See `tools/prove-analyses`
+
+      -Zvalidate-evm-ir-passes <DIR>
+          Write an SMT-LIB query to DIR for every code region an EVM IR pass changes, asking whether some state makes it differ from its version before the pass: Z3 answering `unsat` proves the pass preserved it. `-` writes them to stdout. See `tools/prove-analyses`
+
       -Zhelp
           Print help
 
