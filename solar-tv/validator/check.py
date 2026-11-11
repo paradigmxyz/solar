@@ -13,11 +13,11 @@ from . import evmir, mir
 from .common import Program, Unsupported
 
 ROOT = Path(__file__).resolve().parents[1]
-PRELUDE = "import SolarTV\nopen SolarTV EvmRules\nset_option autoImplicit false\nset_option linter.unusedSimpArgs false\n"
+PRELUDE = "import SolarTV\nopen SolarTV EvmRules\nset_option autoImplicit false\nset_option linter.unusedSimpArgs false\nset_option linter.unusedVariables false\nset_option maxRecDepth 4096\n"
 UNFOLD = (
     "before, after, MIR.eval, MIR.choose, MIR.phi, MIR.cast, MIR.compare, MIR.branch, MIR.guard, "
     "Outcome.bind_return, "
-    "EVM.run, EVM.step, Evm.eq, Evm.iszero, "
+    "EVM.execute, EVM.finish, EVM.stepChecked, EVM.step, Evm.eq, Evm.iszero, Evm.not, "
     "Evm.sub, Evm.add, Evm.mul, Evm.and, Evm.or, Evm.xor"
 )
 
@@ -96,13 +96,18 @@ def check(a: Program, b: Program, timeout: int) -> int:
     # Simplify dead definitions first. Splitting branches and reasoning about
     # unsigned bounds with omega produces kernel proofs for guarded cleanups.
     # bv_decide can find witnesses; its native proof axioms remain rejected below.
+    simplify = (
+        f"simp [refines_iff_eq, {UNFOLD}, BitVec.add_comm, BitVec.sub_eq_iff_eq_add]"
+        if a.result_type == "EVM.Execution"
+        else f"simp only [refines_iff_eq, {UNFOLD}]"
+    )
     proof = (
-        f"  simp only [refines_iff_eq, {UNFOLD}]\n"
+        f"  {simplify}\n"
         "  repeat (first | intro _ | split)\n"
         "  all_goals simp_all [MIR.checked, Outcome.bind, BitVec.uaddOverflow, "
         "BitVec.usubOverflow, BitVec.umulOverflow, BitVec.saddOverflow, "
         "BitVec.ssubOverflow, BitVec.smulOverflow, "
-        "BitVec.toNat_eq, BitVec.ult_iff_toNat_lt] <;> omega\n"
+        "BitVec.toNat_eq, BitVec.ult_iff_toNat_lt, BitVec.add_comm] <;> omega\n"
     )
     with tempfile.TemporaryDirectory() as directory:
         file = Path(directory) / "Pair.lean"
@@ -112,20 +117,26 @@ def check(a: Program, b: Program, timeout: int) -> int:
             return run(["lake", "env", "lean", file], ROOT, timeout)
 
         result = lean(statement + proof + "#print axioms pair_correct\n")
+        proof_log = result.stdout + result.stderr
         query_only = False
         if result.returncode:
             # Outcomes with payloads are outside the solver's scalar fragment.
             # A tagged projection proposes witnesses; it never verifies a pair.
-            query_only = a.result_type.startswith("Outcome ")
+            query_only = (
+                a.result_type.startswith("Outcome ") or a.result_type == "EVM.Execution"
+            )
+            projection = (
+                "Outcome.code" if a.result_type.startswith("Outcome ") else "EVM.code"
+            )
             query = (
-                f"example {binders} : Outcome.code (before {args}) = "
-                f"Outcome.code (after {args}) := by\n"
+                f"example {binders} : {projection} (before {args}) = "
+                f"{projection} (after {args}) := by\n"
                 if query_only
                 else statement
             )
             result = lean(
                 query
-                + f"  simp [{UNFOLD}, MIR.checked] <;> bv_decide\n"
+                + f"  simp [{UNFOLD}, MIR.checked, EVM.code] <;> bv_decide\n"
                 + ("" if query_only else "#print axioms pair_correct\n")
             )
         if result.returncode == 0 and not query_only:
@@ -190,6 +201,8 @@ def check(a: Program, b: Program, timeout: int) -> int:
         else:
             raise Unsupported(
                 "Lean could neither prove equivalence nor replay a counterexample\n"
+                + proof_log
+                + "\nWitness query diagnostics\n"
                 + log
                 + "\nConcrete replay diagnostics\n"
                 + replay.stdout

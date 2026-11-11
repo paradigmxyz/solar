@@ -1,6 +1,6 @@
 # solar-tv
 
-Check a MIR function or EVM IR branch window before and after a compiler pass.
+Check a MIR function or EVM IR block window before and after a compiler pass.
 The CLI uses the compiler to parse and validate both files, translates its
 canonical output to Lean, and asks Lean to prove refinement for MIR or equal
 observations for the EVM IR fragment, for every input. A counterexample is checked again at concrete input values.
@@ -31,17 +31,17 @@ select a compiler binary.
 | Layer | Supported fragment | Observation |
 | --- | --- | --- |
 | MIR | One integer function using i1, i160 and i256, pure arithmetic and bitwise operations, casts, comparisons, checked add/sub/mul, semantic panic and empty-revert checks, phis and branches in an acyclic CFG. | Returned bit pattern, exact modeled revert payload, or exceptional halt for all well-typed arguments. |
-| EVM IR | An empty-entry-stack window with size inputs, literal pushes, EQ, SUB and ISZERO ending in a conditional jump to a valid label. Both exits stop. | Taken edge and remaining stack for all word-sized calldata and returndata sizes, given sufficient gas. |
+| EVM IR | A block window with symbolic live-in words, pure word/stack operations, static transfers and terminal halts. | Outgoing edge and live stack, empty successful/reverted output, or execution exception, given sufficient gas. |
 
 The importer and the mapping from compiler operations to Lean are trusted.
-The EVM window compares symbolic exits before executing either successor.
-Gas costs, physical PCs, memory effects and general control flow are outside
-this first fragment.
+EVM windows compare live stack values at outgoing edges before executing either
+successor. Terminal halts discard the remaining stack. Gas costs, physical PCs,
+memory effects and general control flow remain outside this fragment.
 
 | Layer | Operation semantics | Transform proofs |
 | --- | --- | --- |
 | MIR | [MIR/Ops.lean](SolarTV/MIR/Ops.lean) | [Dead-code elimination](SolarTV/MIR/Transforms/DCE.lean), [trim trailing default switch cases](SolarTV/MIR/Transforms/TrimSwitchDefaults.lean), [rename phi predecessors](SolarTV/MIR/Transforms/RenamePhiPredecessors.lean), [cast cleanup](SolarTV/MIR/Transforms/Casts.lean), [overflow-check elimination](SolarTV/MIR/Transforms/CheckElim.lean) |
-| EVM IR | [EVMIR/Ops.lean](SolarTV/EVMIR/Ops.lean) | [EQ/ISZERO branch peephole](SolarTV/EVMIR/Transforms/EqIszeroJumpi.lean) |
+| EVM IR | [EVMIR/Ops.lean](SolarTV/EVMIR/Ops.lean) | [EQ/ISZERO branch peephole](SolarTV/EVMIR/Transforms/EqIszeroJumpi.lean), [commutative swap](SolarTV/EVMIR/Transforms/StackPeephole.lean), [stack safety](SolarTV/EVMIR/StackSafety.lean) |
 
 ```sh
 (cd solar-tv && lake build)
@@ -115,6 +115,37 @@ solar-tv/solar-tv mir solar-tv/examples/mir/checked/{before,broken}.mir
 The broken pair has a counterexample at `2^256 - 1`. The original reports
 `revert Panic(17)` and the rewrite returns `0`. Witnesses are checked again
 against the refinement relation at their concrete input values.
+
+## EVM stack windows
+
+`bb0 [stack=N]` supplies the entry height, with a default of zero. Every entry
+word is an independent symbolic 256-bit input, named `stack0`, `stack1`, and so
+on, with `stack0` at the top. Proofs cover all word values at that declared height.
+The model checks underflow and the 1,024-word limit after every instruction,
+including the label PUSH of a static transfer.
+
+The supported operations are literal PUSH, DUP1..16, SWAP1..16, POP, ADD, MUL,
+SUB, AND, OR, XOR, EQ, NOT, ISZERO, CALLDATASIZE and RETURNDATASIZE. Static
+PUSH/JUMP and PUSH/JUMPI expose an edge and the remaining stack. Successor
+blocks must be stop sentinels. STOP and an empty RETURN both produce successful
+empty output. REVERT with empty output and execution exceptions are separate
+outcomes. RETURN/REVERT require an explicit zero-size suffix; other memory-backed
+output is inconclusive. The compiler also rejects structurally invalid stack
+snapshots before they reach the checker.
+
+The stack order, limit checks and halt behavior follow EVMYulLean at `047f630`.
+The Lean stack-safety proofs cover full-stack PUSH and DUP, underflow, and the
+failure caused by dropping PUSH/POP at the stack limit. [Reference semantics](https://github.com/NethermindEth/EVMYulLean/blob/047f63070309f436b66c61e276ab3b6d1169265a/EvmYul/EVM/Semantics.lean#L450)
+
+The real peephole example removes SWAP1 before ADD with two symbolic live-ins.
+Its broken version uses SUB and corrupts the outgoing stack. The second broken
+pair changes INVALID into STOP.
+
+```sh
+solar-tv/solar-tv evmir solar-tv/examples/evmir/symbolic-stack/{before,after}.evmir
+solar-tv/solar-tv evmir solar-tv/examples/evmir/symbolic-stack/{before,broken}.evmir
+solar-tv/solar-tv evmir solar-tv/examples/evmir/failure/{before,broken}.evmir
+```
 
 ## Check passes during compilation
 
