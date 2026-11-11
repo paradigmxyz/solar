@@ -98,18 +98,15 @@ bb5 [cold]:
   push 0
   revert
 bb6 [entry]:                                      ; function outer() external pure returns (bytes memory) [selector 0x87c3dbb6]
-  push 32
   push 160
-  dup 1
   dup 1
   push 64
   mstore
-  swap 2
-  add
   push 241
-  dup 1
-  dup 4
+  dup 2
   mstore
+  push 192
+  push 241
   push_data literal_0
   dup 3
   codecopy
@@ -128,18 +125,15 @@ bb6 [entry]:                                      ; function outer() external pu
   swap 1
   return
 bb7 [entry]:                                      ; function inner() external pure returns (bytes memory) [selector 0x4adb7729]
-  push 32
   push 160
-  dup 1
   dup 1
   push 64
   mstore
-  swap 2
-  add
   push 161
-  dup 1
-  dup 4
+  dup 2
   mstore
+  push 192
+  push 161
   push_data literal_0+48
   dup 3
   codecopy

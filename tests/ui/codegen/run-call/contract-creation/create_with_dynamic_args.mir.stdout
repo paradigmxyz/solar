@@ -4,12 +4,9 @@
 fn @constructor(arg0: ptr<memory>, arg1: i8) [constructor, abi_params=[bytes, uint8]] {
   bb0:
     icall @store_storage_bytes, 0, arg0
-    v0 = sload 1 !metadata(storage=slot(1))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v2 = zext i8 arg1 to i256
-    v3 = and v2, 255
-    v4 = or v1, v3
-    sstore 1, v4 !metadata(storage=slot(1))
+    v0 = zext i8 arg1 to i256
+    v1 = and v0, 255
+    sstore 1, v1 !metadata(storage=slot(1))
     ret
 }
 

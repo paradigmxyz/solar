@@ -5,14 +5,10 @@
 // CHECK-LABEL: bb0:
 // CHECK: push 128
 // CHECK-NEXT: push 7
-// CHECK-NEXT: push 64
-// CHECK-NEXT: dup 3
-// CHECK-NEXT: add
+// CHECK-NEXT: push 192
 // CHECK-LABEL: bb6{{( \[[a-z, ]+\])?}}:
 // CHECK: push 7
-// CHECK-NEXT: push 96
-// CHECK-NEXT: dup 3
-// CHECK-NEXT: add
+// CHECK-NEXT: push 224
 // CHECK: push 32
 // CHECK-NEXT: add
 // CHECK-NEXT: push 96

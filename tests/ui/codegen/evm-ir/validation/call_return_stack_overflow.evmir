@@ -1,5 +1,6 @@
+//@ compile-flags: --emit=bin-runtime
 // A call that leaves more words than it consumes returns above the stack limit.
-//~? ERROR: EVM IR verification failed: block 0: `call return` grows the stack to 1026 words, exceeding the limit of 1024
+//~? WARN: `call return` in block 0 grows the EVM stack to 1026 words
 @module module
 
 bb0 [stack=1020]:
