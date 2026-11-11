@@ -50,9 +50,7 @@ use solar_interface::Span;
 use solar_sema::Gcx;
 
 mod stack;
-pub(super) use stack::{
-    MAX_STACK_DEPTH, StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops,
-};
+pub(super) use stack::{StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops};
 
 mod switch;
 

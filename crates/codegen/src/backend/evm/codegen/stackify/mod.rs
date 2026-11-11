@@ -126,7 +126,7 @@
 //! back once the call returns.
 //!
 //! Nothing bounds the stack at the EVM's 1024 words: a call chain that grows past it fails at run
-//! time, as in solc. The EVM IR verifier rejects code whose final depth provably exceeds it.
+//! time, as in solc. The EVM IR verifier warns about code whose final depth provably exceeds it.
 //!
 //! A function whose body, module facts, and cost model equal those of a function planned before in
 //! the compilation takes that plan instead of planning again; see `cache`.
