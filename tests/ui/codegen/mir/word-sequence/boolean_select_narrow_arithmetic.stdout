@@ -40,6 +40,16 @@
       ret v0
   }
   
+  fn @not_arms(arg0: i1, arg1: i1, arg2: i1) -> i1 {
+    bb0:
+-     v0 = not arg1
+-     v1 = not arg2
+-     v2 = select arg0, v0, v1
++     v3 = select arg0, arg1, arg2
++     v2 = xor v3, true
+      ret v2
+  }
+  
 - ; === ROOT/tests/ui/codegen/mir/word-sequence/boolean_select_narrow_arithmetic.mir (before lower-evm-shaped) ===
 + ; === ROOT/tests/ui/codegen/mir/word-sequence/boolean_select_narrow_arithmetic.mir (after lower-evm-shaped) ===
   @module BooleanSelectNarrowArithmetic
@@ -76,5 +86,12 @@
     bb0:
       v0 = and arg0, true
       ret v0
+  }
+  
+  fn @not_arms(arg0: i1, arg1: i1, arg2: i1) -> i1 {
+    bb0:
+      v3 = select arg0, arg1, arg2
+      v2 = xor v3, true
+      ret v2
   }
   

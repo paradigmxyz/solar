@@ -21,6 +21,9 @@
 //! Shared integer casts can move outside a select when their source widths match;
 //! temporary selects retain that source type. Pointer and wider-than-word roots
 //! remain excluded from arithmetic selection.
+//! A recipe on booleans wraps at one bit, where `add` and `sub` equal `xor`, `mul` equals `and` and
+//! `not` equals `xor` with one, so it is built from those bitwise operations, which `lowered` MIR
+//! accepts at `i1`.
 //! Inequality recipes use the backend's EQ/ISZERO expansion and its target cost, except
 //! that a nonzero test whose every use is a branch or a check, or an `or` that only such a test
 //! joins, costs nothing: `JUMPI` reads the word.
