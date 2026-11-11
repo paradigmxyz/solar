@@ -41,9 +41,7 @@ bb6 [entry]:                                      ; function payload() external 
   push 128
   dup 2
   mstore
-  push 32
-  dup 2
-  add
+  push 192
   push 128
   push_data literal_0
   dup 3
@@ -65,7 +63,7 @@ bb6 [entry]:                                      ; function payload() external 
 ; === ROOT/tests/ui/codegen/lowering/evm-ir/program-data/contract_creation_data_dedup.sol:Factory (runtime) ===
 @module Factory_runtime
 @data
-  Child_creation_code_0: hex"34600d5760d28060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b60a060405260a060808152602081016080605282396080015f9052602090036020815260c090f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
+  Child_creation_code_0: hex"34600d5760d08060115f395ff35b5f5ffd34601d575f3560e01c80633fa4f245146021578063a878f85814602a575b5f5ffd5b60075f5260205ff35b60a060405260a06080815260c06080605082396080015f9052602090036020815260c090f3112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 
 bb0:                                              ; runtime dispatch entry
   callvalue
@@ -108,11 +106,11 @@ bb6:                                              ; function first() external re
   push 64
   mstore
   push 128
-  push 227
+  push 225
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 227
+  push 225
   swap 1
   push 0
   create
@@ -150,11 +148,11 @@ bb18 [entry]:                                     ; function pair() external ret
   push 64
   mstore
   push 128
-  push 227
+  push 225
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 227
+  push 225
   swap 1
   push 0
   create
@@ -163,11 +161,11 @@ bb18 [entry]:                                     ; function pair() external ret
   push bb26
   jumpi
   push 128
-  push 227
+  push 225
   push_data Child_creation_code_0
   dup 3
   codecopy
-  push 227
+  push 225
   swap 1
   push 0
   create

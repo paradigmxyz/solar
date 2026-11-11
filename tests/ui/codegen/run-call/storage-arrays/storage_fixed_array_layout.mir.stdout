@@ -31,47 +31,43 @@ fn @preserveNeighbors() -> struct1 [selector=0xf110cb82, abi_params=[], abi_retu
     v5 = lt 2, 3
     v6 = eq v5, false
     icall panic_if<0x32>, v6
-    v7 = sload 6 !metadata(storage=slot(6))
-    v8 = and v7, 0xffffffffffffffffffffffffffffff0000000000000000000000000000000000
-    v9 = or v8, 3
-    sstore 6, v9 !metadata(storage=slot(6))
+    sstore 6, 3 !metadata(storage=slot(6))
     sstore 7, 12 !metadata(storage=slot(7))
-    v10 = lt 2, 3
-    v11 = eq v10, false
-    icall panic_if<0x32>, v11
-    v12 = sload 9 !metadata(storage=slot(9))
-    v13 = and v12, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
-    v14 = or v13, 3
-    sstore 9, v14 !metadata(storage=slot(9))
+    v7 = lt 2, 3
+    v8 = eq v7, false
+    icall panic_if<0x32>, v8
+    v9 = sload 9 !metadata(storage=slot(9))
+    v10 = and v9, 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000
+    v11 = or v10, 3
+    sstore 9, v11 !metadata(storage=slot(9))
     sstore 10, 13 !metadata(storage=slot(10))
-    v15 = lt 6, 7
-    v16 = eq v15, false
-    icall panic_if<0x32>, v16
-    v17 = sload 2 !metadata(storage=slot(2))
-    v18 = shr v17, 0
-    v19 = shl v18, 184
-    v20 = sload 3 !metadata(storage=slot(3))
-    v21 = lt 2, 3
-    v22 = eq v21, false
-    icall panic_if<0x32>, v22
-    v23 = sload 6 !metadata(storage=slot(6))
-    v24 = shr v23, 0
-    v25 = shl v24, 120
-    v26 = sload 7 !metadata(storage=slot(7))
-    v27 = lt 2, 3
-    v28 = eq v27, false
-    icall panic_if<0x32>, v28
-    v29 = sload 9 !metadata(storage=slot(9))
-    v30 = shr v29, 0
-    v31 = trunc i256 v30 to i128
-    v32 = sload 10 !metadata(storage=slot(10))
-    v33 = insert_value struct1, undef struct1, 0, v19
-    v34 = insert_value struct1, v33, 1, v20
-    v35 = insert_value struct1, v34, 2, v25
-    v36 = insert_value struct1, v35, 3, v26
-    v37 = insert_value struct1, v36, 4, v31
-    v38 = insert_value struct1, v37, 5, v32
-    ret v38
+    v12 = lt 6, 7
+    v13 = eq v12, false
+    icall panic_if<0x32>, v13
+    v14 = sload 2 !metadata(storage=slot(2))
+    v15 = shr v14, 0
+    v16 = shl v15, 184
+    v17 = sload 3 !metadata(storage=slot(3))
+    v18 = lt 2, 3
+    v19 = eq v18, false
+    icall panic_if<0x32>, v19
+    v20 = sload 6 !metadata(storage=slot(6))
+    v21 = shl v20, 120
+    v22 = sload 7 !metadata(storage=slot(7))
+    v23 = lt 2, 3
+    v24 = eq v23, false
+    icall panic_if<0x32>, v24
+    v25 = sload 9 !metadata(storage=slot(9))
+    v26 = shr v25, 0
+    v27 = trunc i256 v26 to i128
+    v28 = sload 10 !metadata(storage=slot(10))
+    v29 = insert_value struct1, undef struct1, 0, v16
+    v30 = insert_value struct1, v29, 1, v17
+    v31 = insert_value struct1, v30, 2, v21
+    v32 = insert_value struct1, v31, 3, v22
+    v33 = insert_value struct1, v32, 4, v27
+    v34 = insert_value struct1, v33, 5, v28
+    ret v34
 }
 
 ; function copyDoesNotOverlapSource() external returns (uint72 sourceTail, uint72 first, uint72 last, bytes32 cleared) [selector 0x8b005e62]

@@ -10,7 +10,7 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, address>]]
   bb1:                                            ; preds = bb0
     jump bb3
   bb3:                                            ; preds = bb1, bb4
-    v3 = phi [bb1: v0], [bb4: v17]
+    v3 = phi [bb1: v0], [bb4: v7]
     v4 = lt v3, v1
     jumpi v4, bb4, bb5
   bb5:                                            ; preds = bb3
@@ -19,47 +19,27 @@ fn @constructor(arg0: ptr<memory>) [constructor, abi_params=[array<_, address>]]
     sstore 0, v0 !metadata(storage=slot(0))
     jump bb6
   bb6:                                            ; preds = bb2, bb7
-    v18 = phi [bb2: 0], [bb7: v37]
-    v19 = lt v18, v0
-    jumpi v19, bb7, bb8
+    v8 = phi [bb2: 0], [bb7: v17]
+    v9 = lt v8, v0
+    jumpi v9, bb7, bb8
   bb8:                                            ; preds = bb6
     ret
   bb7:                                            ; preds = bb6
-    v20 = shl v18, 5
-    v21 = ptradd arg0, v20
-    v22 = ptradd v21, 32
-    v23 = mload v22
-    v24 = storage_array_data_slot 0
-    v25 = div v18, 1
-    v26 = add v24, v25
-    v27 = mod v18, 1
-    v28 = mul v27, 20
-    v29 = mul v28, 8
-    v30 = shl 0xffffffffffffffffffffffffffffffffffffffff, v29
-    v31 = sload v26 !metadata(storage=symbolic(v26))
-    v32 = not v30
-    v33 = and v31, v32
-    v34 = and v23, 0xffffffffffffffffffffffffffffffffffffffff
-    v35 = shl v34, v29
-    v36 = or v33, v35
-    sstore v26, v36 !metadata(storage=symbolic(v26))
-    v37 = add v18, 1
+    v10 = shl v8, 5
+    v11 = ptradd arg0, v10
+    v12 = ptradd v11, 32
+    v13 = mload v12
+    v14 = storage_array_data_slot 0
+    v15 = add v14, v8
+    v16 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore v15, v16 !metadata(storage=symbolic(v15))
+    v17 = add v8, 1
     jump bb6
   bb4:                                            ; preds = bb3
     v5 = storage_array_data_slot 0
-    v6 = div v3, 1
-    v7 = add v5, v6
-    v8 = mod v3, 1
-    v9 = mul v8, 20
-    v10 = mul v9, 8
-    v11 = shl 0xffffffffffffffffffffffffffffffffffffffff, v10
-    v12 = sload v7 !metadata(storage=symbolic(v7))
-    v13 = not v11
-    v14 = and v12, v13
-    v15 = shl 0, v10
-    v16 = or v14, v15
-    sstore v7, v16 !metadata(storage=symbolic(v7))
-    v17 = add v3, 1
+    v6 = add v5, v3
+    sstore v6, 0 !metadata(storage=symbolic(v6))
+    v7 = add v3, 1
     jump bb3
 }
 
@@ -70,15 +50,10 @@ fn @xs(arg0: i256) -> i160 [selector=0x6ee65772, view, abi_params=[uint256], abi
     v1 = lt arg0, v0
     icall revert_if_zero<empty>, v1
     v2 = storage_array_data_slot 0
-    v3 = div arg0, 1
-    v4 = add v2, v3
-    v5 = mod arg0, 1
-    v6 = mul v5, 20
-    v7 = sload v4 !metadata(storage=symbolic(v4))
-    v8 = mul v6, 8
-    v9 = shr v7, v8
-    v10 = trunc i256 v9 to i160
-    ret v10
+    v3 = add v2, arg0
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = trunc i256 v4 to i160
+    ret v5
 }
 
 ; function get(uint256 i) external view returns (address) [selector 0x9507d39a]
@@ -89,15 +64,10 @@ fn @get(arg0: i256) -> i160 [selector=0x9507d39a, view, abi_params=[uint256], ab
     v2 = eq v1, false
     icall panic_if<0x32>, v2
     v3 = storage_array_data_slot 0
-    v4 = div arg0, 1
-    v5 = add v3, v4
-    v6 = mod arg0, 1
-    v7 = mul v6, 20
-    v8 = sload v5 !metadata(storage=symbolic(v5))
-    v9 = mul v7, 8
-    v10 = shr v8, v9
-    v11 = trunc i256 v10 to i160
-    ret v11
+    v4 = add v3, arg0
+    v5 = sload v4 !metadata(storage=symbolic(v4))
+    v6 = trunc i256 v5 to i160
+    ret v6
 }
 
 ; function len() external view returns (uint256) [selector 0x56d88e27]

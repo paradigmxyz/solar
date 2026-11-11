@@ -30,12 +30,9 @@ fn @constructor() [constructor] {
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v6 = zext i160 v2 to i256
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = or v5, v7
-    sstore 0, v8 !metadata(storage=slot(0))
+    v4 = zext i160 v2 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 
@@ -54,31 +51,28 @@ fn @success() -> i256 [selector=0x0b93381b, view, abi_params=[], abi_returns=[wo
     v7 = staticcall v2, v6, 28, 4, 0, 0
     jumpi v7, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    v8 = icall returndata_bytes<>
-    v9 = ptradd v8, 32
-    v10 = mload v8
-    v11 = make_memory_slice v9, v10
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = extract_value slice<memory>, v11, 0
-    v15 = mload v14
-    v16 = shr v15, 224
-    v17 = eq v16, 0x8c379a0
-    jumpi v17, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    jump bb6
-  bb4 [cold_hint]:                                ; preds = bb2
-    v18 = ptrtoint ptr<memory> v12 to i256
-    v19 = icall @try_decode_error_message, v18, v13
-    jump bb6
-  bb6 [cold_hint]:                                ; preds = bb4, bb5
-    v20 = phi [bb4: v19], [bb5: false]
-    jumpi v20, bb7, bb8
-  bb8 [cold_hint]:                                ; preds = bb6
-    revert v12, v13
-  bb7 [cold_hint]:                                ; preds = bb6
-    v21 = mload v8
-    v22 = ptradd v8, 36
+    v8 = returndatasize
+    v9 = lt v8, 32
+    v10 = select v9, v8, 32
+    returndatacopy 0, 0, v10 !metadata(memory=scratch)
+    v11 = mload 0 !metadata(memory=scratch)
+    v12 = shr v11, 224
+    v13 = eq v12, 0x8c379a0
+    jumpi v13, bb6, bb5
+  bb6 [cold_hint]:                                ; preds = bb2
+    v14 = icall returndata_bytes<>
+    v15 = ptradd v14, 32
+    v16 = mload v14
+    v17 = make_memory_slice v15, v16
+    v18 = extract_value slice<memory>, v17, 0
+    v19 = ptrtoint ptr<memory> v18 to i256
+    v20 = icall @try_decode_error_message, v19, v8
+    jumpi v20, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2, bb6
+    revert_returndata
+  bb4 [cold_hint]:                                ; preds = bb6
+    v21 = mload v14
+    v22 = ptradd v14, 36
     v23 = sub v21, 4
     v24 = make_memory_slice v22, v23
     v25 = abi_decode [bytes], v24
@@ -105,31 +99,28 @@ fn @failure() -> i256 [selector=0x76ffb887, view, abi_params=[], abi_returns=[wo
     v7 = staticcall v2, v6, 28, 4, 0, 0
     jumpi v7, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    v8 = icall returndata_bytes<>
-    v9 = ptradd v8, 32
-    v10 = mload v8
-    v11 = make_memory_slice v9, v10
-    v12 = extract_value slice<memory>, v11, 0
-    v13 = extract_value slice<memory>, v11, 1
-    v14 = extract_value slice<memory>, v11, 0
-    v15 = mload v14
-    v16 = shr v15, 224
-    v17 = eq v16, 0x8c379a0
-    jumpi v17, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    jump bb6
-  bb4 [cold_hint]:                                ; preds = bb2
-    v18 = ptrtoint ptr<memory> v12 to i256
-    v19 = icall @try_decode_error_message, v18, v13
-    jump bb6
-  bb6 [cold_hint]:                                ; preds = bb4, bb5
-    v20 = phi [bb4: v19], [bb5: false]
-    jumpi v20, bb7, bb8
-  bb8 [cold_hint]:                                ; preds = bb6
-    revert v12, v13
-  bb7 [cold_hint]:                                ; preds = bb6
-    v21 = mload v8
-    v22 = ptradd v8, 36
+    v8 = returndatasize
+    v9 = lt v8, 32
+    v10 = select v9, v8, 32
+    returndatacopy 0, 0, v10 !metadata(memory=scratch)
+    v11 = mload 0 !metadata(memory=scratch)
+    v12 = shr v11, 224
+    v13 = eq v12, 0x8c379a0
+    jumpi v13, bb6, bb5
+  bb6 [cold_hint]:                                ; preds = bb2
+    v14 = icall returndata_bytes<>
+    v15 = ptradd v14, 32
+    v16 = mload v14
+    v17 = make_memory_slice v15, v16
+    v18 = extract_value slice<memory>, v17, 0
+    v19 = ptrtoint ptr<memory> v18 to i256
+    v20 = icall @try_decode_error_message, v19, v8
+    jumpi v20, bb4, bb5
+  bb5 [cold_hint]:                                ; preds = bb2, bb6
+    revert_returndata
+  bb4 [cold_hint]:                                ; preds = bb6
+    v21 = mload v14
+    v22 = ptradd v14, 36
     v23 = sub v21, 4
     v24 = make_memory_slice v22, v23
     v25 = abi_decode [bytes], v24
