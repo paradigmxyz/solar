@@ -45,9 +45,19 @@ Flags:
 - `--json`: also print one JSON row per function.
 - `--dump-smt FILE`: write the SMT-LIB sent to the solver.
 - `--dry-run`: generate every obligation without running a solver (with `--dump-smt`).
-- `--instrument OUT.sol`: write the file with every `@custom:check` as a `require`.
+- `--instrument OUT.sol`: write the file with every `@custom:check` as a `require`. A check in an
+  imported file is an error, since the verification assumed it.
 - `--spec-check`: test the trusted base against its code in the file instead of verifying (see
   Testing assumptions); `--spec-check-runs N` samples per function (default 256), `--seed N`.
+
+Imports resolve as with `solar` and solc, so a project needs no flattening: pass remappings as
+`PREFIX=PATH` (or `CONTEXT:PREFIX=PATH`), and `--base-path PATH` and `--include-path PATH` (`-I`).
+In a Foundry project, `solar-verify $(cat remappings.txt) src/Vault.sol` reads the project's
+remappings. Names resolve as if the files were flattened, so an import that renames or
+namespaces (`{A as B}`, `* as M`, `"a.sol" as M`) and a name two files define are errors.
+Contracts from imported files are not verified, but the functions a verified contract inherits
+from them are, as its own. `mutate` takes the same options, and verifies each mutant, and compiles
+it with solc for TCE, at the file's own path.
 
 Without Z3 the tests that need it are skipped with a message on stderr; set `SOLAR_VERIFY_REQUIRE_Z3=1`
 to make them fail instead.
@@ -186,7 +196,7 @@ verify everything silently.
 ## Limits
 
 Supported: value types, enums, structs, nested mappings, storage and memory dynamic arrays,
-modifiers, inheritance within one file, libraries and `using for`, internal, interface and
+modifiers, inheritance (across imported files too), libraries and `using for`, internal, interface and
 low-level calls, try/catch, tuples, `unchecked`, casts, units, `keccak256`, `abi.encode` and typed
 `abi.decode`, ETH balances of this contract, and transient storage.
 
@@ -195,10 +205,10 @@ storage, and memory at constant offsets. `sload(p.slot)` and `sstore(p.slot, v)`
 storage pointer `p` to a struct whose fields pack into one slot (`examples/struct_slot.sol`).
 
 Not supported: Yul `for` loops, memory at symbolic offsets, `.slot` and `.offset` of anything else,
-`do`/`while` loops, imports, storage pointers chosen by conditionals, function pointers, the code of
-other accounts, and triggers on spec quantifiers (`@custom:trigger` applies to broadcast lemmas).
-Unsupported constructs are reported as errors, never skipped, so a ✔ is never produced over code
-solar-verify did not model.
+`do`/`while` loops, imports that rename or namespace, storage pointers chosen by conditionals, function
+pointers, the code of other accounts, and triggers on spec quantifiers (`@custom:trigger` applies to
+broadcast lemmas). Unsupported constructs are reported as errors, never skipped, so a ✔ is never
+produced over code solar-verify did not model.
 
 ## Trusted base
 
@@ -215,6 +225,11 @@ solar-verify did not model.
 - Raw storage slots that assembly reaches are disjoint from the declared state variables, and
   assembly is memory-safe.
 - A library named `Math` with a `mulDiv(x, y, denominator)` and no specs of its own is summarized
+  as OpenZeppelin's `Math.mulDiv`.
+- A high-level call to a `view` or `pure` function answers as a function of its target, its
+  arguments and the state it can read (this contract's storage, ETH balances and the code at every
+  address), so two such calls with nothing in between answer alike. A callee whose answer depends
+  on the gas it is given breaks this.
   as OpenZeppelin's `Math.mulDiv`; `--spec-check` tests the summary against the library's code.
 - A high-level call to a `view` or `pure` function answers as a function of its target, its arguments
   and the state it can read (this contract's storage, ETH balances and the code at every address), so two
@@ -274,7 +289,8 @@ mutated code. Only a failure with a counterexample kills a mutant.
 
 The operators replace relational (ROR), arithmetic (AOR) and logical (LCR) operators, booleans
 (BOOL) and decimal constants (CRP), and delete expression statements (SDL) and `if` guards that
-only revert (GDL). Inline assembly is not mutated.
+only revert (GDL). Inline assembly and the bodies of `@custom:trusted` functions, which are not
+verified, are not mutated.
 
 ```text
 $ solar-verify mutate --per-fn 3 examples/Counter.sol

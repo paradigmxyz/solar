@@ -56,6 +56,17 @@ contract LockedHelper {
         sB = 7;
         _callOutAndWrite(i);
     }
+    /// A call out can force ETH on us (selfdestruct) even under the lock.
+    /// @custom:ensures address(this).balance == old(address(this).balance)
+    function bad_balanceAcrossHelper(I i) external nonReentrant {
+        _callOut(i);
+    }
+    /// A call out can deploy or destroy code even under the lock.
+    /// @custom:ensures a.code.length > 0
+    function bad_codeAcrossHelper(address a, I i) external nonReentrant {
+        require(a.code.length > 0);
+        _callOut(i);
+    }
     /// still open under the lock: its write reaches callers' calls out
     /// @custom:requires c <= 10
     function setC(uint256 c) external {

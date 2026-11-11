@@ -8,6 +8,7 @@ mod operator;
 mod prog;
 mod sexp;
 mod smt;
+mod sources;
 mod spec;
 mod speccheck;
 mod ty;
@@ -15,9 +16,10 @@ mod vc;
 mod walk;
 
 use solar_parse::{
-    Parser, ast,
+    ast,
     interface::{Session, Span, data_structures::map::FxHashSet},
 };
+use sources::{ImportOpts, Loader};
 use std::{
     io::IsTerminal,
     path::{Path, PathBuf},
@@ -36,9 +38,31 @@ struct Cli {
     jobs: usize,
     instrument: Option<PathBuf>,
     dry_run: bool,
+    imports: ImportOpts,
+    /// `--mutant-of ORIGINAL`, internal to mutation testing: each file holds a mutant of
+    /// `ORIGINAL`, verified as if it stood at `ORIGINAL`, so its imports resolve from there.
+    mutant_of: Option<PathBuf>,
     spec_check: bool,
     spec_check_runs: usize,
     seed: u64,
+}
+
+impl Cli {
+    /// The files to verify, as the paths they stand at and, for a mutant, the file holding it.
+    fn inputs(&self) -> impl Iterator<Item = (&Path, Option<&Path>)> {
+        self.files.iter().map(|file| match &self.mutant_of {
+            Some(original) => (original.as_path(), Some(file.as_path())),
+            None => (file.as_path(), None),
+        })
+    }
+
+    /// A loader for the files, or an exit with the reason it cannot be made.
+    fn loader<'s, 'a>(&self, sess: &'s Session, arena: &'a ast::Arena) -> Loader<'s, 'a> {
+        Loader::new(sess, arena, &self.imports).unwrap_or_else(|error| {
+            eprintln!("error: {error}");
+            std::process::exit(2)
+        })
+    }
 }
 
 fn parse_cli() -> Cli {
@@ -52,12 +76,17 @@ fn parse_cli() -> Cli {
         instrument: None,
         jobs: 1,
         dry_run: false,
+        imports: ImportOpts::default(),
+        mutant_of: None,
         spec_check: false,
         spec_check_runs: 256,
         seed: 0,
     };
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
+        if c.imports.parse_arg(&a, &mut it) {
+            continue;
+        }
         match a.as_str() {
             "--strict" => c.strict = true,
             "--timeout" => c.timeout = it.next().and_then(|x| x.parse().ok()).unwrap_or(10_000),
@@ -72,9 +101,10 @@ fn parse_cli() -> Cli {
             "--seed" => c.seed = it.next().and_then(|x| x.parse().ok()).unwrap_or(0),
             "--instrument" => c.instrument = it.next().map(PathBuf::from),
             "--jobs" | "-j" => c.jobs = it.next().and_then(|x| x.parse().ok()).unwrap_or(1),
+            "--mutant-of" => c.mutant_of = it.next().map(PathBuf::from),
             "-h" | "--help" => {
                 println!(
-                    "usage: solar-verify [--strict] [--timeout MS] [--only Contract.fn] [--jobs N] [--dump-smt FILE] [--instrument OUT.sol] FILE.sol...\n\n\
+                    "usage: solar-verify [--strict] [--timeout MS] [--only Contract.fn] [--jobs N] [--dump-smt FILE] [--instrument OUT.sol] [IMPORT OPTIONS] FILE.sol...\n\n\
                      --dry-run  generate every obligation without running a solver (see --dump-smt)\n\
                      --instrument OUT.sol  write FILE with every @custom:check claim as a require\n\
                      \x20          (deploy that: the verification assumed the checks hold)\n\
@@ -83,6 +113,9 @@ fn parse_cli() -> Cli {
                      --spec-check-runs N  samples per tested function (default 256); --seed N\n\
                      --strict   arithmetic overflow, division by zero, out-of-bounds and pop-on-empty are\n\
                      \x20          verification errors instead of (sound) reverting paths\n\n\
+                     Imports resolve as with solar and solc: PREFIX=PATH remappings (CONTEXT:PREFIX=PATH\n\
+                     to scope one), --base-path PATH and --include-path PATH (-I). Contracts from imported\n\
+                     files are not verified themselves.\n\n\
                      solar-verify mutate --help: spec mutation testing"
                 );
                 std::process::exit(0);
@@ -149,13 +182,10 @@ fn run_parallel(cli: &Cli) -> ! {
     let sess = session();
     let ok = sess.enter_sequential(|| -> Result<(), ()> {
         let arena = ast::Arena::new();
-        for file in &cli.files {
-            let mut parser = Parser::from_file(&sess, &arena, file).map_err(|_| ())?;
-            let unit = parser.parse_file().map_err(|e| {
-                e.emit();
-            })?;
-            let unit: &ast::SourceUnit<'_> = arena.alloc(unit);
-            let program = prog::build(&sess, &arena, unit);
+        let loader = cli.loader(&sess, &arena);
+        for (file, (path, mutant)) in cli.files.iter().zip(cli.inputs()) {
+            let loaded = loader.load(path, mutant)?;
+            let program = prog::build(&sess, &arena, &loaded.units);
             for (sp, msg) in &program.errors {
                 report(&sess, msg, *sp, &[]);
                 fe_errors += 1;
@@ -165,7 +195,7 @@ fn run_parallel(cli: &Cli) -> ! {
                 fe_errors += report_ghost(&sess, &program);
                 continue;
             }
-            for c in program.contracts.iter().filter(|c| !c.kind.is_interface()) {
+            for c in program.contracts.iter().filter(|c| !c.kind.is_interface() && !c.imported) {
                 for f in &c.funcs {
                     if (f.item.body.is_none() && !f.synthetic) || f.trusted {
                         continue;
@@ -207,6 +237,10 @@ fn run_parallel(cli: &Cli) -> ! {
                     }
                     if cli.json {
                         cmd.arg("--json");
+                    }
+                    cmd.args(cli.imports.args());
+                    if let Some(original) = &cli.mutant_of {
+                        cmd.arg("--mutant-of").arg(original);
                     }
                     cmd.arg(file);
                     let o = cmd
@@ -273,15 +307,12 @@ fn main() {
     let mut json_rows: Vec<String> = vec![];
     let ok = sess.enter_sequential(|| -> Result<(), ()> {
         let arena = ast::Arena::new();
-        for file in &cli.files {
-            let mut parser = Parser::from_file(&sess, &arena, file).map_err(|_| ())?;
-            let unit = parser.parse_file().map_err(|e| {
-                e.emit();
-            })?;
-            let unit: &ast::SourceUnit<'_> = arena.alloc(unit);
-            let program = prog::build(&sess, &arena, unit);
+        let loader = cli.loader(&sess, &arena);
+        for (path, mutant) in cli.inputs() {
+            let loaded = loader.load(path, mutant)?;
+            let program = prog::build(&sess, &arena, &loaded.units);
             if let Some(out) = &cli.instrument {
-                instrument(&sess, &program, file, out);
+                instrument(&sess, &program, &loaded.file, out);
                 std::process::exit(if program.errors.is_empty() { 0 } else { 1 });
             }
             if !child {
@@ -306,7 +337,7 @@ fn main() {
             };
             let proved = broadcast::prove_all(&program, &opts, cli.dry_run, &mut mk);
             for c in &program.contracts {
-                if c.kind.is_interface() {
+                if c.kind.is_interface() || c.imported {
                     continue;
                 }
                 for f in &c.funcs {
@@ -363,7 +394,7 @@ fn main() {
                         let msgs: Vec<String> = msgs.iter().map(|m| format!("\"{}\"", esc(m))).collect();
                         json_rows.push(format!(
                             "{{\"file\":\"{}\",\"fn\":\"{}\",\"status\":\"{status}\",\"ms\":{},\"checks\":{},\"msgs\":[{}]}}",
-                            esc(&file.display().to_string()), esc(&rep.name), t0.elapsed().as_millis(), rep.checks, msgs.join(",")
+                            esc(&path.display().to_string()), esc(&rep.name), t0.elapsed().as_millis(), rep.checks, msgs.join(",")
                         ));
                     }
                     if let Some((sp, msg)) = &rep.unsupported {
@@ -448,16 +479,14 @@ fn spec_check(cli: &Cli) -> ! {
     let mut t = speccheck::Totals::default();
     let ok = sess.enter_sequential(|| -> Result<(), ()> {
         let arena = ast::Arena::new();
-        for file in &cli.files {
-            let mut parser = Parser::from_file(&sess, &arena, file).map_err(|_| ())?;
-            let unit = parser.parse_file().map_err(|e| {
-                e.emit();
-            })?;
-            let unit: &ast::SourceUnit<'_> = arena.alloc(unit);
-            let program = prog::build(&sess, &arena, unit);
+        let loader = cli.loader(&sess, &arena);
+        for (file, (path, mutant)) in cli.files.iter().zip(cli.inputs()) {
+            let loaded = loader.load(path, mutant)?;
+            let program = prog::build(&sess, &arena, &loaded.units);
             for (sp, msg) in &program.errors {
                 report(&sess, msg, *sp, &[]);
             }
+            let unit = *loaded.units.last().expect("the file to verify is loaded");
             let r = speccheck::run(&sess, unit, &program, file, &o);
             t.held += r.held;
             t.violated += r.violated;
@@ -478,11 +507,21 @@ fn spec_check(cli: &Cli) -> ! {
 /// Write the file with each \x60@custom:check P\x60 as \x60require(P, "...")\x60: at the start of
 /// the function body for a function's checks, before the statement for a statement's. The checks
 /// are the runtime half of a checked claim: verification assumed them.
-fn instrument(sess: &Session, program: &prog::Program<'_>, file: &Path, out: &Path) {
+/// Writes `file` with every `@custom:check` as a `require`. The verification assumed the checks
+/// hold, so one in an imported file, which this does not rewrite, is an error.
+fn instrument(
+    sess: &Session,
+    program: &prog::Program<'_>,
+    file: &std::sync::Arc<solar_parse::interface::source_map::SourceFile>,
+    out: &Path,
+) {
     for (sp, msg) in &program.errors {
         report(sess, msg, *sp, &[]);
     }
-    let src = sess.source_map().load_file(file).expect("read source").src.to_string();
+    let in_file =
+        |sp: Span| std::sync::Arc::ptr_eq(&sess.source_map().lookup_byte_offset(sp.lo()).sf, file);
+    let mut imported_checks = vec![];
+    let src = file.src.to_string();
     let off = |sp: Span| sess.source_map().lookup_byte_offset(sp.lo()).pos.0 as usize;
     let off_hi = |sp: Span| sess.source_map().lookup_byte_offset(sp.hi()).pos.0 as usize;
     let req = |text: &str| {
@@ -498,6 +537,10 @@ fn instrument(sess: &Session, program: &prog::Program<'_>, file: &Path, out: &Pa
             if f.checks.is_empty() || !seen.insert(b.span.lo()) {
                 continue;
             }
+            if !in_file(b.span) {
+                imported_checks.push(b.span);
+                continue;
+            }
             let lb = off(b.span);
             let at = src[lb..].find('{').map(|i| lb + i + 1).unwrap_or(lb);
             let body: String = f.checks.iter().map(|ck| format!(" {}", req(&ck.text))).collect();
@@ -510,6 +553,10 @@ fn instrument(sess: &Session, program: &prog::Program<'_>, file: &Path, out: &Pa
         if checks.is_empty() {
             continue;
         }
+        if !in_file(*sp) {
+            imported_checks.push(*sp);
+            continue;
+        }
         let (lo, hi) = (off(*sp), off_hi(*sp));
         // a declaration keeps its scope; any other statement is wrapped in a block, so the check
         // stays with it even as the single statement of an if or loop
@@ -520,6 +567,16 @@ fn instrument(sess: &Session, program: &prog::Program<'_>, file: &Path, out: &Pa
             ins.push((lo, format!("{{ {} ", checks.join(" "))));
             ins.push((hi, " }".into()));
         }
+    }
+    if !imported_checks.is_empty() {
+        for sp in imported_checks {
+            sess.dcx
+                .err("cannot instrument a `@custom:check` in an imported file")
+                .span(sp)
+                .note("the verification assumed it holds; instrument that file, or flatten it in")
+                .emit();
+        }
+        std::process::exit(1);
     }
     ins.sort_by_key(|a| std::cmp::Reverse(a.0));
     let mut o = src;

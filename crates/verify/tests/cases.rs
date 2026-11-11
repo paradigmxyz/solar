@@ -9,7 +9,8 @@
 //! function named `ok_*` must verify and every `bad_*` must fail with a definite verdict: a
 //! counterexample or an unsupported construct, not an unknown from the solver. `// expect: text`
 //! comments right above a function pin text in its diagnostics; `// expect: solver returned
-//! unknown` is the one way to accept an unknown, for claims the solver cannot refute.
+//! unknown` is the one way to accept an unknown, for claims the solver cannot refute. A leading
+//! `// args: ...` line passes more arguments, such as import remappings.
 #![allow(unused_crate_dependencies)]
 #![allow(clippy::disallowed_methods)] // The tests read their Solidity sources directly.
 
@@ -85,12 +86,23 @@ fn check(file: &str) {
         return;
     }
     let src = std::fs::read_to_string(file).unwrap();
+    let extra: Vec<&str> = src
+        .lines()
+        .next()
+        .and_then(|line| line.strip_prefix("// args:"))
+        .map(|args| args.split_whitespace().collect())
+        .unwrap_or_default();
+    let run = |flags: &[&str]| {
+        let mut args = vec!["--json", "--timeout", TIMEOUT];
+        args.extend(flags);
+        args.extend(&extra);
+        args.push(file);
+        run_verifier(&args)
+    };
     // Every proof here takes well under a second; the timeout bounds the queries a case expects
     // the solver to give up on.
-    let plain = run_verifier(&["--json", "--timeout", TIMEOUT, file]);
-    let strict = src
-        .contains("strict_only")
-        .then(|| run_verifier(&["--json", "--timeout", TIMEOUT, "--strict", file]));
+    let plain = run(&[]);
+    let strict = src.contains("strict_only").then(|| run(&["--strict"]));
     let mut problems = vec![];
     let lines: Vec<&str> = src.lines().collect();
     for (ln, line) in lines.iter().enumerate() {
@@ -292,6 +304,53 @@ fn examples() {
     assert_data_eq!(tidy(&out), file!["snapshots/examples.stdout"]);
 }
 
+/// Errors that stop a file with imports from being verified, which need no solver.
+#[test]
+fn import_errors() {
+    let run = run_verifier(&["--dry-run", "tests/snapshots/imports/errors.sol"]);
+    assert_data_eq!(tidy(&run.stderr), file!["snapshots/imports/errors.stderr"]);
+}
+
+/// `--instrument` rewrites only the verified file, so it refuses a check in an imported one.
+#[test]
+fn instrument_imported_check() {
+    let out = std::env::temp_dir()
+        .join(format!("solar-verify-instrument-imported-{}.sol", std::process::id()));
+    let run = Command::new(env!("CARGO_BIN_EXE_solar-verify"))
+        .args(["--instrument", out.to_str().unwrap(), "tests/snapshots/imports/instrument.sol"])
+        .env("NO_COLOR", "1")
+        .output()
+        .expect("run solar-verify");
+    assert_eq!(run.status.code(), Some(1));
+    assert!(!out.exists(), "wrote {}", out.display());
+    assert_data_eq!(
+        tidy(&String::from_utf8_lossy(&run.stderr)),
+        file!["snapshots/imports/instrument.stderr"]
+    );
+}
+
+/// Imported contracts are not verified themselves, though the functions a verified contract
+/// inherits from them are, and mutation testing reads the imports too.
+#[test]
+fn imports_scope() {
+    let remap = "shapes/=tests/cases/auxiliary/imports/shapes/";
+    let run = run_verifier(&["--dry-run", "--json", remap, "tests/cases/imports.sol"]);
+    let contracts: std::collections::BTreeSet<String> = run
+        .stdout
+        .lines()
+        .find_map(|l| l.strip_prefix("JSON "))
+        .map(|json| serde_json::from_str::<Vec<serde_json::Value>>(json).unwrap())
+        .unwrap()
+        .iter()
+        .map(|row| row["fn"].as_str().unwrap().split('.').next().unwrap().to_string())
+        .collect();
+    assert_eq!(contracts.into_iter().collect::<Vec<_>>(), ["Imports"], "{}", run.stderr);
+    let list =
+        run_verifier(&["mutate", "--list", "--per-fn", "1", remap, "tests/cases/imports.sol"]);
+    assert!(list.stdout.contains("mutants in"), "{}{}", list.stdout, list.stderr);
+    assert!(!list.stdout.contains("Base."), "{}", list.stdout);
+}
+
 #[test]
 fn arith() {
     check("tests/cases/arith.sol")
@@ -325,6 +384,11 @@ fn features() {
 #[test]
 fn fixedarrays() {
     check("tests/cases/fixedarrays.sol")
+}
+
+#[test]
+fn imports() {
+    check("tests/cases/imports.sol");
 }
 
 #[test]

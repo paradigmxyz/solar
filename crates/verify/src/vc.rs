@@ -2059,7 +2059,6 @@ impl<'p, 'a> Vc<'p, 'a> {
         found
     }
 
-    /// State variables a function may write; None = anything (external calls).
     /// What a call to `f` may write when this contract's reentrancy lock is held at the call and
     /// `f` never touches the lock: its own writes, with its external calls reaching only the entry
     /// points that stay callable under the lock, and so whatever those may write. None when the
@@ -2098,7 +2097,12 @@ impl<'p, 'a> Vc<'p, 'a> {
         let (own, out) = (own?, out?);
         // the lock's own state is never written under it: f doesn't reach it, and the open entry
         // points don't either
-        let out = out.into_iter().filter(|n| !names.contains(n)).collect();
+        let mut out: BTreeSet<String> = out.into_iter().filter(|n| !names.contains(n)).collect();
+        // outside code changes these whether or not the lock is held: it can force ETH on us
+        // (selfdestruct), and deploy or destroy code anywhere
+        if calls_out {
+            out.extend(["__balance".to_string(), "__code_epoch".to_string()]);
+        }
         // invariants f's own writes can't touch hold afterwards when f calls out: f's proof
         // checks them before each of its calls, the open entry points keep them, and nothing after
         // the last call writes what they read
@@ -2120,6 +2124,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         out
     }
 
+    /// State variables a function may write; None = anything (external calls).
     fn modset(&self, f: &'p Func<'a>, seen: &mut FxHashSet<String>) -> Option<BTreeSet<String>> {
         let raw = self.modset_raw(f, seen)?;
         let state: FxHashSet<&str> = self.c.state.iter().map(|s| s.name.as_str()).collect();
@@ -3197,11 +3202,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 return Ok(Self::val(Ty::Opaque, t));
             }
             if self.bound.is_empty() {
-                self.smt.send(&format!(
-                    "(assert {})
-",
-                    Ty::Uint(256).range(&t).unwrap()
-                ));
+                self.smt.send(&format!("(assert {})\n", Ty::Uint(256).range(&t).unwrap()));
             }
             return Ok(Self::val(Ty::Uint(256), t));
         }
@@ -3703,7 +3704,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                         let mut out = self.external_call(rets, st, e.span)?;
                         if st && target.is_some() {
                             let tv = Var { ty: bv.ty.clone(), t: bv.t.clone(), len: None };
-                            self.deterministic_view(&cn.clone(), m, &tv, &avals, &mut out);
+                            self.deterministic_view(cn, m, &tv, &avals, &mut out);
                         }
                         if let Some(f) = iface {
                             self.iface_ensures(f, &avals, &out, e.span)?;
