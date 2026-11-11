@@ -44,9 +44,10 @@ CONSTRUCTOR = "<constructor>"
 FORGE_GRACE_SECONDS = 60
 # CREATE and CREATE2.
 _CREATE_OPCODES = {0xF0, 0xF5}
-# CREATE, CALL, CALLCODE, CREATE2, SELFDESTRUCT: ways a constructor can change
-# another account.
-_OUTSIDE_EFFECT_OPCODES = {0xF0, 0xF1, 0xF2, 0xF5, 0xFF}
+# CREATE, CALL, CALLCODE, DELEGATECALL, CREATE2, SELFDESTRUCT: ways a
+# constructor can change another account, directly or through code it runs in
+# its own context.
+_OUTSIDE_EFFECT_OPCODES = {0xF0, 0xF1, 0xF2, 0xF4, 0xF5, 0xFF}
 
 
 class AbiDisagreement(ValueError):
@@ -1045,19 +1046,25 @@ def _deploy(
     with _anvil(anvil, evm_version, timeout) as url:
         # Covers any constructor value.
         _rpc(url, "anvil_setBalance", [evm.ANVIL_SENDER, hex(value + 10**24)], timeout)
+        # One explicit gas price for the preflight call and the transaction of
+        # both builds, so GASPRICE reads the same everywhere.
+        gas_price = int(_rpc(url, "eth_gasPrice", [], timeout), 16)
         return {
-            "solc": _create(url, solc_initcode, value, timeout),
-            "solar": _create(url, solar_initcode, value, timeout),
+            "solc": _create(url, solc_initcode, value, gas_price, timeout),
+            "solar": _create(url, solar_initcode, value, gas_price, timeout),
         }
 
 
-def _create(url: str, initcode: str, value: int, timeout: float) -> dict[str, Any]:
+def _create(
+    url: str, initcode: str, value: int, gas_price: int, timeout: float
+) -> dict[str, Any]:
     """Runs one deployment and reports its outcome, then undoes it."""
     transaction = {
         "from": evm.ANVIL_SENDER,
         "data": initcode,
         "value": hex(value),
         "gas": evm.TX_GAS,
+        "gasPrice": hex(gas_price),
     }
     snapshot = _rpc(url, "evm_snapshot", [], timeout)
     try:
