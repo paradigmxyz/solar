@@ -256,11 +256,21 @@ pub fn reference_script(query: &str) -> Result<String, String> {
                     .ok_or_else(|| format!("malformed parameters in {command}"))?;
                 // Earlier definitions are inlined now, so each body is closed over the
                 // declarations and its own parameters, which shadow definitions of their names.
+                // The parameters take fresh names first, so a free symbol of an inlined body
+                // cannot be mistaken for one.
                 let mut visible = definitions.clone();
-                for parameter in &parameters {
-                    visible.remove(parameter);
-                }
-                let body = inline(body, &visible, &HashMap::new());
+                let mut renamed = HashMap::new();
+                let parameters: Vec<String> = parameters
+                    .into_iter()
+                    .map(|parameter| {
+                        visible.remove(&parameter);
+                        let fresh =
+                            format!("{parameter}!{}", FRESH.fetch_add(1, Ordering::Relaxed));
+                        renamed.insert(parameter, Sexp::Atom(fresh.clone()));
+                        fresh
+                    })
+                    .collect();
+                let body = inline(body, &visible, &renamed);
                 definitions.insert(name.clone(), (parameters, body));
             }
             // Responses and options: a proof of `unsat` has no model to print, and Z3's options
@@ -448,6 +458,28 @@ mod tests {
             snapbox::str![[r#"
 (set-logic `F_BV)
 (assert (= #x01 #x07))
+(check-sat)
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn parameters_do_not_capture() {
+        // `plus_y`'s body uses the declared ` y`, not `g's` parameter ` y`.
+        let query = "(set-logic `F_BV)
+(declare-const y (_ BitVec 8))
+(define-fun plus_y ((v (_ BitVec 8))) (_ BitVec 8) (bvadd v y))
+(define-fun g ((y (_ BitVec 8))) (_ BitVec 8) (plus_y y))
+(assert (= (g #x01) #x02))
+(check-sat)
+";
+        snapbox::assert_data_eq!(
+            reference_script(query).unwrap(),
+            snapbox::str![[r#"
+(set-logic `F_BV)
+(declare-const y (_ BitVec 8))
+(assert (= (bvadd #x01 y) #x02))
 (check-sat)
 
 "#]]
