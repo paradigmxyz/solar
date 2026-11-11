@@ -15,6 +15,18 @@
 //! under the full `--rlimit`. Resource counts do not depend on machine load, so a run's verdicts
 //! are reproducible; `--timeout` is only a wall-clock backstop.
 //!
+//! With `--certify`, every `unsat` verdict also gets a proof certificate: cvc5 proves the query
+//! again with a CPC proof, which Ethos checks against it (see `solar_smt::certify`). The
+//! certificate, `<query>.cpc` beside `<query>.ref.smt2`, moves trust from Z3 and Bitwuzla to
+//! Ethos and CPC's rules, and `ethos <query>.cpc` checks it again without a solver. Certificates
+//! have their own wall-clock limit, `--certify-timeout`, since cvc5 often answers `unsat` in
+//! seconds and then needs minutes to print the proof.
+//!
+//! With `--certify-lean`, a verdict cvc5 and Ethos do not certify gets a Lean 4 certificate
+//! instead: the query as a theorem, `<query>.lean`, that Lean proves with `bv_decide` (see
+//! `solar_smt::certify::lean` for what it trusts), recorded as `checked-lean`. `lean <query>.lean`
+//! checks it again.
+//!
 //! A source's `//@ compile-flags:` lines pass on its `--evm-version` and `-Zmir-pipeline` flags,
 //! so MIR text with hand-written `assume` records runs too.
 //!
@@ -31,11 +43,11 @@ use regex::Regex;
 use ruint::aliases::U256;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use solar_smt::sexp;
+use solar_smt::{Certificate, Certifier, certify::lean::Lean, sexp};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
-    io::{BufWriter, Read, Write},
+    io::{self, BufWriter, Read, Write},
     path::{Path, PathBuf},
     process::{Command, ExitCode, Stdio},
     sync::{LazyLock, Mutex},
@@ -83,6 +95,36 @@ struct Args {
     /// Parallel compiles and solver processes.
     #[arg(long, short)]
     jobs: Option<usize>,
+    /// Certify each `unsat` verdict with a cvc5 proof that Ethos checks, for
+    /// `--certify-timeout` seconds each.
+    #[arg(long)]
+    certify: bool,
+    /// Wall-clock limit for each certificate step (cvc5 proving and printing its proof, then
+    /// Ethos checking it), in seconds. Proofs take longer than verdicts: cvc5 can answer `unsat`
+    /// quickly and then spend minutes printing the proof.
+    #[arg(long, default_value_t = 300)]
+    certify_timeout: u64,
+    /// The cvc5 binary for `--certify`: `SOLAR_PROVE_ANALYSES_CVC5`, or `cvc5` on `PATH`.
+    #[arg(long)]
+    cvc5: Option<PathBuf>,
+    /// The Ethos binary for `--certify`: `SOLAR_PROVE_ANALYSES_ETHOS`, or `ethos` on `PATH`.
+    #[arg(long)]
+    ethos: Option<PathBuf>,
+    /// cvc5's `proofs/eo/cpc/Cpc.eo`, the rules Ethos checks proofs with, for `--certify`:
+    /// `SOLAR_PROVE_ANALYSES_CPC_SIGNATURE`.
+    #[arg(long)]
+    cpc_signature: Option<PathBuf>,
+    /// Certify the verdicts `--certify` does not, or every verdict without it, with a Lean 4
+    /// theorem that `bv_decide` proves, for `--certify-timeout` seconds each.
+    #[arg(long)]
+    certify_lean: bool,
+    /// The Lean binary for `--certify-lean`: `SOLAR_PROVE_ANALYSES_LEAN`, or `lean` on `PATH`.
+    #[arg(long)]
+    lean: Option<PathBuf>,
+    /// The directory Lean runs in for `--certify-lean`, such as a project whose `lean-toolchain`
+    /// picks elan's toolchain: `SOLAR_PROVE_ANALYSES_LEAN_PROJECT`.
+    #[arg(long)]
+    lean_project: Option<PathBuf>,
     /// Keep queries and write `results.jsonl` here.
     #[arg(long)]
     out: Option<PathBuf>,
@@ -101,7 +143,8 @@ fn main() -> ExitCode {
         }
     };
     let out = match &args.out {
-        Some(out) => out.clone(),
+        // Compiles run in their sources' directories.
+        Some(out) => std::path::absolute(out).unwrap(),
         None => tempfile::Builder::new().prefix("prove-analyses-").tempdir().unwrap().keep(),
     };
     let solar = fs::canonicalize(&args.solar).unwrap_or_else(|_| args.solar.clone());
@@ -126,7 +169,7 @@ fn main() -> ExitCode {
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
-            if !name.ends_with(".smt2") || name.ends_with(".abstract.smt2") {
+            if !is_query(&name) {
                 continue;
             }
             let function = name.split('-').take(2).collect::<Vec<_>>().join("-");
@@ -193,10 +236,15 @@ fn sources(paths: &[PathBuf]) -> Vec<PathBuf> {
 fn compile(solar: &Path, source: &Path, level: &str, out: &Path) -> usize {
     let text =
         fs::read(source).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
-    let flags = COMPILE_FLAGS
-        .captures_iter(&text)
-        .flat_map(|c| c[1].split_whitespace().map(str::to_owned).collect::<Vec<_>>())
-        .filter(|flag| flag.starts_with("--evm-version") || flag.starts_with("-Zmir-pipeline"));
+    let flags = passed_flags(&text);
+    // Queries an earlier run left behind, an abstract tier above all, would be solved as this
+    // compile's.
+    match fs::remove_dir_all(out) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => {
+            panic!("clearing {}: {error}", out.display())
+        }
+        _ => {}
+    }
     fs::create_dir_all(out).unwrap();
     let mut command = Command::new(solar);
     command
@@ -216,7 +264,7 @@ fn compile(solar: &Path, source: &Path, level: &str, out: &Path) -> usize {
         .filter(|entry| {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            name.ends_with(".smt2") && !name.ends_with(".abstract.smt2")
+            is_query(&name)
         })
         .count()
 }
@@ -259,9 +307,12 @@ fn run(mut command: Command, input: Option<String>, timeout: Duration) -> Option
 struct Solver {
     z3: PathBuf,
     bitwuzla: Option<PathBuf>,
+    certifier: Option<Certifier>,
+    lean: Option<Lean>,
     batch_limit: u64,
     limit: u64,
     timeout: Duration,
+    certify_timeout: Duration,
     memory: u64,
 }
 
@@ -272,12 +323,37 @@ impl Solver {
             .arg("--version")
             .output()
             .map_err(|e| format!("cannot run {}: {e}; pass --z3", z3.display()))?;
+        let binary = |given: &Option<PathBuf>, var: &str, default: &str| {
+            given.clone().unwrap_or_else(|| {
+                std::env::var_os(var).map_or_else(|| default.into(), PathBuf::from)
+            })
+        };
+        let certifier = if args.certify {
+            Some(Certifier::new(
+                binary(&args.cvc5, "SOLAR_PROVE_ANALYSES_CVC5", "cvc5"),
+                binary(&args.ethos, "SOLAR_PROVE_ANALYSES_ETHOS", "ethos"),
+                binary(&args.cpc_signature, "SOLAR_PROVE_ANALYSES_CPC_SIGNATURE", ""),
+            )?)
+        } else {
+            None
+        };
+        let lean = if args.certify_lean {
+            let project = args.lean_project.clone().or_else(|| {
+                std::env::var_os("SOLAR_PROVE_ANALYSES_LEAN_PROJECT").map(PathBuf::from)
+            });
+            Some(Lean::new(binary(&args.lean, "SOLAR_PROVE_ANALYSES_LEAN", "lean"), project)?)
+        } else {
+            None
+        };
         Ok(Self {
             z3,
             bitwuzla: args.bitwuzla.clone(),
+            certifier,
+            lean,
             batch_limit: args.rlimit_batch,
             limit: args.rlimit,
             timeout: Duration::from_secs(args.timeout),
+            certify_timeout: Duration::from_secs(args.certify_timeout),
             memory: args.memory,
         })
     }
@@ -289,14 +365,60 @@ impl Solver {
             .iter()
             .zip(verdicts)
             .map(|(query, verdict)| {
-                if verdict == "unsat" {
+                let mut record = if verdict == "unsat" {
                     let tier = if abstract_of(query).exists() { "abstract" } else { "exact" };
                     record(query, source, "unsat", &format!("batch-{tier}"))
                 } else {
                     self.alone(query, source)
+                };
+                if (self.certifier.is_some() || self.lean.is_some())
+                    && record.get("result").and_then(Value::as_str) == Some("unsat")
+                {
+                    let (certificate, tier, lean) = self.certify(query);
+                    record.insert("certificate".into(), json!(certificate.describe()));
+                    record.insert("certified_tier".into(), json!(tier));
+                    if let Some(lean) = lean {
+                        record.insert("lean_certificate".into(), json!(lean.describe()));
+                    }
                 }
+                record
             })
             .collect()
+    }
+
+    /// A certificate for a proved query: of the exact query, or else of its abstract tier, which
+    /// implies it; from cvc5 and Ethos, or else from Lean. Without a certificate, the first
+    /// failure, and Lean's when it was tried.
+    fn certify(&self, query: &Path) -> (Certificate, &'static str, Option<Certificate>) {
+        let mut tiers = vec![("exact", query.to_path_buf())];
+        let tier = abstract_of(query);
+        if tier.exists() {
+            tiers.push(("abstract", tier));
+        }
+        let mut failure = None;
+        if let Some(certifier) = &self.certifier {
+            for (name, path) in &tiers {
+                let text = fs::read_to_string(path).unwrap_or_default();
+                match certifier.certify(&text, &path.with_extension(""), self.certify_timeout) {
+                    Certificate::Checked => return (Certificate::Checked, name, None),
+                    certificate => failure = failure.or(Some(certificate)),
+                }
+            }
+        }
+        let mut lean_failure = None;
+        if let Some(lean) = &self.lean {
+            for (name, path) in &tiers {
+                let text = fs::read_to_string(path).unwrap_or_default();
+                match lean.certify(&text, &path.with_extension(""), self.certify_timeout) {
+                    Certificate::CheckedLean => return (Certificate::CheckedLean, name, None),
+                    certificate => lean_failure = lean_failure.or(Some(certificate)),
+                }
+            }
+        }
+        match failure {
+            Some(failure) => (failure, "exact", lean_failure),
+            None => (lean_failure.unwrap_or(Certificate::NoProof("unknown")), "exact", None),
+        }
     }
 
     fn batch(&self, queries: &[&Path]) -> Vec<String> {
@@ -420,6 +542,12 @@ fn record(query: &Path, source: &str, verdict: &str, tier: &str) -> Record {
     record
 }
 
+/// Whether a file in a compile's output directory is a query, rather than a query's abstract
+/// tier or a certificate's reference script.
+fn is_query(name: &str) -> bool {
+    name.ends_with(".smt2") && !name.ends_with(".abstract.smt2") && !name.ends_with(".ref.smt2")
+}
+
 fn abstract_of(query: &Path) -> PathBuf {
     let name = query.file_name().unwrap().to_string_lossy().replace(".smt2", ".abstract.smt2");
     query.with_file_name(name)
@@ -458,7 +586,12 @@ fn summarize(records: &[Record]) {
     let mut table: BTreeMap<(String, String), usize> = BTreeMap::new();
     let mut tiers: BTreeMap<String, usize> = BTreeMap::new();
     let mut axioms: BTreeMap<String, usize> = BTreeMap::new();
+    let mut certificates: BTreeMap<String, usize> = BTreeMap::new();
     for record in records {
+        let certificate = field(record, "certificate");
+        if let Some(kind) = certificate.split_whitespace().next() {
+            *certificates.entry(kind.to_string()).or_default() += 1;
+        }
         let claim = field(record, "claim");
         let analysis = claim.split_whitespace().next().unwrap_or("?").to_string();
         let result = field(record, "result");
@@ -477,6 +610,9 @@ fn summarize(records: &[Record]) {
         map.iter().map(|(k, n)| format!("{k}{sep}{n}")).collect::<Vec<_>>().join(", ")
     };
     println!("proved by tier: {}", join(&tiers, " "));
+    if !certificates.is_empty() {
+        println!("certificates: {}", join(&certificates, " "));
+    }
     let trusted: Vec<_> = axioms.iter().map(|(a, n)| format!("{a} in {n} queries")).collect();
     println!("trusted: trip-count bounds (gas), {}", trusted.join(", "));
     for record in records.iter().filter(|record| field(record, "result") == "sat") {
@@ -496,6 +632,43 @@ fn z3_binary() -> PathBuf {
     std::env::var_os("SOLAR_PROVE_ANALYSES_Z3").map_or_else(|| "z3".into(), PathBuf::from)
 }
 
+/// The `--evm-version` and `-Zmir-pipeline` flags of a source's `//@ compile-flags:` lines, with
+/// the value that follows a flag written without `=`.
+fn passed_flags(text: &str) -> Vec<String> {
+    let tokens: Vec<&str> = COMPILE_FLAGS
+        .captures_iter(text)
+        .flat_map(|c| c.get(1).map_or("", |m| m.as_str()).split_whitespace().collect::<Vec<_>>())
+        .collect();
+    let mut flags = Vec::new();
+    let mut tokens = tokens.into_iter();
+    while let Some(token) = tokens.next() {
+        if !(token.starts_with("--evm-version") || token.starts_with("-Zmir-pipeline")) {
+            continue;
+        }
+        flags.push(token.to_owned());
+        if !token.contains('=')
+            && let Some(value) = tokens.next()
+        {
+            flags.push(value.to_owned());
+        }
+    }
+    flags
+}
+
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keeps_flag_values() {
+        let text = "//@ compile-flags: --evm-version paris -Zmir-pipeline=sccp --emit=abi\n//@ compile-flags: --evm-version=cancun\n";
+        assert_eq!(
+            passed_flags(text),
+            ["--evm-version", "paris", "-Zmir-pipeline=sccp", "--evm-version=cancun"]
+        );
+    }
 }
