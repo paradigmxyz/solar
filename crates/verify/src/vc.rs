@@ -917,7 +917,12 @@ impl<'p, 'a> Vc<'p, 'a> {
         for sv in c.state.iter().filter(|s| !s.constant) {
             // transient storage is not known to be clear when a constructor runs (another
             // create in the same transaction may have used the address): keep it arbitrary
-            let v = if ctor && !sv.immutable && sv.name != "__balance" && !sv.transient {
+            let v = if ctor
+                && !sv.immutable
+                && sv.name != "__balance"
+                && sv.name != "__code_epoch"
+                && !sv.transient
+            {
                 self.zero_var(&sv.ty)
             } else {
                 self.fresh_var(&sv.name, &sv.ty)
@@ -1636,7 +1641,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         walk::all_stmts(body, &mut |s| {
             walk::stmt_exprs(s, &mut |e| visit(e, &mut out, &mut all_state));
             if let StmtKind::Assembly(a) = &s.kind {
-                yul::asm_effects(&a.block, &mut out, &mut all_state);
+                yul::asm_effects(&a.block, &mut out, &mut all_state, self.lock_modset.get());
             }
             if let Some(specs) = self.prog.stmt_specs.get(&s.span) {
                 for (tag, sp) in specs {
@@ -1883,6 +1888,66 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     /// State variables a function may write; None = anything (external calls).
+    /// What a call to `f` may write when this contract's reentrancy lock is held at the call and
+    /// `f` never touches the lock: its own writes, with its external calls reaching only the entry
+    /// points that stay callable under the lock, and so whatever those may write. None when the
+    /// lock isn't known to be held, `f` reaches the lock, or some write set is unknown.
+    fn modset_under_lock(
+        &mut self,
+        f: &'p Func<'a>,
+    ) -> Option<(BTreeSet<String>, Option<BTreeSet<String>>)> {
+        if self.spec || self.c.lock.is_none() || !self.lock_held() {
+            return None;
+        }
+        let names: FxHashSet<String> = match &self.c.lock_expr {
+            Some(_) => self.lock_names(),
+            None => self.c.lock.iter().map(|(g, _)| g.clone()).collect(),
+        };
+        if self.reaches_names(self.fn_stmts(f), &names, &mut FxHashSet::default()) {
+            return None;
+        }
+        // whether f can call out at all: its plain write set is unknown only through such calls
+        let calls_out = self.modset(f, &mut FxHashSet::default()).is_none();
+        self.lock_modset.set(true);
+        let own = self.modset(f, &mut FxHashSet::default());
+        let mut out = own.clone();
+        if calls_out && out.is_some() {
+            let open: Vec<&'p Func<'a>> =
+                self.c.funcs.iter().filter(|g| self.lock_open(g)).collect();
+            let mut seen = FxHashSet::default();
+            for g in open {
+                match (self.modset(g, &mut seen), out.as_mut()) {
+                    (Some(m), Some(o)) => o.extend(m),
+                    _ => out = None,
+                }
+            }
+        }
+        self.lock_modset.set(false);
+        let (own, out) = (own?, out?);
+        // the lock's own state is never written under it: f doesn't reach it, and the open entry
+        // points don't either
+        let out = out.into_iter().filter(|n| !names.contains(n)).collect();
+        // invariants f's own writes can't touch hold afterwards when f calls out: f's proof
+        // checks them before each of its calls, the open entry points keep them, and nothing after
+        // the last call writes what they read
+        // without a call out, the open entry points never run, so nothing new holds afterwards
+        let keep = if calls_out { Some(own) } else { None };
+        Some((out, keep))
+    }
+
+    /// The state variables a spec expression reads.
+    fn spec_state_names(&self, e: &'a Expr<'a>) -> FxHashSet<String> {
+        let mut out = FxHashSet::default();
+        walk::sub_exprs(e, &mut |x| {
+            if let ExprKind::Ident(i) = &x.kind
+                && self.c.state.iter().any(|s| s.name == i.as_str())
+            {
+                out.insert(i.as_str().to_string());
+            }
+        });
+        out
+    }
+
     fn modset(&self, f: &'p Func<'a>, seen: &mut FxHashSet<String>) -> Option<BTreeSet<String>> {
         let raw = self.modset_raw(f, seen)?;
         let state: FxHashSet<&str> = self.c.state.iter().map(|s| s.name.as_str()).collect();
@@ -1929,7 +1994,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                     walk::sub_exprs(g.expr, &mut |x| self.effects(x, &mut out, &mut all, seen));
                 }
                 if let StmtKind::Assembly(a) = &s.kind {
-                    yul::asm_effects(&a.block, &mut out, &mut all);
+                    yul::asm_effects(&a.block, &mut out, &mut all, self.lock_modset.get());
                 }
             });
         }
@@ -2948,10 +3013,28 @@ impl<'p, 'a> Vc<'p, 'a> {
                 return Ok(Self::val(Ty::Uint(256), t));
             }
         }
-        if m == "balance" || m == "code" || m == "codehash" {
+        if (m == "code" || m == "codehash")
+            && let Some(ep) = self.env.get("__code_epoch").cloned()
+        {
+            // the code at an address is a function of the address and the code epoch
             let b = self.eval(base)?;
             let f = format!("sv_{m}");
-            self.declare_fun(&f, 1, "Int");
+            self.declare_fun(&f, 2, "Int");
+            let t = format!("({f} {} {})", b.t, ep.t);
+            if m == "code" {
+                return Ok(Self::val(Ty::Opaque, t));
+            }
+            if self.bound.is_empty() {
+                self.smt.send(&format!(
+                    "(assert {})
+",
+                    Ty::Uint(256).range(&t).unwrap()
+                ));
+            }
+            return Ok(Self::val(Ty::Uint(256), t));
+        }
+        if m == "balance" || m == "code" || m == "codehash" {
+            let b = self.eval(base)?;
             let _ = b;
             let t = self.decl(m, &Ty::Uint(256));
             return Ok(Self::val(Ty::Uint(256), t));
@@ -3432,7 +3515,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                         if let Some(f) = iface {
                             self.iface_requires(f, &avals, e.span)?;
                         }
-                        let out = self.external_call(rets, st, e.span)?;
+                        let mut out = self.external_call(rets, st, e.span)?;
+                        if st && target.is_some() {
+                            let tv = Var { ty: bv.ty.clone(), t: bv.t.clone(), len: None };
+                            self.deterministic_view(&cn.clone(), m, &tv, &avals, &mut out);
+                        }
                         if let Some(f) = iface {
                             self.iface_ensures(f, &avals, &out, e.span)?;
                         }
@@ -3861,6 +3948,10 @@ impl<'p, 'a> Vc<'p, 'a> {
             return self.with_host(|s| s.external_call(rets, is_static, span));
         }
         self.call_value = None;
+        if !is_static && let Some(ep) = self.env.get("__code_epoch").cloned() {
+            let ne = self.fresh_var("__code_epoch", &ep.ty);
+            self.bind("__code_epoch", ep.ty.clone(), ne);
+        }
         let locked = !self.spec && !is_static && self.lock_held();
         // Entry points the callee can still reach under the lock: the invariants must hold before
         // the call, and afterwards everything those entry points may write is unknown (each of
@@ -3947,6 +4038,78 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         }
         Ok(rets.iter().map(|t| self.fresh_var("ext_ret", t)).collect())
+    }
+
+    /// A view call's results as a function of the call (contract, function, target and
+    /// arguments) and of the world it reads: this contract's state, raw storage, ETH balances
+    /// and the code epoch (which outside code moves). Two view calls in the same world, in the
+    /// body or in a spec, then answer alike; any write between them changes the world value.
+    fn deterministic_view(
+        &mut self,
+        cn: &str,
+        m: &str,
+        target: &Var,
+        args: &[Val],
+        out: &mut [Val],
+    ) {
+        let scalar = |ty: &Ty| {
+            matches!(ty, Ty::Uint(_) | Ty::Int(_) | Ty::Bool | Ty::Addr | Ty::Contract(_))
+        };
+        if self.in_library()
+            || !self.bound.is_empty()
+            || !scalar(&target.ty)
+            || !args.iter().all(|a| scalar(&a.ty))
+            || !out.iter().all(|o| scalar(&o.ty))
+        {
+            return;
+        }
+        let mut names: Vec<String> = self
+            .c
+            .state
+            .iter()
+            .filter(|s| {
+                !s.constant
+                    && !s.immutable
+                    && (!s.ghost || s.name == "__balance" || s.name == "__code_epoch")
+            })
+            .map(|s| s.name.clone())
+            .collect();
+        names.push("__raw".into());
+        names.push("__traw".into());
+        let world: Vec<Var> = names.iter().filter_map(|n| self.env.get(n).cloned()).collect();
+        if !self.env.contains_key("__code_epoch") {
+            return;
+        }
+        let sorts: Vec<String> = world.iter().map(|v| v.ty.sort()).collect();
+        // The sorts name the function, so one contract's world has one function. A struct's sort is
+        // a quoted symbol, whose bars can't appear inside the quoted name.
+        let wfun = format!("|sv_world {}|", sorts.join(" ").replace('|', ""));
+        if self.declared_funs.insert(wfun.clone()) {
+            self.smt.send(&format!("(declare-fun {wfun} ({}) Int)\n", sorts.join(" ")));
+        }
+        let w = if world.is_empty() {
+            "0".to_string()
+        } else {
+            format!("({wfun} {})", world.iter().map(|v| v.t.as_str()).collect::<Vec<_>>().join(" "))
+        };
+        let mut asorts = vec![target.ty.sort()];
+        asorts.extend(args.iter().map(|a| a.ty.sort()));
+        asorts.push("Int".into());
+        let mut avs = vec![target.t.clone()];
+        avs.extend(args.iter().map(|a| a.t.clone()));
+        avs.push(w);
+        for (i, o) in out.iter_mut().enumerate() {
+            let f = format!("|sv_view {cn}.{m}/{} {i}|", args.len());
+            if self.declared_funs.insert(format!("{f}:{}", asorts.join(","))) {
+                self.smt.send(&format!(
+                    "(declare-fun {f} ({}) {})\n",
+                    asorts.join(" "),
+                    o.ty.sort()
+                ));
+            }
+            let term = format!("({f} {})", avs.join(" "));
+            self.smt.send(&format!("(assert (= {} {term}))\n", o.t));
+        }
     }
 
     /// The declared named type of an expression, where it is visible syntactically: a call
@@ -4172,8 +4335,13 @@ impl<'p, 'a> Vc<'p, 'a> {
                     self.runtime_check(ck)?;
                 }
                 self.old = Some(self.env.clone());
-                if let Some(ms) =
-                    self.modset(f, &mut FxHashSet::default()).map(Some).unwrap_or_else(|| {
+                let under_lock = if library { None } else { self.modset_under_lock(f) };
+                let keep_invs = under_lock.as_ref().and_then(|(_, own)| own.clone());
+                if let Some(ms) = under_lock
+                    .map(|(ms, _)| Some(ms))
+                    .unwrap_or_else(|| self.modset(f, &mut FxHashSet::default()))
+                    .map(Some)
+                    .unwrap_or_else(|| {
                         Some(
                             c.state
                                 .iter()
@@ -4191,6 +4359,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                             // raw/transient storage a library writes with sstore/tstore
                             let v = self.fresh_var(&n, &hv.ty);
                             self.env.insert(format!("@host.{n}"), v);
+                        }
+                    }
+                }
+                if let Some(own) = keep_invs {
+                    let c = self.c;
+                    for inv in &c.invariants {
+                        if self.spec_state_names(inv.expr).iter().all(|n| !own.contains(n)) {
+                            let v = self.eval_spec(inv.expr)?;
+                            self.assume(&v.t);
                         }
                     }
                 }

@@ -67,3 +67,68 @@ contract Clock {
     function ok_monotone() external view { assert(block.timestamp >= last); }
     function bad_future() external { last = block.timestamp + 1; }
 }
+
+interface ICode { function poke() external; function peek() external view returns (uint256); }
+/// Code read in a spec is the code the body read, until outside code runs.
+contract CodeEpoch {
+    /// @custom:ensures a.code.length > 0
+    function ok_codeKeptOverViewCall(ICode a) external view {
+        require(a.code.length > 0);
+        a.peek();
+    }
+    /// @custom:ensures old(a.code.length) > 0
+    function ok_oldCodeBeforeCall(ICode a) external {
+        require(a.code.length > 0);
+        a.poke();
+    }
+    /// @custom:ensures a.code.length > 0
+    function bad_codeChangesAcrossCall(ICode a) external {
+        require(a.code.length > 0);
+        a.poke();
+    }
+}
+
+interface IView { function v(uint256 k) external view returns (uint256); function poke() external; }
+/// A view call answers alike in the same world, in the body and in a spec.
+contract ViewWorld {
+    uint256 x;
+    /// @custom:ensures o.v(k) > 0
+    function ok_viewTwice(IView o, uint256 k) external view {
+        require(o.v(k) > 0);
+    }
+    /// @custom:ensures old(o.v(k)) > 0
+    function ok_oldViewAfterWrite(IView o, uint256 k) external {
+        require(o.v(k) > 0);
+        x = x + 1;
+    }
+    /// @custom:ensures o.v(k) > 0
+    function bad_viewAfterWrite(IView o, uint256 k) external {
+        require(o.v(k) > 0);
+        x = x + 1;
+    }
+    /// @custom:ensures o.v(k) > 0
+    function bad_viewAfterCall(IView o, uint256 k) external {
+        require(o.v(k) > 0);
+        o.poke();
+    }
+    /// @custom:ensures o.v(k + 1) > 0
+    function bad_viewOtherArgument(IView o, uint256 k) external view {
+        require(o.v(k) > 0);
+    }
+}
+
+/// A view call in a contract whose state holds a struct: the struct's sort names the world.
+contract ViewWorldStruct {
+    struct P { uint256 a; bool open; }
+    mapping(uint256 => P) ps;
+    P last;
+    /// @custom:ensures o.v(k) > 0
+    function ok_viewTwiceStruct(IView o, uint256 k) external view {
+        require(o.v(k) > 0);
+    }
+    /// @custom:ensures o.v(k) > 0
+    function bad_viewAfterStructWrite(IView o, uint256 k) external {
+        require(o.v(k) > 0);
+        last.a = k;
+    }
+}

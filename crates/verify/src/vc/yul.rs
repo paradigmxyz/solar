@@ -1953,8 +1953,13 @@ fn reverts<'a>(e: &'a Expr<'a>) -> bool {
 
 /// Write effects of an assembly block: Solidity variables it assigns, `__raw` when it may
 /// sstore; `all` when it may call out (call, delegatecall, create...).
-pub(super) fn asm_effects(b: &yul::Block<'_>, out: &mut BTreeSet<String>, all: &mut bool) {
-    fn ex(e: &yul::Expr<'_>, out: &mut BTreeSet<String>, all: &mut bool) {
+pub(super) fn asm_effects(
+    b: &yul::Block<'_>,
+    out: &mut BTreeSet<String>,
+    all: &mut bool,
+    lock: bool,
+) {
+    fn ex(e: &yul::Expr<'_>, out: &mut BTreeSet<String>, all: &mut bool, lock: bool) {
         if let yul::ExprKind::Call(c) = &e.kind {
             match c.name.as_str() {
                 "sstore" => {
@@ -1963,49 +1968,52 @@ pub(super) fn asm_effects(b: &yul::Block<'_>, out: &mut BTreeSet<String>, all: &
                 "tstore" => {
                     out.insert("__traw".into());
                 }
+                // under a held reentrancy lock a call or creation reaches only the entry points
+                // still open, whose writes the caller adds (modset_under_lock)
+                "call" | "create" | "create2" if lock => {}
                 "call" | "callcode" | "delegatecall" | "create" | "create2" | "selfdestruct" => {
                     *all = true
                 }
                 _ => {}
             }
             for a in c.arguments.iter() {
-                ex(a, out, all);
+                ex(a, out, all, lock);
             }
         }
     }
     for s in b.stmts.iter() {
         use yul::StmtKind as K;
         match &s.kind {
-            K::Block(b) => asm_effects(b, out, all),
+            K::Block(b) => asm_effects(b, out, all, lock),
             K::AssignSingle(p, e) => {
                 out.insert(p.segments()[0].as_str().to_string());
-                ex(e, out, all);
+                ex(e, out, all, lock);
             }
             K::AssignMulti(ps, e) => {
                 for p in ps.iter() {
                     out.insert(p.segments()[0].as_str().to_string());
                 }
-                ex(e, out, all);
+                ex(e, out, all, lock);
             }
-            K::Expr(e) => ex(e, out, all),
-            K::VarDecl(_, Some(e)) => ex(e, out, all),
+            K::Expr(e) => ex(e, out, all, lock),
+            K::VarDecl(_, Some(e)) => ex(e, out, all, lock),
             K::If(c, b) => {
-                ex(c, out, all);
-                asm_effects(b, out, all);
+                ex(c, out, all, lock);
+                asm_effects(b, out, all, lock);
             }
             K::Switch(sw) => {
-                ex(&sw.selector, out, all);
+                ex(&sw.selector, out, all, lock);
                 for c in sw.cases.iter() {
-                    asm_effects(&c.body, out, all);
+                    asm_effects(&c.body, out, all, lock);
                 }
             }
             K::For(f) => {
-                asm_effects(&f.init, out, all);
-                ex(&f.cond, out, all);
-                asm_effects(&f.step, out, all);
-                asm_effects(&f.body, out, all);
+                asm_effects(&f.init, out, all, lock);
+                ex(&f.cond, out, all, lock);
+                asm_effects(&f.step, out, all, lock);
+                asm_effects(&f.body, out, all, lock);
             }
-            K::FunctionDef(f) => asm_effects(&f.body, out, all),
+            K::FunctionDef(f) => asm_effects(&f.body, out, all, lock),
             _ => {}
         }
     }

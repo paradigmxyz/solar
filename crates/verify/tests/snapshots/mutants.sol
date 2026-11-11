@@ -25,6 +25,13 @@ contract Mutants {
     function pick(uint256 a, uint256 b) internal pure returns (bool result) {
         result = a > b || a == 0;
     }
+
+    /// Trusted: its body is not verified, so its sites are counted, not mutated.
+    /// @custom:trusted
+    /// @custom:ensures result >= a
+    function bump(uint256 a) internal pure returns (uint256 result) {
+        result = a + 1;
+    }
 }
 
 /// No spec reaches this contract: its sites are counted, not mutated.

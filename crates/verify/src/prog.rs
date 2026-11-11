@@ -796,6 +796,19 @@ pub(crate) fn build<'a>(
                 ghost_decl: None,
                 transient: false,
             });
+            // which code each address holds: a value of this epoch, which every external call and
+            // contract creation moves on (code changes only through outside code), so code read
+            // twice between calls (in the body and in a spec) is the same code
+            con.state.push(StateVar {
+                name: "__code_epoch".into(),
+                ty: Ty::Uint(256),
+                init: None,
+                constant: false,
+                immutable: false,
+                ghost: true,
+                ghost_decl: None,
+                transient: false,
+            });
             if con.kind == ContractKind::Contract
                 && !con.funcs.iter().any(|f| f.name == "constructor")
             {
