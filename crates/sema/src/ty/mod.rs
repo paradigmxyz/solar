@@ -66,7 +66,7 @@ pub(crate) use ty::SameSourceFileLevelUserTypeError;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind};
 
 pub(crate) type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
-type InheritdocKey = (Symbol, hir::SourceId, Option<hir::ContractId>);
+type NatSpecContractKey = (Symbol, hir::SourceId);
 type UsingDirectiveKey = usize;
 
 /// A function exported by a contract.
@@ -767,13 +767,10 @@ impl<'gcx> Gcx<'gcx> {
         crate::natspec::references(self, item)
     }
 
-    /// Resolves a NatSpec `@inheritdoc` reference, a contract name or a path such as `M.Base`,
-    /// within a source's scope.
+    /// Resolves a contract name, or a path such as `M.Base`, within a source's scope for NatSpec
+    /// `@inheritdoc`.
     pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
-        match self.natspec_inheritdoc_target((name, source, None)) {
-            crate::natspec::InheritdocTarget::Contract(id) => Some(id),
-            _ => None,
-        }
+        self.natspec_contract_in_source((name, source))
     }
 
     /// Returns the `@custom:solar-*` tags that document `item`.
@@ -1965,14 +1962,19 @@ pub fn natspec_view(gcx: _, item: hir::ItemId) -> NatSpecView<'gcx> {
     crate::natspec::resolve_view(gcx, item)
 }
 
-/// Resolves a NatSpec `@inheritdoc` reference within the scopes of a source and, if given, a
-/// contract.
-pub(crate) fn natspec_inheritdoc_target(
+/// Resolves a contract name, or a path such as `M.Base` through an import namespace, within a
+/// source's scope for NatSpec `@inheritdoc`.
+pub(crate) fn natspec_contract_in_source(
     gcx: _,
-    key: InheritdocKey
-) -> crate::natspec::InheritdocTarget {
-    let (reference, source, contract) = key;
-    crate::natspec::resolve_inheritdoc_target(gcx, reference, source, contract)
+    key: NatSpecContractKey
+) -> Option<hir::ContractId> {
+    let (name, source_id) = key;
+    let segments = crate::natspec::path_segments(Ident { name, span: Span::DUMMY });
+    let resolutions = gcx.source_path_resolutions(&segments, source_id, None)?;
+    resolutions.last()?.iter().find_map(|res| match res {
+        hir::Res::Item(hir::ItemId::Contract(id)) => Some(*id),
+        _ => None,
+    })
 }
 
 /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.
