@@ -1527,27 +1527,28 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemEnum<'_>, Option<hir::En
 }
 
 /// The variants of an enum: `EnumValue` nodes.
-struct EnumValues<'a> {
-    ast: &'a [Ident],
+struct EnumValues<'a, 'ast> {
+    ast: &'a [ast::EnumVariant<'ast>],
     hir: Option<&'a [VariableId]>,
 }
 
-impl Serialize for W<'_, '_, EnumValues<'_>> {
+impl Serialize for W<'_, '_, EnumValues<'_, '_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, EnumValues { ast, hir }) = self;
         let mut seq = s.serialize_seq(Some(ast.len()))?;
-        for (&variant, id) in zip_opt(ast, *hir) {
+        for (variant, id) in zip_opt(ast, *hir) {
             seq.serialize_element(&cx.w((id.copied(), variant)))?;
         }
         seq.end()
     }
 }
 
-impl Serialize for W<'_, '_, (Option<VariableId>, Ident)> {
+impl Serialize for W<'_, '_, (Option<VariableId>, &ast::EnumVariant<'_>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self(cx, (id, name)) = self;
-        cx.write_item(s, *id, "EnumValue", name.span, |m| {
-            m.name(*cx, *name);
+        let Self(cx, (id, variant)) = self;
+        cx.write_item(s, *id, "EnumValue", variant.name.span, |m| {
+            m.name(*cx, variant.name);
+            m.docs(*cx, &variant.docs);
         })
     }
 }

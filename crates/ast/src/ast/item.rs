@@ -802,7 +802,14 @@ pub struct ItemStruct<'ast> {
 #[derive(Debug)]
 pub struct ItemEnum<'ast> {
     pub name: Ident,
-    pub variants: BoxSlice<'ast, Ident>,
+    pub variants: BoxSlice<'ast, EnumVariant<'ast>>,
+}
+
+/// A variant of an enum, with the doc comments that precede it.
+#[derive(Debug)]
+pub struct EnumVariant<'ast> {
+    pub docs: DocComments<'ast>,
+    pub name: Ident,
 }
 
 /// A user-defined value type definition: `type Foo is uint256;`.

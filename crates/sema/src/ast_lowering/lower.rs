@@ -319,7 +319,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
         let ast::ItemEnum { name, ref variants } = *i;
         let id = self.hir.enums.next_idx();
         let doc = self.lower_item_docs(item, hir::ItemId::Enum(id));
-        let variants = self.arena.alloc_slice_fill_iter(variants.iter().map(|&variant| {
+        let variants = self.arena.alloc_slice_fill_iter(variants.iter().map(|variant| {
+            let variant = variant.name;
             let mut variable = hir::Variable::new(
                 self.current_source_id,
                 hir::DocId::EMPTY,
