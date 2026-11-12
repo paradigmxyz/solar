@@ -75,7 +75,8 @@ pub(super) fn consumed_everywhere(
 
 /// Removes the callees that overflow the stack budget at any of their sites. The price leaves out
 /// the stack moves each copy pays under pressure, and the inline loop skips a site of a callee
-/// with several blocks, which would leave copies beside the callee the price assumed gone.
+/// with several blocks in a loop, which would leave copies beside the callee the price assumed
+/// gone.
 fn drop_stack_bound(
     module: &Module,
     summaries: &IndexVec<FunctionId, MirInlineSummary>,
