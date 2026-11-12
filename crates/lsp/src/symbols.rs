@@ -1440,39 +1440,6 @@ impl SymbolTables {
                 continue;
             }
             for (span, resolutions) in gcx.natspec_references(item_id) {
-                // An import alias that qualifies an `@inheritdoc` path.
-                let namespaces = resolutions
-                    .iter()
-                    .filter_map(|res| match res {
-                        Res::Namespace(namespace) => Some(*namespace),
-                        _ => None,
-                    })
-                    .collect::<SmallVec<[_; 1]>>();
-                if !namespaces.is_empty() {
-                    let Ok(name) = gcx.sess.source_map().span_to_snippet(span) else { continue };
-                    let name = Symbol::intern(&name);
-                    self.rename.push_namespace_reference(
-                        gcx,
-                        locations,
-                        &bindings,
-                        item.source(),
-                        span,
-                        namespaces.iter().copied(),
-                    );
-                    let targets = namespaces
-                        .iter()
-                        .filter_map(|&namespace| {
-                            namespace_symbols.get(&(item.source(), namespace, name)).copied()
-                        })
-                        .collect::<SmallVec<_>>();
-                    self.push_reference_entry(
-                        locations,
-                        span,
-                        targets,
-                        DocumentHighlightKind::READ,
-                    );
-                    continue;
-                }
                 let targets = resolutions
                     .iter()
                     .filter_map(|res| {
@@ -1492,7 +1459,34 @@ impl SymbolTables {
                     span,
                     &targets,
                 );
-                self.push_reference_entry(locations, span, targets, DocumentHighlightKind::READ);
+                if let Some(path) = SourcePath::resolve(gcx, span, item.source(), item.contract()) {
+                    // The qualifiers of an `@inheritdoc` path, such as `M` in `M.Base`.
+                    for qualifier in path.qualifiers {
+                        let targets = qualifier
+                            .resolutions
+                            .into_iter()
+                            .filter_map(|res| match res {
+                                Res::Namespace(namespace) => namespace_symbols
+                                    .get(&(qualifier.source, namespace, qualifier.ident.name))
+                                    .copied(),
+                                Res::Item(id) => item_symbols.get(&id).copied(),
+                                _ => None,
+                            })
+                            .collect();
+                        self.push_reference_entry(
+                            locations,
+                            qualifier.ident.span,
+                            targets,
+                            DocumentHighlightKind::READ,
+                        );
+                    }
+                    self.push_reference_entry(
+                        locations,
+                        path.final_ident.span,
+                        targets,
+                        DocumentHighlightKind::READ,
+                    );
+                }
             }
         }
         self.rename.build_overrides(

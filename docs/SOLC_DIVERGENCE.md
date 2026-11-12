@@ -1103,19 +1103,18 @@ Status: intentional.
 
 Difference: `solar` reads the first word of an `@inheritdoc` tag as a path,
 such as `M.Base` through an import namespace, and resolves it from the source
-scope. `solc` resolves it from the scope of the documented function and reads
-the rest of the tag, including continuation lines, as part of the reference.
-`solar` ignores text after the first word, so `@inheritdoc Base and more text`
-inherits from `Base`. A parameter or return variable of the function that
-shadows the first segment does not stop the lookup. A reference that names
-nothing, an empty segment such as `Base.`, an overloaded declaration, a
-non-contract such as a struct, or an empty reference all warn 9397, where
-`solc` reports 1933, 5967, 1430 or 9397 as errors.
+scope. `solc` resolves it from the scope of the documented function, so a
+parameter named `M` shadows the namespace, and reads the rest of the tag,
+including continuation lines, as part of the reference. `solar` ignores text
+after the first word, so `@inheritdoc Base and more text` inherits from `Base`.
+Every reference that names no contract, such as an empty reference, `Base.`,
+an overloaded function or a struct, warns 9397. `solc` reports 1933, 5967,
+1430 or 9397 as errors.
 
-Rationale: a qualified path through an import alias is valid code and has to
-resolve. Matching `solc` on malformed or shadowed references costs a separate
-parse of the tag text and a scope walk, and only changes which invalid
-documentation is reported.
+Rationale: resolving a qualified path is needed for valid code. Matching
+`solc` on shadowed, malformed or trailing text would need a second parse of
+the tag and a scope walk, and only changes which invalid documentation is
+reported.
 
 Coverage: `tests/ui/natspec/inheritdoc/qualified_path.sol` and
 `tests/ui/natspec/inheritdoc/qualified_unresolved.sol`.

@@ -1969,7 +1969,11 @@ pub(crate) fn natspec_contract_in_source(
     key: NatSpecContractKey
 ) -> Option<hir::ContractId> {
     let (name, source_id) = key;
-    let segments = crate::natspec::path_segments(Ident { name, span: Span::DUMMY });
+    let segments = name
+        .as_str()
+        .split('.')
+        .map(|segment| Ident::with_dummy_span(Symbol::intern(segment)))
+        .collect::<SmallVec<[_; 2]>>();
     let resolutions = gcx.source_path_resolutions(&segments, source_id, None)?;
     resolutions.last()?.iter().find_map(|res| match res {
         hir::Res::Item(hir::ItemId::Contract(id)) => Some(*id),

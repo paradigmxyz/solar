@@ -665,6 +665,41 @@ $3 $4:
 }
 
 #[test]
+fn renames_nested_qualified_natspec_inheritdoc_aliases() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        contract Base {
+            function run() public virtual {}
+        }
+
+        //- /Mid.sol
+        import "./Base.sol" as $1Inner;
+
+        //- /Child.sol
+        import "./Mid.sol" as Outer;
+
+        contract Child is Outer.Inner.Base {
+            /// @inheritdoc Outer.$2Inner.Base
+            function run() public override {}
+        }
+        "#,
+        "/Child.sol",
+    );
+
+    fixture.check_renames(
+        &[("$1 $2", "Shared")],
+        str![[r#"
+$1 $2:
+/Child.sol:1:24-1:29 -> Shared
+/Child.sol:2:26-2:31 -> Shared
+/Mid.sol:0:23-0:28 -> Shared
+
+"#]],
+    );
+}
+
+#[test]
 fn renames_override_families_but_not_function_typed_parameters() {
     let fixture = RequestFixture::new(
         r#"
