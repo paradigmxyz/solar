@@ -3,24 +3,18 @@
 ; function structField() external returns (bytes2) [selector 0x3442156e]
 fn @structField() -> i256 [selector=0x3442156e, abi_params=[], abi_returns=[word<bytes2>], abi_return_params=[bytes2]] {
   bb0:
-    v0 = sload 0 !metadata(storage=slot(0))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000
-    v2 = or v1, 258
-    sstore 0, v2 !metadata(storage=slot(0))
+    sstore 0, 258 !metadata(storage=slot(0))
     sstore 1, 1 !metadata(storage=slot(1))
-    v3 = sload 0 !metadata(storage=slot(0))
-    v4 = shl v3, 240
-    ret v4
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shl v0, 240
+    ret v1
 }
 
 ; function stateVariable() external returns (bytes4) [selector 0xe1967eae]
 fn @stateVariable() -> i256 [selector=0xe1967eae, abi_params=[], abi_returns=[word<bytes4>], abi_return_params=[bytes4]] {
   bb0:
+    sstore 2, 0x1020304 !metadata(storage=slot(2))
     v0 = sload 2 !metadata(storage=slot(2))
-    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000
-    v2 = or v1, 0x1020304
-    sstore 2, v2 !metadata(storage=slot(2))
-    v3 = sload 2 !metadata(storage=slot(2))
-    v4 = shl v3, 224
-    ret v4
+    v1 = shl v0, 224
+    ret v1
 }

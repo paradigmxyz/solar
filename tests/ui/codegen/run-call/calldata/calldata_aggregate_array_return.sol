@@ -11,9 +11,8 @@
 //@ run-call: member ([(1, 2)], 5) => [(1, 2)]
 //@ run-call-fail: 0xe999a4e40000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000001
 
-// A returned calldata array of structs or arrays is copied to memory, with
-// each element validated, before it is encoded. The encoder reads only
-// calldata arrays of words or bytes in place.
+// A returned calldata array of structs or arrays encodes in place, with each
+// element validated.
 contract CalldataAggregateArrayReturn {
     struct Pair {
         uint256 a;

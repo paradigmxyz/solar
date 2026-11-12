@@ -42,7 +42,8 @@ impl Assembler<'_> {
         };
         let evm_ir = capture_scheduled.then(|| program.clone());
         let origins = audit.then(|| Origins::evm_after(&mut program));
-        let failed = !self.run_pipeline(&mut program, true);
+        let failed = crate::lean_stages::scheduled(self.gcx, &program).is_err()
+            || !self.run_pipeline(&mut program, true);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
         ScheduledProgram { evm_ir, origins }
     }
@@ -51,14 +52,14 @@ impl Assembler<'_> {
     /// ran on it, and keeps the result for [`Self::prepare_linked`].
     pub(in crate::backend) fn legalize(&mut self) {
         let Some((mut program, labels)) = self.finish_evm_ir() else { return };
-        let failed = !self.run_pipeline(&mut program, false);
+        let failed = crate::lean_stages::scheduled(self.gcx, &program).is_err()
+            || !self.run_pipeline(&mut program, false);
         self.optimized = Some(OptimizedProgram { program, labels, failed });
     }
 
     /// Runs the EVM IR pipeline when `passes` is set, then legalization, returning whether neither
     /// reported an error.
     fn run_pipeline(&mut self, program: &mut ir::Module, passes: bool) -> bool {
-        let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(program);
         let errors_before = self.gcx.dcx().err_count();
         let gcx = self.gcx;
         let succeeded = || gcx.dcx().err_count() == errors_before;
@@ -68,12 +69,11 @@ impl Assembler<'_> {
         if !succeeded() {
             return false;
         }
-        debug_assert!(
-            !input_is_valid || ir::verify::Verifier::is_valid(program),
-            "EVM IR pipeline invalidated a valid module"
-        );
         let _legalized = ir::legalize_revert(self.gcx, program);
         if !succeeded() {
+            return false;
+        }
+        if crate::lean_stages::evm_pass(self.gcx, "legalize-revert", program).is_err() {
             return false;
         }
         ir::verifier(self.gcx).verify_after_legalization(program);

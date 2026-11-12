@@ -17,6 +17,7 @@ use super::{
     DebugFunction, DebugFunctionExit, DebugInfo, ir,
     layout::{RelayoutAddress, preserves_push_width},
     op::{self, WORD_BYTES},
+    schedule_map::ScheduleMap,
 };
 use crate::{
     backend::assembler::{
@@ -50,9 +51,7 @@ use solar_interface::Span;
 use solar_sema::Gcx;
 
 mod stack;
-pub(super) use stack::{
-    MAX_STACK_DEPTH, StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops,
-};
+pub(super) use stack::{StackModel, StackOp, lowered_stack_cost, resynthesize_physical_ops};
 
 mod switch;
 
@@ -63,6 +62,7 @@ mod runtime;
 pub(crate) mod select;
 mod stackify;
 pub(in crate::backend::evm) use stackify::PlanCache;
+pub(crate) use stackify::call_projection;
 mod terminator;
 mod values;
 
@@ -173,6 +173,9 @@ pub struct EvmCodegen<'gcx> {
     entry_heap_sites: FxHashMap<FunctionId, DeferredConst>,
     /// Return-buffer protocols removed by the selected stack plan.
     stack_return_sites: FxHashMap<(FunctionId, InstId), StackReturn>,
+    /// The calls returning several words that publish their further results to the callee's
+    /// return buffer, with their callee.
+    published_call_sites: FxHashMap<(FunctionId, InstId), FunctionId>,
     /// The end of the frames and spill slots each runtime entry reaches, retained only when
     /// capturing MIR.
     entry_frame_ends: FxHashMap<FunctionId, u64>,
@@ -182,6 +185,9 @@ pub struct EvmCodegen<'gcx> {
     /// The objective of the module being generated, which the layout of its immutables follows
     /// in every function.
     module_optimization: OptimizationMode,
+    /// Where scheduling put the values of the runtime's functions, recorded only for
+    /// `-Zvalidate-backend`.
+    schedule_map: Option<ScheduleMap>,
 }
 
 impl<'gcx> EvmCodegen<'gcx> {
@@ -236,9 +242,11 @@ impl<'gcx> EvmCodegen<'gcx> {
             heap_floor_sites: FxHashMap::default(),
             entry_heap_sites: FxHashMap::default(),
             stack_return_sites: FxHashMap::default(),
+            published_call_sites: FxHashMap::default(),
             entry_frame_ends: FxHashMap::default(),
             optimization: gcx.sess.opts.optimization,
             module_optimization: gcx.sess.opts.optimization,
+            schedule_map: None,
         }
     }
 
@@ -282,6 +290,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.heap_floor_sites.clear();
         self.entry_heap_sites.clear();
         self.stack_return_sites.clear();
+        self.published_call_sites.clear();
         self.entry_frame_ends.clear();
         self.runtime_free_memory_consts.clear();
         self.fmp_floor_consts.clear();
@@ -392,6 +401,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.capture_mir = capture;
     }
 
+    /// Whether codegen records the entry heaps, heap floors, allocations and multi-word return
+    /// protocols it places: for the backend memory records of captured MIR, and for
+    /// `-Zemit-lean-stages`, which writes them into the MIR stages. Recording only reads the
+    /// placement.
+    pub(in crate::backend::evm::codegen) fn records_heap_words(&self) -> bool {
+        self.capture_mir || self.gcx.sess.opts.unstable.emit_lean_stages.is_some()
+    }
+
     /// Controls whether the MIR pipeline runs before code generation.
     pub(crate) fn set_run_pipeline(&mut self, run: bool) {
         self.run_pipeline = run;
@@ -438,6 +455,8 @@ pub struct EvmArtifact {
     pub deployment_trailers: Vec<Trailer>,
     /// Trailing runtime data in the runtime bytecode.
     pub runtime_trailers: Vec<Trailer>,
+    /// The program data in the runtime bytecode: each one's ID, offset and length.
+    pub(crate) runtime_data: Vec<(ir::DataId, usize, usize)>,
     /// Immutable placeholders in the runtime bytecode.
     pub(crate) immutable_references: Vec<ImmutableRef>,
     /// Final deployment-prefix EVM IR immediately before byte emission.

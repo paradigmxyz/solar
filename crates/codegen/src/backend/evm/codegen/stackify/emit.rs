@@ -1,6 +1,8 @@
 //! Emission of planned stack-resident functions into EVM IR.
 
-use super::{BlockPlan, Edge, Exit, FunctionPlan, ModuleInfo, Reader, Step, plan::call_projection};
+use super::{
+    BlockPlan, Edge, Exit, FunctionPlan, ModuleInfo, Reader, Slot, Step, plan::call_projection,
+};
 use crate::{
     backend::{
         assembler::Label,
@@ -12,6 +14,7 @@ use crate::{
                 values::gas_minus,
             },
             op,
+            schedule_map::{BlockMap, FunctionMap, Location, Position},
         },
     },
     mir::{
@@ -22,7 +25,10 @@ use crate::{
     },
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{
+    index::IndexVec,
+    map::{FxHashMap, FxHashSet},
+};
 
 impl<'gcx> EvmCodegen<'gcx> {
     pub(super) fn emit_runtime_stackified(
@@ -197,7 +203,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         // `func` even when the plan is for a rebuilt copy. Rebuilding adds and removes only pure
         // instructions, so the buffer loads, and the values bound to the extra results, are the
         // same in both.
-        if self.capture_mir {
+        if self.records_heap_words() {
+            let published = plan
+                .blocks
+                .iter()
+                .flatten()
+                .flat_map(|block| &block.steps)
+                .filter_map(|step| match step {
+                    &Step::Publish { inst, .. } => Some(inst),
+                    _ => None,
+                })
+                .collect::<FxHashSet<_>>();
             for (block_id, block) in func.blocks.iter_enumerated() {
                 for (index, &inst) in block.instructions.iter().enumerate() {
                     let InstKind::ICall { function: Callee::Function(callee), .. } =
@@ -209,18 +225,13 @@ impl<'gcx> EvmCodegen<'gcx> {
                     if arity <= 1 {
                         continue;
                     }
+                    if published.contains(&inst) {
+                        self.published_call_sites.insert((func_id, inst), callee);
+                    }
                     let Some(protocol) = call_projection(func, block_id, index, arity) else {
                         continue;
                     };
-                    let published = plan
-                        .blocks
-                        .iter()
-                        .flatten()
-                        .flat_map(|block| &block.steps)
-                        .any(|step| {
-                            matches!(step, Step::Publish { callee: target, .. } if *target == callee)
-                        });
-                    if protocol.extras.iter().any(Option::is_some) || !published {
+                    if protocol.extras.iter().any(Option::is_some) || !published.contains(&inst) {
                         self.stack_return_sites.insert(
                             (func_id, inst),
                             StackReturn {
@@ -235,6 +246,7 @@ impl<'gcx> EvmCodegen<'gcx> {
         // The plan may be for a copy that rebuilds values at their uses.
         let rebuilt = plan.rebuilt.take();
         let func = rebuilt.as_deref().unwrap_or(func);
+        self.start_schedule_map(func_id, &rebuilt, &mut plan);
         // Spill slots: the spilled values in value order, then the return address.
         self.spill_slots.clear();
         self.spill_slots.extend(plan.spilled.iter().zip(0..));
@@ -285,6 +297,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             .collect();
         for block in cyclic {
             forward.remove(&block);
+        }
+        for &block in forward.keys() {
+            if let Some(Exit::Jump(target)) = plan.blocks[block].as_ref().map(|plan| &plan.exit) {
+                let target = *target;
+                self.record_schedule(|map, _| {
+                    if let Some(entry) = &mut map.blocks[block] {
+                        entry.continues = Some(target);
+                    }
+                });
+            }
         }
         for (&block, &target) in &forward {
             let label = self.block_labels[&target];
@@ -356,6 +378,11 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.define_label(label);
                 self.mark_block_label_origin(label, label_origin);
             }
+            self.record_schedule(|map, position| {
+                if let Some(entry) = &mut map.blocks[block] {
+                    entry.start = Some(position);
+                }
+            });
             self.emit_stackified_block(
                 func_id,
                 func,
@@ -538,19 +565,29 @@ impl<'gcx> EvmCodegen<'gcx> {
         match step {
             &Step::Stack(op) => self.asm.emit_stack_op(op),
             &Step::Materialize(value) => self.emit_materialized(func, value),
-            &Step::Reload(value) => self.emit_spill_load(func, self.spill_slots[&value]),
+            &Step::Reload(value) => {
+                self.record_schedule(|map, position| {
+                    map.slots.push((Location::Value(value), position));
+                });
+                self.emit_spill_load(func, self.spill_slots[&value]);
+            }
             &Step::Spill(value) => {
+                self.record_schedule(|map, position| {
+                    map.slots.push((Location::Value(value), position));
+                });
                 // push slot; mstore
                 self.emit_spill_slot_addr(func, self.spill_slots[&value]);
                 self.asm.emit_op(op::MSTORE);
             }
             Step::SpillRet => {
+                self.record_schedule(|map, position| map.slots.push((Location::Ret, position)));
                 // push slot; mstore
                 self.emit_spill_slot_addr(func, self.ret_spill_slot.expect("return slot"));
                 self.asm.emit_op(op::MSTORE);
             }
             Step::ReloadRet => {
-                self.emit_spill_load(func, self.ret_spill_slot.expect("return slot"))
+                self.record_schedule(|map, position| map.slots.push((Location::Ret, position)));
+                self.emit_spill_load(func, self.ret_spill_slot.expect("return slot"));
             }
             // push 0
             Step::Filler => self.asm.emit_push(U256::ZERO),
@@ -572,7 +609,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             &Step::Op(opcode) => self.asm.emit_op(opcode),
             &Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
-            &Step::Call(callee, _) => {
+            &Step::Call(callee) => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
                 if cold {
@@ -583,7 +620,10 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::JUMP);
                 self.asm.define_continuation_label(return_label);
             }
-            &Step::Publish { callee, arity, params } => {
+            &Step::Publish { callee, arity, params, .. } => {
+                self.record_schedule(|map, _| {
+                    map.unsupported = Some("multi-word results published to memory");
+                });
                 // [result(m-1), ..., result1, result0]
                 // swap1; push frame[return + 32 * k]; mstore   (k = 1..m)
                 // push frame[return]; push 0x20; mstore
@@ -599,7 +639,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                     self.asm.emit_op(op::MSTORE);
                 }
                 let addr = self.static_frame_addr(callee, base);
-                if self.capture_mir {
+                if self.records_heap_words() {
                     self.return_buffer_sites.insert(callee, addr);
                 }
                 self.asm.emit_push_deferred(addr);
@@ -735,12 +775,17 @@ impl<'gcx> EvmCodegen<'gcx> {
     }
 
     fn emit_stackified_inst(&mut self, func_id: FunctionId, func: &Function, inst: InstId) {
+        if let InstKind::Alloc { .. } | InstKind::InternalFrameAddr(_) | InstKind::HeapFloor =
+            func.inst(inst).kind
+        {
+            self.record_schedule(|map, position| map.placements.push((inst, position)));
+        }
         match &func.inst(inst).kind {
             InstKind::Alloc { size, .. } => {
                 let size =
                     func.value_u64(*size).expect("deferred allocation must have a constant size");
                 let alloc = self.asm.emit_deferred_alloc();
-                if self.capture_mir {
+                if self.records_heap_words() {
                     self.allocation_sites.insert(alloc, (func_id, inst));
                 }
                 self.pending_static_allocs.entry(func_id).or_default().push((alloc, size));
@@ -766,6 +811,68 @@ impl<'gcx> EvmCodegen<'gcx> {
                 self.asm.emit_op(op::ADD);
             }
             kind => unreachable!("instruction `{}` has no custom stack lowering", kind.mnemonic()),
+        }
+    }
+
+    /// Starts the schedule map of a body when `-Zvalidate-backend` records one, with the layouts
+    /// its plan kept.
+    fn start_schedule_map(
+        &mut self,
+        func_id: FunctionId,
+        rebuilt: &Option<Box<Function>>,
+        plan: &mut FunctionPlan,
+    ) {
+        if self.in_constructor {
+            return;
+        }
+        let Some(map) = &mut self.schedule_map else { return };
+        let Some(layouts) = plan.layouts.take() else { return };
+        let location = |slot: &Slot| match *slot {
+            Slot::Value(value) | Slot::Saved(value) => Location::Value(value),
+            Slot::Ret => Location::Ret,
+            Slot::Junk => Location::Junk,
+        };
+        let blocks = layouts
+            .entries
+            .iter_enumerated()
+            .map(|(block, layout)| {
+                plan.blocks[block].as_ref()?;
+                Some(BlockMap {
+                    start: None,
+                    layout: layout.as_ref()?.iter().map(location).collect(),
+                    floating: layouts.floating.contains(block),
+                    continues: None,
+                })
+            })
+            .collect();
+        let returns = layouts.entries[BlockId::ENTRY]
+            .as_ref()
+            .is_some_and(|layout| layout.last() == Some(&Slot::Ret));
+        map.functions.push(FunctionMap {
+            function: func_id,
+            rebuilt: rebuilt.clone(),
+            label: self.function_labels.get(&func_id).copied(),
+            entry: None,
+            returns,
+            blocks,
+            slots: Vec::new(),
+            placements: Vec::new(),
+            clobbers: layouts.clobbers,
+            unsupported: None,
+        });
+    }
+
+    /// Writes to the schedule map of the body being emitted, when one is recorded, at the
+    /// position the next instruction takes.
+    fn record_schedule(&mut self, record: impl FnOnce(&mut FunctionMap, Position)) {
+        if self.in_constructor {
+            return;
+        }
+        let position = self.asm.insertion_point();
+        if let Some(map) = &mut self.schedule_map
+            && let Some(function) = map.functions.last_mut()
+        {
+            record(function, position);
         }
     }
 }
