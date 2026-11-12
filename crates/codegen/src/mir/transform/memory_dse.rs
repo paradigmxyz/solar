@@ -534,9 +534,9 @@ fn forges_free_pointer(func: &Function, alias: &AliasAnalysis, inst: InstId) -> 
                     if func.value_u64(slot) == Some(EvmMemoryLayout::FMP_SLOT));
         }
         // Internal callees are checked separately by the module-wide scan.
-        InstKind::SetFmp(_)
-        | InstKind::Alloc { .. }
-        | InstKind::ICall { function: Callee::Function(_), .. } => return false,
+        InstKind::Alloc { .. } | InstKind::ICall { function: Callee::Function(_), .. } => {
+            return false;
+        }
         _ => {}
     }
     // The last eight bytes of the slot hold every pointer below 2^64.
@@ -1241,7 +1241,6 @@ impl MemoryStoreEliminator {
                 None => self.mark_from(func, live, *addr, Some(32), Some(inst_id)),
             },
             InstKind::Fmp | InstKind::Alloc { .. } => live.add_addr(EvmMemoryLayout::FMP_SLOT),
-            InstKind::SetFmp(_) => live.kill(EvmMemoryLayout::FMP_SLOT),
             InstKind::Keccak256(offset, size)
             | InstKind::Log { offset, size, .. }
             | InstKind::Copy(_, offset, size, PtrLocation::Memory) => {
@@ -1652,9 +1651,6 @@ impl MemoryStoreEliminator {
                         &mut scratch.overwritten,
                         AliasAnalysis::fmp_location().address,
                     );
-                }
-                InstKind::SetFmp(_) => {
-                    scratch.overwritten.insert(AliasAnalysis::fmp_location().address);
                 }
                 InstKind::MemoryZero(dest, size)
                 | InstKind::Copy(dest, _, size, PtrLocation::Calldata | PtrLocation::Returndata)

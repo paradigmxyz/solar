@@ -312,9 +312,15 @@ fn build_entry(
             builder.branch(short, default_block, select_block);
         }
 
+        // NOTE: solc maps a fallback's `callvalue` check to the contract (`ContractCompiler.cpp`
+        // L485). Our fallback and receive blocks are routes that run only for that function, as
+        // selector routes do, and a function's own `callvalue` check maps to its declaration, so
+        // these blocks take the declaration.
         if let Some((target, receive_block)) = receive_block {
+            set_origin(&mut builder, module.function(target).declaration_span);
             builder.switch_to_block(receive_block);
             builder.tail_call(target, Vec::new());
+            set_origin(&mut builder, contract_span);
         }
 
         // Selector switch; the default goes to the fallback when present.
@@ -332,6 +338,7 @@ fn build_entry(
         }
 
         if let Some((target, default_block)) = fallback_block {
+            set_origin(&mut builder, module.function(target).declaration_span);
             builder.switch_to_block(default_block);
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(target)) {
                 let go = builder.create_block();

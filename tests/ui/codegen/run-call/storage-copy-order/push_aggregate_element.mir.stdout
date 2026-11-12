@@ -1,0 +1,173 @@
+; === ROOT/tests/ui/codegen/run-call/storage-copy-order/push_aggregate_element.sol:C ===
+@module C
+@types
+  struct0: {ptr<memory>, i256}
+  struct1: {i256, i256}
+
+; function fill(uint256[] storage target) internal returns (uint256)
+fn @fill(arg0: i256) -> i256 {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot arg0
+    v4 = add v3, v0
+    sstore v4, 7 !metadata(storage=symbolic(v4))
+    sstore arg0, v2 !metadata(storage=symbolic(arg0))
+    v5 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret v5
+}
+
+; function length(uint256[] memory copied) internal pure returns (uint256)
+fn @length(arg0: ptr<memory>) -> i256 [pure] {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}
+
+; function pushed() internal returns (uint256[] memory)
+fn @pushed() -> ptr<memory> {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore 0, v2 !metadata(storage=slot(0))
+    v5 = icall @load_storage_word_array, v4
+    ret v5
+}
+
+; function pair() internal returns (uint256[] memory, uint256)
+fn @pair() -> struct0 {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore 0, v2 !metadata(storage=slot(0))
+    v5 = icall @load_storage_word_array, v4
+    v6 = insert_value struct0, undef struct0, 0, v5
+    v7 = insert_value struct0, v6, 1, 1
+    ret v7
+}
+
+; function storageParameter() public returns (uint256, uint256) [selector 0x47ac6e30]
+fn @storageParameter() -> struct1 [selector=0x47ac6e30, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore 0, v2 !metadata(storage=slot(0))
+    v5 = icall @fill, v4
+    v6 = sload 0 !metadata(storage=slot(0))
+    v7 = insert_value struct1, undef struct1, 0, v5
+    v8 = insert_value struct1, v7, 1, v6
+    ret v8
+}
+
+; function memoryParameter() public returns (uint256, uint256) [selector 0x15baca02]
+fn @memoryParameter() -> struct1 [selector=0x15baca02, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 0
+    v4 = add v3, v0
+    sstore 0, v2 !metadata(storage=slot(0))
+    v5 = icall @load_storage_word_array, v4
+    v6 = icall @length, v5
+    v7 = sload 0 !metadata(storage=slot(0))
+    v8 = insert_value struct1, undef struct1, 0, v6
+    v9 = insert_value struct1, v8, 1, v7
+    ret v9
+}
+
+; function returnValue() public returns (uint256, uint256) [selector 0x990c8f79]
+fn @returnValue() -> struct1 [selector=0x990c8f79, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall @pushed
+    v1 = mload v0
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = insert_value struct1, undef struct1, 0, v1
+    v4 = insert_value struct1, v3, 1, v2
+    ret v4
+}
+
+; function returnTuple() public returns (uint256, uint256) [selector 0x39009482]
+fn @returnTuple() -> struct1 [selector=0x39009482, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = icall @pair
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = mload v1
+    v4 = sload 0 !metadata(storage=slot(0))
+    v5 = insert_value struct1, undef struct1, 0, v3
+    v6 = insert_value struct1, v5, 1, v4
+    ret v6
+}
+
+; function structConstructor() public returns (uint256, uint256) [selector 0x9b40f93f]
+fn @structConstructor() -> struct1 [selector=0x9b40f93f, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = alloc 64
+    v1 = sload 0 !metadata(storage=slot(0))
+    v2 = gt v1, 0xffffffffffffffff
+    icall panic_if<0x41>, v2
+    v3 = add v1, 1
+    v4 = storage_array_data_slot 0
+    v5 = add v4, v1
+    sstore 0, v3 !metadata(storage=slot(0))
+    v6 = icall @load_storage_word_array, v5
+    v7 = ptrtoint ptr<memory> v6 to i256
+    mstore v0, v7
+    v8 = ptradd v0, 32
+    mstore v8, 1
+    v9 = mload v0, ptr<memory>
+    v10 = mload v9
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = insert_value struct1, undef struct1, 0, v10
+    v13 = insert_value struct1, v12, 1, v11
+    ret v13
+}
+
+; function encode() public returns (uint256, uint256) [selector 0xbd14598f]
+fn @encode() -> struct1 [selector=0xbd14598f, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    v0 = sload 1 !metadata(storage=slot(1))
+    v1 = gt v0, 0xffffffffffffffff
+    icall panic_if<0x41>, v1
+    v2 = add v0, 1
+    v3 = storage_array_data_slot 1
+    v4 = mul v0, 2
+    v5 = add v3, v4
+    sstore 1, v2 !metadata(storage=slot(1))
+    v6 = alloc checked 64
+    v7 = icall @load_storage_word_array, v5
+    v8 = ptrtoint ptr<memory> v7 to i256
+    mstore v6, v8
+    v9 = add v5, 1
+    v10 = sload v9 !metadata(storage=offset(v5, 1))
+    v11 = ptradd v6, 32
+    mstore v11, v10
+    v12 = abi_encode [tuple<memory_array<word>, word>], object, args v6
+    v13 = mload v12
+    v14 = sload 1 !metadata(storage=slot(1))
+    v15 = insert_value struct1, undef struct1, 0, v13
+    v16 = insert_value struct1, v15, 1, v14
+    ret v16
+}
+
+fn @load_storage_word_array(arg0: i256) -> ptr<memory> {
+  bb0:
+    v0 = load_storage_array uint256, arg0
+    ret v0
+}

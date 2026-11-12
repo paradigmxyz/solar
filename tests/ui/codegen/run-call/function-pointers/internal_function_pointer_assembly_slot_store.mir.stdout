@@ -1,0 +1,30 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/internal_function_pointer_assembly_slot_store.sol:InternalFunctionPointerAssemblySlotStore ===
+@module InternalFunctionPointerAssemblySlotStore
+; function run() external returns (uint256) [selector 0xc0406226]
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i64
+    v2 = zext i64 v1 to i256
+    v3 = icall @internal_dispatcher_p_none_r_uint256, v2
+    ret v3
+}
+
+; function seven() internal pure returns (uint256)
+fn @seven() -> i256 [pure] {
+  bb0:
+    ret 7
+}
+
+fn @internal_dispatcher_p_none_r_uint256(arg0: i256) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    v0 = eq arg0, 1
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    icall panic_if<0x51>, true
+    invalid
+  bb1:                                            ; preds = bb0
+    v1 = icall @seven
+    ret v1
+}

@@ -13,8 +13,8 @@
 -   bb3:                                            ; preds = bb1, bb2
 -     v2 = phi [bb1: v0], [bb2: v1] !metadata(span=5..9)
 -     ret v2
-+     v0 = add arg0, 1
-+     v1 = sub arg0, 1
++     v0 = add arg0, 1 !metadata(span=5..9)
++     v1 = sub arg0, 1 !metadata(span=5..9)
 +     v3 = sub v0, v1 !metadata(span=5..9)
 +     v4 = zext i1 arg1 to i256 !metadata(span=5..9)
 +     v5 = mul v3, v4 !metadata(span=5..9)
@@ -31,7 +31,7 @@
 -   bb2:                                            ; preds = bb0, bb1
 -     v1 = phi [bb0: arg0], [bb1: v0] !metadata(span=5..9)
 -     ret v1
-+     v0 = add arg0, 1
++     v0 = add arg0, 1 !metadata(span=5..9)
 +     v2 = zext i1 arg1 to i256 !metadata(span=5..9)
 +     v3 = mul v2, 1 !metadata(span=5..9)
 +     v4 = add v3, arg0 !metadata(span=5..9)

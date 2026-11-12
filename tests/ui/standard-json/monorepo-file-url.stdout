@@ -1,0 +1,10 @@
+{
+  "sources": {
+    "file://../../tests/ui/standard-json/monorepo/lib/dep/D.sol": {
+      "id": 0
+    },
+    "A.sol": {
+      "id": 1
+    }
+  }
+}

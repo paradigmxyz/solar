@@ -70,6 +70,18 @@ fn run(func: &mut Function) -> bool {
 /// Rewrites every edge into a forwarder chain to enter the end of the chain instead.
 fn thread_jumps(func: &mut Function) -> bool {
     let final_targets = forwarder_final_targets(func);
+    // A target entered only through forwarders loses its entries to the bypass.
+    let only_forwarded = final_targets
+        .iter_enumerated()
+        .map(|(block_id, _)| {
+            func.blocks[block_id]
+                .predecessors
+                .iter()
+                .all(|&pred| final_targets[pred] == Some(block_id))
+        })
+        .collect::<IndexVec<_, _>>();
+    // (final target, forwarder an edge entered) for every threaded edge.
+    let mut bypassed = Vec::new();
     let mut threaded = false;
     for block_id in func.blocks.indices() {
         let Some(term) = &func.blocks[block_id].terminator else { continue };
@@ -83,12 +95,37 @@ fn thread_jumps(func: &mut Function) -> bool {
         let mut term = term.clone();
         term.for_each_successor_mut(|target| {
             if let Some(final_target) = threaded_target(func, &final_targets, *target) {
+                bypassed.push((final_target, *target));
                 *target = final_target;
             }
         });
         // jump/branch/switch through forwarders -> their final targets
         replace_terminator(func, block_id, term);
         threaded = true;
+    }
+    bypassed.sort_unstable();
+    bypassed.dedup();
+    for group in bypassed.chunk_by(|a, b| a.0 == b.0) {
+        let target = group[0].0;
+        let labels = group
+            .iter()
+            .map(|&(_, forwarder)| func.blocks[forwarder].label_metadata.debug_context())
+            .collect::<Vec<_>>();
+        // No forwarder names a construct, so the target keeps its own label.
+        if labels.iter().all(|label| label.source_spans().next().is_none()) {
+            continue;
+        }
+        let Some((first, rest)) = labels.split_first() else { continue };
+        // NOTE: A forwarder's label names the construct the edge enters, and the target's own
+        // label may name the code it was inlined from or merged with. When the forwarders were
+        // the target's only entries, the target now stands for them alone.
+        let label = &mut func.blocks[target].label_metadata;
+        if only_forwarded[target] {
+            label.preserve_debug_loc(first);
+            label.merge_debug_locs(rest);
+        } else {
+            label.merge_debug_locs(&labels);
+        }
     }
     threaded
 }
@@ -330,7 +367,11 @@ fn fold_single_predecessor_phi_branches(func: &mut Function) -> bool {
         func.blocks[block].instructions.clear();
         replace_terminator(func, block, Terminator::Invalid);
         replace_terminator(func, pred, term);
-        func.blocks[pred].terminator_metadata.merge_debug_locs([&context]);
+        // The deleted `jump block` keeps no location and the moved branch keeps its own, like
+        // LLVM's `MergeBlockIntoPredecessor` (`BasicBlockUtils.cpp`), which erases the
+        // predecessor's `br` with its `DebugLoc`, and rustc's `merge_successor` (`simplify.rs`),
+        // which takes the successor's terminator whole.
+        func.blocks[pred].terminator_metadata.preserve_debug_loc(&context);
         folded = true;
     }
     folded

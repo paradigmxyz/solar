@@ -26,9 +26,7 @@ bb0:                                              ; constructor(uint256 key) [cr
   codesize
   sub
   add
-  push 32
-  dup 3
-  add
+  push 224
   gt
   callvalue
   or

@@ -526,7 +526,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parser.expect(TokenKind::Eq)?;
                 let (lo, hi) = self.parser.parse_span_bounds()?;
                 metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
-            } else if key == sym::spans {
+            } else if key == sym::spans || key == sym::all {
                 self.parser.expect(TokenKind::Eq)?;
                 self.parser.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
                 let mut spans = Vec::new();
@@ -539,6 +539,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
                 self.parser.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
                 metadata.set_source_spans(spans);
+                metadata.set_all_source_spans(key == sym::all);
             } else if key == sym::invoke {
                 self.parser.expect(TokenKind::Eq)?;
                 let identifier = self.parser.parse_ident()?;

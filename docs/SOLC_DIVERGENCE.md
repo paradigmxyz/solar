@@ -230,14 +230,15 @@ Difference: `solar` accepts `--include-path` without `--base-path`, using the
 current directory as the base path, and does not report an ambiguous import
 when several roots lead to the same path, as with a repeated include path.
 Different paths to one file, such as an include path and a symbolic link to it,
-are still ambiguous, as in `solc`. In Standard JSON mode, which does not access
-the file system, it does not check the base path. It does not restrict imports
-to allowed paths, so `--allow-paths` has no effect.
+are still ambiguous, as in `solc`. In Standard JSON mode, it does not check the
+base path. `--allow-paths` applies only to the Standard JSON command line, which
+reads imports from disk like `solc`; other modes ignore it.
 
-Rationale: these inputs have a single sensible meaning, and Standard JSON reads
-imports only through the read callback.
+Rationale: these inputs have a single sensible meaning.
 
-Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`.
+Coverage: `include_paths_without_base_path` in `crates/solar/tests/it/paths.rs`,
+`tests/ui/standard-json/monorepo.jsonc` and
+`tests/ui/standard-json/monorepo-symlink.jsonc`.
 
 ## Parsing
 
@@ -824,9 +825,11 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Status: implemented
 - Behavior: Legacy `sourceMap` output carries the compiler's modifier nesting
   depth in the `m` field, preserving it through MIR and EVM IR lowering and
-  optimization. Shared code with different modifier depths has no unique
-  modifier frame and uses depth zero. Shared code with multiple source origins
-  is unmapped in legacy output; ETHDebug retains every source alternative.
+  optimization. Shared code with different modifier depths, whether or not
+  each input has a source origin, has no unique modifier frame and uses depth
+  zero. Code that loses its origins keeps its depth. Shared code with multiple
+  source origins is unmapped in legacy output; ETHDebug retains every source
+  alternative.
   This policy applies equally to MIR and EVM IR sharing. Like solc, every entry
   of a constructor's modifier list, including base constructor calls, adds one
   level of depth to the code after it.
@@ -1047,3 +1050,49 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
+
+### CODEGEN-025: Writing a value that owns its storage slot clears the dirty padding
+
+- ID: CODEGEN-025
+- Status: intentional
+- Difference: after assembly writes dirty bits into the unused high bits of a
+  slot that holds one value narrower than a word, assigning to that value
+  keeps the bits in `solc`, because `solc` updates the field in place.
+  `solar` writes the whole word and clears them. This covers a state variable
+  or struct field alone in its slot, a mapping value, the only element of a
+  one-element array such as `uint8[1]`, and an element of an array whose
+  elements fill more than half a slot, such as an `address[]`.
+  Loads mask the value either way. A value that shares its slot keeps its
+  neighbors in both compilers.
+- Rationale: the padding belongs to no other value, so the whole-word store
+  needs no `SLOAD` and no mask constant, and is smaller and cheaper than
+  matching `solc`.
+- Coverage: `tests/ui/codegen/run-call/storage/storage_exclusive_slot_padding.sol` and
+  `tests/ui/codegen/lowering/mir/storage-memory/owned_slot_stores.sol`.
+
+### CODEGEN-027: A returned calldata word array does not check an assembly-set length
+
+- ID: CODEGEN-027
+- Status: parity debt
+- Difference: after `p.length := n` in assembly, with `n` such that
+  `n * 32` wraps to zero, such as `2**251`, `solc` reverts when it returns the
+  calldata array `p` of full words, because it loops over every element and
+  runs out of gas. `solar` copies the wrapped size, so the call succeeds with
+  the offset and length words and no elements. Arrays of narrow words and of
+  composite elements revert as in `solc`. A length that ABI decoding or slicing
+  produced cannot reach this, because both check it.
+- Rationale: a length check on every returned full-word array costs code in
+  programs that cannot reach the case.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_word_array_length_return.sol`.
+
+### CODEGEN-028: `abi.encode` of a forged huge calldata array reverts with a panic
+
+- ID: CODEGEN-028
+- Status: parity debt
+- Difference: after `p.length := 2**250` in assembly on a calldata array of
+  two-word structs, `abi.encode(p)` reverts with `Panic(0x41)` in `solar`,
+  because the size of the result buffer is too large to allocate. `solc` runs
+  out of gas in the encoding loop and reverts with empty data.
+- Rationale: the allocation check reports the oversized buffer before any
+  element is encoded, and the case needs assembly-forged lengths.
+- Coverage: `tests/ui/codegen/run-call/calldata/abi_encode_forged_array_length.sol`.

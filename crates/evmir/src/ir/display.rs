@@ -148,18 +148,18 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
 
 fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| {
-        let spans = if visible { metadata.source_spans() } else { &[] };
+        let has_spans = visible && metadata.has_source_spans();
         let function_invoke = visible.then(|| metadata.function_invoke()).flatten();
         let function_exit = visible.then(|| metadata.function_exit()).flatten();
         // Text without a location means `dropped`, and the audit sets `unknown` on the gaps it
         // reports, so neither is spelled out: an audit must not change the text.
-        let loc_kind = (visible && spans.is_empty())
+        let loc_kind = (visible && !has_spans)
             .then(|| metadata.debug_loc_kind())
             .filter(|kind| {
                 matches!(kind, DebugLocKind::CompilerGenerated | DebugLocKind::Temporary)
             })
             .and_then(DebugLocKind::keyword);
-        if spans.is_empty()
+        if !has_spans
             && loc_kind.is_none()
             && function_invoke.is_none()
             && function_exit.is_none()
@@ -170,12 +170,12 @@ fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '
 
         write!(f, " !metadata(")?;
         let mut separator = "";
-        if let [span] = spans {
+        if has_spans && let Some(span) = metadata.only_source_span() {
             write!(f, "span={}..{}", span.lo().0, span.hi().0)?;
             separator = ", ";
-        } else if !spans.is_empty() {
-            write!(f, "spans=[")?;
-            for (index, span) in spans.iter().enumerate() {
+        } else if has_spans {
+            write!(f, "{}=[", if metadata.all_source_spans() { "all" } else { "spans" })?;
+            for (index, span) in metadata.source_spans().enumerate() {
                 if index != 0 {
                     write!(f, ", ")?;
                 }

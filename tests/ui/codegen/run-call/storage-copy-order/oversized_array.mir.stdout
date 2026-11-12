@@ -1,0 +1,35 @@
+; === ROOT/tests/ui/codegen/run-call/storage-copy-order/oversized_array.sol:C ===
+@module C
+@types
+  struct0: {i256, i256}
+
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 0, 7 !metadata(storage=slot(0))
+    ret
+}
+
+; function set(uint256[1 << 64] storage target) internal
+fn @set(arg0: i256) {
+  bb0:
+    v0 = lt 0, 0x10000000000000000
+    v1 = eq v0, false
+    icall panic_if<0x32>, v1
+    sstore arg0, 42 !metadata(storage=symbolic(arg0))
+    ret
+}
+
+; function write() public returns (uint256, uint256) [selector 0xbcb4ab0e]
+fn @write() -> struct0 [selector=0xbcb4ab0e, abi_params=[], abi_returns=[word, word], abi_return_params=[uint256, uint256]] {
+  bb0:
+    icall @set, 1
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = lt 0, 0x10000000000000000
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = sload 1 !metadata(storage=slot(1))
+    v4 = insert_value struct0, undef struct0, 0, v0
+    v5 = insert_value struct0, v4, 1, v3
+    ret v5
+}

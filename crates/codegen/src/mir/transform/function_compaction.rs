@@ -772,8 +772,24 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
             .keys()
             .map(|&duplicate| module.function(duplicate).instructions().count())
             .sum::<usize>();
-        for (&duplicate, &representative) in &replacements {
-            merge_function_debug_origins(module, duplicate, representative);
+        // Functions some entry reaches by calls now, before the duplicates' callers are redirected.
+        let entered = functions_reached_from(module, &roots);
+        // The first entered duplicate gives an unentered representative its label; later ones
+        // merge into it.
+        let mut labeled = DenseBitSet::new_empty(module.functions.len());
+        let mut ordered = replacements.iter().collect::<Vec<_>>();
+        ordered.sort_unstable();
+        for (&duplicate, &representative) in ordered {
+            merge_function_debug_origins(
+                module,
+                duplicate,
+                representative,
+                entered.contains(duplicate),
+                entered.contains(representative) || labeled.contains(representative),
+            );
+            if entered.contains(duplicate) {
+                labeled.insert(representative);
+            }
             merged.insert(duplicate);
         }
         redirect_calls(module, &replacements);
@@ -790,11 +806,31 @@ fn merge_equivalent_functions(module: &mut Module) -> usize {
     total
 }
 
+/// Returns the functions that `roots` reach through calls, roots included.
+fn functions_reached_from(
+    module: &Module,
+    roots: &DenseBitSet<FunctionId>,
+) -> DenseBitSet<FunctionId> {
+    let mut reached = roots.clone();
+    let mut worklist = roots.iter().collect::<Vec<_>>();
+    while let Some(func_id) = worklist.pop() {
+        worklist.extend(
+            direct_callees(module.function(func_id)).filter(|&callee| reached.insert(callee)),
+        );
+    }
+    reached
+}
+
 /// Unions metadata of bodies already proven instruction-for-instruction equivalent.
+/// `duplicate_entered` is whether an entry reaches the duplicate through calls that now go to the
+/// representative, and `representative_entered` whether an entry reaches the representative or an
+/// earlier duplicate already gave it a label.
 fn merge_function_debug_origins(
     module: &mut Module,
     duplicate: FunctionId,
     representative: FunctionId,
+    duplicate_entered: bool,
+    representative_entered: bool,
 ) {
     let source = module.function(duplicate);
     let origins = source
@@ -808,17 +844,31 @@ fn merge_function_debug_origins(
                     .map(|&id| source.inst(id).metadata.debug_context())
                     .collect::<Vec<_>>(),
                 block.terminator_metadata.debug_context(),
+                block.label_metadata.debug_context(),
             )
         })
         .collect::<Vec<_>>();
     let target = module.function_mut(representative);
-    // duplicate body -> representative body !metadata(union of body origins)
-    for (block, (instructions, terminator)) in target.blocks.indices().zip(origins) {
+    // duplicate body -> representative body !metadata(origins of all bodies, none if one has none)
+    for (block, (instructions, terminator, label)) in target.blocks.indices().zip(origins) {
         for (index, metadata) in instructions.into_iter().enumerate() {
             let inst = target.blocks[block].instructions[index];
             target.inst_mut(inst).metadata.merge_debug_locs([&metadata]);
         }
         target.blocks[block].terminator_metadata.merge_debug_locs([&terminator]);
+        // NOTE: A label origin says where control entered; a block or function nothing enters adds
+        // no origin. Calls to a duplicate now land on the representative's labels, so they take
+        // the duplicate's origins.
+        if duplicate_entered {
+            let target_label = &mut target.blocks[block].label_metadata;
+            if representative_entered {
+                // representative label !metadata(origins of both labels)
+                target_label.merge_debug_locs([&label]);
+            } else {
+                // representative label !metadata(duplicate label)
+                target_label.preserve_debug_loc(&label);
+            }
+        }
     }
 }
 

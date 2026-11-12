@@ -55,7 +55,6 @@ use solar_data_structures::{
     index::{IndexVec, index_vec},
     map::FxHashMap,
 };
-use solar_evmir::debug::DebugLocKind;
 use std::cell::OnceCell;
 
 /// Function pass for CFG simplification.
@@ -343,7 +342,8 @@ fn canonicalize_terminal_block(
         }
         let mut metadata = inst.metadata.clone();
         metadata.set_hir_expr(None);
-        metadata.drop_debug_loc(DebugLocKind::Dropped);
+        // The key ignores the whole location, modifier depth included.
+        metadata.preserve_debug_loc(&InstructionMetadata::EMPTY);
         metadata.loop_depth = 0;
         insts.push(CanonInst {
             kind: inst.kind.clone_without_operands(),
@@ -658,7 +658,16 @@ fn eliminate_empty_blocks(func: &mut Function) -> bool {
             if !is_loop_preheader_forwarder(func, block_id, cfg())
                 && forwarder_elimination_preserves_phis(func, block_id)
             {
-                eliminate_forwarder(func, block_id);
+                let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else {
+                    continue;
+                };
+                let entered =
+                    func.blocks[block_id].predecessors.iter().any(|&pred| cfg().is_reachable(pred));
+                let only_entry = func.blocks[target]
+                    .predecessors
+                    .iter()
+                    .all(|&pred| pred == block_id || !cfg().is_reachable(pred));
+                eliminate_forwarder(func, block_id, entered, only_entry);
                 eliminated = true;
                 changed = true;
                 break;
@@ -723,16 +732,50 @@ fn forwarder_elimination_preserves_phis(func: &Function, block_id: BlockId) -> b
     true
 }
 
-/// Eliminates an empty forwarder block by redirecting its predecessors.
-fn eliminate_forwarder(func: &mut Function, block_id: BlockId) {
+/// Eliminates an empty forwarder block by redirecting its predecessors. `entered` is whether a
+/// reachable predecessor enters it, and `only_entry` whether the forwarder is the only reachable
+/// entry of its target.
+fn eliminate_forwarder(func: &mut Function, block_id: BlockId, entered: bool, only_entry: bool) {
     let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else { return };
 
+    if entered {
+        merge_forwarder_label(func, block_id, target, only_entry);
+    }
     let predecessors = std::mem::take(&mut func.blocks[block_id].predecessors);
     redirect_target_phi_incoming(func, block_id, target, &predecessors);
     for pred in predecessors {
         redirect_edge(func, pred, block_id, target);
     }
     let _ = invalidate_unreachable_block(func, block_id);
+}
+
+/// Moves the label origin of a bypassed forwarder to its target.
+///
+/// NOTE: A label origin says where control entered; a block nothing enters adds no origin. The
+/// predecessors of a bypassed block now enter its target, so the target's label takes its origin:
+/// alone when the forwarder was the target's only reachable entry, merged with the target's own
+/// otherwise. A forwarder that no reachable predecessor enters, or that has no label origin, adds
+/// nothing. When nothing else enters the target, `merge_blocks` normally joins the two and keeps
+/// the forwarder's label, unless a dead predecessor of the target still prevents it.
+fn merge_forwarder_label(
+    func: &mut Function,
+    block_id: BlockId,
+    target: BlockId,
+    only_entry: bool,
+) {
+    let label = &func.blocks[block_id].label_metadata;
+    if label.source_spans().next().is_none() {
+        return;
+    }
+    let label = label.clone();
+    let target_label = &mut func.blocks[target].label_metadata;
+    if only_entry {
+        // target label !metadata(forwarder label)
+        target_label.preserve_debug_loc(&label);
+    } else {
+        // target label !metadata(union of forwarder and target labels)
+        target_label.merge_debug_locs([&label]);
+    }
 }
 
 fn redirect_target_phi_incoming(
