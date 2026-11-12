@@ -145,6 +145,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut is_continuation = false;
         let mut external_entry = false;
         let mut function_invoke = None;
+        let mut dispatched = false;
         let mut lent_invoke = None;
         let mut entry_depth = None;
         let mut ret = None;
@@ -160,6 +161,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     is_continuation = true;
                 } else if self.parser.eat_keyword(sym::entry) {
                     external_entry = true;
+                } else if self.parser.eat_keyword(sym::dispatch) {
+                    dispatched = true;
                 } else if self.parser.eat_keyword(sym::invoke) {
                     self.parser.expect(TokenKind::Eq)?;
                     let identifier = self.parser.parse_ident()?;
@@ -168,6 +171,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     function_invoke = Some(DebugFunction {
                         identifier,
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
+                        dispatched: false,
                     });
                 } else if self.parser.eat_keyword(sym::lent_invoke) {
                     self.parser.expect(TokenKind::Eq)?;
@@ -177,6 +181,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     lent_invoke = Some(DebugFunction {
                         identifier,
                         declaration: Span::new(BytePos(lo), BytePos(hi)),
+                        dispatched: false,
                     });
                 } else if self.parser.eat_keyword(sym::stack) {
                     self.parser.expect(TokenKind::Eq)?;
@@ -192,7 +197,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     outputs = Some(self.parser.parse_uint_as()?);
                 } else {
                     return Err(self.parser.error(
-                        "expected `cold`, `loop`, `continuation`, `entry`, `invoke`, `lent_invoke`, \
+                        "expected `cold`, `loop`, `continuation`, `entry`, `dispatch`, `invoke`, \
+                         `lent_invoke`, \
                          `stack`, `ret`, `inputs`, or `outputs` block attribute",
                     ));
                 }
@@ -228,8 +234,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             in_loop,
             is_continuation,
             external_entry,
-            function_invoke,
-            lent_invoke,
+            // NOTE: The dispatcher enters exactly the blocks marked `entry`; any other block that
+            // it enters, such as a constructor, spells `dispatch`.
+            function_invoke: function_invoke.map(|function| DebugFunction {
+                dispatched: dispatched || external_entry,
+                ..function
+            }),
+            lent_invoke: lent_invoke.map(|function| DebugFunction { dispatched, ..function }),
             entry_depth,
             call_effect,
             label_metadata,
@@ -501,6 +512,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_metadata(&mut self) -> PResult<'sess, Metadata> {
         let mut metadata = Metadata::default();
+        let mut dispatched = false;
         if !self.parser.eat(TokenKind::Not) {
             metadata.drop_debug_loc(DebugLocKind::Dropped);
             return Ok(metadata);
@@ -548,6 +560,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 metadata.set_function_invoke(DebugFunction {
                     identifier,
                     declaration: Span::new(BytePos(lo), BytePos(hi)),
+                    dispatched: false,
                 });
             } else if key == sym::exit {
                 self.parser.expect(TokenKind::Eq)?;
@@ -563,6 +576,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             } else if key == sym::modifier_depth {
                 self.parser.expect(TokenKind::Eq)?;
                 metadata.set_modifier_depth(self.parser.parse_uint_as()?);
+            } else if key == sym::dispatch {
+                dispatched = true;
             } else if key == sym::keep_with_next {
                 metadata.keep_with_next = true;
             } else if key == sym::dropped {
@@ -582,6 +597,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             self.parser.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             break;
+        }
+        if dispatched && let Some(function) = metadata.function_invoke() {
+            metadata.set_function_invoke(DebugFunction { dispatched, ..function });
         }
         if metadata.lacks_debug_location() {
             metadata.set_debug_loc_kind(DebugLocKind::Dropped);

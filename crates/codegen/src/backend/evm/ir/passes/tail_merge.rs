@@ -7,8 +7,8 @@
 //! suffixes into shared tail blocks until no new merges remain. Each candidate includes
 //! the cost of its new jumps and labels, and the pass keeps address-taken or
 //! otherwise incompatible entries separate. Debug metadata never participates
-//! in equivalence or profitability. Path-specific function activations stay on the original
-//! blocks or replacement jumps where representable; shared entries drop ambiguous events.
+//! in equivalence or profitability. A shared instruction keeps a function event only when every
+//! path agrees on it, and the replacement jumps take none.
 //! A suffix never contains `PC`, whose value depends on the position of its block.
 //! A terminal suffix covering the representative's whole body reuses its block and label when
 //! there are no nested shared tails. Nested tails keep their placement
@@ -355,17 +355,15 @@ impl RunState {
                 tail.instructions =
                     suffix[max_common - common..max_common - previous_common].to_vec();
                 if track_debug_info {
-                    for instruction in &mut tail.instructions {
-                        instruction.metadata.take_function_invoke();
-                    }
                     for (index, instruction) in tail.instructions.iter_mut().enumerate() {
-                        instruction.metadata.merge_debug_locs(
+                        let others =
                             sites.iter().filter(|site| site.common >= common).map(|site| {
                                 let site_instructions = &module.blocks[site.block].instructions;
                                 &site_instructions[site_instructions.len() - common + index]
                                     .metadata
-                            }),
-                        );
+                            });
+                        instruction.metadata.merge_debug_locs(others.clone());
+                        instruction.metadata.merge_function_events(others);
                     }
                 }
                 tail.terminator = tails.last().map_or_else(
@@ -378,17 +376,18 @@ impl RunState {
                     && tails.is_empty()
                     && let Some(tail_terminator) = &mut tail.terminator
                 {
-                    tail_terminator.metadata.take_function_invoke();
-                    tail_terminator.metadata.merge_debug_locs(
-                        sites
-                            .iter()
-                            .filter(|site| site.common >= common)
-                            .filter_map(|site| module.blocks[site.block].terminator.as_ref())
-                            .map(|terminator| &terminator.metadata),
-                    );
+                    let others = sites
+                        .iter()
+                        .filter(|site| site.common >= common)
+                        .filter_map(|site| module.blocks[site.block].terminator.as_ref())
+                        .map(|terminator| &terminator.metadata);
+                    tail_terminator.metadata.merge_debug_locs(others.clone());
+                    tail_terminator.metadata.merge_function_events(others);
                 }
                 // whole_body: suffix => whole_body: shared_suffix
-                // Shared entries drop path-specific invocation events.
+                // NOTE: A shared instruction keeps an event only where every path agrees on it.
+                // The jump that replaces a path's suffix takes no event: the call or return
+                // happens in the shared tail, not before it.
                 let tail = if commons.len() == 1
                     && common == len
                     && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
@@ -425,7 +424,6 @@ impl RunState {
                 let mut terminator =
                     Terminator::new(TerminatorKind::Jump(max_tail)).with_debug_loc_dropped();
                 terminator.metadata.preserve_debug_loc(&representative_debug);
-                terminator.metadata.move_function_events(&representative_debug);
                 module.blocks[representative_id].terminator = Some(terminator);
             }
             for site in sites {
@@ -442,7 +440,6 @@ impl RunState {
                     Terminator::new(TerminatorKind::Jump(tail)).with_debug_loc_dropped();
                 if let Some(debug_info) = debug_info {
                     terminator.metadata.preserve_debug_loc(&debug_info);
-                    terminator.metadata.move_function_events(&debug_info);
                 }
                 module.blocks[site.block].terminator = Some(terminator);
             }
@@ -519,8 +516,8 @@ fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
 ///
 /// The jump takes the location of the first removed instruction or terminator that has one, with
 /// all its origins and its modifier depth, and the first removed instruction's as is when none
-/// has. A suffix has at least one instruction. Function events keep their own rule: a jump takes
-/// the one invoke all removed operations agree on.
+/// has. A suffix has at least one instruction. The jump takes no function events, since the
+/// operations that carried them run in the shared tail.
 ///
 /// NOTE: `TargetInstrInfo::ReplaceTailWithBranchTo` gives the branch the location of the first
 /// instruction it removes, even without one (`Tail->getDebugLoc()`,
@@ -530,22 +527,14 @@ fn word_loop_input_width(instructions: &[Instruction]) -> Option<isize> {
 /// does.
 fn suffix_debug_info(block: &Block, len: usize) -> Metadata {
     let suffix = &block.instructions[block.instructions.len() - len..];
-    let all = suffix
+    let mut all = suffix
         .iter()
         .map(|inst| &inst.metadata)
         .chain(block.terminator.iter().map(|term| &term.metadata));
     let mut metadata = Metadata::default();
     metadata.preserve_debug_loc(
-        all.clone()
-            .find(|metadata| metadata.source_span().is_some())
-            .unwrap_or(&suffix[0].metadata),
+        all.find(|metadata| metadata.source_span().is_some()).unwrap_or(&suffix[0].metadata),
     );
-    let mut functions = all.filter_map(Metadata::function_invoke);
-    if let Some(function) = functions.next()
-        && functions.all(|other| other == function)
-    {
-        metadata.set_function_invoke(function);
-    }
     metadata
 }
 

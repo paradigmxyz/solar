@@ -284,9 +284,10 @@ fn invert_latch(module: &mut Module, latch: BlockId, header: BlockId) {
     let test = block.instructions.remove(len - 3);
     let mut push = Instruction::push_block(cold);
     push.metadata = std::mem::take(&mut block.instructions[len - 3].metadata);
+    // NOTE: The removed `iszero` takes its origins with it. Its function events move to the push
+    // after it, the next instruction that runs, not to the conditional jump behind that.
+    push.metadata.move_function_events(&test.metadata);
     block.instructions[len - 3] = push;
-    // NOTE: The removed `iszero` takes its origins with it; only its function events move.
-    block.instructions[len - 2].metadata.move_function_events(&test.metadata);
 }
 
 /// Fills `body` with the natural loop of the back edge `latch -> header`: the header and every
