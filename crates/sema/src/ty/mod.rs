@@ -31,6 +31,7 @@ use solar_interface::{
 };
 use std::{
     any::Any,
+    cell::RefCell,
     fmt,
     ops::ControlFlow,
     sync::{
@@ -108,6 +109,9 @@ pub struct TypeckResults<'gcx> {
     /// The spans of expression statements that have no effect, reported after type checking.
     pub(crate) no_effect_stmts: Vec<Span>,
 }
+
+/// The purity of the expressions that [`TypeckResults::is_pure_in`] has worked out.
+pub(crate) type PureMemo = RefCell<FxHashMap<hir::ExprId, bool>>;
 
 /// What type checking records for the AST JSON, which the writer cannot read back from the HIR.
 #[derive(Clone, Debug, Default)]
@@ -834,8 +838,8 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns whether the type-checked expression is a compile-time constant.
-    pub fn is_pure(self, expr: &hir::Expr<'gcx>) -> bool {
-        self.typeck_results.get().is_some_and(|results| results.is_pure(self, expr))
+    pub(crate) fn is_pure(self, memo: &PureMemo, expr: &hir::Expr<'gcx>) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_pure_in(self, Some(memo), expr))
     }
 
     /// Returns the user-defined operator function this operator expression

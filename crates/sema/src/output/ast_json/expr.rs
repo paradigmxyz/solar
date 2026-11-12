@@ -192,7 +192,7 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         let Some(expr) = expr else { return };
         self.argument_types(m, parent);
         m.entry("isLValue", &is_lvalue);
-        m.entry("isPure", &self.gcx.is_pure(expr));
+        m.entry("isPure", &self.gcx.is_pure(self.pure, expr));
         m.entry("isConstant", &false);
         m.entry("lValueRequested", &parent.lvalue);
     }

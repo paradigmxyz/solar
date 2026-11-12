@@ -33,7 +33,7 @@
 use crate::{
     ast_lowering::resolve::Declaration,
     hir::{self, ContractId, ItemId, Res, SourceId, VariableId},
-    ty::Gcx,
+    ty::{Gcx, PureMemo},
     typeck::override_checker::is_fully_implemented,
 };
 use alloy_primitives::hex;
@@ -319,11 +319,13 @@ impl SourceAstJson<'_, '_> {
         let file = &source.file;
         let ids = Ids { next: Cell::new(json.first_node + id.index()), stride: gcx.sources.len() };
         let types = (!json.pretty).then(Default::default);
+        let pure = PureMemo::default();
         let unit_id = if json.sema { json.source_unit_id(id) } else { ids.fresh() };
         let cx = Cx {
             json,
             ids: &ids,
             types: types.as_ref(),
+            pure: &pure,
             gcx,
             source: id,
             start: file.start_pos,
@@ -423,6 +425,8 @@ struct Cx<'a, 'gcx> {
     /// The written `typeDescriptions` that only depend on a type, which most of them do. Pretty
     /// output has none, since it indents inside them.
     types: Option<&'a ty::TypeCache<'gcx>>,
+    /// The purity of the expressions, which an expression takes from its operands.
+    pure: &'a PureMemo,
     gcx: Gcx<'gcx>,
     source: SourceId,
     /// The start of the source in the source map, which spans are relative to.

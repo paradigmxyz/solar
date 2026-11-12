@@ -2,7 +2,7 @@ use super::TypeChecker;
 use crate::{
     builtins::Builtin,
     hir,
-    ty::{Gcx, Ty, TyKind, TypeckResults},
+    ty::{Gcx, PureMemo, Ty, TyKind, TypeckResults},
 };
 use solar_ast::ElementaryType;
 use solar_interface::{Ident, sym};
@@ -13,6 +13,33 @@ impl<'gcx> TypeckResults<'gcx> {
     /// Expressions without a type or with an erroneous type count as pure to avoid follow-up
     /// errors.
     pub(crate) fn is_pure(&self, gcx: Gcx<'gcx>, expr: &hir::Expr<'gcx>) -> bool {
+        self.is_pure_in(gcx, None, expr)
+    }
+
+    /// Like [`Self::is_pure`], and remembers the result of every operand in `memo`, so that asking
+    /// for each node of a tree takes time linear in its size.
+    pub(crate) fn is_pure_in(
+        &self,
+        gcx: Gcx<'gcx>,
+        memo: Option<&PureMemo>,
+        expr: &hir::Expr<'gcx>,
+    ) -> bool {
+        if let Some(pure) = memo.and_then(|memo| memo.borrow().get(&expr.id).copied()) {
+            return pure;
+        }
+        let pure = self.compute_pure(gcx, memo, expr);
+        if let Some(memo) = memo {
+            memo.borrow_mut().insert(expr.id, pure);
+        }
+        pure
+    }
+
+    fn compute_pure(
+        &self,
+        gcx: Gcx<'gcx>,
+        memo: Option<&PureMemo>,
+        expr: &hir::Expr<'gcx>,
+    ) -> bool {
         // solc does not treat a tuple that is written to as pure.
         if matches!(expr.kind, hir::ExprKind::Tuple(_)) && self.ast.lvalues.contains(&expr.id) {
             return false;
@@ -20,7 +47,7 @@ impl<'gcx> TypeckResults<'gcx> {
         let Some(ty) = self.type_of_expr(expr.id) else {
             // The type tuple of `abi.decode` has no type of its own, but its components do.
             return match expr.kind {
-                hir::ExprKind::Tuple(exprs) => self.is_tuple_pure(gcx, exprs),
+                hir::ExprKind::Tuple(exprs) => self.is_tuple_pure(gcx, memo, exprs),
                 _ => true,
             };
         };
@@ -28,25 +55,27 @@ impl<'gcx> TypeckResults<'gcx> {
             return true;
         }
         match expr.kind {
-            hir::ExprKind::Array(exprs) => exprs.iter().all(|expr| self.is_pure(gcx, expr)),
-            hir::ExprKind::Tuple(exprs) => self.is_tuple_pure(gcx, exprs),
+            hir::ExprKind::Array(exprs) => {
+                exprs.iter().all(|expr| self.is_pure_in(gcx, memo, expr))
+            }
+            hir::ExprKind::Tuple(exprs) => self.is_tuple_pure(gcx, memo, exprs),
             hir::ExprKind::Assign(..)
             | hir::ExprKind::CallOptions(..)
             | hir::ExprKind::Delete(_)
             | hir::ExprKind::YulMember(..) => false,
             hir::ExprKind::Binary(lhs, _, rhs) => {
                 self.user_operator(expr.id).is_none()
-                    && self.is_pure(gcx, lhs)
-                    && self.is_pure(gcx, rhs)
+                    && self.is_pure_in(gcx, memo, lhs)
+                    && self.is_pure_in(gcx, memo, rhs)
             }
             hir::ExprKind::Unary(op, inner) => {
                 !op.kind.has_side_effects()
                     && self.user_operator(expr.id).is_none()
-                    && self.is_pure(gcx, inner)
+                    && self.is_pure_in(gcx, memo, inner)
             }
             hir::ExprKind::Call(callee, ref args) => {
                 let (callee, options) = callee.split_call_options();
-                if options.is_some() || !args.exprs().all(|arg| self.is_pure(gcx, arg)) {
+                if options.is_some() || !args.exprs().all(|arg| self.is_pure_in(gcx, memo, arg)) {
                     return false;
                 }
                 match self.type_of_expr(callee.id).map(|ty| ty.kind) {
@@ -55,7 +84,7 @@ impl<'gcx> TypeckResults<'gcx> {
                     Some(TyKind::Fn(_)) => {
                         let pure_fn = self.builtin_callee(callee.id).is_some_and(Builtin::is_pure)
                             || matches!(callee.kind, hir::ExprKind::New(_));
-                        pure_fn && self.is_pure(gcx, callee)
+                        pure_fn && self.is_pure_in(gcx, memo, callee)
                     }
                     Some(_) => false,
                 }
@@ -68,23 +97,26 @@ impl<'gcx> TypeckResults<'gcx> {
                 _ => matches!(ty.kind, TyKind::Type(_) | TyKind::Module(_)),
             },
             hir::ExprKind::Index(base, index) => {
-                self.is_pure(gcx, base) && index.is_none_or(|index| self.is_pure(gcx, index))
+                self.is_pure_in(gcx, memo, base)
+                    && index.is_none_or(|index| self.is_pure_in(gcx, memo, index))
             }
             hir::ExprKind::Slice(base, start, end) => {
-                self.is_pure(gcx, base)
-                    && [start, end].into_iter().flatten().all(|e| self.is_pure(gcx, e))
+                self.is_pure_in(gcx, memo, base)
+                    && [start, end].into_iter().flatten().all(|e| self.is_pure_in(gcx, memo, e))
             }
             hir::ExprKind::Lit(_)
             | hir::ExprKind::Type(_)
             | hir::ExprKind::TypeCall(_)
             | hir::ExprKind::Err(_) => true,
             hir::ExprKind::Member(receiver, ident) => {
-                self.is_pure_member(gcx, expr, ty, receiver, ident)
+                self.is_pure_member(gcx, memo, expr, ty, receiver, ident)
             }
             hir::ExprKind::New(_) => !matches!(ty.kind, TyKind::Fn(f) if f.is_creation()),
-            hir::ExprKind::Payable(inner) => self.is_pure(gcx, inner),
+            hir::ExprKind::Payable(inner) => self.is_pure_in(gcx, memo, inner),
             hir::ExprKind::Ternary(cond, then, els) => {
-                self.is_pure(gcx, cond) && self.is_pure(gcx, then) && self.is_pure(gcx, els)
+                self.is_pure_in(gcx, memo, cond)
+                    && self.is_pure_in(gcx, memo, then)
+                    && self.is_pure_in(gcx, memo, els)
             }
         }
     }
@@ -93,6 +125,7 @@ impl<'gcx> TypeckResults<'gcx> {
     fn is_pure_member(
         &self,
         gcx: Gcx<'gcx>,
+        memo: Option<&PureMemo>,
         expr: &hir::Expr<'gcx>,
         ty: Ty<'gcx>,
         receiver: &hir::Expr<'gcx>,
@@ -109,7 +142,7 @@ impl<'gcx> TypeckResults<'gcx> {
                 matches!(
                     inner.kind,
                     hir::ExprKind::Ident([hir::Res::Builtin(Builtin::This | Builtin::Super)])
-                ) || self.is_pure(gcx, inner)
+                ) || self.is_pure_in(gcx, memo, inner)
             }
             TyKind::Event(..)
             | TyKind::Error(..)
@@ -122,17 +155,22 @@ impl<'gcx> TypeckResults<'gcx> {
                 | TyKind::Enum(_)
                 | TyKind::Udvt(..) => true,
                 TyKind::Contract(_) if matches!(ty.kind, TyKind::Fn(f) if f.is_declaration()) => {
-                    self.is_pure(gcx, receiver)
+                    self.is_pure_in(gcx, memo, receiver)
                 }
                 _ => self.is_constant_res(gcx, expr),
             },
-            TyKind::Module(_) => self.is_pure(gcx, receiver),
+            TyKind::Module(_) => self.is_pure_in(gcx, memo, receiver),
             _ => self.is_constant_res(gcx, expr),
         }
     }
 
-    fn is_tuple_pure(&self, gcx: Gcx<'gcx>, exprs: &[Option<&hir::Expr<'gcx>>]) -> bool {
-        exprs.iter().all(|expr| expr.is_some_and(|expr| self.is_pure(gcx, expr)))
+    fn is_tuple_pure(
+        &self,
+        gcx: Gcx<'gcx>,
+        memo: Option<&PureMemo>,
+        exprs: &[Option<&hir::Expr<'gcx>>],
+    ) -> bool {
+        exprs.iter().all(|expr| expr.is_some_and(|expr| self.is_pure_in(gcx, memo, expr)))
     }
 
     /// Returns whether the expression is a constant variable, or the getter of one.
