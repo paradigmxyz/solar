@@ -22,11 +22,17 @@ contract Continued {
     }
 }
 
+//~v ERROR: `@custom:solar-safe` has no property `imaginary`
 /// @custom:solar-safe memory
-//~^ ERROR: `@custom:solar-safe` has no property `imaginary`
 /// imaginary
 contract UnknownProperty {}
 
 /// @custom:solar-optimize
 /// size
 contract ContinuedObjective {}
+
+/**
+ * @notice A glued tag.
+ ** @custom:solar-safe arithmetic //~ ERROR: `@custom:solar-safe` is part of the previous tag
+ */
+contract Glued {}

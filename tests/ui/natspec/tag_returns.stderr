@@ -28,3 +28,9 @@ warning[5856]: mismatched `@return` parameter: expected `second`, found `first`
 LL │     /// @return first The first return value is documented second
    ╰╴                ━━━━━
 
+warning[5856]: mismatched `@return` parameter: expected `first`, found `second`
+   ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
+   │
+LL │     /// @ second The name is read after the dropped `@`
+   ╰╴          ━━━━━━
+

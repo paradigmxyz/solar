@@ -1,0 +1,131 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "C": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "block()": {
+              "notice": "Does a thing   across lines."
+            },
+            "notice()": {
+              "notice": "Notice text   continued."
+            },
+            "untagged()": {
+              "notice": "Untagged text   that continues."
+            },
+            "mixed()": {
+              "notice": "Intro text"
+            },
+            "last(uint256)": {
+              "notice": "Notice text"
+            },
+            "stars()": {
+              "notice": "Block text** glued and a blank star line"
+            },
+            "devContinuation()": {
+              "notice": "Notice."
+            },
+            "midLine()": {
+              "notice": "start"
+            },
+            "glued()": {
+              "notice": "x** explanation @solidity memory-safe-assembly"
+            },
+            "emptyTag()": {
+              "notice": "x z** w @solidity memory-safe-assembly"
+            },
+            "gluedEmptyTag()": {
+              "notice": "a z"
+            },
+            "lastWins()": {
+              "notice": "Only the last comment counts"
+            },
+            "afterPlain()": {
+              "notice": "Kept after a plain comment"
+            },
+            "afterBlock()": {
+              "notice": "Kept after a block comment"
+            },
+            "beforePlain()": {
+              "notice": "Kept before a plain comment"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "register(address)": {
+              "details": "Registers `operator` for the caller. This does NOT validate the  operator address, so the caller keeps full responsibility for it.",
+              "params": {
+                "operator": "The operator   address to register."
+              },
+              "returns": {
+                "ok": "Whether it   worked."
+              }
+            },
+            "block()": {
+              "details": "Dev text   continued."
+            },
+            "mixed()": {
+              "details": "Details after an untagged notice."
+            },
+            "last(uint256)": {
+              "params": {
+                "value": "Skips `@` blanks and drops it"
+              },
+              "returns": {
+                "result": "  Keeps two blanks"
+              }
+            },
+            "devContinuation()": {
+              "details": "Dev line one dev line two."
+            },
+            "midLine()": {
+              "details": "mid-line details more"
+            },
+            "gluedFirst()": {
+              "details": "glued on first"
+            },
+            "dupParam(uint256)": {
+              "params": {
+                "a": "second"
+              }
+            },
+            "returnName()": {
+              "returns": {
+                "r": "r"
+              }
+            },
+            "bareReturn()": {
+              "returns": {
+                "_0": ""
+              }
+            }
+          },
+          "stateVariables": {
+            "stateReturn": {
+              "return": "amount The amount",
+              "returns": {
+                "amount": "The amount"
+              }
+            },
+            "stateReturnName": {
+              "return": "turn",
+              "returns": {
+                "turn": "turn"
+              }
+            }
+          },
+          "version": 1
+        }
+      }
+    }
+  }
+}
