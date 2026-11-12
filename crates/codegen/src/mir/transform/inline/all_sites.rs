@@ -90,6 +90,8 @@ fn drop_stack_bound(
                 if let InstKind::ICall { function: Callee::Function(callee), .. } =
                     func.inst(inst).kind
                     && consumed.contains(&callee)
+                    // A straight-line clone holds one word fewer than the call it replaces.
+                    && summaries[callee].block_count > 1
                     && let Some(peak) = summaries[callee].phi_stack_peak
                 {
                     let liveness =
