@@ -877,11 +877,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             None
         };
 
+        // The span ends at the last token before the `;`.
+        let span = lo.to(self.prev_token.span);
         if flags.contains(VarFlags::SEMI) {
             self.expect_semi()?;
         }
-
-        let span = lo.to(self.prev_token.span);
 
         if mutability == Some(VarMut::Constant) && initializer.is_none() {
             let msg = "constant variable must be initialized";

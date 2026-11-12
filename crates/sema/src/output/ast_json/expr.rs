@@ -139,13 +139,14 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
             ast::StmtKind::Expr(expr) | ast::StmtKind::Return(Some(expr)) => {
                 stmt.span.with_hi(expr.span.hi())
             }
-            ast::StmtKind::DeclSingle(_)
-            | ast::StmtKind::DeclMulti(..)
-            | ast::StmtKind::Emit(..)
-            | ast::StmtKind::Revert(..)
-            | ast::StmtKind::Placeholder
-            | ast::StmtKind::Break
-            | ast::StmtKind::Continue => self.without_semicolon(stmt.span),
+            ast::StmtKind::DeclSingle(var) => stmt.span.with_hi(var.span.hi()),
+            ast::StmtKind::DeclMulti(_, expr) => stmt.span.with_hi(expr.span.hi()),
+            ast::StmtKind::Emit(_, args) | ast::StmtKind::Revert(_, args) => {
+                stmt.span.with_hi(args.span.hi())
+            }
+            ast::StmtKind::Placeholder => stmt.span.with_hi(stmt.span.lo() + 1),
+            ast::StmtKind::Break => stmt.span.with_hi(stmt.span.lo() + "break".len() as u32),
+            ast::StmtKind::Continue => stmt.span.with_hi(stmt.span.lo() + "continue".len() as u32),
             ast::StmtKind::If(_, then, other) => {
                 stmt.span.with_hi(self.stmt_span(other.as_deref().unwrap_or(then)).hi())
             }

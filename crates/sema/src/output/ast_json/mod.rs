@@ -650,15 +650,6 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
         &file.src[(span.lo() - file.start_pos).to_usize()..(span.hi() - file.start_pos).to_usize()]
     }
 
-    /// Returns the span without a trailing `;`, which solc leaves out of the location of a
-    /// variable and of most statements.
-    fn without_semicolon(self, span: Span) -> Span {
-        match self.text(span).strip_suffix(';') {
-            Some(text) => span.with_hi(span.lo() + text.trim_end().len() as u32),
-            None => span,
-        }
-    }
-
     fn item_id(self, id: impl Into<ItemId>) -> usize {
         self.gcx.hir.global_item_id(id)
     }
@@ -1432,7 +1423,7 @@ impl Serialize for W<'_, '_, Var<'_, '_>> {
         let Self(cx, Var { ast, id, node, value, docs, scope }) = self;
         let gcx = cx.gcx;
         let var = id.map(|id| gcx.hir.variable(id));
-        let span = cx.without_semicolon(ast.span);
+        let span = ast.span;
         // The end of a function type is the end of the next token, which an unnamed variable
         // of the type shares.
         let span = match ast.ty.kind {
