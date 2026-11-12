@@ -198,12 +198,10 @@ impl RevertReason {
 /// [`FunctionBuilder::check_calldata_tail_offset`]: super::FunctionBuilder::check_calldata_tail_offset
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CalldataTail {
-    /// The calldata tail messages, used when HIR lowering accesses or copies calldata.
+    /// The calldata tail messages, used when HIR lowering accesses calldata.
     Access,
     /// The "Invalid calldata access" messages, used when the encoder copies `bytes[]`.
     Encode,
-    /// The ABI decoder's messages, used when a returned calldata value is copied to memory.
-    Decode,
 }
 
 impl CalldataTail {
@@ -211,7 +209,6 @@ impl CalldataTail {
         match self {
             Self::Access => RevertReason::InvalidCalldataTailOffset,
             Self::Encode => RevertReason::InvalidCalldataAccessOffset,
-            Self::Decode => RevertReason::InvalidCalldataArrayOffset,
         }
     }
 
@@ -219,7 +216,6 @@ impl CalldataTail {
         match self {
             Self::Access => RevertReason::InvalidCalldataTailLength,
             Self::Encode => RevertReason::InvalidCalldataAccessLength,
-            Self::Decode => RevertReason::InvalidCalldataArrayLength,
         }
     }
 
@@ -227,7 +223,6 @@ impl CalldataTail {
         match self {
             Self::Access => RevertReason::CalldataTailTooShort,
             Self::Encode => RevertReason::InvalidCalldataAccessStride,
-            Self::Decode => RevertReason::InvalidCalldataArrayStride,
         }
     }
 }

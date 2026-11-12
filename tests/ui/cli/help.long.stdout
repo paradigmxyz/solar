@@ -92,6 +92,9 @@ Input options:
       --allow-paths <ALLOW_PATHS>
           Allow a given path for imports
 
+      --no-import-callback
+          Disable the import callback, so that imports only resolve to the given sources
+
 Display options:
       --color <COLOR>
           Coloring

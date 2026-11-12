@@ -519,15 +519,48 @@ fn shared_custom_error_keeps_distinct_condition_origins() {
         }
         assert_eq!(destinations[0], destinations[1], "both guards share the same error body");
         // NOTE: The shared body cannot have either call's unique source location. Coverage
-        // must distinguish the incoming edges instead of counting the common destination.
-        let call = "revert Denied()";
-        let starts = source.match_indices(call).map(|(start, _)| start).collect::<Vec<_>>();
-        assert!(instructions.iter().enumerate().all(|(index, inst)| {
-            inst["operation"]["mnemonic"] != "REVERT"
-                || starts
-                    .iter()
-                    .all(|&start| !in_statement(entries[index], id, start, start + call.len()))
-        }));
+        // must distinguish the incoming edges instead of counting the common destination, so no
+        // entry from the shared label through its `REVERT` may name only one of the merged paths.
+        let target =
+            u64::from_str_radix(destinations[0].as_str().unwrap().trim_start_matches("0x"), 16)
+                .unwrap();
+        let label = instructions
+            .iter()
+            .position(|inst| {
+                inst["operation"]["mnemonic"] == "JUMPDEST" && inst["offset"] == target
+            })
+            .expect("the guards jump to a `JUMPDEST`");
+        let revert = label
+            + instructions[label..]
+                .iter()
+                .position(|inst| inst["operation"]["mnemonic"] == "REVERT")
+                .expect("the shared body reverts");
+        let shared = entries[label..=revert]
+            .iter()
+            .zip(&instructions[label..=revert])
+            .map(|(entry, inst)| {
+                format!(
+                    "{} {}:{}:{}",
+                    inst["operation"]["mnemonic"].as_str().unwrap(),
+                    entry[0],
+                    entry[1],
+                    entry[2]
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert_data_eq!(
+            shared,
+            str![[r#"
+JUMPDEST -1:-1:-1
+PUSH4 -1:-1:-1
+PUSH0 -1:-1:-1
+MSTORE -1:-1:-1
+PUSH1 -1:-1:-1
+PUSH1 -1:-1:-1
+REVERT -1:-1:-1
+"#]]
+        );
         // The source-only assignments in `_state` have no instructions. Its return still
         // identifies successful completion of the helper, independently of those locations.
         let start = source.find("function _state()").unwrap();

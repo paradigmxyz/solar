@@ -308,14 +308,14 @@ compiler-diff --dir /tmp/compiler-fuzz fuzz \
   --grammar /absolute/path/to/pure-function.fan --contract C --seed 7 --count 8 \
   --compiler 'baseline=/absolute/path/to/solc --standard-json' \
   --compiler 'candidate=/absolute/path/to/solar --standard-json -Zvalidate-ir=true' \
-  --symbolic-signature 'f(uint256)' --symbolic-solc /absolute/path/to/solc \
-  --symbolic-args '--max-paths 64 --symbolic-timeout 10'
+  --symbolic-signature 'f(uint256)' \
+  --symbolic-args '--max-paths 64 --timeout 10'
 ```
 
-The check uses each selected pair's saved attempts. `--symbolic-solc` (default
-`solc`) compiles the harness; `--symbolic-args` forwards quoted engine options
-such as `--include-view`; `--engine-timeout` (default 120 s) bounds each engine
-process. A missing function or incomplete check fails the case.
+The check uses each selected pair's saved attempts. `--symbolic-args` forwards
+quoted engine options such as `--arbitrary-storage`; `--engine-timeout`
+(default 120 s) bounds each engine process. A missing function or incomplete
+check fails the case.
 
 Campaigns live in `<dir>/<version>/fuzz/<id>/`. Their identity covers grammar
 content, generator version, seed, count, target, settings, seed content, and
@@ -355,15 +355,15 @@ compiler-diff runtime -- --solc /path/to/solc --solar /path/to/solar \
 
 # Reuse saved artifacts without recompiling the target.
 compiler-diff symbolic -- --source C.sol --contract C \
-  --signature 'f(uint256)' --solc /path/to/solc \
+  --signature 'f(uint256)' --forge /path/to/forge \
   --solc-attempt /absolute/solc-attempt --solar-attempt /absolute/solar-attempt
 ```
 
 Saved symbolic runs need identical inputs, an explicit `evmVersion`, and the
 `immutableReferences` and `linkReferences` output fields; `--source` then names
-a source unit in the saved input, not a file. Solc still compiles the harness,
-and Forge with symbolic support and its solver must be installed. The engine
-rejects unsupported references and keeps its bounded-agreement, mismatch, and
+a source unit in the saved input, not a file. The engine needs a Forge with
+`forge equivalence`, its solver, and anvil to run constructors. It rejects
+unsupported references and keeps its bounded-agreement, mismatch, and
 incomplete statuses. It shares ABI tuple normalization and the saved-attempt
 reader with `compare`.
 

@@ -24,16 +24,12 @@ enum TryCallee<'a> {
     },
 }
 
-/// The failed call's return data, which the catch clauses match on and bind.
+/// The failed call's return data, which the catch clauses match on.
 ///
 /// Absent before Byzantium, where the only lowerable clause is a bare `catch { }` and there is no
 /// `RETURNDATACOPY` to read the data with.
 #[derive(Clone, Copy)]
 struct TryCatchData {
-    /// The `bytes` object holding the return data.
-    object: ValueId,
-    /// Pointer to the object's first data byte.
-    data: ValueId,
     /// The data's length in bytes.
     len: ValueId,
     /// The leading selector word; each typed clause checks the required payload length.
@@ -139,9 +135,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_if(
         &mut self,
-        condition: &hir::Expr<'_>,
-        then_stmt: &hir::Stmt<'_>,
-        else_stmt: Option<&hir::Stmt<'_>>,
+        condition: &'gcx hir::Expr<'gcx>,
+        then_stmt: &'gcx hir::Stmt<'gcx>,
+        else_stmt: Option<&'gcx hir::Stmt<'gcx>>,
     ) -> Option<()> {
         let condition_span = condition.span;
         let condition = self.operand(condition)?.id();
@@ -187,7 +183,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'_>) -> Option<()> {
+    pub(super) fn lower_switch(&mut self, switch: &hir::StmtSwitch<'gcx>) -> Option<()> {
         let selector = self.lower_yul_word_expr(switch.selector)?;
         self.materialize_default_bindings();
         let switch_block = self.builder.current_block();
@@ -240,7 +236,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_try(&mut self, try_stmt: &hir::StmtTry<'_>) -> Option<()> {
+    pub(super) fn lower_try(&mut self, try_stmt: &'gcx hir::StmtTry<'gcx>) -> Option<()> {
         // Parenthesizing the target changes nothing about the call it wraps, so peel the parens
         // here exactly as the checker does when it accepts the statement. solc rejects
         // `try (c.f()) { ... }` because its target must be a call syntactically, but the
@@ -529,18 +525,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         self.builder.switch_to_block(catch_block);
         let needs_data =
             catch_clauses.iter().any(|clause| clause.name.is_some() || !clause.args.is_empty());
-        // data = returndata()
-        // selector = mload(data) >> 224
+        // Every clause reads the selector and length through scratch memory, as solc does. Only
+        // `catch Error(string)` and `catch (bytes memory)` copy the return data into a `bytes`
+        // object, and only on the path that reaches them, so a large payload that no such clause
+        // takes costs nothing here. A payload no clause matches is bubbled up from the return data
+        // buffer.
+        // len = returndatasize
+        // returndatacopy(0, 0, min(len, 32))
+        // selector = mload(0) >> 224
         let catch_data = (supports_returndata && needs_data).then(|| {
-            let object = self.materialize_returndata_bytes();
-            let view = self.builder.memory_slice(object);
-            let data = self.builder.slice_ptr(view);
-            let len = self.builder.slice_len(view);
+            let len = self.builder.returndatasize();
+            let word = self.builder.imm(32);
+            let below = self.builder.lt(len, word);
+            let size = self.builder.select(below, len, word);
             let zero = self.builder.imm(U256::ZERO);
-            let selector_word = self.builder.slice_load_word(view, zero);
+            self.builder.copy(zero, zero, size, PtrLocation::Returndata);
+            let selector_word = self.builder.load(zero, PtrLocation::Memory);
             let selector_shift = self.builder.imm(224);
             let selector = self.builder.shr(selector_word, selector_shift);
-            TryCatchData { object, data, len, selector }
+            TryCatchData { len, selector }
         });
         // Solidity matches the typed clauses before the low-level one, whichever order they are
         // written in: `catch Error(string)` first, then `catch Panic(uint256)`, and the bare or
@@ -554,21 +557,55 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             Some(sym::Panic) => 1,
             _ => 2,
         });
+        // A malformed `Error(string)` payload falls through to the `bytes memory` clause, which
+        // reuses the object the probe copied instead of copying the return data again.
+        let bytes_block = (catch_clauses
+            .iter()
+            .any(|clause| clause.name.is_some_and(|name| name.name == sym::Error))
+            && catch_clauses.iter().any(|clause| clause.name.is_none() && !clause.args.is_empty()))
+        .then(|| self.builder.create_block());
+        let mut probe_failed = None;
+        let mut bytes_sources = None;
         let mut next_catch = self.builder.current_block();
         for catch_clause in ordered_clauses {
             // if catch_matches(clause, data) { lower(clause) } else { next_catch }
             self.builder.switch_to_block(next_catch);
             let catch_error = catch_clause.name.is_some_and(|name| name.name == sym::Error);
             let catch_panic = catch_clause.name.is_some_and(|name| name.name == sym::Panic);
+            let is_bytes = !catch_error && !catch_panic && !catch_clause.args.is_empty();
+            let clause_block = match bytes_block {
+                Some(block) if is_bytes => block,
+                _ => self.builder.create_block(),
+            };
+            let next_block = self.builder.create_block();
+            let mut error_object = None;
             // A typed clause is rejected before Byzantium, so its data is always there.
-            let condition = if catch_error {
-                // selector_matches = selector == Error(string)
-                // valid = selector_matches ? try_decode_error_message(data) : false
+            if catch_error {
+                // if selector == Error(string) {
+                //     object = returndata()
+                //     if try_decode_error_message(object) { clause } else { bytes_clause |
+                // next_catch } } else { next_catch }
                 let data = catch_data?;
                 let expected =
                     self.builder.imm(U256::from_be_slice(&keccak256("Error(string)")[..4]));
                 let matches = self.builder.eq(data.selector, expected);
-                self.lower_error_catch_match(data.data, data.len, matches)
+                let probe_block = self.builder.create_block();
+                self.builder.branch(matches, probe_block, next_block);
+                self.builder.switch_to_block(probe_block);
+                let object = self.materialize_returndata_bytes();
+                let view = self.builder.memory_slice(object);
+                let ptr = self.builder.slice_ptr(view);
+                let valid = self.lower_error_catch_match(ptr, data.len);
+                if let Some(bytes_block) = bytes_block {
+                    let failed = self.builder.create_block();
+                    self.builder.branch(valid, clause_block, failed);
+                    self.builder.switch_to_block(failed);
+                    self.builder.jump(bytes_block);
+                    probe_failed = Some((failed, object));
+                } else {
+                    self.builder.branch(valid, clause_block, next_block);
+                }
+                error_object = Some(object);
             } else if catch_panic {
                 // valid = data.length >= 36 && selector == Panic(uint256)
                 let data = catch_data?;
@@ -577,25 +614,31 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 let size = self.builder.imm(36);
                 let short = self.builder.lt(data.len, size);
                 let has_payload = self.builder.eq_zero(short);
-                self.builder.and(matches, has_payload)
+                let valid = self.builder.and(matches, has_payload);
+                self.builder.branch(valid, clause_block, next_block);
             } else {
-                self.builder.imm_bool(true)
-            };
-            let clause_block = self.builder.create_block();
-            let next_block = self.builder.create_block();
-            self.builder.branch(condition, clause_block, next_block);
+                if is_bytes && let Some((failed, probe_object)) = probe_failed {
+                    // object = returndata()
+                    let object = self.materialize_returndata_bytes();
+                    bytes_sources =
+                        Some(vec![(self.builder.current_block(), object), (failed, probe_object)]);
+                }
+                self.builder.jump(clause_block);
+            }
 
             self.values = before.clone();
             self.storage_refs = before_storage_refs.clone();
             self.builder.switch_to_block(clause_block);
             if let Some(&binding) = catch_clause.args.first() {
-                let object = catch_data?.object;
-                let value = if catch_error {
+                let value = if let Some(object) = error_object {
                     self.lower_error_catch_string(object)?
                 } else if catch_panic {
-                    self.lower_panic_catch_word(object)
+                    self.lower_panic_catch_scratch_word()
+                } else if let Some(sources) = bytes_sources.take() {
+                    // object = phi(copied, probe)
+                    self.builder.phi(sources)
                 } else {
-                    object
+                    self.materialize_returndata_bytes()
                 };
                 self.values.insert(binding, value);
             }
@@ -613,14 +656,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             next_catch = next_block;
         }
         self.builder.switch_to_block(next_catch);
-        match catch_data {
-            // revert(data.data, data.length)
-            Some(data) => self.builder.revert(data.data, data.len),
-            // Unreachable: a bare catch matches unconditionally.
+        // Unreachable without data: a bare catch matches unconditionally.
+        if catch_data.is_some() {
+            // revert(returndata)
+            self.builder.revert_returndata();
+        } else {
             // revert(0, 0)
-            None => {
-                self.builder.revert_with(RevertReason::Empty);
-            }
+            self.builder.revert_with(RevertReason::Empty);
         }
 
         // values, storage_refs = phi(success, catches)
@@ -630,7 +672,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_yul_word_expr(&mut self, expr: &hir::Expr<'_>) -> Option<ValueId> {
+    pub(super) fn lower_yul_word_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<ValueId> {
         let value = self.operand(expr)?.id();
         let ty = self
             .cx
@@ -694,9 +736,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_ternary(
         &mut self,
-        condition: &hir::Expr<'_>,
-        then_expr: &hir::Expr<'_>,
-        else_expr: &hir::Expr<'_>,
+        condition: &'gcx hir::Expr<'gcx>,
+        then_expr: &'gcx hir::Expr<'gcx>,
+        else_expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
     ) -> Option<Word> {
         // branch(condition, then, else)
@@ -720,7 +762,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_ternary_value(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
     ) -> Option<Word> {
         let source_ty = self.cx.gcx.type_of_expr(expr.id)?;
@@ -730,9 +772,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_logical(
         &mut self,
-        lhs_expr: &hir::Expr<'_>,
+        lhs_expr: &'gcx hir::Expr<'gcx>,
         op: BinOpKind,
-        rhs_expr: &hir::Expr<'_>,
+        rhs_expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<Word> {
         // if && { branch(lhs, rhs, false) }
         // if || { branch(lhs, lhs, rhs) }
@@ -765,9 +807,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_ternary_values(
         &mut self,
-        condition: &hir::Expr<'_>,
-        then_expr: &hir::Expr<'_>,
-        else_expr: &hir::Expr<'_>,
+        condition: &'gcx hir::Expr<'gcx>,
+        then_expr: &'gcx hir::Expr<'gcx>,
+        else_expr: &'gcx hir::Expr<'gcx>,
         ty: Ty<'gcx>,
     ) -> Option<Vec<Word>> {
         let TyKind::Tuple(types) = ty.kind else {
@@ -807,7 +849,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn lower_ternary_components(
         &mut self,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         types: &[Ty<'gcx>],
     ) -> Option<Vec<Word>> {
         let TyKind::Tuple(sources) = self.cx.gcx.type_of_expr(expr.id)?.kind else {
@@ -829,8 +871,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_loop(
         &mut self,
-        mut block: hir::Block<'_>,
-        source: LoopSource<'_>,
+        mut block: hir::Block<'gcx>,
+        source: LoopSource<'gcx>,
     ) -> Option<()> {
         self.materialize_default_bindings();
         let update_stmt = match source {

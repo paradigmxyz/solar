@@ -639,8 +639,8 @@ bb52 [entry]:                                     ; function signature(bool cond
   calldataload
   gt
   or
-  jump bb85
-bb85:
+  jump bb83
+bb83:
   push bb12
   jumpi
   push 0xe2179b8e
@@ -657,29 +657,20 @@ bb85:
   swap 1
   sub
   mul
-  jump bb84
-bb84:
+  jump bb82
+bb82:
   add
   push 160
-  push 64
-  dup 2
-  add
+  push 224
   push 64
   mstore
   push 4
   dup 2
   mstore
-  push 32
-  dup 2
-  add
+  push 192
   swap 2
   dup 3
   mstore
-  push 32
-  dup 2
-  lt
-  push bb83
-  jumpi
   swap 1
   push 4
   add
@@ -692,8 +683,6 @@ bb84:
   push 32
   dup 2
   mstore
-  jump bb56
-bb56:
   push 96
   swap 1
   return
@@ -701,7 +690,7 @@ bb58 [entry]:                                     ; function dirtySignature(uint
   push 36
   calldatasize
   lt
-  jump bb85
+  jump bb83
 bb64 [entry]:                                     ; function reverseSignature(uint256 raw) external pure returns (bytes memory) [selector 0x97ffd282]
   push 36
   calldatasize
@@ -719,30 +708,4 @@ bb64 [entry]:                                     ; function reverseSignature(ui
   push 0x26121ff0
   push 224
   shl
-  jump bb84
-bb83 [continuation]:
-  pop
-  push 64
-  mload
-  push 32
-  dup 2
-  add
-  push 32
-  dup 3
-  mstore
-  push 32
-  dup 2
-  add
-  push 0
-  dup 2
-  mstore
-  push 4
-  swap 1
-  swap 2
-  mstore
-  push 4
-  swap 2
-  swap 3
-  swap 1
-  mcopy
-  jump bb56
+  jump bb82

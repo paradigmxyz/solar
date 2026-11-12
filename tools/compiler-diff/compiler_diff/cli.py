@@ -567,8 +567,6 @@ def fuzz_campaign(root, args):
                                 args.contract,
                                 "--signature",
                                 args.symbolic_signature,
-                                "--solc",
-                                args.symbolic_solc,
                                 "--solc-attempt",
                                 str(attempts[reference]),
                                 "--solar-attempt",
@@ -685,11 +683,6 @@ def main(argv=None):
     fuzzer.add_argument(
         "--symbolic-signature",
         help="Also check this function in every generated source",
-    )
-    fuzzer.add_argument(
-        "--symbolic-solc",
-        default="solc",
-        help="Solc executable for the symbolic harness",
     )
     fuzzer.add_argument(
         "--symbolic-args",
