@@ -47,11 +47,15 @@
 //! same gas and fewer bytes, and each of its instructions keeps the origin of the `OR`.
 //!
 //! Equivalent replacements keep the root operation's source context on their result-producing
-//! instruction. Removed operand locations are dropped, and function events are moved once.
+//! instruction. Removed operand locations are dropped. The window runs straight through once, so
+//! a function entry in it moves to the first instruction of the replacement and a function exit
+//! to the last, whatever the rule.
 
 use super::{
-    EvmPass, block_layout::terminator_kind, compact_pushes::materialize_immediate,
-    utils::MachineInstKey,
+    EvmPass,
+    block_layout::terminator_kind,
+    compact_pushes::materialize_immediate,
+    utils::{MachineInstKey, RunEvents},
 };
 use crate::{
     backend::evm::{
@@ -169,6 +173,7 @@ fn clean_key(instructions: &[Instruction]) -> (u32, u64) {
 fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
     let target = module.runtime_target(gcx);
     let final_cleanup = rules == Rules::Final;
+    let track_events = module.debug_info_is_tracked();
     let mut changed = false;
     let mut scratch = Vec::new();
     let clean = &mut module.peephole_clean;
@@ -183,7 +188,7 @@ fn optimize_module(gcx: Gcx<'_>, module: &mut Module, rules: Rules) -> bool {
         let rewrites = if skip {
             0
         } else {
-            Driver { target, rules, block: block.label }.run(
+            Driver { target, rules, block: block.label, track_events }.run(
                 &mut block.instructions,
                 &mut scratch,
                 early_clean,
@@ -231,6 +236,8 @@ struct Driver {
     target: Target,
     rules: Rules,
     block: u32,
+    /// Whether function events can exist and have to move with a rewrite.
+    track_events: bool,
 }
 
 impl Driver {
@@ -284,7 +291,13 @@ impl Driver {
         let start = instructions.len() - usize::from(rewrite.skip);
         let input = tracing::enabled!(target: TRACE_TARGET, tracing::Level::TRACE)
             .then(|| instructions[start..].to_vec());
+        let events = self
+            .track_events
+            .then(|| RunEvents::of(instructions[start..].iter().map(|inst| &inst.metadata)));
         rewrite.edit.apply(self.target, instructions, start);
+        if let Some(events) = events {
+            events.place(&mut instructions[start..]);
+        }
         if let Some(input) = input {
             trace!(
                 target: TRACE_TARGET,
@@ -370,31 +383,22 @@ impl Edit {
             Self::LowMaskWithSwap => {
                 // push 0; not; protected_count; shl; not
                 let root = instructions.last().unwrap().metadata.clone();
-                let entry = instructions[start].metadata.clone();
                 instructions.truncate(instructions.len() - 3);
                 instructions[start] = Instruction::push_value(U256::ZERO).with_debug_loc(&root);
-                instructions[start].metadata.move_function_events(&entry);
                 instructions.insert(start + 1, not(&root));
                 instructions.push(not(&root));
-                let last = &mut instructions.last_mut().unwrap().metadata;
-                last.move_function_events(&root);
             }
             Self::LowMask => {
                 // push 0; not; closed_count; shl; not
                 let root = instructions.last().unwrap().metadata.clone();
-                let entry = instructions[start].metadata.clone();
                 instructions[start] = Instruction::push_value(U256::ZERO).with_debug_loc(&root);
-                instructions[start].metadata.move_function_events(&entry);
                 instructions[start + 1] = not(&root);
                 *instructions.last_mut().expect("matched subtraction") = not(&root);
-                let last = &mut instructions.last_mut().unwrap().metadata;
-                last.move_function_events(&root);
             }
             Self::ShiftPairMask => {
                 // push s; shl; push s; shr
                 // The root is the `and`, which the last shift replaces. The copied shift count and
-                // the first shift take its source context. The original shift count keeps its
-                // function events.
+                // the first shift take its source context.
                 let root = instructions.last().unwrap().metadata.clone();
                 instructions[start] = instructions[start + 2]
                     .clone()
@@ -413,29 +417,19 @@ impl Edit {
                 // NOTE: The materialization computes the old root's value on the same path, so
                 // every instruction of it takes the root's source context. Operand locations
                 // disappear.
-                let context =
-                    replacement_debug_info(&instructions[start..], instructions.len() - start - 1);
+                let context = instructions.last().unwrap().metadata.clone();
                 instructions.truncate(start);
                 materialize_immediate(instructions, target.evm_version(), value, &context);
-                let last = instructions.last_mut().unwrap();
-                if let Some(exit) = context.function_exit() {
-                    last.metadata.set_function_exit(exit);
-                }
-                if let Some(function) = context.function_invoke() {
-                    instructions[start].metadata.set_function_invoke(function);
-                }
             }
             Self::AddNegated { value } => {
                 // push -c; add
                 // NOTE: The materialized constant takes the source context of the subtraction, the
                 // root. The `ADD` replaces the subtraction and keeps its context; the removed push
-                // and swap take their origins with them, and only their function events move.
+                // and swap take their origins with them.
                 let mut add = instructions.pop().expect("matched SUB");
                 overwrite(&mut add, op::ADD);
                 let root = add.metadata.clone();
-                for removed in instructions.drain(start..) {
-                    add.metadata.move_function_events(&removed.metadata);
-                }
+                instructions.truncate(start);
                 materialize_immediate(instructions, target.evm_version(), value, &root);
                 instructions.push(add);
             }
@@ -443,16 +437,11 @@ impl Edit {
                 // push x; push 0; absorbing_op => push 0
                 // push x; push 1; exp => push 1
                 let context = (instructions.len() - start == 3)
-                    .then(|| replacement_debug_info(&instructions[start..], 2));
+                    .then(|| instructions[start + 2].metadata.clone());
                 instructions.remove(start);
                 instructions.truncate(start + 1);
                 if let Some(context) = context {
-                    // NOTE: The survivor keeps no event of its own: the window's agreed events
-                    // replace them.
-                    let metadata = &mut instructions[start].metadata;
-                    metadata.drop_function_events();
-                    metadata.preserve_debug_loc(&context);
-                    metadata.move_function_events(&context);
+                    instructions[start].metadata.preserve_debug_loc(&context);
                 }
             }
             Self::RemoveFirstKeepTwo => {
@@ -469,14 +458,9 @@ impl Edit {
             }
             Self::OverwriteOne { opcode } => {
                 // dup 2; binop; swap 1; pop => binop
-                let context = replacement_debug_info(&instructions[start..], 1);
+                let context = instructions[start + 1].metadata.clone();
                 overwrite(&mut instructions[start], opcode);
-                // NOTE: The survivor keeps no event of its own: the window's agreed events
-                // replace them.
-                let metadata = &mut instructions[start].metadata;
-                metadata.drop_function_events();
-                metadata.preserve_debug_loc(&context);
-                metadata.move_function_events(&context);
+                instructions[start].metadata.preserve_debug_loc(&context);
                 instructions.truncate(start + 1);
             }
             Self::OverwriteTwo { opcode } => {
@@ -498,10 +482,6 @@ impl Edit {
                 instructions[start]
                     .replace_preserving_metadata(Instruction::stack_op(op::StackOp::Swap(depth)));
                 // The removed swap and pop take their origins with them.
-                let (retained, removed) = instructions[start..].split_at_mut(3);
-                for inst in removed {
-                    retained[2].metadata.move_function_events(&inst.metadata);
-                }
                 instructions.truncate(start + 3);
             }
             Self::InvertComparison { value, opcode } => {
@@ -510,7 +490,7 @@ impl Edit {
                 // NOTE: The opposite compare keeps the comparison's context, as solc's `sub` keeps
                 // the `eq`'s when `eq; iszero; push; jumpi` fuses (`_eq.debugData()`,
                 // libevmasm/PeepholeOptimiser.cpp#L349). The removed `iszero` takes its origins
-                // with it; only its function events move.
+                // with it.
                 // NOTE: LLVM's InstCombine root always has a location, but ours can lack one where
                 // lowering left a gap. Then the compare computes the removed `iszero`'s value, so
                 // it takes that location.
@@ -519,22 +499,18 @@ impl Edit {
                 let comparison = instructions.last_mut().expect("matched comparison");
                 overwrite(comparison, opcode);
                 fill_debug_gap(&mut comparison.metadata, &iszero.metadata);
-                comparison.metadata.move_function_events(&iszero.metadata);
             }
             Self::ZeroLessIszero => {
                 // PUSH 0; LT; ISZERO => ISZERO
                 // NOTE: The comparison is removed and the surviving `iszero` keeps its own
-                // context. The removed push and `lt` take their origins with them; only their
-                // function events move.
+                // context. The removed push and `lt` take their origins with them.
                 // NOTE: LLVM's InstCombine root always has a location, but ours can lack one where
                 // lowering left a gap. Then the `iszero` computes the removed `lt`'s value, so it
                 // takes that location.
-                let pushed = instructions.remove(start);
+                instructions.remove(start);
                 let comparison = instructions.remove(start);
                 let iszero = instructions.last_mut().expect("matched ISZERO");
                 fill_debug_gap(&mut iszero.metadata, &comparison.metadata);
-                iszero.metadata.move_function_events(&pushed.metadata);
-                iszero.metadata.move_function_events(&comparison.metadata);
             }
             Self::ReloadStoredValue => {
                 instructions.swap(start, start + 3);
@@ -543,42 +519,30 @@ impl Edit {
                 instructions.truncate(start + 3);
             }
             Self::DropNonzeroTest => {
-                // The removed test takes its origins with it; its function events move to the
-                // branch's label.
-                let predicate = replacement_debug_info(&instructions[start..start + 2], 1);
+                // The removed test takes its origins with it.
                 instructions.drain(start..start + 2);
-                instructions[start].metadata.move_function_events(&predicate);
                 overwrite(&mut instructions[start + 1], op::JUMPI);
             }
             Self::EqIszeroJumpi => {
                 // The `sub` keeps the `eq`'s context, as solc's peephole optimizer gives it
                 // (`_eq.debugData()`, libevmasm/PeepholeOptimiser.cpp#L349). The removed `iszero`
-                // takes its origins with it; its function events move to the branch's label.
+                // takes its origins with it.
                 overwrite(&mut instructions[start], op::SUB);
-                let removed = instructions.remove(start + 1);
-                instructions[start + 1].metadata.move_function_events(&removed.metadata);
+                instructions.remove(start + 1);
                 overwrite(&mut instructions[start + 2], op::JUMPI);
             }
             Self::SwapPair { first, second } => {
-                let context = replacement_debug_info(&instructions[start..], 1);
+                let context = instructions[start + 1].metadata.clone();
                 for (inst, depth) in instructions[start..].iter_mut().zip([first, second]) {
                     *inst =
                         Instruction::stack_op(op::StackOp::Swap(depth)).with_debug_loc(&context);
                 }
                 instructions.truncate(start + 2);
-                // NOTE: Only the final stack state agrees with the old window.
-                let swap = &mut instructions[start + 1].metadata;
-                swap.move_function_events(&context);
             }
             Self::MoveConstantThroughSwaps => {
                 // SWAPn; SWAP1; PUSH c; binop
                 let window = &mut instructions[start..start + 6];
                 let root = window[2].metadata.clone();
-                // The swaps take their origins with them.
-                for swap in [0, 3, 4, 5] {
-                    let metadata = std::mem::take(&mut window[swap].metadata);
-                    window[2].metadata.move_function_events(&metadata);
-                }
                 window[..4].rotate_right(1);
                 // NOTE: The intermediate stack layouts differ even though the final one agrees.
                 for swap in &mut window[..2] {
@@ -588,10 +552,9 @@ impl Edit {
             }
             Self::OddWord => {
                 // NOTE: Every instruction of the replacement carries the source origin of the
-                // `OR` it replaces, as LLVM keeps the location of an expanded instruction, and
-                // the `SUB` takes its function events. Origins of the `ADD` and the push drop,
-                // as those of any removed operand do.
-                let context = replacement_debug_info(&instructions[start..], 3);
+                // `OR` it replaces, as LLVM keeps the location of an expanded instruction.
+                // Origins of the `ADD` and the push drop, as those of any removed operand do.
+                let context = instructions[start + 3].metadata.clone();
                 instructions.truncate(start);
                 instructions.extend([
                     Instruction::stack_op(op::StackOp::Dup(1)),
@@ -599,12 +562,9 @@ impl Edit {
                     Instruction::stack_op(op::StackOp::Swap(1)),
                     Instruction::opcode(op::SUB),
                 ]);
-                for inst in &mut instructions[start..start + 3] {
+                for inst in &mut instructions[start..start + 4] {
                     inst.metadata.preserve_debug_loc(&context);
                 }
-                let sub = &mut instructions[start + 3].metadata;
-                sub.preserve_debug_loc(&context);
-                sub.move_function_events(&context);
             }
         }
     }
@@ -635,13 +595,6 @@ fn instruction_sequence(instructions: &[Instruction]) -> impl fmt::Display + '_ 
         }
         Ok(())
     })
-}
-
-/// Keeps the replaced result's source context and the window's compatible function events.
-fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata {
-    let mut context = instructions[root].metadata.clone();
-    context.merge_function_events(instructions.iter().map(|inst| &inst.metadata));
-    context
 }
 
 /// Gives a survivor that lacks a location, with no explained kind, the location of the removed

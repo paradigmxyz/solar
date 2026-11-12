@@ -20,7 +20,7 @@
 -   push 0x4d2 !metadata(span=61..65, invoke=inner_third@61..90)
 -   push 0x162e !metadata(span=66..70)
 -   return !metadata(span=71..75)
-+   jump bb4 !metadata(span=36..40, invoke=inner_second@36..60)
++   jump bb4 !metadata(span=36..40)
 + bb2:
 +   push 0x4d2 !metadata(spans=[61..65, 91..95])
 +   push 0x162e !metadata(spans=[66..70, 96..100])

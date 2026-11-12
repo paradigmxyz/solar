@@ -1,0 +1,25 @@
+//@ compile-flags: -Zevm-ir-pipeline=share-reverts
+//@ filecheck:
+// Branches of other code now reach the shared empty revert, here the first one, whose whole body
+// is the function `callee`. Its entry would run on paths that do not call it, so it is unknown.
+@module ShareRevertsEntry
+
+// CHECK-LABEL: (after share-reverts)
+// CHECK-NOT: {{^[ +].*invoke}}
+// CHECK: {{^[ +].*}}stop
+bb0 [invoke=callee@1..10]:
+  push 0 !metadata(invoke=inner@1..10)
+  push 0
+  revert
+bb1:
+  push 1
+  iszero
+  push bb3
+  jumpi
+  jump bb2
+bb2:
+  push 0
+  push 0
+  revert
+bb3:
+  stop

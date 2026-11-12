@@ -6,7 +6,7 @@
 //! then redirects references and removes the temporary jump thunks. Block hotness does not affect
 //! equivalence; a hot redirect promotes the shared body so later layout keeps it on the hot path.
 //! The shared body inherits loop membership from every copy. Debug origins merge across the
-//! whole group, preserving known function events only when no copy conflicts. Debug metadata
+//! whole group, preserving function events only when every copy agrees on them. Debug metadata
 //! never participates in the body key or changes the redirects.
 //!
 //! The body key includes each instruction's `keep_with_next` flag, so the surviving copy cannot
@@ -20,8 +20,8 @@
 //! duplicate's temporary thunk without adding a transfer to any incoming path. Blocks entered by
 //! fallthrough remain with tail merging's separate profitability policy.
 //!
-//! Shared code keeps source origins but drops function events that disagree between paths. Debug
-//! metadata does not participate in candidate selection or prevent executable-code sharing.
+//! Shared code keeps source origins but drops function events that any path lacks or disagrees on.
+//! Debug metadata does not participate in candidate selection or prevent executable-code sharing.
 //! Bodies containing `PC` cannot share: equal opcodes at different positions return different
 //! values. The branch-folding equivalence query observes the same restriction.
 
@@ -95,6 +95,15 @@ impl EvmPass for TerminalDedup {
                 module.blocks[target].metadata.in_loop |= module.blocks[block].metadata.in_loop;
                 module.blocks[target].metadata.repeats |= module.blocks[block].metadata.repeats;
                 // duplicate terminal body -> jump canonical body
+                // NOTE: A copy that the survivor's entry covers is a thunk now, so its own entry
+                // would run a second time on the way to the survivor. A copy that the survivor
+                // lost the entry for keeps it: only its callers run the thunk.
+                if module.blocks[block].metadata.function_invoke
+                    == module.blocks[target].metadata.function_invoke
+                {
+                    module.blocks[block].metadata.function_invoke = None;
+                    module.blocks[block].metadata.lent_invoke = None;
+                }
                 module.blocks[block].instructions.clear();
                 let mut terminator = Terminator::new(TerminatorKind::Jump(target));
                 terminator.metadata.drop_debug_loc(DebugLocKind::Dropped);
@@ -113,6 +122,13 @@ fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
     label
         .merge_debug_locs(redirects.iter().map(|&(block, _)| &module.blocks[block].label_metadata));
     module.blocks[target].label_metadata = label;
+    // NOTE: The survivor's entry marks a call only for the paths of the copies that enter the same
+    // function. A copy that enters another function, or none, makes the shared entry ambiguous.
+    let invoke = module.blocks[target].metadata.function_invoke;
+    if redirects.iter().any(|&(block, _)| module.blocks[block].metadata.function_invoke != invoke) {
+        module.blocks[target].metadata.function_invoke = None;
+        module.blocks[target].metadata.lent_invoke = None;
+    }
     for index in 0..module.blocks[target].instructions.len() {
         let mut metadata = module.blocks[target].instructions[index].metadata.clone();
         let others =

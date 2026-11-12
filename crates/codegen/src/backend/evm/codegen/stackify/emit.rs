@@ -57,7 +57,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             let label = self.function_labels[&func_id];
             self.asm.define_external_entry_label(label);
             self.mark_debug_external_entry_label(label, func);
-            self.mark_debug_function_invoke(func);
+            self.mark_debug_function_invoke(func, true);
             self.comment_function_entry(func, false, false);
             self.emit_entry_free_memory_start(module, call_graph, func_id);
             self.emit_stackified_body(func_id, module, plan);
@@ -109,7 +109,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 &func.blocks[BlockId::ENTRY].label_metadata,
             );
         }
-        self.mark_debug_function_invoke(func);
+        self.mark_debug_function_invoke(func, true);
         self.comment_function_entry(func, false, true);
         self.body = Body::Constructor(constructor);
         let plan = plans[constructor].take().expect("constructor plan");
@@ -167,7 +167,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 None => self.asm.define_label(label),
             }
             self.mark_block_label_origin(label, &func.blocks[BlockId::ENTRY].label_metadata);
-            self.mark_debug_function_invoke(func);
+            self.mark_debug_function_invoke(func, false);
             self.comment_function_entry(func, false, false);
             self.body = Body::Internal(func_id);
             self.emit_stackified_body(func_id, module, plan);

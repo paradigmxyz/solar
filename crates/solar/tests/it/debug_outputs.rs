@@ -355,7 +355,7 @@ fn debug_activations_require_real_transfers() {
             let mut jump = "-";
             let mut internal_returns = 0;
             let mut returns = 0;
-            for (index, (instruction, entry)) in instructions.iter().zip(entries).enumerate() {
+            for (instruction, entry) in instructions.iter().zip(entries) {
                 let opcode = instruction["operation"]["mnemonic"].as_str().unwrap();
                 if let Some(marker) = entry.split(':').nth(3).filter(|marker| !marker.is_empty()) {
                     jump = marker;
@@ -366,21 +366,17 @@ fn debug_activations_require_real_transfers() {
                 internal_returns += usize::from(jump == "o");
                 let context = &instruction["context"];
                 if let Some(invoke) = context.get("invoke") {
-                    assert!(matches!(opcode, "JUMP" | "JUMPI"), "{invoke}");
                     assert_eq!(invoke["jump"], true);
-                    let pointer = &invoke["target"]["pointer"];
-                    assert_eq!(pointer["location"], "code");
-                    assert_eq!(pointer["length"], 1);
-                    let target = pointer["offset"].as_u64().expect("required internal jump target");
-                    assert!(instructions.iter().any(|inst| {
-                        inst["offset"] == target && inst["operation"]["mnemonic"] == "JUMPDEST"
-                    }));
-                    let argument =
-                        instructions[index - 1]["operation"]["arguments"][0].as_str().unwrap();
-                    assert_eq!(
-                        u64::from_str_radix(argument.strip_prefix("0x").unwrap(), 16).unwrap(),
-                        target
-                    );
+                    // The callee's first instruction holds the entry; only a `JUMPDEST` is a
+                    // jump target.
+                    if opcode == "JUMPDEST" {
+                        let pointer = &invoke["target"]["pointer"];
+                        assert_eq!(pointer["location"], "code");
+                        assert_eq!(pointer["length"], 1);
+                        assert_eq!(pointer["offset"], instruction["offset"]);
+                    } else {
+                        assert!(invoke.get("target").is_none(), "{invoke}");
+                    }
                 }
                 if context.get("return").is_some() {
                     returns += 1;

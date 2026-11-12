@@ -6,7 +6,8 @@
 
 use crate::{
     backend::evm::{
-        ir::{BlockId, Instruction, Module, PushValue, TerminatorKind},
+        DebugFunction, DebugFunctionExit,
+        ir::{BlockId, Instruction, Metadata, Module, PushValue, TerminatorKind},
         op,
     },
     target::Target,
@@ -195,6 +196,54 @@ pub(super) fn count_block_references(module: &Module, references: &mut IndexVec<
         }
         if let Some(term) = &block.terminator {
             term.kind.visit_targets(|target| references[target] += 1);
+        }
+    }
+}
+
+/// The function events of a straight-line run of instructions that a rewrite replaces.
+///
+/// Every instruction of the replacement runs exactly once, in order, wherever the rewrite places
+/// the events, so [`Self::place`] puts the invoke on the first instruction, which starts the
+/// callee, and the exit on the last, which leaves it.
+pub(super) struct RunEvents {
+    invoke: Option<DebugFunction>,
+    exit: Option<DebugFunctionExit>,
+}
+
+impl RunEvents {
+    /// Collects the events of `run`. Two different invokes, or two different exits, in one run
+    /// are ambiguous, so the run keeps neither.
+    pub(super) fn of<'a>(run: impl IntoIterator<Item = &'a Metadata> + Clone) -> Self {
+        fn agreed<T: Eq>(mut events: impl Iterator<Item = T>) -> Option<T> {
+            let first = events.next()?;
+            events.all(|event| event == first).then_some(first)
+        }
+        Self {
+            invoke: agreed(run.clone().into_iter().filter_map(Metadata::function_invoke)),
+            exit: agreed(run.into_iter().filter_map(Metadata::function_exit)),
+        }
+    }
+
+    /// The function entry of the run, if its invokes agree.
+    pub(super) fn invoke(&self) -> Option<DebugFunction> {
+        self.invoke
+    }
+
+    /// Replaces the function events of `replacement`, which takes the run's place, with the run's.
+    /// An empty replacement drops them: no instruction is left to carry them.
+    pub(super) fn place(self, replacement: &mut [Instruction]) {
+        for inst in replacement.iter_mut() {
+            inst.metadata.drop_function_events();
+        }
+        if let Some(function) = self.invoke
+            && let Some(first) = replacement.first_mut()
+        {
+            first.metadata.set_function_invoke(function);
+        }
+        if let Some(exit) = self.exit
+            && let Some(last) = replacement.last_mut()
+        {
+            last.metadata.set_function_exit(exit);
         }
     }
 }

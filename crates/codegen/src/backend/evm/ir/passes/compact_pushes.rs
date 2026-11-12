@@ -27,7 +27,7 @@
 //! merging and outlining profit from the concrete instruction shape. Push reordering and
 //! assembly-only lowering use the same recipe API for constants they inspect or introduce later.
 
-use super::EvmPass;
+use super::{EvmPass, utils::RunEvents};
 use crate::{
     backend::evm::{
         ir::{Instruction, Metadata, Module},
@@ -96,7 +96,9 @@ fn compact_pushes(gcx: Gcx<'_>, module: &mut Module) -> bool {
         for (at, inst) in scratch.drain(..).enumerate() {
             if let Some((_, materialization)) = pending.next_if(|(index, _)| *index == at) {
                 // push value => selected_recipe(value)
+                let first = block.instructions.len();
                 materialize(&mut block.instructions, materialization, &inst.metadata);
+                RunEvents::of([&inst.metadata]).place(&mut block.instructions[first..]);
                 changed = true;
             } else {
                 block.instructions.push(inst);
