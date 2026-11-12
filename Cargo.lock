@@ -4369,7 +4369,6 @@ dependencies = [
  "bitflags 2.13.2",
  "bs58",
  "clap",
- "indexmap 2.14.2",
  "libc",
  "mimalloc",
  "rayon",

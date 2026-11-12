@@ -187,6 +187,43 @@ bb2:
             any(record["status"] == "verified" for record in self.records())
         )
 
+    def test_drifting_cycle_and_escaping_label_have_unknown_heights(self):
+        cases = {
+            "cycle": """bb0:
+  jump bb1
+bb1:
+  push 42
+  push 1
+  pop
+  jump bb1
+""",
+            "escape": """bb0:
+  push bb2
+  push 0
+  mstore
+  stop
+bb2 [stack=0]:
+  push 1
+  pop
+  stop
+""",
+        }
+        for name, body in cases.items():
+            with self.subTest(name=name):
+                source = self.directory / f"{name}.evmir"
+                source.write_text("@module Heights\n" + body)
+                result = self.run_command(
+                    [
+                        SOLAR,
+                        source,
+                        "-Ogas",
+                        "-Zevm-ir-pipeline=peephole",
+                        f"-Zsolar-tv={self.audits / name}",
+                    ]
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("incoming EVM stack height is unknown", result.stderr)
+
     def test_non_dense_successors_keep_their_identity(self):
         source = """@module Labels
 bb10 [stack=1]:

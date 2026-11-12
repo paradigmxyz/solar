@@ -61,7 +61,10 @@ fn counterexample_stops_pipeline_and_replays() {
     assert_data_eq!(
         String::from_utf8(replay.stdout)
             .unwrap()
-            .replace(&pair.canonicalize().unwrap().display().to_string(), "PAIR")
+            .replace(
+                &RealFileLoader.canonicalize_path(&pair).unwrap().display().to_string(),
+                "PAIR"
+            )
             .replace(&pair.display().to_string(), "PAIR")
             .replace(&std::env::var("SOLAR_TV").unwrap(), "CHECKER")
             .replace(
@@ -212,7 +215,8 @@ fn solidity_function_counterexample_stops_pipeline() {
     });
     let pair = pairs(audit.path()).next().unwrap();
     let report: serde_json::Value =
-        serde_json::from_slice(&fs::read(pair.join("result.json")).unwrap()).unwrap();
+        serde_json::from_str(&RealFileLoader.load_file(&pair.join("result.json")).unwrap())
+            .unwrap();
     assert_data_eq!(report["status"].as_str().unwrap(), str!["counterexample"]);
     assert_data_eq!(report["region"]["name"].as_str().unwrap(), str!["helper"]);
     assert_data_eq!(report["evidence"].as_str().unwrap(), str!["kernel-and-rust-replay"]);

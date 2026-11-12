@@ -4,7 +4,10 @@
 //! directory per changed pair isolates concurrent jobs and repeated passes. Successful checks
 //! remove their snapshots. Other outcomes retain both inputs and the checker response for replay.
 
-use solar_interface::Result;
+use solar_interface::{
+    Result,
+    source_map::{FileLoader, RealFileLoader},
+};
 use solar_sema::Gcx;
 use std::{
     env,
@@ -115,10 +118,12 @@ impl<'a> Snapshot<'a> {
                 Ok(output) => {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    let parsed = fs::read(pair.path().join("result.json"))
+                    // The checker writes a real artifact, outside virtual Solidity sources.
+                    let parsed = RealFileLoader
+                        .load_file(&pair.path().join("result.json"))
                         .map_err(|error| error.to_string())
-                        .and_then(|bytes| {
-                            serde_json::from_slice::<serde_json::Value>(&bytes)
+                        .and_then(|text| {
+                            serde_json::from_str::<serde_json::Value>(&text)
                                 .map_err(|error| error.to_string())
                         })
                         .and_then(|value| {
