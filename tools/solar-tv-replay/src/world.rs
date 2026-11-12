@@ -2,7 +2,7 @@
 //!
 //! Rebuilds the original IR through the compiler rather than accepting the Python importer's
 //! bytecode or instruction recipe. The existing evm2 engine executes nested calls, constructors,
-//! precompiles, refunds and rollback. A custom system-message handler avoids transaction fees,
+//! precompiles, refunds and rollback. A custom entry handler avoids transaction fees,
 //! nonce changes and intrinsic gas; an inspector supplies the explicit entry stack and budget.
 
 use super::Request;
@@ -11,15 +11,16 @@ use alloy_primitives::{Address, Bytes, TxKind, U256, hex};
 use evm2::{
     BaseEvmTypes, Evm, Precompiles, SpecId, TxResult,
     bytecode::Bytecode,
-    env::BlockEnv,
-    ethereum::TxEnvelope,
-    evm::{AccountInfo, InMemoryDB, SystemTx, inspector::Inspector},
-    interpreter::{Gas, InstrStop, Interpreter},
+    ethereum::{TxEnvelope, execute_initial_frame, prepare_initial_frame, warm_base_accounts},
+    evm::{AccountInfo, InMemoryDB, inspector::Inspector},
+    interpreter::{Gas, GasTracker, InstrStop, Interpreter},
     registry::{TxRegistry, TxRequest},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{cell::RefCell, collections::BTreeMap, fs, process::Command, rc::Rc};
+
+mod context;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -27,6 +28,12 @@ pub(super) struct Input {
     compiler: String,
     address: String,
     caller: String,
+    origin: String,
+    gas_price: String,
+    chain_id: String,
+    blob_hashes: Vec<String>,
+    warm_addresses: Vec<String>,
+    block: context::Block,
     gas: u64,
     #[serde(rename = "static")]
     is_static: bool,
@@ -145,6 +152,7 @@ pub(super) fn spec(text: &str) -> Result<SpecId, String> {
         "cancun" => SpecId::CANCUN,
         "prague" => SpecId::PRAGUE,
         "osaka" => SpecId::OSAKA,
+        "amsterdam" => SpecId::AMSTERDAM,
         _ => return Err("unsupported explicit-world fork".into()),
     })
 }
@@ -155,6 +163,9 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         || input.calldata.len() > 65536
         || input.accounts.len() > 33
         || input.warm_slots.len() > 64
+        || input.warm_addresses.len() > 64
+        || input.blob_hashes.len() > 64
+        || input.block.hashes.len() > 256
         || input
             .accounts
             .iter()
@@ -170,6 +181,8 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         let root = address(request, &input.address)?;
         let caller = address(request, &input.caller)?;
         let code = code(request, input, text)?;
+        let block = context::block(request, input)?;
+        let environment = context::transaction(request, input)?;
         let mut database = InMemoryDB::default();
         for account in &input.accounts {
             let addr = address(request, &account.address)?;
@@ -179,7 +192,11 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
                 AccountInfo::default()
                     .with_nonce(account.nonce)
                     .with_balance(word(request, &account.balance)?)
-                    .with_code(Bytecode::new_legacy(Bytes::copy_from_slice(bytes))),
+                    .with_code(if bytes.len() == 23 && bytes.starts_with(&[0xef, 0x01, 0x00]) {
+                        Bytecode::new_eip7702(Address::from_slice(&bytes[3..]))
+                    } else {
+                        Bytecode::new_legacy(Bytes::copy_from_slice(bytes))
+                    }),
             );
             for (key, value) in &account.storage {
                 database.insert_account_storage(
@@ -189,6 +206,17 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
                 );
             }
         }
+        // Missing history is explicitly zero in the fixture. EmptyDB's synthetic hashes
+        // are unsuitable here: seed the complete admissible BLOCKHASH window first.
+        let current = word(request, &input.block.number)?;
+        for distance in 1..=256u64 {
+            if let Some(number) = current.checked_sub(U256::from(distance)) {
+                database.insert_block_hash(&number, &Default::default());
+            }
+        }
+        for (number, hash) in &input.block.hashes {
+            database.insert_block_hash(&word(request, number)?, &word(request, hash)?.into());
+        }
         // The observation is the complete fixture world, including untouched accounts and
         // slots. Seed the overlay as well as its backing database so lazy reads cannot omit
         // those cells from the final snapshot.
@@ -196,6 +224,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         let spec = spec(&request.evm_version)?;
         let mut registry = TxRegistry::<BaseEvmTypes, TxResult>::new();
         let data = Bytes::copy_from_slice(&input.calldata);
+        let budget = input.gas;
         registry.register(
             0,
             |tx| match tx {
@@ -203,24 +232,33 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
                 _ => None,
             },
             move |request: TxRequest<'_, '_, BaseEvmTypes, TxLegacy>| {
-                request.host.warm_precompiles();
-                request.host.state_mut().prewarm(&caller);
-                if spec >= SpecId::SHANGHAI {
-                    request.host.state_mut().prewarm(&Address::ZERO);
-                }
-                request
-                    .host
-                    .execute_system_call(SystemTx::new(root, data.clone()).with_caller(caller))
+                warm_base_accounts(request.host, caller, TxKind::Call(root));
+                let mut gas = GasTracker::new(budget);
+                let frame = prepare_initial_frame(
+                    request.host,
+                    caller,
+                    0,
+                    TxKind::Call(root),
+                    &data,
+                    U256::ZERO,
+                    &mut gas,
+                )?;
+                let result =
+                    execute_initial_frame(request.host, &environment, frame, &mut gas, budget, 0);
+                Ok(TxResult::<BaseEvmTypes> {
+                    status: result.stop.is_success(),
+                    stop: result.stop,
+                    output: result.output,
+                    ..Default::default()
+                })
             },
         );
-        let mut evm = Evm::<BaseEvmTypes>::new(
-            spec,
-            BlockEnv::<BaseEvmTypes>::default(),
-            registry,
-            database,
-            Precompiles::base(spec),
-        );
+        let mut evm =
+            Evm::<BaseEvmTypes>::new(spec, block, registry, database, Precompiles::base(spec));
         evm.overlay_db_mut().cache = initial;
+        for addr in &input.warm_addresses {
+            evm.state_mut().prewarm(&address(request, addr)?);
+        }
         for (addr, slot) in &input.warm_slots {
             evm.state_mut().prewarm_storage_slot(&address(request, addr)?, word(request, slot)?);
         }
