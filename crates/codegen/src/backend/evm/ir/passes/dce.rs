@@ -20,6 +20,7 @@
 
 use super::{EvmPass, block_layout::terminator_kind, utils::RunEvents};
 use crate::backend::evm::{
+    DebugFunction,
     ir::{Block, BlockId, Instruction, Module, Terminator, TerminatorKind},
     op::{self, StackOp},
 };
@@ -49,7 +50,7 @@ fn cleanup_dead_stack_tails(module: &mut Module) -> bool {
             .as_ref()
             .and_then(|term| halting_terminal_tail_range(&block.instructions, term))
         {
-            block.instructions.drain(range);
+            remove_instructions(block, range);
             changed = true;
         }
     }
@@ -60,7 +61,7 @@ fn cleanup_dead_stack_tails(module: &mut Module) -> bool {
             && ignored_entries[*target]
             && let Some(start) = discardable_tail_start(&block.instructions)
         {
-            block.instructions.truncate(start);
+            remove_instructions(block, start..block.instructions.len());
             changed = true;
         }
     }
@@ -127,14 +128,20 @@ fn eliminate_dead_stack_copies(module: &mut Module, evm_version: EvmVersion) -> 
     let mut edits = Vec::new();
     let mut scratch = Vec::new();
     for block in &mut module.blocks {
-        changed |=
-            eliminate_in_block(&mut block.instructions, &mut edits, &mut scratch, evm_version);
+        changed |= eliminate_in_block(
+            &mut block.instructions,
+            block.terminator.as_mut(),
+            &mut edits,
+            &mut scratch,
+            evm_version,
+        );
     }
     changed
 }
 
 fn eliminate_in_block(
     instructions: &mut Vec<Instruction>,
+    mut terminator: Option<&mut Terminator>,
     edits: &mut Vec<Edit>,
     scratch: &mut Vec<Instruction>,
     evm_version: EvmVersion,
@@ -171,7 +178,12 @@ fn eliminate_in_block(
         }
 
         changed = true;
-        apply_edits(instructions, edits, scratch);
+        if let Some(function) = apply_edits(instructions, edits, scratch)
+            && let Some(terminator) = terminator.as_deref_mut()
+            && terminator.metadata.function_invoke().is_none()
+        {
+            terminator.metadata.set_function_invoke(function);
+        }
     }
 }
 
@@ -386,11 +398,13 @@ fn push_swap(ops: &mut Replacement, depth: usize) {
     }
 }
 
+/// Applies `edits`, and returns the entry of deleted instructions that no instruction after them
+/// in the block can take.
 fn apply_edits(
     instructions: &mut Vec<Instruction>,
     edits: &[Edit],
     scratch: &mut Vec<Instruction>,
-) {
+) -> Option<DebugFunction> {
     std::mem::swap(instructions, scratch);
     let mut edits = edits.iter().peekable();
     // The entry of the deleted instructions before the next one that runs, which that one takes.
@@ -424,6 +438,26 @@ fn apply_edits(
             }
             (carried, ambiguous) = (None, false);
         }
+    }
+    carried.filter(|_| !ambiguous)
+}
+
+/// Deletes `range` of `block`. The next instruction that runs, or the terminator, takes the
+/// function entry of the deleted instructions.
+fn remove_instructions(block: &mut Block, range: std::ops::Range<usize>) {
+    let invoke =
+        RunEvents::of(block.instructions[range.clone()].iter().map(|inst| &inst.metadata)).invoke();
+    let start = range.start;
+    block.instructions.drain(range);
+    let next = match block.instructions.get_mut(start) {
+        Some(inst) => Some(&mut inst.metadata),
+        None => block.terminator.as_mut().map(|terminator| &mut terminator.metadata),
+    };
+    if let Some(function) = invoke
+        && let Some(next) = next
+        && next.function_invoke().is_none()
+    {
+        next.set_function_invoke(function);
     }
 }
 
