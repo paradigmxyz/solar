@@ -39,7 +39,10 @@
 //! word at `4 + 32 * i`. It also reads calldata, persistent and transient storage, and the context
 //! values its host provides, and records the logs it emits. It makes no calls, so its return data
 //! is always empty. Returning from the dispatch entry stops the transaction, as the backend's
-//! `STOP` does.
+//! `STOP` does. Direct semantic state replay can also execute external messages through
+//! [`Host::message`], with sufficient caller gas and explicit child budgets for creation.
+//! The host owns the resulting journal and outer rollback. Return data is shared across
+//! internal activations; a child message replaces it, including failed and empty calls.
 //!
 //! # Limits
 //!
@@ -167,6 +170,8 @@ pub(crate) struct Effects {
     pub(crate) transient: FxHashMap<U256, U256>,
     /// The events it logged, in order.
     pub(crate) logs: Vec<Log>,
+    /// Return data shared across internal activations, not private SSA locals.
+    pub(crate) return_data: Vec<u8>,
 }
 
 /// Answers what a run reads from its context and cannot know itself.
@@ -176,15 +181,29 @@ pub trait Host {
     /// not model it.
     fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256>;
 
-    /// Returns the value a persistent storage slot of the running contract holds when the run
-    /// starts, which for a transaction is its value before the transaction.
+    /// Returns the host's current persistent value, overlaid by unpublished local writes.
+    /// A message host publishes pending writes before child entry, so subsequent reads see
+    /// changes committed by that child. Without messages this is the initial value.
     fn storage(&mut self, slot: U256) -> U256;
 
-    /// Returns the value a transient storage slot holds when the run starts: zero for a
-    /// transaction, which starts with empty transient storage.
+    /// Returns the host's current transient value, overlaid by unpublished writes.
+    /// Without messages this is its value when the run starts: zero for a transaction.
     fn transient(&mut self, slot: U256) -> U256 {
         let _ = slot;
         U256::ZERO
+    }
+
+    /// Executes a real child message after publishing tentative caller changes. The caller
+    /// has sufficient gas to forward the requested CALL budget without EIP-150 clipping;
+    /// creation's child gas is an explicit host boundary input. Implementations own the
+    /// resulting world and outer rollback, and must not substitute an arbitrary result.
+    fn message(
+        &mut self,
+        message: ExternalMessage<'_>,
+        pending: PendingChanges<'_>,
+    ) -> Result<MessageOutput, &'static str> {
+        let _ = (message, pending);
+        Err("external messages are not modeled by this host")
     }
 
     /// Returns where the free memory pointer starts: the heap start the backend's layout chose,
@@ -197,6 +216,33 @@ pub trait Host {
     fn is_static(&self) -> bool {
         false
     }
+}
+
+/// A semantic MIR message; no caller bytecode or stack protocol is synthesized.
+#[derive(Debug)]
+pub enum ExternalMessage<'a> {
+    /// CALL, CALLCODE, DELEGATECALL or STATICCALL with explicit requested gas.
+    Call { opcode: u8, gas: U256, address: U256, value: U256, input: &'a [u8] },
+    /// CREATE or CREATE2; the host supplies the explicit child budget.
+    Create { value: U256, salt: Option<U256>, initcode: &'a [u8] },
+}
+
+/// Tentative caller changes since the last message, published before entering its child.
+pub struct PendingChanges<'a> {
+    /// Current persistent writes in the caller's storage context.
+    pub storage: &'a [(U256, U256)],
+    /// Current transient writes in the caller's storage context.
+    pub transient: &'a [(U256, U256)],
+    /// Ordered caller logs preceding the message.
+    pub logs: &'a [Log],
+}
+
+/// A completed child message, with full return/revert data and its scalar result.
+pub struct MessageOutput {
+    /// Success flag for calls, or created address (zero on failure).
+    pub value: U256,
+    /// Empty on exceptions, complete output on success or revert.
+    pub return_data: Vec<u8>,
 }
 
 /// An event a transaction logged.
@@ -933,6 +979,20 @@ impl<'a> Run<'_, 'a, '_> {
         {
             return ControlFlow::Break(Outcome::Invalid);
         }
+        if self.semantic.is_some()
+            && self.world.is_some()
+            && matches!(
+                opcode,
+                op::CALL
+                    | op::CALLCODE
+                    | op::DELEGATECALL
+                    | op::STATICCALL
+                    | op::CREATE
+                    | op::CREATE2
+            )
+        {
+            return ControlFlow::Continue(Some(self.external_message(opcode, operands)?));
+        }
         // Operations on memory come first, while no borrow of the world is live.
         match (opcode, operands) {
             (op::CALLDATACOPY, &[dest, offset, len]) => {
@@ -945,6 +1005,19 @@ impl<'a> Run<'_, 'a, '_> {
                     .map(|index| calldata_byte(calldata, offset, index))
                     .collect::<Vec<_>>();
                 limit(self.memory.write(dest, &bytes))?;
+                return ControlFlow::Continue(None);
+            }
+            (op::RETURNDATACOPY, &[destination, offset, len]) => {
+                let Some(world) = &self.world else {
+                    return ControlFlow::Break(unsupported());
+                };
+                let data = &world.effects.return_data;
+                if offset > U256::from(data.len()) || len > U256::from(data.len()) - offset {
+                    return ControlFlow::Break(Outcome::ReturndataOutOfBounds);
+                }
+                let bytes = data[offset.to::<usize>()..(offset + len).to::<usize>()].to_vec();
+                self.burn_words(len)?;
+                limit(self.memory.write(destination, &bytes))?;
                 return ControlFlow::Continue(None);
             }
             (op::LOG0..=op::LOG4, &[offset, len, ref topics @ ..]) => {
@@ -986,14 +1059,8 @@ impl<'a> Run<'_, 'a, '_> {
                 world.effects.transient.insert(slot, value);
                 None
             }
-            // The transaction makes no calls, so its return data stays empty.
-            (op::RETURNDATASIZE, &[]) if transaction.is_some() => Some(U256::ZERO),
-            // Copying past the end of the return data halts.
-            (op::RETURNDATACOPY, &[_, offset, len]) if transaction.is_some() => {
-                if !offset.is_zero() || !len.is_zero() {
-                    return ControlFlow::Break(Outcome::ReturndataOutOfBounds);
-                }
-                None
+            (op::RETURNDATASIZE, &[]) if transaction.is_some() => {
+                Some(U256::from(world.effects.return_data.len()))
             }
             _ if HOST_OPCODES.contains(&opcode) => match world.host.read(opcode, operands) {
                 Some(word) => Some(word),
@@ -1001,6 +1068,74 @@ impl<'a> Run<'_, 'a, '_> {
             },
             _ => return ControlFlow::Break(unsupported()),
         })
+    }
+
+    /// Evaluates external MIR operands directly. Memory expansion belongs to the caller;
+    /// child execution and journal commit/rollback belong to the explicitly supplied host.
+    fn external_message(&mut self, opcode: u8, args: &[U256]) -> ControlFlow<Outcome, U256> {
+        let world = self.world.as_ref().expect("external messages require a host");
+        let creation = matches!(opcode, op::CREATE | op::CREATE2);
+        let explicit_value = matches!(opcode, op::CALL | op::CALLCODE);
+        let value = if creation {
+            args[0]
+        } else if explicit_value {
+            args[2]
+        } else {
+            U256::ZERO
+        };
+        if world.host.is_static() && (creation || opcode == op::CALL && !value.is_zero()) {
+            return ControlFlow::Break(Outcome::Invalid);
+        }
+        let start = if creation {
+            1
+        } else if explicit_value {
+            3
+        } else {
+            2
+        };
+        let (offset, size) = (args[start], args[start + 1]);
+        if creation
+            && self.semantic.is_some_and(|version| version >= EvmVersion::Shanghai)
+            && size > U256::from(49152)
+        {
+            return ControlFlow::Break(Outcome::Invalid);
+        }
+        let input = limit(self.memory.read(offset, size))?;
+        self.burn_words(size)?;
+        let output = if creation {
+            None
+        } else {
+            let (offset, size) = (args[start + 2], args[start + 3]);
+            limit(self.memory.access(offset, size))?;
+            Some((offset, size))
+        };
+        let message = if creation {
+            ExternalMessage::Create {
+                value,
+                salt: (opcode == op::CREATE2).then(|| args[3]),
+                initcode: &input,
+            }
+        } else {
+            ExternalMessage::Call { opcode, gas: args[0], address: args[1], value, input: &input }
+        };
+        let world = self.world.as_mut().expect("external messages require a host");
+        let storage = world.effects.storage.iter().map(|(&k, &v)| (k, v)).collect::<Vec<_>>();
+        let transient = world.effects.transient.iter().map(|(&k, &v)| (k, v)).collect::<Vec<_>>();
+        let pending =
+            PendingChanges { storage: &storage, transient: &transient, logs: &world.effects.logs };
+        let result = match world.host.message(message, pending) {
+            Ok(result) => result,
+            Err(reason) => return ControlFlow::Break(Outcome::Unsupported(reason)),
+        };
+        world.effects.storage.clear();
+        world.effects.transient.clear();
+        world.effects.logs.clear();
+        if let Some((offset, size)) = output {
+            let copied = result.return_data.len().min(size.to::<usize>());
+            limit(self.memory.write(offset, &result.return_data[..copied]))?;
+        }
+        world.effects.return_data = result.return_data;
+        ControlFlow::Continue(result.value)
     }
 
     /// Copies `len` bytes of the constant data at `data` to memory at `dest`.

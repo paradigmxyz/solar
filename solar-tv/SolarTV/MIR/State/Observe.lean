@@ -18,6 +18,9 @@ structure Observation where
   memory : Option (List Byte)
   accounts : List Account
   logs : List World.Log
+  returnData : List Byte
+  warmAddresses : List Address
+  warmSlots : List (Address × Word)
   deriving DecidableEq
 
 def observe (result : Result) : Observation :=
@@ -28,8 +31,13 @@ def observe (result : Result) : Observation :=
     | .invalid => ("exception",[],[],none,false)
   let accounts := result.world.accounts.map fun a => {a with
     storage := normalizedSlots a.storage
-    transient := if keepTransient then normalizedSlots a.transient else []}
-  ⟨status,values,data,memory,ordered (fun a b => a.address.ule b.address) accounts,result.world.logs⟩
+    transient := if keepTransient then normalizedSlots a.transient else []
+    created := keepTransient && a.created
+    destroyed := keepTransient && a.destroyed}
+  ⟨status,values,data,memory,ordered (fun a b => a.address.ule b.address) accounts,result.world.logs,
+    if keepTransient then result.returnData else [],
+    if keepTransient then ordered (fun a b => a.ule b) result.world.warmAddresses.eraseDups else [],
+    if keepTransient then ordered (fun a b => if a.1 == b.1 then a.2.ule b.2 else a.1.ule b.1) result.world.warmSlots.eraseDups else []⟩
 
 def equivalent (before after : Run) : Prop :=
   match before,after with | .ok a,.ok b => observe a = observe b | _,_ => False
@@ -50,11 +58,14 @@ def describe (result : Run) : String :=
   | .ok result =>
     let o := observe result
     (Lean.Json.mkObj [
+      ("returndata",bytesJson o.returnData),
+      ("warm_addresses",.arr (o.warmAddresses.map (fun a => .str (toString a.toNat))).toArray),
+      ("warm_slots",.arr (o.warmSlots.map (fun (a,k) => Lean.Json.arr #[.str (toString a.toNat),wordJson k])).toArray),
       ("outcome",.str o.status), ("values",.arr (o.values.map wordJson).toArray),
       ("data",bytesJson o.data), ("memory",o.memory.map bytesJson |>.getD .null),
       ("accounts",.arr (o.accounts.map (fun a => Lean.Json.arr #[
         .str (toString a.address.toNat),.str (toString a.nonce),wordJson a.balance,
-        bytesJson a.code,slotsJson a.storage,slotsJson a.transient])).toArray),
+        bytesJson a.code,slotsJson a.storage,slotsJson a.transient,Lean.toJson a.created,Lean.toJson a.destroyed])).toArray),
       ("logs",.arr (o.logs.map (fun l => Lean.Json.arr #[
         .str (toString l.address.toNat),.arr (l.topics.map wordJson).toArray,bytesJson l.data])).toArray)
     ]).compress

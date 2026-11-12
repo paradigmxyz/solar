@@ -106,7 +106,11 @@ def record(
                     "semantic effects; sufficient gas; no physical EVM gas or stack-layout claim",
                     "direct scalar internal calls and tail calls; model call depth limit 128",
                     "explicit ordered FMP allocation; invalid infallible bumps unsupported",
-                    "external calls, aggregates and backend-layout operations unsupported",
+                    "external CALL assumes sufficient caller gas to avoid EIP-150 clipping",
+                    "CREATE child gas is supplied by explicit creation_gas boundary inputs",
+                    "child bytecode executes with fork-specific gas; gas failure is not assumed away",
+                    "returndata, account lifetime and access warmth remain live at internal returns",
+                    "MIR root bytecode introspection/reentry, aggregates and backend layouts unsupported",
                 ]
             )
         else:

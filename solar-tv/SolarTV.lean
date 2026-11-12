@@ -17,6 +17,7 @@ import SolarTV.State.Calls
 import SolarTV.KeccakSafety
 import SolarTV.WordSafety
 
+import SolarTV.EVMIR.State.Normalize
 import SolarTV.EVMIR.State.Observe
 import SolarTV.EVMIR.State.Safety
 import SolarTV.EVMIR.Precompiles.Observe
@@ -114,3 +115,7 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.MIR.State.run_next' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.State.run_next
+
+/-- info: 'SolarTV.MIR.State.live_return_data_is_observable' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.live_return_data_is_observable

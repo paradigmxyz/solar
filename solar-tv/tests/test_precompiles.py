@@ -442,7 +442,7 @@ class PrecompileEntryTests(unittest.TestCase):
             )
         return "\n".join([*body, f"push {len(payload)}", "push 0", "return"])
 
-    def test_sha_and_curve_calls_and_mir_unsupported_boundary(self):
+    def test_sha_and_curve_calls_include_direct_mir(self):
         fixture = {"calldata": "0x616263"}
         self.pair(
             self.invoke(2),
@@ -458,7 +458,7 @@ class PrecompileEntryTests(unittest.TestCase):
         )
         mir = "v0 = call 300000, 2, 0, 0, 0, 0, 32\nreturndata 0, 32"
         expected = int.from_bytes(hashlib.sha256(b"").digest(), "big")
-        self.pair(mir, f"mstore 0, {expected}\nreturndata 0, 32", layer="mir", status=2)
+        self.pair(mir, f"mstore 0, {expected}\nreturndata 0, 32", layer="mir")
         self.pair(self.invoke(6, output=64), self.result(bytes(64)))
         self.pair(
             self.invoke(11, output=128),

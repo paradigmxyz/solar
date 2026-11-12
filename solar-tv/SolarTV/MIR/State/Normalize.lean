@@ -21,7 +21,7 @@ simproc_decl reduceRun (run _ _ _ _) := fun expression => do
   unless cursor.isAppOf ``Cursor.mk do return .continue
   for index in [0,1,2] do
     unless (← getNatValue? (← withTransparency .default (whnf cursor.getAppArgs[index]!))).isSome do return .continue
-  let step ← mkAppM ``transition #[args[1]!,args[2]!,args[3]!]
+  let step ← mkAppM ``transition #[toExpr (fuel - 1),args[1]!,args[2]!,args[3]!]
   let reduction ← simp step
   let reduced ← whnf reduction.expr
   let proof ← reduction.getProof

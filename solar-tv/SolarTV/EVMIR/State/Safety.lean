@@ -14,14 +14,15 @@ theorem unsupported_not_equivalent (a b : Config) (policy : Policy)
 
 theorem reverted_entry_restores_world (fuel : Nat) (cfg : Config)
     (world changed : Journal) (frame : Frame) (data : List Byte) (gas : Nat)
-    (execution : run fuel cfg world frame = .ok ⟨.reverted, data, changed, gas⟩) :
-    execute fuel cfg world frame = .ok ⟨.reverted, data, world, gas⟩ := by
+    (work : Nat)
+    (execution : run fuel cfg world frame = .ok ⟨.reverted, data, changed, gas, work⟩) :
+    execute fuel cfg world frame = .ok ⟨.reverted, data, world, gas, work⟩ := by
   simp only [execute, execution]
   rfl
 
 theorem exception_cannot_refine_to_success (cfg : Config) (world : Journal) :
-    ¬ equivalent cfg cfg .refine (.ok ⟨.exception, [], world, 0⟩)
-      (.ok ⟨.success, [], world, 0⟩) := by
+    ¬ equivalent cfg cfg .refine (.ok ⟨.exception, [], world, 0, 0⟩)
+      (.ok ⟨.success, [], world, 0, 0⟩) := by
   simp [equivalent, observe]
 
 -- EIP-1014, example 0: https://eips.ethereum.org/EIPS/eip-1014#examples
