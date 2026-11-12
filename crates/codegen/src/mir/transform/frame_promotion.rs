@@ -11,13 +11,24 @@
 //! - reject escaped addresses, partial stores, dynamic memory aliases, calls, returndata
 //!   observations, and ABI return-buffer overlap
 //! - preserve SSA values across control flow with explicit phi insertion
+//!
+//! With `-Zcheck-analyses`, the pass rewrites every use of a promoted load as without it but keeps
+//! the slot's memory traffic: each store stays, each load stays as the evidence of the record
+//! `assume eq frame_slot_promotion, load, value` at the end of its block, and a pointer load reads
+//! the slot again as a word next to the cast that replaces it. The shadow is the slot itself, which
+//! the frame layout keeps reserved because the kept accesses still name it: a separate scratch copy
+//! would hold the promoted value whatever the program wrote to the slot, so it could not catch the
+//! write a wrong escape or alias answer missed, which the kept load reads. A later run never
+//! promotes a load only records read. SROA shares this rewrite for the fields of memory objects
+//! (`assume eq sroa, ...`).
 
 use crate::mir::{
-    BlockId, Callee, FrameMode, Function, InstId, InstKind, Instruction, MirType, Module,
-    PtrLocation, Terminator, ValueId,
+    AssumePredicate, BlockId, Callee, FactSource, FrameMode, Function, InstId, InstKind,
+    Instruction, MirType, Module, PtrLocation, Terminator, ValueId,
     analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     memory::EvmMemoryLayout,
     pass::{MirPass, run_function_pass},
+    transform::lower_assumes::{NonRecordReads, record_fact, should_check_analyses},
     utils as mir_utils,
 };
 use solar_data_structures::{
@@ -35,11 +46,12 @@ impl MirPass for FrameSlotPromotion {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| FrameSlotPromoter::run(func))
+        let record = should_check_analyses(gcx.sess);
+        run_function_pass(module, analyses, |func, _| FrameSlotPromoter::run(func, record))
     }
 }
 
@@ -107,6 +119,11 @@ impl SlotAccessInfo {
     pub(super) fn object(object: ValueId, slot: u64, blocks: usize) -> Self {
         Self::new(PromotableSlot::Object(object, slot), blocks)
     }
+
+    /// Whether no load of the slot is to be promoted.
+    pub(super) fn has_no_loads(&self) -> bool {
+        self.loads.is_empty()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -126,23 +143,31 @@ struct SlotSsaBuilder<'a> {
     dead: GrowableBitSet<InstId>,
     phis: FxHashMap<BlockId, PendingPhi>,
     failed: bool,
+    /// With `-Zcheck-analyses`, the slot's accesses stay and each replaced load is recorded
+    /// equal to its replacement.
+    keep_accesses: bool,
+    /// The kept loads and the values that replace them, for the records.
+    kept: Vec<(InstId, ValueId, ValueId)>,
 }
 
 impl FrameSlotPromoter {
     /// Runs compiler-local-slot promotion on a function, returning whether any slot was promoted.
-    fn run(func: &mut Function) -> bool {
+    /// With `record`, the slots' accesses stay and each replaced load is recorded equal to its
+    /// replacement.
+    fn run(func: &mut Function, record: bool) -> bool {
         if !Self::may_promote(func) {
             return false;
         }
 
         let cfg = CfgInfo::new(func);
         let aa = AliasAnalysis::new(func);
+        let evidence = record.then(|| NonRecordReads::new(func));
         let mut promoted = false;
-        for info in Self::collect_promotable_slots(func, &cfg, &aa) {
-            let mut builder = SlotSsaBuilder::new(&info, &cfg, func);
+        for info in Self::collect_promotable_slots(func, &cfg, &aa, evidence.as_ref()) {
+            let mut builder = SlotSsaBuilder::new(&info, &cfg, func, record);
             if builder.run(func) {
                 promoted = true;
-                builder.apply(func);
+                builder.apply(func, FactSource::FrameSlotPromotion);
                 aa.clear_cached_addresses();
             }
         }
@@ -161,10 +186,13 @@ impl FrameSlotPromoter {
                 .any(|inst_id| matches!(func.inst(inst_id).kind, InstKind::InternalFrameAddr(_)))
     }
 
+    /// The slots to promote. A load only records read, `evidence` says, is an earlier record's
+    /// evidence, which the slot's kept stores still define, and is left as it is.
     fn collect_promotable_slots(
         func: &Function,
         cfg: &CfgInfo,
         aa: &AliasAnalysis,
+        evidence: Option<&NonRecordReads>,
     ) -> Vec<SlotAccessInfo> {
         let mut accesses: FxHashMap<PromotableSlot, SlotAccessInfo> = FxHashMap::default();
 
@@ -181,6 +209,9 @@ impl FrameSlotPromoter {
                     _ => continue,
                 };
                 let Some(slot) = Self::promotable_slot(func, aa, addr) else { continue };
+                if stored.is_none() && is_evidence(func, evidence, inst_id) {
+                    continue;
+                }
                 let info = accesses
                     .entry(slot)
                     .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()));
@@ -523,12 +554,18 @@ impl FrameSlotPromoter {
 
 /// Promotes a set of prevalidated object fields as one transaction. A shared
 /// zero fill defines every field, so all plans must be built before applying any.
-pub(super) fn promote_object_slots(func: &mut Function, slots: &[SlotAccessInfo]) -> bool {
+/// With `record`, the fields' accesses stay and each replaced load is recorded equal to its
+/// replacement, as SROA's fact.
+pub(super) fn promote_object_slots(
+    func: &mut Function,
+    slots: &[SlotAccessInfo],
+    record: bool,
+) -> bool {
     let cfg = CfgInfo::new(func);
     let snapshot = func.clone();
     let mut builders = Vec::new();
     for info in slots {
-        let mut builder = SlotSsaBuilder::new(info, &cfg, func);
+        let mut builder = SlotSsaBuilder::new(info, &cfg, func, record);
         if !builder.run(func) {
             // Discard speculative phi allocations when a reaching definition is absent.
             *func = snapshot;
@@ -539,9 +576,11 @@ pub(super) fn promote_object_slots(func: &mut Function, slots: &[SlotAccessInfo]
     // store field, value; ...; result = load field => result = phi/reaching_value
     let mut replacements = FxHashMap::default();
     let mut dead = GrowableBitSet::with_capacity(func.num_insts());
+    let mut kept = Vec::new();
     for builder in builders {
         builder.apply_phis(func);
-        builder.apply_casts(func);
+        kept.extend(builder.apply_casts(func));
+        kept.extend(builder.kept);
         replacements.extend(builder.replacements);
         for inst in builder.dead.iter() {
             dead.insert(inst);
@@ -551,11 +590,43 @@ pub(super) fn promote_object_slots(func: &mut Function, slots: &[SlotAccessInfo]
     for block in &mut func.blocks {
         block.instructions.retain(|&inst| !dead.contains(inst));
     }
+    record_kept_loads(func, FactSource::Sroa, &kept, &replacements);
     true
 }
 
+/// Whether the load `inst` is an earlier record's evidence: only records read its result.
+pub(super) fn is_evidence(
+    func: &Function,
+    evidence: Option<&NonRecordReads>,
+    inst: InstId,
+) -> bool {
+    evidence
+        .zip(func.inst_result_value(inst))
+        .is_some_and(|(reads, value)| reads.only_records(value))
+}
+
+/// Records each kept load equal to the value that replaced its uses, once every use is rewritten.
+fn record_kept_loads(
+    func: &mut Function,
+    source: FactSource,
+    kept: &[(InstId, ValueId, ValueId)],
+    replacements: &FxHashMap<ValueId, ValueId>,
+) {
+    if kept.is_empty() {
+        return;
+    }
+    let blocks = func.inst_block_table();
+    for &(load, value, replacement) in kept {
+        let replacement = mir_utils::resolve_replacement(replacement, replacements);
+        if let Some(block) = blocks[load] {
+            // assume eq source, load, replacement
+            record_fact(func, block, source, AssumePredicate::Eq, value, replacement);
+        }
+    }
+}
+
 impl<'a> SlotSsaBuilder<'a> {
-    fn new(info: &'a SlotAccessInfo, cfg: &'a CfgInfo, func: &Function) -> Self {
+    fn new(info: &'a SlotAccessInfo, cfg: &'a CfgInfo, func: &Function, keep: bool) -> Self {
         Self {
             info,
             cfg,
@@ -564,6 +635,8 @@ impl<'a> SlotSsaBuilder<'a> {
             dead: GrowableBitSet::with_capacity(func.num_insts()),
             phis: FxHashMap::default(),
             failed: false,
+            keep_accesses: keep,
+            kept: Vec::new(),
         }
     }
 
@@ -665,15 +738,17 @@ impl<'a> SlotSsaBuilder<'a> {
         }
     }
 
-    fn apply(self, func: &mut Function) {
+    fn apply(mut self, func: &mut Function, source: FactSource) {
         self.apply_phis(func);
-        self.apply_casts(func);
+        let shadows = self.apply_casts(func);
+        self.kept.extend(shadows);
         // result = load slot => result = reaching_value
         func.replace_uses_canonicalized(&self.replacements);
 
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|&id| !self.dead.contains(id));
         }
+        record_kept_loads(func, source, &self.kept, &self.replacements);
     }
 
     fn rewrite_single_block(&mut self, func: &Function) -> bool {
@@ -773,23 +848,58 @@ impl<'a> SlotSsaBuilder<'a> {
             let value = mir_utils::resolve_replacement(value, &self.replacements);
             if func.value_ty(load_value) == func.value_ty(value) {
                 self.replacements.insert(load_value, value);
-                self.dead.insert(inst_id);
+                if self.keep_accesses {
+                    self.kept.push((inst_id, load_value, value));
+                } else {
+                    self.dead.insert(inst_id);
+                }
             } else {
                 self.casts.push((inst_id, value));
             }
         }
     }
 
-    /// Rewrites each pointer load into a cast of the word it reads.
-    fn apply_casts(&self, func: &mut Function) {
-        // result = load slot, ptr<memory> => result = inttoptr reaching_value to ptr<memory>
+    /// Rewrites each pointer load into a cast of the word it reads. When the accesses stay, the
+    /// slot is read again as a word before the cast, and the returned `(shadow load, word,
+    /// reaching value)` triples are for the records.
+    fn apply_casts(&self, func: &mut Function) -> Vec<(InstId, ValueId, ValueId)> {
+        let mut shadows = Vec::new();
+        let blocks = if self.keep_accesses && !self.casts.is_empty() {
+            func.inst_block_table()
+        } else {
+            Default::default()
+        };
         for &(inst, value) in &self.casts {
+            if self.keep_accesses
+                && let InstKind::Load(addr, PtrLocation::Memory) = func.inst(inst).kind
+                && let Some(block) = blocks.get(inst).copied().flatten()
+            {
+                // shadow = mload slot
+                let (shadow, word) = func.alloc_value_inst(
+                    Instruction::new(
+                        InstKind::Load(addr, PtrLocation::Memory),
+                        Some(MirType::I256),
+                    )
+                    .with_debug_loc_dropped(),
+                );
+                let position = func.blocks[block]
+                    .instructions
+                    .iter()
+                    .position(|&candidate| candidate == inst)
+                    .expect("a pointer load is in its block");
+                func.blocks[block].instructions.insert(position, shadow);
+                shadows.push((shadow, word, value));
+            }
+            // result = load slot, ptr<memory> => result = inttoptr reaching_value to ptr<memory>
             func.replace_inst_kind(inst, InstKind::IntToPtr(value));
         }
+        shadows
     }
 
     fn remove_store(&mut self, inst_id: InstId) {
-        self.dead.insert(inst_id);
+        if !self.keep_accesses {
+            self.dead.insert(inst_id);
+        }
     }
 
     fn rename_block(&mut self, func: &Function, block: BlockId, mut current: Option<ValueId>) {

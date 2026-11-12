@@ -7,6 +7,7 @@ use evm2::{
     env::BlockEnv,
     ethereum::{TxEnvelope, ethereum_tx_registry},
     evm::{AccountInfo, InMemoryDB},
+    interpreter::InstrStop,
 };
 use serde_json::Value;
 use std::{borrow::Cow, path::Path};
@@ -18,6 +19,7 @@ use ui_test::{
     spanned::{Span, Spanned},
 };
 
+mod check_analyses;
 mod dump;
 mod evm_ir;
 mod oracle;
@@ -63,7 +65,7 @@ struct Artifact {
 struct Outcome {
     success: bool,
     output: Vec<u8>,
-    stop: String,
+    stop: InstrStop,
     /// What the call did, when an interpreter checks it.
     trace: Option<trace::Trace>,
 }
@@ -146,24 +148,28 @@ impl RunCall {
             abi_less,
         )?;
         let actual = execute(&call, spec_id, traced(config))?;
-        if !actual.success {
-            return Err(format!(
-                "`{}` failed with {}: 0x{}",
-                display_call(&self.call, call.function.as_deref()),
-                actual.stop,
-                hex::display(&actual.output)
-            ));
-        }
-        if actual.output != call.expected {
-            return Err(format!(
-                "`{}` returned 0x{}, expected 0x{}",
-                display_call(&self.call, call.function.as_deref()),
-                hex::display(&actual.output),
-                hex::display(&call.expected)
-            ));
-        }
-        check_mir(config, build_manager, &self.call, &call, &actual)?;
-        check_evm_ir(config, build_manager, &self.call, &call, &actual)
+        let result = (|| {
+            if !actual.success {
+                return Err(format!(
+                    "`{}` failed with {:?}: 0x{}",
+                    display_call(&self.call, call.function.as_deref()),
+                    actual.stop,
+                    hex::display(&actual.output)
+                ));
+            }
+            if actual.output != call.expected {
+                return Err(format!(
+                    "`{}` returned 0x{}, expected 0x{}",
+                    display_call(&self.call, call.function.as_deref()),
+                    hex::display(&actual.output),
+                    hex::display(&call.expected)
+                ));
+            }
+            check_mir(config, build_manager, &self.call, &call, &actual)?;
+            check_evm_ir(config, build_manager, &self.call, &call, &actual)
+        })();
+        let analyses = check_analyses(config, build_manager, &self.call, &call, &actual, spec_id);
+        both(result, analyses)
     }
 }
 
@@ -210,23 +216,27 @@ impl RunCallFail {
             abi_less,
         )?;
         let actual = execute(&call, spec_id, traced(config))?;
-        if actual.success {
-            return Err(format!(
-                "`{}` succeeded with 0x{}, expected failure",
-                display_call(&self.call, call.function.as_deref()),
-                hex::display(&actual.output)
-            ));
-        }
-        if actual.output != call.expected {
-            return Err(format!(
-                "`{}` reverted with 0x{}, expected 0x{}",
-                display_call(&self.call, call.function.as_deref()),
-                hex::display(&actual.output),
-                hex::display(&call.expected)
-            ));
-        }
-        check_mir(config, build_manager, &self.call, &call, &actual)?;
-        check_evm_ir(config, build_manager, &self.call, &call, &actual)
+        let result = (|| {
+            if actual.success {
+                return Err(format!(
+                    "`{}` succeeded with 0x{}, expected failure",
+                    display_call(&self.call, call.function.as_deref()),
+                    hex::display(&actual.output)
+                ));
+            }
+            if actual.output != call.expected {
+                return Err(format!(
+                    "`{}` reverted with 0x{}, expected 0x{}",
+                    display_call(&self.call, call.function.as_deref()),
+                    hex::display(&actual.output),
+                    hex::display(&call.expected)
+                ));
+            }
+            check_mir(config, build_manager, &self.call, &call, &actual)?;
+            check_evm_ir(config, build_manager, &self.call, &call, &actual)
+        })();
+        let analyses = check_analyses(config, build_manager, &self.call, &call, &actual, spec_id);
+        both(result, analyses)
     }
 }
 
@@ -310,6 +320,32 @@ fn check_evm_ir(
         evm_version,
     };
     evm_ir::check(config, build_manager, &call, trace)
+}
+
+/// Runs the call on a build with `-Zcheck-analyses` when that check applies.
+fn check_analyses(
+    config: &TestConfig,
+    build_manager: &BuildManager,
+    directive: &str,
+    call: &ResolvedCall<'_>,
+    actual: &Outcome,
+    spec_id: SpecId,
+) -> Result<(), String> {
+    if !check_analyses::applies(config) {
+        return Ok(());
+    }
+    check_analyses::check(config, build_manager, directive, call, actual, spec_id)
+}
+
+/// A call's result with its `-Zcheck-analyses` run, which runs whether or not the call ended
+/// as the test expects, since a fact the call violates often explains why it did not: both
+/// failures when both fail.
+fn both(result: Result<(), String>, analyses: Result<(), String>) -> Result<(), String> {
+    match (result, analyses) {
+        (Ok(()), analyses) => analyses,
+        (Err(error), Ok(())) => Err(error),
+        (Err(error), Err(analyses)) => Err(format!("{error}\n{analyses}")),
+    }
 }
 
 fn parse_call(args: &str) -> Result<ParsedCall<'_>, String> {
@@ -807,7 +843,7 @@ fn setup_call(artifact: &Artifact, function: Option<&Function>) -> Result<Option
 
 /// Deploys the called contract, runs its `setUp()` when the call needs one, and executes the call,
 /// recording what it did for the interpreter checks when `traced` is set.
-fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, traced: bool) -> Result<Outcome, String> {
+fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, traced: bool) -> Result<Outcome, Failure> {
     let setup = setup_call(call.artifact, call.function.as_deref())?;
     let mut database = InMemoryDB::default();
     database.insert_account_info(&CALLER, AccountInfo::default().with_balance(U256::MAX));
@@ -823,11 +859,7 @@ fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, traced: bool) -> Result<Out
     let result =
         transact(&mut evm, 0, TxKind::Create, initcode, default_gas_limit(spec_id), U256::ZERO)?;
     if !result.status {
-        return Err(format!(
-            "contract deployment failed with {:?}: 0x{}",
-            result.stop,
-            hex::display(result.output)
-        ));
+        return Err(Failure::Deploy { stop: result.stop, output: result.output.into() });
     }
     let contract = result
         .created_address
@@ -845,11 +877,11 @@ fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, traced: bool) -> Result<Out
         )?);
         nonce += 1;
         if !result.success {
-            return Err(format!(
-                "`setUp()` failed with {}: 0x{}",
+            return Err(Failure::Other(format!(
+                "`setUp()` failed with {:?}: 0x{}",
                 result.stop,
                 hex::display(result.output)
-            ));
+            )));
         }
     }
     let before = traced.then(|| trace::Chain::capture(&evm, contract));
@@ -866,6 +898,33 @@ fn execute(call: &ResolvedCall<'_>, spec_id: SpecId, traced: bool) -> Result<Out
         trace::Trace::new(before, &evm, stop, output, logs, &observer)
     });
     Ok(Outcome { trace, ..outcome(result) })
+}
+
+/// Why [`execute`] could not run a call.
+enum Failure {
+    /// The contract's deployment halted.
+    Deploy {
+        stop: InstrStop,
+        output: Vec<u8>,
+    },
+    Other(String),
+}
+
+impl From<String> for Failure {
+    fn from(message: String) -> Self {
+        Self::Other(message)
+    }
+}
+
+impl From<Failure> for String {
+    fn from(failure: Failure) -> Self {
+        match failure {
+            Failure::Deploy { stop, output } => {
+                format!("contract deployment failed with {stop:?}: 0x{}", hex::display(&output))
+            }
+            Failure::Other(message) => message,
+        }
+    }
 }
 
 fn transact(
@@ -894,12 +953,7 @@ fn transact(
 }
 
 fn outcome(result: TxResult) -> Outcome {
-    Outcome {
-        success: result.status,
-        output: result.output.into(),
-        stop: format!("{:?}", result.stop),
-        trace: None,
-    }
+    Outcome { success: result.status, output: result.output.into(), stop: result.stop, trace: None }
 }
 
 /// Returns the EVM version the test compiles for.
@@ -946,6 +1000,22 @@ fn spec_id(config: &TestConfig) -> Result<SpecId, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reports_both_failures() {
+        let wrong = || Err("`f()` returned 0x02, expected 0x01".to_owned());
+        let violated = || Err("`f()` violates a fact sccp relied on".to_owned());
+        assert_eq!(both(Ok(()), Ok(())), Ok(()));
+        assert_eq!(both(wrong(), Ok(())), wrong());
+        assert_eq!(both(Ok(()), violated()), violated());
+        snapbox::assert_data_eq!(
+            both(wrong(), violated()).unwrap_err(),
+            snapbox::str![[r#"
+`f()` returned 0x02, expected 0x01
+`f()` violates a fact sccp relied on
+"#]]
+        );
+    }
 
     #[test]
     fn parses_empty_expected_output() {

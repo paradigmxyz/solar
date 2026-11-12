@@ -87,11 +87,17 @@
 //!
 //! Unchanged functions without internal calls can skip later runs until their
 //! body changes; callers must still observe any improved callee summaries.
+//!
+//! With `-Zcheck-analyses`, a forwarded memory, storage or transient read stays in place and
+//! records `assume eq cse, read, value` for `lower-assumes` to test, since forwarding relies on
+//! alias analysis; pure expressions need no record. A read only records still use is not
+//! forwarded again, which would rewrite its record.
 
 use crate::{
     mir::{
-        BlockId, Builtin, Callee, EffectKind, Function, FunctionId, Immediate, ImmutableId, InstId,
-        InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, Value, ValueId,
+        BlockId, Builtin, Callee, EffectKind, FactSource, Function, FunctionId, Immediate,
+        ImmutableId, InstId, InstKind, Instruction, MirType, Module, OpTraits, PtrLocation, Value,
+        ValueId,
         analysis::{
             Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, GasObservations, Liveness,
             Location, LocationSize, LoopAnalyzer, LoopInfo, MemoryAddress, MemoryCallSummaries,
@@ -99,6 +105,9 @@ use crate::{
         },
         memory::EvmMemoryLayout,
         pass::{MirPass, run_selected_function_pass, run_selected_function_pass_cached},
+        transform::lower_assumes::{
+            NonRecordReads, is_forwardable_read, record_forwarded, should_check_analyses,
+        },
         utils as mir_utils,
     },
     target::Target,
@@ -132,11 +141,12 @@ impl MirPass for Cse {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
         let storage_only = matches!(self, Self::Storage);
+        let record = should_check_analyses(gcx.sess);
         let mut leaves = DenseBitSet::new_empty(module.functions.len());
         let mut callers = DenseBitSet::new_empty(module.functions.len());
         for (id, func) in module.functions.iter_enumerated() {
@@ -185,6 +195,7 @@ impl MirPass for Cse {
                 call_summaries: summaries.as_ref().map(Arc::clone),
                 pure_calls: pure_calls.as_ref().map(Arc::clone),
                 storage_only,
+                record,
                 ..Default::default()
             };
             eliminator.run_to_fixpoint(func, analyses.cfg()) != 0
@@ -224,6 +235,13 @@ struct CommonSubexprEliminator {
     /// The zero word a `memory_zero` forwards to later loads of the words it clears, if the
     /// function has one.
     zero_word: Option<ValueId>,
+    /// Whether forwarding a read records, for `lower-assumes`, that the read equals the value it
+    /// is forwarded from, keeping the read as the evidence.
+    record: bool,
+    /// With `record`, the values only records read, which are not forwarded again.
+    record_reads: Option<NonRecordReads>,
+    /// With `record`, the reads forwarded since the last rewrite, as `(read, value, replacement)`.
+    forwarded: Vec<(InstId, ValueId, ValueId)>,
 }
 
 /// A normalized expression key for CSE lookup.
@@ -437,6 +455,11 @@ struct PhiExpressionCandidate {
 }
 
 impl CommonSubexprEliminator {
+    /// Whether only records read `value`, so forwarding it again would lose their evidence.
+    fn only_records(&self, value: ValueId) -> bool {
+        self.record_reads.as_ref().is_some_and(|reads| reads.only_records(value))
+    }
+
     fn refresh_alias(&mut self, func: &Function) {
         self.alias = Some(match &self.call_summaries {
             Some(summaries) => AliasAnalysis::with_call_summaries(func, Arc::clone(summaries)),
@@ -460,7 +483,9 @@ impl CommonSubexprEliminator {
         self.alias().clear_cached_addresses();
         self.process_global_pure(func, cfg, scratch);
 
-        // Process each block independently (local CSE).
+        // Process each block independently (local CSE). The global pass already removed what it
+        // eliminated, and may have recorded facts since sizing the set.
+        scratch.removed.clear_to(func.num_insts());
         let block_ids = func.blocks.indices();
         let liveness = OnceCell::new();
         for block_id in block_ids {
@@ -493,6 +518,7 @@ impl CommonSubexprEliminator {
         loop {
             let (before, merged) = (self.eliminated_count, self.eliminated_settled);
             self.alias().clear_cached_addresses();
+            self.record_reads = self.record.then(|| NonRecordReads::new(func));
             self.run_with_cfg(func, cfg, &mut scratch);
             if self.eliminated_count - self.eliminated_settled != before - merged {
                 continue;
@@ -548,6 +574,8 @@ impl CommonSubexprEliminator {
                 block.instructions.retain(|&id| !scratch.removed.contains(id));
             }
         }
+        let forwarded = std::mem::take(&mut self.forwarded);
+        record_forwarded(func, FactSource::Cse, &forwarded, &scratch.replacements);
     }
 
     fn sink_redundant_phi_expressions(&mut self, func: &mut Function, cfg: &CfgInfo) {
@@ -721,9 +749,17 @@ impl CommonSubexprEliminator {
                         cache.insert(key.clone(), *result);
                         continue;
                     }
+                    if self.record && is_forwardable_read(kind) {
+                        if self.only_records(*result) {
+                            continue;
+                        }
+                        // A forwarded read stays as the evidence of its record.
+                        self.forwarded.push((inst_id, *result, *cached));
+                    } else {
+                        ctx.dead.insert(inst_id);
+                    }
                     // repeated expression with unchanged read/write dependencies -> cached value
                     ctx.replacements.insert(*result, *cached);
-                    ctx.dead.insert(inst_id);
                     self.eliminated_count += 1;
                     self.eliminated_settled +=
                         usize::from(Self::settles_in_walk(func, ctx, key, *result));
@@ -1061,9 +1097,17 @@ impl CommonSubexprEliminator {
                     expr_cache.insert(key.clone(), *result);
                     continue;
                 }
+                if self.record && is_forwardable_read(kind) {
+                    if self.only_records(*result) {
+                        continue;
+                    }
+                    // A forwarded read stays as the evidence of its record.
+                    self.forwarded.push((inst_id, *result, cached_value));
+                } else {
+                    to_remove.insert(inst_id);
+                }
                 // repeated expression with unchanged read/write dependencies -> cached value
                 replacements.insert(*result, cached_value);
-                to_remove.insert(inst_id);
                 self.eliminated_count += 1;
                 continue;
             }
@@ -1088,6 +1132,8 @@ impl CommonSubexprEliminator {
         // Remove eliminated instructions
         let block = func.block_mut(block_id);
         block.instructions.retain(|&id| !to_remove.contains(id));
+        let forwarded = std::mem::take(&mut self.forwarded);
+        record_forwarded(func, FactSource::Cse, &forwarded, replacements);
     }
 
     /// The read key a word store satisfies and the value it stores, so a later

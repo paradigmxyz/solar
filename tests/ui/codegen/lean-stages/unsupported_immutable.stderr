@@ -1,0 +1,4 @@
+error: -Zemit-lean-stages: scheduled runtime EVM IR of `LeanStagesImmutable`: bb4 (block 4): an immutable placeholder of 20 bytes has no Lean semantics
+
+error: aborting due to 1 previous error
+

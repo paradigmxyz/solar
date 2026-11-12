@@ -118,7 +118,7 @@ fn list(values: impl IntoIterator<Item = U256>) -> String {
 fn memory_text(memory: &[u8], size: u64) -> String {
     format!(
         "msize={size}, memory={}",
-        list(memory.as_chunks::<32>().0.iter().map(|bytes| U256::from_be_slice(bytes)))
+        list(memory.as_chunks::<32>().0.iter().map(|word| U256::from_be_bytes(*word)))
     )
 }
 

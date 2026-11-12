@@ -1,0 +1,25 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// An internal function's argument width, which `lower-integers` records as a premise on entry, is
+// proved by the obligation at every call: here each caller passes a masked word or a constant.
+// The callee's fact that a mask of the argument changes nothing then rests on the premise.
+@module ArgumentWidths
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = and v0, 255
+    v2 = icall @callee, v1
+    assume ule lower_integers, v1, 255
+    v3 = icall @callee, 7
+    v4 = add v2, v3
+    mstore 0, v4
+    returndata 0, 32
+}
+
+fn @callee(arg0: i256) -> i256 {
+  bb0:
+    v0 = and arg0, 255
+    assume eq egraph, v0, arg0
+    assume ule lower_integers, arg0, 255
+    ret v0
+}

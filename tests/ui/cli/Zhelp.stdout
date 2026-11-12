@@ -87,6 +87,29 @@ Options:
       -Zpack-wide-jump-tables
           Pack indexed jump table entries wider than one byte into words and pick them with a shift and a mask. Off by default: jump analysis in bytecode JITs cannot resolve the pick
 
+      -Zcheck-analyses=<BOOL>
+          Check every fact MIR optimizations rely on at run time. Enabled by default in debug builds.
+          
+          Passes record each fact where they act on it, and a violated fact reverts with `AnalysisFactViolated(uint256,uint256,uint256)`. Accepts `true` or `false`; the last one given wins.
+
+      -Zprove-analyses <DIR>
+          Write an SMT-LIB query for every fact passes record for `-Zcheck-analyses` to this directory, and record them: Z3 answering `unsat` proves the fact for all inputs, and `sat` gives a counterexample. `-` writes them to stdout. See `tools/prove-analyses`
+
+      -Zvalidate-passes <DIR>
+          Write an SMT-LIB query to this directory for every function a MIR pass changes, asking whether some input makes it differ from its version before the pass: Z3 answering `unsat` proves the pass preserved it. `-` writes them to stdout. See `tools/prove-analyses`
+
+      -Zvalidate-backend <DIR>
+          Write an SMT-LIB query to this directory for every block of every function stack scheduling lowers, asking whether its scheduled EVM IR can differ from the MIR block when the stack and memory hold the block's values where the schedule says: Z3 answering `unsat` proves the block lowered faithfully. `-` writes them to stdout. See `tools/prove-analyses`
+
+      -Zvalidate-evm-ir-passes <DIR>
+          Write an SMT-LIB query to DIR for every code region an EVM IR pass changes, asking whether some state makes it differ from its version before the pass: Z3 answering `unsat` proves the pass preserved it. `-` writes them to stdout. See `tools/prove-analyses`
+
+      -Zvalidate-assembly
+          Check the assembled bytecode against the assembly it was solved from: every instruction decodes to its opcode and immediate, every pushed label to the offset of its `JUMPDEST`, and placeholders and program data sit where the artifact records them. A mismatch is an error
+
+      -Zemit-lean-stages <DIR>
+          Write the program after every stage of the backend to DIR as Lean definitions of the `solar-tv` semantics, in a directory per contract: the first lowered MIR, the module after each MIR pass that changes it, the scheduled runtime EVM IR, the program after each EVM IR pass that changes it, the runtime bytecode, and a manifest binding them to the sources, the compiler and its options. Code the semantics cannot represent is an error
+
       -Zhelp
           Print help
 

@@ -42,6 +42,7 @@ mod memory_values;
 mod modifiers;
 mod operators;
 mod raw_scalars;
+mod spec;
 mod statements;
 mod storage_values;
 mod values;
@@ -170,6 +171,9 @@ pub(super) fn lower(
     lowerer.builder.set_entry_label_span(declaration_span);
     lowerer.is_getter = hir_function.is_getter();
     lowerer.bind_signature(hir_function);
+    if hir_function.kind == hir::FunctionKind::Function {
+        lowerer.lower_spec_requires(hir_function);
+    }
     if hir_function.kind == hir::FunctionKind::Constructor {
         let Some(contract_id) = hir_function.contract else {
             return context.report_unsupported(hir_function.span, "free constructor");
@@ -236,6 +240,8 @@ struct FunctionLowerer<'gcx, 'ctx> {
     modifiers: Vec<ModifierContext<'gcx>>,
     modifier_depth: u32,
     return_targets: Vec<ReturnTarget>,
+    /// The source specification, when recording lowers one.
+    spec: Option<spec::FunctionSpec>,
     is_getter: bool,
     unchecked: bool,
     in_inline_assembly: bool,
@@ -570,6 +576,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             modifiers: Vec::new(),
             modifier_depth: 0,
             return_targets: Vec::new(),
+            spec: None,
             is_getter: false,
             unchecked: false,
             in_inline_assembly: false,

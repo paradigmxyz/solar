@@ -1,0 +1,21 @@
+//@ compile-flags: -Zmir-pipeline=lower-abi -Zvalidate-passes=-
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// The wrapper `lower-abi` creates is queried against the ABI's decoding: calldata shorter than the
+// head and a word above the address range revert empty, and the body runs on the word.
+@module ValidateAbiQuery
+@phase semantic
+// CHECK-LABEL: ; query: ValidateAbiQuery-lower_abi-f0-{{[0-9a-f]+}}.smt2
+// CHECK: ; claim: lower-abi preserves #0 owner_of
+// CHECK: ; axioms: free-memory-pointer dispatched-calldata
+// CHECK: (assert (bvuge input_calldatasize_0 #x{{0+}}4))
+// CHECK: (assert (= [[SHORT:g[0-9]+]] (bvult input_calldatasize_0 #x{{0+}}24)))
+// CHECK: (assert (= [[WORD:t[0-9]+]] (input_calldataload_1 #x{{0+}}4)))
+// CHECK: (bvule [[WORD]] #x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff)
+// CHECK: (check-sat)
+fn @owner_of(arg0: i160) -> i256 [selector=0x10000001, abi_params=[address], abi_returns=[word]] {
+  bb0:
+    v0 = zext i160 arg0 to i256
+    v1 = sload v0
+    ret v1
+}

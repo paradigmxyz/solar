@@ -30,6 +30,7 @@ pub use link::{
 mod isle_log;
 
 mod debugify;
+pub mod lean_stages;
 mod solar_tv;
 pub(crate) mod target;
 mod timing;

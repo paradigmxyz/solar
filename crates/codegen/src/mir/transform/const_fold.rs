@@ -5,11 +5,16 @@
 //! so constants propagate through backedges without changing instruction choices
 //! or extending nonconstant live ranges before stack scheduling. Passing checks
 //! and zero-length copies also disappear; failing checks and trapping arithmetic
-//! remain explicit. CFG cleanup runs separately after this pass.
+//! remain explicit. CFG cleanup runs separately after this pass. With `-Zcheck-analyses`, a fold
+//! that relied on a width the e-graph's rules read from a value's definition records it as an
+//! `assume`, as the e-graph does.
 
-use super::egraph;
+use super::{
+    egraph,
+    lower_assumes::{record_fact, should_check_analyses},
+};
 use crate::mir::{
-    Module,
+    FactSource, Immediate, Module, Value,
     pass::{MirPass, run_function_pass},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
@@ -27,8 +32,10 @@ impl MirPass for ConstFold {
         module: &mut Module,
         analyses: &mut crate::mir::pass::ModuleAnalyses,
     ) -> bool {
+        let record = should_check_analyses(gcx.sess);
         let changed = run_function_pass(module, analyses, |func, _| {
             let mut changed = false;
+            let mut relied = Vec::new();
             let mut replacements = FxHashMap::default();
             let mut dead = DenseBitSet::new_empty(func.num_insts());
             loop {
@@ -45,16 +52,18 @@ impl MirPass for ConstFold {
                             // <passing check or zero-length copy> => nothing
                             dead.insert(id);
                         } else if let Some(result) = func.inst_result_value(id)
-                            && let Some(value) = egraph::fold_constant(
+                            && let Some((value, facts)) = egraph::fold_constant(
                                 func,
                                 &kind,
                                 func.value_ty(result),
                                 gcx.sess.opts.evm_version,
+                                record,
                             )
                         {
                             // %result = <constant expression> => constant
                             replacements.insert(result, value);
                             dead.insert(id);
+                            relied.extend(facts.into_iter().map(|fact| (block, fact)));
                         }
                     }
                 }
@@ -65,6 +74,12 @@ impl MirPass for ConstFold {
                 func.replace_uses_canonicalized(&replacements);
                 for block in func.blocks.iter_mut() {
                     block.instructions.retain(|&id| !dead.contains(id));
+                }
+                for (block, fact) in relied.drain(..) {
+                    let value = replacements.get(&fact.value).copied().unwrap_or(fact.value);
+                    let bound = func.alloc_value(Value::Immediate(Immediate::I256(fact.bound)));
+                    // assume predicate const_fold, value, bound
+                    record_fact(func, block, FactSource::ConstFold, fact.predicate, value, bound);
                 }
                 changed = true;
             }

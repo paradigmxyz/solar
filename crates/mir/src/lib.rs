@@ -90,6 +90,9 @@ mod display;
 
 mod parser;
 
+mod assume;
+pub use assume::{AssumePredicate, FactSource};
+
 pub use analysis::validate;
 
 newtype_index! {

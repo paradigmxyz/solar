@@ -1,13 +1,17 @@
 //! Deployment bytecode, constructor arguments, and immutable patching.
 
 use super::{
-    ArtifactKind, AssembledCode, CallGraphInfo, EmbeddedBytecodes, EvmArtifact, EvmCodegen,
-    EvmMemoryLayout, ImmutableEncoding, ImmutableId, ImmutableRef, IndexVec, Module,
-    OptimizationMode, PendingRuntime, StackOp, U256, WORD_BYTES, immutable_push_type_size,
-    immutable_staging_addr, immutable_staging_base, immutable_staging_end, ir, op,
+    ArtifactKind, AssembledCode, CallGraphInfo, DeferredConst, EmbeddedBytecodes, EvmArtifact,
+    EvmCodegen, EvmMemoryLayout, FunctionId, FxHashMap, ImmutableEncoding, ImmutableId,
+    ImmutableRef, IndexVec, Module, OptimizationMode, PendingRuntime, StackOp, U256, WORD_BYTES,
+    immutable_push_type_size, immutable_staging_addr, immutable_staging_base,
+    immutable_staging_end, ir, op,
 };
 use crate::{
-    backend::assembler::{DeferredAllocResolution, ScheduledProgram},
+    backend::{
+        assembler::{DeferredAllocResolution, ScheduledProgram},
+        evm::{schedule_map::ScheduleMap, validate_assembly, validate_backend},
+    },
     debugify::Origins,
     link::{CodeKind, LibraryTable},
     mir::{
@@ -80,6 +84,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             return false;
         };
         let module = &*lowered;
+        if crate::lean_stages::mir_prepared(self.gcx, module).is_err() {
+            return false;
+        }
         let mir_origins = crate::debugify::enabled(self.gcx).then(|| Origins::mir(module));
         // Runtime and constructor emission inspect the same final MIR. Compute module-wide facts
         // once instead of rebuilding them for each artifact and caller-stack retry.
@@ -92,7 +99,46 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         // First schedule the runtime code and run its EVM IR pipeline. Only final
         // assembly waits for the bytecode of contracts it embeds.
+        let validate_dir = self.gcx.sess.opts.unstable.validate_backend.clone();
+        self.schedule_map = validate_dir.is_some().then(ScheduleMap::default);
         self.schedule_runtime_code(&lowered, &call_graph);
+        let mut schedule_map = self.schedule_map.take();
+        if let Some(map) = &mut schedule_map {
+            map.resolve(&self.asm);
+        }
+        let resolved = |sites: &FxHashMap<FunctionId, DeferredConst>| {
+            sites
+                .iter()
+                .filter_map(|(&func, addr)| Some((func, *self.asm.deferred_values.get(addr)?)))
+                .collect::<FxHashMap<_, _>>()
+        };
+        let placements = self
+            .allocation_sites
+            .iter()
+            .filter_map(|(alloc, &site)| {
+                let placement = match self.asm.deferred_allocations.get(alloc)? {
+                    DeferredAllocResolution::Static(word) => AllocationPlacement::Static(*word),
+                    DeferredAllocResolution::Dynamic(word) => AllocationPlacement::Dynamic(*word),
+                };
+                Some((site, placement))
+            })
+            .collect();
+        if crate::lean_stages::backend_words(
+            self.gcx,
+            module,
+            &resolved(&self.entry_heap_sites),
+            &resolved(&self.heap_floor_sites),
+            &placements,
+            &crate::lean_stages::MultiReturns {
+                buffers: &resolved(&self.return_buffer_sites),
+                stack: &self.stack_return_sites.keys().copied().collect(),
+                published: &self.published_call_sites,
+            },
+        )
+        .is_err()
+        {
+            return false;
+        }
         let backend_memory = self.capture_mir.then(|| BackendMemory {
             stack_returns: self.stack_return_sites.clone(),
             allocations: self
@@ -132,10 +178,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         self.asm
             .program
             .set_debug_info_visible(self.display_debug_info || !crate::debugify::enabled(self.gcx));
-        let ScheduledProgram { evm_ir: scheduled_evm_ir, origins } =
-            self.asm.optimize_capturing(self.capture_scheduled_evm_ir);
+        let ScheduledProgram { evm_ir: mut scheduled_evm_ir, origins } =
+            self.asm.optimize_capturing(self.capture_scheduled_evm_ir || schedule_map.is_some());
         if self.gcx.dcx().has_errors().is_err() {
             return false;
+        }
+        if let (Some(dir), Some(map), Some(program)) =
+            (&validate_dir, &schedule_map, &scheduled_evm_ir)
+            && let Err(error) = validate_backend::write_queries(self.gcx, module, map, program, dir)
+        {
+            self.gcx.dcx().err(format!("cannot write backend validation queries: {error}")).emit();
+        }
+        if !self.capture_scheduled_evm_ir {
+            scheduled_evm_ir = None;
         }
         let audit = mir_origins.zip(origins);
         self.pending_runtime =
@@ -159,6 +214,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             immutable_refs,
             library_relocations: runtime_library_relocations,
             trailers: runtime_trailers,
+            data: runtime_data_layout,
             evm_ir: runtime_evm_ir,
             debug_info: runtime_debug_info,
         } = self.asm.assemble_linked(
@@ -227,6 +283,12 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.capture_evm_ir,
             self.capture_debug_info,
         );
+        if self.gcx.sess.opts.unstable.validate_assembly
+            && let Err(error) =
+                validate_assembly::check_deployment(&deploy_code.bytecode, &runtime_bytecode)
+        {
+            self.gcx.dcx().err(format!("assembly validation failed: {error}")).emit();
+        }
         let has_constructor_args = module
             .constructor()
             .is_some_and(|constructor| reads_constructor_args(module.function(constructor)));
@@ -247,6 +309,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             runtime_library_relocations,
             deployment_trailers: deploy_code.trailers,
             runtime_trailers,
+            runtime_data: runtime_data_layout,
             immutable_references: immutable_refs,
             deployment_evm_ir: deploy_code.evm_ir,
             runtime_evm_ir,

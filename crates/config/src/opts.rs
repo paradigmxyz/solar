@@ -482,6 +482,83 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub pack_wide_jump_tables: bool,
 
+    /// Check every fact MIR optimizations rely on at run time. Enabled by default in debug
+    /// builds.
+    ///
+    /// Passes record each fact where they act on it, and a violated fact reverts with
+    /// `AnalysisFactViolated(uint256,uint256,uint256)`. Accepts `true` or `false`; the last one
+    /// given wins.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            long,
+            require_equals = true,
+            value_name = "BOOL",
+            hide_possible_values = true,
+            overrides_with = "check_analyses"
+        )
+    )]
+    pub check_analyses: Option<bool>,
+
+    /// Write an SMT-LIB query for every fact passes record for `-Zcheck-analyses` to this
+    /// directory, and record them: Z3 answering `unsat` proves the fact for all inputs, and
+    /// `sat` gives a counterexample. `-` writes them to stdout. See `tools/prove-analyses`.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub prove_analyses: Option<std::path::PathBuf>,
+
+    /// Write an SMT-LIB query to this directory for every function a MIR pass changes, asking
+    /// whether some input makes it differ from its version before the pass: Z3 answering `unsat`
+    /// proves the pass preserved it. `-` writes them to stdout. See `tools/prove-analyses`.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub validate_passes: Option<std::path::PathBuf>,
+
+    /// Testing only: corrupt the module after a pass as `-Zvalidate-passes` reads it, so that its
+    /// query must find a difference. `selector` swaps the targets of the first two cases of the
+    /// selector switch `lower-dispatch` creates, and `decode` moves the first constant calldata
+    /// read of the first wrapper `lower-abi` creates one word on. The compiled code is unchanged.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "FAULT", hide = true))]
+    pub validate_passes_fault: Option<String>,
+
+    /// Write an SMT-LIB query to this directory for every block of every function stack
+    /// scheduling lowers, asking whether its scheduled EVM IR can differ from the MIR block when
+    /// the stack and memory hold the block's values where the schedule says: Z3 answering `unsat`
+    /// proves the block lowered faithfully. `-` writes them to stdout. See `tools/prove-analyses`.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub validate_backend: Option<std::path::PathBuf>,
+
+    /// Testing only: corrupt what `-Zvalidate-backend` reads, so that its queries must find a
+    /// difference. `layout` swaps the first two values of the first block layout that names two,
+    /// and `opcode` turns the first `add` of the scheduled EVM IR into `sub`. The compiled code is
+    /// unchanged.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "FAULT", hide = true))]
+    pub validate_backend_fault: Option<String>,
+    /// Write an SMT-LIB query to DIR for every code region an EVM IR pass changes, asking whether
+    /// some state makes it differ from its version before the pass: Z3 answering `unsat` proves
+    /// the pass preserved it. `-` writes them to stdout. See `tools/prove-analyses`.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub validate_evm_ir_passes: Option<std::path::PathBuf>,
+
+    /// Check the assembled bytecode against the assembly it was solved from: every instruction
+    /// decodes to its opcode and immediate, every pushed label to the offset of its `JUMPDEST`,
+    /// and placeholders and program data sit where the artifact records them. A mismatch is an
+    /// error.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub validate_assembly: bool,
+
+    /// Testing only: corrupt the bytecode `-Zvalidate-assembly` reads, so that it must report a
+    /// mismatch. `label` adds one to the first label push and `width` widens it by a byte. The
+    /// compiled code is unchanged.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "FAULT", hide = true))]
+    pub validate_assembly_fault: Option<String>,
+
+    /// Write the program after every stage of the backend to DIR as Lean definitions of the
+    /// `solar-tv` semantics, in a directory per contract: the first lowered MIR, the module after
+    /// each MIR pass that changes it, the scheduled runtime EVM IR, the program after each EVM IR
+    /// pass that changes it, the runtime bytecode, and a manifest binding them to the sources,
+    /// the compiler and its options. Code the semantics cannot represent is an error.
+    #[cfg_attr(feature = "clap", arg(long, value_name = "DIR"))]
+    pub emit_lean_stages: Option<std::path::PathBuf>,
+
     /// Leak the compiler context instead of dropping it after compilation.
     /// The `solar` binary sets this to skip teardown before exiting; library callers should leave
     /// it unset so that each compilation frees its arenas and thread pool.
@@ -553,6 +630,16 @@ impl UnstableOpts {
             debugify_output: _,
             solar_tv: _,
             validate_ir: _,
+            check_analyses: _,
+            prove_analyses: _,
+            validate_passes: _,
+            validate_passes_fault: _,
+            validate_backend: _,
+            validate_backend_fault: _,
+            validate_evm_ir_passes: _,
+            validate_assembly: _,
+            validate_assembly_fault: _,
+            emit_lean_stages: _,
             time_passes: _,
             forget_gcx: _,
             help: _,

@@ -14,11 +14,25 @@
 //! internal boundary.
 //! Signed immutable loads need explicit cleanup because runtime placeholders can
 //! sign-extend their stored bits to a full word.
+//!
+//! The widened carriers keep the integer invariant, zero bits above the declared width, only
+//! because whatever produced a narrow value at a boundary the pass does not clean kept it: a
+//! caller for an argument, earlier stores for a load, a callee for a call result. With
+//! `-Zcheck-analyses` the pass records each such width where it trusts it, as
+//! `assume ule lower_integers, v, 2^N - 1`: every narrow argument at the end of the entry block,
+//! every narrow result of an instruction it neither rewrites nor derives from its operands (a
+//! phi, a select or a zero extension) at the end of its block, and every narrow argument a direct
+//! call or tail call passes at the end of the call's block. The entry record of an argument is
+//! the callee's premise; the call records are the obligations that discharge it, which is how
+//! `-Zprove-analyses` proves facts that rest on an argument's width (see `prove_analyses`).
 
-use super::utils::expand_block;
+use super::{
+    lower_assumes::{record_fact, should_check_analyses},
+    utils::expand_block,
+};
 use crate::mir::{
-    Function, FunctionBuilder, Immediate, ImmutableId, InstKind, MirType, Module, ResultKind,
-    Value, ValueId, ValueLayout,
+    AssumePredicate, BlockId, Callee, FactSource, Function, FunctionBuilder, Immediate,
+    ImmutableId, InstKind, MirType, Module, ResultKind, Terminator, Value, ValueId, ValueLayout,
     analysis::integers::integer_mask,
     pass::{MirPass, ModuleAnalyses, run_lowering_function_pass},
 };
@@ -71,8 +85,9 @@ impl MirPass for LowerIntegers {
             .iter_immutables()
             .filter_map(|(id, immutable)| matches!(immutable.ty, ValueLayout::Int(_)).then_some(id))
             .collect();
+        let record = should_check_analyses(gcx.sess);
         run_lowering_function_pass(module, analyses, |func, _| {
-            lower_function(func, &signed_immutables)
+            lower_function(func, &signed_immutables, record)
         })
     }
 }
@@ -84,7 +99,11 @@ fn lower_type(ty: MirType) -> MirType {
     }
 }
 
-fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId>) -> bool {
+fn lower_function(
+    func: &mut Function,
+    signed_immutables: &FxHashSet<ImmutableId>,
+    record: bool,
+) -> bool {
     let narrow = |ty| lower_type(ty) != ty;
     if !narrow(func.return_type())
         && !func.arg_indices().any(|index| narrow(func.arg_ty(index)))
@@ -113,6 +132,7 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
     let types = (0..func.num_values())
         .map(|index| func.value_ty(ValueId::from_usize(index)))
         .collect::<IndexVec<ValueId, _>>();
+    let arg_types = func.arg_indices().map(|index| func.arg_ty(index)).collect::<Vec<_>>();
     let mut changed = false;
     let returns = func.return_components().iter().copied().map(lower_type).collect::<Vec<_>>();
     let result = lower_type(func.return_type());
@@ -251,8 +271,80 @@ fn lower_function(func: &mut Function, signed_immutables: &FxHashSet<ImmutableId
             true
         });
     }
+    if record {
+        record_widths(func, &types, &arg_types, &replacements);
+    }
     func.replace_uses_canonicalized(&replacements);
     changed
+}
+
+/// Records the width of every narrow value the pass widened at a boundary it trusts, before uses
+/// move to the cleaned replacements: arguments on entry, results it neither rewrote nor derives
+/// from its operands, and the arguments of direct calls; see the module docs.
+fn record_widths(
+    func: &mut Function,
+    types: &IndexVec<ValueId, Option<MirType>>,
+    arg_types: &[MirType],
+    rewritten: &FxHashMap<ValueId, ValueId>,
+) {
+    let narrow = |ty: Option<MirType>| {
+        ty.and_then(MirType::integer_bits).filter(|bits| (2..256).contains(bits))
+    };
+    let narrow_value = |func: &Function, value: ValueId| {
+        if func.value_u256(value).is_some() {
+            return None;
+        }
+        narrow(types.get(value).copied().flatten())
+    };
+    let mut facts = Vec::new();
+    for (index, &ty) in func.arg_indices().zip(arg_types) {
+        if let Some(bits) = narrow(Some(ty)) {
+            facts.push((BlockId::ENTRY, None, Some(index), bits));
+        }
+    }
+    for (block, body) in func.blocks.iter_enumerated() {
+        for &inst in &body.instructions {
+            let kind = &func.inst(inst).kind;
+            if let InstKind::ICall { function: Callee::Function(_), args } = kind {
+                for &arg in args {
+                    if let Some(bits) = narrow_value(func, arg) {
+                        facts.push((block, Some(arg), None, bits));
+                    }
+                }
+            }
+            if matches!(kind, InstKind::Phi(_) | InstKind::Select(..) | InstKind::Zext(_)) {
+                continue;
+            }
+            if let Some(result) = func.inst_result_value(inst)
+                && !rewritten.contains_key(&result)
+                && let Some(bits) = narrow_value(func, result)
+            {
+                facts.push((block, Some(result), None, bits));
+            }
+        }
+        if let Some(Terminator::TailCall { args, .. }) = &body.terminator {
+            for &arg in args {
+                if let Some(bits) = narrow_value(func, arg) {
+                    facts.push((block, Some(arg), None, bits));
+                }
+            }
+        }
+    }
+    // The backend wants one value per argument: a record reuses the one the body reads.
+    let arg_uses = func.arg_uses();
+    for (block, value, arg, bits) in facts {
+        let value = match (value, arg) {
+            (Some(value), _) => value,
+            (None, Some(index)) => match arg_uses[index].first() {
+                Some(&value) => value,
+                None => func.alloc_arg(index),
+            },
+            (None, None) => continue,
+        };
+        let mask = func.alloc_value(Value::Immediate(Immediate::I256(integer_mask(bits))));
+        // assume ule lower_integers, v, 2^N - 1
+        record_fact(func, block, FactSource::LowerIntegers, AssumePredicate::Ule, value, mask);
+    }
 }
 
 fn clean(builder: &mut FunctionBuilder<'_>, value: ValueId, bits: u32) -> ValueId {

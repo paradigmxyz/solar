@@ -1,0 +1,28 @@
+//@ compile-flags: -Zmir-pipeline=lower-dispatch -Zvalidate-passes=-
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// The dispatcher `lower-dispatch` creates gets one query against the routing the ABI defines: the
+// selector is the first four bytes of calldata, which reads zeros past its end, and the wrappers
+// are not queried on their own, since only the dispatcher calls them.
+@module ValidateDispatchQuery
+@phase semantic
+// CHECK-LABEL: ; query: ValidateDispatchQuery-lower_dispatch-f2-{{[0-9a-f]+}}.smt2
+// CHECK: ; claim: lower-dispatch routes every call as the ABI defines
+// CHECK: ; axioms: calldata-padding
+// CHECK: (assert (=> (bvule input_calldatasize_0 #x{{0+}}3) (= ((_ extract 231 224) [[FIRST:t[0-9]+]]) #x00)))
+// CHECK: (assert (= {{t[0-9]+}} (bvlshr [[FIRST]] #x{{0+}}e0)))
+// CHECK: (check-sat)
+// CHECK-NOT: ; query:
+fn @get() [selector=0x12345678, abi_wrapper] {
+  bb0:
+    v0 = sload 0
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @set() [selector=0x23456789, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    sstore 0, v0
+    stop
+}

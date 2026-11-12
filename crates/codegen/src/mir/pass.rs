@@ -118,6 +118,7 @@ static ALL_PASSES: &[&dyn MirPass] = &[
     &lower_shifts::LowerShifts,
     &evm_inst_schedule::EvmInstSchedule,
     &heap_floor::HeapFloor,
+    &lower_assumes::LowerAssumes,
 ];
 
 /// Finds a MIR pass by command-line name.
@@ -451,6 +452,8 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
     &dce::Dce,
     // Targets without shift opcodes get arithmetic instead, so scheduling orders its operands.
     &lower_shifts::LowerShifts,
+    // Every fact a pass recorded becomes its run-time check, after every pass that records.
+    &lower_assumes::LowerAssumes,
     &evm_inst_schedule::EvmInstSchedule,
 ];
 
@@ -476,7 +479,16 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
                 let batch = remaining[..end].iter().copied().flatten().collect::<Vec<_>>();
                 let (pass_changed, error) = run_passes_inner(gcx, module, &batch, Some(&name));
                 changed |= pass_changed;
-                if error.is_some() || end == remaining.len() {
+                if error.is_some() {
+                    return changed;
+                }
+                if end == remaining.len() {
+                    // No backend lowers a recorded fact, so one a custom pipeline leaves in
+                    // lowered MIR becomes its check here.
+                    if module.phase() == MirPhase::Lowered && lower_assumes::has_records(module) {
+                        let checks: &[&dyn MirPass] = &[&lower_assumes::LowerAssumes];
+                        changed |= run_passes_inner(gcx, module, checks, Some(&name)).0;
+                    }
                     return changed;
                 }
                 remaining = &remaining[end + 1..];

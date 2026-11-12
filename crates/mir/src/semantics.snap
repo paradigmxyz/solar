@@ -105,3 +105,4 @@ log: log(offset, size, topics)
 phi: phi(incoming)
 select: select(cond, true_val, false_val)
 signextend: opcode(signextend)
+assume: -

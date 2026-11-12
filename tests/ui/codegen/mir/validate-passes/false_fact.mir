@@ -1,0 +1,24 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes -Zvalidate-passes=- --emit=bin-runtime
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// A rewrite that changes the function: the hand-written fact is false, so the check
+// `lower-assumes` inserts for it reverts for some calldata where the function before returned.
+// The query's last assertion is the guard of that revert, which Z3 satisfies with a word of 10
+// or more: a counterexample (see `tools/prove-analyses/tests/validate/refuted`).
+@module ValidateFalseFact
+@phase lowered
+// CHECK-LABEL: ; query: ValidateFalseFact-lower_assumes-f0-{{[0-9a-f]+}}.smt2
+// CHECK: ; claim: lower-assumes preserves #0 entry
+// CHECK: (assert (= [[V0:t[0-9]+]] (input_calldataload_1 #x{{0+}})))
+// CHECK: (assert (= [[LT:t[0-9]+]] (ite (bvult [[V0]] #x{{0+}}a) #x{{0+}}1 #x{{0+}})))
+// CHECK: (assert (= [[FAILED:t[0-9]+]] (ite (= [[LT]] #x{{0+}}) #x{{0+}}1 #x{{0+}})))
+// CHECK: (assert (= [[TRAP:g[0-9]+]] (not (= [[FAILED]] #x{{0+}}))))
+// CHECK: (assert [[TRAP]])
+// CHECK-NEXT: (check-sat)
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    assume ult sccp, v0, 10
+    mstore 0, v0
+    returndata 0, 32
+}

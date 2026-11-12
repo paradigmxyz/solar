@@ -131,6 +131,9 @@ pub(crate) enum Outcome {
     Limit(Limit),
     /// Execution reached something the interpreter does not model, named here.
     Unsupported(&'static str),
+    /// With [`Limits::check_widths`], a value of a narrow integer type held a word with bits above
+    /// its width, which breaks MIR's integer invariant: described here.
+    WidthViolated(String),
 }
 
 /// A bound on one execution.
@@ -151,6 +154,9 @@ pub(crate) struct Limits {
     pub(crate) fuel: u64,
     /// Frames that may be live at once, the called function's included.
     pub(crate) depth: usize,
+    /// Whether every value of an integer type narrower than a word that a lowered run computes,
+    /// passes or returns is checked to have zero bits above its width.
+    pub(crate) check_widths: bool,
 }
 
 /// What one execution did.
@@ -757,6 +763,12 @@ impl<'a> Run<'_, 'a, '_> {
         if body.blocks.is_empty() {
             return ControlFlow::Break(Outcome::Unsupported("function without blocks"));
         }
+        for (index, arg) in args.iter_enumerated() {
+            if let &RuntimeValue::Word(word) = arg {
+                let what = || format!("argument {}", index.index());
+                self.check_word(body, Some(body.arg_ty(index)), word, what)?;
+            }
+        }
         let function = self.machine.function_id(body);
         if let Some(layout) = &self.machine.module.backend_memory {
             if let Some(&end) = layout.frame_ends.get(&function) {
@@ -1023,8 +1035,45 @@ impl<'a> Run<'_, 'a, '_> {
         } else {
             result
         };
+        self.check_width(body, value, result)?;
         self.frame().values[value] = Some(RuntimeValue::Word(result));
         ControlFlow::Continue(())
+    }
+
+    /// With [`Limits::check_widths`], stops a lowered run when `word`, the value `value` of `body`
+    /// takes, has bits above the width of its integer type. A replay masks every result instead.
+    fn check_width(&self, body: &Function, value: ValueId, word: U256) -> ControlFlow<Outcome> {
+        let what = || match body.value(value) {
+            Value::Inst(inst) => format!("`{}`", body.inst(*inst).kind),
+            Value::Arg(index) => format!("argument {}", index.index()),
+            _ => "a value".to_owned(),
+        };
+        self.check_word(body, body.value_ty(value), word, what)
+    }
+
+    /// Stops a lowered run when `word`, which `what` of `body` takes, has bits above the width of
+    /// `ty`; see [`Self::check_width`].
+    fn check_word(
+        &self,
+        body: &Function,
+        ty: Option<MirType>,
+        word: U256,
+        what: impl FnOnce() -> String,
+    ) -> ControlFlow<Outcome> {
+        if !self.limits.check_widths || self.semantic.is_some() {
+            return ControlFlow::Continue(());
+        }
+        let Some(bits) = ty.and_then(|ty| ty.integer_bits()) else {
+            return ControlFlow::Continue(());
+        };
+        if bits >= 256 || word.bit_len() <= bits as usize {
+            return ControlFlow::Continue(());
+        }
+        let what = what();
+        ControlFlow::Break(Outcome::WidthViolated(format!(
+            "{what} in `@{}` is {word:#x}, which has bits above its type `i{bits}`",
+            body.name
+        )))
     }
 
     /// Runs the opcode the schema names `name` on its operand words, for an instruction with the
@@ -1461,6 +1510,11 @@ impl<'a> Run<'_, 'a, '_> {
                         }
                         for (value, &word) in protocol.extras.iter().zip(&values[1..]) {
                             if let Some(value) = value {
+                                self.check_width(
+                                    self.frames.last().expect("caller").body,
+                                    *value,
+                                    word,
+                                )?;
                                 self.frame().values[*value] = Some(RuntimeValue::Word(word));
                             }
                         }
@@ -1468,12 +1522,12 @@ impl<'a> Run<'_, 'a, '_> {
                         self.publish_multi_return(frame.return_owner, &values)?;
                     }
                 }
-                let caller = self.frame();
                 if let Some(result) = frame.result {
                     let Some(&value) = values.first() else {
                         return ControlFlow::Break(Outcome::Unsupported("call without a result"));
                     };
-                    caller.values[result] = Some(RuntimeValue::Word(value));
+                    self.check_width(self.frames.last().expect("caller").body, result, value)?;
+                    self.frame().values[result] = Some(RuntimeValue::Word(value));
                 }
                 ControlFlow::Continue(())
             }
@@ -1535,7 +1589,9 @@ impl<'a> Run<'_, 'a, '_> {
             let value = if self.semantic.is_some() {
                 frame.read_value(value)?
             } else {
-                RuntimeValue::Word(frame.read(value)?)
+                let word = frame.read(value)?;
+                self.check_width(body, result, word)?;
+                RuntimeValue::Word(word)
             };
             incoming.push((result, value));
         }
@@ -1681,7 +1737,7 @@ mod tests {
     use solar_interface::{ColorChoice, Session, source_map::FileName};
     use solar_mir::ResultKind;
 
-    const LIMITS: Limits = Limits { fuel: 10_000, depth: 16 };
+    const LIMITS: Limits = Limits { fuel: 10_000, depth: 16, check_widths: false };
 
     fn parse_module(sess: &Session, input: &str) -> solar_interface::Result<Module> {
         let name = FileName::Custom("test.mir".into());
@@ -1814,6 +1870,45 @@ fn @storage(arg0: i256) -> i256 {
 
     fn returned(value: u64) -> Outcome {
         Outcome::Return([U256::from(value)].into_iter().collect())
+    }
+
+    #[test]
+    fn integer_widths() {
+        // Lowering legality keeps only `i1` narrow, and every lowered operation with an `i1`
+        // result yields zero or one, so here a caller that skips the check passes two.
+        let source = "@module Widths
+@phase lowered
+fn @flag(arg0: i1) -> i1 {
+  bb0:
+    ret arg0
+}
+";
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(|| {
+            let module = parse_module(&sess, source).unwrap();
+            let id = |name: &str| {
+                module
+                    .iter_functions()
+                    .find(|(_, function)| function.name.symbol.as_str() == name)
+                    .map(|(id, _)| id)
+                    .unwrap()
+            };
+            let run = |name: &str, arg: u64, check_widths: bool| {
+                let limits = Limits { check_widths, ..LIMITS };
+                let machine = Machine::new(&module);
+                machine.run(id(name), &[U256::from(arg)], Memory::zeroed(), None, limits).outcome
+            };
+            // Without the check a run keeps the raw words, as the EVM computes them.
+            assert_eq!(run("flag", 2, false), returned(2));
+            // A value that fits passes it.
+            assert_eq!(run("flag", 1, true), returned(1));
+            assert_eq!(
+                run("flag", 2, true),
+                Outcome::WidthViolated(
+                    "argument 0 in `@flag` is 0x2, which has bits above its type `i1`".into()
+                )
+            );
+        });
     }
 
     #[test]

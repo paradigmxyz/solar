@@ -1,0 +1,31 @@
+[package]
+name = "solar-prove-analyses"
+description = "Proves the compiler's recorded analysis facts with Z3"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/tools/prove-analyses"
+publish = false
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+rayon.workspace = true
+regex.workspace = true
+ruint.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+solar-smt.workspace = true
+tempfile.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true

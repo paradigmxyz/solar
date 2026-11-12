@@ -10,7 +10,7 @@
 use crate::{
     backend::evm::{
         DebugFunction, DebugFunctionExit, DebugInfo, DebugInfoBuilder, DebugSpans, SourceOrigins,
-        ir, op, op::WORD_BYTES,
+        ir, op, op::WORD_BYTES, validate_assembly,
     },
     debugify::Origins,
     link::{EmbeddedBytecodes, LibraryRelocation, LibraryTable, Trailer},
@@ -68,6 +68,8 @@ pub(crate) struct AssembledCode {
     pub library_relocations: Vec<LibraryRelocation>,
     /// Contracts' trailing runtime data, including embedded program data.
     pub trailers: Vec<Trailer>,
+    /// The program data in the bytecode: each one's ID, offset and length.
+    pub data: Vec<(ir::DataId, usize, usize)>,
     /// Final EVM IR captured immediately before byte emission.
     pub evm_ir: Option<ir::Module>,
     /// Final instruction offsets and source spans.
@@ -310,6 +312,15 @@ impl<'gcx> Assembler<'gcx> {
         *self.immutable_pushes.get(index)
     }
 
+    /// The immutable and the width of the placeholder `index` names.
+    pub(in crate::backend) fn immutable_placeholder(
+        &self,
+        index: ImmutablePushId,
+    ) -> (ImmutableId, TypeSize) {
+        let push = self.immutable_push(index);
+        (push.id, push.type_size)
+    }
+
     /// Links embedded contract bytecode into the optimized program, then lowers and
     /// assembles it and clears the assembler.
     pub(in crate::backend) fn assemble_linked(
@@ -349,13 +360,28 @@ impl<'gcx> Assembler<'gcx> {
                 &FxHashMap::default(),
             );
             result.evm_ir = evm_ir;
+            self.validate(&program, &result);
             return result;
         }
 
         let (label_offsets, data_offsets, push_widths) = self.resolve_offsets(&program);
         let mut result = self.emit_bytecode(&program, label_offsets, data_offsets, &push_widths);
         result.evm_ir = evm_ir;
+        self.validate(&program, &result);
         result
+    }
+
+    /// With `-Zvalidate-assembly`, checks the bytecode against the program it was solved from:
+    /// see `validate_assembly`.
+    fn validate(&self, program: &AssemblyProgram, result: &AssembledCode) {
+        let opts = &self.gcx.sess.opts.unstable;
+        if !opts.validate_assembly {
+            return;
+        }
+        let fault = opts.validate_assembly_fault.as_deref();
+        if let Err(error) = validate_assembly::check(self, program, result, fault) {
+            self.gcx.dcx().err(format!("assembly validation failed: {error}")).emit();
+        }
     }
 
     /// Resolves all ordinary label pushes against the complete assembly
@@ -560,10 +586,11 @@ impl<'gcx> Assembler<'gcx> {
                 AsmInstKind::Label(_) => {
                     out.emit_op(op::JUMPDEST, origins);
                 }
-                AsmInstKind::Data(data) => {
-                    let data = &program.data[data];
+                AsmInstKind::Data(id) => {
+                    let data = &program.data[id];
                     let base = out.bytecode.len();
                     let bytes = data.bytes.linked();
+                    out.data.push((id, base, bytes.len()));
                     out.library_relocations.extend(data.library_relocations.iter().map(|reloc| {
                         LibraryRelocation { offset: base + reloc.offset, library: reloc.library }
                     }));
@@ -603,6 +630,7 @@ struct BytecodeAssembler<'gcx> {
     immutable_refs: Vec<ImmutableRef>,
     library_relocations: Vec<LibraryRelocation>,
     trailers: Vec<Trailer>,
+    data: Vec<(ir::DataId, usize, usize)>,
     debug_info: Option<DebugInfoBuilder>,
     function_invoke: Option<DebugFunction>,
     function_exit: Option<DebugFunctionExit>,
@@ -617,6 +645,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             immutable_refs: Vec::new(),
             library_relocations: Vec::new(),
             trailers: Vec::new(),
+            data: Vec::new(),
             debug_info: capture_debug_info.then(DebugInfoBuilder::default),
             function_invoke: None,
             function_exit: None,
@@ -715,6 +744,7 @@ impl<'gcx> BytecodeAssembler<'gcx> {
             immutable_refs: self.immutable_refs,
             library_relocations: self.library_relocations,
             trailers: self.trailers,
+            data: self.data,
             evm_ir: None,
             debug_info: self.debug_info.map(DebugInfoBuilder::finish),
         }

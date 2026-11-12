@@ -1,0 +1,119 @@
+- ; === ROOT/tests/ui/codegen/mir/lower-assumes/pass_facts_trap.mir (before lower-assumes) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-assumes/pass_facts_trap.mir (after lower-assumes) ===
+  @module PassFactsTrap
+  @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 4
+      switch v0, default bb5, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4]
+    bb4:                                            ; preds = bb0
+      tail_call @check_elim
+    bb3:                                            ; preds = bb0
+      tail_call @lower_integers
+    bb2:                                            ; preds = bb0
+      tail_call @loop_version
+    bb1:                                            ; preds = bb0
+      tail_call @byte_loops
+    bb5 [cold]:                                     ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @byte_loops() {
+    bb0:
+      v0 = calldataload 36
+      mstore 0, 5
+      v1 = mload 0
+      mstore 0, v0
+      v2 = mload 0
+-     assume eq byte_loops, v1, v2
+      mstore 0, v2
++     v3 = ne v1, v2
++     jumpi v3, bb2, bb3
++   bb3:                                            ; preds = bb0
+      returndata 0, 32
++   bb2 [cold]:                                     ; preds = bb0
++     jump bb1
++   bb1 [cold]:                                     ; preds = bb2
++     v4 = phi [bb2: 0x115000000010000000000000001]
++     v5 = phi [bb2: v1]
++     v6 = phi [bb2: v2]
++     mstore 32, v4 !metadata(memory=scratch)
++     mstore 64, v5 !metadata(memory=scratch)
++     mstore 96, v6 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  
+  fn @loop_version() {
+    bb0:
+      v0 = calldataload 36
+      mstore 0, 5
+      v1 = mload 0
+      mstore 0, v0
+      v2 = mload 0
+-     assume eq loop_version, v1, v2
+      mstore 0, v2
++     v3 = ne v1, v2
++     jumpi v3, bb2, bb3
++   bb3:                                            ; preds = bb0
+      returndata 0, 32
++   bb2 [cold]:                                     ; preds = bb0
++     jump bb1
++   bb1 [cold]:                                     ; preds = bb2
++     v4 = phi [bb2: 0x116000000020000000000000001]
++     v5 = phi [bb2: v1]
++     v6 = phi [bb2: v2]
++     mstore 32, v4 !metadata(memory=scratch)
++     mstore 64, v5 !metadata(memory=scratch)
++     mstore 96, v6 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  
+  fn @lower_integers() {
+    bb0:
+      v0 = calldataload 36
+-     assume ule lower_integers, v0, 255
+      mstore 0, v0
++     v1 = gt v0, 255
++     jumpi v1, bb2, bb3
++   bb3:                                            ; preds = bb0
+      returndata 0, 32
++   bb2 [cold]:                                     ; preds = bb0
++     jump bb1
++   bb1 [cold]:                                     ; preds = bb2
++     v2 = phi [bb2: 0x417000000030000000000000000]
++     v3 = phi [bb2: v0]
++     v4 = phi [bb2: 255]
++     mstore 32, v2 !metadata(memory=scratch)
++     mstore 64, v3 !metadata(memory=scratch)
++     mstore 96, v4 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  
+  fn @check_elim() {
+    bb0:
+      v0 = calldataload 36
+      v1 = gt v0, 20
+-     assume eq check_elim, v1, false
+      mstore 0, v0
++     v2 = zext i1 v1 to i256
++     v3 = ne v2, 0
++     jumpi v3, bb2, bb3
++   bb3:                                            ; preds = bb0
+      returndata 0, 32
++   bb2 [cold]:                                     ; preds = bb0
++     jump bb1
++   bb1 [cold]:                                     ; preds = bb2
++     v4 = phi [bb2: 0x102000000040000000000000001]
++     v5 = phi [bb2: v2]
++     v6 = phi [bb2: 0]
++     mstore 32, v4 !metadata(memory=scratch)
++     mstore 64, v5 !metadata(memory=scratch)
++     mstore 96, v6 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  

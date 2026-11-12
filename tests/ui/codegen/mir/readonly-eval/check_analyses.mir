@@ -1,0 +1,68 @@
+//@ revisions: off on
+//@[off] compile-flags: -Zmir-pipeline=readonly-eval
+//@[off] filecheck: --check-prefixes=CHECK,OFF
+//@[on] compile-flags: -Zmir-pipeline=readonly-eval -Zcheck-analyses=true
+//@[on] filecheck: --check-prefixes=CHECK,ON
+@module ReadonlyEvalCheckAnalyses
+
+// With `-Zcheck-analyses`, a call evaluated over the words stored into a fresh allocation stays
+// as the evidence of its fold, recorded equal to the constant, while its other uses take the
+// constant. The call reads the words again, so a write alias analysis missed between the stores
+// and the call fails the check. Without the flag the call is removed.
+// CHECK-LABEL: fn @known
+// OFF: - [[RESULT:v[0-9]+]] = icall @choose
+// ON: [[RESULT:v[0-9]+]] = icall @choose
+// ON: + assume eq readonly_eval, [[RESULT]], 42
+// CHECK: + ret 42
+fn @known() -> i256 {
+  bb0:
+    v5 = alloc 64
+    v0 = ptrtoint ptr<memory> v5 to i256
+    mstore v0, 1
+    v1 = add v0, 32
+    mstore v1, 41
+    v2 = icall @choose, v0
+    ret v2
+}
+
+fn @choose(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    v4 = ne v0, 0
+    jumpi v4, bb1, bb2
+  bb1:
+    v1 = add arg0, 32
+    v2 = icall @read, v1
+    v3 = add v2, 1
+    ret v3
+  bb2:
+    sstore 0, 1
+    ret 7
+}
+
+fn @read(arg0: i256) -> i256 {
+  bb0:
+    v0 = mload arg0
+    ret v0
+}
+
+// A folded void call has no result to compare and is removed either way.
+// CHECK-LABEL: fn @void_guard
+// CHECK: - icall @guard, 42
+// CHECK-NOT: assume
+fn @void_guard() {
+  bb0:
+    icall @guard, 42
+    ret
+}
+
+fn @guard(arg0: i256) {
+  bb0:
+    v0 = eq arg0, 42
+    jumpi v0, bb1, bb2
+  bb1:
+    ret
+  bb2:
+    mstore 0, 17
+    revert 0, 32
+}

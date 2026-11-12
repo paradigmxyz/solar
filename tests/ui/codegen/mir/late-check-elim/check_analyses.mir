@@ -1,0 +1,46 @@
+//@ revisions: off on
+//@[off] compile-flags: -Osize -Zmir-pipeline=late-check-elim
+//@[off] filecheck: --check-prefixes=CHECK,OFF
+//@[on] compile-flags: -Osize -Zmir-pipeline=late-check-elim -Zcheck-analyses=true
+//@[on] filecheck: --check-prefixes=CHECK,ON
+@module LateCheckElimRecords
+
+// With `-Zcheck-analyses`, late check elimination records what it relied on as the earlier check
+// elimination does: here that the operand a reduced branch condition drops equals the neutral
+// value of the `or`. Without the flag the pass adds nothing.
+// CHECK-LABEL: {{^[ +].*}}fn @reduced{{[( ]}}
+// CHECK: [[D:v[0-9]+]] = gt arg0, 20
+// ON: + assume eq check_elim, [[D]], false
+// OFF-NOT: assume
+// CHECK: jumpi arg1, bb2, bb3
+fn @reduced(arg0: i256, arg1: i1) -> i256 {
+  bb0:
+    v0 = lt arg0, 10
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = gt arg0, 20
+    v2 = or arg1, v1
+    jumpi v2, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}
+
+// A branch the dominating test decides folds, and records its condition.
+// CHECK-LABEL: {{^[ +].*}}fn @folded{{[( ]}}
+// CHECK: [[C:v[0-9]+]] = lt arg0, 20
+// ON: + assume ne check_elim, [[C]], false
+// OFF-NOT: assume
+fn @folded(arg0: i256) -> i256 {
+  bb0:
+    v0 = lt arg0, 10
+    jumpi v0, bb1, bb3
+  bb1:
+    v1 = lt arg0, 20
+    jumpi v1, bb2, bb3
+  bb2:
+    ret 1
+  bb3:
+    ret 0
+}

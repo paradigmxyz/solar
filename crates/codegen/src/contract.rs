@@ -53,6 +53,9 @@ pub struct ContractArtifact {
     /// The [`RuntimeDataFn`] values of this contract and the contracts it embeds in the runtime
     /// bytecode, in ascending order.
     pub runtime_trailers: Vec<Trailer>,
+    /// The program data in the runtime bytecode, such as the creation code of a contract it
+    /// creates: each one's data ID, offset and length.
+    pub runtime_data: Vec<(usize, usize, usize)>,
     /// Captured MIR, built under `-O none` without an explicit pipeline, and
     /// post-pipeline otherwise.
     pub mir: Option<Module>,
@@ -834,6 +837,11 @@ impl<'a, 'gcx> ContractJobs<'a, 'gcx> {
             runtime_link_references,
             deployment_trailers: artifact.deployment_trailers,
             runtime_trailers: artifact.runtime_trailers,
+            runtime_data: artifact
+                .runtime_data
+                .iter()
+                .map(|&(id, offset, len)| (id.index(), offset, len))
+                .collect(),
             mir,
             final_mir,
             deployment_evm_ir: artifact.deployment_evm_ir,

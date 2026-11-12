@@ -66,7 +66,7 @@ pub fn run_function(
             id,
             args,
             memory,
-            Limits { fuel: options.fuel, depth: options.depth },
+            Limits { fuel: options.fuel, depth: options.depth, check_widths: false },
             options.evm_version,
         );
         let outcome = scalar_outcome(outcome);
@@ -203,7 +203,7 @@ pub fn run_state(
             memory,
             host,
             (input.calldata, options.evm_version),
-            Limits { fuel: options.fuel, depth: options.depth },
+            Limits { fuel: options.fuel, depth: options.depth, check_widths: false },
         );
         let outcome = if memory.size_bytes() > 65536 {
             StateOutcome::Unsupported("state replay memory limit of 64 KiB".into())
@@ -224,6 +224,7 @@ pub fn run_state(
                 RunOutcome::Limit(what) => {
                     StateOutcome::Unsupported(format!("state replay limit: {what:?}"))
                 }
+                RunOutcome::WidthViolated(what) => StateOutcome::Unsupported(what),
             }
         };
         let sorted = |map: solar_data_structures::map::FxHashMap<U256, U256>| {

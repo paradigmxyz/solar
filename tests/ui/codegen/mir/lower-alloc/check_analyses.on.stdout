@@ -1,0 +1,135 @@
+- ; === ROOT/tests/ui/codegen/mir/lower-alloc/check_analyses.mir (before lower-alloc) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-alloc/check_analyses.mir (after lower-alloc) ===
+  @module LowerAllocCheckAnalyses
+  ; runtime dispatch entry
+  fn @dispatch() -> i256 [entry] {
+    bb0:
+      v0 = calldataload 0
+      v1 = shr v0, 224
+      switch v1, default bb1, [0x30000001 => bb2, 0x30000002 => bb3, 0x30000003 => bb4, 0x30000004 => bb5]
+    bb5:                                            ; preds = bb0
+      tail_call @zero_store_fill
+    bb4:                                            ; preds = bb0
+      tail_call @short_fill
+    bb3:                                            ; preds = bb0
+      tail_call @long_fill
+    bb2:                                            ; preds = bb0
+      tail_call @constant_fill
+    bb1:                                            ; preds = bb0
+      tail_call @dynamic_fill
+  }
+  
+  fn @dynamic_fill() -> i256 {
+    bb0:
+      v0 = calldataload 4
+      v1 = and v0, 0xfff
+-     v2 = alloc zeroed checked v1 !metadata(preserves_fmp)
++     v4 = heap_floor !metadata(alloc_ptr)
++     v2 = inttoptr i256 v4 to ptr<memory> !metadata(memory=scratch)
++     v5 = mload 64 !metadata(memory=scratch)
++     assume eq lower_alloc, v4, v5
++     v6 = add v4, v1 !metadata(alloc_ptr)
++     v7 = lt v6, v4
++     v8 = gt v6, 0xffffffffffffffff
++     v9 = or v7, v8
++     v10 = zext i1 v9 to i256
++     jumpi v9, bb2, bb1
++   bb1:                                            ; preds = bb0
++     mstore 64, v6 !metadata(memory=scratch)
++     v11 = lt v1, 32
++     v12 = select v11, v1, 32
++     v13 = sub 32, v12
++     v14 = shl v13, 3
++     v15 = mload v4
++     v16 = shr v15, v14
++     assume eq lower_alloc, v16, 0
++     v17 = sub v1, v12
++     v18 = add v4, v17
++     v19 = mload v18
++     v20 = shr v19, v14
++     assume eq lower_alloc, v20, 0
+      v3 = ptrtoint ptr<memory> v2 to i256
+      ret v3
++   bb2 [cold]:                                     ; preds = bb0
++     mstore 32, 65 !metadata(memory=scratch)
++     mstore 0, 0x4e487b71 !metadata(memory=scratch)
++     revert 28, 36
+  }
+  
+  fn @constant_fill() -> i256 {
+    bb0:
+-     v0 = alloc 128
+-     memory_zero v0, 128
++     v2 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
++     v3 = mload 64 !metadata(memory=scratch)
++     assume eq lower_alloc, v2, v3
++     v4 = add v2, 128 !metadata(alloc_ptr)
++     mstore 64, v4 !metadata(memory=scratch)
++     v5 = mload v2
++     assume eq lower_alloc, v5, 0
++     v6 = add v2, 32
++     v7 = mload v6
++     assume eq lower_alloc, v7, 0
++     v8 = add v2, 64
++     v9 = mload v8
++     assume eq lower_alloc, v9, 0
++     v10 = add v2, 96
++     v11 = mload v10
++     assume eq lower_alloc, v11, 0
+      v1 = ptrtoint ptr<memory> v0 to i256
+      ret v1
+  }
+  
+  fn @long_fill() -> i256 {
+    bb0:
+-     v0 = alloc 0x3e8
+-     memory_zero v0, 0x3e8
++     v2 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
++     v3 = mload 64 !metadata(memory=scratch)
++     assume eq lower_alloc, v2, v3
++     v4 = add v2, 0x3e8 !metadata(alloc_ptr)
++     mstore 64, v4 !metadata(memory=scratch)
++     v5 = mload v2
++     assume eq lower_alloc, v5, 0
++     v6 = add v2, 968
++     v7 = mload v6
++     assume eq lower_alloc, v7, 0
+      v1 = ptrtoint ptr<memory> v0 to i256
+      ret v1
+  }
+  
+  fn @short_fill() -> i256 {
+    bb0:
+-     v0 = alloc 20
+-     memory_zero v0, 20
++     v2 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
++     v3 = mload 64 !metadata(memory=scratch)
++     assume eq lower_alloc, v2, v3
++     v4 = add v2, 20 !metadata(alloc_ptr)
++     mstore 64, v4 !metadata(memory=scratch)
++     v5 = mload v2
++     v6 = shr v5, 96
++     assume eq lower_alloc, v6, 0
+      v1 = ptrtoint ptr<memory> v0 to i256
+      ret v1
+  }
+  
+  fn @zero_store_fill() {
+    bb0:
+-     v0 = alloc 64
++     v2 = heap_floor !metadata(alloc_ptr)
++     v0 = inttoptr i256 v2 to ptr<memory> !metadata(memory=scratch)
++     v3 = mload 64 !metadata(memory=scratch)
++     assume eq lower_alloc, v2, v3
++     v4 = add v2, 64 !metadata(alloc_ptr)
++     mstore 64, v4 !metadata(memory=scratch)
+      v1 = ptrtoint ptr<memory> v0 to i256
+-     mstore v1, 0
++     v5 = mload v0
++     assume eq lower_alloc, v5, 0
+      stop
+  }
+  

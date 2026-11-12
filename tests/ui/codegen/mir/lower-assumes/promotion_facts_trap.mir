@@ -1,0 +1,70 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+//@ run-call: f(uint256,uint256)(uint256) 1, 5 => 5
+//@ run-call-fail: f(uint256,uint256)(uint256) 1, 7 => 0xed572b27000000000000000000000000000000000000012000000001000000000000000100000000000000000000000000000000000000000000000000000000000000070000000000000000000000000000000000000000000000000000000000000005
+//@ run-call: f(uint256,uint256)(uint256) 2, 5 => 5
+//@ run-call-fail: f(uint256,uint256)(uint256) 2, 7 => 0xed572b27000000000000000000000000000000000000012100000002000000000000000100000000000000000000000000000000000000000000000000000000000000070000000000000000000000000000000000000000000000000000000000000005
+//@ run-call: f(uint256,uint256)(uint256) 3, 1 => 1
+//@ run-call-fail: f(uint256,uint256)(uint256) 3, 2 => 0xed572b27000000000000000000000000000000000000012200000003000000010000000200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000
+// The records of promoted loads and of blocks `defer-alloc` found run once become run-time checks
+// like any other fact. Each function below holds the shape a pass leaves, made false by its second
+// argument: fact words `0x120...` to `0x122...` name `eq` (1) and `sroa` (32),
+// `frame-slot-promotion` (33) and `defer-alloc` (34).
+@module PromotionFactsTrap
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 4
+    switch v0, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
+  bb1:
+    tail_call @sroa
+  bb2:
+    tail_call @frame_slot_promotion
+  bb3:
+    tail_call @defer_alloc
+  bb4:
+    revert 0, 0
+}
+
+// A field SROA replaced with the value stored to it, and the load SROA kept, with a write between
+// them through a pointer the escape analysis missed.
+fn @sroa() {
+  bb0:
+    v0 = calldataload 36
+    mstore 256, 5
+    mstore 256, v0
+    v1 = mload 256
+    assume eq sroa, v1, 5
+    mstore 0, 5
+    returndata 0, 32
+}
+
+// A promoted frame slot and its kept load, with a write between them the promotion missed.
+fn @frame_slot_promotion() {
+  bb0:
+    v0 = calldataload 36
+    mstore 160, 5
+    mstore 160, v0
+    v1 = mload 160
+    assume eq frame_slot_promotion, v1, 5
+    mstore 0, 5
+    returndata 0, 32
+}
+
+// A deferred allocation's guard in a block that runs as many times as the second argument says,
+// which a wrong cycle analysis took for once per call.
+fn @defer_alloc() {
+  bb0:
+    v0 = calldataload 36
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb1: v3]
+    v2 = mload 192
+    mstore 192, 1
+    assume eq defer_alloc, v2, 0
+    v3 = add v1, 1
+    v4 = lt v3, v0
+    jumpi v4, bb1, bb2
+  bb2:
+    mstore 0, v3
+    returndata 0, 32
+}

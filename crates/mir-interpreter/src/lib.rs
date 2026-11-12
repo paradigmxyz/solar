@@ -33,6 +33,9 @@ pub enum Outcome {
     ReturndataOutOfBounds,
     /// The interpreter cannot run it, for this reason.
     Unsupported(String),
+    /// With [`Options::check_integer_widths`], a value of an integer type narrower than a word
+    /// held bits above its width, which MIR's integer invariant forbids: described here.
+    WidthViolated(String),
 }
 
 /// What a run did.
@@ -58,11 +61,20 @@ pub struct Options {
     pub fuel: u64,
     /// Calls that may be live at once, the first included.
     pub depth: usize,
+    /// Whether to check MIR's integer invariant as the run goes: every value of type `iN` narrower
+    /// than a word that an instruction produces, a phi takes, a call passes or a return delivers
+    /// has zero bits above `N`. A violation ends the run with [`Outcome::WidthViolated`].
+    pub check_integer_widths: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { evm_version: EvmVersion::default(), fuel: 10_000_000, depth: 1024 }
+        Self {
+            evm_version: EvmVersion::default(),
+            fuel: 10_000_000,
+            depth: 1024,
+            check_integer_widths: false,
+        }
     }
 }
 
@@ -88,7 +100,11 @@ pub fn transact(
     options: Options,
 ) -> Result<Execution, String> {
     with_module(mir, |module| {
-        let limits = Limits { fuel: options.fuel, depth: options.depth };
+        let limits = Limits {
+            fuel: options.fuel,
+            depth: options.depth,
+            check_widths: options.check_integer_widths,
+        };
         let machine = Machine::new(module);
         let execution = machine.transact(calldata, host, options.evm_version, limits);
         Ok(execution_from(execution.outcome, execution.effects))
@@ -176,6 +192,7 @@ fn execution_from(outcome: RunOutcome, effects: Effects) -> Execution {
             Outcome::Unsupported("reaches past 16 MiB of memory".into())
         }
         RunOutcome::Unsupported(what) => Outcome::Unsupported(format!("reaches `{what}`")),
+        RunOutcome::WidthViolated(what) => Outcome::WidthViolated(what),
     };
     let sorted = |slots: FxHashMap<U256, U256>| {
         let mut slots = slots.into_iter().collect::<Vec<_>>();

@@ -6,7 +6,9 @@
 //! call. Both runs execute the same compiled program, so they must end the same way, return the
 //! same data, emit the same logs, and write the same storage. A test written in MIR exists to run
 //! its calls both ways, so a call the interpreter cannot run, or one the EVM ends by running out
-//! of gas or stack, which the interpreter does not model, fails the test.
+//! of gas or stack, which the interpreter does not model, fails the test. The interpreter also
+//! checks MIR's integer invariant as it runs: a value of type `iN` narrower than a word with bits
+//! above `N` fails the test too.
 
 use super::{
     dump::{self, Kind},
@@ -117,13 +119,21 @@ pub(super) fn check(
     };
     let context = Context::new(&trace.before, call.value);
     let mut host = EvmHost { context, heap_start: trace.heap_start };
-    let options = interpret::Options { evm_version: call.evm_version, ..Default::default() };
+    // Every narrow integer value the run computes must have zero bits above its width.
+    let options = interpret::Options {
+        evm_version: call.evm_version,
+        check_integer_widths: true,
+        ..Default::default()
+    };
     let execution = match interpret::transact(module, call.input, &mut host, options) {
         Ok(execution) => execution,
         Err(reason) => return Err(format!("invalid final MIR for `{}`: {reason}", call.contract)),
     };
     if let Outcome::Unsupported(reason) = &execution.outcome {
         return unsupported(reason);
+    }
+    if let Outcome::WidthViolated(what) = &execution.outcome {
+        return Err(format!("`{}` breaks the MIR integer invariant: {what}", call.name));
     }
 
     let mut differences = Vec::new();
@@ -152,6 +162,7 @@ fn describe(outcome: &Outcome, stop: Option<InstrStop>) -> String {
         (Outcome::Halt, None) => "halted".into(),
         (Outcome::ReturndataOutOfBounds, _) => "halted on an out-of-bounds returndata copy".into(),
         (Outcome::Unsupported(reason), _) => format!("could not run: {reason}"),
+        (Outcome::WidthViolated(what), _) => format!("broke the integer invariant: {what}"),
     }
 }
 

@@ -1,0 +1,24 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A call that records no obligation for an argument leaves the callee's premise about it
+// untrusted: it is an ordinary fact then, whose query the argument leaves free.
+@module ArgumentWidthUncovered
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = and v0, 255
+    v2 = icall @callee, v1
+    v3 = icall @callee, v0
+    assume ule lower_integers, v1, 255
+    v4 = add v2, v3
+    mstore 0, v4
+    returndata 0, 32
+}
+
+fn @callee(arg0: i256) -> i256 {
+  bb0:
+    assume ule lower_integers, arg0, 255
+    v0 = and arg0, 255
+    assume eq egraph, v0, arg0
+    ret v0
+}

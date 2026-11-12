@@ -46,7 +46,19 @@ def main() -> int:
     parser.add_argument("--infra-retries", type=int, default=2)
     parser.add_argument("--timeout", type=float, default=20.0)
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--check-analyses",
+        choices=("default", "on", "off"),
+        default="default",
+        help="Pass -Zcheck-analyses to the compiler (default: on in its debug "
+        "builds); a violated fact is reported as an `analysis-fact` failure",
+    )
     args = parser.parse_args()
+    args.solar_flags = (
+        []
+        if args.check_analyses == "default"
+        else [f"-Zcheck-analyses={str(args.check_analyses == 'on').lower()}"]
+    )
 
     if args.replay_failure is not None:
         return _replay_failure(args, args.replay_failure)
@@ -137,7 +149,7 @@ def _check_replay(
     try:
         solc_runtime = evm.compile_solc(args.solc, source, args.contract, args.timeout)
         solar_runtime = evm.compile_solar(
-            args.solar, source, args.contract, args.timeout
+            args.solar, source, args.contract, args.timeout, args.solar_flags
         )
         evm.set_code(args.rpc_url, evm.SOLC_ADDRESS, solc_runtime, args.timeout)
         evm.set_code(args.rpc_url, evm.SOLAR_ADDRESS, solar_runtime, args.timeout)
@@ -201,7 +213,7 @@ def _check_source(
 
         try:
             solar_runtime = evm.compile_solar(
-                args.solar, source, args.contract, args.timeout
+                args.solar, source, args.contract, args.timeout, args.solar_flags
             )
         except subprocess.CalledProcessError as err:
             return {
@@ -340,8 +352,17 @@ def _failure_if_different(
 ) -> dict[str, Any] | None:
     if solc_result == solar_result:
         return None
+    facts = [
+        fact
+        for result in solar_result.values()
+        if isinstance(result, dict)
+        and (fact := evm.analysis_fact(result.get("data"))) is not None
+    ]
     return {
-        "kind": "runtime",
+        # A false analysis fact explains the mismatch better than the runtime
+        # difference it causes.
+        "kind": "analysis-fact" if facts else "runtime",
+        **({"analysis_fact": facts[0]} if facts else {}),
         "source": str(source),
         "source_text": source.read_text(),
         "case_index": case_index,
