@@ -1,13 +1,12 @@
 //! Inline assembly of the AST JSON.
 //!
 //! The `AST` of an inline assembly block is written from the Yul AST, as solc's `AsmJsonConverter`
-//! does, since lowering hoists the Yul functions out of the block and rewrites `for`, `switch` and
-//! variable declarations. Yul nodes have no IDs, so writing them leaves the ID counter alone. They
-//! have a `src` and a `nativeSrc`, which are equal for inline assembly.
+//! does, since lowering rewrites `for`, `switch` and variable declarations. Yul nodes have no IDs,
+//! so writing them leaves the ID counter alone. They have a `src` and a `nativeSrc`, which are
+//! equal for inline assembly.
 //!
-//! The `externalReferences` come from type checking instead, which resolved the names and records
-//! the identifiers that name a variable: those of the block, and of the Yul functions that lowering
-//! hoisted out of it, are the ones within its span.
+//! The `externalReferences` come from type checking instead, which resolved the names and records,
+//! for the span of each `assembly` statement, the identifiers in it that name a variable.
 
 use super::{Cx, Node, Seq, Sym, W};
 use crate::ty::YulReference;
@@ -16,9 +15,9 @@ use serde::ser::{Serialize, Serializer};
 use solar_ast::{self as ast, LitKind, yul};
 use solar_interface::{Ident, Span, sym};
 
-/// The `externalReferences` of an inline assembly block: the identifiers of the block, and of the
-/// Yul functions that lowering hoisted out of it, that name a declaration outside the block, as
-/// type checking recorded them.
+/// The `externalReferences` of an inline assembly block: the identifiers of the block, including
+/// those in its Yul functions, that name a declaration outside the block, as type checking
+/// recorded them.
 pub(super) struct ExternalReferences {
     /// The span of the `assembly` statement.
     pub(super) span: Span,

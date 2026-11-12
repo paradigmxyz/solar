@@ -556,13 +556,11 @@ Standard JSON and `--emit=ast`). Node IDs do not follow the numbering of
 ETHDebug report, source units and imports follow them, and every other node
 takes the next free ID. `internalFunctionIDs` numbers the functions that
 function values reach by source name and position, as `solc` numbers its nodes.
-`solar` leaves out the `EnumValue` documentation, which its AST does not keep, and reads
-`contractDependencies`, `usedEvents` and `usedErrors` from the call graph used for
+`solar` reads `contractDependencies`, `usedEvents` and `usedErrors` from the call graph used for
 code generation. The source index in a `src` and the `id` of a source follow the
 order of the sources after sorting them by their imports, where `solc` sorts them
 by name, and the IDs of the nodes that are no items depend on the order in which
-the sources are written. `solar` includes a comment between a variable and its `;`
-in the location of the variable.
+the sources are written.
 
 The attributes of expressions come from the type checker, and differ in these
 cases:
@@ -584,12 +582,13 @@ cases:
 
 With `settings.stopAfter` of `parsing`, `solar` writes the parsed AST like `solc`: the nodes
 have no IDs of declarations, types, resolutions or scopes. It also does so for
-`lowering`, which `solc` rejects, since type checking has not run. A source that
-imports a file that `solar` cannot read fails with an error, where `solc` still returns
-the AST of the source, and so does a source with a construct that the parser of `solar`
-rejects but `solc` checks only in analysis, such as a fixed-point type, a nesting beyond
-the recursion limit, a `constant` variable without a value or an `external` modifier in a
-place where it is not allowed.
+`lowering`, which `solc` rejects, since type checking has not run. With `parsing`, an
+import of a file that `solar` cannot read is a warning, where `solc` has no diagnostic, and
+the import keeps its `absolutePath` and has no `sourceUnit`, as in `solc`. A source with a
+construct that the parser of `solar` rejects but `solc` checks only in analysis, such as a
+fixed-point type, a nesting beyond the recursion limit, a `constant` variable without a value
+or an `external` modifier in a place where it is not allowed, fails with an error, where
+`solc` still returns the AST of the source.
 
 Rationale: IDs must agree across the outputs of one compilation, not with
 `solc`. Consumers that look up declarations by ID do not need `solc`'s
@@ -598,6 +597,7 @@ refers to.
 
 Coverage: `tests/ui/standard-json/ast/test.jsonc`,
 `tests/ui/standard-json/ast-attached/test.jsonc`,
+`tests/ui/standard-json/ast-enum-values/test.jsonc`,
 `tests/ui/standard-json/ast-ids/test.jsonc`,
 `tests/ui/standard-json/ast-immutables/test.jsonc`,
 `tests/ui/standard-json/ast-import-aliases/test.jsonc`,
@@ -606,6 +606,8 @@ Coverage: `tests/ui/standard-json/ast/test.jsonc`,
 `tests/ui/standard-json/ast-is-pure/test.jsonc`,
 `tests/ui/standard-json/ast-license/test.jsonc`,
 `tests/ui/standard-json/ast-parse-only/test.jsonc`,
+`tests/ui/standard-json/ast-parse-only-imports/test.jsonc`,
+`tests/ui/standard-json/ast-spans/test.jsonc`,
 `tests/ui/standard-json/ast-tuples/test.jsonc`,
 `tests/ui/standard-json/ast-yul/test.jsonc`,
 `tests/ui/standard-json/ast-yul-hosts/test.jsonc` and
