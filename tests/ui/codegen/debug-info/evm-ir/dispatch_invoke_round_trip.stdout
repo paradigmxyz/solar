@@ -1,0 +1,12 @@
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/dispatch_invoke_round_trip.evmir (before cfg-simplify) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/dispatch_invoke_round_trip.evmir (after cfg-simplify) ===
+  @module DispatchInvokeRoundTrip
+- bb0:
+-   push bb1
+-   jump
+  bb1 [dispatch, invoke=constructor@10..20]:
+    push 1 !metadata(invoke=helper@30..40, dispatch)
+    push 0
+    mstore
+    stop
+  

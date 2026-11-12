@@ -14,7 +14,7 @@ bb0:                                              ; runtime dispatch entry + fun
   sub !metadata(span=230..345)
   push bb3 !metadata(span=230..345)
   jumpi !metadata(span=230..345)
-  push 68 !metadata(span=247..343, invoke=add@247..343)
+  push 68 !metadata(span=247..343, invoke=add@247..343, dispatch)
   calldatasize !metadata(span=247..343)
   lt !metadata(span=247..343)
   push bb3 !metadata(span=247..343)

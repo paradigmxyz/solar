@@ -1,0 +1,16 @@
+//@ compile-flags: -Zevm-ir-pipeline=cfg-simplify
+//@ filecheck:
+// A function that the deployment code enters is not marked `entry`, so the text spells the flag
+// that keeps the jump into it from being an internal call, on a block and on an instruction.
+@module DispatchInvokeRoundTrip
+
+// CHECK: {{^[ +].*}}bb1 [dispatch, invoke=constructor@10..20]:
+// CHECK: {{^[ +].*}}push 1 !metadata(invoke=helper@30..40, dispatch)
+bb0:
+  push bb1
+  jump
+bb1 [dispatch, invoke=constructor@10..20]:
+  push 1 !metadata(invoke=helper@30..40, dispatch)
+  push 0
+  mstore
+  stop

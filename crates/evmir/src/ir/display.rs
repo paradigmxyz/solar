@@ -44,6 +44,10 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
         if !module.hide_debug_info
             && let Some(function) = metadata.function_invoke
         {
+            // The dispatcher enters exactly the blocks marked `entry`.
+            if function.dispatched && !metadata.external_entry {
+                attributes.push("dispatch".to_string());
+            }
             attributes.push(format!(
                 "invoke={}@{}..{}",
                 function.identifier,
@@ -196,6 +200,9 @@ fn display_metadata(metadata: &Metadata, visible: bool) -> impl fmt::Display + '
                 function.declaration.lo().0,
                 function.declaration.hi().0
             )?;
+            if function.dispatched {
+                write!(f, ", dispatch")?;
+            }
             separator = ", ";
         }
         if let Some(function_exit) = function_exit {
