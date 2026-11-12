@@ -84,18 +84,22 @@ fn @loop_body(arg0: i256) -> i256 {
     ret v0
 }
 
-// A straight-line helper never reaches deeper than its call, which keeps the
-// return address resident, so it inlines in a loop that holds more words
-// across the call than the budget allows.
+// A single-block helper adds no join and never reaches deeper than its call,
+// which keeps the return address resident, so it inlines in a loop that holds
+// more words across the call than the budget allows. A helper with several
+// blocks still answers to the budget there.
 // CHECK-LABEL: fn @straight_line_high_pressure
 // CHECK: - {{v[0-9]+}} = icall @same_word
+// CHECK: {{^ +}}v{{[0-9]+}} = icall @guarded_word
 fn @straight_line_high_pressure(arg0: i256, arg1: i256, arg2: i256, arg3: i256, arg4: i256, arg5: i256, arg6: i256, arg7: i256, arg8: i256, arg9: i256, arg10: i256, arg11: i256, arg12: i256) -> i256 [selector=0x01020307] {
   bb0:
     jump bb1
   bb1:
     v0 = phi [bb0: arg0], [bb2: v11]
     v1 = icall @same_word, v0, arg1
-    jumpi v1, bb3, bb2
+    v13 = icall @guarded_word, v0, arg2
+    v14 = and v1, v13
+    jumpi v14, bb3, bb2
   bb2:
     v2 = add v0, arg2
     v3 = add v2, arg3
@@ -118,4 +122,14 @@ fn @same_word(arg0: i256, arg1: i256) -> i1 {
     v1 = and v0, 0xffffffffffffffffffffffff
     v2 = eq v1, 0
     ret v2
+}
+fn @guarded_word(arg0: i256, arg1: i256) -> i1 {
+  bb0:
+    v0 = gt arg0, arg1
+    jumpi v0, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v1 = lt arg0, arg1
+    ret v1
 }

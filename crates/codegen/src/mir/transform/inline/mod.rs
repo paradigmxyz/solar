@@ -32,12 +32,12 @@
 //! guarded loop with no other exit receive the trip-count weight. These are
 //! estimates, never legality facts.
 //!
-//! Clones that add joins, from callees with phis or branching callees in loops,
-//! need a stack estimate: backward liveness gives the callee's peak live words and
-//! the caller words surviving the call, and their sum must fit twelve words,
-//! leaving headroom for operand staging. This bounds spills but does not promise
-//! the scheduler emits none. A straight-line clone needs no estimate: the call it
-//! replaces holds the same caller words and its return address through the body.
+//! Clones that add joins, from callees with phis or with several blocks called in
+//! loops, need a stack estimate: backward liveness gives the callee's peak live
+//! words and the caller words surviving the call, and their sum must fit twelve
+//! words, leaving headroom for operand staging. This bounds spills but does not
+//! promise the scheduler emits none. A single-block clone adds no join and needs no
+//! estimate: the call it replaces holds the same caller words and a return address.
 //!
 //! A callee documented `@custom:solar-inline always` skips every profitability test, the stack
 //! estimate below included: each call where cloning is legal is cloned, while the module's
@@ -376,7 +376,8 @@ impl MirInliner {
                     continue;
                 }
 
-                // A straight-line clone holds one word fewer than the call it replaces.
+                // A single-block clone adds no join, and its call holds the same words plus a
+                // return address.
                 if !always
                     && summary.block_count > 1
                     && let Some(peak) = (summary.has_phi || site.loop_depth > 0)
