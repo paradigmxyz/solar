@@ -34,8 +34,8 @@
 //! to emit for it.
 
 use crate::{
-    AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, InstKind, LogTopics,
-    MirType, PtrLocation, ValueId,
+    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef,
+    FrameMode, FrameSlotKind, InstKind, LogTopics, MirType, PtrLocation, ValueId, ValueLayout,
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
@@ -103,6 +103,14 @@ pub enum Semantics<'a> {
     StoreStorageBytesLiteral(ValueId, &'a [u8]),
     /// Zero array-data words in the half-open index range, retaining scratch hashing.
     ClearStorageWords(ValueId, ValueId, ValueId),
+    /// Allocate a word-strided array, unpacking storage scalars or loading bytes objects.
+    LoadStorageArray(ValueId, ValueLayout, Option<u64>),
+    /// Read a logical mutable-local slot under the named frame convention.
+    FrameLoad(u64, FrameMode, FrameSlotKind),
+    /// Write a logical mutable-local slot under the named frame convention.
+    FrameStore(u64, FrameMode, FrameSlotKind, ValueId),
+    /// Low-level address call over a memory object or slice, with optional gas and value.
+    AddressCall(&'static str, ValueId, ValueId, Option<ValueId>, Option<ValueId>),
 }
 
 /// Constructors for the `#[semantics(...)]` declarations of the operation schema, which bind an
@@ -279,6 +287,50 @@ pub(super) mod declare {
         last: &ValueId,
     ) -> Semantics<'static> {
         Semantics::ClearStorageWords(*slot, *first, *last)
+    }
+
+    /// Load a storage array with its scalar encoding and optional enum bound.
+    pub(crate) fn load_storage_array(
+        slot: &ValueId,
+        element: &ValueLayout,
+        enum_variants: &Option<u64>,
+    ) -> Semantics<'static> {
+        Semantics::LoadStorageArray(*slot, *element, *enum_variants)
+    }
+
+    /// Read a frame slot, without assigning a backend placement.
+    pub(crate) fn frame_load(
+        offset: &u64,
+        mode: &FrameMode,
+        kind: &FrameSlotKind,
+    ) -> Semantics<'static> {
+        Semantics::FrameLoad(*offset, *mode, *kind)
+    }
+
+    /// Write a frame slot, without assigning a backend placement.
+    pub(crate) fn frame_store(
+        offset: &u64,
+        mode: &FrameMode,
+        kind: &FrameSlotKind,
+        value: &ValueId,
+    ) -> Semantics<'static> {
+        Semantics::FrameStore(*offset, *mode, *kind, *value)
+    }
+
+    /// Address-call kind selects a message opcode; input retains its typed representation.
+    pub(crate) fn address_call(
+        kind: &AddressCallKind,
+        address: &ValueId,
+        input: &ValueId,
+        gas: &Option<ValueId>,
+        value: &Option<ValueId>,
+    ) -> Semantics<'static> {
+        let opcode = match kind {
+            AddressCallKind::Call => "call",
+            AddressCallKind::Static => "staticcall",
+            AddressCallKind::Delegate => "delegatecall",
+        };
+        Semantics::AddressCall(opcode, *address, *input, *gas, *value)
     }
 }
 

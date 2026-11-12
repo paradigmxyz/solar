@@ -79,6 +79,9 @@ use solar_mir::{
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
+mod arrays;
+mod frames;
+mod messages;
 mod storage;
 
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,
@@ -828,6 +831,47 @@ impl<'a> Run<'_, 'a, '_> {
                     let (slot, first, last) =
                         (frame.read(slot)?, frame.read(first)?, frame.read(last)?);
                     return self.clear_storage_words(slot, first, last);
+                }
+                Semantics::LoadStorageArray(slot, element, variants) => {
+                    let slot = frame.read(slot)?;
+                    let pointer = self.load_storage_array(slot, element, variants)?;
+                    self.frame().values[instruction.result().expect("storage array result")] =
+                        Some(RuntimeValue::Word(pointer));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::FrameLoad(offset, mode, kind) => {
+                    let address = Self::semantic_frame_address(offset, mode, kind)?;
+                    let value = self.semantic_frame_load(address, kind)?;
+                    self.frame().values[instruction.result().expect("frame load result")] =
+                        Some(value);
+                    return ControlFlow::Continue(());
+                }
+                Semantics::FrameStore(offset, mode, kind, value) => {
+                    let value = frame.read_value(value)?;
+                    let address = Self::semantic_frame_address(offset, mode, kind)?;
+                    return self.semantic_frame_store(address, kind, value);
+                }
+                Semantics::AddressCall(name, address, input, gas, value) => {
+                    let Some(gas) = gas else {
+                        return ControlFlow::Break(Outcome::Unsupported(
+                            "implicit address-call gas requires caller pricing",
+                        ));
+                    };
+                    let value =
+                        if let Some(value) = value { Some(frame.read(value)?) } else { None };
+                    let (address, input, gas) =
+                        (frame.read(address)?, frame.read_value(input)?, frame.read(gas)?);
+                    let opcode = op::from_mnemonic(name).expect("schema message opcode");
+                    let result = self.semantic_address_call(opcode, address, input, gas, value)?;
+                    self.frame().values[instruction.result().expect("address call result")] =
+                        Some(RuntimeValue::Word(result));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::Call(Callee::Builtin(Builtin::ReturndataBytes), []) => {
+                    let pointer = self.semantic_returndata_bytes()?;
+                    self.frame().values[instruction.result().expect("returndata object")] =
+                        Some(RuntimeValue::Word(pointer));
+                    return ControlFlow::Continue(());
                 }
                 Semantics::MappingSlotBytes(key, slot) => {
                     let key = frame.read_value(key)?;

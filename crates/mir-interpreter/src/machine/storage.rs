@@ -20,7 +20,7 @@ impl Run<'_, '_, '_> {
         }
     }
 
-    fn storage_read(&mut self, slot: U256) -> ControlFlow<Outcome, U256> {
+    pub(super) fn storage_read(&mut self, slot: U256) -> ControlFlow<Outcome, U256> {
         let Some(word) = self.world_opcode(op::SLOAD, &[slot])? else {
             return ControlFlow::Break(Outcome::Unsupported("missing storage read"));
         };

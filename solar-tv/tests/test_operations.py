@@ -334,6 +334,7 @@ class OperationTests(unittest.TestCase):
             "extcodecopy",
             "validate_storage_bytes",
             "load_storage_bytes",
+            "load_storage_array",
             "store_storage_bytes",
             "store_storage_bytes_literal",
             "clear_storage_words",
@@ -350,7 +351,14 @@ class OperationTests(unittest.TestCase):
             "timestamp",
         ):
             self.assertEqual(inventory["mir"][name], "direct_state")
-        for name in ("icall", "alloc", "datacopy"):
+        for name in (
+            "icall",
+            "alloc",
+            "datacopy",
+            "frame_load",
+            "frame_store",
+            "address_call",
+        ):
             self.assertEqual(inventory["mir"][name], "partial_family")
         active = {
             str(address)

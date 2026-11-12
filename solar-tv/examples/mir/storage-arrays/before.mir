@@ -1,0 +1,7 @@
+@module State
+fn @f() -> i256 {
+bb0:
+v0 = load_storage_array uint24, 3
+v1 = ptrtoint ptr<memory> v0 to i256
+ret v1
+}

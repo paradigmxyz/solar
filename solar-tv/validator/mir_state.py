@@ -163,7 +163,7 @@ def operation(value, definitions):
             "create",
             "create2",
         }:
-            expression = f".external {opcode}"
+            expression = f".external (.raw {opcode})"
         elif name in {"sload", "sstore", "tload", "tstore"}:
             expression = f".storage {'true' if name.startswith('t') else 'false'} {'true' if name.endswith('store') else 'false'}"
         elif name in {
@@ -207,6 +207,40 @@ def operation(value, definitions):
         expression = (
             f".{tag} ({value_type(value['aggregate_type'])}) {number(value['index'])}"
         )
+    elif kind == "load_storage_array":
+        element = value["element"]
+        tag = {
+            "uint": "uint",
+            "int": "sint",
+            "fixed_bytes": "fixedBytes",
+            "bytes": "bytes",
+        }.get(element["kind"])
+        if tag is None:
+            raise Unsupported("unknown storage array element")
+        layout = f".{tag}"
+        if tag != "bytes":
+            bits = int(width(element["bits"]))
+            if bits % 8:
+                raise Unsupported("invalid storage array element width")
+            layout += f" {bits}"
+        variants = value["variants"]
+        bound = "none" if variants is None else f"some {number(variants, 257)}"
+        expression = f".storageArray ({layout}) ({bound})"
+    elif kind == "address_call":
+        name = value["name"]
+        if name not in {"call", "staticcall", "delegatecall"}:
+            raise Unsupported("unknown address-call kind")
+        opcode = number(definitions[name]["opcode"], 256)
+        return (
+            f"some {opcode}",
+            f".external (.address {opcode} {'true' if value['value'] else 'false'})",
+            args,
+        )
+    elif kind == "returndata_bytes":
+        expression = ".memory .returnDataBytes"
+    elif kind in {"frame_load", "frame_store"}:
+        address = literal(value["address"])
+        expression = f".frame {'true' if kind == 'frame_store' else 'false'} ({address}) ({value_type(value['slot_type'])})"
     elif kind == "make_slice":
         location = {"memory": 0, "calldata": 1, "returndata": 2}.get(value["location"])
         if location is None:
@@ -404,9 +438,12 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
     ]
     env = world.environment_expression(fixture)
     external = any(
-        inst["operation"]["kind"] == "opcode"
-        and inst["operation"]["name"]
-        in {"call", "callcode", "delegatecall", "staticcall", "create", "create2"}
+        inst["operation"]["kind"] == "address_call"
+        or (
+            inst["operation"]["kind"] == "opcode"
+            and inst["operation"]["name"]
+            in {"call", "callcode", "delegatecall", "staticcall", "create", "create2"}
+        )
         for func in model["functions"]
         for block in func["blocks"]
         for inst in block["instructions"]
