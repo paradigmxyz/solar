@@ -61,4 +61,26 @@ def external (fuel : Nat) (cfg : Config) (frame : Frame) (opcode : Nat)
       creationIndex := frame.creationIndex + 1}),child.work)
   | _,_ => .error "unmodeled MIR external message or operand count"
 
+/-- Reading an object's header precedes the message; a slice needs no memory read. -/
+def messageArguments (frame : Frame) (op : MessageOp) (operands : List Operand) :
+    Except String (Nat × List Word × Frame) := do
+  match op,operands with
+  | .raw opcode,_ => return (opcode,← operands.mapM (read frame),frame)
+  | .address opcode hasValue,address :: input :: gas :: rest =>
+    if rest.length != (if hasValue then 1 else 0) ||
+        (opcode != 0xf1 && hasValue) then .error "MIR address-call operand count" else
+    let address ← read frame address
+    let input ← readValue frame input
+    let gas ← read frame gas
+    let amount ← if hasValue then read frame (← required rest[0]? "missing call value") else pure 0
+    let (offset,length,frame) ← match input with
+      | .scalar object => do
+        let memory ← expand frame.memory object.word.toNat 32
+        pure (object.word + 32,readWord memory object.word.toNat,{frame with memory})
+      | .aggregate [pointer,length] => pure (← pointer.word,← length.word,frame)
+      | _ => .error "undefined address-call input"
+    let args := [gas,address] ++ (if opcode = 0xf1 then [amount] else []) ++ [offset,length,0,0]
+    return (opcode,args,frame)
+  | _,_ => .error "MIR address-call operand count"
+
 end SolarTV.MIR.State

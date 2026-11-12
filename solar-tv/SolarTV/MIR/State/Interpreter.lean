@@ -71,9 +71,9 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
   else if cursor.next < block.instructions.length then
     let inst ← required block.instructions[cursor.next]? "unknown MIR instruction"
     match inst.operation with
-    | .external opcode =>
+    | .external op =>
       if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then stop .invalid frame else
-      let args ← inst.operands.mapM (read frame)
+      let (opcode,args,frame) ← messageArguments frame op inst.operands
       let (effect,work) ← external fuel cfg frame opcode args
       match effect with
       | .returned (value,parent) =>

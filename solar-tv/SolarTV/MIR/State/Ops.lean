@@ -1,5 +1,6 @@
-import SolarTV.MIR.State.StorageBytes
+import SolarTV.MIR.State.StorageArrays
 import SolarTV.MIR.State.Aggregates
+import SolarTV.MIR.State.Frames
 import SolarTV.Keccak
 
 /-! Direct MIR scalar and state-operation semantics. Typed arithmetic reuses MIR's
@@ -20,8 +21,24 @@ private def checkedResult (frame : Frame) (result : Outcome (BitVec width)) : St
     | .reverted data => .reverted data
     | .invalid => .invalid)
 
+/-- Copy the volatile return buffer without clearing the object's reserved padding. -/
+def returnDataBytes (frame : Frame) : Step := do
+  let length := frame.returnData.length
+  if length + 63 ≥ 2^256 then return .reverted (.panic 0x41) else
+  match ← allocate frame (BitVec.ofNat 256 ((length+63)/32*32)) false false with
+  | .returned (some pointer,frame) =>
+    let memory ← expand frame.memory pointer.toNat 32
+    let memory := writeBytes memory pointer.toNat (wordBytes (BitVec.ofNat 256 length))
+    let start := pointer + 32
+    let memory ← expand memory start.toNat length
+    value {frame with memory := writeBytes memory start.toNat frame.returnData} pointer
+  | .reverted data => return .reverted data
+  | .invalid => return .invalid
+  | _ => .error "MIR returndata allocation result missing"
+
 def memoryOperation (cfg : Config) (frame : Frame) (op : MemoryOp) (args : List Word) : Step := do
   match op,args with
+  | .returnDataBytes,[] => returnDataBytes frame
   | .size,[] => value frame (BitVec.ofNat 256 frame.memory.length)
   | .returnDataSize,[] => value frame (BitVec.ofNat 256 frame.returnData.length)
   | .returnDataCopy,[destination,source,count] =>
@@ -111,6 +128,7 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .storageBytes .store,[slot,object] => storeStorageBytes cfg frame slot object none
   | .storageBytes (.literal bytes),[slot] => storeStorageBytes cfg frame slot 0 (some bytes)
   | .storageBytes .clear,[slot,first,last] => clearStorageWords cfg frame slot first last
+  | .storageArray element variants,[slot] => loadStorageArray cfg frame slot element variants
   | .dataCopy bytes offset,[destination,count] =>
     if offset + count.toNat > bytes.length then .error "datacopy past its data" else
     let memory ← expand frame.memory destination.toNat count.toNat
@@ -190,6 +208,12 @@ def instruction (cfg : Config) (frame : Frame) (inst : Instruction) : Step := do
     let yes ← readValue frame yes
     let no ← readValue frame no
     assignValue frame inst.result inst.ty (if condition = 0 then no else yes)
+  | .frame false address ty,[] =>
+    let (value,next) ← loadFrame frame address ty
+    assignValue next inst.result inst.ty value
+  | .frame true address ty,[operand] =>
+    let value ← readValue frame operand
+    effect (← storeFrame frame address ty value)
   | _,_ =>
     let args ← inst.operands.mapM (read frame)
     let result ← operation cfg frame inst.operation args
