@@ -44,9 +44,9 @@ ne: not_equal(a, b)
 mload: opcode(match location { Memory => mload, Calldata => calldataload, Storage => sload, Transient => tload })
 mstore: opcode(match location { Memory => mstore, Storage => sstore, Transient => tstore })
 mstore8: opcode(mstore8)
-memory_zero: -
+memory_zero: memory_zero(offset, size)
 msize: opcode(msize)
-fmp: -
+fmp: free_pointer()
 heap_floor: heap_floor()
 alloc: allocate(size, semantics)
 abi_encode: -

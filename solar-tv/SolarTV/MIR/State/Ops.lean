@@ -1,4 +1,4 @@
-import SolarTV.MIR.State.IR
+import SolarTV.MIR.State.Allocation
 import SolarTV.Keccak
 
 /-! Direct MIR scalar and state-operation semantics. Typed arithmetic reuses MIR's
@@ -36,6 +36,9 @@ def memoryOperation (cfg : Config) (frame : Frame) (op : MemoryOp) (args : List 
     let memory ← match op with | .copy => expand memory source.toNat size.toNat | _ => pure memory
     let sourceBytes := match op with | .copy => memory | _ => cfg.environment.input
     effect {frame with memory := writeBytes memory destination.toNat (readBytes sourceBytes source.toNat size.toNat)}
+  | .zero,[offset,size] =>
+    let memory ← expand frame.memory offset.toNat size.toNat
+    effect {frame with memory := writeBytes memory offset.toNat (List.replicate size.toNat 0)}
   | .hash,[offset,size] =>
     let memory ← expand frame.memory offset.toNat size.toNat
     value {frame with memory} (Keccak.hash (readBytes memory offset.toNat size.toNat))
@@ -70,20 +73,23 @@ def contextOperation (cfg : Config) (frame : Frame) (opcode : Nat) (args : List 
 
 def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word) : Step := do
   match op,args with
-  | .binary op width,[a,b] => value frame ((MIR.eval op (a.setWidth width) (b.setWidth width)).setWidth 256)
-  | .comparison op width,[a,b] => value frame ((MIR.compare op (a.setWidth width) (b.setWidth width)).setWidth 256)
-  | .unary op width,[a] => value frame ((MIR.unary op (a.setWidth width)).setWidth 256)
-  | .shift op width,[amount,v] => value frame ((MIR.shift op (v.setWidth width) (amount.setWidth width)).setWidth 256)
+  | .binary op width,[a,b] => value frame (widenBits (MIR.eval op (wordBits width a) (wordBits width b)))
+  | .comparison op width,[a,b] => value frame (widenBits (MIR.compare op (wordBits width a) (wordBits width b)))
+  | .unary op width,[a] => value frame (widenBits (MIR.unary op (wordBits width a)))
+  | .shift op width,[amount,v] => value frame (widenBits (MIR.shift op (wordBits width v) (wordBits width amount)))
   | .wordBinary op,[a,b] => value frame (MIR.wordBinary op a b)
   | .ternary op,[a,b,c] => value frame (MIR.ternary op a b c)
   | .word,[a] => value frame a
+  | .freePointer,[] => freePointer frame
+  | .allocate zeroed checked,[size] => allocate frame size zeroed checked
+  | .call _,_ => .error "internal call requires MIR machine context"
   | .pointerAdd,[pointer,offset] => value frame (pointer + offset)
   | .lowBits width,[a] => value frame (narrow width a)
   | .signExtend source target,[a] => value frame (((a.setWidth source).signExtend target).setWidth 256)
   | .notEqual,[a,b] => value frame (if a = b then 0 else 1)
   | .select,[c,a,b] => value frame (if c = 0 then b else a)
-  | .checked op width signed,[a,b] => checkedResult frame (MIR.checked op signed (a.setWidth width) (b.setWidth width))
-  | .checkedPower width signed,[a,b] => checkedResult frame (MIR.checkedPower signed (a.setWidth width) b.toNat)
+  | .checked op width signed,[a,b] => checkedResult frame (MIR.checked op signed (wordBits width a) (wordBits width b))
+  | .checkedPower width signed,[a,b] => checkedResult frame (MIR.checkedPower signed (wordBits width a) b.toNat)
   | .check zero panic,[condition] =>
     if (condition == 0) == zero then
       return .reverted (match panic with | none => .empty | some code => .panic code)
@@ -99,18 +105,21 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
         [⟨cfg.environment.address,topics,readBytes memory offset.toNat size.toNat⟩]}}
   | _,_ => .error "MIR operation operand count"
 
+def assign (next : Frame) (result : Option Nat) (width : Nat) (word : Option Word) : Step := do
+  match result,word with
+  | none,none => effect next
+  | some id,some word =>
+    if width = 0 || width > 256 then .error "unmodeled MIR result type" else
+      effect {next with locals := put next.locals id (Scalar.ofWord width word)}
+  | _,_ => .error "MIR result arity mismatch"
+
 def instruction (cfg : Config) (frame : Frame) (inst : Instruction) : Step := do
   if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then return .invalid
   let args ← inst.operands.mapM (read frame)
   let result ← operation cfg frame inst.operation args
   match result with
   | .returned (word,next) =>
-    match inst.result,word with
-    | none,none => effect next
-    | some id,some word =>
-      if inst.width = 0 || inst.width > 256 then .error "unmodeled MIR result type" else
-        effect {next with locals := put next.locals id (narrow inst.width word)}
-    | _,_ => .error "MIR result arity mismatch"
+    assign next inst.result inst.width word
   | .reverted data => return .reverted data
   | .invalid => return .invalid
 

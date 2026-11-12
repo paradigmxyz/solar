@@ -23,6 +23,7 @@ import SolarTV.EVMIR.Precompiles.Observe
 import SolarTV.EVMIR.Precompiles.Safety
 import SolarTV.MIR.State.Observe
 import SolarTV.MIR.State.Safety
+import SolarTV.MIR.State.Normalize
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -101,3 +102,15 @@ import SolarTV.MIR.State.Safety
 /-- info: 'SolarTV.Execution.slotsWrite_overwrite' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.Execution.slotsWrite_overwrite
+
+/-- info: 'SolarTV.Execution.flatten_wordBytes' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Execution.flatten_wordBytes
+
+/-- info: 'SolarTV.Execution.readWord_writeWord' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Execution.readWord_writeWord
+
+/-- info: 'SolarTV.MIR.State.run_next' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.run_next

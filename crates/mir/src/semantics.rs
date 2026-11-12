@@ -70,6 +70,10 @@ pub enum Semantics<'a> {
     /// Wrapping memory-pointer offset, without bounds or provenance guarantees.
     /// This stays distinct from an integer opcode and does not imply integer folding.
     PointerAdd(ValueId, ValueId),
+    /// Read the explicit free-memory pointer, without initializing it.
+    FreePointer,
+    /// Zero exactly the given byte range, preserving bytes outside it.
+    MemoryZero(ValueId, ValueId),
 }
 
 /// Constructors for the `#[semantics(...)]` declarations of the operation schema, which bind an
@@ -153,6 +157,16 @@ pub(super) mod declare {
     /// Wrapping pointer arithmetic, without a physical heap-layout assumption.
     pub(crate) fn pointer_add(ptr: &ValueId, offset: &ValueId) -> Semantics<'static> {
         Semantics::PointerAdd(*ptr, *offset)
+    }
+
+    /// The current allocation cursor, read without implicit entry initialization.
+    pub(crate) fn free_pointer() -> Semantics<'static> {
+        Semantics::FreePointer
+    }
+
+    /// Byte-exact memory initialization, without a backend placement decision.
+    pub(crate) fn memory_zero(offset: &ValueId, size: &ValueId) -> Semantics<'static> {
+        Semantics::MemoryZero(*offset, *size)
     }
 }
 

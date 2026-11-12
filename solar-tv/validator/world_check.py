@@ -25,13 +25,18 @@ UNFOLD = (
 
 MIR_UNFOLD = (
     "before, after, mirWorldConfig, MIR.State.equivalent, MIR.State.observe, "
-    "MIR.State.execute, MIR.State.run, MIR.State.body, MIR.State.enter, "
-    "MIR.State.instruction, MIR.State.operation, MIR.State.storageOperation, "
-    "MIR.State.read, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
-    "MIR.State.finish, MIR.eval, Execution.account, Execution.putAccount, "
+    "MIR.State.execute, MIR.State.reduceRun, MIR.State.transition, MIR.State.next, MIR.State.stop, MIR.State.enter, MIR.State.function, MIR.State.start, "
+    "MIR.State.typedWords, MIR.State.callSignature, MIR.State.branch, MIR.State.advance, "
+    "MIR.State.instruction, MIR.State.operation, MIR.State.storageOperation, MIR.State.assign, "
+    "MIR.State.read, MIR.State.readScalar, MIR.State.Scalar.word, MIR.State.Scalar.ofWord, MIR.State.wordBits, MIR.State.widenBits, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
+    "MIR.State.finish, MIR.eval, MIR.compare, MIR.wordBinary, MIR.unary, MIR.shift, "
+    "MIR.State.allocate, MIR.State.freePointer, MIR.State.memoryOperation, "
+    "Execution.expand, Execution.requiredWords, Execution.memoryWords, Execution.readWord, "
+    "Execution.readBytes, Execution.wordBytes, Execution.writeBytes, "
+    "Execution.account, Execution.putAccount, "
     "Execution.slotsRead, Execution.slotsWrite, Execution.normalizedSlots, "
     "Execution.ordered, Execution.orderedInsert, Except.bind, Except.map, Except.pure, "
-    "Bind.bind, Pure.pure, Functor.map, List.mapM.loop, List.mapM, List.foldl"
+    "Bind.bind, Pure.pure, Functor.map, List.mapM.loop, List.mapM, List.foldl, List.getElem?_cons, List.find?_cons"
 )
 
 
@@ -83,14 +88,36 @@ def check(
     # Closed executions use kernel evaluation directly. Trying definitional
     # equality first duplicates hash evaluation and is much slower for creation.
     unfold = MIR_UNFOLD if direct_mir else UNFOLD
-    proof = (
-        (
+    if not a.inputs:
+        proof = "  decide +kernel\n"
+    elif direct_mir:
+        # Normalize each execution before comparing it. Keep byte memory abstract
+        # for the range-proved read/write laws; expanding every symbolic byte
+        # before reading a disjoint FMP word loses that useful structure.
+        abstract = MIR_UNFOLD
+        for name in (
+            "before",
+            "after",
+            "MIR.State.equivalent",
+            "MIR.State.observe",
+            "Execution.readWord",
+            "Execution.readBytes",
+            "Execution.wordBytes",
+            "Execution.writeBytes",
+        ):
+            abstract = abstract.replace(name + ", ", "")
+        finish = "<;> (repeat (first | split | intro _)); all_goals simp_all <;> omega"
+        proof = (
+            "  unfold before after\n"
+            f"  conv => arg 1; simp [{abstract}]\n"
+            f"  conv => arg 2; simp [{abstract}]\n"
+            f"  simp [MIR.State.equivalent, MIR.State.observe] {finish}\n"
+        )
+    else:
+        proof = (
             "  first\n    | rfl\n    | decide +kernel\n"
             f"    | (simp [{unfold}] <;> (repeat (first | split | intro _)); all_goals simp_all <;> omega)\n"
         )
-        if a.inputs
-        else "  decide +kernel\n"
-    )
     with tempfile.TemporaryDirectory(prefix="solar-tv-world-proof-") as tmp:
         file = Path(tmp) / "WorldPair.lean"
 

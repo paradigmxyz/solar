@@ -1794,6 +1794,7 @@ define_mir_ops! {
     #[builder(memory_zero, void)]
     #[raw_memory(Write(offset, size))]
     #[operand_types(func => Some(smallvec![typing::address(func, *offset, PtrLocation::Memory), MirType::I256]))]
+    #[semantics(memory_zero(offset, size))]
     MemoryZero(offset: ValueId, size: ValueId),
     /// Get memory size: `msize()`
     #[mir_op(
@@ -1821,6 +1822,7 @@ define_mir_ops! {
     )]
     #[builder(fmp)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(free_pointer())]
     Fmp,
     /// The lowest word the free-memory pointer may hold: the initial pointer of every entry that
     /// can run this function, which codegen fixes once it has placed the frames and spill slots

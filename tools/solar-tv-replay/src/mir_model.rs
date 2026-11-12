@@ -9,8 +9,9 @@ use serde::Deserialize;
 use serde_json::{Value as Json, json};
 use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{
-    ArithmeticKind, BasicBlock, Builtin, Callee, Function, MirType, Module, PtrLocation,
-    RequireKind, RevertKind, RevertReason, Semantics, Terminator, Value, ValueId,
+    AllocationFailure, AllocationInitialization, ArithmeticKind, BasicBlock, Builtin, Callee,
+    Function, MirType, Module, PtrLocation, RequireKind, RevertKind, RevertReason, Semantics,
+    Terminator, Value, ValueId, analysis::CallGraphInfo,
 };
 use std::io::{self, Read};
 
@@ -63,25 +64,73 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
         let id = module.dispatch_entry().ok_or("MIR world needs an entry or --function")?;
         (id, &module.functions[id])
     };
-    if body.blocks.len() > 512 || body.instructions().count() > 4096 || body.params.len() > 32 {
-        return Err("MIR model size limit".into());
+    let mut reachable = CallGraphInfo::collect_internal_callees(body, module.functions.len());
+    reachable.insert(id);
+    let mut count = reachable.count();
+    if count > 128 {
+        return Err("MIR model function limit of 128".into());
     }
-    let params = body.params.iter().map(|&ty| scalar_type(ty)).collect::<Result<Vec<_>, _>>()?;
-    let returns = body
-        .return_components()
+    let mut pending = reachable.iter().collect::<Vec<_>>();
+    while let Some(caller) = pending.pop() {
+        let callees = CallGraphInfo::collect_internal_callees(
+            &module.functions[caller],
+            module.functions.len(),
+        );
+        for callee in callees.iter() {
+            if reachable.insert(callee) {
+                count += 1;
+                if count > 128 {
+                    return Err("MIR model function limit of 128".into());
+                }
+                pending.push(callee);
+            }
+        }
+    }
+    let mut block_count = 0;
+    let mut instruction_count = 0;
+    let functions = reachable
         .iter()
-        .map(|&ty| scalar_type(ty))
-        .collect::<Result<Vec<_>, _>>()?;
-    let blocks =
-        body.blocks.iter().map(|block| export_block(body, block)).collect::<Result<Vec<_>, _>>()?;
+        .map(|id| {
+            let function = &module.functions[id];
+            block_count += function.blocks.len();
+            instruction_count += function.instructions().count();
+            if block_count > 512 || instruction_count > 4096 {
+                return Err("MIR model size limit".into());
+            }
+            export_function(id.index(), function)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
     Ok(json!({
         "version": 1,
         "name": body.name.to_string(),
         "entry": module.dispatch_entry() == Some(id),
-        "params": params,
-        "returns": returns,
-        "blocks": blocks,
+        "entry_id": id.index(),
+        "params": body.params.iter().map(|&ty|scalar_type(ty)).collect::<Result<Vec<_>, _>>()?,
+        "returns": body.return_components().iter().map(|&ty|scalar_type(ty)).collect::<Result<Vec<_>, _>>()?,
+        "functions": functions,
     }))
+}
+
+fn export_function(id: usize, function: &Function) -> Result<Json, String> {
+    if function.params.len() > 32 {
+        return Err("MIR model parameter limit".into());
+    }
+    let params =
+        function.params.iter().map(|&ty| scalar_type(ty)).collect::<Result<Vec<_>, _>>()?;
+    let returns = function
+        .return_components()
+        .iter()
+        .map(|&ty| scalar_type(ty))
+        .collect::<Result<Vec<_>, _>>()?;
+    if returns.len() > 1 {
+        return Err("aggregate MIR call results are not modeled".into());
+    }
+    let blocks = function
+        .blocks
+        .iter()
+        .map(|block| export_block(function, block))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(json!({"id": id, "params": params, "returns": returns, "blocks": blocks}))
 }
 
 fn scalar_type(ty: MirType) -> Result<Json, String> {
@@ -122,6 +171,11 @@ fn export_block(body: &Function, block: &BasicBlock) -> Result<Json, String> {
     let mut instructions = Vec::new();
     for &id in &block.instructions {
         let inst = body.inst(id);
+        if inst.metadata.deferred_alloc() {
+            return Err(
+                "deferred allocation requires backend placement, not direct MIR semantics".into()
+            );
+        }
         let result = inst.result().map(|v| v.index());
         let ty = inst
             .result()
@@ -157,6 +211,9 @@ fn export_block(body: &Function, block: &BasicBlock) -> Result<Json, String> {
         Terminator::ReturnData { offset, size } => {
             json!({"kind":"returndata","args":operands(body,&[*offset,*size])?})
         }
+        Terminator::TailCall { function, args } => {
+            json!({"kind": "tail_call", "function": function.index(), "args": operands(body, args)?})
+        }
         Terminator::Stop => json!({"kind":"stop"}),
         Terminator::Invalid => json!({"kind":"invalid"}),
         _ => return Err("unmodeled direct MIR terminator".into()),
@@ -172,6 +229,17 @@ fn export_operation(body: &Function, kind: &solar_mir::InstKind) -> Result<Json,
         {
             Semantics::Opcode(name, args) => {
                 json!({"kind":"opcode", "name":name,"args":operands(body,&args)?})
+            }
+            Semantics::Call(Callee::Function(function), args) => {
+                json!({"kind": "call", "function": function.index(), "args": operands(body, args)?})
+            }
+            Semantics::Allocate(size, semantics) => {
+                json!({"kind": "allocate", "zeroed": semantics.initialization == AllocationInitialization::Zeroed,
+                    "checked": semantics.failure == AllocationFailure::Checked, "args": operands(body, &[size])?})
+            }
+            Semantics::FreePointer => json!({"kind": "free_pointer", "args": []}),
+            Semantics::MemoryZero(offset, size) => {
+                json!({"kind": "memory_zero", "args": operands(body, &[offset, size])?})
             }
             Semantics::PointerAdd(ptr, offset) => {
                 json!({"kind": "pointer_add", "args": operands(body, &[ptr, offset])?})

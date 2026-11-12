@@ -104,7 +104,9 @@ def record(
                     "listed symbolic storage cells and typed function arguments universally quantified",
                     "explicit initial byte memory; normal function returns expose memory and transient storage",
                     "semantic effects; sufficient gas; no physical EVM gas or stack-layout claim",
-                    "calls, allocation and backend-layout operations unsupported",
+                    "direct scalar internal calls and tail calls; model call depth limit 128",
+                    "explicit ordered FMP allocation; invalid infallible bumps unsupported",
+                    "external calls, aggregates and backend-layout operations unsupported",
                 ]
             )
         else:

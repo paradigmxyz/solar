@@ -11,8 +11,23 @@ simultaneous, and blocks retain their CFG, including cycles. -/
 namespace SolarTV.MIR.State
 open EvmRules SolarTV.Execution
 
+/-- Every SSA value carries its declared-width bitvector; cleanliness is structural. -/
+structure Scalar where
+  width : Nat
+  bits : BitVec width
+
+def wordBits (width : Nat) (value : Word) : BitVec width :=
+  if h : width = 256 then value.cast h.symm else value.setWidth width
+
+def widenBits {width : Nat} (value : BitVec width) : Word :=
+  if h : width = 256 then value.cast h else value.setWidth 256
+
+def Scalar.word (value : Scalar) : Word := widenBits value.bits
+
+def Scalar.ofWord (width : Nat) (value : Word) : Scalar := ⟨width,wordBits width value⟩
+
 inductive Atom where
-  | constant (value : Word)
+  | constant (value : Scalar)
   | argument (index : Nat)
   | local (id : Nat)
   | undefined
@@ -22,7 +37,7 @@ structure Operand where
   width : Nat
 
 inductive MemoryOp where
-  | load | store | storeByte | copy | hash | size
+  | load | store | storeByte | copy | hash | size | zero
   | calldataLoad | calldataSize | calldataCopy
 
 inductive Operation where
@@ -41,6 +56,9 @@ inductive Operation where
   | storage (transient write : Bool)
   | environment (opcode : Nat)
   | log (topics : Nat)
+  | call (callee : Nat)
+  | freePointer
+  | allocate (zeroed checked : Bool)
 
 structure Instruction where
   result : Option Nat
@@ -61,6 +79,7 @@ inductive Terminator where
   | returned (values : List Operand)
   | returndata (offset size : Operand)
   | reverted (offset size : Operand)
+  | tailCall (callee : Nat) (args : List Operand)
   | stop | invalid
 
 structure Block where
@@ -68,18 +87,42 @@ structure Block where
   instructions : List Instruction
   terminator : Terminator
 
+/-- Typed bodies retain their own SSA namespaces; calls share only execution state. -/
+structure Function where
+  params : List Nat
+  returns : List Nat
+  blocks : List Block
+
+abbrev Functions := List (Nat × Function)
+
+/-- An explicit control position, independent of physical EVM stack or frame placement. -/
+structure Cursor where
+  function : Nat
+  block : Nat := 0
+  next : Nat := 0
+  entered : Bool := false
+  predecessor : Option Nat := none
+
 structure Config where
   fork : Fork
   environment : World.Environment
   context : Execution.Block
   available : List Nat
   entry : Bool
+  callDepth : Nat := 128
 
 structure Frame where
   world : Journal
   memory : List Byte
-  arguments : List Word
-  locals : List (Nat × Word) := []
+  arguments : List Scalar
+  locals : List (Nat × Scalar) := []
+
+/-- A caller continuation owns its SSA snapshot, not a private copy of execution memory. -/
+structure Continuation where
+  cursor : Cursor
+  frame : Frame
+  result : Option Nat
+  width : Nat
 
 inductive Completion where
   | returned (values : List Word)
@@ -96,7 +139,7 @@ abbrev Run := Except String Result
 abbrev Step := Except String (Outcome (Option Word × Frame))
 
 def narrow (width : Nat) (value : Word) : Word :=
-  (value.setWidth width).setWidth 256
+  if width = 256 then value else (value.setWidth width).setWidth 256
 
 @[simp] theorem narrow_full (value : Word) : narrow 256 value = value := by
   simp [narrow]
@@ -104,16 +147,19 @@ def narrow (width : Nat) (value : Word) : Word :=
 def required (value : Option α) (reason : String) : Except String α :=
   match value with | some value => .ok value | none => .error reason
 
-def read (frame : Frame) (operand : Operand) : Except String Word := do
+def readScalar (frame : Frame) (operand : Operand) : Except String Scalar := do
   if operand.width = 0 || operand.width > 256 then .error "unmodeled MIR operand type" else
     let value ← match operand.atom with
       | .constant value => .ok value
       | .argument index => required frame.arguments[index]? "missing MIR argument"
       | .local id => required ((frame.locals.find? (·.1 == id)).map Prod.snd) "undefined MIR local"
       | .undefined => .error "undefined MIR operand"
-    if value != narrow operand.width value then .error "unclean typed MIR operand" else return value
+    if value.width != operand.width then .error "MIR operand type mismatch" else return value
 
-def put (locals : List (Nat × Word)) (id : Nat) (value : Word) : List (Nat × Word) :=
+def read (frame : Frame) (operand : Operand) : Except String Word := do
+  return (← readScalar frame operand).word
+
+def put (locals : List (Nat × α)) (id : Nat) (value : α) : List (Nat × α) :=
   (id,value) :: locals.filter (·.1 != id)
 
 def enter (predecessor : Option Nat) (phis : List Phi) (frame : Frame) : Except String Frame := do
@@ -122,7 +168,7 @@ def enter (predecessor : Option Nat) (phis : List Phi) (frame : Frame) : Except 
     let some predecessor := predecessor | .error "phi at MIR entry"
     let incoming := phi.incoming.filter (·.1 == predecessor)
     let [(_,operand)] := incoming | .error "ambiguous or missing MIR phi edge"
-    let value ← read frame operand
+    let value ← readScalar frame operand
     if phi.width != operand.width then .error "MIR phi type mismatch" else return (phi.result,value)
   return {frame with locals := values.foldl (fun locals (id,value) => put locals id value) frame.locals}
 
