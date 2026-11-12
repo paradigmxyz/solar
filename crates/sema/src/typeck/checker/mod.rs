@@ -109,10 +109,6 @@ struct TypeChecker<'gcx> {
     circular_constants: FxHashMap<hir::VariableId, bool>,
     /// Whether to record what the AST JSON reads back, which is only so when the ASTs are kept.
     record_ast_facts: bool,
-    /// How many loops enclose the statement being checked, which only counts when recording.
-    loop_depth: u32,
-    /// The variables written in the loops being checked, which only holds them when recording.
-    loop_writes: Vec<hir::VariableId>,
     /// The expression of the expression statement being checked, without parentheses.
     statement_expr: Option<hir::ExprId>,
 }
@@ -177,6 +173,17 @@ enum NotLvalueReason {
     Generic,
 }
 
+/// Returns why indexing a value of type `ty` is not an lvalue, if it is not.
+fn index_not_lvalue_reason(ty: Ty<'_>) -> Option<NotLvalueReason> {
+    if ty.loc() == Some(DataLocation::Calldata) {
+        Some(NotLvalueReason::CalldataArray)
+    } else if ty.peel_refs().is_fixed_bytes() {
+        Some(NotLvalueReason::FixedBytesIndex)
+    } else {
+        None
+    }
+}
+
 impl<'gcx> TypeChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, source: hir::SourceId, results: TypeckResults<'gcx>) -> Self {
         Self {
@@ -195,8 +202,6 @@ impl<'gcx> TypeChecker<'gcx> {
             value_position: ValuePosition::default(),
             circular_constants: FxHashMap::default(),
             record_ast_facts: gcx.sess.opts.unstable.keep_asts,
-            loop_depth: 0,
-            loop_writes: Vec::new(),
             statement_expr: None,
         }
     }
@@ -424,9 +429,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 // element type has no common type with a calldata slice. Infer the
                 // unseeded common type as well and fall back to it.
                 let mut mobile_common = None;
-                // The common mobile type of the elements alone, which is the type solc gives the
-                // array.
-                let mut natural_common = None;
                 let mut guar: Option<ErrorGuaranteed> = None;
                 for (i, expr) in exprs.iter().enumerate() {
                     let expr_ty = self.check_expr_with_noexpect(expr, element_expected);
@@ -463,32 +465,12 @@ impl<'gcx> TypeChecker<'gcx> {
                     } else if let Some(mobile_ty) = mobile_common {
                         mobile_common = mobile_ty.common_type(expr_ty, self.gcx);
                     }
-                    if self.record_ast_facts {
-                        // Only an inline array element has a natural type of its own; a comparison
-                        // records its operands' type under the same key.
-                        let natural_ty = match expr.kind {
-                            hir::ExprKind::Array(_) => self.results.solc_ty(expr.id),
-                            _ => None,
-                        }
-                        .unwrap_or(expr_ty);
-                        natural_common = if i == 0 {
-                            natural_ty.mobile(self.gcx)
-                        } else {
-                            natural_common
-                                .and_then(|ty: Ty<'gcx>| ty.common_type(natural_ty, self.gcx))
-                        };
-                    }
                 }
                 // An unnameable fallback cannot be an element type either, so keep reporting
                 // the inference failure instead of it.
                 let common = common.or_else(|| mobile_common.filter(|ty| ty.nameable()));
                 if let Some(guar) = guar {
                     return self.gcx.mk_ty_err(guar);
-                }
-                if let Some(natural) = natural_common {
-                    let array = TyKind::Array(natural.peel_refs(), U256::from(exprs.len()));
-                    let array = self.gcx.mk_ty(array).with_loc(self.gcx, DataLocation::Memory);
-                    self.results.ast.solc_tys.insert(expr.id, array);
                 }
                 if let Some(common) = common {
                     if common.has_mapping(self.gcx) {
@@ -708,8 +690,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 // No-argument storage array `.push()` is the only call that can be an lvalue.
                 if self.results.builtin_callee(callee.id) != Some(Builtin::ArrayPush0) {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
-                } else if self.record_ast_facts {
-                    self.mark_lvalue(expr.id);
                 }
 
                 ty
@@ -767,20 +747,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 if ty.references_error() {
                     return ty;
                 }
-                if ty.loc() == Some(DataLocation::Calldata) {
-                    self.try_set_not_lvalue(NotLvalueReason::CalldataArray);
-                }
-                if ty.peel_refs().is_fixed_bytes() {
-                    self.try_set_not_lvalue(NotLvalueReason::FixedBytesIndex);
+                if let Some(reason) = index_not_lvalue_reason(ty) {
+                    self.try_set_not_lvalue(reason);
                 }
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
-                    if self.record_ast_facts
-                        && ty.loc() != Some(DataLocation::Calldata)
-                        && !ty.peel_refs().is_fixed_bytes()
-                        && !matches!(ty.peel_refs().kind, TyKind::Slice(_))
-                    {
-                        self.mark_lvalue(expr.id);
-                    }
                     // Index expression.
                     if let Some(index) = index {
                         let index_ty =
@@ -3640,10 +3610,6 @@ impl<'gcx> TypeChecker<'gcx> {
         let result = self.lvalue_context.unwrap();
         self.lvalue_context = prev;
 
-        if self.loop_depth > 0 {
-            self.note_write(expr);
-        }
-
         if result.is_ok() && self.is_lvalue_expr(expr) {
             return ty;
         }
@@ -3889,8 +3855,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit();
         }
 
-        if self.record_ast_facts {
-            self.record_expr_facts(expr);
+        // A tuple that is written to is an lvalue.
+        if self.record_ast_facts && self.in_lvalue() && matches!(expr.kind, hir::ExprKind::Tuple(_))
+        {
+            self.mark_lvalue(expr.id);
         }
     }
 
@@ -4102,19 +4070,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                     }
                 }
                 return ControlFlow::Continue(());
-            }
-            hir::StmtKind::Loop(block, source) if self.record_ast_facts && !self.in_yul => {
-                let first_write = self.loop_writes.len();
-                self.loop_depth += 1;
-                let flow = self.walk_stmt(stmt);
-                self.loop_depth -= 1;
-                if let hir::LoopSource::For { update: Some(update) } = source {
-                    self.record_simple_counter_loop(stmt, &block, update, first_write);
-                }
-                if self.loop_depth == 0 {
-                    self.loop_writes.clear();
-                }
-                return flow;
             }
             hir::StmtKind::AssemblyBlock(block, _) => {
                 let prev = std::mem::replace(&mut self.in_yul, true);

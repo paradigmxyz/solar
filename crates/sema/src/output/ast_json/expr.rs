@@ -23,13 +23,15 @@ use super::{
 };
 use crate::{
     builtins::Builtin,
-    hir::{self, ItemId, Res, StmtKind},
+    hir::{self, ItemId, Res, StmtKind, Visit},
     ty::{Gcx, Ty, TyFnKind, TyKind},
 };
 use alloy_primitives::hex;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use solar_ast::{self as ast, DocComments, ElementaryType, LitKind, StrKind};
+use solar_data_structures::Never;
 use solar_interface::{Ident, Span, SpannedOption, kw};
+use std::ops::ControlFlow;
 
 /// What an expression learns from its parent. [`Cx`] holds it for the next expression.
 #[derive(Clone, Copy, Default)]
@@ -339,10 +341,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Stmt<'_>, Option<&hir::Stmt<'gcx>>)>
                 );
                 m.entry("body", &cx.stmt(body, parts.map(|parts| parts.body)));
                 if let Some(parts) = parts {
-                    m.entry(
-                        "isSimpleCounterLoop",
-                        &parts.cond.is_some_and(|cond| gcx.is_simple_counter_loop(cond.id)),
-                    );
+                    m.entry("isSimpleCounterLoop", &parts.is_simple_counter_loop(gcx));
                 }
                 m.end()
             }
@@ -478,6 +477,80 @@ impl<'hir> ForParts<'hir> {
         };
         Self { init, cond, body, next }
     }
+
+    /// Returns whether the loop cannot overflow its counter, in solc's sense: it is
+    /// `for (...; i < n; i++)` or with `++i`, where `i` is a local variable of an integer type that
+    /// neither the condition nor the body write to, in Solidity or in inline assembly.
+    fn is_simple_counter_loop(&self, gcx: Gcx<'hir>) -> bool {
+        let (Some(cond), Some(next)) = (self.cond, self.next) else { return false };
+        let hir::ExprKind::Binary(lhs, op, _) = cond.kind else { return false };
+        let hir::ExprKind::Unary(inc, counter) = next.kind else { return false };
+        if op.kind != hir::BinOpKind::Lt
+            || !matches!(inc.kind, hir::UnOpKind::PreInc | hir::UnOpKind::PostInc)
+            || gcx.user_operator(cond.id).is_some()
+            || gcx.user_operator(next.id).is_some()
+            || !matches!(lhs.kind, hir::ExprKind::Ident(_))
+            || !matches!(counter.kind, hir::ExprKind::Ident(_))
+        {
+            return false;
+        }
+        let Some(variable) =
+            gcx.resolved_variable(lhs).filter(|&id| Some(id) == gcx.resolved_variable(counter))
+        else {
+            return false;
+        };
+        let lhs_ty = gcx.type_of_expr(lhs.id);
+        if !gcx.hir.variable(variable).is_local_variable()
+            || !lhs_ty.is_some_and(|ty| ty.is_integer())
+            || lhs_ty != gcx.solc_ty(cond.id)
+        {
+            return false;
+        }
+        // The update writes the counter once.
+        let mut writes = Writes { gcx, variable, count: 0 };
+        let _ = writes.visit_expr(cond);
+        let _ = writes.visit_stmt(self.body);
+        let _ = writes.visit_expr(next);
+        writes.count == 1
+    }
+}
+
+/// Counts the writes to a variable.
+struct Writes<'gcx> {
+    gcx: Gcx<'gcx>,
+    variable: hir::VariableId,
+    count: usize,
+}
+
+impl Writes<'_> {
+    /// Notes a write to `expr`: to the variable, or to those of a tuple.
+    fn note(&mut self, expr: &hir::Expr<'_>) {
+        match expr.kind {
+            hir::ExprKind::Tuple(components) => {
+                for component in components.iter().flatten() {
+                    self.note(component);
+                }
+            }
+            _ => self.count += (self.gcx.resolved_variable(expr) == Some(self.variable)) as usize,
+        }
+    }
+}
+
+impl<'gcx> hir::Visit<'gcx> for Writes<'gcx> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
+        match expr.kind {
+            hir::ExprKind::Assign(lhs, ..) | hir::ExprKind::Delete(lhs) => self.note(lhs),
+            hir::ExprKind::Unary(op, inner) if op.kind.has_side_effects() => self.note(inner),
+            _ => {}
+        }
+        self.walk_expr(expr)
+    }
 }
 
 /// The node of an expression that has the attributes that every expression but an identifier has.
@@ -514,7 +587,7 @@ impl<'gcx> Serialize for W<'_, 'gcx, (&ast::Expr<'_>, Option<&hir::Expr<'gcx>>)>
         let span = ast.span;
         let e = ExprNode { cx, span, hir, parent };
         let kind = hir.map(|hir| &hir.kind);
-        let is_lvalue = hir.is_some_and(|hir| gcx.is_lvalue(hir.id));
+        let is_lvalue = hir.is_some_and(|hir| gcx.is_lvalue(hir));
         // The parentheses around a callee are no HIR node, and take the type of the callee.
         if let ast::ExprKind::Tuple(components) = &ast.kind
             && let [SpannedOption::Some(inner)] = components.as_slice()

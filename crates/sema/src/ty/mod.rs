@@ -112,29 +112,15 @@ pub struct TypeckResults<'gcx> {
 /// What type checking records for the AST JSON, so that the writer never works it out again.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct AstFacts<'gcx> {
-    /// What is known of each expression, which only exists when the ASTs are kept.
-    pub(crate) exprs: Option<ExprMap<ExprFlags>>,
+    /// The expressions that are lvalues in solc's sense, where it takes more than their kind to
+    /// tell: members, and tuples that are written to.
+    pub(crate) lvalues: FxHashSet<hir::ExprId>,
     /// The type solc gives an expression where it differs from the type of type checking: the
     /// memory array of the common mobile type of an inline array, and the common type of the
     /// operands of a comparison or a logical operation.
     pub(crate) solc_tys: FxHashMap<hir::ExprId, Ty<'gcx>>,
-    /// The conditions of the `for` loops whose counter cannot overflow, in solc's sense.
-    pub(crate) simple_counter_loops: FxHashSet<hir::ExprId>,
     /// The Yul identifiers that name a variable, with their suffix, ordered by position.
     pub(crate) yul_references: Vec<YulReference>,
-}
-
-bitflags::bitflags! {
-    /// What type checking knows of an expression, for the AST JSON.
-    #[derive(Clone, Copy, Debug, Default)]
-    pub(crate) struct ExprFlags: u8 {
-        /// The expression is pure.
-        const PURE = 1 << 0;
-        /// The expression is not pure.
-        const IMPURE = 1 << 1;
-        /// The expression is an lvalue, in solc's sense.
-        const LVALUE = 1 << 2;
-    }
 }
 
 /// A Yul identifier that names a variable, such as `x` or `x.slot`.
@@ -247,28 +233,11 @@ impl<'gcx> TypeckResults<'gcx> {
         self.user_operators.get(&id).copied()
     }
 
-    /// Returns whether the expression is an lvalue, if the ASTs are kept.
-    #[inline]
-    pub fn is_lvalue(&self, id: hir::ExprId) -> bool {
-        self.ast
-            .exprs
-            .as_ref()
-            .and_then(|exprs| exprs.get(&id))
-            .is_some_and(|flags| flags.contains(ExprFlags::LVALUE))
-    }
-
     /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`],
     /// if the ASTs are kept.
     #[inline]
     pub fn solc_ty(&self, id: hir::ExprId) -> Option<Ty<'gcx>> {
         self.ast.solc_tys.get(&id).copied()
-    }
-
-    /// Returns whether the `for` loop with this condition cannot overflow its counter, if the ASTs
-    /// are kept.
-    #[inline]
-    pub fn is_simple_counter_loop(&self, condition: hir::ExprId) -> bool {
-        self.ast.simple_counter_loops.contains(&condition)
     }
 
     /// Returns the Yul identifiers in `span` that name a variable, if the ASTs are kept.
@@ -877,10 +846,11 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get()?.user_operator(id)
     }
 
-    /// Returns whether the type-checked expression is an lvalue, if the ASTs are kept.
+    /// Returns whether the type-checked expression is an lvalue, in solc's sense, if the ASTs are
+    /// kept.
     #[inline]
-    pub fn is_lvalue(self, id: hir::ExprId) -> bool {
-        self.typeck_results.get().is_some_and(|results| results.is_lvalue(id))
+    pub fn is_lvalue(self, expr: &hir::Expr<'gcx>) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.is_lvalue(expr))
     }
 
     /// Returns the type solc gives the expression where it differs from [`Self::type_of_expr`], if
@@ -888,13 +858,6 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn solc_ty(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
         self.typeck_results.get()?.solc_ty(id)
-    }
-
-    /// Returns whether the `for` loop with this condition cannot overflow its counter, if the ASTs
-    /// are kept.
-    #[inline]
-    pub fn is_simple_counter_loop(self, condition: hir::ExprId) -> bool {
-        self.typeck_results.get().is_some_and(|results| results.is_simple_counter_loop(condition))
     }
 
     /// Returns the Yul identifiers in `span` that name a variable, if the ASTs are kept.

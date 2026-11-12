@@ -10,7 +10,7 @@ pub(super) struct ReferencedItems {
     pub(super) bytecode_dependencies: DenseBitSet<hir::ContractId>,
     pub(super) internal_dispatch_targets: DenseBitSet<hir::FunctionId>,
     /// The functions that a call names in parentheses, which solc counts as dispatch targets but
-    /// code generation does not need to.
+    /// code generation does not need to. Only recorded when the ASTs are kept.
     pub(super) parenthesized_targets: Vec<hir::FunctionId>,
 }
 
@@ -317,7 +317,8 @@ impl<'gcx> Visit<'gcx> for CallGraphBuilder<'gcx, '_> {
             let target = self.collect_call(callee);
             let direct = target.is_some();
             // Lowering drops the parentheses of a callee, which leaves it starting after its call.
-            if let Some(function) = target
+            if self.gcx.sess.opts.unstable.keep_asts
+                && let Some(function) = target
                 && callee.span.lo() > expr.span.lo()
             {
                 self.graph.parenthesized_targets.push(function);
