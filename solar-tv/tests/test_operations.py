@@ -324,6 +324,19 @@ class OperationTests(unittest.TestCase):
         ):
             self.assertEqual(inventory["evmir"][name], "world_entry")
         for name in (
+            "mapping_slot",
+            "mapping_slot_bytes",
+            "storage_array_data_slot",
+            "storage_array_element_slot",
+            "balance",
+            "extcodesize",
+            "extcodehash",
+            "extcodecopy",
+            "validate_storage_bytes",
+            "load_storage_bytes",
+            "store_storage_bytes",
+            "store_storage_bytes_literal",
+            "clear_storage_words",
             "insert_value",
             "extract_value",
             "make_memory_slice",
@@ -337,7 +350,7 @@ class OperationTests(unittest.TestCase):
             "timestamp",
         ):
             self.assertEqual(inventory["mir"][name], "direct_state")
-        for name in ("icall", "alloc"):
+        for name in ("icall", "alloc", "datacopy"):
             self.assertEqual(inventory["mir"][name], "partial_family")
         active = {
             str(address)
