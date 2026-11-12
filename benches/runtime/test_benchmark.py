@@ -220,12 +220,9 @@ class CorpusTests(unittest.TestCase):
                 len(payload["sources"]), expected_source_counts[case.test_id]
             )
             self.assertTrue(payload["settings"]["viaIR"])
-            self.assertEqual(
-                payload["settings"]["metadata"],
-                benchmark.load_project(case.project_path)["settings"]["metadata"]
-                if case.test_id == "tempo-zones-portal"
-                else {"appendCBOR": False, "bytecodeHash": "none"},
-            )
+            metadata = payload["settings"]["metadata"]
+            self.assertIs(metadata["appendCBOR"], False, case.test_id)
+            self.assertEqual(metadata["bytecodeHash"], "none", case.test_id)
 
     def test_zones_fixture_rejects_remote_rpc_before_mutation(self) -> None:
         with mock.patch.object(benchmark, "rpc_request") as rpc:

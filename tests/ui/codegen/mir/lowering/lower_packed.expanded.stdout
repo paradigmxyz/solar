@@ -28,9 +28,6 @@
 +     v17 = extract_value slice<memory>, v3, 1
 +     mcopy v15, v16, v17
 +     v18 = add v4, 5
-+     v19 = ptradd v10, v18
-+     v20 = ptradd v19, 32
-+     mstore v20, 0
 +     ret v10
 +   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -286,9 +283,6 @@
 +     v16 = lt v15, v1
 +     jumpi v16, bb7, bb8
 +   bb8:                                            ; preds = bb6
-+     v27 = ptradd v9, v13
-+     v28 = ptradd v27, 32
-+     mstore v28, 0
 +     ret v9
 +   bb7:                                            ; preds = bb6
 +     v17 = mul v15, 32
