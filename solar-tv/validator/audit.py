@@ -110,15 +110,22 @@ def record(
                     "explicit ordered FMP allocation; invalid infallible bumps unsupported",
                     "slot hashing preserves scratch traffic; storage bytes retain header checks, padding masks and tail clearing; storage work limit 2048 words",
                     "storage arrays preserve scalar encodings, enum checks and nested object order; work limit 2048 elements",
-                    "frame slots require convention-defined addresses; internal placement unsupported; typed address calls require explicit gas",
-                    "external account reads use live state; MIR root runtime code unknown; constant data ranges must be known and relocation-free; export budget 64 KiB",
+                    "external frame slots use convention-defined addresses; selected internal frame windows require explicit placement; typed address calls require explicit gas",
+                    "external account reads use live state; codecopy/codesize require an explicit code image; constant data ranges must be known and relocation-free; export budget 64 KiB",
                     "external CALL assumes sufficient caller gas to avoid EIP-150 clipping",
                     "CREATE child gas is supplied by explicit creation_gas boundary inputs",
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",
                     "returndata, account lifetime and access warmth remain live at internal returns",
-                    "MIR root bytecode introspection/reentry, ABI helpers and backend layouts unsupported",
+                    "static scalar ABI tuples, scalar decoders and bounded literal/scalar packed encodings; recursive ABI layouts and physical multi-return buffers unsupported",
                 ]
             )
+            if "mir_layout" in fixture:
+                assumptions.extend(
+                    [
+                        "explicit MIR link/placement window inputs; declaration tables must match; no claim about backend placement or runtime image correspondence",
+                        "immutable words alias constructor staging memory or read fixed runtime relocations; GAS only samples a single-opcode window after its own charge",
+                    ]
+                )
         else:
             assumptions.extend(
                 [

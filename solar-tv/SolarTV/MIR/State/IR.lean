@@ -39,6 +39,48 @@ inductive MessageOp where
   | raw (opcode : Nat)
   | address (opcode : Nat) (hasValue : Bool)
 
+inductive StorageObjectOp where
+  | bytes (op : StorageBytesOp)
+  | array (element : ArrayElement) (variants : Option Nat)
+
+inductive ContextOp where
+  | environment (opcode : Nat)
+  | heapFloor (function : String)
+  | frameAddress (function : String) (offset : Nat)
+  | constructorRange (isEnd : Bool)
+  | dataSize (id addend : Nat) (aligned : Bool)
+  | immutableRead (id : Nat)
+  | immutableStore (id : Nat)
+  | library (id : Nat)
+  | gasSample
+
+inductive AbiRule where
+  | any | uint (bits : Nat) | left (bits : Nat) | sint (bits : Nat) | boolean | enumeration (bound : Nat)
+
+inductive PackedInput where
+  | literal (bytes : List SolarTV.Execution.Byte)
+  | scalar (index size : Nat) (fixedBytes : Bool)
+
+inductive AbiOp where
+  | encode (mode : Nat) (hasBase hasSelector : Bool) (functions : List Bool)
+  | decode (rule : Option AbiRule) (function calldata : Bool)
+  | validate (rule : AbiRule)
+  | packed (parts : List PackedInput) (hash : Bool)
+
+structure FunctionPlacement where
+  heapFloor : Option EvmRules.Word := none
+  frameBase : Option EvmRules.Word := none
+
+structure Layout where
+  code : Option (List SolarTV.Execution.Byte) := none
+  functions : List (String × FunctionPlacement) := []
+  constructor : Option (Nat × Nat) := none
+  data : List (Nat × (Nat × Nat)) := []
+  immutableSlots : List (Nat × Nat) := []
+  immutableValues : List (Nat × EvmRules.Word) := []
+  libraries : List (Nat × EvmRules.Word) := []
+  gasBefore : Option Nat := none
+
 inductive Operation where
   | binary (op : MIR.Op) (width : Nat)
   | comparison (op : MIR.Comparison) (width : Nat)
@@ -53,7 +95,8 @@ inductive Operation where
   | check (zero : Bool) (panic : Option Word)
   | memory (op : MemoryOp)
   | storage (transient write : Bool)
-  | environment (opcode : Nat)
+  | context (op : ContextOp)
+  | abi (op : AbiOp)
   | log (topics : Nat)
   | call (callee : Nat)
   | freePointer
@@ -63,9 +106,8 @@ inductive Operation where
   | extractValue (ty : ValueType) (index : Nat)
   | makeSlice (location : Nat)
   | slot (op : SlotOp)
-  | storageBytes (op : StorageBytesOp)
+  | object (op : StorageObjectOp)
   | dataCopy (bytes : List Byte) (offset : Nat)
-  | storageArray (element : ArrayElement) (variants : Option Nat)
   | frame (write : Bool) (address : Word) (ty : ValueType)
 
 structure Instruction where
@@ -120,6 +162,7 @@ structure Config where
   callDepth : Nat := 128
   externalConfig : Option EVM.State.Config := none
   creationGas : List Nat := []
+  layout : Layout := {}
 
 structure Frame where
   world : Journal

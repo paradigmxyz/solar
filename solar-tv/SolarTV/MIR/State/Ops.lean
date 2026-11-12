@@ -1,6 +1,8 @@
 import SolarTV.MIR.State.StorageArrays
 import SolarTV.MIR.State.Aggregates
 import SolarTV.MIR.State.Frames
+import SolarTV.MIR.State.Layout
+import SolarTV.MIR.State.Abi
 import SolarTV.Keccak
 
 /-! Direct MIR scalar and state-operation semantics. Typed arithmetic reuses MIR's
@@ -85,6 +87,13 @@ def storageOperation (cfg : Config) (frame : Frame) (transient write : Bool) (ar
 
 def contextOperation (cfg : Config) (frame : Frame) (opcode : Nat) (args : List Word) : Step :=
   match opcode,args with
+  | 0x38,[] => do
+    let code ← required cfg.layout.code "missing explicit MIR code image"
+    value frame (BitVec.ofNat 256 code.length)
+  | 0x39,[destination,offset,count] => do
+    let code ← required cfg.layout.code "missing explicit MIR code image"
+    let memory ← expand frame.memory destination.toNat count.toNat
+    effect {frame with memory := writeBytes memory destination.toNat (readBytes code offset.toNat count.toNat)}
   | 0x31,[argument] | 0x3b,[argument] | 0x3f,[argument] =>
     let target := argument.setWidth 160
     if opcode != 0x31 && target == cfg.environment.address then
@@ -122,13 +131,13 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .freePointer,[] => freePointer frame
   | .allocate zeroed checked,[size] => allocate frame size zeroed checked
   | .insertValue ..,_ | .extractValue ..,_ | .makeSlice ..,_ => .error "aggregate operation needs typed operands"
-  | .storageBytes .validate,[header] =>
+  | .object (.bytes .validate),[header] =>
     match bytesHeader header with | .ok _ => effect frame | .error data => return .reverted data
-  | .storageBytes .load,[slot] => loadStorageBytes cfg frame slot
-  | .storageBytes .store,[slot,object] => storeStorageBytes cfg frame slot object none
-  | .storageBytes (.literal bytes),[slot] => storeStorageBytes cfg frame slot 0 (some bytes)
-  | .storageBytes .clear,[slot,first,last] => clearStorageWords cfg frame slot first last
-  | .storageArray element variants,[slot] => loadStorageArray cfg frame slot element variants
+  | .object (.bytes .load),[slot] => loadStorageBytes cfg frame slot
+  | .object (.bytes .store),[slot,object] => storeStorageBytes cfg frame slot object none
+  | .object (.bytes (.literal bytes)),[slot] => storeStorageBytes cfg frame slot 0 (some bytes)
+  | .object (.bytes .clear),[slot,first,last] => clearStorageWords cfg frame slot first last
+  | .object (.array element variants),[slot] => loadStorageArray cfg frame slot element variants
   | .dataCopy bytes offset,[destination,count] =>
     if offset + count.toNat > bytes.length then .error "datacopy past its data" else
     let memory ← expand frame.memory destination.toNat count.toNat
@@ -158,7 +167,8 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
     else effect frame
   | .memory op,args => memoryOperation cfg frame op args
   | .storage transient write,args => storageOperation cfg frame transient write args
-  | .environment opcode,args => contextOperation cfg frame opcode args
+  | .context (.environment opcode),args => contextOperation cfg frame opcode args
+  | .context op,args => layoutOperation cfg frame op args
   | .log count,offset :: size :: topics =>
     if count != topics.length then .error "MIR log topic count" else
     if cfg.environment.isStatic then return .invalid else
@@ -183,6 +193,28 @@ def assign (next : Frame) (result : Option Nat) (ty : ValueType) (word : Option 
 def instruction (cfg : Config) (frame : Frame) (inst : Instruction) : Step := do
   if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then return .invalid
   match inst.operation,inst.operands with
+  | .abi (.encode mode hasBase hasSelector functions),_ =>
+    let args ← inst.operands.mapM (read frame)
+    let (value,next) ← abiEncode frame mode hasBase hasSelector functions args
+    assignValue next inst.result inst.ty value
+  | .abi (.decode rule function calldata),[input] =>
+    let result ← abiDecode cfg frame rule function calldata (← readValue frame input)
+    match result with
+    | .returned (word,next) => assign next inst.result inst.ty word
+    | .reverted data => return .reverted data
+    | .invalid => return .invalid
+  | .abi (.validate rule),[input] =>
+    let word ← read frame input
+    if !abiCanonical rule word then .error "invalid decoder ABI evidence" else effect frame
+  | .abi (.validate rule),[_,raw] =>
+    let word ← read frame raw
+    if !abiCanonical rule word then .error "invalid decoder ABI evidence" else effect frame
+  | .abi (.packed parts hash),_ =>
+    let args ← inst.operands.mapM (read frame)
+    match ← abiPacked frame parts hash args with
+    | .returned (word,next) => assign next inst.result inst.ty word
+    | .reverted data => return .reverted data
+    | .invalid => return .invalid
   | .insertValue ty index,[aggregate,field] =>
     let aggregate ← readValue frame aggregate
     let value ← readValue frame field

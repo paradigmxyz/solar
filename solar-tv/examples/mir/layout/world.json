@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "mir_layout": {
+    "code": "0x01020304",
+    "functions": {
+      "f": {
+        "frame_base": 256
+      }
+    }
+  }
+}

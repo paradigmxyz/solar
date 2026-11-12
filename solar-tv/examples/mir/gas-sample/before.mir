@@ -1,0 +1,6 @@
+@module Examples
+fn @f() -> i256 {
+bb0:
+v0 = gas
+ret v0
+}
