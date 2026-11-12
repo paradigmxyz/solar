@@ -1,9 +1,8 @@
-"""Explicit initial-world fixtures and compiled-entry import.
+"""Explicit initial-world fixtures and shared Lean constructor rendering.
 
-This mode proves execution under a named world, not arbitrary-account equivalence.
-Storage cells and entry stack words may be symbolic. The backend is an additional
-trusted lowering boundary; its actual runtime image is hashed in the audit and
-independently rebuilt by the native replay helper.
+MIR uses direct typed SSA semantics and its independent Rust interpreter.
+EVM entries retain their explicit compiled-image boundary and native EVM replay.
+Both modes prove only the stated world, not arbitrary-account equivalence.
 """
 
 import hashlib
@@ -55,7 +54,7 @@ def _bytes(value) -> list[int]:
     return result
 
 
-def read(path: Path, compiler: str, policy: str | None) -> dict:
+def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") -> dict:
     if path.stat().st_size > 262144:
         raise Unsupported("world fixture exceeds 256 KiB")
     try:
@@ -80,11 +79,24 @@ def read(path: Path, compiler: str, policy: str | None) -> dict:
             "origin",
             "gas_price",
             "warm_addresses",
+            "memory",
         },
         "world",
     )
     if type(value.get("version")) is not int or value["version"] != 1:
         raise Unsupported("world fixture requires version 1")
+    if kind == "mir" and (policy is not None or "gas" in value):
+        raise Unsupported("direct MIR state validation does not assign EVM gas costs")
+    if kind != "mir" and "memory" in value:
+        raise Unsupported("initial memory is an explicit MIR boundary input")
+    initial_memory = value.get("memory", {})
+    _keys(initial_memory, {"data", "size"}, "memory")
+    memory_data = _bytes(initial_memory.get("data", "0x"))
+    memory_size = int(
+        _number(initial_memory.get("size", (len(memory_data) + 31) // 32 * 32), 32)
+    )
+    if memory_size % 32 or memory_size > 65536 or len(memory_data) > memory_size:
+        raise Unsupported("MIR memory must be word-aligned and at most 64 KiB")
     symbols = {}
 
     def word(value):
@@ -105,9 +117,9 @@ def read(path: Path, compiler: str, policy: str | None) -> dict:
         raise Unsupported("world supports up to 64 blob hashes")
     if not isinstance(addresses, list) or len(addresses) > 64:
         raise Unsupported("world supports up to 64 warm addresses")
-    budget = int(_number(value.get("gas", 1_000_000), 64))
+    budget = None if kind == "mir" else int(_number(value.get("gas", 1_000_000), 64))
     fuel = int(_number(value.get("fuel", 512), 32))
-    if budget > 30_000_000 or not 1 <= fuel <= 2048:
+    if (budget is not None and budget > 30_000_000) or not 1 <= fuel <= 2048:
         raise Unsupported("world limits: gas <= 30000000, fuel 1..2048")
     if type(value.get("static", False)) is not bool:
         raise Unsupported("world static permission must be boolean")
@@ -118,7 +130,11 @@ def read(path: Path, compiler: str, policy: str | None) -> dict:
     if not isinstance(source, list) or len(source) > 32:
         raise Unsupported("world supports up to 32 initial accounts")
     for entry in source:
-        _keys(entry, {"address", "nonce", "balance", "code", "storage"}, "account")
+        _keys(
+            entry,
+            {"address", "nonce", "balance", "code", "storage", "transient"},
+            "account",
+        )
         owner = _number(entry.get("address"), 160)
         if owner in seen:
             raise Unsupported("duplicate world account")
@@ -126,12 +142,18 @@ def read(path: Path, compiler: str, policy: str | None) -> dict:
         slots = entry.get("storage", {})
         if not isinstance(slots, dict) or len(slots) > 64:
             raise Unsupported("account supports up to 64 initial storage cells")
+        transient = entry.get("transient", {})
+        if not isinstance(transient, dict) or len(transient) > 64:
+            raise Unsupported("account supports up to 64 transient cells")
+        if kind != "mir" and transient:
+            raise Unsupported("EVM transactions start with empty transient storage")
         account = {
             "address": owner,
             "nonce": int(_number(entry.get("nonce", 1 if owner == address else 0), 64)),
             "balance": _number(entry.get("balance", 0)),
             "code": _bytes(entry.get("code", "0x")),
             "storage": [(word(key), word(data)) for key, data in slots.items()],
+            "transient": [(word(key), word(data)) for key, data in transient.items()],
         }
         if (
             owner != address
@@ -148,7 +170,14 @@ def read(path: Path, compiler: str, policy: str | None) -> dict:
         accounts.append(account)
     if address not in seen:
         accounts.append(
-            {"address": address, "nonce": 1, "balance": "0", "code": [], "storage": []}
+            {
+                "address": address,
+                "nonce": 1,
+                "balance": "0",
+                "code": [],
+                "storage": [],
+                "transient": [],
+            }
         )
     if balance >= 2**256:
         raise Unsupported("initial balances exceed a word-sized total supply")
@@ -176,6 +205,7 @@ def read(path: Path, compiler: str, policy: str | None) -> dict:
         "warm_slots": [(_number(a, 160), word(k)) for a, k in warm],
         "gas_policy": policy,
         "fuel": fuel,
+        "memory": {"data": memory_data, "size": memory_size},
     }
     digest = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
     return {
@@ -209,7 +239,6 @@ def runtime(text: str, kind: str, solar: str, version: str, timeout: int) -> byt
     if result.returncode:
         raise Unsupported("cannot compile explicit-world entry\n" + result.stderr)
     try:
-        # MIR inputs also print the final pipeline snapshot before the artifact.
         artifacts = json.loads(result.stdout.splitlines()[-1])["contracts"]
         if len(artifacts) != 1:
             raise ValueError("expected exactly one runtime")
@@ -221,8 +250,10 @@ def runtime(text: str, kind: str, solar: str, version: str, timeout: int) -> byt
     return code
 
 
-def configuration(solar: str, version: str, fixture: dict, timeout: int) -> str:
-    catalog = native.catalog(native.default(solar), timeout)
+def configuration(
+    solar: str, version: str, fixture: dict, timeout: int, replay: str | None = None
+) -> str:
+    catalog = native.catalog(replay or native.default(solar), timeout)
     precompiles = catalog.get("precompiles")
     if not isinstance(precompiles, dict):
         raise Unsupported("rebuild the native replay helper for precompile activation")
@@ -242,16 +273,20 @@ def configuration(solar: str, version: str, fixture: dict, timeout: int) -> str:
         rows.append(
             f"⟨{'true' if fork['available'] else 'false'}, {fork['base_gas']}, {fork['dynamic_gas']}, {inputs}, {outputs}⟩"
         )
+    context = context_expression(fixture)
+    return f"def tvWorldConfig : EVM.State.Config := ⟨.{version}, [{', '.join(rows)}], {fixture['address']}, {context}⟩\n"
+
+
+def context_expression(fixture):
     block = fixture["block"]
     hashes = "[" + ", ".join(f"({n},{h})" for n, h in block["hashes"]) + "]"
     blobs = "[" + ", ".join(fixture["blob_hashes"]) + "]"
-    context = (
+    return (
         f"⟨{block['number']},{block['coinbase']},{block['timestamp']},"
         f"{block['gas_limit']},{block['difficulty']},{block['prevrandao']},"
         f"{fixture['chain_id']},{block['base_fee']},{block['blob_base_fee']},"
         f"{block['slot']},{hashes},{blobs}⟩"
     )
-    return f"def tvWorldConfig : EVM.State.Config := ⟨.{version}, [{', '.join(rows)}], {fixture['address']}, {context}⟩\n"
 
 
 def translate(
@@ -262,22 +297,18 @@ def translate(
     fixture: dict,
     timeout: int,
     function: str | None = None,
+    replay: str | None = None,
 ) -> Program:
     if version not in FORKS:
         raise Unsupported(
             "explicit-world execution supports Istanbul through Osaka, and Amsterdam's environment fragment"
         )
     if kind == "mir":
-        entries = re.findall(
-            r"^fn @([^ (]+)\(\)(?: ->[^\n]+?)? \[entry(?:, [^\n]*)?\] \{",
-            text,
-            re.MULTILINE,
+        from . import mir_state
+
+        return mir_state.translate(
+            text, solar, version, fixture, timeout, function, replay
         )
-        if len(entries) != 1 or (function and function != entries[0]):
-            raise Unsupported(
-                "world MIR requires an actual dispatch entry, not an isolated internal function"
-            )
-        height = 0
     else:
         if function is not None:
             raise Unsupported("--function requires MIR")
@@ -289,29 +320,13 @@ def translate(
         if height > 1024:
             raise Unsupported("world entry stack exceeds 1024 words")
     code = runtime(text, kind, solar, version, timeout)
-    config = configuration(solar, version, fixture, timeout)
+    config = configuration(solar, version, fixture, timeout, replay)
     stack = [f"stack{i}" for i in range(height)]
     inputs = [*fixture["symbols"], *stack]
 
     def word(value):
         return value.removeprefix("$")
 
-    accounts = []
-    for account in fixture["accounts"]:
-        body = (
-            "["
-            + ", ".join(
-                f"({word(key)}, {word(value)})" for key, value in account["storage"]
-            )
-            + "]"
-        )
-        slots = f"(({body} : EVM.State.Slots).foldl (fun slots entry => EVM.State.slotsWrite slots entry.1 entry.2) [])"
-        image = (
-            list(code) if account["address"] == fixture["address"] else account["code"]
-        )
-        accounts.append(
-            f"⟨{account['address']}, {account['nonce']}, {account['balance']}, {image}, {slots}, [], false, false⟩"
-        )
     warm = [
         fixture["address"],
         fixture["caller"],
@@ -334,9 +349,9 @@ def translate(
         + "]"
     )
     body = (
-        f"let accounts : List EVM.State.Account := [{', '.join(accounts)}]\n"
+        f"let accounts : List EVM.State.Account := {accounts_expression(fixture, code)}\n"
         f"let world : EVM.State.Journal := ⟨accounts, accounts, [{', '.join(warm)}], {warm_slots}, [], 0⟩\n"
-        f"let environment : World.Environment := ⟨{fixture['address']}, {fixture['address']}, {fixture['caller']}, {fixture['origin']}, 0, {fixture['gas_price']}, {fixture['calldata']}, {'true' if fixture['static'] else 'false'}, 0⟩\n"
+        f"let environment : World.Environment := {environment_expression(fixture)}\n"
         f"EVM.State.execute {fixture['fuel']} tvWorldConfig world ⟨environment, {list(code)}, 0, [{', '.join(stack)}], [], [], {fixture['gas']}⟩"
     )
     return Program(
@@ -374,8 +389,34 @@ def replay_input(fixture: dict) -> dict:
         "chain_id",
         "blob_hashes",
         "warm_addresses",
+        "memory",
     }
     return {key: value for key, value in fixture.items() if key in keys}
+
+
+def accounts_expression(fixture, image=None):
+    def slots(values):
+        pairs = ",".join(
+            f"({key.removeprefix('$')},{value.removeprefix('$')})"
+            for key, value in values
+        )
+        return f"(([{pairs}] : Execution.Slots).foldl (fun slots entry => Execution.slotsWrite slots entry.1 entry.2) [])"
+
+    accounts = []
+    for account in fixture["accounts"]:
+        code = (
+            list(image)
+            if image is not None and account["address"] == fixture["address"]
+            else account["code"]
+        )
+        accounts.append(
+            f"⟨{account['address']},{account['nonce']},{account['balance']},{code},{slots(account['storage'])},{slots(account['transient'])},false,false⟩"
+        )
+    return "[" + ",".join(accounts) + "]"
+
+
+def environment_expression(fixture):
+    return f"⟨{fixture['address']},{fixture['address']},{fixture['caller']},{fixture['origin']},0,{fixture['gas_price']},{fixture['calldata']},{'true' if fixture['static'] else 'false'},0⟩"
 
 
 def _block(value: dict) -> dict:
