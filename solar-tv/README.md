@@ -337,8 +337,8 @@ updates the FMP, then performs any requested zero initialization. Reservation
 alone does not expand or clear memory. Checked overflow or an end above uint64
 reverts with Panic(0x41); violating an infallible allocation's validity contract
 is unsupported. No initial FMP, alignment, heap floor or physical frame is
-invented. Deferred allocation, external/indirect calls, aggregate call results,
-ABI/layout helpers and backend memory records remain unsupported.
+invented. Deferred allocation, indirect calls, aggregate call results, ABI/layout
+helpers and backend memory records remain unsupported.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/internal-calls/{before,after}.mir \
@@ -354,6 +354,55 @@ shared checked-allocation helper, which is interpreted as ordinary MIR. The
 broken pair aliases two allocated objects; the checker reports the changed
 return value and independently replays both original modules. Memory read/write
 normalization uses kernel-proved range and byte-order laws, not alias assumptions.
+
+### Direct MIR messages
+
+`call`, `callcode`, `delegatecall`, `staticcall`, `create` and `create2` execute
+children from the fixture's bytecode accounts. The MIR caller stays typed SSA;
+we do not compile it into an EVM image. The Lean and native interpreters share
+neither an imported instruction recipe nor child results. Both execute the real
+child, including nested messages, precompiles, exact revert data and rollback.
+
+MIR does not price its own instructions. CALL-family checks therefore assume
+enough caller gas to forward the explicit requested amount without EIP-150
+clipping. CREATE has no gas operand, so its forwarded child budgets are explicit
+scenario inputs, in evaluation order:
+
+```json
+{"version":1,"creation_gas":[100000,200000]}
+```
+
+A missing budget is unsupported; an unused suffix is allowed. Each child pays
+fork-specific EVM gas and can run out of gas. Requested CALL gas and each creation
+budget are limited to 30 million. Independent native replay also limits combined
+child gas spent to 30 million and child instructions to one million. These checks
+prove semantic effects under the recorded boundary conditions; they do not prove
+equality of physical caller gas or infer CREATE budgets from backend code.
+
+Return data, access warmth and account creation/destruction flags remain observable
+when an internal function returns. Calls replace the full returndata buffer while
+copying only the requested output prefix; untouched output bytes survive. Internal
+calls share that buffer. Transaction termination clears private frame observations,
+while failure restores the parent journal. One model work budget covers both MIR
+steps and nested child bytecode; it does not restart when a child returns.
+
+The current MIR contract has no known runtime image. Child reentry into it and
+child introspection of its code are unsupported. Fixture children can inspect and
+execute their own known code. Amsterdam message gas remains unsupported.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/external-calls/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/external-calls/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/external-calls/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/external-calls/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/creation/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/creation/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/creation/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/creation/world.json
+```
+
+The positive pairs are actual `sccp` output. The broken examples call the wrong
+account or change a CREATE2 salt; both produce independently replayed witnesses.
 
 Environment inputs are optional `origin`, `gas_price`, `chain_id`, a `blob_hashes`
 array and a `block` object. The block accepts `number`, `coinbase`, `timestamp`,

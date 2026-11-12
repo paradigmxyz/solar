@@ -1,4 +1,5 @@
 import SolarTV.MIR.Ops
+import SolarTV.EVMIR.State.Types
 import Init.Data.List.Monadic
 import SolarTV.State.ByteMemory
 import SolarTV.State.Context
@@ -38,7 +39,7 @@ structure Operand where
 
 inductive MemoryOp where
   | load | store | storeByte | copy | hash | size | zero
-  | calldataLoad | calldataSize | calldataCopy
+  | calldataLoad | calldataSize | calldataCopy | returnDataSize | returnDataCopy
 
 inductive Operation where
   | binary (op : MIR.Op) (width : Nat)
@@ -59,6 +60,7 @@ inductive Operation where
   | call (callee : Nat)
   | freePointer
   | allocate (zeroed checked : Bool)
+  | external (opcode : Nat)
 
 structure Instruction where
   result : Option Nat
@@ -110,12 +112,16 @@ structure Config where
   available : List Nat
   entry : Bool
   callDepth : Nat := 128
+  externalConfig : Option EVM.State.Config := none
+  creationGas : List Nat := []
 
 structure Frame where
   world : Journal
   memory : List Byte
   arguments : List Scalar
   locals : List (Nat × Scalar) := []
+  returnData : List Byte := []
+  creationIndex : Nat := 0
 
 /-- A caller continuation owns its SSA snapshot, not a private copy of execution memory. -/
 structure Continuation where
@@ -134,6 +140,8 @@ structure Result where
   completion : Completion
   world : Journal
   memory : List Byte
+  returnData : List Byte := []
+  creationIndex : Nat := 0
 
 abbrev Run := Except String Result
 abbrev Step := Except String (Outcome (Option Word × Frame))

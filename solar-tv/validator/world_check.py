@@ -11,7 +11,7 @@ from .common import Inconclusive, Program, Unsupported
 
 UNFOLD = (
     "before, after, EVM.State.equivalent, EVM.State.observe, "
-    "EVM.State.execute, EVM.State.run, EVM.State.instruction, EVM.State.available, "
+    "EVM.State.execute, EVM.State.reduceRun, EVM.State.instruction, EVM.State.available, "
     "EVM.State.next, EVM.State.stepFailed, EVM.State.stepExhausted, EVM.State.withMemory, EVM.State.account, "
     "EVM.State.putAccount, EVM.State.slotsRead, EVM.State.slotsWrite, EVM.State.warmSlot, "
     "EVM.State.warmAddress, EVM.State.memoryCharge, EVM.State.requiredWords, "
@@ -19,7 +19,8 @@ UNFOLD = (
     "EVM.State.readBytes, EVM.State.wordBytes, EVM.State.writeBytes, EVM.State.pureOp, "
     "EVM.State.pushValue, EVM.State.normalizedSlots, tvWorldConfig, "
     "EVM.step, Evm.add, Evm.sub, Evm.mul, Evm.eq, Evm.iszero, "
-    "Storage.readPrice, Storage.writePrice, Storage.netMetered, Fork.atLeast, Fork.ordinal"
+    "Storage.readPrice, Storage.writePrice, Storage.netMetered, Fork.atLeast, Fork.ordinal, "
+    "Except.bind, Except.map, Except.pure, Bind.bind, Pure.pure, Functor.map, EVM.State.finalize"
 )
 
 
@@ -33,7 +34,7 @@ MIR_UNFOLD = (
     "MIR.State.allocate, MIR.State.freePointer, MIR.State.memoryOperation, "
     "Execution.expand, Execution.requiredWords, Execution.memoryWords, Execution.readWord, "
     "Execution.readBytes, Execution.wordBytes, Execution.writeBytes, "
-    "Execution.account, Execution.putAccount, "
+    "Execution.account, Execution.putAccount, Execution.warmSlot, Execution.warmAddress, "
     "Execution.slotsRead, Execution.slotsWrite, Execution.normalizedSlots, "
     "Execution.ordered, Execution.orderedInsert, Except.bind, Except.map, Except.pure, "
     "Bind.bind, Pure.pure, Functor.map, List.mapM.loop, List.mapM, List.foldl, List.getElem?_cons, List.find?_cons"
@@ -106,12 +107,14 @@ def check(
             "Execution.writeBytes",
         ):
             abstract = abstract.replace(name + ", ", "")
+        # Compare observation fields before simplifying their contents. Identical
+        # account/access sets need no repeated normalization under symbolic bytes.
         finish = "<;> (repeat (first | split | intro _)); all_goals simp_all <;> omega"
         proof = (
             "  unfold before after\n"
             f"  conv => arg 1; simp [{abstract}]\n"
             f"  conv => arg 2; simp [{abstract}]\n"
-            f"  simp [MIR.State.equivalent, MIR.State.observe] {finish}\n"
+            f"  simp only [MIR.State.equivalent, MIR.State.observe, MIR.State.Observation.mk.injEq, and_true, true_and, eq_self] {finish}\n"
         )
     else:
         proof = (

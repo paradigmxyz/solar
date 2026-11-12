@@ -302,9 +302,11 @@ class OperationTests(unittest.TestCase):
             )
         for name in ("call", "callcode", "delegatecall", "staticcall"):
             self.assertEqual(inventory["evmir"][name], "world_entry")
-            self.assertEqual(inventory["mir"][name], "missing")
+            self.assertEqual(inventory["mir"][name], "partial_family")
         for name in ("create", "create2"):
             self.assertEqual(inventory["evmir"][name], "world_entry")
+            self.assertEqual(inventory["mir"][name], "partial_family")
+        self.assertEqual(inventory["mir"]["returndatasize"], "direct_state")
         self.assertEqual(inventory["evmir"]["selfdestruct"], "world_entry")
         for name in (
             "extcodecopy",

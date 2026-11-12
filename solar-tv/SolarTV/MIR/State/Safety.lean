@@ -15,17 +15,22 @@ theorem work_limit_is_not_equivalence (reason : String) (other : Run) :
 theorem simultaneous_phis :
     ((enter (some 1)
       [⟨0,256,[(1,⟨.local 1,256⟩)]⟩,⟨1,256,[(1,⟨.local 0,256⟩)]⟩]
-      ⟨⟨[],[],[],[],[],0⟩,[],[],[(0,⟨256,7⟩),(1,⟨256,9⟩)]⟩).map (·.locals)) =
+      ⟨⟨[],[],[],[],[],0⟩,[],[],[(0,⟨256,7⟩),(1,⟨256,9⟩)],[],0⟩).map (·.locals)) =
       .ok [(1,⟨256,7⟩),(0,⟨256,9⟩)] := by rfl
 
 theorem live_memory_is_observable :
     ¬ equivalent
-      (.ok ⟨.returned [],⟨[],[],[],[],[],0⟩,[]⟩)
-      (.ok ⟨.returned [],⟨[],[],[],[],[],0⟩,[1]⟩) := by decide +kernel
+      (.ok ⟨.returned [],⟨[],[],[],[],[],0⟩,[],[],0⟩)
+      (.ok ⟨.returned [],⟨[],[],[],[],[],0⟩,[1],[],0⟩) := by decide +kernel
 
 theorem live_transient_is_observable :
     ¬ equivalent
-      (.ok ⟨.returned [],⟨[{address:=1}],[],[],[],[],0⟩,[]⟩)
-      (.ok ⟨.returned [],⟨[{address:=1,transient:=[(0,7)]}],[],[],[],[],0⟩,[]⟩) := by decide +kernel
+      (.ok ⟨.returned [],⟨[{address:=1}],[],[],[],[],0⟩,[],[],0⟩)
+      (.ok ⟨.returned [],⟨[{address:=1,transient:=[(0,7)]}],[],[],[],[],0⟩,[],[],0⟩) := by decide +kernel
+
+theorem live_return_data_is_observable :
+    ¬ equivalent
+      (.ok ⟨.returned [],⟨[],[],[],[],[],0⟩,[],[1],0⟩)
+      (.ok ⟨.returned [],⟨[],[],[],[],[],0⟩,[],[2],0⟩) := by decide +kernel
 
 end SolarTV.MIR.State

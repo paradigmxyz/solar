@@ -7,32 +7,41 @@ use serde_json::json;
 use solar_config::EvmVersion;
 use solar_evmir::op;
 use solar_mir_interpreter::{
-    Host, Options,
+    ExternalMessage, Host, MessageOutput, Options, PendingChanges,
     replay::{StateInput, StateOutcome, run_state},
 };
 use std::{collections::BTreeMap, str::FromStr};
 
-struct Context {
-    storage: BTreeMap<U256, U256>,
-    transient: BTreeMap<U256, U256>,
+mod messages;
+
+struct Context<'a> {
+    native: messages::Native<'a>,
     reads: BTreeMap<u8, U256>,
     history: BTreeMap<U256, U256>,
     blobs: Vec<U256>,
     static_permission: bool,
 }
 
-impl Host for Context {
+impl Host for Context<'_> {
     fn storage(&mut self, slot: U256) -> U256 {
-        self.storage.get(&slot).copied().unwrap_or_default()
+        self.native.storage(slot)
     }
     fn transient(&mut self, slot: U256) -> U256 {
-        self.transient.get(&slot).copied().unwrap_or_default()
+        self.native.transient(slot)
+    }
+    fn message(
+        &mut self,
+        message: ExternalMessage<'_>,
+        pending: PendingChanges<'_>,
+    ) -> Result<MessageOutput, &'static str> {
+        self.native.message(message, pending)
     }
     fn is_static(&self) -> bool {
         self.static_permission
     }
     fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256> {
         match (opcode, operands) {
+            (op::SELFBALANCE, &[]) => Some(self.native.balance()),
             (op::BLOCKHASH, &[number]) => {
                 let current = self.reads[&op::NUMBER];
                 Some(if number < current && current - number <= U256::from(256) {
@@ -68,6 +77,8 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         })
         || input.block.hashes.len() > 256
         || input.blob_hashes.len() > 64
+        || input.creation_gas.len() > 128
+        || input.creation_gas.iter().any(|&gas| gas > 30_000_000)
     {
         return Err("direct MIR replay input limit".into());
     }
@@ -83,8 +94,6 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             .map(|(k, v)| Ok((word(request, k)?, word(request, v)?)))
             .collect::<Result<BTreeMap<_, _>, String>>()
     };
-    let persistent = cells(&root.storage)?;
-    let transient = cells(&root.transient)?;
     let version = EvmVersion::from_str(&request.evm_version).map_err(|e| e.to_string())?;
     let fields = [
         (op::ADDRESS, input.address.as_str()),
@@ -120,8 +129,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
     let args = super::super::words(request, "arg")?;
     let execute = |text: &str| -> Result<String, String> {
         let mut host = Context {
-            storage: persistent.clone(),
-            transient: transient.clone(),
+            native: messages::Native::new(request, input)?,
             reads: reads.clone(),
             history: history.clone(),
             blobs: blobs.clone(),
@@ -148,51 +156,22 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
             StateOutcome::Invalid => ("exception", Vec::new(), Vec::new(), None, false),
             StateOutcome::Unsupported(reason) => return Err(reason),
         };
-        host.storage.extend(execution.storage);
-        host.transient.extend(execution.transient);
-        let normalize = |slots: BTreeMap<U256, U256>| {
-            slots
-                .into_iter()
-                .filter(|(_, v)| !v.is_zero())
-                .map(|(k, v)| [k.to_string(), v.to_string()])
-                .collect::<Vec<_>>()
-        };
-        let mut accounts = BTreeMap::new();
-        for account in &input.accounts {
-            let address = word(request, &account.address)?;
-            let slots =
-                if address == owner { host.storage.clone() } else { cells(&account.storage)? };
-            let transient = if !keep_transient {
-                BTreeMap::new()
-            } else if address == owner {
-                host.transient.clone()
-            } else {
-                cells(&account.transient)?
-            };
-            accounts.insert(
-                address,
-                json!([
-                    address.to_string(),
-                    account.nonce.to_string(),
-                    word(request, &account.balance)?.to_string(),
-                    account.code,
-                    normalize(slots),
-                    normalize(transient)
-                ]),
-            );
-        }
-        let logs = execution
-            .logs
-            .iter()
-            .map(|log| {
-                json!([
-                    owner.to_string(),
-                    log.topics.iter().map(|v| v.to_string()).collect::<Vec<_>>(),
-                    log.data
-                ])
-            })
-            .collect::<Vec<_>>();
-        Ok(json!({"outcome":status,"values":values.iter().map(|v|v.to_string()).collect::<Vec<_>>(),"data":data,"memory":memory,"accounts":accounts.into_values().collect::<Vec<_>>(),"logs":logs}).to_string())
+        host.native.flush(PendingChanges {
+            storage: &execution.storage,
+            transient: &execution.transient,
+            logs: &execution.logs,
+        });
+        let keep_world = matches!(status, "return" | "success");
+        let mut observation = host.native.finish(keep_transient, keep_world)?;
+        let data = json!(data);
+        let values = json!(values.iter().map(|v| v.to_string()).collect::<Vec<_>>());
+        observation["outcome"] = json!(status);
+        observation["values"] = values;
+        observation["data"] = data;
+        observation["memory"] = json!(memory);
+        observation["returndata"] =
+            json!(if keep_transient { execution.return_data } else { Vec::new() });
+        Ok(observation.to_string())
     };
     Ok([execute(&request.before)?, execute(&request.after)?])
 }

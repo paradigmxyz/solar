@@ -8,10 +8,10 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Status | MIR families | EVM opcode entries |
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
-| Some forms checked | 8 | 6 |
+| Some forms checked | 14 | 6 |
 | Explicit-world entry execution | 0 | 45 |
-| Direct typed MIR state execution | 24 | 0 |
-| Missing | 43 | 0 |
+| Direct typed MIR state execution | 25 | 0 |
+| Missing | 36 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
 variants account for many EVM entries. Checking a word operation does not cover
@@ -95,24 +95,32 @@ Direct scalar internal calls, tail calls, FMP reads, checked/infallible allocati
 and byte-exact initialization execute without backend placements. Callers share
 the journal and byte memory; their SSA environments are separate and width-typed.
 Real inlining and allocation-lowering pairs exercise generated helpers, with
-broken-call and object-aliasing counterexamples. External/indirect calls,
-aggregate results and layout-dependent operations remain unsupported.
+broken-call and object-aliasing counterexamples. External call families, creation
+and return-data operations execute real fixture children through the shared message boundary and independent native message API.
+CALL assumes sufficient caller gas to avoid clipping its requested amount; CREATE
+uses explicit child gas budgets. Native replay never lowers the MIR caller. Live
+returndata, access warmth and account lifetime flags are preserved at internal
+returns. Child gas and nested work limits remain real, not assumed successful.
+Indirect calls, aggregate results, root runtime code reentry/introspection and
+layout-dependent operations remain unsupported.
 
 The world fixture is an explicit assumption. Declared symbolic slots, typed MIR
 arguments and EVM entry stack words are universally quantified. Only EVM entries
 use the trusted backend-image boundary. Audits retain this distinction and the
-fixture/configuration hashes; direct MIR audits have no runtime-image hashes. See the [world mode](README.md#storage-calls-and-creation)
+fixture/configuration hashes; direct MIR audits have no runtime-image hashes.
+See the [world mode](README.md#storage-calls-and-creation)
 for admitted forks, limits, observables and gas policies.
 
 ## Remaining work
 
 1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.
-   Extend direct MIR to external calls and creation with independently modeled boundaries.
+   Generalize direct MIR message proofs beyond explicit CREATE budgets and
+   the no-clipping CALL precondition; model root reentry through MIR entry semantics.
 2. Add transaction admission and EIP-7702 authorization processing, beyond
    execution of already-delegated account state.
 3. Generalize calldata/returndata/program-data access and physical code layout
    from complete-entry execution to arbitrary local windows.
-4. Add MIR aggregates, slices, frames, allocation, storage layouts and ABI helpers
+4. Add MIR aggregates, slices, frames, backend allocation layouts, storage layouts and ABI helpers
    against independent semantics, rather than assuming their lowering is correct.
 5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
    Amsterdam's two-resource state gas. Expand differential boundary coverage.

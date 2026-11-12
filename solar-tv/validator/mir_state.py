@@ -78,6 +78,8 @@ def operation(value, definitions):
             "calldataload",
             "calldatasize",
             "calldatacopy",
+            "returndatasize",
+            "returndatacopy",
         }:
             tag = {
                 "mload": "load",
@@ -89,8 +91,19 @@ def operation(value, definitions):
                 "calldataload": "calldataLoad",
                 "calldatasize": "calldataSize",
                 "calldatacopy": "calldataCopy",
+                "returndatasize": "returnDataSize",
+                "returndatacopy": "returnDataCopy",
             }[name]
             expression = f".memory .{tag}"
+        elif name in {
+            "call",
+            "callcode",
+            "delegatecall",
+            "staticcall",
+            "create",
+            "create2",
+        }:
+            expression = f".external {opcode}"
         elif name in {"sload", "sstore", "tload", "tstore"}:
             expression = f".storage {'true' if name.startswith('t') else 'false'} {'true' if name.endswith('store') else 'false'}"
         elif name in {
@@ -274,16 +287,30 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         if op["forks"][version]["available"]
     ]
     env = world.environment_expression(fixture)
-    config = f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128⟩\n"
+    external = any(
+        inst["operation"]["kind"] == "opcode"
+        and inst["operation"]["name"]
+        in {"call", "callcode", "delegatecall", "staticcall", "create", "create2"}
+        for func in model["functions"]
+        for block in func["blocks"]
+        for inst in block["instructions"]
+    )
+    if external and version == "amsterdam":
+        raise Unsupported("Amsterdam MIR message gas is not modeled")
+    config = world.configuration(
+        solar, version, fixture, timeout, replay, root_is_mir=True
+    ).replace("tvWorldConfig", "mirExternalConfig")
+    external_config = "some mirExternalConfig"
+    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']}⟩\n"
     inputs = [*fixture["symbols"], *(f"arg{i}" for i in range(len(params)))]
     arguments = (
         "[" + ",".join(f"⟨{bits},arg{i}⟩" for i, bits in enumerate(widths)) + "]"
     )
     body = (
         f"let accounts : List Execution.Account := {world.accounts_expression(fixture)}\n"
-        f"let journal : Execution.Journal := ⟨accounts,accounts,[],[],[],0⟩\n"
+        f"let journal : Execution.Journal := ⟨accounts,accounts,[{','.join(world.warm_addresses(fixture, version))}],[{','.join(f'({a},{k.removeprefix("$")})' for a, k in fixture['warm_slots'])}],[],0⟩\n"
         f"let memory : List Execution.Byte := {fixture['memory']['data']} ++ List.replicate {fixture['memory']['size'] - len(fixture['memory']['data'])} 0\n"
-        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {functions} {entry_id} ⟨journal,memory,{arguments},[]⟩"
+        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {functions} {entry_id} ⟨journal,memory,{arguments},[],[],0⟩"
     )
     return Program(
         (

@@ -145,6 +145,8 @@ pub struct StateInput<'a> {
 
 /// Semantic state outcome, with complete memory and the journal's changed cells.
 pub struct StateExecution {
+    /// Return data visible at a normal internal return.
+    pub return_data: Vec<u8>,
     /// How the selected body ended; raw RETURN and STOP end the whole call frame.
     pub outcome: StateOutcome,
     /// Active memory on success. Failure memory is not observable.
@@ -220,6 +222,7 @@ pub fn run_state(
             values
         };
         Ok(StateExecution {
+            return_data: effects.return_data,
             outcome,
             memory: memory.prefix(memory.size_bytes()),
             storage: sorted(effects.storage),

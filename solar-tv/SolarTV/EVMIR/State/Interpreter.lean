@@ -2,6 +2,7 @@ import SolarTV.EVMIR.State.Selfdestruct
 import SolarTV.EVMIR.Precompiles.Execute
 import SolarTV.EVMIR.State.Environment
 import SolarTV.EVMIR.State.Delegation
+import SolarTV.EVMIR.State.Messages
 
 /-! Gas-charged bytecode execution with real nested frames and constructors.
 Every frame owns its stack, memory and return-data buffer. Accounts, original
@@ -30,9 +31,9 @@ inductive Step where
 
 abbrev Action := Except String Step
 
-def stepFailed (world : Journal) : Action := .ok (.done ⟨.exception, [], world, 0⟩)
+def stepFailed (world : Journal) : Action := .ok (.done ⟨.exception, [], world, 0, 0⟩)
 
-def stepExhausted (world : Journal) : Action := .ok (.done ⟨.outOfGas, [], world, 0⟩)
+def stepExhausted (world : Journal) : Action := .ok (.done ⟨.outOfGas, [], world, 0, 0⟩)
 
 def next (world : Journal) (frame : Frame) (stack : List Word) : Action :=
   .ok (.next world {frame with pc := frame.pc + 1, stack})
@@ -49,7 +50,7 @@ def withMemory (world : Journal) (frame : Frame) (charge offset count : Nat)
     continuation {frame with memory, gas := frame.gas - total}
 
 def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
-  if frame.pc ≥ frame.code.length then .ok (.done ⟨.success, [], world, frame.gas⟩) else
+  if frame.pc ≥ frame.code.length then .ok (.done ⟨.success, [], world, frame.gas, 0⟩) else
   let opcode := frame.code[frame.pc]?.getD 0 |>.toNat
   let info := available cfg opcode
   if !info.available then stepFailed world
@@ -89,7 +90,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
     let b := values[1]?.getD 0
     let c := values[2]?.getD 0
     match opcode with
-    | 0x00 => .ok (.done ⟨.success, [], world, frame.gas⟩)
+    | 0x00 => .ok (.done ⟨.success, [], world, frame.gas, 0⟩)
     | 0xfe => stepFailed world
     | 0x40 | 0x41 | 0x42 | 0x43 | 0x44 | 0x45 | 0x46 | 0x48 | 0x49 | 0x4a | 0x4b =>
       if frame.gas < info.base then stepExhausted world
@@ -116,6 +117,8 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
         next world {frame with gas := frame.gas - info.base} (value :: rest)
     | 0x31 | 0x3b | 0x3f =>
       let address := a.setWidth 160
+      if opcode != 0x31 && cfg.unknownCode == some address then
+        .error "MIR root runtime code is unknown" else
       let charge := if cfg.fork.atLeast .berlin && world.warmAddresses.contains address then 100 else info.base
       if frame.gas < charge then stepExhausted world else
         let value := if opcode = 0x31 then (account world address).balance
@@ -128,6 +131,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
         (readWord frame.environment.input a.toNat :: rest)
     | 0x3c =>
       let owner := a.setWidth 160
+      if cfg.unknownCode == some owner then .error "MIR root runtime code is unknown" else
       let count := (values[3]?.getD 0).toNat
       let base := if cfg.fork.atLeast .berlin && world.warmAddresses.contains owner then 100 else info.base
       -- The EXTCODE gas class reflects account access; copying also pays the
@@ -188,7 +192,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
         next world {frame with memory := writeBytes memory a.toNat bytes} rest
     | 0xf3 | 0xfd => withMemory world frame info.base a.toNat b.toNat fun frame =>
       .ok (.done ⟨if opcode = 0xfd then .reverted else .success,
-        readBytes frame.memory a.toNat b.toNat, world, frame.gas⟩)
+        readBytes frame.memory a.toNat b.toNat, world, frame.gas, 0⟩)
     | 0xf1 | 0xf2 | 0xf4 | 0xfa =>
       let kind := if opcode = 0xf1 then Calls.Kind.call else if opcode = 0xf2 then .callcode
         else if opcode = 0xf4 then .delegatecall else .staticcall
@@ -204,6 +208,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
       let newAccount := if kind == .call && dead world destination &&
           (!cfg.fork.atLeast .spuriousDragon || value != 0) then 25000 else 0
       let (code, resolution, entered) := executionCode cfg.fork world destination
+      if cfg.unknownCode == some code.address then .error "MIR root runtime code is unknown" else
       if frame.environment.isStatic && kind == .call && value != 0 then stepFailed world else
         withMemory world frame (base + valueCharge + newAccount + resolution) inputOffset inputSize fun frame =>
           withMemory world frame 0 outOffset outSize fun frame =>
@@ -224,7 +229,7 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
       if frame.environment.isStatic then stepFailed world
       else if frame.gas < charge then stepExhausted world
       else .ok (.done ⟨.success, [], destroy cfg.fork world frame.environment.address beneficiary,
-        frame.gas - charge⟩)
+        frame.gas - charge, 0⟩)
     | opcode =>
       if 0xa0 ≤ opcode ∧ opcode ≤ 0xa4 then
         if frame.environment.isStatic then stepFailed world else
@@ -238,84 +243,67 @@ def run (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run :=
   match fuel with
   | 0 => .error "world instruction/depth evaluation limit"
   | fuel + 1 => do
-    match ← instruction cfg world frame with
-    | .done result => return result
-    | .next world frame => run fuel cfg world frame
-    | .call message outOffset outSize requested code world frame =>
-      let checkpoint := warmAddress world message.destination
-      if frame.environment.depth ≥ 1024 ||
-          ((message.kind == .call || message.kind == .callcode) &&
-            (account world frame.environment.address).balance.ult message.value) then
-        -- A rejected value-bearing call returns its unspent stipend too.
-        run fuel cfg checkpoint {frame with
-          stack := 0 :: frame.stack
-          returnData := []
-          gas := frame.gas + if Calls.hasValue message then 2300 else 0}
-      else
-        match Calls.forwardGas cfg.fork frame.gas requested (Calls.hasValue message) with
-        | none => exhausted checkpoint
-        | some budget =>
-          let childWorld := if message.kind == .call then
-            (transfer checkpoint frame.environment.address message.destination message.value).getD checkpoint
-            else checkpoint
-          let child ← if !code.delegated && precompile cfg.fork message.destination then
-                do
-                  let (stop,data,gas) ← Precompiles.execute cfg.fork message.destination message.input budget.supplied
-                  pure ⟨stop,data,childWorld,gas⟩
-              else run fuel cfg childWorld {
-                environment := {Calls.childEnvironment frame.environment message with codeAddress := code.address}
-                code := code.bytes
-                gas := budget.supplied}
-          let committed := if child.stop = .success then child.world else checkpoint
-          let data := if child.stop = .exception || child.stop = .outOfGas then [] else child.data
-          let returned := if child.stop = .exception || child.stop = .outOfGas then 0 else child.gas
-          let copied := data.take outSize
-          run fuel cfg committed {frame with
-            stack := (if child.stop = .success then 1 else 0) :: frame.stack
-            memory := writeBytes frame.memory outOffset copied
-            returnData := data
-            gas := frame.gas - budget.charged + returned}
-    | .create salt value initcode world frame =>
-      let creator := account world frame.environment.address
-      if frame.environment.depth ≥ 1024 || creator.balance.ult value || creator.nonce ≥ 2^64 - 1 then
-        run fuel cfg world {frame with stack := 0 :: frame.stack, returnData := []}
-      else
-        let target := match salt with
-          | none => createAddress creator.address creator.nonce
-          | some salt => create2Address creator.address salt initcode
-        let checkpoint := warmAddress (putAccount world {creator with nonce := creator.nonce + 1}) target
-        let forwarded := if cfg.fork.atLeast .tangerineWhistle then frame.gas - frame.gas / 64 else frame.gas
-        if collision checkpoint target then
-          run fuel cfg checkpoint {frame with stack := 0 :: frame.stack, returnData := [], gas := frame.gas - forwarded}
+    let result ← match ← instruction cfg world frame with
+      | .done result => pure result
+      | .next world frame => run fuel cfg world frame
+      | .call message outOffset outSize requested code world frame =>
+        let checkpoint := warmAddress world message.destination
+        if frame.environment.depth ≥ 1024 ||
+            ((message.kind == .call || message.kind == .callcode) &&
+              (account world frame.environment.address).balance.ult message.value) then
+          -- A rejected value-bearing call returns its unspent stipend too.
+          run fuel cfg checkpoint {frame with
+            stack := 0 :: frame.stack
+            returnData := []
+            gas := frame.gas + if Calls.hasValue message then 2300 else 0}
         else
-          let old := account checkpoint target
-          let fresh := {old with
-            nonce := if cfg.fork.atLeast .spuriousDragon then 1 else 0
-            code := []
-            storage := []
-            transient := []}
-          let fresh := {fresh with created := true, destroyed := false}
-          let entered := putAccount checkpoint fresh
-          let entered := {entered with original := fresh :: entered.original.filter (fun a => a.address != target)}
-          let entered := (transfer entered creator.address target value).getD entered
-          let environment := {frame.environment with
-            address := target
-            codeAddress := target
-            caller := creator.address
-            value
-            input := []
-            depth := frame.environment.depth + 1}
-          let child ← run fuel cfg entered {environment, code := initcode, gas := forwarded}
-          let deposit := 200 * child.data.length
-          let success := child.stop == .success && validDeployedCode cfg.fork child.data && deposit ≤ child.gas
-          let committed := if success then putAccount child.world {(account child.world target) with code := child.data}
-            else checkpoint
-          let returned := if success then child.gas - deposit else if child.stop = .reverted then child.gas else 0
-          run fuel cfg committed {frame with
-            stack := (if success then target.setWidth 256 else 0) :: frame.stack
-            returnData := if child.stop = .reverted then child.data else []
-            gas := frame.gas - forwarded + returned}
-termination_by structural fuel
+          match Calls.forwardGas cfg.fork frame.gas requested (Calls.hasValue message) with
+          | none => exhausted checkpoint
+          | some budget =>
+            let child ← executeCall (run fuel cfg) cfg checkpoint frame.environment message code budget.supplied
+            let committed := child.world
+            let data := child.data
+            let returned := child.gas
+            let copied := data.take outSize
+            let resumed ← run (fuel - child.work) cfg committed {frame with
+              stack := child.value :: frame.stack
+              memory := writeBytes frame.memory outOffset copied
+              returnData := data
+              gas := frame.gas - budget.charged + returned}
+            pure {resumed with work := resumed.work + child.work}
+      | .create salt value initcode world frame =>
+        let creator := account world frame.environment.address
+        if frame.environment.depth ≥ 1024 || creator.balance.ult value || creator.nonce ≥ 2^64 - 1 then
+          run fuel cfg world {frame with stack := 0 :: frame.stack, returnData := []}
+        else
+          let forwarded := if cfg.fork.atLeast .tangerineWhistle then frame.gas - frame.gas / 64 else frame.gas
+          let child ← executeCreation (run fuel cfg) cfg world frame.environment salt value initcode forwarded
+          let resumed ← run (fuel - child.work) cfg child.world {frame with
+            stack := child.value :: frame.stack
+            returnData := child.data
+            gas := frame.gas - forwarded + child.gas}
+          pure {resumed with work := resumed.work + child.work}
+    return {result with work := result.work + 1}
+termination_by fuel
+decreasing_by all_goals omega
+
+/-- Single-step equations keep symbolic execution from unfolding unknown continuations. -/
+theorem run_next (fuel : Nat) {cfg world frame nextWorld nextFrame}
+    (h : instruction cfg world frame = .ok (.next nextWorld nextFrame)) :
+    run (fuel + 1) cfg world frame = (do
+      let result ← run fuel cfg nextWorld nextFrame
+      return {result with work := result.work + 1}) := by
+  simp only [run, h, Except.bind, Bind.bind, Except.pure, Pure.pure]
+
+theorem run_done (fuel : Nat) {cfg world frame result}
+    (h : instruction cfg world frame = .ok (.done result)) :
+    run (fuel + 1) cfg world frame = .ok {result with work := result.work + 1} := by
+  simp only [run, h, Except.bind, Bind.bind, Except.pure, Pure.pure]
+
+theorem run_error (fuel : Nat) {cfg world frame reason}
+    (h : instruction cfg world frame = .error reason) :
+    run (fuel + 1) cfg world frame = .error reason := by
+  simp only [run, h, Except.bind, Bind.bind]
 
 /-- Frame rollback keeps parent-side warming/nonce changes in the checkpoint. -/
 def execute (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run := do

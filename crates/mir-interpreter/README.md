@@ -43,3 +43,18 @@ The compiler's UI test runner executes every `run-call` directive in an EVM. In 
 lowered MIR, it also runs the call through `transact` on the MIR the compiler lowered to that
 bytecode. Both execute the same compiled program, so a disagreement is a bug in the backend or in
 the interpreter.
+
+`replay::run_state` is a separate entry for direct typed SSA execution before or
+after lowering. It takes explicit memory and context, without backend allocation
+placements or implicit FMP initialization. Scalar internal calls share memory and
+returndata. A host implementing `Host::message` can execute external calls and
+creation, after publishing the caller's pending writes and logs. It owns the
+resulting world, child rollback and outer rollback. The default host method
+rejects messages; it never supplies an arbitrary successful result.
+
+Direct state replay assumes sufficient caller gas to forward an explicit CALL
+request without EIP-150 clipping. CREATE child gas is an explicit host boundary
+input. Children must execute with real fork-specific gas semantics. This mode
+does not assign physical EVM gas costs to MIR instructions. The independent
+`solar-tv-replay` host executes fixture bytecode through evm2's message API and
+keeps the MIR caller out of the backend.

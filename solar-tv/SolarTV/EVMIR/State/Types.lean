@@ -34,6 +34,7 @@ structure Result where
   data : List Byte
   world : Journal
   gas : Nat
+  work : Nat := 0
   deriving DecidableEq
 
 /-- Model errors are not execution outcomes and cannot be equated by the prover. -/
@@ -44,12 +45,12 @@ def memoryCost (words : Nat) : Nat := 3 * words + words * words / 512
 def memoryCharge (memory : List Byte) (offset count : Nat) : Nat :=
   memoryCost (requiredWords memory offset count) - memoryCost (memoryWords memory)
 
-def failed (world : Journal) : Run := .ok ⟨.exception, [], world, 0⟩
+def failed (world : Journal) : Run := .ok ⟨.exception, [], world, 0, 0⟩
 
-def exhausted (world : Journal) : Run := .ok ⟨.outOfGas, [], world, 0⟩
+def exhausted (world : Journal) : Run := .ok ⟨.outOfGas, [], world, 0, 0⟩
 
 def finished (world : Journal) (frame : Frame) (reverted : Bool) (data : List Byte := []) : Run :=
-  .ok ⟨if reverted then .reverted else .success, data, world, frame.gas⟩
+  .ok ⟨if reverted then .reverted else .success, data, world, frame.gas, 0⟩
 
 structure Opcode where
   available : Bool
@@ -64,5 +65,6 @@ structure Config where
   opcodes : List Opcode
   root : Address
   block : Block := {}
+  unknownCode : Option Address := none
 
 end SolarTV.EVM.State
