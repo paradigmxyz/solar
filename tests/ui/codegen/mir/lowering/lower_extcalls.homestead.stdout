@@ -1,9 +1,9 @@
-- ; === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (before lower-builtins) ===
-+ ; === ROOT/tests/ui/codegen/mir/lowering/lower_address_calls.mir (after lower-builtins) ===
-  @module AddressCalls
+- ; === ROOT/tests/ui/codegen/mir/lowering/lower_extcalls.mir (before lower-builtins) ===
++ ; === ROOT/tests/ui/codegen/mir/lowering/lower_extcalls.mir (after lower-builtins) ===
+  @module ExtCalls
   fn @default_call(arg0: i160, arg1: ptr<memory>) -> i256 {
     bb0:
--     v0 = address_call arg0, arg1 !metadata(span=10..20, modifier_depth=2)
+-     v0 = extcall arg0, arg1 !metadata(span=10..20, modifier_depth=2)
 -     v1 = zext i1 v0 to i256
 +     v2 = ptradd arg1, 32 !metadata(span=10..20, modifier_depth=2)
 +     v3 = mload arg1 !metadata(span=10..20, modifier_depth=2)
@@ -17,7 +17,7 @@
   
   fn @explicit_zero(arg0: i160, arg1: ptr<memory>, arg2: i256) -> ptr<memory> {
     bb0:
--     v0 = address_call arg0, arg1, gas arg2, value 0
+-     v0 = extcall arg0, arg1, gas arg2, value 0
 -     v1 = icall returndata_bytes<> !metadata(span=30..40, modifier_depth=3)
 -     ret v1
 +     v2 = ptradd arg1, 32
@@ -36,7 +36,7 @@
   
   fn @delegate(arg0: i160, arg1: ptr<memory>) -> i256 {
     bb0:
--     v0 = address_delegatecall arg0, arg1, gas 0x186a0
+-     v0 = extcall delegate arg0, arg1, gas 0x186a0
 -     v1 = zext i1 v0 to i256
 +     v2 = ptradd arg1, 32
 +     v3 = mload arg1
@@ -48,7 +48,7 @@
   
   fn @zero_value(arg0: i160, arg1: ptr<memory>) -> i256 {
     bb0:
--     v0 = address_call arg0, arg1, value 0
+-     v0 = extcall arg0, arg1, value 0
 -     v1 = zext i1 v0 to i256
 +     v2 = ptradd arg1, 32
 +     v3 = mload arg1

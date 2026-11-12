@@ -858,12 +858,29 @@ impl Instruction {
     }
 }
 
-/// Solidity low-level address-call behavior.
+/// Which opcode an `extcall` uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AddressCallKind {
+pub enum ExtCallKind {
     Call,
     Static,
     Delegate,
+}
+
+/// Where an `extcall`'s output lands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CallOutput {
+    /// The call discards its output: it expands to an empty output range.
+    None,
+    /// The call writes a 32-byte word at the start of scratch memory, where the caller reads it.
+    Word,
+}
+
+/// What an `extcall` means apart from its operands. Its result is the success flag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct CallPolicy {
+    /// `CALL`, `STATICCALL` (a zero-value `CALL` before Byzantium), or `DELEGATECALL`.
+    pub kind: ExtCallKind,
+    pub output: CallOutput,
 }
 
 impl InstKind {
@@ -1040,9 +1057,6 @@ impl InstKind {
                     "abi_encode_packed"
                 }
             }
-            Self::AddressCall { kind: AddressCallKind::Call, .. } => "address_call",
-            Self::AddressCall { kind: AddressCallKind::Static, .. } => "address_staticcall",
-            Self::AddressCall { kind: AddressCallKind::Delegate, .. } => "address_delegatecall",
             _ => self.op_def().mnemonic,
         }
     }
@@ -1063,11 +1077,6 @@ impl InstKind {
                 }
                 Builtin::Erc7201 | Builtin::ReturndataBytes => EffectKind::MemoryWrite,
                 Builtin::Require(_) => EffectKind::MemoryRead,
-                Builtin::Sha256
-                | Builtin::Ripemd160
-                | Builtin::EcRecover
-                | Builtin::Send
-                | Builtin::Transfer => EffectKind::ExternalCall,
             },
             _ => self.op_def().effect,
         }

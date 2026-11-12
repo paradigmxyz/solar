@@ -92,7 +92,8 @@ fn @read_gas() -> i256 {
 fn @precompile(arg0: i256, arg1: ptr<memory>) -> i256 {
   bb0:
     v2 = sload arg0
-    v3 = icall sha256<>, arg1
+    v7 = extcall static word i160 2, arg1
+    v3 = mload 0
     v4 = sload arg0
     v5 = add v2, v4
     v6 = add v5, v3

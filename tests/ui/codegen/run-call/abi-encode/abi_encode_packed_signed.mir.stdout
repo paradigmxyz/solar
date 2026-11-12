@@ -14,7 +14,7 @@ fn @signedError() -> i1 [selector=0x09d01655, abi_params=[], abi_returns=[word<b
     v0 = address
     v1 = gas
     v2 = abi_encode [], object, selector 0x1cd1267200000000000000000000000000000000000000000000000000000000
-    v3 = address_call v0, v2, gas v1
+    v3 = extcall v0, v2, gas v1
     v4 = icall returndata_bytes<>
     v5 = eq v3, false
     jumpi v5, bb1, bb2

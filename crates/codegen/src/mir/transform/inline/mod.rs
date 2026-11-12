@@ -1032,8 +1032,7 @@ fn summarize_function(
                             Builtin::CheckedAddMod
                             | Builtin::CheckedMulMod
                             | Builtin::Check { .. }
-                            | Builtin::Require(_)
-                            | Builtin::Transfer,
+                            | Builtin::Require(_),
                         ),
                     ..
                 } => {
