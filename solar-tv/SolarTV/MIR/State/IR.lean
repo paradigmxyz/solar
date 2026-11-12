@@ -1,31 +1,16 @@
-import SolarTV.MIR.Ops
+import SolarTV.MIR.State.Values
 import SolarTV.EVMIR.State.Types
 import Init.Data.List.Monadic
 import SolarTV.State.ByteMemory
 import SolarTV.State.Context
 
-/-! Structured scalar SSA for direct MIR execution. The compiler's parser and
+/-! Structured typed SSA for direct MIR execution, including immutable products. The compiler's parser and
 operation schema supply IDs, types and operation identities; the importer does
 not lower MIR or synthesize backend addresses. Phis remain edge-selected and
 simultaneous, and blocks retain their CFG, including cycles. -/
 
 namespace SolarTV.MIR.State
 open EvmRules SolarTV.Execution
-
-/-- Every SSA value carries its declared-width bitvector; cleanliness is structural. -/
-structure Scalar where
-  width : Nat
-  bits : BitVec width
-
-def wordBits (width : Nat) (value : Word) : BitVec width :=
-  if h : width = 256 then value.cast h.symm else value.setWidth width
-
-def widenBits {width : Nat} (value : BitVec width) : Word :=
-  if h : width = 256 then value.cast h else value.setWidth 256
-
-def Scalar.word (value : Scalar) : Word := widenBits value.bits
-
-def Scalar.ofWord (width : Nat) (value : Word) : Scalar := ⟨width,wordBits width value⟩
 
 inductive Atom where
   | constant (value : Scalar)
@@ -35,7 +20,7 @@ inductive Atom where
 
 structure Operand where
   atom : Atom
-  width : Nat
+  ty : ValueType
 
 inductive MemoryOp where
   | load | store | storeByte | copy | hash | size | zero
@@ -61,17 +46,20 @@ inductive Operation where
   | freePointer
   | allocate (zeroed checked : Bool)
   | external (opcode : Nat)
+  | insertValue (ty : ValueType) (index : Nat)
+  | extractValue (ty : ValueType) (index : Nat)
+  | makeSlice (location : Nat)
 
 structure Instruction where
   result : Option Nat
-  width : Nat
+  ty : ValueType
   opcode : Option Nat
   operation : Operation
   operands : List Operand
 
 structure Phi where
   result : Nat
-  width : Nat
+  ty : ValueType
   incoming : List (Nat × Operand)
 
 inductive Terminator where
@@ -91,8 +79,8 @@ structure Block where
 
 /-- Typed bodies retain their own SSA namespaces; calls share only execution state. -/
 structure Function where
-  params : List Nat
-  returns : List Nat
+  params : List ValueType
+  returns : List ValueType
   blocks : List Block
 
 abbrev Functions := List (Nat × Function)
@@ -118,8 +106,8 @@ structure Config where
 structure Frame where
   world : Journal
   memory : List Byte
-  arguments : List Scalar
-  locals : List (Nat × Scalar) := []
+  arguments : List Value
+  locals : List (Nat × Value) := []
   returnData : List Byte := []
   creationIndex : Nat := 0
 
@@ -128,7 +116,7 @@ structure Continuation where
   cursor : Cursor
   frame : Frame
   result : Option Nat
-  width : Nat
+  ty : ValueType
 
 inductive Completion where
   | returned (values : List Word)
@@ -155,17 +143,16 @@ def narrow (width : Nat) (value : Word) : Word :=
 def required (value : Option α) (reason : String) : Except String α :=
   match value with | some value => .ok value | none => .error reason
 
-def readScalar (frame : Frame) (operand : Operand) : Except String Scalar := do
-  if operand.width = 0 || operand.width > 256 then .error "unmodeled MIR operand type" else
-    let value ← match operand.atom with
-      | .constant value => .ok value
-      | .argument index => required frame.arguments[index]? "missing MIR argument"
-      | .local id => required ((frame.locals.find? (·.1 == id)).map Prod.snd) "undefined MIR local"
-      | .undefined => .error "undefined MIR operand"
-    if value.width != operand.width then .error "MIR operand type mismatch" else return value
+def readValue (frame : Frame) (operand : Operand) : Except String Value := do
+  let value ← match operand.atom with
+    | .constant value => .ok (.scalar value)
+    | .argument index => required frame.arguments[index]? "missing MIR argument"
+    | .local id => required ((frame.locals.find? (·.1 == id)).map Prod.snd) "undefined MIR local"
+    | .undefined => .ok .undefined
+  if !value.fits 34 operand.ty then .error "MIR operand type mismatch" else return value
 
 def read (frame : Frame) (operand : Operand) : Except String Word := do
-  return (← readScalar frame operand).word
+  (← readValue frame operand).word
 
 def put (locals : List (Nat × α)) (id : Nat) (value : α) : List (Nat × α) :=
   (id,value) :: locals.filter (·.1 != id)
@@ -176,8 +163,8 @@ def enter (predecessor : Option Nat) (phis : List Phi) (frame : Frame) : Except 
     let some predecessor := predecessor | .error "phi at MIR entry"
     let incoming := phi.incoming.filter (·.1 == predecessor)
     let [(_,operand)] := incoming | .error "ambiguous or missing MIR phi edge"
-    let value ← readScalar frame operand
-    if phi.width != operand.width then .error "MIR phi type mismatch" else return (phi.result,value)
+    let value ← readValue frame operand
+    if !(phi.ty.same operand.ty) then .error "MIR phi type mismatch" else return (phi.result,value)
   return {frame with locals := values.foldl (fun locals (id,value) => put locals id value) frame.locals}
 
 def failureData : RevertData → List Byte

@@ -232,9 +232,17 @@ def counterexample(
     verbose: bool,
     native_checked: bool = False,
 ) -> str:
+    labels = {}
+    if program.world is not None and program.world.get("direct_mir"):
+        for leaf in program.world.get("boundary", {}).get("inputs", []):
+            source = f"arg{leaf['parameter']}" + "".join(
+                f"[{i}]" for i in leaf["fields"]
+            )
+            if source != leaf["input"]:
+                labels[leaf["input"]] = f"{leaf['input']} (source {source})"
     lines = ["counterexample", f"  {region(program)}"]
     lines.extend(
-        f"  {name} = {value}"
+        f"  {labels.get(name, name)} = {value}"
         for name, value in zip(program.inputs, values, strict=True)
     )
     lines.extend(

@@ -1,4 +1,5 @@
 import SolarTV.MIR.State.Allocation
+import SolarTV.MIR.State.Aggregates
 import SolarTV.Keccak
 
 /-! Direct MIR scalar and state-operation semantics. Typed arithmetic reuses MIR's
@@ -89,6 +90,7 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .word,[a] => value frame a
   | .freePointer,[] => freePointer frame
   | .allocate zeroed checked,[size] => allocate frame size zeroed checked
+  | .insertValue ..,_ | .extractValue ..,_ | .makeSlice ..,_ => .error "aggregate operation needs typed operands"
   | .external _,_ => .error "external instruction requires MIR machine context"
   | .call _,_ => .error "internal call requires MIR machine context"
   | .pointerAdd,[pointer,offset] => value frame (pointer + offset)
@@ -113,22 +115,48 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
         [⟨cfg.environment.address,topics,readBytes memory offset.toNat size.toNat⟩]}}
   | _,_ => .error "MIR operation operand count"
 
-def assign (next : Frame) (result : Option Nat) (width : Nat) (word : Option Word) : Step := do
+def assignValue (next : Frame) (result : Option Nat) (ty : ValueType) (value : Value) : Step := do
+  let some id := result | .error "MIR result arity mismatch"
+  if !value.fits 34 ty then .error "MIR result type mismatch" else
+    effect {next with locals := put next.locals id value}
+
+def assign (next : Frame) (result : Option Nat) (ty : ValueType) (word : Option Word) : Step := do
   match result,word with
   | none,none => effect next
-  | some id,some word =>
-    if width = 0 || width > 256 then .error "unmodeled MIR result type" else
-      effect {next with locals := put next.locals id (Scalar.ofWord width word)}
+  | some _,some word =>
+    if ty.width = 0 || ty.width > 256 then .error "unmodeled MIR result type" else
+      assignValue next result ty (.scalar (Scalar.ofWord ty.width word))
   | _,_ => .error "MIR result arity mismatch"
 
 def instruction (cfg : Config) (frame : Frame) (inst : Instruction) : Step := do
   if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then return .invalid
-  let args ← inst.operands.mapM (read frame)
-  let result ← operation cfg frame inst.operation args
-  match result with
-  | .returned (word,next) =>
-    assign next inst.result inst.width word
-  | .reverted data => return .reverted data
-  | .invalid => return .invalid
+  match inst.operation,inst.operands with
+  | .insertValue ty index,[aggregate,field] =>
+    let aggregate ← readValue frame aggregate
+    let value ← readValue frame field
+    let updated ← insertField ty aggregate index value
+    assignValue frame inst.result inst.ty updated
+  | .extractValue ty index,[aggregate] =>
+    let aggregate ← readValue frame aggregate
+    let value ← extractField ty aggregate index
+    assignValue frame inst.result inst.ty value
+  | .makeSlice location,[pointer,length] =>
+    let pointer ← read frame pointer
+    let length ← read frame length
+    if !(inst.ty.same (.slice location)) then .error "MIR slice location mismatch" else
+      assignValue frame inst.result inst.ty (.aggregate [
+        .scalar (Scalar.ofWord 256 pointer),.scalar (Scalar.ofWord 256 length)])
+  | .select,[condition,yes,no] =>
+    let condition ← read frame condition
+    let yes ← readValue frame yes
+    let no ← readValue frame no
+    assignValue frame inst.result inst.ty (if condition = 0 then no else yes)
+  | _,_ =>
+    let args ← inst.operands.mapM (read frame)
+    let result ← operation cfg frame inst.operation args
+    match result with
+    | .returned (word,next) => assign next inst.result inst.ty word
+    | .reverted data => return .reverted data
+    | .invalid => return .invalid
 
 end SolarTV.MIR.State

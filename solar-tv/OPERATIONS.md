@@ -10,8 +10,8 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Checked within the supported fragment | 32 | 103 |
 | Some forms checked | 14 | 6 |
 | Explicit-world entry execution | 0 | 45 |
-| Direct typed MIR state execution | 25 | 0 |
-| Missing | 36 | 0 |
+| Direct typed MIR state execution | 28 | 0 |
+| Missing | 33 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
 variants account for many EVM entries. Checking a word operation does not cover
@@ -91,7 +91,7 @@ CFGs. Phi inputs are read simultaneously. It shares byte memory, accounts and
 journals with EVM execution through [State/](SolarTV/State/), without importing
 physical stack layout or EVM gas. Real `storage-cse`/`storage-dse` pairs and broken
 writes are checked against the Lean kernel and independent original-MIR replay.
-Direct scalar internal calls, tail calls, FMP reads, checked/infallible allocations
+Direct typed internal calls, tail calls, FMP reads, checked/infallible allocations
 and byte-exact initialization execute without backend placements. Callers share
 the journal and byte memory; their SSA environments are separate and width-typed.
 Real inlining and allocation-lowering pairs exercise generated helpers, with
@@ -101,8 +101,16 @@ CALL assumes sufficient caller gas to avoid clipping its requested amount; CREAT
 uses explicit child gas budgets. Native replay never lowers the MIR caller. Live
 returndata, access warmth and account lifetime flags are preserved at internal
 returns. Child gas and nested work limits remain real, not assumed successful.
-Indirect calls, aggregate results, root runtime code reentry/introspection and
-layout-dependent operations remain unsupported.
+Products retain their nested fields and undefined components; insertion,
+projection, aggregate phis/selects and logical internal-call results execute
+directly. Memory/calldata/returndata slices are location-tagged pointer/length
+pairs. Real `lower-structs` and `lower-slices` pairs compare logical boundary
+leaves, without using their lowering as the semantic definition. Types are
+limited to depth 32 and 256 nodes, with at most 65,536 exported type nodes
+per model; boundaries have at most 32 input and 256
+return leaves. Reading an undefined scalar remains unsupported.
+Indirect calls, physical multi-return buffers, root runtime code
+reentry/introspection and layout-dependent operations remain unsupported.
 
 The world fixture is an explicit assumption. Declared symbolic slots, typed MIR
 arguments and EVM entry stack words are universally quantified. Only EVM entries
@@ -120,7 +128,7 @@ for admitted forks, limits, observables and gas policies.
    execution of already-delegated account state.
 3. Generalize calldata/returndata/program-data access and physical code layout
    from complete-entry execution to arbitrary local windows.
-4. Add MIR aggregates, slices, frames, backend allocation layouts, storage layouts and ABI helpers
+4. Add MIR frames, backend allocation layouts, storage layouts and ABI helpers
    against independent semantics, rather than assuming their lowering is correct.
 5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
    Amsterdam's two-resource state gas. Expand differential boundary coverage.
