@@ -30,7 +30,7 @@ use crate::{
 use alloy_primitives::hex;
 use serde::ser::{Serialize, SerializeMap, Serializer};
 use solar_ast::{self as ast, DocComments, ElementaryType, LitKind, StrKind};
-use solar_data_structures::Never;
+use solar_data_structures::{Never, map::FxHashSet};
 use solar_interface::{Ident, Span, SpannedOption, kw};
 use std::ops::ControlFlow;
 
@@ -866,14 +866,18 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
             return Vec::new();
         }
         // solc leaves out the functions that another candidate overrides.
-        let resolutions = resolutions.iter().filter(|res| {
-            let Res::Item(ItemId::Function(id)) = res else { return true };
-            !resolutions.iter().any(|other| match other {
-                Res::Item(other @ ItemId::Function(_)) => {
-                    self.gcx.base_override_items(*other).contains(&ItemId::Function(*id))
-                }
-                _ => false,
+        let overridden = resolutions
+            .iter()
+            .filter_map(|res| match res {
+                Res::Item(item @ ItemId::Function(_)) => Some(self.gcx.base_override_items(*item)),
+                _ => None,
             })
+            .flatten()
+            .copied()
+            .collect::<FxHashSet<_>>();
+        let resolutions = resolutions.iter().filter(|res| match res {
+            Res::Item(item @ ItemId::Function(_)) => !overridden.contains(item),
+            _ => true,
         });
         let ids = resolutions.map(|res| {
             let id = match res {
