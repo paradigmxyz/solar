@@ -31,7 +31,8 @@ Runtime workload definitions and upstream revisions are documented in
 [`tempoxyz/zones`](https://github.com/tempoxyz/zones/tree/700069eb8a40fce7e1f7a4bf0fc5703bcc692c43)
 under `crates/contracts/`: 67 sources, including 21 test files. It preserves the upstream
 via-IR pipeline, 200 optimizer runs, Osaka EVM target, and Foundry output selection, including
-storage layout. Sources are inline, so the archive needs neither network access nor submodules.
+storage layout. Like the other archives, it disables the CBOR metadata and bytecode hash so
+unchanged codegen gives identical bytecode. Sources are inline, so the archive needs neither network access nor submodules.
 No Solidity tests were executed to produce it.
 
 The input was captured at the compiler handoff with Forge `1.6.0-v1.7.0`
