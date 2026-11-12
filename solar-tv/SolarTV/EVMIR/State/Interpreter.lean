@@ -1,5 +1,7 @@
 import SolarTV.EVMIR.State.Selfdestruct
 import SolarTV.EVMIR.Precompiles.Execute
+import SolarTV.EVMIR.State.Environment
+import SolarTV.EVMIR.State.Delegation
 
 /-! Gas-charged bytecode execution with real nested frames and constructors.
 Every frame owns its stack, memory and return-data buffer. Accounts, original
@@ -8,8 +10,9 @@ Unsupported opcodes and finite evaluator limits are model errors;
 they never become EVM exceptions and cannot prove a pair correct.
 
 The explicit-world mode starts after transaction validation, with zero root
-value/gas price and an explicit caller. The CLI admits Istanbul through Osaka;
-Amsterdam's two-resource state gas is rejected by the CLI until modeled.
+value and explicit transaction/block context. The CLI admits Istanbul through
+Osaka, plus Amsterdam's environment/scalar/memory fragment. Its two-resource
+state/account/call gas remains unsupported.
 Calls follow EIP-150/214/2929; creation follows EIP-161/170/684/1014/2681/3541/3860.
 https://eips.ethereum.org/EIPS/eip-150
 https://eips.ethereum.org/EIPS/eip-2929 -/
@@ -21,7 +24,7 @@ inductive Step where
   | next (world : Journal) (frame : Frame)
   | done (result : Result)
   | call (message : Calls.Message) (outOffset outSize requested : Nat)
-      (world : Journal) (frame : Frame)
+      (code : ExecutionCode) (world : Journal) (frame : Frame)
   | create (salt : Option Word) (value : Word) (initcode : List Byte)
       (world : Journal) (frame : Frame)
 
@@ -50,6 +53,12 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
   let opcode := frame.code[frame.pc]?.getD 0 |>.toNat
   let info := available cfg opcode
   if !info.available then stepFailed world
+  -- Amsterdam's environment/memory fragment is admitted independently of the
+  -- two-resource gas model. Account, storage and call operations remain errors.
+  else if cfg.fork.atLeast .amsterdam &&
+      ([0x31,0x3b,0x3c,0x3f,0x47,0x54,0x55,0x5c,0x5d,0xf0,0xf1,0xf2,0xf4,0xf5,0xfa,0xff].contains opcode ||
+        (0xa0 ≤ opcode && opcode ≤ 0xa4)) then
+    .error "Amsterdam state/account/call gas is not modeled"
   else if frame.stack.length < info.inputs || frame.stack.length - info.inputs + info.outputs > 1024 then
     stepFailed world
   else if let some op := pureOp opcode then
@@ -82,6 +91,10 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
     match opcode with
     | 0x00 => .ok (.done ⟨.success, [], world, frame.gas⟩)
     | 0xfe => stepFailed world
+    | 0x40 | 0x41 | 0x42 | 0x43 | 0x44 | 0x45 | 0x46 | 0x48 | 0x49 | 0x4a | 0x4b =>
+      if frame.gas < info.base then stepExhausted world
+      else next world {frame with gas := frame.gas - info.base}
+        (environmentValue cfg opcode a :: rest)
     | 0x20 => withMemory world frame (info.base + info.dynamic * ((b.toNat + 31) / 32)) a.toNat b.toNat fun frame =>
           next world frame (Keccak.hash (readBytes frame.memory a.toNat b.toNat) :: rest)
     | 0x30 | 0x32 | 0x33 | 0x34 | 0x36 | 0x38 | 0x3a | 0x3d | 0x47 | 0x58 | 0x59 | 0x5a | 0x5f =>
@@ -113,6 +126,16 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
       if frame.gas < info.base then stepExhausted world
       else next world {frame with gas := frame.gas - info.base}
         (readWord frame.environment.input a.toNat :: rest)
+    | 0x3c =>
+      let owner := a.setWidth 160
+      let count := (values[3]?.getD 0).toNat
+      let base := if cfg.fork.atLeast .berlin && world.warmAddresses.contains owner then 100 else info.base
+      -- The EXTCODE gas class reflects account access; copying also pays the
+      -- same per-word price as CALLDATACOPY (Yellow Paper W_copy).
+      let copyWord := (available cfg 0x37).dynamic
+      withMemory world frame (base + copyWord * ((count+31)/32)) b.toNat count fun frame =>
+        let bytes := readBytes (account world owner).code c.toNat count
+        next (warmAddress world owner) {frame with memory := writeBytes frame.memory b.toNat bytes} rest
     | 0x37 | 0x39 | 0x3e =>
       if opcode = 0x3e && b.toNat + c.toNat > frame.returnData.length then stepFailed world
       else withMemory world frame (info.base + info.dynamic * ((c.toNat + 31) / 32)) a.toNat c.toNat fun frame =>
@@ -180,11 +203,12 @@ def instruction (cfg : Config) (world : Journal) (frame : Frame) : Action :=
       let valueCharge := if explicitValue && value != 0 then 9000 else 0
       let newAccount := if kind == .call && dead world destination &&
           (!cfg.fork.atLeast .spuriousDragon || value != 0) then 25000 else 0
+      let (code, resolution, entered) := executionCode cfg.fork world destination
       if frame.environment.isStatic && kind == .call && value != 0 then stepFailed world else
-        withMemory world frame (base + valueCharge + newAccount) inputOffset inputSize fun frame =>
+        withMemory world frame (base + valueCharge + newAccount + resolution) inputOffset inputSize fun frame =>
           withMemory world frame 0 outOffset outSize fun frame =>
             .ok (.call ⟨kind, destination, value, readBytes frame.memory inputOffset inputSize⟩
-              outOffset outSize a.toNat world {frame with stack := rest, pc := frame.pc + 1})
+              outOffset outSize a.toNat code entered {frame with stack := rest, pc := frame.pc + 1})
     | 0xf0 | 0xf5 =>
       let size := c.toNat
       if frame.environment.isStatic then stepFailed world
@@ -217,7 +241,7 @@ def run (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run :=
     match ← instruction cfg world frame with
     | .done result => return result
     | .next world frame => run fuel cfg world frame
-    | .call message outOffset outSize requested world frame =>
+    | .call message outOffset outSize requested code world frame =>
       let checkpoint := warmAddress world message.destination
       if frame.environment.depth ≥ 1024 ||
           ((message.kind == .call || message.kind == .callcode) &&
@@ -234,24 +258,23 @@ def run (fuel : Nat) (cfg : Config) (world : Journal) (frame : Frame) : Run :=
           let childWorld := if message.kind == .call then
             (transfer checkpoint frame.environment.address message.destination message.value).getD checkpoint
             else checkpoint
-          let code := (account childWorld message.destination).code
-          if cfg.fork.atLeast .prague && (code.take 3 == [0xef, 0x01, 0x00]) then
-            .error "delegated EIP-7702 code is not modeled"
-          else
-            let child ← if precompile cfg.fork message.destination then
+          let child ← if !code.delegated && precompile cfg.fork message.destination then
                 do
                   let (stop,data,gas) ← Precompiles.execute cfg.fork message.destination message.input budget.supplied
                   pure ⟨stop,data,childWorld,gas⟩
-              else run fuel cfg childWorld {environment := Calls.childEnvironment frame.environment message, code, gas := budget.supplied}
-            let committed := if child.stop = .success then child.world else checkpoint
-            let data := if child.stop = .exception || child.stop = .outOfGas then [] else child.data
-            let returned := if child.stop = .exception || child.stop = .outOfGas then 0 else child.gas
-            let copied := data.take outSize
-            run fuel cfg committed {frame with
-              stack := (if child.stop = .success then 1 else 0) :: frame.stack
-              memory := writeBytes frame.memory outOffset copied
-              returnData := data
-              gas := frame.gas - budget.charged + returned}
+              else run fuel cfg childWorld {
+                environment := {Calls.childEnvironment frame.environment message with codeAddress := code.address}
+                code := code.bytes
+                gas := budget.supplied}
+          let committed := if child.stop = .success then child.world else checkpoint
+          let data := if child.stop = .exception || child.stop = .outOfGas then [] else child.data
+          let returned := if child.stop = .exception || child.stop = .outOfGas then 0 else child.gas
+          let copied := data.take outSize
+          run fuel cfg committed {frame with
+            stack := (if child.stop = .success then 1 else 0) :: frame.stack
+            memory := writeBytes frame.memory outOffset copied
+            returnData := data
+            gas := frame.gas - budget.charged + returned}
     | .create salt value initcode world frame =>
       let creator := account world frame.environment.address
       if frame.environment.depth ≥ 1024 || creator.balance.ult value || creator.nonce ≥ 2^64 - 1 then

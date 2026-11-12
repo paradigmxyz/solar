@@ -226,15 +226,15 @@ class WorldTests(unittest.TestCase):
             status=1,
         )
 
-    def test_unsupported_child_cannot_prove_identity(self):
-        # An unmodeled child opcode must not become an empty successful account.
+    def test_unsupported_state_cannot_prove_identity(self):
+        # Amsterdam's state-gas rules must not be treated as ordinary execution.
         result, record = self.pair(
-            call() + "\npop\nstop",
-            call() + "\npop\nstop",
-            fixture={"accounts": [{"address": MID, "code": "0x5f4000"}]},
+            "push 0\npush 0\nsstore\nstop",
+            "push 0\npush 0\nsstore\nstop",
+            version="amsterdam",
             status=2,
         )
-        self.assertIn("unmodeled world opcode", result.stderr)
+        self.assertIn("Amsterdam state/account/call gas is not modeled", result.stderr)
         self.assertEqual(record["status"], "unsupported")
 
     def test_create_deploys_and_calls_the_new_contract(self):
@@ -470,6 +470,8 @@ class WorldTests(unittest.TestCase):
             ("evmir", "creation", "broken", 1),
             ("evmir", "sha256", "after", 0),
             ("evmir", "selfdestruct", "broken", 1),
+            ("evmir", "environment", "after", 0),
+            ("evmir", "environment", "broken", 1),
         ]:
             with self.subTest(example=example, layer=layer):
                 folder = ROOT / "examples" / layer / example

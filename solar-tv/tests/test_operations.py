@@ -306,6 +306,21 @@ class OperationTests(unittest.TestCase):
         for name in ("create", "create2"):
             self.assertEqual(inventory["evmir"][name], "world_entry")
         self.assertEqual(inventory["evmir"]["selfdestruct"], "world_entry")
+        for name in (
+            "extcodecopy",
+            "blockhash",
+            "coinbase",
+            "timestamp",
+            "number",
+            "prevrandao",
+            "gaslimit",
+            "chainid",
+            "basefee",
+            "blobhash",
+            "blobbasefee",
+            "slotnum",
+        ):
+            self.assertEqual(inventory["evmir"][name], "world_entry")
         active = {
             str(address)
             for addresses in catalog["precompiles"].values()

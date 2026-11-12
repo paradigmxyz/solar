@@ -308,6 +308,15 @@ accounts are absent; omitted slots are zero. Storage keys or values such as
 `"$seed"` are universally quantified words, as are declared EVM entry stack words.
 Everything else in the fixture is concrete.
 
+Environment inputs are optional `origin`, `gas_price`, `chain_id`, a `blob_hashes`
+array and a `block` object. The block accepts `number`, `coinbase`, `timestamp`,
+`gas_limit`, `difficulty`, `prevrandao`, `base_fee`, `blob_base_fee`, `slot` (uint64)
+and `hashes` (block number to hash). Omitted history hashes are explicitly zero;
+BLOCKHASH still enforces the previous-256-block window. Defaults are chain ID one,
+timestamp one, gas limit `2^64-1`, blob base fee one and zero for other block fields.
+`warm_addresses` adds up to 64 explicitly warm accounts. From Shanghai, the
+selected coinbase is warm automatically.
+
 [EVMIR/State/](SolarTV/EVMIR/State/) contains executable account, memory, call and
 constructor semantics. It implements persistent/transient storage, cold/warm
 accesses, refunds, logs, CALL/CALLCODE/DELEGATECALL/STATICCALL, CREATE/CREATE2,
@@ -322,14 +331,24 @@ and gas directly with `evm2`; entry proofs still require the Lean kernel.
 SELFDESTRUCT transfers funds immediately and defers deletion until transaction
 end. From Cancun, existing accounts keep code and storage; accounts created
 within the transaction retain deletion. Refunds, access warmth and parent
-rollback follow the selected fork. EIP-7702 delegation and unmodeled opcodes
-remain unsupported.
+rollback follow the selected fork.
+
+From Prague, EIP-7702 designators resolve exactly one hop, with target access gas
+charged before forwarding. All four call kinds retain their address/caller/value
+rules; `EXTCODE*` reads the indicator, while `CODESIZE`/`CODECOPY` reads executing
+code. Delegating to a precompile does not invoke it. The fixture represents state
+after authorization processing: authorization signatures, intrinsic gas and
+authorization refunds are outside this entry checker.
 
 ```sh
 solar-tv/solar-tv evmir solar-tv/examples/evmir/sha256/{before,after}.evmir \
   --world solar-tv/examples/evmir/sha256/world.json
 solar-tv/solar-tv evmir solar-tv/examples/evmir/selfdestruct/{before,broken}.evmir \
   --world solar-tv/examples/evmir/selfdestruct/world.json --evm-version=shanghai
+solar-tv/solar-tv evmir solar-tv/examples/evmir/environment/{before,after}.evmir \
+  --world solar-tv/examples/evmir/environment/world.json
+solar-tv/solar-tv evmir solar-tv/examples/evmir/delegation/{before,after}.evmir \
+  --world solar-tv/examples/evmir/delegation/world.json --evm-version=prague
 ```
 
 This is a **scenario-entry proof**, not arbitrary-world equivalence. Both inputs
@@ -342,8 +361,11 @@ prove backend lowering correct for every input. The root's code bytes are not
 themselves an output; CODECOPY, self-calls and code introspection still execute
 against the actual before/after image. Child deployed code remains observable.
 
-World mode supports Istanbul through Osaka. Amsterdam's two-resource state gas
-is not modeled. Limits are 32 initial accounts, 64 storage cells per account,
+World mode supports Istanbul through Osaka. Amsterdam additionally admits the
+environment, scalar and memory fragment, including SLOTNUM; account, state, log,
+call and creation operations remain unsupported until two-resource gas is modeled.
+History is bounded to 256 entries and blob hashes to 64. Limits are 32 initial
+accounts, 64 storage cells per account,
 64 KiB private memory per frame and 512 evaluator steps/depth by default
 (`fuel: 1..2048`). BLAKE2F has a separate 4,096-round model work limit;
 ModExp permits at most 64 KiB per operand (Osaka's protocol limit is 1,024 bytes).

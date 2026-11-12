@@ -49,4 +49,11 @@ example : (finalize (destroy .cancun (destructionFixture true) 1 1)).accounts = 
 example : (account (destroy .shanghai (destructionFixture false) 1 1) 1).code = [0] := by decide +kernel
 example : (destroy .berlin (destroy .berlin (destructionFixture false) 1 1) 1 1).refund = 24000 := by decide +kernel
 
+example : blockHash {number := 300, hashes := [(43,1),(44,2),(299,3),(300,4)]} 43 = 0 := by decide +kernel
+example : blockHash {number := 300, hashes := [(44,2)]} 44 = 2 := by decide +kernel
+example : blockHash {number := 300, hashes := [(300,4)]} 300 = 0 := by decide +kernel
+example : delegationTarget .cancun ([0xef,0x01,0x00] ++ List.replicate 20 0) = none := by decide +kernel
+example : delegationTarget .prague ([0xef,0x01,0x00] ++ List.replicate 19 0 ++ [42]) = some 42 := by decide +kernel
+example : delegationTarget .prague ([0xef,0x01,0x00] ++ List.replicate 21 0) = none := by decide +kernel
+
 end SolarTV.EVM.State

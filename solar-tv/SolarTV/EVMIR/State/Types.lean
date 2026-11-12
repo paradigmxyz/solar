@@ -130,9 +130,26 @@ structure Opcode where
   outputs : Nat
   deriving DecidableEq
 
+/-- Explicit block/transaction context, fixed throughout all nested frames.
+Missing history entries and out-of-range blob indices denote zero. -/
+structure Block where
+  number : Word := 0
+  beneficiary : Address := 0
+  timestamp : Word := 1
+  gasLimit : Word := 2^64 - 1
+  difficulty : Word := 0
+  randomness : Word := 0
+  chainId : Word := 1
+  baseFee : Word := 0
+  blobBaseFee : Word := 1
+  slot : BitVec 64 := 0
+  hashes : Slots := []
+  blobs : List Word := []
+
 structure Config where
   fork : Fork
   opcodes : List Opcode
   root : Address
+  block : Block := {}
 
 end SolarTV.EVM.State
