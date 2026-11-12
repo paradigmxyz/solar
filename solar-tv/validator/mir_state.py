@@ -30,7 +30,7 @@ def operand(value):
     bits = width(value["type"]["bits"])
     kind = value["kind"]
     if kind == "constant":
-        atom = ".constant " + literal(value["value"], int(bits)).split("#")[0]
+        atom = f".constant ⟨{bits},{literal(value['value'], int(bits))}⟩"
     elif kind in {"arg", "local"}:
         atom = f".{'argument' if kind == 'arg' else 'local'} {number(value['index'])}"
     elif kind == "undefined":
@@ -125,6 +125,16 @@ def operation(value, definitions):
             "select": ".select",
             "pointer_add": ".pointerAdd",
         }[kind]
+    elif kind == "call":
+        expression = f".call {number(value['function'])}"
+    elif kind == "allocate":
+        if type(value["zeroed"]) is not bool or type(value["checked"]) is not bool:
+            raise Unsupported("invalid MIR allocation policy")
+        expression = f".allocate {'true' if value['zeroed'] else 'false'} {'true' if value['checked'] else 'false'}"
+    elif kind == "free_pointer":
+        expression = ".freePointer"
+    elif kind == "memory_zero":
+        expression = ".memory .zero"
     elif kind == "low_bits":
         expression = f".lowBits {width(value['bits'])}"
     elif kind == "sign_extend":
@@ -191,6 +201,8 @@ def block(value, definitions):
             + "]"
         )
         end = f".switch {operand(term['args'][0])} {number(term['default'])} {arms}"
+    elif kind == "tail_call":
+        end = f".tailCall {number(term['function'])} {operands(term['args'])}"
     elif kind == "return":
         end = f".returned {operands(term['args'])}"
     elif kind in {"revert", "returndata"}:
@@ -200,6 +212,13 @@ def block(value, definitions):
     else:
         raise Unsupported("unknown MIR model terminator")
     return f"⟨[{','.join(phis)}],[{','.join(instructions)}],({end})⟩"
+
+
+def function_body(value, definitions):
+    params = "[" + ",".join(width(ty["bits"]) for ty in value["params"]) + "]"
+    returns = "[" + ",".join(width(ty["bits"]) for ty in value["returns"]) + "]"
+    blocks = "[" + ",".join(block(b, definitions) for b in value["blocks"]) + "]"
+    return f"({number(value['id'])},⟨{params},{returns},{blocks}⟩)"
 
 
 def translate(text, solar, version, fixture, timeout, function, replay=None):
@@ -227,7 +246,15 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         definitions = {
             op["name"]: op for op in native.catalog(executable, timeout)["evmir"]
         }
-        blocks = "[" + ",".join(block(b, definitions) for b in model["blocks"]) + "]"
+        functions = (
+            "["
+            + ",".join(function_body(f, definitions) for f in model["functions"])
+            + "]"
+        )
+        entry_id = number(model["entry_id"])
+        ids = [number(f["id"]) for f in model["functions"]]
+        if len(set(ids)) != len(ids) or entry_id not in ids:
+            raise Unsupported("ambiguous or absent MIR entry function")
         params = model["params"]
         widths = [int(width(p["bits"])) for p in params]
         entry = model["entry"]
@@ -247,14 +274,16 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         if op["forks"][version]["available"]
     ]
     env = world.environment_expression(fixture)
-    config = f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'}⟩\n"
+    config = f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128⟩\n"
     inputs = [*fixture["symbols"], *(f"arg{i}" for i in range(len(params)))]
-    arguments = "[" + ",".join(f"arg{i}.setWidth 256" for i in range(len(params))) + "]"
+    arguments = (
+        "[" + ",".join(f"⟨{bits},arg{i}⟩" for i, bits in enumerate(widths)) + "]"
+    )
     body = (
         f"let accounts : List Execution.Account := {world.accounts_expression(fixture)}\n"
         f"let journal : Execution.Journal := ⟨accounts,accounts,[],[],[],0⟩\n"
         f"let memory : List Execution.Byte := {fixture['memory']['data']} ++ List.replicate {fixture['memory']['size'] - len(fixture['memory']['data'])} 0\n"
-        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {blocks} ⟨journal,memory,{arguments},[]⟩"
+        f"MIR.State.execute {fixture['fuel']} mirWorldConfig {functions} {entry_id} ⟨journal,memory,{arguments},[]⟩"
     )
     return Program(
         (

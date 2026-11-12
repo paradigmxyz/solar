@@ -137,7 +137,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
                 calldata: &input.calldata,
             },
             &mut host,
-            Options { evm_version: version, fuel: 1_000_000, ..Default::default() },
+            Options { evm_version: version, fuel: 1_000_000, depth: 128 },
         )?;
         let (status, values, data, memory, keep_transient) = match execution.outcome {
             StateOutcome::Return(values) => {

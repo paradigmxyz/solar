@@ -4,6 +4,7 @@ import argparse
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -26,9 +27,39 @@ UNFOLD = (
 
 
 def run(args: list, cwd: Path, timeout: int) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        args, check=False, cwd=cwd, text=True, capture_output=True, timeout=timeout
-    )
+    # Lake spawns Lean. A timeout must reap the entire invocation, not leave the
+    # prover consuming CPU after the driver has reported an inconclusive result.
+    with subprocess.Popen(
+        args,
+        cwd=cwd,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=os.name != "nt",
+    ) as process:
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
+                    timeout=10,
+                )
+            else:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            stdout, stderr = process.communicate()
+            if isinstance(error, subprocess.TimeoutExpired):
+                raise subprocess.TimeoutExpired(
+                    args, timeout, output=stdout, stderr=stderr
+                ) from error
+            raise
+        return subprocess.CompletedProcess(args, process.returncode, stdout, stderr)
 
 
 def load(

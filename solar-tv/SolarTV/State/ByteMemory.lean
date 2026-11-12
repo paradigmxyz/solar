@@ -28,7 +28,7 @@ def wordBytes (word : Word) : List Byte :=
   (List.range 32).map (fun i => (word >>> (8 * (31 - i))).setWidth 8)
 
 def readWord (bytes : List Byte) (offset : Nat) : Word :=
-  (readBytes bytes offset 32).foldl (fun word byte => (word <<< 8) ||| byte.setWidth 256) 0
+  (BitVec.flattenListFast (readBytes bytes offset 32)).setWidth 256
 
 
 end SolarTV.Execution

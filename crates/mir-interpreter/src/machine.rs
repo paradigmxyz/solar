@@ -67,9 +67,10 @@ use solar_data_structures::{
 };
 use solar_evmir::op;
 use solar_mir::{
-    AllocationPlacement, ArgIdx, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef,
-    Function, FunctionId, InstId, InstKind, MirType, Module, PtrLocation, RequireKind, RevertKind,
-    RevertReason, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    AllocationFailure, AllocationInitialization, AllocationPlacement, AllocationSemantics, ArgIdx,
+    ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, Function, FunctionId, InstId,
+    InstKind, MirType, Module, PtrLocation, RequireKind, RevertKind, RevertReason, Semantics,
+    Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
@@ -305,6 +306,14 @@ impl Memory {
         let Some(offset) = self.access(offset, U256::from(bytes.len()))? else { return Ok(()) };
         for (index, &byte) in bytes.iter().enumerate() {
             self.set_byte(offset + index as u64, byte);
+        }
+        Ok(())
+    }
+
+    fn zero(&mut self, offset: U256, len: U256) -> Result<(), Limit> {
+        let Some(offset) = self.access(offset, len)? else { return Ok(()) };
+        for index in 0..len.to::<u64>() {
+            self.set_byte(offset + index, 0);
         }
         Ok(())
     }
@@ -778,6 +787,19 @@ impl<'a> Run<'_, 'a, '_> {
                 let size = frame.read(size)?;
                 self.allocate(frame.function, inst, size)?
             }
+            Semantics::FreePointer if self.semantic.is_some() => {
+                limit(self.memory.load(U256::from(EvmMemoryLayout::FMP_SLOT)))?
+            }
+            Semantics::Allocate(size, semantics) if self.semantic.is_some() => {
+                let size = frame.read(size)?;
+                self.semantic_allocate(size, semantics)?
+            }
+            Semantics::MemoryZero(offset, size) if self.semantic.is_some() => {
+                let (offset, size) = (frame.read(offset)?, frame.read(size)?);
+                self.burn_words(size)?;
+                limit(self.memory.zero(offset, size))?;
+                return ControlFlow::Continue(());
+            }
             Semantics::Word(value) => frame.read(value)?,
             Semantics::PointerAdd(ptr, offset) if self.semantic.is_some() => {
                 frame.read(ptr)?.wrapping_add(frame.read(offset)?)
@@ -1033,6 +1055,34 @@ impl<'a> Run<'_, 'a, '_> {
         ControlFlow::Break(Outcome::Unsupported("allocation without backend placement"))
     }
 
+    /// Execute the allocation contract against the caller's explicit memory. Reservation alone
+    /// does not touch the allocated bytes; zeroing does. The FMP update precedes initialization,
+    /// even when an explicitly supplied cursor aliases the FMP word itself.
+    fn semantic_allocate(
+        &mut self,
+        size: U256,
+        semantics: AllocationSemantics,
+    ) -> ControlFlow<Outcome, U256> {
+        let slot = U256::from(EvmMemoryLayout::FMP_SLOT);
+        let pointer = limit(self.memory.load(slot))?;
+        let (next, wrapped) = pointer.overflowing_add(size);
+        if wrapped || next > U256::from(EvmMemoryLayout::MAX_ALLOCATION_END) {
+            return ControlFlow::Break(if semantics.failure == AllocationFailure::Checked {
+                Outcome::Revert(panic_data(U256::from(0x41)))
+            } else {
+                Outcome::Unsupported("infallible allocation validity precondition")
+            });
+        }
+        // mstore 64, next
+        // memory_zero pointer, size  (when zeroed)
+        limit(self.memory.store(slot, next))?;
+        if semantics.initialization == AllocationInitialization::Zeroed {
+            self.burn_words(size)?;
+            limit(self.memory.zero(pointer, size))?;
+        }
+        ControlFlow::Continue(pointer)
+    }
+
     /// Publishes the results after the first of a call returning several values the way the
     /// backend does: result `k` at `buffer + 32 * k`, with `buffer` in the word at `0x20`.
     fn publish_multi_return(&mut self, body: &Function, values: &[U256]) -> ControlFlow<Outcome> {
@@ -1091,6 +1141,11 @@ impl<'a> Run<'_, 'a, '_> {
                 let frame = self.frames.pop().expect("a run always has a frame");
                 if self.frames.is_empty() {
                     return ControlFlow::Break(Outcome::Return(values));
+                }
+                if values.len() > 1 && self.semantic.is_some() {
+                    return ControlFlow::Break(Outcome::Unsupported(
+                        "aggregate semantic call result",
+                    ));
                 }
                 if values.len() > 1 {
                     let caller_id = self.frames.last().expect("caller").function;

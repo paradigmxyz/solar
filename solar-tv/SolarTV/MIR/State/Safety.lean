@@ -15,8 +15,8 @@ theorem work_limit_is_not_equivalence (reason : String) (other : Run) :
 theorem simultaneous_phis :
     ((enter (some 1)
       [⟨0,256,[(1,⟨.local 1,256⟩)]⟩,⟨1,256,[(1,⟨.local 0,256⟩)]⟩]
-      ⟨⟨[],[],[],[],[],0⟩,[],[],[(0,7),(1,9)]⟩).map (·.locals)) =
-      .ok [(1,7),(0,9)] := by rfl
+      ⟨⟨[],[],[],[],[],0⟩,[],[],[(0,⟨256,7⟩),(1,⟨256,9⟩)]⟩).map (·.locals)) =
+      .ok [(1,⟨256,7⟩),(0,⟨256,9⟩)] := by rfl
 
 theorem live_memory_is_observable :
     ¬ equivalent
