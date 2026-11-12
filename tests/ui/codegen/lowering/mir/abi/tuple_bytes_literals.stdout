@@ -28,8 +28,8 @@ fn @prefix() {
     v13 = add v12, 4
     v15 = sub v10, 36
     v16 = lt v15, v12
-    v62 = or v11, v16
-    jumpi v62, bb4, bb5
+    v56 = or v11, v16
+    jumpi v56, bb4, bb5
   bb5:                                            ; preds = bb0
     v17 = calldataload v13
     v18 = add v13, 32
@@ -37,25 +37,24 @@ fn @prefix() {
     v20 = and v19, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
     v21 = add v20, 32
     v22 = lt v21, v17
-    v56 = heap_floor !metadata(alloc_ptr)
-    v57 = add v56, v21 !metadata(alloc_ptr)
-    v64 = shr v57, 64
-    v58 = lt v57, v56
-    v66 = zext i1 v58 to i256
-    v67 = or v64, v66
-    v69 = zext i1 v22 to i256
-    v70 = or v67, v69
-    v63 = ne v70, 0
-    jumpi v63, bb6, bb8
+    v50 = heap_floor !metadata(alloc_ptr)
+    v51 = add v50, v21 !metadata(alloc_ptr)
+    v58 = shr v51, 64
+    v52 = lt v51, v50
+    v60 = zext i1 v52 to i256
+    v61 = or v58, v60
+    v63 = zext i1 v22 to i256
+    v64 = or v61, v63
+    v57 = ne v64, 0
+    jumpi v57, bb6, bb8
   bb8:                                            ; preds = bb5
-    mstore v56, v17
+    mstore v50, v17
     v24 = sub v10, v18
     v25 = lt v24, v17
     jumpi v25, bb4, bb7
   bb7:                                            ; preds = bb8
-    v52 = add v56, 32
-    calldatacopy v52, v18, v17
-    v53 = add v52, v17
+    v48 = add v50, 32
+    calldatacopy v48, v18, v17
     v1 = ne v17, 0
     jumpi v1, bb2, bb1
   bb2:                                            ; preds = bb7
@@ -66,14 +65,15 @@ fn @prefix() {
     mstore 0, 0x4e487b71 !metadata(memory=scratch)
     revert 28, 36
   bb3:                                            ; preds = bb2
-    v48 = add v56, 33
-    mstore8 v48, 120
-    mstore8 v52, 48
-    mstore v53, 0
-    v50 = sub v56, 32
-    mstore v50, 32
-    v45 = add v20, 64
-    returndata v50, v45
+    v44 = add v50, 33
+    mstore8 v44, 120
+    mstore8 v48, 48
+    v39 = add v48, v17
+    mstore v39, 0
+    v46 = sub v50, 32
+    mstore v46, 32
+    v41 = add v20, 64
+    returndata v46, v41
   bb6 [cold]:                                     ; preds = bb5
     mstore 32, 65 !metadata(memory=scratch)
     mstore 0, 0x4e487b71 !metadata(memory=scratch)

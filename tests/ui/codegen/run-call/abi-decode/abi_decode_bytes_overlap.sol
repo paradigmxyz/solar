@@ -3,7 +3,7 @@
 
 contract DecodeBytesOverlap {
     // Assembly can move the free memory pointer back over the encoding, so the decoded object
-    // overlaps its source. The padding clear must not run before the payload is copied.
+    // overlaps its source, and the copy must still read the payload intact.
     function rewound() external pure returns (bool) {
         bytes memory payload = new bytes(96);
         for (uint256 i; i < 96; ++i) payload[i] = bytes1(uint8(i + 1));

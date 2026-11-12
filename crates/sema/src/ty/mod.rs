@@ -767,7 +767,8 @@ impl<'gcx> Gcx<'gcx> {
         crate::natspec::references(self, item)
     }
 
-    /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+    /// Resolves a contract name, or a path such as `M.Base`, within a source's scope for NatSpec
+    /// `@inheritdoc`.
     pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
         self.natspec_contract_in_source((name, source))
     }
@@ -1961,20 +1962,23 @@ pub fn natspec_view(gcx: _, item: hir::ItemId) -> NatSpecView<'gcx> {
     crate::natspec::resolve_view(gcx, item)
 }
 
-/// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+/// Resolves a contract name, or a path such as `M.Base` through an import namespace, within a
+/// source's scope for NatSpec `@inheritdoc`.
 pub(crate) fn natspec_contract_in_source(
     gcx: _,
     key: NatSpecContractKey
 ) -> Option<hir::ContractId> {
     let (name, source_id) = key;
-    gcx.symbol_resolver.source_scopes[source_id]
-        .resolve(Ident { name, span: Span::DUMMY })
-        .and_then(|decls| {
-            decls.iter().find_map(|decl| match decl.res {
-                hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
-                _ => None,
-            })
-        })
+    let segments = name
+        .as_str()
+        .split('.')
+        .map(|segment| Ident::with_dummy_span(Symbol::intern(segment)))
+        .collect::<SmallVec<[_; 2]>>();
+    let resolutions = gcx.source_path_resolutions(&segments, source_id, None)?;
+    resolutions.last()?.iter().find_map(|res| match res {
+        hir::Res::Item(hir::ItemId::Contract(id)) => Some(*id),
+        _ => None,
+    })
 }
 
 /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.

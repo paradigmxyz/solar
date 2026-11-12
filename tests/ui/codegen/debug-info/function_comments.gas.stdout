@@ -26,9 +26,7 @@ bb0:                                              ; constructor(uint256 start) [
   codesize
   sub
   add
-  push 32
-  dup 3
-  add
+  push 256
   gt
   callvalue
   or

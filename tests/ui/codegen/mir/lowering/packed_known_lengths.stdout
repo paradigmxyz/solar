@@ -44,9 +44,6 @@
 +     v25 = extract_value slice<memory>, v11, 0
 +     mcopy v24, v25, v12 !metadata(memory=heap, disjoint)
 +     v26 = add v22, v12
-+     v27 = ptradd v18, v26
-+     v28 = ptradd v27, 32
-+     mstore v28, 0
 +     ret v18
 +   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -86,9 +83,6 @@
 +     v19 = ptradd v18, 32
 +     mstore v19, 0x2200000000000000000000000000000000000000000000000000000000000000
 +     v20 = add v17, 1
-+     v21 = ptradd v13, v20
-+     v22 = ptradd v21, 32
-+     mstore v22, 0
 +     ret v13
 +   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
@@ -126,9 +120,6 @@
 +     v18 = ptradd v17, 32
 +     mstore v18, 0x2200000000000000000000000000000000000000000000000000000000000000
 +     v19 = add v16, 1
-+     v20 = ptradd v12, v19
-+     v21 = ptradd v20, 32
-+     mstore v21, 0
 +     ret v12
 +   bb1 [cold]:                                     ; preds = bb0
 +     mstore 32, 65 !metadata(memory=scratch)
