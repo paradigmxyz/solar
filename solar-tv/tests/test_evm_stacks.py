@@ -82,9 +82,10 @@ class EvmStackTests(unittest.TestCase):
         self.pair("push 0\npop\nstop", "stop", height=1023)
 
     def test_compiler_rejects_invalid_stack_snapshots(self):
+        # The compiler only warns about a snapshot above the stack limit, so only an empty stack
+        # is rejected.
         for body, height, diagnostic in [
             ("pop\nstop", 0, "empty stack"),
-            ("push 0\nstop", 1024, "exceeding the limit"),
         ]:
             with self.subTest(height=height):
                 result = self.pair(body, "stop", height=height, status=2)

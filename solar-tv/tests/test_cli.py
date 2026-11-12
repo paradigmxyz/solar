@@ -47,6 +47,7 @@ class PairTests(unittest.TestCase):
                             "-Ogas",
                             f"-Z{flag}-pipeline={transform}",
                             "-Zvalidate-ir=true",
+                            "-Zcheck-analyses=false",
                         ],
                         text=True,
                     )
@@ -59,6 +60,29 @@ class PairTests(unittest.TestCase):
                     result = check(layer, before, after)
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertEqual(result.stdout, "verified\n")
+
+    def test_recorded_facts_are_skipped(self):
+        # Debug builds record the facts a pass relies on as assume lines.
+        folder = ROOT / "examples/mir/checked"
+        before = folder / "before.mir"
+        with tempfile.TemporaryDirectory() as tmp:
+            after = Path(tmp) / "after.mir"
+            output = subprocess.check_output(
+                [
+                    SOLAR,
+                    before,
+                    "-Ogas",
+                    "-Zmir-pipeline=check-elim",
+                    "-Zvalidate-ir=true",
+                    "-Zcheck-analyses=true",
+                ],
+                text=True,
+            )
+            self.assertIn("assume ", output)
+            after.write_text(output)
+            result = check("mir", before, after)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "verified\n")
 
     def test_bad_pairs(self):
         for layer, example, expected in [

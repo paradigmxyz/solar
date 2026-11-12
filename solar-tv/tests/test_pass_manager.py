@@ -32,7 +32,14 @@ class PassManagerTests(unittest.TestCase):
         version: str | None = None,
     ):
         ir = "mir" if source.suffix == ".mir" else "evm-ir"
-        args = [SOLAR, source, "-Ogas", f"-Z{ir}-pipeline={pipeline}"]
+        # Recorded facts make a repeated pass rewrite them; the importer skips them.
+        args = [
+            SOLAR,
+            source,
+            "-Ogas",
+            f"-Z{ir}-pipeline={pipeline}",
+            "-Zcheck-analyses=false",
+        ]
         if enabled:
             args.append(f"-Zsolar-tv={self.out}")
         if version is not None:

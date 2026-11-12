@@ -619,3 +619,103 @@ value and rechecks the saved pair with Lean:
 SOLAR="$PWD/target/debug/solar" SOLAR_TV="$PWD/solar-tv/solar-tv" \
   cargo nextest run -p solar-compiler --test it --run-ignored only -E 'test(solar_tv::)'
 ```
+
+## Stages to bytecode
+
+`SolarTV/Stages` states the two steps at the ends of the backend as stages of
+`SolarTV.Sem` (`Stage`, `Stage.trans`), so they compose with a stage from the
+source into semantic MIR and with the pass and scheduling stages between them.
+`Entries.lean` takes the verdict of each `-Zvalidate-passes` query for
+`lower-abi` and `lower-dispatch` as an obligation and proves the stage from
+the routed contract to its dispatcher, and `to_bytecode` chains it.
+`Assembly.lean` models `-Zvalidate-assembly`'s walk and proves, without
+axioms, that the walk makes linear decoding of the bytecode the program's
+instructions at their offsets, every pushed label a `JUMPDEST`, and assembly
+to bytecode a stage for a bytecode semantics that runs its decoding.
+
+## Agreement with the pass validation encoder
+
+[Agreement/Encoder.lean](SolarTV/Agreement/Encoder.lean) proves that the SMT terms
+`-Zvalidate-passes` builds are the Lean semantics. The `lean_agreement` test in
+`crates/codegen/src/mir/transform/validate_passes.rs` generates it: it asks the real
+encoder for the term of each operation on symbolic operands and translates the term
+with the certifier's `word_term`, so a change to either shows up as a snapshot diff
+and must still prove. Regenerate it with
+`SNAPSHOTS=overwrite cargo nextest run -p solar-codegen lean_agreement`.
+
+- `word_X` and `step_X`: every pure opcode the encoder models exactly (ADD, MUL, SUB,
+  DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, SIGNEXTEND, LT, GT, SLT, SGT, EQ, ISZERO, AND,
+  OR, XOR, NOT, BYTE, SHL, SHR and SAR) equals its `EvmRules.Evm` definition and the
+  word `EVM.step` pushes.
+- `exp_base_X` and `exp_power_X`: the shapes of EXP the encoder computes exactly, a
+  base of 0, 1, 2, 16 or 256 and an exponent of 0, 1, 2 or 8.
+- `abstract_X`: the laws of the abstract tier hold of the exact MUL, DIV, MOD, ADDMOD
+  and MULMOD, so the abstraction only adds models.
+- `mir_X_iN`: each MIR operation on i1, i160 and i256 operands, which the encoder
+  keeps as zero-extended words masked to their width, gives the zero-extended result
+  of its [MIR/Ops.lean](SolarTV/MIR/Ops.lean) definition, including casts, `ne` and
+  `select`. Signed operations appear at i256 only, since the encoder rejects them on
+  narrow integers.
+
+[Agreement/Tactic.lean](SolarTV/Agreement/Tactic.lean) holds the tactics, which the
+kernel checks without a SAT solver. Division, remainder, products and powers go through
+rewriting and `BitVec.toNat`, the other opcodes through
+[EvmRules.Reference](../scripts/evm-rules/lean/EvmRules/Reference.lean), the MIR operations
+through lemmas about zero-extended operands, and `i1` operands case by case. CLZ, EXP outside these shapes, memory, storage, calls and environment
+reads are uninterpreted in the encoder and have no agreement theorem.
+
+EVM IR windows also accept DIV, SDIV, MOD, SMOD, ADDMOD, MULMOD, EXP, SIGNEXTEND, LT,
+GT, SLT, SGT, BYTE, SHL, SHR and SAR, with their Cancun prices in
+[EVMIR/Gas.lean](SolarTV/EVMIR/Gas.lean), EXP's 50 gas per exponent byte included.
+## Contract semantics and stages
+
+[Sem.lean](SolarTV/Sem.lean) restates solidity-lean's interface verbatim: a `Call`
+(calldata, call value, initial storage), its `Observable` result (success, output, logs,
+storage), a `Sem` that runs a program on a call, and `Stage A B p q scope`, which says
+that every result `p` gives on a call in scope, `q` gives too. Our additions follow a
+marker: `Stage.refl` and `Stage.mono`, the one-frame `environment` (caller 0x2000,
+callee 0x1000; the machine takes the callee from it and the caller from the oracle) and `Sem.FailureConvention` (a failed call logs nothing and keeps its
+initial storage).
+
+[Machine.lean](SolarTV/Machine.lean) is the state both layers share. Memory is the model
+of [Memory.lean](SolarTV/Memory.lean) on every byte; `Mem.project` is its 256-byte
+`Memory.State` and the `project_` lemmas show that expansion, `MSIZE`, loads, stores and
+byte stores agree with it. Storage and transient storage are total maps and the world is
+the history of logs and calls. Environment reads, the caller (any address) and call results come from an `Oracle`
+of functions of the world, as the encoder's uninterpreted functions. An external call
+records the words and input bytes its callee sees; its success flag, its return data (which
+`RETURNDATACOPY` reads, halting past its end) and, but for `STATICCALL`, the storage after
+it are the oracle's, and it writes memory only at its output range. `observe` commits
+storage and logs only on success, and `Agree` compares two ends as `Encoder::differ`
+does. A `Layer` runs a program with fuel, monotonically, and its `sem` is fuel-free: a
+call's result is the end some fuel reaches. `Certified` (every end of one program has an
+agreeing end of the other) gives a stage (`stage_of_certified`). Gas is not priced: `GAS`
+is an environment read.
+
+[MIR/Program.lean](SolarTV/MIR/Program.lean) is MIR at the lowered phase, the input of
+`-Zvalidate-passes`, with phis, branches, the pure EVM operations of `EVM.step`,
+effects, and `ret`, `revert`, `stop` and `invalid`. `lower-abi` and `lower-dispatch` run
+before it, so they are outside this semantics. [EVMIR/Program.lean](SolarTV/EVMIR/Program.lean)
+runs scheduled EVM IR blocks over one stack with the checked operations of
+[EVMIR/Memory.lean](SolarTV/EVMIR/Memory.lean) (`stepOp_project`), effects, static
+`jump`/`jumpi` and halts. Both satisfy the failure convention.
+
+[Composition.lean](SolarTV/Composition.lean) chains the stages of a `Compilation` (the MIR,
+each MIR pass's output, the scheduled EVM IR and each EVM IR pass's output) into one stage
+from the MIR to the final EVM IR (`mir_to_evmir`, or `mir_to_evmir_certified` from
+certificates), and `mir_to_bytecode` appends `AssemblyStage`, the stage to bytecode that
+solidity-lean's bytecode semantics states.
+## Lifting a pass validation query
+
+[MIR/Validation/AddZero.lean](SolarTV/MIR/Validation/AddZero.lean) lifts one real query to
+a stage. [lift_egraph.mir](../tests/ui/codegen/mir/validate-passes/lift_egraph.mir) runs
+`egraph` on a dispatcher that adds zero to a calldata word before shifting by it and
+storing the result, and pins the query `-Zvalidate-passes` writes. `Query` states it as
+the certifier translates it, and `query_unsat` proves it by hand: the certifier's
+`bv_decide` proof does not handle its top-level array disequality. `certified_of_query`
+uses the query only as a hypothesis: it runs both functions, rewrites their words with
+the agreement theorems `step_add` and `step_shl`, and instantiates the query's
+uninterpreted calldata read, memory, storage and transient storage with the call and the
+initial state. `stage` is the resulting stage of the lowered MIR semantics. It is one
+instance: no theorem yet says that every query `-Zvalidate-passes` finds `unsat` gives a
+certificate, which would need the encoder itself in Lean.

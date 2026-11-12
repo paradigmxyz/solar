@@ -11,6 +11,12 @@ import SolarTV.MIR.Transforms.DeadStore
 import SolarTV.MemorySafety
 import SolarTV.EVMIR.GasSafety
 import SolarTV.EVMIR.Transforms.GasSwapAdd
+import SolarTV.Stages.Assembly
+import SolarTV.Stages.Entries
+
+import SolarTV.Agreement.Encoder
+import SolarTV.Composition
+import SolarTV.MIR.Validation.AddZero
 
 import SolarTV.State.StorageSafety
 import SolarTV.State.Calls
@@ -71,6 +77,101 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.EVM.Gas.swap_add_refines' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.EVM.Gas.swap_add_refines
+
+/-- info: 'SolarTV.Assembly.stage' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Assembly.stage
+
+/-- info: 'SolarTV.Assembly.example_fault' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Assembly.example_fault
+
+/-- info: 'SolarTV.Entries.to_bytecode' does not depend on any axioms -/
+#guard_msgs in
+#print axioms SolarTV.Entries.to_bytecode
+
+-- The agreement theorems that the pass validation encoder's terms are the Lean semantics.
+-- They are kernel proofs: none bit-blasts, so none depends on a natively evaluated check.
+/-- info: 'SolarTV.Agreement.step_sdiv' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Agreement.step_sdiv
+
+/-- info: 'SolarTV.Agreement.abstract_mulmod' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Agreement.abstract_mulmod
+
+/--
+info: 'SolarTV.Agreement.word_signextend' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.Agreement.word_signextend
+
+/--
+info: 'SolarTV.Agreement.mir_add_i160' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.Agreement.mir_add_i160
+/--
+info: 'SolarTV.Agreement.word_byte' depends on axioms: [propext, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.Agreement.word_byte
+
+/--
+info: 'SolarTV.Agreement.mir_shl_i160' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.Agreement.mir_shl_i160
+
+/--
+info: 'SolarTV.Agreement.mir_lt_i1' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.Agreement.mir_lt_i1
+
+/--
+info: 'SolarTV.Agreement.mir_sext_i160_i256' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.Agreement.mir_sext_i160_i256
+-- Contract semantics and the composition of stages.
+/-- info: 'SolarTV.mir_to_evmir_certified' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.mir_to_evmir_certified
+
+/-- info: 'SolarTV.mir_to_bytecode' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.mir_to_bytecode
+
+/--
+info: 'SolarTV.MIR.Lowered.failureConvention' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.MIR.Lowered.failureConvention
+
+/--
+info: 'SolarTV.MIR.Lowered.moduleFailureConvention' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.MIR.Lowered.moduleFailureConvention
+
+/--
+info: 'SolarTV.EVM.Program.failureConvention' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.EVM.Program.failureConvention
+
+/--
+info: 'SolarTV.EVM.Program.stepOp_project' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.EVM.Program.stepOp_project
+-- One pass validation query lifted to a stage.
+/--
+info: 'SolarTV.MIR.Validation.AddZero.stage' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms SolarTV.MIR.Validation.AddZero.stage
 
 /-- info: 'SolarTV.Word.power_eq_pow' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in

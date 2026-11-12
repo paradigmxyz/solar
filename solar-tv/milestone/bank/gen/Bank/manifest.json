@@ -1,0 +1,169 @@
+{
+  "arguments": [
+    "solar-tv/milestone/bank/bank.sol",
+    "-Ogas",
+    "--evm-version",
+    "osaka",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=solar-tv/milestone/bank/gen"
+  ],
+  "bytecode": "346028575f3560e01c80632f4f21e21460f857806370a0823114610161578063b6b55f2514603e575b5f5ffd5b6011602052634e487b715f526024601cfd5b60243610602857600435803360875b815f525f60205260405f2080548481019081105f1960601c85116101a657602c578155600154938401938410602c57926001559154905090565b905f52337fe1fffcc4923d04b559f4d29a8bfc6cda04eb5b0d3c460751c2402c5c5cc9109c60205fa25f525f1960601c331160cb575f1960601c331160cb5760205ff35b690417000000010000000260201b335f1960601c915b6020525b60405260605263ed572b275f526064601cfd5b60043560a01c60443610176028576004355f1960601c81166024358261011b604d565b5f525f1960601c8211610147578181036101345760205ff35b6d010200000002000000020000000760e1565b505f1960601c906d041700000002000000020000000960e1565b60043560a01c60243610176028576004355f1960601c8116815f525f60205260405f20545f528181036101935760205ff35b6d010200000003000000020000000960e1565b505050505f1960601c6d04170000000000000000800000006020529060e556",
+  "bytecode_sha256": "bff0578068ce4ab4a041f226e4e960c13d358c8b430718fefe9ce3a22d760543",
+  "compiler": "0.8.38+commit.4a7d9ede.solar.0.3.0-dev",
+  "contract": "Bank",
+  "evm_version": "osaka",
+  "optimization": "Gas",
+  "options": "CompileOpts { input: [\"solar-tv/milestone/bank/bank.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"emit-lean-stages=solar-tv/milestone/bank/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: None, prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"solar-tv/milestone/bank/gen\"), forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "solar-tv/milestone/bank/bank.sol",
+      "sha256": "513398d47335b204a6b047493dd86e9c05066e950ba1300ba5d25850a5f8cb1f"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "7d145b2998661cb5c4592a5374f9cc79d94794bba2f6f17b3dfdd0e2a87e0fcc"
+    },
+    {
+      "definition": "mir1",
+      "file": "Mir1.lean",
+      "index": 1,
+      "kind": "mir",
+      "pass": "place-reads",
+      "sha256": "fc18b9f9f61ef53c23dcf6f6799dee7c57a15ca47bb4da2255c633f82b1308ab"
+    },
+    {
+      "definition": "mir2",
+      "file": "Mir2.lean",
+      "index": 2,
+      "kind": "mir",
+      "pass": "spell-width-tests",
+      "sha256": "706bb5ac9ec0a0d67f08496e91c62af4ae17405eb912f83decf45e9a8292b2c0"
+    },
+    {
+      "definition": "mir3",
+      "file": "Mir3.lean",
+      "index": 3,
+      "kind": "mir",
+      "pass": "lower-assumes",
+      "sha256": "aedcd4a2b80c765f6e037a756d6db7b1fab1a2447bdf0ca62eda37ae64185e34"
+    },
+    {
+      "definition": "mir4",
+      "file": "Mir4.lean",
+      "index": 4,
+      "kind": "mir",
+      "pass": "evm-inst-schedule",
+      "sha256": "6f68722b113a0f8f2cda66280547c0601f97b443d416806a6803322a38ae51b9"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "7867a2d8d7a8605c655c1bc038b5cee9a7e714d6c152c9e267afc6dcfd8f9586"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "peephole-early",
+      "sha256": "92adb3e54ee739c60d8e69961ba9619245df9ae42f1dca9df06fa352fd35f652"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "357042975eaf869a3c7f3a65ee4fc68bf6ef1cbb39d2c129c7aa730ac4ce95c7"
+    },
+    {
+      "definition": "evm3",
+      "file": "Evm3.lean",
+      "index": 3,
+      "kind": "evm",
+      "pass": "compact-pushes",
+      "sha256": "95b583b99ae08080b2753dc74b9a3d0f0921e23147a0419959612ea9afb91025"
+    },
+    {
+      "definition": "evm4",
+      "file": "Evm4.lean",
+      "index": 4,
+      "kind": "evm",
+      "pass": "block-layout",
+      "sha256": "5c18eab01a900c5e39d0cac1415ad8339a52ba78c43649f4e3fbfb8cb380e6e1"
+    },
+    {
+      "definition": "evm5",
+      "file": "Evm5.lean",
+      "index": 5,
+      "kind": "evm",
+      "pass": "terminal-dedup",
+      "sha256": "6ebad5531b56a0b055f247364e211b2ed1882f40858c9d75ce5b15ffcd5d9ea2"
+    },
+    {
+      "definition": "evm6",
+      "file": "Evm6.lean",
+      "index": 6,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "5f9a29c13202ce893fa142487c112f530321e5ac8041c28597d23504b278b7f8"
+    },
+    {
+      "definition": "evm7",
+      "file": "Evm7.lean",
+      "index": 7,
+      "kind": "evm",
+      "pass": "tail-merge",
+      "sha256": "baa56a2fc6e55d128e88f34ce5e6bcfdf7e4cbb78a0a907bf7ddcea3a8502bfa"
+    },
+    {
+      "definition": "evm8",
+      "file": "Evm8.lean",
+      "index": 8,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "b954ed58f56daec2d604a03ac02aa0ef3e543767b4a5d0bb13f68ea7f74fead6"
+    },
+    {
+      "definition": "evm9",
+      "file": "Evm9.lean",
+      "index": 9,
+      "kind": "evm",
+      "pass": "reorder-pushes",
+      "sha256": "43597405f5bd81147174381637469732e796aa4056f192d37311c7b21f95b65c"
+    },
+    {
+      "definition": "evm10",
+      "file": "Evm10.lean",
+      "index": 10,
+      "kind": "evm",
+      "pass": "block-layout",
+      "sha256": "0153e265384d5fa0bb56bbcddac12cb7724b905dafbd698d03461bba22095730"
+    },
+    {
+      "definition": "evm11",
+      "file": "Evm11.lean",
+      "index": 11,
+      "kind": "evm",
+      "pass": "stack-reschedule",
+      "sha256": "d55f0c281937953166c7fe2d2176bcb62145f1e1a597546d95ae4e3d903329aa"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "48ec986cf2d82ee746b044677549cc626376293bd6701e44e04d9b1e8e93bd8a"
+    }
+  ]
+}

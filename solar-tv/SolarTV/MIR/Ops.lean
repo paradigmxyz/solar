@@ -13,8 +13,12 @@ open EvmRules
 
 inductive Op where
   | add | sub | mul | div | sdiv | mod | smod | exp | and | or | xor
+  | shl | shr | sar
 
-/-- Semantic arithmetic wraps at the operand width, as in lower-integers. -/
+/-- Semantic arithmetic wraps at the operand width, as in lower-integers. Division and
+remainder by zero give zero, as the EVM opcodes do. Shifts take the amount first, in EVM
+pop order, and shift out every bit once it reaches the width; an arithmetic shift then
+fills with the sign bit. The signed operations read the sign bit at the operand width. -/
 def eval {width : Nat} : Op → BitVec width → BitVec width → BitVec width
   | .add => fun a b => a + b
   | .sub => fun a b => a - b
@@ -27,10 +31,17 @@ def eval {width : Nat} : Op → BitVec width → BitVec width → BitVec width
   | .and => fun a b => a &&& b
   | .or => fun a b => a ||| b
   | .xor => fun a b => a ^^^ b
+  | .shl => fun shift value => value <<< shift.toNat
+  | .shr => fun shift value => value >>> shift.toNat
+  | .sar => fun shift value => value.sshiftRight shift.toNat
+
+/-- Bitwise complement at the operand width. -/
+def not {width : Nat} (a : BitVec width) : BitVec width := ~~~a
 
 abbrev unary := @Word.unary
 abbrev shift := @Word.shift
 
+/-- MIR `select` takes a normalized i1: the first arm when it is 1. -/
 def select {width : Nat} (condition : BitVec 1) (yes no : BitVec width) : BitVec width :=
   if condition = 0 then no else yes
 
