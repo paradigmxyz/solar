@@ -1097,6 +1097,34 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   element is encoded, and the case needs assembly-forged lengths.
 - Coverage: `tests/ui/codegen/run-call/calldata/abi_encode_forged_array_length.sol`.
 
+### CODEGEN-029: Memory `bytes` may carry nonzero bytes past their length
+
+- ID: CODEGEN-029
+- Status: intentional
+- Difference: the bytes between the end of a memory `bytes` or `string` object
+  and the next word boundary are not cleared when the object comes from
+  `abi.decode` of calldata, memory or returndata (including the value an
+  external call returns and a `catch Error(string)` reason), or from
+  `abi.encodePacked`, `bytes.concat` or `string.concat` with a result longer
+  than 32 bytes and not a multiple of 32. They hold whatever the input or the
+  free memory held. `solc` writes zeros there, except for a `catch Error(string)`
+  reason, which keeps the padding of the revert data. Only inline assembly that
+  reads the padding sees the difference: `return`, `revert` or `log` data that
+  covers the rounded length, `keccak256` over it, `call` or `staticcall` input
+  of that length, and `mcopy` of whole words.
+- Rationale: clearing the padding adds a store to every such `abi.decode` and
+  non-word-aligned `abi.encodePacked`, which grows the bytecode and costs gas.
+  Every Solidity use of the object reads or copies only its length, masks the
+  rest, or writes its own zeros: external return, `revert` data, `abi.encode`,
+  `abi.encodePacked`, `abi.encodeCall`, events (data and indexed topic),
+  `keccak256`, `bytes.concat`, `string.concat`, conversion to `bytesN`, indexing,
+  storage copies, `push` and external calls that pass the object on. The padding
+  of an external function parameter, of `new bytes(n)` and of a packed result of
+  at most 32 bytes is still zero.
+- Coverage: `tests/ui/codegen/run-call/bytes-padding/` runs each of these
+  sources against each Solidity and assembly use over dirty padding, and
+  `tests/foundry/bytes-padding-logs/` covers events.
+
 ### TYPECK-026: `@inheritdoc` references
 
 Status: intentional.

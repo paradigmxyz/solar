@@ -49,9 +49,6 @@
 +     v33 = ptradd v32, 32
 +     mstore v33, 0x100000000000000000000000000000000000000000000000000000000000000
 +     v34 = add v31, 1
-+     v35 = ptradd v16, v34
-+     v36 = ptradd v35, 32
-+     mstore v36, 0
 +     ret v16
 +   bb9:                                            ; preds = bb8
 +     v24 = add v21, v22
