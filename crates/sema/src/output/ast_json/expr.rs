@@ -14,7 +14,8 @@
 //!
 //! The nodes without a HIR node get a fresh ID and a type taken from name resolution or from the
 //! node they belong to. The attributes that solc computes in its type checker come from the type
-//! checker results: the type, the resolution of a name, purity, and the user defined operator.
+//! checker results: the type, the resolution of a name, purity, and the user defined operator. The
+//! writer works out `isSimpleCounterLoop` and the type of an inline array itself.
 
 use super::{
     Cx, Empty, Node, Params, Seq, Sym, Var, W, last_docs, name,
@@ -146,6 +147,7 @@ impl<'a, 'gcx> Cx<'a, 'gcx> {
             ast::StmtKind::Emit(_, args) | ast::StmtKind::Revert(_, args) => {
                 stmt.span.with_hi(args.span.hi())
             }
+            // The statement is its keyword, which takes the `_` of a placeholder as well.
             ast::StmtKind::Placeholder => stmt.span.with_hi(stmt.span.lo() + 1),
             ast::StmtKind::Break => stmt.span.with_hi(stmt.span.lo() + "break".len() as u32),
             ast::StmtKind::Continue => stmt.span.with_hi(stmt.span.lo() + "continue".len() as u32),

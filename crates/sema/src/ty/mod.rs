@@ -109,15 +109,14 @@ pub struct TypeckResults<'gcx> {
     pub(crate) no_effect_stmts: Vec<Span>,
 }
 
-/// What type checking records for the AST JSON, so that the writer never works it out again.
+/// What type checking records for the AST JSON, which the writer cannot read back from the HIR.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct AstFacts<'gcx> {
     /// The expressions that are lvalues in solc's sense, where it takes more than their kind to
     /// tell: members, and tuples that are written to.
     pub(crate) lvalues: FxHashSet<hir::ExprId>,
     /// The type solc gives an expression where it differs from the type of type checking: the
-    /// memory array of the common mobile type of an inline array, and the common type of the
-    /// operands of a comparison or a logical operation.
+    /// common type of the operands of a comparison or a logical operation.
     pub(crate) solc_tys: FxHashMap<hir::ExprId, Ty<'gcx>>,
     /// The Yul identifiers that name a variable, with their suffix, ordered by position.
     pub(crate) yul_references: Vec<YulReference>,

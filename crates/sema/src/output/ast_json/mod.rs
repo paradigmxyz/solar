@@ -1016,15 +1016,13 @@ impl Serialize for W<'_, '_, Import<'_, '_>> {
                 m.entry("sourceUnit", &json.source_unit_id(*source));
                 m.entry("scope", &json.source_unit_id(cx.source));
             }
-            match imported {
+            let absolute_path = match imported {
                 Imported::Source(source) => {
-                    let name = &cx.gcx.sources[*source].file.name;
-                    m.entry("absolutePath", &format_args!("{}", name.display()))
+                    format!("{}", cx.gcx.sources[*source].file.name.display())
                 }
-                Imported::Unresolved(name) => {
-                    m.entry("absolutePath", &format_args!("{}", name.display()))
-                }
+                Imported::Unresolved(name) => format!("{}", name.display()),
             };
+            m.entry("absolutePath", &absolute_path);
             let alias = import.source_alias();
             m.entry("unitAlias", &name(alias));
             m.entry("nameLocation", &cx.src(alias.map_or(Span::DUMMY, |alias| alias.span)));

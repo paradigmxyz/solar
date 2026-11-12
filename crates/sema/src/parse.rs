@@ -286,8 +286,9 @@ impl<'gcx> ParsingContext<'gcx> {
                     Ok(import_file) => {
                         sources.add_import(id, item_id, import_file, false);
                     }
-                    Err(Some(name)) => sources[id].unresolved_imports.push((item_id, name)),
-                    Err(None) => {}
+                    Err(name) => {
+                        sources[id].unresolved_imports.extend(name.map(|name| (item_id, name)))
+                    }
                 }
             });
             if ast.is_none() {
