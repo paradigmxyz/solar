@@ -23,6 +23,9 @@ struct Context<'a> {
 }
 
 impl Host for Context<'_> {
+    fn code(&mut self, address: U256) -> Option<Vec<u8>> {
+        self.native.code(address)
+    }
     fn storage(&mut self, slot: U256) -> U256 {
         self.native.storage(slot)
     }
@@ -41,6 +44,9 @@ impl Host for Context<'_> {
     }
     fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256> {
         match (opcode, operands) {
+            (op::BALANCE | op::EXTCODESIZE | op::EXTCODEHASH, &[address]) => {
+                self.native.account_read(opcode, address)
+            }
             (op::SELFBALANCE, &[]) => Some(self.native.balance()),
             (op::BLOCKHASH, &[number]) => {
                 let current = self.reads[&op::NUMBER];

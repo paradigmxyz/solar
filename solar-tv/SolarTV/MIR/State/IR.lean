@@ -26,6 +26,12 @@ inductive MemoryOp where
   | load | store | storeByte | copy | hash | size | zero
   | calldataLoad | calldataSize | calldataCopy | returnDataSize | returnDataCopy
 
+inductive SlotOp where
+  | mapping | bytesKey | arrayData | arrayElement (stride : Nat)
+
+inductive StorageBytesOp where
+  | validate | load | store | literal (bytes : List Byte) | clear
+
 inductive Operation where
   | binary (op : MIR.Op) (width : Nat)
   | comparison (op : MIR.Comparison) (width : Nat)
@@ -49,6 +55,9 @@ inductive Operation where
   | insertValue (ty : ValueType) (index : Nat)
   | extractValue (ty : ValueType) (index : Nat)
   | makeSlice (location : Nat)
+  | slot (op : SlotOp)
+  | storageBytes (op : StorageBytesOp)
+  | dataCopy (bytes : List Byte) (offset : Nat)
 
 structure Instruction where
   result : Option Nat

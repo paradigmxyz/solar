@@ -108,6 +108,8 @@ def record(
                     "logical product/slice values; boundary leaves in declaration order; pointer-to-word erasure only at the boundary; distinct pointer spaces remain distinct",
                     "aggregate type limits: depth 32, nodes 256; exported type budget 65536; boundary limits: 32 input and 256 return leaves",
                     "explicit ordered FMP allocation; invalid infallible bumps unsupported",
+                    "slot hashing preserves scratch traffic; storage bytes retain header checks, padding masks and tail clearing; storage work limit 2048 words",
+                    "external account reads use live state; MIR root runtime code unknown; constant data ranges must be known and relocation-free; export budget 64 KiB",
                     "external CALL assumes sufficient caller gas to avoid EIP-150 clipping",
                     "CREATE child gas is supplied by explicit creation_gas boundary inputs",
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",

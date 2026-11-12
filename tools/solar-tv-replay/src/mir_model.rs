@@ -88,6 +88,7 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
     }
     // Bound repeated type metadata before constructing the JSON response.
     let mut type_nodes = 0;
+    let mut constant_bytes = 0;
     for owner in reachable.iter() {
         let function = &module.functions[owner];
         let mut count = |ty| -> Result<(), String> {
@@ -113,6 +114,19 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
                 }
                 for value in inst.kind.operands() {
                     count(function.value_ty(value).ok_or("untyped MIR operand")?)?;
+                }
+                if let Some(Semantics::StoreStorageBytesLiteral(_, bytes)) = inst.kind.semantics() {
+                    constant_bytes += bytes.len();
+                    if constant_bytes > 65536 {
+                        return Err("MIR constant data export budget of 64 KiB".into());
+                    }
+                }
+                if let Some(Semantics::DataCopy(data, ..)) = inst.kind.semantics() {
+                    let data = module.data.get(data.id).ok_or("unknown MIR data")?;
+                    constant_bytes += data.bytes.known().map_or(0, |bytes| bytes.len());
+                    if constant_bytes > 65536 {
+                        return Err("MIR constant data export budget of 64 KiB".into());
+                    }
                 }
                 if let Some(Semantics::InsertValue(ty, ..) | Semantics::ExtractValue(ty, ..)) =
                     inst.kind.semantics()
@@ -316,6 +330,43 @@ fn export_operation(
             }
             Semantics::MakeSlice(location, ptr, len) => {
                 json!({"kind":"make_slice","location":location.to_string(),"args":operands(module, body,&[ptr,len])?})
+            }
+            Semantics::MappingSlot(key, slot) => {
+                json!({"kind":"mapping_slot","args":operands(module,body,&[key,slot])?})
+            }
+            Semantics::MappingSlotBytes(key, slot) => {
+                json!({"kind":"mapping_slot_bytes","args":operands(module,body,&[key,slot])?})
+            }
+            Semantics::StorageArrayDataSlot(slot) => {
+                json!({"kind":"array_data_slot","args":operands(module,body,&[slot])?})
+            }
+            Semantics::StorageArrayElementSlot(slot, index, stride) => {
+                json!({"kind":"array_element_slot","stride":stride,"args":operands(module,body,&[slot,index])?})
+            }
+            Semantics::DataCopy(data, dest, count) => {
+                let bytes = module
+                    .data
+                    .get(data.id)
+                    .filter(|d| d.library_relocations.is_empty())
+                    .and_then(|d| d.bytes.known())
+                    .ok_or("datacopy of unlinked data")?;
+                json!({"kind":"data_copy","bytes":bytes.as_ref(),"offset":data.offset,"args":operands(module,body,&[dest,count])?})
+            }
+
+            Semantics::ValidateStorageBytes(header) => {
+                json!({"kind":"validate_storage_bytes","args":operands(module,body,&[header])?})
+            }
+            Semantics::LoadStorageBytes(slot) => {
+                json!({"kind":"load_storage_bytes","args":operands(module,body,&[slot])?})
+            }
+            Semantics::StoreStorageBytes(slot, object) => {
+                json!({"kind":"store_storage_bytes","args":operands(module,body,&[slot,object])?})
+            }
+            Semantics::StoreStorageBytesLiteral(slot, bytes) => {
+                json!({"kind":"store_storage_bytes_literal","bytes":bytes,"args":operands(module,body,&[slot])?})
+            }
+            Semantics::ClearStorageWords(slot, first, last) => {
+                json!({"kind":"clear_storage_words","args":operands(module,body,&[slot,first,last])?})
             }
             Semantics::FreePointer => json!({"kind": "free_pointer", "args": []}),
             Semantics::MemoryZero(offset, size) => {

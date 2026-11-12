@@ -159,6 +159,30 @@ impl<'a> Native<'a> {
             .unwrap_or_default()
     }
 
+    pub(super) fn account_read(&mut self, opcode: u8, address: U256) -> Option<U256> {
+        let address = Address::from_word(address.into());
+        if opcode != op::BALANCE && address == self.owner {
+            return None;
+        }
+        let account =
+            EvmHost::load_account(&mut self.engine, &address, opcode != op::BALANCE, false).ok()?;
+        match opcode {
+            op::BALANCE => Some(account.balance),
+            op::EXTCODESIZE => Some(U256::from(account.code.original_bytes().len())),
+            op::EXTCODEHASH => Some(U256::from_be_bytes(account.code_hash.0)),
+            _ => None,
+        }
+    }
+
+    pub(super) fn code(&mut self, address: U256) -> Option<Vec<u8>> {
+        let address = Address::from_word(address.into());
+        if address == self.owner {
+            return None;
+        }
+        let account = EvmHost::load_account(&mut self.engine, &address, true, false).ok()?;
+        Some(account.code.original_bytes().to_vec())
+    }
+
     pub(super) fn flush(&mut self, pending: PendingChanges<'_>) {
         for &(key, value) in pending.storage {
             EvmHost::sstore(&mut self.engine, &self.owner, &key, &value, false)

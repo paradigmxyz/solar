@@ -79,6 +79,8 @@ use solar_mir::{
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
+mod storage;
+
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,
 /// more than any block holds.
 pub(crate) const MEMORY_LIMIT: u64 = 1 << 24;
@@ -182,6 +184,13 @@ pub trait Host {
     /// chain's state, such as `CALLER`, `TIMESTAMP`, or `BALANCE`, or `None` when the host does
     /// not model it.
     fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256>;
+
+    /// Original external code bytes, without resolving delegation, or `None` if unknown.
+    /// Account access must be recorded even when a caller requests zero copied bytes.
+    fn code(&mut self, address: U256) -> Option<Vec<u8>> {
+        let _ = address;
+        None
+    }
 
     /// Returns the host's current persistent value, overlaid by unpublished local writes.
     /// A message host publishes pending writes before child entry, so subsequent reads see
@@ -796,6 +805,69 @@ impl<'a> Run<'_, 'a, '_> {
         let frame = self.frames.last().expect("a run always has a frame");
         if self.semantic.is_some() {
             match semantics {
+                Semantics::ValidateStorageBytes(header) => {
+                    Self::bytes_header(frame.read(header)?)?;
+                    return ControlFlow::Continue(());
+                }
+                Semantics::LoadStorageBytes(slot) => {
+                    let slot = frame.read(slot)?;
+                    let pointer = self.load_storage_bytes(slot)?;
+                    self.frame().values[instruction.result().expect("storage bytes result")] =
+                        Some(RuntimeValue::Word(pointer));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::StoreStorageBytes(slot, object) => {
+                    let (slot, object) = (frame.read(slot)?, frame.read(object)?);
+                    return self.store_storage_bytes(slot, object, None);
+                }
+                Semantics::StoreStorageBytesLiteral(slot, bytes) => {
+                    let slot = frame.read(slot)?;
+                    return self.store_storage_bytes(slot, U256::ZERO, Some(bytes));
+                }
+                Semantics::ClearStorageWords(slot, first, last) => {
+                    let (slot, first, last) =
+                        (frame.read(slot)?, frame.read(first)?, frame.read(last)?);
+                    return self.clear_storage_words(slot, first, last);
+                }
+                Semantics::MappingSlotBytes(key, slot) => {
+                    let key = frame.read_value(key)?;
+                    let slot = frame.read(slot)?;
+                    let (source, length, calldata) = match key {
+                        RuntimeValue::Word(object) => {
+                            let length = limit(self.memory.load(object))?;
+                            (object.wrapping_add(U256::from(32)), length, false)
+                        }
+                        RuntimeValue::Aggregate(fields) if fields.len() == 2 => {
+                            let [RuntimeValue::Word(source), RuntimeValue::Word(length)] =
+                                fields.as_slice()
+                            else {
+                                return ControlFlow::Break(Outcome::Unsupported(
+                                    "undefined mapping bytes key",
+                                ));
+                            };
+                            (*source, *length, true)
+                        }
+                        _ => {
+                            return ControlFlow::Break(Outcome::Unsupported(
+                                "invalid mapping bytes key",
+                            ));
+                        }
+                    };
+                    let scratch = limit(self.memory.load(U256::from(64)))?;
+                    self.burn_words(length)?;
+                    if calldata {
+                        self.world_opcode(op::CALLDATACOPY, &[scratch, source, length])?;
+                    } else {
+                        limit(self.memory.copy(scratch, source, length))?;
+                    }
+                    limit(self.memory.store(scratch.wrapping_add(length), slot))?;
+                    let count = length.wrapping_add(U256::from(32));
+                    self.burn_words(count)?;
+                    let bytes = limit(self.memory.read(scratch, count))?;
+                    self.frame().values[instruction.result().expect("mapping result")] =
+                        Some(RuntimeValue::Word(U256::from_be_bytes(keccak256(bytes).0)));
+                    return ControlFlow::Continue(());
+                }
                 Semantics::InsertValue(ty, aggregate, index, value) => {
                     if let Err(e) = values::widths(self.machine.module, ty) {
                         return ControlFlow::Break(Outcome::Unsupported(e));
@@ -988,6 +1060,19 @@ impl<'a> Run<'_, 'a, '_> {
                 limit(self.memory.zero(offset, size))?;
                 return ControlFlow::Continue(());
             }
+            Semantics::MappingSlot(key, slot) if self.semantic.is_some() => {
+                let words = [frame.read(key)?, frame.read(slot)?];
+                self.fixed_slot(&words)?
+            }
+            Semantics::StorageArrayDataSlot(slot) if self.semantic.is_some() => {
+                let slot = frame.read(slot)?;
+                self.fixed_slot(&[slot])?
+            }
+            Semantics::StorageArrayElementSlot(slot, index, stride) if self.semantic.is_some() => {
+                let slot = frame.read(slot)?;
+                let offset = frame.read(index)?.wrapping_mul(U256::from(stride));
+                self.fixed_slot(&[slot])?.wrapping_add(offset)
+            }
             Semantics::Word(value) => frame.read(value)?,
             Semantics::PointerAdd(ptr, offset) if self.semantic.is_some() => {
                 frame.read(ptr)?.wrapping_add(frame.read(offset)?)
@@ -1149,6 +1234,18 @@ impl<'a> Run<'_, 'a, '_> {
                 limit(self.memory.write(dest, &bytes))?;
                 return ControlFlow::Continue(None);
             }
+            (op::EXTCODECOPY, &[address, destination, offset, length]) => {
+                self.burn_words(length)?;
+                let Some(bytes) = self.world.as_mut().and_then(|world| world.host.code(address))
+                else {
+                    return ControlFlow::Break(unsupported());
+                };
+                let bytes = (0..length.to::<u64>())
+                    .map(|index| calldata_byte(&bytes, offset, index))
+                    .collect::<Vec<_>>();
+                limit(self.memory.write(destination, &bytes))?;
+                return ControlFlow::Continue(None);
+            }
             (op::RETURNDATACOPY, &[destination, offset, len]) => {
                 let Some(world) = &self.world else {
                     return ControlFlow::Break(unsupported());
@@ -1280,11 +1377,26 @@ impl<'a> Run<'_, 'a, '_> {
         ControlFlow::Continue(result.value)
     }
 
+    /// Hashes word keys and retains their scratch writes and memory expansion.
+    fn fixed_slot(&mut self, words: &[U256]) -> ControlFlow<Outcome, U256> {
+        for (index, &word) in words.iter().enumerate() {
+            limit(self.memory.store(U256::from(index * 32), word))?;
+        }
+        let bytes = limit(self.memory.read(U256::ZERO, U256::from(words.len() * 32)))?;
+        ControlFlow::Continue(U256::from_be_bytes(keccak256(bytes).0))
+    }
+
     /// Copies `len` bytes of the constant data at `data` to memory at `dest`.
     fn data_copy(&mut self, data: DataRef, dest: U256, len: U256) -> ControlFlow<Outcome> {
         self.burn_words(len)?;
         // Another contract's bytecode is known only once final assembly links it in.
-        let Some(bytes) = self.machine.module.data.get(data.id).and_then(|data| data.bytes.known())
+        let Some(bytes) = self
+            .machine
+            .module
+            .data
+            .get(data.id)
+            .filter(|data| data.library_relocations.is_empty())
+            .and_then(|data| data.bytes.known())
         else {
             return ControlFlow::Break(Outcome::Unsupported("datacopy of unlinked data"));
         };

@@ -1,0 +1,16 @@
+; === solar-tv/examples/mir/slots-bytes-memory/before.mir (after lower-mapping-slots,lower-slices) ===
+@module BytesSlot
+fn @f() -> i256 {
+  bb0:
+    v0 = inttoptr i256 128 to ptr<memory>
+    v2 = mload v0
+    v3 = add v2, 32
+    v4 = fmp
+    v5 = ptradd v0, 32
+    mcopy v4, v5, v2 !metadata(memory=heap)
+    v6 = ptrtoint ptr<memory> v4 to i256
+    v7 = add v6, v2
+    mstore v7, 9
+    v8 = keccak256 v4, v3
+    ret v8
+}

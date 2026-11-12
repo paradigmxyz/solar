@@ -393,6 +393,35 @@ solar-tv/solar-tv mir solar-tv/examples/mir/slices/{before,after}.mir \
 These are actual `lower-structs` and `lower-slices` outputs. Replace `after` with
 `broken` to replay a wrong-field or wrong-slice-pointer counterexample.
 
+### MIR slots and storage bytes
+
+Mapping and dynamic-array slot operations hash their real bytes and preserve
+scratch writes and memory expansion. Byte keys use unreserved FMP scratch;
+copying may overlap the source, and array offsets wrap at 256 bits. External
+balance/code reads use live fixture accounts, with address truncation, access
+warmth, padded copies and the original code of EIP-7702 designators. The MIR
+contract's own runtime code remains unknown.
+
+Storage byte helpers validate short/long headers, allocate memory objects,
+clear old long tails and mask dirty padding. Invalid headers panic with 0x22;
+allocation and arithmetic failures keep their own panic codes. Full-word memory
+traffic remains observable, including when scratch aliases the input object.
+Storage loops have a 2048-word work limit. Model errors never certify a pair.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/slots/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/slots/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/storage-bytes/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/storage-bytes/world.json
+```
+
+The examples are actual `lower-mapping-slots` and `lower-builtins` outputs;
+`broken.mir` changes a parent slot or stored byte. Constant `datacopy` also
+executes directly for ranges wholly inside known data. Unresolved library
+relocations, deferred contract code and bytes following a data entry need a
+link/layout boundary and remain unsupported. Exported constant bytes are
+limited to 64 KiB across the selected call graph.
+
 ### Direct MIR messages
 
 `call`, `callcode`, `delegatecall`, `staticcall`, `create` and `create2` execute

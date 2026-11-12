@@ -1,4 +1,4 @@
-import SolarTV.MIR.State.Allocation
+import SolarTV.MIR.State.StorageBytes
 import SolarTV.MIR.State.Aggregates
 import SolarTV.Keccak
 
@@ -68,6 +68,20 @@ def storageOperation (cfg : Config) (frame : Frame) (transient write : Bool) (ar
 
 def contextOperation (cfg : Config) (frame : Frame) (opcode : Nat) (args : List Word) : Step :=
   match opcode,args with
+  | 0x31,[argument] | 0x3b,[argument] | 0x3f,[argument] =>
+    let target := argument.setWidth 160
+    if opcode != 0x31 && target == cfg.environment.address then
+      .error "MIR root runtime code is unknown" else
+    let result := if opcode = 0x31 then (account frame.world target).balance
+      else if opcode = 0x3b then BitVec.ofNat 256 (account frame.world target).code.length
+      else if frame.world.accounts.any (fun a => a.address == target) then Keccak.hash (account frame.world target).code else 0
+    value {frame with world := warmAddress frame.world target} result
+  | 0x3c,[argument,destination,offset,count] => do
+    let target := argument.setWidth 160
+    if target == cfg.environment.address then .error "MIR root runtime code is unknown" else
+    let memory ← expand frame.memory destination.toNat count.toNat
+    let bytes := readBytes (account frame.world target).code offset.toNat count.toNat
+    effect {frame with memory := writeBytes memory destination.toNat bytes,world := warmAddress frame.world target}
   | 0x30,[] => value frame (cfg.environment.address.setWidth 256)
   | 0x32,[] => value frame (cfg.environment.origin.setWidth 256)
   | 0x33,[] => value frame (cfg.environment.caller.setWidth 256)
@@ -91,6 +105,26 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .freePointer,[] => freePointer frame
   | .allocate zeroed checked,[size] => allocate frame size zeroed checked
   | .insertValue ..,_ | .extractValue ..,_ | .makeSlice ..,_ => .error "aggregate operation needs typed operands"
+  | .storageBytes .validate,[header] =>
+    match bytesHeader header with | .ok _ => effect frame | .error data => return .reverted data
+  | .storageBytes .load,[slot] => loadStorageBytes cfg frame slot
+  | .storageBytes .store,[slot,object] => storeStorageBytes cfg frame slot object none
+  | .storageBytes (.literal bytes),[slot] => storeStorageBytes cfg frame slot 0 (some bytes)
+  | .storageBytes .clear,[slot,first,last] => clearStorageWords cfg frame slot first last
+  | .dataCopy bytes offset,[destination,count] =>
+    if offset + count.toNat > bytes.length then .error "datacopy past its data" else
+    let memory ← expand frame.memory destination.toNat count.toNat
+    effect {frame with memory := writeBytes memory destination.toNat (readBytes bytes offset count.toNat)}
+  | .slot .mapping,[key,slot] =>
+    let (word,next) ← fixedSlot frame [key,slot]
+    value next word
+  | .slot .arrayData,[slot] =>
+    let (word,next) ← fixedSlot frame [slot]
+    value next word
+  | .slot (.arrayElement stride),[slot,index] =>
+    let (word,next) ← fixedSlot frame [slot]
+    value next (word + index * BitVec.ofNat 256 stride)
+  | .slot .bytesKey,_ => .error "bytes mapping needs typed operands"
   | .external _,_ => .error "external instruction requires MIR machine context"
   | .call _,_ => .error "internal call requires MIR machine context"
   | .pointerAdd,[pointer,offset] => value frame (pointer + offset)
@@ -146,6 +180,11 @@ def instruction (cfg : Config) (frame : Frame) (inst : Instruction) : Step := do
     if !(inst.ty.same (.slice location)) then .error "MIR slice location mismatch" else
       assignValue frame inst.result inst.ty (.aggregate [
         .scalar (Scalar.ofWord 256 pointer),.scalar (Scalar.ofWord 256 length)])
+  | .slot .bytesKey,[key,slot] =>
+    let key ← readValue frame key
+    let slot ← read frame slot
+    let (word,next) ← bytesSlot cfg frame key slot
+    assign next inst.result inst.ty (some word)
   | .select,[condition,yes,no] =>
     let condition ← read frame condition
     let yes ← readValue frame yes
