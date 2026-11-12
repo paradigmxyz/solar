@@ -19,6 +19,7 @@ function free(uint256 x) pure returns (uint256 r) {
 
 contract Hosts {
     uint256 internal word;
+    uint256[] internal arr;
 
     modifier guard() {
         assembly {
@@ -53,6 +54,24 @@ contract Hosts {
             function one() -> o { o := OTHER }
             function two() -> t { t := add(one(), word.slot) }
             r := add(r, two())
+        }
+    }
+
+    // Calls before the definitions: in the block itself, from a nested block, and between
+    // functions of one block.
+    function forward(uint256 p) external view returns (uint256 out) {
+        assembly {
+            out := g(p)
+            {
+                let y := h(out)
+                out := y
+                function h(a) -> b { b := g(add(a, LIMIT)) }
+            }
+            function g(a) -> b {
+                b := add(a, sload(arr.slot))
+                b := k(b)
+            }
+            function k(a) -> b { b := mul(a, LIMIT) }
         }
     }
 }

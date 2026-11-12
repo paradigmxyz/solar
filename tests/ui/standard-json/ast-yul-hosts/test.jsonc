@@ -78,3 +78,16 @@
     }
   }
 }
+// The block of `forward` calls its Yul functions before they are defined: from the block, from a
+// nested block, and from one function to a later one. Each reference takes the declaration of
+// its own function.
+// CHECK: "name": "forward"
+// CHECK: "nodeType": "InlineAssembly"
+// CHECK: "name": "h"
+// CHECK: "name": "g"
+// CHECK: "name": "k"
+// CHECK: "externalReferences": [
+// CHECK: "declaration": [[LIMIT]]
+// CHECK: "declaration": [[LIMIT]]
+// CHECK: "declaration": {{[0-9]+}}
+// CHECK: "suffix": "slot"
