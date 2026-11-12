@@ -120,6 +120,16 @@ class OperationTests(unittest.TestCase):
         self.assertEqual(len(catalog["evmir"]), 154)
         self.assertEqual(len(catalog["evmir"][0]["forks"]), 15)
 
+    def test_gas_sampling_price_matches_every_fork(self):
+        catalog = json.loads(subprocess.check_output([REPLAY, "--catalog"], text=True))
+        gas = next(op for op in catalog["evmir"] if op["name"] == "gas")
+        self.assertEqual(len(gas["forks"]), 15)
+        for fork, price in gas["forks"].items():
+            with self.subTest(fork=fork):
+                self.assertEqual(
+                    price, {"available": True, "base_gas": 2, "dynamic_gas": 0}
+                )
+
     def test_all_evm_word_operations(self):
         before, after, expected = [], [], []
         for op, args, result in scalar_cases():
@@ -358,8 +368,24 @@ class OperationTests(unittest.TestCase):
             "frame_load",
             "frame_store",
             "address_call",
+            "validate_abi",
+            "abi_encode_packed",
+            "heap_floor",
+            "abi_encode",
+            "abi_decode",
+            "internal_frame_addr",
+            "constructor_args_base",
+            "constructor_args_end",
+            "datasize",
+            "codesize",
+            "codecopy",
+            "storeimmutable",
+            "loadimmutable",
+            "library_address",
+            "gas",
         ):
             self.assertEqual(inventory["mir"][name], "partial_family")
+        self.assertNotIn("missing", inventory["mir"].values())
         active = {
             str(address)
             for addresses in catalog["precompiles"].values()

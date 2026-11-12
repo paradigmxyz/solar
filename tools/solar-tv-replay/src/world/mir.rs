@@ -7,14 +7,16 @@ use serde_json::json;
 use solar_config::EvmVersion;
 use solar_evmir::op;
 use solar_mir_interpreter::{
-    ExternalMessage, Host, MessageOutput, Options, PendingChanges,
+    ExternalMessage, Host, MessageOutput, Options, PendingChanges, PlacementRead,
     replay::{StateInput, StateOutcome, run_state},
 };
 use std::{collections::BTreeMap, str::FromStr};
 
+mod layout;
 mod messages;
 
 struct Context<'a> {
+    layout: layout::Layout,
     native: messages::Native<'a>,
     reads: BTreeMap<u8, U256>,
     history: BTreeMap<U256, U256>,
@@ -23,6 +25,12 @@ struct Context<'a> {
 }
 
 impl Host for Context<'_> {
+    fn placement(&mut self, query: PlacementRead<'_>) -> Option<U256> {
+        self.layout.read(query)
+    }
+    fn code_image(&mut self) -> Option<Vec<u8>> {
+        self.layout.code.clone()
+    }
     fn code(&mut self, address: U256) -> Option<Vec<u8>> {
         self.native.code(address)
     }
@@ -63,6 +71,7 @@ impl Host for Context<'_> {
                     .copied()
                     .unwrap_or_default(),
             ),
+            (op::CODESIZE, []) => self.layout.code.as_ref().map(|c| U256::from(c.len())),
             (_, []) => self.reads.get(&opcode).copied(),
             _ => None,
         }
@@ -135,6 +144,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
     let args = super::super::words(request, "arg")?;
     let execute = |text: &str| -> Result<String, String> {
         let mut host = Context {
+            layout: layout::Layout::parse(input)?,
             native: messages::Native::new(request, input)?,
             reads: reads.clone(),
             history: history.clone(),

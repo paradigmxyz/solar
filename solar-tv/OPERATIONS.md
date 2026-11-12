@@ -8,10 +8,10 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Status | MIR families | EVM opcode entries |
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
-| Some forms checked | 18 | 6 |
+| Some forms checked | 33 | 6 |
 | Explicit-world entry execution | 0 | 45 |
 | Direct typed MIR state execution | 42 | 0 |
-| Missing | 15 | 0 |
+| Missing | 0 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
 variants account for many EVM entries. Checking a word operation does not cover
@@ -122,8 +122,8 @@ tests also cover full packed words and mixed nested byte-string arrays. These
 larger replay cases are not counted as Lean proofs.
 External scratch frame slots use their convention-defined base of 128 and alias
 ordinary memory, including across internal calls. Slices store pointer then length;
-the multi-return word is the buffer-pointer slot at 32. Internal frame placement
-and non-word multi-return slots remain unsupported.
+the multi-return word is the buffer-pointer slot at 32. An explicitly placed, selected activation can use internal frame addresses; arbitrary
+internal-call placements and non-word multi-return slots remain unsupported.
 Typed address calls support memory objects and slices with explicit gas for CALL,
 STATICCALL and DELEGATECALL. Object headers are read before the message; slices
 need no header or allocation. Returndata objects copy exactly the live buffer,
@@ -132,10 +132,24 @@ requires caller pricing and is unsupported.
 External balance/code reads preserve address truncation and access warmth;
 code introspection sees original delegation designators, not their targets.
 Constant `datacopy` accepts only ranges inside known, relocation-free data, with
-a 64 KiB total exported-data budget. Neighboring physical data, `datasize` of
-unlinked contracts and the MIR root's unknown runtime code are not guessed.
-Indirect calls, physical multi-return buffers, root runtime code
-reentry/introspection and layout-dependent operations remain unsupported.
+a 64 KiB total exported-data budget. Neighboring physical data and unlinked contracts are not guessed.
+Explicit MIR window contexts supply code images, linked extents, function heap/frame
+placements, constructor ranges, library addresses and word immutable relocations.
+Constructor immutable slots alias ordinary memory; runtime relocations are read-only.
+These are declared boundary inputs, not a proof that the backend chose them. A
+missing binding, conflicting relocation or changed declaration table is unsupported.
+GAS admits only a single-opcode sampling window with an explicit pre-op budget and
+its own fork-specific charge; general MIR caller gas remains unsupported.
+Static scalar/function ABI tuples preserve allocation, header and selector store
+order in object, slice and scratch modes. Empty or single-scalar decoders preserve
+signed length checks, canonicality, enum rejection and function-word normalization.
+Validation markers require decoder provenance or canonical raw function-word
+evidence; unproven evidence is unsupported, never turned into a new guard.
+Packed encodings admit literals and scalar words, retaining trailing zero stores;
+hashes admit a merged word or whole-word parts. Real conversion-pass pairs are
+kernel-checked and independently replayed from the original MIR on both sides.
+Recursive ABI/reference layouts, indirect calls, physical multi-return buffers,
+root runtime reentry and general backend layout correspondence remain unsupported.
 
 The world fixture is an explicit assumption. Declared symbolic slots, typed MIR
 arguments and EVM entry stack words are universally quantified. Only EVM entries
@@ -153,7 +167,7 @@ for admitted forks, limits, observables and gas policies.
    execution of already-delegated account state.
 3. Generalize calldata/returndata/program-data access and physical code layout
    from complete-entry execution to arbitrary local windows.
-4. Complete MIR frames, backend allocation layouts, storage layouts and ABI helpers
+4. Generalize MIR frames, backend allocation layouts, storage layouts and ABI helpers
    against independent semantics, rather than assuming their lowering is correct.
 5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
    Amsterdam's two-resource state gas. Expand differential boundary coverage.

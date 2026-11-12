@@ -337,8 +337,10 @@ updates the FMP, then performs any requested zero initialization. Reservation
 alone does not expand or clear memory. Checked overflow or an end above uint64
 reverts with Panic(0x41); violating an infallible allocation's validity contract
 is unsupported. No initial FMP, alignment, heap floor or physical frame is
-invented. Deferred allocation, indirect calls, physical multi-return buffers,
-ABI/layout helpers and backend memory records remain unsupported.
+invented. Deferred allocation, indirect calls and physical multi-return buffers
+remain unsupported. Static scalar ABI helpers and explicit placement windows
+are supported below.
+Recursive ABI layouts and backend memory records remain unsupported.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/internal-calls/{before,after}.mir \
@@ -353,7 +355,8 @@ These are real `inline` and `lower-alloc` outputs. The allocation pass creates a
 shared checked-allocation helper, which is interpreted as ordinary MIR. The
 broken pair aliases two allocated objects; the checker reports the changed
 return value and independently replays both original modules. Memory read/write
-normalization uses kernel-proved range and byte-order laws, not alias assumptions.
+normalization uses kernel-proved range and byte-order laws. Closed initial reads
+reduce by definitional equality; symbolic bytes stay abstract.
 
 ### Typed MIR products and slices
 
@@ -438,6 +441,69 @@ solar-tv/solar-tv mir solar-tv/examples/mir/frames/{before,broken}.mir \
 
 These pairs come from `lower-builtins` and `lower-frame-slots`. Their broken
 versions change an element encoding or the returned frame value.
+
+### MIR ABI and placement windows
+
+ABI encoding admits static word/function tuples in object, slice and scratch modes,
+with an optional selector. Decoding admits empty or single-scalar tuples from memory
+objects and memory/calldata slices. Checks preserve signed length rejection, dirty
+word rejection and function-word normalization. Packed encodings accept literals
+and scalars; packed hashes require at most one merged word or whole-word parts.
+Reference and multi-result decode layouts remain unsupported. `validate_abi` needs
+decoder provenance or canonical raw-word evidence; absent evidence is inconclusive,
+not a fabricated runtime guard.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/abi-scalar/before.mir \
+  solar-tv/examples/mir/abi-scalar/after.mir --function f \
+  --world solar-tv/examples/mir/abi-scalar/world.json
+```
+
+Layout-dependent operations take explicit window inputs in `mir_layout`:
+
+```json
+{
+  "version": 1,
+  "memory": {"size": 192},
+  "mir_layout": {
+    "code": "0x01020304",
+    "functions": {"f": {"frame_base": 256}},
+    "constructor": {"offset": 128, "size": 64},
+    "data": {"0": {"offset": 1, "size": 3}},
+    "immutable_slots": {"0": 256},
+    "libraries": {"0": "17"}
+  }
+}
+```
+
+`heap_floor` and `internal_frame_addr` read the selected function's placements;
+heap floors must not exceed the supplied initial FMP. Internal frame addresses
+are restricted to one selected activation. Constructor ranges reference existing
+initial memory. `datasize` reads a deferred entry's linked extent, retaining
+addends and alignment; the MIR verifier rejects this operation on literal data.
+`codesize`/`codecopy` use the supplied image and zero-pad out-of-range reads. Immutable words alias staging slots, or use `immutable_values` for read-only
+runtime relocations. Library relocations retain 160-bit addresses. Numeric keys
+are module-local IDs, and declaration tables must agree across the pair.
+
+Missing inputs stay unsupported. A proof is conditional on these placements and
+code bytes; it does not verify backend layout, root reentry or runtime-image
+correspondence. Frame/link inputs are recorded in the fixture hash and replayed
+independently. Tables have at most 128 entries; code and memory retain the 64 KiB
+limit.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/layout/before.mir \
+  solar-tv/examples/mir/layout/after.mir --function f \
+  --world solar-tv/examples/mir/layout/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/gas-sample/before.mir \
+  solar-tv/examples/mir/gas-sample/after.mir --function f \
+  --world solar-tv/examples/mir/gas-sample/world.json
+```
+
+The GAS example is deliberately a single-opcode window. `gas_before` is the budget
+immediately before GAS, which pays its own opcode charge before sampling. Below
+that charge it halts exceptionally. This does not price arbitrary MIR bodies or
+assume physical call/return costs are zero.
 
 ### Direct MIR messages
 

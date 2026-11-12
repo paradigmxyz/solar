@@ -81,6 +81,7 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
             "warm_addresses",
             "memory",
             "creation_gas",
+            "mir_layout",
         },
         "world",
     )
@@ -217,6 +218,12 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
         "memory": {"data": memory_data, "size": memory_size},
         "creation_gas": creation_gas,
     }
+    if "mir_layout" in value:
+        if kind != "mir":
+            raise Unsupported("mir_layout requires direct MIR execution")
+        from .mir_layout import read as read_layout
+
+        result["mir_layout"] = read_layout(value["mir_layout"], result["memory"])
     digest = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
     return {
         **result,
@@ -395,6 +402,7 @@ def replay_input(fixture: dict) -> dict:
         "warm_addresses",
         "memory",
         "creation_gas",
+        "mir_layout",
     }
     return {key: value for key, value in fixture.items() if key in keys}
 
