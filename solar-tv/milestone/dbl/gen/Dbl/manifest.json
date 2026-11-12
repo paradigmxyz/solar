@@ -1,0 +1,97 @@
+{
+  "arguments": [
+    "solar-tv/milestone/dbl/dbl.sol",
+    "-Ogas",
+    "--evm-version",
+    "osaka",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=solar-tv/milestone/dbl/gen"
+  ],
+  "bytecode": "34602c575f3560e01c8063eee9720603602c5736602411602c57600435808060ff1c603057015f5260205ff35b5f5ffd5b6011602052634e487b715f526024601cfd",
+  "bytecode_sha256": "0519e97cbe7b20a1e979c6658cb9b6ad5404bb946182519ce0bd59e6b3999e3c",
+  "compiler": "0.8.38+commit.a8179dfc.solar.0.3.0-dev",
+  "contract": "Dbl",
+  "evm_version": "osaka",
+  "optimization": "Gas",
+  "options": "CompileOpts { input: [\"solar-tv/milestone/dbl/dbl.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"emit-lean-stages=solar-tv/milestone/dbl/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: None, prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"solar-tv/milestone/dbl/gen\"), forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "solar-tv/milestone/dbl/dbl.sol",
+      "sha256": "707b72965f9706c3655eb1ca8a8433063a4e9183a304d9fe8b84e31c215ef5d9"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "6af7b96286266c92790ea69a48044e46f8b7c0738283a50187d9b50e5bdafaed"
+    },
+    {
+      "definition": "mir1",
+      "file": "Mir1.lean",
+      "index": 1,
+      "kind": "mir",
+      "pass": "spell-width-tests",
+      "sha256": "9c199ba12db967c0ed50980d2f6b3150a82205f5465025389ed02c9ea5f29980"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "ae10bb8381e49e4f146ee144ff1bf2542aae5d6966c9b7ea9aa94c0fc367bf55"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "71a3551564a93c69c3dbf31a3c81beda2da7ba95177d24a0ed2e46a5418aab2c"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "share-reverts",
+      "sha256": "befc132457bbc2700bddb9b7ba08657f9b5343e721324cd379bbefad0df0dca9"
+    },
+    {
+      "definition": "evm3",
+      "file": "Evm3.lean",
+      "index": 3,
+      "kind": "evm",
+      "pass": "terminal-dedup",
+      "sha256": "956055da8f57123513f3d5d8c01b0b722a7f117c3c425454fb9e0811c76f4ae3"
+    },
+    {
+      "definition": "evm4",
+      "file": "Evm4.lean",
+      "index": 4,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "1d8210cacf79d789e3493e1f36b582c7d9ee38c3fef5a830f7c2d2eb369df7d1"
+    },
+    {
+      "definition": "evm5",
+      "file": "Evm5.lean",
+      "index": 5,
+      "kind": "evm",
+      "pass": "stack-reschedule",
+      "sha256": "fb1f518ab013cddb4b643611d4c8242cac503707e3f1021fe0c6d5078480fbf0"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "70d755014edb029e097dbffb0b433a8bee44c0504f03c389b85a32745dcae248"
+    }
+  ]
+}

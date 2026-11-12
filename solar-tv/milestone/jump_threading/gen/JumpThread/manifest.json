@@ -1,0 +1,107 @@
+{
+  "arguments": [
+    "solar-tv/milestone/jump_threading/jump_threading.sol",
+    "-Ogas",
+    "--evm-version",
+    "osaka",
+    "-Zcheck-analyses=false",
+    "-Zmir-pipeline=heap-floor,lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-structs,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-immutables,lower-mcopy,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,jump-threading",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=solar-tv/milestone/jump_threading/gen"
+  ],
+  "bytecode": "346031575f3560e01c806313d1aa2e0360315760443610603157602435600960043511602f5760048110602f575f555b005b5f5ffd",
+  "bytecode_sha256": "e0e65011fcd208293c74240dc15ed0bdbe4519b4341bceca20ccec95f06a3975",
+  "compiler": "0.8.38+commit.a45cce7c.solar.0.3.0-dev",
+  "contract": "JumpThread",
+  "evm_version": "osaka",
+  "optimization": "Gas",
+  "options": "CompileOpts { input: [\"solar-tv/milestone/jump_threading/jump_threading.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"check-analyses=false\", \"mir-pipeline=heap-floor,lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-structs,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-immutables,lower-mcopy,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,jump-threading\", \"emit-lean-stages=solar-tv/milestone/jump_threading/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: Some(\"heap-floor,lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-structs,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-immutables,lower-mcopy,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,jump-threading\"), evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: Some(false), prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"solar-tv/milestone/jump_threading/gen\"), forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "solar-tv/milestone/jump_threading/jump_threading.sol",
+      "sha256": "bc2f4989bc10040d1ae5346c7094d01b3710823a2aca1a53e78c2f562eab8e79"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "d30c3280359d2ca18c9e4821423d67cb246a5709d19428432ac5b2283df43956"
+    },
+    {
+      "definition": "mir1",
+      "file": "Mir1.lean",
+      "index": 1,
+      "kind": "mir",
+      "pass": "jump-threading",
+      "sha256": "5c5e35eb5306a6a0117e459c31f440e988a8bbdf7c06e785bebee09597e55ee2"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "0dffebf2898eeb33bafad104d60f497ed82e4837044c2902575d9f06396ec84c"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "peephole-early",
+      "sha256": "d95a5bda2985d5b13438a0129c7054775c80ff5b0ccf984fb38c31cd76d4ceea"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "7c25c378ff3c3c14ac8bd792a3d8b2239a28b789d2cf5d2570d69c9ab306e040"
+    },
+    {
+      "definition": "evm3",
+      "file": "Evm3.lean",
+      "index": 3,
+      "kind": "evm",
+      "pass": "share-reverts",
+      "sha256": "e49c3db1126322d90e5b6822bc796832361a45588f88edb7662f477dc13a0312"
+    },
+    {
+      "definition": "evm4",
+      "file": "Evm4.lean",
+      "index": 4,
+      "kind": "evm",
+      "pass": "terminal-dedup",
+      "sha256": "16150dfd7938dcd237db0312347d8818dece6033d2a761043dc749312d795d64"
+    },
+    {
+      "definition": "evm5",
+      "file": "Evm5.lean",
+      "index": 5,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "dc0a1bb08383b27d8617f01d9bc628ea5035f3e5481fbde3aae12937bb267a24"
+    },
+    {
+      "definition": "evm6",
+      "file": "Evm6.lean",
+      "index": 6,
+      "kind": "evm",
+      "pass": "block-layout",
+      "sha256": "fdbc7d6c84e7202fefec284bfc32487f684f6494de9cd5962d384b8da472aab6"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "04bf7bb1f5e5537a90f6c1207333c80ce8bc36ef556d433614e4893216130138"
+    }
+  ]
+}

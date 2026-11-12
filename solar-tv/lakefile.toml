@@ -40,6 +40,60 @@ roots = ["w4.Proofs"]
 globs = ["w4.+"]
 moreLeanArgs = ["-M", "3000"]
 
+# masks: the stages of milestone/masks/masks.sol's Masks and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "masks"
+srcDir = "milestone"
+roots = ["masks.Proofs"]
+globs = ["masks.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# dbl: the stages of milestone/dbl/dbl.sol's Dbl and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "dbl"
+srcDir = "milestone"
+roots = ["dbl.Proofs"]
+globs = ["dbl.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# reorder: the stages of milestone/reorder/reorder.sol's Reorder and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "reorder"
+srcDir = "milestone"
+roots = ["reorder.Proofs"]
+globs = ["reorder.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# rewrites: the stages of milestone/rewrites/rewrites.sol's Rewrites and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "rewrites"
+srcDir = "milestone"
+roots = ["rewrites.Proofs"]
+globs = ["rewrites.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# folds: the stages of milestone/folds/folds.sol's Folds and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "folds"
+srcDir = "milestone"
+roots = ["folds.Proofs"]
+globs = ["folds.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# checks: the stages of milestone/checks/checks.sol's Checks and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "checks"
+srcDir = "milestone"
+roots = ["checks.Proofs"]
+globs = ["checks.+"]
+moreLeanArgs = ["-M", "3000"]
+
 # bank: the stages of milestone/bank/bank.sol's Bank and their kernel proofs, which
 # milestone/certify.sh writes.
 [[lean_lib]]
@@ -47,6 +101,15 @@ name = "bank"
 srcDir = "milestone"
 roots = ["bank.Proofs"]
 globs = ["bank.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# ifconv: the stages of milestone/ifconv/ifconv.sol's IfConv and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "ifconv"
+srcDir = "milestone"
+roots = ["ifconv.Proofs"]
+globs = ["ifconv.+"]
 moreLeanArgs = ["-M", "3000"]
 
 # c4: the stages of milestone/c4/c4.sol's Main and their kernel proofs, which
@@ -67,6 +130,42 @@ roots = ["mulx.Proofs"]
 globs = ["mulx.+"]
 moreLeanArgs = ["-M", "3000"]
 
+# pre: the stages of milestone/pre/pre.sol's Pre and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "pre"
+srcDir = "milestone"
+roots = ["pre.Proofs"]
+globs = ["pre.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# load_pre: the stages of milestone/load_pre/load_pre.sol's LoadPre and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "load_pre"
+srcDir = "milestone"
+roots = ["load_pre.Proofs"]
+globs = ["load_pre.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# jump_threading: the stages of milestone/jump_threading/jump_threading.sol's JumpThread and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "jump_threading"
+srcDir = "milestone"
+roots = ["jump_threading.Proofs"]
+globs = ["jump_threading.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# licm: the stages of milestone/licm/licm.sol's Licm and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "licm"
+srcDir = "milestone"
+roots = ["licm.Proofs"]
+globs = ["licm.+"]
+moreLeanArgs = ["-M", "3000"]
+
 # events: the stages of milestone/events/events.sol's Events and their kernel proofs, which
 # milestone/certify.sh writes.
 [[lean_lib]]
@@ -83,4 +182,13 @@ name = "reader"
 srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# pair: the stages of milestone/pair/pair.sol's Pair and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "pair"
+srcDir = "milestone"
+roots = ["pair.Proofs"]
+globs = ["pair.+"]
 moreLeanArgs = ["-M", "3000"]

@@ -1,0 +1,107 @@
+{
+  "arguments": [
+    "solar-tv/milestone/folds/folds.sol",
+    "-Ogas",
+    "--evm-version",
+    "osaka",
+    "-Zcheck-analyses=false",
+    "-Zmir-pipeline=heap-floor,lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-structs,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-immutables,lower-mcopy,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,const-fold,branch-simplify,dce,cfg-simplify",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=solar-tv/milestone/folds/gen"
+  ],
+  "bytecode": "34602e575f3560e01c80631cd65ae403602e5760443610602e5760043560243581810391116032575f5260205ff35b5f5ffd5b6011602052634e487b715f526024601cfd",
+  "bytecode_sha256": "13c435e3ba88352f4383d1a7308cf7ecc71fe4afd73bd9606910dfbbbe312b9f",
+  "compiler": "0.8.38+commit.a8179dfc.solar.0.3.0-dev",
+  "contract": "Folds",
+  "evm_version": "osaka",
+  "optimization": "Gas",
+  "options": "CompileOpts { input: [\"solar-tv/milestone/folds/folds.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"check-analyses=false\", \"mir-pipeline=heap-floor,lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-structs,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-immutables,lower-mcopy,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,const-fold,branch-simplify,dce,cfg-simplify\", \"emit-lean-stages=solar-tv/milestone/folds/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: Some(\"heap-floor,lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-structs,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-immutables,lower-mcopy,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,const-fold,branch-simplify,dce,cfg-simplify\"), evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: Some(false), prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"solar-tv/milestone/folds/gen\"), forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "solar-tv/milestone/folds/folds.sol",
+      "sha256": "cac1cc8fda7059dc3c8031dbf3f1394eba49e49686e99bbc57dab77df3c277a6"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "a52ecbb535e9b63882cbb16fd366701bc83e57036d9a0008bb0b8938a5d58799"
+    },
+    {
+      "definition": "mir1",
+      "file": "Mir1.lean",
+      "index": 1,
+      "kind": "mir",
+      "pass": "const-fold",
+      "sha256": "6e60cfeb2c3ef4d90b2cda5ebf3d58271e558a0a638780546d84b4c76ad135ba"
+    },
+    {
+      "definition": "mir2",
+      "file": "Mir2.lean",
+      "index": 2,
+      "kind": "mir",
+      "pass": "branch-simplify",
+      "sha256": "9cd489c285eabcc44c96513a63f7608ec1eb99c7f06129a35b50ea3a751a8597"
+    },
+    {
+      "definition": "mir3",
+      "file": "Mir3.lean",
+      "index": 3,
+      "kind": "mir",
+      "pass": "cfg-simplify",
+      "sha256": "b6cb1fd64ca01cd6932e49ad3269da23048f227c8475c7c63535003f572b4d68"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "7c90f74786a1461f5089060eff97f42a4812c66be060a45a8f2282bb3b0db9df"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "6d76c69833a1129c8a76a0b49579cc9a2f2aecf0a7061cb5fe7a9b6cab267263"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "share-reverts",
+      "sha256": "ea22a1175398a5bbae13f4da0ca3071776b29dcac3ada1544bf6679d9e01a980"
+    },
+    {
+      "definition": "evm3",
+      "file": "Evm3.lean",
+      "index": 3,
+      "kind": "evm",
+      "pass": "terminal-dedup",
+      "sha256": "5bd22b78d93fd915a0ff3ca44f8d50adbd08673b9762bbb249089d0a06db1a33"
+    },
+    {
+      "definition": "evm4",
+      "file": "Evm4.lean",
+      "index": 4,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "ccdf0b0754d4b1fbd39b4eaa42815014963ada44242420eb56a85b06b85a1572"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "81225a205b26119c903dd5f69924151dd54acb1989e2193b3bf5a7cc3fe3e5bb"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+-Ogas
+--evm-version
+osaka
+-Zmir-pipeline=heap-floor,lower-checks,lower-builtins,lower-arithmetic,lower-abi,lower-abi-encode,lower-dispatch,lower-structs,lower-frame-slots,lower-mapping-slots,lower-memory-objects,lower-slices,lower-immutables,lower-mcopy,lower-alloc,lower-memory-zero,lower-integers,lower-evm-shaped,if-convert
