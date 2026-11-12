@@ -5,7 +5,7 @@ trunc: low_bits(operand0, bits)
 sext: sign_extend(operand0, from_bits, to_bits)
 ptrtoint: low_bits(operand0, bits)
 inttoptr: word(operand0)
-ptradd: -
+ptradd: pointer_add(ptr, offset)
 checked_binary: checked(op, arithmetic, lhs, rhs)
 validate_storage_bytes: -
 load_storage_bytes: -

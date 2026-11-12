@@ -21,6 +21,8 @@ import SolarTV.EVMIR.State.Observe
 import SolarTV.EVMIR.State.Safety
 import SolarTV.EVMIR.Precompiles.Observe
 import SolarTV.EVMIR.Precompiles.Safety
+import SolarTV.MIR.State.Observe
+import SolarTV.MIR.State.Safety
 
 -- Keep the transitive axiom sets visible on the pinned toolchain. An admitted
 -- proof introduces sorryAx and fails the build even if it lives in an import.
@@ -87,3 +89,15 @@ import SolarTV.EVMIR.Precompiles.Safety
 /-- info: 'SolarTV.Calls.reverted_restores_journal' does not depend on any axioms -/
 #guard_msgs in
 #print axioms SolarTV.Calls.reverted_restores_journal
+
+/-- info: 'SolarTV.MIR.State.simultaneous_phis' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.simultaneous_phis
+
+/-- info: 'SolarTV.MIR.State.work_limit_is_not_equivalence' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.work_limit_is_not_equivalence
+
+/-- info: 'SolarTV.Execution.slotsWrite_overwrite' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in
+#print axioms SolarTV.Execution.slotsWrite_overwrite

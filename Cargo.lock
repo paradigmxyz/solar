@@ -4706,6 +4706,7 @@ dependencies = [
  "solar-config",
  "solar-evmir",
  "solar-evmir-interpreter",
+ "solar-interface",
  "solar-mir",
  "solar-mir-interpreter",
  "strum 0.28.0",

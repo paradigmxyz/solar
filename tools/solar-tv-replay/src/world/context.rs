@@ -15,14 +15,14 @@ use serde::Deserialize;
 #[serde(deny_unknown_fields)]
 pub(super) struct Block {
     pub(super) number: String,
-    coinbase: String,
-    timestamp: String,
-    gas_limit: String,
-    difficulty: String,
-    prevrandao: String,
-    base_fee: String,
-    blob_base_fee: String,
-    slot: String,
+    pub(super) coinbase: String,
+    pub(super) timestamp: String,
+    pub(super) gas_limit: String,
+    pub(super) difficulty: String,
+    pub(super) prevrandao: String,
+    pub(super) base_fee: String,
+    pub(super) blob_base_fee: String,
+    pub(super) slot: String,
     pub(super) hashes: Vec<(String, String)>,
 }
 

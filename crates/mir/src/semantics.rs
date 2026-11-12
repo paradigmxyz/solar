@@ -67,6 +67,9 @@ pub enum Semantics<'a> {
     DataCopy(DataRef, ValueId, ValueId),
     /// The initial heap floor of the transaction.
     HeapFloor,
+    /// Wrapping memory-pointer offset, without bounds or provenance guarantees.
+    /// This stays distinct from an integer opcode and does not imply integer folding.
+    PointerAdd(ValueId, ValueId),
 }
 
 /// Constructors for the `#[semantics(...)]` declarations of the operation schema, which bind an
@@ -145,6 +148,11 @@ pub(super) mod declare {
             LOGS[topics.len()],
             [*offset, *size].into_iter().chain(topics.as_slice().iter().copied()).collect(),
         )
+    }
+
+    /// Wrapping pointer arithmetic, without a physical heap-layout assumption.
+    pub(crate) fn pointer_add(ptr: &ValueId, offset: &ValueId) -> Semantics<'static> {
+        Semantics::PointerAdd(*ptr, *offset)
     }
 }
 

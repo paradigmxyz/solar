@@ -13,7 +13,7 @@ from .common import Program, ReplayTimeout
 
 def region(program: Program) -> str:
     if program.world is not None:
-        return f"{program.interface[1].upper()} world entry (fixture {program.world['fixture_sha256'][:12]})"
+        return f"{program.interface[1].upper()} world {f'function @{program.selector}' if program.world.get('direct_mir') else 'entry'} (fixture {program.world['fixture_sha256'][:12]})"
     if program.interface[0] == "evm-window":
         region = f"EVM IR window {program.selector or 'bb0'}, entry stack height {program.interface[1]}"
         if program.gas is not None:
@@ -23,6 +23,32 @@ def region(program: Program) -> str:
 
 
 def difference(before: str, after: str) -> str:
+    if before.startswith("{") and after.startswith("{"):
+        try:
+            a, b = json.loads(before), json.loads(after)
+            for key, description in (
+                ("outcome", "Execution outcome changed"),
+                ("values", "Returned values changed"),
+                ("data", "Returned or reverted byte payload changed"),
+                ("memory", "Live memory contents or active size changed"),
+                ("logs", "Emitted logs changed"),
+            ):
+                if a[key] != b[key]:
+                    return description
+            left, right = (
+                {entry[0]: entry for entry in value["accounts"]} for value in (a, b)
+            )
+            for address in sorted(left.keys() | right.keys(), key=int):
+                if address not in left or address not in right:
+                    return f"Account existence changed at {address}"
+                for index, label in ((4, "Storage"), (5, "Transient storage")):
+                    old, new = dict(left[address][index]), dict(right[address][index])
+                    for slot in sorted(old.keys() | new.keys(), key=int):
+                        if old.get(slot, "0") != new.get(slot, "0"):
+                            return f"{label} slot {slot} changed at account 0x{int(address):040x}"
+            return "Account state changed"
+        except ValueError, TypeError, KeyError, IndexError:
+            pass
     if before.startswith('["') and after.startswith('["'):
         try:
             a, b = json.loads(before), json.loads(after)

@@ -23,6 +23,18 @@ UNFOLD = (
 )
 
 
+MIR_UNFOLD = (
+    "before, after, mirWorldConfig, MIR.State.equivalent, MIR.State.observe, "
+    "MIR.State.execute, MIR.State.run, MIR.State.body, MIR.State.enter, "
+    "MIR.State.instruction, MIR.State.operation, MIR.State.storageOperation, "
+    "MIR.State.read, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
+    "MIR.State.finish, MIR.eval, Execution.account, Execution.putAccount, "
+    "Execution.slotsRead, Execution.slotsWrite, Execution.normalizedSlots, "
+    "Execution.ordered, Execution.orderedInsert, Except.bind, Except.map, Except.pure, "
+    "Bind.bind, Pure.pure, Functor.map, List.mapM.loop, List.mapM, List.foldl"
+)
+
+
 def check(
     a: Program,
     b: Program,
@@ -40,6 +52,7 @@ def check(
     if build.returncode:
         raise Unsupported(build.stderr or build.stdout)
     policy = "effects" if a.gas is None else a.gas
+    direct_mir = a.world.get("direct_mir", False)
     declarations = (
         PRELUDE
         + "set_option maxRecDepth 16384\nset_option maxHeartbeats 2000000\n"
@@ -48,18 +61,32 @@ def check(
         + definition("after", b)
     )
     arguments = " ".join(a.inputs)
-    binders = " ".join(f"({name} : BitVec 256)" for name in a.inputs)
+    widths = a.input_widths or (256,) * len(a.inputs)
+    binders = " ".join(
+        f"({name} : BitVec {width})"
+        for name, width in zip(a.inputs, widths, strict=True)
+    )
 
     def relation(left, right):
+        if direct_mir:
+            return f"MIR.State.equivalent ({left}) ({right})"
         return f"EVM.State.equivalent tvWorldConfig tvWorldConfig .{policy} ({left}) ({right})"
+
+    def describe(term):
+        return (
+            f"MIR.State.describe ({term})"
+            if direct_mir
+            else f"EVM.State.describe tvWorldConfig .{policy} ({term})"
+        )
 
     statement = f"theorem pair_correct {binders} : {relation('before ' + arguments, 'after ' + arguments)} := by\n"
     # Closed executions use kernel evaluation directly. Trying definitional
     # equality first duplicates hash evaluation and is much slower for creation.
+    unfold = MIR_UNFOLD if direct_mir else UNFOLD
     proof = (
         (
             "  first\n    | rfl\n    | decide +kernel\n"
-            f"    | (simp [{UNFOLD}] <;> (repeat (first | split | intro _)); all_goals simp_all <;> omega)\n"
+            f"    | (simp [{unfold}] <;> (repeat (first | split | intro _)); all_goals simp_all <;> omega)\n"
         )
         if a.inputs
         else "  decide +kernel\n"
@@ -117,10 +144,15 @@ def check(
         patterns = [[0] * len(a.inputs)]
         if not verified:
             patterns.extend(
-                [[value] * len(a.inputs) for value in (1, 2**255, 2**256 - 1)]
+                [
+                    [value % 2**width for width in widths]
+                    for value in (1, 2**255, 2**256 - 1)
+                ]
             )
         for values in patterns:
-            concrete = " ".join(f"{value}#256" for value in values)
+            concrete = " ".join(
+                f"{value}#{width}" for value, width in zip(values, widths, strict=True)
+            )
             left, right = "before " + concrete, "after " + concrete
             witness = (
                 ""
@@ -129,8 +161,8 @@ def check(
             )
             observations = lean(
                 witness
-                + f"#eval IO.println (EVM.State.describe tvWorldConfig .{policy} ({left}))\n"
-                + f"#eval IO.println (EVM.State.describe tvWorldConfig .{policy} ({right}))\n"
+                + f"#eval IO.println ({describe(left)})\n"
+                + f"#eval IO.println ({describe(right)})\n"
             )
             lines = observations.stdout.strip().splitlines()
             if any(line.startswith("unsupported:") for line in lines):
