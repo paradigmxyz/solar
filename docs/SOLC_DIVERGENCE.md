@@ -1085,9 +1085,13 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Difference: reading a default element of a memory struct whose static field
   needs `2**32` words (`2**37` bytes) or more reverts with `Panic(0x41)` or
   runs out of gas in `solar`. `solc` via-IR returns zero, with or without the
-  optimizer, because it truncates the field length to 32 bits and allocates
-  nothing. Fields up to `2**16` words return zero in both, and fields from
-  `2**17` to `2**31` words run out of gas in both.
+  optimizer. Its zero value of a static array calls
+  `allocate_and_zero_memory_array(unsigned(length))`, which casts the length
+  to 32 bits (`libsolidity/codegen/YulUtilFunctions.cpp:4362` in
+  `testdata/solidity`): below `2**32` words both compilers allocate the array,
+  and from `2**32` words up the length wraps, so only `solc` reads zero.
+  Fields up to `2**16` words return zero in both, and fields from `2**17` to
+  `2**31` words run out of gas in both.
 - Rationale: no contract can allocate such a type. Matching `solc` would need
   the zero defaults to be read without backing memory, which adds compiler
   complexity for a size nothing can use.
