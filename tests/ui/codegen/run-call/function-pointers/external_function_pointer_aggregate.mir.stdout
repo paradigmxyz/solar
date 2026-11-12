@@ -56,12 +56,9 @@ fn @constructor() [constructor] {
   bb1:                                            ; preds = bb0
     revert_returndata
   bb2:                                            ; preds = bb0
-    v4 = sload 0 !metadata(storage=slot(0))
-    v5 = and v4, 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
-    v6 = zext i160 v2 to i256
-    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
-    v8 = or v5, v7
-    sstore 0, v8 !metadata(storage=slot(0))
+    v4 = zext i160 v2 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 0, v5 !metadata(storage=slot(0))
     ret
 }
 
@@ -124,7 +121,7 @@ fn @readArguments() -> struct0 [selector=0x372fd38b, view, abi_params=[], abi_re
     v15 = shl v14, 224
     v16 = shr v4, 32
     v17 = gas
-    v18 = alloc 64 !metadata(preserves_fmp)
+    v18 = alloc 64
     mstore v18, 2
     v19 = ptradd v18, 32
     mstore v19, 0x6f6b000000000000000000000000000000000000000000000000000000000000
@@ -385,7 +382,7 @@ fn @calldataPointerRoundtrip() -> i1 [selector=0x1d9b1866, abi_params=[], abi_re
     v5 = shl v4, 224
     v6 = shr v3, 32
     v7 = gas
-    v8 = alloc 64 !metadata(preserves_fmp)
+    v8 = alloc 64
     mstore v8, 10
     v9 = ptradd v8, 32
     mstore v9, 0x74657374537472696e6700000000000000000000000000000000000000000000

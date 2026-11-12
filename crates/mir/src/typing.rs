@@ -167,7 +167,10 @@ pub(super) fn callee_types(
             }
             types
         }
-        Builtin::Sha256 | Builtin::Ripemd160 | Builtin::Erc7201 => smallvec![bytes],
+        Builtin::Sha256 | Builtin::Ripemd160 => {
+            smallvec![args.first().map_or(bytes, |&value| memory_object(func, value))]
+        }
+        Builtin::Erc7201 => smallvec![bytes],
         Builtin::Send | Builtin::Transfer => smallvec![MirType::I160, MirType::I256],
         Builtin::EcRecover => smallvec![MirType::I256; 4],
         Builtin::CheckedAddMod | Builtin::CheckedMulMod => smallvec![MirType::I256; 3],

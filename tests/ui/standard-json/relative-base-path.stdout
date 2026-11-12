@@ -11,8 +11,8 @@
       "component": "general",
       "severity": "error",
       "errorCode": null,
-      "message": "couldn't read lib/Missing.sol: File import callback not supported",
-      "formattedMessage": "error: couldn't read lib/Missing.sol: File import callback not supported\n   ╭▸ A.sol:LL:CC\n   │\nLL │ import \"Missing.sol\";\n   ╰╴       ━━━━━━━━━━━━━\n\n"
+      "message": "couldn't read lib/Missing.sol: File not found.",
+      "formattedMessage": "error: couldn't read lib/Missing.sol: File not found.\n   ╭▸ A.sol:LL:CC\n   │\nLL │ import \"Missing.sol\";\n   ╰╴       ━━━━━━━━━━━━━\n\n"
     }
   ],
   "sources": {}

@@ -1,0 +1,65 @@
+//@ compile-flags: -Zmir-pipeline=cfg-simplify
+//@ filecheck:
+// Predecessors of a removed empty block now enter its target, so the target's label keeps the
+// origin of the removed block too.
+@module ForwarderLabels
+
+// CHECK-LABEL: {{^[ +].*}}fn @forwarder{{[( ]}}
+// CHECK: + bb{{[0-9]+}} !metadata(spans=[30..40, 50..60]):
+fn @forwarder(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    jumpi arg0, bb1, bb2
+  bb1:
+    v1 = add arg1, 2
+    jump bb3
+  bb2 !metadata(span=50..60):
+    jump bb3
+  bb3 !metadata(span=30..40):
+    v0 = add arg1, 1
+    ret v0
+}
+
+// A constant branch makes the forwarder's only entries dead, so the join keeps the live origin.
+// CHECK-LABEL: {{^[ +].*}}fn @dead_arm_forwarder{{[( ]}}
+// CHECK: + bb{{[0-9]+}} !metadata(span=30..40):
+fn @dead_arm_forwarder(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    jumpi true, bb1, bb2
+  bb1:
+    jumpi arg0, bb4, bb5
+  bb2:
+    v0 = add arg1, 3
+    jumpi arg0, bb3, bb6
+  bb6:
+    v1 = add arg1, 4
+    jump bb3
+  bb3 !metadata(span=50..60):
+    jump bb4
+  bb4 !metadata(span=30..40):
+    v2 = add arg1, 1
+    ret v2
+  bb5:
+    ret 0
+}
+
+// A dead block still lists the target as a successor and keeps `merge-blocks` from joining it
+// with the forwarder. The forwarder is the target's only reachable entry, so the target's label
+// becomes the forwarder's.
+// CHECK-LABEL: {{^[ +].*}}fn @dead_target_predecessor{{[( ]}}
+// CHECK: + bb{{[0-9]+}} !metadata(span=50..60):
+fn @dead_target_predecessor(arg0: i1, arg1: i256) -> i256 {
+  bb0:
+    jumpi true, bb4, bb2
+  bb4:
+    jumpi arg0, bb1, bb5
+  bb1 !metadata(span=50..60):
+    jump bb3
+  bb2:
+    v0 = add arg1, 3
+    jump bb3
+  bb3 !metadata(span=30..40):
+    v1 = add arg1, 1
+    ret v1
+  bb5:
+    ret 0
+}

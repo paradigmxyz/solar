@@ -1,0 +1,26 @@
+//@ compile-flags: -Ogas -Zmir-pipeline=loop-reduce -Zdump=mir -Zdebugify=check
+//@ filecheck:
+//@ normalize-stdout-test: "(?s).+" -> ""
+// A closed-form summary runs when the loop statement starts, even for zero iterations. It takes
+// the loop statement's location rather than making an untaken iteration look executed.
+@module ClosedFormDebugInfo
+
+// CHECK-LABEL: {{^[ +].*}}fn @sum{{[( ]}}
+// CHECK: + {{v[0-9]+}} = mul arg1, 3 !metadata(span=1..5){{$}}
+// CHECK: + {{v[0-9]+}} = add {{v[0-9]+}}, arg0 !metadata(span=1..5){{$}}
+// CHECK-NOT: + {{.*}}span=10..20
+fn @sum(arg0: i256, arg1: i256) -> i256 {
+  bb0:
+    jump bb1 !metadata(span=1..5)
+  bb1:
+    v0 = phi [bb0: arg0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v1, arg1
+    jumpi v2, bb2, bb3
+  bb2:
+    v3 = add v0, 3 !metadata(span=10..20)
+    v4 = add v1, 1
+    jump bb1
+  bb3:
+    ret v0
+}

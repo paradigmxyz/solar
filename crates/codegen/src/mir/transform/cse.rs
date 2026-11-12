@@ -586,7 +586,7 @@ impl CommonSubexprEliminator {
 
         for candidate in candidates {
             // The sunk expression runs exactly when one of the incoming expressions would have,
-            // so it is shared code carrying the union of their origins.
+            // so it is shared code carrying their origins, or none if one has none.
             let mut sunk = Instruction::new(candidate.kind, Some(candidate.result_ty));
             sunk.metadata.preserve_debug_loc(&func.inst(candidate.incoming[0].1).metadata);
             sunk.metadata.merge_debug_locs(

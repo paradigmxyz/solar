@@ -197,13 +197,23 @@ fn build_entry(
     let needs_short_calldata_guard = routes.iter().any(|(selector, _)| selector & 0xff == 0);
 
     let contract_span = module.contract_span;
+    let set_origin = |builder: &mut FunctionBuilder<'_>, span: solar_interface::Span| {
+        builder.replace_source_span(span);
+        if span.is_dummy() {
+            // NOTE: Parsed MIR has no source declaration for generated dispatch code. Do not
+            // invent a location from a function body or reset its explicit generated context.
+            let mut context = crate::mir::InstructionMetadata::default();
+            context.drop_debug_loc(solar_evmir::debug::DebugLocKind::CompilerGenerated);
+            builder.set_debug_context(&context);
+        }
+    };
     let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
     {
         let mut builder = FunctionBuilder::new(&mut entry)
             .with_revert_strings(revert_strings)
             .with_block_labels();
         builder.set_entry_label_span(contract_span);
-        builder.replace_source_span(contract_span);
+        set_origin(&mut builder, contract_span);
 
         let combine_dispatch_guards =
             hoist_callvalue && minimum_calldata.is_some() && !revert_strings.is_debug();
@@ -302,9 +312,15 @@ fn build_entry(
             builder.branch(short, default_block, select_block);
         }
 
+        // NOTE: solc maps a fallback's `callvalue` check to the contract (`ContractCompiler.cpp`
+        // L485). Our fallback and receive blocks are routes that run only for that function, as
+        // selector routes do, and a function's own `callvalue` check maps to its declaration, so
+        // these blocks take the declaration.
         if let Some((target, receive_block)) = receive_block {
+            set_origin(&mut builder, module.function(target).declaration_span);
             builder.switch_to_block(receive_block);
             builder.tail_call(target, Vec::new());
+            set_origin(&mut builder, contract_span);
         }
 
         // Selector switch; the default goes to the fallback when present.
@@ -322,6 +338,7 @@ fn build_entry(
         }
 
         if let Some((target, default_block)) = fallback_block {
+            set_origin(&mut builder, module.function(target).declaration_span);
             builder.switch_to_block(default_block);
             if !hoist_callvalue && super::utils::rejects_callvalue(module.function(target)) {
                 let go = builder.create_block();
@@ -344,7 +361,7 @@ fn build_entry(
         //   jumpi v2, revert, continue
         let library_deploy_address = module.library_deploy_address();
         for ((_, target), block) in routes.iter().zip(&case_blocks) {
-            builder.replace_source_span(module.function(*target).declaration_span);
+            set_origin(&mut builder, module.function(*target).declaration_span);
             builder.switch_to_block(*block);
             if let Some(immutable) = library_deploy_address
                 && super::utils::needs_delegatecall_guard(module.function(*target))
@@ -356,7 +373,7 @@ fn build_entry(
             }
             builder.tail_call(*target, Vec::new());
         }
-        builder.replace_source_span(contract_span);
+        set_origin(&mut builder, contract_span);
 
         builder.switch_to_block(revert_block);
         // NOTE: Block tail merging can fuse this revert with a user `revert()`. The merged revert

@@ -1,0 +1,13 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/validation/indexed_jump_stack_limit.evmir (before none) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/validation/indexed_jump_stack_limit.evmir (after none) ===
+  @module module
+  bb0 [stack=1021]:
+    indexed_jump bb2
+  bb1 [stack=1022]:
+    indexed_jump bb3
+  bb2:
+    stop
+  bb3:
+    stop
+  
+{"contracts":{"ROOT/tests/ui/codegen/evm-ir/validation/indexed_jump_stack_limit.evmir:module":{"bin-runtime":"60040260120156600402601601565b005b005b600e565b601056"}},"version":"SOLC_VERSION+commit.00000000.solar.VERSION"}

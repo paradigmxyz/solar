@@ -22,14 +22,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn lower_modifier_chain(
-        &mut self,
-        modifiers: &'gcx [hir::Modifier<'gcx>],
-        body: hir::Block<'gcx>,
-    ) -> Option<()> {
-        self.lower_modifier_at(modifiers, body, 0)
-    }
-
     pub(super) fn lower_modifier_at(
         &mut self,
         modifiers: &'gcx [hir::Modifier<'gcx>],
@@ -40,7 +32,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             return self.lower_block(body);
         };
         if modifier.id.as_contract().is_some() {
-            return self.lower_skipped_modifier(modifiers, body, index);
+            return self.lower_nested_modifier(modifiers, body, index + 1);
         }
         let Some(modifier_id) = self.cx.gcx.resolve_modifier_target(self.cx.contract_id, modifier)
         else {
@@ -48,7 +40,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         };
         let modifier_function = self.cx.gcx.hir.function(modifier_id);
         if modifier_function.kind == hir::FunctionKind::Constructor {
-            return self.lower_skipped_modifier(modifiers, body, index);
+            return self.lower_nested_modifier(modifiers, body, index + 1);
         }
         if !modifier_function.kind.is_modifier() {
             return self.cx.report_unsupported(modifier.span, "modifier target");
@@ -82,7 +74,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             }
             hir::CallArgsKind::Unnamed(_) => None,
         };
-        self.lower_call_arguments(
+        // solc wraps modifier arguments and their conversions in the modifier definition's
+        // location (`ContractCompiler.cpp` L1476-1489); expressions retain their own locations.
+        let previous = self.builder.replace_source_span(modifier_function.span);
+        let arguments = self.lower_call_arguments(
             modifier.args,
             CallArgumentParams {
                 count: modifier_function.parameters.len(),
@@ -104,7 +99,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 }
                 Some(())
             },
-        )?;
+        );
+        self.builder.replace_source_span(previous);
+        arguments?;
 
         let context = ModifierContext {
             modifiers,
@@ -122,19 +119,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result
     }
 
-    /// Lowers the rest of the chain after a base constructor call in the modifier list.
+    /// Lowers the chain from `next` one modifier level deeper.
     ///
-    /// Like solc's `appendModifierOrFunctionCode`, which counts every entry of the list,
-    /// the skipped call still adds one level of modifier depth.
-    fn lower_skipped_modifier(
+    /// Like solc's `appendModifierOrFunctionCode`, which counts every entry of the list, a base
+    /// constructor call in the list adds a level too.
+    fn lower_nested_modifier(
         &mut self,
         modifiers: &'gcx [hir::Modifier<'gcx>],
         body: hir::Block<'gcx>,
-        index: usize,
+        next: usize,
     ) -> Option<()> {
         self.modifier_depth = self.modifier_depth.saturating_add(1);
         self.builder.replace_modifier_depth(self.modifier_depth);
-        let result = self.lower_modifier_at(modifiers, body, index + 1);
+        let result = self.lower_modifier_at(modifiers, body, next);
         self.modifier_depth = self.modifier_depth.saturating_sub(1);
         self.builder.replace_modifier_depth(self.modifier_depth);
         result
@@ -142,7 +139,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_base_constructor(
         &mut self,
-        modifier: &hir::Modifier<'_>,
+        modifier: &hir::Modifier<'gcx>,
         constructor_id: hir::FunctionId,
         constructor: &'gcx hir::Function<'gcx>,
     ) -> Option<()> {
@@ -161,51 +158,25 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         if !self.prepared_constructors.remove(&constructor_id) {
             return self.cx.report_unsupported(modifier.span, "base constructor argument list");
         }
-        let saved_parameters = self.snapshot_bindings(constructor.parameters);
 
-        let continuation = self.builder.create_block();
-        let before_values = self.values.clone();
-        let before_storage_refs = self.storage_refs.clone();
-        self.push_return_target(continuation);
-        if let Some(contract_id) = contract_id {
-            self.lower_state_initializers(contract_id)?;
-        }
-        self.lower_function_body(constructor.modifiers, body, constructor.span)?;
-        if !self.is_terminated() {
-            self.record_return_state();
-            // jump continuation !metadata(base constructor definition)
-            let previous = self.builder.replace_source_span(constructor.span);
-            self.builder.jump(continuation);
-            self.builder.replace_source_span(previous);
-        }
-        self.finish_return_target(before_values, before_storage_refs);
-        self.restore_bindings(&saved_parameters);
-        Some(())
+        // A base constructor has no returns, so nothing flows out of its frame.
+        self.lower_return_frame(constructor.span, |this| {
+            if let Some(contract_id) = contract_id {
+                this.lower_state_initializers(contract_id)?;
+            }
+            this.lower_function_body(constructor.modifiers, body, constructor.span)
+        })
     }
 
     pub(super) fn lower_modifier_placeholder(&mut self, span: Span) -> Option<()> {
         let Some(context) = self.modifiers.pop() else {
             return self.cx.report_unsupported(span, "modifier placeholder");
         };
-        self.builder.replace_modifier_depth(self.modifier_depth);
-        let continuation = self.builder.create_block();
-        let before_values = self.values.clone();
-        let before_storage_refs = self.storage_refs.clone();
-        self.restore_bindings(&context.returns);
-        self.push_return_target(continuation);
-        self.modifier_depth = self.modifier_depth.saturating_add(1);
-        self.builder.replace_modifier_depth(self.modifier_depth);
-        let result = self.lower_modifier_at(context.modifiers, context.body, context.next);
-        self.modifier_depth = self.modifier_depth.saturating_sub(1);
-        self.builder.replace_modifier_depth(self.modifier_depth);
-        result?;
-        if !self.is_terminated() {
-            self.record_return_state();
-            self.builder.jump(continuation);
-        }
-        self.finish_placeholder_target(before_values, before_storage_refs);
+        self.lower_return_frame(span, |this| {
+            this.restore_bindings(&context.returns);
+            this.lower_nested_modifier(context.modifiers, context.body, context.next)
+        })?;
         self.modifiers.push(context);
-        self.builder.replace_modifier_depth(self.modifier_depth);
         Some(())
     }
 }

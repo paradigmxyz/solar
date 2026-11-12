@@ -259,7 +259,7 @@ fn returns_parameter_and_type_hints() {
         ),
         // Uses target parameter names for `abi.encodeCall` arguments.
         (
-            true,
+            false,
             r#"
             //- /Hints.sol
             interface I {

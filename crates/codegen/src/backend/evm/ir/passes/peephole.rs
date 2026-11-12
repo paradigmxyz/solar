@@ -304,8 +304,6 @@ enum Edit {
     Keep {
         len: u8,
     },
-    /// Replace a duplicate of a known zero with `PUSH0`.
-    OverwritePush0,
     /// PUSH1 1; DUP1; closed_count; SHL; SUB => PUSH0; NOT; closed_count; SHL; NOT.
     LowMask,
     /// Replace a shuffled shift base and the trailing PUSH1 1; SWAP1; SUB.
@@ -395,19 +393,19 @@ impl Edit {
             Self::ShiftPairMask => {
                 // push s; shl; push s; shr
                 // The root is the `and`, which the last shift replaces. The copied shift count and
-                // the first shift take its source context.
+                // the first shift take its source context. The original shift count keeps its
+                // function events.
                 let root = instructions.last().unwrap().metadata.clone();
-                instructions[start] = instructions[start + 2].clone().with_debug_loc(&root);
+                instructions[start] = instructions[start + 2]
+                    .clone()
+                    .with_metadata(Metadata::default())
+                    .with_debug_loc(&root);
                 overwrite(&mut instructions[start + 1], op::SHL);
                 instructions[start + 1].metadata.preserve_debug_loc(&root);
                 instructions.remove(start + 3);
                 overwrite(&mut instructions[start + 3], op::SHR);
             }
             Self::Keep { len } => instructions.truncate(start + usize::from(len)),
-            Self::OverwritePush0 => {
-                instructions[start]
-                    .replace_preserving_metadata(Instruction::push_value(U256::ZERO));
-            }
             Self::DropDiscardedSwap => {
                 instructions.remove(start);
             }
@@ -513,10 +511,14 @@ impl Edit {
                 // the `eq`'s when `eq; iszero; push; jumpi` fuses (`_eq.debugData()`,
                 // libevmasm/PeepholeOptimiser.cpp#L349). The removed `iszero` takes its origins
                 // with it; only its function events move.
+                // NOTE: LLVM's InstCombine root always has a location, but ours can lack one where
+                // lowering left a gap. Then the compare computes the removed `iszero`'s value, so
+                // it takes that location.
                 instructions[start].replace_preserving_metadata(Instruction::push_value(value));
                 let iszero = instructions.pop().expect("matched ISZERO");
                 let comparison = instructions.last_mut().expect("matched comparison");
                 overwrite(comparison, opcode);
+                fill_debug_gap(&mut comparison.metadata, &iszero.metadata);
                 comparison.metadata.move_function_events(&iszero.metadata);
             }
             Self::ZeroLessIszero => {
@@ -524,9 +526,13 @@ impl Edit {
                 // NOTE: The comparison is removed and the surviving `iszero` keeps its own
                 // context. The removed push and `lt` take their origins with them; only their
                 // function events move.
+                // NOTE: LLVM's InstCombine root always has a location, but ours can lack one where
+                // lowering left a gap. Then the `iszero` computes the removed `lt`'s value, so it
+                // takes that location.
                 let pushed = instructions.remove(start);
                 let comparison = instructions.remove(start);
                 let iszero = instructions.last_mut().expect("matched ISZERO");
+                fill_debug_gap(&mut iszero.metadata, &comparison.metadata);
                 iszero.metadata.move_function_events(&pushed.metadata);
                 iszero.metadata.move_function_events(&comparison.metadata);
             }
@@ -636,4 +642,56 @@ fn replacement_debug_info(instructions: &[Instruction], root: usize) -> Metadata
     let mut context = instructions[root].metadata.clone();
     context.merge_function_events(instructions.iter().map(|inst| &inst.metadata));
     context
+}
+
+/// Gives a survivor that lacks a location, with no explained kind, the location of the removed
+/// instruction whose value it now computes. A survivor with spans or an explained kind keeps its
+/// own.
+fn fill_debug_gap(survivor: &mut Metadata, removed: &Metadata) {
+    if survivor.lacks_debug_location() && removed.has_source_spans() {
+        survivor.preserve_debug_loc(removed);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_evmir::debug::DebugLocKind;
+    use solar_interface::{BytePos, Span};
+
+    fn located() -> Metadata {
+        let mut metadata = Metadata::default();
+        metadata.set_source_span(Some(Span::new(BytePos(1), BytePos(2))));
+        metadata
+    }
+
+    #[test]
+    fn fill_debug_gap_only_fills_an_unexplained_gap() {
+        let removed = located();
+
+        let mut gap = Metadata::default();
+        fill_debug_gap(&mut gap, &removed);
+        assert_eq!(gap.source_span(), removed.source_span());
+
+        for kind in [
+            DebugLocKind::Dropped,
+            DebugLocKind::CompilerGenerated,
+            DebugLocKind::Unknown,
+            DebugLocKind::Temporary,
+        ] {
+            let mut explained = Metadata::default();
+            explained.set_debug_loc_kind(kind);
+            fill_debug_gap(&mut explained, &removed);
+            assert!(!explained.has_source_spans());
+        }
+
+        let mut own = Metadata::default();
+        own.set_source_span(Some(Span::new(BytePos(5), BytePos(6))));
+        fill_debug_gap(&mut own, &removed);
+        assert_ne!(own.source_span(), removed.source_span());
+
+        let mut still_gap = Metadata::default();
+        fill_debug_gap(&mut still_gap, &Metadata::default());
+        assert!(still_gap.lacks_debug_location());
+    }
 }

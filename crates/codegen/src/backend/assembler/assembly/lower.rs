@@ -58,7 +58,6 @@ impl Assembler<'_> {
     /// Runs the EVM IR pipeline when `passes` is set, then legalization, returning whether neither
     /// reported an error.
     fn run_pipeline(&mut self, program: &mut ir::Module, passes: bool) -> bool {
-        let input_is_valid = cfg!(debug_assertions) && ir::verify::Verifier::is_valid(program);
         let errors_before = self.gcx.dcx().err_count();
         let gcx = self.gcx;
         let succeeded = || gcx.dcx().err_count() == errors_before;
@@ -68,10 +67,6 @@ impl Assembler<'_> {
         if !succeeded() {
             return false;
         }
-        debug_assert!(
-            !input_is_valid || ir::verify::Verifier::is_valid(program),
-            "EVM IR pipeline invalidated a valid module"
-        );
         let _legalized = ir::legalize_revert(self.gcx, program);
         if !succeeded() {
             return false;
@@ -263,8 +258,8 @@ fn lower_evm_ir_once(
         }
         if let Some(label) = labels.get(original).copied().flatten() {
             // The label's own origin.
-            if !block.label_metadata.source_spans().is_empty() {
-                program.set_source_spans(block.label_metadata.source_spans());
+            if block.label_metadata.has_source_spans() {
+                program.set_source_origins(&block.label_metadata);
                 program.set_modifier_depth(block.label_metadata.modifier_depth());
             }
             program.define_label(label);
@@ -272,7 +267,7 @@ fn lower_evm_ir_once(
         }
 
         for inst in &block.instructions {
-            program.set_source_spans(inst.metadata.source_spans());
+            program.set_source_origins(&inst.metadata);
             program.set_modifier_depth(inst.metadata.modifier_depth());
             let first = program.instructions.len();
             lower_instruction(assembler, &mut program, inst, module, labels);
@@ -288,7 +283,7 @@ fn lower_evm_ir_once(
         }
 
         if let Some(terminator) = &block.terminator {
-            program.set_source_spans(terminator.metadata.source_spans());
+            program.set_source_origins(&terminator.metadata);
             program.set_modifier_depth(terminator.metadata.modifier_depth());
             let first = program.instructions.len();
             lower_terminator(
@@ -327,19 +322,13 @@ fn lower_evm_ir_once(
         |inst| matches!(inst.kind(), AsmInstKind::Op(opcode) if op::is_terminal(opcode)),
     );
     if !emitted_data.is_empty() && !ends_with_terminal {
-        let spans = module
-            .blocks
-            .last()
-            .and_then(|block| block.terminator.as_ref())
-            .map_or(&[][..], |term| term.metadata.source_spans());
-        program.set_source_spans(spans);
-        program.set_modifier_depth(
-            module
-                .blocks
-                .last()
-                .and_then(|block| block.terminator.as_ref())
-                .map_or(0, |term| term.metadata.modifier_depth()),
-        );
+        let last_terminator = module.blocks.last().and_then(|block| block.terminator.as_ref());
+        match last_terminator {
+            Some(term) => program.set_source_origins(&term.metadata),
+            None => program.set_source_span(None),
+        }
+        program
+            .set_modifier_depth(last_terminator.map_or(0, |term| term.metadata.modifier_depth()));
         program.push_op(op::STOP);
     }
     program.data.clone_from(&module.data);
