@@ -84,10 +84,10 @@ fn @loop_body(arg0: i256) -> i256 {
     ret v0
 }
 
-// A single-block helper adds no join and never reaches deeper than its call,
-// which keeps the return address resident, so it inlines in a loop that holds
-// more words across the call than the budget allows. A helper with several
-// blocks still answers to the budget there.
+// A single-block helper never reaches deeper than its call, which keeps the
+// return address resident, so it inlines in a loop that holds more words
+// across the call than the budget allows. A helper with several blocks still
+// answers to the budget there.
 // CHECK-LABEL: fn @straight_line_high_pressure
 // CHECK: - {{v[0-9]+}} = icall @same_word
 // CHECK: {{^ +}}v{{[0-9]+}} = icall @guarded_word

@@ -1371,7 +1371,7 @@ impl Target {
     /// hot-leaf clone inside a loop body also keeps the loop's carried words resident through
     /// every join it adds; at ten words, two of the Base64 decoder's four lookups stayed calls
     /// that drained every carried word, and twelve took 15% off decoding. A single-block clone
-    /// adds no join and never reaches deeper than its call, so the inline loop exempts it.
+    /// never reaches deeper than its call, so the inline loop exempts it.
     pub(crate) const INLINE_STACK_BUDGET: usize = 12;
     /// Live-in words below which a loop-varying read is reused across one edge instead of
     /// reloaded: the same twelve of sixteen words as [`Self::INLINE_STACK_BUDGET`], so the `DUP`
