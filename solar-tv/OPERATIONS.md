@@ -8,10 +8,10 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Status | MIR families | EVM opcode entries |
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
-| Some forms checked | 14 | 6 |
+| Some forms checked | 15 | 6 |
 | Explicit-world entry execution | 0 | 45 |
-| Direct typed MIR state execution | 28 | 0 |
-| Missing | 33 | 0 |
+| Direct typed MIR state execution | 41 | 0 |
+| Missing | 19 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
 variants account for many EVM entries. Checking a word operation does not cover
@@ -109,6 +109,16 @@ leaves, without using their lowering as the semantic definition. Types are
 limited to depth 32 and 256 nodes, with at most 65,536 exported type nodes
 per model; boundaries have at most 32 input and 256
 return leaves. Reading an undefined scalar remains unsupported.
+Slot derivation executes Keccak with its scratch stores, transient FMP-based
+byte-key copies, memory expansion and wrapping arithmetic. Storage byte helpers
+validate short/long headers before allocation or mutation, retain full-word reads,
+mask dirty padding and clear truncated long tails. Clearing and copying beyond
+the documented memory or 2048-word storage limits are unsupported, never truncated.
+External balance/code reads preserve address truncation and access warmth;
+code introspection sees original delegation designators, not their targets.
+Constant `datacopy` accepts only ranges inside known, relocation-free data, with
+a 64 KiB total exported-data budget. Neighboring physical data, `datasize` of
+unlinked contracts and the MIR root's unknown runtime code are not guessed.
 Indirect calls, physical multi-return buffers, root runtime code
 reentry/introspection and layout-dependent operations remain unsupported.
 

@@ -173,6 +173,10 @@ def operation(value, definitions):
             "callvalue",
             "gasprice",
             "selfbalance",
+            "balance",
+            "extcodesize",
+            "extcodehash",
+            "extcodecopy",
             "blockhash",
             "coinbase",
             "timestamp",
@@ -208,6 +212,41 @@ def operation(value, definitions):
         if location is None:
             raise Unsupported("unmodeled MIR slice location")
         expression = f".makeSlice {location}"
+    elif kind in {
+        "validate_storage_bytes",
+        "load_storage_bytes",
+        "store_storage_bytes",
+        "clear_storage_words",
+    }:
+        expression = {
+            "validate_storage_bytes": ".storageBytes .validate",
+            "load_storage_bytes": ".storageBytes .load",
+            "store_storage_bytes": ".storageBytes .store",
+            "clear_storage_words": ".storageBytes .clear",
+        }[kind]
+    elif kind == "store_storage_bytes_literal":
+        raw = value["bytes"]
+        if not isinstance(raw, list) or len(raw) > 65536:
+            raise Unsupported("MIR constant data limit of 64 KiB")
+        expression = (
+            ".storageBytes (.literal ["
+            + ",".join(number(byte, 256) for byte in raw)
+            + "])"
+        )
+    elif kind == "data_copy":
+        raw = value["bytes"]
+        if not isinstance(raw, list) or len(raw) > 65536:
+            raise Unsupported("MIR constant data limit of 64 KiB")
+        data = "[" + ",".join(number(byte, 256) for byte in raw) + "]"
+        expression = f".dataCopy {data} {number(value['offset'])}"
+    elif kind in {"mapping_slot", "mapping_slot_bytes", "array_data_slot"}:
+        expression = {
+            "mapping_slot": ".slot .mapping",
+            "mapping_slot_bytes": ".slot .bytesKey",
+            "array_data_slot": ".slot .arrayData",
+        }[kind]
+    elif kind == "array_element_slot":
+        expression = f".slot (.arrayElement {number(value['stride'], 2**64)})"
     elif kind == "call":
         expression = f".call {number(value['function'])}"
     elif kind == "allocate":

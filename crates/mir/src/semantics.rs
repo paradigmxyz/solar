@@ -18,6 +18,8 @@
 //! - `heap_floor()`: the initial heap floor resolved by backend placement.
 //! - `insert_value(ty, aggregate, index, value)`, `extract_value(ty, aggregate, index)`, and
 //!   `make_slice(location, ptr, len)`: functional typed products, without allocation.
+//! - Slot-hashing and storage-byte operations retain their scratch writes, header checks, padding
+//!   masks and tail clearing; they do not delegate interpretation to lowering.
 //!
 //! [`InstKind::semantics`] returns one instruction's declaration, and the MIR interpreter
 //! (`solar-mir-interpreter`) runs it instead of classifying operations itself. An operation
@@ -35,6 +37,7 @@ use crate::{
     AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, InstKind, LogTopics,
     MirType, PtrLocation, ValueId,
 };
+use alloy_primitives::Bytes;
 use smallvec::SmallVec;
 
 /// What one MIR operation computes.
@@ -82,6 +85,24 @@ pub enum Semantics<'a> {
     ExtractValue(MirType, ValueId, u32),
     /// A logical pointer/length pair, without allocating or accessing its range.
     MakeSlice(PtrLocation, ValueId, ValueId),
+    /// Hash the key and parent slot after writing them to scratch words 0 and 32.
+    MappingSlot(ValueId, ValueId),
+    /// Hash a bytes key followed by its parent slot in unreserved free memory.
+    MappingSlotBytes(ValueId, ValueId),
+    /// Hash the array parent slot after writing scratch word 0.
+    StorageArrayDataSlot(ValueId),
+    /// The array data hash plus the wrapping index times its slot stride.
+    StorageArrayElementSlot(ValueId, ValueId, u64),
+    /// Validate Solidity's short/long byte-string storage header, or panic 0x22.
+    ValidateStorageBytes(ValueId),
+    /// Allocate and read a Solidity storage byte string, preserving word reads.
+    LoadStorageBytes(ValueId),
+    /// Store a memory byte string, clearing an old long tail and masking padding.
+    StoreStorageBytes(ValueId, ValueId),
+    /// Store literal bytes without materializing a memory object.
+    StoreStorageBytesLiteral(ValueId, &'a [u8]),
+    /// Zero array-data words in the half-open index range, retaining scratch hashing.
+    ClearStorageWords(ValueId, ValueId, ValueId),
 }
 
 /// Constructors for the `#[semantics(...)]` declarations of the operation schema, which bind an
@@ -202,6 +223,62 @@ pub(super) mod declare {
         len: &ValueId,
     ) -> Semantics<'static> {
         Semantics::MakeSlice(*location, *ptr, *len)
+    }
+
+    /// Fixed-width mapping hashing, including scratch stores.
+    pub(crate) fn mapping_slot(key: &ValueId, slot: &ValueId) -> Semantics<'static> {
+        Semantics::MappingSlot(*key, *slot)
+    }
+
+    /// Variable-width mapping hashing, including its transient memory footprint.
+    pub(crate) fn mapping_slot_bytes(key: &ValueId, slot: &ValueId) -> Semantics<'static> {
+        Semantics::MappingSlotBytes(*key, *slot)
+    }
+
+    /// Dynamic array data hashing.
+    pub(crate) fn storage_array_data_slot(slot: &ValueId) -> Semantics<'static> {
+        Semantics::StorageArrayDataSlot(*slot)
+    }
+
+    /// Dynamic array element addressing with wrapping arithmetic.
+    pub(crate) fn storage_array_element_slot(
+        slot: &ValueId,
+        index: &ValueId,
+        stride: &u64,
+    ) -> Semantics<'static> {
+        Semantics::StorageArrayElementSlot(*slot, *index, *stride)
+    }
+
+    /// Validate a storage byte-string header.
+    pub(crate) fn validate_storage_bytes(header: &ValueId) -> Semantics<'static> {
+        Semantics::ValidateStorageBytes(*header)
+    }
+
+    /// Load storage bytes into a newly reserved memory object.
+    pub(crate) fn load_storage_bytes(slot: &ValueId) -> Semantics<'static> {
+        Semantics::LoadStorageBytes(*slot)
+    }
+
+    /// Store a memory byte string.
+    pub(crate) fn store_storage_bytes(slot: &ValueId, object: &ValueId) -> Semantics<'static> {
+        Semantics::StoreStorageBytes(*slot, *object)
+    }
+
+    /// Store literal bytes.
+    pub(crate) fn store_storage_bytes_literal<'a>(
+        slot: &ValueId,
+        bytes: &'a Bytes,
+    ) -> Semantics<'a> {
+        Semantics::StoreStorageBytesLiteral(*slot, bytes)
+    }
+
+    /// Clear a half-open range of storage data words.
+    pub(crate) fn clear_storage_words(
+        slot: &ValueId,
+        first: &ValueId,
+        last: &ValueId,
+    ) -> Semantics<'static> {
+        Semantics::ClearStorageWords(*slot, *first, *last)
     }
 }
 

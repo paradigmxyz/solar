@@ -1,0 +1,8 @@
+@module StorageBytes
+fn @f() -> i256 {
+bb0:
+    store_storage_bytes_literal 3, hex"616264"
+    v0 = load_storage_bytes 3
+    v1 = ptrtoint ptr<memory> v0 to i256
+    ret v1
+}
