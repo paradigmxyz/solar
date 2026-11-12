@@ -14,6 +14,7 @@ use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{MirPhase, Module};
 
 mod machine;
+mod values;
 pub use machine::{ExternalMessage, Host, Log, MessageOutput, PendingChanges};
 
 pub mod replay;
@@ -339,5 +340,30 @@ fn @twice(arg0: i256) -> i256 {
             .unwrap();
             assert!(matches!(result.outcome, replay::StateOutcome::Unsupported(_)), "{operation}");
         }
+    }
+    #[test]
+    fn replay_product_boundaries() {
+        let source = "@module Products\n@types\nstruct0: {i256,i1}\nfn @f(arg0: struct0) -> struct0 {\nbb0:\nv0 = insert_value struct0, arg0, 1, false\nret v0\n}\n";
+        let result =
+            replay::run(source, &[U256::from(9), U256::from(1)], &[], 0, Options::default())
+                .unwrap();
+        let replay::Outcome::Return(values) = result.outcome else {
+            panic!("product did not return")
+        };
+        assert_eq!(values, [U256::from(9), U256::ZERO]);
+    }
+
+    #[test]
+    fn replay_partial_products_do_not_invent_fields() {
+        let source = "@module Products\n@types\nstruct0: {i256,i1}\nfn @f() -> i256 {\nbb0:\nv0 = insert_value struct0, undef struct0, 0, 7\nv1 = extract_value struct0, v0, 0\nret v1\n}\n";
+        let result = replay::run(source, &[], &[], 0, Options::default()).unwrap();
+        let replay::Outcome::Return(values) = result.outcome else {
+            panic!("defined field did not return")
+        };
+        assert_eq!(values, [U256::from(7)]);
+        let source =
+            source.replace("fn @f() -> i256", "fn @f() -> i1").replace("v0, 0\nret", "v0, 1\nret");
+        let result = replay::run(&source, &[], &[], 0, Options::default()).unwrap();
+        assert!(matches!(result.outcome, replay::Outcome::Unsupported(_)));
     }
 }

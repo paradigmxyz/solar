@@ -92,7 +92,7 @@ import SolarTV.MIR.State.Normalize
 #guard_msgs in
 #print axioms SolarTV.Calls.reverted_restores_journal
 
-/-- info: 'SolarTV.MIR.State.simultaneous_phis' depends on axioms: [propext] -/
+/-- info: 'SolarTV.MIR.State.simultaneous_phis' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.State.simultaneous_phis
 
@@ -119,3 +119,11 @@ import SolarTV.MIR.State.Normalize
 /-- info: 'SolarTV.MIR.State.live_return_data_is_observable' depends on axioms: [propext] -/
 #guard_msgs in
 #print axioms SolarTV.MIR.State.live_return_data_is_observable
+
+/-- info: 'SolarTV.MIR.State.project_inserted_field' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.project_inserted_field
+
+/-- info: 'SolarTV.MIR.State.uninitialized_neighbor' depends on axioms: [propext] -/
+#guard_msgs in
+#print axioms SolarTV.MIR.State.uninitialized_neighbor
