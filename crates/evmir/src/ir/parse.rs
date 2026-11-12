@@ -240,7 +240,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 dispatched: dispatched || external_entry,
                 ..function
             }),
-            lent_invoke,
+            lent_invoke: lent_invoke.map(|function| DebugFunction { dispatched, ..function }),
             entry_depth,
             call_effect,
             label_metadata,

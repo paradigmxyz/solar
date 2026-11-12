@@ -42,12 +42,16 @@ fn display_block<'a>(module: &'a Module, block: &'a Block) -> impl fmt::Display 
             attributes.push("entry".to_string());
         }
         if !module.hide_debug_info
-            && let Some(function) = metadata.function_invoke
+            && (metadata.function_invoke.is_some_and(|function| function.dispatched)
+                && !metadata.external_entry
+                || metadata.lent_invoke.is_some_and(|function| function.dispatched))
         {
             // The dispatcher enters exactly the blocks marked `entry`.
-            if function.dispatched && !metadata.external_entry {
-                attributes.push("dispatch".to_string());
-            }
+            attributes.push("dispatch".to_string());
+        }
+        if !module.hide_debug_info
+            && let Some(function) = metadata.function_invoke
+        {
             attributes.push(format!(
                 "invoke={}@{}..{}",
                 function.identifier,
