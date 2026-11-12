@@ -1051,6 +1051,98 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
 
+### CODEGEN-014: Oversized calldata slice copies revert empty
+
+- ID: CODEGEN-014
+- Status: intentional
+- Difference: copying a calldata slice to memory reverts with empty data in
+  `solar` and with `Panic(0x41)` in `solc` when inline assembly set its length
+  to `2**64` or more, or to a length just below that, within the free memory
+  pointer plus 63 bytes of `2**64`, where the allocation no longer fits.
+- Rationale: only assembly can build such a slice, and the call reverts either
+  way. Panicking first means checking the allocation size before the range
+  check, which adds a branch to every such copy; measured, it grew two runtime
+  corpus cases by 2 to 7 bytes.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_slice_huge_length_copy.sol`.
+
+### CODEGEN-015: A dirty later argument reverts before an earlier allocation panic
+
+- ID: CODEGEN-015
+- Status: intentional
+- Difference: for `f(uint256[] memory, uint8)` called with an array length of
+  `2**59` and a dirty `uint8` word, `solar` reverts with empty data and `solc`
+  with `Panic(0x41)`. The entry prologue validates all scalar head words before
+  it decodes a memory argument.
+- Rationale: only malformed calldata reaches it, and the call reverts either
+  way. Matching the order would mean decoding each memory argument before the
+  later scalar checks, which complicates the prologue.
+- Coverage: `tests/ui/codegen/run-call/abi-decode/abi_argument_check_order.sol`.
+
+### CODEGEN-019: Implicit memory defaults of absurdly large fields panic
+
+- ID: CODEGEN-019
+- Status: intentional
+- Difference: reading a default element of a memory struct whose static field
+  needs `2**32` words (`2**37` bytes) or more reverts with `Panic(0x41)` or
+  runs out of gas in `solar`. `solc` via-IR returns zero, with or without the
+  optimizer. Its zero value of a static array calls
+  `allocate_and_zero_memory_array(unsigned(length))`, which casts the length
+  to 32 bits (`libsolidity/codegen/YulUtilFunctions.cpp:4362` in
+  `testdata/solidity`): below `2**32` words both compilers allocate the array,
+  and from `2**32` words up the length wraps, so only `solc` reads zero.
+  Fields up to `2**16` words return zero in both, and fields from `2**17` to
+  `2**31` words run out of gas in both.
+- Rationale: no contract can allocate such a type. Matching `solc` would need
+  the zero defaults to be read without backing memory, which adds compiler
+  complexity for a size nothing can use.
+- Coverage: `tests/ui/codegen/run-call/memory/memory_default_oversized_field.sol`.
+
+### CODEGEN-020: A call with empty returndata moves the free memory pointer
+
+- ID: CODEGEN-020
+- Status: intentional
+- Difference: after a low-level call whose returndata is empty, `solar` moves
+  the free memory pointer by 32 bytes. `solc` points the empty result at the
+  zero slot and leaves the pointer in place. Only inline assembly that reads
+  `mload(0x40)` sees the pointer itself, and results are the same. In a loop
+  the memory grows by 32 bytes per call, which adds memory gas, but 20,000 such
+  calls in one transaction still cost less with `solar`: 14.4M gas against
+  15.8M.
+- Rationale: matching `solc` made the minimal-proxy benchmark 21 bytes bigger
+  and 19 gas dearer per call.
+- Coverage: `tests/ui/codegen/run-call/memory/low_level_call_empty_returndata_fmp.sol`.
+
+### CODEGEN-021: Internal function pointers stored through an unnamed slot with another function type panic
+
+- ID: CODEGEN-021
+- Status: intentional
+- Difference: calling an internal function pointer that assembly stored into a
+  variable of a different function type panics with `Panic(0x51)` in `solar`
+  when the store goes through a slot the assembly block does not name, such as
+  `sstore(0, raw)`. `solc` calls the function. A pointer of the variable's own
+  type stored the same way works in both. Naming the variable with
+  `sstore(stored.slot, raw)` does not compile on this build: the compiler stops
+  with an MIR validation error.
+- Rationale: Solidity cannot express that type punning, so only assembly
+  reaches it, and recognising the pointer behind a literal or computed slot
+  needs the compiler to track it through the slot store, which adds compiler
+  complexity.
+- Coverage: `tests/ui/codegen/run-call/function-pointers/internal_function_pointer_computed_storage_store.sol`
+  and `tests/ui/codegen/run-call/function-pointers/internal_function_pointer_computed_storage_same_type.sol`.
+
+### CODEGEN-022: Loading a dirty storage enum panics at the load
+
+- ID: CODEGEN-022
+- Status: intentional
+- Difference: reading an out-of-range enum value from storage into a local
+  panics with `Panic(0x21)` at the load in `solar`. `solc` via-IR panics only
+  where the value is used, so it returns normally when the local is unused.
+  Copying an enum array, or a struct holding one, from storage to storage
+  panics the same way in `solar`, while `solc` copies the slots and returns.
+- Rationale: only assembly or a broken storage layout writes such a value, and
+  moving the check to each use cost about a thousand lines of compiler code.
+- Coverage: `tests/ui/codegen/run-call/storage/storage_dirty_enum_load.sol`.
+
 ### CODEGEN-025: Writing a value that owns its storage slot clears the dirty padding
 
 - ID: CODEGEN-025
