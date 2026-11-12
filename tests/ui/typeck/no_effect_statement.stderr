@@ -1,3 +1,19 @@
+warning[9207]: `send` is deprecated and scheduled for removal
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         payable(owner).send(0);
+   │         ━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `call{value: <amount>}("")` instead
+
+warning[5878]: failure condition of `send` ignored
+   ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
+   │
+LL │         payable(owner).send(0);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: consider using `transfer` instead
+
 warning[6133]: statement has no effect
    ╭▸ ROOT/tests/ui/typeck/no_effect_statement.sol:LL:CC
    │

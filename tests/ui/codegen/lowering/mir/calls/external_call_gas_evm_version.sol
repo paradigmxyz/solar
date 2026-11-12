@@ -1,4 +1,5 @@
 //@ revisions: homestead homesteadGas homesteadSize tangerineWhistle
+//@ compile-flags: --allow=9207 --allow=5878
 //@[homestead] compile-flags: -O none --evm-version homestead -Zdump=mir
 //@[homestead] filecheck: --check-prefix=HOMESTEAD
 // The reserve only covers the `SUB` and the `CALL`, and the output-area touch is a store the call

@@ -1,5 +1,5 @@
 //@ codegen-matrix: standard
-//@ compile-flags: --allow=2018 --allow=5740
+//@ compile-flags: --allow=2018 --allow=5740 --allow=9207 --allow=5878
 //@[mir] normalize-stdout-test: "(?s).+" -> ""
 //@ run-call: Caddr_0::t_local_addr_balance; value=7 => 7
 //@ run-call: Caddr_0::t_retdirect_addr_balance; value=7 => 7
