@@ -1,7 +1,9 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir::{self, Item, ItemId, Res, Visit},
-    ty::{ExprMap, Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind, TypeckResults},
+    ty::{
+        ExprMap, Gcx, Recursiveness, SameSourceFileLevelUserTypeError, Ty, TyKind, TypeckResults,
+    },
 };
 use alloy_primitives::{B256, Selector, U256};
 use rayon::prelude::*;
@@ -27,7 +29,7 @@ mod control_flow;
 pub(crate) mod override_checker;
 mod safe_profile;
 mod udvt;
-mod view_pure_checker;
+pub(crate) mod view_pure_checker;
 
 #[instrument(name = "typeck", level = "debug", skip_all)]
 pub(crate) fn check(gcx: Gcx<'_>) {
@@ -88,9 +90,25 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     check_error_selector_collisions(gcx);
     control_flow::check(gcx);
     // solc's `StaticAnalyzer` runs before its `ViewPureChecker`.
+    check_no_effect_statements(gcx);
     constant_divisors::check(gcx, &units);
     view_pure_checker::check(gcx);
     safe_profile::check(gcx);
+}
+
+/// Reports expression statements that have no effect (6133), like solc's `StaticAnalyzer`, which
+/// only runs when no other error was reported.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/1835d247de183f23e7b0e2bc4a50732af525b77c/libsolidity/analysis/StaticAnalyzer.cpp#L200-L208>
+fn check_no_effect_statements(gcx: Gcx<'_>) {
+    if gcx.dcx().has_errors().is_err() {
+        return;
+    }
+    let mut spans = gcx.typeck_no_effect_stmts().to_vec();
+    spans.sort_unstable_by_key(|span| (span.lo(), span.hi()));
+    for span in spans {
+        gcx.dcx().emit_warn_code(span, error_code!(6133), "statement has no effect");
+    }
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
@@ -106,6 +124,7 @@ fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
     for f_id in gcx.hir.contract(id).functions() {
         let f = gcx.hir.function(f_id);
         check_payable_function(gcx, f);
+        check_fallback_mutability(gcx, f);
         check_fallback_signature(gcx, f);
     }
     for using in gcx.hir.contract(id).usings {
@@ -146,6 +165,7 @@ fn merge_typeck_results<'gcx>(
         }
         merged.user_operators.extend(new_results.user_operators);
         merged.base_slots.extend(new_results.base_slots);
+        merged.no_effect_stmts.extend(new_results.no_effect_stmts);
     }
 
     merged.expr_types = ExprMap::merge(expr_types, |id, prev_ty, ty| {
@@ -586,21 +606,31 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // Check state mutability
         if f.state_mutability != StateMutability::Payable {
             gcx.dcx()
-                .err_at(gcx.item_span(receive), "receive ether function must be payable")
+                .err_code_at(
+                    gcx.item_span(receive),
+                    error_code!(7793),
+                    "receive ether function must be payable",
+                )
                 .help("add `payable` state mutability")
                 .emit();
         }
 
         // Check parameters
         if !f.parameters.is_empty() {
-            gcx.dcx()
-                .emit_err(gcx.item_span(receive), "receive ether function cannot take parameters");
+            gcx.dcx().emit_err_code(
+                gcx.item_span(receive),
+                error_code!(6857),
+                "receive ether function cannot take parameters",
+            );
         }
 
         // Check return values
         if !f.returns.is_empty() {
-            gcx.dcx()
-                .emit_err(gcx.item_span(receive), "receive ether function cannot return values");
+            gcx.dcx().emit_err_code(
+                gcx.item_span(receive),
+                error_code!(6899),
+                "receive ether function cannot return values",
+            );
         }
     }
 }
@@ -794,6 +824,24 @@ fn check_payable_function(gcx: Gcx<'_>, f: &hir::Function<'_>) {
     gcx.dcx().emit_err_code(f.span, code, msg);
 }
 
+/// Checks that a fallback function is payable or non-payable.
+///
+/// Reference: <https://github.com/argotorg/solidity/blob/1835d247de183f23e7b0e2bc4a50732af525b77c/libsolidity/analysis/TypeChecker.cpp#L2026-L2033>
+fn check_fallback_mutability(gcx: Gcx<'_>, f: &hir::Function<'_>) {
+    if f.kind.is_fallback()
+        && matches!(f.state_mutability, StateMutability::View | StateMutability::Pure)
+    {
+        gcx.dcx()
+            .err_code_at(
+                f.span,
+                error_code!(4575),
+                "fallback function must be payable or non-payable",
+            )
+            .help("remove `view` or `pure`, or add `payable`")
+            .emit();
+    }
+}
+
 /// Checks that a fallback function has one of the two signatures the dispatcher can route.
 ///
 /// Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L2037-L2050>
@@ -944,6 +992,9 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>,
         }
         TyKind::Struct(struct_id) => {
             // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L2303C1-L2309C2
+            if let Recursiveness::Infinite(guar) = gcx.struct_recursiveness(struct_id) {
+                return Err(guar);
+            }
             let mut total_size = U256::ONE;
             for t in gcx.struct_field_types(struct_id) {
                 let Some(size_contribution) = ty_storage_size_upper_bound(*t, gcx)? else {

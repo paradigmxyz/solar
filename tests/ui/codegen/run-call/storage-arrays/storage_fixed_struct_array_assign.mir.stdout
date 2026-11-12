@@ -1,0 +1,141 @@
+; === ROOT/tests/ui/codegen/run-call/storage-arrays/storage_fixed_struct_array_assign.sol:StorageFixedStructArrayAssign ===
+@module StorageFixedStructArrayAssign
+@types
+  struct0: {i256, i256, i256}
+
+; creation entry
+fn @constructor() [constructor] {
+  bb0:
+    sstore 24, 1 !metadata(storage=slot(24))
+    ret
+}
+
+; function setUp() public [selector 0x0a9254e4]
+fn @setUp() [selector=0x0a9254e4, abi_params=[], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    v0 = sload 24 !metadata(storage=slot(24))
+    v1 = lt v0, 4
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = mul v0, 3
+    v4 = add v3, 0
+    sstore v4, 1 !metadata(storage=symbolic(v3))
+    v5 = add v4, 1
+    sstore v5, 2 !metadata(storage=offset(v3, 1))
+    v6 = add v4, 2
+    sstore v6, 1 !metadata(storage=offset(v3, 2))
+    ret
+}
+
+; function read(uint256 base) internal view returns (uint256 a, uint256 b, uint256 c)
+fn @read(arg0: i256) -> struct0 [view] {
+  bb0:
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    v1 = add arg0, 1
+    v2 = sload v1 !metadata(storage=offset(arg0, 1))
+    v3 = add arg0, 2
+    v4 = sload v3 !metadata(storage=offset(arg0, 2))
+    v5 = insert_value struct0, undef struct0, 0, v0
+    v6 = insert_value struct0, v5, 1, v2
+    v7 = insert_value struct0, v6, 2, v4
+    ret v7
+}
+
+; function testDynamicIndex() public view returns (uint256, uint256, uint256) [selector 0x8fa50415]
+fn @testDynamicIndex() -> struct0 [selector=0x8fa50415, view, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = icall @read, 3
+    v1 = extract_value struct0, v0, 0
+    v2 = extract_value struct0, v0, 1
+    v3 = extract_value struct0, v0, 2
+    v4 = insert_value struct0, undef struct0, 0, v1
+    v5 = insert_value struct0, v4, 1, v2
+    v6 = insert_value struct0, v5, 2, v3
+    ret v6
+}
+
+; function testConstantIndex() public returns (uint256, uint256, uint256) [selector 0xb6aa0fa8]
+fn @testConstantIndex() -> struct0 [selector=0xb6aa0fa8, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = lt 3, 4
+    v1 = eq v0, false
+    icall panic_if<0x32>, v1
+    sstore 9, 1 !metadata(storage=slot(9))
+    sstore 10, 2 !metadata(storage=slot(10))
+    sstore 11, 1 !metadata(storage=slot(11))
+    v2 = icall @read, 9
+    v3 = extract_value struct0, v2, 0
+    v4 = extract_value struct0, v2, 1
+    v5 = extract_value struct0, v2, 2
+    v6 = insert_value struct0, undef struct0, 0, v3
+    v7 = insert_value struct0, v6, 1, v4
+    v8 = insert_value struct0, v7, 2, v5
+    ret v8
+}
+
+; function testFromMemory() public returns (uint256, uint256, uint256) [selector 0xfebd1e0e]
+fn @testFromMemory() -> struct0 [selector=0xfebd1e0e, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = alloc 96
+    mstore v0, 1
+    v1 = ptradd v0, 32
+    mstore v1, 2
+    v2 = ptradd v0, 64
+    mstore v2, 1
+    v3 = sload 24 !metadata(storage=slot(24))
+    v4 = checked_add uint256, v3, 1
+    v5 = lt v4, 4
+    v6 = eq v5, false
+    icall panic_if<0x32>, v6
+    v7 = mul v4, 3
+    v8 = add v7, 0
+    v9 = mload v0
+    sstore v8, v9 !metadata(storage=symbolic(v7))
+    v10 = add v8, 1
+    v11 = ptradd v0, 32
+    v12 = mload v11
+    sstore v10, v12 !metadata(storage=offset(v7, 1))
+    v13 = add v8, 2
+    v14 = ptradd v0, 64
+    v15 = mload v14
+    v16 = and v15, 255
+    sstore v13, v16 !metadata(storage=offset(v7, 2))
+    v17 = icall @read, 6
+    v18 = extract_value struct0, v17, 0
+    v19 = extract_value struct0, v17, 1
+    v20 = extract_value struct0, v17, 2
+    v21 = insert_value struct0, undef struct0, 0, v18
+    v22 = insert_value struct0, v21, 1, v19
+    v23 = insert_value struct0, v22, 2, v20
+    ret v23
+}
+
+; function testNested() public returns (uint256, uint256, uint256) [selector 0xfbd4b8cc]
+fn @testNested() -> struct0 [selector=0xfbd4b8cc, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = sload 24 !metadata(storage=slot(24))
+    v1 = lt v0, 2
+    v2 = eq v1, false
+    icall panic_if<0x32>, v2
+    v3 = mul v0, 6
+    v4 = add v3, 12
+    v5 = sload 24 !metadata(storage=slot(24))
+    v6 = lt v5, 2
+    v7 = eq v6, false
+    icall panic_if<0x32>, v7
+    v8 = mul v5, 3
+    v9 = add v4, v8
+    sstore v9, 8 !metadata(storage=symbolic(v9))
+    v10 = add v9, 1
+    sstore v10, 9 !metadata(storage=offset(v9, 1))
+    v11 = add v9, 2
+    sstore v11, 1 !metadata(storage=offset(v9, 2))
+    v12 = icall @read, 21
+    v13 = extract_value struct0, v12, 0
+    v14 = extract_value struct0, v12, 1
+    v15 = extract_value struct0, v12, 2
+    v16 = insert_value struct0, undef struct0, 0, v13
+    v17 = insert_value struct0, v16, 1, v14
+    v18 = insert_value struct0, v17, 2, v15
+    ret v18
+}

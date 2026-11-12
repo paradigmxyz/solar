@@ -17,11 +17,11 @@
 use super::{
     ArgIdx, Body, CallGraphInfo, DebugFunction, DebugFunctionExit, DeferredConst, DenseBitSet,
     EvmCodegen, EvmMemoryLayout, Function, FunctionId, FxHashMap, FxHashSet, IndexVec, InstKind,
-    MemoryRegion, MirType, Module, RelayoutAddress, Terminator, U256, Value, ValueId, WORD_BYTES,
-    immutable_staging_end, index_vec, ir, op, preserves_push_width,
+    Label, MemoryRegion, MirType, Module, RelayoutAddress, Terminator, U256, Value, ValueId,
+    WORD_BYTES, immutable_staging_end, index_vec, ir, op, preserves_push_width,
 };
 use crate::mir::{
-    BlockId, Callee, EffectKind, PtrLocation, RawMemoryAccess,
+    BlockId, Callee, EffectKind, InstructionMetadata, PtrLocation, RawMemoryAccess,
     analysis::{AddressInput, absolute_address_inputs},
     utils::{eval::eval_inst, u256_to_u64},
 };
@@ -120,6 +120,35 @@ impl<'gcx> EvmCodegen<'gcx> {
                 identifier,
                 declaration: func.declaration_span,
             });
+        }
+    }
+
+    /// Gives the entry label of the external function `func` the source location of its
+    /// declaration when debug output is requested, as solc places the tag under the function
+    /// (`ContractCompiler::appendFunctionSelector`).
+    pub(in crate::backend::evm::codegen) fn mark_debug_external_entry_label(
+        &mut self,
+        label: Label,
+        func: &Function,
+    ) {
+        if self.capture_debug_info
+            && !func.declaration_span.is_dummy()
+            && func.debug_identifier.is_some()
+        {
+            self.asm.set_label_origins(label, [func.declaration_span], 0);
+        }
+    }
+
+    /// Gives `label`, which starts a block of a MIR function, the origin that MIR placed the
+    /// block's label under: the statement a block opens, or the function for its entry (solc's
+    /// `LocationSetter` scopes). A label with several origins keeps all of them.
+    pub(in crate::backend::evm::codegen) fn mark_block_label_origin(
+        &mut self,
+        label: Label,
+        origin: &InstructionMetadata,
+    ) {
+        if self.capture_debug_info && origin.source_spans().next().is_some() {
+            self.asm.set_label_origins(label, origin.source_spans(), origin.modifier_depth());
         }
     }
 
@@ -1460,7 +1489,9 @@ impl<'gcx> EvmCodegen<'gcx> {
 
         let id = self.asm.new_deferred_const();
         // push heap_start; push FMP_SLOT; mstore
-        self.emit_with_contract_origin(|codegen| {
+        // NOTE: solc runs one contract-wide preamble before dispatch (`compileContract`); ours runs
+        // per entry after dispatch and stores that entry's own floor, so it belongs to the entry.
+        self.emit_with_origin(Some(module.functions[entry].declaration_span), |codegen| {
             codegen.asm.emit_push_deferred(id);
             codegen.asm.emit_push(U256::from(EvmMemoryLayout::FMP_SLOT));
             codegen.asm.emit_op(op::MSTORE);

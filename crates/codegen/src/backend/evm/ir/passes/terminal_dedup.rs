@@ -29,17 +29,15 @@ use super::{
     EvmPass,
     block_layout::terminator_kind,
     cfg_simplify::mark_addressed_blocks,
-    utils::{MachineInstKey, is_terminal_boundary},
+    utils::{MachineInstKey, is_pc, is_terminal_boundary},
 };
-use crate::backend::evm::{
-    ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
-    op,
-};
+use crate::backend::evm::ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
     map::{FxHashMap, FxHasher},
 };
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 use std::hash::{Hash, Hasher};
 
@@ -99,7 +97,7 @@ impl EvmPass for TerminalDedup {
                 // duplicate terminal body -> jump canonical body
                 module.blocks[block].instructions.clear();
                 let mut terminator = Terminator::new(TerminatorKind::Jump(target));
-                terminator.metadata.mark_debug_info_dropped();
+                terminator.metadata.drop_debug_loc(DebugLocKind::Dropped);
                 module.blocks[block].terminator = Some(terminator);
             }
         }
@@ -109,19 +107,26 @@ impl EvmPass for TerminalDedup {
 
 fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
     let target = redirects[0].1;
+    // Every redirected path enters through the survivor's label. The redirected blocks keep
+    // their own, since they remain as jump blocks.
+    let mut label = module.blocks[target].label_metadata.clone();
+    label
+        .merge_debug_locs(redirects.iter().map(|&(block, _)| &module.blocks[block].label_metadata));
+    module.blocks[target].label_metadata = label;
     for index in 0..module.blocks[target].instructions.len() {
         let mut metadata = module.blocks[target].instructions[index].metadata.clone();
-        metadata.merge_equivalent_debug_info(
-            redirects.iter().map(|&(block, _)| &module.blocks[block].instructions[index].metadata),
-        );
+        let others =
+            redirects.iter().map(|&(block, _)| &module.blocks[block].instructions[index].metadata);
+        metadata.merge_debug_locs(others.clone());
+        metadata.merge_function_events(others);
         module.blocks[target].instructions[index].metadata = metadata;
     }
     let mut metadata = module.blocks[target].terminator.as_ref().unwrap().metadata.clone();
-    metadata.merge_equivalent_debug_info(
-        redirects
-            .iter()
-            .map(|&(block, _)| &module.blocks[block].terminator.as_ref().unwrap().metadata),
-    );
+    let others = redirects
+        .iter()
+        .map(|&(block, _)| &module.blocks[block].terminator.as_ref().unwrap().metadata);
+    metadata.merge_debug_locs(others.clone());
+    metadata.merge_function_events(others);
     module.blocks[target].terminator.as_mut().unwrap().metadata = metadata;
 }
 
@@ -129,8 +134,7 @@ fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
 /// share its body.
 fn terminal_block_hash(block: &Block, redirectable: bool) -> Option<u64> {
     let terminator = &block.terminator.as_ref()?.kind;
-    if (!is_terminal_boundary(terminator) && !redirectable)
-        || block.instructions.iter().any(|inst| inst.as_evm_opcode() == Some(op::PC))
+    if (!is_terminal_boundary(terminator) && !redirectable) || block.instructions.iter().any(is_pc)
     {
         return None;
     }
@@ -146,9 +150,10 @@ fn terminal_block_hash(block: &Block, redirectable: bool) -> Option<u64> {
 /// Whether two candidate bodies have the same machine instructions and terminator.
 fn same_terminal_body(a: &Block, b: &Block) -> bool {
     a.instructions.len() == b.instructions.len()
-        && a.instructions.iter().zip(&b.instructions).all(|(a, b)| {
-            a.as_evm_opcode() != Some(op::PC) && MachineInstKey::new(a) == MachineInstKey::new(b)
-        })
+        && a.instructions
+            .iter()
+            .zip(&b.instructions)
+            .all(|(a, b)| !is_pc(a) && MachineInstKey::new(a) == MachineInstKey::new(b))
         && terminator_kind(a) == terminator_kind(b)
 }
 

@@ -1,0 +1,57 @@
+; === ROOT/tests/ui/codegen/run-call/storage-references/storage_ref_named_return.sol:Positions ===
+@module Positions
+@types
+  struct0: {i256, i256, i256}
+
+; function _get(mapping(bytes32 => Position) storage self, bytes32 key) internal view returns (Position storage position)
+fn @_get(arg0: i256, arg1: i256) -> i256 [view] {
+  bb0:
+    v0 = mapping_slot arg1, arg0
+    ret v0
+}
+
+; function _getPool(bytes32 id) internal view returns (State storage)
+fn @_getPool(arg0: i256) -> i256 [view] {
+  bb0:
+    v0 = mapping_slot arg0, 0
+    ret v0
+}
+
+; function run() external returns (uint256, uint256, uint256) [selector 0xc0406226]
+fn @run() -> struct0 [selector=0xc0406226, abi_params=[], abi_returns=[word, word, word], abi_return_params=[uint256, uint256, uint256]] {
+  bb0:
+    v0 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v1 = add v0, 1
+    v2 = icall @_get, v1, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
+    v3 = sload v2 !metadata(storage=symbolic(v2))
+    v4 = trunc i256 v3 to i128
+    v5 = checked_add uint128, v4, i128 5
+    v6 = zext i128 v5 to i256
+    v7 = and v6, 0xffffffffffffffffffffffffffffffff
+    sstore v2, v7 !metadata(storage=symbolic(v2))
+    v8 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
+    v9 = add v8, 1
+    v10 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v9
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    v12 = trunc i256 v11 to i128
+    v13 = zext i128 v12 to i256
+    v14 = icall @_getPool, 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd
+    v15 = add v14, 1
+    v16 = icall @_get, v15, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v18 = trunc i256 v17 to i128
+    v19 = zext i128 v18 to i256
+    v20 = add v0, 1
+    v21 = icall @_get, v20, 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c
+    v22 = add v21, 1
+    sstore v22, 12 !metadata(storage=offset(v21, 1))
+    v23 = mapping_slot 0xe35b2940ca10a9581573918a0d9ed2422f97cc9196f63510c77f5a0ed5393cfd, 0
+    v24 = add v23, 1
+    v25 = mapping_slot 0xb334f8ce3b01e25d0b6fe82d0fdb6eb534f3183d7dc5a6bb44d8eb9f676f650c, v24
+    v26 = add v25, 1
+    v27 = sload v26 !metadata(storage=offset(v25, 1))
+    v28 = insert_value struct0, undef struct0, 0, v13
+    v29 = insert_value struct0, v28, 1, v19
+    v30 = insert_value struct0, v29, 2, v27
+    ret v30
+}

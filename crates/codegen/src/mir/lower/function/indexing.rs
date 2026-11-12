@@ -40,9 +40,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_index(
         &mut self,
-        expr: &hir::Expr<'_>,
-        receiver: &hir::Expr<'_>,
-        index: Option<&hir::Expr<'_>>,
+        expr: &'gcx hir::Expr<'gcx>,
+        receiver: &'gcx hir::Expr<'gcx>,
+        index: Option<&'gcx hir::Expr<'gcx>>,
     ) -> Option<ValueId> {
         if let Some(place) = self.resolve_storage_byte_place(expr) {
             // value = load_storage_byte(place)
@@ -58,7 +58,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // object = lower(receiver)
         // index = lower(index)
         let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
-        let object = self.operand(receiver)?;
+        let object = self.operand(receiver)?.id();
         let uint256 = self.cx.gcx.types.uint(256);
         let index = self.lower_typed_expr(index, uint256)?.clean(self, uint256);
         if let TyKind::Elementary(solar_sema::hir::ElementaryType::FixedBytes(size)) =
@@ -158,13 +158,13 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_slice(
         &mut self,
-        expr: &hir::Expr<'_>,
-        receiver: &hir::Expr<'_>,
-        start: Option<&hir::Expr<'_>>,
-        end: Option<&hir::Expr<'_>>,
+        expr: &'gcx hir::Expr<'gcx>,
+        receiver: &'gcx hir::Expr<'gcx>,
+        start: Option<&'gcx hir::Expr<'gcx>>,
+        end: Option<&'gcx hir::Expr<'gcx>>,
     ) -> Option<ValueId> {
         let receiver_ty = self.cx.gcx.type_of_expr(receiver.id)?;
-        let value = self.operand(receiver)?;
+        let value = self.operand(receiver)?.id();
         let (source, location) = match self.builder.func().value_ty(value) {
             Some(MirType::Slice(location)) => (value, location),
             _ => {

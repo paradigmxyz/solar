@@ -231,11 +231,11 @@ fn apply(func: &mut Function, split: &Split) {
         func.alloc_value(Value::Immediate(Immediate::for_type(Some(ty), split.lookahead)));
     let (add, ahead) = func.alloc_value_inst(
         Instruction::new(InstKind::Add(mapped(split.counter), lookahead), Some(ty))
-            .with_debug_info_dropped(),
+            .with_debug_loc_dropped(),
     );
     let (lt, condition) = func.alloc_value_inst(
         Instruction::new(InstKind::Lt(ahead, split.bound), Some(MirType::I1))
-            .with_debug_info_dropped(),
+            .with_debug_loc_dropped(),
     );
     func.blocks[main_header].instructions.extend([add, lt]);
     branch(func, main_header, condition, copy.blocks[&split.body], split.header);

@@ -168,7 +168,7 @@ fn preserves_group(
         // Lowering places constructor homes outside the FMP word.
         | EffectKind::ImmutableRead
         | EffectKind::ImmutableWrite => true,
-        // `Fmp`, `SetFmp`, non-member `Alloc` shapes, and the remaining aggregate accesses have no
+        // `Fmp`, non-member `Alloc` shapes, and the remaining aggregate accesses have no
         // raw memory range and stay conservative barriers. The object and mapping forms are gone
         // by this point in the pipeline.
         EffectKind::MemoryRead | EffectKind::MemoryWrite => {

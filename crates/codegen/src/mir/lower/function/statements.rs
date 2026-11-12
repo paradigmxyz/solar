@@ -4,7 +4,7 @@ use super::*;
 use crate::mir::lower::data::stores_data_as_words;
 
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
-    pub(super) fn lower_stmt(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
+    pub(super) fn lower_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> Option<()> {
         let previous = self.builder.replace_source_span(stmt.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_stmt_inner(stmt);
@@ -13,7 +13,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result
     }
 
-    fn lower_stmt_inner(&mut self, stmt: &hir::Stmt<'_>) -> Option<()> {
+    fn lower_stmt_inner(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> Option<()> {
         match &stmt.kind {
             StmtKind::DeclSingle(id) => {
                 let initializer = self.cx.gcx.hir.variable(*id).initializer;
@@ -106,6 +106,10 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 if let ExprKind::Tuple(values) = &expr.peel_parens().kind
                     && values.len() == ids.len()
                 {
+                    let waits = self.operands_wait(values.iter().flatten().copied());
+                    let mut position = 0;
+                    let mut waited = false;
+                    let mut pending = Vec::new();
                     for (id, value) in ids.iter().zip(values.iter()) {
                         let Some(value) = value else {
                             if id.is_some() {
@@ -115,6 +119,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             }
                             continue;
                         };
+                        position += 1;
+                        let waits = waits[position - 1];
                         let Some(id) = id else {
                             // The declaration drops this component, so its value needs no read.
                             self.lower_discarded_expr(value)?;
@@ -126,10 +132,19 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                             self.storage_refs.insert(*id, access);
                             continue;
                         }
-                        let span = value.span;
-                        let value = self.lower_typed_expr(value, ty)?;
-                        let value = self.bind_word(*id, value, span)?;
-                        self.values.insert(*id, value);
+                        let operand = self.lower_operand(value, ty)?;
+                        // Once a component waits, every later copy waits behind it, so the copies
+                        // allocate in source order.
+                        if (waited && operand.copies()) || (waits && operand.waits()) {
+                            waited = true;
+                            pending.push((*id, operand));
+                        } else {
+                            self.bind_operand(*id, operand)?;
+                        }
+                    }
+                    // The declaration converts its components after all of them ran, as via-IR.
+                    for (id, operand) in pending {
+                        self.bind_operand(id, operand)?;
                     }
                     return Some(());
                 }
@@ -280,7 +295,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     /// Custom error payloads are never stripped. A reason that is not a compile-time constant
     /// string is still evaluated so its side effects and failures are kept; only the payload is
     /// dropped.
-    pub(super) fn strips_revert_string(&mut self, expr: &hir::Expr<'_>) -> Option<bool> {
+    pub(super) fn strips_revert_string(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<bool> {
         if !self.cx.gcx.sess.opts.revert_strings.is_strip() {
             return Some(false);
         }
@@ -297,7 +312,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Lowers an expression whose value is dropped, such as a tuple declaration or assignment
     /// hole, so that it can skip the reads only its value would need.
-    pub(super) fn lower_discarded_expr(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+    pub(super) fn lower_discarded_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<()> {
         let previous = self.builder.replace_source_span(expr.span);
         let previous_modifier_depth = self.builder.replace_modifier_depth(self.modifier_depth);
         let result = self.lower_discarded_expr_inner(expr.peel_parens());
@@ -306,7 +321,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         result
     }
 
-    fn lower_discarded_expr_inner(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+    /// Converts a lowered operand to the type of the variable `id` and binds it.
+    fn bind_operand(&mut self, id: VariableId, operand: Lowered<'gcx>) -> Option<()> {
+        let span = operand.span;
+        let value = self.convert_operand(operand)?;
+        let value = self.bind_word(id, value, span)?;
+        self.values.insert(id, value);
+        Some(())
+    }
+
+    fn lower_discarded_expr_inner(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<()> {
         // Reading a constant with a value has no effects. One without a value runs its helper,
         // which can revert.
         let gcx = self.cx.gcx;
@@ -356,7 +380,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 Some(())
             }
             ExprKind::Ternary(condition, then_expr, else_expr) => {
-                let condition = self.operand(condition)?;
+                let condition = self.operand(condition)?.id();
                 let ty = self.cx.gcx.type_of_expr(expr.id)?;
                 let lower_branch = |this: &mut Self, branch| {
                     if ty.is_ref_at(DataLocation::Memory) {
@@ -400,7 +424,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns whether `expr` names a function or a builtin function, such as `this.f` or
     /// `to.transfer`, rather than a function-typed value.
-    fn is_member_function(&self, expr: &hir::Expr<'_>) -> bool {
+    fn is_member_function(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
         let gcx = self.cx.gcx;
         matches!(
             gcx.resolved_expr(expr),
@@ -409,7 +433,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     }
 
     /// Returns whether `expr` names a type, module, event, or error rather than a runtime value.
-    fn is_item_reference(&self, expr: &hir::Expr<'_>) -> bool {
+    fn is_item_reference(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
         self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| {
             matches!(
                 ty.kind,
@@ -423,13 +447,16 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         })
     }
 
-    pub(super) fn lower_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+    pub(super) fn lower_revert_payload(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<()> {
         let payload = self.prepare_revert_payload(expr)?;
         self.emit_revert_payload(payload);
         Some(())
     }
 
-    pub(super) fn prepare_revert_payload(&mut self, expr: &hir::Expr<'_>) -> Option<RevertPayload> {
+    pub(super) fn prepare_revert_payload(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+    ) -> Option<RevertPayload> {
         if let Some((callee, args, _)) = expr.peel_parens().as_call()
             && let Some(hir::Res::Item(hir::ItemId::Error(error_id))) =
                 self.cx.gcx.resolved_expr(callee)
@@ -467,7 +494,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     fn prepare_custom_error_payload(
         &mut self,
         error_id: hir::ErrorId,
-        args: hir::CallArgs<'_>,
+        args: hir::CallArgs<'gcx>,
     ) -> Option<RevertPayload> {
         let parameters = self.cx.gcx.item_parameters(hir::ItemId::Error(error_id));
         if args.len() != parameters.len() {
@@ -487,10 +514,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             |this, index, argument| {
                 let parameter_ty = this.cx.gcx.type_of_item(parameters[index].into());
                 Some(match this.lower_abi_call_argument(argument, parameter_ty)? {
-                    AbiOperand::Ready((value, abi_type @ AbiType::Word(_))) => AbiOperand::Ready((
-                        this.lower_word_value(parameter_ty, argument, value),
-                        abi_type,
-                    )),
+                    Step::Done((value, abi_type @ AbiType::Word(_))) => {
+                        Step::Done((this.lower_word_value(parameter_ty, argument, value), abi_type))
+                    }
                     operand => operand,
                 })
             },
@@ -503,7 +529,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(RevertPayload::CustomError { selector, layout, values: values.into_boxed_slice() })
     }
 
-    pub(super) fn lower_emit(&mut self, expr: &hir::Expr<'_>) -> Option<()> {
+    pub(super) fn lower_emit(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<()> {
         let Some((callee, args, _)) = expr.peel_parens().as_call() else {
             return self.cx.report_unsupported(expr.span, "event emission");
         };
@@ -567,14 +593,14 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                     )?;
                     return Some((
                         argument,
-                        AbiOperand::Ready((value, this.types.abi_type(parameter_ty)?)),
+                        Step::Done((value, this.types.abi_type(parameter_ty)?)),
                     ));
                 }
                 if !this.cx.gcx.hir.variable(parameter).indexed
                     && this.is_dynamic_bytes_type(parameter_ty)
                 {
                     let (value, location) = this.lower_bytes_operand(argument, parameter_ty)?;
-                    return Some((argument, AbiOperand::Ready((value, AbiType::Bytes(location)))));
+                    return Some((argument, Step::Done((value, AbiType::Bytes(location)))));
                 }
                 // A storage array, struct, or string is read after the arguments that follow it,
                 // as via-IR does; legacy hashes indexed topics before the data arguments run.
@@ -594,9 +620,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 // topics += encode_indexed(argument)
                 match parameter_ty.peel_refs().kind {
                     TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                        if matches!(self.builder.func().value_ty(value), Some(MirType::Slice(_))) {
-                            value = self.materialize_memory_slice(value);
-                        }
                         topics.push(self.builder.keccak256_bytes(value));
                     }
                     TyKind::Struct(_)
@@ -631,8 +654,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                                 "indexed event aggregate encoding",
                             );
                         }
+                        // The hash reads the encoding at once, so it stays unreserved.
                         let layout = Arc::new(AbiLayout::new(vec![abi_type].into_boxed_slice()));
-                        let encoded = self.builder.abi_encode(layout, None, [value]);
+                        let encoded = self.builder.abi_encode_scratch(layout, None, [value]);
                         let pointer = self.builder.slice_ptr(encoded);
                         let length = self.builder.slice_len(encoded);
                         topics.push(self.builder.keccak256(pointer, length));
@@ -644,14 +668,6 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 abi_type = self.abi_type_for_value(value, abi_type);
                 self.check_calldata_array_size(value, parameter_ty, &abi_type);
                 self.validate_calldata_static_argument(value, parameter_ty);
-                // The dispatcher validates the elements of an argument that only ABI decoding
-                // passes when an encoding takes it.
-                if Self::is_calldata_word_array(&abi_type)
-                    && self.needs_calldata_aggregate_validation(value, parameter_ty)
-                    && !self.is_decoded_external_argument(value)
-                {
-                    self.validate_calldata_word_array(value, parameter_ty);
-                }
                 if matches!(abi_type, AbiType::Word(_)) {
                     value = self.lower_word_value(parameter_ty, argument, value);
                 }
@@ -690,16 +706,23 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         Some(())
     }
 
-    pub(super) fn lower_block(&mut self, block: hir::Block<'_>) -> Option<()> {
+    pub(super) fn lower_block(&mut self, block: hir::Block<'gcx>) -> Option<()> {
         let mut stmts = block.stmts.iter().peekable();
         while let Some(stmt) = stmts.next() {
             if self.is_terminated() {
                 break;
             }
-            if let Some(args) = self.immediate_packed_hash_return_args(stmt, stmts.peek().copied())
+            if let Some((args, hash_span)) =
+                self.immediate_packed_hash_return_args(stmt, stmts.peek().copied())
             {
+                // The fused operation replaces the hash call, whose location solc sets in
+                // `ExpressionCompiler.cpp` L636. The erased bytes declaration contributes no
+                // location; the return keeps its own statement context.
+                let previous = self.builder.replace_source_span(hash_span);
                 let hash = self.lower_keccak_abi_encode_packed(args)?;
+                self.builder.replace_source_span(stmts.peek().unwrap().span);
                 self.builder.ret(vec![hash]);
+                self.builder.replace_source_span(previous);
                 break;
             }
             self.lower_stmt(stmt)?;
@@ -709,9 +732,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     fn immediate_packed_hash_return_args(
         &self,
-        stmt: &hir::Stmt<'_>,
-        next: Option<&hir::Stmt<'_>>,
-    ) -> Option<hir::CallArgs<'gcx>> {
+        stmt: &'gcx hir::Stmt<'gcx>,
+        next: Option<&'gcx hir::Stmt<'gcx>>,
+    ) -> Option<(hir::CallArgs<'gcx>, Span)> {
         if !self.return_targets.is_empty() {
             return None;
         }
@@ -739,7 +762,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (Some(Builtin::Keccak256), hir::CallArgsKind::Unnamed([arg]), [_])
                 if self.cx.gcx.resolved_variable(arg) == Some(id) =>
             {
-                Some(*args)
+                Some((*args, expr.span))
             }
             _ => None,
         }
@@ -748,7 +771,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_word_value(
         &mut self,
         ty: Ty<'gcx>,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
         value: ValueId,
     ) -> ValueId {
         let expr = expr.peel_parens();

@@ -1,0 +1,73 @@
+; === ROOT/tests/ui/codegen/lowering/evm-ir/spills/keep_reloaded_store.sol:Target ===
+@module Target
+; function six(uint256 x) external pure returns (uint256) [selector 0x84b8ba08]
+fn @six(arg0: i256) -> i256 [selector=0x84b8ba08, pure, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = checked_mul uint256, arg0, 6
+    ret v0
+}
+
+; === ROOT/tests/ui/codegen/lowering/evm-ir/spills/keep_reloaded_store.sol:KeepReloadedStore ===
+@module KeepReloadedStore
+@data
+  Target_creation_code_0: creation_code "ROOT/tests/ui/codegen/lowering/evm-ir/spills/keep_reloaded_store.sol:Target"
+
+; constructor() [creation entry]
+fn @constructor() [constructor] {
+  bb0:
+    v0 = datasize Target_creation_code_0
+    v1 = fmp
+    datacopy Target_creation_code_0, v1, v0
+    v2 = create 0, v1, v0
+    v3 = ne v2, i160 0
+    jumpi v3, bb2, bb1
+  bb1:                                            ; preds = bb0
+    revert_returndata
+  bb2:                                            ; preds = bb0
+    v4 = zext i160 v2 to i256
+    v5 = and v4, 0xffffffffffffffffffffffffffffffffffffffff
+    sstore 0, v5 !metadata(storage=slot(0))
+    ret
+}
+
+; function depth(uint256 n) internal pure returns (uint256)
+fn @depth(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = eq arg0, 0
+    jumpi v0, bb1, bb2
+  bb2:                                            ; preds = bb0
+    jump bb3
+  bb3:                                            ; preds = bb2
+    v1 = checked_sub uint256, arg0, 1
+    v2 = icall @depth, v1
+    v3 = checked_add uint256, v2, 1
+    ret v3
+  bb1:                                            ; preds = bb0
+    ret 0
+}
+
+; function check(bool ok) internal pure
+fn @check(arg0: i1) [pure] {
+  bb0:
+    v0 = eq arg0, false
+    icall revert_if<empty>, v0
+    v1 = icall @depth, 2
+    v2 = eq v1, 2
+    v3 = eq v2, false
+    icall revert_if<empty>, v3
+    ret
+}
+
+; function probe(uint256 x) external view returns (uint256) [selector 0xdb082440]
+fn @probe(arg0: i256) -> i256 [selector=0xdb082440, view, abi_params=[uint256], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i160
+    v2 = gas
+    v3 = abi_encode [word], object, selector 0x84b8ba0800000000000000000000000000000000000000000000000000000000, args arg0
+    v4 = address_staticcall v1, v3, gas v2
+    v5 = icall returndata_bytes<>
+    icall @check, v4
+    v6 = abi_decode [uint256], v5
+    ret v6
+}

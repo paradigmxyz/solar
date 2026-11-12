@@ -104,10 +104,18 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let bound = match func.value(value) {
             Value::Inst(inst_id) => match func.inst(*inst_id).kind {
-                InstKind::Select(_, if_true, if_false) => Some(
-                    Self::value_u64_upper_bound(func, if_true, visiting)?
-                        .max(Self::value_u64_upper_bound(func, if_false, visiting)?),
-                ),
+                InstKind::Select(cond, if_true, if_false) => {
+                    let then_bound = Self::value_u64_upper_bound(func, if_true, visiting);
+                    let else_bound = Self::value_u64_upper_bound(func, if_false, visiting);
+                    // `select(lt(a, b), a, b)` is `min(a, b)`, so either bound holds.
+                    let is_min = matches!(func.value(cond), Value::Inst(inst)
+                        if func.inst(*inst).kind == InstKind::Lt(if_true, if_false));
+                    if is_min {
+                        then_bound.into_iter().chain(else_bound).min()
+                    } else {
+                        Some(then_bound?.max(else_bound?))
+                    }
+                }
                 _ => None,
             },
             Value::Arg(_) | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => None,
@@ -610,11 +618,7 @@ impl<'gcx> EvmCodegen<'gcx> {
                 overlaps(*offset, *size)
             }
             InstKind::Log { offset, size, .. } => overlaps(*offset, *size),
-            InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc { .. } => true,
-            // These semantic memory operations are normally gone by the `lowered` phase. If
-            // one remains, its complete accessed range is not represented as physical operands
-            // here, so retain the Solidity memory invariant conservatively.
-            InstKind::AbiEncode { .. } | InstKind::MappingSlotBytes(_, _) => true,
+            InstKind::Alloc { .. } => true,
             _ => false,
         }
     }

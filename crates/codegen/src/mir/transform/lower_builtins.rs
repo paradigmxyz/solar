@@ -8,6 +8,8 @@
 //! retain their returndata and memory observations even when their scalar result is unused.
 //! As in solc, a failed precompile call forwards its return data, and the 32-byte result lands in
 //! scratch memory instead of an allocation.
+//! Hash inputs can be memory objects or memory slices: calldata is staged in unreserved memory
+//! by the frontend and passed as a slice, without allocating a header or advancing the FMP.
 //! Payable sends and transfers expand to stipend-limited calls; transfers branch to a semantic
 //! returndata revert on failure, leaving payload expansion to revert lowering. Low-level address
 //! calls expose their bytes input only here and retain explicit gas/value options. Return-data
@@ -98,7 +100,6 @@ impl MirPass for LowerBuiltins {
                         return false;
                     }
                     let inst = builder.func().inst(id).clone();
-                    builder.set_debug_context(&inst.metadata);
                     match inst.kind {
                         InstKind::ICall { function: Callee::Builtin(Builtin::Transfer), args } => {
                             let [address, amount] = builtin_args(&args);
@@ -299,8 +300,8 @@ fn lower_hash(
     ripemd: bool,
 ) -> ValueId {
     // NOTE: A successful call always writes the whole digest, so it can land in scratch memory.
-    // input_ptr = add (ptrtoint input), 32
-    // input_len = mload input
+    // input_ptr = memory_data input
+    // input_len = memory_len input
     // success = precompile_call(sha256 ? 2 : 3, input_ptr, input_len, scratch, 32)
     // branch success, done, failed
     // failed: revert_returndata
@@ -383,18 +384,15 @@ fn precompile_call(
 
 fn lower_erc7201(builder: &mut FunctionBuilder<'_>, input: ValueId) -> ValueId {
     // inner = keccak256_bytes(input) - 1
-    // object = bytes(32)
-    // store_word(object, 0, inner)
-    // slot = keccak256(object.data, 32) & ~0xff
+    // mstore(0, inner)
+    // slot = keccak256(0, 32) & ~0xff
     let hash = builder.keccak256_bytes(input);
     let one = builder.imm(1);
     let inner = builder.sub(hash, one);
+    let scratch = builder.imm(EvmMemoryLayout::SCRATCH_SLOT);
+    builder.store(scratch, inner);
     let length = builder.imm(32);
-    let object = builder.alloc_bytes_object(length, AllocationSemantics::INTERNAL);
-    let zero = builder.imm(0);
-    builder.memory_store_word(object, zero, inner);
-    let data = builder.memory_data(object);
-    let outer = builder.keccak256(data, length);
+    let outer = builder.keccak256(scratch, length);
     let mask = builder.imm(!U256::from(0xff));
     builder.and(outer, mask)
 }

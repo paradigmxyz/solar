@@ -9,5 +9,5 @@ mod model;
 mod shuffler;
 
 pub(crate) use super::op::StackOp;
-pub(crate) use model::{MAX_STACK_DEPTH, StackModel};
+pub(crate) use model::StackModel;
 pub(crate) use shuffler::{lowered_stack_cost, resynthesize_physical_ops};

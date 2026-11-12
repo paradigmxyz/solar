@@ -103,6 +103,8 @@ pub struct TypeckResults<'gcx> {
     pub(crate) user_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
     /// Contracts whose base slot is a constant integer, for `constant_values` to evaluate.
     pub(crate) base_slots: Vec<(hir::ContractId, &'gcx hir::Expr<'gcx>)>,
+    /// The spans of expression statements that have no effect, reported after type checking.
+    pub(crate) no_effect_stmts: Vec<Span>,
 }
 
 /// The target selected for a call callee expression.
@@ -631,6 +633,12 @@ impl<'gcx> Gcx<'gcx> {
         self.resolved_expr(expr)?.as_function()
     }
 
+    /// Returns the state mutability that evaluating an expression requires, as the view and pure
+    /// checker infers it: `NonPayable` or `Payable` when the expression can write state.
+    pub fn expr_state_mutability(self, expr: &'gcx hir::Expr<'gcx>) -> StateMutability {
+        crate::typeck::view_pure_checker::expr_mutability(self, expr)
+    }
+
     /// Returns the builtin selected for an expression, if available.
     #[inline]
     pub fn resolved_builtin(self, expr: &hir::Expr<'_>) -> Option<Builtin> {
@@ -759,7 +767,8 @@ impl<'gcx> Gcx<'gcx> {
         crate::natspec::references(self, item)
     }
 
-    /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+    /// Resolves a contract name, or a path such as `M.Base`, within a source's scope for NatSpec
+    /// `@inheritdoc`.
     pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
         self.natspec_contract_in_source((name, source))
     }
@@ -791,6 +800,10 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns the contracts whose base slot is a constant integer, with the base slot.
+    pub(crate) fn typeck_no_effect_stmts(self) -> &'gcx [Span] {
+        self.typeck_results.get().map_or(&[], |results| &results.no_effect_stmts)
+    }
+
     pub(crate) fn typeck_base_slots(self) -> &'gcx [(hir::ContractId, &'gcx hir::Expr<'gcx>)] {
         self.typeck_results.get().map_or(&[], |results| &results.base_slots)
     }
@@ -1354,7 +1367,11 @@ impl<'gcx> Gcx<'gcx> {
                     }
                     hir::UsingEntryKind::Functions(functions) => {
                         for &function in functions {
-                            let name = entry.name.unwrap_or_else(|| self.item_name(function).name);
+                            let Some(name) =
+                                entry.name.or_else(|| self.item_name_opt(function).map(|n| n.name))
+                            else {
+                                continue;
+                            };
                             self.add_attached_function(
                                 ty,
                                 function,
@@ -1393,7 +1410,7 @@ impl<'gcx> Gcx<'gcx> {
         if let TyKind::Fn(function_ty) = fn_ty.kind
             && let Some(&self_ty) = function_ty.parameters.first()
             && ty.convert_implicit_to(self_ty, self)
-            && let name = name.unwrap_or_else(|| self.item_name(function).name)
+            && let Some(name) = name.or_else(|| self.item_name_opt(function).map(|n| n.name))
             && seen.insert((name, function))
         {
             members.push(members::Member::with_attached_function(name, fn_ty, function));
@@ -1945,20 +1962,23 @@ pub fn natspec_view(gcx: _, item: hir::ItemId) -> NatSpecView<'gcx> {
     crate::natspec::resolve_view(gcx, item)
 }
 
-/// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+/// Resolves a contract name, or a path such as `M.Base` through an import namespace, within a
+/// source's scope for NatSpec `@inheritdoc`.
 pub(crate) fn natspec_contract_in_source(
     gcx: _,
     key: NatSpecContractKey
 ) -> Option<hir::ContractId> {
     let (name, source_id) = key;
-    gcx.symbol_resolver.source_scopes[source_id]
-        .resolve(Ident { name, span: Span::DUMMY })
-        .and_then(|decls| {
-            decls.iter().find_map(|decl| match decl.res {
-                hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
-                _ => None,
-            })
-        })
+    let segments = name
+        .as_str()
+        .split('.')
+        .map(|segment| Ident::with_dummy_span(Symbol::intern(segment)))
+        .collect::<SmallVec<[_; 2]>>();
+    let resolutions = gcx.source_path_resolutions(&segments, source_id, None)?;
+    resolutions.last()?.iter().find_map(|res| match res {
+        hir::Res::Item(hir::ItemId::Contract(id)) => Some(*id),
+        _ => None,
+    })
 }
 
 /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.

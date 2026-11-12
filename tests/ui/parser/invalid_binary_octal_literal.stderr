@@ -1,0 +1,50 @@
+error: integers in base binary are not supported
+   ╭▸ ROOT/tests/ui/parser/invalid_binary_octal_literal.sol:LL:CC
+   │
+LL │     uint a = 0b2;
+   ╰╴               ━
+
+error: integers in base binary are not supported
+   ╭▸ ROOT/tests/ui/parser/invalid_binary_octal_literal.sol:LL:CC
+   │
+LL │     uint b = 0b12;
+   ╰╴               ━━
+
+error: integers in base binary are not supported
+   ╭▸ ROOT/tests/ui/parser/invalid_binary_octal_literal.sol:LL:CC
+   │
+LL │     uint c = 0b1_2;
+   ╰╴               ━━━
+
+error: integers in base octal are not supported
+   ╭▸ ROOT/tests/ui/parser/invalid_binary_octal_literal.sol:LL:CC
+   │
+LL │     uint d = 0o8;
+   ╰╴               ━
+
+error: integers in base octal are not supported
+   ╭▸ ROOT/tests/ui/parser/invalid_binary_octal_literal.sol:LL:CC
+   │
+LL │     uint e = 0o78;
+   ╰╴               ━━
+
+error: integers in base binary are not supported
+   ╭▸ ROOT/tests/ui/parser/invalid_binary_octal_literal.sol:LL:CC
+   │
+LL │     uint f = 0b1;
+   ╰╴               ━
+
+error: integers in base binary are not supported
+   ╭▸ ROOT/tests/ui/parser/invalid_binary_octal_literal.sol:LL:CC
+   │
+LL │             let x := 0b2
+   ╰╴                       ━
+
+error: integers in base octal are not supported
+   ╭▸ ROOT/tests/ui/parser/invalid_binary_octal_literal.sol:LL:CC
+   │
+LL │             let y := 0o9
+   ╰╴                       ━
+
+error: aborting due to 8 previous errors
+

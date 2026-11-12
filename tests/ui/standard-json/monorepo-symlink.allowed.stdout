@@ -1,0 +1,10 @@
+{
+  "sources": {
+    "deplink/C.sol": {
+      "id": 0
+    },
+    "src/A.sol": {
+      "id": 1
+    }
+  }
+}

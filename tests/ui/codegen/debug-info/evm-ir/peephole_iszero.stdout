@@ -1,0 +1,29 @@
+- ; === ROOT/tests/ui/codegen/debug-info/evm-ir/peephole_iszero.evmir (before peephole) ===
++ ; === ROOT/tests/ui/codegen/debug-info/evm-ir/peephole_iszero.evmir (after peephole) ===
+  @module PeepholeIszero
+  bb0:
+    calldatasize
+-   push 0 !metadata(span=1..5)
+-   lt !metadata(span=11..15)
+    iszero !metadata(span=21..25)
+    stop
+  bb1:
+    calldatasize
+    caller
+-   eq !metadata(span=31..35)
+-   iszero !metadata(span=36..40)
++   sub !metadata(span=31..35)
+    push bb2 !metadata(span=45..49)
+    jumpi !metadata(span=50..55)
+    stop
+  bb2:
+    stop
+  bb3:
+-   push 5 !metadata(span=56..60)
++   push 4 !metadata(span=56..60)
+    calldatasize
+-   lt !metadata(span=61..65)
+-   iszero !metadata(span=66..70)
++   gt !metadata(span=61..65)
+    stop
+  

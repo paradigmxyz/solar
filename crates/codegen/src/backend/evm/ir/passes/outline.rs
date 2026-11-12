@@ -36,8 +36,9 @@
 //! constant that enough other code repeats does not slow down every iteration of an unrelated
 //! loop.
 //!
-//! The shared body has no source location, as in LLVM's `MachineOutliner`. Each site's call
-//! sequence takes the first location in the run it replaces.
+//! Each shared body instruction takes the merged locations of the sites' instructions at its
+//! position, and the stub's return jump takes the merged locations of each site's last located
+//! instruction. Each site's call sequence takes the first location in the run it replaces.
 //!
 //! Replacing a site splits its block around the run, so both ends of a candidate run must be
 //! boundaries `keep_with_next` allows to become block boundaries.
@@ -82,6 +83,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet, FxHasher},
 };
+use solar_evmir::debug::DebugLocKind;
 use solar_sema::Gcx;
 use std::{
     cell::OnceCell,
@@ -479,10 +481,7 @@ fn outline_machine_runs(gcx: Gcx<'_>, module: &mut Module, state: &mut RunState)
                 return None;
             }
         }
-        let mut body = run.to_vec();
-        drop_body_source_spans(&mut body);
-        clear_function_invokes(&mut body);
-        Some(Group { body, sites: free, parameters: Vec::new() })
+        Some(Group { body: shared_body(module, &free), sites: free, parameters: Vec::new() })
     });
     install_groups(module, state, chosen)
 }
@@ -543,10 +542,7 @@ fn outline_parametric_machine_runs(
             if parameters.is_empty() || parameters.len() > MAX_PARAMETERS {
                 return None;
             }
-            let mut body = run(&first).to_vec();
-            drop_body_source_spans(&mut body);
-            clear_function_invokes(&mut body);
-            let body = parameterize_body(&body, &parameters)?;
+            let body = parameterize_body(&shared_body(module, &free), &parameters)?;
             let inline_size = free.iter().map(|site| lower_bound(target, run(site))).sum::<usize>();
             let parameter_bytes = free
                 .iter()
@@ -653,9 +649,15 @@ fn outline_repeated_pushes(gcx: Gcx<'_>, module: &mut Module, state: &mut RunSta
     let groups = sites
         .into_iter()
         .map(|(value, sites)| {
+            let mut push = Instruction::push_value(value);
+            push.metadata = merged_debug_loc(
+                sites
+                    .iter()
+                    .map(|site| &module.blocks[site.block].instructions[site.start].metadata),
+            );
             // The stub appends its output swap to the body.
             let mut body = Vec::with_capacity(2);
-            body.push(Instruction::push_value(value).with_debug_info_dropped());
+            body.push(push);
             Group { body, sites, parameters: Vec::new() }
         })
         .collect();
@@ -737,8 +739,18 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
         stub.metadata.repeats = repeats(module, group.sites.iter().map(|site| site.block));
         stub.instructions = group.body;
         stub.instructions.extend((1..=usize::from(outputs)).map(swap));
-        stub.terminator =
-            Some(Terminator::new(TerminatorKind::Op(op::JUMP)).with_debug_info_dropped());
+        let mut jump = Terminator::new(TerminatorKind::Op(op::JUMP));
+        // NOTE: The return jump runs right after the run's last instruction, so it takes that
+        // instruction's location from every site.
+        let returns = group
+            .sites
+            .iter()
+            .map(|site| {
+                return_location(&module.blocks[site.block].instructions[site.start..][..site.len])
+            })
+            .collect::<Vec<_>>();
+        jump.metadata = merged_debug_loc(&returns);
+        stub.terminator = Some(jump);
         stub.metadata.call_effect =
             stub_call_effect(usize::from(inputs) + group.parameters.len(), outputs);
         let stub = module.add_block(stub);
@@ -759,15 +771,63 @@ fn install_groups(module: &mut Module, state: &mut RunState, groups: Vec<Group>)
     true
 }
 
-/// Drops the locations of a shared body.
+/// Builds the shared body from the first site's run, giving each instruction the merged locations
+/// of the sites' instructions at its position.
 ///
-/// Copies `MachineOutliner`, which gives every outlined instruction an empty location: "Don't keep
-/// debug information for outlined instructions." (`NewMI.setDebugLoc(DebugLoc())`,
-/// llvm/lib/CodeGen/MachineOutliner.cpp#L1035-L1045 at llvm-project e98b16a2710b).
-fn drop_body_source_spans(body: &mut [Instruction]) {
-    for instruction in body {
-        instruction.metadata.mark_debug_info_dropped();
+/// The body runs for one of its call sites, so each instruction's origin is one of theirs, which
+/// is how tail merging and terminal deduplication merge equivalent code.
+///
+/// NOTE: LLVM's `MachineOutliner` drops outlined locations (`NewMI.setDebugLoc(DebugLoc())`,
+/// llvm/lib/CodeGen/MachineOutliner.cpp#L1035-L1045 at llvm-project e98b16a2710b) because a DWARF
+/// row holds one location and the outlined function has its own scope. Our metadata keeps several
+/// origins, which ethdebug writes as a `pick`: the shared body runs for one of its call sites.
+fn shared_body(module: &Module, sites: &[Site]) -> Vec<Instruction> {
+    let run = |site: &Site| &module.blocks[site.block].instructions[site.start..][..site.len];
+    let mut body = run(&sites[0]).to_vec();
+    for (index, instruction) in body.iter_mut().enumerate() {
+        merge_site_locations(
+            &mut instruction.metadata,
+            sites[1..].iter().map(|site| &run(site)[index].metadata),
+        );
     }
+    clear_function_invokes(&mut body);
+    body
+}
+
+/// The location of the first of `locations`, merged with the others.
+fn merged_debug_loc<'a>(
+    locations: impl IntoIterator<IntoIter: Clone, Item = &'a Metadata>,
+) -> Metadata {
+    let mut locations = locations.into_iter();
+    let mut merged = Metadata::default();
+    if let Some(first) = locations.next() {
+        merged.preserve_debug_loc(first);
+        merge_site_locations(&mut merged, locations);
+    }
+    merged
+}
+
+/// Merges the locations of the other sites into `location`, unless every site has the same one,
+/// whatever the order of its origins.
+///
+/// NOTE: A merge across paths clears the flag that marks origins that all hold, and writes them
+/// as alternatives. When every site has the identical location, the merge is that location, so
+/// the flag stays.
+fn merge_site_locations<'a>(
+    location: &mut Metadata,
+    others: impl IntoIterator<IntoIter: Clone, Item = &'a Metadata>,
+) {
+    let others = others.into_iter();
+    if others.clone().all(|other| {
+        other.source_spans().count() == location.source_spans().count()
+            && other.source_spans().all(|span| location.source_spans().any(|first| first == span))
+            && other.all_source_spans() == location.all_source_spans()
+            && other.modifier_depth() == location.modifier_depth()
+            && other.debug_loc_kind() == location.debug_loc_kind()
+    }) {
+        return;
+    }
+    location.merge_debug_locs(others);
 }
 
 fn clear_function_invokes(instructions: &mut [Instruction]) {
@@ -784,7 +844,7 @@ fn range_function_invoke(instructions: &[Instruction]) -> Option<DebugFunction> 
 }
 
 fn swap(depth: usize) -> Instruction {
-    Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_info_dropped()
+    Instruction::stack_op(op::StackOp::Swap(depth as u8)).with_debug_loc_dropped()
 }
 
 /// The location of a call sequence that replaces `range`: the first instruction that has one.
@@ -798,9 +858,20 @@ fn swap(depth: usize) -> Instruction {
 /// only the first location applies.
 fn call_site_location(range: &[Instruction]) -> Metadata {
     let mut location = Metadata::default();
-    location.mark_debug_info_dropped();
+    location.drop_debug_loc(DebugLocKind::Dropped);
     if let Some(first) = range.iter().find(|inst| inst.metadata.source_span().is_some()) {
-        location.copy_source_debug_from(&first.metadata);
+        location.preserve_debug_loc(&first.metadata);
+    }
+    location
+}
+
+/// The location of the stub's return jump on the path of the site that replaces `range`: the last
+/// instruction that has one, which the jump follows.
+fn return_location(range: &[Instruction]) -> Metadata {
+    let mut location = Metadata::default();
+    location.drop_debug_loc(DebugLocKind::Dropped);
+    if let Some(last) = range.iter().rev().find(|inst| inst.metadata.source_span().is_some()) {
+        location.preserve_debug_loc(&last.metadata);
     }
     location
 }
@@ -851,13 +922,12 @@ fn split_outline_site(module: &mut Module, edit: &Edit, continuation_label: u32)
     continuation.terminator = module.blocks[block].terminator.take();
     let continuation = module.add_block(continuation);
     let instructions = &mut module.blocks[block].instructions;
-    instructions.push(Instruction::push_block(continuation).with_source_debug(&location));
-    instructions.extend(
-        (1..=usize::from(inputs)).rev().map(|depth| swap(depth).with_source_debug(&location)),
-    );
+    instructions.push(Instruction::push_block(continuation).with_debug_loc(&location));
+    instructions
+        .extend((1..=usize::from(inputs)).rev().map(|depth| swap(depth).with_debug_loc(&location)));
     instructions.extend_from_slice(&edit.parameters);
     let mut terminator = Terminator::new(TerminatorKind::Jump(edit.stub));
-    terminator.metadata.copy_source_debug_from(&location);
+    terminator.metadata.preserve_debug_loc(&location);
     if let Some(function) = function_invoke {
         terminator.metadata.set_function_invoke(function);
     }

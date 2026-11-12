@@ -59,6 +59,7 @@
 //! four. Size mode therefore rewrites a factor's checks only while every loop around them stays
 //! within [`Target::LOOP_CARRY_BUDGET`] with the bound.
 
+use super::utils::terminator_debug_context;
 use crate::{
     mir::{
         BlockId, EffectKind, Function, FunctionBuilder, Immediate, ImmutableId, InstId, InstKind,
@@ -81,6 +82,7 @@ use solar_data_structures::{
     index::IndexVec,
     map::{FxHashMap, FxHashSet},
 };
+use solar_evmir::debug::DebugLocKind;
 use std::{cmp::Reverse, rc::Rc};
 
 /// Function pass for loop-invariant code motion.
@@ -474,12 +476,14 @@ impl LoopOptimizer {
         visiting.clear();
         let ordered = self.topological_sort_instructions(func, selected, visiting);
 
+        let hoisted_loc = terminator_debug_context(func, preheader, DebugLocKind::Dropped);
         for inst_id in ordered {
             // An enclosing loop's earlier hoist may have already moved the
             // instruction out of these blocks; pushing it again would schedule
             // the same instruction in two blocks.
             if let Some(block) = ctx.loop_block(inst_id) {
                 func.blocks[block].instructions.retain(|&id| id != inst_id);
+                func.inst_mut(inst_id).metadata.preserve_debug_loc(&hoisted_loc);
                 func.blocks[preheader].instructions.push(inst_id);
                 self.hoisted += 1;
             }
@@ -1154,14 +1158,14 @@ fn reduce_product_checks(
     }
     let uses = super::egraph::use_counts(func);
     let mut limits = FxHashMap::default();
+    let hoisted_loc = terminator_debug_context(func, preheader, DebugLocKind::Dropped);
     for &(block, inst, x, y, zero) in &checks {
-        let context = func.inst(inst).metadata.debug_context();
         let limit = *limits.entry(y).or_insert_with(|| {
             // preheader: zero = eq y, 0
             //            limit = sub (div MAX, y), (zext zero)
             let mut builder = FunctionBuilder::new(func);
             builder.switch_to_block(preheader);
-            builder.set_debug_context(&context);
+            builder.set_debug_context(&hoisted_loc);
             let zero = match zero {
                 Some(zero) if outside(builder.func(), zero) => zero,
                 _ => builder.eq_zero(y),
@@ -1179,7 +1183,7 @@ fn reduce_product_checks(
         }
         // overflows = gt x, limit
         let mut overflows = Instruction::new(InstKind::Gt(x, limit), Some(MirType::I1));
-        overflows.metadata.copy_debug_context(&func.inst(inst).metadata);
+        overflows.metadata.preserve_debug_loc(&func.inst(inst).metadata);
         let (overflows_inst, overflows) = func.alloc_value_inst(overflows);
         let position = func.blocks[block].instructions.iter().position(|&id| id == inst);
         let position = position.expect("the check is in its block");
@@ -1363,8 +1367,13 @@ fn reassociate_invariant_offsets(
     let mut rewritten = 0;
     for (preheader, x, c, sites) in plans {
         // preheader: t = add x, c
+        // Hoisted and shared by every site, so it takes the preheader's location, as above.
         let mut sum = Instruction::new(InstKind::Add(x, c), Some(MirType::I256));
-        sum.metadata.copy_debug_context(&func.inst(sites[0].0).metadata);
+        sum.metadata.preserve_debug_loc(&terminator_debug_context(
+            func,
+            preheader,
+            DebugLocKind::Dropped,
+        ));
         let (sum_inst, t) = func.alloc_value_inst(sum);
         func.blocks[preheader].instructions.push(sum_inst);
         for (outer, inner, y) in sites {

@@ -30,6 +30,12 @@ impl RequestFixture {
     }
 
     pub(super) fn new_in_batches(fixture: &str, paths: &[&str]) -> Self {
+        let fixture = Self::new_in_batches_allowing_diagnostics(fixture, paths);
+        assert!(fixture.result.diagnostics.is_empty(), "{:#?}", fixture.result.diagnostics);
+        fixture
+    }
+
+    pub(super) fn new_in_batches_allowing_diagnostics(fixture: &str, paths: &[&str]) -> Self {
         let marked = MarkedProject::from_fixture(fixture);
         Self::analyze_batches(marked, paths, None)
     }
@@ -43,7 +49,9 @@ impl RequestFixture {
         let marked = MarkedProject::from_fixture(fixture);
         let open_contents = marked.project().read_file(open_path);
         marked.project().write_file(open_path, disk_contents);
-        Self::analyze_batches(marked, paths, Some((open_path, open_contents)))
+        let fixture = Self::analyze_batches(marked, paths, Some((open_path, open_contents)));
+        assert!(fixture.result.diagnostics.is_empty(), "{:#?}", fixture.result.diagnostics);
+        fixture
     }
 
     fn analyze_batches(
@@ -61,7 +69,6 @@ impl RequestFixture {
             results.push(analyze_source(path, contents));
         }
         let result = results.finish();
-        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
         Self { marked, result }
     }
 
