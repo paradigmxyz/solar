@@ -1178,7 +1178,7 @@
               }
             ],
             "scope": 111,
-            "fullyImplemented": true,
+            "fullyImplemented": false,
             "linearizedBaseContracts": [
               2
             ]

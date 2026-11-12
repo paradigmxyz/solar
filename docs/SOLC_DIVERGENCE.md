@@ -581,9 +581,6 @@ cases:
   and a bare `call` keep the types of their components;
 - the names before the last one in the callee of `emit` and `revert`, and in the
   argument of `type(...)`, take their resolution from name resolution alone.
-- `fullyImplemented` reads the override checker, which does not count an unimplemented
-  `fallback` or `receive` function, so it is `true` for a contract that declares or
-  inherits one, where `solc` has `false`.
 
 With `settings.stopAfter` of `parsing`, `solar` writes the parsed AST like `solc`: the nodes
 have no IDs of declarations, types, resolutions or scopes. It also does so for
