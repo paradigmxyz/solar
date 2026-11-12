@@ -361,30 +361,12 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         &mut self,
         data_ptr: ValueId,
         data_len: ValueId,
-        selector_matches: ValueId,
     ) -> ValueId {
-        // valid = selector_matches ? try_decode_error_message(data) : false
-        let validate = self.builder.create_block();
-        let no_match = self.builder.create_block();
-        let done = self.builder.create_block();
-        self.builder.branch(selector_matches, validate, no_match);
-
-        self.builder.switch_to_block(validate);
         let helper = self.ensure_error_catch_match_helper();
         // pointer = ptrtoint data to i256
         // valid = icall try_decode_error_message, pointer, length
         let data_ptr = self.builder.cast(data_ptr, MirType::I256);
-        let valid = self.builder.icall(helper, vec![data_ptr, data_len], MirType::I1);
-        let valid_block = self.builder.current_block();
-        self.builder.jump(done);
-
-        self.builder.switch_to_block(no_match);
-        let no_match_value = self.builder.imm_bool(false);
-        let no_match_block = self.builder.current_block();
-        self.builder.jump(done);
-
-        self.builder.switch_to_block(done);
-        self.builder.phi(vec![(valid_block, valid), (no_match_block, no_match_value)])
+        self.builder.icall(helper, vec![data_ptr, data_len], MirType::I1)
     }
 
     /// Synthesizes the shared equivalent of Solc's `try_decode_error_message` helper.
@@ -441,9 +423,15 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         .expect("error catch match helper construction cannot fail")
     }
 
-    pub(super) fn lower_panic_catch_word(&mut self, data: ValueId) -> ValueId {
-        let payload_ptr = self.builder.memory_data_at(data, 4);
-        self.builder.load(payload_ptr, PtrLocation::Memory)
+    /// Reads the code of a `Panic(uint256)` payload through scratch memory.
+    pub(super) fn lower_panic_catch_scratch_word(&mut self) -> ValueId {
+        // returndatacopy(0, 4, 32)
+        // code = mload(0)
+        let zero = self.builder.imm(U256::ZERO);
+        let four = self.builder.imm(4);
+        let word = self.builder.imm(32);
+        self.builder.copy(zero, four, word, PtrLocation::Returndata);
+        self.builder.load(zero, PtrLocation::Memory)
     }
 
     pub(super) fn lower_abi_encode_packed(

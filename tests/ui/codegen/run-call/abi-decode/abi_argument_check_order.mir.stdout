@@ -1,0 +1,7 @@
+; === ROOT/tests/ui/codegen/run-call/abi-decode/abi_argument_check_order.sol:C ===
+@module C
+; function f(uint256[] memory, uint8) external pure [selector 0xca535d7c]
+fn @f(arg0: ptr<memory>, arg1: i8) [selector=0xca535d7c, pure, abi_params=[array<_, uint256>, uint8], abi_returns=[], abi_return_params=[]] {
+  bb0:
+    ret
+}

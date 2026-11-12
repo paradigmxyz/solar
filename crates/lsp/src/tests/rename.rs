@@ -627,6 +627,112 @@ fn renames_validated_natspec_inheritdoc_and_override_contract_paths() {
 }
 
 #[test]
+fn renames_qualified_natspec_inheritdoc_paths() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        contract $1Base {
+            function run() public virtual {}
+        }
+
+        //- /Child.sol
+        import "./Base.sol" as $3Lib;
+
+        contract Child is Lib.Base {
+            /// @inheritdoc $4Lib.$2Base
+            function run() public override {}
+        }
+        "#,
+        "/Child.sol",
+    );
+
+    fixture.check_goto_definition("$2", "/Base.sol:0:9 contract Base {\n");
+    fixture.check_prepare_rename("$4", "2:20-2:23\n");
+    fixture.check_renames(
+        &[("$1 $2", "Parent"), ("$3 $4", "Shared")],
+        str![[r#"
+$1 $2:
+/Base.sol:0:9-0:13 -> Parent
+/Child.sol:1:22-1:26 -> Parent
+/Child.sol:2:24-2:28 -> Parent
+$3 $4:
+/Child.sol:0:23-0:26 -> Shared
+/Child.sol:1:18-1:21 -> Shared
+/Child.sol:2:20-2:23 -> Shared
+
+"#]],
+    );
+}
+
+#[test]
+fn renames_nested_qualified_natspec_inheritdoc_aliases() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        contract Base {
+            function run() public virtual {}
+        }
+
+        //- /Mid.sol
+        import "./Base.sol" as $1Inner;
+
+        //- /Child.sol
+        import "./Mid.sol" as Outer;
+
+        contract Child is Outer.Inner.Base {
+            /// @inheritdoc Outer.$2Inner.Base
+            function run() public override {}
+        }
+        "#,
+        "/Child.sol",
+    );
+
+    fixture.check_renames(
+        &[("$1 $2", "Shared")],
+        str![[r#"
+$1 $2:
+/Child.sol:1:24-1:29 -> Shared
+/Child.sol:2:26-2:31 -> Shared
+/Mid.sol:0:23-0:28 -> Shared
+
+"#]],
+    );
+}
+
+#[test]
+fn renames_natspec_inheritdoc_alias_shadowed_by_member() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        contract Base {
+            function run() public virtual {}
+        }
+
+        //- /Child.sol
+        import "./Base.sol" as $1Lib;
+        import {Base} from "./Base.sol";
+
+        contract Child is Base {
+            uint Lib;
+            /// @inheritdoc $2Lib.Base
+            function run() public override {}
+        }
+        "#,
+        "/Child.sol",
+    );
+
+    fixture.check_renames(
+        &[("$1 $2", "Shared")],
+        str![[r#"
+$1 $2:
+/Child.sol:0:23-0:26 -> Shared
+/Child.sol:4:20-4:23 -> Shared
+
+"#]],
+    );
+}
+
+#[test]
 fn renames_override_families_but_not_function_typed_parameters() {
     let fixture = RequestFixture::new(
         r#"

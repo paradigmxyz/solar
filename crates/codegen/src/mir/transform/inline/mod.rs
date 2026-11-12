@@ -1764,7 +1764,7 @@ fn inline_literal_call(
         let source = callee.inst(inst);
         let kind = cloner.clone_inst_kind(source.kind.clone())?;
         let mut instruction = Instruction::new(kind, source.result_ty);
-        instruction.metadata.preserve_debug_loc(&source.metadata);
+        instruction.metadata = source.metadata.without_operand_facts();
         cloner.adopt_call_loc(&mut instruction.metadata);
         if matches!(instruction.kind, InstKind::Alloc { .. }) {
             // object = alloc size
@@ -1875,7 +1875,7 @@ impl<'a> InlineCloner<'a> {
             for &inst_id in &block.instructions {
                 let inst = self.callee.inst(inst_id);
                 let mut instruction = Instruction::new(inst.kind.clone(), inst.result_ty);
-                instruction.metadata.preserve_debug_loc(&inst.metadata);
+                instruction.metadata = inst.metadata.without_operand_facts();
                 self.adopt_call_loc(&mut instruction.metadata);
                 let new_inst = if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let (new_inst, new_result) = self.caller.alloc_value_inst_verbatim(instruction);

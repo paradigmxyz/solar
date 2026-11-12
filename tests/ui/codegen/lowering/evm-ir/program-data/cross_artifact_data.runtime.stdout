@@ -23,9 +23,7 @@ bb0:                                              ; runtime dispatch entry + fun
   dup 1
   dup 2
   mstore
-  push 32
-  dup 2
-  add
+  push 192
   dup 2
   push_data literal_0
   dup 3
