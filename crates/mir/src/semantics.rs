@@ -34,11 +34,13 @@
 //! to emit for it.
 
 use crate::{
-    AddressCallKind, AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef,
-    FrameMode, FrameSlotKind, InstKind, LogTopics, MirType, PtrLocation, ValueId, ValueLayout,
+    AbiEncodeMode, AbiLayout, AbiParamLayout, AddressCallKind, AllocationSemantics, ArithmeticKind,
+    BlockId, Callee, CheckedOp, DataRef, FrameMode, FrameSlotKind, ImmutableId, InstKind,
+    LogTopics, MirType, PackedPart, PtrLocation, ValueId, ValueLayout,
 };
 use alloy_primitives::Bytes;
 use smallvec::SmallVec;
+use solar_ir::link::LibraryId;
 
 /// What one MIR operation computes.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -111,6 +113,26 @@ pub enum Semantics<'a> {
     FrameStore(u64, FrameMode, FrameSlotKind, ValueId),
     /// Low-level address call over a memory object or slice, with optional gas and value.
     AddressCall(&'static str, ValueId, ValueId, Option<ValueId>, Option<ValueId>),
+    /// An explicitly placed internal frame, offset in bytes.
+    InternalFrameAddress(u64),
+    /// The copied constructor input's base or end address.
+    ConstructorArgs(bool),
+    /// A linked data extent with addend and alignment.
+    LinkedDataSize(crate::DataSize),
+    /// Read a typed immutable from constructor staging or a linked runtime value.
+    ImmutableRead(ImmutableId),
+    /// Write constructor staging memory for an immutable.
+    ImmutableStore(ImmutableId, ValueId),
+    /// Read a linked library address.
+    LibraryAddress(LibraryId),
+    /// Encode a semantic ABI tuple.
+    AbiEncode(AbiEncodeMode, Option<ValueId>, Option<ValueId>, &'a [ValueId], &'a AbiLayout),
+    /// Decode a semantic ABI tuple.
+    AbiDecode(ValueId, &'a AbiParamLayout),
+    /// Demand a decoder-established ABI validation dependency.
+    ValidateAbi(ValueId),
+    /// Encode packed scalar and reference parts, optionally hashing their bytes.
+    Packed(&'a [PackedPart], bool),
 }
 
 /// Constructors for the `#[semantics(...)]` declarations of the operation schema, which bind an
@@ -331,6 +353,67 @@ pub(super) mod declare {
             AddressCallKind::Delegate => "delegatecall",
         };
         Semantics::AddressCall(opcode, *address, *input, *gas, *value)
+    }
+
+    /// An explicit frame placement, without consulting backend records.
+    pub(crate) fn internal_frame_address(offset: &u64) -> Semantics<'static> {
+        Semantics::InternalFrameAddress(*offset)
+    }
+
+    /// Constructor blob base.
+    pub(crate) fn constructor_args_base() -> Semantics<'static> {
+        Semantics::ConstructorArgs(false)
+    }
+
+    /// Constructor blob end.
+    pub(crate) fn constructor_args_end() -> Semantics<'static> {
+        Semantics::ConstructorArgs(true)
+    }
+
+    /// Deferred data size after linking.
+    pub(crate) fn linked_data_size(size: &crate::DataSize) -> Semantics<'static> {
+        Semantics::LinkedDataSize(*size)
+    }
+
+    /// Constructor staging or runtime relocation read.
+    pub(crate) fn immutable_read(id: &ImmutableId) -> Semantics<'static> {
+        Semantics::ImmutableRead(*id)
+    }
+
+    /// Constructor staging write.
+    pub(crate) fn immutable_store(id: &ImmutableId, value: &ValueId) -> Semantics<'static> {
+        Semantics::ImmutableStore(*id, *value)
+    }
+
+    /// Linked library relocation.
+    pub(crate) fn library_address(id: &LibraryId) -> Semantics<'static> {
+        Semantics::LibraryAddress(*id)
+    }
+
+    /// ABI tuple encoding retains its original layouts and operands.
+    pub(crate) fn abi_encode<'a>(
+        mode: &AbiEncodeMode,
+        base: &Option<ValueId>,
+        selector: &Option<ValueId>,
+        args: &'a [ValueId],
+        layout: &'a AbiLayout,
+    ) -> Semantics<'a> {
+        Semantics::AbiEncode(*mode, *base, *selector, args, layout)
+    }
+
+    /// ABI tuple decoding retains validation types.
+    pub(crate) fn abi_decode<'a>(data: &ValueId, layout: &'a AbiParamLayout) -> Semantics<'a> {
+        Semantics::AbiDecode(*data, layout)
+    }
+
+    /// Validation dependency, not an unchecked no-op.
+    pub(crate) fn validate_abi(value: &ValueId) -> Semantics<'static> {
+        Semantics::ValidateAbi(*value)
+    }
+
+    /// Packed ABI encoding or hashing.
+    pub(crate) fn packed<'a>(parts: &'a [PackedPart], hash: &bool) -> Semantics<'a> {
+        Semantics::Packed(parts, *hash)
     }
 }
 

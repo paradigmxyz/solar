@@ -9,10 +9,11 @@ use serde::Deserialize;
 use serde_json::{Value as Json, json};
 use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{
-    AllocationFailure, AllocationInitialization, ArithmeticKind, BasicBlock, Builtin, Callee,
-    FrameMode, FrameSlotKind, Function, MemoryObjectKind, MirType, Module, RequireKind, RevertKind,
-    RevertReason, Semantics, Terminator, Value, ValueId, ValueLayout, analysis::CallGraphInfo,
-    memory::EvmMemoryLayout,
+    AbiEncodeMode, AbiParamType, AbiType, AbiWordValidator, AllocationFailure,
+    AllocationInitialization, ArithmeticKind, BasicBlock, Builtin, Callee, FrameMode,
+    FrameSlotKind, Function, MemoryObjectKind, MirType, Module, PackedPart, RequireKind,
+    RevertKind, RevertReason, Semantics, Terminator, Value, ValueId, ValueLayout,
+    analysis::CallGraphInfo, memory::EvmMemoryLayout,
 };
 use std::io::{self, Read};
 
@@ -122,6 +123,18 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
                         return Err("MIR constant data export budget of 64 KiB".into());
                     }
                 }
+                if let Some(Semantics::Packed(parts, _)) = inst.kind.semantics() {
+                    constant_bytes += parts
+                        .iter()
+                        .map(|p| match p {
+                            PackedPart::Literal(b) => b.len(),
+                            _ => 0,
+                        })
+                        .sum::<usize>();
+                    if constant_bytes > 65536 {
+                        return Err("MIR constant data export budget of 64 KiB".into());
+                    }
+                }
                 if let Some(Semantics::DataCopy(data, ..)) = inst.kind.semantics() {
                     let data = module.data.get(data.id).ok_or("unknown MIR data")?;
                     constant_bytes += data.bytes.known().map_or(0, |bytes| bytes.len());
@@ -142,6 +155,31 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
             }
         }
     }
+    let reenters_selected = reachable.iter().any(|caller| {
+        CallGraphInfo::collect_internal_callees(&module.functions[caller], module.functions.len())
+            .contains(id)
+    });
+    for owner in reachable.iter() {
+        let f = &module.functions[owner];
+        for inst in f.instructions() {
+            match f.inst(inst).kind.semantics() {
+                Some(Semantics::Opcode("gas", _)) => {
+                    if owner != id
+                        || module.dispatch_entry() == Some(owner)
+                        || f.blocks.len() != 1
+                        || f.instructions().count() != 1
+                        || !matches!(&f.blocks[solar_mir::BlockId::ENTRY].terminator,Some(Terminator::Return {values}) if values.as_slice()==f.inst(inst).result().as_slice())
+                    {
+                        return Err("GAS requires an isolated opcode window".into());
+                    }
+                }
+                Some(Semantics::InternalFrameAddress(_)) if owner != id || reenters_selected => {
+                    return Err("internal frame placement requires an activation context".into());
+                }
+                _ => {}
+            }
+        }
+    }
     let mut block_count = 0;
     let mut instruction_count = 0;
     let functions = reachable
@@ -156,9 +194,20 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
             export_function(module, id.index(), function)
         })
         .collect::<Result<Vec<_>, String>>()?;
+    // Link/placement windows retain declaration identity across a rewrite.
+    let declarations = module
+        .to_text()
+        .to_string()
+        .lines()
+        .skip(1)
+        .take_while(|line| !line.starts_with("fn "))
+        .filter(|line| !line.starts_with("@phase "))
+        .collect::<Vec<_>>()
+        .join("\n");
     Ok(json!({
         "version": 1,
         "name": body.name.to_string(),
+        "layout_declarations": declarations,
         "entry": module.dispatch_entry() == Some(id),
         "entry_id": id.index(),
         "params": body.params.iter().map(|&ty|value_type(module, ty)).collect::<Result<Vec<_>, _>>()?,
@@ -396,6 +445,111 @@ fn export_operation(
             Semantics::Call(Callee::Builtin(Builtin::ReturndataBytes), []) => {
                 json!({"kind":"returndata_bytes","args":[]})
             }
+            Semantics::HeapFloor => {
+                json!({"kind":"layout","query":"heap_floor","function":body.name.to_string(),"args":[]})
+            }
+            Semantics::InternalFrameAddress(offset) => {
+                json!({"kind":"layout","query":"frame_address","function":body.name.to_string(),"offset":offset,"args":[]})
+            }
+            Semantics::ConstructorArgs(end) => {
+                json!({"kind":"layout","query":"constructor","end":end,"args":[]})
+            }
+            Semantics::LinkedDataSize(size) => {
+                json!({"kind":"layout","query":"data_size","id":size.data.index(),"addend":size.addend,"aligned":size.aligned,"args":[]})
+            }
+            Semantics::LibraryAddress(id) => {
+                json!({"kind":"layout","query":"library","id":id.index(),"args":[]})
+            }
+            Semantics::ImmutableRead(id) | Semantics::ImmutableStore(id, _) => {
+                if !matches!(module.immutable_type(id),ValueLayout::UInt(size) if size.bits()==256)
+                {
+                    return Err("non-word immutable representation".into());
+                }
+                let (query, args) =
+                    if let Some(Semantics::ImmutableStore(_, value)) = kind.semantics() {
+                        ("immutable_store", vec![value])
+                    } else {
+                        ("immutable_read", vec![])
+                    };
+                json!({"kind":"layout","query":query,"id":id.index(),"args":operands(module,body,&args)?})
+            }
+            Semantics::AbiEncode(mode, base, selector, args, layout) => {
+                if layout.types.iter().any(|t| !matches!(t, AbiType::Word(_) | AbiType::Function)) {
+                    return Err("ABI encoding requires a static scalar tuple".into());
+                }
+                let mut values = Vec::new();
+                values.extend(base);
+                values.extend(selector);
+                values.extend_from_slice(args);
+                let mode = match mode {
+                    AbiEncodeMode::Slice => 0,
+                    AbiEncodeMode::Bytes => 1,
+                    AbiEncodeMode::Scratch => 2,
+                };
+                json!({"kind":"abi_encode","mode":mode,"base":base.is_some(),"selector":selector.is_some(),"functions":layout.types.iter().map(|t|json!(matches!(t,AbiType::Function))).collect::<Vec<_>>(),"args":operands(module,body,&values)?})
+            }
+            Semantics::AbiDecode(data, layout) => {
+                json!({"kind":"abi_decode","rule":abi_rule(layout)?,"calldata":body.value_slice_location(data)==Some(solar_mir::PtrLocation::Calldata),"args":operands(module,body,&[data])?})
+            }
+            Semantics::ValidateAbi(value) => {
+                let Value::Inst(origin) = *body.value(value) else {
+                    return Err("ABI marker lacks decoder evidence".into());
+                };
+                // validate_abi (shr raw, 64) retains the raw function word's obligation.
+                // This is evidence, not a synthesized guard: a dirty word is unsupported.
+                if let Some(Semantics::Opcode("shr", shift_args)) =
+                    body.inst(origin).kind.semantics()
+                    && let [shift, raw] = shift_args.as_slice()
+                    && body.value(*shift).as_immediate().and_then(|v| v.as_u256())
+                        == Some(alloy_primitives::U256::from(64))
+                {
+                    json!({"kind":"validate_abi","rule":{"kind":"left","bits":192,"function":false},"args":operands(module,body,&[value,*raw])?})
+                } else {
+                    let Some(Semantics::AbiDecode(_, layout)) = body.inst(origin).kind.semantics()
+                    else {
+                        return Err("ABI marker lacks decoder evidence".into());
+                    };
+                    let mut rule = abi_rule(layout)?;
+                    if rule.is_null() {
+                        return Err("ABI marker requires a scalar decoder".into());
+                    }
+                    if rule["function"] == true {
+                        rule = json!({"kind":"uint","bits":192,"function":false});
+                    }
+                    json!({"kind":"validate_abi","rule":rule,"args":operands(module,body,&[value])?})
+                }
+            }
+            Semantics::Packed(parts, hash) => {
+                let mut values = Vec::new();
+                let mut shapes = Vec::new();
+                let mut total = 0;
+                let mut aligned = true;
+                for part in parts {
+                    match part {
+                        PackedPart::Literal(bytes) => {
+                            total += bytes.len();
+                            aligned &= bytes.len().is_multiple_of(32);
+                            shapes.push(json!({"kind":"literal","bytes":bytes.as_ref()}));
+                        }
+                        PackedPart::Scalar { value, ty } => {
+                            let size =
+                                usize::from(ty.type_size().ok_or("packed scalar layout")?.bytes());
+                            total += size;
+                            aligned &= size == 32;
+                            shapes.push(json!({"kind":"scalar","index":values.len(),"size":size,"fixed":matches!(ty,ValueLayout::FixedBytes(_))}));
+                            values.push(*value);
+                        }
+                        _ => return Err("packed reference layout".into()),
+                    }
+                    if total > 65536 {
+                        return Err("packed bytes exceed 64 KiB".into());
+                    }
+                }
+                if hash && total > 32 && !aligned {
+                    return Err("packed hash requires one merged word or whole-word parts".into());
+                }
+                json!({"kind":"packed","parts":shapes,"hash":hash,"args":operands(module,body,&values)?})
+            }
             Semantics::FreePointer => json!({"kind": "free_pointer", "args": []}),
             Semantics::MemoryZero(offset, size) => {
                 json!({"kind": "memory_zero", "args": operands(module, body, &[offset, size])?})
@@ -474,4 +628,27 @@ fn frame_address(offset: u64, mode: FrameMode, kind: FrameSlotKind) -> Result<St
         }
         _ => Err("MIR frame needs backend placement".into()),
     }
+}
+
+fn abi_rule(layout: &solar_mir::AbiParamLayout) -> Result<Json, String> {
+    if layout.types.is_empty() {
+        return Ok(Json::Null);
+    }
+    let [ty] = layout.types.as_ref() else {
+        return Err("ABI decoding requires zero or one scalar".into());
+    };
+    if !ty.is_scalar_word() {
+        return Err("ABI decoding requires a scalar layout".into());
+    }
+    let (name, bits) = match ty.word_validator() {
+        None => ("any", 0),
+        Some(AbiWordValidator::Unsigned(n)) => ("uint", u64::from(n)),
+        Some(AbiWordValidator::LeftAligned(n)) => ("left", u64::from(n)),
+        Some(AbiWordValidator::SignExtend(n)) => ("sint", (n + 1) * 8),
+        Some(AbiWordValidator::Bool) => ("boolean", 0),
+        Some(AbiWordValidator::EnumRange(n)) => ("enumeration", n),
+    };
+    Ok(
+        json!({"kind":name,"bits":bits,"function":matches!(ty,AbiParamType::Scalar(ValueLayout::Function))}),
+    )
 }

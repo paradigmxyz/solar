@@ -1,4 +1,5 @@
 import SolarTV.MIR.State.Interpreter
+import SolarTV.State.MemoryNormalize
 import Lean
 
 /-! Proof-producing execution of one known MIR control position at a time.

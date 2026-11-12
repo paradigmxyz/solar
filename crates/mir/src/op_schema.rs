@@ -1337,10 +1337,12 @@ define_mir_ops! {
     #[mir_op(mnemonic = "validate_abi", result = None, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::AbiValidation))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(validate_abi(operand0))]
     ValidateAbi(operand0: ValueId),
     #[mir_op(mnemonic = "abi_encode_packed", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::packed_types(func, parts)))]
+    #[semantics(packed(parts, hash))]
     AbiEncodePacked { parts: Box<[PackedPart]>, hash: bool },
     #[mir_op(mnemonic = "address_call", result = I1, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
@@ -1878,6 +1880,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::AbiEncoding)
     )]
     #[operand_types(func => Some(typing::abi_encode_types(func, base.is_some(), selector.is_some(), args, layout)))]
+    #[semantics(abi_encode(mode, base, selector, args, layout))]
     AbiEncode {
         /// Storage policy for the encoded result.
         mode: AbiEncodeMode,
@@ -1906,6 +1909,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::AbiDecoding)
     )]
     #[operand_types(func => Some(smallvec![typing::read_object(func, *data)]))]
+    #[semantics(abi_decode(data, layout))]
     AbiDecode {
         /// ABI-encoded bytes object, or a memory or calldata slice of the encoding.
         data: ValueId,
@@ -1981,6 +1985,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(internal_frame_address(offset))]
     InternalFrameAddr(offset: u64),
     /// Load a mutable local through its logical frame slot.
     ///
@@ -2040,6 +2045,7 @@ define_mir_ops! {
     )]
     #[builder(constructor_args_base)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(constructor_args_base())]
     ConstructorArgsBase,
     /// End address of the constructor's copied ABI argument blob.
     #[mir_op(
@@ -2053,6 +2059,7 @@ define_mir_ops! {
     )]
     #[builder(constructor_args_end)]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(constructor_args_end())]
     ConstructorArgsEnd,
 
     // Code operations
@@ -2086,6 +2093,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(linked_data_size(size))]
     DataSize(size: DataSize),
     /// Get code size: `codesize()`
     #[mir_op(
@@ -2170,6 +2178,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::ImmutableAssignment)
     )]
     #[operand_types(func => None)]
+    #[semantics(immutable_store(id, value))]
     StoreImmutable(id: ImmutableId, value: ValueId),
     /// Read an immutable declared by the module: `loadimmutable <name>`.
     ///
@@ -2186,6 +2195,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => None)]
+    #[semantics(immutable_read(id))]
     LoadImmutable(id: ImmutableId),
 
     /// A library address whose value is supplied by the linker.
@@ -2199,6 +2209,7 @@ define_mir_ops! {
         category = None
     )]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(library_address(library))]
     LibraryAddress(library: LibraryId),
 
     // Return data operations

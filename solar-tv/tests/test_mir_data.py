@@ -38,14 +38,17 @@ class MirDataTests(unittest.TestCase):
         self.assertIn("datacopy range 0..5 exceeds data size 4", result.stderr)
 
     def test_unlinked_data_and_relocations_stay_unsupported(self):
-        for body in (
-            "v0 = datasize child_0\nret v0",
-            "v0 = datasize child_0\ndatacopy child_0, 0, v0\nret 0",
+        for body, reason in (
+            ("v0 = datasize child_0\nret v0", "missing linked data extent"),
+            (
+                "v0 = datasize child_0\ndatacopy child_0, 0, v0\nret 0",
+                "datacopy of unlinked data",
+            ),
         ):
             with self.subTest(body=body):
                 source = module(body, data='child_0: runtime_code "child.sol:Child"')
                 result, _ = self.pair(source, source, status=2)
-                self.assertIn("unmodeled MIR operation `datasize`", result.stderr)
+                self.assertIn(reason, result.stderr)
         source = module(
             "datacopy payload_0, 0, 20\nret 0",
             data='payload_0: hex"' + "00" * 20 + '" library_relocations [0: L_0]',

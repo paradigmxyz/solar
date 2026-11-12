@@ -15,7 +15,7 @@ use solar_mir::{MirPhase, Module};
 
 mod machine;
 mod values;
-pub use machine::{ExternalMessage, Host, Log, MessageOutput, PendingChanges};
+pub use machine::{ExternalMessage, Host, Log, MessageOutput, PendingChanges, PlacementRead};
 
 pub mod replay;
 

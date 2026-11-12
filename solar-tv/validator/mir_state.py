@@ -8,7 +8,7 @@ Independent replay reparses the original MIR and executes the Rust interpreter.
 import json
 import subprocess
 
-from . import native, world
+from . import mir_layout, native, world
 from . import operations as ops
 from .common import Program, Unsupported, literal
 
@@ -166,7 +166,11 @@ def operation(value, definitions):
             expression = f".external (.raw {opcode})"
         elif name in {"sload", "sstore", "tload", "tstore"}:
             expression = f".storage {'true' if name.startswith('t') else 'false'} {'true' if name.endswith('store') else 'false'}"
+        elif name == "gas":
+            expression = ".context .gasSample"
         elif name in {
+            "codesize",
+            "codecopy",
             "address",
             "origin",
             "caller",
@@ -189,7 +193,7 @@ def operation(value, definitions):
             "blobbasefee",
             "slotnum",
         }:
-            expression = f".environment {opcode}"
+            expression = f".context (.environment {opcode})"
         elif name in {"log0", "log1", "log2", "log3", "log4"}:
             expression = f".log {name[-1]}"
         else:
@@ -206,6 +210,59 @@ def operation(value, definitions):
         tag = "insertValue" if kind == "insert_value" else "extractValue"
         expression = (
             f".{tag} ({value_type(value['aggregate_type'])}) {number(value['index'])}"
+        )
+    elif kind == "layout":
+        query = value["query"]
+        if query in {"heap_floor", "frame_address"}:
+            name = value["function"]
+            if not name.isascii():
+                raise Unsupported("non-ASCII placement function name")
+            tag = "heapFloor" if query == "heap_floor" else "frameAddress"
+            tail = "" if query == "heap_floor" else " " + number(value["offset"], 2**64)
+            expression = f".context (.{tag} {json.dumps(name)}{tail})"
+        elif query == "constructor":
+            expression = (
+                f".context (.constructorRange {'true' if value['end'] else 'false'})"
+            )
+        elif query == "data_size":
+            expression = f".context (.dataSize {number(value['id'])} {number(value['addend'], 2**64)} {'true' if value['aligned'] else 'false'})"
+        elif query in {"immutable_read", "immutable_store", "library"}:
+            tag = {
+                "immutable_read": "immutableRead",
+                "immutable_store": "immutableStore",
+                "library": "library",
+            }[query]
+            expression = f".context (.{tag} {number(value['id'])})"
+        else:
+            raise Unsupported("unknown MIR layout query")
+    elif kind == "abi_encode":
+        functions = (
+            "[" + ",".join("true" if x else "false" for x in value["functions"]) + "]"
+        )
+        expression = f".abi (.encode {number(value['mode'], 3)} {'true' if value['base'] else 'false'} {'true' if value['selector'] else 'false'} {functions})"
+    elif kind == "abi_decode":
+        rule = value["rule"]
+        expression = f".abi (.decode ({'none' if rule is None else 'some (' + abi_rule(rule) + ')'}) {'true' if rule is not None and rule['function'] else 'false'} {'true' if value['calldata'] else 'false'})"
+    elif kind == "validate_abi":
+        expression = f".abi (.validate ({abi_rule(value['rule'])}))"
+    elif kind == "packed":
+        parts = []
+        for part in value["parts"]:
+            if part["kind"] == "literal":
+                parts.append(
+                    ".literal [" + ",".join(number(b, 256) for b in part["bytes"]) + "]"
+                )
+            elif part["kind"] == "scalar":
+                size = number(part["size"], 33)
+                if size == "0":
+                    raise Unsupported("zero-width packed scalar")
+                parts.append(
+                    f".scalar {number(part['index'])} {size} {'true' if part['fixed'] else 'false'}"
+                )
+            else:
+                raise Unsupported("unsupported packed shape")
+        expression = (
+            f".abi (.packed [{','.join(parts)}] {'true' if value['hash'] else 'false'})"
         )
     elif kind == "load_storage_array":
         element = value["element"]
@@ -225,7 +282,7 @@ def operation(value, definitions):
             layout += f" {bits}"
         variants = value["variants"]
         bound = "none" if variants is None else f"some {number(variants, 257)}"
-        expression = f".storageArray ({layout}) ({bound})"
+        expression = f".object (.array ({layout}) ({bound}))"
     elif kind == "address_call":
         name = value["name"]
         if name not in {"call", "staticcall", "delegatecall"}:
@@ -253,19 +310,19 @@ def operation(value, definitions):
         "clear_storage_words",
     }:
         expression = {
-            "validate_storage_bytes": ".storageBytes .validate",
-            "load_storage_bytes": ".storageBytes .load",
-            "store_storage_bytes": ".storageBytes .store",
-            "clear_storage_words": ".storageBytes .clear",
+            "validate_storage_bytes": ".object (.bytes .validate)",
+            "load_storage_bytes": ".object (.bytes .load)",
+            "store_storage_bytes": ".object (.bytes .store)",
+            "clear_storage_words": ".object (.bytes .clear)",
         }[kind]
     elif kind == "store_storage_bytes_literal":
         raw = value["bytes"]
         if not isinstance(raw, list) or len(raw) > 65536:
             raise Unsupported("MIR constant data limit of 64 KiB")
         expression = (
-            ".storageBytes (.literal ["
+            ".object (.bytes (.literal ["
             + ",".join(number(byte, 256) for byte in raw)
-            + "])"
+            + "]))"
         )
     elif kind == "data_copy":
         raw = value["bytes"]
@@ -454,7 +511,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         solar, version, fixture, timeout, replay, root_is_mir=True
     ).replace("tvWorldConfig", "mirExternalConfig")
     external_config = "some mirExternalConfig"
-    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']}⟩\n"
+    config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']},{mir_layout.expression(fixture['mir_layout']) if 'mir_layout' in fixture else '{}'}⟩\n"
     boundary_inputs = []
     for index, ty in enumerate(params):
         for path, leaf in leaf_paths(ty):
@@ -484,6 +541,7 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
             json.dumps(return_widths),
             str(entry),
             fixture["fixture_sha256"],
+            model["layout_declarations"] if "mir_layout" in fixture else "",
         ),
         inputs,
         "MIR.State.Run",
@@ -505,3 +563,15 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
             },
         },
     )
+
+
+def abi_rule(rule):
+    kind = rule["kind"]
+    if kind in {"any", "boolean"}:
+        return "." + kind
+    if kind in {"uint", "left", "sint"}:
+        bits = width(rule["bits"])
+        return f".{kind} {bits}"
+    if kind == "enumeration":
+        return ".enumeration " + number(rule["bits"], 2**64)
+    raise Unsupported("unknown ABI word validator")

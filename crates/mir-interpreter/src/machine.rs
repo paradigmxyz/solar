@@ -79,9 +79,11 @@ use solar_mir::{
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
+mod abi;
 mod arrays;
 mod frames;
 mod messages;
+mod placement;
 mod storage;
 
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,
@@ -188,6 +190,18 @@ pub trait Host {
     /// not model it.
     fn read(&mut self, opcode: u8, operands: &[U256]) -> Option<U256>;
 
+    /// A placement or link input at this MIR window, never a guessed backend address.
+    fn placement(&mut self, query: PlacementRead<'_>) -> Option<U256> {
+        let _ = query;
+        None
+    }
+
+    /// The fixed code image containing this window, when supplied explicitly.
+    /// This does not authorize executing unknown MIR root code through a child call.
+    fn code_image(&mut self) -> Option<Vec<u8>> {
+        None
+    }
+
     /// Original external code bytes, without resolving delegation, or `None` if unknown.
     /// Account access must be recorded even when a caller requests zero copied bytes.
     fn code(&mut self, address: U256) -> Option<Vec<u8>> {
@@ -230,6 +244,29 @@ pub trait Host {
     fn is_static(&self) -> bool {
         false
     }
+}
+
+/// Explicit inputs for layout-dependent MIR operations.
+#[derive(Clone, Copy, Debug)]
+pub enum PlacementRead<'a> {
+    /// The entry heap lower bound for a named function.
+    HeapFloor(&'a str),
+    /// The current activation's internal frame base.
+    FrameBase(&'a str),
+    /// Copied constructor argument range start.
+    ConstructorBase,
+    /// Copied constructor argument range end.
+    ConstructorEnd,
+    /// The byte length of a linked data entry.
+    DataSize(usize),
+    /// Constructor immutable staging word address.
+    ImmutableSlot(usize),
+    /// Typed runtime immutable value after patching.
+    ImmutableValue(usize),
+    /// Linked library address.
+    Library(usize),
+    /// Gas just before an isolated GAS opcode window.
+    GasBefore,
 }
 
 /// A semantic MIR message; no caller bytecode or stack protocol is synthesized.
@@ -808,6 +845,128 @@ impl<'a> Run<'_, 'a, '_> {
         let frame = self.frames.last().expect("a run always has a frame");
         if self.semantic.is_some() {
             match semantics {
+                Semantics::HeapFloor => {
+                    let name = body.name.to_string();
+                    let word = self.placement(PlacementRead::HeapFloor(&name))?;
+                    self.frame().values[instruction.result().expect("heap floor")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::InternalFrameAddress(offset) => {
+                    if self.frames.len() != 1 {
+                        return ControlFlow::Break(Outcome::Unsupported(
+                            "internal frame placement requires an activation context",
+                        ));
+                    }
+                    let name = body.name.to_string();
+                    let base = self.placement(PlacementRead::FrameBase(&name))?;
+                    self.frame().values[instruction.result().expect("frame address")] =
+                        Some(RuntimeValue::Word(base + U256::from(offset)));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ConstructorArgs(end) => {
+                    let word = self.placement(if end {
+                        PlacementRead::ConstructorEnd
+                    } else {
+                        PlacementRead::ConstructorBase
+                    })?;
+                    self.frame().values[instruction.result().expect("constructor range")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::LinkedDataSize(size) => {
+                    let length = self.placement(PlacementRead::DataSize(size.data.index()))?;
+                    if length > U256::from(u32::MAX) {
+                        return ControlFlow::Break(Outcome::Unsupported(
+                            "linked data exceeds the u32 extent bound",
+                        ));
+                    }
+                    let word = size.value(length.to::<usize>());
+                    self.frame().values[instruction.result().expect("linked size")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::LibraryAddress(id) => {
+                    let word = self.placement(PlacementRead::Library(id.index()))?;
+                    if word >> 160 != U256::ZERO {
+                        return ControlFlow::Break(Outcome::Unsupported(
+                            "unclean linked library address",
+                        ));
+                    }
+                    self.frame().values[instruction.result().expect("library address")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ImmutableRead(id) => {
+                    let word = self.semantic_immutable(id, None)?;
+                    self.frame().values[instruction.result().expect("immutable read")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ImmutableStore(id, value) => {
+                    let word = frame.read(value)?;
+                    self.semantic_immutable(id, Some(word))?;
+                    return ControlFlow::Continue(());
+                }
+                Semantics::AbiEncode(mode, base, selector, args, layout) => {
+                    let base = if let Some(v) = base { Some(frame.read(v)?) } else { None };
+                    let selector = if let Some(v) = selector { Some(frame.read(v)?) } else { None };
+                    let words = frame.read_all(args)?;
+                    let value = self.semantic_abi_encode(mode, base, selector, &words, layout)?;
+                    self.frame().values[instruction.result().expect("ABI encoding result")] =
+                        Some(value);
+                    return ControlFlow::Continue(());
+                }
+                Semantics::AbiDecode(data, layout) => {
+                    let input = frame.read_value(data)?;
+                    let location =
+                        body.value_slice_location(data).unwrap_or(solar_mir::PtrLocation::Memory);
+                    let value = self.semantic_abi_decode(input, location, layout)?;
+                    if let Some(result) = instruction.result() {
+                        let bits =
+                            body.value_ty(result).and_then(|ty| ty.integer_bits()).unwrap_or(256);
+                        self.frame().values[result] = value
+                            .map(|word| RuntimeValue::Word(word & (U256::MAX >> (256 - bits))));
+                    }
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ValidateAbi(value) => {
+                    let word = frame.read(value)?;
+                    self.semantic_validate_abi(body, value, word)?;
+                    return ControlFlow::Continue(());
+                }
+                Semantics::Packed(parts, hash) => {
+                    let mut values = Vec::new();
+                    for part in parts {
+                        if let solar_mir::PackedPart::Scalar { value, .. } = part {
+                            values.push(frame.read(*value)?);
+                        }
+                    }
+                    let word = self.semantic_packed(parts, &values, hash)?;
+                    self.frame().values[instruction.result().expect("packed result")] =
+                        Some(RuntimeValue::Word(word));
+                    return ControlFlow::Continue(());
+                }
+                Semantics::Opcode("gas", _) => {
+                    if !self.gas_window(body, inst) {
+                        return ControlFlow::Break(Outcome::Unsupported(
+                            "GAS requires an isolated opcode window",
+                        ));
+                    }
+                    let budget = self.placement(PlacementRead::GasBefore)?;
+                    let price = U256::from(
+                        op::definition(op::GAS)
+                            .expect("GAS opcode")
+                            .gas
+                            .gas(self.semantic.expect("semantic version")),
+                    );
+                    if budget < price {
+                        return ControlFlow::Break(Outcome::Invalid);
+                    }
+                    self.frame().values[instruction.result().expect("gas result")] =
+                        Some(RuntimeValue::Word(budget - price));
+                    return ControlFlow::Continue(());
+                }
                 Semantics::ValidateStorageBytes(header) => {
                     Self::bytes_header(frame.read(header)?)?;
                     return ControlFlow::Continue(());
@@ -1266,6 +1425,19 @@ impl<'a> Run<'_, 'a, '_> {
         }
         // Operations on memory come first, while no borrow of the world is live.
         match (opcode, operands) {
+            (op::CODECOPY, &[dest, offset, len]) if self.semantic.is_some() => {
+                let Some(bytes) = self.world.as_mut().and_then(|w| w.host.code_image()) else {
+                    return ControlFlow::Break(Outcome::Unsupported(
+                        "missing explicit MIR code image",
+                    ));
+                };
+                self.burn_words(len)?;
+                let data = (0..len.to::<u64>())
+                    .map(|i| calldata_byte(&bytes, offset, i))
+                    .collect::<Vec<_>>();
+                limit(self.memory.write(dest, &data))?;
+                return ControlFlow::Continue(None);
+            }
             (op::CALLDATACOPY, &[dest, offset, len]) => {
                 let Some(transaction) = &self.transaction else {
                     return ControlFlow::Break(unsupported());

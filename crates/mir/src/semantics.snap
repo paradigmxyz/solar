@@ -13,8 +13,8 @@ load_storage_array: load_storage_array(slot, element, enum_variants)
 store_storage_bytes: store_storage_bytes(operand0, operand1)
 store_storage_bytes_literal: store_storage_bytes_literal(slot, bytes)
 clear_storage_words: clear_storage_words(operand0, operand1, operand2)
-validate_abi: -
-abi_encode_packed: -
+validate_abi: validate_abi(operand0)
+abi_encode_packed: packed(parts, hash)
 address_call: address_call(kind, address, input, gas, value)
 add: opcode(add)
 sub: opcode(sub)
@@ -49,26 +49,26 @@ msize: opcode(msize)
 fmp: free_pointer()
 heap_floor: heap_floor()
 alloc: allocate(size, semantics)
-abi_encode: -
-abi_decode: -
+abi_encode: abi_encode(mode, base, selector, args, layout)
+abi_decode: abi_decode(data, layout)
 mcopy: opcode(match location { Memory => mcopy, Calldata => calldatacopy, Returndata => returndatacopy })
 calldatasize: opcode(calldatasize)
 make_memory_slice: make_slice(location, ptr, len)
-internal_frame_addr: -
+internal_frame_addr: internal_frame_address(offset)
 frame_load: frame_load(offset, mode, kind)
 frame_store: frame_store(offset, mode, kind, value)
-constructor_args_base: -
-constructor_args_end: -
+constructor_args_base: constructor_args_base()
+constructor_args_end: constructor_args_end()
 datacopy: data_copy(data, dest, size)
-datasize: -
+datasize: linked_data_size(size)
 codesize: opcode(codesize)
 codecopy: opcode(codecopy)
 extcodesize: opcode(extcodesize)
 extcodecopy: opcode(extcodecopy)
 extcodehash: opcode(extcodehash)
-storeimmutable: -
-loadimmutable: -
-library_address: -
+storeimmutable: immutable_store(id, value)
+loadimmutable: immutable_read(id)
+library_address: library_address(library)
 returndatasize: opcode(returndatasize)
 caller: opcode(caller)
 callvalue: opcode(callvalue)
