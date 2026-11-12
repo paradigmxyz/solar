@@ -700,6 +700,39 @@ $1 $2:
 }
 
 #[test]
+fn renames_natspec_inheritdoc_alias_shadowed_by_member() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Base.sol
+        contract Base {
+            function run() public virtual {}
+        }
+
+        //- /Child.sol
+        import "./Base.sol" as $1Lib;
+        import {Base} from "./Base.sol";
+
+        contract Child is Base {
+            uint Lib;
+            /// @inheritdoc $2Lib.Base
+            function run() public override {}
+        }
+        "#,
+        "/Child.sol",
+    );
+
+    fixture.check_renames(
+        &[("$1 $2", "Shared")],
+        str![[r#"
+$1 $2:
+/Child.sol:0:23-0:26 -> Shared
+/Child.sol:4:20-4:23 -> Shared
+
+"#]],
+    );
+}
+
+#[test]
 fn renames_override_families_but_not_function_typed_parameters() {
     let fixture = RequestFixture::new(
         r#"

@@ -1440,6 +1440,7 @@ impl SymbolTables {
                 continue;
             }
             for (span, resolutions) in gcx.natspec_references(item_id) {
+                // NatSpec paths resolve from the source scope only, as in sema.
                 let targets = resolutions
                     .iter()
                     .filter_map(|res| {
@@ -1452,14 +1453,14 @@ impl SymbolTables {
                     RenameReferenceContext {
                         bindings: &bindings,
                         source: item.source(),
-                        contract: item.contract(),
+                        contract: None,
                         item_symbols,
                         declarations: &self.declarations,
                     },
                     span,
                     &targets,
                 );
-                if let Some(path) = SourcePath::resolve(gcx, span, item.source(), item.contract()) {
+                if let Some(path) = SourcePath::resolve(gcx, span, item.source(), None) {
                     // The qualifiers of an `@inheritdoc` path, such as `M` in `M.Base`.
                     for qualifier in path.qualifiers {
                         let targets = qualifier
