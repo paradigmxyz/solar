@@ -81,10 +81,7 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
     v16 = call v14, v15, 0, v8, v9, v8, 32
     jumpi v16, bb3, bb4
   bb4 [cold_hint]:                                ; preds = bb2
-    jumpi true, bb6, bb7
-  bb7 [cold_hint]:                                ; preds = bb4
-    icall revert_if<empty>, true
-    invalid
+    jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
@@ -93,6 +90,9 @@ fn @live() -> i256 [selector=0x957aa58c, abi_params=[], abi_returns=[word], abi_
   bb5:                                            ; preds = bb3, bb6
     v18 = phi [bb3: v17], [bb6: 7]
     ret v18
+  bb7 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function liveTwo() external returns (uint256 r) [selector 0xa9b44a2a]
@@ -124,10 +124,7 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
     v16 = call v14, v15, 0, v8, v9, v8, 64
     jumpi v16, bb3, bb4
   bb4 [cold_hint]:                                ; preds = bb2
-    jumpi true, bb6, bb7
-  bb7 [cold_hint]:                                ; preds = bb4
-    icall revert_if<empty>, true
-    invalid
+    jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
@@ -140,6 +137,9 @@ fn @liveTwo() -> i256 [selector=0xa9b44a2a, abi_params=[], abi_returns=[word], a
   bb5:                                            ; preds = bb3, bb6
     v22 = phi [bb3: v21], [bb6: 7]
     ret v22
+  bb7 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function liveAggregate() external returns (uint256 r) [selector 0xc64a4ee9]
@@ -172,10 +172,7 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
     v17 = call v15, v16, 0, v9, v10, v9, 64
     jumpi v17, bb3, bb4
   bb4 [cold_hint]:                                ; preds = bb2
-    jumpi true, bb6, bb7
-  bb7 [cold_hint]:                                ; preds = bb4
-    icall revert_if<empty>, true
-    invalid
+    jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
@@ -196,6 +193,9 @@ fn @liveAggregate() -> i256 [selector=0xc64a4ee9, abi_params=[], abi_returns=[wo
   bb5:                                            ; preds = bb3, bb6
     v28 = phi [bb3: v27], [bb6: 7]
     ret v28
+  bb7 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function liveNoReturn() external returns (uint256 r) [selector 0x0f81fb69]
@@ -223,10 +223,7 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
     v13 = call v11, v12, 0, v5, v6, v5, 0
     jumpi v13, bb3, bb4
   bb4 [cold_hint]:                                ; preds = bb2
-    jumpi true, bb6, bb7
-  bb7 [cold_hint]:                                ; preds = bb4
-    icall revert_if<empty>, true
-    invalid
+    jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
@@ -234,6 +231,9 @@ fn @liveNoReturn() -> i256 [selector=0x0f81fb69, abi_params=[], abi_returns=[wor
   bb5:                                            ; preds = bb3, bb6
     v14 = phi [bb3: 1], [bb6: 7]
     ret v14
+  bb7 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function liveCatch() external returns (uint256 r) [selector 0x852bf1e6]
@@ -265,10 +265,7 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
     v16 = call v14, v15, 1, v8, v9, v8, 32
     jumpi v16, bb3, bb4
   bb4 [cold_hint]:                                ; preds = bb2
-    jumpi true, bb6, bb7
-  bb7 [cold_hint]:                                ; preds = bb4
-    icall revert_if<empty>, true
-    invalid
+    jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
@@ -277,6 +274,9 @@ fn @liveCatch() -> i256 [selector=0x852bf1e6, abi_params=[], abi_returns=[word],
   bb5:                                            ; preds = bb3, bb6
     v18 = phi [bb3: v17], [bb6: 7]
     ret v18
+  bb7 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function livePointer() external returns (uint256 r) [selector 0x6347cf88]
@@ -312,10 +312,7 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
     v20 = call v19, v9, 0, v14, v15, v14, 32
     jumpi v20, bb3, bb4
   bb4 [cold_hint]:                                ; preds = bb2
-    jumpi true, bb6, bb7
-  bb7 [cold_hint]:                                ; preds = bb4
-    icall revert_if<empty>, true
-    invalid
+    jump bb6
   bb6 [cold_hint]:                                ; preds = bb4
     jump bb5
   bb3:                                            ; preds = bb2
@@ -324,6 +321,9 @@ fn @livePointer() -> i256 [selector=0x6347cf88, abi_params=[], abi_returns=[word
   bb5:                                            ; preds = bb3, bb6
     v22 = phi [bb3: v21], [bb6: 7]
     ret v22
+  bb7 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function liveCreation() external returns (uint256 r) [selector 0xb217934d]
@@ -336,10 +336,7 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
     v3 = ne v2, i160 0
     jumpi v3, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
@@ -347,6 +344,9 @@ fn @liveCreation() -> i256 [selector=0xb217934d, abi_params=[], abi_returns=[wor
   bb3:                                            ; preds = bb1, bb4
     v4 = phi [bb1: 1], [bb4: 7]
     ret v4
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function noCode() external returns (uint256 r) [selector 0x96c56dce]
@@ -367,10 +367,7 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
     v10 = call v9, 0, 0, v4, v5, v4, 32
     jumpi v10, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
@@ -379,6 +376,9 @@ fn @noCode() -> i256 [selector=0x96c56dce, abi_params=[], abi_returns=[word], ab
   bb3:                                            ; preds = bb1, bb4
     v12 = phi [bb1: v11], [bb4: 7]
     ret v12
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function noCodeNoReturn() external returns (uint256 r) [selector 0xac1b26c4]
@@ -395,10 +395,7 @@ fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[w
     v7 = call v6, 0, 0, v1, v2, v1, 0
     jumpi v7, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     jump bb3
   bb1:                                            ; preds = bb0
@@ -406,4 +403,7 @@ fn @noCodeNoReturn() -> i256 [selector=0xac1b26c4, abi_params=[], abi_returns=[w
   bb3:                                            ; preds = bb1, bb4
     v8 = phi [bb1: 1], [bb4: 7]
     ret v8
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }

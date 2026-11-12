@@ -31,6 +31,18 @@ pub(super) fn check(gcx: Gcx<'_>) {
     }
 }
 
+/// Returns the state mutability that evaluating `expr` requires, as the checker infers it for a
+/// function body: `NonPayable` or `Payable` when the expression can write state.
+pub(crate) fn expr_mutability<'gcx>(
+    gcx: Gcx<'gcx>,
+    expr: &'gcx hir::Expr<'gcx>,
+) -> StateMutability {
+    let function_effects = FunctionCache::default();
+    let mut checker = ViewPureChecker::new(gcx, &function_effects);
+    let _ = checker.visit_expr(expr);
+    checker.best.mutability
+}
+
 #[derive(Clone, Copy)]
 struct MutabilityAndLocation {
     mutability: StateMutability,

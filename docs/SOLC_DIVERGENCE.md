@@ -1050,3 +1050,99 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
   `tests/ui/codegen/run-call/constants/constant_runtime_initializer.sol`,
   `tests/ui/codegen/run-call/constants/constant_bytes_too_large.sol` and
   `tests/ui/codegen/lowering/mir/expressions/constant_values_too_large.sol`.
+
+### CODEGEN-025: Writing a value that owns its storage slot clears the dirty padding
+
+- ID: CODEGEN-025
+- Status: intentional
+- Difference: after assembly writes dirty bits into the unused high bits of a
+  slot that holds one value narrower than a word, assigning to that value
+  keeps the bits in `solc`, because `solc` updates the field in place.
+  `solar` writes the whole word and clears them. This covers a state variable
+  or struct field alone in its slot, a mapping value, the only element of a
+  one-element array such as `uint8[1]`, and an element of an array whose
+  elements fill more than half a slot, such as an `address[]`.
+  Loads mask the value either way. A value that shares its slot keeps its
+  neighbors in both compilers.
+- Rationale: the padding belongs to no other value, so the whole-word store
+  needs no `SLOAD` and no mask constant, and is smaller and cheaper than
+  matching `solc`.
+- Coverage: `tests/ui/codegen/run-call/storage/storage_exclusive_slot_padding.sol` and
+  `tests/ui/codegen/lowering/mir/storage-memory/owned_slot_stores.sol`.
+
+### CODEGEN-027: A returned calldata word array does not check an assembly-set length
+
+- ID: CODEGEN-027
+- Status: parity debt
+- Difference: after `p.length := n` in assembly, with `n` such that
+  `n * 32` wraps to zero, such as `2**251`, `solc` reverts when it returns the
+  calldata array `p` of full words, because it loops over every element and
+  runs out of gas. `solar` copies the wrapped size, so the call succeeds with
+  the offset and length words and no elements. Arrays of narrow words and of
+  composite elements revert as in `solc`. A length that ABI decoding or slicing
+  produced cannot reach this, because both check it.
+- Rationale: a length check on every returned full-word array costs code in
+  programs that cannot reach the case.
+- Coverage: `tests/ui/codegen/run-call/calldata/calldata_forged_word_array_length_return.sol`.
+
+### CODEGEN-028: `abi.encode` of a forged huge calldata array reverts with a panic
+
+- ID: CODEGEN-028
+- Status: parity debt
+- Difference: after `p.length := 2**250` in assembly on a calldata array of
+  two-word structs, `abi.encode(p)` reverts with `Panic(0x41)` in `solar`,
+  because the size of the result buffer is too large to allocate. `solc` runs
+  out of gas in the encoding loop and reverts with empty data.
+- Rationale: the allocation check reports the oversized buffer before any
+  element is encoded, and the case needs assembly-forged lengths.
+- Coverage: `tests/ui/codegen/run-call/calldata/abi_encode_forged_array_length.sol`.
+
+### CODEGEN-029: Memory `bytes` may carry nonzero bytes past their length
+
+- ID: CODEGEN-029
+- Status: intentional
+- Difference: the bytes between the end of a memory `bytes` or `string` object
+  and the next word boundary are not cleared when the object comes from
+  `abi.decode` of calldata, memory or returndata (including the value an
+  external call returns and a `catch Error(string)` reason), or from
+  `abi.encodePacked`, `bytes.concat` or `string.concat` with a result longer
+  than 32 bytes and not a multiple of 32. They hold whatever the input or the
+  free memory held. `solc` writes zeros there, except for a `catch Error(string)`
+  reason, which keeps the padding of the revert data. Only inline assembly that
+  reads the padding sees the difference: `return`, `revert` or `log` data that
+  covers the rounded length, `keccak256` over it, `call` or `staticcall` input
+  of that length, and `mcopy` of whole words.
+- Rationale: clearing the padding adds a store to every such `abi.decode` and
+  non-word-aligned `abi.encodePacked`, which grows the bytecode and costs gas.
+  Every Solidity use of the object reads or copies only its length, masks the
+  rest, or writes its own zeros: external return, `revert` data, `abi.encode`,
+  `abi.encodePacked`, `abi.encodeCall`, events (data and indexed topic),
+  `keccak256`, `bytes.concat`, `string.concat`, conversion to `bytesN`, indexing,
+  storage copies, `push` and external calls that pass the object on. The padding
+  of an external function parameter, of `new bytes(n)` and of a packed result of
+  at most 32 bytes is still zero.
+- Coverage: `tests/ui/codegen/run-call/bytes-padding/` runs each of these
+  sources against each Solidity and assembly use over dirty padding, and
+  `tests/foundry/bytes-padding-logs/` covers events.
+
+### TYPECK-026: `@inheritdoc` references
+
+Status: intentional.
+
+Difference: `solar` reads the first word of an `@inheritdoc` tag as a path,
+such as `M.Base` through an import namespace, and resolves it from the source
+scope. `solc` resolves it from the scope of the documented function, so a
+parameter named `M` shadows the namespace, and reads the rest of the tag,
+including continuation lines, as part of the reference. `solar` ignores text
+after the first word, so `@inheritdoc Base and more text` inherits from `Base`.
+Every reference that names no contract, such as an empty reference, `Base.`,
+an overloaded function or a struct, warns 9397. `solc` reports 1933, 5967,
+1430 or 9397 as errors.
+
+Rationale: resolving a qualified path is needed for valid code. Matching
+`solc` on shadowed, malformed or trailing text would need a second parse of
+the tag and a scope walk, and only changes which invalid documentation is
+reported.
+
+Coverage: `tests/ui/natspec/inheritdoc/qualified_path.sol` and
+`tests/ui/natspec/inheritdoc/qualified_unresolved.sol`.

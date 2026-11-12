@@ -9,6 +9,7 @@
 //! otherwise incompatible entries separate. Debug metadata never participates
 //! in equivalence or profitability. A shared instruction keeps a function event only when every
 //! path agrees on it, and the replacement jumps take none.
+//! A suffix never contains `PC`, whose value depends on the position of its block.
 //! A terminal suffix covering the representative's whole body reuses its block and label when
 //! there are no nested shared tails. Nested tails keep their placement
 //! to preserve fallthrough paths. Other address-taken entries keep their jump stubs.
@@ -54,7 +55,7 @@ use super::{
     block_layout::terminator_kind,
     cfg_simplify::is_direct_jump_label,
     utils::{
-        FreshLabels, MachineInstKey, instruction_size_lower_bound, is_split_point,
+        FreshLabels, MachineInstKey, instruction_size_lower_bound, is_pc, is_split_point,
         is_terminal_boundary,
     },
 };
@@ -235,16 +236,14 @@ impl RunState {
         let terminator = &block.terminator.as_ref().expect("candidate must have a terminator").kind;
         let mut node = self.tail_root(terminator);
         let len = block.instructions.len();
-        let limit = if keep_branches {
-            block
-                .instructions
-                .iter()
-                .rev()
-                .position(|inst| inst.as_evm_opcode() == Some(op::JUMPI))
-                .unwrap_or(len)
-        } else {
-            len
-        };
+        let limit = block
+            .instructions
+            .iter()
+            .rev()
+            .position(|inst| {
+                is_pc(inst) || keep_branches && inst.as_evm_opcode() == Some(op::JUMPI)
+            })
+            .unwrap_or(len);
         // The representative is truncated at the shared tail too, so it only represents tails
         // whose start is a legal split point in its own instruction list.
         if is_split_point(&block.instructions, len) {
@@ -394,6 +393,7 @@ impl RunState {
                     && terminator.as_ref().is_some_and(|term| is_terminal_boundary(&term.kind))
                 {
                     tail.label = module.blocks[representative_id].label;
+                    tail.metadata.entry_depth = metadata.entry_depth;
                     // Every path that shared the body now enters through this label.
                     tail.label_metadata =
                         std::mem::take(&mut module.blocks[representative_id].label_metadata);

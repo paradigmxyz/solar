@@ -13,7 +13,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     /// Returns the bytes of a `string` or `bytes` value that the constant evaluator folds, such as
     /// a literal, a conversion of one, or a constant.
-    pub(super) fn constant_bytes(&self, expr: &hir::Expr<'_>) -> Option<ByteSymbol> {
+    pub(super) fn constant_bytes(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<ByteSymbol> {
         match self.cx.gcx.const_eval().eval_expr(expr) {
             Ok(ConstValue::Bytes(bytes, _)) => Some(*bytes),
             _ => None,
@@ -23,7 +23,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_fixed_bytes_literal(
         &mut self,
         ty: Ty<'gcx>,
-        expr: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
     ) -> Option<ValueId> {
         let TyKind::Elementary(ElementaryType::FixedBytes(size)) = ty.peel_refs().kind else {
             return None;
@@ -55,8 +55,8 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_member(
         &mut self,
-        expr: &hir::Expr<'_>,
-        receiver: &hir::Expr<'_>,
+        expr: &'gcx hir::Expr<'gcx>,
+        receiver: &'gcx hir::Expr<'gcx>,
         name: Ident,
     ) -> Option<ValueId> {
         if let Some(builtin) = self.cx.gcx.resolved_builtin(expr) {
@@ -159,7 +159,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
 
     pub(super) fn lower_array_length(
         &mut self,
-        receiver: &hir::Expr<'_>,
+        receiver: &'gcx hir::Expr<'gcx>,
         receiver_ty: Ty<'gcx>,
         span: Span,
         what: &'static str,
@@ -207,13 +207,17 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         }
     }
 
-    pub(super) fn type_of_expr_or_variable(&self, expr: &hir::Expr<'_>) -> Option<Ty<'gcx>> {
+    pub(super) fn type_of_expr_or_variable(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
         self.cx.gcx.type_of_expr(expr.id).or_else(|| {
             self.cx.gcx.resolved_variable(expr).map(|id| self.cx.gcx.type_of_item(id.into()))
         })
     }
 
-    pub(super) fn normalize_byte_value(&mut self, expr: &hir::Expr<'_>, value: ValueId) -> ValueId {
+    pub(super) fn normalize_byte_value(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        value: ValueId,
+    ) -> ValueId {
         let Some(ty) = self.cx.gcx.type_of_expr(expr.id) else { return value };
         self.normalize_byte_type(ty, value)
     }

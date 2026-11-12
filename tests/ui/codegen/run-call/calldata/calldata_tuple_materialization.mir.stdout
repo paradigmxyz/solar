@@ -176,7 +176,7 @@ fn @widenedTuple(arg0: slice<calldata>) -> struct3 [selector=0x9eda07fe, abi_par
 ; function pair(uint256[2] calldata input) internal pure returns (uint256[2] calldata, uint256)
 fn @pair(arg0: slice<calldata>) -> struct4 [pure] {
   bb0:
-    v0 = make_calldata_slice ptr<calldata> 0, 0
+    v0 = make_calldata_slice ptr<calldata> 0, 2
     v1 = insert_value struct4, undef struct4, 0, arg0
     v2 = insert_value struct4, v1, 1, 0
     ret v2

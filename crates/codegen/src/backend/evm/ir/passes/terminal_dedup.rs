@@ -29,12 +29,9 @@ use super::{
     EvmPass,
     block_layout::terminator_kind,
     cfg_simplify::mark_addressed_blocks,
-    utils::{MachineInstKey, is_terminal_boundary},
+    utils::{MachineInstKey, is_pc, is_terminal_boundary},
 };
-use crate::backend::evm::{
-    ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind},
-    op,
-};
+use crate::backend::evm::ir::{Block, BlockId, Hotness, Module, Terminator, TerminatorKind};
 use smallvec::SmallVec;
 use solar_data_structures::{
     bit_set::DenseBitSet,
@@ -153,8 +150,7 @@ fn merge_debug_origins(module: &mut Module, redirects: &[(BlockId, BlockId)]) {
 /// share its body.
 fn terminal_block_hash(block: &Block, redirectable: bool) -> Option<u64> {
     let terminator = &block.terminator.as_ref()?.kind;
-    if (!is_terminal_boundary(terminator) && !redirectable)
-        || block.instructions.iter().any(|inst| inst.as_evm_opcode() == Some(op::PC))
+    if (!is_terminal_boundary(terminator) && !redirectable) || block.instructions.iter().any(is_pc)
     {
         return None;
     }
@@ -170,9 +166,10 @@ fn terminal_block_hash(block: &Block, redirectable: bool) -> Option<u64> {
 /// Whether two candidate bodies have the same machine instructions and terminator.
 fn same_terminal_body(a: &Block, b: &Block) -> bool {
     a.instructions.len() == b.instructions.len()
-        && a.instructions.iter().zip(&b.instructions).all(|(a, b)| {
-            a.as_evm_opcode() != Some(op::PC) && MachineInstKey::new(a) == MachineInstKey::new(b)
-        })
+        && a.instructions
+            .iter()
+            .zip(&b.instructions)
+            .all(|(a, b)| !is_pc(a) && MachineInstKey::new(a) == MachineInstKey::new(b))
         && terminator_kind(a) == terminator_kind(b)
 }
 

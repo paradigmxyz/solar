@@ -317,8 +317,6 @@ enum Edit {
     Keep {
         len: u8,
     },
-    /// Replace a duplicate of a known zero with `PUSH0`.
-    OverwritePush0,
     /// PUSH1 1; DUP1; closed_count; SHL; SUB => PUSH0; NOT; closed_count; SHL; NOT.
     LowMask,
     /// Replace a shuffled shift base and the trailing PUSH1 1; SWAP1; SUB.
@@ -412,10 +410,6 @@ impl Edit {
                 overwrite(&mut instructions[start + 3], op::SHR);
             }
             Self::Keep { len } => instructions.truncate(start + usize::from(len)),
-            Self::OverwritePush0 => {
-                instructions[start]
-                    .replace_preserving_metadata(Instruction::push_value(U256::ZERO));
-            }
             Self::DropDiscardedSwap => {
                 instructions.remove(start);
             }

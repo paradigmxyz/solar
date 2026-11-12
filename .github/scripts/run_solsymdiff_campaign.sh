@@ -36,4 +36,4 @@ sources=(
 
 python3 fuzz/fandango/run_symbolic_campaign.py "${sources[@]}" \
   --out "$out" --solc "$solc" --solar "$solar" --jobs "$jobs" -- \
-  --forge "$forge" --solver "$solver" --symbolic-caller
+  --forge "$forge" --solver "$solver"

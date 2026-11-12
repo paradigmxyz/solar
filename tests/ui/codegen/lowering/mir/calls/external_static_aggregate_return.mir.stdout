@@ -134,10 +134,7 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     v4 = staticcall v1, v3, 28, 36, v2, 64
     jumpi v4, bb1, bb2
   bb2 [cold_hint]:                                ; preds = bb0
-    jumpi true, bb4, bb5
-  bb5 [cold_hint]:                                ; preds = bb2
-    icall revert_if<empty>, true
-    invalid
+    jump bb4
   bb4 [cold_hint]:                                ; preds = bb2
     ret 0
   bb1:                                            ; preds = bb0
@@ -153,6 +150,9 @@ fn @tryStructReturn(arg0: i256) -> i256 [selector=0xcc20ef0a, view, abi_params=[
     ret v12
   bb3:
     ret 0
+  bb5 [cold_hint]:
+    icall revert_if<empty>, true
+    invalid
 }
 
 ; function pairReturn(uint256 x) external view returns (uint256) [selector 0xc6630f71]
