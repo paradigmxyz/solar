@@ -9,9 +9,9 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
 | Some forms checked | 6 | 6 |
-| Explicit-world entry execution | 0 | 33 |
+| Explicit-world entry execution | 0 | 45 |
 | Compiled entry through trusted backend | 7 | 0 |
-| Missing | 62 | 12 |
+| Missing | 62 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
 variants account for many EVM entries. Checking a word operation does not cover
@@ -76,6 +76,15 @@ SELFDESTRUCT models the London refund removal and Cancun EIP-6780 distinction
 between existing and newly created accounts. Deletion is deferred, balance
 changes are immediate, and nested reverts restore the complete journal.
 
+Environment reads use explicit block/transaction fixtures: fork-selected
+difficulty/randomness, block history, fees, blob hashes, chain ID and SLOTNUM.
+EXTCODECOPY reads account bytes with padding and memory/access gas. From Prague,
+EIP-7702 designators resolve once for execution; their target access costs/warmth
+and call contexts are replayed independently. Authorization processing precedes
+the entry model. Amsterdam admits environment/scalar/memory execution only;
+state/account/call gas remains unsupported. A zero `Missing` count does not make
+every EVM operation valid in arbitrary windows, forks or worlds.
+
 The world fixture is an explicit assumption. Only declared symbolic slots and
 entry stack words are universally quantified. MIR is compiled through the backend
 in this mode, which is an additional trusted boundary rather than direct MIR
@@ -87,9 +96,10 @@ for admitted forks, limits, observables and gas policies.
 
 1. Generalize fixed-world entry proofs to arbitrary symbolic accounts and aliases,
    with direct MIR state semantics rather than trusting backend lowering.
-2. Add EIP-7702 delegation, including its account accesses and gas rules.
-3. Complete calldata/returndata/program-data access, physical code layout and
-   environment/account/block operations.
+2. Add transaction admission and EIP-7702 authorization processing, beyond
+   execution of already-delegated account state.
+3. Generalize calldata/returndata/program-data access and physical code layout
+   from complete-entry execution to arbitrary local windows.
 4. Add MIR aggregates, slices, frames, allocation, storage layouts and ABI helpers
    against independent semantics, rather than assuming their lowering is correct.
 5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including

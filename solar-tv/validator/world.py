@@ -24,6 +24,7 @@ FORKS = {
     "cancun",
     "prague",
     "osaka",
+    "amsterdam",
 }
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -73,6 +74,12 @@ def read(path: Path, compiler: str, policy: str | None) -> dict:
             "calldata",
             "warm_slots",
             "fuel",
+            "block",
+            "chain_id",
+            "blob_hashes",
+            "origin",
+            "gas_price",
+            "warm_addresses",
         },
         "world",
     )
@@ -91,6 +98,13 @@ def read(path: Path, compiler: str, policy: str | None) -> dict:
 
     address = _number(value.get("address", 65536), 160)
     caller = _number(value.get("caller", 131072), 160)
+    context = _block(value.get("block", {}))
+    blobs = value.get("blob_hashes", [])
+    addresses = value.get("warm_addresses", [])
+    if not isinstance(blobs, list) or len(blobs) > 64:
+        raise Unsupported("world supports up to 64 blob hashes")
+    if not isinstance(addresses, list) or len(addresses) > 64:
+        raise Unsupported("world supports up to 64 warm addresses")
     budget = int(_number(value.get("gas", 1_000_000), 64))
     fuel = int(_number(value.get("fuel", 512), 32))
     if budget > 30_000_000 or not 1 <= fuel <= 2048:
@@ -149,6 +163,12 @@ def read(path: Path, compiler: str, policy: str | None) -> dict:
         "compiler": compiler,
         "address": address,
         "caller": caller,
+        "origin": _number(value.get("origin", caller), 160),
+        "gas_price": _number(value.get("gas_price", 0)),
+        "chain_id": _number(value.get("chain_id", 1)),
+        "blob_hashes": [_number(blob) for blob in blobs],
+        "warm_addresses": [_number(a, 160) for a in addresses],
+        "block": context,
         "gas": budget,
         "static": value.get("static", False),
         "calldata": _bytes(value.get("calldata", "0x")),
@@ -201,12 +221,12 @@ def runtime(text: str, kind: str, solar: str, version: str, timeout: int) -> byt
     return code
 
 
-def configuration(solar: str, version: str, root: str, timeout: int) -> str:
+def configuration(solar: str, version: str, fixture: dict, timeout: int) -> str:
     catalog = native.catalog(native.default(solar), timeout)
     precompiles = catalog.get("precompiles")
     if not isinstance(precompiles, dict):
         raise Unsupported("rebuild the native replay helper for precompile activation")
-    if root in precompiles.get(version, []):
+    if fixture["address"] in precompiles.get(version, []):
         raise Unsupported(
             "world root must be a bytecode account, not an active precompile"
         )
@@ -222,7 +242,16 @@ def configuration(solar: str, version: str, root: str, timeout: int) -> str:
         rows.append(
             f"⟨{'true' if fork['available'] else 'false'}, {fork['base_gas']}, {fork['dynamic_gas']}, {inputs}, {outputs}⟩"
         )
-    return f"def tvWorldConfig : EVM.State.Config := ⟨.{version}, [{', '.join(rows)}], {root}⟩\n"
+    block = fixture["block"]
+    hashes = "[" + ", ".join(f"({n},{h})" for n, h in block["hashes"]) + "]"
+    blobs = "[" + ", ".join(fixture["blob_hashes"]) + "]"
+    context = (
+        f"⟨{block['number']},{block['coinbase']},{block['timestamp']},"
+        f"{block['gas_limit']},{block['difficulty']},{block['prevrandao']},"
+        f"{fixture['chain_id']},{block['base_fee']},{block['blob_base_fee']},"
+        f"{block['slot']},{hashes},{blobs}⟩"
+    )
+    return f"def tvWorldConfig : EVM.State.Config := ⟨.{version}, [{', '.join(rows)}], {fixture['address']}, {context}⟩\n"
 
 
 def translate(
@@ -236,7 +265,7 @@ def translate(
 ) -> Program:
     if version not in FORKS:
         raise Unsupported(
-            "explicit-world execution currently supports Istanbul through Osaka"
+            "explicit-world execution supports Istanbul through Osaka, and Amsterdam's environment fragment"
         )
     if kind == "mir":
         entries = re.findall(
@@ -260,7 +289,7 @@ def translate(
         if height > 1024:
             raise Unsupported("world entry stack exceeds 1024 words")
     code = runtime(text, kind, solar, version, timeout)
-    config = configuration(solar, version, fixture["address"], timeout)
+    config = configuration(solar, version, fixture, timeout)
     stack = [f"stack{i}" for i in range(height)]
     inputs = [*fixture["symbols"], *stack]
 
@@ -283,15 +312,20 @@ def translate(
         accounts.append(
             f"⟨{account['address']}, {account['nonce']}, {account['balance']}, {image}, {slots}, [], false, false⟩"
         )
-    warm = [fixture["address"], fixture["caller"], *map(str, range(1, 10))]
-    if version in {"cancun", "prague", "osaka"}:
+    warm = [
+        fixture["address"],
+        fixture["caller"],
+        *fixture["warm_addresses"],
+        *map(str, range(1, 10)),
+    ]
+    if version in {"cancun", "prague", "osaka", "amsterdam"}:
         warm.append("10")
-    if version in {"prague", "osaka"}:
+    if version in {"prague", "osaka", "amsterdam"}:
         warm.extend(map(str, range(11, 18)))
-    if version == "osaka":
+    if version in {"osaka", "amsterdam"}:
         warm.append("256")
-    if version in {"shanghai", "cancun", "prague", "osaka"}:
-        warm.append("0")
+    if version in {"shanghai", "cancun", "prague", "osaka", "amsterdam"}:
+        warm.append(fixture["block"]["coinbase"])
     warm_slots = (
         "["
         + ", ".join(
@@ -302,7 +336,7 @@ def translate(
     body = (
         f"let accounts : List EVM.State.Account := [{', '.join(accounts)}]\n"
         f"let world : EVM.State.Journal := ⟨accounts, accounts, [{', '.join(warm)}], {warm_slots}, [], 0⟩\n"
-        f"let environment : World.Environment := ⟨{fixture['address']}, {fixture['address']}, {fixture['caller']}, {fixture['caller']}, 0, 0, {fixture['calldata']}, {'true' if fixture['static'] else 'false'}, 0⟩\n"
+        f"let environment : World.Environment := ⟨{fixture['address']}, {fixture['address']}, {fixture['caller']}, {fixture['origin']}, 0, {fixture['gas_price']}, {fixture['calldata']}, {'true' if fixture['static'] else 'false'}, 0⟩\n"
         f"EVM.State.execute {fixture['fuel']} tvWorldConfig world ⟨environment, {list(code)}, 0, [{', '.join(stack)}], [], [], {fixture['gas']}⟩"
     )
     return Program(
@@ -334,5 +368,40 @@ def replay_input(fixture: dict) -> dict:
         "accounts",
         "warm_slots",
         "gas_policy",
+        "block",
+        "origin",
+        "gas_price",
+        "chain_id",
+        "blob_hashes",
+        "warm_addresses",
     }
     return {key: value for key, value in fixture.items() if key in keys}
+
+
+def _block(value: dict) -> dict:
+    defaults = {
+        "number": 0,
+        "coinbase": 0,
+        "timestamp": 1,
+        "gas_limit": 2**64 - 1,
+        "difficulty": 0,
+        "prevrandao": 0,
+        "base_fee": 0,
+        "blob_base_fee": 1,
+        "slot": 0,
+    }
+    _keys(value, {*defaults, "hashes"}, "block")
+    result = {
+        key: _number(
+            value.get(key, default),
+            160 if key == "coinbase" else 64 if key == "slot" else 256,
+        )
+        for key, default in defaults.items()
+    }
+    hashes = value.get("hashes", {})
+    if not isinstance(hashes, dict) or len(hashes) > 256:
+        raise Unsupported("block supports up to 256 history hashes")
+    history = [(_number(n), _number(h)) for n, h in hashes.items()]
+    if len({n for n, _ in history}) != len(history):
+        raise Unsupported("duplicate block history number")
+    return {**result, "hashes": history}
