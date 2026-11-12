@@ -10,8 +10,8 @@ use serde_json::{Value as Json, json};
 use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{
     AllocationFailure, AllocationInitialization, ArithmeticKind, BasicBlock, Builtin, Callee,
-    Function, MirType, Module, PtrLocation, RequireKind, RevertKind, RevertReason, Semantics,
-    Terminator, Value, ValueId, analysis::CallGraphInfo,
+    Function, MirType, Module, RequireKind, RevertKind, RevertReason, Semantics, Terminator, Value,
+    ValueId, analysis::CallGraphInfo,
 };
 use std::io::{self, Read};
 
@@ -86,6 +86,47 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
             }
         }
     }
+    // Bound repeated type metadata before constructing the JSON response.
+    let mut type_nodes = 0;
+    for owner in reachable.iter() {
+        let function = &module.functions[owner];
+        let mut count = |ty| -> Result<(), String> {
+            type_nodes += type_cost(module, ty, 0, &mut 0)?;
+            if type_nodes > 65536 {
+                return Err("MIR model type budget of 65536 nodes".into());
+            }
+            Ok(())
+        };
+        for &ty in function.params.iter().chain(function.return_components()) {
+            count(ty)?;
+        }
+        if owner == id {
+            for &ty in function.params.iter().chain(function.return_components()) {
+                count(ty)?;
+            }
+        }
+        for block in &function.blocks {
+            for &inst in &block.instructions {
+                let inst = function.inst(inst);
+                if let Some(result) = inst.result() {
+                    count(function.value_ty(result).ok_or("untyped MIR result")?)?;
+                }
+                for value in inst.kind.operands() {
+                    count(function.value_ty(value).ok_or("untyped MIR operand")?)?;
+                }
+                if let Some(Semantics::InsertValue(ty, ..) | Semantics::ExtractValue(ty, ..)) =
+                    inst.kind.semantics()
+                {
+                    count(ty)?;
+                }
+            }
+            if let Some(term) = &block.terminator {
+                for value in term.operands() {
+                    count(function.value_ty(value).ok_or("untyped MIR operand")?)?;
+                }
+            }
+        }
+    }
     let mut block_count = 0;
     let mut instruction_count = 0;
     let functions = reachable
@@ -97,7 +138,7 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
             if block_count > 512 || instruction_count > 4096 {
                 return Err("MIR model size limit".into());
             }
-            export_function(id.index(), function)
+            export_function(module, id.index(), function)
         })
         .collect::<Result<Vec<_>, String>>()?;
     Ok(json!({
@@ -105,48 +146,72 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
         "name": body.name.to_string(),
         "entry": module.dispatch_entry() == Some(id),
         "entry_id": id.index(),
-        "params": body.params.iter().map(|&ty|scalar_type(ty)).collect::<Result<Vec<_>, _>>()?,
-        "returns": body.return_components().iter().map(|&ty|scalar_type(ty)).collect::<Result<Vec<_>, _>>()?,
+        "params": body.params.iter().map(|&ty|value_type(module, ty)).collect::<Result<Vec<_>, _>>()?,
+        "returns": body.return_components().iter().map(|&ty|value_type(module, ty)).collect::<Result<Vec<_>, _>>()?,
         "functions": functions,
     }))
 }
 
-fn export_function(id: usize, function: &Function) -> Result<Json, String> {
+fn export_function(module: &Module, id: usize, function: &Function) -> Result<Json, String> {
     if function.params.len() > 32 {
         return Err("MIR model parameter limit".into());
     }
     let params =
-        function.params.iter().map(|&ty| scalar_type(ty)).collect::<Result<Vec<_>, _>>()?;
+        function.params.iter().map(|&ty| value_type(module, ty)).collect::<Result<Vec<_>, _>>()?;
     let returns = function
         .return_components()
         .iter()
-        .map(|&ty| scalar_type(ty))
+        .map(|&ty| value_type(module, ty))
         .collect::<Result<Vec<_>, _>>()?;
-    if returns.len() > 1 {
-        return Err("aggregate MIR call results are not modeled".into());
-    }
     let blocks = function
         .blocks
         .iter()
-        .map(|block| export_block(function, block))
+        .map(|block| export_block(module, function, block))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(json!({"id": id, "params": params, "returns": returns, "blocks": blocks}))
 }
 
-fn scalar_type(ty: MirType) -> Result<Json, String> {
-    let bits = ty.integer_bits().or((ty == MirType::Ptr(PtrLocation::Memory)).then_some(256));
-    let Some(bits @ 1..=256) = bits else {
-        return Err(format!("unmodeled MIR type `{ty}`"));
-    };
-    Ok(json!({"bits":bits,"name":ty.to_string()}))
+fn value_type(module: &Module, ty: MirType) -> Result<Json, String> {
+    fn walk(module: &Module, ty: MirType, depth: usize, nodes: &mut usize) -> Result<Json, String> {
+        *nodes += 1;
+        if depth > 32 || *nodes > 256 {
+            return Err("MIR aggregate type limit: depth 32, nodes 256".into());
+        }
+        Ok(match ty {
+            MirType::Int(bits) if bits.get() <= 256 => {
+                json!({"kind":"word","bits":bits.get(),"name":ty.to_string()})
+            }
+            MirType::Ptr(location) => {
+                json!({"kind":"pointer","bits":256,"location":location.to_string(),"name":ty.to_string()})
+            }
+            MirType::Slice(location) => {
+                *nodes += 2;
+                if depth + 1 > 32 || *nodes > 256 {
+                    return Err("MIR aggregate type limit: depth 32, nodes 256".into());
+                }
+                json!({"kind":"slice","location":location.to_string(),"name":ty.to_string()})
+            }
+            MirType::Struct(id) => {
+                let ty = module.struct_types.get(id).ok_or("unknown MIR aggregate type")?;
+                let fields = ty
+                    .fields
+                    .iter()
+                    .map(|&ty| walk(module, ty, depth + 1, nodes))
+                    .collect::<Result<Vec<_>, _>>()?;
+                json!({"kind":"product","fields":fields})
+            }
+            _ => return Err(format!("unmodeled MIR type `{ty}`")),
+        })
+    }
+    walk(module, ty, 0, &mut 0)
 }
 
-fn operands(body: &Function, args: &[ValueId]) -> Result<Vec<Json>, String> {
-    args.iter().map(|&v| operand(body, v)).collect()
+fn operands(module: &Module, body: &Function, args: &[ValueId]) -> Result<Vec<Json>, String> {
+    args.iter().map(|&v| operand(module, body, v)).collect()
 }
 
-fn operand(body: &Function, id: ValueId) -> Result<Json, String> {
-    let ty = scalar_type(body.value_ty(id).ok_or("untyped MIR operand")?)?;
+fn operand(module: &Module, body: &Function, id: ValueId) -> Result<Json, String> {
+    let ty = value_type(module, body.value_ty(id).ok_or("untyped MIR operand")?)?;
     Ok(match body.value(id) {
         Value::Arg(index) => json!({"kind":"arg","index":index.index(),"type":ty}),
         Value::Inst(_) => json!({"kind":"local","index":id.index(),"type":ty}),
@@ -166,7 +231,7 @@ fn failure_code(failure: RevertKind) -> Result<Option<u8>, String> {
     }
 }
 
-fn export_block(body: &Function, block: &BasicBlock) -> Result<Json, String> {
+fn export_block(module: &Module, body: &Function, block: &BasicBlock) -> Result<Json, String> {
     let mut phis = Vec::new();
     let mut instructions = Vec::new();
     for &id in &block.instructions {
@@ -179,40 +244,42 @@ fn export_block(body: &Function, block: &BasicBlock) -> Result<Json, String> {
         let result = inst.result().map(|v| v.index());
         let ty = inst
             .result()
-            .map(|v| scalar_type(body.value_ty(v).ok_or("untyped MIR result")?))
+            .map(|v| value_type(module, body.value_ty(v).ok_or("untyped MIR result")?))
             .transpose()?;
         if let Some(Semantics::Phi(incoming)) = inst.kind.semantics() {
             let incoming = incoming
                 .iter()
-                .map(|(block, value)| Ok(json!([block.index(), operand(body, *value)?])))
+                .map(|(block, value)| Ok(json!([block.index(), operand(module, body, *value)?])))
                 .collect::<Result<Vec<_>, String>>()?;
             phis.push(json!({"result": result, "type": ty, "incoming": incoming}));
             continue;
         }
-        let operation = export_operation(body, &inst.kind)?;
+        let operation = export_operation(module, body, &inst.kind)?;
         instructions.push(json!({"result":result,"type":ty,"operation":operation}));
     }
     let term = match block.terminator.as_ref().ok_or("missing MIR terminator")? {
         Terminator::Jump(b) => json!({"kind":"jump","target":b.index()}),
         Terminator::Branch { condition, then_block, else_block } => {
-            json!({"kind":"branch","args":operands(body,&[*condition])?,"then":then_block.index(),"else":else_block.index()})
+            json!({"kind":"branch","args":operands(module, body,&[*condition])?,"then":then_block.index(),"else":else_block.index()})
         }
         Terminator::Switch { value, default, cases } => {
             let cases = cases
                 .iter()
-                .map(|(value, block)| Ok(json!([operand(body, *value)?, block.index()])))
+                .map(|(value, block)| Ok(json!([operand(module, body, *value)?, block.index()])))
                 .collect::<Result<Vec<_>, String>>()?;
-            json!({"kind": "switch", "args": operands(body, &[*value])?, "default": default.index(), "cases": cases})
+            json!({"kind": "switch", "args": operands(module, body, &[*value])?, "default": default.index(), "cases": cases})
         }
-        Terminator::Return { values } => json!({"kind":"return","args":operands(body,values)?}),
+        Terminator::Return { values } => {
+            json!({"kind":"return","args":operands(module, body,values)?})
+        }
         Terminator::Revert { offset, size } => {
-            json!({"kind":"revert","args":operands(body,&[*offset,*size])?})
+            json!({"kind":"revert","args":operands(module, body,&[*offset,*size])?})
         }
         Terminator::ReturnData { offset, size } => {
-            json!({"kind":"returndata","args":operands(body,&[*offset,*size])?})
+            json!({"kind":"returndata","args":operands(module, body,&[*offset,*size])?})
         }
         Terminator::TailCall { function, args } => {
-            json!({"kind": "tail_call", "function": function.index(), "args": operands(body, args)?})
+            json!({"kind": "tail_call", "function": function.index(), "args": operands(module, body, args)?})
         }
         Terminator::Stop => json!({"kind":"stop"}),
         Terminator::Invalid => json!({"kind":"invalid"}),
@@ -221,54 +288,99 @@ fn export_block(body: &Function, block: &BasicBlock) -> Result<Json, String> {
     Ok(json!({"phis":phis,"instructions":instructions,"terminator":term}))
 }
 
-fn export_operation(body: &Function, kind: &solar_mir::InstKind) -> Result<Json, String> {
+fn export_operation(
+    module: &Module,
+    body: &Function,
+    kind: &solar_mir::InstKind,
+) -> Result<Json, String> {
     Ok(
         match kind
             .semantics()
             .ok_or_else(|| format!("unmodeled MIR operation `{}`", kind.op_def().mnemonic))?
         {
             Semantics::Opcode(name, args) => {
-                json!({"kind":"opcode", "name":name,"args":operands(body,&args)?})
+                json!({"kind":"opcode", "name":name,"args":operands(module, body,&args)?})
             }
             Semantics::Call(Callee::Function(function), args) => {
-                json!({"kind": "call", "function": function.index(), "args": operands(body, args)?})
+                json!({"kind": "call", "function": function.index(), "args": operands(module, body, args)?})
             }
             Semantics::Allocate(size, semantics) => {
                 json!({"kind": "allocate", "zeroed": semantics.initialization == AllocationInitialization::Zeroed,
-                    "checked": semantics.failure == AllocationFailure::Checked, "args": operands(body, &[size])?})
+                    "checked": semantics.failure == AllocationFailure::Checked, "args": operands(module, body, &[size])?})
+            }
+            Semantics::InsertValue(ty, aggregate, index, value) => {
+                json!({"kind":"insert_value","aggregate_type":value_type(module, ty)?,"index":index,"args":operands(module, body,&[aggregate,value])?})
+            }
+            Semantics::ExtractValue(ty, aggregate, index) => {
+                json!({"kind":"extract_value","aggregate_type":value_type(module, ty)?,"index":index,"args":operands(module, body,&[aggregate])?})
+            }
+            Semantics::MakeSlice(location, ptr, len) => {
+                json!({"kind":"make_slice","location":location.to_string(),"args":operands(module, body,&[ptr,len])?})
             }
             Semantics::FreePointer => json!({"kind": "free_pointer", "args": []}),
             Semantics::MemoryZero(offset, size) => {
-                json!({"kind": "memory_zero", "args": operands(body, &[offset, size])?})
+                json!({"kind": "memory_zero", "args": operands(module, body, &[offset, size])?})
             }
             Semantics::PointerAdd(ptr, offset) => {
-                json!({"kind": "pointer_add", "args": operands(body, &[ptr, offset])?})
+                json!({"kind": "pointer_add", "args": operands(module, body, &[ptr, offset])?})
             }
-            Semantics::Word(v) => json!({"kind":"word","args":operands(body,&[v])?}),
+            Semantics::Word(v) => json!({"kind":"word","args":operands(module, body,&[v])?}),
             Semantics::LowBits(v, bits) => {
-                json!({"kind":"low_bits","bits":bits,"args":operands(body,&[v])?})
+                json!({"kind":"low_bits","bits":bits,"args":operands(module, body,&[v])?})
             }
             Semantics::SignExtend(v, from, to) => {
-                json!({"kind":"sign_extend","from":from,"to":to,"args":operands(body,&[v])?})
+                json!({"kind":"sign_extend","from":from,"to":to,"args":operands(module, body,&[v])?})
             }
-            Semantics::NotEqual(a, b) => json!({"kind":"ne","args":operands(body,&[a,b])?}),
-            Semantics::Select(c, a, b) => json!({"kind":"select","args":operands(body,&[c,a,b])?}),
+            Semantics::NotEqual(a, b) => json!({"kind":"ne","args":operands(module, body,&[a,b])?}),
+            Semantics::Select(c, a, b) => {
+                json!({"kind":"select","args":operands(module, body,&[c,a,b])?})
+            }
             Semantics::Checked(op, arithmetic, a, b) => {
                 let (signed, bits) = match arithmetic {
                     ArithmeticKind::Signed(n) => (true, n),
                     ArithmeticKind::Unsigned(n) => (false, n),
                 };
-                json!({"kind":"checked","operation":format!("{op:?}"),"signed":signed,"bits":bits,"args":operands(body,&[a,b])?})
+                json!({"kind":"checked","operation":format!("{op:?}"),"signed":signed,"bits":bits,"args":operands(module, body,&[a,b])?})
             }
             Semantics::Call(Callee::Builtin(Builtin::Check { is_zero, failure }), args) => {
-                json!({"kind":"check","zero":is_zero,"panic":failure_code(*failure)?,"args":operands(body,args)?})
+                json!({"kind":"check","zero":is_zero,"panic":failure_code(*failure)?,"args":operands(module, body,args)?})
             }
             Semantics::Call(Callee::Builtin(Builtin::Require(RequireKind::EmptyString)), args) => {
-                json!({"kind":"check","zero":true,"panic":null,"args":operands(body,args)?})
+                json!({"kind":"check","zero":true,"panic":null,"args":operands(module, body,args)?})
             }
             _ => {
                 return Err(format!("unmodeled direct MIR operation `{}`", kind.op_def().mnemonic));
             }
         },
     )
+}
+
+/// Counts a logical type before allocating its expanded representation.
+fn type_cost(
+    module: &Module,
+    ty: MirType,
+    depth: usize,
+    nodes: &mut usize,
+) -> Result<usize, String> {
+    *nodes += 1;
+    if depth > 32 || *nodes > 256 {
+        return Err("MIR aggregate type limit: depth 32, nodes 256".into());
+    }
+    let mut cost = 1;
+    match ty {
+        MirType::Struct(id) => {
+            for &field in &module.struct_types.get(id).ok_or("unknown MIR aggregate type")?.fields {
+                cost += type_cost(module, field, depth + 1, nodes)?;
+            }
+        }
+        MirType::Slice(_) => {
+            *nodes += 2;
+            if depth + 1 > 32 || *nodes > 256 {
+                return Err("MIR aggregate type limit: depth 32, nodes 256".into());
+            }
+            cost += 2;
+        }
+        _ => {}
+    }
+    Ok(cost)
 }

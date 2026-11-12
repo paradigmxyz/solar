@@ -324,6 +324,9 @@ class OperationTests(unittest.TestCase):
         ):
             self.assertEqual(inventory["evmir"][name], "world_entry")
         for name in (
+            "insert_value",
+            "extract_value",
+            "make_memory_slice",
             "fmp",
             "memory_zero",
             "ptradd",

@@ -26,10 +26,70 @@ def width(value):
     return result
 
 
+def value_type(value):
+    kind = value.get("kind", "word")
+    if kind == "word":
+        return f".word {width(value['bits'])}"
+    if kind in {"pointer", "slice"}:
+        location = {
+            "memory": 0,
+            "calldata": 1,
+            "returndata": 2,
+            "storage": 3,
+            "transient": 4,
+        }.get(value["location"])
+        if location is None:
+            raise Unsupported("unknown MIR address space")
+        return f".{kind} {location}"
+    if kind == "product":
+        return ".product [" + ",".join(value_type(v) for v in value["fields"]) + "]"
+    raise Unsupported("unknown MIR value type")
+
+
+def leaf_paths(value, path=()):
+    if value.get("kind") == "product":
+        return [
+            leaf
+            for i, field in enumerate(value["fields"])
+            for leaf in leaf_paths(field, (*path, i))
+        ]
+    if value.get("kind") == "slice":
+        return [
+            (
+                (*path, 0),
+                {"kind": "pointer", "location": value["location"], "bits": 256},
+            ),
+            ((*path, 1), {"bits": 256}),
+        ]
+    return [(path, value)]
+
+
+def leaf_types(value):
+    return [ty for _, ty in leaf_paths(value)]
+
+
+def argument_value(value, names):
+    if value.get("kind") == "product":
+        return (
+            ".aggregate ["
+            + ",".join(argument_value(v, names) for v in value["fields"])
+            + "]"
+        )
+    if value.get("kind") == "slice":
+        return (
+            ".aggregate ["
+            + ",".join(argument_value({"bits": 256}, names) for _ in range(2))
+            + "]"
+        )
+    bits = width(value["bits"])
+    return f".scalar ⟨{bits},{next(names)}⟩"
+
+
 def operand(value):
-    bits = width(value["type"]["bits"])
+    ty = value_type(value["type"])
     kind = value["kind"]
     if kind == "constant":
+        bits = width(value["type"]["bits"])
         atom = f".constant ⟨{bits},{literal(value['value'], int(bits))}⟩"
     elif kind in {"arg", "local"}:
         atom = f".{'argument' if kind == 'arg' else 'local'} {number(value['index'])}"
@@ -37,7 +97,7 @@ def operand(value):
         atom = ".undefined"
     else:
         raise Unsupported("unknown MIR model operand")
-    return f"⟨({atom}),{bits}⟩"
+    return f"⟨({atom}),({ty})⟩"
 
 
 def operands(values):
@@ -138,6 +198,16 @@ def operation(value, definitions):
             "select": ".select",
             "pointer_add": ".pointerAdd",
         }[kind]
+    elif kind in {"insert_value", "extract_value"}:
+        tag = "insertValue" if kind == "insert_value" else "extractValue"
+        expression = (
+            f".{tag} ({value_type(value['aggregate_type'])}) {number(value['index'])}"
+        )
+    elif kind == "make_slice":
+        location = {"memory": 0, "calldata": 1, "returndata": 2}.get(value["location"])
+        if location is None:
+            raise Unsupported("unmodeled MIR slice location")
+        expression = f".makeSlice {location}"
     elif kind == "call":
         expression = f".call {number(value['function'])}"
     elif kind == "allocate":
@@ -192,13 +262,13 @@ def block(value, definitions):
             + ",".join(f"({number(b)},{operand(v)})" for b, v in phi["incoming"])
             + "]"
         )
-        phis.append(f"⟨{number(phi['result'])},{width(phi['type']['bits'])},{arms}⟩")
+        phis.append(f"⟨{number(phi['result'])},({value_type(phi['type'])}),{arms}⟩")
     instructions = []
     for inst in value["instructions"]:
         result = "none" if inst["result"] is None else f"some {number(inst['result'])}"
-        bits = "0" if inst["type"] is None else width(inst["type"]["bits"])
+        ty = ".word 0" if inst["type"] is None else value_type(inst["type"])
         opcode, op, args = operation(inst["operation"], definitions)
-        instructions.append(f"⟨({result}),{bits},({opcode}),({op}),{operands(args)}⟩")
+        instructions.append(f"⟨({result}),({ty}),({opcode}),({op}),{operands(args)}⟩")
     term = value["terminator"]
     kind = term["kind"]
     if kind in {"stop", "invalid"}:
@@ -228,8 +298,8 @@ def block(value, definitions):
 
 
 def function_body(value, definitions):
-    params = "[" + ",".join(width(ty["bits"]) for ty in value["params"]) + "]"
-    returns = "[" + ",".join(width(ty["bits"]) for ty in value["returns"]) + "]"
+    params = "[" + ",".join(f"({value_type(ty)})" for ty in value["params"]) + "]"
+    returns = "[" + ",".join(f"({value_type(ty)})" for ty in value["returns"]) + "]"
     blocks = "[" + ",".join(block(b, definitions) for b in value["blocks"]) + "]"
     return f"({number(value['id'])},⟨{params},{returns},{blocks}⟩)"
 
@@ -269,7 +339,14 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         if len(set(ids)) != len(ids) or entry_id not in ids:
             raise Unsupported("ambiguous or absent MIR entry function")
         params = model["params"]
-        widths = [int(width(p["bits"])) for p in params]
+        widths = [int(width(leaf["bits"])) for ty in params for leaf in leaf_types(ty)]
+        return_widths = [
+            int(width(leaf["bits"]))
+            for ty in model["returns"]
+            for leaf in leaf_types(ty)
+        ]
+        if len(widths) > 32 or len(return_widths) > 256:
+            raise Unsupported("MIR boundary limit: 32 input and 256 return leaves")
         entry = model["entry"]
         if type(entry) is not bool:
             raise Unsupported("invalid MIR entry marker")
@@ -302,10 +379,20 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
     ).replace("tvWorldConfig", "mirExternalConfig")
     external_config = "some mirExternalConfig"
     config += f"def mirWorldConfig : MIR.State.Config := ⟨.{version},{env},{world.context_expression(fixture)},[{','.join(available)}],{'true' if entry else 'false'},128,{external_config},{fixture['creation_gas']}⟩\n"
-    inputs = [*fixture["symbols"], *(f"arg{i}" for i in range(len(params)))]
-    arguments = (
-        "[" + ",".join(f"⟨{bits},arg{i}⟩" for i, bits in enumerate(widths)) + "]"
-    )
+    boundary_inputs = []
+    for index, ty in enumerate(params):
+        for path, leaf in leaf_paths(ty):
+            boundary_inputs.append(
+                {
+                    "input": f"arg{len(boundary_inputs)}",
+                    "parameter": index,
+                    "fields": list(path),
+                    "type": leaf,
+                }
+            )
+    inputs = [*fixture["symbols"], *(f"arg{i}" for i in range(len(widths)))]
+    names = iter(f"arg{i}" for i in range(len(widths)))
+    arguments = "[" + ",".join(f"({argument_value(ty, names)})" for ty in params) + "]"
     body = (
         f"let accounts : List Execution.Account := {world.accounts_expression(fixture)}\n"
         f"let journal : Execution.Journal := ⟨accounts,accounts,[{','.join(world.warm_addresses(fixture, version))}],[{','.join(f'({a},{k.removeprefix("$")})' for a, k in fixture['warm_slots'])}],[],0⟩\n"
@@ -317,8 +404,8 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
             "world-entry",
             "mir",
             model["name"],
-            json.dumps(params, sort_keys=True),
-            json.dumps(model["returns"], sort_keys=True),
+            json.dumps(widths),
+            json.dumps(return_widths),
             str(entry),
             fixture["fixture_sha256"],
         ),
@@ -330,5 +417,15 @@ def translate(text, solar, version, fixture, timeout, function, replay=None):
         selector=model["name"],
         evm_version=version,
         scope="mir-state",
-        world={**fixture, "configuration": config, "direct_mir": True, "entry": entry},
+        world={
+            **fixture,
+            "configuration": config,
+            "direct_mir": True,
+            "entry": entry,
+            "boundary": {
+                "inputs": boundary_inputs,
+                "params": [leaf for ty in params for leaf in leaf_types(ty)],
+                "returns": [leaf for ty in model["returns"] for leaf in leaf_types(ty)],
+            },
+        },
     )

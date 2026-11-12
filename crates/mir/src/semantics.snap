@@ -1,5 +1,5 @@
-insert_value: -
-extract_value: -
+insert_value: insert_value(ty, aggregate, index, value)
+extract_value: extract_value(ty, aggregate, index)
 zext: word(operand0)
 trunc: low_bits(operand0, bits)
 sext: sign_extend(operand0, from_bits, to_bits)
@@ -53,7 +53,7 @@ abi_encode: -
 abi_decode: -
 mcopy: opcode(match location { Memory => mcopy, Calldata => calldatacopy, Returndata => returndatacopy })
 calldatasize: opcode(calldatasize)
-make_memory_slice: -
+make_memory_slice: make_slice(location, ptr, len)
 internal_frame_addr: -
 frame_load: -
 frame_store: -

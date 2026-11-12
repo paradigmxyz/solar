@@ -9,8 +9,8 @@
     "direct_state": "Direct typed MIR execution and independent MIR replay at an explicit state boundary, without backend lowering"
   },
   "mir": {
-    "insert_value": "missing",
-    "extract_value": "missing",
+    "insert_value": "direct_state",
+    "extract_value": "direct_state",
     "zext": "checked_fragment",
     "trunc": "checked_fragment",
     "sext": "checked_fragment",
@@ -64,7 +64,7 @@
     "abi_decode": "missing",
     "mcopy": "partial_family",
     "calldatasize": "direct_state",
-    "make_memory_slice": "missing",
+    "make_memory_slice": "direct_state",
     "internal_frame_addr": "missing",
     "frame_load": "missing",
     "frame_store": "missing",

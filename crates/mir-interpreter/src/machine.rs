@@ -7,13 +7,14 @@
 //! and logged. It is a testing oracle, not part of code generation: the UI test runner checks it
 //! against an EVM running the compiled bytecode. The unit tests below also run single functions
 //! on concrete arguments and memory.
-//! [`crate::replay`] also runs scalar semantic MIR directly, without implicit backend setup.
+//! [`crate::replay`] also runs typed semantic MIR directly, without implicit backend setup.
 //! It supports checked arithmetic and casts before lowering, with target opcode availability.
 //!
 //! # Model
 //!
 //! Each instruction runs by the [`Semantics`] its operation schema row declares, so the
-//! interpreter lists no operations of its own. Values are 256-bit words. Typed values keep the
+//! interpreter lists no operations of its own. Lowered values are words; semantic products
+//! retain a tree of words and undefined fields. Typed words keep the
 //! clean bits their types promise because every operation computes them as the backend's
 //! instructions do. The schema names opcodes by mnemonic, which the interpreter looks up in the
 //! EVM IR opcode table; pure opcodes compute with the table's word semantics, as the compiler's
@@ -61,6 +62,7 @@
 //! runs, so a value used before its definition or a phi missing an edge also ends a run as
 //! unsupported.
 
+use crate::values::{self, RuntimeValue};
 use alloy_primitives::{I256, U256, keccak256};
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
@@ -72,8 +74,8 @@ use solar_evmir::op;
 use solar_mir::{
     AllocationFailure, AllocationInitialization, AllocationPlacement, AllocationSemantics, ArgIdx,
     ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, Function, FunctionId, InstId,
-    InstKind, MirType, Module, PtrLocation, RequireKind, RevertKind, RevertReason, Semantics,
-    Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    InstKind, MirType, Module, RequireKind, RevertKind, RevertReason, Semantics, Terminator, Value,
+    ValueId, memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
@@ -548,8 +550,8 @@ struct Frame<'a> {
     /// The original callee whose caller publishes its return buffer, across tail calls.
     return_owner: &'a Function,
     caller_inst: Option<InstId>,
-    args: IndexVec<ArgIdx, U256>,
-    values: IndexVec<ValueId, Option<U256>>,
+    args: IndexVec<ArgIdx, RuntimeValue>,
+    values: IndexVec<ValueId, Option<RuntimeValue>>,
     block: BlockId,
     /// The next instruction of `block` to run.
     next: usize,
@@ -561,7 +563,7 @@ impl<'a> Frame<'a> {
     fn new(
         function: FunctionId,
         body: &'a Function,
-        args: IndexVec<ArgIdx, U256>,
+        args: IndexVec<ArgIdx, RuntimeValue>,
         result: Option<ValueId>,
     ) -> Self {
         let values = index_vec![None; body.num_values()];
@@ -584,10 +586,47 @@ impl<'a> Frame<'a> {
         }
         match self.body.value(value) {
             Value::Immediate(immediate) => immediate.as_u256(),
-            Value::Arg(index) => self.args.get(*index).copied(),
-            Value::Inst(_) => self.values[value],
-            Value::Undef(_) | Value::Error(_) => None,
+            Value::Arg(index) => match self.args.get(*index)? {
+                RuntimeValue::Word(word) => Some(*word),
+                _ => None,
+            },
+            Value::Inst(_) => match self.values[value].as_ref()? {
+                RuntimeValue::Word(word) => Some(*word),
+                _ => None,
+            },
+            _ => None,
         }
+    }
+
+    fn value(&self, value: ValueId) -> Option<RuntimeValue> {
+        if value.index() >= self.body.num_values() {
+            return None;
+        }
+        match self.body.value(value) {
+            Value::Immediate(immediate) => immediate.as_u256().map(RuntimeValue::Word),
+            Value::Arg(index) => self.args.get(*index).cloned(),
+            Value::Inst(_) => self.values[value].clone(),
+            Value::Undef(_) => Some(RuntimeValue::Undefined),
+            Value::Error(_) => None,
+        }
+    }
+
+    fn read_value(&self, value: ValueId) -> ControlFlow<Outcome, RuntimeValue> {
+        self.value(value).map_or_else(
+            || ControlFlow::Break(Outcome::Unsupported("value without a definition")),
+            ControlFlow::Continue,
+        )
+    }
+
+    fn read_values(
+        &self,
+        values: &[ValueId],
+    ) -> ControlFlow<Outcome, IndexVec<ArgIdx, RuntimeValue>> {
+        let mut result = IndexVec::new();
+        for &value in values {
+            result.push(self.read_value(value)?);
+        }
+        ControlFlow::Continue(result)
     }
 
     fn read(&self, value: ValueId) -> ControlFlow<Outcome, U256> {
@@ -642,7 +681,24 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(body) = self.machine.body(function) else {
             return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
         };
-        self.call(body, args.iter().copied().collect(), None)?;
+        let args = if self.semantic.is_some() {
+            let mut words = args.iter().copied();
+            let mut args = IndexVec::new();
+            for &ty in &body.params {
+                let value = RuntimeValue::input(self.machine.module, ty, &mut words).map_or_else(
+                    |e| ControlFlow::Break(Outcome::Unsupported(e)),
+                    ControlFlow::Continue,
+                )?;
+                args.push(value);
+            }
+            if words.next().is_some() {
+                return ControlFlow::Break(Outcome::Unsupported("extra flattened MIR argument"));
+            }
+            args
+        } else {
+            args.iter().copied().map(RuntimeValue::Word).collect()
+        };
+        self.call(body, args, None)?;
         loop {
             let frame = self.frame();
             let (function, body, block, next) =
@@ -689,7 +745,7 @@ impl<'a> Run<'_, 'a, '_> {
     fn call(
         &mut self,
         body: &'a Function,
-        args: IndexVec<ArgIdx, U256>,
+        args: IndexVec<ArgIdx, RuntimeValue>,
         result: Option<ValueId>,
     ) -> ControlFlow<Outcome> {
         if self.frames.len() >= self.limits.depth {
@@ -710,6 +766,9 @@ impl<'a> Run<'_, 'a, '_> {
                 // mstore 0x40, entry_heap
                 limit(self.memory.store(U256::from(EvmMemoryLayout::FMP_SLOT), *floor))?;
             }
+        }
+        if self.semantic.is_some() {
+            self.burn(args.iter().map(RuntimeValue::nodes).sum())?;
         }
         self.frames.push(Frame::new(function, body, args, result));
         ControlFlow::Continue(())
@@ -735,6 +794,80 @@ impl<'a> Run<'_, 'a, '_> {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
         let frame = self.frames.last().expect("a run always has a frame");
+        if self.semantic.is_some() {
+            match semantics {
+                Semantics::InsertValue(ty, aggregate, index, value) => {
+                    if let Err(e) = values::widths(self.machine.module, ty) {
+                        return ControlFlow::Break(Outcome::Unsupported(e));
+                    }
+                    let fields = values::fields(self.machine.module, ty).map_or_else(
+                        |e| ControlFlow::Break(Outcome::Unsupported(e)),
+                        ControlFlow::Continue,
+                    )?;
+                    let mut fields = match frame.read_value(aggregate)? {
+                        RuntimeValue::Undefined => vec![RuntimeValue::Undefined; fields.len()],
+                        RuntimeValue::Aggregate(values) if values.len() == fields.len() => values,
+                        _ => {
+                            return ControlFlow::Break(Outcome::Unsupported(
+                                "MIR aggregate shape mismatch",
+                            ));
+                        }
+                    };
+                    let value = frame.read_value(value)?;
+                    let Some(field) = fields.get_mut(index as usize) else {
+                        return ControlFlow::Break(Outcome::Unsupported("MIR aggregate index"));
+                    };
+                    *field = value;
+                    let value = RuntimeValue::Aggregate(fields);
+                    self.burn(value.nodes())?;
+                    self.frame().values[instruction.result().expect("aggregate result")] =
+                        Some(value);
+                    return ControlFlow::Continue(());
+                }
+                Semantics::ExtractValue(ty, aggregate, index) => {
+                    if let Err(e) = values::widths(self.machine.module, ty) {
+                        return ControlFlow::Break(Outcome::Unsupported(e));
+                    }
+                    let value = match frame.read_value(aggregate)? {
+                        RuntimeValue::Undefined => RuntimeValue::Undefined,
+                        RuntimeValue::Aggregate(fields) => fields
+                            .get(index as usize)
+                            .cloned()
+                            .ok_or(Outcome::Unsupported("MIR aggregate index"))
+                            .map_or_else(ControlFlow::Break, ControlFlow::Continue)?,
+                        _ => {
+                            return ControlFlow::Break(Outcome::Unsupported(
+                                "MIR aggregate shape mismatch",
+                            ));
+                        }
+                    };
+                    self.burn(value.nodes())?;
+                    self.frame().values[instruction.result().expect("aggregate result")] =
+                        Some(value);
+                    return ControlFlow::Continue(());
+                }
+                Semantics::MakeSlice(_, ptr, len) => {
+                    let value = RuntimeValue::Aggregate(vec![
+                        RuntimeValue::Word(frame.read(ptr)?),
+                        RuntimeValue::Word(frame.read(len)?),
+                    ]);
+                    self.burn(value.nodes())?;
+                    self.frame().values[instruction.result().expect("slice result")] = Some(value);
+                    return ControlFlow::Continue(());
+                }
+                Semantics::Select(condition, yes, no) => {
+                    let value = frame.read_value(if frame.read(condition)?.is_zero() {
+                        no
+                    } else {
+                        yes
+                    })?;
+                    self.burn(value.nodes())?;
+                    self.frame().values[instruction.result().expect("select result")] = Some(value);
+                    return ControlFlow::Continue(());
+                }
+                _ => {}
+            }
+        }
         let result = match semantics {
             Semantics::HeapFloor if self.transaction.is_some() && self.semantic.is_none() => {
                 let function = frame.function;
@@ -789,10 +922,19 @@ impl<'a> Run<'_, 'a, '_> {
                 }
             }
             Semantics::Call(&Callee::Function(id), args) => {
-                let args = frame.read_all(args)?.into_iter().collect();
+                let args = if self.semantic.is_some() {
+                    frame.read_values(args)?
+                } else {
+                    frame.read_all(args)?.into_iter().map(RuntimeValue::Word).collect()
+                };
                 let Some(callee) = self.machine.body(id) else {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
+                if self.semantic.is_some() && callee.return_components().len() > 1 {
+                    return ControlFlow::Break(Outcome::Unsupported(
+                        "physical multi-return protocol is not modeled",
+                    ));
+                }
                 self.call(callee, args, instruction.result())?;
                 self.frame().caller_inst = Some(inst);
                 return ControlFlow::Continue(());
@@ -881,7 +1023,7 @@ impl<'a> Run<'_, 'a, '_> {
         } else {
             result
         };
-        self.frame().values[value] = Some(result);
+        self.frame().values[value] = Some(RuntimeValue::Word(result));
         ControlFlow::Continue(())
     }
 
@@ -1272,6 +1414,30 @@ impl<'a> Run<'_, 'a, '_> {
                 self.enter(target)
             }
             Terminator::Return { values } => {
+                if self.semantic.is_some() {
+                    let values = frame.read_values(values)?;
+                    self.burn(values.iter().map(RuntimeValue::nodes).sum())?;
+                    let frame = self.frames.pop().expect("a run always has a frame");
+                    if self.frames.is_empty() {
+                        let mut words = Vec::new();
+                        for (value, &ty) in values.iter().zip(body.return_components()) {
+                            if let Err(e) = value.flatten(self.machine.module, ty, &mut words) {
+                                return ControlFlow::Break(Outcome::Unsupported(e));
+                            }
+                        }
+                        return ControlFlow::Break(Outcome::Return(words.into_iter().collect()));
+                    }
+                    if let Some(result) = frame.result {
+                        if values.len() != 1 {
+                            return ControlFlow::Break(Outcome::Unsupported(
+                                "physical multi-return protocol is not modeled",
+                            ));
+                        }
+                        self.frame().values[result] =
+                            Some(values.into_iter().next().expect("one result"));
+                    }
+                    return ControlFlow::Continue(());
+                }
                 let values = frame.read_all(values)?.into_iter().collect::<SmallVec<_>>();
                 let frame = self.frames.pop().expect("a run always has a frame");
                 if self.frames.is_empty() {
@@ -1295,7 +1461,7 @@ impl<'a> Run<'_, 'a, '_> {
                         }
                         for (value, &word) in protocol.extras.iter().zip(&values[1..]) {
                             if let Some(value) = value {
-                                self.frame().values[*value] = Some(word);
+                                self.frame().values[*value] = Some(RuntimeValue::Word(word));
                             }
                         }
                     } else {
@@ -1307,7 +1473,7 @@ impl<'a> Run<'_, 'a, '_> {
                     let Some(&value) = values.first() else {
                         return ControlFlow::Break(Outcome::Unsupported("call without a result"));
                     };
-                    caller.values[result] = Some(value);
+                    caller.values[result] = Some(RuntimeValue::Word(value));
                 }
                 ControlFlow::Continue(())
             }
@@ -1327,7 +1493,11 @@ impl<'a> Run<'_, 'a, '_> {
             Terminator::Stop => ControlFlow::Break(Outcome::Stop),
             Terminator::Invalid => ControlFlow::Break(Outcome::Invalid),
             Terminator::TailCall { function, args } => {
-                let args = frame.read_all(args)?.into_iter().collect();
+                let args = if self.semantic.is_some() {
+                    frame.read_values(args)?
+                } else {
+                    frame.read_all(args)?.into_iter().map(RuntimeValue::Word).collect()
+                };
                 let Some(callee) = self.machine.body(*function) else {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
@@ -1353,7 +1523,7 @@ impl<'a> Run<'_, 'a, '_> {
         let Some(block) = body.blocks.get(target) else {
             return ControlFlow::Break(Outcome::Unsupported("jump to an unknown block"));
         };
-        let mut incoming = SmallVec::<[(ValueId, U256); 8]>::new();
+        let mut incoming = SmallVec::<[(ValueId, RuntimeValue); 8]>::new();
         for &inst in &block.instructions {
             let instruction = body.inst(inst);
             let InstKind::Phi(inputs) = &instruction.kind else { break };
@@ -1362,13 +1532,17 @@ impl<'a> Run<'_, 'a, '_> {
             else {
                 return ControlFlow::Break(Outcome::Unsupported("phi without an input"));
             };
-            let word = frame.read(value)?;
-            incoming.push((result, word));
+            let value = if self.semantic.is_some() {
+                frame.read_value(value)?
+            } else {
+                RuntimeValue::Word(frame.read(value)?)
+            };
+            incoming.push((result, value));
         }
-        self.burn(incoming.len() as u64)?;
+        self.burn(incoming.iter().map(|(_, v)| v.nodes()).sum())?;
         let frame = self.frame();
         frame.next = incoming.len();
-        for &(result, value) in &incoming {
+        for (result, value) in incoming {
             frame.values[result] = Some(value);
         }
         frame.block = target;
@@ -1387,7 +1561,7 @@ fn kept_effects(outcome: &Outcome, effects: Effects) -> Effects {
 
 /// A memory pointer carries one address word, without validity or provenance assumptions.
 pub(crate) fn scalar_bits(ty: MirType) -> Option<u32> {
-    if ty == MirType::Ptr(PtrLocation::Memory) { Some(256) } else { ty.integer_bits() }
+    if matches!(ty, MirType::Ptr(_)) { Some(256) } else { ty.integer_bits() }
 }
 
 /// Returns the calldata word at `offset`, padded with zero bytes past the end.

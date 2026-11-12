@@ -24,13 +24,15 @@ UNFOLD = (
 )
 
 
+# Typed SSA boxing introduces dependent width casts. Unfold their representation
+# so address arithmetic reduces without unfolding symbolic byte memory.
 MIR_UNFOLD = (
     "before, after, mirWorldConfig, MIR.State.equivalent, MIR.State.observe, "
     "MIR.State.execute, MIR.State.reduceRun, MIR.State.transition, MIR.State.next, MIR.State.stop, MIR.State.enter, MIR.State.function, MIR.State.start, "
     "MIR.State.typedWords, MIR.State.callSignature, MIR.State.branch, MIR.State.advance, "
     "MIR.State.instruction, MIR.State.operation, MIR.State.storageOperation, MIR.State.assign, "
-    "MIR.State.read, MIR.State.readScalar, MIR.State.Scalar.word, MIR.State.Scalar.ofWord, MIR.State.wordBits, MIR.State.widenBits, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
-    "MIR.State.finish, MIR.eval, MIR.compare, MIR.wordBinary, MIR.unary, MIR.shift, "
+    "MIR.State.read, MIR.State.readValue, MIR.State.Value.word, MIR.State.Value.fits, MIR.State.Value.flatten, MIR.State.ValueType.same, MIR.State.sameTypes, MIR.State.ValueType.width, MIR.State.ValueType.fields, MIR.State.assignValue, MIR.State.insertField, MIR.State.extractField, MIR.State.Scalar.word, MIR.State.Scalar.ofWord, MIR.State.wordBits, MIR.State.widenBits, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
+    "BitVec.cast, BitVec.toNat_cast, BitVec.cast_eq, BitVec.cast_cast, MIR.State.finish, MIR.eval, MIR.compare, MIR.wordBinary, MIR.unary, MIR.shift, "
     "MIR.State.allocate, MIR.State.freePointer, MIR.State.memoryOperation, "
     "Execution.expand, Execution.requiredWords, Execution.memoryWords, Execution.readWord, "
     "Execution.readBytes, Execution.wordBytes, Execution.writeBytes, "
@@ -54,6 +56,16 @@ def check(
         raise Unsupported("explicit-world interfaces differ")
     if a.world["configuration"] != b.world["configuration"]:
         raise Unsupported("explicit-world opcode configurations differ")
+    if a.world.get("direct_mir"):
+        for group in ("params", "returns"):
+            left = a.world["boundary"][group]
+            right = b.world["boundary"][group]
+            for old, new in zip(left, right, strict=True):
+                if (
+                    old.get("kind") == new.get("kind") == "pointer"
+                    and old["location"] != new["location"]
+                ):
+                    raise Unsupported("MIR boundary pointer address spaces differ")
     build = build_model(timeout)
     if build.returncode:
         raise Unsupported(build.stderr or build.stdout)
@@ -109,7 +121,8 @@ def check(
             abstract = abstract.replace(name + ", ", "")
         # Compare observation fields before simplifying their contents. Identical
         # account/access sets need no repeated normalization under symbolic bytes.
-        finish = "<;> (repeat (first | split | intro _)); all_goals simp_all <;> omega"
+        # Splitting a guard can expose a continuation, so normalize again there.
+        finish = f"<;> (repeat (first | split | intro _)); all_goals simp_all [{abstract}, MIR.State.equivalent, MIR.State.observe] <;> first | rfl | omega"
         proof = (
             "  unfold before after\n"
             f"  conv => arg 1; simp [{abstract}]\n"
@@ -132,24 +145,24 @@ def check(
                 timeout,
             )
 
-        # A closed pair has only one input. VM evaluation may choose the theorem
-        # to attempt, but never supplies proof evidence. In particular, avoid an
-        # expensive failing positive proof before checking a concrete mismatch.
-        different = False
-        if not a.inputs:
-            probe = lean(
-                f'#eval IO.println (if decide ({relation("before", "after")}) then "equivalent" else "different")\n'
+        # VM evaluation only proposes a witness; it never supplies proof evidence.
+        # Probe zero first even for symbolic inputs, rather than spending the full
+        # budget attempting a false universal theorem. A matching sample still
+        # requires the quantified proof below. Mismatches need kernel and native replay.
+        concrete_zero = " ".join(f"0#{width}" for width in widths)
+        probe = lean(
+            f'#eval IO.println (if decide ({relation("before " + concrete_zero, "after " + concrete_zero)}) then "equivalent" else "different")\n'
+        )
+        lines = probe.stdout.strip().splitlines()
+        if (
+            probe.returncode
+            or not lines
+            or lines[-1] not in {"equivalent", "different"}
+        ):
+            raise Inconclusive(
+                "invalid concrete-pair evaluation\n" + probe.stdout + probe.stderr
             )
-            lines = probe.stdout.strip().splitlines()
-            if (
-                probe.returncode
-                or not lines
-                or lines[-1] not in {"equivalent", "different"}
-            ):
-                raise Inconclusive(
-                    "invalid closed-pair evaluation\n" + probe.stdout + probe.stderr
-                )
-            different = lines[-1] == "different"
+        different = lines[-1] == "different"
         result = (
             None
             if different

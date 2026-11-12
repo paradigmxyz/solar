@@ -104,13 +104,15 @@ def record(
                     "listed symbolic storage cells and typed function arguments universally quantified",
                     "explicit initial byte memory; normal function returns expose memory and transient storage",
                     "semantic effects; sufficient gas; no physical EVM gas or stack-layout claim",
-                    "direct scalar internal calls and tail calls; model call depth limit 128",
+                    "direct typed internal calls and tail calls; model call depth limit 128",
+                    "logical product/slice values; boundary leaves in declaration order; pointer-to-word erasure only at the boundary; distinct pointer spaces remain distinct",
+                    "aggregate type limits: depth 32, nodes 256; exported type budget 65536; boundary limits: 32 input and 256 return leaves",
                     "explicit ordered FMP allocation; invalid infallible bumps unsupported",
                     "external CALL assumes sufficient caller gas to avoid EIP-150 clipping",
                     "CREATE child gas is supplied by explicit creation_gas boundary inputs",
                     "child bytecode executes with fork-specific gas; gas failure is not assumed away",
                     "returndata, account lifetime and access warmth remain live at internal returns",
-                    "MIR root bytecode introspection/reentry, aggregates and backend layouts unsupported",
+                    "MIR root bytecode introspection/reentry, ABI helpers and backend layouts unsupported",
                 ]
             )
         else:

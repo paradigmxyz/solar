@@ -1247,6 +1247,7 @@ define_mir_ops! {
     #[mir_op(mnemonic = "insert_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::StructValue))]
     #[operand_types(func => None)]
+    #[semantics(insert_value(ty, aggregate, index, value))]
     InsertValue { ty: MirType, aggregate: ValueId, index: u32, value: ValueId },
     #[mir_op(mnemonic = "extract_value", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::StructValue))]
@@ -1254,6 +1255,7 @@ define_mir_ops! {
         phase_category: Some(PhaseCategory::Slice),
     })]
     #[operand_types(func => None)]
+    #[semantics(extract_value(ty, aggregate, index))]
     ExtractValue { ty: MirType, aggregate: ValueId, index: u32 },
     #[mir_op(mnemonic = "zext", result = Custom, phases = PhaseSet::ALL,
         effect = Pure, traits = OpTraits::EGRAPH_REWRITE, side_effects = false, category = None)]
@@ -1952,6 +1954,7 @@ define_mir_ops! {
         mnemonic: "make_returndata_slice",
     })]
     #[operand_types(func => Some(smallvec![MirType::Ptr(*location), MirType::I256]))]
+    #[semantics(make_slice(location, ptr, len))]
     MakeSlice {
         /// Pointer to the first element or byte.
         ptr: ValueId,

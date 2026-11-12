@@ -18,13 +18,10 @@ def finish (completion : Completion) (frame : Frame) : Result :=
 def function (functions : Functions) (id : Nat) : Except String Function :=
   required ((functions.find? (·.1 == id)).map Prod.snd) "unknown MIR function"
 
-def typedWords : List Nat → List Scalar → Except String Unit
-  | [],[] => .ok ()
-  | width :: widths,value :: values =>
-    if width = 0 || width > 256 || value.width != width then
-      .error "unmodeled or mismatched MIR call type"
-    else typedWords widths values
-  | _,_ => .error "MIR call arity mismatch"
+def typedWords (types : List ValueType) (values : List Value) : Except String Unit :=
+  if types.length != values.length then .error "MIR call arity mismatch"
+  else if (types.zip values).all (fun (ty,value) => value.fits 34 ty) then .ok ()
+  else .error "unmodeled or mismatched MIR call type"
 
 def choose (frame : Frame) (key : Word) (fallback : Nat) : List (Operand × Nat) → Except String Nat
   | [] => .ok fallback
@@ -37,14 +34,16 @@ def branch (cursor : Cursor) (target : Nat) : Cursor :=
 
 def advance (cursor : Cursor) : Cursor := {cursor with next := cursor.next + 1}
 
-def start (functions : Functions) (callee : Nat) (args : List Scalar) (frame : Frame) : Except String Frame := do
+def start (functions : Functions) (callee : Nat) (args : List Value) (frame : Frame) : Except String Frame := do
   let body ← function functions callee
   typedWords body.params args
   return {frame with arguments := args,locals := []}
 
-def callSignature (callee : Function) (result : Option Nat) (width : Nat) : Except String Unit :=
-  if callee.returns = (match result with | none => [] | some _ => [width]) then .ok ()
+def callSignature (callee : Function) (result : Option Nat) (ty : ValueType) : Except String Unit :=
+  if callee.returns.length > 1 then .error "physical multi-return protocol is not modeled"
+  else if result.isNone || sameTypes callee.returns [ty] then .ok ()
   else .error "MIR call result signature mismatch"
+
 
 structure Machine where
   cursor : Cursor
@@ -78,18 +77,18 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
       let (effect,work) ← external fuel cfg frame opcode args
       match effect with
       | .returned (value,parent) =>
-        match ← assign parent inst.result inst.width value with
+        match ← assign parent inst.result inst.ty value with
         | .returned (_,parent) => return .next work ⟨advance cursor,stack,parent⟩
         | _ => .error "MIR message result assignment failed"
       | .reverted data => stop (.reverted (failureData data)) frame
       | .invalid => stop .invalid frame
     | .call callee =>
-      let args ← inst.operands.mapM (readScalar frame)
+      let args ← inst.operands.mapM (readValue frame)
       let target ← function functions callee
-      callSignature target inst.result inst.width
+      callSignature target inst.result inst.ty
       if stack.length + 1 ≥ cfg.callDepth then .error "MIR internal call depth limit" else
         let child ← start functions callee args frame
-        let caller := ⟨advance cursor,frame,inst.result,inst.width⟩
+        let caller := ⟨advance cursor,frame,inst.result,inst.ty⟩
         next {function := callee} (caller :: stack) child
     | _ =>
       match ← instruction cfg frame inst with
@@ -108,28 +107,29 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
       let target ← choose frame key fallback cases
       next (branch cursor target) stack frame
     | .tailCall callee operands =>
-      let args ← operands.mapM (readScalar frame)
+      let args ← operands.mapM (readValue frame)
       let target ← function functions callee
-      if target.returns != body.returns then .error "MIR tail call result mismatch" else
+      if !(sameTypes target.returns body.returns) then .error "MIR tail call result mismatch" else
         let child ← start functions callee args frame
         next {function := callee} stack child
     | .returned operands =>
-      let values ← operands.mapM (readScalar frame)
+      let values ← operands.mapM (readValue frame)
       typedWords body.returns values
       match stack with
-      | [] => stop (.returned (values.map Scalar.word)) frame
+      | [] =>
+        let words ← (body.returns.zip values).mapM (fun (ty,value) => value.flatten 34 ty)
+        stop (.returned words.flatten) frame
       | caller :: rest =>
-        let word ← match values with
-          | [] => .ok none | [value] => .ok (some value.word)
-          | _ => .error "aggregate MIR call result"
         let parent := {caller.frame with
           world := frame.world
           memory := frame.memory
           returnData := frame.returnData
           creationIndex := frame.creationIndex}
-        match ← assign parent caller.result caller.width word with
-        | .returned (_,parent) => next caller.cursor rest parent
-        | _ => .error "MIR call return assignment failed"
+        if caller.result.isNone then next caller.cursor rest parent else
+          let [value] := values | .error "physical multi-return protocol is not modeled"
+          match ← assignValue parent caller.result caller.ty value with
+          | .returned (_,parent) => next caller.cursor rest parent
+          | _ => .error "MIR call return assignment failed"
     | .stop => stop (.success []) frame
     | .invalid => stop .invalid frame
     | .returndata offset size | .reverted offset size =>

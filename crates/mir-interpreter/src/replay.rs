@@ -2,12 +2,12 @@
 //!
 //! This entry runs validated scalar SSA directly, with caller-supplied memory and no hidden
 //! backend frame or heap initialization. It is separate from transaction execution: semantic
-//! casts, integer widths, checked arithmetic and checks are meaningful before backend lowering.
+//! casts, integer widths, checked arithmetic, products and slices are meaningful before lowering.
 //! Missing semantics and resource limits remain unsupported, never guessed execution results.
 
 use crate::{
     Host, Log, Options,
-    machine::{Limits, Machine, Memory, Outcome as RunOutcome, scalar_bits},
+    machine::{Limits, Machine, Memory, Outcome as RunOutcome},
 };
 use alloy_primitives::U256;
 use solar_interface::{ColorChoice, Session, source_map::FileName};
@@ -37,7 +37,9 @@ pub struct Execution {
     pub memory_size: u64,
 }
 
-/// Runs one validated scalar MIR function with explicit arguments and initial memory.
+/// Runs one validated MIR function with explicit arguments and initial memory.
+/// Aggregate arguments and results expose scalar leaves in declaration order; internal values
+/// retain their trees. Undefined returned leaves are unsupported.
 /// Initial memory must be word-aligned and at most the interpreter's 16 MiB limit.
 pub fn run(
     text: &str,
@@ -103,13 +105,21 @@ fn with_function<T>(
         if selected.next().is_some() {
             return Err("ambiguous replay function".into());
         }
-        if function.params.len() != args.len() {
+        let widths = function
+            .params
+            .iter()
+            .map(|&ty| crate::values::widths(&module, ty))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        for &ty in function.return_components() {
+            crate::values::widths(&module, ty)?;
+        }
+        if widths.len() != args.len() {
             return Err("mismatched replay arguments".into());
         }
-        for (ty, value) in function.params.iter().zip(args) {
-            let Some(bits @ 1..=256) = scalar_bits(*ty) else {
-                return Err("non-word replay argument".into());
-            };
+        for (bits, value) in widths.into_iter().zip(args) {
             if bits < 256 && (*value >> bits) != U256::ZERO {
                 return Err("unclean replay argument".into());
             }
@@ -133,7 +143,7 @@ fn scalar_outcome(outcome: RunOutcome) -> Outcome {
 pub struct StateInput<'a> {
     /// Selected function, or the only function when absent.
     pub function: Option<&'a str>,
-    /// Clean scalar arguments, including opaque memory addresses.
+    /// Clean scalar leaves in declaration order, including opaque pointer address words.
     pub arguments: &'a [U256],
     /// Initial memory bytes, padded to `memory_size` without implicit stores.
     pub memory: &'a [u8],

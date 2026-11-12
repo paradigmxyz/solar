@@ -337,8 +337,8 @@ updates the FMP, then performs any requested zero initialization. Reservation
 alone does not expand or clear memory. Checked overflow or an end above uint64
 reverts with Panic(0x41); violating an infallible allocation's validity contract
 is unsupported. No initial FMP, alignment, heap floor or physical frame is
-invented. Deferred allocation, indirect calls, aggregate call results, ABI/layout
-helpers and backend memory records remain unsupported.
+invented. Deferred allocation, indirect calls, physical multi-return buffers,
+ABI/layout helpers and backend memory records remain unsupported.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/internal-calls/{before,after}.mir \
@@ -354,6 +354,44 @@ shared checked-allocation helper, which is interpreted as ordinary MIR. The
 broken pair aliases two allocated objects; the checker reports the changed
 return value and independently replays both original modules. Memory read/write
 normalization uses kernel-proved range and byte-order laws, not alias assumptions.
+
+### Typed MIR products and slices
+
+`insert_value` and `extract_value` operate on immutable nested products. An
+uninitialized field stays undefined; reading another field does not initialize
+it or invent a zero. Phis read their old incoming values simultaneously, selects
+do not read unchosen scalar bits, and internal calls/tail calls can pass and return
+logical products. An undefined scalar used in an effect, branch or returned
+observable makes the check unsupported.
+
+`make_memory_slice`, `make_calldata_slice` and `make_returndata_slice` construct
+location-tagged pointer/length pairs. Construction neither allocates nor accesses
+the range. Memory slices retain aliases; returndata slices refer to the current
+volatile return buffer. Their types and values are defined in
+[MIR/State/Values.lean](SolarTV/MIR/State/Values.lean), and product operations in
+[MIR/State/Aggregates.lean](SolarTV/MIR/State/Aggregates.lean).
+
+To compare type-lowering passes, the selected function boundary exposes scalar
+leaves in declaration order. Both interpreters rebuild the original parameter
+tree independently and flatten its returned leaves. A pointer may be represented
+by its address word after lowering; two explicitly different pointer address
+spaces are rejected. This boundary relation assigns no physical ABI, padding,
+frame addresses or return buffers. Lowered internal calls requiring a physical
+multi-return buffer remain unsupported.
+
+Types are limited to depth 32 and 256 nodes, with a whole-model budget of 65,536
+exported type nodes checked before expansion. A boundary admits at most 32 input
+and 256 return leaves. Limits are reported as unsupported, never assumed away.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/aggregates/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/aggregates/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/slices/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/slices/world.json
+```
+
+These are actual `lower-structs` and `lower-slices` outputs. Replace `after` with
+`broken` to replay a wrong-field or wrong-slice-pointer counterexample.
 
 ### Direct MIR messages
 
