@@ -14,7 +14,7 @@ use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{MirPhase, Module};
 
 mod machine;
-pub use machine::{Host, Log};
+pub use machine::{ExternalMessage, Host, Log, MessageOutput, PendingChanges};
 
 pub mod replay;
 
@@ -308,5 +308,36 @@ fn @twice(arg0: i256) -> i256 {
             run(frames, "    mstore 0xe0, 1\n"),
             Outcome::Success(U256::from(0x100).to_be_bytes_vec())
         );
+    }
+
+    #[test]
+    fn external_replay_requires_a_message_host() {
+        for operation in [
+            "call 100, 2, 0, 0, 0, 0, 0",
+            "callcode 100, 2, 0, 0, 0, 0, 0",
+            "delegatecall 100, 2, 0, 0, 0, 0",
+            "staticcall 100, 2, 0, 0, 0, 0",
+            "create 0, 0, 0",
+            "create2 0, 0, 0, 0",
+        ] {
+            let module =
+                format!("@module Replay\nfn @f() -> i256 {{\nbb0:\nv0 = {operation}\nret 0\n}}\n");
+            let result = replay::run(&module, &[], &[], 0, Options::default()).unwrap();
+            assert!(matches!(result.outcome, replay::Outcome::Unsupported(_)), "{operation}");
+            let result = replay::run_state(
+                &module,
+                replay::StateInput {
+                    function: None,
+                    arguments: &[],
+                    memory: &[],
+                    memory_size: 0,
+                    calldata: &[],
+                },
+                &mut Zero,
+                Options::default(),
+            )
+            .unwrap();
+            assert!(matches!(result.outcome, replay::StateOutcome::Unsupported(_)), "{operation}");
+        }
     }
 }

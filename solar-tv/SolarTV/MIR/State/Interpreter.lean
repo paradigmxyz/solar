@@ -1,4 +1,4 @@
-import SolarTV.MIR.State.Ops
+import SolarTV.MIR.State.Messages
 
 /-! A direct SSA abstract machine with explicit caller continuations. Each body
 has its own arguments/locals; internal calls share byte memory and the journal.
@@ -13,7 +13,7 @@ namespace SolarTV.MIR.State
 open EvmRules SolarTV.Execution
 
 def finish (completion : Completion) (frame : Frame) : Result :=
-  ⟨completion,frame.world,frame.memory⟩
+  ⟨completion,frame.world,frame.memory,frame.returnData,frame.creationIndex⟩
 
 def function (functions : Functions) (id : Nat) : Except String Function :=
   required ((functions.find? (·.1 == id)).map Prod.snd) "unknown MIR function"
@@ -61,8 +61,8 @@ def next (cursor : Cursor) (stack : List Continuation) (frame : Frame) : Except 
 def stop (completion : Completion) (frame : Frame) : Except String Transition :=
   .ok (.finished (finish completion frame))
 
-/-- One finite transition; this function never recursively executes a callee or CFG edge. -/
-def transition (cfg : Config) (functions : Functions) (machine : Machine) : Except String Transition := do
+/-- One MIR transition. Internal calls use continuations; external children spend the shared fuel. -/
+def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Machine) : Except String Transition := do
   let ⟨cursor,stack,frame⟩ := machine
   let body ← function functions cursor.function
   let block ← required body.blocks[cursor.block]? "unknown MIR block"
@@ -72,6 +72,17 @@ def transition (cfg : Config) (functions : Functions) (machine : Machine) : Exce
   else if cursor.next < block.instructions.length then
     let inst ← required block.instructions[cursor.next]? "unknown MIR instruction"
     match inst.operation with
+    | .external opcode =>
+      if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then stop .invalid frame else
+      let args ← inst.operands.mapM (read frame)
+      let (effect,work) ← external fuel cfg frame opcode args
+      match effect with
+      | .returned (value,parent) =>
+        match ← assign parent inst.result inst.width value with
+        | .returned (_,parent) => return .next work ⟨advance cursor,stack,parent⟩
+        | _ => .error "MIR message result assignment failed"
+      | .reverted data => stop (.reverted (failureData data)) frame
+      | .invalid => stop .invalid frame
     | .call callee =>
       let args ← inst.operands.mapM (readScalar frame)
       let target ← function functions callee
@@ -111,7 +122,11 @@ def transition (cfg : Config) (functions : Functions) (machine : Machine) : Exce
         let word ← match values with
           | [] => .ok none | [value] => .ok (some value.word)
           | _ => .error "aggregate MIR call result"
-        let parent := {caller.frame with world := frame.world,memory := frame.memory}
+        let parent := {caller.frame with
+          world := frame.world
+          memory := frame.memory
+          returnData := frame.returnData
+          creationIndex := frame.creationIndex}
         match ← assign parent caller.result caller.width word with
         | .returned (_,parent) => next caller.cursor rest parent
         | _ => .error "MIR call return assignment failed"
@@ -129,7 +144,7 @@ def run (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Machine) 
   match fuel with
   | 0 => .error "MIR evaluation work limit"
   | fuel + 1 =>
-    match ← transition cfg functions machine with
+    match ← transition fuel cfg functions machine with
     | .finished result => return result
     | .next extra machine =>
       if extra > fuel then .error "MIR evaluation work limit"
@@ -139,7 +154,7 @@ decreasing_by all_goals omega
 
 theorem run_one (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Machine) :
     run (fuel + 1) cfg functions machine = (do
-      match ← transition cfg functions machine with
+      match ← transition fuel cfg functions machine with
       | .finished result => return result
       | .next extra nextMachine =>
         if extra > fuel then .error "MIR evaluation work limit"
@@ -147,19 +162,19 @@ theorem run_one (fuel : Nat) (cfg : Config) (functions : Functions) (machine : M
   rw [run]
 
 theorem run_next (fuel : Nat) {cfg functions machine extra nextMachine}
-    (h : transition cfg functions machine = .ok (.next extra nextMachine)) :
+    (h : transition fuel cfg functions machine = .ok (.next extra nextMachine)) :
     run (fuel + 1) cfg functions machine =
       if extra > fuel then .error "MIR evaluation work limit"
       else run (fuel - extra) cfg functions nextMachine := by
   simp only [run, h, Except.bind, Bind.bind]
 
 theorem run_finished (fuel : Nat) {cfg functions machine result}
-    (h : transition cfg functions machine = .ok (.finished result)) :
+    (h : transition fuel cfg functions machine = .ok (.finished result)) :
     run (fuel + 1) cfg functions machine = .ok result := by
   simp only [run, h, Except.bind, Bind.bind, Pure.pure, Except.pure]
 
 theorem run_error (fuel : Nat) {cfg functions machine reason}
-    (h : transition cfg functions machine = .error reason) :
+    (h : transition fuel cfg functions machine = .error reason) :
     run (fuel + 1) cfg functions machine = .error reason := by
   simp only [run, h, Except.bind, Bind.bind]
 
@@ -171,9 +186,9 @@ def execute (fuel : Nat) (cfg : Config) (functions : Functions) (entry : Nat) (f
   | .reverted _ | .invalid => return {result with world := frame.world}
   | .returned values =>
     if cfg.entry then
-      if values.isEmpty then return {result with completion := .success []}
+      if values.isEmpty then return {result with completion := .success [],world := EVM.State.finalize result.world}
       else .error "MIR entry returned word values"
     else return result
-  | _ => return result
+  | .success _ => return {result with world := EVM.State.finalize result.world}
 
 end SolarTV.MIR.State

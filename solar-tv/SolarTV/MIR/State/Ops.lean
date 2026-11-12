@@ -22,6 +22,12 @@ private def checkedResult (frame : Frame) (result : Outcome (BitVec width)) : St
 def memoryOperation (cfg : Config) (frame : Frame) (op : MemoryOp) (args : List Word) : Step := do
   match op,args with
   | .size,[] => value frame (BitVec.ofNat 256 frame.memory.length)
+  | .returnDataSize,[] => value frame (BitVec.ofNat 256 frame.returnData.length)
+  | .returnDataCopy,[destination,source,count] =>
+    if source.toNat + count.toNat > frame.returnData.length then return .invalid
+    else
+      let memory ← expand frame.memory destination.toNat count.toNat
+      effect {frame with memory := writeBytes memory destination.toNat (readBytes frame.returnData source.toNat count.toNat)}
   | .calldataSize,[] => value frame (BitVec.ofNat 256 cfg.environment.input.length)
   | .calldataLoad,[offset] => value frame (readWord cfg.environment.input offset.toNat)
   | .load,[offset] =>
@@ -49,11 +55,12 @@ def storageOperation (cfg : Config) (frame : Frame) (transient write : Bool) (ar
   let old := account frame.world owner
   let slots := if transient then old.transient else old.storage
   match write,args with
-  | false,[key] => value frame (slotsRead slots key)
+  | false,[key] => value (if transient then frame else
+      {frame with world := warmSlot frame.world owner key}) (slotsRead slots key)
   | true,[key,word] =>
     if cfg.environment.isStatic then return .invalid
     let updated := slotsWrite slots key word
-    let world := putAccount frame.world
+    let world := putAccount (if transient then frame.world else warmSlot frame.world owner key)
       (if transient then {old with transient := updated} else {old with storage := updated})
     effect {frame with world}
   | _,_ => .error "MIR storage operand count"
@@ -82,6 +89,7 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .word,[a] => value frame a
   | .freePointer,[] => freePointer frame
   | .allocate zeroed checked,[size] => allocate frame size zeroed checked
+  | .external _,_ => .error "external instruction requires MIR machine context"
   | .call _,_ => .error "internal call requires MIR machine context"
   | .pointerAdd,[pointer,offset] => value frame (pointer + offset)
   | .lowBits width,[a] => value frame (narrow width a)

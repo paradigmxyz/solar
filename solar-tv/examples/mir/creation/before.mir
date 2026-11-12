@@ -1,0 +1,8 @@
+@module Creation
+fn @f() -> i256 {
+bb0:
+ v0 = add 0, 0
+ v1 = create2 v0, 0, 7, 0
+ v2 = zext i160 v1 to i256
+ ret v2
+}

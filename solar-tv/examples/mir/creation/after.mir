@@ -1,0 +1,8 @@
+; === solar-tv/examples/mir/creation/before.mir (after sccp) ===
+@module Creation
+fn @f() -> i256 {
+  bb0:
+    v1 = create2 0, 0, 7, 0
+    v2 = zext i160 v1 to i256
+    ret v2
+}

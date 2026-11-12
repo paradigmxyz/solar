@@ -428,7 +428,7 @@ class WorldTests(unittest.TestCase):
         self.assertEqual(observation[4][0][4], [["0", "7"]])
         self.assertEqual(observation[5], [[str(ADDRESS), ["9"], []]])
 
-    def test_mir_calls_and_creation_are_explicitly_unsupported(self):
+    def test_mir_call_effects_and_explicit_creation_budget(self):
         fixture = {
             "accounts": [
                 {"address": MID, "code": bytecode("push 7\npush 0\nsstore\nstop")}
@@ -439,11 +439,11 @@ class WorldTests(unittest.TestCase):
             "stop",
             fixture=fixture,
             layer="mir",
-            status=2,
+            status=1,
         )
         init = deploy("0x00")
         code = bytes.fromhex(init[2:])
-        before = f"mstore 0, {int.from_bytes(code, 'big')}\nv0: i256 = create 0, {32 - len(code)}, {len(code)}\nstop"
+        before = f"mstore 0, {int.from_bytes(code, 'big')}\nv0: i160 = create 0, {32 - len(code)}, {len(code)}\nstop"
         self.pair(before, "stop", layer="mir", status=2)
 
     def test_symbolic_storage_key_aliases_are_not_assumed_distinct(self):

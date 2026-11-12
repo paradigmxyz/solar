@@ -31,9 +31,12 @@ def difference(before: str, after: str) -> str:
                 ("values", "Returned values changed"),
                 ("data", "Returned or reverted byte payload changed"),
                 ("memory", "Live memory contents or active size changed"),
+                ("returndata", "Live return data changed"),
+                ("warm_addresses", "Live account access warmth changed"),
+                ("warm_slots", "Live storage access warmth changed"),
                 ("logs", "Emitted logs changed"),
             ):
-                if a[key] != b[key]:
+                if a.get(key) != b.get(key):
                     return description
             left, right = (
                 {entry[0]: entry for entry in value["accounts"]} for value in (a, b)

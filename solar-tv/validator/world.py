@@ -80,6 +80,7 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
             "gas_price",
             "warm_addresses",
             "memory",
+            "creation_gas",
         },
         "world",
     )
@@ -97,6 +98,14 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
     )
     if memory_size % 32 or memory_size > 65536 or len(memory_data) > memory_size:
         raise Unsupported("MIR memory must be word-aligned and at most 64 KiB")
+    creation_gas = value.get("creation_gas", [])
+    if not isinstance(creation_gas, list) or len(creation_gas) > 128:
+        raise Unsupported("creation_gas requires up to 128 child budgets")
+    creation_gas = [int(_number(gas, 64)) for gas in creation_gas]
+    if any(gas > 30_000_000 for gas in creation_gas):
+        raise Unsupported("creation child gas exceeds 30000000")
+    if kind != "mir" and creation_gas:
+        raise Unsupported("creation_gas is an explicit MIR boundary input")
     symbols = {}
 
     def word(value):
@@ -206,6 +215,7 @@ def read(path: Path, compiler: str, policy: str | None, *, kind: str = "evmir") 
         "gas_policy": policy,
         "fuel": fuel,
         "memory": {"data": memory_data, "size": memory_size},
+        "creation_gas": creation_gas,
     }
     digest = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
     return {
@@ -251,13 +261,19 @@ def runtime(text: str, kind: str, solar: str, version: str, timeout: int) -> byt
 
 
 def configuration(
-    solar: str, version: str, fixture: dict, timeout: int, replay: str | None = None
+    solar: str,
+    version: str,
+    fixture: dict,
+    timeout: int,
+    replay: str | None = None,
+    *,
+    root_is_mir: bool = False,
 ) -> str:
     catalog = native.catalog(replay or native.default(solar), timeout)
     precompiles = catalog.get("precompiles")
     if not isinstance(precompiles, dict):
         raise Unsupported("rebuild the native replay helper for precompile activation")
-    if fixture["address"] in precompiles.get(version, []):
+    if not root_is_mir and fixture["address"] in precompiles.get(version, []):
         raise Unsupported(
             "world root must be a bytecode account, not an active precompile"
         )
@@ -274,7 +290,8 @@ def configuration(
             f"⟨{'true' if fork['available'] else 'false'}, {fork['base_gas']}, {fork['dynamic_gas']}, {inputs}, {outputs}⟩"
         )
     context = context_expression(fixture)
-    return f"def tvWorldConfig : EVM.State.Config := ⟨.{version}, [{', '.join(rows)}], {fixture['address']}, {context}⟩\n"
+    unknown = f"some {fixture['address']}" if root_is_mir else "none"
+    return f"def tvWorldConfig : EVM.State.Config := ⟨.{version}, [{', '.join(rows)}], {fixture['address']}, {context}, {unknown}⟩\n"
 
 
 def context_expression(fixture):
@@ -327,20 +344,7 @@ def translate(
     def word(value):
         return value.removeprefix("$")
 
-    warm = [
-        fixture["address"],
-        fixture["caller"],
-        *fixture["warm_addresses"],
-        *map(str, range(1, 10)),
-    ]
-    if version in {"cancun", "prague", "osaka", "amsterdam"}:
-        warm.append("10")
-    if version in {"prague", "osaka", "amsterdam"}:
-        warm.extend(map(str, range(11, 18)))
-    if version in {"osaka", "amsterdam"}:
-        warm.append("256")
-    if version in {"shanghai", "cancun", "prague", "osaka", "amsterdam"}:
-        warm.append(fixture["block"]["coinbase"])
+    warm = warm_addresses(fixture, version)
     warm_slots = (
         "["
         + ", ".join(
@@ -390,6 +394,7 @@ def replay_input(fixture: dict) -> dict:
         "blob_hashes",
         "warm_addresses",
         "memory",
+        "creation_gas",
     }
     return {key: value for key, value in fixture.items() if key in keys}
 
@@ -446,3 +451,21 @@ def _block(value: dict) -> dict:
     if len({n for n, _ in history}) != len(history):
         raise Unsupported("duplicate block history number")
     return {**result, "hashes": history}
+
+
+def warm_addresses(fixture, version):
+    warm = [
+        fixture["address"],
+        fixture["caller"],
+        *fixture["warm_addresses"],
+        *map(str, range(1, 10)),
+    ]
+    if version in {"cancun", "prague", "osaka", "amsterdam"}:
+        warm.append("10")
+    if version in {"prague", "osaka", "amsterdam"}:
+        warm.extend(map(str, range(11, 18)))
+    if version in {"osaka", "amsterdam"}:
+        warm.append("256")
+    if version in {"shanghai", "cancun", "prague", "osaka", "amsterdam"}:
+        warm.append(fixture["block"]["coinbase"])
+    return warm

@@ -26,6 +26,8 @@ mod mir;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Input {
+    #[serde(default)]
+    creation_gas: Vec<u64>,
     compiler: String,
     address: String,
     caller: String,
@@ -201,40 +203,7 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         let code = code(request, input, text)?;
         let block = context::block(request, input)?;
         let environment = context::transaction(request, input)?;
-        let mut database = InMemoryDB::default();
-        for account in &input.accounts {
-            let addr = address(request, &account.address)?;
-            let bytes = if addr == root { &code } else { &account.code };
-            database.insert_account_info(
-                &addr,
-                AccountInfo::default()
-                    .with_nonce(account.nonce)
-                    .with_balance(word(request, &account.balance)?)
-                    .with_code(if bytes.len() == 23 && bytes.starts_with(&[0xef, 0x01, 0x00]) {
-                        Bytecode::new_eip7702(Address::from_slice(&bytes[3..]))
-                    } else {
-                        Bytecode::new_legacy(Bytes::copy_from_slice(bytes))
-                    }),
-            );
-            for (key, value) in &account.storage {
-                database.insert_account_storage(
-                    &addr,
-                    &word(request, key)?,
-                    &word(request, value)?,
-                );
-            }
-        }
-        // Missing history is explicitly zero in the fixture. EmptyDB's synthetic hashes
-        // are unsuitable here: seed the complete admissible BLOCKHASH window first.
-        let current = word(request, &input.block.number)?;
-        for distance in 1..=256u64 {
-            if let Some(number) = current.checked_sub(U256::from(distance)) {
-                database.insert_block_hash(&number, &Default::default());
-            }
-        }
-        for (number, hash) in &input.block.hashes {
-            database.insert_block_hash(&word(request, number)?, &word(request, hash)?.into());
-        }
+        let database = database(request, input, Some(&code))?;
         // The observation is the complete fixture world, including untouched accounts and
         // slots. Seed the overlay as well as its backing database so lazy reads cannot omit
         // those cells from the final snapshot.
@@ -381,4 +350,44 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         .to_string())
     };
     Ok([execute(&request.before)?, execute(&request.after)?])
+}
+
+/// The explicit fixture database; root code is supplied only for EVM IR replay.
+fn database(
+    request: &Request,
+    input: &Input,
+    root_code: Option<&[u8]>,
+) -> Result<InMemoryDB, String> {
+    let root = address(request, &input.address)?;
+    let mut database = InMemoryDB::default();
+    for account in &input.accounts {
+        let addr = address(request, &account.address)?;
+        let bytes = if addr == root { root_code.unwrap_or(&account.code) } else { &account.code };
+        database.insert_account_info(
+            &addr,
+            AccountInfo::default()
+                .with_nonce(account.nonce)
+                .with_balance(word(request, &account.balance)?)
+                .with_code(if bytes.len() == 23 && bytes.starts_with(&[0xef, 0x01, 0x00]) {
+                    Bytecode::new_eip7702(Address::from_slice(&bytes[3..]))
+                } else {
+                    Bytecode::new_legacy(Bytes::copy_from_slice(bytes))
+                }),
+        );
+        for (key, value) in &account.storage {
+            database.insert_account_storage(&addr, &word(request, key)?, &word(request, value)?);
+        }
+    }
+    // Missing history is explicitly zero in the fixture. EmptyDB's synthetic hashes
+    // are unsuitable here: seed the complete admissible BLOCKHASH window first.
+    let current = word(request, &input.block.number)?;
+    for distance in 1..=256u64 {
+        if let Some(number) = current.checked_sub(U256::from(distance)) {
+            database.insert_block_hash(&number, &Default::default());
+        }
+    }
+    for (number, hash) in &input.block.hashes {
+        database.insert_block_hash(&word(request, number)?, &word(request, hash)?.into());
+    }
+    Ok(database)
 }
