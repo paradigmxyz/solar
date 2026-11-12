@@ -422,6 +422,23 @@ relocations, deferred contract code and bytes following a data entry need a
 link/layout boundary and remain unsupported. Exported constant bytes are
 limited to 64 KiB across the selected call graph.
 
+Storage-array loads also execute directly: packed integers, signed values,
+fixed bytes, checked enums and nested bytes objects. The array header is reserved
+before data-slot hashing, and child allocations share the FMP and scratch memory.
+Copies above 2048 elements are unsupported. External scratch frame slots alias
+ordinary memory at base 128; slices retain pointer/length order. Internal frame
+addresses still require backend placement and are unsupported.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/storage-arrays/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/storage-arrays/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/frames/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/frames/world.json
+```
+
+These pairs come from `lower-builtins` and `lower-frame-slots`. Their broken
+versions change an element encoding or the returned frame value.
+
 ### Direct MIR messages
 
 `call`, `callcode`, `delegatecall`, `staticcall`, `create` and `create2` execute
@@ -429,6 +446,19 @@ children from the fixture's bytecode accounts. The MIR caller stays typed SSA;
 we do not compile it into an EVM image. The Lean and native interpreters share
 neither an imported instruction recipe nor child results. Both execute the real
 child, including nested messages, precompiles, exact revert data and rollback.
+
+Typed `address_call`, `address_staticcall` and `address_delegatecall` also accept
+memory objects or slices with explicit gas. They reserve no output buffer;
+`icall returndata_bytes<>` copies the live return buffer to an uninitialized
+bytes object, retaining dirty padding and leaving the buffer available. Implicit
+address-call gas is unsupported until caller pricing is modeled.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/address-calls/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/address-calls/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/address-calls/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/address-calls/world.json
+```
 
 MIR does not price its own instructions. CALL-family checks therefore assume
 enough caller gas to forward the explicit requested amount without EIP-150

@@ -1,0 +1,12 @@
+@module State
+fn @f() -> i256 {
+bb0:
+v0 = trunc i256 262144 to i160
+mstore 128, 3
+mstore 160, 44048180597813453602326562734351324025098966208897425494240603688123167145984
+v1 = inttoptr i256 128 to ptr<memory>
+v3 = address_call v0, v1, gas 100000
+v4 = icall returndata_bytes<>
+v5 = ptrtoint ptr<memory> v4 to i256
+ret v5
+}

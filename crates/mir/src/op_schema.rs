@@ -1317,6 +1317,7 @@ define_mir_ops! {
     #[mir_op(mnemonic = "load_storage_array", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = MemoryWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(smallvec![MirType::I256]))]
+    #[semantics(load_storage_array(slot, element, enum_variants))]
     StorageArrayLoad { slot: ValueId, element: ValueLayout, enum_variants: Option<u64> },
     #[mir_op(mnemonic = "store_storage_bytes", result = None, phases = PhaseSet::SEMANTIC,
         effect = StorageWrite, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
@@ -1344,6 +1345,7 @@ define_mir_ops! {
     #[mir_op(mnemonic = "address_call", result = I1, phases = PhaseSet::SEMANTIC,
         effect = ExternalCall, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::Builtin))]
     #[operand_types(func => Some(typing::address_call_types(func, *input, gas.is_some(), value.is_some())))]
+    #[semantics(address_call(kind, address, input, gas, value))]
     AddressCall {
         kind: AddressCallKind,
         address: ValueId,
@@ -1995,6 +1997,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::FrameSlot)
     )]
     #[operand_types(func => Some(smallvec![]))]
+    #[semantics(frame_load(offset, mode, kind))]
     FrameLoad {
         /// Byte offset within the function's local region.
         offset: u64,
@@ -2014,6 +2017,7 @@ define_mir_ops! {
         category = Some(PhaseCategory::FrameSlot)
     )]
     #[operand_types(func => Some(smallvec![kind.result_type()]))]
+    #[semantics(frame_store(offset, mode, kind, value))]
     FrameStore {
         /// Byte offset within the function's local region.
         offset: u64,

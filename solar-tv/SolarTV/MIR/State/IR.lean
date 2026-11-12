@@ -24,13 +24,20 @@ structure Operand where
 
 inductive MemoryOp where
   | load | store | storeByte | copy | hash | size | zero
-  | calldataLoad | calldataSize | calldataCopy | returnDataSize | returnDataCopy
+  | calldataLoad | calldataSize | calldataCopy | returnDataSize | returnDataCopy | returnDataBytes
 
 inductive SlotOp where
   | mapping | bytesKey | arrayData | arrayElement (stride : Nat)
 
 inductive StorageBytesOp where
   | validate | load | store | literal (bytes : List Byte) | clear
+
+inductive ArrayElement where
+  | uint (bits : Nat) | sint (bits : Nat) | fixedBytes (bits : Nat) | bytes
+
+inductive MessageOp where
+  | raw (opcode : Nat)
+  | address (opcode : Nat) (hasValue : Bool)
 
 inductive Operation where
   | binary (op : MIR.Op) (width : Nat)
@@ -51,13 +58,15 @@ inductive Operation where
   | call (callee : Nat)
   | freePointer
   | allocate (zeroed checked : Bool)
-  | external (opcode : Nat)
+  | external (op : MessageOp)
   | insertValue (ty : ValueType) (index : Nat)
   | extractValue (ty : ValueType) (index : Nat)
   | makeSlice (location : Nat)
   | slot (op : SlotOp)
   | storageBytes (op : StorageBytesOp)
   | dataCopy (bytes : List Byte) (offset : Nat)
+  | storageArray (element : ArrayElement) (variants : Option Nat)
+  | frame (write : Bool) (address : Word) (ty : ValueType)
 
 structure Instruction where
   result : Option Nat

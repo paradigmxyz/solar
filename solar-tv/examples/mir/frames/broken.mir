@@ -1,0 +1,7 @@
+@module State
+fn @f() -> i256 {
+bb0:
+frame_store scratch, word, 1, 17
+v0 = frame_load scratch, word, 1
+ret 18
+}

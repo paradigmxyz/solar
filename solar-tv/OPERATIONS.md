@@ -8,10 +8,10 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Status | MIR families | EVM opcode entries |
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
-| Some forms checked | 15 | 6 |
+| Some forms checked | 18 | 6 |
 | Explicit-world entry execution | 0 | 45 |
-| Direct typed MIR state execution | 41 | 0 |
-| Missing | 19 | 0 |
+| Direct typed MIR state execution | 42 | 0 |
+| Missing | 15 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
 variants account for many EVM entries. Checking a word operation does not cover
@@ -114,6 +114,21 @@ byte-key copies, memory expansion and wrapping arithmetic. Storage byte helpers
 validate short/long headers before allocation or mutation, retain full-word reads,
 mask dirty padding and clear truncated long tails. Clearing and copying beyond
 the documented memory or 2048-word storage limits are unsupported, never truncated.
+Storage-array loads reserve a word-strided memory array, unpack signed integers
+and left-aligned fixed bytes, check enum bounds, and allocate nested bytes objects
+in order. Packing ignores dirty unused bits and reads only the declared elements;
+work beyond 2048 elements is unsupported. Kernel proofs cover real builtin expansion on small arrays; native differential
+tests also cover full packed words and mixed nested byte-string arrays. These
+larger replay cases are not counted as Lean proofs.
+External scratch frame slots use their convention-defined base of 128 and alias
+ordinary memory, including across internal calls. Slices store pointer then length;
+the multi-return word is the buffer-pointer slot at 32. Internal frame placement
+and non-word multi-return slots remain unsupported.
+Typed address calls support memory objects and slices with explicit gas for CALL,
+STATICCALL and DELEGATECALL. Object headers are read before the message; slices
+need no header or allocation. Returndata objects copy exactly the live buffer,
+without clearing reserved padding or consuming the buffer. Implicit gas still
+requires caller pricing and is unsupported.
 External balance/code reads preserve address truncation and access warmth;
 code introspection sees original delegation designators, not their targets.
 Constant `datacopy` accepts only ranges inside known, relocation-free data, with
@@ -138,7 +153,7 @@ for admitted forks, limits, observables and gas policies.
    execution of already-delegated account state.
 3. Generalize calldata/returndata/program-data access and physical code layout
    from complete-entry execution to arbitrary local windows.
-4. Add MIR frames, backend allocation layouts, storage layouts and ABI helpers
+4. Complete MIR frames, backend allocation layouts, storage layouts and ABI helpers
    against independent semantics, rather than assuming their lowering is correct.
 5. Extend dynamic gas and state execution beyond Istanbul–Osaka, including
    Amsterdam's two-resource state gas. Expand differential boundary coverage.

@@ -109,6 +109,8 @@ def record(
                     "aggregate type limits: depth 32, nodes 256; exported type budget 65536; boundary limits: 32 input and 256 return leaves",
                     "explicit ordered FMP allocation; invalid infallible bumps unsupported",
                     "slot hashing preserves scratch traffic; storage bytes retain header checks, padding masks and tail clearing; storage work limit 2048 words",
+                    "storage arrays preserve scalar encodings, enum checks and nested object order; work limit 2048 elements",
+                    "frame slots require convention-defined addresses; internal placement unsupported; typed address calls require explicit gas",
                     "external account reads use live state; MIR root runtime code unknown; constant data ranges must be known and relocation-free; export budget 64 KiB",
                     "external CALL assumes sufficient caller gas to avoid EIP-150 clipping",
                     "CREATE child gas is supplied by explicit creation_gas boundary inputs",

@@ -9,13 +9,13 @@ ptradd: pointer_add(ptr, offset)
 checked_binary: checked(op, arithmetic, lhs, rhs)
 validate_storage_bytes: validate_storage_bytes(operand0)
 load_storage_bytes: load_storage_bytes(operand0)
-load_storage_array: -
+load_storage_array: load_storage_array(slot, element, enum_variants)
 store_storage_bytes: store_storage_bytes(operand0, operand1)
 store_storage_bytes_literal: store_storage_bytes_literal(slot, bytes)
 clear_storage_words: clear_storage_words(operand0, operand1, operand2)
 validate_abi: -
 abi_encode_packed: -
-address_call: -
+address_call: address_call(kind, address, input, gas, value)
 add: opcode(add)
 sub: opcode(sub)
 mul: opcode(mul)
@@ -55,8 +55,8 @@ mcopy: opcode(match location { Memory => mcopy, Calldata => calldatacopy, Return
 calldatasize: opcode(calldatasize)
 make_memory_slice: make_slice(location, ptr, len)
 internal_frame_addr: -
-frame_load: -
-frame_store: -
+frame_load: frame_load(offset, mode, kind)
+frame_store: frame_store(offset, mode, kind, value)
 constructor_args_base: -
 constructor_args_end: -
 datacopy: data_copy(data, dest, size)

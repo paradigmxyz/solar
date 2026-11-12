@@ -10,8 +10,9 @@ use serde_json::{Value as Json, json};
 use solar_interface::{ColorChoice, Session, source_map::FileName};
 use solar_mir::{
     AllocationFailure, AllocationInitialization, ArithmeticKind, BasicBlock, Builtin, Callee,
-    Function, MirType, Module, RequireKind, RevertKind, RevertReason, Semantics, Terminator, Value,
-    ValueId, analysis::CallGraphInfo,
+    FrameMode, FrameSlotKind, Function, MemoryObjectKind, MirType, Module, RequireKind, RevertKind,
+    RevertReason, Semantics, Terminator, Value, ValueId, ValueLayout, analysis::CallGraphInfo,
+    memory::EvmMemoryLayout,
 };
 use std::io::{self, Read};
 
@@ -368,6 +369,33 @@ fn export_operation(
             Semantics::ClearStorageWords(slot, first, last) => {
                 json!({"kind":"clear_storage_words","args":operands(module,body,&[slot,first,last])?})
             }
+            Semantics::LoadStorageArray(slot, element, variants) => {
+                let layout = match element {
+                    ValueLayout::UInt(size) => json!({"kind":"uint","bits":size.bits()}),
+                    ValueLayout::Int(size) => json!({"kind":"int","bits":size.bits()}),
+                    ValueLayout::FixedBytes(size) => {
+                        json!({"kind":"fixed_bytes","bits":size.bits()})
+                    }
+                    ValueLayout::MemoryObject(MemoryObjectKind::Bytes) => json!({"kind":"bytes"}),
+                    _ => return Err("unsupported storage array element layout".into()),
+                };
+                json!({"kind":"load_storage_array","element":layout,"variants":variants,"args":operands(module,body,&[slot])?})
+            }
+            Semantics::FrameLoad(offset, mode, kind) => {
+                json!({"kind":"frame_load","address":frame_address(offset,mode,kind)?,"slot_type":value_type(module,kind.result_type())?,"args":[]})
+            }
+            Semantics::FrameStore(offset, mode, kind, value) => {
+                json!({"kind":"frame_store","address":frame_address(offset,mode,kind)?,"slot_type":value_type(module,kind.result_type())?,"args":operands(module,body,&[value])?})
+            }
+            Semantics::AddressCall(name, address, input, gas, value) => {
+                let gas = gas.ok_or("implicit address-call gas requires caller pricing")?;
+                let mut args = vec![address, input, gas];
+                args.extend(value);
+                json!({"kind":"address_call","name":name,"value":value.is_some(),"args":operands(module,body,&args)?})
+            }
+            Semantics::Call(Callee::Builtin(Builtin::ReturndataBytes), []) => {
+                json!({"kind":"returndata_bytes","args":[]})
+            }
             Semantics::FreePointer => json!({"kind": "free_pointer", "args": []}),
             Semantics::MemoryZero(offset, size) => {
                 json!({"kind": "memory_zero", "args": operands(module, body, &[offset, size])?})
@@ -434,4 +462,16 @@ fn type_cost(
         _ => {}
     }
     Ok(cost)
+}
+
+fn frame_address(offset: u64, mode: FrameMode, kind: FrameSlotKind) -> Result<String, String> {
+    match mode {
+        FrameMode::External => {
+            Ok((u128::from(offset) + u128::from(EvmMemoryLayout::HEAP_START)).to_string())
+        }
+        FrameMode::MultiReturn if offset == 0 && kind == FrameSlotKind::Word => {
+            Ok(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT.to_string())
+        }
+        _ => Err("MIR frame needs backend placement".into()),
+    }
 }
