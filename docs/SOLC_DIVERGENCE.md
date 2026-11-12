@@ -1096,3 +1096,25 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Rationale: the allocation check reports the oversized buffer before any
   element is encoded, and the case needs assembly-forged lengths.
 - Coverage: `tests/ui/codegen/run-call/calldata/abi_encode_forged_array_length.sol`.
+
+### TYPECK-026: `@inheritdoc` references
+
+Status: intentional.
+
+Difference: `solar` reads the first word of an `@inheritdoc` tag as a path,
+such as `M.Base` through an import namespace, and resolves it from the source
+scope. `solc` resolves it from the scope of the documented function, so a
+parameter named `M` shadows the namespace, and reads the rest of the tag,
+including continuation lines, as part of the reference. `solar` ignores text
+after the first word, so `@inheritdoc Base and more text` inherits from `Base`.
+Every reference that names no contract, such as an empty reference, `Base.`,
+an overloaded function or a struct, warns 9397. `solc` reports 1933, 5967,
+1430 or 9397 as errors.
+
+Rationale: resolving a qualified path is needed for valid code. Matching
+`solc` on shadowed, malformed or trailing text would need a second parse of
+the tag and a scope walk, and only changes which invalid documentation is
+reported.
+
+Coverage: `tests/ui/natspec/inheritdoc/qualified_path.sol` and
+`tests/ui/natspec/inheritdoc/qualified_unresolved.sol`.
