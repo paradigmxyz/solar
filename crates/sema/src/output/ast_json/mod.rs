@@ -51,6 +51,7 @@ use std::{
     collections::BTreeMap,
     fmt,
     panic::{self, AssertUnwindSafe},
+    path::{Path, PathBuf},
     sync::{Condvar, Mutex, OnceLock, PoisonError},
 };
 
@@ -183,7 +184,8 @@ impl<'gcx> AstJson<'gcx> {
         let source = &self.gcx.sources[id];
         let ast = source.ast.as_ref()?;
         let imports = ast.items.iter().filter(|item| matches!(item.kind, ast::ItemKind::Import(_)));
-        (imports.count() == source.imports.len()).then_some(SourceAstJson { json: self, id })
+        (imports.count() == source.imports.len() + source.unresolved_imports.len())
+            .then_some(SourceAstJson { json: self, id })
     }
 
     /// Calls `write`, which writes the output with these sources in this order, while the thread
@@ -357,6 +359,7 @@ impl SourceAstJson<'_, '_> {
                 hir: hir.map(|source| source.items),
                 usings: hir.map_or(&[], |source| source.usings),
                 imports: &source.imports,
+                unresolved: &source.unresolved_imports,
             }),
         );
         m.end()
@@ -854,6 +857,8 @@ struct Items<'a, 'ast, 'gcx> {
     usings: &'a [hir::UsingDirective<'gcx>],
     /// The imports of the source.
     imports: &'a [(ast::ItemId, SourceId)],
+    /// The imports that could not be resolved, without sema.
+    unresolved: &'a [(ast::ItemId, PathBuf)],
 }
 
 impl<'gcx> Serialize for W<'_, 'gcx, Items<'_, '_, 'gcx>> {
@@ -869,7 +874,8 @@ impl<'gcx> Serialize for W<'_, 'gcx, Items<'_, '_, 'gcx>> {
             })
         });
         let mut usings = items.usings.iter();
-        let mut imports = items.imports.iter().enumerate();
+        let mut imports = items.imports.iter().enumerate().peekable();
+        let mut unresolved = items.unresolved.iter();
         macro_rules! next_hir {
             ($kind:ident) => {
                 hir_items.as_mut().map(|items| match items.next() {
@@ -884,13 +890,22 @@ impl<'gcx> Serialize for W<'_, 'gcx, Items<'_, '_, 'gcx>> {
             match &item.kind {
                 ast::ItemKind::Pragma(pragma) => seq.serialize_element(&cx.w((item, pragma)))?,
                 ast::ItemKind::Import(import) => {
-                    let (position, &(ast_id, source)) = imports.next().unwrap();
-                    debug_assert_eq!(ast_id.index(), index);
-                    let id = match cx.sema() {
-                        true => cx.json.first_imports[cx.source] + position,
-                        false => cx.ids.fresh(),
-                    };
-                    seq.serialize_element(&cx.w(Import { item, import, id, source }))?;
+                    let (id, imported) =
+                        match imports.next_if(|(_, (ast_id, _))| ast_id.index() == index) {
+                            Some((position, &(_, source))) => {
+                                let id = match cx.sema() {
+                                    true => cx.json.first_imports[cx.source] + position,
+                                    false => cx.ids.fresh(),
+                                };
+                                (id, Imported::Source(source))
+                            }
+                            None => {
+                                let (ast_id, name) = unresolved.next().unwrap();
+                                debug_assert_eq!(ast_id.index(), index);
+                                (cx.ids.fresh(), Imported::Unresolved(name))
+                            }
+                        };
+                    seq.serialize_element(&cx.w(Import { item, import, id, imported }))?;
                 }
                 ast::ItemKind::Using(using) => {
                     seq.serialize_element(&cx.w((item, using, usings.next())))?
@@ -968,22 +983,48 @@ struct Import<'a, 'ast> {
     item: &'a ast::Item<'ast>,
     import: &'a ast::ImportDirective<'ast>,
     id: usize,
-    /// The imported source.
-    source: SourceId,
+    imported: Imported<'a>,
+}
+
+/// What an import directive imports.
+#[derive(Clone, Copy)]
+enum Imported<'a> {
+    Source(SourceId),
+    /// A source that could not be read, which only a compilation that stops after parsing has,
+    /// with its name.
+    Unresolved(&'a Path),
+}
+
+impl Imported<'_> {
+    fn source(self) -> Option<SourceId> {
+        match self {
+            Self::Source(source) => Some(source),
+            Self::Unresolved(_) => None,
+        }
+    }
 }
 
 impl Serialize for W<'_, '_, Import<'_, '_>> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let Self(cx, Import { item, import, id, source }) = self;
+        let Self(cx, Import { item, import, id, imported }) = self;
         let json = cx.json;
         cx.write_with_id(s, *id, "ImportDirective", item.span, |m| {
             m.entry("file", &Sym(import.path.value));
-            if cx.sema() {
+            if cx.sema()
+                && let Imported::Source(source) = imported
+            {
                 m.entry("sourceUnit", &json.source_unit_id(*source));
                 m.entry("scope", &json.source_unit_id(cx.source));
             }
-            let file_name = &cx.gcx.sources[*source].file.name;
-            m.entry("absolutePath", &format_args!("{}", file_name.display()));
+            match imported {
+                Imported::Source(source) => {
+                    let name = &cx.gcx.sources[*source].file.name;
+                    m.entry("absolutePath", &format_args!("{}", name.display()))
+                }
+                Imported::Unresolved(name) => {
+                    m.entry("absolutePath", &format_args!("{}", name.display()))
+                }
+            };
             let alias = import.source_alias();
             m.entry("unitAlias", &name(alias));
             m.entry("nameLocation", &cx.src(alias.map_or(Span::DUMMY, |alias| alias.span)));
@@ -993,7 +1034,7 @@ impl Serialize for W<'_, '_, Import<'_, '_>> {
             };
             let aliases = Seq(|| {
                 aliases.iter().map(|&(foreign, local)| {
-                    cx.w(SymbolAlias { foreign, local, source: *source, name: alias })
+                    cx.w(SymbolAlias { foreign, local, source: imported.source(), name: alias })
                 })
             });
             m.entry("symbolAliases", &aliases);
@@ -1005,8 +1046,8 @@ impl Serialize for W<'_, '_, Import<'_, '_>> {
 struct SymbolAlias {
     foreign: Ident,
     local: Option<Ident>,
-    /// The imported source.
-    source: SourceId,
+    /// The imported source, if it could be read.
+    source: Option<SourceId>,
     /// The alias of the whole import.
     name: Option<Ident>,
 }
@@ -1026,7 +1067,7 @@ impl Serialize for W<'_, '_, SymbolAlias> {
 }
 
 /// The `Identifier` node of an imported symbol.
-impl Serialize for W<'_, '_, (Ident, SourceId)> {
+impl Serialize for W<'_, '_, (Ident, Option<SourceId>)> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         let Self(cx, (foreign, imported)) = self;
         cx.write(s, "Identifier", foreign.span, |m| {
@@ -1034,7 +1075,7 @@ impl Serialize for W<'_, '_, (Ident, SourceId)> {
             m.entry("overloadedDeclarations", &[(); 0]);
             let declaration = cx.sema().then(|| {
                 let declarations =
-                    cx.gcx.symbol_resolver.source_scopes[*imported].resolve(*foreign);
+                    cx.gcx.symbol_resolver.source_scopes[(*imported)?].resolve(*foreign);
                 match declarations? {
                     [declaration] => match declaration.res {
                         hir::Res::Item(id) => Some(cx.item_id(id)),
@@ -1180,6 +1221,7 @@ impl Serialize for W<'_, '_, (&ast::Item<'_>, &ast::ItemContract<'_>, Option<Con
                 hir: c.map(|c| c.items),
                 usings: c.map_or(&[], |c| c.usings),
                 imports: &[],
+                unresolved: &[],
             };
             m.entry("nodes", &Cx { in_contract: true, ..*cx }.w(items));
             if cx.sema() {

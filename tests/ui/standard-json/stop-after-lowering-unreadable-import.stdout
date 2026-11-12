@@ -1,0 +1,19 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 7,
+        "end": 22
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read missing.sol: File not found.",
+      "formattedMessage": "error: couldn't read missing.sol: File not found.\n   ╭▸ A.sol:LL:CC\n   │\nLL │ import \"./missing.sol\"; contract C {}\n   ╰╴       ━━━━━━━━━━━━━━━\n\n"
+    }
+  ],
+  "sources": {}
+}
