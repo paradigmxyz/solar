@@ -43,6 +43,7 @@ def load(
     window: str | None = None,
     stack_height: int | None = None,
     world_path: Path | None = None,
+    replay_executable: str | None = None,
 ) -> Program:
     if gas_mode is not None and kind != "evmir" and world_path is None:
         raise Unsupported("gas auditing requires scheduled EVM IR, not MIR")
@@ -69,7 +70,7 @@ def load(
             raise Unsupported(
                 "world mode requires a complete entry, not a block projection"
             )
-        fixture = world.read(world_path, solar, gas_mode)
+        fixture = world.read(world_path, solar, gas_mode, kind=kind)
         return world.translate(
             parsed.stdout,
             kind,
@@ -78,6 +79,7 @@ def load(
             fixture,
             timeout,
             function,
+            replay_executable,
         )
     projection = parsed.stdout
     following = None
@@ -548,6 +550,7 @@ def main() -> int:
                 window=args.window,
                 stack_height=args.stack_height,
                 world_path=args.world,
+                replay_executable=rust_replay,
             )
             for path in (args.before, args.after)
         ]

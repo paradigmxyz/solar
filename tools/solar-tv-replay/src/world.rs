@@ -21,6 +21,7 @@ use serde_json::{Value, json};
 use std::{cell::RefCell, collections::BTreeMap, fs, process::Command, rc::Rc};
 
 mod context;
+mod mir;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -34,7 +35,8 @@ pub(super) struct Input {
     blob_hashes: Vec<String>,
     warm_addresses: Vec<String>,
     block: context::Block,
-    gas: u64,
+    memory: InitialMemory,
+    gas: Option<u64>,
     #[serde(rename = "static")]
     is_static: bool,
     calldata: Vec<u8>,
@@ -52,6 +54,15 @@ struct Account {
     balance: String,
     code: Vec<u8>,
     storage: Vec<(String, String)>,
+    #[serde(default)]
+    transient: Vec<(String, String)>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InitialMemory {
+    data: Vec<u8>,
+    size: u64,
 }
 
 fn word(request: &Request, text: &str) -> Result<U256, String> {
@@ -158,18 +169,25 @@ pub(super) fn spec(text: &str) -> Result<SpecId, String> {
 }
 
 pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], String> {
+    if request.kind == "mir" {
+        return mir::replay(request, input);
+    }
+    let budget = input.gas.ok_or("missing EVM entry gas budget")?;
     if !matches!(request.kind.as_str(), "mir" | "evmir")
-        || input.gas > 30_000_000
+        || budget > 30_000_000
         || input.calldata.len() > 65536
         || input.accounts.len() > 33
         || input.warm_slots.len() > 64
         || input.warm_addresses.len() > 64
         || input.blob_hashes.len() > 64
         || input.block.hashes.len() > 256
-        || input
-            .accounts
-            .iter()
-            .any(|account| account.code.len() > 65536 || account.storage.len() > 64)
+        || input.memory.size != 0
+        || !input.memory.data.is_empty()
+        || input.accounts.iter().any(|account| {
+            account.code.len() > 65536
+                || account.storage.len() > 64
+                || !account.transient.is_empty()
+        })
     {
         return Err("explicit-world replay limits exceeded".into());
     }
@@ -224,7 +242,6 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         let spec = spec(&request.evm_version)?;
         let mut registry = TxRegistry::<BaseEvmTypes, TxResult>::new();
         let data = Bytes::copy_from_slice(&input.calldata);
-        let budget = input.gas;
         registry.register(
             0,
             |tx| match tx {
@@ -262,17 +279,17 @@ pub(super) fn replay(request: &Request, input: &Input) -> Result<[String; 2], St
         for (addr, slot) in &input.warm_slots {
             evm.state_mut().prewarm_storage_slot(&address(request, addr)?, word(request, slot)?);
         }
-        let snapshot = Rc::new(RefCell::new(Snapshot { gas: input.gas, refund: 0 }));
+        let snapshot = Rc::new(RefCell::new(Snapshot { gas: budget, refund: 0 }));
         evm.set_inspector(Observer {
             stack: stack.clone(),
-            gas: input.gas,
+            gas: budget,
             is_static: input.is_static,
             snapshot: snapshot.clone(),
         });
         let tx = Recovered::new_unchecked(
             TxEnvelope::Legacy(TxLegacy {
                 to: TxKind::Call(root),
-                gas_limit: input.gas,
+                gas_limit: budget,
                 ..Default::default()
             }),
             caller,

@@ -29,19 +29,7 @@ inductive Policy where
   | effects | exact | refine
   deriving DecidableEq
 
-/-- Structural sorting keeps concrete observation proofs reducible in the kernel.
-The finite fixture/evaluator bounds keep these comparison-only lists small. -/
-def orderedInsert (le : α → α → Bool) (value : α) : List α → List α
-  | [] => [value]
-  | head :: rest => if le value head then value :: head :: rest
-    else head :: orderedInsert le value rest
-
-def ordered (le : α → α → Bool) : List α → List α
-  | [] => []
-  | head :: rest => orderedInsert le head (ordered le rest)
-
-def normalizedSlots (slots : Slots) : Slots :=
-  ordered (fun a b => a.1.ule b.1) (slots.filter (fun entry => entry.2 != 0))
+export SolarTV.Execution (orderedInsert ordered normalizedSlots)
 
 def observe (cfg : Config) (policy : Policy) (result : Result) : Observation :=
   let accounts := result.world.accounts.map (fun a => {a with

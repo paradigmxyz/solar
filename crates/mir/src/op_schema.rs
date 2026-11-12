@@ -1290,6 +1290,7 @@ define_mir_ops! {
     #[mir_op(mnemonic = "ptradd", result = Pointer, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = false, category = Some(PhaseCategory::PointerArithmetic))]
     #[operand_types(func => Some(smallvec![typing::pointer(func, *ptr), MirType::I256]))]
+    #[semantics(pointer_add(ptr, offset))]
     PtrAdd(ptr: ValueId, offset: ValueId),
     #[mir_op(mnemonic = "checked_binary", result = Custom, phases = PhaseSet::SEMANTIC,
         effect = Pure, traits = OpTraits::NONE, side_effects = true, category = Some(PhaseCategory::CheckedArithmetic))]

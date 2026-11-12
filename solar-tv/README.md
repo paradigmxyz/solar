@@ -280,15 +280,18 @@ The checker does not estimate EVM gas from MIR; `mir --gas=...` is inconclusive.
 
 ## Storage, calls and creation
 
-Use `--world` to check a complete runtime entry against an explicit account
-fixture. Both IRs work; MIR must contain an actual `[entry]` dispatcher, rather
-than an isolated internal function.
+Use `--world` for stateful validation against an explicit account fixture.
+MIR executes directly as typed SSA, including CFG edges and simultaneous phis.
+Select an internal function with `--function`, or omit it for an `[entry]`
+dispatcher. EVM IR checks a complete runtime entry.
 
 ```sh
 solar-tv/solar-tv evmir solar-tv/examples/evmir/storage/{before,after}.evmir \
   --world solar-tv/examples/evmir/storage/world.json
 solar-tv/solar-tv mir solar-tv/examples/mir/storage/{before,broken}.mir \
   --world solar-tv/examples/mir/storage/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/storage-passes/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/storage-passes/world.json
 solar-tv/solar-tv evmir solar-tv/examples/evmir/creation/{before,broken}.evmir \
   --world solar-tv/examples/evmir/creation/world.json --report target/tv/create.json
 ```
@@ -296,7 +299,10 @@ solar-tv/solar-tv evmir solar-tv/examples/evmir/creation/{before,broken}.evmir \
 The first pair removes an overwritten storage write. The second changes a stored
 value. The creation counterexample changes the deployed code. Reports name the
 changed account, storage slot, balance, nonce, code or output, and replay it in
-Lean and independently in `evm2`.
+Lean and independently in the Rust MIR interpreter or `evm2`, respectively.
+The `storage-passes` pair is actual `storage-cse,storage-dse` output and proves
+for every typed argument and declared symbolic storage cell. Its `broken.mir`
+changes a surviving write and produces a replayed counterexample.
 
 A fixture declares `version: 1`, optional `address`, `caller`, `gas`, `static`,
 hex `calldata`, `warm_slots: [[address, slot], ...]`, and `accounts`. Each account
@@ -307,6 +313,20 @@ The root account defaults to nonce one and gets its code from the IR. Omitted
 accounts are absent; omitted slots are zero. Storage keys or values such as
 `"$seed"` are universally quantified words, as are declared EVM entry stack words.
 Everything else in the fixture is concrete.
+
+For direct MIR, `memory: {"data": "0x...", "size": 96}` supplies initial byte
+memory; `size` must be word-aligned, at most 64 KiB, and contain `data`. Omitted
+bytes are zero. There is no implicit FMP or frame setup. An account may also
+supply `transient: {"0": "$seed"}` at an internal function boundary; transaction
+entries start with empty transient storage. A normal function return exposes
+its values, all active memory, persistent/transient cells and logs. STOP and raw
+RETURN end the transaction; private memory and transient cells then disappear.
+Revert and exceptional halt roll back the journal and retain their exact outcome.
+
+MIR state validation compares semantic effects with sufficient gas. It assigns
+no EVM gas costs to semantic instructions and rejects `--gas` and fixture `gas`
+budgets. Calls, allocation, aggregates, ABI/layout helpers and backend memory
+records remain explicitly unsupported. They never fall back to compilation.
 
 Environment inputs are optional `origin`, `gas_price`, `chain_id`, a `blob_hashes`
 array and a `block` object. The block accepts `number`, `coinbase`, `timestamp`,
@@ -351,17 +371,20 @@ solar-tv/solar-tv evmir solar-tv/examples/evmir/delegation/{before,after}.evmir 
   --world solar-tv/examples/evmir/delegation/world.json --evm-version=prague
 ```
 
-This is a **scenario-entry proof**, not arbitrary-world equivalence. Both inputs
-are compiled without optional optimization to runtime bytecode, so compiler
-backend lowering is an additional trusted boundary, especially for MIR. Native
-replay rebuilds the original IR independently; it does not accept the importer's
-bytecode recipe. Audits bind the fixture, opcode configuration and both runtime
-images, and record a native sample even for a positive proof. This does not
-prove backend lowering correct for every input. The root's code bytes are not
-themselves an output; CODECOPY, self-calls and code introspection still execute
+This is a **scenario proof**, not arbitrary-world equivalence. MIR's structured
+import uses the compiler parser, verifier and operation schema, without codegen.
+Its independent replay reparses and interprets the original MIR, never an imported
+recipe. The audit names this boundary and contains no backend-image hashes.
+
+EVM IR inputs are compiled without optional optimization to runtime bytecode;
+backend lowering remains an additional trusted boundary there. Native replay
+rebuilds the original IR independently. EVM audits bind the fixture, opcode
+configuration and both runtime images. Both modes record a native sample even
+for a positive kernel proof. This does not prove backend lowering correct. The
+root's code bytes are not themselves an output; CODECOPY, self-calls and code introspection still execute
 against the actual before/after image. Child deployed code remains observable.
 
-World mode supports Istanbul through Osaka. Amsterdam additionally admits the
+EVM world mode supports Istanbul through Osaka. Amsterdam additionally admits the
 environment, scalar and memory fragment, including SLOTNUM; account, state, log,
 call and creation operations remain unsupported until two-resource gas is modeled.
 History is bounded to 256 entries and blob hashes to 64. Limits are 32 initial

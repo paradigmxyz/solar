@@ -91,21 +91,36 @@ def record(
         fixture = program.world
         assumptions.extend(
             [
-                "compiled full entry; trusted compiler backend lowering",
                 f"explicit initial world sha256={fixture['fixture_sha256']}; omitted accounts absent and slots zero",
-                "only listed symbolic storage cells and entry stack words are quantified",
-                f"entry gas budget {fixture['gas']}; root value zero; origin {fixture['origin']}; gas price {fixture['gas_price']}; fresh private memory",
                 "explicit block context; omitted history hashes zero; transaction admission/authorization processing excluded",
                 f"model work limit {fixture['fuel']}; 64 KiB memory limit; unsupported paths prevent verification",
-                "nested bytecode, constructors and active precompiles execute; fork-specific deferred SELFDESTRUCT",
-                "scenario-entry proof; no arbitrary-world or whole-pass claim",
-                "persistent effects only"
-                if policy is None
-                else "exact effects, remaining gas and refund"
-                if policy == "exact"
-                else "same effects/refund and no less remaining gas unless original runs out of gas",
+                "scenario proof; no arbitrary-world or whole-pass claim",
             ]
         )
+        if fixture.get("direct_mir"):
+            assumptions.extend(
+                [
+                    "direct typed MIR SSA execution; no backend lowering or implicit frame/FMP setup",
+                    "listed symbolic storage cells and typed function arguments universally quantified",
+                    "explicit initial byte memory; normal function returns expose memory and transient storage",
+                    "semantic effects; sufficient gas; no physical EVM gas or stack-layout claim",
+                    "calls, allocation and backend-layout operations unsupported",
+                ]
+            )
+        else:
+            assumptions.extend(
+                [
+                    "compiled full entry; trusted compiler backend lowering",
+                    "only listed symbolic storage cells and entry stack words are quantified",
+                    f"entry gas budget {fixture['gas']}; root value zero; origin {fixture['origin']}; gas price {fixture['gas_price']}; fresh private memory",
+                    "nested bytecode, constructors and active precompiles execute; fork-specific deferred SELFDESTRUCT",
+                    "persistent effects only"
+                    if policy is None
+                    else "exact effects, remaining gas and refund"
+                    if policy == "exact"
+                    else "same effects/refund and no less remaining gas unless original runs out of gas",
+                ]
+            )
     else:
         if layer == "mir":
             assumptions.append("acyclic scalar MIR; no implicit backend frame setup")
@@ -156,7 +171,13 @@ def record(
         "semantics": model or semantics(),
         "target": target,
         "gas_policy": policy
-        or ("fixture-effects" if program and program.world else "sufficient"),
+        or (
+            "semantic-effects"
+            if program and program.world and program.world.get("direct_mir")
+            else "fixture-effects"
+            if program and program.world
+            else "sufficient"
+        ),
         "assumptions": assumptions,
         "inputs": sources,
         "evidence": "kernel-proof"
@@ -183,7 +204,7 @@ def record(
                     "backend_images": [
                         side.world["image_sha256"]
                         for side in result.pair
-                        if side.world is not None
+                        if side.world is not None and "image_sha256" in side.world
                     ]
                     if result.pair
                     else [],

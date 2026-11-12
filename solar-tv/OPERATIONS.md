@@ -10,8 +10,8 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Checked within the supported fragment | 32 | 103 |
 | Some forms checked | 6 | 6 |
 | Explicit-world entry execution | 0 | 45 |
-| Compiled entry through trusted backend | 7 | 0 |
-| Missing | 62 | 0 |
+| Direct typed MIR state execution | 22 | 0 |
+| Missing | 47 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
 variants account for many EVM entries. Checking a word operation does not cover
@@ -85,17 +85,24 @@ the entry model. Amsterdam admits environment/scalar/memory execution only;
 state/account/call gas remains unsupported. A zero `Missing` count does not make
 every EVM operation valid in arbitrary windows, forks or worlds.
 
-The world fixture is an explicit assumption. Only declared symbolic slots and
-entry stack words are universally quantified. MIR is compiled through the backend
-in this mode, which is an additional trusted boundary rather than direct MIR
-semantics. Audits retain this distinction, the fixture/configuration hashes and
-runtime image hashes. See the [world mode](README.md#storage-calls-and-creation)
+[MIR/State/](SolarTV/MIR/State/) executes typed SSA directly, with scalar memory
+pointers, persistent/transient cells, context, logs, terminal outcomes and cyclic
+CFGs. Phi inputs are read simultaneously. It shares byte memory, accounts and
+journals with EVM execution through [State/](SolarTV/State/), without importing
+physical stack layout or EVM gas. Real `storage-cse`/`storage-dse` pairs and broken
+writes are checked against the Lean kernel and independent original-MIR replay.
+Calls, allocation and layout operations remain unsupported in this direct mode.
+
+The world fixture is an explicit assumption. Declared symbolic slots, typed MIR
+arguments and EVM entry stack words are universally quantified. Only EVM entries
+use the trusted backend-image boundary. Audits retain this distinction and the
+fixture/configuration hashes; direct MIR audits have no runtime-image hashes. See the [world mode](README.md#storage-calls-and-creation)
 for admitted forks, limits, observables and gas policies.
 
 ## Remaining work
 
-1. Generalize fixed-world entry proofs to arbitrary symbolic accounts and aliases,
-   with direct MIR state semantics rather than trusting backend lowering.
+1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.
+   Extend direct MIR to calls and creation with independently modeled boundaries.
 2. Add transaction admission and EIP-7702 authorization processing, beyond
    execution of already-delegated account state.
 3. Generalize calldata/returndata/program-data access and physical code layout

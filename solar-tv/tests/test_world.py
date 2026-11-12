@@ -110,11 +110,18 @@ class WorldTests(unittest.TestCase):
         self.assertEqual(result.returncode, status, result.stdout + result.stderr)
         if status in {0, 1}:
             self.assertIn("world", record)
-            self.assertIn(
-                "compiled full entry; trusted compiler backend lowering",
-                record["assumptions"],
-            )
-            self.assertEqual(len(record["world"]["backend_images"]), 2)
+            if layer == "mir":
+                self.assertIn(
+                    "direct typed MIR SSA execution; no backend lowering or implicit frame/FMP setup",
+                    record["assumptions"],
+                )
+                self.assertEqual(record["world"]["backend_images"], [])
+            else:
+                self.assertIn(
+                    "compiled full entry; trusted compiler backend lowering",
+                    record["assumptions"],
+                )
+                self.assertEqual(len(record["world"]["backend_images"]), 2)
         return result, record
 
     def test_storage_counterexample_names_the_slot(self):
@@ -421,7 +428,7 @@ class WorldTests(unittest.TestCase):
         self.assertEqual(observation[4][0][4], [["0", "7"]])
         self.assertEqual(observation[5], [[str(ADDRESS), ["9"], []]])
 
-    def test_mir_entry_calls_and_creates(self):
+    def test_mir_calls_and_creation_are_explicitly_unsupported(self):
         fixture = {
             "accounts": [
                 {"address": MID, "code": bytecode("push 7\npush 0\nsstore\nstop")}
@@ -432,12 +439,12 @@ class WorldTests(unittest.TestCase):
             "stop",
             fixture=fixture,
             layer="mir",
-            status=1,
+            status=2,
         )
         init = deploy("0x00")
         code = bytes.fromhex(init[2:])
         before = f"mstore 0, {int.from_bytes(code, 'big')}\nv0: i256 = create 0, {32 - len(code)}, {len(code)}\nstop"
-        self.pair(before, "stop", layer="mir", status=1)
+        self.pair(before, "stop", layer="mir", status=2)
 
     def test_symbolic_storage_key_aliases_are_not_assumed_distinct(self):
         fixture = {"accounts": [{"address": ADDRESS, "storage": {"$key": 7, "0": 8}}]}

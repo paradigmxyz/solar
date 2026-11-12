@@ -302,7 +302,7 @@ class OperationTests(unittest.TestCase):
             )
         for name in ("call", "callcode", "delegatecall", "staticcall"):
             self.assertEqual(inventory["evmir"][name], "world_entry")
-            self.assertEqual(inventory["mir"][name], "compiled_entry")
+            self.assertEqual(inventory["mir"][name], "missing")
         for name in ("create", "create2"):
             self.assertEqual(inventory["evmir"][name], "world_entry")
         self.assertEqual(inventory["evmir"]["selfdestruct"], "world_entry")
@@ -321,6 +321,15 @@ class OperationTests(unittest.TestCase):
             "slotnum",
         ):
             self.assertEqual(inventory["evmir"][name], "world_entry")
+        for name in (
+            "ptradd",
+            "ptrtoint",
+            "inttoptr",
+            "log",
+            "calldatasize",
+            "timestamp",
+        ):
+            self.assertEqual(inventory["mir"][name], "direct_state")
         active = {
             str(address)
             for addresses in catalog["precompiles"].values()

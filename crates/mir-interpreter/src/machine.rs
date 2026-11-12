@@ -68,8 +68,8 @@ use solar_data_structures::{
 use solar_evmir::op;
 use solar_mir::{
     AllocationPlacement, ArgIdx, ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef,
-    Function, FunctionId, InstId, InstKind, Module, RequireKind, RevertKind, RevertReason,
-    Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
+    Function, FunctionId, InstId, InstKind, MirType, Module, PtrLocation, RequireKind, RevertKind,
+    RevertReason, Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
@@ -190,6 +190,11 @@ pub trait Host {
     /// which programs can observe only by exposing an address.
     fn free_memory_start(&mut self) -> U256 {
         U256::from(EvmMemoryLayout::HEAP_START)
+    }
+
+    /// Whether storage writes and logs are forbidden in this call frame.
+    fn is_static(&self) -> bool {
+        false
     }
 }
 
@@ -451,6 +456,34 @@ impl<'a> Machine<'a> {
         let ControlFlow::Break(outcome) = run.execute(function, args);
         (outcome, run.memory)
     }
+
+    /// Direct semantic replay with explicit state, without backend entry setup.
+    pub(crate) fn replay_state(
+        &self,
+        function: FunctionId,
+        args: &[U256],
+        memory: Memory,
+        host: &mut dyn Host,
+        transaction: (&[u8], EvmVersion),
+        limits: Limits,
+    ) -> (Outcome, Memory, Effects) {
+        let (calldata, evm_version) = transaction;
+        let mut run = Run {
+            machine: self,
+            memory,
+            limits,
+            fuel: 0,
+            frames: Vec::new(),
+            world: Some(World { host, effects: Effects::default() }),
+            transaction: Some(Transaction { calldata, evm_version }),
+            frames_end: U256::ZERO,
+            semantic: Some(evm_version),
+        };
+        let ControlFlow::Break(outcome) = run.execute(function, args);
+        let effects =
+            kept_effects(&outcome, run.world.expect("state replay keeps its host").effects);
+        (outcome, run.memory, effects)
+    }
 }
 
 /// The state of one call.
@@ -648,7 +681,7 @@ impl<'a> Run<'_, 'a, '_> {
         };
         let frame = self.frames.last().expect("a run always has a frame");
         let result = match semantics {
-            Semantics::HeapFloor if self.transaction.is_some() => {
+            Semantics::HeapFloor if self.transaction.is_some() && self.semantic.is_none() => {
                 let function = frame.function;
                 self.machine
                     .module
@@ -739,11 +772,16 @@ impl<'a> Run<'_, 'a, '_> {
                 let (dest, len) = (frame.read(dest)?, frame.read(len)?);
                 return self.data_copy(data, dest, len);
             }
-            Semantics::Allocate(size, _) if self.transaction.is_some() => {
+            Semantics::Allocate(size, _)
+                if self.transaction.is_some() && self.semantic.is_none() =>
+            {
                 let size = frame.read(size)?;
                 self.allocate(frame.function, inst, size)?
             }
             Semantics::Word(value) => frame.read(value)?,
+            Semantics::PointerAdd(ptr, offset) if self.semantic.is_some() => {
+                frame.read(ptr)?.wrapping_add(frame.read(offset)?)
+            }
             Semantics::LowBits(value, bits @ 1..=256) => {
                 frame.read(value)? & (U256::MAX >> (256 - bits))
             }
@@ -768,7 +806,7 @@ impl<'a> Run<'_, 'a, '_> {
             return ControlFlow::Break(Outcome::Unsupported("result without a value"));
         };
         let result = if self.semantic.is_some() {
-            let Some(bits @ 1..=256) = body.value_ty(value).and_then(|ty| ty.integer_bits()) else {
+            let Some(bits @ 1..=256) = body.value_ty(value).and_then(scalar_bits) else {
                 return ControlFlow::Break(Outcome::Unsupported("non-integer replay result"));
             };
             result & (U256::MAX >> (256 - bits))
@@ -819,7 +857,7 @@ impl<'a> Run<'_, 'a, '_> {
                 let size = U256::from(self.memory.size * EvmMemoryLayout::WORD_SIZE);
                 // Spills and frame writes MIR does not show may have grown EVM memory up to the
                 // end of the backend's frames, which a transaction needs its layout to know.
-                if self.transaction.is_some() {
+                if self.transaction.is_some() && self.semantic.is_none() {
                     if self.machine.module.backend_memory.is_none() {
                         return ControlFlow::Break(Outcome::Unsupported(
                             "msize without backend layout",
@@ -868,6 +906,11 @@ impl<'a> Run<'_, 'a, '_> {
         operands: &[U256],
     ) -> ControlFlow<Outcome, Option<U256>> {
         let unsupported = || Outcome::Unsupported(op::mnemonic(opcode).unwrap_or("opcode"));
+        if (matches!(opcode, op::SSTORE | op::TSTORE) || (op::LOG0..=op::LOG4).contains(&opcode))
+            && self.world.as_ref().is_some_and(|world| world.host.is_static())
+        {
+            return ControlFlow::Break(Outcome::Invalid);
+        }
         // Operations on memory come first, while no borrow of the world is live.
         match (opcode, operands) {
             (op::CALLDATACOPY, &[dest, offset, len]) => {
@@ -1150,6 +1193,11 @@ fn kept_effects(outcome: &Outcome, effects: Effects) -> Effects {
         Outcome::Return(_) | Outcome::ReturnData(_) | Outcome::Stop => effects,
         _ => Effects::default(),
     }
+}
+
+/// A memory pointer carries one address word, without validity or provenance assumptions.
+pub(crate) fn scalar_bits(ty: MirType) -> Option<u32> {
+    if ty == MirType::Ptr(PtrLocation::Memory) { Some(256) } else { ty.integer_bits() }
 }
 
 /// Returns the calldata word at `offset`, padded with zero bytes past the end.

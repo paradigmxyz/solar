@@ -14,24 +14,9 @@ https://eips.ethereum.org/EIPS/eip-7843 -/
 namespace SolarTV.EVM.State
 open EvmRules
 
-def blockHash (context : Block) (number : Word) : Word :=
-  if number.toNat < context.number.toNat && context.number.toNat - number.toNat ≤ 256 then
-    slotsRead context.hashes number
-  else 0
+export SolarTV.Execution (blockHash)
 
 def environmentValue (cfg : Config) (opcode : Nat) (argument : Word) : Word :=
-  match opcode with
-  | 0x40 => blockHash cfg.block argument
-  | 0x41 => cfg.block.beneficiary.setWidth 256
-  | 0x42 => cfg.block.timestamp
-  | 0x43 => cfg.block.number
-  | 0x44 => if cfg.fork.atLeast .paris then cfg.block.randomness else cfg.block.difficulty
-  | 0x45 => cfg.block.gasLimit
-  | 0x46 => cfg.block.chainId
-  | 0x48 => cfg.block.baseFee
-  | 0x49 => cfg.block.blobs[argument.toNat]?.getD 0
-  | 0x4a => cfg.block.blobBaseFee
-  | 0x4b => cfg.block.slot.setWidth 256
-  | _ => 0
+  SolarTV.Execution.environmentValue cfg.fork cfg.block opcode argument
 
 end SolarTV.EVM.State
