@@ -1,0 +1,32 @@
+; === ROOT/tests/ui/codegen/run-call/function-pointers/internal_function_pointer_computed_storage_store.sol:C ===
+@module C
+; function run() external returns (uint256) [selector 0xc0406226]
+fn @run() -> i256 [selector=0xc0406226, abi_params=[], abi_returns=[word], abi_return_params=[uint256]] {
+  bb0:
+    sstore 0, 1 !metadata(storage=slot(0))
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = trunc i256 v0 to i64
+    v2 = zext i64 v1 to i256
+    v3 = alloc 64
+    mstore v3, 3
+    v4 = ptradd v3, 32
+    mstore v4, 4
+    v5 = icall @internal_dispatcher_p_memorystruct_r_uint256, v2, v3
+    ret v5
+}
+
+; function sum(MemoryPointer pointer) internal pure returns (uint256 value)
+fn @sum(arg0: i256) -> i256 [pure] {
+  bb0:
+    v0 = add arg0, 32
+    v1 = mload v0
+    v2 = mload arg0
+    v3 = add v2, v1
+    ret v3
+}
+
+fn @internal_dispatcher_p_memorystruct_r_uint256(arg0: i256, arg1: ptr<memory>) -> i256 [function_pointer_dispatcher] {
+  bb0:
+    icall panic_if<0x51>, true
+    invalid
+}
