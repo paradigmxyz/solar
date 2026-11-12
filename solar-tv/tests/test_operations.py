@@ -322,6 +322,8 @@ class OperationTests(unittest.TestCase):
         ):
             self.assertEqual(inventory["evmir"][name], "world_entry")
         for name in (
+            "fmp",
+            "memory_zero",
             "ptradd",
             "ptrtoint",
             "inttoptr",
@@ -330,6 +332,8 @@ class OperationTests(unittest.TestCase):
             "timestamp",
         ):
             self.assertEqual(inventory["mir"][name], "direct_state")
+        for name in ("icall", "alloc"):
+            self.assertEqual(inventory["mir"][name], "partial_family")
         active = {
             str(address)
             for addresses in catalog["precompiles"].values()

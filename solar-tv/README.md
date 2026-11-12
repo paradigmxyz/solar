@@ -325,8 +325,35 @@ Revert and exceptional halt roll back the journal and retain their exact outcome
 
 MIR state validation compares semantic effects with sufficient gas. It assigns
 no EVM gas costs to semantic instructions and rejects `--gas` and fixture `gas`
-budgets. Calls, allocation, aggregates, ABI/layout helpers and backend memory
-records remain explicitly unsupported. They never fall back to compilation.
+budgets. Direct internal calls share memory and state while keeping separate,
+width-typed SSA locals. Tail calls replace the current activation. Revert,
+exception, STOP and raw RETURN propagate through callers; normal returns resume
+the caller. One work budget covers the whole call tree, with a separate model
+limit of 128 live activations. Only the selected function's reachable callees
+are imported, including recursive cycles.
+
+`alloc` reads the explicit FMP at 0x40, reserves exactly the requested size,
+updates the FMP, then performs any requested zero initialization. Reservation
+alone does not expand or clear memory. Checked overflow or an end above uint64
+reverts with Panic(0x41); violating an infallible allocation's validity contract
+is unsupported. No initial FMP, alignment, heap floor or physical frame is
+invented. Deferred allocation, external/indirect calls, aggregate call results,
+ABI/layout helpers and backend memory records remain unsupported.
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/internal-calls/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/internal-calls/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/allocation/{before,after}.mir \
+  --function=f --world solar-tv/examples/mir/allocation/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/allocation/{before,broken}.mir \
+  --function=f --world solar-tv/examples/mir/allocation/world.json
+```
+
+These are real `inline` and `lower-alloc` outputs. The allocation pass creates a
+shared checked-allocation helper, which is interpreted as ordinary MIR. The
+broken pair aliases two allocated objects; the checker reports the changed
+return value and independently replays both original modules. Memory read/write
+normalization uses kernel-proved range and byte-order laws, not alias assumptions.
 
 Environment inputs are optional `origin`, `gas_price`, `chain_id`, a `blob_hashes`
 array and a `block` object. The block accepts `number`, `coinbase`, `timestamp`,

@@ -1,0 +1,11 @@
+@module Calls
+fn @f(arg0: i256) -> i256 {
+bb0:
+ v0 = icall @bump, arg0
+ ret v0
+}
+fn @bump(arg0: i256) -> i256 {
+bb0:
+ v0 = add arg0, 2
+ ret v0
+}

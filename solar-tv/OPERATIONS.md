@@ -8,10 +8,10 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Status | MIR families | EVM opcode entries |
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
-| Some forms checked | 6 | 6 |
+| Some forms checked | 8 | 6 |
 | Explicit-world entry execution | 0 | 45 |
-| Direct typed MIR state execution | 22 | 0 |
-| Missing | 47 | 0 |
+| Direct typed MIR state execution | 24 | 0 |
+| Missing | 43 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
 variants account for many EVM entries. Checking a word operation does not cover
@@ -91,7 +91,12 @@ CFGs. Phi inputs are read simultaneously. It shares byte memory, accounts and
 journals with EVM execution through [State/](SolarTV/State/), without importing
 physical stack layout or EVM gas. Real `storage-cse`/`storage-dse` pairs and broken
 writes are checked against the Lean kernel and independent original-MIR replay.
-Calls, allocation and layout operations remain unsupported in this direct mode.
+Direct scalar internal calls, tail calls, FMP reads, checked/infallible allocations
+and byte-exact initialization execute without backend placements. Callers share
+the journal and byte memory; their SSA environments are separate and width-typed.
+Real inlining and allocation-lowering pairs exercise generated helpers, with
+broken-call and object-aliasing counterexamples. External/indirect calls,
+aggregate results and layout-dependent operations remain unsupported.
 
 The world fixture is an explicit assumption. Declared symbolic slots, typed MIR
 arguments and EVM entry stack words are universally quantified. Only EVM entries
@@ -102,7 +107,7 @@ for admitted forks, limits, observables and gas policies.
 ## Remaining work
 
 1. Generalize fixed-world proofs to arbitrary symbolic accounts and aliases.
-   Extend direct MIR to calls and creation with independently modeled boundaries.
+   Extend direct MIR to external calls and creation with independently modeled boundaries.
 2. Add transaction admission and EIP-7702 authorization processing, beyond
    execution of already-delegated account state.
 3. Generalize calldata/returndata/program-data access and physical code layout
