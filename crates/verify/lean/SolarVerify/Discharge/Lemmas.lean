@@ -51,6 +51,15 @@ noncomputable def qite {α : Type} (p : Prop) (a b : α) : α := @ite α p (Clas
 noncomputable def qdec (p : Prop) : Bool := @decide p (Classical.propDecidable p)
 
 theorem qite_true {α : Type} (a b : α) : qite True a b = a := by simp [qite]
+theorem qite_false {α : Type} (a b : α) : qite False a b = b := by simp [qite]
 theorem qdec_eq_true (p : Prop) : (qdec p = true) = p := by simp [qdec]
+
+/-- Every `if` as a `qite`, whose condition `simp` rewrites like any other proposition. -/
+theorem ite_eq_qite {α : Type} {c : Prop} {_ : Decidable c} (a b : α) : ite c a b = qite c a b := by
+  unfold qite; split <;> simp_all
+
+theorem qite_pos {α : Type} {c : Prop} (h : c) (a b : α) : qite c a b = a := by simp [qite, h]
+
+theorem qite_neg {α : Type} {c : Prop} (h : ¬c) (a b : α) : qite c a b = b := by simp [qite, h]
 
 end SolarVerify.Discharge

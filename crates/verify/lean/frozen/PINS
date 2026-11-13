@@ -1,0 +1,8 @@
+exporter    paradigmxyz/solar 7f4e94e065c8e90c2e8d265813533c71cd59c1dc (solar-verify --emit-lean, release build)
+sources     crates/verify/examples/{Counter,Token,Vault,ArrayMax}.sol at that commit
+command     solar-verify --emit-lean vc-exports/<C> crates/verify/examples/<C>.sol, from the repository root
+semantics   SolarVerify/Smt.lean 2c92f3bcd927369da89250662bd5a6174d3c06d0c3c38f5021509fe8810036e3
+            SolarVerify/Vc.lean 7275fa354f077a4826dd9fe56124cbffee2337d7a21975b477534fc5f45d7cfe
+toolchain   leanprover/lean4:v4.35.0
+solvers     z3 4.13.4, cvc5 1.3.1 (recorded in each manifest)
+required    Counter 14, Token 13, Vault 17, ArrayMax 19 (63)

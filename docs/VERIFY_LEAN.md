@@ -175,6 +175,25 @@ refinement proofs: no `sorry`, `native_decide`, `bv_decide` or `ofReduceBool`, a
 oracle. The round-trip tests use `decide +kernel`, which the kernel checks, only on ground
 terms.
 
+## Discharge
+
+`crates/verify/lean/discharge.sh DIR [TIMEOUT]` proves every required obligation of an export in
+the Lean kernel and writes `DIR/discharge/results.tsv`: one row per required obligation with its
+status, the backend that proved it, wall time, peak memory and the axioms its proof uses. It
+fails unless every required obligation is proved with no axiom but `propext`,
+`Classical.choice` and `Quot.sound`. Before any proof it reads the whole manifest: a missing
+module, an obligation listed twice, a required obligation without a module, or inputs that differ
+from `DISCHARGE_LOCK` fail the run. The default backend is `vc_valid` from
+`SolarVerify.Discharge`: `vc_valid_prep` reduces `ob.Valid` to `False` under hypotheses over
+`Int`, `Bool` and `Int → Int`, and `vc_search` closes it with case splits, quantifier
+instantiation and `omega`. Other backends plug in through `DISCHARGE_BACKENDS`,
+`DISCHARGE_IMPORTS`, `DISCHARGE_LEAN_PATH` and `DISCHARGE_LEAN_ARGS`, and pass the same axiom
+check.
+
+`crates/verify/lean/freeze.sh SOLAR_VERIFY DIR` regenerates the examples' exports and runs the
+discharge against the locks in `crates/verify/lean/frozen/` (`PINS` names the exporter commit,
+toolchain and solvers).
+
 ## Testing
 
 [`roundtrip.py`](../crates/verify/lean/roundtrip.py) checks that the translation and the
