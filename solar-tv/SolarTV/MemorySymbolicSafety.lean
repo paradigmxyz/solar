@@ -15,6 +15,7 @@ macro "mem_simp" : tactic => `(tactic| repeat (first
   | simp (disch := omega) only [read_expand, read_store_at, read_store_disjoint, load_store_at,
       load_store_disjoint, read_storeByte_disjoint, load_storeByte_disjoint, read_write_disjoint,
       load_write_of_disjoint, read_write_same, read_write_inside, read_copy_inside, load_expand,
+      read_store_within, read_write_within, read_of_eq_zero, read_write_at, List.append_nil, List.nil_append,
       List.append_assoc]
   | simp only [read_split, Nat.reduceLT, Nat.reduceLeDiff, Nat.reduceSub, Nat.reduceAdd]))
 
@@ -98,6 +99,32 @@ example (m : Mem) (p : Nat) (v : Word) (h : (BitVec.ofNat 251 ((p + 63) / 32)).t
     (m.store p v).words = m.words := by
   rw [words_store]; exact grow_of_le _ _ (by simpa using h)
 
+/-! Containment: a hash range that holds stores and copies at computed offsets. -/
+
+/-- An order-hash shape: a type hash at `p`, a copied array of symbolic length `n` after it,
+hashed as one range of `32 + n` bytes. -/
+theorem typehash_array_read (m : Mem) (p n : Nat) (t : Word) (src : Nat → Memory.Byte) :
+    ((m.store p t).write (p + 32) n src).read p (32 + n) = wordBytes t ++ (List.range n).map src := by
+  mem_simp
+
+/-- A word stored at a computed offset `q` inside a hashed range of symbolic length. -/
+theorem store_within_read (m : Mem) (p q k : Nat) (v : Word) (lo : p ≤ q) (hi : q + 32 ≤ p + k) :
+    (m.store q v).read p k = m.read p (q - p) ++ wordBytes v ++ m.read (q + 32) (p + k - (q + 32)) := by
+  mem_simp
+
+/-- Wrong split: a word that starts inside the range but ends past it is not inside it. -/
+theorem straddling_store : ¬ ∀ (m : Mem) (p : Nat) (v : Word),
+    (m.store (p + 16) v).read p 32 = m.read p 16 ++ wordBytes v ++ m.read (p + 48) 0 := by
+  intro h
+  have := congrArg List.length (h initial 0 0)
+  simp at this
+
+/-- The procedure refuses the straddling store. -/
+example (m : Mem) (p : Nat) (v : Word) : True := by
+  fail_if_success
+    have : (m.store (p + 16) v).read p 32 = m.read p 16 ++ wordBytes v := by mem_simp
+  trivial
+
 end SolarTV.Machine.Mem
 
 /-- info: 'SolarTV.Machine.Mem.encode3_read' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -144,3 +171,13 @@ end SolarTV.Machine.Mem
 #guard_msgs in #print axioms SolarTV.Machine.Mem.words_store
 /-- info: 'SolarTV.Machine.Mem.read_store' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in #print axioms SolarTV.Machine.Mem.read_store
+/-- info: 'SolarTV.Machine.Mem.typehash_array_read' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.typehash_array_read
+/-- info: 'SolarTV.Machine.Mem.store_within_read' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.store_within_read
+/-- info: 'SolarTV.Machine.Mem.straddling_store' depends on axioms: [propext] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.straddling_store
+/-- info: 'SolarTV.Machine.Mem.read_store_within' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.read_store_within
+/-- info: 'SolarTV.Machine.Mem.read_write_within' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms SolarTV.Machine.Mem.read_write_within

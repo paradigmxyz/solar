@@ -162,9 +162,10 @@ theorem read_store_same (m : Mem) (offset : Nat) (value : Word) :
 
 /-- A word stored at an offset equal to the read's, as `omega` proves it (such as
 `(p + 32).toNat` and `p.toNat + 32` when the sum does not wrap). -/
-theorem read_store_at (m : Mem) (offset : Nat) (value : Word) (address : Nat) (h : address = offset) :
-    (m.store offset value).read address 32 = wordBytes value := by
-  subst h; exact read_store_same m address value
+theorem read_store_at (m : Mem) (offset : Nat) (value : Word) (address count : Nat)
+    (h : address = offset) (hc : count = 32) :
+    (m.store offset value).read address count = wordBytes value := by
+  subst h hc; exact read_store_same m address value
 
 theorem load_store_at (m : Mem) (offset : Nat) (value : Word) (address : Nat) (h : address = offset) :
     (m.store offset value).load address = value := by
@@ -219,5 +220,45 @@ theorem read_store (m : Mem) (offset : Nat) (value : Word) (address count : Nat)
   apply List.map_congr_left
   intro i _
   rw [bytes_store]
+
+/-- A range of length zero, as `omega` proves it. -/
+theorem read_of_eq_zero (m : Mem) (address count : Nat) (h : count = 0) : m.read address count = [] := by
+  subst h; rfl
+
+/-- The whole range a write wrote, at offsets and lengths `omega` proves equal. -/
+theorem read_write_at (m : Mem) (offset size : Nat) (source : Nat → Memory.Byte) (address count : Nat)
+    (h : address = offset) (hc : count = size) :
+    (m.write offset size source).read address count = (List.range size).map source := by
+  subst h hc; exact read_write_same m address count source
+
+/-- A range that contains a stored word: the bytes before it, the word, the bytes after it.
+This is how a hash over a region built word by word at computed offsets meets its words. -/
+theorem read_store_within (m : Mem) (offset : Nat) (value : Word) (address count : Nat)
+    (lo : address ≤ offset) (hi : offset + 32 ≤ address + count) :
+    (m.store offset value).read address count =
+      m.read address (offset - address) ++ wordBytes value ++
+        m.read (offset + 32) (address + count - (offset + 32)) := by
+  have hk : count = (offset - address) + (32 + (address + count - (offset + 32))) := by omega
+  have ho : address + (offset - address) = offset := by omega
+  conv => lhs; rw [hk, read_append, read_append, ho]
+  rw [read_store_disjoint m offset value address (offset - address) (Or.inl (by omega)),
+    read_store_same,
+    read_store_disjoint m offset value (offset + 32) _ (Or.inr (Nat.le_refl _)),
+    List.append_assoc]
+
+/-- A range that contains a copy's destination: the bytes before it, the copied bytes at any
+symbolic length, the bytes after it, as a hash over a header and a copied array reads them. -/
+theorem read_write_within (m : Mem) (offset size : Nat) (source : Nat → Memory.Byte)
+    (address count : Nat) (lo : address ≤ offset) (hi : offset + size ≤ address + count) :
+    (m.write offset size source).read address count =
+      m.read address (offset - address) ++ (List.range size).map source ++
+        m.read (offset + size) (address + count - (offset + size)) := by
+  have hk : count = (offset - address) + (size + (address + count - (offset + size))) := by omega
+  have ho : address + (offset - address) = offset := by omega
+  conv => lhs; rw [hk, read_append, read_append, ho]
+  rw [read_write_disjoint m offset size source address (offset - address) (Or.inl (by omega)),
+    read_write_same,
+    read_write_disjoint m offset size source (offset + size) _ (Or.inr (Nat.le_refl _)),
+    List.append_assoc]
 
 end SolarTV.Machine.Mem

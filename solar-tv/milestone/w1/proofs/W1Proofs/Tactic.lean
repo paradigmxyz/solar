@@ -769,7 +769,8 @@ macro "sym_mem" : tactic => `(tactic| first
       Mem.read_store_disjoint, Mem.load_store_at, Mem.load_store_disjoint,
       Mem.read_storeByte_disjoint, Mem.load_storeByte_disjoint, Mem.read_write_disjoint,
       Mem.load_write_of_disjoint, Mem.read_write_same, Mem.read_write_inside,
-      Mem.read_copy_inside, List.append_assoc]
+      Mem.read_copy_inside, Mem.read_store_within, Mem.read_write_within,
+      Mem.read_of_eq_zero, Mem.read_write_at, List.append_nil, List.nil_append, List.append_assoc]
   | simp only [Mem.read_split, Nat.reduceLT, Nat.reduceLeDiff, Nat.reduceSub, Nat.reduceAdd])
 
 /-- Evaluate, decide conditions and move memory reads until none changes the goal. -/
