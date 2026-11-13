@@ -348,24 +348,18 @@ theorem apply_calldataload {cd : Word → Word} (hcd : cd = calldataWord call) (
 
 end effects
 
-/-! Stack positions of `dup` and `swap` as numbers. -/
+/-! Stack positions of `dup`, `swap` and `exchange` as numbers. -/
 
-theorem fin16_val_0 : ((0 : Fin 16) : Nat) = 0 := rfl
-theorem fin16_val_1 : ((1 : Fin 16) : Nat) = 1 := rfl
-theorem fin16_val_2 : ((2 : Fin 16) : Nat) = 2 := rfl
-theorem fin16_val_3 : ((3 : Fin 16) : Nat) = 3 := rfl
-theorem fin16_val_4 : ((4 : Fin 16) : Nat) = 4 := rfl
-theorem fin16_val_5 : ((5 : Fin 16) : Nat) = 5 := rfl
-theorem fin16_val_6 : ((6 : Fin 16) : Nat) = 6 := rfl
-theorem fin16_val_7 : ((7 : Fin 16) : Nat) = 7 := rfl
-theorem fin16_val_8 : ((8 : Fin 16) : Nat) = 8 := rfl
-theorem fin16_val_9 : ((9 : Fin 16) : Nat) = 9 := rfl
-theorem fin16_val_10 : ((10 : Fin 16) : Nat) = 10 := rfl
-theorem fin16_val_11 : ((11 : Fin 16) : Nat) = 11 := rfl
-theorem fin16_val_12 : ((12 : Fin 16) : Nat) = 12 := rfl
-theorem fin16_val_13 : ((13 : Fin 16) : Nat) = 13 := rfl
-theorem fin16_val_14 : ((14 : Fin 16) : Nat) = 14 := rfl
-theorem fin16_val_15 : ((15 : Fin 16) : Nat) = 15 := rfl
+open Lean Meta Simp in
+/-- The value of a `Fin n` numeral, such as the position `dup` and `swap` take as a `Fin 256`,
+as a `Nat` numeral: `k % n`, which the numeral's instance computes. -/
+dsimproc_decl finValLit (Fin.val _) := fun e => do
+  let_expr Fin.val bound x := e | return .continue
+  let some n ← Nat.fromExpr? bound | return .continue
+  let_expr OfNat.ofNat _ lit _ := x | return .continue
+  let some k := lit.rawNatLit? | return .continue
+  if n = 0 then return .continue
+  return .done (mkNatLit (k % n))
 
 open Lean Meta Simp in
 /-- A list spelled out as a program constant's field, unfolded to its spine; any other list is
@@ -727,9 +721,7 @@ macro "sym_eval" : tactic => `(tactic|
     List.map, List.take, List.drop, List.set, List.length, List.find?, Nat.reduceBEq,
     Except.map, Option.map,
     Option.isSome, Nat.reduceAdd, Nat.reduceSub, Nat.reduceMul, evmNotLit,
-    fin16_val_0, fin16_val_1, fin16_val_2, fin16_val_3, fin16_val_4, fin16_val_5,
-    fin16_val_6, fin16_val_7, fin16_val_8, fin16_val_9, fin16_val_10, fin16_val_11,
-    fin16_val_12, fin16_val_13, fin16_val_14, fin16_val_15])
+    finValLit])
 
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/
