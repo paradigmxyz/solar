@@ -911,8 +911,27 @@ impl<'a> Run<'_, 'a, '_> {
                 Semantics::AbiEncode(mode, base, selector, args, layout) => {
                     let base = if let Some(v) = base { Some(frame.read(v)?) } else { None };
                     let selector = if let Some(v) = selector { Some(frame.read(v)?) } else { None };
-                    let words = frame.read_all(args)?;
-                    let value = self.semantic_abi_encode(mode, base, selector, &words, layout)?;
+                    let values = frame.read_values(args)?;
+                    let mut sources = Vec::new();
+                    let mut types = Vec::new();
+                    for ((ty, &arg), value) in layout.types.iter().zip(args).zip(values) {
+                        let location = body.value_slice_location(arg);
+                        let memory_slice = location == Some(solar_mir::PtrLocation::Memory)
+                            && matches!(
+                                ty,
+                                solar_mir::AbiType::FixedArray { .. }
+                                    | solar_mir::AbiType::Tuple(_)
+                            );
+                        sources.push((value, memory_slice));
+                        types.push(if let Some(location) = location {
+                            ty.clone().at_location(location)
+                        } else {
+                            ty.clone()
+                        });
+                    }
+                    let layout = solar_mir::AbiLayout::new(types);
+                    let value =
+                        self.semantic_abi_encode_values(mode, base, selector, &sources, &layout)?;
                     self.frame().values[instruction.result().expect("ABI encoding result")] =
                         Some(value);
                     return ControlFlow::Continue(());
@@ -921,12 +940,9 @@ impl<'a> Run<'_, 'a, '_> {
                     let input = frame.read_value(data)?;
                     let location =
                         body.value_slice_location(data).unwrap_or(solar_mir::PtrLocation::Memory);
-                    let value = self.semantic_abi_decode(input, location, layout)?;
+                    let value = self.semantic_abi_values(input, location, layout)?;
                     if let Some(result) = instruction.result() {
-                        let bits =
-                            body.value_ty(result).and_then(|ty| ty.integer_bits()).unwrap_or(256);
-                        self.frame().values[result] = value
-                            .map(|word| RuntimeValue::Word(word & (U256::MAX >> (256 - bits))));
+                        self.frame().values[result] = value;
                     }
                     return ControlFlow::Continue(());
                 }

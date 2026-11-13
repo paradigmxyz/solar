@@ -338,9 +338,8 @@ alone does not expand or clear memory. Checked overflow or an end above uint64
 reverts with Panic(0x41); violating an infallible allocation's validity contract
 is unsupported. No initial FMP, alignment, heap floor or physical frame is
 invented. Deferred allocation, indirect calls and physical multi-return buffers
-remain unsupported. Static scalar ABI helpers and explicit placement windows
-are supported below.
-Recursive ABI layouts and backend memory records remain unsupported.
+remain unsupported. Recursive ABI helpers and explicit placement windows are
+supported below. Backend memory records remain unsupported.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/internal-calls/{before,after}.mir \
@@ -444,19 +443,36 @@ versions change an element encoding or the returned frame value.
 
 ### MIR ABI and placement windows
 
-ABI encoding admits static word/function tuples in object, slice and scratch modes,
-with an optional selector. Decoding admits empty or single-scalar tuples from memory
-objects and memory/calldata slices. Checks preserve signed length rejection, dirty
-word rejection and function-word normalization. Packed encodings accept literals
-and scalars; packed hashes require at most one merged word or whole-word parts.
-Reference and multi-result decode layouts remain unsupported. `validate_abi` needs
-decoder provenance or canonical raw-word evidence; absent evidence is inconclusive,
-not a fabricated runtime guard.
+ABI encoders handle scalars, function pointers, bytes, arrays and nested tuples in
+object, slice and scratch modes, with an optional selector. Sources can live in
+memory, calldata or returndata; storage byte strings retain their header checks and
+slot reads. Returndata copies retain bounds checks and opcode availability.
+Decoders handle recursive layouts and multiple results from memory objects or
+memory/calldata slices. They preserve offset and signed length checks, dirty-word
+rejection, allocation/copy order, padding and function-word normalization.
+Layouts are bounded to depth 32 and 256 nodes; each operation has a work limit of
+2,048 elements. Exceeding a bound is unsupported, never a successful short result.
+Memory slices of static aggregates read contiguous encoded heads; dynamic memory
+aggregates retain their object representation.
+
+Packed encodings accept literals and scalars; packed hashes require at most one
+merged word or whole-word parts. Reference packed inputs and physical call-return
+buffers remain unsupported. `validate_abi` needs decoder provenance or canonical
+raw-word evidence; absent evidence is inconclusive, not a fabricated runtime guard.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/abi-scalar/before.mir \
   solar-tv/examples/mir/abi-scalar/after.mir --function f \
   --world solar-tv/examples/mir/abi-scalar/world.json
+```
+
+A real reference encoding pair, plus an incorrect relative-offset rewrite:
+
+```sh
+solar-tv/solar-tv mir solar-tv/examples/mir/abi-reference/{before,after}.mir \
+  --function f --world solar-tv/examples/mir/abi-reference/world.json
+solar-tv/solar-tv mir solar-tv/examples/mir/abi-reference/{before,broken}.mir \
+  --function f --world solar-tv/examples/mir/abi-reference/world.json
 ```
 
 Layout-dependent operations take explicit window inputs in `mir_layout`:

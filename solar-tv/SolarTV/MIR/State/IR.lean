@@ -56,14 +56,30 @@ inductive ContextOp where
 
 inductive AbiRule where
   | any | uint (bits : Nat) | left (bits : Nat) | sint (bits : Nat) | boolean | enumeration (bound : Nat)
+  deriving BEq
 
 inductive PackedInput where
   | literal (bytes : List SolarTV.Execution.Byte)
   | scalar (index size : Nat) (fixedBytes : Bool)
 
+inductive AbiShape where
+  | scalar (rule : AbiRule) (function : Bool) (width : Nat)
+  | bytes
+  | array (element : AbiShape) (length : Option Nat)
+  | tuple (fields : List AbiShape)
+
+inductive AbiEncodeShape where
+  | word (cleanup : AbiRule)
+  | function
+  | bytes (location : Nat)
+  | array (element : AbiEncodeShape) (length : Option Nat) (location : Nat) (blockCopy : Bool)
+  | tuple (fields : List AbiEncodeShape)
+
 inductive AbiOp where
   | encode (mode : Nat) (hasBase hasSelector : Bool) (functions : List Bool)
   | decode (rule : Option AbiRule) (function calldata : Bool)
+  | decodeTree (shapes : List AbiShape) (calldata : Bool)
+  | encodeTree (mode : Nat) (hasBase hasSelector : Bool) (shapes : List AbiEncodeShape) (memorySlices : List Bool)
   | validate (rule : AbiRule)
   | packed (parts : List PackedInput) (hash : Bool)
 
