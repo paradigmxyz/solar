@@ -5,7 +5,7 @@
         [--also F=FILE:C.fn,...] [--per-fn N] [--jobs N] [--timeout MS] [--json REPORT]
 
 For each Solidity file given (relative to the tree), it asks solar-verify for its
-mutants (solar-verify mutate --list), applies each one to a copy of the tree,
+mutants (solar-verify mutate --list), plus any hand-written ones (--extra), applies each one to a copy of the tree,
 verifies the functions the mutant can reach (plus any named with --also), and
 records which specs then fail with a counterexample. A spec is a @custom:ensures,
 @custom:invariant or @custom:reentrancy-guard tag of the tree; it is killed when
@@ -71,7 +71,7 @@ def run_one(args, i, f, m, targets):
         if new is None:
             return i, "stillborn", []
         path.write_text(new)
-        kills, unknown = [], False
+        kills, unknown, why = [], False, []
         for target_file, fn in targets:
             cmd = [
                 args.verifier,
@@ -100,10 +100,11 @@ def run_one(args, i, f, m, targets):
                         continue
                     if "solver returned" in msg:
                         unknown = True
+                        why.append(f"{fn}: {msg}")
                         continue
                     kills.append((target_file, int(mm.group(1)), mm.group(2)))
         state = "killed" if kills else ("undecided" if unknown else "survived")
-        return i, state, kills
+        return i, state, kills if state == "killed" else why
 
 
 def describe(m):
@@ -124,10 +125,22 @@ def main():
         metavar="F=FILE:C.fn,...",
         help="for mutants of file F, also verify these functions (in FILE)",
     )
+    ap.add_argument(
+        "--extra",
+        type=pathlib.Path,
+        help="JSON-lines file of hand-written mutants, each {file, fn, line, orig, rep}: "
+        "orig, the first occurrence at or after line in file, becomes rep, and fn is verified",
+    )
     ap.add_argument("--per-fn", type=int, default=12)
     ap.add_argument("--jobs", type=int, default=os.cpu_count() or 1)
     ap.add_argument("--timeout", type=int, default=30000)
     ap.add_argument("--json", type=pathlib.Path)
+    ap.add_argument(
+        "--results",
+        type=pathlib.Path,
+        help="JSON-lines file each mutant's outcome is appended to as it finishes; "
+        "mutants it already holds are not run again, so an interrupted run resumes",
+    )
     args = ap.parse_args()
     args.tree = args.tree.resolve()
     also = {}
@@ -143,22 +156,52 @@ def main():
         for m in list_mutants(args.verifier, args.tree, f, args.per_fn):
             targets = [(f, fn) for fn in m["affected"]] + also.get(f, [])
             plan.append((f, m, targets))
+    if args.extra:
+        for line in args.extra.read_text().splitlines():
+            if line.strip():
+                m = json.loads(line)
+                m.setdefault("op", "HAND")
+                plan.append(
+                    (m["file"], m, [(m["file"], m["fn"])] + also.get(m["file"], []))
+                )
     print(f"{len(plan)} mutants, {len(specs)} specs", file=sys.stderr)
     results = [None] * len(plan)
+    keys = [
+        json.dumps([f, m["fn"], m["op"], m["line"], m["orig"], m["rep"]])
+        for f, m, _ in plan
+    ]
+    if args.results and args.results.exists():
+        saved = {}
+        for line in args.results.read_text().splitlines():
+            row = json.loads(line)
+            kills = row["kills"]
+            if row["state"] == "killed":
+                kills = [tuple(k) for k in kills]
+            saved[row["key"]] = (row["state"], kills)
+        for i, k in enumerate(keys):
+            results[i] = saved.get(k)
+    todo = [i for i in range(len(plan)) if results[i] is None]
+    # Hand-written mutants target specs the operators miss: run them first.
+    todo.sort(key=lambda i: plan[i][1]["op"] != "HAND")
+    print(f"{len(plan) - len(todo)} already done", file=sys.stderr)
     with cf.ThreadPoolExecutor(args.jobs) as ex:
-        futs = [
-            ex.submit(run_one, args, i, f, m, t) for i, (f, m, t) in enumerate(plan)
-        ]
+        futs = [ex.submit(run_one, args, i, *plan[i]) for i in todo]
         for done, fut in enumerate(cf.as_completed(futs), 1):
             i, state, kills = fut.result()
             results[i] = (state, kills)
+            if args.results:
+                with args.results.open("a") as out:
+                    out.write(
+                        json.dumps({"key": keys[i], "state": state, "kills": kills})
+                        + "\n"
+                    )
             print(
-                f"[{done}/{len(plan)}] {state:9} {describe(plan[i][1])}",
+                f"[{done}/{len(todo)}] {state:9} {describe(plan[i][1])}",
                 file=sys.stderr,
             )
     killed_by = {k: [] for k in specs}
-    for (_, m, _), (_, kills) in zip(plan, results, strict=True):
-        for tf, line, msg in kills:
+    for (_, m, _), (state, kills) in zip(plan, results, strict=True):
+        for tf, line, msg in kills if state == "killed" else []:
             # A message names its spec by line, in whichever file declares it (an
             # inherited spec lives in another file), and quotes its text.
             hits = [k for k, t in specs.items() if t.split(" ", 1)[1] in msg]
@@ -172,12 +215,20 @@ def main():
         {"file": f, "line": line, "spec": text, "killed_by": killed_by[(f, line)]}
         for (f, line), text in sorted(specs.items())
     ]
+    undecided = [
+        {"mutant": describe(m), "unknown": why}
+        for (_, m, _), (state, why) in zip(plan, results, strict=True)
+        if state == "undecided"
+    ]
     counts = {}
     for state, _ in results:
         counts[state] = counts.get(state, 0) + 1
     if args.json:
         args.json.write_text(
-            json.dumps({"mutants": counts, "specs": report}, indent=1) + "\n"
+            json.dumps(
+                {"mutants": counts, "specs": report, "undecided": undecided}, indent=1
+            )
+            + "\n"
         )
     alive = [r for r in report if not r["killed_by"]]
     for r in report:

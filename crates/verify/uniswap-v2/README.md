@@ -13,7 +13,10 @@ UniswapV2Factory, Math) in solar-verify's spec language, kept outside the source
   bytecode.
 - `spec_mutants.py`: mutates the code with `solar-verify mutate`'s operators, re-verifies what
   each mutant reaches, and reports for every spec the mutants that make it fail with a
-  counterexample. Unknown results never count as kills.
+  counterexample. Unknown results never count as kills. `--extra` adds hand-written mutants
+  (`extra_mutants.jsonl`, one `{file, fn, line, orig, rep}` per line) for specs no operator
+  reaches, such as a frame condition that `approve` leaves `totalSupply` alone, and
+  `--results` keeps each outcome so an interrupted run resumes.
 
 No spec is a loop invariant: `Math.sqrt`'s loop invariants are inferred.
 
@@ -29,7 +32,8 @@ done
 python3 crates/verify/uniswap-v2/spec_mutants.py --tree target/uniswap-v2/spec \
   --verifier solar-verify --file UniswapV2Pair.sol --file UniswapV2ERC20.sol \
   --also UniswapV2ERC20.sol=UniswapV2Pair.sol:UniswapV2Pair.mint \
-  --file UniswapV2Factory.sol --file libraries/Math.sol --per-fn 100 --timeout 8000
+  --file UniswapV2Factory.sol --file libraries/Math.sol \
+  --extra crates/verify/uniswap-v2/extra_mutants.jsonl --per-fn 100 --timeout 30000
 ```
 
 ## What the specs say
@@ -49,18 +53,23 @@ python3 crates/verify/uniswap-v2/spec_mutants.py --tree target/uniswap-v2/spec \
 
 ## Status
 
-Verified with alpharush/verify-fnptr-slots 02041bb merged with alpharush/verify-tv 9acb8b1,
+Verified with alpharush/verify-fnptr-slots 11111ca merged with alpharush/verify-tv 9acb8b1,
 alpharush/arraymax-inferred and alpharush/verify-infer-newton (for `Math.sqrt`'s inferred loop
-invariants). On the port from `port.py`, every function verifies against its specs: Factory 5/5,
-Math 2/2, UniswapV2ERC20 7/7 and UniswapV2Pair 13/13. `UniswapV2Pair.swap` needs
-`--timeout 120000`: the port's unchecked `SafeMath.mul` turns its overflow check into a
-multiplication followed by a division, which the solver takes minutes over.
+invariants). On the port from `port.py`, every function verifies against its specs with
+`--timeout 30000`: Factory 5/5, Math 2/2, UniswapV2ERC20 7/7 and UniswapV2Pair 13/13.
 
-Mutation testing has not reached the bar of a failing mutant for every spec: 12 of the 70 specs
-are killed. Most mutants of functions whose contract has a quantified invariant (the ERC20's
-`forall address s :: allowance[address(0)][s] == 0` and the Factory's `getPair` invariants)
-come back unknown ("incomplete quantifiers") instead of with a counterexample, even for a
-`transfer` that credits `value + 1`. Without the quantified invariant, that mutant fails with a
-counterexample in under a second. Counterexamples under quantified invariants are a solar-verify gap.
+Mutation testing has not reached the bar of a failing mutant for every spec: 38 of the 70 specs are
+killed by a counterexample (259 mutants, 39 of them hand-written: 75 killed, 104 survived, 80
+unknown). The 32 left are `permit`'s six, the allowance invariant and the frame of other allowances
+in `approve` and `transferFrom`, the Factory's four `getPair` invariants and `createPair`'s four
+postconditions, and those of `burn`, `swap` and `skim`, plus the first-mint square root in `mint`.
+For each, mutants that break it come back unknown instead of with a counterexample, even trivial
+ones: a `skim` that leaves `unlocked = 2`, a `createPair` that returns `address(0)`. Two kinds of
+quantified assertion block the solver's model search, each on its own: an assumed quantified
+invariant (`forall address s :: allowance[address(0)][s] == 0`, the `getPair` invariants) and the
+keccak injectivity axiom `forall x :: inv(keccak256(x)) == x`, which every query that hashes
+anything carries, even when it hashes only constants such as the `SELECTOR` string. With both
+removed from the `skim` queries, the solver finds the counterexample at once. Counterexamples under
+quantifiers are a solar-verify gap.
 
 These are solver proofs; none is kernel-checked in Lean yet.
