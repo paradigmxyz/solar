@@ -208,6 +208,7 @@ impl Layout {
                 U256::from(r.offset + r.size)
             }
             PlacementRead::DataSize(id) => U256::from(self.data.get(&id)?.size),
+            PlacementRead::DataOffset(id) => U256::from(self.data.get(&id)?.offset),
             PlacementRead::ImmutableSlot(id) => U256::from(*self.immutable_slots.get(&id)?),
             PlacementRead::ImmutableValue(id) => {
                 U256::from_str_radix(self.immutable_values.get(&id)?, 10).ok()?
