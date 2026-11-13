@@ -569,9 +569,9 @@ theorem getLsbD_foldBytes (l : List SolarTV.Memory.Byte) (acc : BitVec 256) (j :
           simp only [hl, ite_true, e, List.getD_cons_zero, hm, hlt, decide_true,
             Bool.not_true, Bool.and_false, Bool.false_and, Bool.false_or]
           simp only [show j - 8 * t.length < 256 by omega, decide_true, Bool.true_and]
-        · have hge : ¬ j - 8 * t.length < 8 := by omega
+        · have hnot8 : ¬ j - 8 * t.length < 8 := by omega
           have e : j - 8 * t.length - 8 = j - 8 * (t.length + 1) := by omega
-          simp only [hl, ite_false, hge, decide_false, Bool.not_false, Bool.and_true, e,
+          simp only [hl, ite_false, hnot8, decide_false, Bool.not_false, Bool.and_true, e,
             show j - 8 * t.length < 256 by omega, decide_true, Bool.true_and]
           rw [BitVec.getLsbD_of_ge b _ (by omega)]
           simp
