@@ -237,6 +237,15 @@ elab "vc_defs" : tactic => do
   iffToEq
   evalTactic (← `(tactic| subst_vars))
 
+/-- The leaf of the search: closes a quantifier-free goal `False` or fails. It is `omega` here;
+another module adds a procedure with
+`macro_rules | `(tactic| vc_leaf) => `(tactic| my_tactic)`, and Lean then tries the rules from
+the last one added back to `omega`, taking the first that closes the goal. Whatever a rule does,
+`discharge.sh` still checks the axioms of every proof. -/
+syntax "vc_leaf" : tactic
+
+macro_rules | `(tactic| vc_leaf) => `(tactic| omega)
+
 /-- Pushes negations in, turns implications into disjunctions and Booleans into propositions,
 and folds constants. -/
 macro "vc_norm" : tactic => `(tactic| simp -failIfUnchanged only [Classical.not_forall, not_exists, not_imp,
@@ -387,7 +396,7 @@ partial def search (seen : Std.HashSet (Expr × Expr)) (fuel : Nat) : TacticM Un
       else
         clearQuantified
         congruence
-        evalTactic (← `(tactic| omega))
+        evalTactic (← `(tactic| vc_leaf))
   setGoals []
 
 end SolarVerify.Discharge
