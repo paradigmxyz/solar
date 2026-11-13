@@ -1,4 +1,5 @@
 import SolarTV.MIR.State.Messages
+import SolarTV.MIR.State.Returns
 
 /-! A direct SSA abstract machine with explicit caller continuations. Each body
 has its own arguments/locals; internal calls share byte memory and the journal.
@@ -7,7 +8,8 @@ and exception terminate the whole frame. Tail calls replace the activation.
 Phis read their incoming values simultaneously. One global work budget covers
 all calls and CFG edges; call depth has a separate model bound. Exhaustion is
 unsupported, never program failure or a reason to accept equal executions.
-No stack scheduling, backend return protocol or frame initialization is used. -/
+Memory-return calls use an explicit placement contract. No stack scheduling,
+backend-derived return address or frame initialization is used. -/
 
 namespace SolarTV.MIR.State
 open EvmRules SolarTV.Execution
@@ -30,7 +32,7 @@ def choose (frame : Frame) (key : Word) (fallback : Nat) : List (Operand × Nat)
     if test = key then return target else choose frame key fallback rest
 
 def branch (cursor : Cursor) (target : Nat) : Cursor :=
-  {function := cursor.function,block := target,predecessor := some cursor.block}
+  {function := cursor.function,block := target,predecessor := some cursor.block,returnOwner := cursor.returnOwner}
 
 def advance (cursor : Cursor) : Cursor := {cursor with next := cursor.next + 1}
 
@@ -40,8 +42,7 @@ def start (functions : Functions) (callee : Nat) (args : List Value) (frame : Fr
   return {frame with arguments := args,locals := []}
 
 def callSignature (callee : Function) (result : Option Nat) (ty : ValueType) : Except String Unit :=
-  if callee.returns.length > 1 then .error "physical multi-return protocol is not modeled"
-  else if result.isNone || sameTypes callee.returns [ty] then .ok ()
+  if result.isNone || (callee.returns.head?.any (·.same ty)) then .ok ()
   else .error "MIR call result signature mismatch"
 
 
@@ -124,7 +125,7 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
       let target ← function functions callee
       if !(sameTypes target.returns body.returns) then .error "MIR tail call result mismatch" else
         let child ← start functions callee args frame
-        next {function := callee} stack child
+        next {function := callee,returnOwner := some (cursor.returnOwner.getD cursor.function)} stack child
     | .returned operands =>
       let values ← operands.mapM (readValue frame)
       typedWords body.returns values
@@ -133,6 +134,8 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
         let words ← (body.returns.zip values).mapM (fun (ty,value) => value.flatten 34 ty)
         stop (.returned words.flatten) frame
       | caller :: rest =>
+        let owner ← function functions (cursor.returnOwner.getD cursor.function)
+        let frame ← publishReturns cfg owner values frame
         let parent := {caller.frame with
           world := frame.world
           memory := frame.memory
@@ -140,7 +143,7 @@ def transition (fuel : Nat) (cfg : Config) (functions : Functions) (machine : Ma
           creationIndex := frame.creationIndex
           builtinIndex := frame.builtinIndex}
         if caller.result.isNone then next caller.cursor rest parent else
-          let [value] := values | .error "physical multi-return protocol is not modeled"
+          let value ← required values.head? "call without a result"
           match ← assignValue parent caller.result caller.ty value with
           | .returned (_,parent) => next caller.cursor rest parent
           | _ => .error "MIR call return assignment failed"

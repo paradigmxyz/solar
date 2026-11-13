@@ -497,7 +497,12 @@ def function_body(value, definitions):
     params = "[" + ",".join(f"({value_type(ty)})" for ty in value["params"]) + "]"
     returns = "[" + ",".join(f"({value_type(ty)})" for ty in value["returns"]) + "]"
     blocks = "[" + ",".join(block(b, definitions) for b in value["blocks"]) + "]"
-    return f"({number(value['id'])},⟨{params},{returns},{blocks}⟩)"
+    buffer = (
+        "none"
+        if value["return_buffer"] is None
+        else f"some {json.dumps(value['return_buffer'])}"
+    )
+    return f"({number(value['id'])},⟨{params},{returns},{blocks},{buffer}⟩)"
 
 
 def translate(text, solar, version, fixture, timeout, function, replay=None):

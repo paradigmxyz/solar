@@ -189,7 +189,7 @@ bb3:
         helper = "fn @pair() [return_abi=[i256,i256]] {\nbb0:\nret 1, 2\n}\n"
         source = state.module("v0 = icall @pair\nret v0") + helper
         result, _ = self.pair(source, source, status=2)
-        self.assertIn("physical multi-return", result.stderr)
+        self.assertIn("missing MIR function placement", result.stderr)
 
     def test_repeated_type_metadata_is_bounded_before_export(self):
         fields = ",".join(["i256"] * 64)

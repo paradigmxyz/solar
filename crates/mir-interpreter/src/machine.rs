@@ -276,6 +276,8 @@ pub enum PlacementRead<'a> {
     HeapFloor(&'a str),
     /// The current activation's internal frame base.
     FrameBase(&'a str),
+    /// The explicitly selected memory-return convention's buffer.
+    ReturnBuffer(&'a str),
     /// Copied constructor argument range start.
     ConstructorBase,
     /// Copied constructor argument range end.
@@ -1256,11 +1258,6 @@ impl<'a> Run<'_, 'a, '_> {
                 let Some(callee) = self.machine.body(id) else {
                     return ControlFlow::Break(Outcome::Unsupported("call to an unknown function"));
                 };
-                if self.semantic.is_some() && callee.return_components().len() > 1 {
-                    return ControlFlow::Break(Outcome::Unsupported(
-                        "physical multi-return protocol is not modeled",
-                    ));
-                }
                 self.call(callee, args, instruction.result())?;
                 self.frame().caller_inst = Some(inst);
                 return ControlFlow::Continue(());
@@ -1743,7 +1740,9 @@ impl<'a> Run<'_, 'a, '_> {
             // Further results pass through a memory buffer the backend owns.
             return ControlFlow::Break(Outcome::Unsupported("call returning several values"));
         };
-        let buffer = if let Some(layout) = &self.machine.module.backend_memory {
+        let buffer = if self.semantic.is_some() {
+            self.placement(PlacementRead::ReturnBuffer(&body.name.to_string()))?
+        } else if let Some(layout) = &self.machine.module.backend_memory {
             let function = self.machine.function_id(body);
             let Some(buffer) = layout.returns.get(&function) else {
                 return ControlFlow::Break(Outcome::Unsupported(
@@ -1803,10 +1802,22 @@ impl<'a> Run<'_, 'a, '_> {
                         }
                         return ControlFlow::Break(Outcome::Return(words.into_iter().collect()));
                     }
+                    if values.len() > 1 {
+                        let mut words = Vec::new();
+                        for value in &values {
+                            let RuntimeValue::Word(word) = value else {
+                                return ControlFlow::Break(Outcome::Unsupported(
+                                    "non-scalar physical return component",
+                                ));
+                            };
+                            words.push(*word);
+                        }
+                        self.publish_multi_return(frame.return_owner, &words)?;
+                    }
                     if let Some(result) = frame.result {
-                        if values.len() != 1 {
+                        if values.is_empty() {
                             return ControlFlow::Break(Outcome::Unsupported(
-                                "physical multi-return protocol is not modeled",
+                                "call without a result",
                             ));
                         }
                         self.frame().values[result] =

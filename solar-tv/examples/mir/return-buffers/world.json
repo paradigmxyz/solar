@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "mir_layout": {
+    "functions": {
+      "pair": { "return_buffer": 256 }
+    }
+  }
+}

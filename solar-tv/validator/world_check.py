@@ -29,7 +29,7 @@ UNFOLD = (
 MIR_UNFOLD = (
     "before, after, mirWorldConfig, MIR.State.equivalent, MIR.State.observe, "
     "MIR.State.execute, MIR.State.reduceRun, MIR.State.transition, MIR.State.next, MIR.State.stop, MIR.State.enter, MIR.State.function, MIR.State.start, "
-    "MIR.State.typedWords, MIR.State.callSignature, MIR.State.branch, MIR.State.advance, "
+    "MIR.State.typedWords, MIR.State.callSignature, MIR.State.publishReturns, MIR.State.branch, MIR.State.advance, "
     "MIR.State.instruction, MIR.State.operation, MIR.State.storageOperation, MIR.State.assign, "
     "MIR.State.read, MIR.State.readValue, MIR.State.Value.word, MIR.State.Value.fits, MIR.State.Value.flatten, MIR.State.ValueType.same, MIR.State.sameTypes, MIR.State.ValueType.width, MIR.State.ValueType.fields, MIR.State.assignValue, MIR.State.insertField, MIR.State.extractField, MIR.State.Scalar.word, MIR.State.Scalar.ofWord, MIR.State.wordBits, MIR.State.widenBits, MIR.State.required, MIR.State.put, MIR.State.narrow, MIR.State.value, MIR.State.effect,  "
     "BitVec.cast, BitVec.toNat_cast, BitVec.cast_eq, BitVec.cast_cast, MIR.State.finish, MIR.eval, MIR.compare, MIR.wordBinary, MIR.unary, MIR.shift, "
