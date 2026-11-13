@@ -102,3 +102,11 @@ srcDir = "milestone"
 roots = ["sqrt.Proofs"]
 globs = ["sqrt.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# uv2_sqrt: Math.sqrt of the Uniswap v2 port, verbatim, behind an entry point, through cut points.
+[[lean_lib]]
+name = "uv2_sqrt"
+srcDir = "milestone"
+roots = ["uv2_sqrt.Proofs"]
+globs = ["uv2_sqrt.+"]
+moreLeanArgs = ["-M", "3000"]
