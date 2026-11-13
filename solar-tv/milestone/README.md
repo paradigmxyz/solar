@@ -37,7 +37,9 @@ one, its call value check, its overflow check, its first log, the signature topi
 offset of its first log, its first `keccak256`, the key and the mapping slot the first
 `keccak256` hashes (every key moved by one, zero or not, and the mapping's slot plus one), its
 first `mul`, its first range test of a narrow product, the kind of its first external call and
-the check of that call's success; the scheduled EVM IR's first `add`; in each lowered MIR pass's
+the check of that call's success, the selector of its first custom error revert and its test for
+empty calldata, which routes a call to `receive` or `fallback`; the scheduled EVM IR's first
+`add`; in each lowered MIR pass's
 output, the first branch it wrote taken the other way, else the first jump it wrote in place of a
 branch sent to the branch's other target, else the first calldata it reads at the next word, else
 its first constant plus one; the last MIR stage's first return of several words in reverse order
@@ -207,6 +209,21 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 
 ```sh
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
+```
+
+- [routes](routes/routes.sol): `contract Routes { error E(uint256 code); uint256 x; receive()
+  external payable { x = 1; } fallback() external payable { x = 2; } function check(uint256 a)
+  external pure { if (a > 10) revert E(a); } }`, 69 bytes of runtime bytecode: a jump on
+  `calldatasize` itself sends a call with no calldata to the receive function, calldata that
+  matches no selector reaches the fallback, and `check` reverts with `E(a)`, the selector
+  `0x002ff067` stored at offset 0 with the argument after it and `revert(28, 36)`. Stages
+  `stage0 → mir1 → sched → evm1 → evm2` (`dce`, `stack-schedule`, `cfg-simplify-early`,
+  `terminal-layout`) and `evm2 → bytecode`, all proved:
+  `SolarTV.Milestone.Routes.routes_mir_to_evmir`. Its negative tests also flip the error's
+  selector and negate the test for empty calldata, so that the two routes swap.
+
+```sh
+CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/routes/routes.sol Routes
 ```
 
 ## Limits

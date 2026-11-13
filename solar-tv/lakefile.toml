@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# routes: the stages of milestone/routes/routes.sol's Routes and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "routes"
+srcDir = "milestone"
+roots = ["routes.Proofs"]
+globs = ["routes.+"]
+moreLeanArgs = ["-M", "3000"]

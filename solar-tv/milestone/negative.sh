@@ -20,8 +20,10 @@
 #   slot) as an add, the key that hash reads plus one (every mapping key moved, zero or not), the
 #   mapping slot it reads plus one, its first mul as add, and its first range test of a narrow
 #   product (`push 2^k - 1; dup n; gt`) as `push 0`, its first external call as another kind
-#   of call and the check of that call's success dropped (a failed call goes on), each when
-#   present;
+#   of call and the check of that call's success dropped (a failed call goes on), the selector
+#   of its first custom error revert with its low bit flipped, and its test for empty calldata
+#   negated (calls with no calldata reach the fallback and the others the receive function),
+#   each when present;
 # - scheduled EVM IR: its first add as sub, when present;
 # - each lowered MIR pass output that changes code: in the lines the pass wrote, its first
 #   branch taken the other way, else its first jump in place of a branch of its input sent to
@@ -328,6 +330,33 @@ print(f"old, new = {m.group(0)!r}, {new!r}" if m else "sys.exit(3)")
 print("if old not in s: sys.exit(3)\ns = s.replace(old, new, 1)" if m else "")
 EOF
 try "$last-no-call-check" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/call-check.py"
+
+# The selector of the first custom error a revert returns with its low bit flipped: the word
+# below 2^32 that a block ending in a revert stores at offset 0, so that the revert data names
+# another error. Panic's 0x4e487b71 is left out, and so is lower-assumes'
+# AnalysisFactViolated, 0xed572b27, whose revert no run the proofs cover reaches.
+cat > "$tmp/error-selector.py" <<'EOF'
+import re
+m = None
+for block in re.finditer(r"\n    \[(.*?)\]", s, re.S):
+    if not block.group(1).rstrip().endswith(".revert"): continue
+    m = re.search(r"\(\.push (0x[0-9a-f]{1,8})\)\),\n\s*\.op \(\.stack \(\.push 0\)\),\n\s*\.op \.store,",
+                  block.group(1))
+    if m and int(m.group(1), 16) not in (0, 0x4e487b71, 0xed572b27): break
+    m = None
+if m is None: sys.exit(3)
+old = int(m.group(1), 16)
+print(f"  error selector 0x{old:08x} as 0x{old ^ 1:08x}")
+start = block.start(1) + m.start(1)
+s = s[:start] + hex(old ^ 1) + s[start + len(m.group(1)):]
+EOF
+try "$last-error-selector" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/error-selector.py"
+
+# The routing of receive and fallback swapped: the test for empty calldata (a jump on
+# `calldatasize` itself) negated, so a call with no calldata runs the fallback and one whose
+# calldata matches no selector the receive function.
+replace_first '"calldatasize),\n     .jumpi"' '"calldatasize),\n     .op (.stack .iszero),\n     .jumpi"' > "$tmp/receive.py"
+try "$last-receive-fallback" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/receive.py"
 
 try sched-add-sub "$gen/Sched.lean" Sched "$proofs/Runs/Sched.lean" "$mismatch" < "$tmp/add-sub.py"
 
