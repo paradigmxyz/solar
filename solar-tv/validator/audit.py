@@ -111,7 +111,7 @@ def record(
                     "deferred allocations require explicit per-function instruction-site placements and matching extents; static reservations keep FMP and memory unchanged unless zero initialization is requested; heap placements bump on every execution",
                     "slot hashing preserves scratch traffic; storage bytes retain header checks, padding masks and tail clearing; storage work limit 2048 words",
                     "storage arrays preserve scalar encodings, enum checks and nested object order; work limit 2048 elements",
-                    "external frame slots use convention-defined addresses; selected internal frame windows require explicit placement; typed address calls require explicit gas",
+                    "external frame slots use convention-defined addresses; internal frame slots and address queries use explicit bases indexed by the function's live activation count; missing bases are unsupported; typed address calls require explicit gas",
                     "external account reads use live state; codecopy/codesize require an explicit code image; constant data ranges must be known and relocation-free; export budget 64 KiB",
                     "external CALL assumes sufficient caller gas to avoid EIP-150 clipping",
                     "CREATE child gas is supplied by explicit creation_gas boundary inputs",

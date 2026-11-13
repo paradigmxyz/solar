@@ -462,8 +462,10 @@ Storage-array loads also execute directly: packed integers, signed values,
 fixed bytes, checked enums and nested bytes objects. The array header is reserved
 before data-slot hashing, and child allocations share the FMP and scratch memory.
 Copies above 2048 elements are unsupported. External scratch frame slots alias
-ordinary memory at base 128; slices retain pointer/length order. Internal frame
-addresses still require backend placement and are unsupported.
+ordinary memory at base 128; slices retain pointer/length order. Internal frames
+use explicit per-function activation bases. Slot offsets follow the two-word
+frame header and the function's argument/return components. Both direct slots
+and `internal_frame_addr` share ordinary byte memory, including aliases.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/storage-arrays/{before,after}.mir \
@@ -577,9 +579,14 @@ Layout-dependent operations take explicit window inputs in `mir_layout`:
 }
 ```
 
-`heap_floor` and `internal_frame_addr` read the selected function's placements;
-heap floors must not exceed the supplied initial FMP. Internal frame addresses
-are restricted to one selected activation. Constructor ranges reference existing
+`heap_floor` reads its function's placement and must not exceed the supplied
+initial FMP. `internal_frame_addr` and internal frame slots use `frame_base` for
+activation zero. Recursive windows instead supply `frame_bases`, including the
+first activation, for example `{"g":{"frame_bases":[256,512,768]}}`. The index
+counts live activations of that function; tail calls replace an activation.
+Missing entries are inconclusive, and `frame_base` cannot accompany a nonempty
+`frame_bases` list. Each function admits at most 128 bases. No implicit frame
+allocation or initialization is introduced. Constructor ranges reference existing
 initial memory. `datasize` reads a deferred entry's linked extent, retaining
 addends and alignment; the MIR verifier rejects this operation on literal data.
 `codesize`/`codecopy` use the supplied image and zero-pad out-of-range reads. Immutable words alias staging slots, or use `immutable_values` for read-only

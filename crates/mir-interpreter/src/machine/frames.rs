@@ -2,21 +2,38 @@
 //!
 //! External locals use the shared region at 128; the multi-return word names
 //! the buffer-pointer slot at 32. Slices retain pointer/length store ordering.
-//! Internal frame placement is not guessed: it requires backend context and is
-//! unsupported in direct semantic execution.
+//! Internal frames use explicitly supplied bases for each live activation of
+//! their function. No backend records or implicit frame setup supplies them.
 
-use super::{Outcome, Run, RuntimeValue, limit};
+use super::{Outcome, PlacementRead, Run, RuntimeValue, limit};
 use alloy_primitives::U256;
-use solar_mir::{FrameMode, FrameSlotKind, memory::EvmMemoryLayout};
+use solar_mir::{FrameMode, FrameSlotKind, Function, memory::EvmMemoryLayout};
 use std::ops::ControlFlow;
 
 impl Run<'_, '_, '_> {
     pub(super) fn semantic_frame_address(
+        &mut self,
+        body: &Function,
         offset: u64,
         mode: FrameMode,
         kind: FrameSlotKind,
     ) -> ControlFlow<Outcome, U256> {
         match mode {
+            FrameMode::Internal => {
+                let Some(offset) = EvmMemoryLayout::internal_frame_prefix(
+                    body.params.len() + body.return_components().len(),
+                )
+                .and_then(|prefix| prefix.checked_add(offset)) else {
+                    return ControlFlow::Break(Outcome::Unsupported(
+                        "internal frame prefix overflow",
+                    ));
+                };
+                let activation =
+                    self.frames.iter().filter(|frame| std::ptr::eq(frame.body, body)).count() - 1;
+                let base =
+                    self.placement(PlacementRead::FrameBase(&body.name.to_string(), activation))?;
+                ControlFlow::Continue(base.wrapping_add(U256::from(offset)))
+            }
             FrameMode::External => {
                 ControlFlow::Continue(U256::from(EvmMemoryLayout::HEAP_START) + U256::from(offset))
             }

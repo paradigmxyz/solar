@@ -35,6 +35,7 @@ struct Function {
     heap_floor: Option<u64>,
     frame_base: Option<u64>,
     return_buffer: Option<u64>,
+    frame_bases: Vec<u64>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -110,9 +111,15 @@ impl Layout {
             if name.len() > 256 || !name.is_ascii() || name.chars().any(char::is_control) {
                 return Err("invalid MIR placement function name".into());
             }
+            if function.frame_bases.len() > 128
+                || function.frame_base.is_some() && !function.frame_bases.is_empty()
+            {
+                return Err("invalid or ambiguous MIR activation placements".into());
+            }
             for address in [function.heap_floor, function.frame_base, function.return_buffer]
                 .into_iter()
                 .flatten()
+                .chain(function.frame_bases.iter().copied())
             {
                 if address < 128 || !address.is_multiple_of(32) {
                     return Err("MIR placements must be aligned and at least 128".into());
@@ -168,7 +175,17 @@ impl Layout {
     pub(super) fn read(&self, query: PlacementRead<'_>) -> Option<U256> {
         Some(match query {
             PlacementRead::HeapFloor(name) => U256::from(self.functions.get(name)?.heap_floor?),
-            PlacementRead::FrameBase(name) => U256::from(self.functions.get(name)?.frame_base?),
+            PlacementRead::FrameBase(name, activation) => {
+                let function = self.functions.get(name)?;
+                U256::from(if function.frame_bases.is_empty() {
+                    if activation != 0 {
+                        return None;
+                    }
+                    function.frame_base?
+                } else {
+                    *function.frame_bases.get(activation)?
+                })
+            }
             PlacementRead::ReturnBuffer(name) => {
                 U256::from(self.functions.get(name)?.return_buffer?)
             }
