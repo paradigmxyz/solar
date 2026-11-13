@@ -337,13 +337,30 @@ updates the FMP, then performs any requested zero initialization. Reservation
 alone does not expand or clear memory. Checked overflow or an end above uint64
 reverts with Panic(0x41); violating an infallible allocation's validity contract
 is unsupported. No initial FMP, alignment, heap floor or physical frame is
-invented. Deferred allocation still needs a placement model. Physical multi-return
-calls use explicit return-buffer placements, described below. Function-pointer
+invented. Deferred allocations and physical multi-return calls use explicit
+placements, described below. Function-pointer
 dispatchers are ordinary MIR bodies and use the
 same internal-call semantics. The function-pointers Solidity example checks a
 real inlining pair for both choices and replays an incorrect callee change.
 Recursive ABI helpers and explicit placement windows are
 supported below. Backend memory records remain unsupported.
+
+A deferred allocation uses `mir_layout.allocations.<function>.<site>`, where
+`site` is its zero-based position among the function's active MIR instructions
+(phis included, terminators excluded). A `static` placement supplies `address`
+and `size`; a `heap` placement supplies `size` and bumps the explicit FMP each
+time the instruction executes. The extent must match the MIR operand. Static
+reservation alone neither touches memory nor changes the FMP; requested zero
+initialization still touches the exact range. Missing placements, mismatched
+extents and invalid addresses are inconclusive. There are at most 4,096 bindings
+across 128 functions, each reserving at most 64 KiB.
+
+```json
+{"mir_layout":{"allocations":{"f":{"0":{"kind":"static","address":256,"size":32}}}}}
+```
+
+These are explicit inputs to a placement window. They do not certify that the
+backend selects those placements, and do not import its captured memory records.
 
 ```sh
 solar-tv/solar-tv mir solar-tv/examples/mir/internal-calls/{before,after}.mir \

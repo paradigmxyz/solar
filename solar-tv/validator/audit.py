@@ -108,6 +108,7 @@ def record(
                     "logical product/slice values; boundary leaves in declaration order; pointer-to-word erasure only at the boundary; distinct pointer spaces remain distinct",
                     "aggregate type limits: depth 32, nodes 256; exported type budget 65536; boundary limits: 32 input and 256 return leaves",
                     "explicit ordered FMP allocation; invalid infallible bumps unsupported",
+                    "deferred allocations require explicit per-function instruction-site placements and matching extents; static reservations keep FMP and memory unchanged unless zero initialization is requested; heap placements bump on every execution",
                     "slot hashing preserves scratch traffic; storage bytes retain header checks, padding masks and tail clearing; storage work limit 2048 words",
                     "storage arrays preserve scalar encodings, enum checks and nested object order; work limit 2048 elements",
                     "external frame slots use convention-defined addresses; selected internal frame windows require explicit placement; typed address calls require explicit gas",
