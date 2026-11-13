@@ -73,9 +73,9 @@ use solar_data_structures::{
 use solar_evmir::op;
 use solar_mir::{
     AllocationFailure, AllocationInitialization, AllocationPlacement, AllocationSemantics, ArgIdx,
-    ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, DataRef, Function, FunctionId, InstId,
-    InstKind, MirType, Module, RequireKind, RevertKind, RevertReason, Semantics, Terminator, Value,
-    ValueId, memory::EvmMemoryLayout,
+    ArithmeticKind, AssumePredicate, BlockId, Builtin, Callee, CheckedOp, DataRef, Function,
+    FunctionId, InstId, InstKind, MirType, Module, RequireKind, RevertKind, RevertReason,
+    Semantics, Terminator, Value, ValueId, memory::EvmMemoryLayout,
 };
 use std::{convert::Infallible, ops::ControlFlow};
 
@@ -127,6 +127,8 @@ pub(crate) enum Outcome {
     Invalid,
     /// A returndata copy exceeded the available bytes.
     ReturndataOutOfBounds,
+    /// Execution reached an `assume` whose fact fails: undefined behaviour, not an outcome.
+    Undefined,
     /// Execution exceeded a limit before it ended.
     Limit(Limit),
     /// Execution reached something the interpreter does not model, named here.
@@ -802,10 +804,25 @@ impl<'a> Run<'_, 'a, '_> {
         if self.semantic.is_none() && instruction.unlowered_reason(body).is_some() {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         }
+        let frame = self.frames.last().expect("a run always has a frame");
+        if let InstKind::Assume { predicate, lhs, rhs, .. } = instruction.kind {
+            // assume pred lhs, rhs: a fact a pass relied on, undefined where it fails
+            let (lhs, rhs) = (frame.read(lhs)?, frame.read(rhs)?);
+            let holds = match predicate {
+                AssumePredicate::Eq => lhs == rhs,
+                AssumePredicate::Ne => lhs != rhs,
+                AssumePredicate::Ult => lhs < rhs,
+                AssumePredicate::Ule => lhs <= rhs,
+            };
+            return if holds {
+                ControlFlow::Continue(())
+            } else {
+                ControlFlow::Break(Outcome::Undefined)
+            };
+        }
         let Some(semantics) = instruction.kind.semantics() else {
             return ControlFlow::Break(Outcome::Unsupported(mnemonic));
         };
-        let frame = self.frames.last().expect("a run always has a frame");
         if self.semantic.is_some() {
             match semantics {
                 Semantics::InsertValue(ty, aggregate, index, value) => {

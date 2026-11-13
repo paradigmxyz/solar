@@ -1,0 +1,33 @@
+{"synthetic": false,
+ "schemaVersion": "2025-09-10",
+ "outputs":
+ {"o": ["0cdc692a98596909.olean"],
+  "m": false,
+  "i": "19d7cab1f1ce039c.ilean",
+  "c": "66d310276f3487d0.c"},
+ "log":
+ [{"message":
+   ".> LEAN_PATH=/home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/.lake/build/lib/lean /home/hand/.elan/toolchains/leanprover--lean4---v4.35.0/bin/lean /home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/SolarVerify/Vc.lean -o /home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/.lake/build/lib/lean/SolarVerify/Vc.olean -i /home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/.lake/build/lib/lean/SolarVerify/Vc.ilean -c /home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/.lake/build/ir/SolarVerify/Vc.c --setup /home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/.lake/build/ir/SolarVerify/Vc.setup.json --json",
+   "level": "trace"}],
+ "inputs":
+ [["deps",
+   [["solar_verify/SolarVerify:extraDep",
+     [["@solar_verify:extraDep", "00000000000006bb"]]],
+    ["imports",
+     [["SolarVerify.Smt transitive imports (legacy)", "00000000000006bb"],
+      ["SolarVerify.Smt:importAllArts", "d9284921d2241489"]]]]],
+  ["libs",
+   [["import dynlibs", "00000000000006bb"],
+    ["package external libraries", "00000000000006bb"],
+    ["module dynlibs", "00000000000006bb"],
+    ["module plugins", "00000000000006bb"]]],
+  ["Lean 4.35.0, commit eb6cafb7290e8bd5f2937522d8d804f58f02bafc",
+   "407ce514b71d5a10"],
+  ["/home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/SolarVerify/Vc.lean",
+   "6a108ee2f7c48242"],
+  ["options", "00000000000006bb"],
+  ["isModule: false", "feefd2a0d3a1847e"],
+  ["Module.name: SolarVerify.Vc", "ee8c45775c4c2f60"],
+  ["Package.id?: (some solar_verify)", "3d453a88fdb871a7"],
+  ["Module.leanArgs: #[]", "00000000000006bb"]],
+ "depHash": "3351ef9e59af25b4"}

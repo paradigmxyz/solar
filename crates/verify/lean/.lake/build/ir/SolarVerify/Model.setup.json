@@ -1,0 +1,9 @@
+{"plugins": [],
+ "package": "solar_verify",
+ "options": {},
+ "name": "SolarVerify.Model",
+ "isModule": false,
+ "importArts":
+ {"SolarVerify.Smt":
+  [["/home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/.lake/build/lib/lean/SolarVerify/Smt.olean"]]},
+ "dynlibs": []}

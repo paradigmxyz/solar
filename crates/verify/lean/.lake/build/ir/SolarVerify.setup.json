@@ -1,0 +1,13 @@
+{"plugins": [],
+ "package": "solar_verify",
+ "options": {},
+ "name": "SolarVerify",
+ "isModule": false,
+ "importArts":
+ {"SolarVerify.Vc":
+  [["/home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/.lake/build/lib/lean/SolarVerify/Vc.olean"]],
+  "SolarVerify.Smt":
+  [["/home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/.lake/build/lib/lean/SolarVerify/Smt.olean"]],
+  "SolarVerify.Model":
+  [["/home/hand/pyramid-workspace/repos/631030757/crates/verify/lean/.lake/build/lib/lean/SolarVerify/Model.olean"]]},
+ "dynlibs": []}
