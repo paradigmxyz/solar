@@ -121,7 +121,7 @@ def contextOperation (cfg : Config) (frame : Frame) (opcode : Nat) (args : List 
     value frame (Execution.environmentValue cfg.fork cfg.context opcode 0)
   | _,_ => .error "unmodeled MIR context read"
 
-def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word) : Step := do
+def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word) (activation : Nat := 0) : Step := do
   match op,args with
   | .binary op width,[a,b] => value frame (widenBits (MIR.eval op (wordBits width a) (wordBits width b)))
   | .comparison op width,[a,b] => value frame (widenBits (MIR.compare op (wordBits width a) (wordBits width b)))
@@ -180,7 +180,7 @@ def operation (cfg : Config) (frame : Frame) (op : Operation) (args : List Word)
   | .memory op,args => memoryOperation cfg frame op args
   | .storage transient write,args => storageOperation cfg frame transient write args
   | .context (.environment opcode),args => contextOperation cfg frame opcode args
-  | .context op,args => layoutOperation cfg frame op args
+  | .context op,args => layoutOperation cfg frame op args activation
   | .log count,offset :: size :: topics =>
     if count != topics.length then .error "MIR log topic count" else
     if cfg.environment.isStatic then return .invalid else
@@ -202,7 +202,7 @@ def assign (next : Frame) (result : Option Nat) (ty : ValueType) (word : Option 
       assignValue next result ty (.scalar (Scalar.ofWord ty.width word))
   | _,_ => .error "MIR result arity mismatch"
 
-def instruction (cfg : Config) (frame : Frame) (inst : Instruction) : Step := do
+def instruction (cfg : Config) (frame : Frame) (inst : Instruction) (activation : Nat := 0) : Step := do
   if inst.opcode.any (fun opcode => !cfg.available.contains opcode) then return .invalid
   match inst.operation,inst.operands with
   | .abi (.encode mode hasBase hasSelector functions),_ =>
@@ -275,9 +275,17 @@ def instruction (cfg : Config) (frame : Frame) (inst : Instruction) : Step := do
   | .frame true address ty,[operand] =>
     let value ← readValue frame operand
     effect (← storeFrame frame address ty value)
+  | .internalFrame false name offset ty,[] =>
+    let address := (← activationBase cfg name activation)+BitVec.ofNat 256 offset
+    let (value,next) ← loadFrame frame address ty
+    assignValue next inst.result inst.ty value
+  | .internalFrame true name offset ty,[operand] =>
+    let address := (← activationBase cfg name activation)+BitVec.ofNat 256 offset
+    let value ← readValue frame operand
+    effect (← storeFrame frame address ty value)
   | _,_ =>
     let args ← inst.operands.mapM (read frame)
-    let result ← operation cfg frame inst.operation args
+    let result ← operation cfg frame inst.operation args activation
     match result with
     | .returned (word,next) => assign next inst.result inst.ty word
     | .reverted data => return .reverted data

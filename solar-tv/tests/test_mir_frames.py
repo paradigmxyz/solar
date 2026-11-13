@@ -104,7 +104,12 @@ class MirFrameTests(unittest.TestCase):
         ):
             with self.subTest(body=body):
                 result, _ = self.pair(state.module(body), state.module(body), status=2)
-                self.assertIn("backend placement", result.stderr)
+                self.assertIn(
+                    "missing MIR function placement"
+                    if "internal_frame" in body
+                    else "backend placement",
+                    result.stderr,
+                )
 
     def test_memory_bounds_are_not_valid_frame_results(self):
         source = state.module("v0 = frame_load scratch, word, 65535\nret v0")

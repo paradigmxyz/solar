@@ -17,6 +17,13 @@ def layoutBinding (entries : List (Nat × α)) (id : Nat) : Option α :=
 def placementBinding (cfg : Config) (function : String) : Except String FunctionPlacement :=
   required ((cfg.layout.functions.find? (·.1 == function)).map Prod.snd) "missing MIR function placement"
 
+def activationBase (cfg : Config) (function : String) (activation : Nat) : Except String Word := do
+  let placement ← placementBinding cfg function
+  if placement.frameBases.isEmpty then
+    if activation = 0 then required placement.frameBase "missing MIR frame base"
+    else .error "missing MIR activation frame base"
+  else required placement.frameBases[activation]? "missing MIR activation frame base"
+
 /-- A fixed placement does not read or bump the FMP; initialization remains explicit. -/
 def deferredAllocate (cfg : Config) (frame : Frame) (function : String) (site : Nat)
     (size : Word) (zeroed checked : Bool) : Step := do
@@ -34,12 +41,12 @@ def deferredAllocate (cfg : Config) (frame : Frame) (function : String) (site : 
       else pure frame.memory
     return .returned (some address,{frame with memory})
 
-def layoutOperation (cfg : Config) (frame : Frame) (op : ContextOp) (args : List Word) : Step := do
+def layoutOperation (cfg : Config) (frame : Frame) (op : ContextOp) (args : List Word) (activation : Nat := 0) : Step := do
   let result (word : Word) := Except.ok (Outcome.returned (some word,frame))
   match op,args with
   | .heapFloor name,[] => result (← required (← placementBinding cfg name).heapFloor "missing MIR heap floor")
   | .frameAddress name offset,[] =>
-    result ((← required (← placementBinding cfg name).frameBase "missing MIR frame base") + BitVec.ofNat 256 offset)
+    result ((← activationBase cfg name activation) + BitVec.ofNat 256 offset)
   | .constructorRange isEnd,[] =>
     let (base,size) ← required cfg.layout.constructor "missing constructor range"
     result (BitVec.ofNat 256 (base + if isEnd then size else 0))

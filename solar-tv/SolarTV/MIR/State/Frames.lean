@@ -2,8 +2,8 @@ import SolarTV.MIR.State.Allocation
 
 /-! Convention-defined frame slots, shared with ordinary byte memory.
 External scratch slots have base 128; the multi-return word is the pointer slot
-at 32. The importer rejects internal frames without backend placement and slice
-multi-return slots. Slices read and write pointer before length, retaining all
+at 32. Internal frame addresses use explicit per-activation placements. Slice
+multi-return slots are unsupported. Slices read and write pointer before length, retaining all
 overlaps and memory expansion. No implicit per-activation memory is introduced. -/
 
 namespace SolarTV.MIR.State
