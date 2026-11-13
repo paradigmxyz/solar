@@ -665,7 +665,8 @@ strongest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["st
 if [[ "$strongest" == "True" ]]; then
     echo "CERTIFIED $name ($contract): equivalence, termination, spec and resources by $final_thm; bytecode $plain"
 elif [[ -s "$final_record" ]]; then
-    echo "CHECKED $name ($contract), published $final_thm; not certified: resources not proved; bytecode $plain"
+    missing="$(python3 -c 'import json,sys; s=json.load(open(sys.argv[1]))["statuses"]; print(", ".join(k for k in ("equivalence", "termination", "spec", "resources") if not str(s[k]).startswith("proved")))' "$record")"
+    echo "CHECKED $name ($contract), published $final_thm; not certified: not proved: ${missing:-none}; bytecode $plain"
 elif [[ ${#e2e_thms[@]} -gt 0 ]]; then
     echo "CHECKED $name ($contract), spec of the bytecode by ${e2e_thms[*]}; not certified: equivalence, termination and resources not proved; bytecode $plain"
 else

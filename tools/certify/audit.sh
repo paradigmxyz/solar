@@ -22,10 +22,15 @@ case "${1:-}" in
     scan)
         shift
         [[ $# -gt 0 ]] || die "usage: audit.sh scan PATH..."
-        if hits="$(grep -rnHE "$banned" "$@" --include='*.lean')"; then
+        # Code only (tools/certify/scan_code.py): comments may name a construct without using
+        # it. Exit 0 lists hits, 1 none; anything else is a scan failure and fails closed.
+        status=0
+        hits="$(python3 "$(dirname "$0")/scan_code.py" "$banned" "$@")" || status=$?
+        if [[ $status -eq 0 ]]; then
             echo "$hits" >&2
             die "Lean files use a construct the kernel does not check (above)"
         fi
+        [[ $status -eq 1 ]] || die "the scan of the Lean files failed"
         ;;
     axioms)
         shift
