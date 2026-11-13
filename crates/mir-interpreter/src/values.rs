@@ -1,6 +1,6 @@
 //! Logical SSA products for semantic replay. Fields retain their tree structure and
 //! undefined components; no memory address or backend return buffer is assigned.
-//! Only the explicit entry/return boundary flattens products in declaration order.
+//! Explicit entry/return boundaries flatten products in declaration order.
 //! Type depth and total nodes are bounded before constructing or cloning a value.
 
 use alloy_primitives::U256;
@@ -62,6 +62,37 @@ impl RuntimeValue {
                 Self::Undefined => {
                     for ty in types {
                         Self::Undefined.flatten(module, ty, words)?;
+                    }
+                }
+                _ => return Err("MIR aggregate return shape mismatch"),
+            }
+        }
+        Ok(())
+    }
+
+    /// Exposes typed leaves without reading undefined scalar bits.
+    pub(crate) fn leaves<'a>(
+        &'a self,
+        module: &Module,
+        ty: MirType,
+        result: &mut Vec<&'a Self>,
+    ) -> Result<(), &'static str> {
+        if super::machine::scalar_bits(ty).is_some() {
+            if matches!(self, Self::Aggregate(_)) {
+                return Err("MIR scalar return shape mismatch");
+            }
+            result.push(self);
+        } else {
+            let types = fields(module, ty)?;
+            match self {
+                Self::Aggregate(values) if values.len() == types.len() => {
+                    for (value, ty) in values.iter().zip(types) {
+                        value.leaves(module, ty, result)?;
+                    }
+                }
+                Self::Undefined => {
+                    for ty in types {
+                        self.leaves(module, ty, result)?;
                     }
                 }
                 _ => return Err("MIR aggregate return shape mismatch"),

@@ -127,11 +127,15 @@ External scratch frame slots use their convention-defined base of 128 and alias
 ordinary memory, including across internal calls. Slices store pointer then
 length; the multi-return word is the buffer-pointer slot at 32. Internal frames
 use explicit per-function live-activation bases, including recursion and tail
-replacement. Physical scalar multi-return buffers have explicit per-function
+replacement. Physical multi-return buffers have explicit per-function
 placements and retain the caller's return owner through tail calls. Logical
-outer boundaries compare all return components. Physical aggregate buffers
-remain unsupported. Non-word or nonzero-offset multi-return frame slots are
-invalid MIR, rejected by the verifier before lowering. Frame-load result types
+outer boundaries compare all return components. A supplied placement also
+selects physical publication for nested products and slices, in declared leaf
+order. Callers keep their typed SSA value before lowering; expanded callers
+recover extras through the same bytes. Overlapping buffers retain snapshots and
+store order, and an unused first word may remain undefined. Non-word or
+nonzero-offset multi-return frame slots are invalid MIR, rejected by the verifier
+before lowering. Frame-load result types
 must match the slot, and convention-relative offsets must fit in `u64`.
 Deferred allocations use explicit static-address or FMP-backed site bindings;
 extents must match the IR and initialization touches the actual bytes. No
@@ -186,7 +190,7 @@ are not erased by the zero `Missing` count.
 | --- | --- | --- | --- |
 | `address_call`, `call`, `callcode`, `staticcall`, `delegatecall` | Explicit requested child gas and real fixture children | No general caller pricing or implicit-gas forwarding; caller gas must avoid clipping | [Address calls](tests/test_mir_address_calls.py), [messages](tests/test_mir_messages.py) |
 | `create`, `create2` | Explicit ordered child budgets, initcode execution and journal rollback | Budgets are inputs, not a derivation from caller work | [Messages and creation](tests/test_mir_messages.py) |
-| `icall` | Direct/dispatcher calls, typed products, scalar return buffers and builtin recipes | Physical aggregate return buffers and general call-site pricing | [Calls](tests/test_mir_calls.py), [return buffers](tests/test_mir_return_buffers.py), [builtins](tests/test_mir_builtins.py) |
+| `icall` | Direct/dispatcher calls, typed products, aggregate/slice return buffers and builtin recipes | General call-site pricing and backend placement/stack-return correspondence | [Calls](tests/test_mir_calls.py), [aggregate returns](tests/test_mir_aggregate_returns.py), [return buffers](tests/test_mir_return_buffers.py), [builtins](tests/test_mir_builtins.py) |
 | `validate_abi` | Decoder or canonical raw function-word evidence | Other provenance is unsupported; no synthetic runtime guard is inserted | [ABI](tests/test_mir_abi.py) |
 | `gas` | One-opcode window with an explicit pre-op budget | General MIR caller gas | [Layout windows](tests/test_mir_layout.py) |
 

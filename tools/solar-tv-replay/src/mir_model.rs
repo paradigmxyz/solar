@@ -183,14 +183,21 @@ fn export_module(module: &Module, name: Option<&str>) -> Result<Json, String> {
             export_function(module, id.index(), function)
         })
         .collect::<Result<Vec<_>, String>>()?;
-    // Link/placement windows retain declaration identity across a rewrite.
+    // Link/placement windows retain table identity across a rewrite. Structural
+    // SSA types may disappear during type lowering; they do not key link inputs.
+    let mut linked = false;
     let declarations = module
         .to_text()
         .to_string()
         .lines()
         .skip(1)
         .take_while(|line| !line.starts_with("fn "))
-        .filter(|line| !line.starts_with("@phase "))
+        .filter(|line| {
+            if line.starts_with('@') {
+                linked = matches!(*line, "@data" | "@libraries" | "@immutables");
+            }
+            linked
+        })
         .collect::<Vec<_>>()
         .join("\n");
     Ok(json!({
@@ -221,7 +228,7 @@ fn export_function(module: &Module, id: usize, function: &Function) -> Result<Js
         .iter()
         .map(|block| export_block(module, function, block))
         .collect::<Result<Vec<_>, _>>()?;
-    let return_buffer = (function.return_components().len() > 1).then(|| function.name.to_string());
+    let return_buffer = function.name.to_string();
     Ok(
         json!({"id": id, "params": params, "returns": returns, "blocks": blocks,"return_buffer":return_buffer}),
     )

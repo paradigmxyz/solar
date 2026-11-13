@@ -1,0 +1,35 @@
+@module AggregateReturns
+@types
+struct0: {i8, i1}
+struct1: {struct0, slice<memory>, i256}
+fn @f() -> i256 {
+bb0:
+v0 = icall @make
+v1 = extract_value struct1, v0, 0
+v2 = extract_value struct0, v1, 0
+v3 = zext i8 v2 to i256
+v4 = extract_value struct0, v1, 1
+v5 = zext i1 v4 to i256
+v6 = extract_value struct1, v0, 1
+v7 = extract_value slice<memory>, v6, 0
+v8 = ptrtoint ptr<memory> v7 to i256
+v9 = mul v8, 2
+v10 = extract_value slice<memory>, v6, 1
+v11 = extract_value struct1, v0, 2
+v12 = add v3, v5
+v13 = add v12, v9
+v14 = add v13, v10
+v15 = add v14, v11
+ret v15
+}
+fn @make() -> struct1 {
+bb0:
+ v0 = insert_value struct0, undef struct0, 0, i8 255
+ v1 = insert_value struct0, v0, 1, true
+ v2 = inttoptr i256 128 to ptr<memory>
+ v3 = make_memory_slice v2, 7
+ v4 = insert_value struct1, undef struct1, 0, v1
+ v5 = insert_value struct1, v4, 1, v3
+ v6 = insert_value struct1, v5, 2, 19
+ ret v6
+}

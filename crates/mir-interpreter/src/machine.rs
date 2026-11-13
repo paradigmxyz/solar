@@ -86,6 +86,7 @@ mod links;
 mod messages;
 mod placement;
 mod precompiles;
+mod returns;
 mod storage;
 
 /// Bytes of memory an execution may use: growing memory to 16 MiB costs about 538 million gas,
@@ -1725,38 +1726,6 @@ impl<'a> Run<'_, 'a, '_> {
         ControlFlow::Continue(pointer)
     }
 
-    /// Publishes the results after the first of a call returning several values the way the
-    /// backend does: result `k` at `buffer + 32 * k`, with `buffer` in the word at `0x20`.
-    fn publish_multi_return(&mut self, body: &Function, values: &[U256]) -> ControlFlow<Outcome> {
-        let Some(_) = &self.transaction else {
-            // Further results pass through a memory buffer the backend owns.
-            return ControlFlow::Break(Outcome::Unsupported("call returning several values"));
-        };
-        let buffer = if self.semantic.is_some() {
-            self.placement(PlacementRead::ReturnBuffer(&body.name.to_string()))?
-        } else if let Some(layout) = &self.machine.module.backend_memory {
-            let function = self.machine.function_id(body);
-            let Some(buffer) = layout.returns.get(&function) else {
-                return ControlFlow::Break(Outcome::Unsupported(
-                    "missing backend return buffer placement",
-                ));
-            };
-            *buffer
-        } else {
-            return ControlFlow::Break(Outcome::Unsupported(
-                "return buffer without backend placement",
-            ));
-        };
-        // mstore buffer + 32 * k, result k
-        // mstore 0x20, buffer
-        for (index, &value) in values.iter().enumerate().skip(1) {
-            let offset = buffer.wrapping_add(U256::from(index as u64 * EvmMemoryLayout::WORD_SIZE));
-            limit(self.memory.store(offset, value))?;
-        }
-        let slot = U256::from(EvmMemoryLayout::MULTI_RETURN_BUFFER_PTR_SLOT);
-        limit(self.memory.store(slot, buffer))
-    }
-
     fn terminator(&mut self, body: &'a Function, block: BlockId) -> ControlFlow<Outcome> {
         self.burn(1)?;
         let Some(terminator) = &body.blocks[block].terminator else {
@@ -1794,18 +1763,7 @@ impl<'a> Run<'_, 'a, '_> {
                         }
                         return ControlFlow::Break(Outcome::Return(words.into_iter().collect()));
                     }
-                    if values.len() > 1 {
-                        let mut words = Vec::new();
-                        for value in &values {
-                            let RuntimeValue::Word(word) = value else {
-                                return ControlFlow::Break(Outcome::Unsupported(
-                                    "non-scalar physical return component",
-                                ));
-                            };
-                            words.push(*word);
-                        }
-                        self.publish_multi_return(frame.return_owner, &words)?;
-                    }
+                    self.publish_semantic_returns(frame.return_owner, values.as_raw_slice())?;
                     if let Some(result) = frame.result {
                         if values.is_empty() {
                             return ControlFlow::Break(Outcome::Unsupported(
@@ -1821,11 +1779,6 @@ impl<'a> Run<'_, 'a, '_> {
                 let frame = self.frames.pop().expect("a run always has a frame");
                 if self.frames.is_empty() {
                     return ControlFlow::Break(Outcome::Return(values));
-                }
-                if values.len() > 1 && self.semantic.is_some() {
-                    return ControlFlow::Break(Outcome::Unsupported(
-                        "aggregate semantic call result",
-                    ));
                 }
                 if values.len() > 1 {
                     let caller_id = self.frames.last().expect("caller").function;
