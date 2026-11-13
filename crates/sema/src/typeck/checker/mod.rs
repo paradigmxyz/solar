@@ -240,6 +240,16 @@ impl<'gcx> TypeChecker<'gcx> {
                     .warn_code_at(span, error_code!(1400), "`msg.gas` is deprecated")
                     .help("use `gasleft()` instead")
                     .emit();
+            } else if let Builtin::AddressPayableSend | Builtin::AddressPayableTransfer = builtin {
+                // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L3288-L3299>
+                self.dcx()
+                    .warn_code_at(
+                        span,
+                        error_code!(9207),
+                        format!("`{}` is deprecated and scheduled for removal", builtin.name()),
+                    )
+                    .help("use `call{value: <amount>}(\"\")` instead")
+                    .emit();
             }
         }
     }
@@ -4034,6 +4044,20 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 self.discard(expr, Discarded::All);
                 self.statement_expr = Some(expr.peel_parens().id);
                 let ty = self.check_expr(expr);
+                // Reference: <https://github.com/argotorg/solidity/blob/f401782df49be312ea4ef52a2d467cf5183b5906/libsolidity/analysis/TypeChecker.cpp#L1358-L1359>
+                if let hir::ExprKind::Call(callee, _) = expr.kind
+                    && self.results.resolved_expr(callee)
+                        == Some(hir::Res::Builtin(Builtin::AddressPayableSend))
+                {
+                    self.dcx()
+                        .warn_code_at(
+                            stmt.span,
+                            error_code!(5878),
+                            "failure condition of `send` ignored",
+                        )
+                        .help("consider using `transfer` instead")
+                        .emit();
+                }
                 if self.has_no_effect(expr) {
                     self.results.no_effect_stmts.push(expr.span);
                 }

@@ -1,0 +1,16 @@
+warning[9207]: `send` is deprecated and scheduled for removal
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/unused_return_value_send.sol:LL:CC
+   │
+LL │         payable(address(0x12)).send(1);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: use `call{value: <amount>}("")` instead
+
+warning[5878]: failure condition of `send` ignored
+   ╭▸ ROOT/tests/ui/typeck/send_transfer/unused_return_value_send.sol:LL:CC
+   │
+LL │         payable(address(0x12)).send(1);
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: consider using `transfer` instead
+

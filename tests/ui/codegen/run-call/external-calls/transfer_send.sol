@@ -1,4 +1,5 @@
 //@ codegen-matrix: standard
+//@ compile-flags: --allow=9207 --allow=5878
 //@ filecheck:
 // CHECK: @module TransferSend
 //@ run-call: TransferSend::sendValue; value=1 => false
