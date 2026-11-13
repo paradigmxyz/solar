@@ -164,6 +164,27 @@ impl<'a> FunctionBuilder<'a> {
         previous
     }
 
+    /// Returns the source context attached to newly emitted instructions.
+    #[must_use]
+    pub fn debug_context(&self) -> InstructionMetadata {
+        self.current_debug_context.debug_context()
+    }
+
+    /// Records, on the jump that ends `block`, that an assignment stored `value`, which a phi of
+    /// the jump's target takes. `origin` is the [`Self::debug_context`] taken when `value` was
+    /// assigned in `block`. Does nothing when `block` does not end in a jump.
+    pub fn add_edge_assignment(
+        &mut self,
+        block: BlockId,
+        value: ValueId,
+        origin: InstructionMetadata,
+    ) {
+        let block = &mut self.func.blocks[block];
+        if matches!(block.terminator, Some(Terminator::Jump(_))) {
+            block.terminator_metadata.add_edge_assignment(value, origin);
+        }
+    }
+
     /// Inherits source context while replacing an instruction or control transfer.
     pub fn set_debug_context(&mut self, metadata: &InstructionMetadata) {
         self.current_debug_context.preserve_debug_loc(metadata);
