@@ -129,7 +129,7 @@ impl<'s, 'a> Loader<'s, 'a> {
 
     /// Reports names that two files define: resolving names globally would pick one of them.
     fn check_unique_names(&self, units: &[&'a SourceUnit<'a>]) -> Result<(), ()> {
-        let mut defined: FxHashMap<String, (usize, Span)> = FxHashMap::default();
+        let mut defined: FxHashMap<String, (usize, Span, Option<String>)> = FxHashMap::default();
         let mut ok = true;
         for (index, unit) in units.iter().enumerate() {
             // File-level names, and the types contracts declare, which are looked up by bare name
@@ -157,7 +157,12 @@ impl<'s, 'a> Loader<'s, 'a> {
                 if !defines {
                     continue;
                 }
+                let constant = self.constant_text(item);
                 match defined.entry(name.as_str().to_string()) {
+                    // The same constant, of the same type and value, in two files (Seaport's
+                    // constant files repeat words like `OneWord = 0x20`): either one reads alike.
+                    std::collections::hash_map::Entry::Occupied(first)
+                        if constant.is_some() && first.get().2 == constant => {}
                     std::collections::hash_map::Entry::Occupied(first)
                         if first.get().0 != index =>
                     {
@@ -172,12 +177,25 @@ impl<'s, 'a> Loader<'s, 'a> {
                     }
                     std::collections::hash_map::Entry::Occupied(_) => {}
                     std::collections::hash_map::Entry::Vacant(entry) => {
-                        entry.insert((index, name.span));
+                        entry.insert((index, name.span, constant));
                     }
                 }
             }
         }
         if ok { Ok(()) } else { Err(()) }
+    }
+
+    /// A file-level constant's type and initializer, as written without whitespace: two
+    /// constants with the same text, whose other names resolve uniquely, have the same value.
+    fn constant_text(&self, item: &ast::Item<'_>) -> Option<String> {
+        let ItemKind::Variable(v) = &item.kind else { return None };
+        if v.mutability != Some(ast::VarMut::Constant) {
+            return None;
+        }
+        let map = self.sess.source_map();
+        let ty = map.span_to_snippet(v.ty.span).ok()?;
+        let init = map.span_to_snippet(v.initializer.as_deref()?.span).ok()?;
+        Some(format!("{ty}={init}").chars().filter(|c| !c.is_whitespace()).collect())
     }
 }
 

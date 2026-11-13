@@ -14,7 +14,7 @@
 //! disjoint from the declared state variables.
 use super::{Env, R, Var, Vc};
 use crate::{
-    prog::{Contract, Func},
+    prog::{Contract, Func, Program},
     ty::{Ty, num, pow2},
     walk,
 };
@@ -422,9 +422,225 @@ impl<'p, 'a> Vc<'p, 'a> {
                 num(&(w256() - 1))
             ));
             self.ranges.insert(x.clone(), (pow2(128), w256() - 1));
+            self.keccak_in.insert(x.clone(), (len.clone(), val.to_string()));
             return x;
         }
         t
+    }
+
+    // ------------------------------------------------------------------ .slot
+    /// The slot of state variable `n`, as assembly reads it with `n.slot`: a constant of its own,
+    /// below 2^128 and distinct from every other such slot. Only variables that fill whole slots
+    /// take one (so no two share a slot), and the slots are symbolic, so a proof holds for any
+    /// storage layout, the compiler's included.
+    fn slot_const(&mut self, n: &str) -> String {
+        let t = format!("|slot.{n}|");
+        if !self.slot_consts.contains(&t) {
+            let hi = pow2(128);
+            let mut d = format!(
+                "(declare-const {t} Int)\n(assert (and (<= 0 {t}) (< {t} {})))\n",
+                num(&hi)
+            );
+            for o in &self.slot_consts {
+                d.push_str(&format!("(assert (not (= {t} {o})))\n"));
+            }
+            self.smt.send(&d);
+            self.ranges.insert(t.clone(), (BigInt::zero(), hi - 1));
+            self.slot_consts.push(t.clone());
+        }
+        t
+    }
+
+    /// `n.slot` / `n.offset` of a state variable in assembly, or None when `n` is not one.
+    fn y_state_slot(&mut self, cx: &Yc<'a>, span: Span, n: &str, f: &str) -> R<Option<String>> {
+        if Self::is_local(cx, n) || self.aliases.contains_key(n) || self.slocals.contains(n) {
+            return Ok(None);
+        }
+        let Some(sv) = self.c.state.iter().find(|s| s.name == n) else { return Ok(None) };
+        if sv.constant || sv.immutable || sv.ghost {
+            return Ok(None);
+        }
+        if sv.transient {
+            return unsupported(span, format!("assembly `{n}.{f}` of a transient variable"));
+        }
+        let whole = matches!(sv.ty, Ty::Map(..) | Ty::Arr(_, None) | Ty::Uint(256) | Ty::Int(256));
+        if !whole {
+            return unsupported(
+                span,
+                format!(
+                    "assembly `{n}.{f}`: `{n}` ({}) may share its slot or span several",
+                    sv.ty.name()
+                ),
+            );
+        }
+        if f == "offset" {
+            return Ok(Some("0".into()));
+        }
+        if self.spec {
+            return unsupported(span, format!("assembly `{n}.slot` inside a spec evaluation"));
+        }
+        Ok(Some(self.slot_const(n)))
+    }
+
+    /// Where raw storage address `p` lies when assembly built it from a `.slot`: the state
+    /// variable and the mapping keys, one per `keccak256(key . slot)` level, innermost first.
+    fn slot_path(&self, p: &str, depth: usize) -> Option<(String, Vec<String>)> {
+        if depth > 8 {
+            return None;
+        }
+        if let Some(n) = p.strip_prefix("|slot.").and_then(|s| s.strip_suffix('|')) {
+            return Some((n.to_string(), vec![]));
+        }
+        let (len, val) = self.keccak_in.get(p)?;
+        if *len != BigInt::from(64) {
+            return None;
+        }
+        let l = self.y_lin(val);
+        let w = w256();
+        // the low word is one slot term, the high word the key
+        for (atom, k) in &l.ts {
+            if !k.is_one() {
+                continue;
+            }
+            let Some((n, mut keys)) = self.slot_path(atom, depth + 1) else { continue };
+            let mut rest = l.clone();
+            rest.ts.remove(atom);
+            if !(&rest.c % &w).is_zero() || rest.ts.values().any(|k| !(k % &w).is_zero()) {
+                return None;
+            }
+            let key = Lin {
+                c: &rest.c / &w,
+                ts: rest.ts.iter().map(|(t, k)| (t.clone(), k / &w)).collect(),
+            };
+            keys.push(key.render());
+            return Some((n, keys));
+        }
+        None
+    }
+
+    /// Whether `p` mentions a `.slot`, directly or through the input of a keccak it holds.
+    fn slot_mention(&self, p: &str, depth: usize) -> bool {
+        depth <= 8
+            && tokenize(p).iter().any(|t| {
+                t.starts_with("|slot.")
+                    || self.keccak_in.get(t).is_some_and(|(_, v)| self.slot_mention(v, depth + 1))
+            })
+    }
+
+    /// `sload(p)` (`store` None) or `sstore(p, v)` where assembly built `p` from a state
+    /// variable's `.slot`: the declared variable's own storage, a mapping entry when `p` is
+    /// `keccak256(key . slot)` (nested for nested mappings). A key outside the key type's range
+    /// names no entry Solidity can reach, so that access stays raw storage. None when `p`
+    /// comes from no `.slot`; an error when it does in a way not modelled.
+    fn y_slot_access(&mut self, span: Span, addr: &str, store: Option<&str>) -> R<Option<String>> {
+        let Some((n, keys)) = self.slot_path(addr, 0) else {
+            if self.slot_mention(addr, 0) {
+                return unsupported(
+                    span,
+                    "assembly storage access at an address derived from a `.slot` other than the variable itself or `keccak256(key . slot)` of a mapping",
+                );
+            }
+            return Ok(None);
+        };
+        if self.spec {
+            return unsupported(
+                span,
+                "assembly storage access through `.slot` inside a spec evaluation",
+            );
+        }
+        let vkey = if self.env.contains_key(&n) { n.clone() } else { format!("@host.{n}") };
+        let Some(var) = self.env.get(&vkey).cloned() else {
+            return unsupported(span, format!("assembly storage access to `{n}` out of scope"));
+        };
+        let mut ty = var.ty.clone();
+        let mut conds = vec![];
+        let mut sel = vec![var.t.clone()];
+        for k in &keys {
+            let Ty::Map(kt, vt) = ty else {
+                return unsupported(
+                    span,
+                    format!("assembly hashes `{n}.slot`, which is no mapping at that depth"),
+                );
+            };
+            match *kt {
+                Ty::Uint(256) => {}
+                Ty::Addr | Ty::Contract(_) => conds.push(format!("(< {k} {})", num(&pow2(160)))),
+                other => {
+                    return unsupported(
+                        span,
+                        format!(
+                            "assembly access to `{n}` through `.slot` with a key of type {}",
+                            other.name()
+                        ),
+                    );
+                }
+            }
+            let cur = sel.last().unwrap().clone();
+            sel.push(format!("(select {cur} {k})"));
+            ty = *vt;
+        }
+        let signed = match ty {
+            Ty::Uint(256) => false,
+            Ty::Int(256) => true,
+            t => {
+                return unsupported(
+                    span,
+                    format!(
+                        "assembly access to `{n}` through `.slot`: a value of type {} is not one whole word",
+                        t.name()
+                    ),
+                );
+            }
+        };
+        let inr = if conds.is_empty() {
+            "true".to_string()
+        } else {
+            format!("(and {})", conds.join(" "))
+        };
+        let rkey = self.raw_key(false).ok_or((
+            span,
+            "raw storage (sload/sstore) is only modelled in contracts".to_string(),
+        ))?;
+        let raw = self.env[&rkey].clone();
+        let w = num(&w256());
+        match store {
+            None => {
+                let leaf = sel.last().unwrap();
+                let word = if signed {
+                    format!("(ite (< {leaf} 0) (+ {leaf} {w}) {leaf})")
+                } else {
+                    leaf.clone()
+                };
+                let x = self.fresh("sload");
+                self.smt.send(&format!(
+                    "(declare-const {x} Int)\n(assert (= {x} (ite {inr} {word} (select {} {addr}))))\n(assert {})\n",
+                    raw.t,
+                    Ty::Uint(256).range(&x).unwrap()
+                ));
+                self.ranges.insert(x.clone(), (BigInt::zero(), w256() - 1));
+                Ok(Some(x))
+            }
+            Some(v) => {
+                let half = num(&pow2(255));
+                let mut acc = if signed {
+                    format!("(ite (< {v} {half}) {v} (- {v} {w}))")
+                } else {
+                    v.to_string()
+                };
+                for (i, k) in keys.iter().enumerate().rev() {
+                    acc = format!("(store {} {k} {acc})", sel[i]);
+                }
+                let nv = Var {
+                    ty: var.ty.clone(),
+                    t: format!("(ite {inr} {acc} {})", var.t),
+                    len: var.len,
+                };
+                self.bind(&vkey, var.ty, nv);
+                let nr = format!("(ite {inr} {} (store {} {addr} {v}))", raw.t, raw.t);
+                self.bind(&rkey, raw.ty.clone(), Var { ty: raw.ty, t: nr, len: None });
+                Ok(Some(String::new()))
+            }
+        }
     }
 
     /// The ABI words of a value of a static type (structs expanded into their fields).
@@ -960,6 +1176,23 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             Ty::Bool => self.y_cond(&v),
             Ty::Uint(256) => v,
+            // any word: a call through it must show it holds a function (`call_ptr`)
+            Ty::Fn(_) => v,
+            Ty::Enum(en, _) => {
+                // the word must name a variant, as the enum's range is assumed of it everywhere
+                if self.spec {
+                    return unsupported(
+                        span,
+                        format!("assembly assignment to enum `{n}` in a spec"),
+                    );
+                }
+                let r = var.ty.range(&v).unwrap();
+                let why = format!(
+                    "assembly may assign `{n}` a word outside enum `{en}`, which the model cannot hold"
+                );
+                self.must_hold(&r, &why, span)?;
+                v
+            }
             Ty::Uint(k) => self.y_modp(cx, l, &pow2(*k as u32)).render(),
             Ty::Addr | Ty::Contract(_) => self.y_modp(cx, l, &pow2(160)).render(),
             Ty::Int(k) => {
@@ -990,6 +1223,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
                 Ok(v.t.clone())
             }
+            Ty::Fn(_) => Ok(v.t.clone()),
             Ty::Lit => match self.y_konst(&v.t) {
                 Some(k) => Ok(num(&(((k % w256()) + w256()) % w256()))),
                 None => Ok(format!("(mod {} {})", v.t, num(&w256()))),
@@ -1108,6 +1342,11 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let segs = p.segments();
                 if let [v, f] = segs {
                     let (v, f) = (v.as_str(), f.as_str());
+                    if (f == "slot" || f == "offset")
+                        && let Some(t) = self.y_state_slot(cx, e.span, v, f)?
+                    {
+                        return Ok(vec![t]);
+                    }
                     if (f == "offset" || f == "length")
                         && !Self::is_local(cx, v)
                         && let Some(var) = self.env.get(v).cloned()
@@ -1618,7 +1857,27 @@ impl<'p, 'a> Vc<'p, 'a> {
                         let l = self.y_lin(&a[1]);
                         one(self.y_slice(cx, &l, 8 * (31 - i), 8).render())
                     }
-                    _ => unsupported(span, "assembly `byte` with a symbolic index"),
+                    _ => {
+                        // one case per index the word can have (from its known range), else 0
+                        let (lo, hi) = self
+                            .iv(&a[0])
+                            .map(|(l, h)| (l.max(BigInt::zero()), h))
+                            .unwrap_or((BigInt::zero(), w256() - 1));
+                        let l = self.y_lin(&a[1]);
+                        let mut acc = "0".to_string();
+                        let top = hi.min(BigInt::from(31));
+                        let mut k = top;
+                        while k >= lo {
+                            let i = u32::try_from(&k).unwrap();
+                            let b = self.y_slice(cx, &l, 8 * (31 - i), 8).render();
+                            acc = format!("(ite (= {} {i}) {b} {acc})", a[0]);
+                            k -= 1;
+                        }
+                        let x = self.y_fresh(span, "byte")?;
+                        self.smt.send(&format!("(assert (= {x} {acc}))\n"));
+                        self.ranges.insert(x.clone(), (BigInt::zero(), BigInt::from(255)));
+                        one(x)
+                    }
                 }
             }
             "caller" | "address" | "callvalue" | "timestamp" | "number" | "chainid" | "origin" => {
@@ -1654,6 +1913,11 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             "sload" | "tload" => {
                 want(1)?;
+                if name == "sload"
+                    && let Some(x) = self.y_slot_access(span, &a[0], None)?
+                {
+                    return one(x);
+                }
                 let key = self
                     .raw_key(name == "tload")
                     .ok_or((span, format!("raw storage ({name}) is only modelled in contracts")))?;
@@ -1677,6 +1941,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                         span,
                         format!("assembly `{name}` inside a spec evaluation"),
                     );
+                }
+                if name == "sstore" && self.y_slot_access(span, &a[0], Some(&a[1]))?.is_some() {
+                    return Ok(vec![]);
                 }
                 let key = self
                     .raw_key(name == "tstore")
@@ -2017,4 +2284,75 @@ pub(super) fn asm_effects(
             _ => {}
         }
     }
+}
+
+/// State variables whose `.slot` some assembly in the program reads.
+pub(super) fn slot_taken(prog: &Program<'_>) -> BTreeSet<String> {
+    fn ex(e: &yul::Expr<'_>, out: &mut BTreeSet<String>) {
+        match &e.kind {
+            yul::ExprKind::Path(p) => {
+                if let [v, f] = p.segments()
+                    && f.name == sym::slot
+                {
+                    out.insert(v.as_str().to_string());
+                }
+            }
+            yul::ExprKind::Call(c) => {
+                for a in c.arguments.iter() {
+                    ex(a, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    fn blk(b: &yul::Block<'_>, out: &mut BTreeSet<String>) {
+        use yul::StmtKind as K;
+        for s in b.stmts.iter() {
+            match &s.kind {
+                K::Block(b) => blk(b, out),
+                K::AssignSingle(_, e)
+                | K::AssignMulti(_, e)
+                | K::Expr(e)
+                | K::VarDecl(_, Some(e)) => ex(e, out),
+                K::If(c, b) => {
+                    ex(c, out);
+                    blk(b, out);
+                }
+                K::Switch(sw) => {
+                    ex(&sw.selector, out);
+                    for c in sw.cases.iter() {
+                        blk(&c.body, out);
+                    }
+                }
+                K::For(f) => {
+                    blk(&f.init, out);
+                    ex(&f.cond, out);
+                    blk(&f.step, out);
+                    blk(&f.body, out);
+                }
+                K::FunctionDef(f) => blk(&f.body, out),
+                _ => {}
+            }
+        }
+    }
+    let mut out = BTreeSet::new();
+    for c in &prog.contracts {
+        let bodies = c
+            .funcs
+            .iter()
+            .chain(&c.overridden)
+            .map(|f| f.item)
+            .chain(c.modifiers.values().copied())
+            .filter_map(|f| f.body.as_ref());
+        for b in bodies {
+            for s in b.stmts.iter() {
+                walk::all_stmts(s, &mut |s| {
+                    if let StmtKind::Assembly(a) = &s.kind {
+                        blk(&a.block, &mut out);
+                    }
+                });
+            }
+        }
+    }
+    out
 }

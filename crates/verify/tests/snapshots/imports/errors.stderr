@@ -34,3 +34,16 @@ note: also defined here
 3 │ contract Twice {}
   │          ━━━━━
   ╰ note: solar-verify resolves names as if the files were flattened
+
+error: `WORD` is defined in more than one file
+   ╭▸ tests/snapshots/imports/errors.sol:11:18
+   │
+11 │ uint256 constant WORD = 33;
+   │                  ━━━━
+   ╰╴
+note: also defined here
+   ╭▸ tests/snapshots/imports/auxiliary/Twice.sol:5:18
+   │
+ 5 │ uint256 constant WORD = 32;
+   │                  ━━━━
+   ╰ note: solar-verify resolves names as if the files were flattened

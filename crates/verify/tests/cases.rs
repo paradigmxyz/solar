@@ -382,6 +382,11 @@ fn features() {
 }
 
 #[test]
+fn fnptr() {
+    check("tests/cases/fnptr.sol")
+}
+
+#[test]
 fn fixedarrays() {
     check("tests/cases/fixedarrays.sol")
 }
@@ -414,6 +419,11 @@ fn reentrancy() {
 #[test]
 fn rewrites() {
     check("tests/cases/rewrites.sol")
+}
+
+#[test]
+fn slots() {
+    check("tests/cases/slots.sol")
 }
 
 #[test]

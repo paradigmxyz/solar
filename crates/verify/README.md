@@ -54,7 +54,8 @@ Imports resolve as with `solar` and solc, so a project needs no flattening: pass
 `PREFIX=PATH` (or `CONTEXT:PREFIX=PATH`), and `--base-path PATH` and `--include-path PATH` (`-I`).
 In a Foundry project, `solar-verify $(cat remappings.txt) src/Vault.sol` reads the project's
 remappings. Names resolve as if the files were flattened, so an import that renames or
-namespaces (`{A as B}`, `* as M`, `"a.sol" as M`) and a name two files define are errors.
+namespaces (`{A as B}`, `* as M`, `"a.sol" as M`) and a name two files define are errors, except
+a file-level constant two files define with the same type and initializer.
 Contracts from imported files are not verified, but the functions a verified contract inherits
 from them are, as its own. `mutate` takes the same options, and verifies each mutant, and compiles
 it with solc for TCE, at the file's own path.
@@ -196,17 +197,38 @@ verify everything silently.
 ## Limits
 
 Supported: value types, enums, structs, nested mappings, storage and memory dynamic arrays,
-modifiers, inheritance (across imported files too), libraries and `using for`, internal, interface and
-low-level calls, try/catch, tuples, `unchecked`, casts, units, `keccak256`, `abi.encode` and typed
-`abi.decode`, ETH balances of this contract, and transient storage.
+modifiers, inheritance (across imported files too), libraries and `using for`, free (file-level)
+functions, internal, interface and low-level calls, internal function pointers, try/catch, tuples,
+`unchecked`, casts, units, `keccak256`, `abi.encode` and typed `abi.decode`, ETH balances of this
+contract, and transient storage.
+
+Free functions are called as internal library functions. An internal function pointer holds 0 or
+the tag of a function the code names as a value (`f = inc`, `L.f`, a free function); tags are
+symbolic, distinct and nonzero, so nothing depends on how the compiler numbers functions. A call
+through a pointer must be shown to hold 0 (Solidity panics) or the tag of a function of its arity,
+else the function is not modelled: a pointer from storage, or one assembly computed, fails closed.
+Each target the path allows runs as an internal call, so a call writes what its targets may write.
+Copying a pointer in assembly (`outFn := inFn`, the cast Seaport reuses code with) is modelled
+exactly, and a call through the copy is accepted only when the target's parameter and return
+types are the pointer's: a cast that reinterprets a value (a `MemoryPointer` as a struct) is not
+modelled.
 
 Inline assembly runs in the same executor with EVM word semantics, `sload`/`sstore` over raw
 storage, and memory at constant offsets. `sload(p.slot)` and `sstore(p.slot, v)` work on a local
 storage pointer `p` to a struct whose fields pack into one slot (`examples/struct_slot.sol`).
+`x.slot` of a state variable that fills whole slots (a mapping, a dynamic array, a 32-byte value)
+is a symbolic slot below 2^128, distinct from the others, so a proof holds for any layout; its
+`x.offset` is 0. `sload` and `sstore` at that slot reach `x` itself, and at `keccak256(key . slot)`
+(nested for nested mappings) the mapping's entry, when the key is a `uint256`, `bytes32` or
+address and the value one whole word; a key outside the key type's range names a raw slot.
+Any other address built from a `.slot` is not modelled. A raw `sstore` may write every variable
+whose `.slot` assembly reads anywhere, so a call summarized by its contract havocs them. An enum
+assigned in assembly must be shown to get one of its variants, and `byte` takes a symbolic index.
 
 Not supported: Yul `for` loops, memory at symbolic offsets, `.slot` and `.offset` of anything else,
-`do`/`while` loops, imports that rename or namespace, storage pointers chosen by conditionals, function
-pointers, the code of other accounts, and triggers on spec quantifiers (`@custom:trigger` applies to
+`do`/`while` loops, imports that rename or namespace, storage pointers chosen by conditionals,
+function pointer casts that reinterpret a value, external function pointers, assembly `return`,
+the code of other accounts, and triggers on spec quantifiers (`@custom:trigger` applies to
 broadcast lemmas). Unsupported constructs are reported as errors, never skipped, so a ✔ is never
 produced over code solar-verify did not model.
 

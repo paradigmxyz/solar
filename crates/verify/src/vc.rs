@@ -7,7 +7,7 @@
 use crate::{
     broadcast,
     ghost::FnKey,
-    prog::{Contract, Func, Program, Spec},
+    prog::{Contract, FREE, Func, Program, Spec},
     smt::{Res, Smt},
     ty::{Ty, num, parse_ty_text, pow2},
     walk,
@@ -137,6 +137,16 @@ pub(crate) struct Vc<'p, 'a> {
     broadcast_on: FxHashSet<FnKey>,
     /// The function being verified, whose proof no broadcast it rests on may assume.
     cur_key: Option<FnKey>,
+    /// Internal functions referenced as values in this VC, with the symbolic tag each stands for
+    /// (see `fn_tag`).
+    fn_tags: Vec<(&'p Contract<'a>, &'p Func<'a>, String)>,
+    /// Slot constants of the state variables whose `.slot` assembly read in this VC.
+    slot_consts: Vec<String>,
+    /// keccak terms assembly computed in this VC: the byte length and value of each input.
+    keccak_in: FxHashMap<String, (BigInt, String)>,
+    /// State variables whose `.slot` assembly anywhere in the program reads: a raw `sstore` may
+    /// write them.
+    slot_taken: BTreeSet<String>,
 }
 
 fn is_atom(t: &str) -> bool {
@@ -163,11 +173,14 @@ impl<'p, 'a> Vc<'p, 'a> {
                 heads.join(" "),
                 ctors.join(" ")
             );
-            for (n, fs) in &prog.structs {
+            // every zero value first: a field's zero may be another struct's (in an array)
+            for (n, _) in &prog.structs {
                 pre.push_str(&format!(
                     "(declare-const |S.{n}.zero| |S.{n}|)
 "
                 ));
+            }
+            for (n, fs) in &prog.structs {
                 for (f, t) in fs {
                     pre.push_str(&format!(
                         "(assert (= (|{n}.{f}| |S.{n}.zero|) {}))
@@ -223,7 +236,43 @@ impl<'p, 'a> Vc<'p, 'a> {
             proved: FxHashMap::default(),
             broadcast_on: FxHashSet::default(),
             cur_key: None,
+            fn_tags: vec![],
+            slot_consts: vec![],
+            keccak_in: FxHashMap::default(),
+            slot_taken: yul::slot_taken(prog),
         }
+    }
+
+    /// A fact the model needs to go on, not a property of the program: proved on this path and
+    /// then assumed, or else the function is not modelled (with a witness when the solver has
+    /// one), never a failure blamed on the code.
+    fn must_hold(&mut self, phi: &str, why: &str, span: Span) -> R<()> {
+        if self.guard == "false" || phi == "true" {
+            return Ok(());
+        }
+        let cex = self.cex_terms.clone();
+        let guard = self.guard.clone();
+        match self.smt.check(&guard, phi, &cex) {
+            Res::Unsat => {
+                self.assume(phi);
+                Ok(())
+            }
+            Res::Sat(cex) if !cex.is_empty() => {
+                let w: Vec<String> =
+                    cex.iter().take(6).map(|(n, v)| format!("{n} = {v}")).collect();
+                Err((span, format!("{why}; e.g. {}", w.join(", "))))
+            }
+            Res::Sat(_) => Err((span, why.to_string())),
+            Res::Unknown(r) => Err((span, format!("{why} (solver returned {r})"))),
+        }
+    }
+
+    /// Forgets what the solver scope being popped declared.
+    fn clear_scope(&mut self) {
+        self.declared_funs.clear();
+        self.fn_tags.clear();
+        self.slot_consts.clear();
+        self.keccak_in.clear();
     }
 
     // ---------------------------------------------------------------- SMT helpers
@@ -1001,7 +1050,7 @@ impl<'p, 'a> Vc<'p, 'a> {
     // ---------------------------------------------------------------- function driver
     pub(crate) fn verify_fn(&mut self, f: &'p Func<'a>) -> FnReport {
         self.smt.send(&format!("(push 1)\n; ===== {}.{}\n", self.c.name, f.name));
-        self.declared_funs.clear();
+        self.clear_scope();
         self.smt.clear_error();
         self.fails.clear();
         self.warnings.clear();
@@ -1814,6 +1863,9 @@ impl<'p, 'a> Vc<'p, 'a> {
             walk::stmt_exprs(s, &mut |e| visit(e, &mut out, &mut all_state));
             if let StmtKind::Assembly(a) = &s.kind {
                 yul::asm_effects(&a.block, &mut out, &mut all_state, self.lock_modset.get());
+                if out.contains("__raw") {
+                    out.extend(self.slot_taken.iter().cloned());
+                }
             }
             if let Some(specs) = self.prog.stmt_specs.get(&s.span) {
                 for (tag, sp) in specs {
@@ -1872,12 +1924,19 @@ impl<'p, 'a> Vc<'p, 'a> {
                     }
                     ExprKind::Ident(id) => {
                         let n = id.as_str();
-                        for f in self
+                        let free = self.prog.contract(FREE).map(|l| &l.funcs[..]).unwrap_or(&[]);
+                        let named: Vec<&'p Func<'a>> = self
                             .c
                             .funcs
                             .iter()
+                            .chain(free)
                             .filter(|f| f.name == n && f.params.len() == argv.len())
-                        {
+                            .collect();
+                        if named.is_empty() && !self.names_no_pointer(n) {
+                            // a function pointer: any function it may hold
+                            self.ptr_call_effects(&argv, out, all, seen);
+                        }
+                        for f in named {
                             self.call_effects(f, &argv, out, all, seen);
                         }
                     }
@@ -1933,10 +1992,66 @@ impl<'p, 'a> Vc<'p, 'a> {
                             *all = true;
                         }
                     }
+                    // a call through a pointer some expression computes
+                    ExprKind::Call(..)
+                    | ExprKind::Index(..)
+                    | ExprKind::Ternary(..)
+                    | ExprKind::Tuple(..) => self.ptr_call_effects(&argv, out, all, seen),
                     _ => {}
                 }
             }
             _ => {}
+        }
+    }
+
+    /// Whether calling `n(..)` is no call through a function pointer: a builtin, a type
+    /// conversion or a struct, event or error constructor.
+    fn names_no_pointer(&self, n: &str) -> bool {
+        const BUILTINS: &[&str] = &[
+            "require",
+            "assert",
+            "revert",
+            "keccak256",
+            "sha256",
+            "ripemd160",
+            "ecrecover",
+            "addmod",
+            "mulmod",
+            "gasleft",
+            "blockhash",
+            "blobhash",
+            "selfdestruct",
+            "old",
+            "__implies",
+            "payable",
+        ];
+        BUILTINS.contains(&n)
+            || n.starts_with("__q")
+            || self.prog.struct_fields(n).is_some()
+            || self.prog.contract(n).is_some()
+            || self.prog.enums.contains_key(n)
+            || self.prog.udvts.contains_key(n)
+    }
+
+    /// What a call through a function pointer may write: what any internal function of its
+    /// arity may (a pointer holds only functions of the program, else the call fails).
+    fn ptr_call_effects(
+        &self,
+        argv: &[&'a Expr<'a>],
+        out: &mut BTreeSet<String>,
+        all: &mut bool,
+        seen: &mut FxHashSet<String>,
+    ) {
+        let libs = self.prog.contracts.iter().filter(|c| c.kind == ast::ContractKind::Library);
+        let fs: Vec<&'p Func<'a>> = self
+            .c
+            .funcs
+            .iter()
+            .chain(libs.flat_map(|c| c.funcs.iter()))
+            .filter(|f| f.params.len() == argv.len() && !f.item.kind.is_modifier())
+            .collect();
+        for f in fs {
+            self.call_effects(f, argv, out, all, seen);
         }
     }
 
@@ -2172,6 +2287,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
                 if let StmtKind::Assembly(a) = &s.kind {
                     yul::asm_effects(&a.block, &mut out, &mut all, self.lock_modset.get());
+                    if out.contains("__raw") {
+                        out.extend(self.slot_taken.iter().cloned());
+                    }
                 }
             });
         }
@@ -2590,6 +2708,9 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let c = self.c;
                 if let Some(v) = self.eval_const(c, n, e.span) {
                     return v;
+                }
+                if let Some(v) = self.fn_ref(None, n, e.span)? {
+                    return Ok(v);
                 }
                 Err((e.span, format!("unknown identifier `{n}`")))
             }
@@ -3099,6 +3220,12 @@ impl<'p, 'a> Vc<'p, 'a> {
                 if let Some(v) = self.eval_const(owner, m, e.span) {
                     return v;
                 }
+                // `Lib.f` as a value
+                if owner.kind == ast::ContractKind::Library
+                    && let Some(v) = self.fn_ref(Some(owner), m, e.span)?
+                {
+                    return Ok(v);
+                }
             }
             if let Some(k) = self.prog.enums.get(b.as_str()) {
                 let _ = k;
@@ -3236,6 +3363,12 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
         };
         match &callee.kind {
+            ExprKind::Ident(id)
+                if self.env.get(id.as_str()).is_some_and(|v| matches!(v.ty, Ty::Fn(_))) =>
+            {
+                let v = self.env[id.as_str()].clone();
+                self.call_ptr(e, v, &argv)
+            }
             ExprKind::Ident(id) => {
                 let n = id.as_str();
                 match n {
@@ -3364,9 +3497,17 @@ impl<'p, 'a> Vc<'p, 'a> {
                 }
                 let c = self.c;
                 let vals = argv.iter().map(|a| self.eval(a)).collect::<R<Vec<_>>>()?;
-                let f =
-                    pick(&c.funcs, n, &vals).ok_or((e.span, format!("unknown function `{n}`")))?;
-                let rets = self.internal_call(c, f, vals, e.span, false)?;
+                if let Some(f) = pick(&c.funcs, n, &vals) {
+                    let rets = self.internal_call(c, f, vals, e.span, false)?;
+                    self.write_back_storage_params(f, &argv, e.span)?;
+                    return Ok(rets);
+                }
+                // a file-level (free) function
+                let free = self.prog.contract(FREE);
+                let Some((lib, f)) = free.and_then(|l| Some((l, pick(&l.funcs, n, &vals)?))) else {
+                    return Err((e.span, format!("unknown function `{n}`")));
+                };
+                let rets = self.internal_call(lib, f, vals, e.span, true)?;
                 self.write_back_storage_params(f, &argv, e.span)?;
                 Ok(rets)
             }
@@ -3714,7 +3855,199 @@ impl<'p, 'a> Vc<'p, 'a> {
                     _ => Err((e.span, format!("unsupported call `.{m}(..)`"))),
                 }
             }
-            _ => Err((e.span, "unsupported call".into())),
+            _ => {
+                // a call through a function pointer some expression computes
+                let v = self.eval(callee)?;
+                if matches!(v.ty, Ty::Fn(_)) {
+                    return self.call_ptr(e, v, &argv);
+                }
+                Err((e.span, "unsupported call".into()))
+            }
+        }
+    }
+
+    /// The internal function `n` names as a value (in library `lib`, or else in this contract
+    /// or among the free functions): its tag, typed by its signature. None when `n` names no
+    /// function; an error when it names several (an overload a value cannot pick here).
+    fn fn_ref(&mut self, lib: Option<&'p Contract<'a>>, n: &str, span: Span) -> R<Option<Val>> {
+        let fns = |c: &'p Contract<'a>| -> Vec<&'p Func<'a>> {
+            c.funcs
+                .iter()
+                .filter(|f| f.name == n && !f.item.kind.is_modifier() && f.name != "constructor")
+                .collect()
+        };
+        let mut found = None;
+        let owners: Vec<&'p Contract<'a>> = match lib {
+            Some(l) => vec![l],
+            None => [Some(self.c), self.prog.contract(FREE)].into_iter().flatten().collect(),
+        };
+        for c in owners {
+            let fs = fns(c);
+            if fs.len() > 1 {
+                return Err((span, format!("overloaded function `{n}` used as a value")));
+            }
+            if let Some(f) = fs.first() {
+                found = Some((c, *f));
+                break;
+            }
+        }
+        let Some((c, f)) = found else { return Ok(None) };
+        if self.spec {
+            return Err((span, format!("function `{n}` used as a value in a spec")));
+        }
+        if f.item.header.visibility() == Some(ast::Visibility::External) {
+            return Err((span, format!("external function `{n}` used as an internal value")));
+        }
+        let t = self.fn_tag(c, f);
+        let sig = (
+            f.params.iter().map(|p| p.1.clone()).collect(),
+            f.rets.iter().map(|r| r.1.clone()).collect(),
+        );
+        Ok(Some(Self::val(Ty::Fn(Box::new(sig)), t)))
+    }
+
+    /// The tag of internal function `f` as a pointer value: a constant of its own, nonzero and
+    /// distinct from every other function's tag. Tags are symbolic, so nothing a proof shows
+    /// depends on how the compiled code numbers functions (code offsets, or ids).
+    fn fn_tag(&mut self, c: &'p Contract<'a>, f: &'p Func<'a>) -> String {
+        if let Some((_, _, t)) = self.fn_tags.iter().find(|(_, g, _)| std::ptr::eq(*g, f)) {
+            return t.clone();
+        }
+        let t = format!("|fnptr.{}|", self.fn_tags.len() + 1);
+        let mut decl = format!(
+            "(declare-const {t} Int)
+(assert (and (< 0 {t}) (< {t} {})))
+",
+            num(&pow2(256))
+        );
+        for (_, _, o) in &self.fn_tags {
+            decl.push_str(&format!(
+                "(assert (not (= {t} {o})))
+"
+            ));
+        }
+        self.smt.send(&decl);
+        self.fn_tags.push((c, f, t.clone()));
+        t
+    }
+
+    /// A call through internal function pointer `v`. The pointer holds 0 (unset: Solidity
+    /// panics) or the tag of a function this VC referenced as a value, of the pointer's arity,
+    /// which is an obligation: a value from anywhere else (arithmetic in assembly, storage)
+    /// fails with a counterexample. Each target the path allows runs as an internal call; a
+    /// target whose parameter or return types differ from the pointer's (a cast that
+    /// reinterprets memory) is not modelled.
+    fn call_ptr(&mut self, e: &'a Expr<'a>, v: Val, argv: &[&'a Expr<'a>]) -> R<Vec<Val>> {
+        let Ty::Fn(sig) = v.ty.clone() else { unreachable!() };
+        let (ptys, rtys) = *sig;
+        if self.spec {
+            return Err((e.span, "call through a function pointer in a spec".into()));
+        }
+        let vals = argv.iter().map(|a| self.eval(a)).collect::<R<Vec<_>>>()?;
+        let cands: Vec<(&'p Contract<'a>, &'p Func<'a>, String)> = self
+            .fn_tags
+            .iter()
+            .filter(|(_, f, _)| f.params.len() == ptys.len() && f.rets.len() == rtys.len())
+            .cloned()
+            .collect();
+        let mut member = vec![format!("(= {} 0)", v.t)];
+        member.extend(cands.iter().map(|(_, _, t)| format!("(= {} {t})", v.t)));
+        let member = format!("(or {})", member.join(" "));
+        self.must_hold(
+            &member,
+            "call through a function pointer that may hold no internal function of its type (one from storage, or computed in assembly)",
+            e.span,
+        )?;
+        self.panic_unless(
+            &format!("(not (= {} 0))", v.t),
+            "call through an unset function pointer",
+            e.span,
+        );
+        let zeros = |s: &Self| rtys.iter().map(|t| s.zero_var(t)).collect::<Vec<_>>();
+        if self.guard == "false" {
+            return Ok(zeros(self));
+        }
+        let mut live = vec![];
+        for (c, f, t) in cands {
+            let guard = self.guard.clone();
+            if matches!(self.smt.check(&guard, &format!("(not (= {} {t}))", v.t), &[]), Res::Unsat)
+            {
+                continue;
+            }
+            let same = |a: &Ty, b: &Ty| {
+                a == b || matches!((a, b), (Ty::Addr | Ty::Contract(_), Ty::Addr | Ty::Contract(_)))
+            };
+            for (i, ((pn, pt), at)) in f.params.iter().zip(&ptys).enumerate() {
+                if !same(pt, at) {
+                    return Err((
+                        e.span,
+                        format!(
+                            "call through a function pointer of type {} to `{}`, whose parameter {} (`{pn}`) is {}: casts that reinterpret a value are not modelled",
+                            Ty::Fn(Box::new((ptys.clone(), rtys.clone()))).name(),
+                            f.name,
+                            i + 1,
+                            pt.name()
+                        ),
+                    ));
+                }
+            }
+            for (i, ((_, rt), want)) in f.rets.iter().zip(&rtys).enumerate() {
+                if !same(rt, want) {
+                    return Err((
+                        e.span,
+                        format!(
+                            "call through a function pointer of type {} to `{}`, whose return value {} is {}: casts that reinterpret a value are not modelled",
+                            Ty::Fn(Box::new((ptys.clone(), rtys.clone()))).name(),
+                            f.name,
+                            i + 1,
+                            rt.name()
+                        ),
+                    ));
+                }
+            }
+            live.push((c, f, t));
+        }
+        let retype = |rets: Vec<Val>| -> Vec<Val> {
+            rets.into_iter().zip(&rtys).map(|(r, t)| Var { ty: t.clone(), ..r }).collect()
+        };
+        match live.len() {
+            0 => {
+                // every path here calls an unset pointer and panicked
+                self.guard = "false".into();
+                Ok(zeros(self))
+            }
+            1 => {
+                let (c, f, _) = live.pop().unwrap();
+                let lib = c.kind == ast::ContractKind::Library;
+                let rets = self.internal_call(c, f, vals, e.span, lib)?;
+                self.write_back_storage_params(f, argv, e.span)?;
+                Ok(retype(rets))
+            }
+            _ => {
+                let (g0, env0) = (self.guard.clone(), self.env.clone());
+                let mut states = vec![];
+                for (c, f, t) in live {
+                    self.guard = g0.clone();
+                    self.env = env0.clone();
+                    self.assume(&format!("(= {} {t})", v.t));
+                    let lib = c.kind == ast::ContractKind::Library;
+                    let rets = self.internal_call(c, f, vals.clone(), e.span, lib)?;
+                    self.write_back_storage_params(f, argv, e.span)?;
+                    for (i, r) in rets.into_iter().enumerate() {
+                        self.env.insert(format!("@fnret.{i}"), r);
+                    }
+                    states.push((self.guard.clone(), std::mem::take(&mut self.env)));
+                }
+                let (g, mut env) = self.merge(states);
+                let mut rets = vec![];
+                for (i, t) in rtys.iter().enumerate() {
+                    let r = env.remove(&format!("@fnret.{i}")).unwrap_or_else(|| self.zero_var(t));
+                    rets.push(r);
+                }
+                self.guard = g;
+                self.env = env;
+                Ok(retype(rets))
+            }
         }
     }
 
@@ -3903,7 +4236,7 @@ impl<'p, 'a> Vc<'p, 'a> {
 ",
             self.c.name, f.name
         ));
-        self.declared_funs.clear();
+        self.clear_scope();
         self.smt.clear_error();
         self.fails.clear();
         self.checks = 1;
@@ -4755,6 +5088,11 @@ pub(crate) fn ty_of<'a>(p: &Program<'a>, t: &'a ast::Type<'a>) -> Ty {
             Box::new(ty_of(p, &a.element)),
             a.size.as_deref().and_then(|e| crate::prog::array_size(&p.const_sizes, e)),
         ),
+        K::Function(f) if f.visibility() != Some(ast::Visibility::External) => {
+            let params = f.parameters.iter().map(|v| ty_of(p, &v.ty)).collect();
+            let rets = f.returns().iter().map(|v| ty_of(p, &v.ty)).collect();
+            Ty::Fn(Box::new((params, rets)))
+        }
         K::Custom(path) => {
             let n = path.last().as_str();
             if let Some(k) = p.enums.get(n) {

@@ -6,3 +6,6 @@ import * as All from "./auxiliary/Twice.sol";
 import "./auxiliary/Twice.sol";
 
 contract Twice {}
+
+/// Defined in Twice.sol too, with another value: which one a name means depends on the file.
+uint256 constant WORD = 33;
