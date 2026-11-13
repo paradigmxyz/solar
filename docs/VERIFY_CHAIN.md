@@ -148,9 +148,13 @@ still build with both.
 
 Negatives, every one failing by a mismatch:
 
-- backend stages ([negative.sh](../solar-tv/milestone/negative.sh)): the bytecode's first ADD as SUB (the walk evaluates to false); in the final EVM IR the first add
-  as sub and the first sstore's key plus one (each: `sym_exec: the runs end in different results
-  on this path`). NEGATIVES_REST
+- backend stages ([negative.sh](../solar-tv/milestone/negative.sh)): 26 cases, all failing as they
+  must: the bytecode's first ADD as SUB (the walk evaluates to false); in the final EVM IR the
+  first add as sub, the first sstore's key plus one, the call value check dropped, the overflow
+  check dropped, a keccak dropped, a mapping key and a mapping slot changed; in the scheduled EVM
+  IR the first add as sub; and edits to the MIR stages' written values, ops, casts and phis
+  (each: `sym_exec: the runs end in different results on this path`). Cases for code Token does
+  not have (logs, calls, narrow checks, `mul`) are skipped.
 - spec ([verify-chain/negatives.sh](../solar-tv/milestone/verify-chain/negatives.sh), mutants in
   [verify-chain/Token/mutants.py](../solar-tv/milestone/verify-chain/Token/mutants.py)): six code
   mutants (`mint` adding `amount + 1` to the supply, `transfer` leaving the sender's balance,
@@ -173,7 +177,10 @@ obligations in the kernel (constructor 2, `mint` 4, `transfer` 4 of 5, `burn` 2)
 `[propext, Classical.choice, Quot.sound]`. `transfer#3`, the frame clause `forall address a ::
 a != msg.sender && a != to ==> balanceOf[a] == old(balanceOf[a])` through `transfer`'s two
 stores, fails: `vc_valid`'s `omega` finds no proof (a failed proof, not a timeout), so that
-clause rests on Z3 alone.
+clause rests on Z3 alone. That is also why `verify-chain/negatives.sh Token` exits 1: its kernel
+step needs the unedited contract fully proved. Every mutant above leaves at least one obligation
+the kernel does not prove, but `spec_transfer_frame_to`'s only one is `transfer#3`, which the
+unedited contract leaves too, so the kernel does not yet tell that mutant apart.
 
 Not certified for Token: the source stage (G7), the assembly stage under EthLib's EVM (B1), the
 bridge from solar-verify's VCs to SolidCore's Loom `wp` (G6; solidity-lean's VC check covers
