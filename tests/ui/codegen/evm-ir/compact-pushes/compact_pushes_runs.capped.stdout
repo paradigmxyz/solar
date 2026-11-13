@@ -1,0 +1,15 @@
+- ; === ROOT/tests/ui/codegen/evm-ir/compact-pushes/compact_pushes_runs.evmir (before compact-pushes) ===
++ ; === ROOT/tests/ui/codegen/evm-ir/compact-pushes/compact_pushes_runs.evmir (after compact-pushes) ===
+  @module module
+  bb0:
+-   push 0xc00000000000000000000000
+-   push 0xffffffffffffffffffffffff0000000000000000000000000000000000000000
++   push 192
++   push 88
++   shl
++   push 0
++   not
++   push 160
++   shl
+    stop
+  
