@@ -5,7 +5,8 @@
 //! - Solar's bytecode on revm (the reference the interpreters are compared with),
 //! - Solar's final lowered MIR on `solar-mir-interpreter`,
 //! - Solar's scheduled and final runtime EVM IR on `solar-evmir-interpreter`,
-//! - solc's bytecode on revm,
+//! - solc's bytecode on revm, and with `--forge` also against Solar's through `forge equivalence`
+//!   (see `forge.rs`),
 //! - optionally SolidCore, solidity-lean's source semantics (see `lean.rs`).
 //!
 //! Outcomes, return and revert data, logs and storage are compared byte for byte. Every
@@ -17,6 +18,7 @@
 mod case;
 mod compile;
 mod evm;
+mod forge;
 mod grammar;
 mod interp;
 mod lean;
@@ -36,6 +38,7 @@ fn usage() -> ! {
          \n  replay   CASE.json                        run a saved case again\
          \n  reduce   CASE.json --out FILE             reduce a saved case\
          \n\nOptions: --solar PATH --solc PATH --verify PATH --lean DIR --lean-solc PATH --solar-arg A --solc-arg A\
+         \n         --forge PATH (forge equivalence of the deployed code)\
          \n         --calls N --timeout SECS --no-reduce"
     );
     std::process::exit(2)
@@ -55,6 +58,8 @@ pub(crate) struct Cli {
     pub(crate) lean_solc: String,
     pub(crate) calls: usize,
     pub(crate) reduce: bool,
+    /// Foundry's `forge`, for `forge equivalence` of the two compilers' deployed code.
+    pub(crate) forge: Option<String>,
 }
 
 fn parse() -> Cli {
@@ -78,6 +83,7 @@ fn parse() -> Cli {
         lean_solc: "solc-0.8.35".into(),
         calls: 12,
         reduce: true,
+        forge: None,
     };
     let mut solar_args = vec![];
     let mut solc_args = vec![];
@@ -97,6 +103,7 @@ fn parse() -> Cli {
             "--calls" => cli.calls = val().parse().unwrap(),
             "--timeout" => cli.tools.timeout = Duration::from_secs(val().parse().unwrap()),
             "--no-reduce" => cli.reduce = false,
+            "--forge" => cli.forge = Some(val()),
             f if !f.starts_with("--") => cli.files.push(f.into()),
             _ => usage(),
         }

@@ -1096,3 +1096,21 @@ upstream `test/libsolidity/syntaxTests/storageLayoutSpecifier/ternary_operator.s
 - Rationale: the allocation check reports the oversized buffer before any
   element is encoded, and the case needs assembly-forged lengths.
 - Coverage: `tests/ui/codegen/run-call/calldata/abi_encode_forged_array_length.sol`.
+
+### CODEGEN-029: An enum read from storage is checked where it is loaded
+
+- ID: CODEGEN-029
+- Status: intentional
+- Difference: when a storage slot holds an out-of-range enum value, `solar`
+  reverts with `Panic(0x21)` as soon as it loads the value. `solc`, legacy
+  and via-IR, checks the value where it is first used, so a function that
+  reverts between the load and the use reverts with that later error instead.
+  Seaport 1.6's reference implementation shows it: from a forged
+  `_BasicOrderToOrderType` entry, `fulfillBasicOrder` reverts with
+  `Panic(0x21)` instead of `InvalidMsgValue(0)`.
+- Rationale: only assembly or a storage layout collision can store such a
+  value, and both compilers still revert; checking at the load keeps one check
+  per load instead of one per use.
+- Coverage: `tests/ui/codegen/run-call/storage/forged_enum_check_order.sol`;
+  `tools/difffuzz/forge/test/SeaportDiff.t.sol` (`test_storedEnumCheckOrder`),
+  found by `forge equivalence`.

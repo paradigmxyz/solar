@@ -1,0 +1,34 @@
+# Differential fuzzing of Seaport builds with Foundry; see ../README.md.
+# Pinned toolchain: Foundry nightly 1.9.1-nightly, commit 5717c1b8fea92d59da287e56e8b6c798a3a36e74
+# (foundryup --install nightly-5717c1b8fea92d59da287e56e8b6c798a3a36e74).
+[profile.default]
+solc = "0.8.24"
+evm_version = "cancun"
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+# The harness builds orders in memory: too many locals for the legacy pipeline.
+via_ir = true
+optimizer = true
+remappings = [
+    "forge-std/=lib/seaport/lib/forge-std/src/",
+    "@rari-capital/solmate/=lib/seaport/lib/solmate/",
+    "solmate/=lib/seaport/lib/solmate/",
+    "seaport-types/=lib/seaport/lib/seaport-types/",
+    "seaport-core/=lib/seaport/lib/seaport-core/",
+    "seaport/=lib/seaport/contracts/",
+]
+fs_permissions = [
+    { access = "read", path = "./lib/seaport" },
+    { access = "read-write", path = "./code" },
+]
+
+[fuzz]
+runs = 1000
+seed = "0x5eaf"
+
+[invariant]
+runs = 64
+depth = 32

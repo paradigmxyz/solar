@@ -296,6 +296,12 @@ pub(crate) fn run(cli: &Cli, case: &Case, dir: &Path) -> Outcome {
         out.solc_obs.push(ob);
         out.solar_obs.push(oa);
     }
+    if let Some(forge) = &cli.forge
+        && da.status == Status::Success
+        && db.status == Status::Success
+    {
+        forge_equivalence(&mut out, forge, &mut a, &mut b, dir, cli.tools.timeout);
+    }
     if let Some(lean) = &cli.lean {
         match crate::lean::run(cli, lean, &file, &case.name, &lean_calls, dir) {
             Ok(obs) => {
@@ -330,6 +336,37 @@ pub(crate) fn run(cli: &Cli, case: &Case, dir: &Path) -> Outcome {
     out.stats.divergences = out.divergences.len() as u64;
     out.solc_artifact = Some(solc);
     out
+}
+
+/// Compares the deployed codes with `forge equivalence`, Solar's as code A. Forge starts from
+/// arbitrary storage, so a distinguishing input is replayed on both chains, from the state the
+/// calls left: one that agrees there differs only from storage the calls never reached, such as
+/// dirty padding (docs/SOLC_DIVERGENCE.md, CODEGEN-025), and is counted and kept apart.
+fn forge_equivalence(
+    out: &mut Outcome,
+    forge: &str,
+    a: &mut Chain,
+    b: &mut Chain,
+    dir: &Path,
+    timeout: std::time::Duration,
+) {
+    let eq =
+        crate::forge::equivalence(forge, &a.code(), &b.code(), dir, timeout).unwrap_or_else(|e| {
+            crate::forge::Equivalence { status: "incomplete".into(), calldata: vec![], report: e }
+        });
+    *out.stats.outcomes.entry(format!("forge-{}", eq.status)).or_default() += 1;
+    if eq.status != "not_equivalent" {
+        return;
+    }
+    let (oa, _) = a.call(&eq.calldata);
+    let (ob, _) = b.call(&eq.calldata);
+    let reached = !obs::compare_full(&oa, &ob).is_empty();
+    let detail = format!("calldata 0x{}: {}", hex::encode(&eq.calldata), eq.report);
+    div(out, "solar-evm/solc-evm", "forge-equivalence", None, detail);
+    if !reached {
+        out.divergences.last_mut().unwrap().accepted =
+            Some("forge: differs only from storage the calls never reached".into());
+    }
 }
 
 /// Code whose Solar and solc bytecode may differ by design (docs/SOLC_DIVERGENCE.md).
@@ -416,6 +453,16 @@ pub(crate) fn campaign(cli: &Cli) {
         for d in distinct(&out.divergences) {
             if let Some(why) = &d.accepted {
                 *accepted.entry(format!("{} {}: {why}", d.legs, d.kind)).or_default() += 1;
+                // Unreached storage can still show a real difference (CODEGEN-029): keep the
+                // case, unreduced, for a look.
+                if d.kind == "forge-equivalence" {
+                    let fdir = cli.out.join("forge-unreached");
+                    std::fs::create_dir_all(&fdir).unwrap();
+                    let mut kept = case.clone();
+                    kept.divergence = Some(d.clone());
+                    let text = serde_json::to_string_pretty(&kept).unwrap();
+                    std::fs::write(fdir.join(format!("seed{seed}.json")), text).unwrap();
+                }
                 continue;
             }
             let path = save(cli, &case, d, &format!("seed{seed}-{}", d.legs.replace('/', "_")));
