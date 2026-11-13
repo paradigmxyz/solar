@@ -71,6 +71,33 @@ open(sys.argv[2], "w").write(s)
 ' "$file" "$tmp/$case/src/$mod/$(basename "$file")"
 }
 
+# elaborate PROOF: elaborate PROOF against the case's modules into $out, setting status (uses
+# check's dir, out and expect).
+elaborate() {
+    status=0
+    LEAN_PATH="$dir/olean:$lean_path" lean -M "$memory" "$1" > "$out" 2>&1 || status=$?
+    # An edit can make a run longer or its terms deeper than the proof's heartbeats and recursion
+    # depth allow (a check dropped, so the edited program runs on where the other stops; a read
+    # at another calldata word, whose word the procedure carries along unsimplified): run the
+    # proof again with four times its heartbeats and a recursion depth of 100000, which can only
+    # make it more likely to pass, so that it fails by its mismatch.
+    if [[ $expect != pass && $status -ne 0 ]] &&
+        grep -Eq 'deterministic\) timeout|maximum recursion depth' "$out"; then
+        python3 -c '
+import re, sys
+s = open(sys.argv[1]).read()
+s = re.sub(r"maxHeartbeats (\d+)", lambda m: "maxHeartbeats %d" % (4 * int(m.group(1))), s)
+if "maxRecDepth" in s:
+    s = re.sub(r"maxRecDepth \d+", "maxRecDepth 100000", s)
+else:
+    s = re.sub(r"^(set_option maxHeartbeats \d+ in\n)", r"\1set_option maxRecDepth 100000 in\n", s, flags=re.M)
+open(sys.argv[2], "w").write(s)
+' "$1" "$dir/proof.lean"
+        status=0
+        LEAN_PATH="$dir/olean:$lean_path" lean -M "$memory" "$dir/proof.lean" > "$out" 2>&1 || status=$?
+    fi
+}
+
 # check CASE MODULE PROOF EXPECT [PATTERN]: compile the case's MODULE (a file name under the
 # exported directory) and elaborate PROOF against it; EXPECT is pass, or fail with PATTERN (an
 # extended regex) in the output with its lines and spaces joined.
@@ -89,25 +116,15 @@ check() {
     for built in .lake/build/lib/lean/$mod/*.olean; do
         [[ -e "$dir/olean/$mod/$(basename "$built")" ]] || ln -s "$tv/$built" "$dir/olean/$mod/"
     done
-    local status=0
-    LEAN_PATH="$dir/olean:$lean_path" lean -M "$memory" "$proof" > "$out" 2>&1 || status=$?
-    # An edit can make a run longer or its terms deeper than the proof's heartbeats and recursion
-    # depth allow (a check dropped, so the edited program runs on where the other stops; a read
-    # at another calldata word, whose word the procedure carries along unsimplified): run the
-    # proof again with four times its heartbeats and a recursion depth of 100000, which can only
-    # make it more likely to pass, so that it fails by its mismatch.
-    if [[ $expect != pass && $status -ne 0 ]] &&
-        grep -Eq 'deterministic\) timeout|maximum recursion depth' "$out"; then
-        python3 -c '
-import re, sys
-s = open(sys.argv[1]).read()
-s = re.sub(r"maxHeartbeats (\d+)", lambda m: "maxHeartbeats %d" % (4 * int(m.group(1))), s)
-s = re.sub(r"^(set_option maxHeartbeats \d+ in\n)", r"\1set_option maxRecDepth 100000 in\n", s, flags=re.M)
-open(sys.argv[2], "w").write(s)
-' "$proof" "$dir/proof.lean"
-        status=0
-        LEAN_PATH="$dir/olean:$lean_path" lean -M "$memory" "$dir/proof.lean" > "$out" 2>&1 || status=$?
-    fi
+    # A run that certify.sh --split proved by cases is the directory of its cases: unedited,
+    # every case must pass; edited, the first case that fails decides.
+    local proofs=("$proof") each
+    [[ -d "${proof%.lean}" ]] && proofs=("${proof%.lean}"/*.lean)
+    status=0
+    for each in "${proofs[@]}"; do
+        elaborate "$each"
+        [[ $status -eq 0 ]] || break
+    done
     if [[ $expect == pass ]]; then
         if [[ $status -eq 0 ]]; then
             echo "ok   $case: $proof accepts the unedited $module"
@@ -288,6 +305,42 @@ print(f"  mapping slot {m.group(1)} as {slot + 1}")
 s = s[:m.start(1)] + str(slot + 1) + s[m.end(1):]
 EOF
 try "$last-mapping-slot" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/mapping-slot.py"
+
+# Each hash (at most the first four) reading the wrong range: its offset, and separately its
+# length, one word more (`push 32; add` before it, under a `swap` for the length), so that it
+# reads a range starting or ending at the next word. Each check holds for literal and computed
+# operands alike: a hash of `abi.encode` output at the free memory pointer, or of a copy of
+# calldata of a variable length.
+for i in 1 2 3 4; do
+    for which in offset length; do
+        cat > "$tmp/hash-$which-$i.py" <<EOF
+import re
+ks = [m.start() for m in re.finditer(r"\n(\s*)\.effect \.keccak256 2,", s)]
+if len(ks) < $i: sys.exit(3)
+k = ks[$i - 1]
+ind = re.match(r"\n(\s*)", s[k:]).group(1)
+ops = ["(.push 32)", ".add"] if "$which" == "offset" else ["(.swap 0)", "(.push 32)", ".add", "(.swap 0)"]
+print("  hash $i: its $which one word more")
+s = s[:k] + "".join(f"\n{ind}.op (.stack {op})," for op in ops) + s[k:]
+EOF
+        try "$last-hash$i-$which" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/hash-$which-$i.py"
+    done
+done
+
+# Each constant of more than 160 bits that the code stores in memory (at most the first two: an
+# EIP-712 type hash that `abi.encode` writes before hashing) plus one.
+for i in 1 2; do
+    cat > "$tmp/typehash-$i.py" <<EOF
+import re
+ms = list(re.finditer(r"\(\.push (0x[0-9a-f]{41,64})\)\),(?=(?:\n\s*\.op \(\.stack \(\.[a-z]+ \d+\)\),){0,3}\n\s*\.op \.store,)", s))
+if len(ms) < $i: sys.exit(3)
+m = ms[$i - 1]
+new = "0x%064x" % ((int(m.group(1), 16) + 1) % 2**256)
+print(f"  stored constant {m.group(1)} as {new}")
+s = s[:m.start(1)] + new + s[m.end(1):]
+EOF
+    try "$last-typehash$i" "$gen/$last.lean" "$last" "$proofs/Runs/$last.lean" "$mismatch" < "$tmp/typehash-$i.py"
+done
 
 # The first multiplication as an addition.
 replace_first '".op (.stack .mul)"' '".op (.stack .add)"' > "$tmp/mul-add.py"

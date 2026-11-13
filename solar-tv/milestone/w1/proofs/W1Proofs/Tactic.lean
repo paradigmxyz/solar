@@ -479,6 +479,56 @@ dsimproc_decl foldShr (Evm.shr _ _) := fun e => do
   let some v ← wordLit? v | return .continue
   return .done (← mkNumeral (mkConst ``EvmRules.Word) (if s < 256 then v >>> s else 0))
 
+open Lean Meta Simp in
+/-- A word operation of numerals as the numeral it computes: once a case fixes the call's
+selector, the dispatcher compares numerals, and evaluating those tests on 256-bit words
+definitionally recurses too deep. The kernel checks each value by evaluation. -/
+def foldWordLit (f : Nat → Nat → Nat) (e : Expr) : SimpM DStep := do
+  let args := e.getAppArgs
+  unless args.size == 2 do return .continue
+  let some a ← wordLit? args[0]! | return .continue
+  let some b ← wordLit? args[1]! | return .continue
+  return .done (← mkNumeral (mkConst ``EvmRules.Word) (f a b % 2 ^ 256))
+
+/-- See `foldWordLit`. -/
+dsimproc_decl foldAdd (Evm.add _ _) := foldWordLit (· + ·)
+/-- See `foldWordLit`. -/
+dsimproc_decl foldSub (Evm.sub _ _) := foldWordLit (fun a b => a + 2 ^ 256 - b)
+/-- See `foldWordLit`. -/
+dsimproc_decl foldAnd (Evm.and _ _) := foldWordLit (· &&& ·)
+/-- See `foldWordLit`. -/
+dsimproc_decl foldOr (Evm.or _ _) := foldWordLit (· ||| ·)
+/-- See `foldWordLit`. -/
+dsimproc_decl foldXor (Evm.xor _ _) := foldWordLit (· ^^^ ·)
+/-- See `foldWordLit`. -/
+dsimproc_decl foldLt (Evm.lt _ _) := foldWordLit (fun a b => if a < b then 1 else 0)
+/-- See `foldWordLit`. -/
+dsimproc_decl foldGt (Evm.gt _ _) := foldWordLit (fun a b => if b < a then 1 else 0)
+/-- See `foldWordLit`. -/
+dsimproc_decl foldEq (Evm.eq _ _) := foldWordLit (fun a b => if a = b then 1 else 0)
+/-- See `foldWordLit`. -/
+dsimproc_decl foldNe (Evm.ne _ _) := foldWordLit (fun a b => if a = b then 0 else 1)
+
+open Lean Meta Simp in
+/-- See `foldWordLit`. -/
+dsimproc_decl foldIszero (Evm.iszero _) := fun e => do
+  let_expr Evm.iszero a := e | return .continue
+  let some a ← wordLit? a | return .continue
+  return .done (← mkNumeral (mkConst ``EvmRules.Word) (if a = 0 then 1 else 0))
+
+open Lean Meta Simp in
+/-- An equation of numeral words as `True` or `False`, which `decide` proves (the kernel
+compares the numerals): the folds above leave tests such as `(1 : Word) = 0`, which the
+`BitVec` simprocs do not match at the type `Word`. -/
+simproc_decl wordLitEq ((_ : EvmRules.Word) = _) := fun e => do
+  let_expr Eq _ a b := e | return .continue
+  let some x ← wordLit? a | return .continue
+  let some y ← wordLit? b | return .continue
+  if x == y then
+    return .done { expr := mkConst ``True, proof? := some (← mkEqTrue (← mkEqRefl a)) }
+  else
+    return .done { expr := mkConst ``False, proof? := some (← mkEqFalse (← mkDecideProof (mkNot e))) }
+
 open Lean Elab Tactic Meta in
 /-- Case-split on the first `if` of the goal whose condition is closed, as `hc`, with `hcs` its
 symmetric form when it is an equation or its negation, so that either program's orientation
@@ -713,10 +763,16 @@ dsimproc_decl finValLit (Fin.val _) := fun e => do
   let some ⟨_, v⟩ ← getFinValue? a | return .continue
   return .done (mkNatLit v.val)
 
+/-- The steps each rewrite of `sym_exec` may take, past simp's default of 100000: a
+contract function's whole path is one term (as `permit`'s hashes, recovery and log are), and a
+step limit, unlike heartbeats, fails a step silently inside `first` and leaves the path unread. -/
+abbrev symSteps : Nat := 4000000
+
 /-- The definitional evaluation of both layers. -/
 macro "sym_eval" : tactic => `(tactic|
   dsimp only [iterate_mk, iterate_zero, listLookup, listLength, moduleEntry, functionParams,
-    foldNot, foldShl, foldShr,
+    foldNot, foldShl, foldShr, foldAdd, foldSub, foldAnd, foldOr, foldXor,
+    foldLt, foldGt, foldEq, foldNe, foldIszero,
     MIR.Lowered.Module.run, MIR.Lowered.moduleBlock, MIR.Lowered.segment,
     MIR.Lowered.splitCall, MIR.Lowered.bindResult, MIR.Lowered.bindResults,
     MIR.Lowered.bindExtras, MIR.Lowered.publishResults, MIR.Lowered.publishWords, MIR.Lowered.bindPhis,
@@ -740,7 +796,7 @@ macro "sym_eval" : tactic => `(tactic|
 set_option hygiene false in
 /-- Branch conditions as propositions, decided by the cases split so far. -/
 macro "sym_cond" : tactic => `(tactic|
-  simp only [*, apply_calldataload _ _ _ hcd, Mem.load_expand, Mem.load_write_of_disjoint,
+  simp (config := { maxSteps := symSteps }) only [*, wordLitEq, apply_calldataload _ _ _ hcd, Mem.load_expand, Mem.load_write_of_disjoint,
     Mem.expand_store, Mem.load_store_same,
     cond_ne, cond_eq, cond_sub, cond_lt, cond_gt, cond_iszero, cond_or,
     cond_zero_lt, cond_zero_gt, cond_zero_eq, cond_zero_ne, cond_zero_iszero,
@@ -773,7 +829,7 @@ the cases split so far, over the offsets' `toNat`s; a range read of more than a 
 into words, so a hash of `abi.encode` output meets the stored words. Ranges it cannot place
 keep the read over the write, so both programs must build the same term there. -/
 macro "sym_mem" : tactic => `(tactic| first
-  | simp (disch := sym_mem_disch) only [Mem.read_expand, Mem.read_store_at,
+  | simp (config := { maxSteps := symSteps }) (disch := sym_mem_disch) only [Mem.read_expand, Mem.read_store_at,
       Mem.read_store_disjoint, Mem.load_store_at, Mem.load_store_disjoint,
       Mem.read_storeByte_disjoint, Mem.load_storeByte_disjoint, Mem.read_write_disjoint,
       Mem.load_write_of_disjoint, Mem.read_write_same, Mem.read_write_inside,

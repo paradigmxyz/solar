@@ -2,15 +2,21 @@
 # Certifies one contract's backend: compiles it, exports its stages, writes their kernel proofs
 # and checks them, with nothing written by hand for the contract.
 #
-#   solar-tv/milestone/certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [-- SOLAR_OPTIONS...]
+#   solar-tv/milestone/certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [--heartbeats N]
+#       [--split] [--rec-depth N] [-- SOLAR_OPTIONS...]
 #
 # NAME (default: FILE's base name, lowercase letters, digits and underscores) is the directory
 # solar-tv/milestone/NAME, the Lean library NAME and the namespace SolarTV.Milestone.<Name>.
 # SOLAR_OPTIONS default to -Ogas --evm-version osaka and are kept in NAME/options. --loops N
 # (kept in NAME/loops) claims that a run's loops make at most N iterations in all, for a contract
-# whose loops run a fixed number of times; the first stage's end proof checks it.
-# CERTIFY_HEARTBEATS (kept in NAME/heartbeats) sets each run proof's maxHeartbeats, for stages whose
-# symbolic runs need more than the default 2000000.
+# whose loops run a fixed number of times; the first stage's end proof checks it. --heartbeats N
+# (kept in NAME/heartbeats) is each run proof's maxHeartbeats (default 2000000, four times that
+# for a program with internal calls), for a contract whose paths carry larger memory terms;
+# CERTIFY_HEARTBEATS sets it too.
+# --split (kept as NAME/split) proves each run by cases on the selector of the call, one lemma
+# per external function of the contract and one for none of them, so that the kernel checks one
+# function's paths at a time; the run theorems and their composition are unchanged. --rec-depth N
+# (kept in NAME/rec-depth) is each run proof's maxRecDepth, for paths with deeper terms.
 #
 # 1. Copies FILE to NAME/NAME.sol (the source the manifest records), builds solar (unless
 #    CERTIFY_SKIP_BUILD=1; SOLAR picks the binary), checks that its version names the
@@ -36,17 +42,23 @@ export LEAN_NUM_THREADS="${LEAN_NUM_THREADS:-2}" CARGO_BUILD_JOBS="${CARGO_BUILD
 memory="${LEAN_MEMORY:-4500}"
 
 die() { echo "error: $*" >&2; exit 1; }
-[[ $# -ge 2 ]] || die "usage: certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [-- SOLAR_OPTIONS...]"
+[[ $# -ge 2 ]] || die "usage: certify.sh FILE.sol CONTRACT [--name NAME] [--loops N] [--heartbeats N] [-- SOLAR_OPTIONS...]"
 file="$(realpath "$1")"
 contract=$2
 shift 2
 name="$(basename "$file" .sol | tr 'A-Z-' 'a-z_')"
 options=()
 loops=
+heartbeats=
+split=
+recdepth=
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --name) name=$2; shift 2 ;;
         --loops) loops=$2; shift 2 ;;
+        --heartbeats) heartbeats=$2; shift 2 ;;
+        --split) split=1; shift ;;
+        --rec-depth) recdepth=$2; shift 2 ;;
         --) shift; options=("$@"); break ;;
         *) die "unknown argument $1" ;;
     esac
@@ -69,11 +81,18 @@ if [[ -n "$loops" ]]; then
     if [[ "$loops" -eq 0 ]]; then rm -f "$dir/loops"; else echo "$loops" > "$dir/loops"; fi
 fi
 loops="$(cat "$dir/loops" 2>/dev/null || echo 0)"
-if [[ -n "${CERTIFY_HEARTBEATS:-}" ]]; then
-    [[ "$CERTIFY_HEARTBEATS" =~ ^[0-9]+$ ]] || die "CERTIFY_HEARTBEATS=$CERTIFY_HEARTBEATS is not a number"
-    echo "$CERTIFY_HEARTBEATS" > "$dir/heartbeats"
+heartbeats="${heartbeats:-${CERTIFY_HEARTBEATS:-}}"
+if [[ -n "$heartbeats" ]]; then
+    [[ "$heartbeats" =~ ^[0-9]+$ && "$heartbeats" -gt 0 ]] || die "--heartbeats $heartbeats is not a positive number"
+    echo "$heartbeats" > "$dir/heartbeats"
 fi
 heartbeats="$(cat "$dir/heartbeats" 2>/dev/null || echo 2000000)"
+[[ -z "$split" ]] || touch "$dir/split"
+if [[ -n "$recdepth" ]]; then
+    [[ "$recdepth" =~ ^[0-9]+$ && "$recdepth" -gt 0 ]] || die "--rec-depth $recdepth is not a positive number"
+    echo "$recdepth" > "$dir/rec-depth"
+fi
+recdepth="$(cat "$dir/rec-depth" 2>/dev/null || echo 0)"
 
 echo "== 1. compile $source:$contract (${options[*]}) and export its stages"
 target="${CARGO_TARGET_DIR:-$root/target}"
@@ -124,11 +143,19 @@ print("stages:", ", ".join(f"{s['definition']} ({s['pass']})" for s in manifest[
 print("bytecode:", bytecode, "sha256", manifest["bytecode_sha256"])
 EOF
 
+selectors=
+if [[ -f "$dir/split" ]]; then
+    selectors="$(compile --emit=hashes | python3 -c '
+import json, sys
+c = json.load(sys.stdin)["contracts"][sys.argv[1]]["hashes"]
+print(",".join(sorted(c.values())))' "$source:$contract")"
+    [[ -n "$selectors" ]] || die "--split: the contract has no external functions"
+fi
 echo "== 2. write the proofs"
 rm -rf "$dir/Proofs" "$dir/Proofs.lean"
 info="$(python3 solar-tv/milestone/certify.py "$gen" --gen-module "$name.gen.$contract" \
     --proof-dir "$dir/Proofs" --proof-module "$name.Proofs" --namespace "SolarTV.Milestone.$cap" \
-    --label "$name" --loops "$loops" --heartbeats "$heartbeats")"
+    --label "$name" --loops "$loops" --heartbeats "$heartbeats" --selectors "$selectors" --rec-depth "$recdepth")"
 final="$(python3 -c 'import json, sys; print(json.loads(sys.argv[1])["final"])' "$info")"
 echo "$info"
 
@@ -150,8 +177,10 @@ cd "$tv"
 # One module at a time, so that at most one Lean process runs: the exported stages first, which
 # the proofs import, then the proofs.
 mapfile -t modules < <(cd milestone && ls "$name"/Proofs/Runs/*.lean | sed 's|\.lean$||; s|/|.|g')
+# The cases --split writes, each in a Lean process of its own before the run that combines them.
+mapfile -t cases < <(cd milestone && ls "$name"/Proofs/Runs/*/*.lean 2>/dev/null | sed 's|\.lean$||; s|/|.|g')
 mapfile -t stages < <(cd milestone && ls "$name/gen/$contract"/*.lean | sed 's|\.lean$||; s|/|.|g')
-for module in "${stages[@]}" "${modules[@]}" "$name.Proofs.Stages" "$name.Proofs.Assembly" "$name.Proofs"; do
+for module in "${stages[@]}" "${cases[@]}" "${modules[@]}" "$name.Proofs.Stages" "$name.Proofs.Assembly" "$name.Proofs"; do
     printf '%s: ' "$module"
     if ! lake build "$module" > "$tv/.lake/certify-build.log" 2>&1; then
         grep -E '^error' -A12 "$tv/.lake/certify-build.log" | head -60 >&2
@@ -166,7 +195,7 @@ trap 'rm -f "$audit"' EXIT
     echo "#check @$final"
     echo "#print axioms $final"
     for module in "${modules[@]}"; do
-        thm="$(sed -n 's/^theorem \([a-z0-9_]*\) .*/\1/p' "milestone/${module//.//}.lean" | head -1)"
+        thm="$(sed -n 's/^theorem \([a-z0-9]*_\(run\|ends\)\) .*/\1/p' "milestone/${module//.//}.lean" | head -1)"
         echo "#print axioms SolarTV.Milestone.$cap.$thm"
     done
     echo "#print axioms SolarTV.Milestone.$cap.walk_eq"

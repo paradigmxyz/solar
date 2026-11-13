@@ -84,3 +84,12 @@ srcDir = "milestone"
 roots = ["reader.Proofs"]
 globs = ["reader.+"]
 moreLeanArgs = ["-M", "3000"]
+
+# uni_erc20: the stages of milestone/uni_erc20/uni_erc20.sol's UniswapV2ERC20 and their kernel
+# proofs, which milestone/certify.sh writes.
+[[lean_lib]]
+name = "uni_erc20"
+srcDir = "milestone"
+roots = ["uni_erc20.Proofs"]
+globs = ["uni_erc20.+"]
+moreLeanArgs = ["-M", "6000"]

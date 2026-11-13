@@ -119,6 +119,19 @@ def main():
         "multiplied by one more than it, a claim the end proof checks",
     )
     ap.add_argument(
+        "--rec-depth",
+        type=int,
+        default=0,
+        help="each run proof's maxRecDepth when given, for terms deeper than the default allows",
+    )
+    ap.add_argument(
+        "--selectors",
+        default="",
+        help="comma-separated hex function selectors: split each run proof into one lemma per "
+        "selector the call's first word names and one for none of them, which the run proof "
+        "combines by cases, so that the kernel checks one function's paths at a time",
+    )
+    ap.add_argument(
         "--axioms",
         default="{}",
         help="JSON: theorem name to its expected axiom list, where it is not " + AXIOMS,
@@ -137,6 +150,56 @@ def main():
     (out / "Runs").mkdir(parents=True, exist_ok=True)
     calls = any(s["calls"] for s in stages)
     hb = int(args.heartbeats) * (4 if calls else 1)
+    selectors = [int(x, 16) for x in args.selectors.split(",") if x]
+    opts = f"set_option maxHeartbeats {hb} in\n" + (
+        f"set_option maxRecDepth {args.rec_depth} in\n" if args.rec_depth else ""
+    )
+
+    def theorem(name, statement, module, imports, doc):
+        """The module `Runs/<module>`: `name`'s proof of `statement` (over `o` and `call`) by
+        `sym_exec`. When `--selectors` names any, one module `Runs/<module>/Sel<i>` per selector
+        proves it for calls whose first word names that selector, `Runs/<module>/Other` for calls
+        that name none of them, each in a Lean process of its own, and `name` by cases."""
+        if not selectors:
+            return header(imports, doc, ns, opens) + (
+                opts
+                + f"theorem {name} (o : Oracle) (call : Call) :\n    {statement} := by\n"
+                "  sym_exec\n"
+            )
+        word = "EvmRules.Evm.shr 224 (calldataWord call 0)"
+        (out / "Runs" / module).mkdir(parents=True, exist_ok=True)
+        cases = []
+        for i, sel in enumerate(selectors):
+            lemma = f"{name}_sel{i}"
+            cases.append(f"{pm}.Runs.{module}.Sel{i}")
+            write(
+                out / "Runs" / module / f"Sel{i}.lean",
+                header(imports, f"{doc} Calls to the selector 0x{sel:08x}.", ns, opens)
+                + opts
+                + f"theorem {lemma} (o : Oracle) (call : Call)\n"
+                f"    (hsel : {word} = 0x{sel:08x}) :\n    {statement} := by\n"
+                "  sym_exec\n\n" + ax(lemma) + f"\nend {ns}\n",
+            )
+        hyps = "\n    ".join(f"(h{i} : ¬{word} = 0x{sel:08x})" for i, sel in enumerate(selectors))
+        syms = "".join(f"  have hs{i} := Ne.symm h{i}\n" for i in range(len(selectors)))
+        cases.append(f"{pm}.Runs.{module}.Other")
+        write(
+            out / "Runs" / module / "Other.lean",
+            header(imports, f"{doc} Calls that name no selector of the contract.", ns, opens)
+            + opts
+            + f"theorem {name}_other (o : Oracle) (call : Call)\n    {hyps} :\n"
+            f"    {statement} := by\n{syms}  sym_exec\n\n" + ax(f"{name}_other") + f"\nend {ns}\n",
+        )
+        split = "".join(
+            f"  by_cases h{i} : {word} = 0x{sel:08x}\n  · exact {name}_sel{i} o call h{i}\n"
+            for i, sel in enumerate(selectors)
+        )
+        names = " ".join(f"h{i}" for i in range(len(selectors)))
+        return header(["W1Proofs.Axioms", *cases], doc, ns, opens) + (
+            "/-- By cases on the function the call's selector names. -/\n"
+            f"theorem {name} (o : Oracle) (call : Call) :\n    {statement} := by\n"
+            f"{split}  exact {name}_other o call {names}\n"
+        )
 
     def write(path, text):
         path.write_text(text)
@@ -155,7 +218,10 @@ def main():
     ends = f"{first['def']}_ends"
     write(
         out / "Runs" / f"{first['module']}.lean",
-        header(
+        theorem(
+            ends,
+            f"({run_fn(first)} o {first['def']} call {first['fuel']}).isSome = true",
+            first["module"],
             ["W1Proofs.Tactic", "W1Proofs.Axioms", f"{gm}.{first['module']}"],
             f"The first lowered MIR ends on every call within {first['fuel']} blocks, "
             + (
@@ -168,13 +234,8 @@ def main():
                 if args.loops == 0
                 else f", times {args.loops + 1}: its loops run at most {args.loops} iterations."
             ),
-            ns,
-            opens,
         )
-        + f"set_option maxHeartbeats {hb} in\n"
-        f"theorem {ends} (o : Oracle) (call : Call) :\n"
-        f"    ({run_fn(first)} o {first['def']} call {first['fuel']}).isSome = true := by\n"
-        "  sym_exec\n\n" + ax(ends) + f"\nend {ns}\n",
+        + "\n" + ax(ends) + f"\nend {ns}\n",
     )
 
     # Each pair of consecutive stages ends in the same result.
@@ -188,7 +249,11 @@ def main():
         )
         write(
             out / "Runs" / f"{b['module']}.lean",
-            header(
+            theorem(
+                name,
+                f"{run_fn(a)} o {a['def']} call {a['fuel']} = "
+                f"{run_fn(b)} o {b['def']} call {b['fuel']}",
+                b["module"],
                 [
                     "W1Proofs.Tactic",
                     "W1Proofs.Axioms",
@@ -196,14 +261,8 @@ def main():
                     f"{gm}.{a['module']}",
                 ],
                 f"{what} end in the same result on every call.",
-                ns,
-                opens,
             )
-            + f"set_option maxHeartbeats {hb} in\n"
-            f"theorem {name} (o : Oracle) (call : Call) :\n"
-            f"    {run_fn(a)} o {a['def']} call {a['fuel']} = "
-            f"{run_fn(b)} o {b['def']} call {b['fuel']} := by\n"
-            "  sym_exec\n\n" + ax(name) + f"\nend {ns}\n",
+            + "\n" + ax(name) + f"\nend {ns}\n",
         )
 
     # Stages and their composition.

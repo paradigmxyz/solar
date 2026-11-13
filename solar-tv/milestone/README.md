@@ -48,6 +48,15 @@ must regenerate it byte for byte (up to the compiler's build commit in the manif
 w1's proofs ([w1/proofs/W1Proofs](w1/proofs/W1Proofs)) are certify.py's output too, with their
 exact axiom sets pinned; [w1/check.sh](w1/check.sh) checks that they regenerate unchanged.
 
+Large contracts take three options, each kept in `NAME/` so a rerun regenerates the same proofs.
+`--split` proves each run by cases on the call's selector (`shr(224, calldataload(0))`): one
+module `Runs/<Stage>/Sel<i>` per external function, one `Runs/<Stage>/Other` for calls that name
+none of them, and `Runs/<Stage>` combining them by `by_cases`, so that each Lean process (and the
+kernel) checks one function's paths; the run theorems, the stages and their composition are the
+ones an unsplit contract has. `--heartbeats N` and `--rec-depth N` set each run proof's
+`maxHeartbeats` and `maxRecDepth`. negative.sh reads a split run as its cases: unedited, every
+case must check; edited, the first case that fails must fail with its mismatch.
+
 ## Targets
 
 - [counter](counter): `contract Counter { uint256 x; function inc(uint256 d) external { x += d; }
@@ -207,6 +216,22 @@ CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/mil
 
 ```sh
 CARGO_TARGET_DIR=... LEAN_MEMORY=3000 solar-tv/milestone/certify.sh solar-tv/milestone/pair/pair.sol Pair
+```
+
+- [uni_erc20](uni_erc20/uni_erc20.sol): `UniswapV2ERC20` of Uniswap v2-core at 6a9e7c9, ported
+  to ^0.8 (the header lists every change: SafeMath as checked arithmetic, `uint(-1)` as
+  `type(uint256).max`, `chainid` assembly as `block.chainid`), 1,112 bytes of runtime bytecode
+  with `-Zcheck-analyses=false` ([uni_erc20/options](uni_erc20/options)): thirteen selectors,
+  balances and allowances in mappings (`keccak256` slots), `Transfer` and `Approval` logs, and
+  `permit`, which hashes the EIP-712 struct (192 bytes) and the digest (`\x19\x01`, the domain
+  separator and the struct hash: 66 bytes at unaligned offsets), calls the `ecrecover`
+  precompile, checks the recovered address and increments the nonce. Stages `stage0 → mir1 → … →
+  mir4 → sched → evm1 → … → evm11`, certified with `--split --rec-depth 8192` (`permit`'s path is
+  one term too deep for the default) and `LEAN_MEMORY=6000` (`permit`'s cases; every other
+  function's fits in 3000).
+
+```sh
+LEAN_MEMORY=6000 CARGO_TARGET_DIR=... solar-tv/milestone/certify.sh solar-tv/milestone/uni_erc20/uni_erc20.sol UniswapV2ERC20 --split --rec-depth 8192 -- -Ogas --evm-version osaka -Zcheck-analyses=false
 ```
 
 ## Limits
