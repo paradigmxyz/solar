@@ -4,6 +4,7 @@ import SolarTV.MIR.State.Frames
 import SolarTV.MIR.State.Layout
 import SolarTV.MIR.State.Abi
 import SolarTV.MIR.State.AbiRequire
+import SolarTV.MIR.State.PackedRefs
 import SolarTV.Keccak
 
 /-! Direct MIR scalar and state-operation semantics. Typed arithmetic reuses MIR's
@@ -237,8 +238,8 @@ def instruction (cfg : Config) (frame : Frame) (inst : Instruction) : Step := do
     let word ← read frame raw
     if !abiCanonical rule word then .error "invalid decoder ABI evidence" else effect frame
   | .abi (.packed parts hash),_ =>
-    let args ← inst.operands.mapM (read frame)
-    match ← abiPacked frame parts hash args with
+    let args ← inst.operands.mapM (readValue frame)
+    match ← abiPackedValues cfg frame parts hash args with
     | .returned (word,next) => assign next inst.result inst.ty word
     | .reverted data => return .reverted data
     | .invalid => return .invalid

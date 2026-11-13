@@ -493,10 +493,12 @@ solar-tv/solar-tv mir solar-tv/examples/mir/precompile-builtins/{before,broken}.
   --function=f --world solar-tv/examples/mir/precompile-builtins/world.json
 ```
 
-Packed encodings accept literals and scalars, retaining each unaligned word
+Packed encodings accept literals, scalars and byte references, retaining each unaligned word
 store and selecting scratch from the whole write footprint. They are bounded
-to 2,048 parts and 64 KiB of data. Reference packed inputs and physical call-return
-buffers remain unsupported. `validate_abi` needs decoder provenance or canonical
+to 2,048 parts and 64 KiB of data. Memory objects and slices, calldata slices and
+storage bytes keep ordered header reads, overlapping copies and dirty word tails.
+Hashes may borrow and restore a memory object's header. Packed array inputs and
+physical call-return buffers remain unsupported. `validate_abi` needs decoder provenance or canonical
 raw-word evidence; absent evidence is inconclusive, not a fabricated runtime guard.
 
 ```sh

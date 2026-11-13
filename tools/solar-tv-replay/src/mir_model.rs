@@ -562,7 +562,12 @@ fn export_operation(
                             shapes.push(json!({"kind":"scalar","index":values.len(),"size":size,"fixed":matches!(ty,ValueLayout::FixedBytes(_))}));
                             values.push(*value);
                         }
-                        _ => return Err("packed reference layout".into()),
+                        PackedPart::Bytes { value, location } => {
+                            let location = body.value_slice_location(*value).unwrap_or(*location);
+                            shapes.push(json!({"kind":"bytes","index":values.len(),"location":abi_location(location)?}));
+                            values.push(*value);
+                        }
+                        PackedPart::Array { .. } => return Err("packed array layout".into()),
                     }
                     if total > 65536 {
                         return Err("packed bytes exceed 64 KiB".into());
@@ -743,19 +748,12 @@ fn abi_encode_shape(ty: &AbiType, depth: usize, nodes: &mut usize) -> Result<Jso
     if depth > 32 || *nodes > 256 {
         return Err("ABI layout limit: depth 32, nodes 256".into());
     }
-    let location = |location| match location {
-        solar_mir::PtrLocation::Memory => Ok(0),
-        solar_mir::PtrLocation::Calldata => Ok(1),
-        solar_mir::PtrLocation::Returndata => Ok(2),
-        solar_mir::PtrLocation::Storage => Ok(3),
-        _ => Err("ABI encoding address space".to_string()),
-    };
     Ok(match ty {
         AbiType::Word(validator) => json!({"kind":"word","rule":abi_validator(*validator)}),
         AbiType::Function => json!({"kind":"function"}),
-        AbiType::Bytes(place) => json!({"kind":"bytes","location":location(*place)?}),
+        AbiType::Bytes(place) => json!({"kind":"bytes","location":abi_location(*place)?}),
         AbiType::DynamicArray { element, location: place } => {
-            json!({"kind":"array","length":null,"location":location(*place)?,"block_copy":false,"element":abi_encode_shape(element,depth+1,nodes)?})
+            json!({"kind":"array","length":null,"location":abi_location(*place)?,"block_copy":false,"element":abi_encode_shape(element,depth+1,nodes)?})
         }
         AbiType::FixedArray { element, len, block_copy } => {
             json!({"kind":"array","length":len,"location":0,"block_copy":block_copy,"element":abi_encode_shape(element,depth+1,nodes)?})
@@ -803,4 +801,14 @@ fn abi_encode_shapes(
         shapes.push(abi_encode_shape(&ty, 0, &mut nodes)?);
     }
     Ok((shapes, memory_slices))
+}
+
+fn abi_location(location: solar_mir::PtrLocation) -> Result<usize, String> {
+    match location {
+        solar_mir::PtrLocation::Memory => Ok(0),
+        solar_mir::PtrLocation::Calldata => Ok(1),
+        solar_mir::PtrLocation::Returndata => Ok(2),
+        solar_mir::PtrLocation::Storage => Ok(3),
+        _ => Err("ABI encoding address space".to_string()),
+    }
 }

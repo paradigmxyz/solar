@@ -31,6 +31,7 @@ def packedPieces (parts : List PackedInput) (args : List Word) : Except String (
         let word ← required args[index]? "packed scalar operand"
         let data := wordBytes word
         pure ((if fixed then data.take size else data.drop (32-size)),true)
+      | .bytes .. => .error "packed reference needs typed values"
     total := total+bytes.length
     if total > 65536 then .error "packed bytes exceed 64 KiB" else
       pieces := {bytes,scalar} :: pieces

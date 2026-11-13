@@ -299,6 +299,10 @@ def operation(value, definitions):
                 parts.append(
                     f".scalar {number(part['index'])} {size} {'true' if part['fixed'] else 'false'}"
                 )
+            elif part["kind"] == "bytes":
+                parts.append(
+                    f".bytes {number(part['index'])} {number(part['location'], 4)}"
+                )
             else:
                 raise Unsupported("unsupported packed shape")
         expression = (

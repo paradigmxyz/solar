@@ -18,6 +18,7 @@ use std::ops::ControlFlow;
 mod decode;
 mod encode;
 mod packed;
+mod packed_refs;
 mod require;
 
 pub(super) use require::literal_error;
