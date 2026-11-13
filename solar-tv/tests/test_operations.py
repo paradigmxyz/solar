@@ -116,7 +116,7 @@ class OperationTests(unittest.TestCase):
             pure, operations.UNARY | operations.BINARY | operations.TERNARY
         )
         self.assertEqual(pure, {op for op, _, _ in scalar_cases()})
-        self.assertEqual(len(catalog["mir"]), 107)
+        self.assertEqual(len(catalog["mir"]), 108)
         self.assertEqual(len(catalog["evmir"]), 154)
         self.assertEqual(len(catalog["evmir"][0]["forks"]), 15)
 

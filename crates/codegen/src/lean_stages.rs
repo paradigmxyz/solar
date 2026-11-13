@@ -858,7 +858,7 @@ fn mir_function(module: &Module, id: FunctionId, func: &Function) -> Result<Stri
 
 /// The internal calls of `func` that return several words, with the value each further result
 /// binds, if any, and the reads of the multi-return buffer that bind them, which stack scheduling
-/// elides ([`call_projection`]). A call whose results escape that protocol is an error.
+/// elides (`call_projection`). A call whose results escape that protocol is an error.
 #[expect(clippy::type_complexity)]
 fn multi_returns(
     module: &Module,

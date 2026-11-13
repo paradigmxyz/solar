@@ -99,6 +99,25 @@ class MirStateTests(unittest.TestCase):
             record["witness"]["observations"], record["witness"]["native_observations"]
         )
 
+    def test_assume_is_undefined_where_its_fact_fails(self):
+        # A source that fails a relied-on fact is undefined: any target refines it.
+        self.pair(module("assume eq cse, 1, 2\nret 1"), module("ret 7"))
+        # A target that keeps the source's result where its facts hold refines it.
+        self.pair(module("ret 7"), module("assume ule cse, 7, 7\nret 7"))
+        # A target that fails a fact where the source is defined does not.
+        _, record = self.pair(
+            module("ret 7"), module("assume ne cse, 7, 7\nret 7"), status=1
+        )
+        self.assertEqual(
+            record["witness"]["observations"], record["witness"]["native_observations"]
+        )
+        arg = "fn @f(arg0: i256) -> i256"
+        self.pair(
+            module("ret arg0", arg),
+            module("assume ult cse, arg0, 10\nret arg0", arg),
+            status=1,
+        )
+
     def test_initial_memory_has_no_implicit_fmp(self):
         before = module("v0 = mload 64\nret v0")
         self.pair(before, module("mstore 64, 0\nret 0"))
