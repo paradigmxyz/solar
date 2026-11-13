@@ -31,3 +31,27 @@ example : check [[2], [4]] (.step ⟨3, [], [1, 2]⟩) = false := by decide +ker
 example : check [[2], [3]] (.step ⟨3, [], [1, 7]⟩) = false := by decide +kernel
 -- A proof that never adds the empty clause fails.
 example : check [[2, 4], [3]] (.step ⟨3, [4], [1, 2]⟩) = false := by decide +kernel
+
+-- Mutations of the real proof's inputs. Each flips the first literal of one clause of b8.cnf;
+-- CaDiCaL finds every one of these mutated formulas satisfiable, so the proof must not check.
+def flipFirst : Cnf → Nat → Cnf
+  | [], _ => []
+  | c :: cs, 0 => (match c with | [] => [] | l :: ls => Lit.neg l :: ls) :: cs
+  | c :: cs, n + 1 => c :: flipFirst cs n
+
+example : check (flipFirst b8.cnf 4) b8.proof = false := by decide +kernel
+example : check (flipFirst b8.cnf 120) b8.proof = false := by decide +kernel
+example : check (flipFirst b8.cnf 346) b8.proof = false := by decide +kernel
+-- Dropping the last clause shifts no IDs but removes a clause the proof needs.
+example : check b8.cnf.dropLast b8.proof = false := by decide +kernel
+
+-- vc_ground: a closed hypothesis that the kernel evaluates to false closes the goal.
+example (h : ¬ ((511#256 &&& 255#256).toNat = 255)) : False := by vc_ground
+example (h : (0xff#8 - (1#8 ||| 2#8 ||| 4#8)) &&& 0x05#8 ≠ 0#8) : False := by vc_ground
+-- A closed hypothesis that holds, or one with a free variable, gives no contradiction.
+/-- error: vc_ground: no closed hypothesis is false -/
+#guard_msgs in
+example (h : (511#256 &&& 255#256).toNat = 255) : False := by vc_ground
+/-- error: vc_ground: no closed hypothesis is false -/
+#guard_msgs in
+example (x : BitVec 8) (h : x &&& 0xf8#8 ≠ 0#8) : False := by vc_ground
