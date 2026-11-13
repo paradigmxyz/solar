@@ -1,0 +1,129 @@
+{
+  "arguments": [
+    "solar-tv/milestone/reader/reader.sol",
+    "-Ogas",
+    "--evm-version",
+    "osaka",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=solar-tv/milestone/reader/gen"
+  ],
+  "bytecode": "346053575f3560e01c8063a087a87e03605357608060405260043560a01c602436101760535763a035b1fe5f5260205f6004601c81355afa156057573d6020116053575f516001018015605f575f5260205ff35b5f5ffd5b3d5f5f3e3d5ffd5b6011602052634e487b715f526024601cfd",
+  "bytecode_sha256": "7e4fced8401133d842f58d3d310e8b78a32039960170ea5d8ad75a53a7b36626",
+  "compiler": "0.8.38+commit.4a7d9ede.solar.0.3.0-dev",
+  "contract": "Reader",
+  "evm_version": "osaka",
+  "optimization": "Gas",
+  "options": "CompileOpts { input: [\"solar-tv/milestone/reader/reader.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"emit-lean-stages=solar-tv/milestone/reader/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: None, prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"solar-tv/milestone/reader/gen\"), forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "solar-tv/milestone/reader/reader.sol",
+      "sha256": "bff96eb4b5b33ebc37c3dd379d4d55388525e9787dd991afa41cc0b809b89a7e"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "c18d3ee3fbe18467c367f0b868bfa6f93511e86bbecab095a1e288d8497f85a2"
+    },
+    {
+      "definition": "mir1",
+      "file": "Mir1.lean",
+      "index": 1,
+      "kind": "mir",
+      "pass": "place-reads",
+      "sha256": "84085542c96e416459e21e878019f8af37c807d8a7cefd56afaa4238a26029d8"
+    },
+    {
+      "definition": "mir2",
+      "file": "Mir2.lean",
+      "index": 2,
+      "kind": "mir",
+      "pass": "spell-width-tests",
+      "sha256": "805f70ac294e93760f04edc04a2eaf36b89430d26dc2d4959309a53b0597d114"
+    },
+    {
+      "definition": "mir3",
+      "file": "Mir3.lean",
+      "index": 3,
+      "kind": "mir",
+      "pass": "evm-inst-schedule",
+      "sha256": "11a9ae1838d817aa69640ad29b7050cbc70b05b56c1ecf54329f5c816a2d4581"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "f618618c81f32246f89af8bf5a44f7d5407b420836ba4a2527bd07677cb4b153"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "f351e61c85551e0385e65007fff190c72592edd3dad4981277769a3760514ebf"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "block-layout",
+      "sha256": "e52785df1aca97d96814a14e02da72c28095e1f81b8e6bd9ca046109cdb22ccd"
+    },
+    {
+      "definition": "evm3",
+      "file": "Evm3.lean",
+      "index": 3,
+      "kind": "evm",
+      "pass": "terminal-dedup",
+      "sha256": "ceee2fd40bcbe7eb8e855e299c41f8bc03fab804b0fdeb0d7f6f8877ab2f0c23"
+    },
+    {
+      "definition": "evm4",
+      "file": "Evm4.lean",
+      "index": 4,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "3b74cb48e673f40e6c712cb3139a2c45b5f1acd06512ae9f4dac74d32f65f1c9"
+    },
+    {
+      "definition": "evm5",
+      "file": "Evm5.lean",
+      "index": 5,
+      "kind": "evm",
+      "pass": "block-cse",
+      "sha256": "fc489b656954d811b262210a2fc8fc512ed285a96cc07841b8ddae9a9139160a"
+    },
+    {
+      "definition": "evm6",
+      "file": "Evm6.lean",
+      "index": 6,
+      "kind": "evm",
+      "pass": "share-reverts",
+      "sha256": "ba632cf5e20581d34c5ec93d168d8d802d08c52f081a0f19be6323423d8d095b"
+    },
+    {
+      "definition": "evm7",
+      "file": "Evm7.lean",
+      "index": 7,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "a0bdf8538b97a7dfb6e452bfad93e70f2238db07643497d48ab2aad1bd7b36e7"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "ce5b93ef146d00753003f24db5c08fa70ca8cf43dfe6b38f62dfc0f23271af13"
+    }
+  ]
+}

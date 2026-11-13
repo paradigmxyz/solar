@@ -1,0 +1,40 @@
+warning: specification clause skipped
+   ╭▸ ROOT/tests/ui/codegen/lowering/mir/expressions/spec_records.sol:LL:CC
+   │
+LL │     /// @custom:ensures r == keccak256(x)
+   │                              ━━━━━━━━━━━━
+   │
+   ╰ note: unsupported in a specification
+
+warning: specification clause skipped
+   ╭▸ ROOT/tests/ui/codegen/lowering/mir/expressions/spec_records.sol:LL:CC
+   │
+LL │     /// @custom:ensures r == y
+   │                              ━
+   │
+   ╰ note: unsupported in a specification
+
+warning: specification clause skipped
+   ╭▸ ROOT/tests/ui/codegen/lowering/mir/expressions/spec_records.sol:LL:CC
+   │
+LL │     /// @custom:ensures r ==
+   │          ━━━━━━━━━━━━━━
+   │
+   ╰ note: this clause does not parse
+
+warning: specification clause skipped
+   ╭▸ ROOT/tests/ui/codegen/lowering/mir/expressions/spec_records.sol:LL:CC
+   │
+LL │     /// @custom:ensures r + x
+   │                         ━━━━━
+   │
+   ╰ note: not a well-typed boolean clause
+
+warning: specification clause skipped
+   ╭▸ ROOT/tests/ui/codegen/lowering/mir/expressions/spec_records.sol:LL:CC
+   │
+LL │     /// @custom:ensures r && x > 0
+   │                         ━━━━━━━━━━
+   │
+   ╰ note: not a well-typed boolean clause
+

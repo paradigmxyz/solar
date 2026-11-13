@@ -21,6 +21,11 @@ slow-timeout = { period = "60s", terminate-after = 5 }
 filter = 'package(solar-compiler) & binary(it) & test(=foundry::external)'
 slow-timeout = { period = "2h" }
 
+# The prover corpus prints why it skips when z3 is missing; show it on a pass.
+[[profile.default.overrides]]
+filter = 'package(solar-prove-analyses)'
+success-output = "final"
+
 # The verifier's solver tests print why they skip when z3 is missing; show it on a pass.
 [[profile.default.overrides]]
 filter = 'package(solar-verify)'

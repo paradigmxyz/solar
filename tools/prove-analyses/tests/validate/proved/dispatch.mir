@@ -1,0 +1,42 @@
+//@ compile-flags: -Zmir-pipeline=lower-dispatch
+// The dispatcher routes each selector to its entry and every other call to the fallback, checks
+// value once for every entry since none accepts it, and needs no short-calldata guard for a
+// selector that ends in a nonzero byte, since calldata reads zeros past its end. The entry with
+// a loop is cut at its header, which both versions reach from the same state.
+@module ValidateDispatch
+@phase semantic
+fn @get() [selector=0x12345678, abi_wrapper] {
+  bb0:
+    v0 = sload 0
+    mstore 0, v0
+    returndata 0, 32
+}
+
+fn @set() [selector=0x00000100, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    sstore 0, v0
+    stop
+}
+
+fn @spin() [selector=0x2468ace1, abi_wrapper] {
+  bb0:
+    v0 = calldataload 4
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v2]
+    v3 = lt v1, v0
+    jumpi v3, bb2, bb3
+  bb2:
+    v2 = add v1, 1
+    jump bb1
+  bb3:
+    sstore 1, v1
+    stop
+}
+
+fn @fb() [fallback, abi_wrapper] {
+  bb0:
+    sstore 2, 1
+    stop
+}

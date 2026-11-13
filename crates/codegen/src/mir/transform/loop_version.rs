@@ -82,6 +82,15 @@
 //! exit block that every reading block lies behind, which merges the two copies; existing phis in
 //! every exit block gain the clone's edges.
 //!
+//! With `-Zcheck-analyses`, the end of every block of a copy that can exit it reads each word the
+//! test read again and records it equal to the test's value, `assume eq loop_version, lz, reread`,
+//! as loop-invariant code motion does for a read it hoists: a store of the copy that the test's
+//! arithmetic failed to keep off a word fails the check on any iteration that reaches an exit.
+//! The test already read those words, so the extra reads expand no memory. A partition's copy
+//! records each bounds check it drops as passing and each overflow check it drops as false, the
+//! fences' induction above, as check elimination records the checks it drops. The bounds copy
+//! drops nothing: check elimination folds its checks and records them itself.
+//!
 //! # Profitability
 //!
 //! The copy pays when a bounds check of the loop still compares an index with a reloaded word that
@@ -191,12 +200,14 @@
 
 use super::{
     loop_split::{LoopCopy, clone_loop, redirect},
+    lower_arithmetic::failure_condition,
+    lower_assumes::{record_fact, should_check_analyses},
     utils::terminator_debug_context,
 };
 use crate::mir::{
-    ArithmeticKind, BlockId, Builtin, Callee, CheckedOp, EffectKind, Function, FunctionBuilder,
-    InstId, InstKind, Instruction, MirType, Module, PanicCode, PtrLocation, RevertKind, Terminator,
-    Value, ValueId,
+    ArithmeticKind, AssumePredicate, BlockId, Builtin, Callee, CheckedOp, EffectKind, FactSource,
+    Function, FunctionBuilder, Immediate, InstId, InstKind, Instruction, InstructionMetadata,
+    MirType, Module, PanicCode, PtrLocation, RevertKind, Terminator, Value, ValueId,
     analysis::{AddressSpace, AliasAnalysis, CfgInfo, Loop, LoopAnalyzer, LoopInfo},
     pass::{MirPass, ModuleAnalyses, run_function_pass},
     utils::{rebuild_predecessors, split_edge},
@@ -204,7 +215,7 @@ use crate::mir::{
 use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::DenseBitSet,
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashMap, FxHashSet, FxIndexSet},
 };
 use solar_evmir::debug::DebugLocKind;
 use std::cell::OnceCell;
@@ -220,11 +231,12 @@ impl MirPass for LoopVersion {
 
     fn run_pass(
         &self,
-        _gcx: solar_sema::Gcx<'_>,
+        gcx: solar_sema::Gcx<'_>,
         module: &mut Module,
         analyses: &mut ModuleAnalyses,
     ) -> bool {
-        run_function_pass(module, analyses, |func, _| version_function(func))
+        let record = should_check_analyses(gcx.sess);
+        run_function_pass(module, analyses, |func, _| version_function(func, record))
     }
 }
 
@@ -367,7 +379,7 @@ enum Planned<'a> {
     Split(Vec<(BlockId, BlockId)>),
 }
 
-fn version_function(func: &mut Function) -> bool {
+fn version_function(func: &mut Function, record: bool) -> bool {
     let mut changed = false;
     // Blocks of loops already versioned, whose copies are not versioned again.
     let mut done = FxHashSet::default();
@@ -401,7 +413,7 @@ fn version_function(func: &mut Function) -> bool {
         match planned {
             Planned::Version(plan) => {
                 done.extend(plan.blocks.iter().copied());
-                done.extend(apply(func, &plan));
+                done.extend(apply(func, &plan, record));
             }
             // from -> exit  =>  from -> split -> exit, after which the loop's exits are its own
             // and the next round plans it again.
@@ -1269,7 +1281,7 @@ fn version_plan<'a>(
 }
 
 /// Versions the loop and returns the blocks of its clone.
-fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
+fn apply(func: &mut Function, plan: &Plan<'_>, record: bool) -> Vec<BlockId> {
     let header = plan.l.header;
     let exits = &plan.l.exit_blocks;
     let exiting: FxHashMap<BlockId, Vec<BlockId>> =
@@ -1363,7 +1375,7 @@ fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
 
     // The check positions name the original headers, before any cloned length loads are removed.
     if let Test::Fence(fence) = &plan.test {
-        drop_fenced_checks(func, fence, &copy);
+        drop_fenced_checks(func, fence, &copy, record);
     }
     match &plan.test {
         // The clone reads the test's words.
@@ -1385,6 +1397,14 @@ fn apply(func: &mut Function, plan: &Plan<'_>) -> Vec<BlockId> {
         }
         // The clone runs the loop as it is; check elimination folds its checks.
         Test::Bounds { .. } => {}
+    }
+    if record {
+        let exiting_copies = exits
+            .iter()
+            .flat_map(|exit| &exiting[exit])
+            .map(|block| copy.blocks[block])
+            .collect::<FxIndexSet<_>>();
+        record_test_words(func, &replacements, &exiting_copies);
     }
 
     // exit: v = phi [block: x], ..., [block': x']
@@ -1662,25 +1682,35 @@ fn fence_continues(builder: &mut FunctionBuilder<'_>, scan: &Scan, index: ValueI
 /// compares the addresses of the elements the scans stopped at instead of their indices: both lie
 /// between fences below `2^250`, where an element's address grows with its index, so the
 /// comparisons agree, and the scans' counters then step only to address elements.
-fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
+fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy, record: bool) {
     let headers = [&fence.up, &fence.down].map(|scan| copy.blocks[&scan.header]);
     for (scan, block) in [&fence.up, &fence.down].into_iter().zip(headers) {
         // header': ...; panic_if_zero (lt index, bound); ...  =>  header': ...; ...
         let mut position = 0;
-        func.blocks[block].instructions.retain(|_| {
+        let mut dropped = Vec::new();
+        func.blocks[block].instructions.retain(|&inst| {
             let keep = !scan.checks.contains(&position);
             position += 1;
+            if !keep {
+                dropped.push(inst);
+            }
             keep
         });
         // header': next = checked_add counter, 1  =>  next = add counter, 1
         let Some(update) = func.inst_result_value(scan.update) else { continue };
         let Value::Inst(cloned) = *func.value(copy.value(update)) else { continue };
-        if let InstKind::CheckedBinary { op, lhs, rhs, .. } = func.inst(cloned).kind {
+        if let InstKind::CheckedBinary { op, arithmetic, lhs, rhs } = func.inst(cloned).kind {
             let kind = match op {
                 CheckedOp::Add => InstKind::Add(lhs, rhs),
                 _ => InstKind::Sub(lhs, rhs),
             };
             func.set_inst_kind(cloned, kind);
+            if record {
+                record_unfailing(func, block, op, arithmetic, lhs, rhs);
+            }
+        }
+        if record {
+            record_passing_checks(func, block, &dropped);
         }
     }
     // The scans' headers define the addresses beside `i'` and `j'`, so they dominate a
@@ -1722,6 +1752,84 @@ fn drop_fenced_checks(func: &mut Function, fence: &Fence, copy: &LoopCopy) {
     let casts = words.iter().filter_map(|&(_, cast)| cast).collect::<Vec<_>>();
     func.blocks[block].instructions.splice(position..position, casts);
     func.set_inst_kind(order, InstKind::Lt(words[0].0, words[1].0));
+}
+
+/// Records, at the end of every block of the loop's copy that can exit it, that each word the test
+/// read before the copy still holds the value the copy reads in its place: the same load there
+/// returns it, `assume eq loop_version, value, reread`. The test's arithmetic established that no
+/// store of the copy reaches the word, which a wrong test or a store it missed then fails on any
+/// iteration that reaches an exit.
+fn record_test_words(
+    func: &mut Function,
+    replacements: &FxHashMap<ValueId, ValueId>,
+    exiting: &FxIndexSet<BlockId>,
+) {
+    let mut words = replacements
+        .iter()
+        .filter_map(|(&load, &value)| match func.value_inst_kind(load) {
+            Some(&InstKind::Load(pointer, PtrLocation::Memory)) => Some((value, pointer)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    words.sort_unstable();
+    words.dedup_by_key(|&mut (value, _)| value);
+    for &block in exiting {
+        for &(value, pointer) in &words {
+            let ty = func.value_ty(value).unwrap_or(MirType::I256);
+            // reread = mload pointer
+            let load = Instruction::new(InstKind::Load(pointer, PtrLocation::Memory), Some(ty));
+            let (inst, reread) = func.alloc_value_inst(load.with_debug_loc_dropped());
+            func.blocks[block].instructions.push(inst);
+            let [value, reread] = if ty.integer_bits().is_some() {
+                [value, reread]
+            } else {
+                // value' = ptrtoint value; reread' = ptrtoint reread
+                [value, reread].map(|pointer| {
+                    let cast = InstKind::PtrToInt(pointer, 256);
+                    let cast = Instruction::new(cast, Some(MirType::I256));
+                    let (inst, word) = func.alloc_value_inst(cast.with_debug_loc_dropped());
+                    func.blocks[block].instructions.push(inst);
+                    word
+                })
+            };
+            // assume eq loop_version, value, reread
+            record_fact(func, block, FactSource::LoopVersion, AssumePredicate::Eq, value, reread);
+        }
+    }
+}
+
+/// Records that each bounds check the copy of a partition's scan dropped from `block` passes:
+/// its condition is nonzero, `assume ne loop_version, condition, false`.
+fn record_passing_checks(func: &mut Function, block: BlockId, dropped: &[InstId]) {
+    for &check in dropped {
+        let Some(condition) = array_check(&func.inst(check).kind) else { continue };
+        let ty = func.value_ty(condition);
+        let zero = func.alloc_value(Value::Immediate(Immediate::for_type(ty, U256::ZERO)));
+        // assume ne loop_version, condition, 0
+        record_fact(func, block, FactSource::LoopVersion, AssumePredicate::Ne, condition, zero);
+    }
+}
+
+/// Records that the checked update the copy of a partition's scan made unchecked cannot fail:
+/// the failure test lowering would emit for it is false.
+fn record_unfailing(
+    func: &mut Function,
+    block: BlockId,
+    op: CheckedOp,
+    arithmetic: ArithmeticKind,
+    lhs: ValueId,
+    rhs: ValueId,
+) {
+    let mut dropped = InstructionMetadata::EMPTY;
+    dropped.drop_debug_loc(DebugLocKind::Dropped);
+    let mut builder = FunctionBuilder::new_semantic(func);
+    builder.set_debug_context(&dropped);
+    builder.switch_to_block(block);
+    // fails = the failure test lowering would emit
+    // assume eq loop_version, fails, false
+    let Some(fails) = failure_condition(&mut builder, op, arithmetic, lhs, rhs) else { return };
+    let never = builder.imm_bool(false);
+    record_fact(func, block, FactSource::LoopVersion, AssumePredicate::Eq, fails, never);
 }
 
 /// The word of a pointer value, for comparisons.

@@ -136,7 +136,14 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             program: cmd.into(),
             args: {
                 let mut args: Vec<OsString> =
-                    ["-j1", "--error-format=rustc-json", "-Zvalidate-ir=true"]
+                    // Debug builds check analysis facts at run time by default; snapshots stay
+                    // unchecked. See `run_call::check_analyses`.
+                    [
+                        "-j1",
+                        "--error-format=rustc-json",
+                        "-Zvalidate-ir=true",
+                        "-Zcheck-analyses=false",
+                    ]
                         .into_iter()
                         .map(Into::into)
                         .collect();
@@ -711,12 +718,13 @@ impl Flag for FileCheck {
         if !config
             .comments()
             .flat_map(|comments| &comments.compile_flags)
-            .any(|flag| flag.starts_with("-Zdump="))
+            .any(|flag| flag.starts_with("-Zdump=") || flag == "-Zprove-analyses=-")
         {
             return Ok(());
         }
 
-        // Runtime checks discard stdout snapshots, but their IR dumps still need FileCheck.
+        // Runtime checks discard stdout snapshots, but their IR dumps and analysis queries still
+        // need FileCheck.
         let error = |err| command_error("FileCheck".into(), err);
         let mut stdout = tempfile::NamedTempFile::new().map_err(error)?;
         stdout.write_all(&output.stdout).map_err(error)?;

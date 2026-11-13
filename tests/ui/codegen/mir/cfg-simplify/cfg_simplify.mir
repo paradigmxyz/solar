@@ -41,12 +41,12 @@ fn @degenerate_branch_refreshes_successors(arg0: i1) -> i256 {
 }
 
 // An earlier dynamic case may equal 5 and must keep shadowing the later
-// constant case, even though it routes to the default.
+// constant case, even though it routes to the default. Only the suffix can go.
 // CHECK-LABEL: {{^[ +].*}}fn @ordered_switch{{[( ]}}
-// CHECK: {{^[ +].*}}switch 5, default bb1, [arg0 => bb1, 5 => bb2]
+// CHECK: + switch 5, default bb1, [arg0 => bb1, 5 => bb2]
 fn @ordered_switch(arg0: i256) -> i256 {
   bb0:
-    switch 5, default bb1, [arg0 => bb1, 5 => bb2]
+    switch 5, default bb1, [arg0 => bb1, 5 => bb2, 7 => bb1]
   bb1:
     ret 1
   bb2:

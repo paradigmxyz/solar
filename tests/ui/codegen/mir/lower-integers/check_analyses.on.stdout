@@ -1,0 +1,27 @@
+- ; === ROOT/tests/ui/codegen/mir/lower-integers/check_analyses.mir (before lower-integers) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-integers/check_analyses.mir (after lower-integers) ===
+  @module LowerIntegersRecords
+- fn @callee(arg0: i8) -> i8 {
++ fn @callee(arg0: i256) -> i256 {
+    bb0:
+-     v0 = add arg0, arg0
+-     ret v0
++     v1 = add arg0, arg0
++     v2 = and v1, 255
++     assume ule lower_integers, arg0, 255
++     ret v2
+  }
+  
+  fn @caller(arg0: i256) -> i256 {
+    bb0:
+-     v0 = trunc i256 arg0 to i8
+-     v1 = icall @callee, v0
+-     v2 = zext i8 v1 to i256
+-     ret v2
++     v3 = and arg0, 255
++     v1 = icall @callee, v3
++     assume ule lower_integers, v3, 255
++     assume ule lower_integers, v1, 255
++     ret v1
+  }
+  

@@ -102,6 +102,29 @@ returns values, as in `add(uint256,uint256)(uint256) 2, 3 => 5`. A test that
 names a pipeline keeps its output, without the compiler's JSON; one that runs
 none prints nothing.
 
+## Analysis fact checks
+
+With `SOLAR_RUN_CALL_CHECK_ANALYSES` set, every `run-call` and `run-call-fail`
+directive also runs on a build of the test with `-Zcheck-analyses=true`, which
+turns every fact a MIR optimization relied on into a run-time check. The runner
+compiles each command once more, deploys the checked contract the same way, and
+runs the same call, whether or not the unchecked call ended as expected; a test
+whose call is wrong reports both failures. A check that fires fails the test
+with the fact decoded: the pass that relied on it, the function, block and value
+as `-Zdump=mir` numbers them, and the two words the fact compares. Otherwise
+both builds must end the same way and return the same data. A call is skipped
+when only the checked build runs out of gas under an explicit gas limit, exceeds
+the contract or initcode size limit, or overflows the stack or call depth. Tests
+written in EVM IR are skipped.
+
+```console
+SOLAR_RUN_CALL_CHECK_ANALYSES=1 cargo tq ui codegen
+```
+
+The checks are on by default in debug builds of the compiler, like
+`-Zvalidate-ir`, so the runner passes `-Zcheck-analyses=false` to every ordinary
+compilation and snapshots do not depend on the compiler's build profile.
+
 ## Compiler artifact comparisons
 
 [compiler-diff](../compiler-diff/README.md) handles local or Sourcify

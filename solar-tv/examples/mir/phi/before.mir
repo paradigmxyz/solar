@@ -1,0 +1,16 @@
+@module Phi
+; An empty forwarder is removed and the join's predecessor must be rewritten.
+fn @pick(arg0: i256) -> i256 {
+  bb0:
+    switch arg0, default bb2, [0 => bb1]
+  bb1:
+    jump bb3
+  bb2:
+    v0 = add arg0, 2
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 1], [bb2: v0]
+    v2 = phi [bb1: 10], [bb2: 20]
+    v3 = add v1, v2
+    ret v3
+}

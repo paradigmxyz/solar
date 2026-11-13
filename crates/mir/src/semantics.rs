@@ -16,6 +16,8 @@
 //! - `allocate(size, semantics)`: a fresh memory region, and `data_copy(data, dest, size)`:
 //!   constant data copied to memory.
 //! - `heap_floor()`: the initial heap floor resolved by backend placement.
+//! - `insert_value(ty, aggregate, index, value)`, `extract_value(ty, aggregate, index)`, and
+//!   `make_slice(location, ptr, len)`: functional typed products, without allocation.
 //!
 //! [`InstKind::semantics`] returns one instruction's declaration, and the MIR interpreter
 //! (`solar-mir-interpreter`) runs it instead of classifying operations itself. An operation
@@ -31,7 +33,7 @@
 
 use crate::{
     AllocationSemantics, ArithmeticKind, BlockId, Callee, CheckedOp, DataRef, InstKind, LogTopics,
-    PtrLocation, ValueId,
+    MirType, PtrLocation, ValueId,
 };
 use smallvec::SmallVec;
 
@@ -67,6 +69,19 @@ pub enum Semantics<'a> {
     DataCopy(DataRef, ValueId, ValueId),
     /// The initial heap floor of the transaction.
     HeapFloor,
+    /// Wrapping memory-pointer offset, without bounds or provenance guarantees.
+    /// This stays distinct from an integer opcode and does not imply integer folding.
+    PointerAdd(ValueId, ValueId),
+    /// Read the explicit free-memory pointer, without initializing it.
+    FreePointer,
+    /// Zero exactly the given byte range, preserving bytes outside it.
+    MemoryZero(ValueId, ValueId),
+    /// Functional update of one immediate product field; other fields are retained.
+    InsertValue(MirType, ValueId, u32, ValueId),
+    /// Read one immediate product field, without reading the other fields.
+    ExtractValue(MirType, ValueId, u32),
+    /// A logical pointer/length pair, without allocating or accessing its range.
+    MakeSlice(PtrLocation, ValueId, ValueId),
 }
 
 /// Constructors for the `#[semantics(...)]` declarations of the operation schema, which bind an
@@ -145,6 +160,48 @@ pub(super) mod declare {
             LOGS[topics.len()],
             [*offset, *size].into_iter().chain(topics.as_slice().iter().copied()).collect(),
         )
+    }
+
+    /// Wrapping pointer arithmetic, without a physical heap-layout assumption.
+    pub(crate) fn pointer_add(ptr: &ValueId, offset: &ValueId) -> Semantics<'static> {
+        Semantics::PointerAdd(*ptr, *offset)
+    }
+
+    /// The current allocation cursor, read without implicit entry initialization.
+    pub(crate) fn free_pointer() -> Semantics<'static> {
+        Semantics::FreePointer
+    }
+
+    /// Byte-exact memory initialization, without a backend placement decision.
+    pub(crate) fn memory_zero(offset: &ValueId, size: &ValueId) -> Semantics<'static> {
+        Semantics::MemoryZero(*offset, *size)
+    }
+    /// Functional product insertion.
+    pub(crate) fn insert_value(
+        ty: &MirType,
+        aggregate: &ValueId,
+        index: &u32,
+        value: &ValueId,
+    ) -> Semantics<'static> {
+        Semantics::InsertValue(*ty, *aggregate, *index, *value)
+    }
+
+    /// Product projection.
+    pub(crate) fn extract_value(
+        ty: &MirType,
+        aggregate: &ValueId,
+        index: &u32,
+    ) -> Semantics<'static> {
+        Semantics::ExtractValue(*ty, *aggregate, *index)
+    }
+
+    /// Logical slice construction.
+    pub(crate) fn make_slice(
+        location: &PtrLocation,
+        ptr: &ValueId,
+        len: &ValueId,
+    ) -> Semantics<'static> {
+        Semantics::MakeSlice(*location, *ptr, *len)
     }
 }
 

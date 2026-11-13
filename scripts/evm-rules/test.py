@@ -1694,6 +1694,22 @@ class LeanStatementTests(unittest.TestCase):
             "  evm_decide\n",
         )
 
+    def test_relied_widths_return_the_result(self):
+        relied = BELOW_CONST.replace(
+            "(imm (u256 0))", "(relied_ult a d (imm (u256 0)))"
+        )
+        self.assertEqual(lean_rule(relied), lean_rule(BELOW_CONST))
+        op = (
+            "(rule (rewrite (Op.Div (mul x (nonzero_const c)) (iconst c)))"
+            " (if-let true (at_most_const x (u256_div (u256_max) c)))"
+            " {})"
+        )
+        plain = op.format("(Op.Add x (imm (u256 0)))")
+        wrapped = op.format(
+            "(relied_ule_op x (u256_div (u256_max) c) (Op.Add x (imm (u256 0))))"
+        )
+        self.assertEqual(lean_rule(wrapped), lean_rule(plain))
+
     def test_environment_reads_quantify_one_snapshot(self):
         lhs, rhs, assumptions = lean_rule(
             "(rule (rewrite (Op.Balance (current_address)))"

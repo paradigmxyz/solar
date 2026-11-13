@@ -1,0 +1,86 @@
+name = "solar_tv"
+defaultTargets = ["SolarTV"]
+
+[[require]]
+name = "evm_rules"
+path = "../scripts/evm-rules/lean"
+
+[[lean_lib]]
+name = "SolarTV"
+
+# The stages of the w1 milestone, which milestone/w1/gen.sh exports, and their checks.
+[[lean_lib]]
+name = "W1"
+srcDir = "milestone/w1"
+roots = ["W1"]
+globs = ["W1.+", "gen.+"]
+
+# Kernel proofs of w1's stages.
+[[lean_lib]]
+name = "W1Proofs"
+srcDir = "milestone/w1/proofs"
+# Symbolic execution is heavy: fail on running out of memory rather than exhaust the machine.
+moreLeanArgs = ["-M", "3000"]
+
+# counter: the stages of milestone/counter/counter.sol's Counter and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "counter"
+srcDir = "milestone"
+roots = ["counter.Proofs"]
+globs = ["counter.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# w4: the stages of milestone/w4/w4.sol's Main and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "w4"
+srcDir = "milestone"
+roots = ["w4.Proofs"]
+globs = ["w4.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# bank: the stages of milestone/bank/bank.sol's Bank and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "bank"
+srcDir = "milestone"
+roots = ["bank.Proofs"]
+globs = ["bank.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# c4: the stages of milestone/c4/c4.sol's Main and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "c4"
+srcDir = "milestone"
+roots = ["c4.Proofs"]
+globs = ["c4.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# mulx: the stages of milestone/mulx/mulx.sol's Main and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "mulx"
+srcDir = "milestone"
+roots = ["mulx.Proofs"]
+globs = ["mulx.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# events: the stages of milestone/events/events.sol's Events and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "events"
+srcDir = "milestone"
+roots = ["events.Proofs"]
+globs = ["events.+"]
+moreLeanArgs = ["-M", "3000"]
+
+# reader: the stages of milestone/reader/reader.sol's Reader and their kernel proofs, which
+# milestone/certify.sh writes.
+[[lean_lib]]
+name = "reader"
+srcDir = "milestone"
+roots = ["reader.Proofs"]
+globs = ["reader.+"]
+moreLeanArgs = ["-M", "3000"]

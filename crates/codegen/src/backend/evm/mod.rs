@@ -9,8 +9,8 @@
 
 mod codegen;
 use codegen::PlanCache;
-pub(crate) use codegen::select;
 pub use codegen::{EvmArtifact, EvmCodegen};
+pub(crate) use codegen::{call_projection, select};
 
 mod debug_info;
 pub(crate) use debug_info::DebugInfoBuilder;
@@ -25,6 +25,11 @@ pub use disasm::{disassemble, disassemble_standard_json};
 pub mod ir;
 
 mod layout;
+
+mod schedule_map;
+
+pub(in crate::backend) mod validate_assembly;
+mod validate_backend;
 
 pub use solar_evmir::op;
 

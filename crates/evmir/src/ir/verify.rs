@@ -870,6 +870,68 @@ impl<'a> Verifier<'a> {
         }
         after
     }
+
+    /// Returns fixed entry heights justified by roots and every incoming direct edge.
+    ///
+    /// An upper bound alone cannot stand for a window's incoming stack. Check that roots and
+    /// all edges preserve the same height, and forget opaque label entries and their successors.
+    /// Growing cycles, joins at different heights and unmodeled returns remain unknown.
+    pub fn stack_entry_exact_depths(
+        module: &Module,
+        evm_version: EvmVersion,
+    ) -> IndexVec<BlockId, Option<usize>> {
+        let dcx = DiagCtxt::with_silent_emitter(None);
+        if !Verifier::for_evm_version(&dcx, evm_version).verify_module_shape(module) {
+            return index_vec![None; module.blocks.len()];
+        }
+        let flows = label_flows(module);
+        let mut depths = index_vec![None; module.blocks.len()];
+        // Propagate the height each root fixes over every direct edge, keeping the first height
+        // that reaches a block. The check below forgets every block another height also reaches.
+        let mut pending = Vec::new();
+        for (id, block) in module.blocks.iter_enumerated() {
+            if let Some(root) = entry_root(id, block) {
+                depths[id] = Some(root);
+                pending.push(id);
+            }
+        }
+        while let Some(id) = pending.pop() {
+            let Some(depth) = depths[id] else { continue };
+            exact_edges(&module.blocks[id], &flows[id], depth, |target, entry| {
+                if depths[target].is_none() && entry.is_some() {
+                    depths[target] = entry;
+                    pending.push(target);
+                }
+            });
+        }
+        // A block is exact only when every root and every incoming direct edge agree on its
+        // height. Blocks with no height, opaque label entries and disagreeing edges are forgotten
+        // together with everything they reach.
+        let mut forget = unmodeled_pushes(module, &flows);
+        for (id, block) in module.blocks.iter_enumerated() {
+            let root = entry_root(id, block);
+            if root.is_some() && root != depths[id] {
+                forget.push(id);
+            }
+            let Some(depth) = depths[id] else {
+                forget.push(id);
+                continue;
+            };
+            exact_edges(block, &flows[id], depth, |target, entry| {
+                if entry.is_none() || depths[target] != entry {
+                    forget.push(target);
+                }
+            });
+        }
+        let mut unknown = DenseBitSet::new_empty(module.blocks.len());
+        while let Some(id) = forget.pop() {
+            if unknown.insert(id) {
+                depths[id] = None;
+                direct_successors(&flows[id], &module.blocks[id], &mut forget);
+            }
+        }
+        depths
+    }
 }
 
 /// The entry depths the stack-operation walk has propagated into a block.
@@ -1198,4 +1260,38 @@ fn cycle_edges(
         }
     }
     edges
+}
+
+/// Returns the height a block is entered at without an edge: its declared entry depth, or zero
+/// for the entry block.
+fn entry_root(id: BlockId, block: &Block) -> Option<usize> {
+    block.metadata.entry_depth.map(usize::from).or((id == BlockId::ENTRY).then_some(0))
+}
+
+/// Calls `edge` with each direct successor of `block` and the exact height it is entered at when
+/// the block is entered at `stack`, or `None` once an operation would underflow the stack.
+fn exact_edges(
+    block: &Block,
+    flow: &LabelFlow,
+    stack: usize,
+    mut edge: impl FnMut(BlockId, Option<usize>),
+) {
+    let after = |stack: Option<usize>, effect: StackEffect| {
+        stack?.checked_sub(effect.inputs as usize).map(|rest| rest + effect.outputs as usize)
+    };
+    let mut stack = Some(stack);
+    for (at, inst) in block.instructions.iter().enumerate() {
+        stack = after(stack, inst.stack_effect());
+        if inst.as_evm_opcode() == Some(op::JUMPI)
+            && let Some(target) = branch_target(block, at)
+        {
+            edge(target, stack);
+        }
+    }
+    let Some(term) = &block.terminator else { return };
+    stack = default_terminator_stack_effect(&term.kind).and_then(|effect| after(stack, effect));
+    term.kind.visit_targets(|target| edge(target, stack));
+    for &(continuation, effect) in &flow.returns {
+        edge(continuation, after(stack, effect));
+    }
 }

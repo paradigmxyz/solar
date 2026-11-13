@@ -130,6 +130,8 @@ impl InstKind {
                 ..
             }
             | Self::CheckedBinary { .. }
+            // `lower-assumes` tests the fact, reverting when it is false.
+            | Self::Assume { .. }
             | Self::ICall {
                 function: Callee::Builtin(Builtin::Check { .. } | Builtin::Require(_)),
                 ..

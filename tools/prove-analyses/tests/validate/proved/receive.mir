@@ -1,0 +1,34 @@
+//@ compile-flags: -Zmir-pipeline=lower-dispatch
+// With a payable entry the dispatcher leaves the value check to the wrapper that rejects value,
+// routes empty calldata to `receive` and checks value before the fallback, which rejects it.
+@module ValidateReceive
+@phase semantic
+fn @pay() [selector=0x00000001, payable, abi_wrapper] {
+  bb0:
+    sstore 0, 1
+    stop
+}
+
+fn @nopay() [selector=0x00000002, abi_wrapper] {
+  bb0:
+    v0 = callvalue
+    v1 = ne v0, 0
+    jumpi v1, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    sstore 0, 2
+    stop
+}
+
+fn @recv() [receive, payable, abi_wrapper] {
+  bb0:
+    sstore 0, 3
+    stop
+}
+
+fn @fb() [fallback, abi_wrapper] {
+  bb0:
+    sstore 0, 4
+    stop
+}

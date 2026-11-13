@@ -286,6 +286,7 @@ impl FunctionPlan {
             cost: self.cost,
             non_loop_gas: self.non_loop_gas,
             rebuilt: None,
+            layouts: self.layouts.clone(),
         })
     }
 }

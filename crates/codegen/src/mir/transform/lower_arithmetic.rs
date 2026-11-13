@@ -59,7 +59,7 @@ impl MirPass for LowerArithmetic {
                         return false;
                     };
                     // result = scalar arithmetic(lhs, rhs); check overflow/zero
-                    let result = ArithmeticLowerer { builder: &mut *builder }
+                    let result = ArithmeticLowerer { builder: &mut *builder, failures: None }
                         .binary(op, lhs, rhs, arithmetic);
                     let result = builder.cast(result, arithmetic.ty().mir_type());
                     replacements.insert(
@@ -77,9 +77,32 @@ impl MirPass for LowerArithmetic {
 
 struct ArithmeticLowerer<'a, 'b> {
     builder: &'a mut FunctionBuilder<'b>,
+    /// When set, the conditions under which the operation fails, collected instead of emitted
+    /// as panics.
+    failures: Option<Vec<ValueId>>,
 }
 
 impl ArithmeticLowerer<'_, '_> {
+    /// Fails when `condition` is true: a panic, or a collected failure condition.
+    fn fail_if(&mut self, condition: ValueId, code: PanicCode) {
+        match &mut self.failures {
+            Some(failures) => failures.push(condition),
+            None => self.builder.panic_if(condition, code),
+        }
+    }
+
+    /// Fails when `value` is zero: a panic, or a collected failure condition.
+    fn fail_if_zero(&mut self, value: ValueId, code: PanicCode) {
+        if self.failures.is_some() {
+            // c = eq value, 0
+            let zero = self.builder.imm(U256::ZERO);
+            let condition = self.builder.eq(value, zero);
+            self.fail_if(condition, code);
+        } else {
+            self.builder.panic_if_zero(value, code);
+        }
+    }
+
     fn signed_add_sub_overflow(
         &mut self,
         lhs: ValueId,
@@ -274,7 +297,7 @@ impl ArithmeticLowerer<'_, '_> {
                         self.signed_add_sub_overflow(lhs, rhs, result, bits, true)
                     }
                 };
-                self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                self.fail_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                 result
             }
             CheckedOp::Sub => {
@@ -285,7 +308,7 @@ impl ArithmeticLowerer<'_, '_> {
                     // result = sub 0, rhs
                     let (min, _) = signed_bounds(bits, self.builder);
                     let overflow = self.builder.eq(rhs, min);
-                    self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                    self.fail_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                     return self.builder.sub(lhs, rhs);
                 }
                 // result = sub lhs, rhs
@@ -297,7 +320,7 @@ impl ArithmeticLowerer<'_, '_> {
                         self.signed_add_sub_overflow(lhs, rhs, result, bits, false)
                     }
                 };
-                self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                self.fail_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                 result
             }
             CheckedOp::Mul => {
@@ -305,14 +328,14 @@ impl ArithmeticLowerer<'_, '_> {
                 // panic_if overflow(result, lhs, rhs)
                 let result = self.builder.mul(lhs, rhs);
                 let overflow = self.mul_overflow(lhs, rhs, result, kind);
-                self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                self.fail_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                 result
             }
             CheckedOp::Div | CheckedOp::WrappingDiv => {
                 // panic_if rhs == 0
                 // panic_if checked && lhs == signed_min && rhs == -1
                 // result = div/sdiv lhs, rhs
-                self.builder.panic_if_zero(rhs, PanicCode::DivisionByZero);
+                self.fail_if_zero(rhs, PanicCode::DivisionByZero);
                 if op == CheckedOp::Div
                     && let ArithmeticKind::Signed(bits) = kind
                 {
@@ -321,7 +344,7 @@ impl ArithmeticLowerer<'_, '_> {
                     let minus_one = self.builder.imm(U256::MAX);
                     let rhs_is_minus_one = self.builder.eq(rhs, minus_one);
                     let overflow = self.builder.and(lhs_is_min, rhs_is_minus_one);
-                    self.builder.panic_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
+                    self.fail_if(overflow, PanicCode::ArithmeticOverflowUnderflow);
                 }
                 let result = match kind {
                     ArithmeticKind::Signed(_) => self.builder.sdiv(lhs, rhs),
@@ -341,7 +364,7 @@ impl ArithmeticLowerer<'_, '_> {
             CheckedOp::Rem => {
                 // panic_if rhs == 0
                 // result = mod/smod lhs, rhs
-                self.builder.panic_if_zero(rhs, PanicCode::DivisionByZero);
+                self.fail_if_zero(rhs, PanicCode::DivisionByZero);
                 match kind {
                     ArithmeticKind::Signed(_) => self.builder.smod(lhs, rhs),
                     ArithmeticKind::Unsigned(_) => self.builder.mod_(lhs, rhs),
@@ -370,4 +393,24 @@ fn power_limit(base: U256, max: U256) -> u32 {
         limit += 1;
     }
     limit
+}
+
+/// Emits, at the builder's position, the condition under which `op` on `lhs` and `rhs` fails, the
+/// tests [`LowerArithmetic`] would expand it with, so `lower-assumes` can test a pass's proof that
+/// it cannot. `None` for `pow`, whose test is a loop.
+pub(super) fn failure_condition(
+    builder: &mut FunctionBuilder<'_>,
+    op: CheckedOp,
+    arithmetic: ArithmeticKind,
+    lhs: ValueId,
+    rhs: ValueId,
+) -> Option<ValueId> {
+    if op == CheckedOp::Pow {
+        return None;
+    }
+    let mut lowerer = ArithmeticLowerer { builder, failures: Some(Vec::new()) };
+    lowerer.binary(op, lhs, rhs, arithmetic);
+    let failures = lowerer.failures.take().unwrap_or_default();
+    // c = or c0, c1, ...
+    failures.into_iter().reduce(|a, b| builder.or(a, b))
 }

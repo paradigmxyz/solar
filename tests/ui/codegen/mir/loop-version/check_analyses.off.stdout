@@ -1,0 +1,94 @@
+- ; === ROOT/tests/ui/codegen/mir/loop-version/check_analyses.mir (before loop-version) ===
++ ; === ROOT/tests/ui/codegen/mir/loop-version/check_analyses.mir (after loop-version) ===
+  @module LoopVersionRecords
+  fn @shift(arg0: ptr<memory>, arg1: ptr<memory>, arg2: ptr<memory>, arg3: i256) -> ptr<memory> {
+    bb0:
+      v0 = shl arg3, 5
+      v1 = ptradd arg1, v0
+      v2 = ptradd v1, 32
+      jump bb1
+-   bb1:                                            ; preds = bb0, bb3
+-     v3 = phi [bb0: 0], [bb3: v18]
++   bb1:                                            ; preds = bb0, bb8
++     v3 = phi [bb0: 0], [bb8: v18]
+      v4 = mload arg0
+      v5 = lt v3, v4
+      jumpi v5, bb3, bb2
+-   bb2:                                            ; preds = bb1
+-     ret arg2
+    bb3:                                            ; preds = bb1
+      v6 = shl v3, 5
+      v7 = ptradd arg0, v6
+      v8 = ptradd v7, 32
+      v9 = mload v8
+      v10 = mload arg1
+      v11 = lt arg3, v10
+      icall panic_if_zero<0x32>, v11
+      v12 = mload v2
+      v13 = checked_add uint256, v9, v12
+      v14 = mload arg2
+      v15 = lt v3, v14
+      icall panic_if_zero<0x32>, v15
+      v16 = ptradd arg2, v6
+      v17 = ptradd v16, 32
+      mstore v17, v13
+      v18 = add v3, 1
++     jump bb6
++   bb6:                                            ; preds = bb3
++     v35 = mload arg0
++     v36 = mload arg1
++     v37 = mload v2
++     v38 = mload arg2
++     v39 = ptrtoint ptr<memory> arg2 to i256
++     v40 = or v39, 0
++     v41 = or v40, v38
++     v42 = shl v38, 5
++     v43 = add v39, 1
++     v44 = add v42, 31
++     v45 = ptrtoint ptr<memory> arg0 to i256
++     v46 = sub v45, v43
++     v47 = lt v46, v44
++     v48 = or v47, false
++     v49 = zext i1 v48 to i256
++     v50 = ptrtoint ptr<memory> arg1 to i256
++     v51 = sub v50, v43
++     v52 = lt v51, v44
++     v53 = zext i1 v52 to i256
++     v54 = or v49, v53
++     v55 = ptrtoint ptr<memory> v2 to i256
++     v56 = sub v55, v43
++     v57 = lt v56, v44
++     v58 = zext i1 v57 to i256
++     v59 = or v54, v58
++     v60 = lt v41, 0x10000000000000000
++     v61 = eq v59, 0
++     v62 = and v60, v61
++     v63 = zext i1 v62 to i256
++     jumpi v62, bb7, bb8
++   bb8:                                            ; preds = bb6
+      jump bb1
++   bb7:                                            ; preds = bb6
++     jump bb4
++   bb4:                                            ; preds = bb5, bb7
++     v19 = phi [bb7: v18], [bb5: v34]
++     v21 = lt v19, v35
++     jumpi v21, bb5, bb2
++   bb2:                                            ; preds = bb1, bb4
++     ret arg2
++   bb5:                                            ; preds = bb4
++     v22 = shl v19, 5
++     v23 = ptradd arg0, v22
++     v24 = ptradd v23, 32
++     v25 = mload v24
++     v27 = lt arg3, v36
++     icall panic_if_zero<0x32>, v27
++     v29 = checked_add uint256, v25, v37
++     v31 = lt v19, v38
++     icall panic_if_zero<0x32>, v31
++     v32 = ptradd arg2, v22
++     v33 = ptradd v32, 32
++     mstore v33, v29
++     v34 = add v19, 1
++     jump bb4
+  }
+  

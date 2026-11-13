@@ -1,0 +1,103 @@
+{
+  "arguments": [
+    "solar-tv/milestone/c4/c4.sol",
+    "-Zcheck-analyses=false",
+    "--emit=bin-runtime",
+    "-Zemit-lean-stages=solar-tv/milestone/c4/gen"
+  ],
+  "bytecode": "346055575f3560e01c806302067e6a036055576024361060ff60043511176055576004355f5460ff8116820160ff81116059579060ff1916179081601e1a1860081b9061ff00191617805f5560ff165f5260205ff35b5f5ffd5b6011602052634e487b715f526024601cfd",
+  "bytecode_sha256": "8a21bc207d9dd8be48d921a717eda3ecb7e5bfcb5397850bc3d64a29037fac47",
+  "compiler": "0.8.38+commit.a8179dfc.solar.0.3.0-dev",
+  "contract": "Main",
+  "evm_version": "osaka",
+  "optimization": "Gas",
+  "options": "CompileOpts { input: [\"solar-tv/milestone/c4/c4.sol\"], import_remappings: [], base_path: None, include_paths: [], allow_paths: [], no_import_callback: false, language: Solidity, threads: 4, evm_version: Osaka, stop_after: None, optimization: Gas, optimizer_runs: None, revert_strings: Default, libraries: [], out_dir: None, emit: [BinRuntime], standard_json: false, color: Auto, verbose: false, pretty_json: false, pretty_json_err: false, error_format: Human, error_format_human: Unicode, diagnostic_width: None, no_warnings: false, allow: [], _unstable: [\"check-analyses=false\", \"emit-lean-stages=solar-tv/milestone/c4/gen\"], unstable: UnstableOpts { ui_testing: false, track_diagnostics: false, parse_yul: false, no_resolve_imports: false, recover_incomplete_input: false, dump: None, ast_stats: false, hir_stats: false, standard_json_stats: false, span_visitor: false, print_max_storage_sizes: false, print_natspec: false, mir_pipeline: None, evm_ir_pipeline: None, print_after_each: false, pass_diff: false, debugify: None, debugify_output: None, solar_tv: None, validate_ir: None, time_passes: false, codegen_all_functions: false, switch_lowering: Auto, switch_max_gas_code_growth: None, switch_max_bit_slice_gas_code_growth: None, tune: None, pack_wide_jump_tables: false, check_analyses: Some(false), prove_analyses: None, validate_passes: None, validate_passes_fault: None, validate_backend: None, validate_backend_fault: None, validate_evm_ir_passes: None, validate_assembly: false, validate_assembly_fault: None, emit_lean_stages: Some(\"solar-tv/milestone/c4/gen\"), forget_gcx: true, help: (), _non_exhaustive: () }, _non_exhaustive: () }",
+  "sources": [
+    {
+      "path": "solar-tv/milestone/c4/c4.sol",
+      "sha256": "31c39cd4e9c5cba0f78aff3a986d69be40c5f68cdb36fbf05ad3d0a5e950e858"
+    }
+  ],
+  "stages": [
+    {
+      "definition": "stage0",
+      "file": "Stage0.lean",
+      "index": 0,
+      "kind": "mir",
+      "pass": "lower-evm-shaped",
+      "sha256": "fc9bd372cfa93042b6948b6b52ce83f8c868b0832c2cd076bdd4bf4c481b521a"
+    },
+    {
+      "definition": "mir1",
+      "file": "Mir1.lean",
+      "index": 1,
+      "kind": "mir",
+      "pass": "place-reads",
+      "sha256": "0e5c81b03404896a8f12b5e1df4636f4922bc80cef6e06f297fa024a3965ecb9"
+    },
+    {
+      "definition": "mir2",
+      "file": "Mir2.lean",
+      "index": 2,
+      "kind": "mir",
+      "pass": "evm-inst-schedule",
+      "sha256": "b50596a2f7dc4831a1789f42dd5d0502e13b266ca9e5f7567e1292c450b94af4"
+    },
+    {
+      "definition": "sched",
+      "file": "Sched.lean",
+      "index": 0,
+      "kind": "sched",
+      "pass": "stack-schedule",
+      "sha256": "fdf061032cfc51bfca74d7977cb5944bdb0af4147d7048cb86e77fa7d4742160"
+    },
+    {
+      "definition": "evm1",
+      "file": "Evm1.lean",
+      "index": 1,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "b10980301296d4887ba4322567653012d670c2a5441dcba1f4044ffb40d1d1d8"
+    },
+    {
+      "definition": "evm2",
+      "file": "Evm2.lean",
+      "index": 2,
+      "kind": "evm",
+      "pass": "compact-pushes",
+      "sha256": "512034f050a4fe708788f1c7e7db6c570432aedfd9fdd308c3a993849ba8c28c"
+    },
+    {
+      "definition": "evm3",
+      "file": "Evm3.lean",
+      "index": 3,
+      "kind": "evm",
+      "pass": "share-reverts",
+      "sha256": "955fa46e2c6701e3644da10a0129e72c06cdf0624a7bd4fa4f7faae7f71be222"
+    },
+    {
+      "definition": "evm4",
+      "file": "Evm4.lean",
+      "index": 4,
+      "kind": "evm",
+      "pass": "terminal-dedup",
+      "sha256": "4009d1232a8b5bc57afbbe5ac64c2fde908da9b958d007f9f9759078bdf9093b"
+    },
+    {
+      "definition": "evm5",
+      "file": "Evm5.lean",
+      "index": 5,
+      "kind": "evm",
+      "pass": "cfg-simplify-early",
+      "sha256": "1309fae9f4a8d9561fe138c69b13b7c6e57a71404ed92f861c9a7370738fc7bc"
+    },
+    {
+      "definition": "bytecode",
+      "file": "Bytecode.lean",
+      "index": 0,
+      "kind": "bytecode",
+      "pass": "assemble",
+      "sha256": "7d5d01d3952b98c24d030dfd189808f507cdd5e523b997b80aa4baff836df2af"
+    }
+  ]
+}

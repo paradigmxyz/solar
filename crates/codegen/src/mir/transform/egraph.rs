@@ -70,9 +70,9 @@
 
 use crate::{
     mir::{
-        AbiParamType, AbiType, ArgIdx, BlockId, Builtin, Callee, EffectKind, Function, Immediate,
-        InstId, InstKind, MirPhase, MirType, Module, Op, OpTraits, PtrLocation, RequireKind,
-        Terminator, Value, ValueId,
+        AbiParamType, AbiType, ArgIdx, BlockId, Builtin, Callee, EffectKind, FactSource, Function,
+        Immediate, InstId, InstKind, MirPhase, MirType, Module, Op, OpTraits, PtrLocation,
+        RequireKind, Terminator, Value, ValueId,
         analysis::{CallGraphInfo, CfgInfo, Liveness},
         pass::{
             MirPass, run_selected_function_pass, run_selected_function_pass_cached,
@@ -85,11 +85,18 @@ use crate::{
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::EvmVersion;
-use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap, newtype_index};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::IndexVec,
+    map::{FxHashMap, FxIndexSet},
+    newtype_index,
+};
 use std::{mem, rc::Rc};
 
 mod isle;
-pub(super) use isle::{is_bool_value, max_bits_with_args};
+pub(super) use isle::{Relied, WidthFact, is_bool_value, max_bits_with_args};
+
+use super::lower_assumes::{record_fact, should_check_analyses};
 
 const TRACE_TARGET: &str = "solar::codegen::mir::egraph";
 
@@ -146,11 +153,17 @@ impl MirPass for Egraph {
                 }
             }
         }
+        let record = should_check_analyses(gcx.sess);
         let mut changed = run_selected_function_pass_without_analyses_cached::<FlatEgraph>(
             module,
             analyses,
             &flat,
-            |func, analyses| Builder::new(func, &analyses.target(gcx), None).run() != 0,
+            |func, analyses| {
+                let target = analyses.target(gcx);
+                let mut builder = Builder::new(func, &target, None);
+                builder.record = record;
+                builder.run() != 0
+            },
         );
         changed |= run_selected_function_pass_cached::<CfgEgraph>(
             module,
@@ -158,7 +171,9 @@ impl MirPass for Egraph {
             &with_cfg,
             |func, analyses| {
                 let target = analyses.target(gcx);
-                Builder::new(func, &target, Some(Rc::clone(analyses.cfg()))).run() != 0
+                let mut builder = Builder::new(func, &target, Some(Rc::clone(analyses.cfg())));
+                builder.record = record;
+                builder.run() != 0
             },
         );
         // Eligibility depends on module-wide callers, so do not cache it by body alone.
@@ -170,6 +185,7 @@ impl MirPass for Egraph {
                 let target = analyses.target(gcx);
                 let mut builder = Builder::new(func, &target, Some(Rc::clone(analyses.cfg())));
                 builder.fresh_mapping_arguments = true;
+                builder.record = record;
                 builder.run() != 0
             },
         );
@@ -311,6 +327,9 @@ struct Class {
     home: InstId,
     /// Whether the home is in a cold block, where its nodes are priced like a size build.
     cold: bool,
+    /// With `-Zcheck-analyses`, the widths the rewrites that built each node relied on, else
+    /// empty.
+    relied: SmallVec<[Relied; 1]>,
 }
 
 newtype_index! {
@@ -393,6 +412,16 @@ struct Builder<'a> {
     /// Alternate operand definitions exposed to each rule match.
     max_operand_views: usize,
     changed: usize,
+    /// Whether rewrites record the widths they relied on, for `-Zcheck-analyses`.
+    record: bool,
+    /// The widths the rewrites the pass applied relied on, with the block of each rewritten
+    /// instruction, recorded once the pass ends.
+    relied: FxIndexSet<(BlockId, WidthFact)>,
+    /// The widths each memo entry's equality to the value it names relies on, with that value.
+    /// Kept in step with `memo` by `relied_undo`, only when recording.
+    memo_relied: FxHashMap<NodeKey, (ValueId, Relied)>,
+    /// Undo log restoring `memo_relied` when a dominator scope closes.
+    relied_undo: Vec<(NodeKey, Option<(ValueId, Relied)>)>,
 }
 
 impl<'a> Builder<'a> {
@@ -426,14 +455,57 @@ impl<'a> Builder<'a> {
             max_nodes,
             max_operand_views,
             changed: 0,
+            record: false,
+            relied: FxIndexSet::default(),
+            memo_relied: FxHashMap::default(),
+            relied_undo: Vec::new(),
         }
     }
 
     fn run(mut self) -> usize {
         self.visit(BlockId::ENTRY, true);
         self.materialize();
+        self.record_relied();
         self.rewrite_terminators();
         self.changed
+    }
+
+    /// Records every width a rewrite relied on where the rewritten instruction's block ends.
+    fn record_relied(&mut self) {
+        for (block, fact) in mem::take(&mut self.relied) {
+            let value = resolve_replacement(fact.value, &self.merged);
+            let bound = self.func.alloc_value(Value::Immediate(Immediate::I256(fact.bound)));
+            // assume predicate egraph, value, bound
+            record_fact(self.func, block, FactSource::Egraph, fact.predicate, value, bound);
+        }
+    }
+
+    /// Notes that the rewrite of an instruction in `block` relied on `facts`.
+    fn rely(&mut self, block: BlockId, facts: impl IntoIterator<Item = WidthFact>) {
+        self.relied.extend(facts.into_iter().map(|fact| (block, fact)));
+    }
+
+    /// The widths the memo entry for `key` relies on, when it still names the value they were
+    /// noted for.
+    fn memo_relied(&self, key: &NodeKey) -> Relied {
+        match (self.memo_relied.get(key), self.memo.get(key)) {
+            (Some((value, facts)), Some(current)) if value == current => facts.clone(),
+            _ => Relied::new(),
+        }
+    }
+
+    /// The widths the operand alternatives a rule match sees through relied on.
+    fn view_relied(&self, views: &OperandViews) -> Relied {
+        let mut facts = Relied::new();
+        for &(operand, view) in views.iter().flatten() {
+            if let Some(class) = self.classes.get(operand)
+                && let Some(index) = class.nodes.iter().position(|&node| node == view)
+                && let Some(relied) = class.relied.get(index)
+            {
+                facts.extend(relied.iter().copied());
+            }
+        }
+        facts
     }
 
     /// Returns the class representative of `value`.
@@ -468,6 +540,7 @@ impl<'a> Builder<'a> {
     /// No block follows the last one visited, so `tail` scopes keep their memo entries.
     fn visit(&mut self, block: BlockId, tail: bool) {
         let mark = self.undo.len();
+        let relied_mark = self.relied_undo.len();
         self.phis.clear();
         for index in 0..self.func.blocks[block].instructions.len() {
             let inst_id = self.func.blocks[block].instructions[index];
@@ -484,6 +557,13 @@ impl<'a> Builder<'a> {
             match previous {
                 Some(value) => self.memo.insert(key, value),
                 None => self.memo.remove(&key),
+            };
+        }
+        while !tail && self.relied_undo.len() > relied_mark {
+            let (key, previous) = self.relied_undo.pop().expect("undo log entry");
+            match previous {
+                Some(entry) => self.memo_relied.insert(key, entry),
+                None => self.memo_relied.remove(&key),
             };
         }
     }
@@ -534,6 +614,10 @@ impl<'a> Builder<'a> {
         // An equal expression with a dominating definition: reuse it.
         let key = (canonical(op), ty);
         if let Some(leader) = self.memo_leader(key, key, block, index) {
+            if self.record {
+                let facts = self.memo_relied(&key);
+                self.rely(block, facts);
+            }
             self.merge(result, leader, inst_id);
             return;
         }
@@ -542,6 +626,15 @@ impl<'a> Builder<'a> {
         // first, then look for a value it already equals.
         let mut nodes = SmallVec::from_buf([op]);
         let mut simplified = SmallVec::<[Simplified; 2]>::from_slice(&[Simplified::Pending]);
+        // With `-Zcheck-analyses`, the widths each node's rewrites relied on, and those its
+        // simplification relied on; else empty.
+        let mut node_relied = SmallVec::<[Relied; 1]>::new();
+        let mut simplified_relied = SmallVec::<[Relied; 1]>::new();
+        let mut alternative_relied = Vec::<(Op, Relied)>::new();
+        if self.record {
+            node_relied.push(Relied::new());
+            simplified_relied.push(Relied::new());
+        }
         let mut frontier = 0;
         let mut alternatives = mem::take(&mut self.alternatives);
         let mut node_limit = self.max_nodes.min(BASE_MAX_NODES);
@@ -554,24 +647,43 @@ impl<'a> Builder<'a> {
                 let current = nodes[current_index];
                 frontier += 1;
                 alternatives.clear();
+                alternative_relied.clear();
                 let kind = current.into_kind().expect("nodes are complete instructions");
                 let folded = self.fold_node(&current, &kind, ty);
                 if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
                     let (operands, truncated) = self.operand_views(&current, view_limit);
                     views_truncated |= truncated;
                     for view in matching_views(&current, &operands) {
-                        self.rule_context(block)
-                            .with_views(view)
-                            .rewrite(&current, &mut alternatives);
+                        let written = alternatives.len();
+                        let viewed =
+                            if self.record { self.view_relied(&view) } else { Relied::new() };
+                        let record = self.record;
+                        let mut context =
+                            self.rule_context(block).with_views(view).with_recording(record);
+                        context.rewrite(&current, &mut alternatives);
+                        if record {
+                            for &alternative in &alternatives[written..] {
+                                let mut facts = viewed.clone();
+                                facts.extend(context.relied_by(&alternative));
+                                alternative_relied.push((alternative, facts));
+                            }
+                        }
                     }
-                    simplified[current_index] = Simplified::from_value(
-                        folded.or_else(|| self.simplify_views(&current, &operands)),
-                    );
+                    let (value, facts) = match folded {
+                        Some(value) => (Some(value), Relied::new()),
+                        None => self
+                            .simplify_views(&current, &operands)
+                            .map_or((None, Relied::new()), |(value, facts)| (Some(value), facts)),
+                    };
+                    simplified[current_index] = Simplified::from_value(value);
+                    if self.record {
+                        simplified_relied[current_index] = facts;
+                    }
                 } else {
                     simplified[current_index] = Simplified::from_value(folded);
                 }
-                for next in alternatives.drain(..) {
-                    let next = next.map_values(|value| self.resolve(value));
+                for written in alternatives.drain(..) {
+                    let next = written.map_values(|value| self.resolve(value));
                     let next = self.func.canonical_op(next);
                     if !nodes.contains(&next)
                         && nodes.len() < node_limit
@@ -581,6 +693,17 @@ impl<'a> Builder<'a> {
                     {
                         nodes.push(next);
                         simplified.push(Simplified::Pending);
+                        if self.record {
+                            // The node relies on what its parent did and on the rule that built it.
+                            let mut facts = node_relied[current_index].clone();
+                            for (alternative, relied) in &alternative_relied {
+                                if *alternative == written {
+                                    facts.extend(relied.iter().copied());
+                                }
+                            }
+                            node_relied.push(facts);
+                            simplified_relied.push(Relied::new());
+                        }
                     }
                 }
             }
@@ -606,6 +729,8 @@ impl<'a> Builder<'a> {
         // immediately. Scope every insertion, including simplified classes,
         // to the same dominator subtree as the original expression.
         let mut leader = None;
+        // The widths the equality of the original node to `leader` relies on.
+        let mut leader_relied = Relied::new();
         for (node_index, node) in nodes.iter().enumerate() {
             // The search leaves the memo unchanged, so the original node's failed
             // probe still holds.
@@ -613,19 +738,29 @@ impl<'a> Builder<'a> {
                 && let Some(equal) = self.memo_leader((canonical(*node), ty), key, block, index)
             {
                 leader = Some(equal);
+                if self.record {
+                    leader_relied = node_relied[node_index].clone();
+                    leader_relied.extend(self.memo_relied(&(canonical(*node), ty)));
+                }
                 break;
             }
-            let equal = match simplified[node_index] {
-                Simplified::Value(value) => Some(value),
-                Simplified::Unchanged => None,
+            let (equal, facts) = match simplified[node_index] {
+                Simplified::Value(value) => {
+                    (Some(value), simplified_relied.get(node_index).cloned().unwrap_or_default())
+                }
+                Simplified::Unchanged => (None, Relied::new()),
                 Simplified::Pending => {
                     let kind = node.into_kind().expect("nodes are complete instructions");
-                    let folded = self.fold_node(node, &kind, ty);
-                    if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
-                        let (operands, _) = self.operand_views(node, view_limit);
-                        folded.or_else(|| self.simplify_views(node, &operands))
-                    } else {
-                        folded
+                    match self.fold_node(node, &kind, ty) {
+                        Some(folded) => (Some(folded), Relied::new()),
+                        None if kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) => {
+                            let (operands, _) = self.operand_views(node, view_limit);
+                            self.simplify_views(node, &operands)
+                                .map_or((None, Relied::new()), |(value, facts)| {
+                                    (Some(value), facts)
+                                })
+                        }
+                        None => (None, Relied::new()),
                     }
                 }
             };
@@ -633,6 +768,10 @@ impl<'a> Builder<'a> {
                 let equal = self.resolve(equal);
                 if equal != result && self.func.value_ty(equal) == ty {
                     leader = Some(equal);
+                    if self.record {
+                        leader_relied = node_relied[node_index].clone();
+                        leader_relied.extend(facts);
+                    }
                     break;
                 }
             }
@@ -641,18 +780,40 @@ impl<'a> Builder<'a> {
         for (node_index, &node) in nodes.iter().enumerate() {
             // The original node was keyed above.
             let key = if node_index == 0 { key } else { (canonical(node), ty) };
-            let previous = self.memo.insert(key, leader.unwrap_or(result));
+            let named = leader.unwrap_or(result);
+            let previous = self.memo.insert(key, named);
             if !tail {
                 self.undo.push((key, previous));
+            }
+            if self.record {
+                // A later expression equal to this node equals `named` by the same facts.
+                let mut facts = node_relied[node_index].clone();
+                if leader.is_some() {
+                    facts.extend(leader_relied.iter().copied());
+                }
+                let previous = if facts.is_empty() {
+                    self.memo_relied.remove(&key)
+                } else {
+                    self.memo_relied.insert(key, (named, facts))
+                };
+                if !tail {
+                    self.relied_undo.push((key, previous));
+                }
             }
         }
         if let Some(leader) = leader {
             // %result => %leader
+            self.rely(block, leader_relied);
             self.merge(result, leader, inst_id);
         } else {
             self.classes.insert(
                 result,
-                Class { nodes, home: inst_id, cold: self.func.blocks[block].hotness.is_cold() },
+                Class {
+                    nodes,
+                    home: inst_id,
+                    cold: self.func.blocks[block].hotness.is_cold(),
+                    relied: node_relied,
+                },
             );
         }
     }
@@ -756,18 +917,25 @@ impl<'a> Builder<'a> {
         let mut current = op.map_values(|value| self.resolve(value));
         let mut rewritten = false;
         let mut alternatives = mem::take(&mut self.alternatives);
+        let mut relied = Relied::new();
         for _ in 0..self.max_nodes {
             alternatives.clear();
             let canonical_op = self.func.canonical_op(current);
-            self.rule_context(block).rewrite(&canonical_op, &mut alternatives);
-            let Some(next) = alternatives.iter().find_map(|next| {
-                let next = next.map_values(|value| self.resolve(value));
+            let record = self.record;
+            let mut context = self.rule_context(block).with_recording(record);
+            context.rewrite(&canonical_op, &mut alternatives);
+            let written_relied = context.take_relied_ops();
+            let Some((written, next)) = alternatives.iter().find_map(|&written| {
+                let next = written.map_values(|value| self.resolve(value));
                 next.into_kind()
                     .is_some_and(|kind| kind.scalar_types_match(self.func, result_ty))
-                    .then_some(next)
+                    .then_some((written, next))
             }) else {
                 break;
             };
+            relied.extend(
+                written_relied.iter().filter(|(op, _)| *op == written).map(|&(_, fact)| fact),
+            );
             current = next;
             rewritten = true;
         }
@@ -775,6 +943,7 @@ impl<'a> Builder<'a> {
         if !rewritten {
             return;
         }
+        self.rely(block, relied);
         // %r = <rewritten instruction over canonical operands>
         let kind = current.into_kind().expect("rewrite rules produce complete instructions");
         tracing::trace!(
@@ -873,23 +1042,36 @@ impl<'a> Builder<'a> {
             cache: IndexVec::from_vec(vec![None; self.classes.all.len()]),
         };
         let mut cheapest = Vec::with_capacity(self.classes.all.len());
+        let mut relied = Vec::new();
         for class in &self.classes.all {
             // Rules only produce canonical forms, so the latest node wins ties.
             let target = self.target.priced_for_cold(class.cold);
-            let best = if class.nodes.len() == 1 {
+            let (index, best) = if class.nodes.len() == 1 {
                 // No selection is needed. Dependencies still get priced lazily
                 // if another class with alternatives needs this class's cost.
-                class.nodes[0]
+                (0, class.nodes[0])
             } else {
                 class
                     .nodes
                     .iter()
-                    .rev()
                     .copied()
-                    .min_by_key(|node| target.objective_key(costs.node(class, node)))
+                    .enumerate()
+                    .rev()
+                    .min_by_key(|(_, node)| target.objective_key(costs.node(class, node)))
                     .expect("a class holds its own node")
             };
+            if let Some(facts) = class.relied.get(index).filter(|facts| !facts.is_empty()) {
+                relied.push((class.home, facts.clone()));
+            }
             cheapest.push((class.home, best));
+        }
+        if !relied.is_empty() {
+            let blocks = self.func.inst_block_table();
+            for (home, facts) in relied {
+                if let Some(block) = blocks[home] {
+                    self.rely(block, facts);
+                }
+            }
         }
         // %r = <cheapest node over canonical operands>
         let name = self.func.name;
@@ -1002,11 +1184,22 @@ impl<'a> Builder<'a> {
 
     /// Returns the value `node` equals through a `simplify` rule, trying the bounded operand views
     /// of [`matching_views`].
-    fn simplify_views(&mut self, node: &Op, operands: &[(ValueId, Op)]) -> Option<ValueId> {
+    /// With `-Zcheck-analyses`, also returns the widths the rule and the operand alternatives it
+    /// saw through relied on.
+    fn simplify_views(
+        &mut self,
+        node: &Op,
+        operands: &[(ValueId, Op)],
+    ) -> Option<(ValueId, Relied)> {
         matching_views(node, operands).find_map(|view| {
-            isle::RuleContext::new(self.func, self.target.evm_version())
+            let viewed = if self.record { self.view_relied(&view) } else { Relied::new() };
+            let mut context = isle::RuleContext::new(self.func, self.target.evm_version())
                 .with_views(view)
-                .simplify(node)
+                .with_recording(self.record);
+            let value = context.simplify(node)?;
+            let mut facts = context.take_relied();
+            facts.extend(viewed);
+            Some((value, facts))
         })
     }
 }
@@ -1308,31 +1501,37 @@ fn may_const_fold(func: &Function, node: &Op) -> bool {
     any && all
 }
 
-/// Folds only immediate results using the same identities as full extraction.
+/// Folds only immediate results using the same identities as full extraction. With `record`,
+/// also returns the widths the rule that folded it relied on.
 pub(super) fn fold_constant(
     func: &mut Function,
     kind: &InstKind,
     ty: Option<MirType>,
     evm: EvmVersion,
-) -> Option<ValueId> {
+    record: bool,
+) -> Option<(ValueId, Relied)> {
     if let InstKind::Phi(incoming) = kind
         && let Some(&(_, first)) = incoming.first()
         && func.value(first).as_immediate().is_some()
         && incoming.iter().all(|&(_, value)| same_value(func, value, first))
     {
-        return Some(first);
+        return Some((first, Relied::new()));
     }
+    let mut relied = Relied::new();
     let value = const_fold(func, kind, ty).or_else(|| {
         if is_node(kind) && kind.op_def().traits.contains(OpTraits::EGRAPH_REWRITE) {
             let op = func.canonical_op(kind.op());
-            isle::RuleContext::new(func, evm).simplify(&op)
+            let mut context = isle::RuleContext::new(func, evm).with_recording(record);
+            let value = context.simplify(&op);
+            relied = context.take_relied();
+            value
         } else {
             None
         }
     })?;
     (func.value_ty(value) == ty)
-        .then_some(value)
-        .filter(|&value| func.value(value).as_immediate().is_some())
+        .then_some((value, relied))
+        .filter(|&(value, _)| func.value(value).as_immediate().is_some())
 }
 
 /// Recognizes passing checks and copies with no effects, including no bounds failure.

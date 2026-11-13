@@ -1,0 +1,22 @@
+//@ compile-flags: -Zmir-pipeline=lower-assumes
+// A callee's argument width is a premise its callers discharge. Here the only call passes a word
+// with high bits set, so the call's obligation has a counterexample, while the callee's fact that
+// rests on the premise is proved from it.
+@module ArgumentWidthCall
+@phase lowered
+fn @entry() [entry] {
+  bb0:
+    v0 = calldataload 0
+    v1 = icall @callee, v0
+    assume ule lower_integers, v0, 255
+    mstore 0, v1
+    returndata 0, 32
+}
+
+fn @callee(arg0: i256) -> i256 {
+  bb0:
+    assume ule lower_integers, arg0, 255
+    v0 = and arg0, 255
+    assume eq egraph, v0, arg0
+    ret v0
+}

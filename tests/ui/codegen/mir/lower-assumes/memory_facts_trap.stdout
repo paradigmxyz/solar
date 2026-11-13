@@ -1,0 +1,153 @@
+- ; === ROOT/tests/ui/codegen/mir/lower-assumes/memory_facts_trap.mir (before lower-assumes) ===
++ ; === ROOT/tests/ui/codegen/mir/lower-assumes/memory_facts_trap.mir (after lower-assumes) ===
+  @module MemoryFactsTrap
+  @phase lowered
+  ; runtime dispatch entry
+  fn @entry() [entry] {
+    bb0:
+      v0 = calldataload 4
+      switch v0, default bb5, [1 => bb1, 2 => bb2, 3 => bb3, 4 => bb4, 5 => bb6]
+    bb6:                                            ; preds = bb0
+      tail_call @readonly_eval
+    bb4:                                            ; preds = bb0
+      tail_call @noreturn_calls
+    bb3:                                            ; preds = bb0
+      tail_call @lower_alloc
+    bb2:                                            ; preds = bb0
+      tail_call @storage_promotion
+    bb1:                                            ; preds = bb0
+      tail_call @licm
+    bb5 [cold]:                                     ; preds = bb0
+      revert 0, 0
+  }
+  
+  fn @licm() {
+    bb0:
+      v0 = calldataload 36
+      mstore 0, 5
+      v1 = mload 0
+      mstore 0, v0
+      v2 = mload 0
+-     assume eq licm, v1, v2
+      mstore 0, v2
++     v3 = ne v1, v2
++     jumpi v3, bb2, bb3
++   bb3:                                            ; preds = bb0
+      returndata 0, 32
++   bb2 [cold]:                                     ; preds = bb0
++     jump bb1
++   bb1 [cold]:                                     ; preds = bb2
++     v4 = phi [bb2: 0x110000000010000000000000001]
++     v5 = phi [bb2: v1]
++     v6 = phi [bb2: v2]
++     mstore 32, v4 !metadata(memory=scratch)
++     mstore 64, v5 !metadata(memory=scratch)
++     mstore 96, v6 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  
+  fn @storage_promotion() {
+    bb0:
+      v0 = calldataload 36
+      v1 = sload 0
+      sstore 0, v0
+      v2 = sload 0
+-     assume eq storage_promotion, v1, v2
+      mstore 0, v2
++     v3 = ne v1, v2
++     jumpi v3, bb2, bb3
++   bb3:                                            ; preds = bb0
+      returndata 0, 32
++   bb2 [cold]:                                     ; preds = bb0
++     jump bb1
++   bb1 [cold]:                                     ; preds = bb2
++     v4 = phi [bb2: 0x111000000020000000000000001]
++     v5 = phi [bb2: v1]
++     v6 = phi [bb2: v2]
++     mstore 32, v4 !metadata(memory=scratch)
++     mstore 64, v5 !metadata(memory=scratch)
++     mstore 96, v6 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  
+  fn @lower_alloc() {
+    bb0:
+      v0 = calldataload 36
+      mstore 128, v0
+      v1 = mload 128
+-     assume eq lower_alloc, v1, 0
+      mstore 0, v1
++     v2 = ne v1, 0
++     jumpi v2, bb2, bb3
++   bb3:                                            ; preds = bb0
+      returndata 0, 32
++   bb2 [cold]:                                     ; preds = bb0
++     jump bb1
++   bb1 [cold]:                                     ; preds = bb2
++     v3 = phi [bb2: 0x112000000030000000000000001]
++     v4 = phi [bb2: v1]
++     v5 = phi [bb2: 0]
++     mstore 32, v3 !metadata(memory=scratch)
++     mstore 64, v4 !metadata(memory=scratch)
++     mstore 96, v5 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  
+  fn @noreturn_calls() {
+    bb0:
+      v0 = calldataload 36
+      v1 = ne v0, 0
+      jumpi v1, bb1, bb2
+    bb2:                                            ; preds = bb0
+      mstore 0, v0
+      returndata 0, 32
+    bb1 [cold]:                                     ; preds = bb0
+-     assume eq noreturn_calls, 0, 1
++     v2 = ne 1, 0
++     jumpi v2, bb4, bb5
++   bb5 [cold]:                                     ; preds = bb1
+      invalid
++   bb4 [cold]:                                     ; preds = bb1
++     jump bb3
++   bb3 [cold]:                                     ; preds = bb4
++     v3 = phi [bb4: 0x1130000000400000001ffffffff]
++     v4 = phi [bb4: 0]
++     v5 = phi [bb4: 1]
++     mstore 32, v3 !metadata(memory=scratch)
++     mstore 64, v4 !metadata(memory=scratch)
++     mstore 96, v5 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  
+  fn @readonly_eval() {
+    bb0:
+      v0 = calldataload 36
+      v1 = icall @identity, v0
+-     assume eq readonly_eval, v1, 42
+      mstore 0, v1
++     v2 = ne v1, 42
++     jumpi v2, bb2, bb3
++   bb3:                                            ; preds = bb0
+      returndata 0, 32
++   bb2 [cold]:                                     ; preds = bb0
++     jump bb1
++   bb1 [cold]:                                     ; preds = bb2
++     v3 = phi [bb2: 0x114000000050000000000000001]
++     v4 = phi [bb2: v1]
++     v5 = phi [bb2: 42]
++     mstore 32, v3 !metadata(memory=scratch)
++     mstore 64, v4 !metadata(memory=scratch)
++     mstore 96, v5 !metadata(memory=scratch)
++     mstore 0, 0xed572b27 !metadata(memory=scratch)
++     revert 28, 100
+  }
+  
+  fn @identity(arg0: i256) -> i256 {
+    bb0:
+      ret arg0
+  }
+  

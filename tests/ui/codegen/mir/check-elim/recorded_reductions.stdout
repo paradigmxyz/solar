@@ -1,0 +1,35 @@
+- ; === ROOT/tests/ui/codegen/mir/check-elim/recorded_reductions.mir (before check-elim) ===
++ ; === ROOT/tests/ui/codegen/mir/check-elim/recorded_reductions.mir (after check-elim) ===
+  @module RecordedReductions
+  fn @or_dropped(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      v0 = lt arg0, 10
+      jumpi v0, bb1, bb3
+    bb1:                                            ; preds = bb0
+      v1 = gt arg0, 20
+      v2 = or v1, arg1
+-     jumpi v2, bb2, bb3
++     assume eq check_elim, v1, false
++     jumpi arg1, bb2, bb3
+    bb3:                                            ; preds = bb0, bb1
+      ret 0
+    bb2:                                            ; preds = bb1
+      ret 1
+  }
+  
+  fn @and_dropped(arg0: i256, arg1: i1) -> i256 {
+    bb0:
+      v0 = lt arg0, 10
+      jumpi v0, bb1, bb3
+    bb1:                                            ; preds = bb0
+      v1 = lt arg0, 20
+      v2 = and v1, arg1
+-     jumpi v2, bb2, bb3
++     assume eq check_elim, v1, true
++     jumpi arg1, bb2, bb3
+    bb3:                                            ; preds = bb0, bb1
+      ret 0
+    bb2:                                            ; preds = bb1
+      ret 1
+  }
+  
