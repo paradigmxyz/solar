@@ -70,6 +70,9 @@
 //! leading zeros, 255         clz(x | 1)
 //! ```
 //!
+//! An isolated bit `b` has one more form for an index that is 256 for zero, `256 - clz(b - 1)`:
+//! `b - 1` has a one for each zero below the bit of `b`, and every bit set for zero.
+//!
 //! Any other result for zero keeps the code. The instructions only the scan used are removed with
 //! it, and the rewrite is taken when the target prices the new operations below the old ones.
 //! The new instructions take the source location of the value they replace. The last proved
@@ -735,17 +738,39 @@ struct Constants {
     one: ValueId,
     eight: ValueId,
     all: ValueId,
+    bits: ValueId,
+}
+
+/// The word a `CLZ` form counts the leading zeros of.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Form {
+    /// The input itself.
+    Plain,
+    /// `x | 1`, which has the highest bit of `x` and counts 255 zeros for zero.
+    Odd,
+    /// `b - 1` for an input `b` of at most one bit: its ones are the zeros below the bit of
+    /// `b`, so `256 - clz(b - 1)` is the index of that bit and 256 for zero.
+    Below,
 }
 
 /// Builds the `CLZ` form of `scan` through `emit`, which returns the result of each instruction,
 /// and returns the last instruction unemitted: it takes the place of the scan.
 fn clz_form(
     scan: Scan,
-    odd: bool,
+    form: Form,
     input: ValueId,
     constants: &Constants,
     emit: &mut dyn FnMut(InstKind, MirType) -> ValueId,
 ) -> InstKind {
+    if form == Form::Below {
+        // %below = sub %input, 1
+        // %zeros = clz %below
+        // %index = sub 256, %zeros
+        let below = emit(InstKind::Sub(input, constants.one), MirType::I256);
+        let zeros = emit(InstKind::Clz(below), MirType::I256);
+        return InstKind::Sub(constants.bits, zeros);
+    }
+    let odd = form == Form::Odd;
     // %odd = or %input, 1
     let word = if odd { emit(InstKind::Or(input, constants.one), MirType::I256) } else { input };
     if scan.leading_zeros {
@@ -783,12 +808,12 @@ fn rewrite(
 ) -> Option<Vec<InstId>> {
     let input = cone.input;
     let root_inst = cone.steps[root].inst;
-    // `x | 1` has the highest bit of `x` and counts 255 zeros for zero.
-    let odd = match (scan.leading_zeros, scan.zero) {
-        (false, zero) if zero.is_zero() || zero == U256::from(256) => true,
-        (true, zero) if zero == U256::from(255) => true,
-        (false, U256::MAX) => false,
-        (true, zero) if zero == U256::from(256) => false,
+    let form = match (scan.leading_zeros, scan.zero) {
+        (false, zero) if zero == U256::from(256) && is_lowest_bit(func, input) => Form::Below,
+        (false, zero) if zero.is_zero() || zero == U256::from(256) => Form::Odd,
+        (true, zero) if zero == U256::from(255) => Form::Odd,
+        (false, U256::MAX) => Form::Plain,
+        (true, zero) if zero == U256::from(256) => Form::Plain,
         _ => return None,
     };
 
@@ -821,9 +846,10 @@ fn rewrite(
         one: immediate(1),
         eight: immediate(8),
         all: immediate(255),
+        bits: immediate(256),
     };
     let mut new = Cost::ZERO;
-    let last = clz_form(scan, odd, input, &constants, &mut |kind, _| {
+    let last = clz_form(scan, form, input, &constants, &mut |kind, _| {
         new += target.kind_estimate(func, &kind);
         input
     });
@@ -834,7 +860,7 @@ fn rewrite(
 
     let metadata = func.inst(root_inst).metadata.debug_context();
     let mut inserted = Vec::new();
-    let last = clz_form(scan, odd, input, &constants, &mut |kind, ty| {
+    let last = clz_form(scan, form, input, &constants, &mut |kind, ty| {
         let mut inst = Instruction::new(kind, Some(ty));
         inst.metadata = metadata.clone();
         let (inst, value) = func.alloc_value_inst(inst);

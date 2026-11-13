@@ -37,13 +37,9 @@ contract LowestBits {
     // Solady's `LibBit.ffs`: 256 for zero.
     // CHECK-LABEL: fn @ffs
     // CHECK: [[LOW:v[0-9]+]] = and
-    // CHECK-NEXT: [[ODD:v[0-9]+]] = or [[LOW]], 1
-    // CHECK-NEXT: [[ZEROS:v[0-9]+]] = clz [[ODD]]
-    // CHECK-NEXT: [[INDEX:v[0-9]+]] = sub 255, [[ZEROS]]
-    // CHECK-NEXT: [[NONE:v[0-9]+]] = eq [[LOW]], 0
-    // CHECK-NEXT: [[FLAG:v[0-9]+]] = zext i1 [[NONE]] to i256
-    // CHECK-NEXT: [[BIT:v[0-9]+]] = shl [[FLAG]], 8
-    // CHECK-NEXT: {{v[0-9]+}} = or [[INDEX]], [[BIT]]
+    // CHECK-NEXT: [[BELOW:v[0-9]+]] = sub [[LOW]], 1
+    // CHECK-NEXT: [[ZEROS:v[0-9]+]] = clz [[BELOW]]
+    // CHECK-NEXT: {{v[0-9]+}} = sub 256, [[ZEROS]]
     // CHECK-NOT: {{ }}mul{{ }}
     // CHECK-NOT: {{ }}div{{ }}
     // CHECK: returndata
