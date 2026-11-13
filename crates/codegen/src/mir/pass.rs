@@ -134,7 +134,7 @@ impl<P> GasOnly<P> {
 }
 
 impl<P: MirPass> MirPass for GasOnly<P> {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         self.0.name()
     }
 
@@ -174,7 +174,7 @@ impl<P> RunsAtNone<P> {
 }
 
 impl<P: MirPass> MirPass for RunsAtNone<P> {
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         self.0.name()
     }
 
@@ -194,7 +194,7 @@ impl<P: MirPass> MirPass for RunsAtNone<P> {
         self.0.is_required()
     }
 
-    fn cache_key(&self) -> Option<(&'static str, &'static str)> {
+    fn cache_key(&self) -> Option<(&'static str, &str)> {
         self.0.cache_key()
     }
 
@@ -462,8 +462,22 @@ static LOWERED_PIPELINE: &[&dyn MirPass] = &[
 #[tracing::instrument(name = "mir_pipeline", level = "debug", skip_all)]
 #[must_use]
 pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bool {
+    let plugins = match crate::pass_plugin::registry(gcx) {
+        Ok(plugins) => plugins,
+        Err(_) => return false,
+    };
     if let Some(value) = gcx.sess.opts.unstable.mir_pipeline.as_deref() {
-        let pipeline = match parse_pass_pipeline(gcx, value, "MIR", lookup_pass) {
+        let pipeline = match parse_pass_pipeline(gcx, value, "MIR", |name| {
+            lookup_pass(name).or_else(|| {
+                plugins.and_then(|registry| {
+                    registry
+                        .mir
+                        .iter()
+                        .find(|pass| pass.name() == name)
+                        .map(|pass| pass as &dyn MirPass)
+                })
+            })
+        }) {
             Ok(pipeline) => pipeline,
             Err(_) => return false,
         };
@@ -494,12 +508,38 @@ pub fn run_pipeline(gcx: Gcx<'_>, module: &mut Module, name: Option<&str>) -> bo
 
     let mut changed = false;
     if module.phase() == MirPhase::Semantic {
+        if let Some(plugins) = plugins {
+            let passes = plugins
+                .mir
+                .iter()
+                .filter(|pass| pass.is_default(MirPhase::Semantic))
+                .map(|pass| pass as &dyn MirPass)
+                .collect::<Vec<_>>();
+            let (pass_changed, error) = run_passes_inner(gcx, module, &passes, None);
+            changed |= pass_changed;
+            if error.is_some() {
+                return changed;
+            }
+        }
         let (pass_changed, error) = run_passes_inner(gcx, module, SEMANTIC_PIPELINE, None);
         changed |= pass_changed;
         if error.is_some() {
             return changed;
         }
         let (pass_changed, error) = run_passes_inner(gcx, module, LOWERING_PIPELINE, None);
+        changed |= pass_changed;
+        if error.is_some() {
+            return changed;
+        }
+    }
+    if let Some(plugins) = plugins {
+        let passes = plugins
+            .mir
+            .iter()
+            .filter(|pass| pass.is_default(MirPhase::Lowered))
+            .map(|pass| pass as &dyn MirPass)
+            .collect::<Vec<_>>();
+        let (pass_changed, error) = run_passes_inner(gcx, module, &passes, None);
         changed |= pass_changed;
         if error.is_some() {
             return changed;
