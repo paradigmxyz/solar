@@ -4369,7 +4369,6 @@ dependencies = [
  "bitflags 2.13.2",
  "bs58",
  "clap",
- "indexmap 2.14.2",
  "libc",
  "mimalloc",
  "rayon",
@@ -4692,6 +4691,26 @@ dependencies = [
  "tempfile",
  "toml_edit",
  "ui_test",
+]
+
+[[package]]
+name = "solar-tv-replay"
+version = "0.3.0"
+dependencies = [
+ "alloy-consensus",
+ "alloy-primitives",
+ "evm2",
+ "serde",
+ "serde_json",
+ "snapbox",
+ "solar-config",
+ "solar-evmir",
+ "solar-evmir-interpreter",
+ "solar-interface",
+ "solar-mir",
+ "solar-mir-interpreter",
+ "strum 0.28.0",
+ "tempfile",
 ]
 
 [[package]]

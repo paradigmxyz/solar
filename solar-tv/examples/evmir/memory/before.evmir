@@ -1,0 +1,9 @@
+@module Memory
+bb0 [stack=1]:
+  push 0
+  add
+  push 0
+  mstore
+  push 32
+  push 0
+  return

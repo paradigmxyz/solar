@@ -1,0 +1,6 @@
+@module GasMemory
+bb0:
+  push 32
+  mload
+  pop
+  stop

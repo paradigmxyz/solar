@@ -1,0 +1,8 @@
+; === solar-tv/examples/evmir/gas/before.evmir (after peephole) ===
+@module Gas
+bb0 [stack=2]:
+  add
+  push bb1
+  jump
+bb1 [stack=1]:
+  stop

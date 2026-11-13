@@ -1,0 +1,10 @@
+@module Branch
+bb0:
+  calldatasize
+  returndatasize
+  eq
+  push bb1
+  jumpi
+  stop
+bb1:
+  stop

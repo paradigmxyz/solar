@@ -1,0 +1,9 @@
+@module SymbolicStack
+; Every entry word is symbolic. The outgoing stack is visible to bb1.
+bb0 [stack=2]:
+  swap 1
+  add
+  push bb1
+  jump
+bb1 [stack=1]:
+  stop
