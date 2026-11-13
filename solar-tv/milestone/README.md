@@ -250,6 +250,13 @@ does running out of a segment's fuel, which matches nothing.
   [cutpoint-negative.sh](cutpoint-negative.sh) checks that halving by four instead of two in the
   loop body, and inverting its exit test, each fail the last stage by mismatch.
 
+- [uv2_sqrt](uv2_sqrt/uv2_sqrt.sol): `Math.sol` exactly as `solar-tv/uniswap-v2/port.py` writes it from
+  Uniswap/v2-core@6a9e7c9 (`min` and `sqrt`), then the same entry point; the same bytecode as
+  [sqrt](sqrt/sqrt.sol), proved the same way: `SolarTV.Milestone.Uv2Sqrt.uv2_sqrt_mir_to_evmir`, with
+  the same two mutants failing by mismatch. In `UniswapV2Pair` itself `sqrt` is an internal
+  function that `mint` calls, which the procedure does not relate yet: every stage of Pair fails
+  closed with "a loop in @sqrt, which an internal call enters".
+
 ```sh
 SOLAR=target/debug/solar solar-tv/milestone/certify-loops.sh sqrt SqrtEntry
 ```
