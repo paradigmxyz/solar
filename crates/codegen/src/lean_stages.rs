@@ -321,7 +321,9 @@ pub(crate) fn scheduled(gcx: Gcx<'_>, program: &ir::Module) -> Result {
 /// EVM IR block number and an instruction index, before the exporter fuses a pushed label
 /// with its jump) and what each word of its entry stack holds, from the bottom of the function's
 /// words to the top: `"vN"` for MIR value `N`, `"ret"` for the return address and `"junk"`
-/// for a word no later code reads. The cut-point proofs of looping stages read the relation
+/// for a word no later code reads; and for every internal call, its MIR block (a block's calls
+/// in order), the block its return address names and the caller's words below the call's
+/// arguments, from the bottom. The cut-point proofs of looping stages read the relation
 /// between a MIR loop header and its scheduled block from it; it is the scheduler's own record
 /// (`ScheduleMap`), written after the fact, so it changes nothing the scheduler emits, and a
 /// wrong entry only fails a proof.
@@ -366,6 +368,18 @@ pub(crate) fn schedule_map(gcx: Gcx<'_>, program: &ir::Module, map: &ScheduleMap
                 block.index(),
                 layout.join(", "),
                 info.floating,
+            );
+        }
+        out.push_str("\n    ], \"calls\": [");
+        for (n, call) in f.calls.iter().enumerate() {
+            let block = call.block.map_or("null".to_string(), |b| b.index().to_string());
+            let below: Vec<String> = call.below.iter().map(location).collect();
+            let _ = write!(
+                out,
+                "{}\n      {{\"block\": {}, \"return\": {block}, \"below\": [{}]}}",
+                if n > 0 { "," } else { "" },
+                call.from.index(),
+                below.join(", "),
             );
         }
         out.push_str("\n    ]}");

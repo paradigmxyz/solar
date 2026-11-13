@@ -51,6 +51,20 @@ pub(crate) struct BlockMap {
     pub(crate) continues: Option<BlockId>,
 }
 
+/// One internal call: where it returns and the caller's words the call leaves below its
+/// arguments.
+#[derive(Clone, Debug)]
+pub(crate) struct CallMap {
+    /// The MIR block the call is in; a block's calls are recorded in their order.
+    pub(crate) from: BlockId,
+    /// The return address the call pushes, and after [`ScheduleMap::resolve`] its block.
+    pub(crate) label: Label,
+    pub(crate) block: Option<ir::BlockId>,
+    /// The caller's stack below the arguments, from the bottom: on return, the callee's results
+    /// sit on top of these words.
+    pub(crate) below: Vec<Location>,
+}
+
 /// Where scheduling put one function's values.
 #[derive(Clone, Debug)]
 pub(crate) struct FunctionMap {
@@ -64,6 +78,8 @@ pub(crate) struct FunctionMap {
     /// Whether the function is entered with a return address above its arguments.
     pub(crate) returns: bool,
     pub(crate) blocks: IndexVec<BlockId, Option<BlockMap>>,
+    /// Every internal call the body makes, in emission order.
+    pub(crate) calls: Vec<CallMap>,
     /// Every push of a spill slot's address, with the word whose slot it is.
     pub(crate) slots: Vec<(Location, Position)>,
     /// The first instruction of the code each backend-resolved instruction emits: the push of a
@@ -105,6 +121,9 @@ impl ScheduleMap {
         };
         for function in &mut self.functions {
             function.entry = function.label.and_then(|label| asm.label_block(label));
+            for call in &mut function.calls {
+                call.block = asm.label_block(call.label);
+            }
             for block in function.blocks.iter_mut().flatten() {
                 block.start = block.start.map(moved);
             }

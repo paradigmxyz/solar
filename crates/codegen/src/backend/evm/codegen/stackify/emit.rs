@@ -14,7 +14,7 @@ use crate::{
                 values::gas_minus,
             },
             op,
-            schedule_map::{BlockMap, FunctionMap, Location, Position},
+            schedule_map::{BlockMap, CallMap, FunctionMap, Location, Position},
         },
     },
     mir::{
@@ -609,16 +609,24 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
             &Step::Op(opcode) => self.asm.emit_op(opcode),
             &Step::Inst(inst) => self.emit_stackified_inst(func_id, func, inst),
-            &Step::Call(callee) => {
+            Step::Call { callee, block, below } => {
                 // push return; push callee; jump; return:
                 let return_label = self.asm.new_label();
                 if cold {
                     self.asm.mark_label_cold(return_label);
                 }
                 self.asm.emit_push_label(return_label);
-                self.asm.emit_push_label(self.function_labels[&callee]);
+                self.asm.emit_push_label(self.function_labels[callee]);
                 self.asm.emit_op(op::JUMP);
                 self.asm.define_continuation_label(return_label);
+                self.record_schedule(|map, _| {
+                    map.calls.push(CallMap {
+                        from: *block,
+                        label: return_label,
+                        block: None,
+                        below: below.iter().map(location).collect(),
+                    });
+                });
             }
             &Step::Publish { callee, arity, params, .. } => {
                 self.record_schedule(|map, _| {
@@ -827,11 +835,6 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         let Some(map) = &mut self.schedule_map else { return };
         let Some(layouts) = plan.layouts.take() else { return };
-        let location = |slot: &Slot| match *slot {
-            Slot::Value(value) | Slot::Saved(value) => Location::Value(value),
-            Slot::Ret => Location::Ret,
-            Slot::Junk => Location::Junk,
-        };
         let blocks = layouts
             .entries
             .iter_enumerated()
@@ -855,6 +858,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             entry: None,
             returns,
             blocks,
+            calls: Vec::new(),
             slots: Vec::new(),
             placements: Vec::new(),
             clobbers: layouts.clobbers,
@@ -874,5 +878,14 @@ impl<'gcx> EvmCodegen<'gcx> {
         {
             record(function, position);
         }
+    }
+}
+
+/// What a stack word of the plan holds, as the schedule map names it.
+fn location(slot: &Slot) -> Location {
+    match *slot {
+        Slot::Value(value) | Slot::Saved(value) => Location::Value(value),
+        Slot::Ret => Location::Ret,
+        Slot::Junk => Location::Junk,
     }
 }

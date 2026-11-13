@@ -9,6 +9,13 @@ the pass, and writes the segment obligations that sym_seg proves.
 
 The relations are derived, never written by hand:
 
+- Internal calls: a loop in a function that calls enter runs under a call stack. Each cut point
+  gets one relation per call string that reaches it: in MIR the returns the calls pushed (the
+  caller's block, the rest of it after the call and the caller's values, which the relation
+  equates on every value the caller reads after the call), in EVM IR the return labels on the
+  stack, found by running the program over stacks of labels and other words (evm_states), and
+  below the callee's words the caller's, as the scheduler recorded them at the call
+  (Schedule.json "calls"). A recursive call fails closed.
 - EVM IR to EVM IR: a pass keeps its blocks' numbers (the "-- bbN" the exporter writes before
   each block). The cut points are blocks of the same number in both programs, chosen so that
   every cycle of either program passes through one; the relation at a pair is that the stacks
@@ -328,11 +335,8 @@ def evm_cuts(pass_name, a_blocks, b_blocks):
     for ident in sorted(chosen):
         if uncovered(chosen - {ident}) is None:
             chosen.discard(ident)
-    if chosen and (a_dyn or b_dyn):
-        raise Unsupported(
-            f"{pass_name}: loops in a program with internal calls (return labels "
-            "on the stack at a cut point)"
-        )
+    if a_dyn or b_dyn:
+        return evm_call_cuts(pass_name, a_blocks, b_blocks)
     cuts = []
     for ident in sorted(chosen):
         ia, ib = a_ids.index(ident), b_ids.index(ident)
@@ -346,6 +350,169 @@ def evm_cuts(pass_name, a_blocks, b_blocks):
             )
         cuts.append((ia, ib, ha))
     return cuts
+
+
+def evm_states(pass_name, blocks, limit=50000):
+    """The configurations a program reaches, abstractly, and the edges between them: (block
+    index, stack) with the stack top first, each word the block a pushLabel pushed or None for
+    any other word. A return is a dynamic jump to the label on top, so a callee's blocks are
+    reached once per call string; a dynamic jump to any other word, or a call string that keeps
+    growing (recursion), fails closed."""
+    start = (0, ())
+    edges, work = {start: []}, [start]
+    while work:
+        state = work.pop()
+        idx, stack = state
+        stack = list(stack)
+        out, end = [], False
+        for ins in blocks[idx][1]:
+            m = re.fullmatch(
+                r"\.op \(\.stack \((\.dup|\.swap|\.exchange) ([0-9 ]+)\)\)", ins
+            )
+            if m:
+                args = [int(t) for t in m[2].split()]
+                need = {
+                    ".dup": args[0] + 1,
+                    ".swap": args[0] + 2,
+                    ".exchange": max(args) + 1,
+                }[m[1]]
+                if len(stack) < need:
+                    raise Unsupported(
+                        f"{pass_name}: block bb{blocks[idx][0]} underflows its stack"
+                    )
+                if m[1] == ".dup":
+                    stack.insert(0, stack[args[0]])
+                elif m[1] == ".swap":
+                    j = args[0] + 1
+                    stack[0], stack[j] = stack[j], stack[0]
+                else:
+                    a, b = args
+                    stack[a], stack[b] = stack[b], stack[a]
+                continue
+            m = re.fullmatch(r"\.pushLabel (\d+)", ins)
+            if m:
+                stack.insert(0, int(m[1]))
+                continue
+            pop, push, kind, targets = effect(ins)
+            if len(stack) < pop:
+                raise Unsupported(
+                    f"{pass_name}: block bb{blocks[idx][0]} underflows its stack"
+                )
+            if kind in ("dyn", "dyni"):
+                target = stack[0]
+                if target is None:
+                    raise Unsupported(
+                        f"{pass_name}: block bb{blocks[idx][0]} jumps to a word no label pushed"
+                    )
+                targets = [target]
+            stack = stack[pop:]
+            out += [(t, tuple(stack)) for t in targets]
+            if kind in ("jump", "dyn", "table", "end"):
+                end = True
+                break
+            stack = [None] * push + stack
+        if not end:
+            out.append((idx + 1, tuple(stack)))
+        out = [s for s in out if s[0] < len(blocks)]
+        edges[state] = out
+        for s in out:
+            if s not in edges:
+                if len(edges) >= limit or len(s[1]) > 1024:
+                    raise Unsupported(
+                        f"{pass_name}: more than {limit} call strings (a recursive call?)"
+                    )
+                edges[s] = []
+                work.append(s)
+    return edges
+
+
+def evm_call_cuts(pass_name, a_blocks, b_blocks):
+    """Cut points of two EVM IR programs with internal calls, by call string: the cut blocks are
+    chosen as in evm_cuts, on the graph of configurations evm_states reaches, so that every cycle
+    under every call stack passes one; each cut block gets one relation per stack shape it is
+    entered with (its height and where return labels sit, named by the blocks they return to),
+    which must be the same in both programs: the same words at the same height, the labels each
+    program's own, and the same state. Returns the cut tests of both sides and the relations."""
+    a_ids = [i for i, _ in a_blocks]
+    b_ids = [i for i, _ in b_blocks]
+    common = {i for i in a_ids if a_ids.count(i) == 1 and b_ids.count(i) == 1}
+    sides = []
+    for blocks, ids in ((a_blocks, a_ids), (b_blocks, b_ids)):
+        edges = evm_states(pass_name, blocks)
+        nodes = sorted(edges, key=lambda s: (s[0], len(s[1]), str(s[1])))
+        ix = {s: n for n, s in enumerate(nodes)}
+        succ = {ix[s]: sorted({ix[t] for t in edges[s]}) for s in nodes}
+        sides.append((nodes, succ, [ids[s[0]] for s in nodes], ids))
+    both = {sides[0][2][n] for n in on_cycle(sides[0][1])} & {
+        sides[1][2][n] for n in on_cycle(sides[1][1])
+    }
+
+    def uncovered(chosen):
+        for nodes, succ, node_ids, _ in sides:
+            removed = {n for n, i in enumerate(node_ids) if i in chosen}
+            cycle = cyclic_component(succ, removed)
+            if cycle is not None:
+                return cycle, node_ids
+        return None
+
+    chosen = set()
+    while (found := uncovered(chosen)) is not None:
+        cycle, node_ids = found
+        candidates = [node_ids[n] for n in cycle if node_ids[n] in common]
+        if not candidates:
+            raise Unsupported(
+                f"{pass_name}: a loop through "
+                + ", ".join(f"bb{node_ids[n]}" for n in cycle)
+                + " has no block both programs keep"
+            )
+        candidates.sort(key=lambda i: i not in both)
+        chosen.add(candidates[0])
+    for ident in sorted(chosen):
+        if uncovered(chosen - {ident}) is None:
+            chosen.discard(ident)
+    rels, tests_a, tests_b = [], [], []
+    for ident in sorted(chosen):
+        ia, ib = a_ids.index(ident), b_ids.index(ident)
+        tests_a.append(ia)
+        tests_b.append(ib)
+        shapes = []
+        for (nodes, _, _, ids), at in zip(sides, (ia, ib)):
+            shape = {}
+            for idx, stack in nodes:
+                if idx == at:
+                    key = tuple(None if w is None else ids[w] for w in stack)
+                    shape[key] = stack
+            shapes.append(shape)
+        if set(shapes[0]) != set(shapes[1]):
+            raise Unsupported(
+                f"{pass_name}: bb{ident} is entered with stacks {sorted(map(str, shapes[0]))} "
+                f"before and {sorted(map(str, shapes[1]))} after"
+            )
+        for key in sorted(shapes[0], key=str):
+            sa, sb = shapes[0][key], shapes[1][key]
+            ws = [(f"w{k}", "EvmRules.Word") for k, w in enumerate(sa) if w is None]
+
+            def term(stack):
+                return (
+                    "["
+                    + ", ".join(
+                        f"w{k}" if w is None else f"(BitVec.ofNat 256 {w})"
+                        for k, w in enumerate(stack)
+                    )
+                    + "]"
+                )
+
+            rels.append(
+                {
+                    "src_vars": ws + [("s", "State")],
+                    "tgt_vars": [],
+                    "src": f"({ia}, {term(sa)}, s)",
+                    "tgt": f"({ib}, {term(sb)}, s)",
+                    "conds": [],
+                }
+            )
+    fuel = (len(sides[0][0]) + 1, len(sides[1][0]) + 1)
+    return {"tests": (tests_a, tests_b), "rels": rels, "fuel": fuel}
 
 
 def loops(blocks):
@@ -634,21 +801,124 @@ def mir_cuts(pass_name, a_funcs, b_funcs):
                     f"{pass_name}: @{fa['name']} bb{h} binds phis {da} before and {db} after"
                 )
             cuts.append((f, h, pa[h], pb[h]))
-    called = {
-        int(n)
-        for fs in (a_funcs, b_funcs)
-        for fn in fs
-        for _, insts, _ in fn["blocks"].values()
-        for i in insts
-        for n in re.findall(r"^\.call \S+ (\d+)", i)
-    }
-    for f, _, _, _ in cuts:
-        if f in called:
-            raise Unsupported(
-                f"{pass_name}: a loop in @{a_funcs[f]['name']}, which an internal "
-                "call enters (a call stack at the cut point)"
-            )
     return cuts
+
+
+def tokens(s):
+    """Split on spaces outside brackets."""
+    out, depth, cur = [], 0, []
+    for ch in s:
+        if ch in "([{⟨":
+            depth += 1
+        elif ch in ")]}⟩":
+            depth -= 1
+        if ch == " " and depth == 0:
+            if cur:
+                out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    if cur:
+        out.append("".join(cur))
+    return out
+
+
+def mir_calls(func):
+    """The internal calls of a function: (block, ordinal in the block, callee, index)."""
+    out = []
+    for b, (_, insts, _) in sorted(func["blocks"].items()):
+        k = 0
+        for i, ins in enumerate(insts):
+            if ins.startswith(".call "):
+                out.append((b, k, int(tokens(ins)[2]), i))
+                k += 1
+    return out
+
+
+def mir_contexts(pass_name, funcs, entry):
+    """The call stacks each function runs under: tuples of call sites (caller, block, ordinal),
+    innermost first. A tail call keeps the caller's; a call string longer than the module has
+    functions is a recursion, which fails closed."""
+    ctx = {entry: {()}}
+    work = [(entry, ())]
+    while work:
+        f, c = work.pop()
+        if f >= len(funcs):
+            continue
+        nexts = [(callee, ((f, b, k),) + c) for b, k, callee, _ in mir_calls(funcs[f])]
+        for _, _, term in funcs[f]["blocks"].values():
+            m = re.match(r"\.tailCall (\d+)", term)
+            if m:
+                nexts.append((int(m[1]), c))
+        for g, d in nexts:
+            if len(d) > len(funcs):
+                raise Unsupported(
+                    f"{pass_name}: a recursive call into @{funcs[g]['name']}"
+                )
+            if d not in ctx.setdefault(g, set()):
+                ctx[g].add(d)
+                work.append((g, d))
+    return ctx
+
+
+def mir_entry(text):
+    return int(re.search(r"entry := (\d+)", text)[1])
+
+
+def call_site(func, b, k):
+    """The k-th call of block b: its index and its tokens."""
+    calls = [
+        (i, ins)
+        for i, ins in enumerate(func["blocks"][b][1])
+        if ins.startswith(".call ")
+    ]
+    i, ins = calls[k]
+    return i, tokens(ins)
+
+
+def frame_term(funcs, site, env):
+    """The return a call site pushes, with the caller's values env."""
+    f, b, k = site
+    _, insts, term = funcs[f]["blocks"][b]
+    i, t = call_site(funcs[f], b, k)
+    extras = t[4] if len(t) > 4 else "[]"
+    publish = t[5] if len(t) > 5 else "none"
+    rest = "[" + ", ".join(insts[i + 1 :]) + "]"
+    return f"⟨{f}, {b}, {t[1]}, {rest}, {term}, {env}, {extras}, {publish}⟩"
+
+
+def live_after_call(func, site):
+    """The caller's values the code after a call reads, but for those the call binds."""
+    _, b, k = site
+    live, edge = mir_liveness(func)
+    _, insts, term = func["blocks"][b]
+    i, _ = call_site(func, b, k)
+    out = set()
+    for s in mir_succ(term):
+        if s in func["blocks"]:
+            out |= live[s] | edge(b, s)
+    out |= mir_uses(term)
+    for ins in reversed(insts[i + 1 :]):
+        out -= mir_defs(ins)
+        out |= mir_uses(ins)
+    out -= mir_defs(insts[i])
+    return out
+
+
+def frame_rel(fa_list, fb_list, ctx):
+    """The stacks of returns of a call string in both modules, the caller values' variables and
+    the conditions that relate them: every value the caller reads after the call the same."""
+    src, tgt, sv, tv, conds = [], [], [], [], []
+    for n, site in enumerate(ctx):
+        c, c2 = f"c{n}", f"c{n}'"
+        src.append(frame_term(fa_list, site, c))
+        tgt.append(frame_term(fb_list, site, c2))
+        sv.append((c, "MIR.Lowered.Env"))
+        tv.append((c2, "MIR.Lowered.Env"))
+        f = site[0]
+        live = live_after_call(fa_list[f], site) | live_after_call(fb_list[f], site)
+        conds += [f"{c2} {v} = {c} {v}" for v in sorted(live)]
+    return "[" + ", ".join(src) + "]", "[" + ", ".join(tgt) + "]", sv, tv, conds
 
 
 def phi_input(func, h, pred, dst):
@@ -954,10 +1224,14 @@ def header_facts(func, h, pred, live, env):
     return facts
 
 
-def mir_mir_rels(pass_name, fa_list, fb_list, cuts):
+def mir_mir_rels(pass_name, fa_list, fb_list, cuts, ctx_a=None, ctx_b=None):
     """Relations between two MIR modules at their headers: the same state, the phis' inputs
-    and every value live into the header the same words."""
+    and every value live into the header the same words; for a header under calls, one relation
+    per call string, with the returns each module pushes and the caller's values read after the
+    call the same."""
     rels, tests = [], []
+    ctx_a = ctx_a or {}
+    ctx_b = ctx_b or {}
     for f, h, preds_a, preds_b in cuts:
         fa, fb = fa_list[f], fb_list[f]
         tests.append((f, h))
@@ -982,25 +1256,50 @@ def mir_mir_rels(pass_name, fa_list, fb_list, cuts):
                     continue
                 conds += header_facts(fa, h, pa, set(live_a[h]), "env")
                 conds += header_facts(fb, h, pb, set(live_b[h]), "env'")
-                rels.append(
-                    {
-                        "src_vars": [("env", "MIR.Lowered.Env"), ("s", "State")],
-                        "tgt_vars": [("env'", "MIR.Lowered.Env")],
-                        "src": f"([], MIR.Lowered.Pos.enter {f} {pa} {h}, env, s)",
-                        "tgt": f"([], MIR.Lowered.Pos.enter {f} {pb} {h}, env', s)",
-                        "conds": conds,
-                    }
-                )
+                ca, cb = ctx_a.get(f, {()}), ctx_b.get(f, {()})
+                if ca != cb:
+                    raise Unsupported(
+                        f"{pass_name}: @{fa['name']} is called from {sorted(ca)} before and "
+                        f"{sorted(cb)} after"
+                    )
+                for ctx in sorted(ca):
+                    sa, sb, sv, tv, fconds = frame_rel(fa_list, fb_list, ctx)
+                    rels.append(
+                        {
+                            "src_vars": [("env", "MIR.Lowered.Env")]
+                            + sv
+                            + [("s", "State")],
+                            "tgt_vars": [("env'", "MIR.Lowered.Env")] + tv,
+                            "src": f"({sa}, MIR.Lowered.Pos.enter {f} {pa} {h}, env, s)",
+                            "tgt": f"({sb}, MIR.Lowered.Pos.enter {f} {pb} {h}, env', s)",
+                            "conds": conds + fconds,
+                        }
+                    )
     return tests, tests, rels
 
 
-def mir_evm_rels(pass_name, funcs, sched_blocks, schedule, cuts):
+def call_record(pass_name, funcs, sched_blocks, fmaps, site):
+    """The scheduler's record of a call site (the k-th call of a MIR block): the label of the
+    block its return address names, and the caller's words below the call's arguments."""
+    f, b, k = site
+    ids = [i for i, _ in sched_blocks]
+    calls = [c for c in fmaps[f].get("calls", []) if c.get("block") == b]
+    if k >= len(calls) or calls[k]["return"] not in ids:
+        raise Unsupported(
+            f"{pass_name}: the schedule map records no return of the call in "
+            f"@{funcs[f]['name']} bb{b}"
+        )
+    return ids.index(calls[k]["return"]), calls[k]["below"]
+
+
+def mir_evm_rels(pass_name, funcs, sched_blocks, schedule, cuts, ctxs=None):
     """Relations between the last MIR module and the scheduled EVM IR at its loop headers: the
     MIR header entered from a predecessor, and the scheduled block where its code starts, with
     the stack the scheduler recorded there (each value's word, a phi's word as its input from
     that predecessor), any words below the function's own, and the same state."""
     ids = [i for i, _ in sched_blocks]
-    _, heights, _ = evm_cfg(sched_blocks)
+    _, heights, dynamic = evm_cfg(sched_blocks)
+    sched_states = list(evm_states(pass_name, sched_blocks)) if dynamic else []
     fmaps = {fm["function"]: fm for fm in schedule["functions"]}
     rels, tests_a, tests_b = [], [], []
     for f, h, preds, _ in cuts:
@@ -1016,26 +1315,53 @@ def mir_evm_rels(pass_name, funcs, sched_blocks, schedule, cuts):
                 "scheduled block"
             )
         e = ids.index(bm["start"][0])
-        height = heights.get(e)
         layout = bm["layout"]
+        height = heights.get(e)
+        if (ctxs or {}).get(f, {()}) != {()}:
+            height = len(layout)
         if height is None or height < len(layout):
             raise Unsupported(
                 f"{pass_name}: scheduled block bb{bm['start'][0]} has no static "
                 "height that holds its layout"
             )
-        if "ret" in layout:
+        contexts = sorted((ctxs or {}).get(f, {()}))
+        if "ret" in layout and () in contexts:
             raise Unsupported(
                 f"{pass_name}: a return address at the loop header of {f}"
             )
         tests_a.append((f, h))
         tests_b.append(e)
         dsts = {d for d, _ in funcs[f]["blocks"][h][0]}
-        for pa in preds:
+        for ctx, pa in itertools.product(contexts, preds):
+            frames, fvars = "[]", []
+            labels, belows = [], []
+            below = height - len(layout)
+            for n, site in enumerate(ctx):
+                label, below_n = call_record(
+                    pass_name, funcs, sched_blocks, fmaps, site
+                )
+                labels.append(label)
+                belows.append(below_n)
+            if ctx:
+                frames = (
+                    "["
+                    + ", ".join(
+                        frame_term(funcs, site, f"c{n}") for n, site in enumerate(ctx)
+                    )
+                    + "]"
+                )
+                fvars = [(f"c{n}", "MIR.Lowered.Env") for n in range(len(ctx))]
+                if "ret" not in layout:
+                    raise Unsupported(
+                        f"{pass_name}: no return address at the loop header of {f}"
+                    )
             junk, words = [], []
             for loc in reversed(layout):
                 if loc == "junk":
                     junk.append(f"j{len(junk)}")
                     words.append(junk[-1])
+                elif loc == "ret":
+                    words.append(f"(BitVec.ofNat 256 {labels[0]})")
                 else:
                     v = int(loc[1:])
                     words.append(
@@ -1043,19 +1369,67 @@ def mir_evm_rels(pass_name, funcs, sched_blocks, schedule, cuts):
                         if v in dsts
                         else f"env {v}"
                     )
-            for _ in range(height - len(layout)):
+            # Each caller's words below the call's arguments, as the scheduler recorded them: its
+            # values as they were at the call, its own return address the next call's label.
+            shape = [labels[0] if loc == "ret" else None for loc in reversed(layout)]
+            for n, below_n in enumerate(belows):
+                for loc in reversed(below_n):
+                    if loc == "junk":
+                        junk.append(f"j{len(junk)}")
+                        words.append(junk[-1])
+                        shape.append(None)
+                    elif loc == "ret":
+                        if n + 1 >= len(labels):
+                            raise Unsupported(
+                                f"{pass_name}: a return address below the outermost caller of {f}"
+                            )
+                        words.append(f"(BitVec.ofNat 256 {labels[n + 1]})")
+                        shape.append(labels[n + 1])
+                    else:
+                        words.append(f"c{n} {int(loc[1:])}")
+                        shape.append(None)
+            if ctx:
+                fits = [
+                    st
+                    for (i, st) in sched_states
+                    if i == e
+                    and len(st) >= len(shape)
+                    and all(w == x for w, x in zip(st, shape) if x is not None)
+                    and all(w is None for w in st[len(shape) :])
+                ]
+                if len(fits) != 1:
+                    raise Unsupported(
+                        f"{pass_name}: scheduled block bb{bm['start'][0]} is entered under the "
+                        f"call string {ctx} with {len(fits)} stack shapes"
+                    )
+                below = len(fits[0]) - len(shape)
+            for _ in range(below):
                 junk.append(f"j{len(junk)}")
                 words.append(junk[-1])
             rels.append(
                 {
-                    "src_vars": [("env", "MIR.Lowered.Env"), ("s", "State")],
+                    "src_vars": [("env", "MIR.Lowered.Env")] + fvars + [("s", "State")],
                     "tgt_vars": [(j, "EvmRules.Word") for j in junk],
-                    "src": f"([], MIR.Lowered.Pos.enter {f} {pa} {h}, env, s)",
+                    "src": f"({frames}, MIR.Lowered.Pos.enter {f} {pa} {h}, env, s)",
                     "tgt": f"({e}, [{', '.join(words)}], s)",
                     "conds": [],
                 }
             )
-    if tests_b:
+    if tests_b and dynamic:
+        edges = evm_states(pass_name, sched_blocks)
+        nodes = sorted(edges, key=lambda s: (s[0], len(s[1]), str(s[1])))
+        ix = {s: n for n, s in enumerate(nodes)}
+        succ = {ix[s]: sorted({ix[t] for t in edges[s]}) for s in nodes}
+        cyc = cyclic_component(
+            succ, {n for n, s in enumerate(nodes) if s[0] in tests_b}
+        )
+        if cyc:
+            raise Unsupported(
+                f"{pass_name}: a scheduled loop through "
+                + ", ".join(f"bb{ids[nodes[n][0]]}" for n in cyc)
+                + " passes no MIR header's block"
+            )
+    elif tests_b:
         succ, _, _ = evm_cfg(sched_blocks)
         cyc = cyclic_component(succ, set(tests_b))
         if cyc:
@@ -1089,27 +1463,42 @@ def stage_body(gen, a, b, heartbeats=2000000):
     pass), after the module header, or raise Unsupported."""
     ta = (gen / a["file"]).read_text()
     tb = (gen / b["file"]).read_text()
+
+    def mir_fuel(funcs):
+        # A segment may enter a callee's blocks once per call site.
+        calls = sum(len(mir_calls(f)) for f in funcs)
+        return sum(len(f["blocks"]) for f in funcs) * (calls + 1) + calls + 1
+
     if a["kind"] == "mir" and b["kind"] == "mir":
         fa, fb = parse_mir(ta), parse_mir(tb)
         cuts = mir_cuts(b["pass"], fa, fb)
-        tests_a, tests_b, rels = mir_mir_rels(b["pass"], fa, fb, cuts)
-        fuel_a = sum(len(f["blocks"]) for f in fa) + 1
-        fuel_b = sum(len(f["blocks"]) for f in fb) + 1
+        ctx_a = mir_contexts(b["pass"], fa, mir_entry(ta))
+        ctx_b = mir_contexts(b["pass"], fb, mir_entry(tb))
+        tests_a, tests_b, rels = mir_mir_rels(b["pass"], fa, fb, cuts, ctx_a, ctx_b)
+        fuel_a, fuel_b = mir_fuel(fa), mir_fuel(fb)
     elif a["kind"] == "mir":
         fa, sched = parse_mir(ta), parse_evm(tb)
         cuts = mir_cuts(b["pass"], fa, fa)
+        ctxs = mir_contexts(b["pass"], fa, mir_entry(ta))
         schedule_file = gen / "Schedule.json"
         if cuts and not schedule_file.exists():
             raise Unsupported(f"{b['pass']}: no Schedule.json from the exporter")
         schedule = json.loads(schedule_file.read_text()) if cuts else {"functions": []}
-        tests_a, tests_b, rels = mir_evm_rels(b["pass"], fa, sched, schedule, cuts)
-        fuel_a = sum(len(f["blocks"]) for f in fa) + 1
-        fuel_b = len(sched) + 1
+        tests_a, tests_b, rels = mir_evm_rels(
+            b["pass"], fa, sched, schedule, cuts, ctxs
+        )
+        fuel_a = mir_fuel(fa)
+        _, _, dynamic = evm_cfg(sched)
+        fuel_b = (len(evm_states(b["pass"], sched)) if dynamic else len(sched)) + 1
     else:
         ea, eb = parse_evm(ta), parse_evm(tb)
         cuts = evm_cuts(b["pass"], ea, eb)
-        tests_a, tests_b, rels = evm_evm_rels(cuts)
-        fuel_a, fuel_b = len(ea) + 1, len(eb) + 1
+        if isinstance(cuts, dict):
+            (tests_a, tests_b), rels = cuts["tests"], cuts["rels"]
+            fuel_a, fuel_b = cuts["fuel"]
+        else:
+            tests_a, tests_b, rels = evm_evm_rels(cuts)
+            fuel_a, fuel_b = len(ea) + 1, len(eb) + 1
     return pair_module(a, b, tests_a, tests_b, rels, fuel_a, fuel_b, heartbeats)
 
 

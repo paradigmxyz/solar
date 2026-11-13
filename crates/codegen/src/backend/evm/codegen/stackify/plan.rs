@@ -2113,7 +2113,7 @@ impl<'a> Planner<'a> {
             let ops: Operands = args.iter().rev().copied().collect();
             self.prepare(sim, &ops, &dying)?;
             let base = sim.height() - args.len();
-            sim.steps.push(Step::Call(callee));
+            sim.steps.push(Step::Call { callee, block, below: sim.stack[..base].into() });
             sim.cost += StackCosts::INTERNAL_CALL;
             sim.stack.truncate(base);
             let arity = self.info.returns[callee];
