@@ -26,7 +26,7 @@ pub mod ir;
 
 mod layout;
 
-mod schedule_map;
+pub(crate) mod schedule_map;
 
 pub(in crate::backend) mod validate_assembly;
 mod validate_backend;

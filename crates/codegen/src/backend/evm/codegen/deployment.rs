@@ -100,11 +100,19 @@ impl<'gcx> EvmCodegen<'gcx> {
         // First schedule the runtime code and run its EVM IR pipeline. Only final
         // assembly waits for the bytecode of contracts it embeds.
         let validate_dir = self.gcx.sess.opts.unstable.validate_backend.clone();
-        self.schedule_map = validate_dir.is_some().then(ScheduleMap::default);
+        // The Lean stages also record it: the cut-point proofs of looping stages relate MIR
+        // loop headers to their scheduled blocks through it.
+        let lean_stages = self.gcx.sess.opts.unstable.emit_lean_stages.is_some();
+        self.schedule_map = (validate_dir.is_some() || lean_stages).then(ScheduleMap::default);
         self.schedule_runtime_code(&lowered, &call_graph);
         let mut schedule_map = self.schedule_map.take();
         if let Some(map) = &mut schedule_map {
             map.resolve(&self.asm);
+            if lean_stages
+                && crate::lean_stages::schedule_map(self.gcx, &self.asm.program, map).is_err()
+            {
+                return false;
+            }
         }
         let resolved = |sites: &FxHashMap<FunctionId, DeferredConst>| {
             sites

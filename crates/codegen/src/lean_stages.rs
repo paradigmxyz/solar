@@ -63,7 +63,10 @@
 //! Exporting only reads the module and the program, so the generated code is the same with and
 //! without it.
 
-use crate::backend::evm::call_projection;
+use crate::backend::evm::{
+    call_projection,
+    schedule_map::{Location, ScheduleMap},
+};
 use alloy_primitives::U256;
 use sha2::{Digest, Sha256};
 use solar_data_structures::{
@@ -99,7 +102,12 @@ fn is_stage_file(name: &str) -> bool {
     };
     matches!(
         name,
-        "Stage0.lean" | "Sched.lean" | "Bytecode.lean" | "Manifest.lean" | "manifest.json"
+        "Stage0.lean"
+            | "Sched.lean"
+            | "Bytecode.lean"
+            | "Manifest.lean"
+            | "manifest.json"
+            | "Schedule.json"
     ) || numbered("Mir")
         || numbered("Evm")
 }
@@ -295,6 +303,82 @@ pub(crate) fn scheduled(gcx: Gcx<'_>, program: &ir::Module) -> Result {
         error(gcx, format_args!("scheduled runtime EVM IR of `{contract}`: {message}"))
     })?;
     write_stage(gcx, &dir, Stage::scheduled(), &contract, &body)
+}
+
+/// Writes where stack scheduling put each MIR value of a contract's runtime, \`Schedule.json\`:
+/// for every function, its entry block in the scheduled EVM IR and whether it is entered with a
+/// return address, and for every MIR block, where its code starts in the scheduled EVM IR (an
+/// EVM IR block number and an instruction index, before the exporter fuses a pushed label
+/// with its jump) and what each word of its entry stack holds, from the bottom of the function's
+/// words to the top: \`"vN"\` for MIR value \`N\`, \`"ret"\` for the return address and \`"junk"\`
+/// for a word no later code reads. The cut-point proofs of looping stages read the relation
+/// between a MIR loop header and its scheduled block from it; it is the scheduler's own record
+/// ([\`ScheduleMap\`]), written after the fact, so it changes nothing the scheduler emits, and a
+/// wrong entry only fails a proof.
+pub(crate) fn schedule_map(gcx: Gcx<'_>, program: &ir::Module, map: &ScheduleMap) -> Result {
+    let Some(contract) = runtime_contract(program) else { return Ok(()) };
+    let Some(dir) = contract_dir(gcx, &contract) else { return Ok(()) };
+    let location = |l: &Location| match l {
+        Location::Value(v) => format!("\"v{}\"", v.index()),
+        Location::Ret => "\"ret\"".to_string(),
+        Location::Junk => "\"junk\"".to_string(),
+    };
+    let mut out = String::from("{\n  \"functions\": [");
+    for (n, f) in map.functions.iter().enumerate() {
+        if n > 0 {
+            out.push(',');
+        }
+        let entry = f.entry.map_or("null".to_string(), |b| b.index().to_string());
+        let unsupported = f.unsupported.map_or("null".to_string(), json_string);
+        let _ = write!(
+            out,
+            "\n    {{\"function\": {}, \"entry\": {entry}, \"returns\": {}, \"rebuilt\": {}, \
+             \"unsupported\": {unsupported}, \"blocks\": [",
+            f.function.index(),
+            f.returns,
+            f.rebuilt.is_some(),
+        );
+        let mut first = true;
+        for (block, info) in f.blocks.iter_enumerated() {
+            let Some(info) = info else { continue };
+            if !first {
+                out.push(',');
+            }
+            first = false;
+            let start =
+                info.start.map_or("null".to_string(), |(b, i)| format!("[{}, {i}]", b.index()));
+            let continues = info.continues.map_or("null".to_string(), |b| b.index().to_string());
+            let layout: Vec<String> = info.layout.iter().map(location).collect();
+            let _ = write!(
+                out,
+                "\n      {{\"block\": {}, \"start\": {start}, \"layout\": [{}], \"floating\": {}, \
+                 \"continues\": {continues}}}",
+                block.index(),
+                layout.join(", "),
+                info.floating,
+            );
+        }
+        out.push_str("\n    ]}");
+    }
+    out.push_str("\n  ]\n}\n");
+    write(gcx, &dir.join("Schedule.json"), out.as_bytes())
+}
+
+/// A JSON string.
+fn json_string(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if (c as u32) < 0x20 => {
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// Writes the runtime program after an EVM IR pass when it differs from the last artifact.

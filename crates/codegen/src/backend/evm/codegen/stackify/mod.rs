@@ -593,7 +593,8 @@ impl<'gcx> EvmCodegen<'gcx> {
             objectives: module.functions.iter().map(|func| func.attributes.optimization).collect(),
             entry,
             emitting_entry,
-            records_layouts: self.gcx.sess.opts.unstable.validate_backend.is_some(),
+            records_layouts: self.gcx.sess.opts.unstable.validate_backend.is_some()
+                || self.gcx.sess.opts.unstable.emit_lean_stages.is_some(),
         };
 
         // Writes that may reach the spill area. A call into a function that may make one, itself

@@ -69,19 +69,29 @@ dsimproc_decl boolLit (_ || _) := fun e => do
   | _, some ``false => return .done a
   | _, _ => return .continue
 
+open Lean Meta Simp in
+/-- `&&` of a literal. -/
+dsimproc_decl boolAndLit (_ && _) := fun e => do
+  let_expr and a b := e | return .continue
+  match a.constName?, b.constName? with
+  | some ``false, _ | _, some ``false => return .done (mkConst ``false)
+  | some ``true, _ => return .done b
+  | _, some ``true => return .done a
+  | _, _ => return .continue
+
 /-- Unfold a segment's step and its cut test. -/
 syntax "seg_eval" "[" Lean.Parser.Tactic.simpLemma,* "]" : tactic
 macro_rules
   | `(tactic| seg_eval [$ids,*]) => `(tactic|
-      dsimp only [seg_mk, seg_zero, SegRel, $ids,*, finValLit, boolLit, Nat.reduceBEq, ↓reduceIte, Bool.false_eq_true])
+      dsimp only [seg_mk, seg_zero, SegRel, $ids,*, finValLit, boolLit, boolAndLit, Nat.reduceBEq, ↓reduceIte, Bool.false_eq_true])
 
 syntax "seg_norm" "[" Lean.Parser.Tactic.simpLemma,* "]" : tactic
 macro_rules
   | `(tactic| seg_norm [$ids,*]) => `(tactic| repeat (first | sym_eval | seg_eval [$ids,*] | sym_cond))
 
-/-- The equation of two configurations or results, by evaluation and `sym_exec`'s leaf
+/-- The equation of two words, configurations or results, by evaluation and `sym_exec`'s leaf
 procedures. -/
-macro "seg_eq" : tactic => `(tactic| (
+macro "seg_word_eq" : tactic => `(tactic| (
   first
     | with_reducible rfl
     | (sym_norm; first
@@ -91,6 +101,13 @@ macro "seg_eq" : tactic => `(tactic| (
         | (exfalso; sym_comm_contra)
         | sym_select
         | sym_agree)))
+
+/-- What a relation lemma asks of the target configuration: the variables only the target
+names, given by unification, then its configuration and each condition. -/
+macro "seg_eq" : tactic => `(tactic| (
+  repeat (apply Exists.intro)
+  repeat' (apply And.intro)
+  all_goals seg_word_eq))
 
 /-- A leaf at two cut points, by one of the relation lemmas `mks` (each
 `mk (words…) (state) (y') (h : y' = …) : ∃ Q ∈ rels, Q (…) y'`). -/
