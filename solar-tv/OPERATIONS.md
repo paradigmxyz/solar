@@ -8,9 +8,9 @@ with [operations.json](operations.json), so new operations cannot go unnoticed.
 | Status | MIR families | EVM opcode entries |
 | --- | ---: | ---: |
 | Checked within the supported fragment | 32 | 103 |
-| Some forms checked | 12 | 0 |
+| Some forms checked | 10 | 0 |
 | Explicit-world entry execution | 0 | 51 |
-| Direct typed MIR state execution | 63 | 0 |
+| Direct typed MIR state execution | 65 | 0 |
 | Missing | 0 | 0 |
 
 The counts are **not a claim of complete operation support**. PUSH/DUP/SWAP
@@ -129,8 +129,10 @@ length; the multi-return word is the buffer-pointer slot at 32. Internal frames
 use explicit per-function live-activation bases, including recursion and tail
 replacement. Physical scalar multi-return buffers have explicit per-function
 placements and retain the caller's return owner through tail calls. Logical
-outer boundaries compare all return components. Physical aggregate buffers and
-non-word multi-return frame slots remain unsupported.
+outer boundaries compare all return components. Physical aggregate buffers
+remain unsupported. Non-word or nonzero-offset multi-return frame slots are
+invalid MIR, rejected by the verifier before lowering. Frame-load result types
+must match the slot, and convention-relative offsets must fit in `u64`.
 Deferred allocations use explicit static-address or FMP-backed site bindings;
 extents must match the IR and initialization touches the actual bytes. No
 captured backend memory records are imported as semantic evidence.
@@ -176,7 +178,7 @@ Root runtime reentry and general backend layout correspondence remain unsupporte
 
 ## Partially admitted MIR families
 
-These twelve inventory entries still have restrictions beyond the common
+These ten inventory entries still have restrictions beyond the common
 work/memory limits. Their existing executable forms are tested; the restrictions
 are not erased by the zero `Missing` count.
 
@@ -185,7 +187,6 @@ are not erased by the zero `Missing` count.
 | `address_call`, `call`, `callcode`, `staticcall`, `delegatecall` | Explicit requested child gas and real fixture children | No general caller pricing or implicit-gas forwarding; caller gas must avoid clipping | [Address calls](tests/test_mir_address_calls.py), [messages](tests/test_mir_messages.py) |
 | `create`, `create2` | Explicit ordered child budgets, initcode execution and journal rollback | Budgets are inputs, not a derivation from caller work | [Messages and creation](tests/test_mir_messages.py) |
 | `icall` | Direct/dispatcher calls, typed products, scalar return buffers and builtin recipes | Physical aggregate return buffers and general call-site pricing | [Calls](tests/test_mir_calls.py), [return buffers](tests/test_mir_return_buffers.py), [builtins](tests/test_mir_builtins.py) |
-| `frame_load`, `frame_store` | Scratch, explicit recursive internal frames and the word return-buffer slot | Non-word multi-return frame slots | [Frames](tests/test_mir_frames.py), [activations](tests/test_mir_activations.py) |
 | `validate_abi` | Decoder or canonical raw function-word evidence | Other provenance is unsupported; no synthetic runtime guard is inserted | [ABI](tests/test_mir_abi.py) |
 | `gas` | One-opcode window with an explicit pre-op budget | General MIR caller gas | [Layout windows](tests/test_mir_layout.py) |
 
