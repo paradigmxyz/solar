@@ -440,3 +440,94 @@ fn structs() {
 fn vox() {
     check("tests/cases/vox.sol")
 }
+
+/// A scratch directory for one test's output, empty.
+fn scratch(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("solar-verify-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    dir
+}
+
+/// `--emit-lean` without a solver: the module of a function is stable (format version 1), and
+/// the manifest binds it to the source and names the spec clause each obligation discharges.
+#[test]
+fn emit_lean() {
+    let dir = scratch("emit-lean");
+    let out = dir.to_str().unwrap();
+    // Without a solver every obligation is unknown, so the run fails; the export does not.
+    let run = run_verifier(&["--dry-run", "--emit-lean", out, "examples/Counter.sol"]);
+    assert!(!run.stderr.contains("--emit-lean"), "{}", run.stderr);
+    let module = std::fs::read_to_string(dir.join("Counter/increment.lean")).unwrap();
+    assert_data_eq!(module, file!["snapshots/emit_lean/Counter/increment.lean"]);
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(dir.join("manifest.json")).unwrap()).unwrap();
+    assert_eq!(manifest["format"], "solar-verify-lean");
+    assert_eq!(manifest["version"], 1);
+    assert_eq!(manifest["errors"], serde_json::json!([]));
+    let unit = manifest["units"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|u| u["name"] == "Counter.increment")
+        .unwrap();
+    let specs: Vec<_> = unit["obligations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|o| o["role"] == "obligation")
+        .map(|o| (o["kind"].as_str().unwrap(), o["spec"]["text"].as_str().unwrap_or("")))
+        .collect();
+    assert_eq!(
+        specs,
+        [
+            ("postcondition not satisfied", "count == old(count) + 1"),
+            ("contract invariant not preserved", "count <= limit"),
+        ]
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The exported terms agree with the SMT-LIB solar-verify sends: on random models, z3 and the
+/// Lean kernel evaluate them alike (`lean/roundtrip.py`). Needs z3 and Lean (`lake`); skipped
+/// without Lean unless `SOLAR_VERIFY_REQUIRE_LEAN=1`.
+#[test]
+fn emit_lean_round_trip() {
+    if z3_missing() {
+        return;
+    }
+    let lake = Command::new("lake")
+        .arg("--version")
+        .current_dir("lean")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if !lake {
+        assert!(
+            std::env::var_os("SOLAR_VERIFY_REQUIRE_LEAN").is_none(),
+            "lake not found and SOLAR_VERIFY_REQUIRE_LEAN is set"
+        );
+        eprintln!("skipping: lake (Lean) not found");
+        return;
+    }
+    let build = Command::new("lake").arg("build").current_dir("lean").output().unwrap();
+    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stdout));
+    for example in ["Counter", "Token", "Vault"] {
+        let dir = scratch(&format!("round-trip-{example}"));
+        let out = dir.to_str().unwrap();
+        let src = format!("examples/{example}.sol");
+        let run = run_verifier(&["--timeout", TIMEOUT, "--emit-lean", out, &src]);
+        assert_eq!(run.code, Some(0), "{}\n{}", run.stdout, run.stderr);
+        let rt = Command::new("python3")
+            .args(["roundtrip.py", out])
+            .current_dir("lean")
+            .output()
+            .expect("run python3");
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&rt.stdout),
+            String::from_utf8_lossy(&rt.stderr)
+        );
+        assert!(rt.status.success(), "{example}:\n{text}");
+        assert!(text.contains(" 0 failures"), "{example}:\n{text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

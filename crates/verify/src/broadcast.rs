@@ -249,6 +249,7 @@ fn prove<'p, 'a>(
             prove(prog, m, opts, mk, out);
         }
     }
+    crate::lean::set_unit(format!("{}.{} [lemma]", f.contract, f.name));
     let mut v = Vc::new(prog, home, mk(), opts);
     v.proved = out.clone();
     let rep = v.verify_fn(f);

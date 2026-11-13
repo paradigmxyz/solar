@@ -26,6 +26,7 @@ evm2.workspace = true
 num-bigint.workspace = true
 num-traits.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 solar-cli.workspace = true
 solar-parse.workspace = true
 

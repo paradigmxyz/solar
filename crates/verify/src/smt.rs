@@ -1,4 +1,7 @@
-use crate::sexp::{self, Sexp};
+use crate::{
+    lean::{Answer, Recorder, Role},
+    sexp::{self, Sexp},
+};
 use std::{
     io::{BufRead, BufReader, Write},
     process::{Child, ChildStdin, Command, Stdio},
@@ -26,6 +29,10 @@ pub(crate) struct Smt {
     pub stats: Stats,
     /// the first error the solver reported for a command (cleared per function)
     error: Option<String>,
+    /// What the solver was sent and asked, for `--emit-lean`.
+    record: Option<Box<Recorder>>,
+    /// What the next query is for, for `--emit-lean`; a query without one is a side query.
+    pub role: Option<Role>,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -75,6 +82,9 @@ fn spawn(timeout_ms: u64) -> std::io::Result<Z3> {
 
 impl Drop for Smt {
     fn drop(&mut self) {
+        if let Some(r) = self.record.take() {
+            crate::lean::finish(r);
+        }
         if let Some(z3) = &mut self.z3 {
             let _ = z3.child.kill();
             let _ = z3.child.wait();
@@ -99,6 +109,8 @@ impl Smt {
             log: if log { Some(String::new()) } else { None },
             stats: Stats::default(),
             error: None,
+            record: crate::lean::recorder(),
+            role: None,
         }
     }
 
@@ -113,6 +125,9 @@ impl Smt {
 
     /// Persistent commands (declarations, assertions, push/pop of a function scope).
     pub(crate) fn send(&mut self, s: &str) {
+        if let Some(r) = &mut self.record {
+            r.send(s);
+        }
         self.transcript.push_str(s);
         self.raw(s);
     }
@@ -193,24 +208,65 @@ impl Smt {
     }
 
     pub(crate) fn check(&mut self, guard: &str, goal: &str, cex: &[(String, String)]) -> Res {
+        let role = self.role.take().unwrap_or(Role::Side);
+        let (res, solver) = self.check_inner(guard, goal, cex);
+        if let Some(r) = &mut self.record {
+            let answer = match &res {
+                Res::Unsat => Answer::Unsat,
+                Res::Sat(_) => Answer::Sat,
+                Res::Unknown(_) if self.z3.is_none() => Answer::NotRun,
+                Res::Unknown(why) => Answer::Unknown(why.clone()),
+            };
+            r.query(guard, goal, role, answer, solver);
+        }
+        res
+    }
+
+    /// Records a query the encoder settled without a solver (see [`Answer::Settled`]).
+    pub(crate) fn settled(&mut self, guard: &str, goal: &str, role: Role, why: &'static str) {
+        if let Some(r) = &mut self.record {
+            r.query(guard, goal, role, Answer::Settled(why), None);
+        }
+    }
+
+    /// The index the next recorded query will have, for naming a case split's parent.
+    pub(crate) fn next_query(&self) -> usize {
+        self.record.as_ref().map_or(0, |r| r.len())
+    }
+
+    /// Marks recorded query `i` as proved by its case split.
+    pub(crate) fn split(&mut self, i: usize) {
+        if let Some(r) = &mut self.record {
+            r.split(i);
+        }
+    }
+
+    fn check_inner(
+        &mut self,
+        guard: &str,
+        goal: &str,
+        cex: &[(String, String)],
+    ) -> (Res, Option<String>) {
         if self.z3.is_none() {
             self.stats.queries += 1;
             self.raw(&format!("(push 1)\n(assert {guard})\n(assert (not {goal}))\n(check-sat)\n"));
             self.raw("(pop 1)\n");
-            return Res::Unknown("unknown (--dry-run)".into());
+            return (Res::Unknown("unknown (--dry-run)".into()), None);
         }
         let r = self.check_z3(guard, goal, cex);
         if let Some(e) = &self.error {
-            return Res::Unknown(format!("internal solver error: {e}"));
+            return (Res::Unknown(format!("internal solver error: {e}")), None);
         }
-        let Res::Unknown(why) = r else { return r };
+        let Res::Unknown(why) = r else { return (r, Some("z3".into())) };
         match self.race(guard, goal) {
             Some((true, who)) => {
-                *self.stats.wins.entry(who).or_default() += 1;
-                Res::Unsat
+                *self.stats.wins.entry(who.clone()).or_default() += 1;
+                (Res::Unsat, Some(who))
             }
-            Some((false, who)) => Res::Unknown(format!("{why}; {who} found a model of the query")),
-            None => Res::Unknown(why),
+            Some((false, who)) => {
+                (Res::Unknown(format!("{why}; {who} found a model of the query")), None)
+            }
+            None => (Res::Unknown(why), None),
         }
     }
 

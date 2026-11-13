@@ -7,6 +7,7 @@
 use crate::{
     broadcast,
     ghost::FnKey,
+    lean::Role,
     prog::{Contract, Func, Program, Spec},
     smt::{Res, Smt},
     ty::{Ty, num, parse_ty_text, pow2},
@@ -387,11 +388,21 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
     fn check(&mut self, phi: &str, kind: &str, span: Span, spec: Option<&Spec<'a>>) {
         self.checks += 1;
+        let role = Role::Obligation {
+            kind: kind.into(),
+            span,
+            spec: spec.map(|s| (s.text.clone(), s.span)),
+        };
         if self.guard == "false" || phi == "true" {
+            let why = if phi == "true" { "the goal is true" } else { "the guard is false" };
+            let guard = self.guard.clone();
+            self.smt.settled(&guard, phi, role, why);
             return;
         }
         let cex = self.cex_terms.clone();
         let guard = self.guard.clone();
+        let parent = self.smt.next_query();
+        self.smt.role = Some(role);
         let (cex, note) = match self.smt.check(&guard, phi, &cex) {
             Res::Unsat => return,
             Res::Sat(cex) => (cex, None),
@@ -404,9 +415,10 @@ impl<'p, 'a> Vc<'p, 'a> {
                 let deadline = std::time::Instant::now()
                     + std::time::Duration::from_millis(2 * self.smt.timeout_ms());
                 if !self.splits.is_empty()
-                    && self.split_prove(&guard, phi, 0, &mut budget, deadline)
+                    && self.split_prove(&guard, phi, 0, &mut budget, deadline, parent)
                 {
                     self.split_wins += 1;
+                    self.smt.split(parent);
                     return;
                 }
                 (vec![], Some(format!("solver returned {why}")))
@@ -427,6 +439,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         i: usize,
         budget: &mut usize,
         deadline: std::time::Instant,
+        parent: usize,
     ) -> bool {
         if i >= self.splits.len() || *budget == 0 || std::time::Instant::now() >= deadline {
             return false;
@@ -441,9 +454,11 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             *budget -= 1;
             let g = format!("(and {guard} {lit})");
+            self.smt.role = Some(Role::Split { parent });
             let r = self.smt.check_with_timeout(&g, phi, sub.min(left));
             if !matches!(r, Res::Unsat)
-                && (matches!(r, Res::Sat(_)) || !self.split_prove(&g, phi, i + 1, budget, deadline))
+                && (matches!(r, Res::Sat(_))
+                    || !self.split_prove(&g, phi, i + 1, budget, deadline, parent))
             {
                 return false;
             }
@@ -453,6 +468,13 @@ impl<'p, 'a> Vc<'p, 'a> {
     fn check_inv(&mut self, t: &str, kind: &str, span: Span, inv: &'p Spec<'a>) {
         if self.inv_entry.contains(t) {
             self.checks += 1;
+            let role = Role::Obligation {
+                kind: kind.into(),
+                span,
+                spec: Some((inv.text.clone(), inv.span)),
+            };
+            let guard = self.guard.clone();
+            self.smt.settled(&guard, t, role, "assumed at entry, over unchanged state");
             return;
         }
         self.check(t, kind, span, Some(inv));
@@ -465,6 +487,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.checks += 1;
         if self.guard != "false" && v.t != "true" {
             let guard = self.guard.clone();
+            self.smt.role = Some(Role::Advisory);
             if matches!(self.smt.check(&guard, &v.t, &[]), Res::Unsat) {
                 let w = format!(
                     "note: `@custom:check {}` is proved here: it can become an @custom:assert (statement) or @custom:requires (function), with no runtime check",
@@ -1308,9 +1331,10 @@ impl<'p, 'a> Vc<'p, 'a> {
         let (g, e) = self.merge(states);
         self.guard = g;
         self.env = e;
-        if self.guard == "false"
-            || matches!(self.smt.check(&self.guard.clone(), "false", &[]), Res::Unsat)
-        {
+        if self.guard == "false" || {
+            self.smt.role = Some(Role::Advisory);
+            matches!(self.smt.check(&self.guard.clone(), "false", &[]), Res::Unsat)
+        } {
             self.warnings.push("no execution of this function can return normally (contradictory requires/invariants, or it always reverts); its postconditions hold vacuously".into());
         }
         // succeeds_if P: every pre-state satisfying the entry facts and P reaches a normal return,
@@ -2892,6 +2916,9 @@ impl<'p, 'a> Vc<'p, 'a> {
         {
             // in range by construction: no overflow obligation, no solver query
             self.checks += 1;
+            let guard = self.guard.clone();
+            let range = format!("(and (<= {} {}) (<= {} {}))", num(&lo), v.t, v.t, num(&hi));
+            self.smt.settled(&guard, &range, Role::Side, "the interval analysis bounds it");
             return Ok(v);
         }
         let t = self.def("arith", "Int", &v.t);
