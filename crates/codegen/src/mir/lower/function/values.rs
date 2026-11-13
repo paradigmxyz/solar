@@ -23,6 +23,14 @@ enum TupleAssignmentRhs<'gcx> {
 impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
     pub(super) fn lower_values(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Vec<Word>> {
         let expr = expr.peel_parens();
+        // The expression's code maps to the expression, not to the statement that holds it.
+        let previous = self.builder.replace_source_span(expr.span);
+        let result = self.lower_values_inner(expr);
+        self.builder.replace_source_span(previous);
+        result
+    }
+
+    fn lower_values_inner(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Option<Vec<Word>> {
         if self.cx.gcx.type_of_expr(expr.id).is_some_and(|ty| ty.is_unit()) {
             self.lower_discarded_expr(expr)?;
             return Some(Vec::new());

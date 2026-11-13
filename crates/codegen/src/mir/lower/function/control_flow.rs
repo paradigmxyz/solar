@@ -412,6 +412,9 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
         // Several return words come back over the input area and may reach past it into free
         // memory, so the defaults are allocated before the call rather than over its output.
         self.materialize_default_bindings();
+        // The call, its arguments, and its return data map to the call expression, as in solc; the
+        // success and catch branches map to the statement.
+        let statement_span = self.builder.replace_source_span(try_expr.span);
         let (success, creation_value, ret_plan) = if let TryCallee::Creation { ty, contract_id } =
             target.callee
         {
@@ -470,6 +473,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             (success, None, Some(ret_plan))
         };
 
+        self.builder.replace_source_span(statement_span);
         let success_block = self.builder.create_block();
         let catch_block = self.builder.create_block();
         let merge_block = self.builder.create_block();
@@ -488,6 +492,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
             self.values.insert(binding, value);
         } else if let Some(plan) = ret_plan {
             // success.returns = load_words | abi_decode(buffer) | abi_decode(returndata)
+            self.builder.replace_source_span(try_expr.span);
             let values = self.finish_external_call(
                 plan,
                 &return_types,
@@ -495,6 +500,7 @@ impl<'gcx, 'ctx> FunctionLowerer<'gcx, 'ctx> {
                 ExternalReturnMode::All,
                 "codegen cannot decode try/catch returndata before Byzantium",
             )?;
+            self.builder.replace_source_span(statement_span);
             for (&binding, value) in returns_clause.args.iter().zip(values) {
                 let value = self.materialize_raw_scalar(binding, value);
                 self.values.insert(binding, value);
