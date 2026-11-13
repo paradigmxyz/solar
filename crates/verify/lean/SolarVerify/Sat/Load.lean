@@ -45,10 +45,10 @@ def parseLrat (s : String) : Except String (Array Step) := do
     match xs with
     | [] => continue
     | id :: rest =>
-      let lits := rest.takeWhile (· ≠ 0)
+      let literals := rest.takeWhile (· ≠ 0)
       let hints := (rest.dropWhile (· ≠ 0)).drop 1 |>.takeWhile (· ≠ 0)
       if hints.any (· < 0) then throw s!"step {id}: RAT steps are not supported"
-      out := out.push { id := id.toNat, clause := lits.map litOfInt, hints := hints.map Int.toNat }
+      out := out.push { id := id.toNat, clause := literals.map litOfInt, hints := hints.map Int.toNat }
   return out
 
 def listTy (ty : Expr) : Expr := mkApp (mkConst ``List [0]) ty
