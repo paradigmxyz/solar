@@ -1,6 +1,7 @@
 import Lean
 import EvmRules.Bits
 import SolarTV.Machine
+import SolarTV.MemorySymbolic
 import SolarTV.MIR.Program
 import SolarTV.EVMIR.Program
 
@@ -745,8 +746,34 @@ macro "sym_cond" : tactic => `(tactic|
     Nat.reduceEqDiff, Nat.reduceLeDiff, Nat.reduceAdd, Nat.reduceSub, Nat.lt_irrefl,
     Bool.false_eq_true, gt_iff_lt, true_or, or_true])
 
-/-- Evaluate and decide conditions until neither changes the goal. -/
-macro "sym_norm" : tactic => `(tactic| repeat (first | sym_eval | sym_cond))
+/-- A range side condition by `omega` over the offsets' `toNat`s, as `sym_omega` reads
+words, failing without logging so that `simp` leaves an unproved rewrite undone. -/
+macro "sym_mem_disch_core" : tactic => `(tactic|
+  ((try simp only [Evm.and, Evm.or, Evm.xor, Evm.add, Evm.sub, BitVec.zero_add, BitVec.add_zero] at *)
+   <;> (try simp -implicitDefEqProofs only [bitvec_to_nat] at *)
+   <;> (try simp only [BitVec.toNat_and, toNat_shr, BitVec.toNat_ofNat, Nat.reducePow, Nat.reduceMod,
+     natMask] at *)
+   <;> omega))
+
+open Lean Elab Tactic in
+/-- `sym_mem_disch_core` without error recovery, so a failed side condition is a plain failure. -/
+elab "sym_mem_disch" : tactic => do withoutRecover (evalTactic (← `(tactic| sym_mem_disch_core)))
+
+/-- Memory at computed offsets: a read or load moves past a store, byte store or copy only
+when `sym_mem_disch` proves the two ranges disjoint (or the read inside the written range) from
+the cases split so far, over the offsets' `toNat`s; a range read of more than a word splits
+into words, so a hash of `abi.encode` output meets the stored words. Ranges it cannot place
+keep the read over the write, so both programs must build the same term there. -/
+macro "sym_mem" : tactic => `(tactic| first
+  | simp (disch := sym_mem_disch) only [Mem.read_expand, Mem.read_store_at,
+      Mem.read_store_disjoint, Mem.load_store_at, Mem.load_store_disjoint,
+      Mem.read_storeByte_disjoint, Mem.load_storeByte_disjoint, Mem.read_write_disjoint,
+      Mem.load_write_of_disjoint, Mem.read_write_same, Mem.read_write_inside,
+      Mem.read_copy_inside, List.append_assoc]
+  | simp only [Mem.read_split, Nat.reduceLT, Nat.reduceLeDiff, Nat.reduceSub, Nat.reduceAdd])
+
+/-- Evaluate, decide conditions and move memory reads until none changes the goal. -/
+macro "sym_norm" : tactic => `(tactic| repeat (first | sym_eval | sym_cond | sym_mem))
 
 set_option hygiene false in
 /-- Symbolic execution to one result: evaluate, decide what the cases decide, split on the

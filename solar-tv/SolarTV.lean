@@ -9,6 +9,8 @@ import SolarTV.EVMIR.StackSafety
 import SolarTV.EVMIR.Memory
 import SolarTV.MIR.Transforms.DeadStore
 import SolarTV.MemorySafety
+import SolarTV.MemorySymbolic
+import SolarTV.MemorySymbolicSafety
 import SolarTV.EVMIR.GasSafety
 import SolarTV.EVMIR.Transforms.GasSwapAdd
 import SolarTV.Stages.Assembly
