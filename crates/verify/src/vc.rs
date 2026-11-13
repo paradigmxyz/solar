@@ -159,6 +159,11 @@ pub(crate) struct Vc<'p, 'a> {
     cur_func: Option<&'p Func<'a>>,
     /// Guard and goal of each obligation that failed on the real run, for the Horn fallback.
     failed_goals: Vec<(String, String)>,
+    /// Names of memory arrays and structs (parameters and locals) in the function: assigning one
+    /// to another shares the object, which the encoder does not model.
+    mem_refs: FxHashSet<String>,
+    /// Names written (assigned, deleted, incremented) somewhere in the functions being encoded.
+    mem_written: FxHashSet<String>,
 }
 
 fn is_atom(t: &str) -> bool {
@@ -252,6 +257,8 @@ impl<'p, 'a> Vc<'p, 'a> {
             horn_hints: FxHashMap::default(),
             cur_func: None,
             failed_goals: vec![],
+            mem_refs: FxHashSet::default(),
+            mem_written: FxHashSet::default(),
         }
     }
 
@@ -1093,6 +1100,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.inferred.clear();
         self.loop_recs.clear();
         self.failed_goals.clear();
+        self.mem_refs.clear();
+        self.mem_written.clear();
         at
     }
 
@@ -1186,6 +1195,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         let ctor = f.item.kind.is_constructor();
         self.init_env(ctor)?;
         self.rets = f.rets.iter().map(|(n, _)| n.clone()).collect();
+        self.note_mem_params(f);
         for (n, ty) in &f.params {
             let v = self.fresh_var(n, ty);
             if ty.bounds().is_some() || matches!(ty, Ty::Bool) {
@@ -1671,6 +1681,15 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             StmtKind::DeclSingle(v) => {
                 let ty = self.ty_of_decl(&v.ty);
+                if v.data_location == Some(ast::DataLocation::Memory)
+                    && matches!(ty, Ty::Arr(..) | Ty::Struct(_))
+                {
+                    let name = v.name.map(|n| n.as_str().to_string()).unwrap_or_default();
+                    if let Some(i) = v.initializer.as_deref() {
+                        self.refuse_mem_alias(&name, i, s.span)?;
+                    }
+                    self.mem_refs.insert(name);
+                }
                 let val = match &v.initializer {
                     Some(i) => self.eval(i)?,
                     None => self.zero_var(&ty),
@@ -2662,6 +2681,15 @@ impl<'p, 'a> Vc<'p, 'a> {
                     None => self.alias_env.remove(&name),
                 };
                 self.with_alias(&name, |s, t| s.eval(t))
+            }
+            ExprKind::Assign(l, None, r)
+                if matches!(&l.peel_parens().kind, ExprKind::Ident(i)
+                    if self.mem_refs.contains(i.as_str()) && self.mem_alias_source(i.as_str(), r)) =>
+            {
+                Err((
+                    e.span,
+                    "memory array or struct assigned from another one: both names share the object, which is not modelled".into(),
+                ))
             }
             ExprKind::Assign(l, op, r) => {
                 if matches!(l.peel_parens().kind, ExprKind::Tuple(_)) {
@@ -4499,6 +4527,25 @@ impl<'p, 'a> Vc<'p, 'a> {
             }
             return Ok(vec![v]);
         }
+        // The callee gets a copy of each argument, but a memory array or struct is passed by
+        // reference: what the callee writes through its parameter must be seen by the caller.
+        // Until the memory model shares such objects, a call that may write one is refused
+        // rather than verified against the wrong caller state.
+        for (i, p) in f.item.header.parameters.iter().enumerate() {
+            let Some((n, ty)) = f.params.get(i) else { continue };
+            if p.data_location == Some(ast::DataLocation::Memory)
+                && matches!(ty, Ty::Arr(..) | Ty::Struct(_))
+                && may_write_param(f, n)
+            {
+                return Err((
+                    span,
+                    format!(
+                        "memory array or struct passed to internal function `{}`, which may write it: the caller would not see the write",
+                        f.name
+                    ),
+                ));
+            }
+        }
         let saved_env = std::mem::take(&mut self.env);
         let saved_aliases = std::mem::take(&mut self.aliases);
         let saved_slocals = std::mem::take(&mut self.slocals);
@@ -4518,6 +4565,7 @@ impl<'p, 'a> Vc<'p, 'a> {
         for ((n, ty), a) in f.params.iter().zip(&args) {
             self.env.insert(n.clone(), Var { ty: ty.clone(), t: a.t.clone(), len: a.len.clone() });
         }
+        self.note_mem_params(f);
         let result = (|| -> R<Vec<Val>> {
             if f.has_contract() {
                 for r in &f.requires {
@@ -4864,3 +4912,134 @@ fn bv_view(
 
 /// Modifier lists with the parameter bindings they run under.
 type ModifierSources<'a> = Vec<(&'a [ast::Modifier<'a>], Vec<(String, Ty, Val)>)>;
+
+/// Whether `f`'s body may write through its memory parameter `name`: every use of it must be an
+/// element or member read (`name[i]`, `name.x`, `name.length`); an assignment, `delete`, `++` or
+/// `--` rooted at it, any other use (it escapes into a variable, a call or a return), and any
+/// inline assembly count as writes. A member passed on or bound to a local is checked where that
+/// callee is inlined or that local is declared.
+fn may_write_param<'a>(f: &Func<'a>, name: &str) -> bool {
+    let Some(body) = &f.item.body else { return false };
+    let mut uses = 0usize;
+    let mut reads = 0usize;
+    let mut writes = false;
+    fn rooted<'a>(e: &'a Expr<'a>, name: &str) -> bool {
+        walk::root(e).iter().any(|r| r == name)
+    }
+    fn is_name(e: &Expr<'_>, name: &str) -> bool {
+        matches!(&e.peel_parens().kind, ExprKind::Ident(i) if i.as_str() == name)
+    }
+    for st in body.iter() {
+        walk::all_stmts(st, &mut |s| {
+            if matches!(s.kind, StmtKind::Assembly(_)) {
+                writes = true;
+            }
+            walk::stmt_exprs(s, &mut |e| {
+                walk::sub_exprs(e, &mut |x| match &x.kind {
+                    ExprKind::Ident(i) if i.as_str() == name => uses += 1,
+                    ExprKind::Assign(l, _, _) | ExprKind::Delete(l) if rooted(l, name) => {
+                        writes = true
+                    }
+                    ExprKind::Unary(op, t)
+                        if rooted(t, name)
+                            && matches!(
+                                op.kind,
+                                UnOpKind::PreInc
+                                    | UnOpKind::PreDec
+                                    | UnOpKind::PostInc
+                                    | UnOpKind::PostDec
+                            ) =>
+                    {
+                        writes = true
+                    }
+                    ExprKind::Index(b, _) if is_name(b, name) => reads += 1,
+                    ExprKind::Member(b, _) if is_name(b, name) => reads += 1,
+                    _ => {}
+                });
+            });
+        });
+    }
+    writes || uses > reads
+}
+
+impl<'p, 'a> Vc<'p, 'a> {
+    /// Record `f`'s memory array and struct parameters.
+    fn note_mem_params(&mut self, f: &Func<'a>) {
+        self.mem_written.extend(written_roots(f));
+        for (p, (n, ty)) in f.item.header.parameters.iter().zip(&f.params) {
+            if p.data_location == Some(ast::DataLocation::Memory)
+                && matches!(ty, Ty::Arr(..) | Ty::Struct(_))
+            {
+                self.mem_refs.insert(n.clone());
+            }
+        }
+    }
+
+    /// Whether `e` names (part of) an existing memory array or struct and binding `dst` to it
+    /// shares an object that the function writes through one of the names somewhere. Aliases
+    /// nothing writes read the same values either way and are allowed.
+    fn mem_alias_source(&self, dst: &str, e: &'a Expr<'a>) -> bool {
+        let roots = walk::root(e);
+        let shares = match &e.peel_parens().kind {
+            ExprKind::Ident(_) | ExprKind::Index(..) | ExprKind::Member(..) => {
+                roots.iter().any(|r| self.mem_refs.contains(r))
+            }
+            // A fresh allocation shares nothing.
+            ExprKind::New(_) | ExprKind::Array(_) => false,
+            ExprKind::Call(c, ..) if matches!(c.peel_parens().kind, ExprKind::New(_)) => false,
+            // A call or conditional may return one of its memory arguments.
+            _ => true,
+        };
+        shares
+            && (self.mem_written.contains("*")
+                || self.mem_written.contains(dst)
+                || roots.iter().any(|r| self.mem_written.contains(r)))
+    }
+
+    /// Refuse a memory local `name` initialized from an existing memory object.
+    fn refuse_mem_alias(&self, name: &str, init: &'a Expr<'a>, span: Span) -> R<()> {
+        if self.mem_alias_source(name, init) {
+            return Err((
+                span,
+                format!(
+                    "memory array or struct `{name}` initialized from another one: both names share the object, which is not modelled"
+                ),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Roots of every place `f` writes (assignment, delete, increment); `*` when it has assembly.
+fn written_roots(f: &Func<'_>) -> FxHashSet<String> {
+    let mut out = FxHashSet::default();
+    let Some(body) = &f.item.body else { return out };
+    for st in body.iter() {
+        walk::all_stmts(st, &mut |s| {
+            if matches!(s.kind, StmtKind::Assembly(_)) {
+                out.insert("*".to_string());
+            }
+            walk::stmt_exprs(s, &mut |e| {
+                walk::sub_exprs(e, &mut |x| {
+                    let l = match &x.kind {
+                        ExprKind::Assign(l, _, _) | ExprKind::Delete(l) => l,
+                        ExprKind::Unary(op, t)
+                            if matches!(
+                                op.kind,
+                                UnOpKind::PreInc
+                                    | UnOpKind::PreDec
+                                    | UnOpKind::PostInc
+                                    | UnOpKind::PostDec
+                            ) =>
+                        {
+                            t
+                        }
+                        _ => return,
+                    };
+                    out.extend(walk::root(l));
+                });
+            });
+        });
+    }
+    out
+}
