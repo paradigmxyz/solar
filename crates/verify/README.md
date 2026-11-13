@@ -204,6 +204,10 @@ becomes `count == old(count) + i`), and facts from the abstract interpreter. Hou
 largest subset that holds on entry and is preserved by the body, running the body in a solver
 scope it then pops. The survivors are then checked like hand-written invariants, so no solver
 answer given during inference is trusted, and a query that times out only drops a candidate. A
+function that still fails is then tried once more with a Horn-clause fallback
+(`src/vc/horn.rs`): each loop is encoded as constrained Horn clauses over Int and Bool (entry,
+one iteration, and the failed obligation), Z3's Spacer engine is asked for the loop's invariant, and
+what it returns becomes one more Houdini candidate, checked like the rest. A
 termination measure is picked among the distances the guard's comparisons bound and its
 obligations are checked the same way; a loop without one is verified for partial correctness only.
 

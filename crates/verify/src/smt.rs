@@ -187,6 +187,16 @@ impl Smt {
         r
     }
 
+    /// The length of the persistent transcript, to slice it later with `transcript_from`.
+    pub(crate) fn transcript_len(&self) -> usize {
+        self.transcript.len()
+    }
+
+    /// The persistent commands sent since `transcript_len` was `at`.
+    pub(crate) fn transcript_from(&self, at: usize) -> &str {
+        self.transcript.get(at..).unwrap_or("")
+    }
+
     /// Forget solver errors seen so far (at the start of a function's scope).
     pub(crate) fn clear_error(&mut self) {
         self.error = None;

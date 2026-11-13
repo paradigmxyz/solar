@@ -441,6 +441,11 @@ fn vox() {
     check("tests/cases/vox.sol")
 }
 
+#[test]
+fn horn() {
+    check("tests/cases/horn.sol")
+}
+
 /// The loops of the examples carry no invariants: inference finds them, and without it the
 /// postconditions that need them fail.
 #[test]

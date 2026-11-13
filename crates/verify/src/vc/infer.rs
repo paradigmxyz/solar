@@ -93,7 +93,6 @@ pub(crate) struct Inferred {
 /// A loop's head as the Horn-clause encoding needs it (see `super::horn`): recorded on the real
 /// run only.
 #[derive(Clone, Debug)]
-#[allow(dead_code, reason = "read by the Horn-clause fallback, which is not wired in yet")]
 pub(crate) struct LoopRec {
     pub span: Span,
     /// The head's variables of value type, with their head terms and sorts.
@@ -234,7 +233,8 @@ impl<'p, 'a> Vc<'p, 'a> {
             self.eval(n)?;
         }
         if self.trial == 0 {
-            let rec = self.loop_rec(s.span, &env_head, &entry_guard, &entry_env);
+            let keep = self.loop_vars(cond, next, body, &targets);
+            let rec = self.loop_rec(s.span, &env_head, &entry_guard, &entry_env, &keep);
             self.loop_recs.insert(rec_at, rec);
         }
         for inv in &invs {
@@ -686,10 +686,17 @@ impl<'p, 'a> Vc<'p, 'a> {
     }
 
     /// The head of a loop as the Horn encoding sees it, once the body ran.
-    fn loop_rec(&self, span: Span, head: &Env, entry_guard: &str, entry: &Env) -> LoopRec {
+    fn loop_rec(
+        &self,
+        span: Span,
+        head: &Env,
+        entry_guard: &str,
+        entry: &Env,
+        keep: &BTreeSet<String>,
+    ) -> LoopRec {
         let mut vars = vec![];
         let (mut entry_terms, mut back_terms) = (vec![], vec![]);
-        for (n, v) in head {
+        for (n, v) in head.iter().filter(|(n, _)| keep.contains(*n)) {
             let sort = v.ty.sort();
             if sort != "Int" && sort != "Bool" {
                 continue;
@@ -707,6 +714,34 @@ impl<'p, 'a> Vc<'p, 'a> {
             back_guard: self.guard.clone(),
             back_terms,
         }
+    }
+
+    /// The variables a Horn predicate of the loop ranges over: what it writes or reads, and the
+    /// function's parameters and return variables.
+    fn loop_vars(
+        &self,
+        cond: Option<&'a Expr<'a>>,
+        next: Option<&'a Expr<'a>>,
+        body: &'a Stmt<'a>,
+        targets: &BTreeSet<String>,
+    ) -> BTreeSet<String> {
+        let mut keep = targets.clone();
+        let mut visit = |e: &'a Expr<'a>| {
+            walk::sub_exprs(e, &mut |x| {
+                if let ExprKind::Ident(id) = &x.kind {
+                    keep.insert(id.as_str().to_string());
+                }
+            });
+        };
+        for e in cond.into_iter().chain(next) {
+            visit(e);
+        }
+        walk::all_stmts(body, &mut |st| walk::stmt_exprs(st, &mut visit));
+        if let Some(f) = self.cur_func {
+            keep.extend(f.params.iter().map(|(n, _)| n.clone()));
+            keep.extend(f.rets.iter().map(|(n, _)| n.clone()));
+        }
+        keep
     }
 
     pub(super) fn snapshot(&self) -> Snapshot<'p, 'a> {

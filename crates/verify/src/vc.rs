@@ -23,6 +23,7 @@ use solar_parse::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+mod horn;
 mod infer;
 mod sample;
 mod yul;
@@ -156,6 +157,8 @@ pub(crate) struct Vc<'p, 'a> {
     horn_hints: FxHashMap<Span, Vec<infer::Cand<'p, 'a>>>,
     /// The function being verified.
     cur_func: Option<&'p Func<'a>>,
+    /// Guard and goal of each obligation that failed on the real run, for the Horn fallback.
+    failed_goals: Vec<(String, String)>,
 }
 
 fn is_atom(t: &str) -> bool {
@@ -248,6 +251,7 @@ impl<'p, 'a> Vc<'p, 'a> {
             loop_recs: vec![],
             horn_hints: FxHashMap::default(),
             cur_func: None,
+            failed_goals: vec![],
         }
     }
 
@@ -441,6 +445,7 @@ impl<'p, 'a> Vc<'p, 'a> {
                 (vec![], Some(format!("solver returned {why}")))
             }
         };
+        self.failed_goals.push((guard, phi.to_string()));
         self.fails.push(Failure {
             kind: kind.into(),
             span,
@@ -1029,7 +1034,52 @@ impl<'p, 'a> Vc<'p, 'a> {
 
     // ---------------------------------------------------------------- function driver
     pub(crate) fn verify_fn(&mut self, f: &'p Func<'a>) -> FnReport {
-        self.smt.send(&format!("(push 1)\n; ===== {}.{}\n", self.c.name, f.name));
+        self.horn_hints.clear();
+        let at = self.begin_fn(f);
+        let mut r = self.verify_fn_inner(f);
+        // Spacer's proposals become candidates of one more run, checked like every other.
+        if self.infer
+            && r.is_ok()
+            && !self.fails.is_empty()
+            && !self.loop_recs.is_empty()
+            && self.smt.timeout_ms() > 0
+        {
+            let hints = self.horn_fallback(self.smt.transcript_from(at));
+            if !hints.is_empty() {
+                self.smt.send(
+                    "(pop 1)
+",
+                );
+                self.horn_hints = hints;
+                self.begin_fn(f);
+                r = self.verify_fn_inner(f);
+                self.horn_hints.clear();
+            }
+        }
+        self.smt.send(
+            "(pop 1)
+",
+        );
+        FnReport {
+            name: format!("{}.{}", self.c.name, f.name),
+            checks: self.checks,
+            fails: std::mem::take(&mut self.fails),
+            unsupported: r.err(),
+            warnings: std::mem::take(&mut self.warnings),
+            inferred: std::mem::take(&mut self.inferred),
+        }
+    }
+
+    /// Open the solver scope of `f` and reset the per-function state; returns where the
+    /// scope's transcript starts.
+    fn begin_fn(&mut self, f: &'p Func<'a>) -> usize {
+        self.smt.send(&format!(
+            "(push 1)
+; ===== {}.{}
+",
+            self.c.name, f.name
+        ));
+        let at = self.smt.transcript_len();
         self.declared_funs.clear();
         self.smt.clear_error();
         self.fails.clear();
@@ -1042,16 +1092,8 @@ impl<'p, 'a> Vc<'p, 'a> {
         self.cur_func = Some(f);
         self.inferred.clear();
         self.loop_recs.clear();
-        let r = self.verify_fn_inner(f);
-        self.smt.send("(pop 1)\n");
-        FnReport {
-            name: format!("{}.{}", self.c.name, f.name),
-            checks: self.checks,
-            fails: std::mem::take(&mut self.fails),
-            unsupported: r.err(),
-            warnings: std::mem::take(&mut self.warnings),
-            inferred: std::mem::take(&mut self.inferred),
-        }
+        self.failed_goals.clear();
+        at
     }
 
     fn init_env(&mut self, ctor: bool) -> R<()> {
